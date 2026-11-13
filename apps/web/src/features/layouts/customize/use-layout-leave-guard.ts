@@ -9,7 +9,7 @@
  */
 import type { Route } from 'next';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useLeaveGuard } from '@/lib/navigation/use-leave-guard';
 
@@ -65,6 +65,19 @@ export function useLayoutLeaveGuard({ customizing, dirty, saving, exit }: Layout
   // The person is going somewhere: the entry goes with that move, so nothing drops it or asks again
   const leaving = useRef(false);
 
+  /*
+   * Where the guard entry is: the `history.length` when it was pushed or came back as the current entry, null
+   * when it is gone. It is the top entry while the length is still that one, since an entry pushed above it
+   * (a filter that keeps its history) makes the stack longer. The marker in `history.state` cannot say this: any
+   * `replaceState` (the router's, nuqs, `router.refresh()`) rewrites the state and the marker goes with it.
+   */
+  const entryAt = useRef<number | null>(null);
+  const entryOnTop = (): boolean => entryAt.current !== null && entryAt.current === window.history.length;
+  const pushEntry = useCallback((): void => {
+    pushGuardEntry();
+    entryAt.current = window.history.length;
+  }, []);
+
   const wasDirty = useRef(false);
   useEffect(() => {
     if (dirty === wasDirty.current) return;
@@ -72,32 +85,37 @@ export function useLayoutLeaveGuard({ customizing, dirty, saving, exit }: Layout
     if (dirty) {
       leaving.current = false;
       // A drop under way is answered by its `popstate`, which pushes the entry again
-      if (!dropping.current) pushGuardEntry();
-    } else if (!leaving.current && isGuardEntry(window.history.state)) {
+      if (!dropping.current) pushEntry();
+    } else if (!leaving.current && entryOnTop()) {
       // Saved or cancelled: the entry is only dropped while it is still the top one
       dropping.current = true;
+      entryAt.current = null;
       window.history.back();
     }
-  }, [dirty]);
+  }, [dirty, pushEntry]);
 
   useEffect(() => {
     const onPopState = (): void => {
       if (dropping.current) {
         dropping.current = false;
-        if (live.current.dirty) pushGuardEntry();
+        if (live.current.dirty) pushEntry();
         return;
       }
+      if (leaving.current || !live.current.dirty) return;
       // The guard entry itself became current again (Back from an entry above it): nothing is left
-      if (leaving.current || !live.current.dirty || isGuardEntry(window.history.state)) return;
+      if (isGuardEntry(window.history.state)) {
+        entryAt.current = window.history.length;
+        return;
+      }
       // Back or Forward reached an earlier entry: the one that was used up is pushed again and the question asked
-      pushGuardEntry();
+      pushEntry();
       setPressedBack(true);
     };
     window.addEventListener('popstate', onPopState);
     return () => {
       window.removeEventListener('popstate', onPopState);
     };
-  }, []);
+  }, [pushEntry]);
 
   // A navigation without changes ends the mode. A search only change is not one: the filter bar stays usable
   const lastPath = useRef(pathname);
@@ -131,7 +149,7 @@ export function useLayoutLeaveGuard({ customizing, dirty, saving, exit }: Layout
     if (target === null) return;
     leaving.current = true;
     // The guard entry takes the place of the page asked for, so Back from there goes one page back
-    const own = isGuardEntry(window.history.state);
+    const own = entryOnTop();
     stay();
     exit();
     if (own) router.replace(target);

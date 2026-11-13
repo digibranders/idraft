@@ -162,6 +162,80 @@ describe('the history entry', () => {
     expect(back).not.toHaveBeenCalled();
   });
 
+  /*
+   * Anything that calls `replaceState` rewrites the state of the guard entry and the marker goes with it: the
+   * router's own (it keeps only its two fields), a filter that writes the address (nuqs passes null), a
+   * `router.replace` of the search and `router.refresh()`. The entry is still the top one.
+   */
+  describe.each([
+    ['a state of null (nuqs)', null, '/?q=1'],
+    ['the router state only (router.refresh)', { __NA: true }, '/'],
+    ['the router state and a new search (router.replace)', { __NA: true }, '/?f=1'],
+  ])('after a replaceState with %s', (_name, state, url) => {
+    const replaced = async (): Promise<ProvidedRender> => {
+      const view = await dirty();
+      window.history.replaceState(state, '', url);
+      return view;
+    };
+
+    it('Save still drops the entry once', async () => {
+      const { user } = await replaced();
+      await user.click(inScreen('Save now'));
+      await waitFor(() => {
+        expect(stateOf()).toBe('view 0');
+      });
+      expect(back).toHaveBeenCalledTimes(1);
+    });
+
+    it('Cancel still drops the entry once', async () => {
+      const { user } = await replaced();
+      await user.click(inScreen('Leave'));
+      await user.click(await screen.findByRole('button', { name: 'Discard changes' }));
+      await waitFor(() => {
+        expect(stateOf()).toBe('view 0');
+      });
+      expect(back).toHaveBeenCalledTimes(1);
+    });
+
+    it('Discard after a link still replaces the entry with the link', async () => {
+      const { user } = await replaced();
+      await user.click(screen.getByRole('link', { name: 'Settings' }));
+      await user.click(await screen.findByRole('button', { name: 'Discard changes' }));
+      await waitFor(() => {
+        expect(stateOf()).toBe('view 0');
+      });
+      expect(router.replace).toHaveBeenCalledExactlyOnceWith(SETTINGS);
+      expect(router.push).not.toHaveBeenCalled();
+    });
+  });
+
+  it('a link Discard pushes when something else pushed an entry above the guard entry', async () => {
+    const { user } = await dirty();
+    window.history.pushState({ entry: 'filtered' }, '');
+    await user.click(screen.getByRole('link', { name: 'Settings' }));
+    await user.click(await screen.findByRole('button', { name: 'Discard changes' }));
+    await waitFor(() => {
+      expect(stateOf()).toBe('view 0');
+    });
+    expect(router.push).toHaveBeenCalledExactlyOnceWith(SETTINGS);
+    expect(router.replace).not.toHaveBeenCalled();
+  });
+
+  it('is dropped when the browser lands on the guard entry again and the changes are then saved', async () => {
+    const { user } = await dirty();
+    window.history.pushState({ entry: 'filtered' }, '');
+    // Back from the filtered entry: the guard entry (its state rewritten meanwhile) is current again
+    window.history.replaceState({ idraftLayoutLeaveGuard: true }, '');
+    act(() => {
+      window.dispatchEvent(new PopStateEvent('popstate', { state: { idraftLayoutLeaveGuard: true } }));
+    });
+    await user.click(inScreen('Save now'));
+    await waitFor(() => {
+      expect(stateOf()).toBe('view 0');
+    });
+    expect(back).toHaveBeenCalledTimes(1);
+  });
+
   it('is pushed again after the browser has finished dropping it, when a change is made in between', async () => {
     const { user } = await dirty();
     inScreen('Edit').focus();
