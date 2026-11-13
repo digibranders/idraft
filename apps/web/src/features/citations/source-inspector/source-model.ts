@@ -30,6 +30,8 @@ export interface SourceIdentity {
   host: string;
   registrable: string;
   role: DomainRole;
+  /** The tracked entity the role belongs to (a competitor); `null` for a third party and for the own domain. */
+  roleEntityId: string | null;
   title: string | null;
   /** When the newest of the citations read was made. */
   lastCitedAt: string;
@@ -49,17 +51,27 @@ export function identityOf(rows: readonly CitationRow[]): SourceIdentity | null 
         host: newest.host,
         registrable: newest.registrable_domain,
         role: newest.domain_role,
+        roleEntityId: newest.role_entity_id,
         title: newest.title,
         lastCitedAt: newest.observed_at,
       };
 }
 
 /**
- * The row of the page among the pages of its domain; `null` when it is past the 200 the read lists.
- * shortcut: a page the API reads in two roles shows its first row; split it by role when a source can have two.
+ * The row of the page among the pages of its domain; `null` when it is past the 200 the read lists. The API gives a
+ * page once for each role and entity it was cited in, so the row is the one of the role the newest citation names
+ * (the role the header shows); only when no row has it does the first row of the page stand in.
  */
-export function pageRowOf(pages: readonly SourcePageRow[], urlId: number): SourcePageRow | null {
-  return pages.find((page) => page.url_id === urlId) ?? null;
+export function pageRowOf(
+  pages: readonly SourcePageRow[],
+  identity: Pick<SourceIdentity, 'urlId' | 'role' | 'roleEntityId'>,
+): SourcePageRow | null {
+  const ofPage = pages.filter((page) => page.url_id === identity.urlId);
+  return (
+    ofPage.find((page) => page.domain_role === identity.role && page.role_entity_id === identity.roleEntityId) ??
+    ofPage[0] ??
+    null
+  );
 }
 
 /**

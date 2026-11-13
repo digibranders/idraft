@@ -85,14 +85,18 @@ export function CitationInspectorHost({
     (name: string): Route => inspectorHrefOf({ type: 'domain', id: name }),
     [inspectorHrefOf],
   );
-  // A prompt opens on the prompts page, which keeps its own scope: only the record is named
+  // A prompt or an answer opens on the prompts page, which keeps its own scope: only the record is named
+  const promptsHref = useMemo(
+    (): Route => projectPath(workspaceSlug, projectSlug, '/ai/prompts'),
+    [workspaceSlug, projectSlug],
+  );
   const promptHrefOf = useCallback(
     (promptId: string): Route =>
       withQuery(
-        projectPath(workspaceSlug, projectSlug, '/ai/prompts'),
+        promptsHref,
         new URLSearchParams({ inspect: formatInspectTarget({ type: 'prompt', id: promptId }) }).toString(),
       ),
-    [workspaceSlug, projectSlug],
+    [promptsHref],
   );
   if (target?.type !== 'domain' && target?.type !== 'source') return null;
 
@@ -115,6 +119,7 @@ export function CitationInspectorHost({
         timeZone={timeZone}
         engines={engines}
         domainHref={domainHrefOf}
+        promptsHref={promptsHref}
         positionText={places === null ? null : sourceWords('position', places)}
         navigation={navigation}
         onStep={position === null ? undefined : onStep}

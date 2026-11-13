@@ -91,9 +91,17 @@ describe('identityOf', () => {
       host: 'g2.com',
       registrable: 'g2.com',
       role: 'third_party',
+      roleEntityId: null,
       title: 'Newest title',
       lastCitedAt: '2026-11-09T10:00:00Z',
     });
+  });
+
+  it('takes the role entity from the newest citation too', () => {
+    const rows = [
+      citationOf({ observed_at: '2026-11-09T10:00:00Z', domain_role: 'competitor', role_entity_id: 'ent-rival' }),
+    ];
+    expect(identityOf(rows)).toMatchObject({ role: 'competitor', roleEntityId: 'ent-rival' });
   });
 
   it('keeps a missing title as null, never as text', () => {
@@ -106,14 +114,35 @@ describe('identityOf', () => {
 });
 
 describe('pageRowOf', () => {
+  const identity = { urlId: 7, role: 'third_party', roleEntityId: null } as const;
+
   it('finds the row by url_id', () => {
     const pages = [pageOf({ url_id: 3 }), pageOf({ url_id: 7, title: 'The one' }), pageOf({ url_id: 9 })];
-    expect(pageRowOf(pages, 7)?.title).toBe('The one');
+    expect(pageRowOf(pages, identity)?.title).toBe('The one');
   });
 
   it('gives null for a page past the 200 listed', () => {
-    expect(pageRowOf([pageOf({ url_id: 3 })], 7)).toBeNull();
-    expect(pageRowOf([], 7)).toBeNull();
+    expect(pageRowOf([pageOf({ url_id: 3 })], identity)).toBeNull();
+    expect(pageRowOf([], identity)).toBeNull();
+  });
+
+  // The API returns a page once for each role and entity it was cited in; the header names the newest citation's
+  it('prefers the row of the role and entity the newest citation names', () => {
+    const pages = [
+      pageOf({ title: 'As competitor', domain_role: 'competitor', role_entity_id: 'ent-rival', citation_units: 40 }),
+      pageOf({ title: 'As third party', domain_role: 'third_party', role_entity_id: null, citation_units: 300 }),
+      pageOf({ title: 'As other rival', domain_role: 'competitor', role_entity_id: 'ent-other', citation_units: 10 }),
+    ];
+    expect(pageRowOf(pages, identity)?.title).toBe('As third party');
+    expect(pageRowOf(pages, { urlId: 7, role: 'competitor', roleEntityId: 'ent-other' })?.title).toBe('As other rival');
+  });
+
+  it('falls back to the first row of the page when none has the role of the newest citation', () => {
+    const pages = [
+      pageOf({ title: 'First', domain_role: 'competitor', role_entity_id: 'ent-rival' }),
+      pageOf({ title: 'Second', domain_role: 'competitor', role_entity_id: 'ent-other' }),
+    ];
+    expect(pageRowOf(pages, identity)?.title).toBe('First');
   });
 });
 

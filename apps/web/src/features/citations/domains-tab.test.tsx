@@ -991,6 +991,17 @@ describe('DomainsTab and the source inspector', () => {
     await waitFor(() => expect(sourceOrders().at(-1)).toEqual(['1', '2']));
   });
 
+  it('reports a page read in two roles under an open domain once', async () => {
+    servePages([pageOf(1), pageOf(1, { domain_role: 'competitor', role_entity_id: 'ent-rival' }), pageOf(2)]);
+    const { inspect, setOrder } = inspecting();
+    const { user } = renderTab('', {}, { inspect });
+    const table = await loaded();
+    await user.click(within(table).getByRole('rowheader', { name: 'g2.com' }));
+    const sourceOrders = (): unknown[] =>
+      setOrder.mock.calls.filter(([type]) => type === 'source').map(([, ids]) => ids);
+    await waitFor(() => expect(sourceOrders().at(-1)).toEqual(['1', '2']));
+  });
+
   it('marks the open source as the current row of its domain', async () => {
     const { inspect } = inspecting({ type: 'source', id: '2' });
     const { user } = renderTab('', {}, { inspect });

@@ -41,6 +41,7 @@ vi.mock('@/components/app/chart/echart', () => ({
 const NOW = new Date('2026-11-12T12:00:00Z');
 const P = '/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai';
 const CITATIONS = mswPath(`${P}/citations`);
+const PROMPTS = mswPath('/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts');
 const PAGES = mswPath(`${P}/sources/pages`);
 const DOMAINS = mswPath(`${P}/sources/domains`);
 const SOURCE: SourceScope = { workspaceId: MOCK_WORKSPACE.workspace_id, projectId: 'p-fynix' };
@@ -179,6 +180,7 @@ function Harness(props: Partial<SourceInspectorProps> = {}): ReactElement {
           timeZone="UTC"
           engines={ENGINES}
           domainHref={(registrable) => `/digibranders/fynix/ai/citations?inspect=domain%3A${registrable}` as Route}
+          promptsHref={'/digibranders/fynix/ai/prompts' as Route}
           positionText="3 of 12"
           navigation={{
             onPrevious: () => onStep('previous'),
@@ -623,15 +625,62 @@ describe('the source inspector states', () => {
 });
 
 describe('the tabs', () => {
-  it('lists Overview now, and a tab the address asks for that is not built yet shows the Overview', async () => {
-    renderWithProviders(<Harness tab="prompts" />);
+  it('lists Overview, Prompts and Answers, and a tab the address asks for that does not exist shows the Overview', async () => {
+    renderWithProviders(<Harness tab="nonsense" />);
     const inspector = await panel();
     const tabs = within(inspector).getByRole('tablist', { name: 'Source views' });
     const listed = within(tabs).getAllByRole('tab');
-    expect(listed).toHaveLength(1);
+    expect(listed).toHaveLength(3);
     expect(listed[0]).toHaveAccessibleName('Overview');
+    expect(listed[1]).toHaveAccessibleName('Prompts');
+    expect(listed[2]).toHaveAccessibleName('Answers');
     await screen.findByTestId('echart-canvas');
     expect(within(inspector).getByRole('heading', { level: 3, name: 'Citation trend' })).toBeInTheDocument();
+  });
+
+  it('shows the prompts that cite the page on the Prompts tab', async () => {
+    server.use(
+      http.get(PROMPTS, () =>
+        HttpResponse.json({
+          data: [
+            { prompt_id: '0c1f4e7b-0000-4000-8000-000000000001', current_version: { text: 'Best CRM for startups?' } },
+          ],
+        }),
+      ),
+    );
+    renderWithProviders(<Harness tab="prompts" />);
+    const inspector = await panel();
+    expect(
+      await within(inspector).findByRole('heading', { level: 3, name: 'Prompts citing this page' }),
+    ).toBeInTheDocument();
+    expect(await within(inspector).findByRole('link', { name: 'Best CRM for startups?' })).toBeInTheDocument();
+    expect(within(inspector).queryByRole('heading', { level: 3, name: 'Citation trend' })).toBeNull();
+  });
+
+  it('shows the last answers on the Answers tab, with the evidence link', async () => {
+    renderWithProviders(<Harness tab="answers" />);
+    const inspector = await panel();
+    expect(await within(inspector).findByRole('heading', { level: 3, name: 'Last answers' })).toBeInTheDocument();
+    const link = await within(inspector).findByRole('link', {
+      name: 'Open the evidence of the answer of Nov 10, 08:00, source 2',
+    });
+    expect(link).toHaveAttribute('href', '/digibranders/fynix/ai/prompts?inspect=answer%3A1001&cite=2');
+  });
+
+  it('reads the citations of the page once however many tabs are shown', async () => {
+    const asked: URL[] = [];
+    server.events.on('request:start', ({ request }) => {
+      const url = new URL(request.url);
+      if (url.pathname.endsWith('/ai/citations')) asked.push(url);
+    });
+    const view = renderWithProviders(<Harness tab="overview" />);
+    await within(await strip()).findByText('300');
+    view.rerender(<Harness tab="prompts" />);
+    await screen.findByRole('heading', { level: 3, name: 'Prompts citing this page' });
+    view.rerender(<Harness tab="answers" />);
+    await screen.findByRole('heading', { level: 3, name: 'Last answers' });
+    expect(asked).toHaveLength(1);
+    expect(asked[0]?.searchParams.get('filter[url_id]')).toBe(String(URL_ID));
   });
 
   it('is axe clean with the chart table open', async () => {

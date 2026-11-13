@@ -15,7 +15,9 @@ import {
   type SourceFigures,
   type SourceTrend,
 } from './source-model';
+import { SourceAnswersTab } from './source-answers-tab';
 import { SourceOverview } from './source-overview';
+import { SourcePromptsTab } from './source-prompts-tab';
 import { useSourceReads, type SourceReads } from './source-reads';
 import { SourceStrip, type SourceRowState } from './source-strip';
 import { Inspector } from '@/components/app/inspector/inspector';
@@ -41,6 +43,8 @@ export interface SourceTabContext {
   timeZone: string;
   /** The engines in scope with their names, in the order the project lists them. */
   engines: readonly { code: EngineCode; label: string }[];
+  /** The prompts page of the project, where a prompt and an answer open by address. */
+  promptsHref: Route;
   /** The reads: the citations of the page are what the Prompts and Answers tabs list. */
   reads: SourceReads;
   /** How the page's row is going, its figures and its weekly trend. */
@@ -57,11 +61,7 @@ export interface SourceTab {
   render: (context: SourceTabContext) => ReactNode;
 }
 
-/**
- * The tabs, in order. Overview is first (the address leaves it out). The Prompts and Answers tabs are the next
- * task's: each is one more entry here, with its own `id` (`prompts`, `answers`) and label key already in the
- * messages, so until then an address that asks for one shows the Overview.
- */
+/** The tabs, in order. Overview is first (the address leaves it out). */
 const SOURCE_TABS: readonly SourceTab[] = [
   {
     id: 'overview',
@@ -77,6 +77,34 @@ const SOURCE_TABS: readonly SourceTab[] = [
         retry={reads.page.retry}
         retrying={reads.page.retrying}
         refetching={refetching}
+      />
+    ),
+  },
+  {
+    id: 'prompts',
+    label: (t) => t('tabPrompts'),
+    render: ({ source, timeZone, engines, promptsHref, reads, refetching }) => (
+      <SourcePromptsTab
+        source={source}
+        citations={reads.citations}
+        refetching={refetching}
+        engines={engines}
+        timeZone={timeZone}
+        promptsHref={promptsHref}
+      />
+    ),
+  },
+  {
+    id: 'answers',
+    label: (t) => t('tabAnswers'),
+    render: ({ source, timeZone, engines, promptsHref, reads, refetching }) => (
+      <SourceAnswersTab
+        source={source}
+        citations={reads.citations}
+        refetching={refetching}
+        engines={engines}
+        timeZone={timeZone}
+        promptsHref={promptsHref}
       />
     ),
   },
@@ -97,6 +125,8 @@ export interface SourceInspectorProps {
   engines: readonly { code: EngineCode; label: string }[];
   /** The domain inspector of the page's domain, as a real link. */
   domainHref: (registrable: string) => Route;
+  /** The prompts page of the project: the Prompts and Answers tabs link to its inspectors (a feature never imports another). */
+  promptsHref: Route;
   /** "3 of 12"; `null` when the page is not in the list on screen. */
   positionText: string | null;
   navigation: InspectorNavigation | null;
@@ -111,7 +141,7 @@ export interface SourceInspectorProps {
  * The inspector of one cited page (DS 23 4.2, WB-SRC-01; 400 px): the header names the page by its title (as text)
  * with its host, the role its domain was cited in and when it was first and last cited; the strip above the tabs
  * says its units, share, answers, prompts and engines; the Overview tab has the weekly trend (all engines together,
- * and labelled so) and the per engine table. A page no answer in scope cites says so and draws no figure. The page
+ * and labelled so) and the per engine table; the Prompts and Answers tabs list the page's own citations (one read). A page no answer in scope cites says so and draws no figure. The page
  * is read twice (its citations, then the pages of its domain, plan F10): the header stands on the first, so a page
  * past the 200 listed keeps its header and says its totals are not known. A window that changes keeps the last
  * figures on screen, marked busy; another page never shows the last one's.
@@ -123,6 +153,7 @@ export function SourceInspector({
   timeZone,
   engines,
   domainHref,
+  promptsHref,
   positionText,
   navigation,
   onStep,
@@ -140,7 +171,7 @@ export function SourceInspector({
   const cited = identity !== null;
   const pages = page.data;
   const row = useMemo(
-    () => (identity === null || pages === undefined ? null : pageRowOf(pages.data, identity.urlId)),
+    () => (identity === null || pages === undefined ? null : pageRowOf(pages.data, identity)),
     [identity, pages],
   );
   const rowState: SourceRowState =
@@ -234,6 +265,7 @@ export function SourceInspector({
       filters,
       timeZone,
       engines,
+      promptsHref,
       reads,
       rowState,
       figures,
