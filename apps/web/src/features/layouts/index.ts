@@ -22,6 +22,11 @@ export { CustomizingBadge } from './customize/customizing-badge';
 export { LayoutSaveBar } from './save-bar/layout-save-bar';
 export type { LayoutSaveBarProps } from './save-bar/layout-save-bar';
 
+// Presets: built-in layouts a page offers in the Start from menu of the save bar
+export { definePresets, presetItems } from './presets/presets';
+export type { LayoutPreset } from './presets/presets';
+export { StartFromMenu } from './presets/start-from-menu';
+
 // The card catalog, opened by the Add card slot of the customizable grid
 export { CardCatalogDialog } from './catalog/card-catalog-dialog';
 export type { CardCatalogDialogProps } from './catalog/card-catalog-dialog';

@@ -23,6 +23,7 @@ import {
 
 import { CardCatalogDialog } from '../catalog/card-catalog-dialog';
 import { useLayoutScreen } from '../layout-provider';
+import type { LayoutPreset } from '../presets/presets';
 import { MEDIUM_MEDIA } from '../use-breakpoint';
 import { useLayoutLeaveGuard } from './use-layout-leave-guard';
 import { DiscardChangesDialog } from '@/components/ui/alert-dialog';
@@ -79,6 +80,8 @@ export interface CustomizeContextValue {
    * goes to the card's handle.
    */
   hideWithUndo(id: string): void;
+  /** The presets the page gave the Start from menu (T9); none for a page that has none. */
+  presets: readonly LayoutPreset[];
 }
 
 /** The personal layout or the team default: what "Keep mine" writes again. */
@@ -128,11 +131,19 @@ function firstTarget(root: HTMLElement | null): HTMLElement | null {
 
 export interface CustomizeControllerProps {
   workspaceName: string;
+  presets?: readonly LayoutPreset[];
   children: ReactNode;
 }
 
+/** One list for every screen that gives no presets, so the context value does not change with each render. */
+const NO_PRESETS: readonly LayoutPreset[] = [];
+
 /** Inside a `LayoutProvider`. */
-export function CustomizeController({ workspaceName, children }: CustomizeControllerProps): ReactElement {
+export function CustomizeController({
+  workspaceName,
+  presets = NO_PRESETS,
+  children,
+}: CustomizeControllerProps): ReactElement {
   const t = useTranslations('layouts.customize.mode');
   const tCard = useTranslations('layouts.customize.card');
   const { mode, document: layout, dirty, saving, canCustomize, actions } = useLayoutScreen();
@@ -364,9 +375,11 @@ export function CustomizeController({ workspaceName, children }: CustomizeContro
       dismissConflict,
       resolveConflict,
       hideWithUndo,
+      presets,
     }),
     [
       workspaceName,
+      presets,
       enter,
       requestExit,
       registerEntry,

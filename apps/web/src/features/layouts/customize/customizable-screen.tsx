@@ -6,6 +6,7 @@ import { CardBoundary } from '../cards/card-boundary';
 import { UnavailableCard } from '../cards/unavailable-card';
 import { LayoutGrid, type LayoutGridProps } from '../layout-grid';
 import { LayoutProvider, type LayoutProviderProps } from '../layout-provider';
+import type { LayoutPreset } from '../presets/presets';
 import { LayoutSaveBar } from '../save-bar/layout-save-bar';
 import { CustomizeButton } from './customize-button';
 import { CustomizeController, useCustomize } from './customize-controller';
@@ -16,6 +17,8 @@ export interface CustomizableScreenProps extends LayoutProviderProps {
   workspaceName: string;
   /** `end`: the save bar closes the screen. `none`: it is somewhere else (the footer of a drawer). */
   saveBar?: 'end' | 'none';
+  /** What the Start from menu offers besides the built-in layout and the team default; see `definePresets`. */
+  presets?: readonly LayoutPreset[];
 }
 
 /** The box the keys and the focus rules work inside: header, numbers, cards and the save bar. */
@@ -69,12 +72,13 @@ export function CustomizableGrid({ label, columns }: Pick<LayoutGridProps, 'labe
 export function CustomizableScreen({
   workspaceName,
   saveBar = 'end',
+  presets,
   children,
   ...provider
 }: CustomizableScreenProps): ReactElement {
   return (
     <LayoutProvider {...provider}>
-      <CustomizeController workspaceName={workspaceName}>
+      <CustomizeController workspaceName={workspaceName} {...(presets === undefined ? {} : { presets })}>
         <ScreenRoot saveBar={saveBar}>{children}</ScreenRoot>
       </CustomizeController>
     </LayoutProvider>

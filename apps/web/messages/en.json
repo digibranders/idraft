@@ -4499,6 +4499,7 @@
         "numberMoved": "{number}, position {position, number} of {total, number}",
         "duplicated": "{card} duplicated, position {position, number} of {total, number}",
         "reset": "Layout reset to the default. Save to keep it.",
+        "preset": "{preset} applied. Save to keep it.",
         "teamSet": "Team default set"
       },
       "saveBar": {
@@ -4537,6 +4538,11 @@
         "keepMine": "Keep mine",
         "loadOther": "Load the other version",
         "close": "Close"
+      },
+      "presets": {
+        "startFrom": "Start from",
+        "builtin": "Built-in default",
+        "team": "Team default"
       }
     },
     "core": {

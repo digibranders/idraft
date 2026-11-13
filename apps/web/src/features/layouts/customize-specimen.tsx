@@ -9,6 +9,7 @@ import { CustomizingBadge } from './customize/customizing-badge';
 import { GALLERY_CARDS } from './live-fixtures';
 import { NumberStrip } from './numbers/number-strip';
 import { specimenValueOf } from './numbers/number-strip-specimen-values';
+import { definePresets } from './presets/presets';
 import { defineCards, type CardRegistry } from './registry';
 import { useLayoutCapabilities } from './use-layout-capabilities';
 import { PageHeader } from '@/components/app/shell/page-header';
@@ -27,8 +28,10 @@ import { meQuery } from '@/lib/session/me-query';
  */
 const COPY = {
   title: 'Customize mode, live',
-  note: 'WP-16. The real customize UI on the mock API: the Customize button and badge in the page header, Escape, the question before changes are lost, Undo and Redo with Ctrl or Cmd Z. A saved layout is kept in a cookie of the mock, so a reload keeps it. A project with AI tracking off shows placeholders for the AI cards. The SERP features card fails its first load: add it, save, and Retry in view mode loads it. Hide offers Undo in a toast, and More has Duplicate.',
+  note: 'WP-16. The real customize UI on the mock API: the Customize button and badge in the page header, Escape, the question before changes are lost, Undo and Redo with Ctrl or Cmd Z. A saved layout is kept in a cookie of the mock, so a reload keeps it. A project with AI tracking off shows placeholders for the AI cards. The SERP features card fails its first load: add it, save, and Retry in view mode loads it. Hide offers Undo in a toast, and More has Duplicate. Start from in the save bar applies the built-in layout, the team default, or one of two fixture presets to the draft; nothing is stored until Save.',
   project: 'Project',
+  presetExecutive: 'Executive summary',
+  presetSeo: 'SEO focus',
   pageTitle: 'Overview',
   grid: 'Customizable overview cards',
   numbers: 'Overview numbers',
@@ -66,6 +69,52 @@ const CUSTOMIZE_CARDS: CardRegistry = {
   }),
 };
 
+/**
+ * Two presets of the overview for the Start from menu. Their cards are half or full width, which are 6 and 12 of
+ * 12 columns at 1280 and at 768 px, so every row is full there and applying one leaves no part empty row.
+ * Fixtures: the real overview's presets are WP-33's.
+ */
+const PRESETS = definePresets('overview', [
+  {
+    id: 'executive',
+    label: COPY.presetExecutive,
+    document: {
+      schema: 1,
+      numbers: [
+        { id: 'visibility', metric: 'seo.visibility_volume' },
+        { id: 'aio-citation', metric: 'seo.aio_citation_rate' },
+        { id: 'mention-chatgpt', metric: 'ai.mention_rate', engine: 'chatgpt_web' },
+      ],
+      cards: [
+        { id: 'trend', type: 'trend.visibility_mentions', width: 'full' },
+        { id: 'matrix', type: 'cross.matrix_summary', width: 'half' },
+        { id: 'opportunities', type: 'cross.opportunities', width: 'half', options: { rows: '5' } },
+        { id: 'ai-by-engine', type: 'ai.by_engine', width: 'half' },
+        { id: 'competitors', type: 'competitors.summary', width: 'half' },
+        { id: 'key-changes', type: 'activity.key_changes', width: 'full', options: { rows: '5' } },
+      ],
+    },
+  },
+  {
+    id: 'seo',
+    label: COPY.presetSeo,
+    document: {
+      schema: 1,
+      numbers: [
+        { id: 'visibility', metric: 'seo.visibility_volume' },
+        { id: 'top10', metric: 'seo.top10_count' },
+      ],
+      cards: [
+        { id: 'ranks', type: 'seo.rank_distribution', width: 'half' },
+        { id: 'movers', type: 'seo.top_movers', width: 'half', options: { direction: 'all', rows: '5' } },
+        { id: 'share', type: 'competitors.share_of_voice', width: 'half', options: { channel: 'seo' } },
+        { id: 'status', type: 'activity.collection_status', width: 'half' },
+        { id: 'key-changes', type: 'activity.key_changes', width: 'full', options: { rows: '8' } },
+      ],
+    },
+  },
+]);
+
 function Group({ title, note, children }: { title: string; note: string; children: ReactNode }): ReactElement {
   return (
     <section className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4">
@@ -94,6 +143,7 @@ function ProjectScreen({ membership, projectId }: ProjectScreenProps): ReactElem
       workspaceName={membership.workspace.name}
       capabilities={capabilities}
       registry={CUSTOMIZE_CARDS}
+      presets={PRESETS}
     >
       <PageHeader title={COPY.pageTitle} titleAddon={<CustomizingBadge />} actions={<CustomizeButton />} />
       <NumberStrip label={COPY.numbers} valueOf={specimenValueOf} status="ready" />

@@ -70,6 +70,23 @@ describe('the customize specimen', () => {
     expect(button).toHaveAttribute('aria-pressed', 'true');
   });
 
+  it('offers the two fixture presets in the Start from menu', async () => {
+    document.cookie = `${SESSION_COOKIE}=mock.active.${mockUser('admin').user_id}.${String(Date.now() + 600_000)}; Path=/; Secure`;
+    const { user } = renderWithProviders(<LayoutsCustomizeLive />);
+    const button = await screen.findByRole('button', { name: 'Customize' });
+    await waitFor(() => {
+      expect(button).not.toHaveAttribute('aria-disabled', 'true');
+    });
+    await user.click(button);
+    await user.click(await screen.findByRole('button', { name: 'Start from' }));
+    const menu = await screen.findByRole('menu');
+    expect(
+      within(menu)
+        .getAllByRole('menuitem')
+        .map((item) => item.textContent),
+    ).toEqual(['Built-in default', 'Executive summary', 'SEO focus']);
+  });
+
   it('shows the save bar while Customize is on and takes it away when the mode ends', async () => {
     document.cookie = `${SESSION_COOKIE}=mock.active.${mockUser('admin').user_id}.${String(Date.now() + 600_000)}; Path=/; Secure`;
     const { user } = renderWithProviders(<LayoutsCustomizeLive />);

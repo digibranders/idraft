@@ -6,6 +6,7 @@ import { useId, useLayoutEffect, useRef, type ReactElement, type RefObject } fro
 
 import { useCustomize } from '../customize/customize-controller';
 import { useLayoutScreen } from '../layout-provider';
+import { StartFromMenu } from '../presets/start-from-menu';
 import { LayoutConflictDialog } from './conflict-dialog';
 import { TeamDefaultMenu } from './team-default-menu';
 import { Button } from '@/components/ui/button';
@@ -149,6 +150,7 @@ export function LayoutSaveBar({ variant = 'page' }: LayoutSaveBarProps): ReactEl
       </span>
       {/* A narrowed window (customize mode starts at 768 px) may not fit the actions, the team menu included */}
       <span className="ml-auto flex shrink-0 items-center justify-end gap-2 max-md:max-w-full max-md:flex-wrap">
+        <StartFromMenu />
         <Button
           variant="ghost"
           disabled={saving || sameLayout(document, defaultDocument)}

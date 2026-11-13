@@ -275,6 +275,8 @@ export interface UnderTestProps {
   workspaceRole?: Role;
   /** The cards that have code; none by default, so every card says it is not available yet. */
   registry?: CardRegistry;
+  /** The presets of the page, for the Start from menu; none by default. */
+  presets?: ComponentProps<typeof CustomizableScreen>['presets'];
 }
 
 /** One customizable screen: its header with the button and the badge, the test's controls, and the cards. */
@@ -289,6 +291,7 @@ export function ScreenUnderTest({
   saveBar,
   workspaceRole = 'admin',
   registry,
+  presets,
 }: UnderTestProps): ReactElement {
   return (
     <PermissionProvider membership={membershipFactory(workspaceRole)}>
@@ -300,6 +303,7 @@ export function ScreenUnderTest({
           capabilities={capabilities}
           registry={registry ?? defineCards({})}
           {...(saveBar === undefined ? {} : { saveBar })}
+          {...(presets === undefined ? {} : { presets })}
         >
           <header>
             <CustomizingBadge />
