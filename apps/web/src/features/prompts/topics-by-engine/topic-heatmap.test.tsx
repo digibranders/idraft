@@ -97,7 +97,7 @@ describe('TopicHeatmap: the topics by engine as a heat map (CH-04)', () => {
     const { unmount } = renderWithProviders(<TopicHeatmap {...props()} />);
     const grid = await screen.findByRole('treegrid');
     expect(within(grid).getByRole('columnheader', { name: 'avg of 2' })).toBeInTheDocument();
-    const average = within(grid).getByRole('gridcell', { name: /^SEO avg of 2: 56%/ });
+    const average = within(grid).getByRole('gridcell', { name: /^SEO, avg of 2: 56%/ });
     expect(average).toHaveTextContent('56%');
     expect(average.getAttribute('aria-label')).toContain(
       'Equal weight average of ChatGPT and Gemini, each engine counting once.',
@@ -108,6 +108,28 @@ describe('TopicHeatmap: the topics by engine as a heat map (CH-04)', () => {
     renderWithProviders(<TopicHeatmap {...props({ engines: [chatgpt] })} />);
     const single = await screen.findByRole('treegrid');
     expect(within(single).queryByRole('columnheader', { name: /^avg of/ })).toBeNull();
+  });
+
+  it('never says avg of 0: a row with one engine says one engine, a row with none says there is no average', async () => {
+    const heads = [
+      head('lone', 'Lone', { engines: [engine('chatgpt_web', { mentioned: weighted(3, 8, 2) })] }),
+      head('thin', 'Thin', { engines: [engine('chatgpt_web', { mentioned: weighted(2, 3, 2) })] }),
+      head('empty', 'Empty'),
+    ];
+    renderWithProviders(<TopicHeatmap {...props({ heads })} />);
+    // No row has topics under it, so the grid is a plain grid
+    const grid = await screen.findByRole('grid');
+    const lone = within(grid).getByRole('gridcell', {
+      name: /^Lone, 1 engine: 38%, ChatGPT 3 of 8 answers\. ChatGPT only/,
+    });
+    expect(lone).toHaveTextContent('38%');
+    expect(
+      within(grid).getByRole('gridcell', { name: /^Thin, average of the engines: 3 answers, fewer than 4/ }),
+    ).toHaveTextContent('3 ans');
+    expect(
+      within(grid).getByRole('gridcell', { name: /^Empty, average of the engines: No answers/ }),
+    ).toHaveTextContent('n/a');
+    expect(within(grid).queryByLabelText(/avg of 0/)).toBeNull();
   });
 
   it('a cell links to the drawer on Prompts with that engine and keeps the filters', async () => {

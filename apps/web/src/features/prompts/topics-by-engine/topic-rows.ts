@@ -51,12 +51,14 @@ export function topicHeads({
 }: TopicHeadsArgs): TopicHead[] {
   if (summary === undefined) return [];
   const query = (search ?? '').trim().toLocaleLowerCase(locale);
+  // The tree writes a topic's path ("SEO / Technical SEO") as it writes it everywhere else
+  const pathOf = new Map(tree.map((term) => [term.termId, term.path]));
   const headOf = (topic: TopicSummaryRow, parent: TopicHead | null): TopicHead => {
     const name = topic.name ?? noTopicName;
     return {
       key: topic.term_id ?? NO_TOPIC,
       name,
-      path: parent === null ? name : `${parent.path} / ${name}`,
+      path: (topic.term_id === null ? undefined : pathOf.get(topic.term_id)) ?? name,
       parent: parent === null ? null : parent.name,
       promptCount: topic.prompt_count,
       engines: topic.engines,

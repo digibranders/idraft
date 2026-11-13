@@ -31,6 +31,31 @@ describe('the topic order store', () => {
     expect(seen).toEqual([['seo'], null]);
   });
 
+  it('does not notify when the order set is the order held', () => {
+    let notified = 0;
+    const stop = subscribeTopicOrder(() => (notified += 1));
+    setTopicOrder('project-a', ['seo', 'ppc']);
+    // A new array of the same keys in the same order is the same order
+    setTopicOrder('project-a', ['seo', 'ppc']);
+    expect(notified).toBe(1);
+    setTopicOrder('project-a', ['ppc', 'seo']);
+    expect(notified).toBe(2);
+    setTopicOrder('project-a', ['ppc']);
+    expect(notified).toBe(3);
+    setTopicOrder('project-a', null);
+    setTopicOrder('project-a', null);
+    stop();
+    expect(notified).toBe(4);
+    expect(getTopicOrder('project-a')).toBeNull();
+  });
+
+  it('keeps the array it was first given when an equal one comes', () => {
+    const first = ['seo'];
+    setTopicOrder('project-a', first);
+    setTopicOrder('project-a', ['seo']);
+    expect(getTopicOrder('project-a')).toBe(first);
+  });
+
   it('has no order for a project that was never set', () => {
     expect(getTopicOrder('project-a')).toBeNull();
   });

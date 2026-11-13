@@ -433,6 +433,100 @@ describe('the Topics tab: the heat map, the export and the phone list', () => {
       expect(text).toContain('Paid Search');
     });
 
+    /** Topic rows given by name, prompt count and mentions of 4 answers, each a top level topic of the mock vocabulary. */
+    function answerWith(
+      rows: readonly (readonly [termId: string, name: string, promptCount: number, mentioned: number])[],
+    ) {
+      const counted = (mentioned: number): Counts => ({ ...NO_COUNTS, n_valid: 4, n_observations: 4, mentioned });
+      server.use(
+        http.get(SUMMARY_PATH, () =>
+          HttpResponse.json({
+            data: {
+              window: { from: '2026-10-16', to: '2026-11-12', timezone: 'Europe/Berlin' },
+              include_branded: false,
+              engine_codes: ['chatgpt_web'],
+              entities: [],
+              entity_config_versions: [],
+              prompts: [],
+              topics: rows.map(([termId, name, promptCount, mentioned]) => ({
+                term_id: termId,
+                name,
+                prompt_count: promptCount,
+                engines: [topicCells('chatgpt_web', [counted(mentioned), counted(mentioned)])],
+              })),
+            },
+          }),
+        ),
+      );
+    }
+    const exportedNames = async (): Promise<string[]> => {
+      const [blob] = blobs;
+      if (blob === undefined) throw new Error('No file was made');
+      return (await blob.text())
+        .split('\r\n')
+        .slice(1)
+        .filter((line) => line !== '')
+        .map((line) => line.split(',')[0] ?? '');
+    };
+
+    it('writes the topics in the order of the API, the most prompts first, and not in the order of the rates', async () => {
+      // The rates run the other way: SEO is best and holds the fewest prompts
+      answerWith([
+        [MOCK_TERM_IDS.seo, 'SEO', 1, 4],
+        [MOCK_TERM_IDS.contentMarketing, 'Content Marketing', 9, 1],
+        [MOCK_TERM_IDS.paidSearch, 'Paid Search', 5, 2],
+      ]);
+      const { user } = renderOn('?view=engines');
+      const table = await treegrid();
+      await within(table).findByRole('button', { name: 'Open the topic Content Marketing' });
+      await user.click(screen.getByRole('button', { name: 'Export by engine' }));
+      await screen.findByText(/^\d+ topics exported$/);
+      expect(await exportedNames()).toEqual(['Content Marketing', 'Paid Search', 'SEO']);
+    });
+
+    it('narrows the file as the table is narrowed: by the search', async () => {
+      answerWith([
+        [MOCK_TERM_IDS.seo, 'SEO', 1, 4],
+        [MOCK_TERM_IDS.contentMarketing, 'Content Marketing', 9, 1],
+      ]);
+      const { user } = renderOn('?view=engines&q=content');
+      const table = await treegrid();
+      await within(table).findByRole('button', { name: 'Open the topic Content Marketing' });
+      await user.click(screen.getByRole('button', { name: 'Export by engine' }));
+      expect(await screen.findByText('1 topic exported')).toBeInTheDocument();
+      expect(await exportedNames()).toEqual(['Content Marketing']);
+    });
+
+    it('is off while the topics load, so there is no misleading "No topic to export"', async () => {
+      let release: () => void = () => undefined;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      server.use(
+        http.get(SUMMARY_PATH, async ({ request }) => {
+          if (new URL(request.url).searchParams.get('rows') !== 'topics') await gate;
+          return undefined;
+        }),
+      );
+      renderOn('?view=engines');
+      expect(await screen.findByRole('button', { name: 'Export by engine' })).toBeDisabled();
+      release();
+      const table = await treegrid();
+      await within(table).findByRole('button', { name: 'Open the topic Paid Search' });
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Export by engine' })).toBeEnabled());
+    });
+
+    it('is off when the topics could not be read', async () => {
+      server.use(
+        http.get(SUMMARY_PATH, () =>
+          HttpResponse.json({ status: 500, code: 'internal_error', title: 'Failed' }, { status: 500 }),
+        ),
+      );
+      renderOn('?view=engines');
+      expect(await screen.findByRole('button', { name: 'Export by engine' })).toBeDisabled();
+      expect(screen.queryByText('No topic to export')).toBeNull();
+    });
+
     it('is only in the By engine view', async () => {
       renderOn('');
       await treegrid();

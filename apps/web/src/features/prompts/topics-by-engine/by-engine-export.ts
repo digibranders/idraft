@@ -1,4 +1,4 @@
-import { bestWorst, engineGapOf, engineValue } from './engine-values';
+import { bestEngine, engineGapOf, engineValue } from './engine-values';
 import type { TopicHead } from './topic-rows';
 import { CELL_OF_METRIC, type DateRange, type RateMetric } from '@/features/prompts/prompt-model';
 import type { ProjectEngine } from '@/lib/api/types';
@@ -58,7 +58,7 @@ export function buildByEngineExport(
   const rows = topics.map((head): CsvCell[] => {
     const values = engines.map(({ engine }) => engineValue(head.engines, engine.engine_code, key));
     const gap = engineGapOf(values);
-    const best = bestWorst(values)?.best ?? null;
+    const best = bestEngine(values);
     const bestLabel =
       best === null ? undefined : engines.find(({ engine }) => engine.engine_code === best.code)?.engine.label;
     return [

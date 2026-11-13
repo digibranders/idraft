@@ -49,6 +49,25 @@ describe('topicListLines: the second line of a topic on a phone', () => {
     expect(lines.engines).toBe(2);
   });
 
+  it('takes rates that differ by float noise as a tie, which goes to the engine shown first', () => {
+    // 0.1 + 0.2 is 0.30000000000000004: the same 30 percent for every reader
+    const noisy = { ...weighted(3, 10, 2), value: 0.1 + 0.2 };
+    const lines = topicListLines(
+      head('n', 'Noisy', {
+        engines: [engine('chatgpt_web', { mentioned: weighted(3, 10, 2) }), engine('gemini_web', { mentioned: noisy })],
+      }),
+      ENGINES,
+    );
+    expect(lines.best?.code).toBe('chatgpt_web');
+    const flipped = topicListLines(
+      head('n', 'Noisy', {
+        engines: [engine('chatgpt_web', { mentioned: noisy }), engine('gemini_web', { mentioned: weighted(3, 10, 2) })],
+      }),
+      ENGINES,
+    );
+    expect(flipped.best?.code).toBe('chatgpt_web');
+  });
+
   it('gives a tie to the engine shown first', () => {
     const lines = topicListLines(
       head('t', 'Tied', {

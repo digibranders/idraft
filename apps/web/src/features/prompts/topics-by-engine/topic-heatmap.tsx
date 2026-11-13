@@ -59,6 +59,8 @@ interface Words {
   rateTip: RateTipWords;
   answers: (count: number) => string;
   basis: (successes: number, answers: number) => string;
+  /** A percent with its answers and, for a topic, its prompts, in words. */
+  share: (value: string, answers: string, prompts: string | null) => string;
 }
 
 /**
@@ -82,13 +84,11 @@ function cellBody(value: EngineValue, counted: boolean, words: Words): string {
       words.rateTip,
     );
   }
-  return [
-    value.value === null ? null : words.rateTip.value(value.value),
+  return words.share(
+    value.value === null ? EMPTY_VALUE : words.rateTip.value(value.value),
     words.answers(value.answers),
     value.prompts === null ? null : words.rateTip.prompts(value.prompts),
-  ]
-    .filter((part): part is string => part !== null)
-    .join(', ');
+  );
 }
 
 /** The rows as the CSV takes them: plain names, and each cell's tip with its counts. */
@@ -163,6 +163,10 @@ export function TopicHeatmap({
       rateTip,
       answers: (count) => prompts('rate.basisAnswers', { answers: count }),
       basis: (successes, answers) => prompts('rate.basis', { successes, answers }),
+      share: (value, answers, weighted) =>
+        weighted === null
+          ? t('cellShare', { value, answers })
+          : t('cellShareWithPrompts', { value, answers, prompts: weighted }),
     };
     const percent = (value: number | null): string =>
       value === null ? EMPTY_VALUE : formatPercent(value, { decimals: 0 });
@@ -179,11 +183,17 @@ export function TopicHeatmap({
       };
     };
     const averageCell = (head: TopicHead, average: AverageRate, values: readonly EngineValue[]): HeatCell => {
-      const subject = `${head.name} ${prompts('rate.avgLabel', { count: average.engines })}`;
       const base = { value: average.value, answers: average.answers, state: average.state };
-      if (average.state === 'none') return { ...base, text: '', tip: `${subject}: ${rateTip.noAnswers}` };
+      // Without a rate there is no average to count the engines of: the name does not carry "avg of 0"
+      if (average.state === 'none') {
+        return { ...base, text: '', tip: t('averageLinkNone', { topic: head.name, value: rateTip.noAnswers }) };
+      }
       if (average.state === 'insufficient') {
-        return { ...base, text: '', tip: `${subject}: ${rateTip.thin(average.answers)}` };
+        return {
+          ...base,
+          text: '',
+          tip: t('averageLinkNone', { topic: head.name, value: rateTip.thin(average.answers) }),
+        };
       }
       // The count of each engine that counts: a pooled count beside an equal weight percent would read as another rate
       const counting = values.filter((value) => value.state === 'ok');
@@ -203,10 +213,19 @@ export function TopicHeatmap({
         counting.map((value) => labelOf(value.code)),
         locale,
       );
+      // One engine is not an average of engines: it is said as the engine alone, as the table's columns say it
+      const note =
+        counting.length === 1
+          ? prompts('rate.onlyTip', { engines: engineNames })
+          : t('averageTip', { engines: engineNames });
       return {
         ...base,
         text: percent(average.value),
-        tip: `${subject}: ${percent(average.value)}, ${counts}. ${t('averageTip', { engines: engineNames })}`,
+        tip: t('averageLink', {
+          topic: head.name,
+          average: prompts('rate.avgLabel', { count: average.engines }),
+          value: t('averageValue', { percent: percent(average.value), counts, note }),
+        }),
       };
     };
     const rowOf = (head: TopicHead): HeatRow => {

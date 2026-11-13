@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { cell, engine, weighted } from './cells-fixtures';
-import { bestWorst, engineGapOf, engineValue, type EngineValue } from './engine-values';
+import { bestEngine, bestWorst, engineGapOf, engineValue, type EngineValue } from './engine-values';
 import { MIN_OBSERVATIONS } from '@/lib/stats';
 
 const CODES = ['chatgpt_web', 'gemini_web', 'google_ai_mode'] as const;
@@ -159,5 +159,23 @@ describe('bestWorst: the engines at the two ends of a row', () => {
     const other = bestWorst([valued('a', 0.1 + 0.2), valued('b', 0.3)]);
     expect(other?.best?.code).toBe('a');
     expect(other?.worst.code).toBe('a');
+  });
+});
+
+describe('bestEngine: the one engine a row points to', () => {
+  it('names the engine with the highest rate, also when it is the only one with a rate', () => {
+    expect(bestEngine([valued('a', 0.2), valued('b', 0.5), valued('c', 0.4)])?.code).toBe('b');
+    const lone = [valued('a', 0.2), { ...valued('b', 0.5), state: 'insufficient' as const, value: null }];
+    expect(bestEngine(lone)?.code).toBe('a');
+  });
+
+  it('gives a tie to the engine shown first, rates that differ by float noise being one rate', () => {
+    expect(bestEngine([valued('a', 0.3), valued('b', 0.1 + 0.2)])?.code).toBe('a');
+    expect(bestEngine([valued('a', 0.1 + 0.2), valued('b', 0.3)])?.code).toBe('a');
+  });
+
+  it('names none when the best rate is 0, and none when no engine has a rate', () => {
+    expect(bestEngine([valued('a', 0), valued('b', 0)])).toBeNull();
+    expect(bestEngine([])).toBeNull();
   });
 });

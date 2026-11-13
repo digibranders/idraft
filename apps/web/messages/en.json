@@ -3774,7 +3774,9 @@
         "exportBest": "Best engine",
         "exportEngines": "Engines with a rate",
         "listContext": "Best on {engine} {rate}, {count, plural, one {# engine} other {# engines}}",
-        "listNone": "No engine has a rate yet"
+        "listNone": "No engine has a rate yet",
+        "listRate": "{rate} ({basis})",
+        "listAvgRate": "{metric}, {count, plural, =0 {no engine has a rate} one {1 engine} other {avg of #}}"
       },
       "heat": {
         "title": "{metric} by topic and engine",
@@ -3790,7 +3792,12 @@
         "footnote": "Topic rows overlap: a prompt in two topics counts in both. Each cell is prompt weighted. A cell over fewer than {min, number} answers shows its answers, not a rate.",
         "searchIgnored": "Search does not narrow the heat map.",
         "summary": "{metric} of {topics, plural, one {# topic} other {# topics}} on {engines, plural, one {# engine} other {# engines}}. Each cell links to the prompts behind it.",
-        "cellLink": "{topic} on {engine}: {value}"
+        "cellLink": "{topic} on {engine}: {value}",
+        "cellShare": "{value}, {answers}",
+        "cellShareWithPrompts": "{value}, {answers}, {prompts}",
+        "averageLink": "{topic}, {average}: {value}",
+        "averageLinkNone": "{topic}, average of the engines: {value}",
+        "averageValue": "{percent}, {counts}. {note}"
       },
       "pooling": {
         "sentence": "A topic point with fewer than 10 prompts answering that week shows the last 4 weeks together, clipped to the window. A prompt point always shows 4 weeks.",

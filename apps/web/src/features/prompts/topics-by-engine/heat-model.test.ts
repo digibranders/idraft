@@ -40,6 +40,15 @@ describe('heatOrder: the order of the rows of the heat map', () => {
     ]);
   });
 
+  it('puts a measured average of 0 before a topic with no average', () => {
+    const zero = topic('zero', 'Zeta', 7, [0, 8], [0, 8]);
+    const none = topic('none', 'Alpha none', 7);
+    // A measured 0 percent is a rate and an unknown average is not one: a fallback to 0 would tie them and go by name
+    expect(keys(heatOrder([none, zero], 'avg_rate', 'mentioned', CODES))).toEqual(['zero', 'none']);
+    expect(heatInput(zero, 'mentioned', CODES).average.value).toBe(0);
+    expect(heatInput(none, 'mentioned', CODES).average.value).toBeNull();
+  });
+
   it('orders by the engine gap, a topic without one last', () => {
     // Alpha 25% to 75% is a gap of 50 points, Beta and Gamma have 0 points; Delta has one engine, so no gap
     const lone = topic('lone', 'Delta', 7, [4, 8]);

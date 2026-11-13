@@ -103,7 +103,8 @@ export function TopicsMobileList({
     const average = averageOf(head);
     return {
       identity: head.path,
-      valueLabel: t('columns.mentionRate'),
+      // Spoken before the value: the average says how many engines took part, and none when no engine has a rate
+      valueLabel: view('listAvgRate', { metric: t('columns.mentionRate'), count: average.engines }),
       value:
         average.state === 'ok' && average.value !== null ? (
           percent(average.value)
@@ -124,7 +125,7 @@ export function TopicsMobileList({
       return {
         context: view('listContext', {
           engine: labelOf(best.code),
-          rate: `${percent(best.value)} (${basis})`,
+          rate: view('listRate', { rate: percent(best.value), basis }),
           count: rated,
         }),
         delta: null,

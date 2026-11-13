@@ -70,6 +70,17 @@ describe('TopicsMobileList: the Topics tab on a phone (WB-TPE-17)', () => {
     expect(ads).toHaveTextContent('Best on ChatGPT 10% (1 of 10 answers), 1 engine');
   });
 
+  it('says the first line is an average over the engines that have a rate', async () => {
+    renderWithProviders(<TopicsMobileList {...props()} />);
+    const list = await screen.findByRole('list', { name: /^Topics, 3 results/ });
+    const [seo, tech, ads] = within(list).getAllByRole('button');
+    // SEO has a rate on 2 engines, Paid Search on 1, Technical SEO on none
+    expect(seo).toHaveTextContent('Mention rate, avg of 2');
+    expect(ads).toHaveTextContent('Mention rate, 1 engine');
+    expect(tech).not.toHaveTextContent('avg of 0');
+    expect(tech).toHaveTextContent('Mention rate, no engine has a rate');
+  });
+
   it('opens the topic drawer on Overview', async () => {
     const onOpenTopic = vi.fn();
     const { user } = renderWithProviders(<TopicsMobileList {...props({ onOpenTopic })} />);

@@ -60,6 +60,12 @@ describe('topicHeads: the topic rows of the page as plain heads', () => {
     expect(child?.members?.map((member) => member.prompt_id)).toEqual(['p1']);
   });
 
+  it('takes the path of a topic from the tree, which owns the way a path is written', () => {
+    const tree = [term('seo', 'SEO'), term('tech', 'Technical SEO', 'seo', 'SEO > Technical SEO')];
+    const [seo] = topicHeads(args({ tree, descendants: topicDescendants(tree, []) }));
+    expect(seo?.children[0]?.path).toBe('SEO > Technical SEO');
+  });
+
   it('keeps only the topics a filter keeps and the topics below them', () => {
     const kept = topicsBelow(['seo'], DESCENDANTS);
     expect(names(topicHeads(args({ kept, filtering: true })))).toEqual(['SEO[Technical SEO,Local SEO]']);

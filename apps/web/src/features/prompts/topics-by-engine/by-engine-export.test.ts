@@ -79,6 +79,18 @@ describe('buildByEngineExport: the By engine view as a file', () => {
     expect(row(table, 'Technical SEO').slice(9)).toEqual([null, null, 0]);
   });
 
+  it('names the best engine as the phone line does: the only engine with a rate, and the first of a float noise tie', () => {
+    const lone = head('lone', 'Lone', { engines: [engine('gemini_web', { mentioned: weighted(3, 8, 2) })] });
+    const noisy = { ...weighted(3, 10, 2), value: 0.1 + 0.2 };
+    const tied = head('tied', 'Tied', {
+      engines: [engine('chatgpt_web', { mentioned: weighted(3, 10, 2) }), engine('gemini_web', { mentioned: noisy })],
+    });
+    const table = buildByEngineExport([lone, tied], ENGINES, 'mention', LABELS);
+    // One engine with a rate has no gap, and is the best all the same
+    expect(row(table, 'Lone').slice(9)).toEqual([null, 'Gemini', 1]);
+    expect(row(table, 'Tied').slice(9)).toEqual([0, 'ChatGPT', 2]);
+  });
+
   it('adds the change columns only when a cell has previous', () => {
     const without = buildByEngineExport([SEO], ENGINES, 'mention', LABELS);
     expect(without.header.some((name) => name.includes('change'))).toBe(false);

@@ -53,6 +53,20 @@ export function engineValue(
   };
 }
 
+/**
+ * The engine a row points to: the one with the highest rate among those that have a rate, also when it is the only one.
+ * A tie (within `SAME_RATE`) goes to the engine that comes first in `values`. `null` when no engine has a rate, and when
+ * the best rate is 0: no engine names the brand, so there is none to point to. The phone line and the export read this.
+ */
+export function bestEngine(values: readonly EngineValue[]): EngineValue | null {
+  let best: EngineValue | null = null;
+  for (const entry of values) {
+    if (entry.state !== 'ok' || entry.value === null) continue;
+    if (best === null || entry.value > (best.value ?? 0) + SAME_RATE) best = entry;
+  }
+  return best === null || (best.value ?? 0) <= SAME_RATE ? null : best;
+}
+
 export interface BestWorst {
   /** `null` when the best rate is 0: no engine names the brand, so there is no engine to point to. */
   best: EngineValue | null;

@@ -109,7 +109,9 @@ export function TopicsView({ scope, range, includeBranded, country, ...table }: 
   );
 
   const exportByEngine = (): void => {
-    const exported = heatOrder(headsFor(search), 'avg_rate', metricKey, codes);
+    // The topics in the order of the API, the most prompts first; the search and the topic filter narrow the file as they
+    // narrow the table, so it holds what the person is looking at
+    const exported = heatOrder(headsFor(search), 'prompts', metricKey, codes);
     const count = exported.reduce((sum, head) => sum + 1 + head.children.length, 0);
     if (count === 0) {
       toast({ type: 'error', title: t('exportNone') });
@@ -211,7 +213,14 @@ export function TopicsView({ scope, range, includeBranded, country, ...table }: 
             {/* The controls of this view may wrap on a phone, where the toolbar's end has little room */}
             <div className="flex min-w-0 flex-wrap items-center gap-1">
               {metricSelect}
-              <Button variant="ghost" size="sm" icon={Download} onClick={exportByEngine}>
+              {/* Off until the topics are read, and when they could not be: there is nothing yet to write */}
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={Download}
+                disabled={table.status === 'loading' || table.status === 'error'}
+                onClick={exportByEngine}
+              >
                 {/* Icon only on a phone, where the end of the toolbar also holds the switch and two icons */}
                 <span className="sr-only sm:not-sr-only">{t('exportButton')}</span>
               </Button>
