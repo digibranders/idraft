@@ -23,6 +23,7 @@ echo "$$" >"$STATE_DIR/pid"
 DISK_WARN_GB=25 DISK_CRIT_GB=15
 MEMFREE_WARN_PCT=25 MEMFREE_CRIT_PCT=12
 SWAP_WARN_MB=8192 SWAP_CRIT_MB=12288
+SWAP_MEM_WARN_PCT=50 SWAP_MEM_CRIT_PCT=40
 LOAD_WARN=14 LOAD_CRIT=22
 
 log() { printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" | tee -a "$STATE_DIR/health.log"; }
@@ -44,8 +45,10 @@ level_of() {
   elif [ "$disk_gb" -lt "$DISK_WARN_GB" ]; then level=WARN; reasons="$reasons disk free ${disk_gb} GB;"; fi
   if [ "$mem_pct" -lt "$MEMFREE_CRIT_PCT" ]; then level=CRIT; reasons="$reasons memory free ${mem_pct}%;"
   elif [ "$mem_pct" -lt "$MEMFREE_WARN_PCT" ]; then [ "$level" = OK ] && level=WARN; reasons="$reasons memory free ${mem_pct}%;"; fi
-  if [ "$swap_mb" -gt "$SWAP_CRIT_MB" ]; then level=CRIT; reasons="$reasons swap used ${swap_mb} MB;"
-  elif [ "$swap_mb" -gt "$SWAP_WARN_MB" ]; then [ "$level" = OK ] && level=WARN; reasons="$reasons swap used ${swap_mb} MB;"; fi
+  # macOS keeps old pages in swap until they are touched again, so a high swap file with plenty of free
+  # memory is not a hazard: swap only counts while free memory is also low (CRIT below SWAP_MEM_CRIT_PCT).
+  if [ "$swap_mb" -gt "$SWAP_CRIT_MB" ] && [ "$mem_pct" -lt "$SWAP_MEM_CRIT_PCT" ]; then level=CRIT; reasons="$reasons swap used ${swap_mb} MB with ${mem_pct}% memory free;"
+  elif [ "$swap_mb" -gt "$SWAP_WARN_MB" ] && [ "$mem_pct" -lt "$SWAP_MEM_WARN_PCT" ]; then [ "$level" = OK ] && level=WARN; reasons="$reasons swap used ${swap_mb} MB with ${mem_pct}% memory free;"; fi
   if [ "$load5" -gt "$LOAD_CRIT" ]; then level=CRIT; reasons="$reasons load5 ${load5};"
   elif [ "$load5" -gt "$LOAD_WARN" ]; then [ "$level" = OK ] && level=WARN; reasons="$reasons load5 ${load5};"; fi
 }
