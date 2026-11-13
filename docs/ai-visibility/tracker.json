@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T21:08:01+05:30",
+ "updated": "2026-11-13T21:11:57+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -953,7 +953,7 @@
    "title": "Topics by engine and the topic drawer (R-09, R-11 topic part)",
    "wave": "W2",
    "kind": "web",
-   "status": "building",
+   "status": "merged",
    "dependsOn": [
     "WP-05",
     "WP-06",
@@ -1016,7 +1016,7 @@
     "done": 37
    },
    "owner": "",
-   "notes": "file work-packages/WP-20-topics-by-engine.md; estimate 9 tasks; decisions D-04, D-16 | all 7 tasks, 37/37 rows proven; full capped run green before the rebase (7569 tests); rebased on WP-16 and re-running the focused checks; last 4 commits (e2e spec, layout fixes, As built, review fixes) not yet pushed (backed up on origin/ai/wp-20-topics-by-engine); then merged line"
+   "notes": "file work-packages/WP-20-topics-by-engine.md; estimate 9 tasks; decisions D-04, D-16 | merged 122cfefd; 37/37 rows proven; capped full run 7569 tests green before the last rebase, 504 files/7494 tests after; e2e last run 75/75 before the rebase (release gate runs e2e once); session stopped"
   },
   {
    "id": "WP-21",
@@ -1746,13 +1746,13 @@
    "title": "Overview aggregate routes and the competitors read",
    "wave": "W3",
    "kind": "backend",
-   "status": "not_started",
+   "status": "building",
    "dependsOn": [
     "WP-12",
     "WP-14"
    ],
-   "session": null,
-   "branch": null,
+   "session": "ai-prompts-web",
+   "branch": "ai/wp-32-overview-aggregates",
    "rows": {
     "BE": [
      "BE-METRICS-08",
@@ -3952,111 +3952,6 @@
    "until": "WP-16 merged"
   },
   {
-   "path": "apps/web/src/features/prompts/history-model.ts",
-   "wp": "WP-20",
-   "granted": "2026-11-13T14:23:53+05:30",
-   "scope": "F-14 fix (done)",
-   "until": "WP-20 merged"
-  },
-  {
-   "path": "apps/web/src/mocks/prompt-summary.ts",
-   "wp": "WP-20",
-   "granted": "2026-11-13T14:23:53+05:30",
-   "scope": "F-14 mock pooling (done)",
-   "until": "WP-20 merged"
-  },
-  {
-   "path": "apps/web/src/mocks/handlers/prompt-answers.ts",
-   "wp": "WP-20",
-   "granted": "2026-11-13T14:23:53+05:30",
-   "scope": "F-14 mock pooling (done)",
-   "until": "WP-20 merged"
-  },
-  {
-   "path": "apps/web/src/lib/api/types.ts",
-   "wp": "WP-20",
-   "granted": "2026-11-13T14:23:53+05:30",
-   "scope": "one line: PointPool export (done)",
-   "until": "WP-20 merged"
-  },
-  {
-   "path": "apps/web/messages/en.json",
-   "wp": "WP-20",
-   "granted": "2026-11-13T14:23:53+05:30",
-   "scope": "edit ONLY the History tab copy keys chartFootnote, chartSummary and weekColumn so they no longer say '4 weeks' (use the pool weeks); additive otherwise",
-   "until": "WP-20 merged"
-  },
-  {
-   "path": "apps/web/src/features/prompts/topics-table.tsx",
-   "wp": "WP-20 (Task 2)",
-   "granted": "2026-11-13T14:46:05+05:30",
-   "scope": "export TopicRow, optional props viewColumns and onTopicOrderChange, one columns line, one effect; WP-18 (not started) rebases onto it",
-   "until": "WP-20 merged"
-  },
-  {
-   "path": "apps/web/src/features/prompts/prompts-screen.tsx",
-   "wp": "WP-20 (Task 2 and Task 7)",
-   "granted": "2026-11-13T14:46:05+05:30",
-   "scope": "hunk 1 swaps TopicsTable for TopicsView; hunk 2 passes an extras prop (Add prompt, Run now) to TopicInspector; WP-17 (not started) rebases",
-   "until": "WP-20 merged"
-  },
-  {
-   "path": "apps/web/src/features/prompts/topic-inspector.tsx",
-   "wp": "WP-20 (Task 7 only, AFTER WP-16 merges)",
-   "granted": "2026-11-13T14:46:05+05:30",
-   "scope": "WP-16 T10 edits it first; WP-20 rebases onto WP-16, not the reverse",
-   "until": "WP-20 merged"
-  },
-  {
-   "path": "apps/web/src/mocks/handlers/prompt-answers.ts",
-   "wp": "WP-20",
-   "granted": "2026-11-13T14:46:05+05:30",
-   "scope": "add rows=topics|none (Task 2) and entity cells per weekly point (Task 5)",
-   "until": "WP-20 merged"
-  },
-  {
-   "path": "apps/web/src/mocks/prompt-summary.ts",
-   "wp": "WP-20",
-   "granted": "2026-11-13T14:46:05+05:30",
-   "scope": "same",
-   "until": "WP-20 merged"
-  },
-  {
-   "path": "apps/web/src/mocks/handlers/prompt-series.test.ts",
-   "wp": "WP-20",
-   "granted": "2026-11-13T14:46:05+05:30",
-   "scope": "tests for the mock changes",
-   "until": "WP-20 merged"
-  },
-  {
-   "path": "apps/web/src/mocks/prompt-summary.test.ts",
-   "wp": "WP-20",
-   "granted": "2026-11-13T14:46:05+05:30",
-   "scope": "tests for the mock changes",
-   "until": "WP-20 merged"
-  },
-  {
-   "path": "apps/web/src/features/prompts/seams/topic-tabs.ts",
-   "wp": "WP-20 (Task 7)",
-   "granted": "2026-11-13T14:46:05+05:30",
-   "scope": "uncomment its two tab entries",
-   "until": "WP-20 merged"
-  },
-  {
-   "path": "apps/web/src/components/design-system/chart-parts-section.tsx",
-   "wp": "WP-20 (Task 4)",
-   "granted": "2026-11-13T14:46:05+05:30",
-   "scope": "one TopicEnginePanel specimen inside the existing section, no new section",
-   "until": "WP-20 merged"
-  },
-  {
-   "path": "docs/design-system/24-page-templates.md",
-   "wp": "WP-20 (Task 7)",
-   "granted": "2026-11-13T14:46:05+05:30",
-   "scope": "append-only As built under 9.5",
-   "until": "WP-20 merged"
-  },
-  {
    "path": "apps/web/messages/en.json",
    "wp": "WP-21 (T1a first)",
    "granted": "2026-11-13T15:31:00+05:30",
@@ -4181,41 +4076,6 @@
    "granted": "2026-11-13T17:15:31+05:30",
    "scope": "line 187 correction (done)",
    "until": "WP-21 merged"
-  },
-  {
-   "path": "apps/web/e2e/flows/ai-prompts.spec.ts",
-   "wp": "WP-20 (F-22)",
-   "granted": "2026-11-13T17:30:16+05:30",
-   "scope": "the test at ~line 213 (390 px a11y and no sideways scroll): the Topics treegrid no longer exists at 390 px because the phone list rows replace it; adapt line ~220 and the checks after it; WP-21 holds a lease for other lines of the same file (tab loop): both rebase",
-   "until": "WP-20 merged"
-  },
-  {
-   "path": "apps/web/src/components/app/data-table/data-table.test.tsx",
-   "wp": "WP-20 (flake fix)",
-   "granted": "2026-11-13T17:42:18+05:30",
-   "scope": "harden only the DataTable row context menu test 'leaves Shift plus right click, a link in a cell and an input to the browser' (load flake); no other test or source change",
-   "until": "WP-20 merged"
-  },
-  {
-   "path": "apps/web/src/components/app/inspector/use-inspector.ts",
-   "wp": "WP-20",
-   "granted": "2026-11-13T18:36:09+05:30",
-   "scope": "WP-20 (retroactive, Task 6): OPT-IN option useInspector({ entryKeys }), default none; topic drawer passes ['eng'] so Close after a drill returns to the page without ?eng; all 37 other test files using useInspector pass",
-   "until": "WP-20 merged"
-  },
-  {
-   "path": "apps/web/src/components/app/chart/bar-list.tsx",
-   "wp": "WP-20",
-   "granted": "2026-11-13T18:36:09+05:30",
-   "scope": "WP-20 (retroactive, Task 6): optional replace?: boolean on a row so a drill link inside an open drawer replaces the history entry; default unchanged",
-   "until": "WP-20 merged"
-  },
-  {
-   "path": "apps/web/src/components/design-system/registry.test.tsx",
-   "wp": "WP-20",
-   "granted": "2026-11-13T18:36:09+05:30",
-   "scope": "WP-20: raise SECTION_TIMEOUT_MS for the tables section only (load flake, 37 s under load vs 30 s limit)",
-   "until": "WP-20 merged"
   },
   {
    "path": "apps/web/eslint.config.mjs",
@@ -4534,6 +4394,16 @@
    "detail": "MetricInfo (WP-07) requires a methodologyHref; the Help menu waits for a page too. WP-21 keeps one constant METHODOLOGY_HREF = '/methodology' in apps/web/src/lib/citations/methodology.ts (falls into the [workspace] segment until a page exists). Needs a small static methodology page (sections from docs/16-metrics-methodology.md) at /methodology or under Help, built before release; then WP-21 and every MetricInfo user points to it. Not in any work package today.",
    "owner": "WP-72 docs or a small new package; owner to confirm the route",
    "severity": "dead link before release",
+   "status": "open"
+  },
+  {
+   "id": "F-25",
+   "found": "2026-11-13T21:11:57+05:30",
+   "by": "WP-20",
+   "title": "WP-20 limits and unverified items",
+   "detail": "By engine table scrolls a little at 1024 px; panel bars use the neutral chart token (low non-text contrast, text carries the value); not verified: drawer header at exactly 440 px, a manual look in a real browser, In search double count of a keyword tracked on two devices, whether prompt topics and keyword topics share one vocabulary (F14); heat map links push without pushedFrom (one extra Back); phone list avg of N is sr-only; stale only on panel and trend charts. F-23 will wrap what is mounted in topic-inspector.tsx. e2e not re-run after the final rebase: the release gate should run e2e once.",
+   "owner": "quality sweep and owner",
+   "severity": "low to medium",
    "status": "open"
   }
  ],
