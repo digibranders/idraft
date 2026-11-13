@@ -1,5 +1,6 @@
 import { TZDate } from '@date-fns/tz';
 
+import { withChangeFixtures } from './citation-change-fixtures';
 import { isAiSeeded } from '../ai-seed';
 import {
   answerOf,
@@ -169,8 +170,9 @@ export function answersWithCitations(projectId: string, now: number): readonly C
           ];
     }),
   ].sort(newestFirst);
-  memo.set(key, made);
-  return made;
+  const fixed = withChangeFixtures(made, now);
+  memo.set(key, fixed);
+  return fixed;
 }
 
 // Windows and scope

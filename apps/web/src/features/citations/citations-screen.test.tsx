@@ -348,6 +348,15 @@ describe('Citations page', () => {
     await waitFor(() => expect(screen.queryByText('Some figures could not be loaded.')).toBeNull());
   });
 
+  it('the strip counts a new and a lost source', async () => {
+    render();
+    for (const name of ['New sources', 'Lost sources']) {
+      await waitFor(() => expect(cell(name)).toHaveTextContent(/^\D+1\D/));
+      expect(cell(name)).not.toHaveTextContent('n/a');
+      expect(cell(name)).not.toHaveTextContent('The previous period has no answers');
+    }
+  });
+
   it('counts the read of the previous period while the comparison is on and stops when it is turned off', async () => {
     // The previous period is the one read of the domains that takes no `compare` and no `include`
     const previous = breakReads(

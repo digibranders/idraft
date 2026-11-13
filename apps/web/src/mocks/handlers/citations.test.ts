@@ -356,6 +356,30 @@ describe('citation reads answer what the generated schema says', () => {
     expect(lost.data.every((row) => row.current_units === 0 && row.first_seen_at === null)).toBe(true);
   });
 
+  it('sources/changes kind=new answers the new fixture', async () => {
+    const added = await read(`${FYNIX}/sources/changes`, CHANGE_PAGE);
+    expect(added.data.map((row) => row.registrable_domain)).toEqual(['agency-radar.example']);
+    expect(added.data[0]).toMatchObject({ domain_role: 'third_party', role_entity_id: null, previous_units: 0 });
+    expect(added.data[0]?.current_units).toBeGreaterThanOrEqual(2);
+    expect(added.page.total).toBe(1);
+  });
+
+  it('sources/changes kind=lost answers the lost fixture', async () => {
+    const lost = await read(`${FYNIX}/sources/changes?kind=lost`, CHANGE_PAGE);
+    expect(lost.data.map((row) => row.registrable_domain)).toEqual(['legacy-seo-wiki.example']);
+    expect(lost.data[0]).toMatchObject({ domain_role: 'third_party', current_units: 0, first_seen_at: null });
+    expect(lost.data[0]?.previous_units).toBeGreaterThanOrEqual(2);
+    expect(lost.page.total).toBe(1);
+  });
+
+  it('sources/changes with min_support=1000 empties both lists', async () => {
+    for (const kind of ['new', 'lost']) {
+      const page = await read(`${FYNIX}/sources/changes?kind=${kind}&min_support=1000`, CHANGE_PAGE);
+      expect(page.data).toEqual([]);
+      expect(page.page.total).toBe(0);
+    }
+  });
+
   it('diversity answers SourceDiversity with the engines in scope and an average that never pools', async () => {
     const all = await read(`${FYNIX}/sources/diversity?include=series`, DIVERSITY);
     expect(all.data.map((engine) => engine.engine_code)).toEqual(['chatgpt_web', 'gemini_web', 'google_ai_mode']);
