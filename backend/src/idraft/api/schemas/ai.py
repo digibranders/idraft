@@ -30,6 +30,7 @@ from pydantic_core import PydanticCustomError, core_schema
 
 from idraft.ai.text import normalize
 from idraft.api.pagination import CursorPageInfo
+from idraft.api.schemas.ai_engines import EngineProviderParams, EngineProviderParamsUpdate
 from idraft.api.schemas.common import (
     BATCH_TAG,
     ONE_TAG,
@@ -473,6 +474,10 @@ class ProjectEngine(BaseModel):
     location_ids: list[int]
     replicates: int
     provider_code: str
+    provider_params: EngineProviderParams = Field(
+        default_factory=EngineProviderParams,
+        description="Settings beyond the countries (the device of Google AI Mode).",
+    )
     active_prompts: int = Field(
         description="Active prompts that fit the engine's length limit: what one run asks it."
     )
@@ -496,6 +501,11 @@ class EngineUpdate(Body):
     )
     is_enabled: bool = Field(
         default=True, description="On starts weekly spend; off keeps the settings."
+    )
+    provider_params: EngineProviderParamsUpdate | None = Field(
+        default=None,
+        description="Omit to keep the saved device; a save of the countries or the switch never "
+        "resets it.",
     )
 
 

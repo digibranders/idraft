@@ -6,7 +6,7 @@ Runs in the caller's transaction as the API role; every statement names the work
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Collection, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
@@ -27,6 +27,8 @@ class ProjectEngineRecord:
     replicates: int
     provider_code: str
     is_enabled: bool
+    # The JSON as stored; read it through `device_of`, it may hold anything.
+    provider_params: object
 
 
 def _record(row: Row[Any]) -> ProjectEngineRecord:
@@ -36,6 +38,7 @@ def _record(row: Row[Any]) -> ProjectEngineRecord:
         replicates=row.replicates,
         provider_code=row.provider_code,
         is_enabled=row.is_enabled,
+        provider_params=row.provider_params,
     )
 
 
@@ -75,9 +78,11 @@ async def save_project_engine(
     engine_code: EngineCode,
     location_ids: Sequence[int],
     is_enabled: bool,
+    provider_params: Mapping[str, str],
 ) -> None:
     """The engine's settings, made or changed. The provider and the answers per engine are the
-    base plan's (spec section 8: one answer per prompt and engine)."""
+    base plan's (spec section 8: one answer per prompt and engine). `provider_params` is written
+    whole: the caller decides what it holds (the service keeps a saved device)."""
     statement = upsert(ai_project_engines).values(
         project_id=project_id,
         engine_code=engine_code.value,
@@ -86,6 +91,7 @@ async def save_project_engine(
         replicates=BASE_PLAN.answers_per_engine,
         provider_code=PROVIDER_CODE,
         is_enabled=is_enabled,
+        provider_params=dict(provider_params),
     )
     await db.execute(
         statement.on_conflict_do_update(
@@ -93,6 +99,7 @@ async def save_project_engine(
             set_={
                 "location_ids": statement.excluded.location_ids,
                 "is_enabled": statement.excluded.is_enabled,
+                "provider_params": statement.excluded.provider_params,
             },
         )
     )

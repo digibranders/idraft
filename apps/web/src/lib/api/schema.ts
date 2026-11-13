@@ -1595,7 +1595,7 @@ export interface paths {
         get?: never;
         /**
          * Turn an engine on or off for the project
-         * @description The first engine turned on makes the project's AI answer schedules (twice a week). `location_ids` must be active countries (`422 validation_failed` with `location_not_supported`). The provider is DataForSEO and the engine gives one answer per prompt and run.
+         * @description The first engine turned on makes the project's AI answer schedules (twice a week). `location_ids` must be active countries (`422 validation_failed` with `location_not_supported`). The provider is DataForSEO and the engine gives one answer per prompt and run. `provider_params.device` (`desktop` or `mobile`) is for Google AI Mode only (`422 validation_failed` with `device_not_supported` for the others); leave it out to keep the saved device.
          */
         put: operations["put_engine_api_v1_workspaces__workspace_id__projects__project_id__engines__engine_code__put"];
         post?: never;
@@ -4867,6 +4867,23 @@ export interface components {
              */
             run_now_cost_usd: string | null;
         };
+        /** EngineProviderParams */
+        EngineProviderParams: {
+            /**
+             * Device
+             * @description The device the engine asks from. Null when the engine takes no device (ChatGPT, Gemini). Google AI Mode reads `desktop` until one is saved.
+             */
+            device?: ("desktop" | "mobile") | null;
+        };
+        /** EngineProviderParamsUpdate */
+        EngineProviderParamsUpdate: {
+            /**
+             * Device
+             * @description `desktop` or `mobile`, Google AI Mode only (`422 validation_failed` with `device_not_supported` for another engine).
+             * @enum {string}
+             */
+            device: "desktop" | "mobile";
+        };
         /** EngineRoleUnits */
         EngineRoleUnits: {
             competitor: components["schemas"]["RoleAnswers"];
@@ -4919,6 +4936,8 @@ export interface components {
              * @description Active countries the engine runs the prompts in.
              */
             location_ids: number[];
+            /** @description Omit to keep the saved device; a save of the countries or the switch never resets it. */
+            provider_params?: components["schemas"]["EngineProviderParamsUpdate"] | null;
         };
         /** Entity */
         Entity: {
@@ -7415,6 +7434,8 @@ export interface components {
             location_ids: number[];
             /** Provider Code */
             provider_code: string;
+            /** @description Settings beyond the countries (the device of Google AI Mode). */
+            provider_params?: components["schemas"]["EngineProviderParams"];
             /** Replicates */
             replicates: number;
         };
@@ -17690,6 +17711,8 @@ export const costWorkloadValues: ReadonlyArray<FlattenedDeepRequired<components>
 export const domainInputMatch_scopeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["DomainInput"]["match_scope"]> = ["path_prefix", "host", "registrable"];
 export const domainRefCategory_sourceAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["DomainRef"]["category_source"]> = ["seed_list", "rule", "llm", "manual", "tenant_override"];
 export const engineCodeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EngineCode"]> = ["chatgpt_web", "gemini_web", "google_ai_mode"];
+export const engineProviderParamsDeviceAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EngineProviderParams"]["device"]> = ["desktop", "mobile"];
+export const engineProviderParamsUpdateDeviceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EngineProviderParamsUpdate"]["device"]> = ["desktop", "mobile"];
 export const entityEntity_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Entity"]["entity_type"]> = ["brand", "product", "organization", "person", "other"];
 export const entityCreateEntity_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EntityCreate"]["entity_type"]> = ["brand", "product", "organization", "person", "other"];
 export const entityDetailEntity_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EntityDetail"]["entity_type"]> = ["brand", "product", "organization", "person", "other"];

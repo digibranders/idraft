@@ -6,11 +6,13 @@ import pytest
 
 from idraft.domain.ai_engines import (
     BASE_PLAN,
+    DEFAULT_DEVICE,
     ENGINES,
     PROMPT_TEXT_MAX,
     BasePlan,
     EngineCode,
     ObservationClass,
+    device_of,
     monthly_cost,
 )
 
@@ -73,3 +75,33 @@ def test_the_cost_grows_with_runs_and_answers() -> None:
     # 10 x 1 x 3 x 52 / 12 x $0.0024 = $0.312.
     assert monthly_cost(10, Decimal("0.0024"), plan) == Decimal("0.31")
     assert monthly_cost(0, Decimal("0.0012")) == Decimal("0.00")
+
+
+def test_only_ai_mode_takes_a_device() -> None:
+    assert {code: engine.supports_device for code, engine in ENGINES.items()} == {
+        EngineCode.CHATGPT_WEB: False,
+        EngineCode.GEMINI_WEB: False,
+        EngineCode.GOOGLE_AI_MODE: True,
+    }
+    assert DEFAULT_DEVICE == "desktop"
+
+
+@pytest.mark.parametrize(
+    ("params", "device"),
+    [
+        ({"device": "mobile"}, "mobile"),
+        ({"device": "desktop"}, "desktop"),
+        ({}, "desktop"),
+        ({"device": "tablet"}, "desktop"),
+        ({"device": 3}, "desktop"),
+        ({"device": None}, "desktop"),
+        ({"other": "mobile"}, "desktop"),
+        (None, "desktop"),
+        ([], "desktop"),
+        ("mobile", "desktop"),
+    ],
+)
+def test_the_device_of_saved_params_is_desktop_unless_it_says_mobile_or_desktop(
+    params: object, device: str
+) -> None:
+    assert device_of(params) == device

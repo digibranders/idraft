@@ -356,7 +356,7 @@ MATRIX: dict[str, tuple[Access, Access]] = {
     # answers and what extraction found in them and never changes them; each reads the other's.
     "ai.engines": (READ, READ),
     "ai.project_engines": (
-        access("SELECT, INSERT, DELETE", UPDATE=("location_ids", "is_enabled")),
+        access("SELECT, INSERT, DELETE", UPDATE=("location_ids", "is_enabled", "provider_params")),
         READ,
     ),
     "ai.prompts": (

@@ -371,3 +371,51 @@ async def test_the_raw_payload_of_an_answer_is_read_through_its_own_workspace_on
 
     assert [(row["object_key"], row["retention_class"]) for row in found] == [(key, "ai_raw")]
     assert other == []
+
+
+@pytest.mark.parametrize(
+    "assignment",
+    [
+        "replicates = 2",
+        "provider_code = 'dataforseo'",
+        "engine_code = 'gemini_web'",
+        "workspace_id = gen_random_uuid()",
+    ],
+)
+async def test_the_api_role_changes_the_settings_of_an_engine_but_not_its_identity_or_plan(
+    migrated: PostgresServer, tenants: tuple[Tenant, Tenant], assignment: str
+) -> None:
+    alpha, _ = tenants
+    async with scoped(migrated, "app_api", workspace_id=alpha.workspace_id) as db:
+        changed = await db.execute(
+            "UPDATE ai.project_engines SET location_ids = location_ids, is_enabled = false, "
+            'provider_params = \'{"device": "mobile"}\' WHERE project_id = $1',
+            alpha.project_id,
+        )
+        async with refused(db, asyncpg.InsufficientPrivilegeError):
+            await db.execute(
+                f"UPDATE ai.project_engines SET {assignment} WHERE project_id = $1",
+                alpha.project_id,
+            )
+
+    assert changed == "UPDATE 1"
+
+
+async def test_another_workspace_cannot_change_the_provider_params_of_an_engine(
+    migrated: PostgresServer, tenants: tuple[Tenant, Tenant]
+) -> None:
+    alpha, beta = tenants
+    async with scoped(migrated, "app_api", workspace_id=beta.workspace_id) as db:
+        changed = await db.execute(
+            'UPDATE ai.project_engines SET provider_params = \'{"device": "mobile"}\' '
+            "WHERE project_id = $1",
+            alpha.project_id,
+        )
+    async with connection(migrated) as db:
+        stored = await db.fetchval(
+            "SELECT provider_params::text FROM ai.project_engines WHERE project_id = $1",
+            alpha.project_id,
+        )
+
+    assert changed == "UPDATE 0"
+    assert stored == "{}"

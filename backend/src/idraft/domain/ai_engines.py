@@ -57,6 +57,8 @@ class Engine:
     # Where the engine runs. Countries only in slice 1: the ChatGPT scraper takes no city (doc 07
     # section 3.1), and the other two follow so that a prompt stands for one market everywhere.
     location_types: frozenset[str]
+    # The engine asks from a desktop or a mobile device, a project setting (WP-31). AI Mode only.
+    supports_device: bool = False
 
     def fits(self, text: str) -> bool:
         return len(text) <= self.max_prompt_chars
@@ -102,12 +104,24 @@ ENGINES: Final[Mapping[EngineCode, Engine]] = MappingProxyType(
             endpoint="serp/google/ai_mode",
             max_prompt_chars=700,
             location_types=_COUNTRIES_ONLY,
+            supports_device=True,
         ),
     }
 )
 
 # The longest prompt that can be saved: the longest any engine takes.
 PROMPT_TEXT_MAX: Final = max(engine.max_prompt_chars for engine in ENGINES.values())
+
+EngineDevice = Literal["desktop", "mobile"]
+DEFAULT_DEVICE: Final[EngineDevice] = "desktop"
+
+
+def device_of(params: object) -> EngineDevice:
+    """The device saved in a project engine's `provider_params`; the default when the params hold
+    none, hold anything but `desktop` or `mobile`, or are not an object."""
+    device = params.get("device") if isinstance(params, Mapping) else None
+    return "mobile" if device == "mobile" else DEFAULT_DEVICE
+
 
 type Queue = Literal["standard", "priority"]
 

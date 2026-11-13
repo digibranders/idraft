@@ -29,7 +29,14 @@ from idraft.api.request_info import RequestInfo
 from idraft.api.schemas.ai import EngineUpdate
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.db.engine import workspace_transaction
-from idraft.domain.ai_engines import BASE_PLAN, ENGINES, Engine, EngineCode, monthly_cost
+from idraft.domain.ai_engines import (
+    BASE_PLAN,
+    ENGINES,
+    Engine,
+    EngineCode,
+    device_of,
+    monthly_cost,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,11 +58,31 @@ async def live_project(
 def _snapshot(record: ProjectEngineRecord | None) -> audit.Snapshot | None:
     if record is None:
         return None
-    return {
+    snapshot: dict[str, str | int | bool | list[str] | None] = {
         "engine_code": record.engine_code.value,
         "location_ids": [str(location_id) for location_id in record.location_ids],
         "is_enabled": record.is_enabled,
     }
+    if ENGINES[record.engine_code].supports_device:
+        snapshot["device"] = device_of(record.provider_params)
+    return snapshot
+
+
+def _provider_params(
+    engine: Engine, before: ProjectEngineRecord | None, body: EngineUpdate
+) -> dict[str, str]:
+    """What the engine row stores: `{"device": ...}` for an engine that takes one (the one in the
+    body, else the saved one, else the default), `{}` for the others."""
+    asked = None if body.provider_params is None else body.provider_params.device
+    if not engine.supports_device:
+        if asked is not None:
+            raise invalid_field(
+                "provider_params.device",
+                code="device_not_supported",
+                message=f"{engine.label} takes no device.",
+            )
+        return {}
+    return {"device": asked or device_of(None if before is None else before.provider_params)}
 
 
 async def _views(
@@ -101,6 +128,7 @@ async def put_engine(
             message=f"{engine.label} runs in active countries only.",
         )
     before = await repository.get_project_engine(db, access.workspace_id, project_id, engine_code)
+    provider_params = _provider_params(engine, before, body)
     await repository.save_project_engine(
         db,
         workspace_id=access.workspace_id,
@@ -108,6 +136,7 @@ async def put_engine(
         engine_code=engine_code,
         location_ids=location_ids,
         is_enabled=body.is_enabled,
+        provider_params=provider_params,
     )
     # Only when the engine goes from off to on: saving the countries of an engine that is
     # already on must not bring back schedules a person deleted.

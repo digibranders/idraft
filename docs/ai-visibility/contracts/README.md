@@ -20,6 +20,7 @@ Brief: [WP-03](../work-packages/WP-03-contract-pack.md).
 | [c12a-layouts.md](c12a-layouts.md) | C12a: team and personal page layouts | `GET {W}/layouts/{screen}`, `PUT` and `DELETE {W}/me/layouts/{screen}`, `PUT` and `DELETE {W}/layouts/{screen}/default` | [WP-11](../work-packages/WP-11-layouts-api.md) |
 | [c8-metrics.md](c8-metrics.md) | C8 metric part: overview, one metric, series, breakdown | `GET {P}/ai/metrics/overview`, `GET {P}/overview/ai`, `GET {P}/ai/metrics/{metric}`, `.../{metric}/series`, `.../{metric}/breakdown` | [WP-32](../work-packages/WP-32-overview-aggregates.md) |
 | [c5-competitors.md](c5-competitors.md) | C5 competitor part: competitors read and Overview competitor table | `GET {P}/ai/competitors`, `GET {P}/overview/competitors` | [WP-32](../work-packages/WP-32-overview-aggregates.md) |
+| [wp-31-engines-device.md](wp-31-engines-device.md) | WP-31: device per AI engine (Google AI Mode) | `GET {P}/engines` and `PUT {P}/engines/{engine_code}` extended | [WP-31](../work-packages/WP-31-settings-engines.md) |
 
 14 new routes (all answered `501 not_implemented` after their access checks when published) and 11 built
 operations with optional additions (answer `501` when an addition is used). Update 2026-11-13: the five

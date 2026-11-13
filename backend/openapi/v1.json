@@ -4587,6 +4587,47 @@
         "title": "EngineEstimate",
         "type": "object"
       },
+      "EngineProviderParams": {
+        "properties": {
+          "device": {
+            "anyOf": [
+              {
+                "enum": [
+                  "desktop",
+                  "mobile"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The device the engine asks from. Null when the engine takes no device (ChatGPT, Gemini). Google AI Mode reads `desktop` until one is saved.",
+            "title": "Device"
+          }
+        },
+        "title": "EngineProviderParams",
+        "type": "object"
+      },
+      "EngineProviderParamsUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "device": {
+            "description": "`desktop` or `mobile`, Google AI Mode only (`422 validation_failed` with `device_not_supported` for another engine).",
+            "enum": [
+              "desktop",
+              "mobile"
+            ],
+            "title": "Device",
+            "type": "string"
+          }
+        },
+        "required": [
+          "device"
+        ],
+        "title": "EngineProviderParamsUpdate",
+        "type": "object"
+      },
       "EngineRoleUnits": {
         "properties": {
           "competitor": {
@@ -4730,6 +4771,17 @@
             "minItems": 1,
             "title": "Location Ids",
             "type": "array"
+          },
+          "provider_params": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EngineProviderParamsUpdate"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Omit to keep the saved device; a save of the countries or the switch never resets it."
           }
         },
         "required": [
@@ -11385,6 +11437,10 @@
           "provider_code": {
             "title": "Provider Code",
             "type": "string"
+          },
+          "provider_params": {
+            "$ref": "#/components/schemas/EngineProviderParams",
+            "description": "Settings beyond the countries (the device of Google AI Mode)."
           },
           "replicates": {
             "title": "Replicates",
@@ -30113,7 +30169,7 @@
         ]
       },
       "put": {
-        "description": "The first engine turned on makes the project's AI answer schedules (twice a week). `location_ids` must be active countries (`422 validation_failed` with `location_not_supported`). The provider is DataForSEO and the engine gives one answer per prompt and run.",
+        "description": "The first engine turned on makes the project's AI answer schedules (twice a week). `location_ids` must be active countries (`422 validation_failed` with `location_not_supported`). The provider is DataForSEO and the engine gives one answer per prompt and run. `provider_params.device` (`desktop` or `mobile`) is for Google AI Mode only (`422 validation_failed` with `device_not_supported` for the others); leave it out to keep the saved device.",
         "operationId": "put_engine_api_v1_workspaces__workspace_id__projects__project_id__engines__engine_code__put",
         "parameters": [
           {
