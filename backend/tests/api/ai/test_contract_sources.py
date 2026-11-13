@@ -31,11 +31,10 @@ COUNTRY = {"filter[country_iso]": "US"}
 @pytest.mark.parametrize(
     ("path", "params"),
     [
-        ("sources/domains", {"include": "series"}),
         ("sources/domains", {"include": "cited_with"}),
         ("sources/domains", {"include": "by_role_by_engine"}),
+        ("sources/domains", {"include": "series,cited_with"}),
         ("sources/domains", {"min_support": "2"}),
-        ("sources/pages", {"include": "series"}),
         ("sources/pages", {"min_support": "2"}),
         ("sources/domains", COUNTRY),
         ("sources/pages", COUNTRY),

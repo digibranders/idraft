@@ -25,6 +25,7 @@ from uuid import UUID
 
 from sqlalchemy import (
     BigInteger,
+    Date,
     Select,
     and_,
     case,
@@ -428,6 +429,99 @@ async def previous_pages(
         (row.url_id, row.domain_role, row.role_entity_id): (row.units, row.observations)
         for row in rows
     }
+
+
+def week_of(column: Any, timezone: str) -> Any:
+    """The Monday of `column`'s week in the project's zone (docs/19 section 2.5). Select it in a
+    subquery and group by that column: grouped by the expression, its bound zone would be a
+    second parameter, which PostgreSQL reads as a different expression (`weekly_counts`)."""
+    return cast(func.date_trunc("week", func.timezone(timezone, column)), Date)
+
+
+async def row_weeks(
+    db: AsyncSession,
+    scope: SourceScope,
+    timezone: str,
+    *,
+    by_page: bool,
+    names: Collection[str] = (),
+    url_ids: Collection[int] = (),
+) -> dict[tuple[Any, str, UUID | None], dict[date, tuple[int, int]]]:
+    """The citation units and citing answers per week of a page's rows: by (registrable domain,
+    or url id with `by_page`; role; entity), then by week. One statement."""
+    if not (url_ids if by_page else names):
+        return {}
+    _, source = _cited(scope)
+    key = _C.url_id if by_page else _D.registrable_domain
+    inner = (
+        select(
+            key.label("key"),
+            _C.domain_role,
+            _C.role_entity_id,
+            _C.observation_id,
+            _C.url_id,
+            week_of(_C.observed_at, timezone).label("week_start"),
+        )
+        .select_from(source)
+        .where(
+            *citation_bounds(scope),
+            _C.url_id.in_(sorted(url_ids)) if by_page else _D.registrable_domain.in_(sorted(names)),
+        )
+        .subquery("cited_weeks")
+    )
+    c = inner.c
+    rows = await db.execute(
+        select(
+            c.key,
+            c.domain_role,
+            c.role_entity_id,
+            c.week_start,
+            func.count(tuple_(c.observation_id, c.url_id).distinct()).label("units"),
+            func.count(c.observation_id.distinct()).label("observations"),
+        ).group_by(c.key, c.domain_role, c.role_entity_id, c.week_start)
+    )
+    found: dict[tuple[Any, str, UUID | None], dict[date, tuple[int, int]]] = {}
+    for row in rows:
+        found.setdefault((row.key, row.domain_role, row.role_entity_id), {})[row.week_start] = (
+            row.units,
+            row.observations,
+        )
+    return found
+
+
+async def scope_weeks(
+    db: AsyncSession, scope: SourceScope, timezone: str
+) -> dict[date, tuple[int, int, int]]:
+    """Per week of the scope: the counted answers (citing or not), the citation units and the
+    registrable domains cited. One statement: the answers left joined to their citations, so an
+    answer that cites nothing still counts."""
+    counted = counted_answers(scope)
+    answers = select(
+        counted.c.observation_id,
+        counted.c.observed_at,
+        week_of(counted.c.observed_at, timezone).label("week_start"),
+    ).subquery("answer_weeks")
+    cited = ai_citations.join(domains, _D.id == _C.domain_id)
+    rows = await db.execute(
+        select(
+            answers.c.week_start,
+            func.count(answers.c.observation_id.distinct()).label("answers"),
+            func.count(unit()).filter(_C.url_id.is_not(None)).label("units"),
+            func.count(_D.registrable_domain.distinct()).label("domains"),
+        )
+        .select_from(
+            answers.outerjoin(
+                cited,
+                and_(
+                    _C.observation_id == answers.c.observation_id,
+                    _C.observed_at == answers.c.observed_at,
+                    *citation_bounds(scope),
+                ),
+            )
+        )
+        .group_by(answers.c.week_start)
+    )
+    return {row.week_start: (row.answers, row.units, row.domains) for row in rows}
 
 
 async def citation_rows(

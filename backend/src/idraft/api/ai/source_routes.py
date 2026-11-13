@@ -180,7 +180,9 @@ async def source_domains(
         Commas,
         Query(
             max_length=3,
-            description="Blocks to add: `series`, `cited_with`, `by_role_by_engine`. " + _NOT_BUILT,
+            description="Blocks to add: `series` (a point per week of the window), "
+            "`cited_with` and `by_role_by_engine`. `series` is built; `cited_with` and "
+            "`by_role_by_engine` are not built yet (`501 not_implemented`).",
         ),
     ] = None,
     min_support: MinSupport = None,
@@ -188,14 +190,16 @@ async def source_domains(
 ) -> SourceDomainPage:
     refuse_unbuilt(
         {
-            "include": bool(include),
+            "include": bool(set(include or ()) - {"series"}),
             "min_support": min_support is not None,
             "filter[country_iso]": country_iso is not None,
             "include_unresolved_redirects": "unresolved_redirect" not in flags,
             "include_engine_internal": "engine_internal" not in flags,
         }
     )
-    return await sources.domains(access, project_id, scope, sort=sort, compare=compare, page=page)
+    return await sources.domains(
+        access, project_id, scope, sort=sort, compare=compare, include=include or (), page=page
+    )
 
 
 RegistrableDomain = Annotated[
@@ -231,14 +235,17 @@ async def source_pages(
     include: Annotated[
         list[SourcePageInclude] | None,
         Commas,
-        Query(max_length=1, description="Blocks to add: `series`. " + _NOT_BUILT),
+        Query(
+            max_length=1,
+            description="Blocks to add: `series` (a point per week of the window, and "
+            "`meta.series`).",
+        ),
     ] = None,
     min_support: MinSupport = None,
     country_iso: CountryFilter = None,
 ) -> SourcePagePage:
     refuse_unbuilt(
         {
-            "include": bool(include),
             "min_support": min_support is not None,
             "filter[country_iso]": country_iso is not None,
             "include_unresolved_redirects": "unresolved_redirect" not in flags,
@@ -252,6 +259,7 @@ async def source_pages(
         registrable_domain=registrable_domain,
         sort=sort,
         compare=compare,
+        include=include or (),
         page=page,
     )
 

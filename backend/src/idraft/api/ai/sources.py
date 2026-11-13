@@ -4,11 +4,11 @@ window of project-local days and the answers the prompts summary counts."""
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncIterator, Collection, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
-from typing import Final, cast
+from typing import Any, Final, cast
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from idraft.api.ai import source_repository as repository
 from idraft.api.ai.source_repository import CitationFilter, Counted, SourceScope, Totals
-from idraft.api.ai.summary import summary_dates
+from idraft.api.ai.summary import summary_dates, summary_weeks
 from idraft.api.pagination import (
     CursorPageInfo,
     CursorParams,
@@ -51,6 +51,8 @@ from idraft.api.schemas.ai_sources import (
     SourcePageRow,
     SourcesMeta,
     SourceSort,
+    SourcesWeek,
+    SourceWeekUnits,
 )
 from idraft.api.schemas.metrics import MetricWindow
 from idraft.api.workspaces.access import WorkspaceAccess
@@ -164,10 +166,64 @@ def share(units: int, totals: Totals) -> MetricCell:
     )
 
 
+@dataclass(frozen=True, slots=True)
+class Series:
+    """What `include=series` reads: the weeks of the window, the page's rows by week and the
+    scope's totals by week."""
+
+    weeks: list[date]
+    rows: dict[tuple[Any, str, UUID | None], dict[date, tuple[int, int]]]
+    totals: dict[date, tuple[int, int, int]]
+
+    def points(self, key: tuple[Any, str, UUID | None]) -> list[SourceWeekUnits]:
+        """A row's point for every week; a week it was not cited in is a zero point."""
+        found = self.rows.get(key, {})
+        points = []
+        for week in self.weeks:
+            units, seen = found.get(week, (0, 0))
+            points.append(SourceWeekUnits(week_start=week, citation_units=units, observations=seen))
+        return points
+
+    def meta(self) -> list[SourcesWeek]:
+        points = []
+        for week in self.weeks:
+            answers, units, domains = self.totals.get(week, (0, 0, 0))
+            points.append(
+                SourcesWeek(
+                    week_start=week, answers=answers, citation_units=units, distinct_domains=domains
+                )
+            )
+        return points
+
+
+async def weekly(
+    db: AsyncSession,
+    now: Scoped,
+    *,
+    by_page: bool,
+    names: Collection[str] = (),
+    url_ids: Collection[int] = (),
+) -> Series:
+    """The weekly points of a page's rows and of the scope: two statements."""
+    zone = now.window.timezone
+    return Series(
+        weeks=summary_weeks(now.first, now.last),
+        rows=await repository.row_weeks(
+            db, now.scope, zone, by_page=by_page, names=names, url_ids=url_ids
+        ),
+        totals=await repository.scope_weeks(db, now.scope, zone),
+    )
+
+
 def sources_meta(
-    now: Scoped, query: SourceQuery, engines: Sequence[str], totals: Totals
+    now: Scoped,
+    query: SourceQuery,
+    engines: Sequence[str],
+    totals: Totals,
+    series: Series | None = None,
 ) -> SourcesMeta:
     return SourcesMeta(
+        series=None if series is None else series.meta(),
         window=now.window,
         include_branded=query.include_branded,
         engine_codes=[EngineCode(code) for code in engines],
@@ -287,18 +343,24 @@ class SourceService:
         *,
         sort: SourceSort,
         compare: SourceCompare = "none",
+        include: Collection[str] = (),
         page: OffsetParams,
     ) -> SourceDomainPage:
         engines = shown_engines(query.engine_codes)
         prior: Scoped | None = None
         found: dict[tuple[str, str, UUID | None], tuple[int, int]] = {}
         prior_answers: int | None = None
+        series: Series | None = None
         async with self._transaction(access) as db:
             now = await scoped(db, access, project_id, query, engines)
             rows, total = await repository.domain_counts(
                 db, now.scope, roles=query.roles, sort=sort, offset=page.offset, limit=page.limit
             )
             whole = await repository.totals(db, now.scope)
+            if "series" in include:
+                series = await weekly(
+                    db, now, by_page=False, names={row.registrable_domain for row in rows}
+                )
             if compare == "previous_period":
                 prior = before(now)
                 found = await repository.previous_domains(
@@ -323,11 +385,16 @@ class SourceService:
                     else previous_units(
                         found.get((row.registrable_domain, row.domain_role, row.role_entity_id))
                     ),
+                    series=None
+                    if series is None
+                    else series.points(
+                        (row.registrable_domain, row.domain_role, row.role_entity_id)
+                    ),
                 )
                 for row in rows
             ],
             page=OffsetPageInfo(offset=page.offset, limit=page.limit, total=total),
-            meta=compared(sources_meta(now, query, engines, whole), prior, prior_answers),
+            meta=compared(sources_meta(now, query, engines, whole, series), prior, prior_answers),
         )
 
     async def pages(
@@ -339,12 +406,14 @@ class SourceService:
         registrable_domain: str | None,
         sort: SourceSort,
         compare: SourceCompare = "none",
+        include: Collection[str] = (),
         page: OffsetParams,
     ) -> SourcePagePage:
         engines = shown_engines(query.engine_codes)
         prior: Scoped | None = None
         found: dict[tuple[int, str, UUID | None], tuple[int, int]] = {}
         prior_answers: int | None = None
+        series: Series | None = None
         async with self._transaction(access) as db:
             now = await scoped(db, access, project_id, query, engines)
             rows, total = await repository.page_counts(
@@ -357,6 +426,8 @@ class SourceService:
                 limit=page.limit,
             )
             whole = await repository.totals(db, now.scope)
+            if "series" in include:
+                series = await weekly(db, now, by_page=True, url_ids={row.url_id for row in rows})
             if compare == "previous_period":
                 prior = before(now)
                 found = await repository.previous_pages(
@@ -385,11 +456,14 @@ class SourceService:
                     else previous_units(
                         found.get((row.url_id, row.domain_role, row.role_entity_id))
                     ),
+                    series=None
+                    if series is None
+                    else series.points((row.url_id, row.domain_role, row.role_entity_id)),
                 )
                 for row in rows
             ],
             page=OffsetPageInfo(offset=page.offset, limit=page.limit, total=total),
-            meta=compared(sources_meta(now, query, engines, whole), prior, prior_answers),
+            meta=compared(sources_meta(now, query, engines, whole, series), prior, prior_answers),
         )
 
     async def citations(

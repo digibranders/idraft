@@ -317,6 +317,14 @@ QUERIES: dict[tuple[str, str], dict[str, str]] = {
     # WP-13 prompts-lane
     ("GET", _W + "/vocabularies/{vocabulary_id}/terms"): {"include": "prompt_count"},
     # WP-14 sources-lane
+    ("GET", _W + "/projects/{project_id}/ai/sources/domains"): {
+        "include": "series",
+        "compare": "previous_period",
+    },
+    ("GET", _W + "/projects/{project_id}/ai/sources/pages"): {
+        "include": "series",
+        "compare": "previous_period",
+    },
     ("GET", _W + "/projects/{project_id}/ai/sources/diversity"): {"filter[country_iso]": "US"},
     ("GET", _W + "/projects/{project_id}/ai/sources/domains/{registrable_domain}"): {
         "filter[country_iso]": "US"
