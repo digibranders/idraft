@@ -8,7 +8,10 @@ import { formatInspectTarget, parseInspectTarget, type InspectorTarget } from '@
 /** The first tab of every inspector, left out of the URL. */
 export const DEFAULT_INSPECTOR_TAB = 'overview';
 
-const KEYS = { inspect: parseAsString, itab: parseAsString };
+// `eng` is the topic drawer's engine filter (the Prompts tab). It belongs to the inspector entry like `itab` does: it is
+// no part of the page's query, and it goes when the inspector closes, changes tab or opens another record, so a close
+// can still go back to the entry before the drawer, and the URL never keeps an engine for a drawer that is gone.
+const KEYS = { inspect: parseAsString, itab: parseAsString, eng: parseAsString };
 
 /**
  * Set when this page pushed the history entry the open inspector sits on: the query string of the entry
@@ -66,7 +69,7 @@ export function useInspector(): UseInspectorResult {
     const opening = target === null;
     if (opening) pushedFrom = pageQuery();
     void setState(
-      { inspect: formatInspectTarget(next), itab: tabParam(options?.tab ?? (opening ? undefined : tab)) },
+      { inspect: formatInspectTarget(next), itab: tabParam(options?.tab ?? (opening ? undefined : tab)), eng: null },
       { history: opening ? 'push' : 'replace' },
     );
   };
@@ -78,10 +81,10 @@ export function useInspector(): UseInspectorResult {
       window.history.back();
       return;
     }
-    void setState({ inspect: null, itab: null }, { history: 'replace' });
+    void setState({ inspect: null, itab: null, eng: null }, { history: 'replace' });
   };
   const setTab = (next: string): void => {
-    void setState({ itab: tabParam(next) }, { history: 'replace' });
+    void setState({ itab: tabParam(next), eng: null }, { history: 'replace' });
   };
   const position: UseInspectorResult['position'] = (orderedIds) => {
     if (target === null) return null;

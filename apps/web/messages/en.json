@@ -3908,6 +3908,7 @@
         "engineChip": "Engine: {engine}",
         "engineChipRemove": "Show every engine",
         "note": "{count, plural, one {# prompt has} other {# prompts have}} answers on {engine}, ordered by {metric}.",
+        "hidden": "{count, plural, one {# prompt is hidden: it has} other {# prompts are hidden: they have}} no answer on {engine}.",
         "emptyTitle": "No prompt has an answer on {engine}",
         "emptyReason": "Show every engine to list the prompts of this topic."
       }

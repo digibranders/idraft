@@ -27,10 +27,15 @@ if (fynix === undefined) throw new Error('The Fynix project fixture is missing')
 // that route answers by signing out (and a signed out client empties its cache and reads again, without end), so every
 // test of a drawer part starts with none stored. It is a hook and not part of the render: a test that says what the
 // project stored (`server.use`, later) wins over it.
+// The In search card reads the project's tracked keywords, which the same mock answers by signing out: by default no
+// keyword is tracked, and a test of the card says what the project tracks.
 beforeEach(() => {
   server.use(
     http.get(mswPath('/api/v1/workspaces/{workspace_id}/projects/{project_id}/entities'), () =>
       HttpResponse.json({ data: [] }),
+    ),
+    http.get(mswPath('/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords'), () =>
+      HttpResponse.json({ data: [], page: { has_more: false, limit: 1, next_cursor: null, total: 0 } }),
     ),
   );
 });
