@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T09:20:41+05:30",
+ "updated": "2026-11-13T09:33:49+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -1211,7 +1211,7 @@
    "title": "Prompt inspector completion: header, Latest, History, Stats (R-11 prompt part)",
    "wave": "W2",
    "kind": "web",
-   "status": "planning",
+   "status": "building",
    "dependsOn": [
     "WP-07",
     "WP-08",
@@ -1269,7 +1269,7 @@
     "done": 26
    },
    "owner": "",
-   "notes": "file work-packages/WP-25-inspector-completion.md; estimate 6 tasks; decisions D-02"
+   "notes": "file work-packages/WP-25-inspector-completion.md; estimate 6 tasks; decisions D-02 | tasks 0/10, rows 26/35 built; plan on develop; WB-PI-23 blocked on CF-26 (WP-26)"
   },
   {
    "id": "WP-26",
@@ -4069,6 +4069,41 @@
    "granted": "2026-11-13T08:24:51+05:30",
    "scope": "add the 'mock-layouts' cookie (LAYOUTS_COOKIE) to MOCK_COOKIES; later mock packages add theirs the same way, additive",
    "until": "WP-15 merged"
+  },
+  {
+   "path": "apps/web/src/components/design-system/metric-parts-section.tsx",
+   "wp": "WP-25",
+   "granted": "2026-11-13T09:33:49+05:30",
+   "scope": "add a ConfidenceIndicator specimen group (WB-PIS-06); tiny diff, pushed alone",
+   "until": "WP-25 merged"
+  },
+  {
+   "path": "apps/web/src/components/design-system/metric-parts-section.test.tsx",
+   "wp": "WP-25",
+   "granted": "2026-11-13T09:33:49+05:30",
+   "scope": "same",
+   "until": "WP-25 merged"
+  },
+  {
+   "path": "apps/web/src/components/ui/tabs.tsx",
+   "wp": "WP-25",
+   "granted": "2026-11-13T09:33:49+05:30",
+   "scope": "additive optional overflowLabel prop (trailing 'More tabs' menu at 440 and 390 px); keyword, topic and all other consumers unchanged; run every consumer's tests",
+   "until": "WP-25 merged"
+  },
+  {
+   "path": "apps/web/src/components/ui/tabs.test.tsx",
+   "wp": "WP-25",
+   "granted": "2026-11-13T09:33:49+05:30",
+   "scope": "tests for overflowLabel",
+   "until": "WP-25 merged"
+  },
+  {
+   "path": "apps/web/src/components/app/inspector/inspector-tabs.tsx",
+   "wp": "WP-25",
+   "granted": "2026-11-13T09:33:49+05:30",
+   "scope": "pass overflowLabel through; additive",
+   "until": "WP-25 merged"
   }
  ],
  "followups": [
@@ -4171,6 +4206,16 @@
    "owner": "backend session with WP-11 context (wp-01-be-scaffold), small push between WP-14 tasks",
    "severity": "blocks Reset in the customize UI (R-07)",
    "status": "fixed ccf28401 (team_document on ResolvedLayout; 5 mutation proofs, no separate fresh reviewer)"
+  },
+  {
+   "id": "F-11",
+   "found": "2026-11-13T09:33:49+05:30",
+   "by": "WP-25",
+   "title": "WB-PI-23 hashed evidence is blocked: ObservationDetail has no hash field",
+   "detail": "CF-26 is WP-26 step 1 (backend and web, not started). WP-25 task 9 is conditional. Start WP-26 early so WB-PI-23 can close. Also WB-PI-01 (quotes around the h2) skipped: would change the accessible name in 7 test files and needs inspector-header.tsx.",
+   "owner": "WP-26 session",
+   "severity": "one row blocked",
+   "status": "open"
   }
  ],
  "migrations": [
