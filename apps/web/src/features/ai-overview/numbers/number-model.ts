@@ -7,6 +7,7 @@ import {
   formatInteger,
   formatMetricDelta,
   formatPercent,
+  formatPointsDelta,
   type MetricDeltaInput,
 } from '@/lib/format';
 import { engineLabel } from '@/lib/layouts';
@@ -29,9 +30,11 @@ export type Say = (key: string, values?: Record<string, string | number>) => str
 
 /**
  * Why a number has nothing to show for a read it needs: it is under way (`loading`), it failed (`error`), it does
- * not run for this scope (`idle`), or it cannot be asked for branded prompts alone (`brandedOnly`).
+ * not run for this scope (`idle`), it cannot be asked for branded prompts alone (`brandedOnly`), no engine of the
+ * choice is on so nothing is asked (`noEngine`), or it is read for one engine at a time and more than one is on
+ * (`oneAtATime`, the fan-out presence).
  */
-export type UnreadWhy = 'loading' | 'error' | 'idle' | 'brandedOnly';
+export type UnreadWhy = 'loading' | 'error' | 'idle' | 'brandedOnly' | 'noEngine' | 'oneAtATime';
 
 interface DateWindow {
   from: string;
@@ -53,7 +56,10 @@ export interface NumberContext {
   /** The previous window could not be read. */
   previousFailed: boolean;
   branded: Branded;
-  /** A read of the page is under way: the data may be of the scope before the one now chosen. */
+  /**
+   * The figures held may be of the scope before the one now chosen (a read is loading, or shows the last scope's
+   * data while the new one is read): an empty figure is not yet known, and the window is not claimed for them.
+   */
   busy: boolean;
   /** A later read failed and the figures are the last that were read. */
   stale: boolean;
@@ -107,11 +113,14 @@ export function stripLabel(say: Say, window: DateWindow, branded: Branded): stri
   return say('label', { window: formatDateRange(window.from, window.to), branded: brandedWords(say, branded) });
 }
 
-const windowSentence = (ctx: NumberContext, say: Say): string =>
-  say('tipWindow', {
-    window: formatDateRange(ctx.window.from, ctx.window.to),
-    branded: brandedWords(say, ctx.branded),
-  });
+/** The window the counts are of; not said while they may be those of the scope before, which this window is not. */
+const windowSentence = (ctx: NumberContext, say: Say): string | null =>
+  ctx.busy
+    ? null
+    : say('tipWindow', {
+        window: formatDateRange(ctx.window.from, ctx.window.to),
+        branded: brandedWords(say, ctx.branded),
+      });
 
 const staleSentence = (ctx: NumberContext, say: Say): string | null => (ctx.stale ? say('tipStale') : null);
 
@@ -150,11 +159,23 @@ function unread(item: NumberItem, ctx: NumberContext, say: Say): NumberDisplay {
         context: say('brandedOnlyUnavailable'),
         tip: tipOf([say('tipBrandedOnly')]),
       });
+    case 'oneAtATime':
+      return shown(EMPTY_VALUE, {
+        unknown: NOT_APPLICABLE,
+        context: say('oneAtATime'),
+        tip: tipOf([say('tipOneAtATime')]),
+      });
+    case 'noEngine':
+      return shown(say('notAsked'), {
+        unknown: NOT_APPLICABLE,
+        context: say('noEngine'),
+        tip: tipOf([say('tipNoEngine')]),
+      });
     case 'idle':
       return shown(EMPTY_VALUE, {
         unknown: NOT_APPLICABLE,
         context: say('notAvailable'),
-        tip: tipOf([say('tipNotAvailable')]),
+        tip: tipOf([say('tipIdle')]),
       });
   }
 }
@@ -208,6 +229,21 @@ function changeOf(
     if (ctx.previousEmpty) return { input: null, sentences: [say('tipNoPrevious', { days: ctx.days })] };
     return { input: null, sentences: [say('tipNoChange')] };
   }
+  // A change that rounds to "0 pts" is none at the precision shown: the shared formatter takes the direction from the
+  // raw value ("down 0 pts") and the test was of a change that is not drawn, so neither is claimed
+  if (change.unit === 'points' && formatPointsDelta(change.delta) === '0 pts') {
+    const flat: MetricDeltaInput = { value: 0, unit: 'points', polarity: 'higher_is_better', isDetectable: null };
+    return {
+      input: flat,
+      sentences: [
+        say('tipChange', {
+          previous: formatDateRange(previous.from, previous.to),
+          change: formatMetricDelta(flat).text,
+        }),
+        say('tipNoChangeHere'),
+      ],
+    };
+  }
   const input: MetricDeltaInput = {
     value: change.delta,
     unit: change.unit,
@@ -237,8 +273,9 @@ function changeOf(
 
 function okDisplay(item: NumberItem, figure: NumberFigure, ctx: NumberContext, say: Say): NumberDisplay {
   const { input, sentences } = changeOf(item, figure, ctx, say);
+  // A line of two unknowns says nothing: it is left out unless one of the rates is known
   const companions =
-    figure.companions === null
+    figure.companions === null || (figure.companions.cited === null && figure.companions.shareOfVoice === null)
       ? null
       : say('tipCompanions', {
           cited: percent(figure.companions.cited),
@@ -260,9 +297,11 @@ function okDisplay(item: NumberItem, figure: NumberFigure, ctx: NumberContext, s
 function insufficientDisplay(figure: NumberFigure, ctx: NumberContext, say: Say): NumberDisplay {
   const count = figure.n ?? 0;
   const units = figure.unit === 'citationUnits';
+  const answers = { count, min: MIN_OBSERVATIONS, invalid: figure.invalid ?? 0 };
+  // A share of voice counts the answers that name a tracked brand, not every valid answer
   const few = units
     ? say('tipFewUnits', { count, min: MIN_OBSERVATIONS })
-    : say('tipFew', { count, min: MIN_OBSERVATIONS, invalid: figure.invalid ?? 0 });
+    : say(figure.unit === 'namingAnswers' ? 'tipFewNaming' : 'tipFew', answers);
   return shown(say(units ? 'fewUnits' : 'fewAnswers', { count }), {
     unknown: INSUFFICIENT,
     context: say('tooFew'),

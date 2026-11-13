@@ -333,6 +333,64 @@ describe('useOverviewPeriods', () => {
     });
     expect(deltaOf(narrowed)).not.toBeNull();
   });
+
+  it('stays paired and settled while the same scope is read again, and is busy meanwhile; a scope change is neither', async () => {
+    const { result, rerender } = renderHook(
+      (props: { scope: OverviewScope }) =>
+        useOverviewPeriods({ project: FYNIX, scope: props.scope, enabledEngines: ALL }),
+      {
+        wrapper,
+        initialProps: { scope: scopeOf() },
+      },
+    );
+    await waitFor(() => {
+      expect(result.current).toMatchObject({ paired: true, settled: true, busy: false });
+    });
+
+    // The same scope read again (a refocus): the data is this scope's, so no change is hidden
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    server.use(
+      http.get(`${PROJECT_PATH}/ai/prompts-summary`, async () => {
+        await held;
+        return undefined;
+      }),
+    );
+    void client.invalidateQueries({ predicate: (query) => JSON.stringify(query.queryKey).includes('prompts-summary') });
+    await waitFor(() => {
+      expect(result.current.busy).toBe(true);
+    });
+    expect(result.current.current).toMatchObject({ status: 'refetching', placeholder: false });
+    expect(result.current).toMatchObject({ paired: true, settled: true });
+    release();
+    await waitFor(() => {
+      expect(result.current).toMatchObject({ paired: true, settled: true, busy: false });
+    });
+
+    // Another scope: the data held is the last scope's (placeholder), so nothing is paired or settled until it arrives
+    let releaseNext: () => void = () => undefined;
+    const next = new Promise<void>((resolve) => {
+      releaseNext = resolve;
+    });
+    server.use(
+      http.get(`${PROJECT_PATH}/ai/prompts-summary`, async () => {
+        await next;
+        return undefined;
+      }),
+    );
+    rerender({ scope: scopeOf({ engines: ['chatgpt_web'] }) });
+    await waitFor(() => {
+      expect(result.current.busy).toBe(true);
+    });
+    expect(result.current.current).toMatchObject({ status: 'refetching', placeholder: true });
+    expect(result.current).toMatchObject({ paired: false, settled: false });
+    releaseNext();
+    await waitFor(() => {
+      expect(result.current).toMatchObject({ paired: true, settled: true, busy: false });
+    });
+  });
 });
 
 describe('useOverviewSources', () => {

@@ -124,22 +124,31 @@ export interface OverviewPeriods {
   /** `null` when the comparison is off or unavailable: it is not read, and a figure of it is never zero. */
   previous: Read<PromptsSummary> | null;
   /**
-   * The two windows are of the same scope: the current read is `ready` and so is the previous one, or there is no
-   * previous read by design. A scope change keeps the last data of each read (`keepPreviousData`) and the two reads
-   * settle separately, so for a moment one window can be the new one and the other the old one: a change between
-   * them would be of two different scopes. Callers of `buildAggregates` pass `previous: null` while this is false.
+   * The two windows hold data of the same scope: each is `ready`, or is read again for the same scope (a refocus,
+   * the stale time), or there is no previous read by design. A scope change keeps the last data of each read
+   * (`keepPreviousData`) and the two reads settle separately, so for a moment one window can be the new one and the
+   * other the old one: a change between them would be of two different scopes. Callers of `buildAggregates` pass
+   * `previous: null` while this is false.
    */
   paired: boolean;
   /**
-   * No read of the page's summary is under way (none is `loading` or `refetching`). While it is false the data
-   * shown is that of the last scope while the scope itself is the new one (the engine filter, the topic), so a
+   * No read holds the last scope's data in place of this one's (none is `loading`, none shows `placeholder` data).
+   * While it is false the data shown is of the scope before the one now chosen (the engine filter, the topic), so a
    * figure read against the new scope can say "No valid answers" for what is only still loading: show the loading
-   * state, not an empty one. It is a fact of the reads, not of the aggregates, so it lives here.
+   * state, not an empty one. A read of the same scope again does not unsettle it. It is a fact of the reads, not of
+   * the aggregates, so it lives here.
    */
   settled: boolean;
+  /** Any read is under way, for the same scope or another: the page is `aria-busy`, and its values stay. */
+  busy: boolean;
 }
 
-const busy = (read: Read<PromptsSummary>): boolean => read.status === 'loading' || read.status === 'refetching';
+const underway = (read: Read<PromptsSummary>): boolean => read.status === 'loading' || read.status === 'refetching';
+/** The read has no data of this scope to show yet: it is loading, or shows the last scope's data meanwhile. */
+const waiting = (read: Read<PromptsSummary>): boolean =>
+  read.status === 'loading' || (read.status === 'refetching' && read.placeholder);
+const ofThisScope = (read: Read<PromptsSummary>): boolean =>
+  read.status === 'ready' || (read.status === 'refetching' && !read.placeholder);
 
 /**
  * The summary of the window and, while the comparison is on and its window can be asked, of the window just
@@ -156,8 +165,9 @@ export function useOverviewPeriods(input: OverviewReadInput, options: SummaryRea
     return {
       current,
       previous,
-      paired: current.status === 'ready' && (previous === null || previous.status === 'ready'),
-      settled: !busy(current) && (previous === null || !busy(previous)),
+      paired: ofThisScope(current) && (previous === null || ofThisScope(previous)),
+      settled: !waiting(current) && (previous === null || !waiting(previous)),
+      busy: underway(current) || (previous !== null && underway(previous)),
     };
   }, [current, previousRead, compared]);
 }

@@ -28,6 +28,11 @@ export interface Read<T> {
   errorId: string | null;
   /** The data is the last that was read: a later read of it failed. The card says so and keeps showing it. */
   stale: boolean;
+  /**
+   * The data is the last scope's, kept while this scope is read (`keepPreviousData`), not data of this scope: a
+   * refetch of the same scope has it `false`. Only a read that has data can have it.
+   */
+  placeholder: boolean;
   /** Reads again; does nothing for an `idle` read or a read that is paused. */
   refetch: () => void;
 }
@@ -66,6 +71,7 @@ export function useRead<T>(
         data: undefined,
         errorId: null,
         stale: false,
+        placeholder: false,
         refetch: retry,
       };
     }
@@ -73,9 +79,16 @@ export function useRead<T>(
     if (data === undefined) {
       // A retry under way is a read under way, not the failure it follows
       const status = isError && !isFetching ? 'error' : 'loading';
-      return { status, data: undefined, errorId, stale: false, refetch: retry };
+      return { status, data: undefined, errorId, stale: false, placeholder: false, refetch: retry };
     }
-    return { status: isFetching ? 'refetching' : 'ready', data, errorId, stale: isError, refetch: retry };
+    return {
+      status: isFetching ? 'refetching' : 'ready',
+      data,
+      errorId,
+      stale: isError,
+      placeholder: isPlaceholderData,
+      refetch: retry,
+    };
   }, [data, error, isError, isFetching, isPlaceholderData, refetch, requested]);
 }
 

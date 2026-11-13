@@ -3,9 +3,9 @@
 import { useTranslations } from 'next-intl';
 import { useCallback, useMemo } from 'react';
 
-import { buildAggregates } from '../data/aggregates';
-import { readNumber } from '../data/number-sources';
-import { comparisonWindow } from '../data/overview-queries';
+import { buildAggregates, type OverviewAggregates } from '../data/aggregates';
+import { readNumber, type NumberReading } from '../data/number-sources';
+import { askedEngines, comparisonWindow } from '../data/overview-queries';
 import type { Read } from '../data/read-state';
 import { useOverviewFanout, useOverviewSources, type OverviewReadInput } from '../data/use-overview-reads';
 import { useOverview, useOverviewPeriods } from '../overview-context';
@@ -14,6 +14,7 @@ import { useTopicsKept } from '../scope/use-topic-tree';
 import { numberDisplay, type NumberContext, type Say, type UnreadWhy } from './number-model';
 import { Delta } from '@/components/app/metric/delta';
 import { useLayoutScreen, type NumberStripProps, type NumberValue } from '@/features/layouts';
+import type { ProjectEngine } from '@/lib/api/types';
 import type { NumberItem } from '@/lib/layouts/types';
 
 /**
@@ -49,6 +50,22 @@ function whyUnread(read: Read<unknown>, remote: boolean, branded: Branded): Unre
 }
 
 /**
+ * What a number reads: its figure from the aggregates; with no summary (`shown` is `null`) and no engine asked
+ * (`engines` is the project's list then), an engine's number says why that engine is not asked, which is that it
+ * is off in the project or outside the filter, and the others are unread.
+ */
+function readingOf(
+  shown: OverviewAggregates | null,
+  engines: readonly ProjectEngine[] | null,
+  item: NumberItem,
+): NumberReading | null {
+  if (shown !== null) return readNumber(shown, item);
+  if (engines === null || item.engine === undefined) return { status: 'unread' };
+  const project = engines.find((entry) => entry.engine.engine_code === item.engine);
+  return { status: 'notAsked', why: project?.is_enabled === true ? 'outsideFilter' : 'off' };
+}
+
+/**
  * The values of the numbers in the layout. The sources and the fan-out are read only while the layout has a
  * number that needs them, so a page of the default numbers makes neither request, and each waits for its own read
  * without holding back the numbers of the summary.
@@ -75,7 +92,7 @@ export function useNumberValues(): NumberValues {
   const sources = useOverviewSources(sourcesInput);
   const fanout = useOverviewFanout(fanoutInput);
 
-  const { current, previous, paired, settled } = periods;
+  const { current, previous, paired, settled, busy } = periods;
   const previousData = paired ? (previous?.data ?? null) : null;
   const aggregates = useMemo(
     () =>
@@ -104,32 +121,57 @@ export function useNumberValues(): NumberValues {
   );
   const compared = comparisonWindow(scope) !== null;
   const previousStatus = previous?.status ?? null;
+  // The previous window of this scope is read (or failed): its data is not the last scope's, though it may be read again
+  const previousSettled =
+    previous !== null &&
+    (previousStatus === 'ready' ||
+      previousStatus === 'error' ||
+      (previousStatus === 'refetching' && !previous.placeholder));
   const previousAnswers = aggregates?.previousAnswers ?? null;
+  // The summary is not asked of no engine, so there are no figures: every engine says why it is not asked, and the
+  // prompts, which come with the summary, say that no engine is. Only once the engines are known to be none
+  const nothingAsked = engines.data !== undefined && askedEngines({ scope, enabledEngines }).length === 0;
 
   const context = useMemo(
     (): NumberContext => ({
       window: scope.range,
       days: scope.range.days,
       // Said once its read has settled: while it is under way there is nothing to say of a change yet
-      previous: compared && (previousStatus === 'ready' || previousStatus === 'error') ? scope.previous : null,
+      previous: compared && previousSettled ? scope.previous : null,
       previousEmpty: previousAnswers === 0,
       previousFailed: previousStatus === 'error',
       branded: scope.branded,
       busy: !settled,
       stale: current.stale,
       unreadOf: (metric) => {
-        if (aggregates === null || (metric !== SOURCES_METRIC && metric !== FANOUT_METRIC)) {
-          return whyUnread(current, false, scope.branded);
-        }
-        return whyUnread(metric === SOURCES_METRIC ? sources : fanout, true, scope.branded);
+        if (aggregates === null) return nothingAsked ? 'noEngine' : whyUnread(current, false, scope.branded);
+        if (metric !== SOURCES_METRIC && metric !== FANOUT_METRIC) return whyUnread(current, false, scope.branded);
+        const read = metric === SOURCES_METRIC ? sources : fanout;
+        // The fan-out read answers for the engines it names together, and a number is one engine's: a read that is
+        // here and gives no figure for it is a limit of the read, not a number that is missing
+        if (metric === FANOUT_METRIC && read.data !== undefined && !read.placeholder) return 'oneAtATime';
+        return whyUnread(read, true, scope.branded);
       },
     }),
-    [scope, compared, previousStatus, previousAnswers, settled, current, aggregates, sources, fanout],
+    [
+      scope,
+      compared,
+      previousStatus,
+      previousSettled,
+      previousAnswers,
+      settled,
+      current,
+      aggregates,
+      nothingAsked,
+      sources,
+      fanout,
+    ],
   );
 
+  const engineList = engines.data;
   const valueOf = useCallback(
     (item: NumberItem): NumberValue => {
-      const reading = shown === null ? ({ status: 'unread' } as const) : readNumber(shown, item);
+      const reading = readingOf(shown, nothingAsked ? (engineList ?? []) : null, item);
       const display = numberDisplay(reading, item, context, say);
       return {
         value: display.value,
@@ -139,20 +181,24 @@ export function useNumberValues(): NumberValues {
         tip: display.tip,
       };
     },
-    [shown, context, say],
+    [shown, nothingAsked, engineList, context, say],
   );
 
+  // Every read the numbers wait on is read again, so a number that failed on its own read gets its chance too
   const retry = useCallback((): void => {
     current.refetch();
     previous?.refetch();
-  }, [current, previous]);
+    sources.refetch();
+    fanout.refetch();
+  }, [current, previous, sources, fanout]);
   const failed = current.status === 'error';
   return useMemo(
     (): NumberValues => ({
       valueOf,
-      status: current.status === 'loading' ? 'loading' : settled ? 'ready' : 'refetching',
+      // Busy while any read is under way, though the values stay: a read of the same scope takes nothing away
+      status: current.status === 'loading' ? 'loading' : busy ? 'refetching' : 'ready',
       error: failed ? { errorId: current.errorId, retry } : null,
     }),
-    [valueOf, current.status, current.errorId, settled, failed, retry],
+    [valueOf, current.status, current.errorId, busy, failed, retry],
   );
 }

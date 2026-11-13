@@ -2,7 +2,7 @@ import { createTranslator } from 'next-intl';
 import { describe, expect, it } from 'vitest';
 
 import type { NumberFigure, NumberReading } from '../data/number-sources';
-import { numberDisplay, type NumberContext, type NumberDisplay, type Say } from './number-model';
+import { numberDisplay, stripLabel, type NumberContext, type NumberDisplay, type Say } from './number-model';
 import { formatMetricDelta } from '@/lib/format';
 import type { NumberItem } from '@/lib/layouts/types';
 import messages from '../../../../messages/en.json';
@@ -22,6 +22,8 @@ const CONTEXT: NumberContext = {
   stale: false,
   unreadOf: () => 'loading',
 };
+/** Every reason a number can have no reading for a read it needs. */
+const UNREAD = ['loading', 'error', 'idle', 'brandedOnly', 'oneAtATime', 'noEngine'] as const;
 const WINDOW_SENTENCE = 'Window: Oct 16 to Nov 12, 2026 (branded prompts excluded)';
 const INTERIM = 'Unpaired test on pooled counts';
 
@@ -180,6 +182,7 @@ describe('what a number says when it has no rate', () => {
     expect(display.unknown).toEqual({ kind: 'not-applicable' });
     expect(display.context).toBe('12 not valid');
     expect(display.value).not.toMatch(/^0/);
+    expect(display.tip).toContain('No valid answers, 12 answers not valid');
   });
 
   it('says there was no answer at all in the window when none was asked either', () => {
@@ -370,11 +373,169 @@ describe('every string of every number', () => {
   it('holds no dash in a value, a context line or a tip', () => {
     for (const item of ITEMS) {
       for (const reading of READINGS) {
-        for (const unreadOf of ['loading', 'error', 'idle', 'brandedOnly'] as const) {
+        for (const unreadOf of UNREAD) {
           const display = show(reading, item, { unreadOf: () => unreadOf, previousEmpty: true, stale: true });
           for (const text of [display.value, display.context ?? '', display.tip ?? '']) expect(text).not.toMatch(DASH);
         }
       }
     }
+  });
+});
+
+describe('a change that rounds to zero', () => {
+  it.each([-0.0001, 0.0001])('reads "0 pts" with no direction, no claim and no test for a delta of %s', (delta) => {
+    const display = show(
+      read({ change: { delta, detectable: delta < 0 ? true : false, unit: 'points' } }),
+      chatgpt('ai.mention_rate'),
+    );
+    expect(display.change).toEqual({ value: 0, unit: 'points', polarity: 'higher_is_better', isDetectable: null });
+    const delta0 = display.change === null ? null : formatMetricDelta(display.change);
+    expect(delta0?.text).toBe('0 pts');
+    expect(delta0?.label).toBe('no change');
+    expect(delta0?.tone).toBe('neutral');
+    expect(display.tip).toContain('No change at this precision');
+    expect(display.tip).not.toMatch(/Larger than|Within normal|No claim|Unpaired/);
+  });
+
+  it('still says a change of 0.1 points is a change', () => {
+    const display = show(
+      read({ change: { delta: 0.001, detectable: false, unit: 'points' } }),
+      chatgpt('ai.mention_rate'),
+    );
+    expect(display.change?.value).toBe(0.001);
+    expect(display.tip).toContain('Within normal variation');
+  });
+});
+
+describe('what a tip says while the reads of a changed scope are under way', () => {
+  it('leaves the window out of the tip of the figures it holds, as they may be of the scope before', () => {
+    const display = show(read(), chatgpt('ai.mention_rate'), { busy: true });
+    expect(display.value).toBe('34%');
+    expect(display.tip).toContain('612 of 1,800 valid answers');
+    expect(display.tip).not.toContain('Window:');
+    const insufficient = show(read({ state: 'insufficient', value: null, n: 3 }), chatgpt('ai.mention_rate'), {
+      busy: true,
+    });
+    expect(insufficient.tip).not.toContain('Window:');
+  });
+});
+
+describe('the wording of a tip', () => {
+  it('counts the answers that name a brand for a share of voice under the minimum, not the valid answers', () => {
+    const display = show(
+      read({ state: 'insufficient', value: null, k: null, n: 3, unit: 'namingAnswers', invalid: 2 }),
+      chatgpt('ai.share_of_voice'),
+    );
+    expect(display.value).toBe('3 answers');
+    expect(display.tip).toContain('3 answers naming a tracked brand, too few for a rate (it needs 4)');
+    expect(display.tip).not.toContain('valid answers');
+  });
+
+  it('leaves the line of the companion rates out when neither is known', () => {
+    const none = show(read({ companions: { cited: null, shareOfVoice: null } }), chatgpt('ai.mention_rate'));
+    expect(none.tip).not.toContain('Cited');
+    expect(none.tip).not.toContain('n/a');
+    const one = show(read({ companions: { cited: 0.21, shareOfVoice: null } }), chatgpt('ai.mention_rate'));
+    expect(one.tip).toContain('Cited 21%, share of voice n/a');
+  });
+
+  it('says the fan-out is read for one engine at a time, which is a limit and not a missing figure', () => {
+    const display = show({ status: 'unread' }, chatgpt('ai.fanout_presence_rate'), { unreadOf: () => 'oneAtATime' });
+    expect(display.value).toBe('n/a');
+    expect(display.context).toBe('Read for one engine at a time');
+    expect(display.tip).toContain('more than one engine that shows its fan-out is on');
+    expect(display.tip).not.toMatch(/no figure/i);
+  });
+
+  it('says no engine is asked, truly, when none of the engines of the choice is on', () => {
+    const prompts = show(
+      { status: 'unread' },
+      { id: 'n', metric: 'ai.prompts_in_scope' },
+      { unreadOf: () => 'noEngine' },
+    );
+    expect(prompts.value).toBe('Not asked');
+    expect(prompts.context).toBe('No engine is asked');
+    expect(prompts.tip).toContain('No engine in the engine filter is on in this project, so nothing is asked');
+  });
+
+  it('never says a number has no figure unless its metric has no source on the page', () => {
+    for (const unreadOf of UNREAD) {
+      const display = show({ status: 'unread' }, chatgpt('ai.mention_rate'), { unreadOf: () => unreadOf });
+      expect(display.tip ?? '').not.toMatch(/no figure/i);
+    }
+    expect(show(null, chatgpt('ai.recommendation_rate')).tip).toContain('This page has no figure for this number');
+  });
+});
+
+describe('the words of the numbers', () => {
+  const recorded = new Set<string>();
+  const record: Say = (key) => {
+    recorded.add(key);
+    return key;
+  };
+  const METRICS = [
+    'ai.prompts_in_scope',
+    'ai.valid_answers',
+    'ai.mention_rate',
+    'ai.citation_rate',
+    'ai.mention_and_citation_rate',
+    'ai.share_of_voice',
+    'ai.citation_share',
+    'ai.fanout_presence_rate',
+    'ai.recommendation_rate',
+  ];
+  const points = (delta: number, detectable: boolean | null): NumberFigure['change'] => ({
+    delta,
+    detectable,
+    unit: 'points',
+  });
+  const READINGS: NumberReading[] = [
+    ...(['answers', 'namingAnswers', 'citationUnits', 'prompts'] as const).flatMap((unit) =>
+      // Three flavours: nothing known beyond the value, the counts of another read, every count and a companion
+      [0, 1, 2].flatMap((flavour) => [
+        read({
+          unit,
+          prompts: flavour === 1 ? null : 250,
+          topics: flavour === 0 ? null : 13,
+          invalid: flavour === 1 ? null : 62,
+          companions: flavour === 0 ? { cited: null, shareOfVoice: null } : { cited: 0.2, shareOfVoice: null },
+        }),
+        read({ unit, state: 'insufficient', value: null, n: 3, invalid: flavour === 1 ? null : 1 }),
+        ...(['noneValid', 'noAnswers', 'noBrandNamed'] as const).flatMap((reason) =>
+          [0, 4, null].map((invalid) => read({ unit, state: 'none', value: null, k: null, n: 0, invalid, reason })),
+        ),
+      ]),
+    ),
+    ...[points(0.05, true), points(-0.05, false), points(0.05, null), points(0.0001, true)].map((change) =>
+      read({ change }),
+    ),
+    read({ change: { delta: -140, detectable: null, unit: 'count' } }),
+    { status: 'notAsked', why: 'off' },
+    { status: 'notAsked', why: 'outsideFilter' },
+    { status: 'notExposed' },
+    { status: 'unread' },
+  ];
+
+  it('uses every key of the namespace, and only keys the namespace has', () => {
+    for (const metric of METRICS) {
+      for (const reading of [...READINGS, null]) {
+        for (const context of [
+          CONTEXT,
+          { ...CONTEXT, previous: null, stale: true, busy: true },
+          { ...CONTEXT, previousEmpty: true },
+          { ...CONTEXT, previousFailed: true },
+        ]) {
+          for (const unreadOf of UNREAD) {
+            numberDisplay(reading, chatgpt(metric), { ...context, unreadOf: () => unreadOf }, record);
+          }
+        }
+      }
+    }
+    for (const branded of ['excluded', 'included', 'only'] as const) stripLabel(record, CONTEXT.window, branded);
+    const own = Object.keys(messages.aiOverview.numbers);
+    // The error row of the strip (`StripError`) says its own two sentences
+    const elsewhere = ['failedTitle', 'failedReason'];
+    expect([...recorded].filter((key) => !own.includes(key))).toEqual([]);
+    expect(own.filter((key) => !recorded.has(key) && !elsewhere.includes(key))).toEqual([]);
   });
 });

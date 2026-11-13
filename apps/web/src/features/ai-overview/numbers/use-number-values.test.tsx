@@ -386,3 +386,180 @@ describe('the numbers and the Topics and Prompts strip (R12)', () => {
     expect(slot('prompts', 'value')).toBe(byLabel.get('Prompts')?.textContent);
   });
 });
+
+const ENGINES = mswPath(`${P}/engines`);
+const problem = (requestId: string): ReturnType<typeof HttpResponse.json> =>
+  HttpResponse.json(
+    { type: 'about:blank', title: 'Internal error', status: 500, code: 'internal_error', request_id: requestId },
+    { status: 500, headers: { 'content-type': 'application/problem+json' } },
+  );
+
+interface EnginesBody {
+  data: { engine: { engine_code: string; exposes_fanout: boolean } }[];
+}
+interface FanoutBody {
+  meta: Record<string, unknown>;
+}
+
+describe('numbers with nothing to read, or that cannot be read for the choice', () => {
+  it('says every engine is not asked, and why, when the filter names only an engine that is off', async () => {
+    renderWithProviders(tree(MENTION, <Probe items={MENTION} seen={{ values: [] }} />), {
+      searchParams: '?engine=google_ai_mode',
+    });
+    await waitFor(() => {
+      expect(slot('mention-chatgpt', 'value')).toBe('Not asked');
+    });
+    expect(slot('mention-chatgpt', 'context')).toBe('Not in the engine filter');
+    expect(slot('mention-gemini', 'context')).toBe('Not in the engine filter');
+    expect(slot('mention-ai-mode', 'value')).toBe('Not asked');
+    expect(slot('mention-ai-mode', 'context')).toBe('Off in this project');
+    // The prompts are read with the summary, which is not asked of no engine: the reason is the true one
+    expect(slot('prompts', 'value')).toBe('Not asked');
+    expect(slot('prompts', 'context')).toBe('No engine is asked');
+    for (const item of MENTION) expect(slot(item.id, 'tip')).not.toMatch(/no figure/i);
+    expect(status()).toBe('ready');
+  });
+
+  it('says the fan-out is read for one engine at a time when two engines that show it are on', async () => {
+    const items: NumberItem[] = [
+      { id: 'fanout-chatgpt', metric: 'ai.fanout_presence_rate', engine: 'chatgpt_web' },
+      { id: 'fanout-gemini', metric: 'ai.fanout_presence_rate', engine: 'gemini_web' },
+    ];
+    server.use(
+      // A world in which Gemini shows its fan-out too
+      http.get(ENGINES, async ({ request }) => {
+        const answer = await passThrough(request);
+        if (answer === undefined) return undefined;
+        const body = (await answer.json()) as EnginesBody;
+        return HttpResponse.json({
+          ...body,
+          data: body.data.map((entry) =>
+            entry.engine.engine_code === 'gemini_web'
+              ? { ...entry, engine: { ...entry.engine, exposes_fanout: true } }
+              : entry,
+          ),
+        });
+      }),
+      http.get(FANOUT, async ({ request }) => {
+        const answer = await passThrough(request);
+        if (answer === undefined) return undefined;
+        const body = (await answer.json()) as FanoutBody;
+        const meta = {
+          ...body.meta,
+          engine_codes: ['chatgpt_web', 'gemini_web'],
+          engines_without_fanout: [],
+          answers: 20,
+          answers_with_fanout: 10,
+        };
+        return HttpResponse.json({ ...body, meta });
+      }),
+    );
+    renderWithProviders(tree(items, <Probe items={items} seen={{ values: [] }} />));
+    await waitFor(() => {
+      expect(slot('fanout-chatgpt', 'context')).toBe('Read for one engine at a time');
+    });
+    expect(slot('fanout-gemini', 'context')).toBe('Read for one engine at a time');
+    expect(slot('fanout-chatgpt', 'value')).toBe('n/a');
+    expect(slot('fanout-chatgpt', 'tip')).not.toMatch(/no figure/i);
+  });
+});
+
+describe('numbers that are read again', () => {
+  const summaryCount = (seen: readonly URL[]): number =>
+    seen.filter((url) => url.pathname.endsWith('/ai/prompts-summary')).length;
+
+  it('reads the failed sources and fan-out again with Retry, as it reads the summary', async () => {
+    const items: NumberItem[] = [
+      { id: 'mention-chatgpt', metric: 'ai.mention_rate', engine: 'chatgpt_web' },
+      { id: 'citation-share-chatgpt', metric: 'ai.citation_share', engine: 'chatgpt_web' },
+      { id: 'fanout-chatgpt', metric: 'ai.fanout_presence_rate', engine: 'chatgpt_web' },
+    ];
+    let failing = true;
+    server.use(
+      ...[SUMMARY, SOURCES, FANOUT].map((path) =>
+        http.get(path, ({ request }) => (failing ? problem('req-1') : passThrough(request))),
+      ),
+    );
+    const seen = requests();
+    const { user } = renderWithProviders(tree(items, <Probe items={items} seen={{ values: [] }} />));
+    await waitFor(() => {
+      expect(screen.getByTestId('error')).toHaveTextContent('req-1');
+    });
+    const count = (suffix: string): number => seen.filter((url) => url.pathname.endsWith(suffix)).length;
+    await waitFor(() => {
+      expect(count('/ai/sources/domains')).toBeGreaterThan(0);
+      expect(count('/ai/fanout-queries')).toBeGreaterThan(0);
+    });
+    const before = {
+      summary: summaryCount(seen),
+      sources: count('/ai/sources/domains'),
+      fanout: count('/ai/fanout-queries'),
+    };
+    failing = false;
+    await user.click(screen.getByRole('button', { name: 'retry' }));
+    await waitFor(() => {
+      expect(summaryCount(seen)).toBeGreaterThan(before.summary);
+      expect(count('/ai/sources/domains')).toBeGreaterThan(before.sources);
+      expect(count('/ai/fanout-queries')).toBeGreaterThan(before.fanout);
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId('error')).toHaveTextContent('none');
+      expect(slot('citation-share-chatgpt', 'context')).toMatch(/citation units$/);
+    });
+    server.events.removeAllListeners();
+  });
+
+  it('keeps the values and the change while the same scope is read again, and hides the change on a scope change', async () => {
+    const { user, queryClient } = renderWithProviders(tree(MENTION, <Probe items={MENTION} seen={{ values: [] }} />));
+    await waitFor(() => {
+      expect(status()).toBe('ready');
+      expect(slot('mention-chatgpt', 'delta')).not.toBe('');
+      expect(slot('mention-gemini', 'delta')).not.toBe('');
+    });
+    const value = slot('mention-chatgpt', 'value');
+    const delta = slot('mention-chatgpt', 'delta');
+
+    // A refetch of the same scope (a refocus, the stale time): nothing the person sees is taken away
+    const same = gate();
+    server.use(
+      http.get(SUMMARY, async ({ request }) => {
+        await same.promise;
+        return passThrough(request);
+      }),
+    );
+    void queryClient.invalidateQueries({
+      predicate: (query) => JSON.stringify(query.queryKey).includes('prompts-summary'),
+    });
+    await waitFor(() => {
+      expect(status()).toBe('refetching');
+    });
+    expect(slot('mention-chatgpt', 'value')).toBe(value);
+    expect(slot('mention-chatgpt', 'delta')).toBe(delta);
+    expect(slot('mention-chatgpt', 'tip')).toContain('Window:');
+    same.open();
+    await waitFor(() => {
+      expect(status()).toBe('ready');
+    });
+
+    // A scope change: the figures held are of the scope before, so there is no change and no window to claim
+    const changed = gate();
+    server.use(
+      http.get(SUMMARY, async ({ request }) => {
+        await changed.promise;
+        return passThrough(request);
+      }),
+    );
+    await user.click(screen.getByRole('button', { name: 'gemini only' }));
+    await waitFor(() => {
+      expect(status()).toBe('refetching');
+    });
+    expect(slot('mention-gemini', 'delta')).toBe('');
+    expect(slot('mention-gemini', 'tip')).not.toContain('Window:');
+    changed.open();
+    await waitFor(() => {
+      expect(status()).toBe('ready');
+      expect(slot('mention-gemini', 'delta')).not.toBe('');
+    });
+    expect(slot('mention-gemini', 'tip')).toContain('Window:');
+  });
+});
