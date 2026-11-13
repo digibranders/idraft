@@ -369,6 +369,14 @@ const PANEL_PROMPTS = 12;
 /** The same engines a window earlier, as the compared window of the page reads them. */
 const PANEL_BEFORE: Readonly<Record<string, Counts>> = { chatgpt: { k: 80, n: 200 }, gemini: { k: 75, n: 190 } };
 
+/** The API engine code of each specimen engine: one code for each row, so the rows have distinct keys. */
+const PANEL_CODES: Readonly<Record<string, string>> = {
+  chatgpt: 'chatgpt_web',
+  gemini: 'gemini_web',
+  'ai-mode': 'google_ai_mode',
+  'ai-overview': 'google_ai_overview',
+};
+
 function panelRow({ id, name, k, n }: EngineWindow): EnginePanelRow {
   const state = rateState(n);
   const before = PANEL_BEFORE[id];
@@ -382,7 +390,7 @@ function panelRow({ id, name, k, n }: EngineWindow): EnginePanelRow {
         }
       : null;
   return {
-    code: id === 'chatgpt' ? 'chatgpt_web' : id === 'gemini' ? 'gemini_web' : 'google_ai_mode',
+    code: PANEL_CODES[id] ?? id,
     label: name,
     state,
     value: state === 'ok' ? k / n : null,

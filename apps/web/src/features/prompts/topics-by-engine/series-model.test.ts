@@ -24,11 +24,20 @@ describe('enginePoints: the weekly points of a topic on one engine', () => {
       // The prompts that answered in that week alone, not the pooled four weeks
       prompts: 2,
       pooled: true,
+      showsPool: true,
       weeks: 4,
       window: POOL.window,
       band: wilsonInterval(3, 10),
       thin: false,
     });
+  });
+
+  it('does not word a point pooled over its own week alone as a pool, while keeping the flag the API gave', () => {
+    // The first points of a window pool 1 week: the API flags them, but they hold nothing but their own week
+    const [point] = pointsOf([
+      week('2026-10-05', { mentioned: weighted(3, 10, 4), prompts: 2, pool: pool(1, '2026-10-05', '2026-10-11') }),
+    ]);
+    expect(point).toMatchObject({ pooled: true, weeks: 1, showsPool: false });
   });
 
   it('reads an unpooled point as its own week', () => {
@@ -105,6 +114,14 @@ describe('poolNote: how many points of a chart show several weeks together', () 
     expect(poolNote(points)).toEqual({ pooled: 2, total: 3 });
     expect(poolNote([])).toEqual({ pooled: 0, total: 0 });
   });
+
+  it('does not count a point pooled over 1 week, which holds nothing but its own week', () => {
+    const points = pointsOf([
+      week('2026-10-05', { mentioned: weighted(3, 10, 4), prompts: 2, pool: pool(1, '2026-10-05', '2026-10-11') }),
+      week('2026-10-12', { mentioned: weighted(2, 8, 3), prompts: 3, pool: pool(2, '2026-10-05', '2026-10-18') }),
+    ]);
+    expect(poolNote(points)).toEqual({ pooled: 1, total: 2 });
+  });
 });
 
 describe('averagePoints: the engines of a topic week by week', () => {
@@ -119,6 +136,16 @@ describe('averagePoints: the engines of a topic week by week', () => {
     week('2026-10-12', { mentioned: weighted(3, 3, 2), prompts: 2 }),
     week('2026-10-19', { mentioned: weighted(0, 0, 0), prompts: 0 }),
   ]);
+
+  it('says a week shows a pool only when a point that took part holds more than its own week', () => {
+    const one = pointsOf([
+      week('2026-10-12', { mentioned: weighted(4, 10, 3), prompts: 3, pool: pool(1, '2026-10-12', '2026-10-18') }),
+    ]);
+    const [alone] = averagePoints([one]);
+    expect(alone).toMatchObject({ pooled: true, showsPool: false, weeks: 1 });
+    const [together] = averagePoints([one, a.slice(1, 2)]);
+    expect(together).toMatchObject({ pooled: true, showsPool: true, weeks: 4 });
+  });
 
   it('averages engines per week with equal weight over the engines that have a point', () => {
     const [first, second, third] = averagePoints([a, b]);

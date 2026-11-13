@@ -81,6 +81,73 @@ describe('the weekly read of the topic drawer (C-15)', () => {
     expect(result.current.tracked).toEqual([own]);
   });
 
+  it('says loading, not ready with another topic missing, while the next topic is read', async () => {
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const own = { entity_id: 'e1', name: 'Fynix', role: 'own' };
+    server.use(
+      http.get(SUMMARY_PATH, async ({ request }) => {
+        const term = new URL(request.url).searchParams.get('filter[term]');
+        if (term === CHILD_ID) {
+          await gate;
+          return HttpResponse.json(
+            body([{ term_id: CHILD_ID, name: 'Local SEO', prompt_count: 1, engines: [] }], [{ ...own, name: 'Other' }]),
+          );
+        }
+        return HttpResponse.json(
+          body([{ term_id: DRAWER_TOPIC_ID, name: 'Technical SEO', prompt_count: 3, engines: [] }], [own]),
+        );
+      }),
+    );
+    const { result, rerender } = renderHook(({ key }) => useTopicTrend(READ, key, true, undefined), {
+      wrapper,
+      initialProps: { key: DRAWER_TOPIC_ID },
+    });
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+    expect(result.current.row?.name).toBe('Technical SEO');
+    expect(result.current.tracked).toEqual([own]);
+
+    rerender({ key: CHILD_ID });
+    // The first topic's rows stay as the placeholder of the query: they are not the new topic's, so none of them shows
+    await waitFor(() => expect(result.current.fetching).toBe(true));
+    expect(result.current.status).toBe('loading');
+    expect(result.current.row).toBeUndefined();
+    expect(result.current.tracked).toEqual([]);
+
+    release();
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+    expect(result.current.row?.name).toBe('Local SEO');
+    expect(result.current.tracked).toEqual([{ ...own, name: 'Other' }]);
+  });
+
+  it('keeps the row of the same topic while its next window is read', async () => {
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    server.use(
+      http.get(SUMMARY_PATH, async ({ request }) => {
+        if (new URL(request.url).searchParams.get('from') !== READ.range.from) await gate;
+        return HttpResponse.json(
+          body([{ term_id: DRAWER_TOPIC_ID, name: 'Technical SEO', prompt_count: 3, engines: [] }]),
+        );
+      }),
+    );
+    const { result, rerender } = renderHook(({ read }) => useTopicTrend(read, DRAWER_TOPIC_ID, true, undefined), {
+      wrapper,
+      initialProps: { read: READ },
+    });
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+    rerender({ read: { ...READ, range: { from: '2026-08-15', to: '2026-11-12' } } });
+    await waitFor(() => expect(result.current.fetching).toBe(true));
+    expect(result.current.status).toBe('ready');
+    expect(result.current.row?.name).toBe('Technical SEO');
+    release();
+    await waitFor(() => expect(result.current.fetching).toBe(false));
+  });
+
   it('reads a body without series as no series, never as a failure', async () => {
     server.use(
       http.get(SUMMARY_PATH, () =>

@@ -51,7 +51,8 @@ export interface TopicTrend {
 const NO_ENTITIES: readonly SummaryEntity[] = [];
 
 /**
- * The weeks of one topic, asked only while `enabled`; the last row stays while the next window is read. The prompts without
+ * The weeks of one topic, asked only while `enabled`; the last row stays while the next window of the same topic is read,
+ * and when the topic changes nothing of the last one shows (`loading`). The prompts without
  * a topic have no `filter[term]`: their row is the page summary's (`page`), which holds their weekly points, and nothing is
  * read.
  */
@@ -78,10 +79,13 @@ export function useTopicTrend(
     };
   }
   const { data } = query;
+  const row = data?.data.topics.find((topic) => topic.term_id === topicKey);
+  // The placeholder is the previous read, which may be another topic's: without this topic's row in it, nothing of it shows
+  const foreign = query.isPlaceholderData && row === undefined;
   return {
-    status: query.isError ? 'failed' : data === undefined ? 'loading' : 'ready',
-    row: data?.data.topics.find((topic) => topic.term_id === topicKey),
-    tracked: data?.data.entities ?? NO_ENTITIES,
+    status: query.isError ? 'failed' : data === undefined || foreign ? 'loading' : 'ready',
+    row,
+    tracked: foreign ? NO_ENTITIES : (data?.data.entities ?? NO_ENTITIES),
     fetching: query.isFetching,
     error: query.error,
     retry: () => void query.refetch(),

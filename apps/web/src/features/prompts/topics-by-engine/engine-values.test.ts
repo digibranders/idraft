@@ -206,6 +206,22 @@ describe('engineChange: the move of an engine since the compared window', () => 
     expect(change?.points).toBeCloseTo(0.25, 10);
   });
 
+  it('makes no claim of a test that points the other way from the move it sits beside', () => {
+    // The prompt weighted rates rose (0.25 to 0.30) while the pooled answers fell (40 of 100 to 20 of 100): the test
+    // answers another question than the points state, so the change is shown uncoloured
+    const now = { ...weighted(20, 100, 4), value: 0.3, numerator: 1.2 };
+    const before = { ...weighted(40, 100, 4), value: 0.25, numerator: 1 };
+    const change = engineChange(withPrevious(now, before), 'chatgpt_web', 'mentioned');
+    expect(change?.points).toBeCloseTo(0.05, 10);
+    expect(change?.detectable).toBeNull();
+  });
+
+  it('makes no claim of a test when the pooled answers are as high as before and the points are not', () => {
+    const now = { ...weighted(20, 100, 4), value: 0.3, numerator: 1.2 };
+    const before = { ...weighted(40, 200, 4), value: 0.25, numerator: 1 };
+    expect(engineChange(withPrevious(now, before), 'chatgpt_web', 'mentioned')?.detectable).toBeNull();
+  });
+
   it('has no change without a compared window, or when the compared window has no answer on the engine', () => {
     const plain = [engine('chatgpt_web', { mentioned: weighted(4, 8, 2) })];
     expect(engineChange(plain, 'chatgpt_web', 'mentioned')).toBeNull();

@@ -17,8 +17,14 @@ const TEST_SENTENCE = {
   share: 'noTestShare',
 } as const satisfies Record<Extract<Comparison, { kind: 'gap' }>['test'], string>;
 
-/** The rates of a sentence carry one decimal, so the gap it names is the difference of the two it shows. */
+/** The rates of a sentence carry one decimal. */
 const rateText = (ratio: number): string => formatPercent(ratio, { decimals: 1 });
+
+/**
+ * The gap of the sentence in points: the difference of the two rates as it shows them (each rounded to a tenth of a
+ * point), so the arithmetic of the sentence holds. The exact spread (`bestWorst`) is what the gap column sorts by.
+ */
+const shownPoints = (best: number, worst: number): number => (Math.round(best * 1000) - Math.round(worst * 1000)) / 10;
 
 /**
  * What can be said of the gap between the engines of the topic (WB-TPE-11), in words from counts only: the best and
@@ -41,18 +47,22 @@ export function ComparisonLine({
       engines.find((entry) => entry.engine.engine_code === code)?.engine.label ?? code;
     const comparison = compareEngines(values, metric);
     const lines: string[] = [];
-    if (comparison.kind === 'gap') {
-      const { best, worst } = comparison;
+    // A gap always has two rates; a value that is missing leaves nothing to compare, and the sentence says so
+    const bestRate = comparison.kind === 'gap' ? comparison.best.value : null;
+    const worstRate = comparison.kind === 'gap' ? comparison.worst.value : null;
+    if (comparison.kind === 'gap' && bestRate !== null && worstRate !== null) {
       lines.push(
         t('gap', {
-          best: labelOf(best.code),
-          bestRate: rateText(best.value ?? 0),
-          worst: labelOf(worst.code),
-          worstRate: rateText(worst.value ?? 0),
-          points: formatDecimal(comparison.points, 1, { locale }),
+          best: labelOf(comparison.best.code),
+          bestRate: rateText(bestRate),
+          worst: labelOf(comparison.worst.code),
+          worstRate: rateText(worstRate),
+          points: formatDecimal(shownPoints(bestRate, worstRate), 1, { locale }),
         }),
         t(TEST_SENTENCE[comparison.test]),
       );
+    } else if (comparison.kind === 'gap') {
+      lines.push(t('none'));
     } else if (comparison.kind === 'equal') {
       lines.push(t('equal', { rate: rateText(comparison.value) }));
     } else {

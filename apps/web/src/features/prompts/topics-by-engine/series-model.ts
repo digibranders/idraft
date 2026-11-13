@@ -22,10 +22,12 @@ export interface TopicPoint {
   n: number;
   /** The prompts of the row with a valid answer in that week alone, whether the point is pooled or not. */
   prompts: number;
-  /** The point holds more than its own week: the API pooled it (C-18). */
+  /** The API pooled the point (C-18: `is_pooled`). The first points of a window pool 1 week, which is its own. */
   pooled: boolean;
   /** The weeks the point holds: 1 when it is not pooled. */
   weeks: number;
+  /** The point holds more than its own week, so its words say it is pooled: `pooled` and `weeks` over 1. */
+  showsPool: boolean;
   /** The days a pooled point covers, inside the window; `null` when it is not pooled. */
   window: PointPool['window'] | null;
   /** The 95 percent Wilson interval of the pooled answers, from `MIN_OBSERVATIONS` of them. */
@@ -54,6 +56,7 @@ function pointOf(week: WeekCells, cell: MetricCell | undefined, metric: CellMetr
     prompts: week.prompts,
     pooled: week.is_pooled,
     weeks: week.pool?.weeks ?? 1,
+    showsPool: week.is_pooled && (week.pool?.weeks ?? 1) > 1,
     window: week.pool?.window ?? null,
     band: null,
     thin: false,
@@ -90,7 +93,8 @@ export function averagePoints(series: readonly TopicPoint[][]): TopicPoint[] {
     const present = series.flatMap((points) => points.filter((point) => point.weekStart === weekStart));
     const used = present.filter((point) => point.value !== null && !point.thin);
     const pooled = used.filter((point) => point.pooled);
-    const widest = pooled.reduce<TopicPoint | null>(
+    const together = used.filter((point) => point.showsPool);
+    const widest = together.reduce<TopicPoint | null>(
       (most, point) => (most === null || point.weeks > most.weeks ? point : most),
       null,
     );
@@ -102,6 +106,7 @@ export function averagePoints(series: readonly TopicPoint[][]): TopicPoint[] {
       prompts: Math.max(0, ...present.map((point) => point.prompts)),
       pooled: pooled.length > 0,
       weeks: widest?.weeks ?? 1,
+      showsPool: together.length > 0,
       window: widest?.window ?? null,
       band: null,
       thin: false,
@@ -123,7 +128,7 @@ export function isStale(lastValidAt: string | null, now: Date): boolean {
 /** How many of the points that show a value hold several weeks (the words of C-18 need it: "3 of 12"). */
 export function poolNote(points: readonly TopicPoint[]): { pooled: number; total: number } {
   const shown = points.filter((point) => point.value !== null);
-  return { pooled: shown.filter((point) => point.pooled).length, total: shown.length };
+  return { pooled: shown.filter((point) => point.showsPool).length, total: shown.length };
 }
 
 export interface EntityLine {

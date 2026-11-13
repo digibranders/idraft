@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import { ComparisonLine } from './comparison-line';
 import { engine, projectEngine, weighted } from '@/features/prompts/topics-by-engine/cells-fixtures';
-import { engineValue } from '@/features/prompts/topics-by-engine/engine-values';
+import { engineValue, type EngineValue } from '@/features/prompts/topics-by-engine/engine-values';
 import type { MetricCell } from '@/lib/api/types';
 import type { CellMetric } from '@/lib/rates/rate-model';
 import { renderDrawerPart } from '@/test/topic-drawer-harness';
@@ -29,6 +29,25 @@ describe('ComparisonLine: what can be said of the gap between the engines', () =
       [2, 8],
     ]);
     expect(screen.getByText('Best on ChatGPT at 37.5%, weakest on Gemini at 25.0%, a gap of 12.5 pts.')).toBeVisible();
+  });
+
+  it('writes the gap as the difference of the two rates it shows, not of the exact rates', () => {
+    const rated = (code: string, value: number): EngineValue => ({
+      code,
+      state: 'ok',
+      value,
+      answers: 10,
+      successes: null,
+      prompts: 4,
+      observations: 10,
+      reason: null,
+    });
+    // 33.337 and 11.262 percent are shown as 33.3 and 11.3: the exact gap, 22.075, would read as 22.1
+    renderDrawerPart(
+      <ComparisonLine values={[rated('chatgpt_web', 0.33337), rated('gemini_web', 0.11262)]} metric="share_of_voice" />,
+      { engines: ENGINES },
+    );
+    expect(screen.getByText('Best on ChatGPT at 33.3%, weakest on Gemini at 11.3%, a gap of 22.0 pts.')).toBeVisible();
   });
 
   it('says within normal variation or larger, labelled unpaired on pooled answers', () => {

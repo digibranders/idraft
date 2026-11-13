@@ -149,6 +149,23 @@ describe('EngineTrend: the weekly rate of the topic on each engine', () => {
     expect(first?.textContent).not.toMatch(/weeks to/);
   });
 
+  it('says nothing of pooling for a point pooled over its own week alone', async () => {
+    const alone = [
+      engine('chatgpt_web', {
+        series: series(
+          { mentioned: weighted(3, 8, 4), prompts: 4, pool: pool(1, '2026-10-19', '2026-10-25') },
+          { mentioned: weighted(4, 10, 5), prompts: 5 },
+        ),
+      }),
+    ];
+    const { user } = renderTrend(rowWith(alone));
+    await screen.findByTestId('echart-canvas');
+    expect(screen.queryByText(/shows the last 4 weeks together/)).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Table' }));
+    const grid = screen.getByRole('table', { name: 'Trend by engine' });
+    expect(grid.textContent).not.toMatch(/weeks? to/);
+  });
+
   it('a point under 4 answers is hollow with no band', async () => {
     const thin = [
       engine('chatgpt_web', {

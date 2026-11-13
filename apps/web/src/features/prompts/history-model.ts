@@ -104,9 +104,14 @@ export function engineRole(engineCode: string): SeriesRole {
 
 /** The top of the rate axis: the next tenth above the highest rate or band, at least 10 percent and at most 100 percent. */
 export function rateCeiling(history: History | null): number {
-  const highest = (history?.engines ?? [])
-    .flatMap((engine) => engine.points)
-    .reduce((top, point) => Math.max(top, point?.band?.high ?? 0, point?.value ?? 0), 0);
+  return rateCeilingOf((history?.engines ?? []).flatMap((engine) => engine.points));
+}
+
+/** The same ceiling for any points that have a value and a band: a prompt's weeks, or a topic's. */
+export function rateCeilingOf(
+  points: readonly ({ value: number | null; band: { low: number; high: number } | null } | null)[],
+): number {
+  const highest = points.reduce((top, point) => Math.max(top, point?.band?.high ?? 0, point?.value ?? 0), 0);
   // The small step takes a tenth that floating point puts a hair above (0.3 as 0.30000000000000004) back down
   return Math.min(1, Math.max(0.1, Math.ceil(highest * 10 - 1e-9) / 10));
 }

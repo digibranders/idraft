@@ -6,7 +6,7 @@ import { useCallback, useMemo, type ReactElement } from 'react';
 import { useDrawerMetric, useTopicDrawer } from './drawer-context';
 import { useTopicTrend } from './topic-trend-query';
 import { ChartFrame, type ChartEmpty, type ChartError, type ChartNotice } from '@/components/app/chart/chart-frame';
-import { engineRole } from '@/features/prompts/history-model';
+import { engineRole, rateCeilingOf } from '@/features/prompts/history-model';
 import { CELL_OF_METRIC } from '@/features/prompts/prompt-model';
 import { useRateWords } from '@/features/prompts/rate-view';
 import { enginePoints, isStale, poolNote, type TopicPoint } from '@/features/prompts/topics-by-engine/series-model';
@@ -35,18 +35,6 @@ type FrameState =
   | { status: 'loading' | 'ready' | 'refetching' }
   | { status: 'empty'; empty: ChartEmpty }
   | { status: 'error'; error: ChartError };
-
-/** The top of the rate axis: the next tenth above the highest rate or band, at least 10 percent and at most 100 percent. */
-function ceilingOf(lines: readonly EngineLine[]): number {
-  const highest = Math.max(
-    0,
-    ...lines.flatMap((line) =>
-      line.points.flatMap((point) => (point === null ? [] : [point.band?.high ?? 0, point.value ?? 0])),
-    ),
-  );
-  // The small step takes a tenth that floating point puts a hair above (0.3 as 0.30000000000000004) back down
-  return Math.min(1, Math.max(0.1, Math.ceil(highest * 10 - 1e-9) / 10));
-}
 
 /**
  * The Trend by engine section of the topic drawer's Overview (WB-TPE-10, CF-31): the weekly rate of the topic on each
@@ -111,7 +99,7 @@ export function EngineTrend(): ReactElement {
         ? t('cellThin', { basis, prompts: point.prompts })
         : t('cell', { value: formatRate(point.value), basis, prompts: point.prompts });
       // A pooled point says which weeks it holds: a canvas line cannot restyle one point, so the words do
-      return point.pooled
+      return point.showsPool
         ? t('cellPooled', {
             cell: text,
             span: pooling('pointTitle', { weeks: point.weeks, date: formatChartDate(point.weekStart) }),
@@ -127,7 +115,7 @@ export function EngineTrend(): ReactElement {
           1,
           ...(model?.lines ?? []).map((line) => {
             const point = line.points[at];
-            return point?.pooled === true ? point.weeks : 1;
+            return point?.showsPool === true ? point.weeks : 1;
           }),
         );
         return pooled > 1
@@ -152,7 +140,7 @@ export function EngineTrend(): ReactElement {
     }
     return bySeries;
   }, [model, pointText]);
-  const ceiling = useMemo(() => ceilingOf(model?.lines ?? []), [model]);
+  const ceiling = useMemo(() => rateCeilingOf((model?.lines ?? []).flatMap((line) => line.points)), [model]);
   const extendOption = useCallback(
     (option: Record<string, unknown>, tokens: ChartTokens): Record<string, unknown> =>
       rateBandOption(option, tokens, {

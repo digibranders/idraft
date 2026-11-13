@@ -129,9 +129,16 @@ export function engineChange(
   const now = engineValue(cells, code, metric);
   const before = engineValue([{ ...previous, engine_code: code }], code, metric);
   if (now.value === null || before.value === null) return null;
-  const counted =
-    metric === 'share_of_voice' || now.successes === null || before.successes === null
-      ? null
-      : isDetectableChange({ k: now.successes, n: now.answers }, { k: before.successes, n: before.answers });
-  return { points: now.value - before.value, detectable: counted };
+  const points = now.value - before.value;
+  if (metric === 'share_of_voice' || now.successes === null || before.successes === null) {
+    return { points, detectable: null };
+  }
+  const current = { k: now.successes, n: now.answers };
+  const earlier = { k: before.successes, n: before.answers };
+  if (current.n <= 0 || earlier.n <= 0) return { points, detectable: null };
+  // The points are the move of the prompt weighted rates, the test reads the pooled answers: when the two do not move the
+  // same way the test would answer another question than the points state, so no claim is made and the change is uncoloured
+  const pooled = current.k / current.n - earlier.k / earlier.n;
+  const agree = Math.abs(pooled) > SAME_RATE ? points * pooled > 0 : Math.abs(points) <= SAME_RATE;
+  return { points, detectable: agree ? isDetectableChange(current, earlier) : null };
 }

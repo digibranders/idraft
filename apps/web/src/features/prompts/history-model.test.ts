@@ -6,6 +6,7 @@ import {
   modelBoundaries,
   pooledWeeks,
   rateCeiling,
+  rateCeilingOf,
   STALE_AFTER_DAYS,
   staleEvents,
   staleWindow,
@@ -235,6 +236,15 @@ describe('the ceiling of the rate axis', () => {
     const high = wilsonInterval(2, 8)?.high ?? 0;
     expect(rateCeiling(history(2, 8))).toBe(Math.ceil(high * 10) / 10);
     expect(rateCeiling(history(8, 8))).toBe(1);
+  });
+
+  it('is the same for any points that have a value and a band, as the points of a topic', () => {
+    expect(rateCeilingOf([])).toBe(0.1);
+    expect(rateCeilingOf([null, { value: null, band: null }])).toBe(0.1);
+    // A tenth that floating point puts a hair above (0.3 as 0.30000000000000004) stays at it
+    expect(rateCeilingOf([{ value: 0.1 + 0.2, band: null }])).toBe(0.3);
+    expect(rateCeilingOf([{ value: 0.25, band: { low: 0.1, high: 0.62 } }, null])).toBe(0.7);
+    expect(rateCeilingOf([{ value: 1, band: { low: 0.8, high: 1 } }])).toBe(1);
   });
 });
 
