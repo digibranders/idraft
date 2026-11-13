@@ -222,6 +222,8 @@ describe('the page cell', () => {
   it('a hostile address is never a link', () => {
     const { container } = renderCell('page', pageOf({ url: 'javascript:alert(1)', host: 'javascript' }));
     expect(container.querySelector('a[href^="javascript"]')).toBeNull();
+    // The address is still shown, as text: the cell is not empty
+    expect(container).toHaveTextContent('javascript:alert(1)');
   });
 
   it('names the row by its address', () => {

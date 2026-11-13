@@ -326,7 +326,7 @@ describe('PagesTab', () => {
     expect(names(table)).toEqual([expect.stringContaining('hubspot.com'), expect.stringContaining('g2.com')]);
   });
 
-  it('asks the server for 200 pages with the sort, the minimum, the series and the comparison', async () => {
+  it('asks the server for 200 pages with the sort, the minimum and the comparison, and no include block', async () => {
     const seen = watch('/sources/pages');
     renderTab();
     await loaded();
@@ -335,7 +335,8 @@ describe('PagesTab', () => {
     expect(query?.has('offset')).toBe(false);
     expect(query?.get('min_support')).toBe('2');
     expect(query?.get('compare')).toBe('previous_period');
-    expect(query?.get('include')).toBe('series');
+    // No column of the table draws a trend, so no series is asked for
+    expect(query?.has('include')).toBe(false);
     expect(query?.has('sort')).toBe(false);
     expect(query?.has('filter[registrable_domain]')).toBe(false);
   });
@@ -346,7 +347,7 @@ describe('PagesTab', () => {
     await loaded();
     await idle(queryClient);
     expect(seen.length).toBeGreaterThan(0);
-    for (const url of seen) expect(url.searchParams.get('include')).not.toContain('cited_with');
+    for (const url of seen) expect(url.searchParams.get('include') ?? '').not.toContain('cited_with');
   });
 
   it('reads Cited with from the domains route, 200 of them with the blocks it needs, in the scope of the page', async () => {
@@ -380,7 +381,7 @@ describe('PagesTab', () => {
     expect(screen.getByText('Domain equals: g2.com')).toBeInTheDocument();
   });
 
-  it('the Domain filter is removable and clearing it lists every page', async () => {
+  it('the empty state Clear filters resets the Domain filter and lists every page', async () => {
     // A domain that has no page in the scope: filtered to it the list is empty
     servePages([ONE, TWO]);
     const onClear = vi.fn();

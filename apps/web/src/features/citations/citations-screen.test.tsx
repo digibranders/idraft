@@ -19,7 +19,7 @@ import { restoreWideScreen, stubWideScreen } from '@/test/rankings-harness';
 import { renderWithProviders, type ProvidedRenderOptions } from '@/test/render';
 
 // A test turns the Pages entry off to see the page before T5a lists it
-const registry = vi.hoisted(() => ({ withPages: true }));
+const registry = vi.hoisted(() => ({ withPages: true, real: false }));
 
 // The two tabs the page lists once T4b and T5a land, as text, so the shell is tested on its own
 vi.mock('./citation-tabs', async (importOriginal) => {
@@ -34,6 +34,8 @@ vi.mock('./citation-tabs', async (importOriginal) => {
   return {
     ...actual,
     get CITATION_TABS() {
+      // A test that follows a read through the real tabs turns the text panels off
+      if (registry.real) return actual.CITATION_TABS;
       return registry.withPages ? both : domainsOnly;
     },
   };
@@ -66,6 +68,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   registry.withPages = true;
+  registry.real = false;
   server.events.removeAllListeners();
   vi.useRealTimers();
   restoreWideScreen();
@@ -479,6 +482,26 @@ describe('Citations page: the scope in the address', () => {
     await unlisted.user.click(screen.getByRole('button', { name: 'Add a filter' }));
     expect(await screen.findByRole('button', { name: 'Engine' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Domain' })).toBeNull();
+  });
+
+  it('removing the Domain chip drops the key and the next pages read has no domain filter', async () => {
+    registry.real = true;
+    const reads = watch();
+    const writes: string[] = [];
+    const { user } = render('?tab=pages&domain=equals:g2.com', {
+      onUrlUpdate: ({ queryString }) => writes.push(queryString),
+    });
+    await screen.findByRole('grid', { name: 'Cited pages' });
+    await waitFor(() => expect(to(reads, '/ai/sources/pages').length).toBeGreaterThan(0));
+    expect(
+      to(reads, '/ai/sources/pages').every((url) => url.searchParams.get('filter[registrable_domain]') === 'g2.com'),
+    ).toBe(true);
+    const before = to(reads, '/ai/sources/pages').length;
+    await user.click(await screen.findByRole('button', { name: 'Remove filter Domain equals: g2.com' }));
+    await waitFor(() => expect(writes.at(-1)).not.toContain('domain'));
+    expect(writes.at(-1)).toContain('tab=pages');
+    await waitFor(() => expect(to(reads, '/ai/sources/pages').length).toBeGreaterThan(before));
+    expect(to(reads, '/ai/sources/pages').at(-1)?.searchParams.has('filter[registrable_domain]')).toBe(false);
   });
 
   it('reads nothing before the engines resolve, keeps the engine in the address and then asks for it', async () => {

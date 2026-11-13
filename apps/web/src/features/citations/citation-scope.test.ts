@@ -66,6 +66,11 @@ describe('parseScope', () => {
     }
   });
 
+  it('the domain filter is lower case, as the backend filter is not', () => {
+    expect(parseScope({ domain: 'equals:G2.COM' }, ENABLED).domain).toBe('g2.com');
+    expect(parseScope({ domain: 'equals: Mixed.Example ' }, ENABLED).domain).toBe('mixed.example');
+  });
+
   it('reads the density and keeps the column text for the table to parse', () => {
     expect(parseScope({}, ENABLED)).toMatchObject({ density: 'compact', columns: null });
     expect(parseScope({ density: 'default', cols: 'domain,units' }, ENABLED)).toMatchObject({

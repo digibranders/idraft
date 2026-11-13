@@ -75,7 +75,6 @@ export function PagesTab({ context }: PagesTabProps): ReactElement {
       offset: 0,
       sort: scope.sort,
       minSupport: scope.minSupport,
-      include: ['series'],
       compare: scope.compare,
       ...(scope.domain === null ? {} : { registrableDomain: scope.domain }),
     }),

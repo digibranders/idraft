@@ -82,7 +82,8 @@ function minSupportOf(text: string | null | undefined): number {
 
 function domainOf(text: string | null | undefined): string | null {
   const filter = parseText(text);
-  return filter?.operator === 'equals' ? filter.text : null;
+  // The backend's domain filter is not lower-cased and registrable domains are, so a typed "G2.com" is "g2.com"
+  return filter?.operator === 'equals' ? filter.text.toLowerCase() : null;
 }
 
 /** The scope the address names. A value that does not read falls back to its default; nothing throws. */
