@@ -28,4 +28,12 @@ export const COMPETITOR_CARDS: Readonly<Record<string, CardRegistration>> = {
     skeleton: COMPETITOR_SKELETONS['ai.sov_over_time'],
   },
   'ai.sov_rank': { load: () => import('./sov-rank-card'), skeleton: COMPETITOR_SKELETONS['ai.sov_rank'] },
+  'ai.co_mentions': {
+    load: () => import('./co-mentions-card'),
+    skeleton: COMPETITOR_SKELETONS['ai.co_mentions'],
+  },
+  'ai.competitor_table': {
+    load: () => import('./competitor-table-card'),
+    skeleton: COMPETITOR_SKELETONS['ai.competitor_table'],
+  },
 };
