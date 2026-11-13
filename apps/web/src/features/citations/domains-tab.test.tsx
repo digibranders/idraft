@@ -305,7 +305,9 @@ describe('DomainsTab', () => {
     const table = await loaded();
     const held = table.closest('.min-h-80');
     expect(held).not.toBeNull();
-    expect(held?.parentElement).toHaveClass('overflow-y-auto');
+    // From lg up the tab scrolls on its own; below it the whole page does and the table has a height of its own
+    expect(held?.parentElement).toHaveClass('lg:overflow-y-auto');
+    expect(held).toHaveClass('h-96', 'lg:h-auto', 'lg:flex-1');
   });
 
   it('takes the domains back from the export while another order is read, and hands over the new ones when they arrive', async () => {

@@ -296,7 +296,7 @@ function CitationsContent({ workspaceId, workspaceSlug, project }: CitationsScre
         // A view is a place to go back to: the tab is the one change of the page that makes a history entry
         onValueChange={(next) => setSearch({ tab: next === 'domains' ? null : next }, { history: 'push' })}
         items={CITATION_TABS.map((entry) => ({ value: entry.id, label: entry.label(t) }))}
-        className="min-h-0 flex-1 gap-3"
+        className="gap-3 lg:min-h-0 lg:flex-1"
       >
         {scopeFailed ? (
           <LoadFailed errorId={scopeMeta.errorId} onRetry={scopeMeta.retry} retrying={scopeMeta.retrying} />
@@ -332,7 +332,7 @@ function CitationsContent({ workspaceId, workspaceSlug, project }: CitationsScre
           </div>
         </div>
         {scopeFailed || tab === null ? null : (
-          <TabsPanel value={tab.id} className="flex min-h-0 flex-1 flex-col gap-3">
+          <TabsPanel value={tab.id} className="flex flex-col gap-3 lg:min-h-0 lg:flex-1">
             {tab.render(context)}
           </TabsPanel>
         )}
@@ -350,8 +350,8 @@ function CitationsContent({ workspaceId, workspaceSlug, project }: CitationsScre
           timeZone={project.timeZone}
         />
       </TopBarPortal>
-      {/* The window's height, as the Prompts page has it: the table of a tab fills what the strip and the filters leave */}
-      <div className="flex h-page-body min-h-page-body-min flex-col gap-3 px-3 pt-3 pb-5 md:px-4 lg:px-5">
+      {/* From lg up the window's height, as the Prompts page has it: the table of a tab fills what the strip and the filters leave. Below it the page scrolls as a whole, so a short phone keeps the table whole */}
+      <div className="flex flex-col gap-3 px-3 pt-3 pb-5 md:px-4 lg:h-page-body lg:min-h-page-body-min lg:px-5">
         {header}
         {droppedWords === null ? null : <Banner tone="info" placement="region" message={droppedWords} />}
         {body}

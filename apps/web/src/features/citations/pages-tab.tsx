@@ -158,7 +158,7 @@ export function PagesTab({ context }: PagesTabProps): ReactElement {
 
   // The tab scrolls as a whole when the card above the table and the notes leave it under 20rem, so the table is never squeezed away
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
+    <div className="flex flex-col gap-3 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
       <NoOwnPage context={context} />
       <CitationTableNotes
         meta={meta}
@@ -185,7 +185,7 @@ export function PagesTab({ context }: PagesTabProps): ReactElement {
           />
         ) : null}
       </CitationTableNotes>
-      <div className="flex min-h-80 flex-1 flex-col">
+      <div className="flex h-96 min-h-80 flex-col lg:h-auto lg:flex-1">
         <DataTable<SourcePageRow>
           caption={tt('pagesCaption')}
           itemNoun={{ one: tt('pageNoun.one'), other: tt('pageNoun.other') }}

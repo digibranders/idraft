@@ -78,6 +78,15 @@ function unitsItem(reads: StripReads, scope: CitationScope, { t, labelOf }: Stri
       scope.engines.length === 0
         ? t('unitsContext', { answers: meta.answers })
         : t('unitsContextEngines', { answers: meta.answers, engines: formatList(scope.engines.map(labelOf)) }),
+    // With a tip the context wraps instead of clipping, so a narrow cell still says which engines the figure is of
+    tip:
+      scope.engines.length === 0
+        ? t('unitsTip', { units: meta.citation_units, answers: meta.answers })
+        : t('unitsTipEngines', {
+            units: meta.citation_units,
+            answers: meta.answers,
+            engines: formatList(scope.engines.map(labelOf)),
+          }),
   };
 }
 
@@ -90,6 +99,7 @@ function distinctItem(reads: StripReads, { t }: StripWords): MetricStripItem {
     label,
     value: formatInteger(data.meta.distinct_domains),
     context: t('distinctContext'),
+    tip: t('distinctTip', { count: data.meta.distinct_domains }),
   };
 }
 

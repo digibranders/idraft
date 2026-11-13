@@ -173,19 +173,29 @@ describe('Citations page', () => {
     expect(await screen.findByText(/^Updated 6d ago; /)).toBeInTheDocument();
   });
 
-  it('gives the page the height of the window, so a table fills what the strip leaves', async () => {
+  it('gives the page the height of the window from lg up, so a table fills what the strip leaves', async () => {
     render();
     const heading = await screen.findByRole('heading', { level: 1, name: 'Citations' });
-    expect(heading.closest('.h-page-body')).toHaveClass('min-h-page-body-min', 'flex', 'flex-col');
+    expect(heading.closest('.lg\\:h-page-body')).toHaveClass('lg:min-h-page-body-min', 'flex', 'flex-col');
     const tabs = document.querySelector('[data-slot="tabs"]');
-    expect(tabs).toHaveClass('min-h-0', 'flex-1');
-    expect(await screen.findByText('Panel of Domains')).toHaveClass('min-h-0', 'flex-1');
+    expect(tabs).toHaveClass('lg:min-h-0', 'lg:flex-1');
+    expect(await screen.findByText('Panel of Domains')).toHaveClass('lg:min-h-0', 'lg:flex-1');
+  });
+
+  it('lets the whole page scroll below lg, strip and filters with the table, so a short phone is not left a sliver', async () => {
+    render();
+    const heading = await screen.findByRole('heading', { level: 1, name: 'Citations' });
+    const body = heading.closest('.lg\\:h-page-body');
+    // No height below lg: the height classes all carry the lg prefix
+    expect(body?.className.split(' ').filter((name) => /^(min-)?h-page-body/.test(name))).toEqual([]);
+    const tabs = document.querySelector('[data-slot="tabs"]');
+    expect(tabs?.className.split(' ')).not.toContain('flex-1');
   });
 
   it('keeps the page that scrolls with the window for the no access state', async () => {
     renderWithProviders(citationsAs('billing'));
     const heading = await screen.findByRole('heading', { level: 1, name: 'Citations' });
-    expect(heading.closest('.h-page-body')).toBeNull();
+    expect(heading.closest('.lg\\:h-page-body')).toBeNull();
   });
 
   it('says no citation in the window when there is no unit', async () => {

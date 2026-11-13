@@ -370,7 +370,8 @@ describe('NoOwnPage', () => {
     const table = await loaded();
     const region = within(await card()).getByRole('region', { name: LIST });
     expect(region).toContainElement(table);
-    expect(region).toHaveClass('max-h-60', 'overflow-y-auto');
+    // About four rows and a half: the card never takes the table's place at the fold, and the half row says it scrolls
+    expect(region).toHaveClass('max-h-44', 'overflow-y-auto');
     expect(region).toHaveAttribute('tabindex', '0');
   });
 

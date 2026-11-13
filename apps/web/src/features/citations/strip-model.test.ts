@@ -171,6 +171,17 @@ describe('stripItems', () => {
     expect(items['units']?.context).toBe('4,812 answers, ChatGPT and Gemini');
   });
 
+  it('carries the whole units context in a tip, so a narrow strip never drops all engines', () => {
+    const units = byId(readsOf(), scopeOf())['units'];
+    expect(units?.tip).toBe('18,420 citation units in 4,812 answers, all engines');
+    const some = byId(readsOf(), scopeOf({ engine: 'chatgpt_web,gemini_web' }))['units'];
+    expect(some?.tip).toBe('18,420 citation units in 4,812 answers, ChatGPT and Gemini');
+  });
+
+  it('says in a tip what the distinct domains are, so its context wraps instead of clipping', () => {
+    expect(byId(readsOf(), scopeOf())['distinct']?.tip).toBe('1,204 registrable domains are cited in this window.');
+  });
+
   it('own share ignores the role filter', () => {
     const own = byId(readsOf(), scopeOf({ role: 'competitor' }))['own-share'];
     expect(own?.value).toBe('9.1%');

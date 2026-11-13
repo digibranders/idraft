@@ -183,7 +183,7 @@ export function NoOwnPage({ context }: NoOwnPageProps): ReactElement | null {
           role="region"
           aria-label={t('listLabel')}
           tabIndex={0}
-          className="max-h-60 overflow-y-auto rounded-lg focus-visible:focus-ring"
+          className="max-h-44 overflow-y-auto rounded-lg focus-visible:focus-ring"
         >
           <PlainTable<PromptOwnPagesRow>
             caption={t('title')}

@@ -765,7 +765,8 @@ describe('PagesTab', () => {
     const table = await loaded();
     const held = table.closest('.min-h-80');
     expect(held).not.toBeNull();
-    expect(held?.parentElement).toHaveClass('overflow-y-auto');
+    expect(held?.parentElement).toHaveClass('lg:overflow-y-auto');
+    expect(held).toHaveClass('h-96', 'lg:h-auto', 'lg:flex-1');
     // The card is above the table, inside the same scrolling body
     const card = await screen.findByRole('region', { name: 'Prompts with no own page cited' });
     expect(held?.parentElement).toContainElement(card);

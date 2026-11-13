@@ -192,7 +192,7 @@ export function DomainsTab({ context }: DomainsTabProps): ReactElement {
 
   // The tab scrolls as a whole when the strip above leaves the table under 20rem (a phone), so it is never squeezed away
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
+    <div className="flex flex-col gap-3 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
       <CitationTableNotes
         meta={meta}
         compare={scope.compare}
@@ -203,7 +203,7 @@ export function DomainsTab({ context }: DomainsTabProps): ReactElement {
           read.data !== undefined && total > domains.length ? tt('truncated', { shown: domains.length, total }) : null
         }
       />
-      <div className="flex min-h-80 flex-1 flex-col">
+      <div className="flex h-96 min-h-80 flex-col lg:h-auto lg:flex-1">
         <DataTable<CitationTableRow>
           caption={tt('domainsCaption')}
           itemNoun={{ one: tt('noun.one'), other: tt('noun.other') }}

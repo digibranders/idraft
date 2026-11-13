@@ -109,17 +109,26 @@ describe('the states of the Domains and Pages tabs and of the screen', () => {
     expect(await axe(container)).toHaveNoViolations();
   });
 
+  // Found by role and by words, not by the type utilities that draw them
   it.each([
-    ['no engine', <NoEngine key="e" workspaceSlug="ws" projectSlug="proj" />],
-    ['no answers', <NoAnswers key="a" workspaceSlug="ws" projectSlug="proj" />],
-    ['no citing answer', <NoCiting key="c" answers={3} workspaceSlug="ws" projectSlug="proj" />],
-    ['filtered to nothing', filtered()],
-    ['load failed', <LoadFailed key="f" errorId={null} onRetry={() => undefined} retrying={false} />],
-  ])('every state of the Domains and Pages tabs shows a reason and an action or a retry: %s', (_name, state) => {
-    const { container } = renderWithProviders(state);
-    // A title and a reason, then something to do: a link, Clear or Retry
-    expect(container.querySelectorAll('h2, p.type-subsection-title, p.type-body-strong')).toHaveLength(1);
-    expect(container.querySelectorAll('p.type-body')).not.toHaveLength(0);
-    expect(container.querySelectorAll('a[href], button')).not.toHaveLength(0);
+    ['no engine', <NoEngine key="e" workspaceSlug="ws" projectSlug="proj" />, /engines you turn on/],
+    ['no answers', <NoAnswers key="a" workspaceSlug="ws" projectSlug="proj" />, /asked twice a week/],
+    ['no citing answer', <NoCiting key="c" answers={3} workspaceSlug="ws" projectSlug="proj" />, /read in this window/],
+    ['filtered to nothing', filtered(), /clear a filter/],
+  ])(
+    'the empty state of the Domains and Pages tabs shows a title, a reason and an action: %s',
+    (_name, state, reason) => {
+      renderWithProviders(state);
+      expect(screen.getAllByRole('heading', { level: 2 })).toHaveLength(1);
+      expect(screen.getByText(reason)).toBeInTheDocument();
+      expect(screen.queryAllByRole('link').length + screen.queryAllByRole('button').length).toBeGreaterThan(0);
+    },
+  );
+
+  it('the load failure of the Domains and Pages tabs shows a title, a reason and Retry', () => {
+    const { container } = renderWithProviders(<LoadFailed errorId={null} onRetry={() => undefined} retrying={false} />);
+    expect(container.querySelector('[data-slot="inline-error"]')).toHaveTextContent('Citations could not be loaded');
+    expect(screen.getByText(/did not answer/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
   });
 });

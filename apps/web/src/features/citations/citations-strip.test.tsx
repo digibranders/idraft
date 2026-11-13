@@ -174,7 +174,7 @@ describe('CitationsStrip', () => {
       .getAllByRole('definition')
       .filter((item) => item.getAttribute('tabindex') === '0')
       .map((item) => item.closest('div')?.querySelector('dt')?.textContent);
-    expect(stops).toEqual(['Effective sources', 'Own citation share']);
+    expect(stops).toEqual(['Citation units', 'Distinct domains', 'Effective sources', 'Own citation share']);
   });
 
   it('says n/a with its reason for a read that failed, and keeps the rest', () => {
