@@ -29,6 +29,19 @@ const BUILTIN = [
   'ai-by-engine',
   'competitors',
 ] as const;
+/** The titles of the built-in overview, in the same order. */
+const BUILTIN_TITLES = [
+  'Visibility and mention rate',
+  'Rank distribution',
+  'SEO and AI matrix',
+  'Not classified',
+  'Key changes',
+  'Opportunities',
+  'AI by engine',
+  'Competitors',
+] as const;
+/** What ArrowDown from Rank distribution says at 1280 px: fourth of eight, in the second row. */
+const OVER_FOURTH = 'Rank distribution, position 4 of 8, row 2';
 /** Rank distribution moved by one keyboard drop (ArrowDown): fourth of eight, after "Not classified". */
 const RANK_AT_FOURTH = [
   'trend',
@@ -104,12 +117,37 @@ async function customize(page: Page): Promise<void> {
   await expect(partOf(page, 'trend', 'handle')).toBeVisible();
 }
 
-/** Picks the rank distribution card up by keyboard, moves it to the card below and drops it. */
-async function dropRankDistributionBelow(page: Page): Promise<void> {
-  const handle = partOf(page, 'rank-distribution', 'handle');
-  await handle.focus();
+/**
+ * Waits until a card that has been picked up takes keys. dnd-kit starts listening to the keyboard one timer after the
+ * pick up it announces, and the browser runs a key that is already queued before that timer: a key sent the moment
+ * the message appears is lost. A person answers the message, not the same millisecond; the timer of this page is
+ * queued after dnd-kit's, so it runs once the drag listens.
+ */
+async function dragListens(page: Page): Promise<void> {
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        window.setTimeout(resolve, 0);
+      }),
+  );
+}
+
+/** Picks the rank distribution card up by keyboard and waits until it takes keys. */
+async function pickUpRankDistribution(page: Page): Promise<void> {
+  await partOf(page, 'rank-distribution', 'handle').focus();
   await page.keyboard.press('Space');
+  await said(page, PICKED_UP);
+  await dragListens(page);
+}
+
+/**
+ * Picks the rank distribution card up, moves it to the card below and drops it. Each key waits for the words of
+ * the one before: the drop of a card whose move has not been measured yet is a put back.
+ */
+async function dropRankDistributionBelow(page: Page): Promise<void> {
+  await pickUpRankDistribution(page);
   await page.keyboard.press('ArrowDown');
+  await said(page, OVER_FOURTH);
   await page.keyboard.press('Space');
   await said(page, 'Rank distribution dropped at position 4 of 8');
 }
@@ -203,19 +241,21 @@ test.describe('the specimens at 1280 px', () => {
     await frame.scrollIntoViewIfNeeded();
     const status = frame.getByRole('status', { name: 'Loading Overview cards' });
     await expect(status).toBeVisible();
-    for (const title of ['Rank distribution', 'Top movers', 'SERP features']) {
+    // Until the read answers, the provider shows the built-in overview (the capabilities give the AI cards too)
+    for (const title of BUILTIN_TITLES) {
       await expect(status.getByRole('heading', { level: 2, name: title, exact: true })).toBeVisible();
     }
+    await expect(status.getByRole('heading', { level: 2 })).toHaveCount(BUILTIN_TITLES.length);
   });
 
-  test('a failed read keeps the built-in layout under a banner with Retry', async ({ page }) => {
+  test('a failed read keeps the built-in layout under a banner with Try again', async ({ page }) => {
     const frame = specimen(page, 'failed');
     await frame.scrollIntoViewIfNeeded();
     await expect(
       frame.getByText('Your layout could not be loaded. Showing the default.', { exact: true }),
     ).toBeVisible();
     await expect(frame.locator('[data-layout-card]')).toHaveCount(BUILTIN.length);
-    await frame.getByRole('button', { name: 'Retry', exact: true }).click();
+    await frame.getByRole('button', { name: 'Try again', exact: true }).click();
     // The workspace is one the mock does not know, so the read fails again and the banner stays
     await expect(
       frame.getByText('Your layout could not be loaded. Showing the default.', { exact: true }),
@@ -380,6 +420,7 @@ test.describe('moving a card by keyboard', () => {
       await expect(handle).toHaveAttribute('aria-pressed', 'false');
       await page.keyboard.press('Space');
       await said(page, PICKED_UP);
+      await dragListens(page);
       await expect(handle).toHaveAttribute('aria-pressed', 'true');
       await expect(cardOf(page, 'rank-distribution')).toHaveClass(/ring-primary/);
       await page.keyboard.press('ArrowDown');
@@ -403,10 +444,9 @@ test.describe('moving a card by keyboard', () => {
     await open(page, 'light', 1280);
     await customize(page);
     const handle = partOf(page, 'rank-distribution', 'handle');
-    await handle.focus();
-    await page.keyboard.press('Space');
-    await said(page, PICKED_UP);
+    await pickUpRankDistribution(page);
     await page.keyboard.press('ArrowRight');
+    await said(page, 'Rank distribution, position 3 of 8, row 2');
     await page.keyboard.press('Escape');
     await said(page, 'Rank distribution put back');
     expect(await order(page)).toEqual([...BUILTIN]);
@@ -422,6 +462,11 @@ test.describe('moving a card by keyboard', () => {
     await customize(page);
     await partOf(page, 'trend', 'handle').focus();
     await page.keyboard.press('Space');
+    await said(
+      page,
+      'Visibility and mention rate picked up. Use the arrow keys to move, Space to drop, Escape to put it back.',
+    );
+    await dragListens(page);
     await page.keyboard.press('ArrowLeft');
     await said(page, 'Visibility and mention rate is already first');
     await page.keyboard.press('Escape');
@@ -432,16 +477,18 @@ test.describe('moving a card by keyboard', () => {
     await open(page, 'light', 1280);
     await customize(page);
     await button(page, 'Cancel').focus();
-    const stops: { inert: boolean; inCard: boolean; part: string | null; inLive: boolean }[] = [];
+    const stops: { inert: boolean; inCard: boolean; inToolbar: boolean; part: string | null; inLive: boolean }[] = [];
     let visitedCards = false;
     for (let press = 0; press < 160; press += 1) {
       await page.keyboard.press('Tab');
       const stop = await page.evaluate(() => {
         const active = document.activeElement;
-        if (!(active instanceof HTMLElement)) return { inert: false, inCard: false, part: null, inLive: false };
+        if (!(active instanceof HTMLElement))
+          return { inert: false, inCard: false, inToolbar: false, part: null, inLive: false };
         return {
           inert: active.closest('[inert]') !== null,
           inCard: active.closest('[data-layout-card]') !== null,
+          inToolbar: active.closest('[data-layout-card] > [role="group"]') !== null,
           part: active.closest<HTMLElement>('[data-part]')?.dataset.part ?? null,
           inLive: active.closest('[data-specimen="live"]') !== null,
         };
@@ -453,8 +500,8 @@ test.describe('moving a card by keyboard', () => {
     expect(visitedCards).toBe(true);
     for (const stop of stops) {
       expect(stop.inert).toBe(false);
-      // Inside a card only the toolbar takes focus: the controls carry data-part
-      if (stop.inCard) expect(stop.part).not.toBeNull();
+      // Inside a card only its toolbar takes focus (Hide is a plain icon button, with no data-part)
+      if (stop.inCard) expect(stop.inToolbar).toBe(true);
     }
     const parts = new Set(stops.flatMap((stop) => (stop.part === null ? [] : [stop.part])));
     expect(parts).toContain('handle');
@@ -687,6 +734,7 @@ test.describe('the reduced motion setting', () => {
     await partOf(page, 'rank-distribution', 'handle').focus();
     await page.keyboard.press('Space');
     await said(page, PICKED_UP);
+    await dragListens(page);
     await expect(overlay(page)).toBeVisible();
     return overlay(page).evaluate((node) => getComputedStyle(node.parentElement ?? node).transitionDuration);
   }
@@ -697,6 +745,7 @@ test.describe('the reduced motion setting', () => {
     await open(page, 'light', 1280);
     expect(await holdRankDistribution(page)).not.toBe('0s');
     await page.keyboard.press('ArrowDown');
+    await said(page, OVER_FOURTH);
     await page.keyboard.press('Space');
     await said(page, 'Rank distribution dropped at position 4 of 8');
     await expect.poll(() => dropAnimations(page)).toBeGreaterThan(0);
@@ -714,6 +763,7 @@ test.describe('the reduced motion setting', () => {
       .evaluateAll((nodes) => nodes.map((node) => getComputedStyle(node).transitionDuration));
     expect(new Set(frames)).toEqual(new Set(['0s']));
     await page.keyboard.press('ArrowDown');
+    await said(page, OVER_FOURTH);
     await page.keyboard.press('Space');
     await said(page, 'Rank distribution dropped at position 4 of 8');
     // Longer than the 150 ms of the drop animation: one would have started by now
