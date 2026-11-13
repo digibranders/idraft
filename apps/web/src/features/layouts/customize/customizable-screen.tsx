@@ -17,23 +17,32 @@ export interface CustomizableScreenProps extends LayoutProviderProps {
   workspaceName: string;
   /** `end`: the save bar closes the screen. `none`: it is somewhere else (the footer of a drawer). */
   saveBar?: 'end' | 'none';
+  /**
+   * `column`: a flex column that lays out the page. `contents`: the box takes no part in the layout, for a screen
+   * whose children must stay direct children of their parent (the drawer: a docked inspector is sticky in its row).
+   */
+  box?: 'column' | 'contents';
   /** What the Start from menu offers besides the built-in layout and the team default; see `definePresets`. */
   presets?: readonly LayoutPreset[];
 }
 
+const BOX_CLASS = { column: 'flex min-w-0 flex-col gap-3', contents: 'contents' } as const;
+
 /** The box the keys and the focus rules work inside: header, numbers, cards and the save bar. */
-function ScreenRoot({ saveBar, children }: { saveBar: 'end' | 'none'; children: ReactNode }): ReactElement {
+function ScreenRoot({
+  saveBar,
+  box,
+  children,
+}: {
+  saveBar: 'end' | 'none';
+  box: NonNullable<CustomizableScreenProps['box']>;
+  children: ReactNode;
+}): ReactElement {
   const { rootRef } = useCustomize();
   const onKeyDown = useUndoKeys();
   return (
     // `presentation`: the box has no meaning of its own; it only hears the keys of what is inside it
-    <div
-      ref={rootRef}
-      role="presentation"
-      data-customize-root=""
-      onKeyDown={onKeyDown}
-      className="flex min-w-0 flex-col gap-3"
-    >
+    <div ref={rootRef} role="presentation" data-customize-root="" onKeyDown={onKeyDown} className={BOX_CLASS[box]}>
       {children}
       {saveBar === 'end' ? <LayoutSaveBar /> : null}
     </div>
@@ -72,6 +81,7 @@ export function CustomizableGrid({ label, columns }: Pick<LayoutGridProps, 'labe
 export function CustomizableScreen({
   workspaceName,
   saveBar = 'end',
+  box = 'column',
   presets,
   children,
   ...provider
@@ -79,7 +89,9 @@ export function CustomizableScreen({
   return (
     <LayoutProvider {...provider}>
       <CustomizeController workspaceName={workspaceName} {...(presets === undefined ? {} : { presets })}>
-        <ScreenRoot saveBar={saveBar}>{children}</ScreenRoot>
+        <ScreenRoot saveBar={saveBar} box={box}>
+          {children}
+        </ScreenRoot>
       </CustomizeController>
     </LayoutProvider>
   );

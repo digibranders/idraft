@@ -18,6 +18,10 @@ export { CustomizeButton, useCustomizeMenuItem } from './customize/customize-but
 export type { CustomizeButtonProps, CustomizeLabel } from './customize/customize-button';
 export { CustomizingBadge } from './customize/customizing-badge';
 
+// A record drawer's cards mode: the Customize cards item, the close guard, the footer bar and the one column grid
+export { DrawerCustomizer, DrawerGrid, useDrawerCustomize } from './drawer/drawer-customizer';
+export type { DrawerCustomize, DrawerCustomizerProps } from './drawer/drawer-customizer';
+
 // The bar of customize mode: changes, Undo and Redo, Reset, Cancel and Save
 export { LayoutSaveBar } from './save-bar/layout-save-bar';
 export type { LayoutSaveBarProps } from './save-bar/layout-save-bar';

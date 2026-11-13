@@ -28,7 +28,13 @@ const BAR_CLASS =
   'flex min-h-save-bar flex-wrap items-center gap-x-3 gap-y-2 border-t border-border bg-surface py-2 transition-opacity duration-(--duration-base) ease-standard starting:opacity-0';
 const VARIANT_CLASS = {
   page: 'sticky bottom-0 z-(--z-sticky) px-3 md:px-4 lg:px-5',
-  drawer: 'px-4',
+  // A footer keeps its height when the body is short. At 400 px the actions do not fit beside the count: they
+  // take the row under it, and wrap again when Start from is there too
+  drawer: 'shrink-0 px-4',
+} as const satisfies Record<NonNullable<LayoutSaveBarProps['variant']>, string>;
+const ACTIONS_CLASS = {
+  page: '',
+  drawer: 'w-full flex-wrap',
 } as const satisfies Record<NonNullable<LayoutSaveBarProps['variant']>, string>;
 
 /** The element the page scrolls in: the nearest ancestor that scrolls, else the document. */
@@ -141,21 +147,33 @@ export function LayoutSaveBar({ variant = 'page' }: LayoutSaveBarProps): ReactEl
           two lines of the differs line are 40 px: the negative margin keeps them inside the bar's own height. The
           text shows only when the room is wide enough to read some of it: at 1024 px beside the sidebar it is not,
           and a few clipped letters say nothing. The span is the container the text asks about. */}
+      {/* A drawer is 400 px whatever the window: its scope line has a row of its own, always shown */}
       <span
         title={scope}
-        className={cn('@container hidden min-w-0 flex-1 type-meta lg:block', differs && 'lg:-my-0.5')}
+        className={cn(
+          '@container min-w-0 type-meta',
+          variant === 'page' ? cn('hidden flex-1 lg:block', differs && 'lg:-my-0.5') : 'w-full',
+        )}
       >
         <span
           className={cn(
-            'hidden',
-            differs ? '@min-[9.5rem]:line-clamp-2' : '@min-[9.5rem]:block @min-[9.5rem]:truncate',
+            variant === 'page'
+              ? cn('hidden', differs ? '@min-[9.5rem]:line-clamp-2' : '@min-[9.5rem]:block @min-[9.5rem]:truncate')
+              : differs
+                ? 'line-clamp-2'
+                : 'block truncate',
           )}
         >
           {scope}
         </span>
       </span>
       {/* A narrowed window (customize mode starts at 768 px) may not fit the actions, the team menu included */}
-      <span className="ml-auto flex shrink-0 items-center justify-end gap-2 max-md:max-w-full max-md:flex-wrap">
+      <span
+        className={cn(
+          'ml-auto flex shrink-0 items-center justify-end gap-2 max-md:max-w-full max-md:flex-wrap',
+          ACTIONS_CLASS[variant],
+        )}
+      >
         <StartFromMenu />
         <Button
           variant="ghost"

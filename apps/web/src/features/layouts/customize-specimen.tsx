@@ -1,18 +1,24 @@
 'use client';
 
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
-import { useId, useState, type ReactElement, type ReactNode } from 'react';
+import { EllipsisVertical } from 'lucide-react';
+import { useId, useRef, useState, type ReactElement, type ReactNode } from 'react';
 
 import { CustomizableGrid, CustomizableScreen } from './customize/customizable-screen';
-import { CustomizeButton } from './customize/customize-button';
+import { CustomizeButton, useCustomizeMenuItem } from './customize/customize-button';
 import { CustomizingBadge } from './customize/customizing-badge';
+import { DrawerCustomizer, DrawerGrid, useDrawerCustomize } from './drawer/drawer-customizer';
 import { GALLERY_CARDS } from './live-fixtures';
 import { NumberStrip } from './numbers/number-strip';
 import { specimenValueOf } from './numbers/number-strip-specimen-values';
 import { definePresets } from './presets/presets';
 import { defineCards, type CardRegistry } from './registry';
 import { useLayoutCapabilities } from './use-layout-capabilities';
+import { InspectorHeader } from '@/components/app/inspector/inspector-header';
 import { PageHeader } from '@/components/app/shell/page-header';
+import { Button } from '@/components/ui/button';
+import { IconButton } from '@/components/ui/icon-button';
+import { Menu } from '@/components/ui/menu';
 import { Select } from '@/components/ui/select';
 import { apiQuery } from '@/lib/api/query';
 import type { MeMembership } from '@/lib/api/types';
@@ -41,7 +47,30 @@ const COPY = {
   loadingProjects: 'Loading the projects of the workspace.',
   noProject: 'The workspace has no project, so there is nothing to scope the cards to.',
   projectsFailed: 'The projects could not be read.',
+  drawerTitle: 'Drawer cards, live',
+  drawerNote:
+    'WP-16, T10. A keyword drawer at its 400 px width, built from the parts of the Inspector (its header, and its footer slot for the save bar) because the real Inspector docks and lays over a list page. More has Customize cards: one column, no widths, the Add card slot. Close, and Escape inside the drawer, ask first while there are changes and close it only after Discard.',
+  drawerRecord: 'best crm for startups',
+  drawerType: 'Keyword',
+  drawerPosition: '12 of 986',
+  drawerCards: 'Keyword cards',
+  drawerMore: 'More actions for best crm for startups',
+  drawerClose: 'Close',
+  drawerReopen: 'Open the keyword drawer',
+  tableTitle: 'Table page numbers, live',
+  tableNote:
+    'WP-16, T10. The head of a table page whose only customizable part is its number strip: More has Customize numbers, the badge sits beside More because the title is hidden, and there is no card grid and no Add card. The numbers of the overview stand in, because no number is catalogued for the table screens yet.',
+  tablePage: 'Prompts',
+  tableMeta: 'Last 28 days',
+  tableMore: 'More actions',
+  tableNumbers: 'Prompts numbers',
 } as const;
+
+/** The width of a record drawer (`INSPECTOR_WIDTH.default` of lib/inspector/placement). */
+const DRAWER_WIDTH_CLASS = 'w-100 max-w-full';
+/** What closes before the drawer does, one layer per Escape: the Inspector's own list. */
+const OPEN_LAYERS =
+  '[data-slot="tooltip"]:not([data-ending-style]), :is([role="listbox"], [role="menu"], [role="dialog"])[data-open], [role="combobox"][aria-expanded="true"]';
 
 const PROJECTS = '/api/v1/workspaces/{workspace_id}/projects';
 
@@ -184,34 +213,192 @@ function WorkspaceScreen({ membership }: { membership: MeMembership }): ReactEle
   );
 }
 
+/**
+ * The keyword drawer of `DrawerCustomizer`: the Inspector's header in a 400 px card, the cards in one column, and
+ * the save bar in the footer. Closing it is the specimen's own state, so the question before changes are lost has
+ * something to close.
+ */
+function DrawerFrame(): ReactElement {
+  const drawer = useDrawerCustomize();
+  const titleId = useId();
+  const [open, setOpen] = useState(true);
+  const close = drawer.guardClose(() => {
+    setOpen(false);
+  });
+  if (!open) {
+    return (
+      <div>
+        <Button
+          onClick={() => {
+            setOpen(true);
+          }}
+        >
+          {COPY.drawerReopen}
+        </Button>
+      </div>
+    );
+  }
+  return (
+    // `presentation`: the box only hears the keys of the drawer inside it, as the Inspector does on its aside
+    <div
+      role="presentation"
+      className={DRAWER_WIDTH_CLASS}
+      onKeyDown={(event) => {
+        // The Inspector's rule: Escape closes from inside the card, unless a popup above it took the key
+        if (event.key !== 'Escape' || event.defaultPrevented || event.repeat) return;
+        if (document.querySelector(OPEN_LAYERS) !== null) return;
+        event.preventDefault();
+        close();
+      }}
+    >
+      <section
+        aria-labelledby={titleId}
+        className="flex h-160 flex-col overflow-hidden rounded-xl border border-border bg-background shadow-inspector"
+      >
+        <InspectorHeader
+          titleId={titleId}
+          title={COPY.drawerRecord}
+          typeLabel={COPY.drawerType}
+          typeNoun={COPY.drawerType.toLowerCase()}
+          positionText={COPY.drawerPosition}
+          moreActions={drawer.menuItem === null ? [] : [drawer.menuItem]}
+          moreButtonRef={drawer.moreButtonRef}
+          onClose={close}
+        />
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+          <DrawerGrid label={COPY.drawerCards} />
+        </div>
+        {drawer.saveBar}
+      </section>
+    </div>
+  );
+}
+
+function DrawerScreen({ membership, projectId }: ProjectScreenProps): ReactElement {
+  const workspaceId = membership.workspace.workspace_id;
+  const { capabilities } = useLayoutCapabilities({ workspaceId, projectId });
+  return (
+    <DrawerCustomizer
+      screen="inspector.keyword"
+      workspaceId={workspaceId}
+      workspaceName={membership.workspace.name}
+      capabilities={capabilities}
+      registry={CUSTOMIZE_CARDS}
+    >
+      <DrawerFrame />
+    </DrawerCustomizer>
+  );
+}
+
+/** The head of a table page: the title is hidden, so the badge sits with the actions, beside More. */
+function TableHead(): ReactElement {
+  const more = useRef<HTMLButtonElement>(null);
+  const customize = useCustomizeMenuItem('customizeNumbers', more);
+  return (
+    <>
+      <PageHeader
+        title={COPY.tablePage}
+        titleHidden
+        meta={COPY.tableMeta}
+        actions={
+          <>
+            <CustomizingBadge />
+            {customize === null ? null : (
+              <Menu
+                align="end"
+                items={[customize]}
+                trigger={<IconButton ref={more} icon={EllipsisVertical} label={COPY.tableMore} />}
+              />
+            )}
+          </>
+        }
+      />
+      <NumberStrip label={COPY.tableNumbers} valueOf={specimenValueOf} status="ready" />
+    </>
+  );
+}
+
+function TableScreen({ membership, projectId }: ProjectScreenProps): ReactElement {
+  const workspaceId = membership.workspace.workspace_id;
+  const { capabilities } = useLayoutCapabilities({ workspaceId, projectId });
+  return (
+    <CustomizableScreen
+      screen="overview"
+      workspaceId={workspaceId}
+      workspaceName={membership.workspace.name}
+      capabilities={capabilities}
+      registry={CUSTOMIZE_CARDS}
+    >
+      <TableHead />
+    </CustomizableScreen>
+  );
+}
+
+/** The first project of the workspace, for the specimens that have no project select. */
+function FirstProject({
+  membership,
+  children,
+}: {
+  membership: MeMembership;
+  children: (projectId: string) => ReactNode;
+}): ReactElement {
+  const projects = useQuery(
+    apiQuery(PROJECTS, { params: { path: { workspace_id: membership.workspace.workspace_id } } }),
+  );
+  if (projects.isPending) return <p className="type-meta">{COPY.loadingProjects}</p>;
+  const first = projects.data?.data[0]?.project_id;
+  if (first === undefined)
+    return <p className="type-body">{projects.isError ? COPY.projectsFailed : COPY.noProject}</p>;
+  return <>{children(first)}</>;
+}
+
 /** The first workspace of the signed-in person. Signed out, one sentence and no layout request. */
-function Specimen(): ReactElement {
+function Specimen({ children }: { children: (membership: MeMembership) => ReactNode }): ReactElement {
   const me = useQuery(meQuery());
   const membership = me.data?.data.memberships[0];
   if (me.isPending) return <p className="type-meta">{COPY.checking}</p>;
   if (membership === undefined) {
     return <p className="type-body">{me.isError ? COPY.signedOut : COPY.noWorkspace}</p>;
   }
-  return (
-    <PermissionProvider membership={membership}>
-      <WorkspaceScreen membership={membership} />
-    </PermissionProvider>
-  );
+  return <PermissionProvider membership={membership}>{children(membership)}</PermissionProvider>;
 }
 
 /**
- * The customize UI on the mock API. The only user is the page /design-system/layouts-live. Its own query cache, as
- * the live specimen of WP-15 has, so a signed-out answer never sends this page to sign in.
+ * The customize UI on the mock API: the page, the record drawer and the head of a table page. The only user is the
+ * page /design-system/layouts-live. Its own query cache, as the live specimen of WP-15 has, so a signed-out answer
+ * never sends this page to sign in.
  */
 export function LayoutsCustomizeLive(): ReactElement {
   const [client] = useState(() => new QueryClient({ defaultOptions: { queries: { retry: false } } }));
   return (
-    <Group title={COPY.title} note={COPY.note}>
-      <QueryClientProvider client={client}>
+    <QueryClientProvider client={client}>
+      <Group title={COPY.title} note={COPY.note}>
         <div data-specimen="customize" className="flex min-w-0 flex-col gap-3">
-          <Specimen />
+          <Specimen>{(membership) => <WorkspaceScreen membership={membership} />}</Specimen>
         </div>
-      </QueryClientProvider>
-    </Group>
+      </Group>
+      <Group title={COPY.drawerTitle} note={COPY.drawerNote}>
+        <div data-specimen="customize-drawer" className="flex min-w-0 flex-col gap-3">
+          <Specimen>
+            {(membership) => (
+              <FirstProject membership={membership}>
+                {(projectId) => <DrawerScreen membership={membership} projectId={projectId} />}
+              </FirstProject>
+            )}
+          </Specimen>
+        </div>
+      </Group>
+      <Group title={COPY.tableTitle} note={COPY.tableNote}>
+        <div data-specimen="customize-table" className="flex min-w-0 flex-col gap-3">
+          <Specimen>
+            {(membership) => (
+              <FirstProject membership={membership}>
+                {(projectId) => <TableScreen membership={membership} projectId={projectId} />}
+              </FirstProject>
+            )}
+          </Specimen>
+        </div>
+      </Group>
+    </QueryClientProvider>
   );
 }
