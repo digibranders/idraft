@@ -13,7 +13,7 @@ one are not in scope):
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 import httpx
@@ -504,7 +504,10 @@ async def test_the_country_and_engine_filters_scope_every_tile(
 async def test_compare_puts_previous_beside_the_comparable_tiles(
     api: httpx.AsyncClient, seeded: Summary
 ) -> None:
-    response = await get_overview(seeded, api, compare="previous_period")
+    first, last = day(27), day(0)
+    response = await get_overview(
+        seeded, api, compare="previous_period", **{"from": first, "to": last}
+    )
 
     assert response.status_code == 200, response.text
     body = response.json()
@@ -536,7 +539,13 @@ async def test_compare_puts_previous_beside_the_comparable_tiles(
             assert "previous" not in tiles[key], key
     assert all("previous" not in entry for entry in body["data"]["engine_average"])
     assert "previous" not in body["data"]["prompts_in_scope"]
-    assert body["meta"]["compare_window"] == {"from": day(55), "to": day(28), "timezone": "UTC"}
+    # The 28 days just before the window.
+    opens = date.fromisoformat(first)
+    assert body["meta"]["compare_window"] == {
+        "from": (opens - timedelta(days=28)).isoformat(),
+        "to": (opens - timedelta(days=1)).isoformat(),
+        "timezone": "UTC",
+    }
     assert body["meta"]["previous_answers"] == 1
 
 
@@ -570,11 +579,14 @@ async def test_previous_is_absent_without_compare(api: httpx.AsyncClient, seeded
 async def test_meta_has_window_compare_window_previous_answers_entities_and_versions(
     api: httpx.AsyncClient, seeded: Summary
 ) -> None:
-    response = await get_overview(seeded, api, compare="previous_period")
+    # An explicit window: a UTC midnight during the test cannot make it differ from the request.
+    first, last = day(27), day(0)
+    response = await get_overview(
+        seeded, api, compare="previous_period", **{"from": first, "to": last}
+    )
 
     meta = response.json()["meta"]
-    today = datetime.now(UTC).date()
-    assert meta["window"] == {"from": day(27), "to": today.isoformat(), "timezone": "UTC"}
+    assert meta["window"] == {"from": first, "to": last, "timezone": "UTC"}
     assert (meta["include_branded"], meta["branded_only"]) == (False, False)
     assert meta["engine_codes"] == [CHATGPT, GEMINI]
     # As the summary lists them: competitors by name, then the own entities.
@@ -589,29 +601,88 @@ async def test_meta_has_window_compare_window_previous_answers_entities_and_vers
     assert response.json()["data"]["topics_in_scope"] == 2
 
 
-async def test_the_days_each_entity_configuration_took_effect_are_named_with_more_than_one(
+async def _two_versions(
+    migrated: PostgresServer,
+    worker_db: Ledger,
+    store: MemoryStore,
+    world: Summary,
+    derived: tuple[datetime, datetime],
+) -> None:
+    """A second entity configuration version with an answer derived under it, then the moment
+    each version first derived an answer fixed at `derived` (the wall clock must not decide)."""
+    await execute(
+        migrated,
+        "UPDATE core.projects SET entity_config_version = 2 WHERE id = $1",
+        world.project.id,
+    )
+    await ingested(world, migrated, worker_db, store, [Answer("misc", OWN_ONLY, (OWN_PAGE,), 1)])
+    for version, instant in enumerate(derived, start=1):
+        await execute(
+            migrated,
+            "UPDATE ai.derivations SET created_at = $3 "
+            "WHERE project_id = $1 AND entity_config_version = $2",
+            world.project.id,
+            version,
+            instant,
+        )
+
+
+async def test_the_days_each_entity_configuration_first_derived_an_answer_are_named(
     api: httpx.AsyncClient,
     migrated: PostgresServer,
     worker_db: Ledger,
     import_store: MemoryStore,
     seeded: Summary,
 ) -> None:
-    await execute(
+    await _two_versions(
         migrated,
-        "UPDATE core.projects SET entity_config_version = 2 WHERE id = $1",
-        seeded.project.id,
-    )
-    await ingested(
-        seeded, migrated, worker_db, import_store, [Answer("misc", OWN_ONLY, (OWN_PAGE,), 1)]
+        worker_db,
+        import_store,
+        seeded,
+        (datetime(2026, 10, 3, 10, 0, tzinfo=UTC), datetime(2026, 11, 5, 23, 30, tzinfo=UTC)),
     )
 
-    meta = (await get_overview(seeded, api)).json()["meta"]
+    # A window wide enough that a UTC midnight during the test cannot move an answer out of it.
+    meta = (await get_overview(seeded, api, **{"from": day(40), "to": day(-1)})).json()["meta"]
 
     assert meta["entity_config_versions"] == [1, 2]
-    # Each version took effect when its first answer was derived: today, in this test.
+    # The project zone is UTC: the day of each fixed instant, oldest version first, and a day
+    # before the window opens is fine.
     assert meta["entity_config_changes"] == [
-        {"version": 1, "from": day(0)},
-        {"version": 2, "from": day(0)},
+        {"version": 1, "from": "2026-10-03"},
+        {"version": 2, "from": "2026-11-05"},
+    ]
+
+
+async def test_the_day_a_version_first_derived_an_answer_is_read_in_the_project_zone(
+    api: httpx.AsyncClient,
+    migrated: PostgresServer,
+    worker_db: Ledger,
+    import_store: MemoryStore,
+    seeded: Summary,
+) -> None:
+    """Asia/Kolkata is 5 hours 30 minutes ahead of UTC: 20:00 UTC on 1 November is 01:30 on the
+    2nd there, and 18:29 UTC on the 10th is 23:59 on the 10th."""
+    await execute(
+        migrated,
+        "UPDATE core.projects SET timezone = 'Asia/Kolkata' WHERE id = $1",
+        seeded.project.id,
+    )
+    await _two_versions(
+        migrated,
+        worker_db,
+        import_store,
+        seeded,
+        (datetime(2026, 11, 1, 20, 0, tzinfo=UTC), datetime(2026, 11, 10, 18, 29, tzinfo=UTC)),
+    )
+
+    response = await get_overview(seeded, api, **{"from": day(40), "to": day(-1)})
+
+    meta = response.json()["meta"]
+    assert meta["window"]["timezone"] == "Asia/Kolkata"
+    assert meta["entity_config_changes"] == [
+        {"version": 1, "from": "2026-11-02"},
+        {"version": 2, "from": "2026-11-10"},
     ]
 
 

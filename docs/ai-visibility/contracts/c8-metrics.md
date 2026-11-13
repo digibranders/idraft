@@ -96,7 +96,7 @@ it is not set; the other members are always written, as `null` when they have no
 | `unit` | `ratio` or `count` | Rates and shares are ratios in 0 to 1. `ai.valid_answers`, `ai.prompts_in_scope` and `ai.fanout_mean_queries` are counts. |
 | `n_observations` | integer | Every answer behind the value, valid or not. Two keys carry the engine's valid answers instead: `ai.citation_share` and `ai.recommendation_rate`, so their tiles read lower than the others (8 beside 10 in the overview example). |
 | `n_prompts` | integer, optional | Prompt weighted values only: the prompts with a valid answer (equal to `denominator`). |
-| `aggregation` | `prompt_weighted` or `observation_weighted`, optional | Absent on counts and on averages of engines. |
+| `aggregation` | `prompt_weighted` or `observation_weighted`, optional | Absent on counts (`ai.valid_answers`, `ai.prompts_in_scope`) and on the suppressed keys; an engine average has its inputs' weighting. |
 | `window` | `{from, to, timezone}` | The response's window. |
 | `filters` | object | The resolved scope, nulls written out: `include_branded`, `branded_only`, `country_iso`, `term_id`. |
 | `observation_class` | `consumer_ui`, `serp_ai` or `official_api`, optional | Of the one engine. Absent on an average and on `ai.prompts_in_scope`. |
@@ -165,7 +165,7 @@ one average entry per listed entity (`entity_id` set).
 | `engine_codes` | list of engine code | The engines shown, sorted: enabled or answering, after the filter. |
 | `entities` | list of `{entity_id, name, role}` | The tracked set share of voice is computed over now (the own brand and the competitors tracked in AI answers; watched entities are not in it) (R9). All of them, as the summary lists them: competitors by name, then the own entities, so read `role` and do not assume the own brand is first. |
 | `entity_config_versions` | list of integer | More than one means the entity set changed inside the window and older answers keep their set. |
-| `entity_config_changes` | list of `{version, from}`, optional | When more than one version is listed: the day each took effect (`from`, project-local; it can precede the window), oldest first, so a chart can mark where share of voice changes basis. Left out when the window holds one version. |
+| `entity_config_changes` | list of `{version, from}`, optional | When more than one version is listed: the project-local day each version first derived an answer (`from`; the earliest `ai.derivations.created_at` under the version, not the day the configuration was edited; it can precede the window), oldest first, so a chart can mark where share of voice changes basis. Left out when the window holds one version. |
 | `notes` | list of text | `[]` unless a route has something to say. |
 
 ### Overview (routes 1 and 2)
@@ -328,12 +328,12 @@ test is the contract after that.
 
 | Request | Summary request | Extra statements | Extra reads |
 |---|---|---|---|
-| `ai/metrics/overview`, `overview/ai` | `S(rows left out, include=total,cells)` | +2 | `role_engine_totals`, transaction scope |
+| `ai/metrics/overview`, `overview/ai` | `S(rows left out, include=total,cells)` | +3 (measured) | transaction scope, `role_engine_totals`, `version_starts` |
 | overview with `compare` | same | `compare` +1 (the summary's own), extras unchanged | |
 | `{metric}` for `ai.mention_rate`, `ai.citation_rate`, outcomes, `ai.share_of_voice`, `ai.valid_answers` | `S(rows=none, include=total)` (`entity_ids`: plus `include=entities`) | 0 | none |
 | `{metric}` for the small-cell keys | `S(rows=none, include=total,cells)` | 0 | none |
 | `{metric}` for `ai.prompts_in_scope` | `S(rows=none, include=total)` | 0 | none |
-| `{metric}` for `ai.citation_share` | `S(rows left out, include=total)` | +2 | `role_engine_totals`, transaction scope |
+| `{metric}` for `ai.citation_share` | `S(rows left out, include=total)` | +3 | transaction scope, `role_engine_totals`, `version_starts` (the overview's own reads) |
 | series | `S(rows=none, include=total,series)` (`entity_ids`: plus `entities`) | 0 | none |
 | breakdown `topic` | `S(rows=topics)` | 0 | none |
 | breakdown `country` | `S(rows=none, group_by=country)` | 0 | none |
@@ -343,6 +343,10 @@ test is the contract after that.
 
 The two transactions (the summary's and the extra reads) are not one snapshot: an answer ingested between them
 can make a citation share denominator differ by one answer from the valid answers beside it.
+
+`version_starts` is read whatever the data holds (also with a single entity configuration version), so the count
+never depends on the data; with no prompt in scope the extra reads are 0. Measured by the reviewer on the full
+project (150 prompts, 3,600 answers): the Overview 195 ms, its summary request alone 178 ms.
 
 ## Error codes
 
@@ -658,7 +662,7 @@ Newest last; one line per change, in the form `date package: change`.
 2026-11-13 WP-32: C-10 citation share: `numerator` own citation units, `denominator` all citation units of the engine, from the sources read with the sources flag default (`engine_internal` and `unresolved_redirect` left out), so it equals `sources/domains` `meta.by_role` (R12). `n_observations` is the engine's valid answers. It is read in a second transaction after the summary, so it is not one snapshot with the valid answers beside it (a difference of one answer is possible if an answer is ingested between the two).
 2026-11-13 WP-32: C-11 not returned: `ci`, `delta`, `MetricComparison`, `version_boundaries`, `granularity` day and month, `vocabulary_id`, `depth`; the topic count is returned as `AiOverview.topics_in_scope` (C-20); each with its owner (WP-58 for `ci`, `delta` and `MetricComparison`; WP-38 for `version_boundaries`; none yet for the rest: they are not in any card read).
 2026-11-13 WP-32: C-12 errors and order: the error table above (401, 404 `not_found`, 403, 422, `404 unknown_metric` in the route body, then the service); as built, `extra_forbidden` comes first for an authenticated caller and explicit-window errors come before `unknown_metric` (C-17).
-2026-11-13 WP-32: C-13 statement counts: the statement table above (design figures until measured, then the test).
+2026-11-13 WP-32: C-13 statement counts: the statement table above. The Overview is measured at its summary request plus 3 (transaction scope, `role_engine_totals`, `version_starts`; `compare` adds the summary's own 1 and nothing else), the same on a 14 answer world and on the full project; `ai.citation_share` on route 3 reuses the same reads, so it is +3 too. The other rows are design figures until measured.
 2026-11-13 WP-32: C-14 card reads: the card read map above (BE-METRICS-24). Remainders named: categories on source rows (WP-60) and `activity.key_changes` (WP-58).
 2026-11-13 WP-32: C-15 differences from the specs, written once: doc 19 3.7.9 and 2.6 `MetricComparison` with `delta` and `ci` is replaced by `previous` beside the value (Q2); `granularity` is `week` only against doc 19's day, week and month (Q3); the overview takes `filter[engine_code_in]` against doc 19's `engine_codes` and doc 20 5.2's `engines=` (Q5); the scope has no `window`, `panel_id`, `subject`, `prompt_ids`, attribute filters, `aggregation` or `entity_id`, and no `vocabulary_id` or `depth` (Q5); the cap is 92 days against doc 19 2.5's 400 days and 25 months (Q6); the overview tiles A9 and A11 of doc 19 are not returned (S2, WP-54); `422 engine_not_enabled` and `422 observation_classes_not_poolable` are not used; doc 16 A5 counts a not mentioned answer as not recommended, but nothing classifies a recommendation yet, so the recommendation keys are suppressed `not_classified` rather than a rate that would read 0.
 2026-11-13 WP-32: C-16 reading of the contract where the plan was silent: `engine_average` exists only for the five overview keys, on routes 1, 2 and 3, and with `entity_ids` one entry per listed entity; `meta.entities` lists the whole tracked set in the summary's order (competitors by name, then the own entities) while the values and rows follow the cell order (own first); `ai.fanout_mean_queries` has `unit` `count`; the labels of `intent`, `funnel_stage` and `prompt_type` rows equal their ids; `is_partial` is true for a week cut by a window bound and for the week that holds today (the plan's mapping formula names the window bound alone; the field text of the contract wins).
@@ -666,7 +670,8 @@ Newest last; one line per change, in the form `date package: change`.
 2026-11-13 WP-32: C-18 value text: `denominator` is null on `ai.valid_answers`, `ai.prompts_in_scope` and when suppressed, and is the valid answers that have fan-out queries for `ai.fanout_mean_queries`; `n_observations` is the engine's valid answers (not every answer) on `ai.citation_share` and `ai.recommendation_rate`; the point `value` is null when its denominator is 0.
 2026-11-13 WP-32: C-19 pooled and value: the headline `value` of a prompt weighted rate is never `pooled.successes / pooled.trials`; it is the mean of the prompts' rates. The breakdown example shows 1.4 of 3 prompts beside 3 of 7 answers.
 2026-11-13 WP-32: C-20 `AiOverview.topics_in_scope` (optional integer, absent when not known): the topics that have a prompt in scope, for the "in 13 topics" context of the numbers strip. It replaces "topic count in no card read" of C-11.
-2026-11-13 WP-32: C-21 `meta.entity_config_changes` (optional list of `{version, from}`, absent when the window holds one version): the day each entity configuration version took effect, so share of voice and series can mark where the basis changes (WB-CMP-10, WP-35). `entity_config_versions` is unchanged.
+2026-11-13 WP-32: C-21 `meta.entity_config_changes` (optional list of `{version, from}`, absent when the window holds one version): the project-local day each entity configuration version first derived an answer (C-25), so share of voice and series can mark where the basis changes (WB-CMP-10, WP-35). `entity_config_versions` is unchanged.
 2026-11-13 WP-32: C-22 series compare overlay: a previous window drawn over a series (CH-01, dashed) is a second read of the series route with `from` and `to` shifted; the series routes take no compare parameters.
 2026-11-13 WP-32: C-23 engine filter: these routes are stricter than the summary: a code outside `chatgpt_web`, `gemini_web` and `google_ai_mode` is `422` (`EngineCode`, as the sources routes); a listed engine that is neither enabled nor answering is left out of `engines` and `meta.engine_codes`.
 2026-11-13 WP-32: C-24 recorded, not built: strip deltas for `ai.citation_share`, `ai.fanout_presence_rate` and the valid answers per engine, and a `previous` on `engine_average`: WP-58, additive later.
+2026-11-13 WP-32: C-25 `meta.entity_config_changes[].from` as built: the project-local day of the earliest `ai.derivations.created_at` under the version, that is the day the version first derived an answer, not the day the configuration was edited (nothing stores that moment). It is read in the project's timezone, for every request with a prompt in scope, whatever the number of versions (so the statement count does not depend on the data). `aggregation` of an engine average is its inputs' (the value model table says so as the engine average section does).
