@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T12:12:38+05:30",
+ "updated": "2026-11-13T12:30:38+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -482,7 +482,7 @@
    "title": "Prompt records: lint upgrade, type rule, filters, bulk update, quotas, provenance",
    "wave": "W1",
    "kind": "backend",
-   "status": "building",
+   "status": "merged",
    "dependsOn": [
     "WP-03"
    ],
@@ -533,10 +533,10 @@
    },
    "counts": {
     "total": 31,
-    "done": 8
+    "done": 31
    },
    "owner": "",
-   "notes": "file work-packages/WP-13-prompts-lane.md; estimate 10 tasks; decisions D-21, D-22, D-23, D-46 | tasks 8/10, rows 29/31; Task 9 ETag in flight; backed up on origin/ai/wp-13-prompts-lane; one push at the end (migration 0022)"
+   "notes": "file work-packages/WP-13-prompts-lane.md; estimate 10 tasks; decisions D-21, D-22, D-23, D-46 | merged 1a2e5fe0; 31/31 rows; backend 5698 passed cov 97.82%; migration 0022_ai_prompt_value_sources; session stopped"
   },
   {
    "id": "WP-14",
@@ -651,12 +651,12 @@
    "title": "Layouts customize UI: catalog, numbers, save bar, team default, presets, undo",
    "wave": "W2",
    "kind": "web",
-   "status": "not_started",
+   "status": "building",
    "dependsOn": [
     "WP-15"
    ],
-   "session": null,
-   "branch": null,
+   "session": "wp-02-web-scaffold",
+   "branch": "ai/wp-16-layouts-customize",
    "rows": {
     "BE": [],
     "WB": [
@@ -3931,27 +3931,6 @@
    "until": "WP-13 merged"
   },
   {
-   "path": "backend/src/idraft/api/schemas/taxonomy.py",
-   "wp": "WP-13",
-   "granted": "2026-11-13T05:06:30+05:30",
-   "scope": "TermNode.prompt_count, opt-in via include=prompt_count",
-   "until": "WP-13 merged"
-  },
-  {
-   "path": "backend/src/idraft/api/schemas/keywords.py",
-   "wp": "WP-13",
-   "granted": "2026-11-13T05:06:30+05:30",
-   "scope": "only the TermAssignment.subject_type description",
-   "until": "WP-13 merged"
-  },
-  {
-   "path": "docs/ai-visibility/contracts/c1-prompts.md",
-   "wp": "WP-13",
-   "granted": "2026-11-13T05:06:30+05:30",
-   "scope": "change log section only",
-   "until": "WP-13 merged"
-  },
-  {
    "path": "docs/design-system/25-component-inventory.md",
    "wp": "WP-10 (sequential after WP-08)",
    "granted": "2026-11-13T05:57:38+05:30",
@@ -3978,27 +3957,6 @@
    "granted": "2026-11-13T06:49:17+05:30",
    "scope": "tests for the _bounded fix",
    "until": "WP-14 merged"
-  },
-  {
-   "path": "apps/web/src/mocks/handlers/prompts.ts",
-   "wp": "WP-13",
-   "granted": "2026-11-13T11:48:46+05:30",
-   "scope": "additive: prompt_type_source 'rule' and is_branded_source 'computed' on the Prompt object (~line 206) and suggested_prompt_type on the lint response (~line 694); no behaviour change",
-   "until": "WP-13 merged"
-  },
-  {
-   "path": "apps/web/src/features/prompts/prompts.test.tsx",
-   "wp": "WP-13",
-   "granted": "2026-11-13T11:48:46+05:30",
-   "scope": "additive: the two source fields on the Prompt fixture (~line 228)",
-   "until": "WP-13 merged"
-  },
-  {
-   "path": "apps/web/src/features/prompts/topic-drawer.test.tsx",
-   "wp": "WP-13",
-   "granted": "2026-11-13T11:48:46+05:30",
-   "scope": "additive: the two source fields on the Prompt fixture (~line 134)",
-   "until": "WP-13 merged"
   }
  ],
  "followups": [
@@ -4155,15 +4113,14 @@
  ],
  "migrations": [
   {
-   "wp": "WP-13",
-   "name": "0022_ai_prompt_value_sources",
-   "status": "renumbered at push time (0021_layouts is on develop)",
-   "note": "takes the next free number at push time; down_revision = the head on origin/develop then"
-  },
-  {
    "wp": "WP-11",
    "name": "0021_layouts",
    "status": "merged; dev DB NOT upgraded yet (needs alembic upgrade head)"
+  },
+  {
+   "wp": "WP-13",
+   "name": "0022_ai_prompt_value_sources",
+   "status": "merged; dev DB NOT upgraded yet"
   }
  ],
  "decisions_made": [
