@@ -28,14 +28,9 @@ INVALID = (422, "validation_failed")
 SUMMARY_PATH = "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/prompts-summary"
 # The seeded world of the summary tests: six prompts, two engines, answers over several weeks.
 seeded = test_prompts_summary.summary
-# A fixed id: the test ids hold it, and every xdist worker must collect the same ones.
-_UUID = uuid.UUID("3b1c5f0e-7a64-4d52-9c0a-1f2e8d6b4a97")
 
 # Every value of the contract the summary does not build yet, one for each parameter at least.
 NOT_BUILT_OPTIONS = [
-    {"filter[outcome]": "neither"},
-    {"filter[opportunity]": "named_not_cited"},
-    {"filter[opportunity]": f"lost_to:{_UUID}"},
     {"group_by": "country"},
 ]
 
@@ -68,7 +63,7 @@ async def test_the_summary_checks_access_before_it_says_not_built(
     outsider = await member(resources, migrated, await make_workspace(migrated), "owner")
     project = await ai_project(migrated, workspace)
     url = project_url(workspace, project, "ai", "prompts-summary")
-    params = {"filter[outcome]": "neither"}
+    params = {"group_by": "country"}
 
     refused = await api.get(url, params=params, headers=billing.headers)
     unseen = await api.get(url, params=params, headers=outsider.headers)
@@ -122,7 +117,7 @@ async def test_a_value_out_of_the_contract_is_refused_before_one_not_built(
 
     response = await api.get(
         project_url(workspace, project, "ai", "prompts-summary"),
-        params={"group_by": "language", "filter[outcome]": "neither"},
+        params={"group_by": "country", "rows": "all"},
         headers=viewer.headers,
     )
 
@@ -138,18 +133,7 @@ async def test_a_value_out_of_the_contract_is_refused_before_one_not_built(
         {"compare_from": "2026-01-10", "compare_to": "2026-01-01"},
         {"compare_from": "2026-01-01", "compare_to": "nope"},
         {"rows": "all"},
-        {"filter[opportunity]": "lost_to:nope"},
-        {"filter[opportunity]": "xnamed_not_citedx"},
-        {"filter[opportunity]": "xnamed_not_cited"},
-        {"filter[opportunity]": "named_not_citedx"},
-        {"filter[opportunity]": "named_not_cited\n"},
-        {"filter[opportunity]": f"xlost_to:{_UUID}"},
-        {"filter[opportunity]": f"lost_to:{_UUID}x"},
-        {"filter[opportunity]": f"lost_to:{_UUID}\n"},
-        {"filter[opportunity]": f"lost_to:{_UUID}0"},
-        {"filter[opportunity]": f"lost_to:{str(_UUID).upper()}"},
         {"group_by": "language"},
-        {"filter[outcome]": "lost"},
     ],
     ids=str,
 )
@@ -309,8 +293,53 @@ def test_the_api_document_no_longer_says_total_rows_and_co_mentions_are_not_buil
     route = document["paths"][SUMMARY_PATH]["get"]["description"]
     assert "`include=total`, `include=co_mentions`" not in route
     assert "`include=co_mentions`, `filter[outcome]`" not in route
-    assert "`filter[outcome]`, `filter[opportunity]` and `group_by` are published" in route
+    assert "`filter[outcome]`, `filter[opportunity]` and `group_by` are published" not in route
+    assert "`group_by` is published and not built yet (`501`)" in route
     assert "`include=co_mentions` adds `co_mentions`" in route
+
+
+FILTER_OPTIONS = [
+    {"filter[outcome]": "neither"},
+    {"filter[opportunity]": "named_not_cited"},
+    {"filter[opportunity]": f"lost_to:{uuid.UUID(int=75)}"},
+    {"filter[outcome]": "cited_only", "filter[opportunity]": "nobody_named", "rows": "topics"},
+]
+
+
+@pytest.mark.parametrize("params", FILTER_OPTIONS, ids=str)
+async def test_the_outcome_and_opportunity_filters_are_built(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    params: dict[str, str],
+) -> None:
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    billing = await member(resources, migrated, workspace, "billing")
+    project = await ai_project(migrated, workspace)
+    url = project_url(workspace, project, "ai", "prompts-summary")
+
+    response = await api.get(url, params=params, headers=viewer.headers)
+    refused = await api.get(url, params=params, headers=billing.headers)
+
+    assert response.status_code == 200, response.text
+    assert response.json()["data"]["prompts"] == []
+    assert problem(refused) == FORBIDDEN
+
+
+def test_the_api_document_no_longer_says_the_filters_are_not_built() -> None:
+    document = build_openapi()
+    parameters = {
+        item["name"]: item for item in document["paths"][SUMMARY_PATH]["get"]["parameters"]
+    }
+
+    for name in ("filter[outcome]", "filter[opportunity]"):
+        assert "Not built yet" not in parameters[name]["description"], name
+    assert "lost_to:<entity_id>" in parameters["filter[opportunity]"]["description"]
+    route = document["paths"][SUMMARY_PATH]["get"]["description"]
+    assert "`filter[outcome]=O` keeps a prompt row" in route
+    assert "`filter[opportunity]`" in route
+    assert "Not built yet" in parameters["group_by"]["description"]
 
 
 @pytest.mark.parametrize(

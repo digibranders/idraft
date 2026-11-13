@@ -17,7 +17,7 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Date, Float, and_, cast, func, literal, or_, select, tuple_
+from sqlalchemy import Date, Float, Uuid, and_, any_, cast, func, literal, or_, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from idraft.db.tables import (
@@ -55,6 +55,9 @@ class Counts:
     # The newest counted answer of the group, of any status, and the newest valid one.
     last_observed_at: datetime | None = None
     last_valid_at: datetime | None = None
+    # Valid answers that name a given competitor and not the own brand; read only when asked
+    # for (`counts_by_prompt(lost_to=...)`), 0 otherwise.
+    lost_to: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -119,6 +122,7 @@ def _counts_columns(c: Any = _F) -> list[Any]:
 
 def _counts(row: Any) -> Counts:
     return Counts(
+        lost_to=row._mapping.get("lost_to", 0),
         n_observations=row.n_observations,
         n_valid=row.n_valid,
         mentioned=row.mentioned,
@@ -308,11 +312,30 @@ async def counts_by_prompt(
     since: datetime,
     until: datetime,
     engine_codes: Sequence[str] | None,
+    lost_to: UUID | None = None,
 ) -> dict[tuple[UUID, str], Counts]:
+    """The counts by prompt and engine. With `lost_to` (a competitor of the project) each also
+    holds `Counts.lost_to`: the valid answers that name that competitor and not the own brand,
+    one more column of the same statement."""
     if not prompt_ids:
         return {}
+    extra = (
+        []
+        if lost_to is None
+        else [
+            func.count()
+            .filter(
+                and_(
+                    _F.is_valid,
+                    ~_F.own_mentioned,
+                    literal(lost_to, Uuid) == any_(_F.competitor_mentions),
+                )
+            )
+            .label("lost_to")
+        ]
+    )
     rows = await db.execute(
-        select(_F.prompt_id, _F.engine_code, *_counts_columns())
+        select(_F.prompt_id, _F.engine_code, *_counts_columns(), *extra)
         .where(*_window(workspace_id, project_id, prompt_ids, since, until, engine_codes))
         .group_by(_F.prompt_id, _F.engine_code)
     )

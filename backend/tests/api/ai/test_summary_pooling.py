@@ -425,8 +425,10 @@ async def test_pooling_adds_no_statement(
 
 def test_sum_counts_adds_every_count_and_keeps_the_newest_times() -> None:
     older, newer = datetime(2026, 11, 2, tzinfo=UTC), datetime(2026, 11, 9, tzinfo=UTC)
-    first = Counts(1, 2, 3, 4, 5, 6, 7, 8, 9, 0.5, last_observed_at=older, last_valid_at=older)
-    second = Counts(10, 20, 30, 40, 50, 60, 70, 80, 90, 1.5, last_observed_at=newer)
+    first = Counts(
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 0.5, last_observed_at=older, last_valid_at=older, lost_to=11
+    )
+    second = Counts(10, 20, 30, 40, 50, 60, 70, 80, 90, 1.5, last_observed_at=newer, lost_to=110)
     # A count a later task adds to `Counts` must be given a value here and be summed.
     assert all(
         getattr(first, f.name) and getattr(second, f.name)

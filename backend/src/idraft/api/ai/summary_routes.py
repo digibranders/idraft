@@ -79,8 +79,14 @@ Summaries = Annotated[SummaryService, Depends(get_summary_service)]
     "per engine shown, the valid answers in scope and, for each pair of the tracked entities "
     "(the own ones first, at most 20) named in the same valid answer, how many answers name "
     "both; it does not depend on `rows`. Blocks not asked for are left out. "
-    "`filter[outcome]`, `filter[opportunity]` and `group_by` are published and not built yet "
-    "(`501`).",
+    "`filter[outcome]=O` keeps a prompt row when at least one of its valid answers in the window, "
+    "on the engines shown, had outcome O; `filter[opportunity]` keeps it by the same rule: "
+    "`named_not_cited` is outcome `mentioned_only`, `cited_not_named` is `cited_only`, "
+    "`nobody_named` is no tracked entity named, `lost_to:<entity_id>` is that competitor named "
+    "and the own brand not (an id that is not a competitor of the project keeps no row and is "
+    "not an error). With both, a row must pass each. They narrow `prompts` only: cells, topic "
+    "rows, `total`, `co_mentions` and `prompt_count` still count every prompt in scope. "
+    "`group_by` is published and not built yet (`501`).",
 )
 async def prompts_summary(
     project_id: UUID,
@@ -144,15 +150,20 @@ async def prompts_summary(
     ] = None,
     outcome: Annotated[
         Outcome | None,
-        Query(alias="filter[outcome]", description="Prompt rows by outcome. Not built yet: `501`."),
+        Query(
+            alias="filter[outcome]",
+            description="Prompt rows with at least one valid answer of this outcome, on the "
+            "engines shown. Narrows `prompts` only.",
+        ),
     ] = None,
     opportunity: Annotated[
         str | None,
         Query(
             alias="filter[opportunity]",
             pattern=OPPORTUNITY_PATTERN,
-            description="`named_not_cited`, `cited_not_named`, `nobody_named` or "
-            "`lost_to:<entity_id>`. Not built yet: `501`.",
+            description="Prompt rows with at least one valid answer that is `named_not_cited`, "
+            "`cited_not_named`, `nobody_named` or `lost_to:<entity_id>` (a competitor named, the "
+            "own brand not), on the engines shown. Narrows `prompts` only.",
         ),
     ] = None,
     group_by: Annotated[
@@ -161,13 +172,7 @@ async def prompts_summary(
     ] = None,
 ) -> PromptsSummaryResponse:
     asked = frozenset(include or ())
-    refuse_unbuilt(
-        {
-            "filter[outcome]": outcome is not None,
-            "filter[opportunity]": opportunity is not None,
-            "group_by": group_by is not None,
-        }
-    )
+    refuse_unbuilt({"group_by": group_by is not None})
     return PromptsSummaryResponse(
         data=await summaries.summary(
             access,
@@ -185,6 +190,8 @@ async def prompts_summary(
                 compare_from=compare_from,
                 compare_to=compare_to,
                 rows=rows,
+                outcome=outcome,
+                opportunity=opportunity,
             ),
         )
     )

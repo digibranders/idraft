@@ -7,6 +7,7 @@ from collections.abc import Callable, Collection, Mapping, Sequence
 from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
+from functools import partial
 from typing import Any, Final, Literal, cast
 from uuid import UUID
 from zoneinfo import ZoneInfo
@@ -29,6 +30,7 @@ from idraft.api.schemas.ai import (
     EntityPreviousCells,
     MetricCell,
     MetricContext,
+    Outcome,
     OutcomeCells,
     PointPool,
     Pooled,
@@ -54,6 +56,12 @@ SUMMARY_DAYS: Final = 28
 SUMMARY_MAX_DAYS: Final = 92
 _NONE: Final = Counts()
 _NOT_NAMED: Final = EntityCounts()
+_LOST_TO: Final = "lost_to:"
+# The outcome each of the two opportunities that are one is (C-6).
+_OPPORTUNITY_OUTCOME: Final[Mapping[str, Outcome]] = {
+    "named_not_cited": "mentioned_only",
+    "cited_not_named": "cited_only",
+}
 # Entity cells are given for at most this many tracked entities, the own ones first.
 ENTITY_CELLS_MAX: Final = 20
 
@@ -76,6 +84,10 @@ class SummaryQuery:
     compare_to: date | None = None
     # None: every row; "topics": no prompt rows; "none": neither list (C-3).
     rows: SummaryRows | None = None
+    # Prompt rows by outcome, and by opportunity (`named_not_cited`, `cited_not_named`,
+    # `nobody_named` or `lost_to:<entity id>`, the id's form already checked): C-5 and C-6.
+    outcome: Outcome | None = None
+    opportunity: str | None = None
 
 
 def _out_of_range(field: str) -> RequestValidationError:
@@ -272,6 +284,7 @@ def sum_counts(parts: Sequence[Counts]) -> Counts:
         sov_share=sum(part.sov_share for part in parts),
         last_observed_at=max(observed, default=None),
         last_valid_at=max(valid, default=None),
+        lost_to=sum(part.lost_to for part in parts),
     )
 
 
@@ -316,6 +329,68 @@ def _co_mentions(
             ),
         )
         for code in engine_codes
+    ]
+
+
+def _outcome_answers(counts: Counts, outcome: Outcome) -> int:
+    """The valid answers of `counts` that had `outcome`."""
+    if outcome == "mentioned_and_cited":
+        return counts.mentioned_and_cited
+    if outcome == "mentioned_only":
+        return counts.mentioned_only
+    if outcome == "cited_only":
+        return counts.cited_only
+    return counts.neither
+
+
+def _opportunity_answers(counts: Counts, opportunity: str) -> int:
+    """The valid answers of `counts` that are `opportunity` (C-6). `lost_to` holds what
+    `counts_by_prompt` read for the competitor asked for, 0 when none was."""
+    if opportunity == "nobody_named":
+        return counts.n_valid - counts.sov_answers
+    if opportunity.startswith(_LOST_TO):
+        return counts.lost_to
+    return _outcome_answers(counts, _OPPORTUNITY_OUTCOME[opportunity])
+
+
+def lost_to_competitor(opportunity: str | None, tracked: Sequence[TrackedEntity]) -> UUID | None:
+    """The competitor of the project that `lost_to:<entity id>` names. None for any other
+    opportunity, and for an id that is not a competitor of the project (the own brand, an unknown
+    entity, another project's or workspace's): that opportunity then matches no answer (C-6)."""
+    if opportunity is None or not opportunity.startswith(_LOST_TO):
+        return None
+    entity_id = UUID(opportunity.removeprefix(_LOST_TO))
+    competitor = any(e.id == entity_id and e.role == "competitor" for e in tracked)
+    return entity_id if competitor else None
+
+
+def narrowed_prompts(
+    prompts: Sequence[SummaryPrompt],
+    engine_codes: Sequence[str],
+    by_prompt: Mapping[tuple[UUID, str], Counts],
+    *,
+    outcome: Outcome | None,
+    opportunity: str | None,
+) -> list[SummaryPrompt]:
+    """The prompts that pass each filter asked for: one that has, on the engines shown, at least
+    one valid answer of the outcome, and one that has at least one of the opportunity (C-5, C-6).
+    The two are two rules of the row, not one rule of an answer."""
+    tests: list[Callable[[Counts], int]] = []
+    if outcome is not None:
+        tests.append(partial(_outcome_answers, outcome=outcome))
+    if opportunity is not None:
+        tests.append(partial(_opportunity_answers, opportunity=opportunity))
+    return [
+        prompt
+        for prompt in prompts
+        if all(
+            any(
+                test(by_prompt[(prompt.id, code)]) > 0
+                for code in engine_codes
+                if (prompt.id, code) in by_prompt
+            )
+            for test in tests
+        )
     ]
 
 
@@ -664,7 +739,15 @@ class SummaryService:
                 "until": until,
                 "engine_codes": query.engine_codes,
             }
-            by_prompt = await repository.counts_by_prompt(db, ws, project_id, ids, **window)
+            tracked = await repository.tracked_entities(db, ws, project_id)
+            by_prompt = await repository.counts_by_prompt(
+                db,
+                ws,
+                project_id,
+                ids,
+                **window,
+                lost_to=lost_to_competitor(query.opportunity, tracked),
+            )
             # The window compared with is read over the same prompts, so the branded exclusion,
             # the term subtree and the country scope hold for it as they do for the window.
             before_window: dict[str, Any] = (
@@ -695,7 +778,6 @@ class SummaryService:
             )
             versions = await repository.entity_config_versions(db, ws, project_id, ids, **window)
             enabled = await repository.enabled_engine_codes(db, ws, project_id)
-            tracked = await repository.tracked_entities(db, ws, project_id)
             # The own entities first, so the cut keeps them; then the competitors by name.
             tracked_ids = entity_cell_ids(tracked)
             cell_ids = tracked_ids if "entities" in query.include else None
@@ -743,8 +825,21 @@ class SummaryService:
             previous=previous,
             previous_named=previous_named,
         )
+        # The filters choose prompt rows and nothing else: every other block reads every prompt
+        # in scope (C-5, C-6).
         prompt_rows = (
-            [_prompt_row(prompt, shown, read) for prompt in prompts] if query.rows is None else []
+            [
+                _prompt_row(prompt, shown, read)
+                for prompt in narrowed_prompts(
+                    prompts,
+                    shown,
+                    by_prompt,
+                    outcome=query.outcome,
+                    opportunity=query.opportunity,
+                )
+            ]
+            if query.rows is None
+            else []
         )
         # Topic rows are sums of the prompts' counts. Each topic row holds the prompts given the
         # term or a term below it, each once; the last row holds the prompts given no topic,
