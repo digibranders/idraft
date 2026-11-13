@@ -8,8 +8,9 @@ import { renderWithProviders } from '@/test/render';
 // The canvas stub of the test setup cannot draw: the Charts section mounts real charts, so the canvas is stood in for
 vi.mock('@/components/app/chart/echart', () => ({ EChart: () => <div data-testid="echart-canvas" /> }));
 
-// A whole section holds every variant of a dozen components, and axe walks all of it
-const SECTION_TIMEOUT_MS = 30_000;
+// A whole section holds every variant of a dozen components, and axe walks all of it: the tables section took 37 s
+// on a loaded machine, so the limit is set well above a loaded run and still catches a section that hangs
+const SECTION_TIMEOUT_MS = 90_000;
 
 describe('the preview registry', () => {
   it('lists the sections, in order, each once', () => {
