@@ -4228,6 +4228,7 @@
         "title": "Top pages",
         "caption": "Most cited pages for this prompt",
         "page": "Page",
+        "urlLabel": "cited page",
         "emptyTitle": "No cited pages in this window",
         "emptyReason": "No answer read names a page. Choose a longer window or another engine.",
         "failed": "The cited pages could not be loaded.",
