@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T21:07:25+05:30",
+ "updated": "2026-11-13T21:08:01+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -1013,10 +1013,10 @@
    },
    "counts": {
     "total": 37,
-    "done": 36
+    "done": 37
    },
    "owner": "",
-   "notes": "file work-packages/WP-20-topics-by-engine.md; estimate 9 tasks; decisions D-04, D-16 | ALL 7 tasks, rows 36/37; Task 7 drawer wired into the Topics tab on develop (76c678f9, 80aee895); final reviewer, then full capped checks when health is OK, push, merged line"
+   "notes": "file work-packages/WP-20-topics-by-engine.md; estimate 9 tasks; decisions D-04, D-16 | all 7 tasks, 37/37 rows proven; full capped run green before the rebase (7569 tests); rebased on WP-16 and re-running the focused checks; last 4 commits (e2e spec, layout fixes, As built, review fixes) not yet pushed (backed up on origin/ai/wp-20-topics-by-engine); then merged line"
   },
   {
    "id": "WP-21",
@@ -1075,10 +1075,10 @@
    },
    "counts": {
     "total": 31,
-    "done": 17
+    "done": 25
    },
    "owner": "",
-   "notes": "file work-packages/WP-21-citations-core.md; estimate 9 tasks; decisions D-02 | steps 4/8, rows 17/31; P1 on develop (3c33fce1); T3 Citations page model, strip and shell committed locally (reviewed PASS after one fix round); T4 Domains tab next; P2 after T5 | from WP-16: build on @/features/layouts only; parts: CustomizableScreen, CustomizeButton, CustomizingBadge (PageHeader titleAddon), NumberStrip, CustomizableGrid, definePresets in useMemo, capabilities wait, registry from defineCards; tests need @/test/next-navigation and @/test/customize-harness; contract in docs/superpowers/plans/2026-11-13-ai-wp-16-layouts-customize.md section 5; As built at the end of section 10 of docs/superpowers/specs/2026-09-30-layout-customization-design.md"
+   "notes": "file work-packages/WP-21-citations-core.md; estimate 9 tasks; decisions D-02 | steps 7/8, rows 25/31; T4 Domains tab, T5 Pages tab, route, states and sidebar flip (Citations live) committed (0a7dac1c, 855c3b5b), whole T5c review running; P2 then T6 e2e, T7 As built, T8 final push; backed up on origin/ai/wp-21-citations"
   },
   {
    "id": "WP-22",
@@ -1818,7 +1818,7 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-33-overview-shell.md; estimate 7 tasks; decisions D-01, D-03, D-13, D-19, D-20 | plan committed (13 tasks, milestone M1 at T6 so WP-34 to 37 can start); rows 0/7; reads the summary twice and aggregates on the client until WP-32"
+   "notes": "file work-packages/WP-33-overview-shell.md; estimate 7 tasks; decisions D-01, D-03, D-13, D-19, D-20 | plan committed (13 tasks), leases granted incl. the eslint features/layouts boundary entry; T1 scope model and URL state running; milestone M1 at T6"
   },
   {
    "id": "WP-34",
