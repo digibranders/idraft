@@ -12188,6 +12188,17 @@
             "title": "Team Default Exists",
             "type": "boolean"
           },
+          "team_document": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LayoutDocument"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The team default document of the screen, also when the caller's personal layout is the one in `document`; null when there is no usable team default. It is the team row only, the same for every member, so the web can reset to it."
+          },
           "updated_at": {
             "anyOf": [
               {

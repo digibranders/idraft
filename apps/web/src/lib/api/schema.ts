@@ -7218,6 +7218,8 @@ export interface components {
             source: "personal" | "team" | "builtin";
             /** Team Default Exists */
             team_default_exists: boolean;
+            /** @description The team default document of the screen, also when the caller's personal layout is the one in `document`; null when there is no usable team default. It is the team row only, the same for every member, so the web can reset to it. */
+            team_document?: components["schemas"]["LayoutDocument"] | null;
             /** Updated At */
             updated_at: string | null;
             updated_by: components["schemas"]["LayoutEditor"] | null;

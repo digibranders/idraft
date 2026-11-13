@@ -29,6 +29,7 @@ BUILTIN = {
     "source": "builtin",
     "document": None,
     "team_default_exists": False,
+    "team_document": None,
     "updated_at": None,
     "updated_by": None,
 }

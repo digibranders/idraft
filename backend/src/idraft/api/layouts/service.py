@@ -62,6 +62,7 @@ def resolved(screen: str, personal: StoredLayout | None, team: StoredLayout | No
             "source": source,
             "document": document,
             "team_default_exists": team_document is not None,
+            "team_document": team_document,
             "updated_at": None if row is None else row.updated_at,
             "updated_by": None
             if row is None

@@ -100,10 +100,11 @@ allowed.
 | `data.source` | `personal`, `team` or `builtin` | Their personal layout, else the team default, else `builtin`. |
 | `data.document` | `LayoutDocument` or null | Null when `source` is `builtin`: the web app holds the built-in default. |
 | `data.team_default_exists` | boolean | |
+| `data.team_document` | `LayoutDocument` or null | The team default document of the screen, also when the caller's personal layout is the one in `document` (so the web can reset to it and compare a draft with it). Null when there is no team default or the stored one is damaged, exactly when `team_default_exists` is false. It is the team row only: never a personal row, and the same for every member of the workspace. Optional in the OpenAPI document (default null), added by F-10. |
 | `data.updated_at` | datetime or null | |
 | `data.updated_by` | `{ user_id, name }` or null | |
 
-The `PUT` routes answer the layout as it now resolves. The team default is audited as
+The `PUT` routes answer the layout as it now resolves, so both carry `team_document` as the read does. The team default is audited as
 `layout.default.set` (documents before and after) and `layout.default.remove`.
 
 ## Error codes
@@ -143,6 +144,7 @@ GET {W}/layouts/overview
     "source": "builtin",
     "document": null,
     "team_default_exists": false,
+    "team_document": null,
     "updated_at": null,
     "updated_by": null
   }
@@ -183,6 +185,11 @@ If-Match: "9f2c41d07b3a8e5516c0d4e7a2b8f903"
       ]
     },
     "team_default_exists": true,
+    "team_document": {
+      "schema": 1,
+      "numbers": null,
+      "cards": [{"id": "c1", "type": "ai.by_engine", "width": "full", "options": null}]
+    },
     "updated_at": "2026-11-10T09:12:44Z",
     "updated_by": {"user_id": "0000005a-7c1e-4a52-9b3d-00000000005a", "name": "Mara Voss"}
   }
@@ -220,6 +227,14 @@ The body is the same `LayoutDocument` as above. `200`:
       ]
     },
     "team_default_exists": true,
+    "team_document": {
+      "schema": 1,
+      "numbers": [{"id": "n1", "metric": "ai.mention_rate", "engine": "chatgpt_web"}],
+      "cards": [
+        {"id": "c1", "type": "ai.by_engine", "width": "half", "options": {"metric": "ai.mention_rate"}},
+        {"id": "c2", "type": "ai.by_engine", "width": "full", "options": null}
+      ]
+    },
     "updated_at": "2026-11-10T09:12:44Z",
     "updated_by": {"user_id": "0000005a-7c1e-4a52-9b3d-00000000005a", "name": "Mara Voss"}
   }
@@ -282,3 +297,4 @@ Newest last; one line per change, in the form `date package: change`.
 2026-11-13 WP-11: `ETag` covers the caller's personal layout and the team default; `If-Match` required once the target exists; missing or stale is `412`; a first save needs none
 2026-11-13 WP-11: catalog checks with codes `not_on_screen`, `not_in_catalog`, `width_not_allowed`, `required`, `not_applicable` (an engine on a non AI number: a tightening), `too_large`
 2026-11-13 WP-11: `DELETE` answers `204` also when nothing was there; no audit entry then
+2026-11-13 F-10: `team_document` added to `ResolvedLayout` (read and both `PUT` answers): the team default document, also when a personal layout wins, null without a usable team default; optional, default null, an added response member; the `ETag` is unchanged

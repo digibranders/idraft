@@ -86,6 +86,14 @@ class ResolvedLayout(BaseModel):
         description="Null when `source` is `builtin`: the web app holds the built-in default."
     )
     team_default_exists: bool
+    team_document: LayoutDocument | None = Field(
+        default=None,
+        description=(
+            "The team default document of the screen, also when the caller's personal layout is "
+            "the one in `document`; null when there is no usable team default. It is the team "
+            "row only, the same for every member, so the web can reset to it."
+        ),
+    )
     updated_at: datetime | None
     updated_by: LayoutEditor | None
 

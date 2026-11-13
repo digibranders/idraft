@@ -102,6 +102,9 @@ def test_the_api_document_has_the_layout_routes() -> None:
         assert len(headers) == 1
         assert not headers[0].get("required", False)
     assert schemas["ResolvedLayout"]["properties"]["screen"]["enum"] == SCREENS
+    # Additive and optional (F-10): an old client that never reads it is not broken.
+    assert "team_document" in schemas["ResolvedLayout"]["properties"]
+    assert "team_document" not in schemas["ResolvedLayout"]["required"]
     for path in (
         f"{WORKSPACE}/layouts/{{screen}}",
         f"{WORKSPACE}/me/layouts/{{screen}}",
