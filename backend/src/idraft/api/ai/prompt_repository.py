@@ -19,15 +19,18 @@ from sqlalchemy import (
     Row,
     ScalarSelect,
     Select,
+    Text,
     and_,
     delete,
     func,
     insert,
     literal,
+    or_,
     select,
     tuple_,
     update,
 )
+from sqlalchemy.dialects.postgresql import insert as upsert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from idraft.api.keywords.repository import UserRecord
@@ -670,14 +673,176 @@ async def lock_prompts(
     return {row.id: row.is_active for row in rows}
 
 
+async def lock_matching(
+    db: AsyncSession, workspace_id: UUID, project_id: UUID, given: PromptFilter, limit: int
+) -> dict[UUID, bool]:
+    """The project's live prompts the filter matches (the list's meaning, archived ones too when
+    `is_active` is None), each with whether it is active, at most `limit`, held (FOR NO KEY
+    UPDATE) until the transaction ends and taken in id order, as `lock_prompts` does."""
+    p = ai_prompts.c
+    rows = await db.execute(
+        select(p.id, p.is_active)
+        .select_from(ai_prompts.join(ai_prompt_versions, _current_version()))
+        .where(
+            p.workspace_id == workspace_id,
+            p.project_id == project_id,
+            p.deleted_at.is_(None),
+            *_conditions(workspace_id, given),
+        )
+        .order_by(p.id)
+        .limit(limit)
+        .with_for_update(of=ai_prompts, key_share=True)
+    )
+    return {row.id: row.is_active for row in rows}
+
+
+async def set_metadata(
+    db: AsyncSession,
+    workspace_id: UUID,
+    project_id: UUID,
+    ids: Sequence[UUID],
+    values: Mapping[str, object],
+    sources: Mapping[str, str],
+    now: datetime,
+) -> set[UUID]:
+    """Sets `values` on the project's prompts among `ids` that differ from them in at least one
+    column, with the `sources` that go with them (`prompt_type_source`, `is_branded_source`), and
+    says which prompts changed. A prompt already holding every value is left as it is."""
+    if not ids or not values:
+        return set()
+    p = ai_prompts.c
+    rows = await db.execute(
+        update(ai_prompts)
+        .where(
+            p.workspace_id == workspace_id,
+            p.project_id == project_id,
+            p.deleted_at.is_(None),
+            among_ids(p.id, ids),
+            or_(*(ai_prompts.c[name].is_distinct_from(value) for name, value in values.items())),
+        )
+        .values(**values, **sources, updated_at=now)
+        .returning(p.id)
+    )
+    return set(rows.scalars())
+
+
+async def remove_terms(
+    db: AsyncSession,
+    workspace_id: UUID,
+    project_id: UUID,
+    ids: Sequence[UUID],
+    *,
+    removed: Collection[UUID],
+    replaced_in: Collection[UUID],
+    kept: Collection[UUID],
+) -> set[UUID]:
+    """Takes `removed` terms off the project's prompts among `ids`, and every term of the
+    single-valued vocabularies `replaced_in` that is not one of `kept` (the terms about to be
+    added). Says which prompts lost a term."""
+    if not ids or not (removed or replaced_in):
+        return set()
+    links, terms, p = ai_prompt_terms.c, taxonomy_terms.c, ai_prompts.c
+    wanted: list[ColumnElement[bool]] = []
+    if removed:
+        wanted.append(among_ids(links.term_id, removed))
+    if replaced_in:
+        wanted.append(
+            and_(
+                ~among_ids(links.term_id, kept),
+                links.term_id.in_(
+                    select(terms.id).where(
+                        terms.workspace_id == workspace_id,
+                        among_ids(terms.vocabulary_id, replaced_in),
+                    )
+                ),
+            )
+        )
+    rows = await db.execute(
+        delete(ai_prompt_terms)
+        .where(
+            links.workspace_id == workspace_id,
+            links.prompt_id.in_(
+                select(p.id).where(
+                    p.workspace_id == workspace_id,
+                    p.project_id == project_id,
+                    among_ids(p.id, ids),
+                )
+            ),
+            or_(*wanted),
+        )
+        .returning(links.prompt_id)
+    )
+    return set(rows.scalars())
+
+
+async def add_terms_to_prompts(
+    db: AsyncSession,
+    workspace_id: UUID,
+    project_id: UUID,
+    ids: Sequence[UUID],
+    term_ids: Collection[UUID],
+) -> set[UUID]:
+    """Gives the project's prompts among `ids` each of these terms (the caller has checked
+    them) as a person's assignment; says which prompts gained one. One statement however many
+    prompts and terms: a link held already is left as it is."""
+    if not ids or not term_ids:
+        return set()
+    p, terms, links = ai_prompts.c, taxonomy_terms.c, ai_prompt_terms.c
+    rows = await db.execute(
+        upsert(ai_prompt_terms)
+        .from_select(
+            ["prompt_id", "term_id", "workspace_id", "assigned_by"],
+            select(p.id, terms.id, p.workspace_id, literal("manual", Text))
+            .select_from(ai_prompts.join(taxonomy_terms, terms.workspace_id == p.workspace_id))
+            .where(
+                p.workspace_id == workspace_id,
+                p.project_id == project_id,
+                p.deleted_at.is_(None),
+                among_ids(p.id, ids),
+                among_ids(terms.id, term_ids),
+            ),
+        )
+        .on_conflict_do_nothing()
+        .returning(links.prompt_id)
+    )
+    return set(rows.scalars())
+
+
+async def touch(
+    db: AsyncSession, workspace_id: UUID, project_id: UUID, ids: Collection[UUID], now: datetime
+) -> None:
+    """`updated_at` of the project's prompts among `ids`: a change of terms alone is a change."""
+    if not ids:
+        return
+    p = ai_prompts.c
+    await db.execute(
+        update(ai_prompts)
+        .where(
+            p.workspace_id == workspace_id,
+            p.project_id == project_id,
+            among_ids(p.id, sorted(ids)),
+        )
+        .values(updated_at=now)
+    )
+
+
 async def set_active(
-    db: AsyncSession, workspace_id: UUID, ids: Sequence[UUID], is_active: bool, now: datetime
+    db: AsyncSession,
+    workspace_id: UUID,
+    project_id: UUID,
+    ids: Sequence[UUID],
+    is_active: bool,
+    now: datetime,
 ) -> None:
     if not ids:
         return
     await db.execute(
         update(ai_prompts)
-        .where(ai_prompts.c.workspace_id == workspace_id, among_ids(ai_prompts.c.id, ids))
+        .where(
+            ai_prompts.c.workspace_id == workspace_id,
+            ai_prompts.c.project_id == project_id,
+            among_ids(ai_prompts.c.id, ids),
+        )
         .values(is_active=is_active, updated_at=now)
     )
 

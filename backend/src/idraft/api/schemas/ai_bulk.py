@@ -92,7 +92,7 @@ class PromptSelectionFilter(Body):
 
 
 class PromptBulkArchiveByFilter(Body):
-    """Every prompt of the project the filter matches. Not built yet (`501`)."""
+    """Every prompt of the project the filter matches, at most 1,000 (`422 too_many_subjects`)."""
 
     filter: PromptSelectionFilter
     archive: bool = Field(

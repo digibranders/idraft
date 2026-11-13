@@ -62,6 +62,7 @@ from idraft.api.problems import (
     NotFoundError,
     QuotaExceededError,
     TooManyMatchesError,
+    TooManySubjectsError,
     invalid_fields,
 )
 from idraft.api.request_info import RequestInfo
@@ -76,7 +77,13 @@ from idraft.api.schemas.ai import (
     PromptPatch,
     PromptType,
 )
-from idraft.api.schemas.ai_bulk import PromptBulkArchive
+from idraft.api.schemas.ai_bulk import (
+    BULK_ARCHIVE_MAX,
+    PromptBulkArchive,
+    PromptBulkArchiveByFilter,
+    PromptBulkUpdate,
+    PromptSelectionFilter,
+)
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.db.engine import workspace_transaction
 from idraft.domain.ai_engines import (
@@ -624,6 +631,64 @@ def _key(record: PromptRecord, sort: str | None) -> list[KeyValue]:
             return [record.updated_at.isoformat(), str(record.id)]
 
 
+def _filter_of(selection: PromptSelectionFilter) -> PromptFilter:
+    """The list's filter a bulk selection names; `is_active` left out takes both."""
+    return PromptFilter(
+        q=selection.q,
+        term=selection.term,
+        intents=frozenset(selection.intent_in or ()),
+        prompt_types=frozenset(selection.prompt_type_in or ()),
+        funnel_stages=frozenset(selection.funnel_stage_in or ()),
+        importances=frozenset(selection.importance_in or ()),
+        is_branded=selection.is_branded,
+        country_iso=selection.country_iso,
+        language_code=selection.language_code,
+        is_active=selection.is_active,
+    )
+
+
+async def _selected(
+    db: AsyncSession,
+    access: WorkspaceAccess,
+    project_id: UUID,
+    ids: Sequence[UUID] | None,
+    given: PromptSelectionFilter | None,
+) -> dict[UUID, bool]:
+    """The project's live prompts a bulk change reaches, each with whether it is active, held
+    until the transaction ends: the given ids it has, or those the filter matches (at most
+    `BULK_ARCHIVE_MAX`, else `422 too_many_subjects`). Another project's prompts are never
+    matched."""
+    if given is None:
+        return await prompts.lock_prompts(
+            db, access.workspace_id, project_id, sorted(set(ids or ()))
+        )
+    found = await prompts.lock_matching(
+        db, access.workspace_id, project_id, _filter_of(given), BULK_ARCHIVE_MAX + 1
+    )
+    if len(found) > BULK_ARCHIVE_MAX:
+        raise TooManySubjectsError(
+            f"This change takes at most {BULK_ARCHIVE_MAX} prompts; narrow the filter.",
+            limit=BULK_ARCHIVE_MAX,
+        )
+    return found
+
+
+def _bulk_term_errors(
+    body: PromptBulkUpdate, usable: Mapping[UUID, TermRecord]
+) -> list[FieldError]:
+    """Terms to add must be ones the project may use, at most one of a single-valued vocabulary;
+    terms to remove must be ones it may use. Each error names its list."""
+    found: list[FieldError] = []
+    added = term_error(body.add_term_ids, usable)
+    if added is not None:
+        found.append(replace(added, path="add_term_ids"))
+    if set(body.remove_term_ids) - usable.keys():
+        found.append(
+            FieldError("remove_term_ids", "term_unknown", "A term the project cannot use.")
+        )
+    return found
+
+
 class PromptService:
     def __init__(self, *, sessions: async_sessionmaker[AsyncSession]) -> None:
         self._sessions = sessions
@@ -903,21 +968,116 @@ class PromptService:
                 after={"is_active": False},
             )
 
-    async def bulk_archive(
-        self, access: WorkspaceAccess, project_id: UUID, body: PromptBulkArchive, info: RequestInfo
+    async def bulk_update(
+        self, access: WorkspaceAccess, project_id: UUID, body: PromptBulkUpdate, info: RequestInfo
     ) -> tuple[int, int]:
-        """Archives or brings back the given prompts as `archive` and `PATCH is_active` do one:
-        answers, versions and terms stay, and a prompt brought back is not checked against the
-        engines' countries again. Ids the project does not have are not matched. Bringing back
-        counts against the active prompt quota, all or none. How many matched and how many
-        changed."""
+        """Changes the metadata of the given prompts, or of those a filter matches, and adds and
+        removes terms, in one transaction. An added term of a single-valued vocabulary takes the
+        place of the prompt's other term of it. Ids the project does not have are not matched; a
+        prompt that already holds every change is matched and not updated. How many matched and
+        how many changed."""
+        now = datetime.now(UTC)
+        values: dict[str, str | int | bool] = (
+            {}
+            if body.set is None
+            else {name: getattr(body.set, name) for name in sorted(body.set.model_fields_set)}
+        )
+        sources: dict[str, str] = {}
+        if "prompt_type" in values:
+            sources["prompt_type_source"] = "person"
+        if "is_branded" in values:
+            # Even the value the aliases give is the person's word from now on.
+            sources["is_branded_source"] = "override"
+        async with self._transaction(access) as db:
+            await live_project(db, access, project_id)
+            # In the order every writer takes them: the vocabularies (held), then the rows.
+            usable = {
+                found.term_id: found
+                for found in await keywords.project_terms(
+                    db,
+                    access.workspace_id,
+                    project_id,
+                    {*body.add_term_ids, *body.remove_term_ids},
+                )
+            }
+            errors = _bulk_term_errors(body, usable)
+            if errors:
+                raise invalid_fields(errors)
+            selected = await _selected(db, access, project_id, body.ids, body.filter)
+            ids = list(selected)
+            changed = await prompts.set_metadata(
+                db, access.workspace_id, project_id, ids, values, sources, now
+            )
+            by_terms = await prompts.remove_terms(
+                db,
+                access.workspace_id,
+                project_id,
+                ids,
+                removed=body.remove_term_ids,
+                replaced_in={
+                    usable[term_id].vocabulary_id
+                    for term_id in body.add_term_ids
+                    if usable[term_id].is_single_valued
+                },
+                kept=body.add_term_ids,
+            )
+            by_terms |= await prompts.add_terms_to_prompts(
+                db, access.workspace_id, project_id, ids, body.add_term_ids
+            )
+            await prompts.touch(db, access.workspace_id, project_id, by_terms - changed, now)
+            changed |= by_terms
+            summary: dict[str, str | int | bool | list[str] | None] = {**values}
+            if body.add_term_ids:
+                summary["add_term_ids"] = sorted(map(str, body.add_term_ids))
+            if body.remove_term_ids:
+                summary["remove_term_ids"] = sorted(map(str, body.remove_term_ids))
+            await audit.record(
+                db,
+                workspace_id=access.workspace_id,
+                actor_id=access.user_id,
+                action="prompt.bulk_changed",
+                target_type="project",
+                target_id=project_id,
+                info=info,
+                after={**summary, "matched": len(selected), "changed": len(changed)},
+            )
+            await audit.record_each(
+                db,
+                workspace_id=access.workspace_id,
+                actor_id=access.user_id,
+                action="prompt.updated",
+                target_type="prompt",
+                info=info,
+                entries=[
+                    audit.Entry(target_id=prompt_id, after={**values, "bulk": True})
+                    for prompt_id in sorted(changed)
+                ],
+            )
+        return len(selected), len(changed)
+
+    async def bulk_archive(
+        self,
+        access: WorkspaceAccess,
+        project_id: UUID,
+        body: PromptBulkArchive | PromptBulkArchiveByFilter,
+        info: RequestInfo,
+    ) -> tuple[int, int]:
+        """Archives or brings back the given prompts, or those a filter matches, as `archive`
+        and `PATCH is_active` do one: answers, versions and terms stay, and a prompt brought
+        back is not checked against the engines' countries again. Ids the project does not
+        have are not matched. Bringing back counts against the active prompt quota, all or
+        none. How many matched and how many changed."""
         async with self._transaction(access) as db:
             await live_project(db, access, project_id)
             if not body.archive:
                 # Same order as create and PATCH: the workspace lock, then the prompt rows.
                 await prompts.lock_prompt_writes(db, access.workspace_id)
-            found = await prompts.lock_prompts(
-                db, access.workspace_id, project_id, sorted(set(body.ids))
+            found = await _selected(
+                db,
+                access,
+                project_id,
+                body.ids if isinstance(body, PromptBulkArchive) else None,
+                body.filter if isinstance(body, PromptBulkArchiveByFilter) else None,
             )
             changing = [prompt_id for prompt_id, active in found.items() if active == body.archive]
             if changing and not body.archive:
@@ -925,7 +1085,7 @@ class PromptService:
                 if used + len(changing) > limit:
                     raise quota_error(limit, used, len(changing))
             await prompts.set_active(
-                db, access.workspace_id, changing, not body.archive, datetime.now(UTC)
+                db, access.workspace_id, project_id, changing, not body.archive, datetime.now(UTC)
             )
             await audit.record(
                 db,

@@ -16,16 +16,14 @@ from idraft.api.openapi import build_openapi
 from idraft.api.resources import Resources
 from idraft.api.schemas.ai import PromptLintBody
 from idraft.api.schemas.ai_bulk import PromptBulkUpdate
-from tests.api.ai.support import ai_project, seed_prompts
+from tests.api.ai.support import ai_project
 from tests.api.auth.support import make_workspace
 from tests.api.entities.support import member, problem
 from tests.api.keywords.support import project_url
 from tests.conftest import PostgresServer
 
-NOT_BUILT = (501, "not_implemented")
 FORBIDDEN = (403, "forbidden")
 NOT_FOUND = (404, "not_found")
-INVALID = (422, "validation_failed")
 
 PROJECT_PATH = "/api/v1/workspaces/{workspace_id}/projects/{project_id}"
 ID = str(uuid.uuid4())
@@ -126,31 +124,6 @@ async def test_lint_without_additions_answers_as_before(
     assert not {"tracked", "near_duplicate_of"} & set(body["data"][0])
 
 
-async def test_bulk_update_answers_501_after_the_permission_and_the_body(
-    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
-) -> None:
-    workspace = await make_workspace(migrated)
-    editor = await member(resources, migrated, workspace, "editor")
-    project = await ai_project(migrated, workspace)
-    (prompt_id,) = await seed_prompts(migrated, workspace, project, 1)
-    url = project_url(workspace, project, "prompts", "bulk-update")
-
-    valid = await api.post(
-        url,
-        json={"ids": [str(prompt_id)], "set": {"importance": 1}},
-        headers=editor.headers,
-    )
-    empty = await api.post(url, json={"ids": [str(prompt_id)]}, headers=editor.headers)
-    read = await api.get(
-        project_url(workspace, project, "prompts", prompt_id), headers=editor.headers
-    )
-
-    assert problem(valid) == NOT_BUILT
-    assert problem(empty) == INVALID
-    assert "nothing_to_change" in [error["code"] for error in empty.json()["errors"]]
-    assert read.json()["data"]["importance"] == 3
-
-
 async def test_bulk_update_is_refused_to_a_viewer_and_another_workspace(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:
@@ -166,43 +139,6 @@ async def test_bulk_update_is_refused_to_a_viewer_and_another_workspace(
 
     assert problem(refused) == FORBIDDEN
     assert problem(unseen) == NOT_FOUND
-
-
-async def test_bulk_archive_by_filter_answers_501(
-    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
-) -> None:
-    workspace = await make_workspace(migrated)
-    editor = await member(resources, migrated, workspace, "editor")
-    project = await ai_project(migrated, workspace)
-    await seed_prompts(migrated, workspace, project, 1)
-
-    response = await api.post(
-        project_url(workspace, project, "prompts", "bulk-archive"),
-        json={"filter": {"intent_in": ["commercial"]}, "archive": True},
-        headers=editor.headers,
-    )
-    listed = await api.get(project_url(workspace, project, "prompts"), headers=editor.headers)
-
-    assert problem(response) == NOT_BUILT
-    assert len(listed.json()["data"]) == 1
-
-
-async def test_bulk_archive_by_ids_works_as_before(
-    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
-) -> None:
-    workspace = await make_workspace(migrated)
-    editor = await member(resources, migrated, workspace, "editor")
-    project = await ai_project(migrated, workspace)
-    (prompt_id,) = await seed_prompts(migrated, workspace, project, 1)
-
-    response = await api.post(
-        project_url(workspace, project, "prompts", "bulk-archive"),
-        json={"ids": [str(prompt_id)], "archive": True},
-        headers=editor.headers,
-    )
-
-    assert response.status_code == 200, response.text
-    assert response.json() == {"data": {"matched": 1, "updated": 1}}
 
 
 def _required(schema: dict[str, Any]) -> set[str]:

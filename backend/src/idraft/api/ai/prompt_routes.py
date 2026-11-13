@@ -49,9 +49,9 @@ from idraft.api.schemas.ai import (
 )
 from idraft.api.schemas.ai_bulk import (
     PromptBulkArchiveBody,
-    PromptBulkArchiveByFilter,
     PromptBulkUpdate,
     PromptBulkUpdateResponse,
+    PromptBulkUpdateResult,
 )
 from idraft.api.schemas.common import LanguageCode, QueryText
 from idraft.api.schemas.entities import EntityRef
@@ -62,7 +62,7 @@ from idraft.api.schemas.keywords import (
     Intent,
 )
 from idraft.api.schemas.operations import RunResponse
-from idraft.api.stubs import not_built, not_built_yet, refuse_unbuilt
+from idraft.api.stubs import refuse_unbuilt
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.api.workspaces.dependencies import require_permission
 
@@ -381,13 +381,15 @@ async def lint_prompts(
 @router.post(
     "/bulk-archive",
     summary="Archive or bring back many prompts",
-    description="Up to 1,000 `ids` of the project's prompts; an id it does not have is not "
-    "matched. `archive: true` archives them as `DELETE` does one, `false` brings them back as "
-    "`PATCH is_active: true` does; answers, versions and terms stay. Bringing back counts "
-    "against the workspace's active prompt limit, all or none (`422 quota_exceeded` with "
-    "`limit`, `used` and `requested`). `matched` is the prompts found, `updated` those whose "
-    "state changed. One audit entry for the request and one per prompt changed. `filter` in "
-    "place of `ids` is published and not built yet (`501`).",
+    description="Up to 1,000 `ids` of the project's prompts, or a `filter` (the list's filters; "
+    "`is_active` left out takes archived and active prompts alike), exactly one; an id the "
+    "project does not have is not matched, and a filter matching more than 1,000 prompts is "
+    "`422 too_many_subjects` with `limit`. `archive: true` archives them as `DELETE` does one, "
+    "`false` brings them back as `PATCH is_active: true` does; answers, versions and terms "
+    "stay. Bringing back counts against the workspace's active prompt limit, all or none "
+    "(`422 quota_exceeded` with `limit`, `used` and `requested`). `matched` is the prompts "
+    "found, `updated` those whose state changed. One audit entry for the request and one per "
+    "prompt changed.",
 )
 async def bulk_archive_prompts(
     project_id: UUID,
@@ -396,8 +398,6 @@ async def bulk_archive_prompts(
     prompts: Prompts,
     info: Info,
 ) -> BulkArchiveResponse:
-    if isinstance(body, PromptBulkArchiveByFilter):
-        raise not_built_yet("Not built yet: filter.")
     matched, updated = await prompts.bulk_archive(access, project_id, body, info)
     return BulkArchiveResponse(data=BulkArchiveResult(matched=matched, updated=updated))
 
@@ -408,14 +408,23 @@ async def bulk_archive_prompts(
     description="Up to 1,000 `ids` of the project's prompts, or `filter` (the list's filters), "
     "exactly one. `set` changes intent, funnel stage, type, importance and the branded flag; "
     "`add_term_ids` and `remove_term_ids` add and remove terms. `matched` is the prompts found, "
-    "`updated` those that changed. One transaction; one `prompt.bulk_changed` audit entry and "
-    "one `prompt.updated` per prompt changed. Not built yet: `501 not_implemented`.",
+    "`updated` those that changed. Setting `prompt_type` makes `prompt_type_source` `person`, "
+    "and setting `is_branded` makes `is_branded_source` `override`. An added term of a "
+    "single-valued vocabulary takes the place of the prompt's other term of it; field codes "
+    "`term_unknown` and `single_valued_vocabulary` name `add_term_ids` or `remove_term_ids`. "
+    "A filter matching more than 1,000 prompts is `422 too_many_subjects` with `limit`. One "
+    "transaction; one `prompt.bulk_changed` audit entry and one `prompt.updated` per prompt "
+    "changed.",
 )
-@not_built
 async def bulk_update_prompts(
-    project_id: UUID, body: PromptBulkUpdate, access: WritePrompts
+    project_id: UUID,
+    body: PromptBulkUpdate,
+    access: WritePrompts,
+    prompts: Prompts,
+    info: Info,
 ) -> PromptBulkUpdateResponse:
-    raise not_built_yet()
+    matched, updated = await prompts.bulk_update(access, project_id, body, info)
+    return PromptBulkUpdateResponse(data=PromptBulkUpdateResult(matched=matched, updated=updated))
 
 
 @router.get("/{prompt_id}", summary="A prompt")
