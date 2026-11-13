@@ -79,6 +79,7 @@ test.describe('The prompt inspector, completed', () => {
     await expect(page.getByRole('complementary', { name: FIRST_PROMPT })).toHaveCount(0);
     // Measured at 390 px: Latest, History, Citations and Competitors fit the row, the fifth tab is in the menu
     await expect(sheet.getByRole('tab')).toHaveCount(4);
+    await expect(sheet.getByRole('tab')).toHaveText([/^Latest/, /^History/, /^Citations/, /^Competitors/]);
     await expect(sheet.getByRole('tab', { name: 'Citations' })).toBeVisible();
     await sheet.getByRole('button', { name: 'More tabs' }).click();
     await expect(page.getByRole('menuitem')).toHaveText(['Stats']);
