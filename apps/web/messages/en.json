@@ -1859,7 +1859,6 @@
     "workloadUnavailable": "This kind of data cannot be collected here"
   },
   "budgets": {
-    "pageTitle": "Budgets and usage",
     "title": "Budgets and usage",
     "meta": "Workspace, {month}. Months in UTC.",
     "readOnlyLead": "Read only:",
@@ -1880,7 +1879,7 @@
       "answersValue": "{used} of {limit} AI answers this month",
       "notAvailable": "Not available",
       "reasonRole": "Your role cannot read prompts and answers, so these limits are not shown.",
-      "reasonProject": "Open this page from a project to read these limits.",
+      "reasonProject": "These limits are read through a project, and there is none to read them through.",
       "reasonFailed": "The limits could not be loaded.",
       "openPrompts": "Open Topics & Prompts"
     },
@@ -1900,10 +1899,9 @@
       "label": "Budgets",
       "add": "Add budget",
       "empty": "No budgets are set for {month}.",
-      "scope": "Scope",
-      "group": "Group",
-      "limit": "Limit",
-      "spent": "Spent",
+      "scopeAndGroup": "Scope and group",
+      "spentAndLimit": "Spent and limit",
+      "spentOfLimit": "{spent} of {limit}",
       "used": "Used",
       "state": "State",
       "actions": "Actions",

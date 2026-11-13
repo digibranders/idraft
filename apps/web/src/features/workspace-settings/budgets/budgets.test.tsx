@@ -10,7 +10,7 @@ import { PermissionProvider } from '@/lib/permissions';
 import { membershipFactory } from '@/mocks/factories/identity';
 import { MOCK_PROJECTS, MOCK_WORKSPACE, mockUser } from '@/mocks/fixtures';
 import { MOCK_BUDGET_IDS } from '@/mocks/operations-fixtures';
-import { mswPath, problem } from '@/mocks/respond';
+import { invalidField, mswPath, problem } from '@/mocks/respond';
 import { SESSION_COOKIE } from '@/mocks/session';
 import { axe } from '@/test/axe';
 import { server } from '@/test/msw';
@@ -161,16 +161,13 @@ function fillOf(meter: HTMLElement): { muted: string; warningFrom: string; warni
 }
 
 const table = (): Promise<HTMLElement> => screen.findByRole('table', { name: 'Budgets' });
-/** The row of a scope and group, once the list has loaded. */
+/** The row of a scope and group, once the list has loaded. The row header holds the scope, with the group under it. */
 async function rowOf(scope: string, group: string): Promise<HTMLElement> {
   const list = await table();
   return waitFor(() => {
     const found = within(list)
       .getAllByRole('row')
-      .find((row) => {
-        const cells = within(row).queryAllByRole('cell');
-        return within(row).queryByRole('rowheader')?.textContent === scope && cells[0]?.textContent === group;
-      });
+      .find((row) => within(row).queryByRole('rowheader')?.textContent === `${scope}${group}`);
     if (found === undefined) throw new Error(`No row for ${scope} and ${group}`);
     return found;
   });
@@ -203,15 +200,19 @@ describe('Budgets and usage', () => {
     expect(screen.getByRole('heading', { level: 2, name: 'Budgets and usage' })).toBeInTheDocument();
     expect(screen.getByText('Workspace, September 2026. Months in UTC.')).toBeInTheDocument();
     const workspaceRow = await rowOf('Workspace', 'All workloads');
-    expect(within(workspaceRow).getByText('$250.00')).toBeInTheDocument();
-    expect(within(workspaceRow).getByText('$160.50')).toBeInTheDocument();
+    expect(within(workspaceRow).getByText('$160.50 of $250.00')).toBeInTheDocument();
     expect(within(workspaceRow).getByText('64.2%')).toBeInTheDocument();
     expect(within(workspaceRow).getByRole('meter', { name: '64.2% of $250.00' })).toBeInTheDocument();
     expect(within(workspaceRow).getByText('Within budget')).toBeInTheDocument();
     const projectRow = await rowOf('Fynix', 'AI answers');
-    expect(within(projectRow).getByText('$40.00')).toBeInTheDocument();
+    expect(within(projectRow).getByText('$40.50 of $40.00')).toBeInTheDocument();
     expect(within(projectRow).getByText('101.3%')).toBeInTheDocument();
     expect(within(projectRow).getByText('Budget blocked')).toBeInTheDocument();
+    // Five columns fit the settings column; the names of the merged ones still say what they hold
+    const columns = within(await table())
+      .getAllByRole('columnheader')
+      .map((header) => header.textContent);
+    expect(columns).toEqual(['Scope and group', 'Spent and limit', 'Used', 'State', 'Actions']);
     expect(await axe(container)).toHaveNoViolations();
   });
 
@@ -268,7 +269,9 @@ describe('Budgets and usage', () => {
     // No project to read the limits through
     const none = renderWithProviders(pageAs('admin', { limitsProjectId: null }));
     expect(await screen.findAllByText('Not available')).toHaveLength(2);
-    expect(screen.getByText('Open this page from a project to read these limits.')).toBeInTheDocument();
+    expect(
+      screen.getByText('These limits are read through a project, and there is none to read them through.'),
+    ).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Open Topics & Prompts' })).toBeNull();
     none.unmount();
     expect(asked).toHaveLength(0);
@@ -312,7 +315,7 @@ describe('Budgets and usage', () => {
     const card = screen.getByRole('region', { name: 'AI answers budget' });
     expect(within(card).getByRole('meter', { name: /of \$300\.00$/ })).toBeInTheDocument();
     const row = await rowOf('Workspace', 'AI answers');
-    expect(within(row).getByText('$300.00')).toBeInTheDocument();
+    expect(within(row).getByText('$0.00 of $300.00')).toBeInTheDocument();
     // No scope member: the budget covers the whole workspace
     expect(bodies).toEqual([
       { workload: 'ai_prompt', limit_usd: '300.00', soft_limit_pct: 80, action_on_hard: 'pause' },
@@ -337,6 +340,72 @@ describe('Budgets and usage', () => {
     expect(screen.getByRole('dialog', { name: 'Add budget' })).toBeInTheDocument();
     // What was typed is kept
     expect(within(dialog).getByRole('textbox', { name: /^Limit/ })).toHaveValue('10');
+  });
+
+  it('a project no longer in the workspace shows the field error on Scope and keeps the dialog open', async () => {
+    server.use(
+      http.post(mswPath(`${W}/budgets`), ({ request }) =>
+        invalidField(request, 'project_id', 'project_unknown', 'The project is not in this workspace.'),
+      ),
+    );
+    serveStatus([]);
+    const { user } = renderWithProviders(pageAs('admin'));
+    await user.click(await screen.findByRole('button', { name: 'Add AI budget' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Add budget' });
+    await user.type(within(dialog).getByRole('textbox', { name: /^Limit/ }), '10');
+    await user.click(within(dialog).getByRole('button', { name: 'Add budget' }));
+    const scope = within(dialog).getByRole('combobox', { name: 'Scope' });
+    await waitFor(() =>
+      expect(scope).toHaveAccessibleDescription('This project is no longer in the workspace. Choose another scope.'),
+    );
+    expect(screen.getByRole('dialog', { name: 'Add budget' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('textbox', { name: /^Limit/ })).toHaveValue('10');
+  });
+
+  it('a refused write says the role cannot change budgets and keeps the dialog and what was typed', async () => {
+    server.use(http.post(mswPath(`${W}/budgets`), ({ request }) => problem(request, 'forbidden')));
+    serveStatus([]);
+    const { user } = renderWithProviders(pageAs('admin'));
+    await user.click(await screen.findByRole('button', { name: 'Add AI budget' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Add budget' });
+    await user.type(within(dialog).getByRole('textbox', { name: /^Limit/ }), '10');
+    await user.click(within(dialog).getByRole('button', { name: 'Add budget' }));
+    expect(
+      await within(dialog).findByText(
+        'You do not have permission to change budgets. Ask an owner, admin or billing member.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Add budget' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('textbox', { name: /^Limit/ })).toHaveValue('10');
+    expect(within(dialog).getByRole('button', { name: 'Add budget' })).toBeEnabled();
+  });
+
+  it('a member limited to some projects has no AI budget card and budgets their projects only', async () => {
+    const bodies = recordBodies('POST');
+    // The API shows such a member the budgets of their projects only
+    serveStatus([statusRow('seo_rank', { projectId: fynix?.project_id ?? null })]);
+    const { user } = renderWithProviders(pageAs('admin', { projectIds: [fynix?.project_id ?? ''] }));
+    await rowOf('Fynix', 'SEO rank');
+    expect(screen.queryByRole('region', { name: 'AI answers budget' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'No AI budget' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Add AI budget' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Add budget' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Add budget' });
+    // No workspace scope to choose: the first project they can open is the scope
+    expect(within(dialog).getByRole('combobox', { name: 'Scope' })).toHaveTextContent('Fynix');
+    await choose(user, dialog, 'Group', 'AI answers');
+    await user.type(within(dialog).getByRole('textbox', { name: /^Limit/ }), '20');
+    await user.click(within(dialog).getByRole('button', { name: 'Add budget' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Add budget' })).toBeNull());
+    expect(bodies).toEqual([
+      {
+        project_id: fynix?.project_id,
+        workload: 'ai_prompt',
+        limit_usd: '20.00',
+        soft_limit_pct: 80,
+        action_on_hard: 'pause',
+      },
+    ]);
   });
 
   it('refuses a limit with three places before anything is sent', async () => {
@@ -368,7 +437,7 @@ describe('Budgets and usage', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Edit budget' })).toBeNull());
     const row = await rowOf('Fynix', 'SEO rank');
-    await waitFor(() => expect(within(row).getByText('$55.50')).toBeInTheDocument());
+    await waitFor(() => expect(within(row).getByText(/ of \$55\.50$/)).toBeInTheDocument());
     expect(bodies).toEqual([{ limit_usd: '55.50' }]);
   });
 

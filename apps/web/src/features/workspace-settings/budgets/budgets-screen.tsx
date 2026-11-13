@@ -71,7 +71,9 @@ function BudgetsContent({ workspaceId, workspaceSlug, projects, limitsProjectId 
   const common = useTranslations('common');
   const locale = useLocale();
   const canManage = useCan('budgets:manage');
-  const membership = useMembership();
+  // A member limited to some projects is shown the budgets of those projects only: the workspace's AI budget is never
+  // listed for them, so the card and its empty state would only mislead
+  const workspaceWide = useMembership().project_ids === null;
   // The same date all UTC day, so the keys of the queries hold (the month is UTC, as the API counts it)
   const month = currentMonth(useUtcDay());
   const label = monthLabel(month, locale);
@@ -153,10 +155,22 @@ function BudgetsContent({ workspaceId, workspaceSlug, projects, limitsProjectId 
   ];
 
   const columns: PlainColumn<BudgetStatus>[] = [
-    { id: 'scope', header: t('table.scope'), cell: (row) => scopeName(row.budget.project_id) },
-    { id: 'group', header: t('table.group'), cell: (row) => groups(GROUP_KEYS[row.budget.workload]) },
-    { id: 'limit', header: t('table.limit'), cell: (row) => usd(row.budget.limit_usd) },
-    { id: 'spent', header: t('table.spent'), cell: (row) => usd(row.spent_usd) },
+    {
+      id: 'scope',
+      header: t('table.scopeAndGroup'),
+      cell: (row) => (
+        // The row header cell has no vertical padding of its own: two lines keep 4 px from the dividers
+        <span className="flex flex-col py-1">
+          <span>{scopeName(row.budget.project_id)}</span>
+          <span className="type-meta">{groups(GROUP_KEYS[row.budget.workload])}</span>
+        </span>
+      ),
+    },
+    {
+      id: 'amount',
+      header: t('table.spentAndLimit'),
+      cell: (row) => t('table.spentOfLimit', { spent: usd(row.spent_usd), limit: usd(row.budget.limit_usd) }),
+    },
     {
       id: 'used',
       header: t('table.used'),
@@ -214,7 +228,7 @@ function BudgetsContent({ workspaceId, workspaceSlug, projects, limitsProjectId 
       </div>
       {canManage ? null : <Banner tone="info" placement="region" lead={t('readOnlyLead')} message={t('readOnly')} />}
       <UsageMeters workspaceId={workspaceId} limitsProjectId={limitsProjectId} promptsHref={promptsHref} />
-      {status.isPending || hasRows ? (
+      {workspaceWide && (status.isPending || hasRows) ? (
         <section
           aria-label={t('ai.title')}
           className={aiBudget === null ? 'rounded-lg border border-border bg-surface' : undefined}
@@ -307,7 +321,7 @@ function BudgetsContent({ workspaceId, workspaceSlug, projects, limitsProjectId 
         budget={editing}
         initialGroup={initialGroup}
         projects={projects}
-        allowWorkspace={membership.project_ids === null}
+        allowWorkspace={workspaceWide}
         scopeName={scopeName}
         onClose={(outcome: BudgetDialogOutcome) => {
           // The first AI budget is made from the empty state, whose button is gone once the card shows; a budget
