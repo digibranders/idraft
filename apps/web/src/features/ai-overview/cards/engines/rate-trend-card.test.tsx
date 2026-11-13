@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { engineCells, promptRow, summaryOf, week } from './engines-fixtures';
 import RateTrendCard from './rate-trend-card';
 import { ExportProvider, useExportBlocks, type ExportRead } from '../../export/export-registry';
+import { useOverview } from '../../overview-context';
 import type { CardProps } from '@/features/layouts';
 import type { ChartTokens } from '@/lib/design/read-tokens';
 import { axe } from '@/test/axe';
@@ -200,41 +201,95 @@ describe('the rate trend card', () => {
     expect(sentence).toMatch(/^[A-Z][a-z]{2} \d+: \d+(\.\d)?%, \d+ of \d+ answers/);
   });
 
-  it('uses the previous window only while the two reads are paired: none is drawn, and no change is said, while it is read again', async () => {
-    const { queryClient } = render();
-    await screen.findByRole('img', { name: 'ChatGPT' });
+  describe('with the previous window read slowly', () => {
     const ids = (): string[] =>
       ((built.options.get('chatgpt_web')?.series ?? []) as { id: string }[]).map((series) => series.id);
     const summary = (): string => document.querySelector('p.sr-only')?.textContent ?? '';
-    await waitFor(() => {
-      expect(ids()).toContain('chatgpt_web:previous');
-    });
-    expect(summary()).toContain('against the previous window');
 
-    // The previous window is slow to read again; the current one answers at once
-    let release: () => void = () => undefined;
-    const gate = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    server.use(
-      http.get(SUMMARY, async ({ request }) => {
-        if (new URL(request.url).searchParams.get('to') === PREVIOUS_TO) await gate;
-        return undefined;
-      }),
-    );
-    void queryClient.invalidateQueries();
-    await waitFor(() => {
-      expect(ids()).not.toContain('chatgpt_web:previous');
-    });
-    expect(summary()).not.toContain('against the previous window');
-    // The panels themselves stay
-    expect(screen.getByRole('img', { name: 'ChatGPT' })).toBeInTheDocument();
+    /** The card with a control that changes the scope, as a person does with the scope bar. */
+    function WithScope(props: CardProps): ReactElement {
+      const { setScope } = useOverview();
+      return (
+        <>
+          <button
+            type="button"
+            onClick={() => {
+              setScope({ branded: 'included' });
+            }}
+          >
+            Include branded
+          </button>
+          <RateTrendCard {...props} />
+        </>
+      );
+    }
 
-    release();
-    await waitFor(() => {
-      expect(ids()).toContain('chatgpt_web:previous');
+    /** The previous window is slow to answer; the current one answers at once. `reached` says it was asked. */
+    function holdPrevious(): { release: () => void; reached: Promise<void> } {
+      let release: () => void = () => undefined;
+      let reach: () => void = () => undefined;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const reached = new Promise<void>((resolve) => {
+        reach = resolve;
+      });
+      server.use(
+        http.get(SUMMARY, async ({ request }) => {
+          if (new URL(request.url).searchParams.get('to') === PREVIOUS_TO) {
+            reach();
+            await gate;
+          }
+          return undefined;
+        }),
+      );
+      return { release, reached };
+    }
+
+    it('uses the previous window only while the two reads are paired: on a scope change none is drawn, and no change is said, until the previous window answers', async () => {
+      const { user } = render(cardInOverview({ type: TYPE, Card: WithScope, width: 'two_thirds' }));
+      await screen.findByRole('img', { name: 'ChatGPT' });
+      await waitFor(() => {
+        expect(ids()).toContain('chatgpt_web:previous');
+      });
+      expect(summary()).toContain('against the previous window');
+
+      const { release } = holdPrevious();
+      await user.click(screen.getByRole('button', { name: 'Include branded' }));
+      // The current window of the new scope is here and the previous one is the last scope's: no change between them
+      await waitFor(() => {
+        expect(ids()).not.toContain('chatgpt_web:previous');
+      });
+      expect(summary()).not.toContain('against the previous window');
+      // The panels themselves stay
+      expect(screen.getByRole('img', { name: 'ChatGPT' })).toBeInTheDocument();
+
+      release();
+      await waitFor(() => {
+        expect(ids()).toContain('chatgpt_web:previous');
+      });
+      expect(summary()).toContain('against the previous window');
     });
-    expect(summary()).toContain('against the previous window');
+
+    it('keeps the previous window drawn while the same scope is read again', async () => {
+      const { queryClient } = render();
+      await screen.findByRole('img', { name: 'ChatGPT' });
+      await waitFor(() => {
+        expect(ids()).toContain('chatgpt_web:previous');
+      });
+
+      const { release, reached } = holdPrevious();
+      void queryClient.invalidateQueries();
+      // A refetch of the same scope (a refocus) is still this scope's data: nothing the person sees is taken away
+      await reached;
+      expect(ids()).toContain('chatgpt_web:previous');
+      expect(summary()).toContain('against the previous window');
+
+      release();
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(ids()).toContain('chatgpt_web:previous');
+      expect(summary()).toContain('against the previous window');
+    });
   });
 
   it('names the window, the prompts and the branded choice in the meta line', async () => {
