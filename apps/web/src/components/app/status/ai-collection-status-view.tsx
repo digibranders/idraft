@@ -10,7 +10,7 @@ import { CollectionProgress } from './collection-progress';
 import { Button } from '@/components/ui/button';
 import { TextLink } from '@/components/ui/text-link';
 import { formatPercent } from '@/lib/format';
-import { DEGRADED_BELOW, type DegradedEngine } from '@/lib/runs/ai-health-model';
+import { DEGRADED_BELOW, formatCoverageRate, type DegradedEngine } from '@/lib/runs/ai-health-model';
 
 /** A degraded engine with the name to show for it. */
 export interface DegradedEngineView extends DegradedEngine {
@@ -25,13 +25,6 @@ export interface AiCollectionStatusViewProps {
   /** The read behind the notice failed: a quiet line with Retry, never a banner. */
   failure: { onRetry: () => void; retrying: boolean } | null;
 }
-
-/**
- * A whole percent, unless rounding would reach the line the engine is below: 89.6 percent is not shown as
- * "90%" next to "Below 90%".
- */
-const percentOf = (rate: number): string =>
-  formatPercent(rate, { decimals: Math.round(rate * 100) / 100 >= DEGRADED_BELOW ? 1 : 0 });
 
 /**
  * What an AI page says about its collection (WP-30 decisions D12 and D15, 17 section 4, 18 section 4): a
@@ -81,7 +74,7 @@ export function AiCollectionStatusView({
             name: row.name,
             valid: row.valid,
             planned: row.planned,
-            percent: percentOf(row.rate),
+            percent: formatCoverageRate(row.rate),
             threshold: formatPercent(DEGRADED_BELOW, { decimals: 0 }),
           })}
           actions={

@@ -17,6 +17,7 @@ import { formatList, formatPercent } from '@/lib/format';
 import {
   coverageRows,
   DEGRADED_BELOW,
+  formatCoverageRate,
   missingShown,
   type CoverageMissing,
   type CoverageRow,
@@ -179,7 +180,7 @@ function EngineLine({ row }: { row: CoverageRow }): ReactElement {
           : t('validRated', {
               valid: row.valid,
               planned: row.planned,
-              percent: formatPercent(row.rate, { decimals: 0 }),
+              percent: formatCoverageRate(row.rate),
             })}
       </p>
       {row.degraded ? (

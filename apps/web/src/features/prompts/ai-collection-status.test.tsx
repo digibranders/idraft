@@ -369,6 +369,33 @@ describe('AiCollectionStatus notice', () => {
     expect(screen.queryByText('Answer coverage of the latest run did not load.')).toBeNull();
   });
 
+  it('a failed read of the newest finished run shows the same quiet line and a working Retry, not a banner', async () => {
+    // The open-run read answers; the newest finished run's read is a server error, so a degraded run would go unflagged
+    const served = serveRuns((query) => (isOpenQuery(query) ? [] : null));
+    serveCoverage({ [NEW_ID]: [engineRow('gemini_web', 132)] });
+    const { container, user } = renderWithProviders(statusAs('viewer'));
+    expect(await screen.findByText('Answer coverage of the latest run did not load.')).toBeVisible();
+    expect(container.querySelector('[data-slot="banner"]')).toBeNull();
+    expect(container.querySelector('[data-slot="ai-collection-status"] [role="alert"]')).toBeNull();
+    const asked = served.queries.filter((query) => !isOpenQuery(query)).length;
+
+    // Retry asks again, and the answer replaces the line with the notice
+    serveRuns((query) => (isOpenQuery(query) ? [] : [runFixture({ run_id: NEW_ID })]));
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(await screen.findByText(/^Gemini: 132 of 150/)).toBeVisible();
+    expect(screen.queryByText('Answer coverage of the latest run did not load.')).toBeNull();
+    expect(asked).toBeGreaterThan(0);
+  });
+
+  it('shows no failure line for a reader without data:read, and asks for nothing', async () => {
+    const served = serveRuns(() => null);
+    const { container, queryClient } = renderWithProviders(statusAs('billing'));
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+    expect(renderedIdle(container)).toBe(true);
+    expect(screen.queryByText('Answer coverage of the latest run did not load.')).toBeNull();
+    expect(served.queries).toHaveLength(0);
+  });
+
   it('passes axe with a progress line and a notice', async () => {
     serveWorld({ open: openRun(), finished: runFixture({ run_id: NEW_ID }) });
     serveCoverage({ [NEW_ID]: [engineRow('gemini_web', 132), engineRow('chatgpt_web', 100)] });

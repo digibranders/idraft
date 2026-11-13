@@ -5,6 +5,7 @@ import {
   DEGRADED_BELOW,
   DEGRADED_MIN_PLANNED,
   degradedEngines,
+  formatCoverageRate,
   lineOf,
   MISSING_SHOWN,
   missingShown,
@@ -227,8 +228,8 @@ describe('degradedEngines', () => {
     expect(degradedEngines([counted('gemini_web', 0, 0)])).toEqual([]);
   });
 
-  it('each engine is judged alone, a pooled 93 percent hides nothing', () => {
-    // 147 + 132 + 150 = 429 of 450 valid is 95 percent pooled, and 132 of 150 is 88 percent alone
+  it('each engine is judged alone, a pooled 95 percent hides nothing', () => {
+    // 147 + 132 + 150 = 429 of 450 valid is 95.3 percent pooled, and 132 of 150 is 88 percent alone
     const engines = [
       counted('chatgpt_web', 150, 147),
       counted('gemini_web', 150, 132),
@@ -251,6 +252,32 @@ describe('degradedEngines', () => {
       .filter((row) => row.degraded)
       .map((row) => row.engine);
     expect(degradedEngines(engines).map((row) => row.engine)).toEqual(fromRows);
+  });
+});
+
+describe('formatCoverageRate', () => {
+  it('is a whole percent', () => {
+    expect(formatCoverageRate(0.94)).toBe('94%');
+    expect(formatCoverageRate(1)).toBe('100%');
+    expect(formatCoverageRate(0.88)).toBe('88%');
+  });
+
+  it('exactly 90 percent is a whole 90%: it is not below the line', () => {
+    expect(formatCoverageRate(0.9)).toBe('90%');
+    expect(formatCoverageRate(0.905)).toBe('91%');
+  });
+
+  it('never prints a rate below the line as 90%: it floors to one decimal', () => {
+    expect(formatCoverageRate(0.896)).toBe('89.6%');
+    // Rounding to one decimal would give "90.0%" here: the figure is floored, never rounded up
+    expect(formatCoverageRate(0.8996)).toBe('89.9%');
+    expect(formatCoverageRate(0.8995)).toBe('89.9%');
+    expect(formatCoverageRate(0.8999999)).toBe('89.9%');
+  });
+
+  it('keeps a whole percent for a rate that rounds to 89 or less', () => {
+    expect(formatCoverageRate(0.8933)).toBe('89%');
+    expect(formatCoverageRate(0.8949)).toBe('89%');
   });
 });
 

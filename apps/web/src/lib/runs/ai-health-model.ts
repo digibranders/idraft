@@ -1,5 +1,5 @@
 import type { Run, Schemas } from '@/lib/api/types';
-import { formatIsoDate, formatTableDate, formatTime } from '@/lib/format';
+import { formatIsoDate, formatPercent, formatTableDate, formatTime } from '@/lib/format';
 import { collectionStatusOf, isOpenRun, type QueuedOrStatus } from '@/lib/runs/run-status';
 
 /**
@@ -102,6 +102,19 @@ export function progressOf(run: ProgressRun): { processed: number; failed: numbe
     failed: run.tasks_failed,
     total: run.tasks_total,
   };
+}
+
+/**
+ * An engine's valid rate as the notice and the run inspector print it: a whole percent. A rate below
+ * `DEGRADED_BELOW` is never printed as the line itself ("90%" beside "Below 90%"): when the whole percent would
+ * reach it, the rate is floored (never rounded up) to one decimal, so 0.8996 reads "89.9%".
+ */
+export function formatCoverageRate(rate: number): string {
+  if (rate >= DEGRADED_BELOW || Math.round(rate * 100) / 100 < DEGRADED_BELOW) {
+    return formatPercent(rate, { decimals: 0 });
+  }
+  // The small addend keeps a rate like 0.896 (895.9999999999999 thousandths in floating point) from losing a place
+  return formatPercent(Math.floor(rate * 1000 + 1e-9) / 1000, { decimals: 1 });
 }
 
 /** The missing answers to draw, and how many the cap leaves out. */

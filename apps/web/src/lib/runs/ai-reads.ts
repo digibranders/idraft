@@ -61,7 +61,21 @@ export function useNewestRun(scope: AiRunsScope): NewestRunRead | null {
  * offer, which is the safe answer. `enabled` is false for a member who cannot read the data.
  */
 export function useLatestFinishedAiRun(scope: AiRunsScope, enabled: boolean): Run | null {
-  const { data } = useQuery({
+  return useLatestFinishedAiRunRead(scope, enabled).run;
+}
+
+/** The newest finished AI run as the read left it: the run, and what a caller needs to say the read failed. */
+export interface LatestFinishedAiRunRead {
+  run: Run | null;
+  /** The first read failed and nothing was read: the caller cannot tell whether there is a run. A poll that fails after a good read keeps the data and is not this. */
+  isError: boolean;
+  isFetching: boolean;
+  refetch: () => Promise<unknown>;
+}
+
+/** `useLatestFinishedAiRun` with the failure and its retry, for a caller that must not stay silent when it cannot read the run. */
+export function useLatestFinishedAiRunRead(scope: AiRunsScope, enabled: boolean): LatestFinishedAiRunRead {
+  const { data, isError, isFetching, refetch } = useQuery({
     ...apiQuery(RUNS, {
       params: {
         path: pathOf(scope),
@@ -72,7 +86,8 @@ export function useLatestFinishedAiRun(scope: AiRunsScope, enabled: boolean): Ru
   });
   // The request's filters are the answer's reason; the check here keeps a link from pointing at a run the
   // answers did not come from, whatever the server sent
-  return data?.data.find((run) => run.workload === 'ai_prompt' && ANSWERED.includes(run.status)) ?? null;
+  const run = data?.data.find((row) => row.workload === 'ai_prompt' && ANSWERED.includes(row.status)) ?? null;
+  return { run, isError: data === undefined && isError, isFetching, refetch };
 }
 
 /** The statuses of a run that has not ended. */

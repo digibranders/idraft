@@ -13,7 +13,7 @@ import { degradedEngines, progressOf } from '@/lib/runs/ai-health-model';
 import {
   useAiCoverage,
   useEngineNames,
-  useLatestFinishedAiRun,
+  useLatestFinishedAiRunRead,
   useOpenAiRun,
   type AiRunsScope,
 } from '@/lib/runs/ai-reads';
@@ -43,7 +43,8 @@ export function AiCollectionStatus({
   const queryClient = useQueryClient();
   const canRead = useCan('data:read');
   const open = useOpenAiRun(scope, canRead);
-  const latest = useLatestFinishedAiRun(scope, canRead);
+  const latestRead = useLatestFinishedAiRunRead(scope, canRead);
+  const latest = latestRead.run;
   const coverage = useAiCoverage(scope, latest?.run_id ?? '', latest !== null, false);
   const engineName = useEngineNames(scope, canRead);
 
@@ -88,10 +89,13 @@ export function AiCollectionStatus({
           ? null
           : { engines: degraded, href: runInspectHref(workspaceSlug, projectSlug, latest.run_id) }
       }
+      // Either read failing leaves a degraded run unflagged, so either one says so, quietly, and retries itself
       failure={
-        answer === undefined && coverage.isError
-          ? { onRetry: () => void coverage.refetch(), retrying: coverage.isFetching }
-          : null
+        latestRead.isError
+          ? { onRetry: () => void latestRead.refetch(), retrying: latestRead.isFetching }
+          : answer === undefined && coverage.isError
+            ? { onRetry: () => void coverage.refetch(), retrying: coverage.isFetching }
+            : null
       }
     />
   );

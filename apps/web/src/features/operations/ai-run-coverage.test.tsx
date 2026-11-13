@@ -227,6 +227,17 @@ describe('Answers by engine', () => {
     expect(within(healthy).queryByText(cue)).toBeNull();
   });
 
+  it('a rate just under 90 percent is never printed as 90%, beside the degraded cue', async () => {
+    serveCoverage({
+      by_engine: [engineRow('gemini_web', { planned: 1000, observed: 1000, valid: 896, partial: 0 })],
+      missing: [],
+    });
+    renderWithProviders(coverageUi());
+    const card = await engineCard('Gemini');
+    expect(within(card).getByText('896 of 1,000 answers valid, 89.6%')).toBeInTheDocument();
+    expect(within(card).getByText('Below 90%, so this engine is degraded in this run.')).toBeInTheDocument();
+  });
+
   it('engines are listed one by one and no total pools them', async () => {
     serveCoverage({
       by_engine: [
