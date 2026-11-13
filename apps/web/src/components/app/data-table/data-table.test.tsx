@@ -2961,9 +2961,12 @@ describe('DataTable row context menu', () => {
     expect(screen.queryByRole('menu')).toBeNull();
     // The cell around the link is the table's
     expect(leftToBrowser(link.closest('td') ?? link)).toBe(false);
-    await screen.findByRole('menu');
+    const menu = await screen.findByRole('menu');
+    // Escape goes to the menu only once focus is inside it, and the menu leaves the tree after its close
+    // animation: under load either can take longer than the default one second
+    await waitFor(() => expect(menu.contains(document.activeElement)).toBe(true), { timeout: 5000 });
     await user.keyboard('{Escape}');
-    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull(), { timeout: 5000 });
     rerender(<ContextHarness rows={rowsOf(3)} columns={[...COLUMNS, NOTE]} />);
     expect(leftToBrowser(within(bodyRow('keyword 001')).getByRole('textbox', { name: 'Note' }))).toBe(true);
     expect(screen.queryByRole('menu')).toBeNull();
