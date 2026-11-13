@@ -343,8 +343,8 @@
   --z-sticky: 30;                  /* page header, filter bar */
   --z-sidebar: 40;
   --z-inspector: 50;               /* docked inspector */
-  --z-dropdown: 60;                /* menus, popovers, selects, date pickers */
   --z-drawer: 70;                  /* overlay drawer (tablet, mobile) */
+  --z-dropdown: 75;                /* menus, popovers, selects, date pickers: above the overlay drawer (F-19), below dialogs */
   --z-dialog: 80;
   --z-command: 90;
   --z-toast: 100;

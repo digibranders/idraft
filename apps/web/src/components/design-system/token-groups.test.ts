@@ -45,6 +45,12 @@ describe('the token groups match tokens.css', () => {
     expect(Z_LAYERS.map((layer) => layer.name)).toEqual(layers.map((layer) => layer.name));
     expect(layers.map((layer) => layer.value)).toEqual([...layers.map((layer) => layer.value)].sort((a, b) => a - b));
   });
+
+  it('puts popups above the overlay drawer and below dialogs (F-19)', () => {
+    const z = (name: string): number => Number(new RegExp(`--z-${name}:\\s*(\\d+);`).exec(css)?.[1]);
+    expect(z('dropdown')).toBeGreaterThan(z('drawer'));
+    expect(z('dropdown')).toBeLessThan(z('dialog'));
+  });
 });
 
 describe.each(['light', 'dark'] as const)('what the tokens section claims holds in the %s theme', (theme) => {
