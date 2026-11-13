@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T20:49:19+05:30",
+ "updated": "2026-11-13T20:49:30+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -1788,14 +1788,14 @@
    "title": "AI Visibility Overview page: shell, scope, numbers, notices, presets, export",
    "wave": "W3",
    "kind": "web",
-   "status": "not_started",
+   "status": "building",
    "dependsOn": [
     "WP-16",
     "WP-04",
     "WP-07"
    ],
-   "session": null,
-   "branch": null,
+   "session": "wp-02-web-scaffold",
+   "branch": "ai/wp-33-overview-shell",
    "rows": {
     "BE": [],
     "WB": [
