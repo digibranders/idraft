@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T06:49:17+05:30",
+ "updated": "2026-11-13T07:35:30+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -351,7 +351,7 @@
    "title": "Mobile list rows, saved view presets menu, date range picker",
    "wave": "W1",
    "kind": "web",
-   "status": "building",
+   "status": "merged",
    "dependsOn": [
     "WP-02"
    ],
@@ -374,10 +374,10 @@
    },
    "counts": {
     "total": 4,
-    "done": 0
+    "done": 4
    },
    "owner": "",
-   "notes": "file work-packages/WP-10-controls.md; estimate 5 tasks; decisions none | steps 0/6; plan on develop; rankings e2e fix 55fa54a2 done; picker cap 91/92 days to settle against the answers route (clock change)"
+   "notes": "file work-packages/WP-10-controls.md; estimate 5 tasks; decisions none | merged 63fa3a4b; 6128 tests, e2e 183; date range cap 91 days (MAX_RANGE_DAYS)"
   },
   {
    "id": "WP-11",
@@ -594,13 +594,13 @@
    "title": "Layouts React core: registry, use-layout, provider, grid with dnd-kit, card frame",
    "wave": "W2",
    "kind": "web",
-   "status": "not_started",
+   "status": "building",
    "dependsOn": [
     "WP-02",
     "WP-03"
    ],
-   "session": null,
-   "branch": null,
+   "session": "wp-02-web-scaffold",
+   "branch": "ai/wp-15-layouts-core",
    "rows": {
     "BE": [],
     "WB": [
@@ -3987,52 +3987,10 @@
    "until": "WP-13 merged"
   },
   {
-   "path": "apps/web/src/features/prompts/prompts-screen.tsx",
-   "wp": "WP-10",
-   "granted": "2026-11-13T05:57:38+05:30",
-   "scope": "T3b only: wire the DateRangePicker into the Topics & Prompts top bar (URL keys win/from/to, old window=7 still read); WP-17, WP-41, WP-43 rebase onto it when they start",
-   "until": "WP-10 merged"
-  },
-  {
-   "path": "apps/web/src/features/prompts/prompts-scope.tsx",
-   "wp": "WP-10",
-   "granted": "2026-11-13T05:57:38+05:30",
-   "scope": "T3b only: wire the DateRangePicker into the Topics & Prompts top bar (URL keys win/from/to, old window=7 still read); WP-17, WP-41, WP-43 rebase onto it when they start",
-   "until": "WP-10 merged"
-  },
-  {
-   "path": "apps/web/src/features/prompts/prompt-model.ts",
-   "wp": "WP-10",
-   "granted": "2026-11-13T05:57:38+05:30",
-   "scope": "T3b only: wire the DateRangePicker into the Topics & Prompts top bar (URL keys win/from/to, old window=7 still read); WP-17, WP-41, WP-43 rebase onto it when they start",
-   "until": "WP-10 merged"
-  },
-  {
-   "path": "apps/web/src/features/prompts/prompt-model.test.ts",
-   "wp": "WP-10",
-   "granted": "2026-11-13T05:57:38+05:30",
-   "scope": "T3b only: wire the DateRangePicker into the Topics & Prompts top bar (URL keys win/from/to, old window=7 still read); WP-17, WP-41, WP-43 rebase onto it when they start",
-   "until": "WP-10 merged"
-  },
-  {
-   "path": "apps/web/src/features/prompts/prompts.test.tsx",
-   "wp": "WP-10",
-   "granted": "2026-11-13T05:57:38+05:30",
-   "scope": "T3b only: wire the DateRangePicker into the Topics & Prompts top bar (URL keys win/from/to, old window=7 still read); WP-17, WP-41, WP-43 rebase onto it when they start",
-   "until": "WP-10 merged"
-  },
-  {
    "path": "docs/design-system/25-component-inventory.md",
    "wp": "WP-10 (sequential after WP-08)",
    "granted": "2026-11-13T05:57:38+05:30",
    "scope": "append-only As built lines under 4.18, 7.7 and 7.10",
-   "until": "WP-10 merged"
-  },
-  {
-   "path": "apps/web/messages/en.json",
-   "wp": "WP-10",
-   "granted": "2026-11-13T05:57:38+05:30",
-   "scope": "additive under common.dataTableList, common.savedViewMenu, common.dateRange only",
    "until": "WP-10 merged"
   },
   {
