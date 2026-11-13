@@ -1,4 +1,4 @@
-import { bestWorst, type EngineValue } from './engine-values';
+import { bestWorst, SAME_RATE, type EngineValue } from './engine-values';
 import type { CellMetric } from '@/lib/rates/rate-model';
 import { isDetectableChange } from '@/lib/stats';
 
@@ -33,12 +33,15 @@ type GapTest = Extract<Comparison, { kind: 'gap' }>['test'];
 /** Whether the best engine's rate differs from the weakest's by more than the answers behind them allow. */
 function testOf(best: EngineValue, worst: EngineValue, values: readonly EngineValue[], metric: CellMetric): GapTest {
   if (metric === 'share_of_voice') return 'share';
+  // The plan's rule (2.2): a row with any engine under the minimum is too thin to claim a difference in words
   if (values.some((entry) => entry.state === 'insufficient')) return 'too-few';
   const { successes: bestCount } = best;
   const { successes: worstCount } = worst;
   if (bestCount === null || worstCount === null) return 'too-few';
-  // A count that is not whole is not a count of answers: no test is better than a test of something else
-  if (!Number.isInteger(bestCount) || !Number.isInteger(worstCount)) return 'too-few';
+  // The words say the gap is of the weighted rates, the test reads the pooled answers: when those point the other
+  // way, or not at all, the test would answer another question than the gap states
+  if (best.answers <= 0 || worst.answers <= 0) return 'too-few';
+  if (bestCount / best.answers - worstCount / worst.answers <= SAME_RATE) return 'too-few';
   const detectable = isDetectableChange({ k: bestCount, n: best.answers }, { k: worstCount, n: worst.answers });
   if (detectable === null) return 'too-few';
   return detectable ? 'detectable' : 'within';
@@ -51,6 +54,7 @@ export function compareEngines(values: readonly EngineValue[], metric: CellMetri
   if (result === null) return { kind: 'none', leftOut };
   const { best, worst, spread } = result;
   if (best === null) return { kind: 'zero', leftOut };
-  if (spread === 0 && best.value !== null) return { kind: 'equal', value: best.value, leftOut };
+  // `spread` is in points and `SAME_RATE` on the 0 to 1 scale
+  if (best.value !== null && spread <= SAME_RATE * 100) return { kind: 'equal', value: best.value, leftOut };
   return { kind: 'gap', best, worst, points: spread, test: testOf(best, worst, values, metric), leftOut };
 }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { cell, engine, weighted } from './cells-fixtures';
-import { averageOf, bestWorst, engineGapOf, engineValue, type EngineValue } from './engine-values';
+import { bestWorst, engineGapOf, engineValue, type EngineValue } from './engine-values';
 import { MIN_OBSERVATIONS } from '@/lib/stats';
 
 const CODES = ['chatgpt_web', 'gemini_web', 'google_ai_mode'] as const;
@@ -13,6 +13,18 @@ const mentionValues = (...counts: ([k: number, n: number] | null)[]): EngineValu
   );
   return CODES.slice(0, counts.length).map((code) => engineValue(cells, code, 'mentioned'));
 };
+
+/** An engine with a rate of exactly `value` over 10 answers, for a test of what the rates do together. */
+const valued = (code: string, value: number): EngineValue => ({
+  code,
+  state: 'ok',
+  value,
+  answers: 10,
+  successes: 3,
+  prompts: null,
+  observations: 10,
+  reason: null,
+});
 
 describe('engineValue: one engine of one row as a rate with the counts behind it', () => {
   it('reads a topic cell as its percent, the answers behind it and the prompts it weights', () => {
@@ -70,6 +82,14 @@ describe('engineValue: one engine of one row as a rate with the counts behind it
     const value = engineValue([engine('a', { share_of_voice: cell(2.5, 5, 9) })], 'a', 'share_of_voice');
     expect(value).toMatchObject({ state: 'ok', value: 0.5, answers: 5, successes: null, observations: 9 });
   });
+
+  it('takes the prompts of a share of voice from the Mentioned cell of the same engine, which weights them', () => {
+    const topic = engine('a', { mentioned: weighted(3, 8, 4, 10), share_of_voice: cell(2.5, 5, 10) });
+    expect(engineValue([topic], 'a', 'share_of_voice').prompts).toBe(4);
+    // A prompt's Mentioned cell weights nothing, so there is no count of prompts
+    const prompt = engine('a', { mentioned: cell(3, 8), share_of_voice: cell(2.5, 5) });
+    expect(engineValue([prompt], 'a', 'share_of_voice').prompts).toBeNull();
+  });
 });
 
 describe('bestWorst: the engines at the two ends of a row', () => {
@@ -126,19 +146,18 @@ describe('bestWorst: the engines at the two ends of a row', () => {
     expect(spread).not.toBeCloseTo(45, 1);
     expect(engineGapOf(mentionValues([7, 9], [3, 9]))).toBeCloseTo((4 / 9) * 100, 10);
   });
-});
 
-describe('averageOf: an average across engines says how many took part', () => {
-  it('averages the engines that have a rate and counts them, never counting a missing engine as 0 (WB-TPE-18)', () => {
-    // 50 percent, 25 percent, and an engine with 2 answers (too few for a rate)
-    const values = mentionValues([4, 8], [2, 8], [1, 2]);
-    expect(averageOf(values)).toEqual({ value: 0.375, engines: 2 });
-    // With 0 in place of the missing engine the average would be 25 percent
-    expect(averageOf(values).value).not.toBeCloseTo(0.25, 5);
-  });
-
-  it('has no average when no engine has a rate', () => {
-    expect(averageOf(mentionValues([1, 2], null))).toEqual({ value: null, engines: 0 });
-    expect(averageOf([])).toEqual({ value: null, engines: 0 });
+  it('treats rates that differ by float noise as one: the first engine shown stays best and weakest', () => {
+    // 0.1 + 0.2 is 0.30000000000000004: the same 30 percent for every reader
+    const noisy = [valued('a', 0.3), valued('b', 0.1 + 0.2), valued('c', 0.3)];
+    expect(noisy[1]?.value).not.toBe(0.3);
+    const result = bestWorst(noisy);
+    expect(result?.best?.code).toBe('a');
+    expect(result?.worst.code).toBe('a');
+    expect(result?.spread).toBeCloseTo(0, 9);
+    // The other way round: the noisy one is first, so it is both
+    const other = bestWorst([valued('a', 0.1 + 0.2), valued('b', 0.3)]);
+    expect(other?.best?.code).toBe('a');
+    expect(other?.worst.code).toBe('a');
   });
 });

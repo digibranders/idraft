@@ -60,10 +60,15 @@ describe('enginePoints: the weekly points of a topic on one engine', () => {
       // More successes than answers, and a count that is not whole
       week('2026-10-05', { mentioned: { ...weighted(5, 3, 2), pooled: { successes: 5, trials: 3 } } }),
       week('2026-10-12', { mentioned: { ...weighted(1, 6, 2), pooled: { successes: 1.5, trials: 6 } } }),
+      // Answers that are not whole, and a negative number of them
+      week('2026-10-26', { mentioned: { ...weighted(1, 6, 2), pooled: { successes: 1, trials: 6.5 } } }),
+      week('2026-11-02', { mentioned: { ...weighted(0, 6, 2), pooled: { successes: 0, trials: -1 } } }),
       // A cell with no `pooled` counts its answers in its denominator and numerator: they must be whole
       week('2026-10-19', { mentioned: cell(1.5, 6) }),
     ];
-    for (const point of pointsOf(unreadable)) {
+    const points = pointsOf(unreadable);
+    expect(points).toHaveLength(unreadable.length);
+    for (const point of points) {
       expect(point).toMatchObject({ value: null, k: null, n: 0, band: null, thin: false });
     }
   });

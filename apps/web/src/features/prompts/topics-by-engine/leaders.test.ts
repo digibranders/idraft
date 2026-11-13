@@ -98,6 +98,22 @@ describe('leaderOn: the tracked competitor that leads an engine', () => {
     expect(byOrder).toMatchObject({ entityId: 'beta', tiedWith: ['Gamma'] });
   });
 
+  it('treats shares that differ by float noise as tied, so the mention rate decides', () => {
+    // 0.1 + 0.2 is 0.30000000000000004: the same 30 percent as 0.3
+    const noisy = { ...share(3), value: 0.1 + 0.2 };
+    const plain = { ...share(3), value: 0.3 };
+    expect(noisy.value).not.toBe(plain.value);
+    const cells = engine('chatgpt_web', {
+      share_of_voice: cell(10, 10),
+      entities: [
+        // Beta has the higher share by noise only, Gamma the higher mention rate
+        entityCells('beta', weighted(2, 10, 5), noisy),
+        entityCells('gamma', weighted(5, 10, 5), plain),
+      ],
+    });
+    expect(leaderOn(cells, TRACKED)).toMatchObject({ entityId: 'gamma', tiedWith: ['Beta'] });
+  });
+
   it('says none named when every competitor is at 0', () => {
     const leader = leaderOn(
       withEntities([
@@ -132,8 +148,9 @@ describe('leaderOn: the tracked competitor that leads an engine', () => {
     expect(leaderOn(engine('chatgpt_web', { share_of_voice: cell(10, 10), entities: null }), TRACKED).state).toBe(
       'unknown',
     );
-    // No competitor tracked at all is not a leader of 0
-    expect(leaderOn(withEntities([['own', 5, 0.5]]), [own('own', 'Acme')]).state).toBe('none-named');
+    // No tracked competitor at all: there is no one to lead, which is not the same as no competitor being named
+    expect(leaderOn(withEntities([['own', 5, 0.5]]), [own('own', 'Acme')]).state).toBe('unknown');
+    expect(leaderOn(withEntities([['own', 5, 0.5]]), []).state).toBe('unknown');
   });
 
   it('ignores an entity that is not in the tracked set', () => {

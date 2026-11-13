@@ -1,4 +1,5 @@
 import type { EngineSummary, EntityCells, MetricCell, SummaryEntity } from '@/lib/api/types';
+import { SAME_RATE } from './engine-values';
 import { validAnswers } from '@/lib/rates/rate-model';
 import { rateState } from '@/lib/stats';
 
@@ -10,7 +11,7 @@ import { rateState } from '@/lib/stats';
 /**
  * `leader`: a competitor has the highest share of voice. `none-named`: every tracked competitor is at 0. `too-few`:
  * under `MIN_OBSERVATIONS` answers name a tracked brand, so no share is firm. `unknown`: the entity cells are not
- * there (not read yet, or a read made without them).
+ * there (not read yet, or a read made without them), or no competitor is tracked.
  */
 export type LeaderState = 'leader' | 'none-named' | 'too-few' | 'unknown';
 
@@ -28,9 +29,6 @@ export interface EntityLeader {
   /** The names of the other competitors with the same share of voice, in the order of the tracked entities. */
   tiedWith: string[];
 }
-
-/** Two shares are one when they differ by no more than the rounding of a sum of fractions. */
-const SAME_SHARE = 1e-9;
 
 interface Competitor {
   entity: SummaryEntity;
@@ -68,7 +66,8 @@ export function leaderOn(engine: EngineSummary | undefined, tracked: readonly Su
     own: null,
     tiedWith: [],
   };
-  if (engine === undefined || entities == null) return blank;
+  // No tracked competitor is no one to lead: unknown, which `none-named` (competitors there, none named) is not
+  if (engine === undefined || entities == null || !tracked.some((entity) => entity.role === 'competitor')) return blank;
   const ownId = tracked.find((entity) => entity.role === 'own')?.entity_id;
   const own = entities.find((cells) => cells.entity_id === ownId)?.share_of_voice ?? null;
   if (rateState(validAnswers(engine.share_of_voice)) !== 'ok') return { ...blank, state: 'too-few', own };
@@ -78,7 +77,7 @@ export function leaderOn(engine: EngineSummary | undefined, tracked: readonly Su
     .filter(({ cells }) => (cells.share_of_voice.value ?? 0) > 0)
     .sort((a, b) => {
       const shares = rankOf(b.cells.share_of_voice) - rankOf(a.cells.share_of_voice);
-      if (Math.abs(shares) > SAME_SHARE) return shares;
+      if (Math.abs(shares) > SAME_RATE) return shares;
       return rankOf(b.cells.mentioned) - rankOf(a.cells.mentioned) || a.order - b.order;
     });
   const top = named[0];
@@ -94,7 +93,7 @@ export function leaderOn(engine: EngineSummary | undefined, tracked: readonly Su
     own,
     tiedWith: named
       .slice(1)
-      .filter(({ cells }) => Math.abs(rankOf(cells.share_of_voice) - topShare) <= SAME_SHARE)
+      .filter(({ cells }) => Math.abs(rankOf(cells.share_of_voice) - topShare) <= SAME_RATE)
       .sort((a, b) => a.order - b.order)
       .map(({ entity }) => entity.name),
   };

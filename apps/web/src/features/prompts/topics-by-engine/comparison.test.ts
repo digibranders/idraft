@@ -46,7 +46,8 @@ describe('compareEngines: the sentence about the gap between engines (WB-TPE-11)
     });
   });
 
-  it('gives no test when an engine is thin', () => {
+  // The rule is the plan's (2.2): a row with an engine under the minimum is too thin to claim a difference in words
+  it('gives no test when an engine is thin, even one that is neither the best nor the weakest', () => {
     const result = compareEngines(values('mentioned', rate(90, 100), rate(50, 100), rate(1, 3)), 'mentioned');
     expect(result).toMatchObject({ kind: 'gap', test: 'too-few', leftOut: ['c'] });
   });
@@ -71,6 +72,44 @@ describe('compareEngines: the sentence about the gap between engines (WB-TPE-11)
       kind: 'equal',
       value: 0.5,
       leftOut: [],
+    });
+  });
+
+  it('says every engine is equal when the rates differ by float noise only', () => {
+    const noisy = { ...rate(3, 10), value: 0.1 + 0.2 };
+    const plain = { ...rate(3, 10), value: 0.3 };
+    expect(noisy.value).not.toBe(plain.value);
+    expect(compareEngines(values('mentioned', noisy, plain), 'mentioned')).toEqual({
+      kind: 'equal',
+      value: noisy.value,
+      leftOut: [],
+    });
+  });
+
+  it('gives no test when the pooled answers differ the other way from the prompt weighted rates', () => {
+    // Weighted 40 against 35 percent, but the answers behind them are 2 of 10 against 6 of 10: a test of the
+    // answers would call a gap in the wrong direction larger than normal variation
+    const best = { ...weighted(2, 10, 3), value: 0.4 };
+    const worst = { ...weighted(6, 10, 3), value: 0.35 };
+    expect(compareEngines(values('mentioned', best, worst), 'mentioned')).toMatchObject({
+      kind: 'gap',
+      test: 'too-few',
+    });
+    // The pooled answers can also tie while the weighted rates do not
+    const tiedBest = { ...weighted(4, 10, 3), value: 0.4 };
+    const tiedWorst = { ...weighted(4, 10, 3), value: 0.35 };
+    expect(compareEngines(values('mentioned', tiedBest, tiedWorst), 'mentioned')).toMatchObject({
+      kind: 'gap',
+      test: 'too-few',
+    });
+  });
+
+  it('tests the pooled answers when they differ the same way as the weighted rates', () => {
+    const best = { ...weighted(6, 10, 3), value: 0.4 };
+    const worst = { ...weighted(2, 10, 3), value: 0.35 };
+    expect(compareEngines(values('mentioned', best, worst), 'mentioned')).toMatchObject({
+      kind: 'gap',
+      test: 'within',
     });
   });
 
