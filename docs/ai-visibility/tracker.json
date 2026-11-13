@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T08:24:51+05:30",
+ "updated": "2026-11-13T08:53:33+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -536,7 +536,7 @@
     "done": 8
    },
    "owner": "",
-   "notes": "file work-packages/WP-13-prompts-lane.md; estimate 10 tasks; decisions D-21, D-22, D-23, D-46 | tasks 0/10, rows 8/31 built; plan on develop; migration ai_prompt_value_sources queued behind WP-11 0021_layouts"
+   "notes": "file work-packages/WP-13-prompts-lane.md; estimate 10 tasks; decisions D-21, D-22, D-23, D-46 | tasks 7/10, rows 27/31; all local, one push at the end (v1.json regeneration); migration renumbers to 0022"
   },
   {
    "id": "WP-14",
@@ -1485,7 +1485,7 @@
     "done": 20
    },
    "owner": "",
-   "notes": "file work-packages/WP-27-add-dialog.md; estimate 10 tasks; decisions D-07, D-21, D-35"
+   "notes": "file work-packages/WP-27-add-dialog.md; estimate 10 tasks; decisions D-07, D-21, D-35 | from WP-13: send is_branded only when the person touches the switch (any PATCH sending it marks the source override); lint estimate only for the items shape; PromptCreate.prompt_type null = absent (rule applies) but PATCH null is 422"
   },
   {
    "id": "WP-28",
@@ -1625,7 +1625,7 @@
     "done": 12
    },
    "owner": "",
-   "notes": "file work-packages/WP-29-edit-archive.md; estimate 6 tasks; decisions D-43, D-46"
+   "notes": "file work-packages/WP-29-edit-archive.md; estimate 6 tasks; decisions D-43, D-46 | from WP-13: send is_branded only when the person touches the switch (any PATCH sending it marks the source override); lint estimate only for the items shape; PromptCreate.prompt_type null = absent (rule applies) but PATCH null is 422"
   },
   {
    "id": "WP-30",
@@ -4176,8 +4176,8 @@
  "migrations": [
   {
    "wp": "WP-13",
-   "name": "ai_prompt_value_sources",
-   "status": "queued",
+   "name": "0022_ai_prompt_value_sources",
+   "status": "renumbered at push time (0021_layouts is on develop)",
    "note": "takes the next free number at push time; down_revision = the head on origin/develop then"
   },
   {
