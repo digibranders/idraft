@@ -1,14 +1,14 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 
-import { overviewSchedulesQuery, type ProjectRef } from '../../../data/overview-queries';
+import { askedEngines, overviewSchedulesQuery, type ProjectRef, type ReadScope } from '../../../data/overview-queries';
 import { mapRead, useRead, type Gate, type Read } from '../../../data/read-state';
 import type { ReadOptions } from '../../../data/use-overview-reads';
 import { useOverview } from '../../../overview-context';
 import { apiQuery, type ApiQueryOptions } from '@/lib/api/query';
-import type { BudgetStatus, Run, Schedule } from '@/lib/api/types';
+import type { BudgetStatus, EngineCode, Run, Schedule, Schemas } from '@/lib/api/types';
 import { useCan } from '@/lib/permissions';
 
 /**
@@ -25,6 +25,10 @@ import { useCan } from '@/lib/permissions';
 const P = '/api/v1/workspaces/{workspace_id}/projects/{project_id}';
 const RUNS = `${P}/runs` as const;
 const BUDGET_STATUS = '/api/v1/workspaces/{workspace_id}/budgets/status' as const;
+const COLLECTION_DAILY = `${P}/ai/collection/daily` as const;
+
+/** What `GET {P}/ai/collection/daily` answers: a row per day and engine, and the window and engines it read. */
+export type CollectionDaily = Schemas['CollectionDailyResponse'];
 
 /** Runs the card looks at: the newest AI runs are enough to find the last finished one and any run under way. */
 export const AI_RUNS_PAGE = 10;
@@ -41,6 +45,23 @@ export const aiRunsQuery = (project: ProjectRef): ApiQueryOptions<typeof RUNS> =
 /** `GET {W}/budgets/status` for the current month (UTC); every budget the member may see. */
 export const budgetStatusQuery = (workspaceId: string): ApiQueryOptions<typeof BUDGET_STATUS> =>
   apiQuery(BUDGET_STATUS, { params: { path: { workspace_id: workspaceId } } });
+
+/**
+ * `GET {P}/ai/collection/daily` for the window of the scope. The route counts every answer of the project, so only the
+ * window and the engines narrow it (the country, the topic and the branded choice do not reach it). The engine filter
+ * is left out when every engine that is on is asked, as for the other AI reads.
+ */
+export function collectionDailyQuery(project: ProjectRef, read: ReadScope): ApiQueryOptions<typeof COLLECTION_DAILY> {
+  const asked = askedEngines(read);
+  const filter: { 'filter[engine_code_in]'?: EngineCode[] } =
+    asked.length === read.enabledEngines.length ? {} : { 'filter[engine_code_in]': [...asked] };
+  return apiQuery(COLLECTION_DAILY, {
+    params: {
+      path: { workspace_id: project.workspaceId, project_id: project.projectId },
+      query: { from: read.scope.range.from, to: read.scope.range.to, ...filter },
+    },
+  });
+}
 
 /** `idle` when the person may not read it; otherwise `run`, or `paused` while the card is not subscribed. */
 const gateOf = (allowed: boolean, subscribed: boolean): Gate => (!allowed ? 'idle' : subscribed ? 'run' : 'paused');
@@ -75,4 +96,25 @@ export function useBudgetStatus({ subscribed = true }: ReadOptions = {}): Read<r
   const query = useQuery({ ...budgetStatusQuery(workspaceId), enabled: gate === 'run' });
   const read = useRead(query, gate);
   return useMemo(() => mapRead(read, (page): readonly BudgetStatus[] => page.data), [read]);
+}
+
+/**
+ * The collection of the answers day by day, for the window and the engines of the Overview scope: a row per project
+ * day and engine, zero filled, with the answers by status and what the schedules planned (`scheduled` is `null`, never
+ * 0, where that is not known). One request for every card that asks the same scope (the answer calendar, the answer
+ * status chart and the key changes feed). `idle` while no engine of the scope is on (nothing to ask, so a card says
+ * so and never shows zeros), `loading` until the engines are known, and a scope change keeps the last days on screen
+ * until the new ones arrive. Pass `subscribed: live`: a paused read asks nothing.
+ */
+export function useCollectionDaily({ subscribed = true }: ReadOptions = {}): Read<CollectionDaily> {
+  const { workspaceId, project, scope, engines, enabledEngines } = useOverview();
+  const input: ReadScope = { scope, enabledEngines };
+  const known = engines.data !== undefined;
+  const gate: Gate = !known ? 'waiting' : askedEngines(input).length === 0 ? 'idle' : subscribed ? 'run' : 'paused';
+  const query = useQuery({
+    ...collectionDailyQuery({ workspaceId, projectId: project.id }, input),
+    enabled: gate === 'run',
+    placeholderData: keepPreviousData,
+  });
+  return useRead(query, gate);
 }

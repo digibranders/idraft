@@ -13,4 +13,12 @@ export const ACTIVITY_CARDS: Readonly<Record<string, CardRegistration>> = {
   },
   'ops.engines': { load: () => import('./engines-card'), skeleton: ACTIVITY_SKELETONS['ops.engines'] },
   'ops.ai_spend': { load: () => import('./ai-spend-card'), skeleton: ACTIVITY_SKELETONS['ops.ai_spend'] },
+  'ops.answer_calendar': {
+    load: () => import('./answer-calendar-card'),
+    skeleton: ACTIVITY_SKELETONS['ops.answer_calendar'],
+  },
+  'ops.answer_status': {
+    load: () => import('./answer-status-card'),
+    skeleton: ACTIVITY_SKELETONS['ops.answer_status'],
+  },
 };

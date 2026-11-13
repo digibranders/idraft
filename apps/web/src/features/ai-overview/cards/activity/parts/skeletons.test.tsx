@@ -9,9 +9,11 @@ const EXPECTED: Record<string, number> = {
   'activity.collection_status': 180,
   'ops.engines': 180,
   'ops.ai_spend': 140,
+  'ops.answer_calendar': 240,
+  'ops.answer_status': 240,
 };
 
-const BODY_CLASS: Record<number, string> = { 140: 'h-35', 180: 'h-45' };
+const BODY_CLASS: Record<number, string> = { 140: 'h-35', 180: 'h-45', 240: 'h-60' };
 
 /** The panel one skeleton renders, by catalog key. */
 const panelOf = (key: string): HTMLElement => {

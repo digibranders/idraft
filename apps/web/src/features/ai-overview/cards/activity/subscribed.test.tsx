@@ -3,6 +3,8 @@ import type { ComponentType } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import AiSpendCard from './ai-spend-card';
+import AnswerCalendarCard from './answer-calendar-card';
+import AnswerStatusCard from './answer-status-card';
 import CollectionStatusCard from './collection-status-card';
 import EnginesCard from './engines-card';
 import { recordRequests, renderActivityCard, stopRecording } from '@/test/ai-activity-kit';
@@ -10,6 +12,7 @@ import type { CardProps } from '@/features/layouts';
 import { stubViewport } from '@/test/customize-harness';
 
 vi.mock('next/navigation', async () => (await import('@/test/next-navigation')).navigationModule);
+vi.mock('@/components/app/chart/echart', async () => (await import('@/test/weekly-card-kit')).echartStandIn);
 
 /**
  * Every card of the activity family asks its reads only while it is live (customize mode pauses them): the one place
@@ -22,6 +25,8 @@ const CARDS: readonly (readonly [type: string, Card: ComponentType<CardProps>, r
   ['activity.collection_status', CollectionStatusCard, /\/(runs|schedules)$/],
   ['ops.engines', EnginesCard, /\/schedules$/],
   ['ops.ai_spend', AiSpendCard, /\/budgets\/status$/],
+  ['ops.answer_calendar', AnswerCalendarCard, /\/ai\/collection\/daily$/],
+  ['ops.answer_status', AnswerStatusCard, /\/ai\/collection\/daily$/],
 ];
 
 const LOADING = 'section[aria-busy="true"] [data-slot="skeleton"]';

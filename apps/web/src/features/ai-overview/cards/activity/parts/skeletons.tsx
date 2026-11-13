@@ -13,6 +13,8 @@ export const SKELETON_HEIGHTS: Readonly<Record<string, 140 | 180 | 240 | 280>> =
   'activity.collection_status': 180,
   'ops.engines': 180,
   'ops.ai_spend': 140,
+  'ops.answer_calendar': 240,
+  'ops.answer_status': 240,
 };
 
 const BODY: Readonly<Record<140 | 180 | 240 | 280, SkeletonHeight>> = {
