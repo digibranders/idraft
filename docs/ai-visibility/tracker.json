@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T10:17:35+05:30",
+ "updated": "2026-11-13T10:23:17+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -475,7 +475,7 @@
     "done": 8
    },
    "owner": "",
-   "notes": "file work-packages/WP-12-summary-lane.md; estimate 10 tasks; decisions D-04 | steps 7/10, tasks 1b-6 committed and reviewed (local, push at the end); Task 7 resumed after the 09:55 hang"
+   "notes": "file work-packages/WP-12-summary-lane.md; estimate 10 tasks; decisions D-04 | steps 7/10, tasks 1b-6 reviewed (backed up on origin/ai/wp-12-summary); Task 7 small cells in flight; one push to develop at the end"
   },
   {
    "id": "WP-13",
@@ -536,7 +536,7 @@
     "done": 8
    },
    "owner": "",
-   "notes": "file work-packages/WP-13-prompts-lane.md; estimate 10 tasks; decisions D-21, D-22, D-23, D-46 | tasks 7/10, rows 27/31; all local, one push at the end (v1.json regeneration); migration renumbers to 0022"
+   "notes": "file work-packages/WP-13-prompts-lane.md; estimate 10 tasks; decisions D-21, D-22, D-23, D-46 | tasks 8/10, rows 29/31; Task 9 ETag in flight; backed up on origin/ai/wp-13-prompts-lane; one push at the end (migration 0022)"
   },
   {
    "id": "WP-14",
@@ -587,7 +587,7 @@
     "done": 5
    },
    "owner": "",
-   "notes": "file work-packages/WP-14-sources-lane.md; estimate 8 tasks; decisions D-41 | steps 1/10, rows 0/21; no migration; 3 new routes; O1 approved (exclude flagged by default, own commit)"
+   "notes": "file work-packages/WP-14-sources-lane.md; estimate 8 tasks; decisions D-41 | steps 6/10: T1 contract on develop; T2-T5 + T8b committed and backed up (origin/ai/wp-14-sources-lane); T5 in review"
   },
   {
    "id": "WP-15",
@@ -644,7 +644,7 @@
     "done": 7
    },
    "owner": "",
-   "notes": "file work-packages/WP-15-layouts-react-core.md; estimate 9 tasks; decisions D-14 | tasks 11/13, rows 20/26; T8-T10 on develop (749f7ce3); live specimen on dev route /design-system/layouts-live; T11 e2e running"
+   "notes": "file work-packages/WP-15-layouts-react-core.md; estimate 9 tasks; decisions D-14 | tasks 11/13, rows 20/26; T0-T10 on develop; T11 e2e 37 passed 8 failed, being diagnosed (possible live-region defect)"
   },
   {
    "id": "WP-16",
@@ -1269,7 +1269,7 @@
     "done": 26
    },
    "owner": "",
-   "notes": "file work-packages/WP-25-inspector-completion.md; estimate 6 tasks; decisions D-02 | tasks 4/10, rows 31/35; Tasks 1,2,3,8 on develop (c0f3c63e)"
+   "notes": "file work-packages/WP-25-inspector-completion.md; estimate 6 tasks; decisions D-02 | tasks 5/10, rows 31/35; Tasks 1,2,3,8 on develop (c0f3c63e); 4-5 committed locally, 6 in flight"
   },
   {
    "id": "WP-26",
