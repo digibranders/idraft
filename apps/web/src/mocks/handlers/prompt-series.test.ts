@@ -35,6 +35,7 @@ const POOL = z.object({
   reason: z.enum(['prompt_point', 'few_prompts']),
   below_prompts: z.number(),
 });
+const ENTITY = z.object({ entity_id: z.string(), mentioned: CELL, share_of_voice: CELL });
 const WEEK = z.object({
   week_start: z.string(),
   prompts: z.number(),
@@ -43,6 +44,7 @@ const WEEK = z.object({
   mentioned: CELL,
   cited: CELL,
   share_of_voice: CELL,
+  entities: z.array(ENTITY).nullable().optional(),
 });
 const ENGINE = z.object({
   engine_code: z.string(),
@@ -50,7 +52,7 @@ const ENGINE = z.object({
   cited: CELL,
   share_of_voice: CELL,
   series: z.array(WEEK).optional(),
-  entities: z.array(z.object({ entity_id: z.string(), mentioned: CELL, share_of_voice: CELL })).optional(),
+  entities: z.array(ENTITY).optional(),
 });
 type Engine = z.infer<typeof ENGINE>;
 const SUMMARY = z.object({
@@ -339,8 +341,9 @@ describe('the weekly series of the prompts summary', () => {
         const both = await summaryOf(viewer, base, query);
         const rows = engineRows(both);
         expect(rows.length, name).toBeGreaterThan(0);
+        // The weekly points keep their own cells; asking for the entities adds theirs to each point
         expect(
-          rows.map((engine) => engine.series),
+          rows.map((engine) => engine.series?.map((point) => ({ ...point, entities: undefined }))),
           name,
         ).toEqual(engineRows(series).map((engine) => engine.series));
         expect(
@@ -350,6 +353,115 @@ describe('the weekly series of the prompts summary', () => {
         expect(rows.every((engine) => (engine.entities?.length ?? 0) > 0)).toBe(true);
       }
     }
+  });
+
+  it('leaves the entity cells out of a weekly point unless series and entities are both asked', async () => {
+    const viewer = mockBrowser('viewer');
+    for (const { name, base } of PROJECTS) {
+      for (const query of ['?include=series', '?include=entities', '']) {
+        for (const engine of engineRows(await summaryOf(viewer, base, query))) {
+          for (const point of engine.series ?? []) expect(point, `${name} ${query}`).not.toHaveProperty('entities');
+        }
+      }
+    }
+  });
+
+  it('gives a weekly point the entity cells of the engine, the same entities in the same order', async () => {
+    for (const { name, base } of PROJECTS) {
+      const summary = await summaryOf(mockBrowser('viewer'), base, '?include=series,entities&include_branded=true');
+      const rows = engineRows(summary);
+      expect(rows.length, name).toBeGreaterThan(0);
+      for (const engine of rows) {
+        const ids = (engine.entities ?? []).map((cells) => cells.entity_id);
+        expect(ids.length, name).toBeGreaterThan(0);
+        for (const point of seriesOf(engine)) {
+          expect(
+            (point.entities ?? []).map((cells) => cells.entity_id),
+            name,
+          ).toEqual(ids);
+        }
+      }
+    }
+  });
+
+  it('gives a pooled point the entity cells of the weeks it pools, over the answers of its own cells', async () => {
+    for (const { name, base } of PROJECTS) {
+      const summary = await summaryOf(mockBrowser('viewer'), base, '?include=series,entities&include_branded=true');
+      for (const row of summary.prompts) {
+        for (const engine of row.engines) {
+          const points = seriesOf(engine);
+          points.forEach((point) => {
+            for (const cells of point.entities ?? []) {
+              // A prompt's entity is counted over the same valid answers as the prompt's own cells of the point
+              expect(cells.mentioned.denominator, name).toBe(point.mentioned.denominator);
+              expect(cells.mentioned.n_observations, name).toBe(point.mentioned.n_observations);
+              expect(cells.share_of_voice.denominator, name).toBe(point.share_of_voice.denominator);
+              expect(cells.mentioned.numerator, name).toBeLessThanOrEqual(cells.mentioned.denominator);
+            }
+          });
+          // The last point pools the four weeks that carry every answer of the window: it is the window's entity cells
+          const last = points.at(-1);
+          for (const window of engine.entities ?? []) {
+            const found = last?.entities?.find((cells) => cells.entity_id === window.entity_id);
+            expect(found?.mentioned.numerator, name).toBeCloseTo(window.mentioned.numerator, 9);
+            expect(found?.mentioned.denominator, name).toBe(window.mentioned.denominator);
+            expect(found?.share_of_voice.numerator, name).toBeCloseTo(window.share_of_voice.numerator, 9);
+          }
+        }
+      }
+    }
+  });
+
+  it('weighs a topic point Mentioned by prompt and share of voice by answer, as the point own cells are', async () => {
+    for (const { name, base } of PROJECTS) {
+      const summary = await summaryOf(mockBrowser('viewer'), base, '?include=series,entities&include_branded=true');
+      let fractional = false;
+      for (const topic of summary.topics) {
+        for (const engine of topic.engines) {
+          const entities = new Map((engine.entities ?? []).map((cells) => [cells.entity_id, cells]));
+          for (const point of seriesOf(engine)) {
+            for (const cells of point.entities ?? []) {
+              // The prompts that count are those with a valid answer in the weeks the point holds, as for the own cell
+              expect(cells.mentioned.denominator, name).toBe(point.mentioned.denominator);
+              expect(cells.mentioned.pooled?.trials, name).toBe(point.mentioned.pooled?.trials);
+              expect(cells.mentioned.pooled?.successes ?? 0, name).toBeLessThanOrEqual(
+                cells.mentioned.pooled?.trials ?? 0,
+              );
+              // Share of voice is one answer one weight: it carries no count of prompts
+              expect(cells.share_of_voice.pooled, name).toBeNull();
+              expect(cells.share_of_voice.denominator, name).toBe(point.share_of_voice.denominator);
+              if (!Number.isInteger(cells.mentioned.numerator)) fractional = true;
+            }
+          }
+          // When the last point pools the four weeks that carry the window, it holds the window's cells of each entity
+          const last = seriesOf(engine).at(-1);
+          if (last?.is_pooled === true) {
+            for (const cells of last.entities ?? []) {
+              const window = entities.get(cells.entity_id);
+              expect(cells.mentioned.numerator, name).toBeCloseTo(window?.mentioned.numerator ?? NaN, 9);
+              expect(cells.mentioned.denominator, name).toBe(window?.mentioned.denominator);
+            }
+          }
+        }
+      }
+      // A sum of prompt rates is not a count of answers
+      expect(fractional, name).toBe(true);
+    }
+  });
+
+  it('keeps the entity cells of one topic under filter[term]', async () => {
+    const all = await summaryOf(mockBrowser('viewer'), FYNIX, '?rows=topics&include=series,entities');
+    const [first] = all.topics;
+    if (first?.term_id == null) throw new Error('The summary has no topic');
+    const one = await summaryOf(
+      mockBrowser('viewer'),
+      FYNIX,
+      `?rows=topics&include=series,entities&filter[term]=${first.term_id}`,
+    );
+    const mine = one.topics.find((topic) => topic.term_id === first.term_id);
+    expect(mine?.engines.every((engine) => seriesOf(engine).every((point) => (point.entities?.length ?? 0) > 0))).toBe(
+      true,
+    );
   });
 
   it('refuses a value it does not build, one error for each at its place in the list', async () => {

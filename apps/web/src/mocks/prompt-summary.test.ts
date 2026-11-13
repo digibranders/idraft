@@ -17,6 +17,7 @@ import {
   weekCells,
   weeklySeries,
   type Counts,
+  type EntityCounts,
   type NamedAnswer,
 } from './prompt-summary';
 import type { PointPool } from '@/lib/api/types';
@@ -312,5 +313,94 @@ describe('the pools of a series, as the API makes them (contract C2, change log 
       is_pooled: true,
       pool: { reason: 'few_prompts' },
     });
+  });
+});
+
+/** `valid` answers that all name a brand, `mentioned` of them the own one: the share of voice cells have something to divide by. */
+const naming1 = (valid: number, mentioned: number): Counts => ({ ...counts(valid, mentioned), sov_answers: valid });
+/** What an entity is named in over one prompt's week: `mentioned` answers, their shares summing to `share`. */
+const named = (mentioned: number, share: number): EntityCounts => ({ mentioned, sov_share: share });
+
+/** The entity table of a test: `table[id][prompt][week]`, an entity or a week that is not in it is not named. */
+const entitiesOf = (table: Record<string, EntityCounts[][]>, ids: readonly string[] = Object.keys(table)) => ({
+  ids,
+  named: (prompt: number, week: number, id: string): EntityCounts => table[id]?.[prompt]?.[week] ?? NOT_NAMED,
+});
+
+describe('the entity cells of a series, over the very weeks each point holds (contract C2, change log C-9 and C-10)', () => {
+  it('leave a point without entities unless they are asked for', () => {
+    const [, first] = weeklySeries('chatgpt_web', WEEKS, RANGE, [[NO_COUNTS, naming1(2, 1)]]);
+    expect(first).not.toHaveProperty('entities');
+  });
+
+  it('give a prompt point pooled over several weeks the entity cells of those weeks added up', () => {
+    const prompt = [NO_COUNTS, naming1(2, 1), naming1(2, 2), naming1(2, 0), naming1(2, 2)];
+    const table = {
+      beta: [[named(0, 0), named(1, 0.5), named(2, 1), named(0, 0), named(1, 0.5)]],
+    };
+    const series = weeklySeries('chatgpt_web', WEEKS, RANGE, [prompt], false, entitiesOf(table));
+    // The fourth point pools the weeks 0 to 3: 1 + 2 + 0 of 2 + 2 + 2 answers, and the shares 0.5 + 1 over 6 answers
+    expect(series[3]?.entities).toEqual([
+      {
+        entity_id: 'beta',
+        mentioned: { value: 0.5, numerator: 3, denominator: 6, n_observations: 6, pooled: null },
+        share_of_voice: { value: 0.25, numerator: 1.5, denominator: 6, n_observations: 6, pooled: null },
+      },
+    ]);
+    // The own cells of the point are over the same weeks, so the entity's denominator is the point's
+    expect(series[3]?.mentioned.denominator).toBe(6);
+    // The first point holds its own week only, which has no answer: a gap, not a 0
+    expect(series[0]?.entities?.[0]?.mentioned).toMatchObject({ value: null, numerator: 0, denominator: 0 });
+  });
+
+  it('give a topic point of 10 prompts or more the entity cells of its own week alone', () => {
+    const prompts = Array.from({ length: 10 }, () => [NO_COUNTS, naming1(2, 2), naming1(2, 0)]);
+    const table = { beta: prompts.map(() => [named(0, 0), named(1, 0.5), named(2, 2)]) };
+    const [, first, second] = weeklySeries('chatgpt_web', WEEKS, RANGE, prompts, true, entitiesOf(table));
+    expect(first?.is_pooled).toBe(false);
+    // Ten prompts, each naming Beta in 1 of its 2 answers: prompt weighted 5 of 10, over 20 answers
+    expect(first?.entities?.[0]).toMatchObject({
+      entity_id: 'beta',
+      mentioned: { value: 0.5, numerator: 5, denominator: 10, pooled: { successes: 10, trials: 20 } },
+    });
+    // The week after counts none of the week before
+    expect(second?.entities?.[0]?.mentioned).toMatchObject({ numerator: 10, denominator: 10 });
+  });
+
+  it('weight a topic point by prompt for Mentioned and by answer for share of voice', () => {
+    // Two prompts pooled over the weeks 1 and 2: the first names Beta in 1 of 4 answers, the second in 2 of 2
+    const prompts = [
+      [NO_COUNTS, naming1(2, 1), naming1(2, 1)],
+      [NO_COUNTS, naming1(2, 1), naming1(0, 0)],
+    ].map((cells) => [...cells, NO_COUNTS, NO_COUNTS]);
+    const table = {
+      beta: [
+        [named(0, 0), named(0, 0), named(1, 0.5), named(0, 0), named(0, 0)],
+        [named(0, 0), named(2, 2), named(0, 0), named(0, 0), named(0, 0)],
+      ],
+    };
+    const series = weeklySeries('chatgpt_web', WEEKS, RANGE, prompts, true, entitiesOf(table));
+    const point = series[2];
+    expect(point?.is_pooled).toBe(true);
+    const beta = point?.entities?.[0];
+    // Prompt one named Beta in 1 of 4 answers (a rate of 1/4), prompt two in 2 of 2 (a rate of 1): each prompt counts once
+    expect(beta?.mentioned.numerator).toBeCloseTo(1.25, 9);
+    expect(beta?.mentioned.denominator).toBe(2);
+    expect(beta?.mentioned.pooled).toEqual({ successes: 3, trials: 6 });
+    // Share of voice is one answer one weight: 2.5 of the 6 answers that name a brand, with no prompt weighting
+    expect(beta?.share_of_voice).toMatchObject({ numerator: 2.5, denominator: 6, pooled: null });
+  });
+
+  it('keep the own brand and the entities in the order given', () => {
+    const table = { own: [[named(1, 1)]], beta: [[named(0, 0)]], gamma: [[named(1, 0)]] };
+    const series = weeklySeries(
+      'chatgpt_web',
+      WEEKS,
+      RANGE,
+      [[naming1(2, 1)]],
+      false,
+      entitiesOf(table, ['own', 'gamma', 'beta']),
+    );
+    expect(series[0]?.entities?.map((cells) => cells.entity_id)).toEqual(['own', 'gamma', 'beta']);
   });
 });

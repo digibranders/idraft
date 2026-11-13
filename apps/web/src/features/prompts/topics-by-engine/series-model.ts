@@ -1,4 +1,4 @@
-import { topCompetitors } from './leaders';
+import { topCompetitors, topCompetitorsAcross } from './leaders';
 import { STALE_AFTER_DAYS } from '@/features/prompts/history-model';
 import type { EngineSummary, MetricCell, PointPool, SummaryEntity, WeekCells } from '@/lib/api/types';
 import type { CellMetric } from '@/lib/rates/rate-model';
@@ -149,17 +149,46 @@ export function entityLines(
   tracked: readonly SummaryEntity[],
   top: number,
 ): EntityLine[] {
-  const series = cell?.series;
-  if (cell === undefined || series == null || cell.entities == null) return [];
-  const competitors = topCompetitors(cell, tracked, top).flatMap((id) =>
-    tracked.filter((entity) => entity.entity_id === id),
+  if (cell?.series == null || cell.entities == null) return [];
+  return linesOf(topCompetitors(cell, tracked, top), tracked, (entityId) => entityPoints(cell, entityId));
+}
+
+/** One entity's Mentioned points on an engine: one for each week of the engine's series. */
+const entityPoints = (cell: EngineSummary, entityId: string): TopicPoint[] =>
+  (cell.series ?? []).map((week) =>
+    pointOf(week, week.entities?.find((cells) => cells.entity_id === entityId)?.mentioned, 'mentioned'),
   );
-  return [...tracked.filter((entity) => entity.role === 'own'), ...competitors].map((entity) => ({
+
+/** The own brands first, then the competitors `ids` in their order, each with the points `pointsOf` gives. */
+const linesOf = (
+  ids: readonly string[],
+  tracked: readonly SummaryEntity[],
+  pointsOf: (entityId: string) => TopicPoint[],
+): EntityLine[] =>
+  [
+    ...tracked.filter((entity) => entity.role === 'own'),
+    ...ids.flatMap((id) => tracked.filter((entity) => entity.entity_id === id)),
+  ].map((entity) => ({
     entityId: entity.entity_id,
     name: entity.name,
     role: entity.role,
-    points: series.map((week) =>
-      pointOf(week, week.entities?.find((cells) => cells.entity_id === entity.entity_id)?.mentioned, 'mentioned'),
-    ),
+    points: pointsOf(entity.entity_id),
   }));
+
+/**
+ * The same lines over several engines (N3, "avg of N"): each entity's weekly points on the engines averaged with equal
+ * weight (`averagePoints`: no band, an engine without a rate in a week takes no part), the competitors those with the
+ * highest average Mentioned over the window (`topCompetitorsAcross`). Only engines with a series and entity cells take
+ * part; none, and there are no lines.
+ */
+export function averageEntityLines(
+  cells: readonly EngineSummary[],
+  tracked: readonly SummaryEntity[],
+  top: number,
+): EntityLine[] {
+  const drawn = cells.filter((cell) => cell.series != null && cell.entities != null);
+  if (drawn.length === 0) return [];
+  return linesOf(topCompetitorsAcross(drawn, tracked, top), tracked, (entityId) =>
+    averagePoints(drawn.map((cell) => entityPoints(cell, entityId))),
+  );
 }

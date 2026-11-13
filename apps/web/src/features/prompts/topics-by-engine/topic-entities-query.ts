@@ -52,6 +52,8 @@ export interface EntityRead {
   tracked: readonly SummaryEntity[];
   /** A read is on its way, the rows shown (if any) being those of an earlier one. */
   fetching: boolean;
+  /** What the read failed with, for the error id; `null` while it has not failed. */
+  error?: unknown;
   retry: () => void;
 }
 
@@ -74,6 +76,7 @@ export function useTopicEntities(read: TopicReadScope, enabled: boolean): Entity
     rows,
     tracked: data?.data.entities ?? NO_ENTITIES,
     fetching: query.isFetching,
+    error: query.error,
     retry: () => void refetch(),
   };
 }

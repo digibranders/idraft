@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { cell, competitor, engine, entityCells, own, weighted } from './cells-fixtures';
-import { leaderOn, topCompetitors } from './leaders';
+import { leaderOn, topCompetitors, topCompetitorsAcross } from './leaders';
 import type { EngineSummary, EntityCells } from '@/lib/api/types';
 
 const TRACKED = [
@@ -191,5 +191,70 @@ describe('topCompetitors: the competitors drawn against the own brand', () => {
   it('is empty without entity cells', () => {
     expect(topCompetitors(undefined, TRACKED, 3)).toEqual([]);
     expect(topCompetitors(engine('chatgpt_web'), TRACKED, 3)).toEqual([]);
+  });
+});
+
+describe('topCompetitorsAcross: the competitors drawn against the own brand over several engines', () => {
+  /** An engine that shows a rate (10 valid answers) with the Mentioned rates given as `[id, rate]`. */
+  const rated = (
+    code: string,
+    rows: readonly (readonly [id: string, mentioned: number])[],
+    answers = 10,
+  ): EngineSummary =>
+    engine(code, {
+      mentioned: weighted(5, answers, 5),
+      entities: rows.map(([id, mentioned]) => entityCells(id, weighted(Math.round(mentioned * 10), answers, 5))),
+    });
+
+  it('ranks by the equal weight average of the Mentioned rates, not by the engine with most answers', () => {
+    const engines = [
+      rated('chatgpt_web', [
+        ['beta', 0.9],
+        ['gamma', 0.2],
+      ]),
+      rated('gemini_web', [
+        ['beta', 0.1],
+        ['gamma', 0.6],
+      ]),
+    ];
+    // Beta averages 50 percent, Gamma 40 percent
+    expect(topCompetitorsAcross(engines, TRACKED, 3)).toEqual(['beta', 'gamma']);
+    expect(topCompetitorsAcross(engines, TRACKED, 1)).toEqual(['beta']);
+  });
+
+  it('leaves an engine under 4 valid answers out of the average', () => {
+    const engines = [
+      rated('chatgpt_web', [
+        ['beta', 0.2],
+        ['gamma', 0.4],
+      ]),
+      // Too few answers: its 100 percent for Beta must not lift the average
+      rated(
+        'gemini_web',
+        [
+          ['beta', 1],
+          ['gamma', 0],
+        ],
+        3,
+      ),
+    ];
+    expect(topCompetitorsAcross(engines, TRACKED, 3)).toEqual(['gamma', 'beta']);
+  });
+
+  it('takes ties by the order of the tracked entities and never a competitor with no mention', () => {
+    const engines = [
+      rated('chatgpt_web', [
+        ['gamma', 0.5],
+        ['beta', 0.5],
+        ['delta', 0],
+      ]),
+    ];
+    expect(topCompetitorsAcross(engines, TRACKED, 3)).toEqual(['beta', 'gamma']);
+  });
+
+  it('is empty without engines that show a rate and without entity cells', () => {
+    expect(topCompetitorsAcross([], TRACKED, 3)).toEqual([]);
+    expect(topCompetitorsAcross([engine('chatgpt_web', { mentioned: weighted(5, 10, 5) })], TRACKED, 3)).toEqual([]);
+    expect(topCompetitorsAcross([rated('chatgpt_web', [['beta', 0.5]], 2)], TRACKED, 3)).toEqual([]);
   });
 });

@@ -185,7 +185,12 @@ export interface PooledCells {
  * weeks of `pooled` (the API pools prompt points and topic points under 10 prompts, contract C2 C-11). `prompts` is
  * always the row's prompts with a valid answer in the week alone.
  */
-export const weekCells = (weekStart: string, own: EngineSummary, pooled?: PooledCells): WeekCells => {
+export const weekCells = (
+  weekStart: string,
+  own: EngineSummary,
+  pooled?: PooledCells,
+  entities?: EntityCells[],
+): WeekCells => {
   const shown = pooled?.cells ?? own;
   return {
     week_start: weekStart,
@@ -195,6 +200,7 @@ export const weekCells = (weekStart: string, own: EngineSummary, pooled?: Pooled
     mentioned: shown.mentioned,
     cited: shown.cited,
     share_of_voice: shown.share_of_voice,
+    ...(entities === undefined ? {} : { entities }),
   };
 };
 
@@ -208,10 +214,20 @@ export function sumCounts(parts: readonly Counts[]): Counts {
 }
 
 /**
+ * The entities a series carries cells for (`include=series,entities`), and how often each is named: `named` says it
+ * for one prompt of the row and one week, both as indexes into `perPrompt` and `weeks` of `weeklySeries`.
+ */
+export interface SeriesEntities {
+  ids: readonly string[];
+  named: (prompt: number, week: number, entityId: string) => EntityCounts;
+}
+
+/**
  * The series of one engine row. `perPrompt` holds, for each prompt of the row (one on a prompt row), its counts for
  * each of `weeks`. A prompt point pools the week and the three before it, never reading a week outside `range`; a
  * topic point pools only when under 10 prompts answered that week alone: each prompt's counts are added over the
- * weeks first, then weighted by prompt.
+ * weeks first, then weighted by prompt. With `entities`, each point also carries the cells of those tracked entities
+ * over the very weeks it holds (contract C2, C-9 and C-10), pooled as the point is.
  */
 export function weeklySeries(
   engineCode: string,
@@ -219,29 +235,52 @@ export function weeklySeries(
   range: { from: string; to: string; timezone: string },
   perPrompt: readonly (readonly Counts[])[],
   topic = false,
+  entities?: SeriesEntities,
 ): WeekCells[] {
   const cellsOf = (pick: (counts: readonly Counts[]) => Counts): EngineSummary =>
     topic ? topicCells(engineCode, perPrompt.map(pick)) : promptCells(engineCode, pick(perPrompt[0] ?? []));
+  /** The entities' cells over the weeks `from` to `to` (exclusive), weighted as the point's own cells are. */
+  const entityCellsOf = (from: number, to: number): EntityCells[] | undefined =>
+    entities?.ids.map((entityId) => {
+      const parts = perPrompt.map((counts, prompt) => ({
+        counts: sumCounts(counts.slice(from, to)),
+        named: weeks.slice(from, to).reduce<EntityCounts>(
+          (total, _week, offset) => {
+            const part = entities.named(prompt, from + offset, entityId);
+            return { mentioned: total.mentioned + part.mentioned, sov_share: total.sov_share + part.sov_share };
+          },
+          { ...NOT_NAMED },
+        ),
+      }));
+      return topic
+        ? topicEntityCells(entityId, parts)
+        : promptEntityCells(entityId, parts[0]?.counts ?? NO_COUNTS, parts[0]?.named ?? NOT_NAMED);
+    });
   return weeks.map((week, at) => {
     const own = cellsOf((counts) => counts[at] ?? NO_COUNTS);
-    if (topic && promptsIn(own) >= FEW_PROMPTS) return weekCells(week, own);
+    if (topic && promptsIn(own) >= FEW_PROMPTS) return weekCells(week, own, undefined, entityCellsOf(at, at + 1));
     const first = Math.max(0, at - POOL_WEEKS + 1);
     const pooledWeeks = weeks.slice(first, at + 1);
     const sunday = isoOfDay(dayNumber(week) + WEEK_DAYS - 1);
     const start = pooledWeeks[0] ?? week;
-    return weekCells(week, own, {
-      cells: cellsOf((counts) => sumCounts(counts.slice(first, at + 1))),
-      pool: {
-        weeks: pooledWeeks.length,
-        window: {
-          from: range.from > start ? range.from : start,
-          to: range.to < sunday ? range.to : sunday,
-          timezone: range.timezone,
+    return weekCells(
+      week,
+      own,
+      {
+        cells: cellsOf((counts) => sumCounts(counts.slice(first, at + 1))),
+        pool: {
+          weeks: pooledWeeks.length,
+          window: {
+            from: range.from > start ? range.from : start,
+            to: range.to < sunday ? range.to : sunday,
+            timezone: range.timezone,
+          },
+          reason: topic ? 'few_prompts' : 'prompt_point',
+          below_prompts: FEW_PROMPTS,
         },
-        reason: topic ? 'few_prompts' : 'prompt_point',
-        below_prompts: FEW_PROMPTS,
       },
-    });
+      entityCellsOf(first, at + 1),
+    );
   });
 }
 

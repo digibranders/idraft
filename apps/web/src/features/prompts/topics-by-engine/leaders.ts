@@ -1,6 +1,6 @@
 import type { EngineSummary, EntityCells, MetricCell, SummaryEntity } from '@/lib/api/types';
 import { SAME_RATE } from './engine-values';
-import { validAnswers } from '@/lib/rates/rate-model';
+import { hasRate, validAnswers } from '@/lib/rates/rate-model';
 import { rateState } from '@/lib/stats';
 
 /**
@@ -115,4 +115,31 @@ export function topCompetitors(
     .sort((a, b) => rankOf(b.cells.mentioned) - rankOf(a.cells.mentioned) || a.order - b.order)
     .slice(0, count)
     .map(({ entity }) => entity.entity_id);
+}
+
+/**
+ * The same over several engines (N3, "avg of N"): the competitors with the highest equal weight average of their
+ * Mentioned over the engines that show a rate, ties by the order of `tracked`. An engine under `MIN_OBSERVATIONS` valid
+ * answers takes no part (its rates are not firm), nor does an entity cell without a rate; a competitor with an average
+ * of 0 is never one of them. Empty when no engine takes part.
+ */
+export function topCompetitorsAcross(
+  engines: readonly EngineSummary[],
+  tracked: readonly SummaryEntity[],
+  count: number,
+): string[] {
+  const taking = engines.filter((engine) => engine.entities != null && hasRate(engine.mentioned));
+  return tracked
+    .flatMap((entity, order) => {
+      if (entity.role !== 'competitor') return [];
+      const rates = taking.flatMap((engine) => {
+        const cell = engine.entities?.find((cells) => cells.entity_id === entity.entity_id)?.mentioned;
+        return cell !== undefined && hasRate(cell) && cell.value !== null ? [cell.value] : [];
+      });
+      const average = rates.length === 0 ? 0 : rates.reduce((total, rate) => total + rate, 0) / rates.length;
+      return average > 0 ? [{ id: entity.entity_id, average, order }] : [];
+    })
+    .sort((a, b) => b.average - a.average || a.order - b.order)
+    .slice(0, count)
+    .map(({ id }) => id);
 }

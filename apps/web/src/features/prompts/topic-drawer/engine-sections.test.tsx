@@ -15,11 +15,15 @@ vi.mock('next/navigation', () => ({
 }));
 
 describe('TopicEngineSections: the engine sections of the Overview', () => {
-  it('draws By engine and then Trend by engine, each in its own state', async () => {
+  it('draws By engine, Trend by engine and the Visibility trend, each in its own state', async () => {
     // The weekly read fails: the panel, which needs only the page summary, is untouched
     server.use(
       http.get(mswPath('/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/prompts-summary'), () =>
         HttpResponse.json({ status: 500, code: 'internal_error', title: 'x' }, { status: 500 }),
+      ),
+      // The colours of the entities: the test sends no session, which the mock answers by signing out
+      http.get(mswPath('/api/v1/workspaces/{workspace_id}/projects/{project_id}/entities'), () =>
+        HttpResponse.json({ data: [] }),
       ),
     );
     const summary = summaryOf([
@@ -27,8 +31,10 @@ describe('TopicEngineSections: the engine sections of the Overview', () => {
     ]);
     renderDrawerPart(<TopicEngineSections />, { summary });
     const headings = screen.getAllByRole('heading').map((heading) => heading.textContent);
-    expect(headings).toEqual(['By engine', 'Trend by engine']);
+    expect(headings).toEqual(['By engine', 'Trend by engine', 'Visibility trend against competitors']);
     expect(screen.getByRole('list', { name: 'Mention by engine' })).toBeInTheDocument();
-    expect(await screen.findByRole('button', { name: 'Try again' })).toBeInTheDocument();
+    // Both weekly sections say they failed, one Retry each, and the panel above them is untouched
+    expect(await screen.findAllByRole('button', { name: 'Try again' })).toHaveLength(2);
+    expect(screen.getByRole('list', { name: 'Mention by engine' })).toBeInTheDocument();
   });
 });

@@ -663,13 +663,17 @@ export const promptAnswerHandlers: HttpHandler[] = [
     // With `include=series`, a point for each week the window touches, from the counts of the week's answers
     const weeks = include.series ? summaryWeeks(firstDate, lastDate) : null;
     const weekly = new Map<string, Counts>();
+    // The answers of each week, kept for the weekly entity cells (`include=series,entities`)
+    const weeklyAnswers = new Map<string, Counted[]>();
     if (weeks !== null) {
       for (const [promptId, engines] of byPrompt) {
         for (const [code, counted] of engines) {
           for (const week of weeks) {
             const inWeek = counted.filter((answer) => mondayOf(answer.day) === week);
-            if (inWeek.length > 0)
+            if (inWeek.length > 0) {
               weekly.set(`${promptId} ${code} ${week}`, countsOf(inWeek.map((answer) => answer.facts)));
+              weeklyAnswers.set(`${promptId} ${code} ${week}`, inWeek);
+            }
           }
         }
       }
@@ -684,6 +688,16 @@ export const promptAnswerHandlers: HttpHandler[] = [
             { from: firstDate, to: lastDate, timezone: zone },
             ids.map((id) => weeks.map((week) => weekly.get(`${id} ${code} ${week}`) ?? NO_COUNTS)),
             topic,
+            cellIds === null
+              ? undefined
+              : {
+                  ids: cellIds,
+                  named: (prompt, week, entityId) =>
+                    entityCountsOf(
+                      entityId,
+                      weeklyAnswers.get(`${ids[prompt] ?? ''} ${code} ${weeks[week] ?? ''}`) ?? [],
+                    ),
+                },
           );
     const withBlocks = (
       cells: EngineSummary,

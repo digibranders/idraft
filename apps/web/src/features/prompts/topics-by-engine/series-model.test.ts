@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
 import { cell, competitor, engine, entityCells, own, pool, week, weighted } from './cells-fixtures';
-import { averagePoints, enginePoints, entityLines, isStale, poolNote, type TopicPoint } from './series-model';
+import {
+  averageEntityLines,
+  averagePoints,
+  enginePoints,
+  entityLines,
+  isStale,
+  poolNote,
+  type TopicPoint,
+} from './series-model';
 import { wilsonInterval } from '@/lib/stats';
 
 const POOL = pool(4, '2026-10-05', '2026-11-01');
@@ -239,6 +247,70 @@ describe('entityLines: the own brand and the most mentioned competitors week by 
     );
     // With a series but no entity cells there is nothing to draw
     expect(entityLines(engine('chatgpt_web', { series }), tracked, 3)).toEqual([]);
+  });
+});
+
+describe('averageEntityLines: own against the top competitors, the engines of equal weight', () => {
+  const tracked = [own('own', 'Acme'), competitor('beta', 'Beta'), competitor('gamma', 'Gamma')];
+  /** An engine with a rate over the window and two weekly points, the entity cells given as `[id, week 1, week 2]`. */
+  const onEngine = (code: string, rows: readonly (readonly [id: string, first: number, second: number])[]) =>
+    engine(code, {
+      mentioned: weighted(5, 10, 5),
+      entities: rows.map(([id, first, second]) =>
+        entityCells(id, weighted(Math.round(((first + second) / 2) * 10), 10, 5)),
+      ),
+      series: [
+        week('2026-10-05', {
+          prompts: 3,
+          entities: rows.map(([id, first]) => entityCells(id, weighted(Math.round(first * 10), 10, 3))),
+        }),
+        week('2026-10-12', {
+          prompts: 4,
+          pool: POOL,
+          entities: rows.map(([id, , second]) => entityCells(id, weighted(Math.round(second * 10), 10, 4))),
+        }),
+      ],
+    });
+  const engines = [
+    onEngine('chatgpt_web', [
+      ['own', 0.2, 0.4],
+      ['beta', 0.6, 0.8],
+      ['gamma', 0.1, 0],
+    ]),
+    onEngine('gemini_web', [
+      ['own', 0.4, 0.4],
+      ['beta', 0.2, 0.4],
+      ['gamma', 0.3, 0.2],
+    ]),
+  ];
+
+  it('averages each entity over the engines week by week and says how many took part', () => {
+    const lines = averageEntityLines(engines, tracked, 3);
+    expect(lines.map((line) => line.entityId)).toEqual(['own', 'beta', 'gamma']);
+    const beta = lines.find((line) => line.entityId === 'beta');
+    expect(beta?.points[0]?.value).toBeCloseTo(0.4, 9);
+    expect(beta?.points[1]?.value).toBeCloseTo(0.6, 9);
+    // The answers of both engines are behind the average, and the pooled point says its pool
+    expect(beta?.points[1]).toMatchObject({
+      n: 20,
+      pooled: true,
+      weeks: 4,
+      window: POOL.window,
+      prompts: 4,
+      band: null,
+    });
+  });
+
+  it('draws no band on an average and leaves an engine without a point out of it', () => {
+    const lone = [engines[0] ?? engine('chatgpt_web'), engine('gemini_web', { mentioned: weighted(5, 10, 5) })];
+    const own0 = averageEntityLines(lone, tracked, 3).find((line) => line.entityId === 'own');
+    // Only ChatGPT has series and entity cells: its own line, not averaged with a 0
+    expect(own0?.points.map((point) => point.value)).toEqual([0.2, 0.4]);
+  });
+
+  it('has no lines when no engine has a series with entity cells', () => {
+    expect(averageEntityLines([], tracked, 3)).toEqual([]);
+    expect(averageEntityLines([engine('chatgpt_web', { mentioned: weighted(5, 10, 5) })], tracked, 3)).toEqual([]);
   });
 });
 
