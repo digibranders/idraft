@@ -318,6 +318,24 @@ GET {P}/ai/sources/changes?kind=lost&min_support=3&filter[country_iso]=US
 }
 ```
 
+## Deviations from doc 19 section 3.7.7
+
+The three routes WP-14 published differ from the rows of doc 19. The coordinator agreed to each.
+
+1. Domain detail is keyed by `{registrable_domain}` and this REPLACES the `{domain_id}` of doc 19:
+   domain rows carry no id, only the registrable domain (the as built D2 reads). The value is a
+   registrable domain, not an id.
+2. The detail has no `publisher`, and no top-level `source_share` or `series`: the shares are on
+   `data.rows[].source_share` (one row per role and entity) and the weekly series are per engine in
+   `data.engines[].series`.
+3. A prompt of the detail has no `text`: `data.prompts[]` carries `prompt_id`, `citation_units` and
+   `observations` only.
+4. `co_mentioned_entities` is named `cited_with`, and an entry carries `entity_id` and
+   `observations`, not an `EntityRef`.
+5. In diversity, `distinct_domains` is an integer, not a `MetricValue`. `effective_sources` is a
+   `MetricCell`, and a week of `series` holds it as a plain number (null without a unit).
+6. Diversity has no `granularity` parameter: `include=series` is weekly only.
+
 ## Open choices
 
 Each row can be tightened by WP-14 through the change log.
@@ -355,3 +373,4 @@ Newest last; one line per change, in the form `date package: change`.
 2026-11-13 WP-03: contract published
 2026-11-13 WP-14: added `GET {P}/ai/sources/diversity`, `GET {P}/ai/sources/domains/{registrable_domain}` and `GET {P}/ai/sources/prompts` (stubs)
 2026-11-13 WP-14: added `include_unresolved_redirects` and `include_engine_internal` (default false) to domains, pages, changes and the new routes; fan-out `include=topics` and `FanoutQueryRow.topics`
+2026-11-13 WP-14: recorded the deviations from doc 19 section 3.7.7 (detail keyed by `{registrable_domain}`, `cited_with`, integer `distinct_domains`, no `granularity`); described `include` of diversity and `filter[own_cited]` of prompts in the API document

@@ -297,7 +297,15 @@ async def source_diversity(
     access: ReadData,
     scope: AnswerScope,
     flags: Flags,
-    include: Annotated[list[DiversityInclude] | None, Commas, Query(max_length=2)] = None,
+    include: Annotated[
+        list[DiversityInclude] | None,
+        Commas,
+        Query(
+            max_length=2,
+            description="Blocks to add to each engine: `series` (a weekly point) and `ads` (the "
+            "answers that showed an ad). Default none. " + _NOT_BUILT,
+        ),
+    ] = None,
     country_iso: CountryFilter = None,
 ) -> SourceDiversity:
     raise not_built_yet()
@@ -341,7 +349,14 @@ async def source_prompts(
     scope: AnswerScope,
     page: Cursor,
     flags: Flags,
-    own_cited: Annotated[bool | None, Query(alias="filter[own_cited]")] = None,
+    own_cited: Annotated[
+        bool | None,
+        Query(
+            alias="filter[own_cited]",
+            description="`false` keeps the prompt and engine pairs whose answers cite no own page; "
+            "`true` those that cite one. Default: both. " + _NOT_BUILT,
+        ),
+    ] = None,
     country_iso: CountryFilter = None,
 ) -> PromptOwnPagesPage:
     raise not_built_yet()

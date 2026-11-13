@@ -12292,6 +12292,7 @@ export interface operations {
     source_diversity_api_v1_workspaces__workspace_id__projects__project_id__ai_sources_diversity_get: {
         parameters: {
             query?: {
+                /** @description Blocks to add to each engine: `series` (a weekly point) and `ads` (the answers that showed an ad). Default none. Not built yet: `501 not_implemented`. */
                 include?: ("series" | "ads")[] | null;
                 /** @description The answers of the prompts of one market, ISO 3166-1 alpha-2. Not built yet: `501 not_implemented`. */
                 "filter[country_iso]"?: string | null;
@@ -12502,6 +12503,7 @@ export interface operations {
     source_prompts_api_v1_workspaces__workspace_id__projects__project_id__ai_sources_prompts_get: {
         parameters: {
             query?: {
+                /** @description `false` keeps the prompt and engine pairs whose answers cite no own page; `true` those that cite one. Default: both. Not built yet: `501 not_implemented`. */
                 "filter[own_cited]"?: boolean | null;
                 /** @description The answers of the prompts of one market, ISO 3166-1 alpha-2. Not built yet: `501 not_implemented`. */
                 "filter[country_iso]"?: string | null;

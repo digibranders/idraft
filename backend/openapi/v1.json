@@ -24687,6 +24687,7 @@
             }
           },
           {
+            "description": "Blocks to add to each engine: `series` (a weekly point) and `ads` (the answers that showed an ad). Default none. Not built yet: `501 not_implemented`.",
             "in": "query",
             "name": "include",
             "required": false,
@@ -24706,6 +24707,7 @@
                   "type": "null"
                 }
               ],
+              "description": "Blocks to add to each engine: `series` (a weekly point) and `ads` (the answers that showed an ad). Default none. Not built yet: `501 not_implemented`.",
               "maxLength": 2,
               "title": "Include"
             }
@@ -25784,6 +25786,7 @@
             }
           },
           {
+            "description": "`false` keeps the prompt and engine pairs whose answers cite no own page; `true` those that cite one. Default: both. Not built yet: `501 not_implemented`.",
             "in": "query",
             "name": "filter[own_cited]",
             "required": false,
@@ -25796,6 +25799,7 @@
                   "type": "null"
                 }
               ],
+              "description": "`false` keeps the prompt and engine pairs whose answers cite no own page; `true` those that cite one. Default: both. Not built yet: `501 not_implemented`.",
               "title": "Filter[Own Cited]"
             }
           },

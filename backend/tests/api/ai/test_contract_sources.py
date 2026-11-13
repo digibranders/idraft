@@ -320,6 +320,8 @@ def test_the_api_document_has_the_new_source_routes() -> None:
     assert "topics" not in schemas["FanoutQueryRow"].get("required", [])
     assert _bound(topics, "maxItems") == 10
     assert schemas["SourceDiversity"]["properties"]["data"]["maxItems"] == 3
+    assert _bound(schemas["SourceDiversityMeta"]["properties"]["engine_codes"], "maxItems") == 3
+    assert _bound(schemas["SourceDiversityEngine"]["properties"]["series"], "maxItems") == 14
     for field, bound in (
         ("rows", 10),
         ("top_pages", 10),
@@ -334,7 +336,10 @@ def test_the_api_document_has_the_new_source_routes() -> None:
     fanout = paths[f"{prefix}/fanout-queries"]["get"]
     assert _parameter(diversity, "include")["schema"]["maxLength"] == 2
     assert _parameter(fanout, "include")["schema"]["maxLength"] == 1
-    assert "filter[own_cited]" in _parameters(paths[f"{prefix}/sources/prompts"]["get"])
+    prompts = paths[f"{prefix}/sources/prompts"]["get"]
+    assert "filter[own_cited]" in _parameters(prompts)
+    # The rows have no array bound: the keyset page's `limit` is what bounds them.
+    assert _parameter(prompts, "limit")["schema"]["maximum"] == 200
     for path in (
         "sources/domains",
         "sources/pages",
