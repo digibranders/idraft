@@ -5,8 +5,11 @@ import type {
   MetricCell,
   ObservationDetail,
   PointPool,
+  Schemas,
   WeekCells,
 } from '@/lib/api/types';
+
+type EngineCoMentions = Schemas['EngineCoMentions'];
 
 /**
  * The arithmetic of the prompts summary, as the API does it (backend `api/ai/summary.py` and
@@ -353,4 +356,36 @@ export function cellEntityIds(tracked: readonly { entity_id: string; role: 'own'
     .sort((a, b) => Number(a.role !== 'own') - Number(b.role !== 'own'))
     .slice(0, ENTITY_CELLS_MAX)
     .map((entity) => entity.entity_id);
+}
+
+// The co-mentions of `include=co_mentions` (c2 C-8): per engine, how often two tracked entities are named in one valid
+// answer. An entity is named by the same rule as its cells (`entityCountsOf`).
+
+const byId = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
+
+/**
+ * The pairs of one engine over its answers in scope. `answers` is every valid answer, naming anyone or not; a pair is
+ * `a < b` by id, no self pair, only pairs with an answer, the most answers first, then by `a` and `b`.
+ */
+export function coMentionsOf(
+  engineCode: string,
+  entityIds: readonly string[],
+  answers: readonly NamedAnswer[],
+): EngineCoMentions {
+  const valid = answers.filter(({ facts }) => facts.is_valid);
+  const counted = new Map<string, { a: string; b: string; answers: number }>();
+  for (const answer of valid) {
+    const named = entityIds.filter((id) => entityCountsOf(id, [answer]).mentioned === 1).sort(byId);
+    named.forEach((a, place) => {
+      for (const b of named.slice(place + 1)) {
+        const pair = counted.get(`${a} ${b}`) ?? { a, b, answers: 0 };
+        counted.set(`${a} ${b}`, { ...pair, answers: pair.answers + 1 });
+      }
+    });
+  }
+  return {
+    engine_code: engineCode,
+    answers: valid.length,
+    pairs: [...counted.values()].sort((x, y) => y.answers - x.answers || byId(x.a, y.a) || byId(x.b, y.b)),
+  };
 }

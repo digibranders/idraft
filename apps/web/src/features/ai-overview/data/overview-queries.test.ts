@@ -79,6 +79,20 @@ describe('overviewSummaryQuery', () => {
     expect(queryOf(overviewSummaryQuery(PROJECT, readOf()))).not.toHaveProperty('include');
   });
 
+  it('summary params carry total and co_mentions in sorted order', () => {
+    const options = overviewSummaryQuery(PROJECT, readOf(), {
+      include: ['total', 'entities', 'co_mentions'],
+      rows: 'none',
+    });
+    expect(queryOf(options)).toMatchObject({ include: ['co_mentions', 'entities', 'total'], rows: 'none' });
+    // Two orders of the same blocks are one request, so one cache entry
+    const reordered = overviewSummaryQuery(PROJECT, readOf(), {
+      include: ['co_mentions', 'total', 'entities'],
+      rows: 'none',
+    });
+    expect(options.queryKey).toEqual(reordered.queryKey);
+  });
+
   it('sends no engine filter for an all-engines scope, however the engines are listed', () => {
     expect(queryOf(overviewSummaryQuery(PROJECT, readOf({ engines: null })))).not.toHaveProperty(
       'filter[engine_code_in]',

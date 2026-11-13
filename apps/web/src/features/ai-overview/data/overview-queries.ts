@@ -83,8 +83,8 @@ export const overviewEnginesQuery = (project: ProjectRef): ApiQueryOptions<typeo
 export interface SummaryOptions {
   /** The window of the scope (default) or the one just before it. */
   period?: 'current' | 'previous';
-  /** Blocks to add: a point per week of the window, and a cell per tracked entity. */
-  include?: readonly ('series' | 'entities')[];
+  /** Blocks to add: a point per week, a cell per tracked entity, the one-row total, and the co-mention pair counts. */
+  include?: readonly ('series' | 'entities' | 'total' | 'co_mentions')[];
   /** `topics` leaves the prompt rows out, `none` both row lists. Left out: every row. */
   rows?: 'topics' | 'none';
 }

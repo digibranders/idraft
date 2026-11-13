@@ -23,6 +23,7 @@ import {
 } from '../prompt-fixtures';
 import {
   cellEntityIds,
+  coMentionsOf,
   countsOf,
   entityCountsOf,
   mondayOf,
@@ -88,21 +89,34 @@ type Bound = { date: string } | { at: number } | null;
 const hasCode = (value: unknown): value is ValidationItem =>
   typeof value === 'object' && value !== null && 'code' in value;
 
+// shortcut: the message still names the first two values, prompt-answers.test.ts and prompt-series.test.ts pin it; widen it when they move
+const INCLUDE_MESSAGE = "Input should be 'series' or 'entities'";
+
 /**
- * The summary's `include`: a comma list or repeated parameters of `series` and `entities`, the blocks built. Any
- * other value is refused, one error for each (Pydantic's `literal_error` at the value's place in the list).
+ * The summary's `include`: a comma list or repeated parameters of `series`, `entities`, `total` and `co_mentions`, the
+ * blocks built. Any other value (`cells` too, which the API has and the mock does not build) is refused, one error for
+ * each (Pydantic's `literal_error` at the value's place in the list).
  */
-function includeOf(url: URL): { entities: boolean; series: boolean } | ValidationItem[] {
+function includeOf(
+  url: URL,
+): { entities: boolean; series: boolean; total: boolean; coMentions: boolean } | ValidationItem[] {
   const values = url.searchParams
     .getAll('include')
     .flatMap((value) => value.split(','))
     .filter((value) => value !== '');
   const errors = values.flatMap((value, place) =>
-    value === 'series' || value === 'entities'
+    value === 'series' || value === 'entities' || value === 'total' || value === 'co_mentions'
       ? []
-      : [queryError(`include.${String(place)}`, 'literal_error', "Input should be 'series' or 'entities'")],
+      : [queryError(`include.${String(place)}`, 'literal_error', INCLUDE_MESSAGE)],
   );
-  return errors.length > 0 ? errors : { entities: values.includes('entities'), series: values.includes('series') };
+  return errors.length > 0
+    ? errors
+    : {
+        entities: values.includes('entities'),
+        series: values.includes('series'),
+        total: values.includes('total'),
+        coMentions: values.includes('co_mentions'),
+      };
 }
 
 /** The summary's `rows` (C-3): left out, every row; `topics`, no prompt rows; `none`, no row at all. Any other value is a `literal_error`. */
@@ -758,6 +772,19 @@ export const promptAnswerHandlers: HttpHandler[] = [
       .map(([termId, members]) => topicRow(termId, members));
     if (untopiced.size > 0 && termFilter === null) topics.push(topicRow(null, untopiced));
     const counted = [...byPrompt.values()].some((engines) => engines.size > 0);
+    // `include=total`: every prompt in scope as one topic-style row, whatever `rows` says
+    const total = include.total ? topicRow(null, included) : null;
+    // `include=co_mentions`: per engine shown, over every valid answer in scope
+    const trackedIds = cellEntityIds(entitiesOf(caller));
+    const coMentions = include.coMentions
+      ? shown.map((code) =>
+          coMentionsOf(
+            code,
+            trackedIds,
+            [...byPrompt.values()].flatMap((engines) => engines.get(code) ?? []),
+          ),
+        )
+      : null;
     const summary: PromptsSummary = {
       window: { from: firstDate, to: lastDate, timezone: zone },
       include_branded: branded || brandedOnly,
@@ -770,6 +797,17 @@ export const promptAnswerHandlers: HttpHandler[] = [
       // `rows` only leaves lists out: every cell above was built from the full set, as the API's aggregates are
       prompts: rowsAsked === 'all' ? rows : [],
       topics: rowsAsked === 'none' ? [] : topics,
+      ...(total === null
+        ? {}
+        : {
+            total: {
+              prompt_count: total.prompt_count,
+              last_observed_at: total.last_observed_at,
+              last_valid_at: total.last_valid_at,
+              engines: total.engines,
+            },
+          }),
+      ...(coMentions === null ? {} : { co_mentions: coMentions }),
     };
     return HttpResponse.json({ data: summary });
   }),
