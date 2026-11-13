@@ -2,8 +2,8 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, type BrowserContext, type Locator, type Page } from '@playwright/test';
 
 import { waitForContent } from '../support';
-import { MOCK_USERS } from '../../src/mocks/fixtures';
-import { LAYOUTS_COOKIE } from '../../src/mocks/session';
+import { MOCK_USERS, MOCK_WORKSPACE } from '../../src/mocks/fixtures';
+import { LAYOUTS_COOKIE, LAYOUTS_FAULT_COOKIE } from '../../src/mocks/session';
 import { preferenceKey } from '../../src/lib/preferences/storage';
 
 /**
@@ -17,6 +17,8 @@ export const LAYOUTS_PAGE = '/design-system/layouts-live';
 export const EDITOR = 'priya@digibranders.test';
 /** An admin: may also set and remove the team default. */
 export const ADMIN = 'tomas@digibranders.test';
+/** A viewer: never customized anything, and sees the layout that counts for them. */
+export const VIEWER = 'mei@digibranders.test';
 
 export const WIDTHS = [390, 768, 1024, 1280] as const;
 export const THEMES = ['light', 'dark'] as const;
@@ -106,6 +108,8 @@ export interface OpenOptions {
   density?: Density;
   /** Who is signed in, for the density they chose. */
   as?: string;
+  /** How many cards the page holds once it has loaded, for a person whose layout is not the built-in one. */
+  cards?: number;
 }
 
 /** What a person has chosen under Preferences, kept in this browser under their id (`lib/preferences`). */
@@ -147,7 +151,7 @@ export async function waitForScreen(
 
 /** Opens the specimen page, signed in by the caller, at a width and a theme, scoped to a project. */
 export async function openLayouts(page: Page, options: OpenOptions = {}): Promise<void> {
-  const { theme = 'light', width = 1280, height = 1100, project = 'Fynix', density, as = EDITOR } = options;
+  const { theme = 'light', width = 1280, height = 1100, project = 'Fynix', density, as = EDITOR, cards } = options;
   await page.addInitScript(
     ([key, value]) => {
       localStorage.setItem(key, value);
@@ -157,7 +161,7 @@ export async function openLayouts(page: Page, options: OpenOptions = {}): Promis
   if (density !== undefined) await chooseDensity(page, as, density);
   await page.setViewportSize({ width, height });
   await page.goto(LAYOUTS_PAGE);
-  await waitForScreen(page, project);
+  await waitForScreen(page, project, cards);
 }
 
 /** Loads the page again, the way a person does, and waits for the specimen. */
@@ -383,6 +387,76 @@ export async function expireLayouts(context: BrowserContext): Promise<void> {
           [LAYOUTS_COOKIE, MSW_COOKIE_STORE] as const,
         ),
       ),
+  );
+}
+
+/**
+ * Starts `to` from the layouts `from` has stored. A second browser context has a jar of its own, so a second
+ * person only sees what the first saved when the layouts cookie is carried over. The page `to` must not have saved a
+ * layout of its own yet: what the mock worker keeps from its own answers wins over the jar (`expireLayouts`).
+ */
+export async function copyLayouts(from: Page, to: Page): Promise<void> {
+  const raw = await from.evaluate((name) => {
+    const entry = document.cookie.split('; ').find((cookie) => cookie.startsWith(`${name}=`));
+    return entry === undefined ? null : entry.slice(name.length + 1);
+  }, LAYOUTS_COOKIE);
+  await to.evaluate(
+    ([name, value]) => {
+      document.cookie =
+        value === null ? `${name}=; Path=/; Secure; Max-Age=0` : `${name}=${value}; Path=/; Secure; SameSite=Lax`;
+    },
+    [LAYOUTS_COOKIE, raw] as const,
+  );
+}
+
+/**
+ * Saves a team default for the overview as someone else would, behind the back of the open page: the page's own
+ * save also removes the saver's personal layout, and another admin's save does not. The page keeps the ETag it read, so
+ * its next write meets a 412. The request goes through the page, so the mock worker answers it like any other.
+ */
+export async function saveTeamDefaultElsewhere(page: Page, layout: unknown): Promise<void> {
+  const address = `/api/v1/workspaces/${MOCK_WORKSPACE.workspace_id}/layouts/overview`;
+  const statuses = await page.evaluate(
+    async ([url, body]) => {
+      const read = await fetch(url);
+      const write = await fetch(`${url}/default`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json', 'if-match': read.headers.get('etag') ?? '' },
+        body,
+      });
+      return [read.status, write.status];
+    },
+    [address, JSON.stringify(layout)] as const,
+  );
+  expect(statuses, 'the team default was saved behind the page').toEqual([200, 200]);
+}
+
+/** The addresses of the layout writes (PUT) the page sends from now on, in order: personal ones and team ones. */
+export function watchLayoutWrites(page: Page): string[] {
+  const writes: string[] = [];
+  page.on('request', (request) => {
+    if (request.method() === 'PUT' && request.url().includes('/layouts/')) writes.push(new URL(request.url()).pathname);
+  });
+  return writes;
+}
+
+export const PERSONAL_WRITE = `/api/v1/workspaces/${MOCK_WORKSPACE.workspace_id}/me/layouts/overview`;
+export const TEAM_WRITE = `/api/v1/workspaces/${MOCK_WORKSPACE.workspace_id}/layouts/overview/default`;
+
+// -------------------------------------------------------------------------------------------------
+// Failures
+
+/**
+ * Makes the layout reads (`read`) or the layout writes (`save`) of this browser answer 500, or stops it (`null`).
+ * The mock reads the fault cookie on every request, so it takes effect at once; the context is fresh for each test.
+ */
+export async function setLayoutsFault(page: Page, fault: 'read' | 'save' | null): Promise<void> {
+  await page.evaluate(
+    ([name, value]) => {
+      document.cookie =
+        value === null ? `${name}=; Path=/; Secure; Max-Age=0` : `${name}=${value}; Path=/; Secure; SameSite=Lax`;
+    },
+    [LAYOUTS_FAULT_COOKIE, fault] as const,
   );
 }
 

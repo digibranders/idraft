@@ -117,6 +117,7 @@ const PROBLEMS = {
   weak_password: [422, 'Password is not strong enough'],
   rate_limited: [429, 'Too many requests'],
   manual_run_limit: [429, 'Too many manual runs today'],
+  internal_error: [500, 'Internal error'],
   raw_unavailable: [503, 'The raw answer is not available now'],
   provider_paused: [503, 'The data provider is paused'],
   integration_reauth_required: [409, 'The connection needs to be renewed'],

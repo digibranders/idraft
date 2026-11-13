@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Browser, type BrowserContext, type Locator, type Page } from '@playwright/test';
 
 import { signIn } from '../support';
 import {
@@ -6,12 +6,16 @@ import {
   BUILTIN_CARDS,
   BUILTIN_NUMBERS,
   BUILTIN_NUMBER_LABELS,
+  CARDS_WITHOUT_AI,
   DENSITIES,
   EDITOR,
   LAYOUTS_PAGE,
   NEW_CARD_ID,
   NEW_NUMBER_ID,
+  PERSONAL_WRITE,
+  TEAM_WRITE,
   THEMES,
+  VIEWER,
   WIDTHS,
   addCardSlot,
   addNumberSlot,
@@ -21,6 +25,7 @@ import {
   cardOrder,
   cardPart,
   chooseProject,
+  copyLayouts,
   customizeButton,
   customizeSpecimen,
   dragByKeyboard,
@@ -37,9 +42,12 @@ import {
   pickedUpText,
   reloadLayouts,
   saveBar,
+  saveTeamDefaultElsewhere,
+  setLayoutsFault,
   storedLayouts,
   toastOf,
   waitForAnnouncement,
+  watchLayoutWrites,
 } from '../support/layouts';
 
 /**
@@ -48,7 +56,8 @@ import {
  * the saved layouts in the `mock-layouts` cookie. Every test gets a browser context of its own, so none sees the
  * layouts another saved. jsdom has no layout, no focus order, no history and no media queries, so the saved layout
  * across a reload, the project select, the leave guard, the phone, the reduced motion setting, the Tab order and the
- * page's accessibility are checked here. The team default, a second member, the 412 and the failures are part 2.
+ * page's accessibility are checked here. The team default, a second member, the 412, the project without AI and the
+ * read and save failures (the `mock-layouts-fault` cookie) close the file.
  */
 test.describe.configure({ timeout: 90_000 });
 
@@ -84,11 +93,11 @@ async function hideCompetitors(page: Page): Promise<void> {
   await expectCardOrder(page, WITHOUT_COMPETITORS);
 }
 
-/** Moves Key changes to the start through its More menu. */
-async function moveKeyChangesFirst(page: Page): Promise<void> {
+/** Moves Key changes to the start through its More menu, on a page of `total` cards. */
+async function moveKeyChangesFirst(page: Page, total = 7): Promise<void> {
   await cardPart(page, 'key-changes', 'more').click();
   await page.getByRole('menuitem', { name: 'Move to start', exact: true }).click();
-  await waitForAnnouncement(page, 'Key changes, position 1 of 7');
+  await waitForAnnouncement(page, `Key changes, position 1 of ${String(total)}`);
 }
 
 /** Moves Top 10 one place on, with the keyboard. */
@@ -733,5 +742,384 @@ test.describe('the Tab walk', () => {
       'Cancel',
       'More save options',
     ]);
+  });
+});
+
+// -------------------------------------------------------------------------------------------------
+// The team default
+
+/** The built-in cards with Key changes first: the overview as the team and conflict tests save it. */
+const KEY_CHANGES_FIRST_OF_8 = ['key-changes', ...BUILTIN_CARDS.filter((id) => id !== 'key-changes')];
+/** A team default another admin saved: two cards and a number, nothing like the built-in layout. */
+const OTHER_TEAM_DEFAULT = {
+  schema: 1,
+  numbers: [{ id: 'other-n1', metric: 'seo.top10_count' }],
+  cards: [
+    { id: 'other-c1', type: 'seo.rank_distribution', width: 'half' },
+    { id: 'other-c2', type: 'activity.key_changes', width: 'half' },
+  ],
+};
+
+const teamMenu = (page: Page): Locator => barButton(page, 'More save options');
+const conflictDialog = (page: Page): Locator =>
+  page.getByRole('dialog', { name: 'This layout was changed somewhere else.', exact: true });
+const conflictAnswer = (page: Page, name: string): Locator =>
+  conflictDialog(page).getByRole('button', { name, exact: true });
+
+/** Asks for the draft to be the team default through the chevron of the save bar and answers its question. */
+async function requestTeamDefault(page: Page): Promise<void> {
+  await askTeam(page, 'Save as team default');
+  const confirm = page.getByRole('alertdialog', { name: 'Set this as the default for everyone in Digibranders?' });
+  await expect(confirm).toBeVisible();
+  await confirm.getByRole('button', { name: 'Set team default', exact: true }).click();
+}
+
+/** Sets the draft as the team default and waits until it is saved: a page loaded sooner would cut the write off. */
+async function setTeamDefault(page: Page): Promise<void> {
+  await requestTeamDefault(page);
+  await waitForAnnouncement(page, 'Team default set');
+}
+
+/** Removes the team default through the same menu and its question. */
+async function removeTeamDefault(page: Page): Promise<void> {
+  await askTeam(page, 'Remove team default');
+  const confirm = page.getByRole('alertdialog', { name: 'Remove the team default?', exact: true });
+  await expect(confirm).toBeVisible();
+  await confirm.getByRole('button', { name: 'Remove team default', exact: true }).click();
+}
+
+async function askTeam(page: Page, item: string): Promise<void> {
+  await teamMenu(page).click();
+  await page.getByRole('menuitem', { name: item, exact: true }).click();
+}
+
+/** Runs `run` for a person in a browser context of their own, so two people can be at the screen at once. */
+async function asPerson(browser: Browser, email: string, run: (page: Page) => Promise<void>): Promise<void> {
+  const context = await browser.newContext();
+  try {
+    const page = await context.newPage();
+    await signIn(page, email);
+    await run(page);
+  } finally {
+    await context.close();
+  }
+}
+
+const teamRows = async (page: Page): Promise<string[]> => Object.keys((await storedLayouts(page))?.team ?? {});
+
+test.describe('the team default', () => {
+  test.beforeEach(async ({ page }) => {
+    await signIn(page, ADMIN);
+  });
+
+  test('an admin sets the team default; a member who never customized sees it; Remove team default restores the built-in', async ({
+    page,
+    browser,
+  }) => {
+    await openLayouts(page, { as: ADMIN });
+    await openCustomize(page);
+    await hideCompetitors(page);
+    await setTeamDefault(page);
+    await waitForAnnouncement(page, 'Team default set');
+    await expect(toastOf(page, 'Team default set')).toContainText('now opens with this layout for Digibranders.');
+    await expect(saveBar(page)).toHaveCount(0);
+    expect(await teamRows(page)).toEqual(['overview']);
+
+    await asPerson(browser, VIEWER, async (member) => {
+      // Mei never customized: the team default is what the page opens with for her
+      await copyLayouts(page, member);
+      await openLayouts(member, { as: VIEWER, cards: 7 });
+      await expectCardOrder(member, WITHOUT_COMPETITORS);
+
+      await reloadLayouts(page, 'Fynix', 7);
+      await openCustomize(page);
+      await removeTeamDefault(page);
+      await expect(toastOf(page, 'Team default removed')).toBeVisible();
+      // No changes were made, so the mode ends and the page shows the built-in layout again
+      await expect(saveBar(page)).toHaveCount(0);
+      await expectCardOrder(page, BUILTIN_CARDS);
+      expect(await teamRows(page)).toEqual([]);
+
+      await copyLayouts(page, member);
+      await reloadLayouts(member);
+      await expectCardOrder(member, BUILTIN_CARDS);
+    });
+  });
+
+  test("the admin's own personal layout goes when the team default is set", async ({ page }) => {
+    await openLayouts(page, { as: ADMIN });
+    await openCustomize(page);
+    await hideCompetitors(page);
+    await save(page);
+    expect(personalScreens(await storedLayouts(page))).toEqual(['overview']);
+
+    await reloadLayouts(page, 'Fynix', 7);
+    await openCustomize(page);
+    await moveKeyChangesFirst(page);
+    await setTeamDefault(page);
+    await waitForAnnouncement(page, 'Team default set');
+    const stored = await storedLayouts(page);
+    expect(personalScreens(stored)).toEqual([]);
+    expect(await teamRows(page)).toEqual(['overview']);
+
+    // The personal layout (Key changes in its old place) would win if it were still there
+    await reloadLayouts(page, 'Fynix', 7);
+    await expectCardOrder(page, KEY_CHANGES_FIRST);
+  });
+
+  test('Your layout differs from the team default shows for a personal layout, and not for the team layout itself', async ({
+    page,
+  }) => {
+    const scope = 'Applies to your view, in every project';
+    const differs = 'Your layout differs from the team default. It applies to your view, in every project';
+    await openLayouts(page, { as: ADMIN });
+    await openCustomize(page);
+    await hideCompetitors(page);
+    await setTeamDefault(page);
+
+    // The team layout is the person's layout now: nothing to differ from
+    await reloadLayouts(page, 'Fynix', 7);
+    await openCustomize(page);
+    await expect(saveBar(page).getByText(scope, { exact: true })).toBeVisible();
+    await expect(saveBar(page).getByText(differs, { exact: true })).toHaveCount(0);
+    await moveKeyChangesFirst(page);
+    await save(page);
+    expect(personalScreens(await storedLayouts(page))).toEqual(['overview']);
+
+    // A personal layout over a team default says so, in full as the title and where the room allows as text
+    await reloadLayouts(page, 'Fynix', 7);
+    await openCustomize(page);
+    await expect(saveBar(page).locator(`[title="${differs}"]`)).toHaveCount(1);
+    await expect(saveBar(page).getByText(differs, { exact: true })).toBeVisible();
+    await expect(saveBar(page).getByText(scope, { exact: true })).toHaveCount(0);
+  });
+
+  test('412 on the team default: Load the other version shows the team document, not the admin own layout', async ({
+    page,
+  }) => {
+    // The admin has a personal layout, which wins over any team default
+    await openLayouts(page, { as: ADMIN });
+    await openCustomize(page);
+    await hideCompetitors(page);
+    await moveKeyChangesFirst(page);
+    await save(page);
+    await reloadLayouts(page, 'Fynix', 7);
+    await expectCardOrder(page, KEY_CHANGES_FIRST);
+    await openCustomize(page);
+    await hideButton(page, 'Rank distribution').click();
+    await waitForAnnouncement(page, 'Rank distribution hidden. Add it back from the catalog.');
+
+    // Another admin saves a team default meanwhile: the page holds the ETag of the layout as it read it
+    await saveTeamDefaultElsewhere(page, OTHER_TEAM_DEFAULT);
+    const writes = watchLayoutWrites(page);
+    await requestTeamDefault(page);
+    await expect(conflictDialog(page)).toBeVisible();
+    expect(writes).toEqual([TEAM_WRITE]);
+    await expect(toastOf(page, 'Team default set')).toHaveCount(0);
+
+    await conflictAnswer(page, 'Load the other version').click();
+    await expect(conflictDialog(page)).toBeHidden();
+    // The team document, not the personal layout the page reads for this person
+    await expectCardOrder(page, ['other-c1', 'other-c2']);
+    await expectNumberOrder(page, ['other-n1']);
+    await expect(saveBar(page).getByText('No changes', { exact: true })).toBeVisible();
+    expect(writes).toEqual([TEAM_WRITE]);
+    // The admin's own layout is untouched
+    expect(personalScreens(await storedLayouts(page))).toEqual(['overview']);
+  });
+});
+
+test.describe('a member', () => {
+  test.beforeEach(async ({ page }) => {
+    await signIn(page, EDITOR);
+  });
+
+  test('has no team menu: Save layout is the only way to save, with no chevron', async ({ page }) => {
+    await openLayouts(page);
+    await openCustomize(page);
+    await hideCompetitors(page);
+    await expect(barButton(page, 'Save layout')).toBeEnabled();
+    await expect(teamMenu(page)).toHaveCount(0);
+    const names = await saveBar(page)
+      .getByRole('button')
+      .evaluateAll((nodes) => nodes.map((node) => node.getAttribute('aria-label') ?? (node.textContent ?? '').trim()));
+    expect(names).toEqual(['Undo', 'Redo', 'Start from', 'Reset to default', 'Cancel', 'Save layout']);
+  });
+});
+
+// -------------------------------------------------------------------------------------------------
+// A layout changed somewhere else (412)
+
+test.describe('a layout changed in another tab', () => {
+  test.beforeEach(async ({ page }) => {
+    await signIn(page, EDITOR);
+  });
+
+  /**
+   * This tab holds a draft (Key changes first) made on the layout as it read it; another tab of the same person then
+   * saves its own (Competitors hidden), so the ETag of this tab is stale.
+   */
+  async function anotherTabSaves(page: Page, context: BrowserContext): Promise<void> {
+    await openLayouts(page);
+    await openCustomize(page);
+    await moveKeyChangesFirst(page, 8);
+    const other = await context.newPage();
+    try {
+      await openLayouts(other);
+      await openCustomize(other);
+      await hideCompetitors(other);
+      await save(other);
+    } finally {
+      await other.close();
+    }
+  }
+
+  test('412: Save opens the dialog, a second Save sends no write, and Keep mine wins after a reload', async ({
+    page,
+    context,
+  }) => {
+    await anotherTabSaves(page, context);
+    const writes = watchLayoutWrites(page);
+
+    await barButton(page, 'Save layout').click();
+    await expect(conflictDialog(page)).toBeVisible();
+    await expect(conflictDialog(page)).toContainText('Saved by Priya Natarajan');
+    expect(writes).toEqual([PERSONAL_WRITE]);
+
+    // Put the question away: the draft stays, and the conflict is still open
+    await expect(conflictAnswer(page, 'Load the other version')).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(conflictDialog(page)).toBeHidden();
+    await expect(saveBar(page)).toBeVisible();
+    await expectCardOrder(page, KEY_CHANGES_FIRST_OF_8);
+
+    // A second Save asks again. A write would carry the ETag read after the 412 and overwrite the other tab unasked
+    await barButton(page, 'Save layout').click();
+    await expect(conflictDialog(page)).toBeVisible();
+    // A write the click wrongly sent would be on its way by now; a silence of this long is the proof
+    await page.waitForTimeout(400);
+    expect(writes).toEqual([PERSONAL_WRITE]);
+
+    await conflictAnswer(page, 'Keep mine').click();
+    await waitForAnnouncement(page, 'Layout saved');
+    await expect(saveBar(page)).toHaveCount(0);
+    expect(writes).toEqual([PERSONAL_WRITE, PERSONAL_WRITE]);
+
+    // Mine won: Key changes first, and Competitors is back, which the other tab had hidden
+    await reloadLayouts(page, 'Fynix', 8);
+    await expectCardOrder(page, KEY_CHANGES_FIRST_OF_8);
+  });
+
+  test("412: Load the other version shows the other tab's layout, keeps the mode and writes nothing", async ({
+    page,
+    context,
+  }) => {
+    await anotherTabSaves(page, context);
+    const writes = watchLayoutWrites(page);
+
+    await barButton(page, 'Save layout').click();
+    await expect(conflictDialog(page)).toBeVisible();
+    await conflictAnswer(page, 'Load the other version').click();
+    await expect(conflictDialog(page)).toBeHidden();
+
+    await expectCardOrder(page, WITHOUT_COMPETITORS);
+    await expect(saveBar(page).getByText('No changes', { exact: true })).toBeVisible();
+    await expect(barButton(page, 'Save layout')).toBeDisabled();
+    await expect(cardPart(page, 'trend', 'handle')).toBeVisible();
+    expect(writes).toEqual([PERSONAL_WRITE]);
+  });
+});
+
+// -------------------------------------------------------------------------------------------------
+// A card the project cannot show
+
+test.describe('a project without AI tracking', () => {
+  test.beforeEach(async ({ page }) => {
+    await signIn(page, EDITOR);
+  });
+
+  test('a card unavailable in a project (Cleanstart tracks no AI engine) is a placeholder in customize mode and skipped in view', async ({
+    page,
+  }) => {
+    const placeholders = cardGrid(page).locator('[data-slot="unavailable-card"]');
+    await openLayouts(page, { project: 'Cleanstart' });
+    await expectCardOrder(page, CARDS_WITHOUT_AI);
+    await expect(placeholders).toHaveCount(0);
+
+    await openCustomize(page);
+    await expectCardOrder(page, BUILTIN_CARDS);
+    const missing = BUILTIN_CARDS.filter((id) => !CARDS_WITHOUT_AI.some((shown) => shown === id));
+    expect(missing).toHaveLength(4);
+    await expect(placeholders).toHaveCount(missing.length);
+    for (const id of missing) {
+      // A placeholder says why, keeps the card's toolbar and takes no data
+      await expect(card(page, id).locator('[data-slot="unavailable-card"]')).toContainText(
+        /tracking (is|are) off in this project/,
+      );
+      await expect(card(page, id).locator('[data-slot="unavailable-card"]')).toContainText(
+        'This card shows in projects that have what it needs.',
+      );
+      await expect(cardPart(page, id, 'handle')).toBeVisible();
+    }
+
+    await barButton(page, 'Cancel').click();
+    await expect(saveBar(page)).toHaveCount(0);
+    await expectCardOrder(page, CARDS_WITHOUT_AI);
+    await expect(placeholders).toHaveCount(0);
+  });
+});
+
+// -------------------------------------------------------------------------------------------------
+// Failures
+
+test.describe('a layout that cannot be read or saved', () => {
+  test.beforeEach(async ({ page }) => {
+    await signIn(page, EDITOR);
+  });
+
+  test('a read failure shows the default with the banner and Customize disabled; Retry recovers', async ({ page }) => {
+    const banner = customizeSpecimen(page).getByText('Your layout could not be loaded. Showing the default.', {
+      exact: true,
+    });
+    await setLayoutsFault(page, 'read');
+    await openLayouts(page);
+    await expect(banner).toBeVisible();
+    await expectCardOrder(page, BUILTIN_CARDS);
+    await expect(customizeButton(page)).toBeDisabled();
+    await expect(saveBar(page)).toHaveCount(0);
+
+    // The fault is gone, and Retry reads again
+    await setLayoutsFault(page, null);
+    await customizeSpecimen(page).getByRole('button', { name: 'Try again', exact: true }).click();
+    await expect(banner).toHaveCount(0);
+    await expect(customizeButton(page)).toBeEnabled();
+    await openCustomize(page);
+    await expectCardOrder(page, BUILTIN_CARDS);
+  });
+
+  test('a save failure shows Could not save. Try again. and keeps the draft and the mode', async ({ page }) => {
+    await openLayouts(page);
+    await openCustomize(page);
+    await hideCompetitors(page);
+    await setLayoutsFault(page, 'save');
+    const writes = watchLayoutWrites(page);
+
+    await barButton(page, 'Save layout').click();
+    await expect(saveBar(page).getByText('Could not save. Try again.', { exact: true })).toBeVisible();
+    expect(writes).toEqual([PERSONAL_WRITE]);
+    // Nothing was stored, and the draft and the mode are as they were
+    expect(personalScreens(await storedLayouts(page))).toEqual([]);
+    await expect(saveBar(page)).toBeVisible();
+    await expect(customizeButton(page)).toHaveAttribute('aria-pressed', 'true');
+    await expectCardOrder(page, WITHOUT_COMPETITORS);
+    await expect(saveBar(page).getByText('1 change', { exact: true })).toBeVisible();
+    await expect(barButton(page, 'Save layout')).toBeEnabled();
+
+    // Try again, once the fault is gone: the same draft is saved
+    await setLayoutsFault(page, null);
+    await save(page);
+    expect(personalScreens(await storedLayouts(page))).toEqual(['overview']);
+    await reloadLayouts(page, 'Fynix', 7);
+    await expectCardOrder(page, WITHOUT_COMPETITORS);
   });
 });

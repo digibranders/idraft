@@ -1,10 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 
-import { LAYOUTS_COOKIE } from '../session';
 import { jsonCookie } from '../cookie-json';
 import { MOCK_WORKSPACE, mockUser } from '../fixtures';
-import { SESSION_COOKIE } from '../session';
+import { LAYOUTS_COOKIE, LAYOUTS_FAULT_COOKIE, MOCK_COOKIES, SESSION_COOKIE } from '../session';
 import type { Role, Schemas } from '@/lib/api/types';
 import { resolvedLayoutScreenValues } from '@/lib/api/schema';
 import { TEST_API_ORIGIN } from '@/test/api-server';
@@ -344,6 +343,64 @@ describe('team_document', () => {
     expect(layoutOf(team).team_document).toEqual(SERVED_HALF);
     const mine = await send('viewer', jar, 'PUT', ME, { body: DOC_FULL });
     expect(layoutOf(mine).team_document).toEqual(SERVED_HALF);
+  });
+});
+
+describe('the fault cookie', () => {
+  const fault = (value: string): Jar => new Map([[LAYOUTS_FAULT_COOKIE, value]]);
+
+  it('read makes GET answer 500 with a problem, and leaves the writes alone', async () => {
+    const jar = fault('read');
+    const read = await send('viewer', jar, 'GET', READ);
+    expect(read).toMatchObject({ status: 500, code: 'internal_error' });
+    expect(read.body).toMatchObject({ title: 'Internal error', status: 500, instance: READ });
+    expect((await send('viewer', jar, 'PUT', ME, { body: DOC_HALF })).status).toBe(200);
+    expect((await send('viewer', jar, 'DELETE', ME)).status).toBe(204);
+  });
+
+  it('save makes PUT and DELETE answer 500, the team routes included, and writes nothing', async () => {
+    const jar = fault('save');
+    expect(await send('viewer', jar, 'PUT', ME, { body: DOC_HALF })).toMatchObject({
+      status: 500,
+      code: 'internal_error',
+    });
+    expect(await send('viewer', jar, 'DELETE', ME)).toMatchObject({ status: 500, code: 'internal_error' });
+    expect(await send('admin', jar, 'PUT', TEAM, { body: DOC_HALF })).toMatchObject({
+      status: 500,
+      code: 'internal_error',
+    });
+    expect(await send('admin', jar, 'DELETE', TEAM)).toMatchObject({ status: 500, code: 'internal_error' });
+    // Reading still works, and nothing was stored by the writes that failed
+    const read = await send('admin', jar, 'GET', READ);
+    expect(read.status).toBe(200);
+    expect(layoutOf(read)).toMatchObject({ source: 'builtin', team_default_exists: false });
+  });
+
+  it('is not read before the caller is known: a request without a session is still a 401', async () => {
+    const response = await fetch(`${TEST_API_ORIGIN}${READ}`, {
+      headers: { cookie: `${LAYOUTS_FAULT_COOKIE}=read` },
+    });
+    expect(response.status).toBe(401);
+  });
+
+  it('is one of the cookies a reset expires, so a fault never outlives its test', () => {
+    expect(MOCK_COOKIES).toContain(LAYOUTS_FAULT_COOKIE);
+  });
+
+  it('without the cookie nothing changes', async () => {
+    const jar: Jar = new Map();
+    const saved = await send('viewer', jar, 'PUT', ME, { body: DOC_HALF });
+    expect(saved.status).toBe(200);
+    expect(layoutOf(await send('viewer', jar, 'GET', READ)).source).toBe('personal');
+    expect((await send('viewer', jar, 'DELETE', ME)).status).toBe(204);
+  });
+
+  it('a malformed cookie is ignored', async () => {
+    for (const value of ['', 'both', 'READ', 'read,save', 'true']) {
+      const jar = fault(value);
+      expect((await send('viewer', jar, 'GET', READ)).status, `GET with "${value}"`).toBe(200);
+      expect((await send('viewer', jar, 'PUT', ME, { body: DOC_HALF })).status, `PUT with "${value}"`).toBe(200);
+    }
   });
 });
 

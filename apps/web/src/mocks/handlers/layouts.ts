@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { workspaceCaller } from './access';
 import { jsonCookie, readJsonCookie } from '../cookie-json';
 import { invalid, invalidField, mock, noContent, problem } from '../respond';
-import { LAYOUTS_COOKIE } from '../session';
+import { LAYOUTS_COOKIE, LAYOUTS_FAULT_COOKIE, cookieOf } from '../session';
 import type { Problem, Schemas, ValidationItem } from '@/lib/api/types';
 import {
   ENGINES,
@@ -95,6 +95,20 @@ type Cookies = Readonly<Record<string, string>>;
 type Answer = HttpResponse<Schemas['ResolvedLayoutResponse'] | Problem>;
 
 const readState = (cookies: Cookies): State => readJsonCookie(cookies, LAYOUTS_COOKIE, STATE, EMPTY_STATE);
+
+const FAULT = z.enum(['read', 'save']);
+
+/**
+ * A `500` when the fault cookie asks for this kind of failure (`read` for the `GET`, `save` for every write). It
+ * exists for the e2e of the layout failures; a value that is not one of the two is ignored, as a hand edited cookie
+ * always is. Like the rest of the mock it only runs where API mocking is on.
+ */
+function fault(request: Request, cookies: Cookies, kind: z.infer<typeof FAULT>): HttpResponse<Problem> | null {
+  const asked = FAULT.safeParse(cookieOf(cookies, LAYOUTS_FAULT_COOKIE));
+  return asked.success && asked.data === kind
+    ? problem(request, 'internal_error', { detail: `The ${LAYOUTS_FAULT_COOKIE} cookie makes this ${kind} fail.` })
+    : null;
+}
 
 const pathOf = (path: readonly PropertyKey[]): string => path.map(String).join('.');
 const bodyItem = (path: string, code: string, message: string): ValidationItem => ({
@@ -299,6 +313,8 @@ async function readBody(request: Request): Promise<unknown> {
 function read(request: Request, cookies: Cookies, workspaceId: Param, screenParam: Param): Answer {
   const caller = workspaceCaller(request, cookies, workspaceId, { permission: null });
   if (caller instanceof Response) return caller;
+  const failed = fault(request, cookies, 'read');
+  if (failed !== null) return failed;
   const pathErrors = screenKeyErrors(screenParam);
   if (pathErrors.length > 0) return invalid(request, pathErrors);
   const screen = screenOf(screenParam);
@@ -316,6 +332,8 @@ async function save(
 ): Promise<Answer> {
   const caller = workspaceCaller(request, cookies, workspaceId, { permission: team ? 'layouts:manage' : null });
   if (caller instanceof Response) return caller;
+  const failed = fault(request, cookies, 'save');
+  if (failed !== null) return failed;
   const ifMatch = request.headers.get('if-match');
   const body = await readBody(request);
   const shape = body === undefined ? { errors: [bodyItem('', 'json_invalid', 'Invalid JSON.')] } : shapeErrors(body);
@@ -378,6 +396,8 @@ function remove(
 ): HttpResponse<null> | HttpResponse<Problem> {
   const caller = workspaceCaller(request, cookies, workspaceId, { permission: team ? 'layouts:manage' : null });
   if (caller instanceof Response) return caller;
+  const failed = fault(request, cookies, 'save');
+  if (failed !== null) return failed;
   const pathErrors = screenKeyErrors(screenParam);
   if (pathErrors.length > 0) return invalid(request, pathErrors);
   const screen = screenOf(screenParam);

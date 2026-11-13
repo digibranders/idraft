@@ -106,6 +106,11 @@ export const ENTITIES_COOKIE = 'mock-entities';
 export const KEYWORDS_COOKIE = 'mock-keywords';
 /** What a browser saved in the layouts: the personal layouts of each person and the team defaults (./handlers/layouts.ts). */
 export const LAYOUTS_COOKIE = 'mock-layouts';
+/**
+ * `read` or `save` makes the layouts reads, or the layouts writes, answer 500 (./handlers/layouts.ts). It exists for
+ * the e2e of the layout failures, which set it from the browser; nothing in the app writes it.
+ */
+export const LAYOUTS_FAULT_COOKIE = 'mock-layouts-fault';
 /** What a browser changed in the schedules and runs (./operations-state.ts). */
 export const OPERATIONS_COOKIE = 'mock-operations';
 /** What a browser changed in the Google connections and the properties linked to projects (./integrations-state.ts). */
@@ -129,6 +134,7 @@ export const MOCK_COOKIES: readonly string[] = [
   INTEGRATIONS_COOKIE,
   GOOGLE_GRANT_COOKIE,
   LAYOUTS_COOKIE,
+  LAYOUTS_FAULT_COOKIE,
 ];
 
 /** The `Set-Cookie` that expires cookie `name`. */
