@@ -7,8 +7,9 @@ import {
   type KeywordWorkspaceCaller,
   type ScheduleCheck,
 } from './keyword-rules';
+import { currentBudgets } from '../ai-health-model';
 import { runMicros, runState } from '../factories/operations';
-import { KEYWORD_OVERVIEW_ENDPOINT, MOCK_BUDGETS, type BudgetGroup, type StoredBudget } from '../operations-fixtures';
+import { KEYWORD_OVERVIEW_ENDPOINT, type BudgetGroup, type StoredBudget } from '../operations-fixtures';
 import {
   OPERATIONS_COOKIE,
   operationIdMinter,
@@ -247,34 +248,36 @@ export function budgetReadings(
   visible: ReadonlySet<string> | null,
 ): BudgetReading[] {
   const events = costEvents(world, now).filter((event) => event.day.startsWith(month));
-  return MOCK_BUDGETS.filter(
-    (budget) =>
-      budget.workspace_id === scope.workspaceId &&
-      (visible === null || (budget.project_id !== null && visible.has(budget.project_id))),
-  ).map((budget) => {
-    const spentMicros = events
-      .filter((event) => counts(budget, scope, event.project_id, event.workload))
-      .reduce((sum, event) => sum + event.micros, 0);
-    // What the runs under way are still expected to spend: their estimate, as they have not been charged yet
-    const committedMicros = world.runs
-      .filter((run) => counts(budget, scope, run.project_id, run.workload))
-      .filter((run) => {
-        const { status } = runState(run, now);
-        return status === 'planned' || status === 'running';
-      })
-      .reduce((sum, run) => sum + runMicros(run, run.calls, run.tasks_total), 0);
-    const limit = microsOfUsd(budget.limit_usd);
-    const state =
-      spentMicros >= limit
-        ? 'hard_exceeded'
-        : spentMicros * 100 >= limit * budget.soft_limit_pct
-          ? 'soft_exceeded'
-          : 'ok';
-    const blockedRuns = world.runs.filter(
-      (run) => run.blocked_by_budget_id === budget.budget_id && run.created_at.startsWith(month),
-    ).length;
-    return { budget, spentMicros, committedMicros, state, blockedRuns };
-  });
+  return currentBudgets()
+    .filter(
+      (budget) =>
+        budget.workspace_id === scope.workspaceId &&
+        (visible === null || (budget.project_id !== null && visible.has(budget.project_id))),
+    )
+    .map((budget) => {
+      const spentMicros = events
+        .filter((event) => counts(budget, scope, event.project_id, event.workload))
+        .reduce((sum, event) => sum + event.micros, 0);
+      // What the runs under way are still expected to spend: their estimate, as they have not been charged yet
+      const committedMicros = world.runs
+        .filter((run) => counts(budget, scope, run.project_id, run.workload))
+        .filter((run) => {
+          const { status } = runState(run, now);
+          return status === 'planned' || status === 'running';
+        })
+        .reduce((sum, run) => sum + runMicros(run, run.calls, run.tasks_total), 0);
+      const limit = microsOfUsd(budget.limit_usd);
+      const state =
+        spentMicros >= limit
+          ? 'hard_exceeded'
+          : spentMicros * 100 >= limit * budget.soft_limit_pct
+            ? 'soft_exceeded'
+            : 'ok';
+      const blockedRuns = world.runs.filter(
+        (run) => run.blocked_by_budget_id === budget.budget_id && run.created_at.startsWith(month),
+      ).length;
+      return { budget, spentMicros, committedMicros, state, blockedRuns };
+    });
 }
 
 /** The budget a new run of `estimateMicros` would go over, if its hard limit pauses runs (pre-flight). */
