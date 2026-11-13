@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T06:31:54+05:30",
+ "updated": "2026-11-13T06:49:17+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -587,7 +587,7 @@
     "done": 5
    },
    "owner": "",
-   "notes": "file work-packages/WP-14-sources-lane.md; estimate 8 tasks; decisions D-41"
+   "notes": "file work-packages/WP-14-sources-lane.md; estimate 8 tasks; decisions D-41 | steps 1/10, rows 0/21; no migration; 3 new routes; O1 approved (exclude flagged by default, own commit)"
   },
   {
    "id": "WP-15",
@@ -2902,7 +2902,7 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-57-retrieval-fanout.md; estimate 8 tasks; decisions none"
+   "notes": "file work-packages/WP-57-retrieval-fanout.md; estimate 8 tasks; decisions none | from WP-14: ai_parse.py _bounded fix lands first (T8b); rebase onto it"
   },
   {
    "id": "WP-58",
@@ -4034,6 +4034,27 @@
    "granted": "2026-11-13T05:57:38+05:30",
    "scope": "additive under common.dataTableList, common.savedViewMenu, common.dateRange only",
    "until": "WP-10 merged"
+  },
+  {
+   "path": "backend/tests/security/test_cross_tenant.py",
+   "wp": "WP-14 (alongside WP-12)",
+   "granted": "2026-11-13T06:49:17+05:30",
+   "scope": "WORDS line (registrable_domain) and the fan-out QUERIES line only; everything else inside the WP-14 anchors; additive, rebase and keep both sides",
+   "until": "WP-14 merged"
+  },
+  {
+   "path": "backend/src/idraft/providers/dataforseo/ai_parse.py",
+   "wp": "WP-14 (T8b only)",
+   "granted": "2026-11-13T06:49:17+05:30",
+   "scope": "fix _bounded so the other lists are cut before the fan-out queries; WP-57 owns the retrieval part of this file and must rebase",
+   "until": "WP-14 merged"
+  },
+  {
+   "path": "backend/tests/providers/dataforseo/test_ai_parse.py",
+   "wp": "WP-14 (T8b only)",
+   "granted": "2026-11-13T06:49:17+05:30",
+   "scope": "tests for the _bounded fix",
+   "until": "WP-14 merged"
   }
  ],
  "followups": [
@@ -4139,6 +4160,17 @@
    "wp": "WP-11",
    "name": "0021_layouts",
    "status": "merged; dev DB NOT upgraded yet (needs alembic upgrade head)"
+  }
+ ],
+ "decisions_made": [
+  {
+   "id": "O1",
+   "by": "coordinator",
+   "date": "2026-11-13T06:49:17+05:30",
+   "title": "Flagged citations (unresolved redirects, engine-internal) excluded from shares by default with two toggles",
+   "reason": "doc 14 section 9 and doc 19 say so; today Gemini grounding links rank google.com as a source",
+   "effect": "changes numbers of existing source reads; its own commit T7; flipping back is one line; owner to confirm in the morning",
+   "status": "approved by coordinator, owner to confirm"
   }
  ]
 }
