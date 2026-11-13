@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T15:10:30+05:30",
+ "updated": "2026-11-13T15:11:52+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -1023,14 +1023,14 @@
    "title": "Citations tab in the prompt inspector and the Citations page (Domains, Pages)",
    "wave": "W2",
    "kind": "web",
-   "status": "not_started",
+   "status": "planning",
    "dependsOn": [
     "WP-08",
     "WP-05",
     "WP-10"
    ],
-   "session": null,
-   "branch": null,
+   "session": "wp-01-be-scaffold",
+   "branch": "ai/wp-21-citations",
    "rows": {
     "BE": [],
     "WB": [
@@ -4277,9 +4277,9 @@
  "policy": {
   "set": "2026-11-13T10:28:45+05:30",
   "by": "owner",
-  "working_sessions_max": 2,
+  "working_sessions_max": 3,
   "subagents_per_session_max": 1,
-  "rule": "Owner needs the Mac for other projects. The five sessions running now (WP-12, WP-13, WP-14, WP-15, WP-25) finish their current package; after each merges it reports and STOPS. New packages are dispatched only while fewer than 2 sessions are working, one subagent at a time, full suites only through infra/dev/heavy when the health level is OK."
+  "rule": "Owner (15:2x): add one more session, so at most 3 working sessions, one subagent each. Currently WP-16, WP-20 and WP-21."
  },
  "baselineDone": 279
 }
