@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T11:48:46+05:30",
+ "updated": "2026-11-13T12:09:13+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -428,7 +428,7 @@
    "title": "Summary additions: compare, total, rows, entities per week, co-mentions, filters",
    "wave": "W1",
    "kind": "backend",
-   "status": "building",
+   "status": "merged",
    "dependsOn": [
     "WP-03"
    ],
@@ -472,10 +472,10 @@
    },
    "counts": {
     "total": 24,
-    "done": 8
+    "done": 24
    },
    "owner": "",
-   "notes": "file work-packages/WP-12-summary-lane.md; estimate 10 tasks; decisions D-04 | steps 7/10, tasks 1b-6 reviewed (backed up on origin/ai/wp-12-summary); Task 7 small cells in flight; one push to develop at the end"
+   "notes": "file work-packages/WP-12-summary-lane.md; estimate 10 tasks; decisions D-04 | merged 416c12b1; 24 rows minus the language half of BE-METRICS-22 (422 not_built); backend 5435 passed + 1 load flake; v1.json and schema.ts regenerated; session stopped"
   },
   {
    "id": "WP-13",
@@ -946,7 +946,7 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-19-compare-deltas.md; estimate 6 tasks; decisions D-03"
+   "notes": "file work-packages/WP-19-compare-deltas.md; estimate 6 tasks; decisions D-03 | from WP-12: request include=series,entities with rows=topics, or rows=none plus include=total (all rows with 20 entities is 14.5 MB); contract changes in docs/ai-visibility/contracts/c2-summary.md change log C-1..C-11"
   },
   {
    "id": "WP-20",
@@ -1016,7 +1016,7 @@
     "done": 9
    },
    "owner": "",
-   "notes": "file work-packages/WP-20-topics-by-engine.md; estimate 9 tasks; decisions D-04, D-16 | from WP-25: statisticsContent in stats-model.ts builds StatisticsContent for one rate of one engine; reuse in the topic drawer"
+   "notes": "file work-packages/WP-20-topics-by-engine.md; estimate 9 tasks; decisions D-04, D-16 | from WP-25: statisticsContent in stats-model.ts builds StatisticsContent for one rate of one engine; reuse in the topic drawer | from WP-12: request include=series,entities with rows=topics, or rows=none plus include=total (all rows with 20 entities is 14.5 MB); contract changes in docs/ai-visibility/contracts/c2-summary.md change log C-1..C-11"
   },
   {
    "id": "WP-21",
@@ -1861,7 +1861,7 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-34-overview-cards-engines.md; estimate 8 tasks; decisions D-04"
+   "notes": "file work-packages/WP-34-overview-cards-engines.md; estimate 8 tasks; decisions D-04 | from WP-12: request include=series,entities with rows=topics, or rows=none plus include=total (all rows with 20 entities is 14.5 MB); contract changes in docs/ai-visibility/contracts/c2-summary.md change log C-1..C-11"
   },
   {
    "id": "WP-35",
@@ -1900,7 +1900,7 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-35-overview-cards-competitors.md; estimate 6 tasks; decisions none"
+   "notes": "file work-packages/WP-35-overview-cards-competitors.md; estimate 6 tasks; decisions none | from WP-12: request include=series,entities with rows=topics, or rows=none plus include=total (all rows with 20 entities is 14.5 MB); contract changes in docs/ai-visibility/contracts/c2-summary.md change log C-1..C-11"
   },
   {
    "id": "WP-36",
@@ -1944,7 +1944,7 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-36-overview-cards-topics.md; estimate 7 tasks; decisions D-04, D-05"
+   "notes": "file work-packages/WP-36-overview-cards-topics.md; estimate 7 tasks; decisions D-04, D-05 | from WP-12: request include=series,entities with rows=topics, or rows=none plus include=total (all rows with 20 entities is 14.5 MB); contract changes in docs/ai-visibility/contracts/c2-summary.md change log C-1..C-11"
   },
   {
    "id": "WP-37",
@@ -3910,46 +3910,11 @@
    "until": "WP-06 merged"
   },
   {
-   "path": "backend/tests/security/test_cross_tenant.py",
-   "wp": "WP-12 (alongside WP-11)",
-   "granted": "2026-11-13T04:47:37+05:30",
-   "scope": "additive: the summary QUERIES entry only; both lanes additive, rebase and keep both sides",
-   "until": "lane merged"
-  },
-  {
-   "path": "backend/tests/api/ai/test_contract_summary.py",
-   "wp": "WP-12",
-   "granted": "2026-11-13T04:47:37+05:30",
-   "scope": "replace with real tests (C2)",
-   "until": "lane merged"
-  },
-  {
-   "path": "docs/ai-visibility/contracts/c2-summary.md",
-   "wp": "WP-12",
-   "granted": "2026-11-13T04:47:37+05:30",
-   "scope": "change log section only (Q13)",
-   "until": "lane merged"
-  },
-  {
    "path": "backend/src/idraft/api/schemas/ai.py",
    "wp": "SHARED WP-12/WP-13/WP-14",
    "granted": "2026-11-13T04:47:37+05:30",
    "scope": "additive new models only; hot file: rebase before every push, keep both sides, never reorder",
    "until": "lane merged"
-  },
-  {
-   "path": "backend/tests/api/ai/test_prompts_summary.py",
-   "wp": "WP-12",
-   "granted": "2026-11-13T04:51:48+05:30",
-   "scope": "series tests only (prompt points always pool, so weeks no longer add up to the window cell)",
-   "until": "WP-12 merged"
-  },
-  {
-   "path": "backend/src/idraft/domain/ai_metrics.py",
-   "wp": "WP-12",
-   "granted": "2026-11-13T04:51:48+05:30",
-   "scope": "new file, owner WP-12 (POOL_BELOW_PROMPTS, POOL_WEEKS, pools(), pool_window()); other lanes import, never edit",
-   "until": "WP-12 merged"
   },
   {
    "path": "backend/src/idraft/db/tables.py",
@@ -4165,6 +4130,26 @@
    "detail": "WB-PI-01 quotes around the h2 (needs inspector-header.tsx lease, changes the accessible name in 7 test files); badge path rule uses path.includes('/') so a root topic named CI/CD is treated as nested (harmless); BOUNDARY_ROOM=24 duplicated from small-multiples.tsx; DS25 row 105 still says Tabs.overflow not built (row 153 supersedes it); history stale event uses a 7 day shortcut: replace with the WP-18 CF-27 rule.",
    "owner": "quality sweep and WP-18",
    "severity": "low",
+   "status": "open"
+  },
+  {
+   "id": "F-14",
+   "found": "2026-11-13T12:09:13+05:30",
+   "by": "WP-12",
+   "title": "WEB BUG: history-model.ts sums overlapping pooled weekly points (n inflated up to 4 times)",
+   "detail": "apps/web/src/features/prompts/history-model.ts lines ~66-80 sums the trailing 4 weekly mentioned points of a prompt row. Under C-11 every prompt point is already a trailing 4 week pool, so summing four overlapping pools counts answers up to 4 times (n inflated, Wilson band too narrow, wrong insufficient state). Fix: read each point as it is (use its own pooled numerator and denominator, and pool.weeks/pool.window for the label); the web mock prompt-summary.ts should also pool (returns is_pooled false and no pool today). MUST be fixed before the web switches from mocks to the real API. Owner: WP-18 or WP-20 (first to touch history), or a small fix package.",
+   "owner": "web (assign to the next free session)",
+   "severity": "correctness, blocks wiring real API",
+   "status": "open"
+  },
+  {
+   "id": "F-15",
+   "found": "2026-11-13T12:09:13+05:30",
+   "by": "WP-12",
+   "title": "citation counts rely on the parser deduplicating URLs",
+   "detail": "total_citation_count is the number of distinct canonical URLs only because the DataForSEO parser dedups before ingest. A future adapter that does not dedup would inflate citation_share and cited_given_citations: ai.citations has no unique key on the URL hash per answer.",
+   "owner": "extraction owner (with WP-57)",
+   "severity": "latent",
    "status": "open"
   }
  ],
