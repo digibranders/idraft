@@ -1,5 +1,6 @@
 'use client';
 
+import { MapPin } from 'lucide-react';
 import { parseAsString, useQueryStates } from 'nuqs';
 import { useState, type ReactElement, type ReactNode } from 'react';
 
@@ -8,6 +9,9 @@ import { TableScroll } from './table-scroll';
 import { HOSTILE_TITLES } from '@/components/app/cells/xss-fixtures';
 import { col } from '@/components/app/data-table/columns';
 import { DataTable } from '@/components/app/data-table/data-table';
+import type { BusinessDate } from '@/components/app/date-range/business-date';
+import { DateRangePicker } from '@/components/app/date-range/date-range-picker';
+import { resolveRange, writeRangeParams, type DateRangeValue } from '@/components/app/date-range/range-model';
 import {
   DataTableList,
   DataTableListSort,
@@ -26,7 +30,15 @@ import { SavedViewMenu, type SavedViewExtraItem } from '@/components/app/views/s
 import { useSavedView } from '@/components/app/views/use-saved-view';
 import { defaultView, type SavedView } from '@/components/app/views/views-model';
 import { Button } from '@/components/ui/button';
-import { EMPTY_VALUE, formatInteger, formatPercent, formatSampleCount, type MetricDeltaInput } from '@/lib/format';
+import { IconButton } from '@/components/ui/icon-button';
+import {
+  EMPTY_VALUE,
+  formatDateRange,
+  formatInteger,
+  formatPercent,
+  formatSampleCount,
+  type MetricDeltaInput,
+} from '@/lib/format';
 import { DEFAULT_DENSITY, type Density, type SortKey } from '@/lib/tables/table-state';
 import { cn } from '@/lib/utils';
 
@@ -774,7 +786,184 @@ export function SavedViewStatesGroup(): ReactNode {
   );
 }
 
-/** The mobile list rows and the saved view menu of WP-10; the date range picker joins them in T3. */
+// -------------------------------------------------------------------------------------------------
+// DateRangePicker
+
+/** The picker never reads the clock: every specimen is given this day and this zone. */
+const TODAY: BusinessDate = '2026-11-13';
+const ZONE = 'Europe/Amsterdam';
+const LAST_28: DateRangeValue = { kind: 'preset', preset: '28d' };
+
+/** The address keys a value writes, as `key=value` text; the default writes none. */
+function addressKeys(value: DateRangeValue): string {
+  const keys = Object.entries(writeRangeParams(value)).flatMap(([key, text]) =>
+    text === null ? [] : [`${key}=${text}`],
+  );
+  return keys.length === 0 ? 'none' : keys.join(', ');
+}
+
+interface LivePickerProps {
+  initial: DateRangeValue;
+  earliest?: BusinessDate | undefined;
+  maxDays?: number | undefined;
+  size?: 'sm' | 'md' | undefined;
+}
+
+/** The picker with its value in state (the page's address is not touched), and the value written out beside it. */
+function LivePicker({ initial, earliest, maxDays, size }: LivePickerProps): ReactElement {
+  const [value, setValue] = useState<DateRangeValue>(initial);
+  const range = resolveRange(value, TODAY);
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+      <DateRangePicker
+        value={value}
+        onValueChange={setValue}
+        today={TODAY}
+        timeZone={ZONE}
+        earliest={earliest}
+        maxDays={maxDays}
+        size={size}
+      />
+      <div className="flex min-w-0 flex-col gap-1 num type-meta">
+        <p>{`Value: ${value.kind === 'preset' ? `preset ${value.preset}` : `custom ${value.from} to ${value.to}`}`}</p>
+        <p>{`Days: ${formatInteger(range.days)}, ${formatDateRange(range.from, range.to)}`}</p>
+        <p>{`Address keys: ${addressKeys(value)}`}</p>
+      </div>
+    </div>
+  );
+}
+
+interface PickerSpecimenProps extends LivePickerProps {
+  name: string;
+  label: string;
+  /** What the picker says when a person goes past the limit, in words. */
+  reason?: string | undefined;
+}
+
+function PickerSpecimen({ name, label, reason, ...picker }: PickerSpecimenProps): ReactElement {
+  return (
+    <div data-specimen={name} className="flex min-w-0 flex-col gap-1">
+      <span className="type-label">{label}</span>
+      <LivePicker {...picker} />
+      {reason === undefined ? null : <p className="type-meta">{reason}</p>}
+    </div>
+  );
+}
+
+/** A picker in a box of a fixed width, so the popover that opens from it is seen against a narrow screen. */
+function FramedPicker({ px, className }: { px: number; className: string }): ReactElement {
+  const [value, setValue] = useState<DateRangeValue>(LAST_28);
+  return (
+    <div className="flex min-w-0 flex-col gap-1">
+      <span className="num type-meta">{`${formatInteger(px)} px`}</span>
+      {/* The box keeps its width on a narrower page and scrolls inside its region, so the page never widens */}
+      <TableScroll label={`Date range picker in a ${formatInteger(px)} px box`}>
+        <div
+          data-specimen-frame={px}
+          className={cn('flex shrink-0 rounded-md border border-border-subtle p-1', className)}
+        >
+          <DateRangePicker value={value} onValueChange={setValue} today={TODAY} timeZone={ZONE} />
+        </div>
+      </TableScroll>
+    </div>
+  );
+}
+
+export function DateRangeGroup(): ReactNode {
+  return (
+    <SpecimenGroup
+      title="DateRangePicker"
+      note="10 section 10.2 and 23 section 15. Today is fixed at Nov 13, 2026 in Europe/Amsterdam. Presets are 7, 28 and 90 days; Custom range has typed dates and a calendar, and nothing applies until Apply. A range that is too long, too early, in the future or in the wrong order is refused in words and never clamped."
+    >
+      <div className="flex flex-col gap-4">
+        <PickerSpecimen name="date-default" label="Default, the last 28 days" initial={LAST_28} />
+        <PickerSpecimen
+          name="date-custom"
+          label="A custom range"
+          initial={{ kind: 'custom', from: '2026-09-01', to: '2026-10-31' }}
+        />
+        <PickerSpecimen
+          name="date-cap"
+          label="At the 91 day cap"
+          initial={{ kind: 'custom', from: '2026-08-15', to: '2026-11-13' }}
+          reason="91 days is the longest range. A start of 2026-08-14 asks for 92 days and is refused with: 92 days is longer than the 91 day limit. Pick a later start date or an earlier end date."
+        />
+        <PickerSpecimen
+          name="date-earliest"
+          label="Data starts on Mar 2, 2026"
+          initial={{ kind: 'custom', from: '2026-03-02', to: '2026-04-30' }}
+          earliest="2026-03-02"
+          reason="An earlier start is refused with: Data starts on Mar 2, 2026, so earlier dates are not available. Days before it are disabled in the calendar and Previous month stops at March."
+        />
+        <PickerSpecimen
+          name="date-future"
+          label="Ending today, the future limit"
+          initial={{ kind: 'custom', from: '2026-11-07', to: '2026-11-13' }}
+          reason="An end after today is refused with: Dates after today, Nov 13, 2026, are not available. Days after today are disabled and Next month stops at November."
+        />
+        <PickerSpecimen name="date-small" label="Small, for forms" initial={LAST_28} size="sm" />
+        <div className="flex flex-col gap-1">
+          <span className="type-label">In a narrow box, opened to see where the popover sits</span>
+          <div className="flex flex-col gap-4">
+            <FramedPicker px={320} className="w-80" />
+            <FramedPicker px={360} className="w-90" />
+          </div>
+        </div>
+      </div>
+    </SpecimenGroup>
+  );
+}
+
+// -------------------------------------------------------------------------------------------------
+// Top bar
+
+const BAR_FRAMES = [
+  { px: 320, className: 'w-80' },
+  { px: 390, className: 'w-97.5' },
+  { px: 768, className: 'w-192' },
+] as const;
+
+/** The 52 px bar: the breadcrumb takes the room that is left, the picker and a location button keep theirs. */
+function BarSpecimen({ px, className }: { px: number; className: string }): ReactElement {
+  const [value, setValue] = useState<DateRangeValue>(LAST_28);
+  return (
+    <div className="flex min-w-0 flex-col gap-1">
+      <span className="num type-meta">{`${formatInteger(px)} px`}</span>
+      <TableScroll label={`Top bar at ${formatInteger(px)} px`}>
+        <div
+          data-specimen-frame={px}
+          className={cn(
+            'flex h-topbar shrink-0 items-center gap-2 border border-border-subtle bg-surface px-3 sm:gap-3',
+            className,
+          )}
+        >
+          <span className="min-w-0 flex-1 truncate type-body-strong">Acme / Prompts</span>
+          <div className="flex shrink-0 items-center gap-1 sm:gap-3">
+            <DateRangePicker value={value} onValueChange={setValue} today={TODAY} timeZone={ZONE} />
+            <IconButton icon={MapPin} label="Location" size="icon" />
+          </div>
+        </div>
+      </TableScroll>
+    </div>
+  );
+}
+
+export function TopBarGroup(): ReactNode {
+  return (
+    <SpecimenGroup
+      title="Date range in the top bar"
+      note="11 section 4. The picker sits beside the page's other controls. It shows Last 28 days from a 640 px window and 28d below it, so the short form is seen in a window narrower than 640 px; the box is 320, 390 and 768 px."
+    >
+      <div className="flex flex-col gap-4">
+        {BAR_FRAMES.map(({ px, className }) => (
+          <BarSpecimen key={px} px={px} className={className} />
+        ))}
+      </div>
+    </SpecimenGroup>
+  );
+}
+
+/** The mobile list rows, the saved view menu and the date range picker of WP-10. */
 export function ControlsSection(): ReactNode {
   return (
     <div className="flex flex-col gap-6">
@@ -785,6 +974,8 @@ export function ControlsSection(): ReactNode {
       <HostileRowsGroup />
       <SavedViewGroup />
       <SavedViewStatesGroup />
+      <DateRangeGroup />
+      <TopBarGroup />
     </div>
   );
 }

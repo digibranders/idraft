@@ -7,7 +7,9 @@ import { expectAccessible } from '../support';
  * The mobile list rows and the saved view menu of WP-10 on their design-system page, in the production build.
  * jsdom has no layout, no media queries and no focus order, so the row height, the switch between the list and
  * the table, the truncation, the window of a long list, the place of the menu and the keyboard path are checked
- * here. The date range picker has its own groups on the same page; its flow is added to this file with it.
+ * here. The date range picker has its own groups on the same page (today is 2026-11-13 there, a fixed day): its
+ * keyboard path, the place of its popover on a phone, its one or two months and its short label are checked at the
+ * end of this file.
  */
 const THEME_STORAGE_KEY = 'idraft.theme';
 const PAGE = '/design-system/controls';
@@ -23,6 +25,8 @@ const LONG_GROUP = 'Long lists and server paging';
 const HOSTILE_GROUP = 'Hostile row text';
 const MENU_GROUP = 'SavedViewMenu';
 const MENU_STATES_GROUP = 'SavedViewMenu states';
+const DATE_GROUP = 'DateRangePicker';
+const BAR_GROUP = 'Date range in the top bar';
 const LIST_NAME = 'Prompts, 6 results';
 const POLITE_REGION = '#live-region-polite';
 /** `LIST_ROW_HEIGHT` of data-table-list.tsx: the `li`, the skeleton row and the spacers all come from it. */
@@ -110,7 +114,17 @@ for (const theme of THEMES) {
 
 test('titles every group of the page with a level 2 heading', async ({ page }) => {
   await open(page, 'light', 1280);
-  const titles = [FRAMES_GROUP, LIVE_GROUP, STATES_GROUP, LONG_GROUP, HOSTILE_GROUP, MENU_GROUP, MENU_STATES_GROUP];
+  const titles = [
+    FRAMES_GROUP,
+    LIVE_GROUP,
+    STATES_GROUP,
+    LONG_GROUP,
+    HOSTILE_GROUP,
+    MENU_GROUP,
+    MENU_STATES_GROUP,
+    DATE_GROUP,
+    BAR_GROUP,
+  ];
   for (const title of titles) await expect(group(page, title)).toBeVisible();
 });
 
@@ -528,4 +542,308 @@ test.describe('the saved view menu on a phone', () => {
     const box = await trigger.boundingBox();
     expect(box?.width ?? 0).toBeLessThanOrEqual(160);
   });
+});
+
+// -------------------------------------------------------------------------------------------------
+// The date range picker. The page gives it a fixed today (2026-11-13) and zone, so every date below is fixed.
+
+/** The picker's button inside a specimen or a frame: its name starts with "Date range: ". */
+const pickerOf = (scope: Locator): Locator => scope.getByRole('button', { name: /^Date range: / });
+/** The popover, named by the picker. */
+const popoverOf = (page: Page): Locator => page.getByRole('dialog', { name: 'Date range', exact: true });
+const dayOf = (scope: Locator, day: string): Locator => scope.locator(`button[data-day="${day}"]`);
+const TOO_LONG_105 = '105 days is longer than the 91 day limit. Pick a later start date or an earlier end date.';
+const TOO_LONG_92 = '92 days is longer than the 91 day limit. Pick a later start date or an earlier end date.';
+
+/** Opens the picker of `scope` from the keyboard and returns the popover. */
+async function openByKeyboard(page: Page, trigger: Locator): Promise<Locator> {
+  await trigger.scrollIntoViewIfNeeded();
+  await trigger.focus();
+  await page.keyboard.press('Enter');
+  const dialog = popoverOf(page);
+  await expect(dialog).toBeVisible();
+  return dialog;
+}
+
+/** From the open popover, Tab to "Custom range" and press Enter: the pane opens with focus on "Start date". */
+async function openCustomByKeyboard(page: Page, dialog: Locator): Promise<void> {
+  await tabTo(page, dialog.getByRole('button', { name: 'Custom range', exact: true }), 4);
+  await page.keyboard.press('Enter');
+  await expect(dialog.getByRole('textbox', { name: 'Start date' })).toBeFocused();
+}
+
+test.describe('the date range picker at 1280 px', () => {
+  test.beforeEach(async ({ page }) => {
+    await open(page, 'light', 1280);
+  });
+
+  test('opens by keyboard on the applied preset, applies the 7 day preset and says so', async ({ page }) => {
+    const live = specimen(page, 'date-default');
+    const trigger = pickerOf(live);
+    await expect(trigger).toHaveAccessibleName('Date range: Last 28 days (28d), Oct 17 to Nov 13, 2026');
+    await expect(live.getByText('Address keys: none', { exact: true })).toBeVisible();
+    const dialog = await openByKeyboard(page, trigger);
+    await expect(dialog.getByRole('button', { name: 'Last 28 days', exact: true })).toBeFocused();
+    await expect(dialog.getByRole('button', { name: 'Last 28 days', exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    await page.keyboard.press('Shift+Tab');
+    await expect(dialog.getByRole('button', { name: 'Last 7 days', exact: true })).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(dialog).toBeHidden();
+    await expect(trigger).toBeFocused();
+    await expect(trigger).toHaveAccessibleName('Date range: Last 7 days (7d), Nov 7 to Nov 13, 2026');
+    await expect(trigger).toHaveText('Last 7 days', { useInnerText: true });
+    await expect(page.locator(POLITE_REGION)).toHaveText('Date range: Last 7 days');
+    await expect(live.getByText('Address keys: win=7d', { exact: true })).toBeVisible();
+  });
+
+  test('refuses a range over 91 days in words, and applies a valid one by Enter on Apply', async ({ page }) => {
+    const live = specimen(page, 'date-default');
+    const trigger = pickerOf(live);
+    const dialog = await openByKeyboard(page, trigger);
+    await openCustomByKeyboard(page, dialog);
+    const start = dialog.getByRole('textbox', { name: 'Start date' });
+    const end = dialog.getByRole('textbox', { name: 'End date' });
+    const apply = dialog.getByRole('button', { name: 'Apply', exact: true });
+    await expect(apply).toBeEnabled();
+    await start.fill('2026-08-01');
+    await end.fill('2026-11-13');
+    await expect(dialog.getByText(TOO_LONG_105, { exact: true })).toBeVisible();
+    await expect(apply).toBeDisabled();
+    await expect(start).toHaveAttribute('aria-invalid', 'true');
+    await start.fill('2026-08-15');
+    await expect(apply).toBeEnabled();
+    await expect(dialog.getByText('A range is at most 91 days.', { exact: true })).toBeVisible();
+    await expect(start).not.toHaveAttribute('aria-invalid', 'true');
+    await apply.focus();
+    await page.keyboard.press('Enter');
+    await expect(dialog).toBeHidden();
+    await expect(trigger).toBeFocused();
+    await expect(trigger).toHaveAccessibleName('Date range: Aug 15 to Nov 13, 2026 (91d)');
+    await expect(trigger).toHaveText('Aug 15 to Nov 13, 2026', { useInnerText: true });
+    await expect(page.locator(POLITE_REGION)).toHaveText('Date range: Aug 15 to Nov 13, 2026');
+    await expect(live.getByText('Address keys: from=2026-08-15, to=2026-11-13', { exact: true })).toBeVisible();
+  });
+
+  test('Escape closes the popover without a change and returns focus to the trigger', async ({ page }) => {
+    const live = specimen(page, 'date-default');
+    const trigger = pickerOf(live);
+    const dialog = await openByKeyboard(page, trigger);
+    await openCustomByKeyboard(page, dialog);
+    await dialog.getByRole('textbox', { name: 'Start date' }).fill('2026-10-01');
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    await expect(trigger).toBeFocused();
+    await expect(trigger).toHaveAccessibleName('Date range: Last 28 days (28d), Oct 17 to Nov 13, 2026');
+    await expect(live.getByText('Address keys: none', { exact: true })).toBeVisible();
+  });
+
+  test('Cancel closes the custom pane without a change', async ({ page }) => {
+    const live = specimen(page, 'date-custom');
+    const trigger = pickerOf(live);
+    await trigger.scrollIntoViewIfNeeded();
+    await trigger.click();
+    const dialog = popoverOf(page);
+    await dialog.getByRole('textbox', { name: 'End date' }).fill('2026-10-15');
+    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await expect(dialog).toBeHidden();
+    await expect(trigger).toBeFocused();
+    await expect(live.getByText('Value: custom 2026-09-01 to 2026-10-31', { exact: true })).toBeVisible();
+  });
+
+  test('moves through the calendar with the arrows, Home, End, Page Up and Page Down', async ({ page }) => {
+    const dialog = await openByKeyboard(page, pickerOf(specimen(page, 'date-default')));
+    await openCustomByKeyboard(page, dialog);
+    await expect(dialog.getByRole('grid', { name: 'Oct 2026' })).toBeVisible();
+    await expect(dialog.getByRole('grid', { name: 'Nov 2026' })).toBeVisible();
+    // Nov 13, 2026 is a Friday and today: the one Tab stop, and the last day that can be picked
+    const day = (value: string): Locator => dayOf(dialog, value);
+    await expect(day('2026-11-13')).toHaveAttribute('aria-current', 'date');
+    await day('2026-11-13').focus();
+    await page.keyboard.press('ArrowRight');
+    await expect(day('2026-11-13')).toBeFocused();
+    await page.keyboard.press('ArrowLeft');
+    await expect(day('2026-11-12')).toBeFocused();
+    await page.keyboard.press('ArrowUp');
+    await expect(day('2026-11-05')).toBeFocused();
+    await page.keyboard.press('ArrowDown');
+    await expect(day('2026-11-12')).toBeFocused();
+    await page.keyboard.press('ArrowUp');
+    await page.keyboard.press('Home');
+    await expect(day('2026-11-02')).toBeFocused();
+    await page.keyboard.press('End');
+    await expect(day('2026-11-08')).toBeFocused();
+    await page.keyboard.press('PageUp');
+    await expect(day('2026-10-08')).toBeFocused();
+    // A month that is not in view comes into view, and the focus follows it
+    await page.keyboard.press('PageUp');
+    await expect(dialog.getByRole('grid', { name: 'Sep 2026' })).toBeVisible();
+    await expect(day('2026-09-08')).toBeFocused();
+    await page.keyboard.press('PageDown');
+    await expect(day('2026-10-08')).toBeFocused();
+    // Enter picks the focused day as the start of a new range, and the note says what is left to pick
+    await page.keyboard.press('Enter');
+    await expect(dialog.getByRole('textbox', { name: 'Start date' })).toHaveValue('2026-10-08');
+    await expect(dialog.getByRole('textbox', { name: 'End date' })).toHaveValue('');
+    await expect(dialog.getByRole('button', { name: 'Apply', exact: true })).toBeDisabled();
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    await expect(pickerOf(specimen(page, 'date-default'))).toBeFocused();
+  });
+
+  test('refuses the 91 day cap, a day before the data starts and a day after today in words', async ({ page }) => {
+    const cases = [
+      { name: 'date-cap', field: 'Start date', text: '2026-08-14', words: TOO_LONG_92 },
+      {
+        name: 'date-earliest',
+        field: 'Start date',
+        text: '2026-02-01',
+        words: 'Data starts on Mar 2, 2026, so earlier dates are not available.',
+      },
+      {
+        name: 'date-future',
+        field: 'End date',
+        text: '2026-11-14',
+        words: 'Dates after today, Nov 13, 2026, are not available.',
+      },
+    ] as const;
+    for (const { name, field, text, words } of cases) {
+      const live = specimen(page, name);
+      const trigger = pickerOf(live);
+      await trigger.scrollIntoViewIfNeeded();
+      await trigger.click();
+      const dialog = popoverOf(page);
+      await expect(dialog.getByRole('textbox', { name: 'Start date' })).toBeVisible();
+      await dialog.getByRole('textbox', { name: field }).fill(text);
+      // The calendar keeps the same reason in a hidden description of its disabled days: the note is the visible one
+      await expect(dialog.getByText(words, { exact: true }).locator('visible=true')).toBeVisible();
+      await expect(dialog.getByRole('button', { name: 'Apply', exact: true })).toBeDisabled();
+      await page.keyboard.press('Escape');
+      await expect(dialog).toBeHidden();
+    }
+    await expect(
+      specimen(page, 'date-cap').getByText('Days: 91, Aug 15 to Nov 13, 2026', { exact: true }),
+    ).toBeVisible();
+  });
+});
+
+test.describe('the date range picker on a phone and beyond', () => {
+  test('moves the one month with Page Up and Page Down', async ({ page }) => {
+    await open(page, 'light', 390, 844);
+    const dialog = await openByKeyboard(page, pickerOf(specimen(page, 'date-default')));
+    await openCustomByKeyboard(page, dialog);
+    await expect(dialog.getByRole('grid')).toHaveCount(1);
+    await expect(dialog.getByRole('grid', { name: 'Nov 2026' })).toBeVisible();
+    await dayOf(dialog, '2026-11-13').focus();
+    await page.keyboard.press('PageUp');
+    await expect(dialog.getByRole('grid', { name: 'Oct 2026' })).toBeVisible();
+    await expect(dialog.getByRole('grid')).toHaveCount(1);
+    await expect(dayOf(dialog, '2026-10-13')).toBeFocused();
+    await page.keyboard.press('PageDown');
+    await expect(dialog.getByRole('grid', { name: 'Nov 2026' })).toBeVisible();
+    await expect(dayOf(dialog, '2026-11-13')).toBeFocused();
+  });
+
+  for (const theme of THEMES) {
+    test(`has no accessibility violation with the custom pane open in the ${theme} theme`, async ({ page }) => {
+      await open(page, theme, 390, 844);
+      const trigger = pickerOf(specimen(page, 'date-default'));
+      await trigger.scrollIntoViewIfNeeded();
+      await trigger.click();
+      const dialog = popoverOf(page);
+      await dialog.getByRole('button', { name: 'Custom range', exact: true }).click();
+      await expect(dialog.getByRole('textbox', { name: 'Start date' })).toBeFocused();
+      await dialog.getByRole('textbox', { name: 'Start date' }).fill('2026-08-01');
+      await expect(dialog.getByText(TOO_LONG_105, { exact: true })).toBeVisible();
+      await expectAccessible(page);
+    });
+  }
+
+  // From 768 px two months show, below it one; the popover stays on the screen in every case
+  for (const width of [320, 360, 390, 767, 768, 1280]) {
+    test(`opens inside a ${String(width)} px screen with ${width >= 768 ? 'two months' : 'one month'}`, async ({
+      page,
+    }) => {
+      await open(page, 'light', width, 700);
+      // The narrow frames are the pickers of 320 and 360 px boxes; the others use the default specimen
+      const framed = width === 320 || width === 360;
+      const scope = framed
+        ? group(page, DATE_GROUP).locator(`[data-specimen-frame="${String(width)}"]`)
+        : specimen(page, 'date-default');
+      const trigger = pickerOf(scope);
+      await trigger.scrollIntoViewIfNeeded();
+      await trigger.click();
+      const dialog = popoverOf(page);
+      await dialog.getByRole('button', { name: 'Custom range', exact: true }).click();
+      await expect(dialog.getByRole('textbox', { name: 'Start date' })).toBeFocused();
+      await expect(dialog.getByRole('grid')).toHaveCount(width >= 768 ? 2 : 1);
+      // The popover sizes itself to its content after the pane opens: wait for it to settle
+      await expect(async () => {
+        await expectInsideViewport(page, dialog);
+      }).toPass();
+      const fits = await dialog.evaluate((node) => node.scrollWidth <= node.clientWidth);
+      expect(fits).toBe(true);
+      const overflow = await page.evaluate(() => ({
+        scroll: document.documentElement.scrollWidth,
+        client: document.documentElement.clientWidth,
+      }));
+      expect(overflow.scroll).toBeLessThanOrEqual(overflow.client);
+      await page.keyboard.press('Escape');
+      await expect(dialog).toBeHidden();
+      await expect(trigger).toBeFocused();
+    });
+  }
+});
+
+test.describe('the label of the date range button', () => {
+  for (const [width, text] of [
+    [390, '28d'],
+    [639, '28d'],
+    [640, 'Last 28 days'],
+    [1280, 'Last 28 days'],
+  ] as const) {
+    test(`reads ${text} at ${String(width)} px, and its name holds that text`, async ({ page }) => {
+      await open(page, 'light', width);
+      const trigger = pickerOf(specimen(page, 'date-default'));
+      await expect(trigger).toHaveText(text, { useInnerText: true });
+      // WCAG 2.5.3: what a person sees, and says to a voice control, is part of the name
+      await expect(trigger).toHaveAccessibleName(new RegExp(escapeRegExp(text)));
+    });
+  }
+});
+
+test.describe('the date range in the top bar', () => {
+  for (const width of [320, 390, 1280]) {
+    test(`keeps the picker and the location button inside the bars at ${String(width)} px`, async ({ page }) => {
+      await open(page, 'light', width);
+      const bars = group(page, BAR_GROUP);
+      await bars.scrollIntoViewIfNeeded();
+      for (const px of [320, 390, 768]) {
+        const bar = bars.locator(`[data-specimen-frame="${String(px)}"]`);
+        await bar.scrollIntoViewIfNeeded();
+        const fits = await bar.evaluate((node) => node.scrollWidth <= node.clientWidth);
+        expect(fits).toBe(true);
+        const trigger = pickerOf(bar);
+        await expect(trigger).toHaveText(width < 640 ? '28d' : 'Last 28 days', { useInnerText: true });
+        await expect(bar.getByRole('button', { name: 'Location', exact: true })).toBeVisible();
+        const box = await trigger.boundingBox();
+        const barBox = await bar.boundingBox();
+        expect(box).not.toBeNull();
+        expect(barBox).not.toBeNull();
+        if (box === null || barBox === null) continue;
+        expect(box.x).toBeGreaterThanOrEqual(barBox.x);
+        expect(box.x + box.width).toBeLessThanOrEqual(barBox.x + barBox.width);
+        // The bar is 52 px tall and the picker is its 36 px control
+        expect(barBox.height).toBe(52);
+        expect(box.height).toBe(36);
+      }
+      const overflow = await page.evaluate(() => ({
+        scroll: document.documentElement.scrollWidth,
+        client: document.documentElement.clientWidth,
+      }));
+      expect(overflow.scroll).toBeLessThanOrEqual(overflow.client);
+    });
+  }
 });
