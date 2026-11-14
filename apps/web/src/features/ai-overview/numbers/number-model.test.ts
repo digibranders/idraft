@@ -65,7 +65,7 @@ describe('the numbers of the AI visibility catalog', () => {
       reading: read({ value: 250, k: null, n: null, unit: 'prompts', prompts: null, invalid: null, topics: 13 }),
       value: '250',
       context: 'in 13 topics',
-      tip: ['250 prompts in scope, each counted once across engines', WINDOW_SENTENCE],
+      tip: ['250 prompts in scope, each counted once across engines (in 13 topics)', WINDOW_SENTENCE],
     },
     {
       name: 'ai.valid_answers is an integer with its answers and the ones not valid',
