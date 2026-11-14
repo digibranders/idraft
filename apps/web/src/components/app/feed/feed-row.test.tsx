@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import { FeedRow, type FeedItem } from './feed-row';
 import {
+  formatDetailDateTime,
   formatMetricDelta,
   formatRankChange,
   formatRelative,
@@ -121,13 +122,19 @@ describe('FeedRow compact', () => {
     expect(glyph(second.container)).toHaveClass('text-foreground-tertiary');
   });
 
-  it('keeps the change and the time in slots that do not shrink, and truncates the sentence with its full text', () => {
+  it('keeps the change slot from shrinking', () => {
     const { container } = renderRow(feedItem({ change: { kind: 'metric', input: metric() } }));
-    // `Truncate` clips with an ellipsis and keeps the full value for the tooltip and for assistive technology
-    const sentence = screen.getByText('ChatGPT mention rate rose');
-    expect(sentence).toHaveClass('truncate', 'min-w-0', 'flex-1');
-    expect(sentence).toHaveAttribute('data-truncate');
     expect(container.querySelector('[data-slot="feed-change"]')).toHaveClass('shrink-0');
+  });
+
+  it('wraps the sentence to two lines, not one truncated line, with the full text in its title', () => {
+    const long = 'ChatGPT citation rate fell to 21.6% (143 of 662 answers) in the last 28 days, down from 29.9%';
+    renderRow(feedItem({ text: long }));
+    const sentence = screen.getByText(long);
+    expect(sentence).toHaveClass('line-clamp-2', 'min-w-0', 'flex-1');
+    expect(sentence).not.toHaveClass('truncate');
+    expect(sentence).toHaveAttribute('title', long);
+    expect(sentence).toHaveAttribute('data-truncate');
   });
 
   it.each(HOSTILE)('renders hostile text as text: %s', (text) => {
@@ -149,6 +156,39 @@ describe('FeedRow compact', () => {
     expect(time).not.toHaveClass('w-24');
   });
 
+  it('draws a row without an href as a plain div: no link, no hover fill, no focus ring, not focusable', async () => {
+    const { container, user } = renderRow(feedItem({ href: undefined, change: { kind: 'metric', input: metric() } }));
+    expect(screen.queryAllByRole('link')).toHaveLength(0);
+    expect(container.querySelector('a')).toBeNull();
+    const row = container.querySelector('li > div') as HTMLElement;
+    expect(row).toHaveTextContent('ChatGPT mention rate rose');
+    expect(row.className).not.toContain('hover:');
+    expect(row.className).not.toContain('focus-visible');
+    expect(row).not.toHaveAttribute('tabindex');
+    await user.tab();
+    expect(document.body).toHaveFocus();
+    // The rest of the row is unchanged: glyph, change and time are all still drawn
+    expect(glyph(container)).toHaveAttribute('aria-hidden', 'true');
+    expect(container.querySelector('[data-slot="feed-change"]')).toBeInTheDocument();
+    expect(container.querySelector('time')).toHaveAttribute('datetime', AT);
+  });
+
+  it('replaces the relative time with atLabel and keeps the exact time reachable', () => {
+    const { container } = renderRow(feedItem({ atLabel: '28 days' }));
+    const time = container.querySelector('time') as HTMLElement;
+    expect(time).toHaveTextContent('28 days');
+    expect(time).not.toHaveTextContent(formatRelative(AT, 'UTC', NOW));
+    expect(time).toHaveAttribute('datetime', AT);
+    expect(time).toHaveAttribute('title', formatDetailDateTime(AT, 'UTC'));
+    expect(time).toHaveClass('w-32', 'shrink-0', 'text-right', 'num');
+  });
+
+  it('draws atLabel in a row without an href too', () => {
+    const { container } = renderRow(feedItem({ href: undefined, atLabel: '28 days' }));
+    expect(screen.queryAllByRole('link')).toHaveLength(0);
+    expect(container.querySelector('time')).toHaveTextContent('28 days');
+  });
+
   it.each(['light', 'dark'])('has no violation in the %s theme', async (theme) => {
     document.documentElement.className = theme === 'dark' ? 'dark' : '';
     try {
@@ -157,6 +197,11 @@ describe('FeedRow compact', () => {
     } finally {
       document.documentElement.className = '';
     }
+  });
+
+  it('has no violation in a row without an href', async () => {
+    const { container } = renderRow(feedItem({ href: undefined, atLabel: '28 days' }));
+    expect(await axe(container)).toHaveNoViolations();
   });
 });
 
@@ -233,6 +278,46 @@ describe('FeedRow full', () => {
     const { container } = renderRow(feedItem({ text }), 'full');
     expect(screen.getByRole('link', { name: `View: ${text}` })).toBeInTheDocument();
     expect(container.querySelector('img')).toBeNull();
+  });
+
+  it('keeps truncating the sentence to one line (only the compact form wraps)', () => {
+    renderRow(full, 'full');
+    const sentence = screen.getByText('best crm for startups improved from 5 to 3');
+    expect(sentence).toHaveClass('truncate');
+    expect(sentence).not.toHaveClass('line-clamp-2');
+  });
+
+  it('draws a row without an href with no View link, no hover fill, and the same slot widths', () => {
+    const { container } = renderRow({ ...full, href: undefined }, 'full');
+    expect(screen.queryAllByRole('link')).toHaveLength(0);
+    expect(screen.queryByRole('link', { name: /^View/ })).toBeNull();
+    const row = container.querySelector('li') as HTMLElement;
+    expect(row.className).not.toContain('hover:');
+    expect(slot(container, 'feed-type')).toHaveClass('w-32', 'shrink-0');
+    expect(slot(container, 'feed-source')).toHaveClass('w-24', 'shrink-0');
+    // The View column keeps its width, so the badge and source columns line up with the rows that have a link
+    const spacer = container.querySelector('[data-slot="feed-view-spacer"]');
+    expect(spacer).toHaveAttribute('aria-hidden', 'true');
+    expect(spacer).toHaveClass('invisible', 'shrink-0');
+  });
+
+  it('replaces the clock time with atLabel and keeps the exact time reachable', () => {
+    const { container } = renderRow({ ...full, atLabel: '28 days' }, 'full');
+    const time = container.querySelector('time') as HTMLElement;
+    expect(time).toHaveTextContent('28 days');
+    expect(time).not.toHaveTextContent(formatTime(AT, 'UTC'));
+    expect(time).toHaveAttribute('datetime', AT);
+    expect(time).toHaveAttribute('title', formatDetailDateTime(AT, 'UTC'));
+  });
+
+  it('gives the clock time no title when there is no atLabel', () => {
+    const { container } = renderRow(full, 'full');
+    expect(container.querySelector('time')).not.toHaveAttribute('title');
+  });
+
+  it('has no violation in a row without an href', async () => {
+    const { container } = renderRow({ ...full, href: undefined, atLabel: '28 days' }, 'full');
+    expect(await axe(container)).toHaveNoViolations();
   });
 
   it.each(['light', 'dark'])('has no violation in the %s theme', async (theme) => {

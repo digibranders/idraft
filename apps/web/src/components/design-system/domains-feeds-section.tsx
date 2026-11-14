@@ -901,6 +901,39 @@ function FeedRowGroup(): ReactElement {
   );
 }
 
+const LONG_SENTENCE =
+  'ChatGPT citation rate fell to 21.6% (143 of 662 answers) in the last 28 days, down from 29.9% (201 of 672)';
+const COMPACT_ROWS: readonly FeedItem[] = [
+  feedItem('k1', TrendingDown, LONG_SENTENCE, '2026-11-13T11:00:00Z', { kind: 'metric', input: DOWN_DETECTABLE }),
+  {
+    ...feedItem('k2', Globe, 'Perplexity cited 14 domains it did not cite before', '2026-11-13T11:00:00Z'),
+    href: undefined,
+  },
+  {
+    ...feedItem('k3', TrendingUp, 'Mention rate on Gemini rose across 28 days', '2026-11-13T11:00:00Z', {
+      kind: 'metric',
+      input: UP_DETECTABLE,
+    }),
+    href: undefined,
+    atLabel: '28 days',
+  },
+];
+
+function FeedRowCompactGroup(): ReactElement {
+  return (
+    <SpecimenGroup
+      title="FeedRow compact"
+      note="The sentence wraps to two lines and then ends in an ellipsis, with the full text in its title. A row without an href is plain text: no link, no hover fill, no focus stop. An atLabel replaces the time text for a row that covers a whole window."
+    >
+      <ul className="max-w-3xl overflow-hidden rounded-lg border border-border bg-surface">
+        {COMPACT_ROWS.map((item) => (
+          <FeedRow key={item.id} item={item} form="compact" timeZone={TIME_ZONE} now={NOW} />
+        ))}
+      </ul>
+    </SpecimenGroup>
+  );
+}
+
 // -------------------------------------------------------------------------------------------------
 // CountTabs
 
@@ -1096,6 +1129,7 @@ export function DomainsFeedsSection(): ReactNode {
       <CountPopoverGroup />
       <ChangeFeedGroupSpecimens />
       <FeedRowGroup />
+      <FeedRowCompactGroup />
       <CountTabsGroup />
       <HostileGroup />
     </div>

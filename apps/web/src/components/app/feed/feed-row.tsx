@@ -33,8 +33,16 @@ export interface FeedItem {
   text: string;
   /** The instant, ISO 8601. */
   at: string;
-  /** The evidence: a filtered table or the record's inspector. */
-  href: Route;
+  /**
+   * The evidence: a filtered table or the record's inspector. Without one the row is plain text: no link, no hover
+   * fill, no focus stop (a summary row that has no single record behind it).
+   */
+  href?: Route | undefined;
+  /**
+   * Replaces the time text for a row that describes a whole window ("28 days"), so it is not dated "just now".
+   * The `time` element still carries `at` as its `datetime` and the exact time as its title.
+   */
+  atLabel?: string | undefined;
   /**
    * One value that changed: `Delta` for a metric, the `formatRankChange` text for a rank. Its tone, which is
    * positive or negative only for a detectable change, also colours the glyph; otherwise the glyph is tertiary.
@@ -109,8 +117,38 @@ function Glyph({ item }: { item: FeedItem }): ReactElement {
   return <Icon icon={item.glyph} className={GLYPH_TONE[changeTone(item.change)]} />;
 }
 
-function Sentence({ text }: { text: string }): ReactElement {
-  return <Truncate text={text} className="flex-1 type-body text-foreground" />;
+/** `clamp` (the compact row) wraps to two lines so a long sentence keeps its figures; the full row stays one line. */
+function Sentence({ text, clamp = false }: { text: string; clamp?: boolean }): ReactElement {
+  if (!clamp) return <Truncate text={text} className="flex-1 type-body text-foreground" />;
+  return (
+    <span
+      data-slot="feed-sentence"
+      data-truncate=""
+      title={text}
+      className="line-clamp-2 min-w-0 flex-1 type-body break-words text-foreground"
+    >
+      {text}
+    </span>
+  );
+}
+
+/** The compact row's content, whether or not it is a link. */
+function CompactBody({ item, timeZone, clock }: { item: FeedItem; timeZone: string; clock: Date }): ReactElement {
+  return (
+    <>
+      <Glyph item={item} />
+      <Sentence text={item.text} clamp />
+      <ChangeSlot change={item.change} />
+      <time
+        dateTime={item.at}
+        title={formatDetailDateTime(item.at, timeZone)}
+        // 128 px: the longest text is a different year, "Dec 29, 2025, 18:32" (about 118 px)
+        className="w-32 shrink-0 text-right num type-meta whitespace-nowrap"
+      >
+        {item.atLabel ?? formatRelative(item.at, timeZone, clock)}
+      </time>
+    </>
+  );
 }
 
 /**
@@ -123,29 +161,35 @@ export function FeedRow({ item, form, timeZone, now }: FeedRowProps): ReactEleme
   if (form === 'compact') {
     return (
       <li className="border-t border-border-subtle">
-        <Link
-          href={item.href}
-          className={cn(ROW, 'rounded-xs outline-none hover:bg-surface-hover focus-visible:focus-ring-inset')}
-        >
-          <Glyph item={item} />
-          <Sentence text={item.text} />
-          <ChangeSlot change={item.change} />
-          <time
-            dateTime={item.at}
-            title={formatDetailDateTime(item.at, timeZone)}
-            // 128 px: the longest text is a different year, "Dec 29, 2025, 18:32" (about 118 px)
-            className="w-32 shrink-0 text-right num type-meta whitespace-nowrap"
+        {item.href === undefined ? (
+          <div className={ROW}>
+            <CompactBody item={item} timeZone={timeZone} clock={clock} />
+          </div>
+        ) : (
+          <Link
+            href={item.href}
+            className={cn(ROW, 'rounded-xs outline-none hover:bg-surface-hover focus-visible:focus-ring-inset')}
           >
-            {formatRelative(item.at, timeZone, clock)}
-          </time>
-        </Link>
+            <CompactBody item={item} timeZone={timeZone} clock={clock} />
+          </Link>
+        )}
       </li>
     );
   }
   return (
-    <li className={cn('@container border-t border-border-subtle hover:bg-surface-hover', ROW)}>
-      <time dateTime={item.at} className="w-12 shrink-0 num type-meta">
-        {formatTime(item.at, timeZone)}
+    <li
+      className={cn(
+        '@container border-t border-border-subtle',
+        item.href !== undefined && 'hover:bg-surface-hover',
+        ROW,
+      )}
+    >
+      <time
+        dateTime={item.at}
+        title={item.atLabel === undefined ? undefined : formatDetailDateTime(item.at, timeZone)}
+        className="w-12 shrink-0 num type-meta"
+      >
+        {item.atLabel ?? formatTime(item.at, timeZone)}
       </time>
       <Glyph item={item} />
       <Sentence text={item.text} />
@@ -166,12 +210,19 @@ export function FeedRow({ item, form, timeZone, now }: FeedRowProps): ReactEleme
       >
         {item.sourceLabel === undefined ? null : <Truncate text={item.sourceLabel} className="type-meta" />}
       </span>
-      <TextLink
-        render={<Link href={item.href} aria-label={t('viewItem', { text: item.text })} />}
-        className="shrink-0 type-body"
-      >
-        {t('view')}
-      </TextLink>
+      {item.href === undefined ? (
+        // Draws the word invisibly so the badge and source columns stay where they are on the rows that have a link
+        <span data-slot="feed-view-spacer" aria-hidden="true" className="invisible shrink-0 type-body">
+          {t('view')}
+        </span>
+      ) : (
+        <TextLink
+          render={<Link href={item.href} aria-label={t('viewItem', { text: item.text })} />}
+          className="shrink-0 type-body"
+        >
+          {t('view')}
+        </TextLink>
+      )}
     </li>
   );
 }
