@@ -242,11 +242,26 @@ describe('the lost to a competitor card', () => {
     ).toBeInTheDocument();
   });
 
-  it('is plain text where the drill seam has no page, which is the case for competitors today', async () => {
+  it('is plain text where the drill seam has no page', async () => {
+    seam.drill = () => null;
     serve(summary(PROMPTS));
     renderCard();
     const list = await barList();
     expect(within(list).queryByRole('link')).not.toBeInTheDocument();
+  });
+
+  // The Competitors page is live since WP-39: the real seam links each row to it, with the engine of the row
+  it('links every row to the Competitors page through the real drill seam, with the engine of the row', async () => {
+    serve(summary(PROMPTS));
+    renderCard();
+    const list = await barList();
+    const links = within(list).getAllByRole('link');
+    expect(links).toHaveLength(within(list).getAllByRole('listitem').length);
+    for (const link of links) {
+      const href = new URL(link.getAttribute('href') ?? '', 'http://localhost');
+      expect(href.pathname).toBe('/digibranders/fynix/competitors');
+      expect(href.searchParams.get('engine')).toBe('chatgpt_web');
+    }
   });
 
   it('links a row with the page the drill seam gives, and keeps the focus order of the rows', async () => {

@@ -6509,7 +6509,88 @@
     "emptyUnderMinReason": "Queries issued by fewer answers are left out. Lower the minimum or choose a longer window.",
     "showEvery": "Show every query"
   },
-  "competitors": {},
+  "competitors": {
+    "title": "Competitors",
+    "meta": "AI updated {time}, {count, plural, one {# tracked competitor} other {# tracked competitors}}",
+    "metaCount": "{count, plural, one {# tracked competitor} other {# tracked competitors}}",
+    "metaNone": "No AI answer in this window, {count, plural, one {# tracked competitor} other {# tracked competitors}}",
+    "metaStale": "No new AI answer since {date}, {count, plural, one {# tracked competitor} other {# tracked competitors}}",
+    "noAccessTitle": "You cannot open competitors",
+    "noAccessReason": "Your role cannot read AI data in this project.",
+    "noEngineTitle": "No engine is on",
+    "noEngineReason": "Competitor figures come from the answers of the engines you turn on.",
+    "noEngineAction": "Open Engines",
+    "noEngineAdmin": "Ask a workspace admin to turn on an engine.",
+    "loadFailedTitle": "Competitors could not be loaded",
+    "loadFailedReason": "The server did not answer. Try again in a moment.",
+    "moreActions": "More actions",
+    "copyLink": "Copy link",
+    "linkCopied": "Link copied",
+    "tabs": {
+      "label": "Competitor views",
+      "comparison": "Comparison",
+      "seo": "SEO",
+      "ai": "AI",
+      "candidates": "Candidates"
+    },
+    "views": {
+      "default": "Default",
+      "shareOfVoice": "Share of voice by topic",
+      "brandedIncluded": "Branded prompts included"
+    },
+    "filters": {
+      "engine": "Engine",
+      "topic": "Topic",
+      "branded": "Branded",
+      "brandedInclude": "Include branded prompts",
+      "droppedTitle": "{count, plural, one {A filter from the link was left out} other {# filters from the link were left out}}",
+      "droppedDescription": "{fields}: the link holds a value this project has nothing for."
+    },
+    "compare": {
+      "label": "Compare with",
+      "previous": "vs previous period",
+      "off": "No comparison"
+    },
+    "scope": {
+      "country": "Country: {country}",
+      "allCountries": "All countries",
+      "search": "Search countries",
+      "countryEmpty": "No country matches {query}",
+      "clear": "Clear",
+      "open": "Show countries",
+      "note": "Only the prompts set in {country} are read. Prompts with no country are left out."
+    },
+    "header": {
+      "addCompetitor": "Add competitor"
+    },
+    "sections": {
+      "top": "Top competitor",
+      "summary": "Channel summary",
+      "topics": "Topics by brand",
+      "lost": "Prompts we lose",
+      "trend": "Share of voice by engine"
+    },
+    "empty": {
+      "noCompetitorTitle": "No competitor is tracked",
+      "noCompetitorReason": "Share of voice and the comparison need at least one tracked competitor.",
+      "noCompetitorAdmin": "Ask a member who can edit entities to add one."
+    },
+    "states": {
+      "readFailedTitle": "Competitor figures could not be loaded",
+      "readFailedReason": "The server did not answer. Your filters are unchanged.",
+      "stale": "These are the last figures read. The newest read failed."
+    },
+    "seo": {
+      "title": "Search competitors are not measured yet",
+      "reason": "Search share of voice needs keyword volumes and a click-through model, and no read of competitor rankings exists yet. The channel summary shows these figures as not available instead of guessing.",
+      "action": "Open Keywords",
+      "hint": "Add the keywords you want to track there: they are what search competitor figures will be counted over."
+    },
+    "candidates": {
+      "title": "Candidate brands are not listed yet",
+      "reason": "Brands that answers name and you do not track will be listed here with a Track action once brand discovery is built."
+    }
+  },
   "discover": {},
   "layouts": {
     "customize": {

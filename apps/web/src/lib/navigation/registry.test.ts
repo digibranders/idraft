@@ -35,11 +35,12 @@ describe('the navigation registry', () => {
     }
   });
 
-  it('lists only what is live: Keywords, Topics & Prompts, Citations, Integrations, Runs, Costs and Settings, for now', () => {
+  it('lists only what is live: Keywords, Topics & Prompts, Citations, Competitors, Integrations, Runs, Costs and Settings, for now', () => {
     expect(keysOf(visibleNavigation(NAVIGATION, permissionsFor('owner')))).toEqual([
       'keywords',
       'prompts',
       'citations',
+      'competitors',
       'integrations',
       'runs',
       'costs',
@@ -59,11 +60,20 @@ describe('the navigation registry', () => {
   it('shows Runs to a reader and Costs to those who may read costs, hiding the one the role cannot open', () => {
     const shownTo = (role: (typeof roleValues)[number]): string[] =>
       keysOf(visibleNavigation(NAVIGATION, permissionsFor(role)));
-    expect(shownTo('viewer')).toEqual(['keywords', 'prompts', 'citations', 'integrations', 'runs', 'settings']);
+    expect(shownTo('viewer')).toEqual([
+      'keywords',
+      'prompts',
+      'citations',
+      'competitors',
+      'integrations',
+      'runs',
+      'settings',
+    ]);
     expect(shownTo('analyst')).toEqual([
       'keywords',
       'prompts',
       'citations',
+      'competitors',
       'integrations',
       'runs',
       'costs',
@@ -171,7 +181,6 @@ describe('the navigation registry', () => {
       'pages',
       'aiOverview',
       'sources',
-      'competitors',
       'discover',
       'reports',
     ]);
@@ -185,6 +194,20 @@ describe('the navigation registry', () => {
     expect(at('/digibranders/fynix/discover/prompts')).toBe('discover');
     expect(at('/digibranders/fynix/reports')).toBe('reports');
     expect(at('/digibranders/fynix/matrix')).toBe('matrix');
+  });
+
+  it('Competitors is a live destination in the second section, below the AI group, for data:read', () => {
+    expect(NAVIGATION.find((item) => item.key === 'competitors')).toMatchObject({
+      path: '/competitors',
+      section: 2,
+      group: null,
+      permission: 'data:read',
+      status: 'live',
+    });
+    expect(destinationOf(LIVE_NAVIGATION, '/digibranders/fynix/competitors', 'digibranders', 'fynix')?.key).toBe(
+      'competitors',
+    );
+    expect(keysOf(visibleNavigation(NAVIGATION, permissionsFor('billing')))).not.toContain('competitors');
   });
 
   it('finds no destination for the path of a planned one among the live ones', () => {

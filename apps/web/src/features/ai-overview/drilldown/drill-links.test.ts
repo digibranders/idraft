@@ -164,15 +164,16 @@ describe('the Citations link is read by the Citations page own parser', () => {
 
 describe('liveness', () => {
   it('a destination that is not live in the navigation registry gives null, not a link to a 404 page', () => {
-    for (const kind of ['competitors', 'sources'] as const) {
+    for (const kind of ['sources'] as const) {
       expect(isLive(kind)).toBe(false);
       expect(drillHref(kind, scopeOf(), {}, PROJECT)).toBeNull();
     }
   });
 
   it('every kind the registry has live gives a link', () => {
-    expect(isLive('prompts') && isLive('citations') && isLive('runs')).toBe(true);
-    for (const kind of ['prompts', 'topic', 'citations', 'runs'] as const) {
+    // competitors is live since WP-39
+    expect(isLive('prompts') && isLive('citations') && isLive('runs') && isLive('competitors')).toBe(true);
+    for (const kind of ['prompts', 'topic', 'citations', 'competitors', 'runs'] as const) {
       expect(drillHref(kind, scopeOf(), {}, PROJECT)).not.toBeNull();
     }
   });

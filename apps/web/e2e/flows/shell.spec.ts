@@ -73,7 +73,15 @@ test.describe('the application shell', () => {
     await page.goto(PROFILE);
     const links = page.getByRole('navigation', { name: 'Primary' }).getByRole('link');
     // A viewer reads the data, so Runs is there; Costs needs costs:read, which the role does not hold
-    await expect(links).toHaveText(['Keywords', 'Topics & Prompts', 'Citations', 'Integrations', 'Runs', 'Settings']);
+    await expect(links).toHaveText([
+      'Keywords',
+      'Topics & Prompts',
+      'Citations',
+      'Competitors',
+      'Integrations',
+      'Runs',
+      'Settings',
+    ]);
   });
 
   test('every page carries the policy, and none reports a violation', async ({ page }) => {
