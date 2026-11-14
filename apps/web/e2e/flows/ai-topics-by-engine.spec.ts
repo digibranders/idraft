@@ -258,8 +258,14 @@ test.describe('The topic drawer', () => {
     for (const engine of ['ChatGPT', 'Gemini']) {
       await expect(drawer.getByRole('link', { name: new RegExp(`^${engine}: `) })).toBeVisible();
     }
-    // Every figure of the panel comes with its answers
-    await expect(drawer.getByText(/\d+ of \d+ answers/).first()).toBeVisible();
+    // Every figure of the panel comes with its answers. The change on a card (WP-19) holds its tooltip text in a hidden
+    // description that says "of 24 answers" too, so only what is on screen counts here
+    await expect(
+      drawer
+        .getByText(/\d+ of \d+ answers/)
+        .filter({ visible: true })
+        .first(),
+    ).toBeVisible();
     await expect(
       drawer.getByText(
         /^(Best on .* a gap of [\d.]+ pts\.|Every engine with a rate is at |Fewer than 2 engines have a rate|No engine names the brand|Left out for too few answers)/,
