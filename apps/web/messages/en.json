@@ -4642,7 +4642,57 @@
       }
     },
     "fanout": {},
-    "facets": {},
+    "facets": {
+      "fields": {
+        "intent": "Intent",
+        "funnel": "Funnel stage",
+        "importance": "Importance",
+        "type": "Type",
+        "language": "Language",
+        "importanceOption": "{value}",
+        "intentOptions": {
+          "informational": "Informational",
+          "navigational": "Navigational",
+          "commercial": "Commercial",
+          "transactional": "Transactional",
+          "local": "Local",
+          "unknown": "Not set"
+        },
+        "funnelOptions": {
+          "tofu": "Top of funnel",
+          "mofu": "Middle of funnel",
+          "bofu": "Bottom of funnel",
+          "retention": "Retention",
+          "unknown": "Not set"
+        },
+        "typeOptions": {
+          "question": "Question",
+          "comparison": "Comparison",
+          "recommendation": "Recommendation",
+          "howTo": "How to",
+          "definition": "Definition",
+          "local": "Local",
+          "transactional": "Transactional",
+          "other": "Other"
+        }
+      },
+      "branded": {},
+      "columns": {},
+      "views": {},
+      "export": {
+        "csv": "Export CSV",
+        "xlsx": "Export XLSX",
+        "sheet": "Prompts",
+        "none": "No prompts to export in this view",
+        "waiting": "The list is still loading"
+      },
+      "header": {},
+      "strip": {},
+      "menus": {},
+      "shortcuts": {},
+      "sheet": {},
+      "notices": {}
+    },
     "limits": {},
     "evidence": {}
   },

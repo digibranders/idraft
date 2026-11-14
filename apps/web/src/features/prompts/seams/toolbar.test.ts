@@ -77,6 +77,12 @@ describe('promptsToolbarItems', () => {
     }
   });
 
+  it('keeps the two export ids for the header, so a later package cannot take them', () => {
+    expect(BUILT_IN_TOOLBAR_IDS).toEqual(expect.arrayContaining(['export-csv', 'export-xlsx']));
+    expect(() => promptsToolbarItems([more('export-csv')], context, EDITOR)).toThrow('"export-csv"');
+    expect(() => promptsToolbarItems([action('export-xlsx')], context, EDITOR)).toThrow('"export-xlsx"');
+  });
+
   it('throws for an id that repeats, across the slots too', () => {
     expect(() => promptsToolbarItems([more('twice'), action('twice')], context, EDITOR)).toThrow(/"twice"/);
   });
