@@ -1,7 +1,8 @@
 import { expect, type Locator, type Page } from '@playwright/test';
 
 import { MOCK_USERS } from '../../src/mocks/fixtures';
-import { SCREENS } from '../../src/lib/layouts/catalog';
+import { cardAvailability } from '../../src/lib/layouts/availability';
+import { CARD_TYPES, SCREENS, cardName, cardType } from '../../src/lib/layouts/catalog';
 import { preferenceKey } from '../../src/lib/preferences/storage';
 import {
   ADMIN,
@@ -12,6 +13,7 @@ import {
   WIDTHS,
   expectNoSeriousViolations,
   layoutSettled,
+  waitForAnnouncement,
   type Density,
   type Theme,
 } from './layouts';
@@ -279,4 +281,201 @@ export async function setSummaryMode(page: Page, mode: SummaryMode): Promise<voi
     },
     [SUMMARY_MODE_KEY, SUMMARY_GATE_KEY, mode] as const,
   );
+}
+
+// -------------------------------------------------------------------------------------------------
+// Customize mode on this page (the parts are WP-15 and WP-16's; the screen is `ai_overview`)
+
+export const customizeButton = (page: Page): Locator => page.getByRole('button', { name: 'Customize', exact: true });
+export const saveBar = (page: Page): Locator => page.locator('[data-slot="layout-save-bar"]');
+export const barButton = (page: Page, name: string): Locator =>
+  saveBar(page).getByRole('button', { name, exact: true });
+/** A part of a card's toolbar in customize mode: `handle`, `more`, `width`, `options`. */
+export const cardPart = (page: Page, id: string, part: string): Locator =>
+  cardById(page, id).locator(`[data-part="${part}"]`);
+export const addCardSlot = (page: Page): Locator => cardGrid(page).locator('[data-add-card-slot]');
+export const catalogDialog = (page: Page): Locator => page.getByRole('dialog', { name: 'Add card', exact: true });
+export const discardDialog = (page: Page): Locator =>
+  page.getByRole('alertdialog', { name: 'Discard unsaved changes?', exact: true });
+/** The cards unavailable in a project are drawn as these in customize mode. */
+export const unavailableCards = (page: Page): Locator => cardGrid(page).locator('[data-slot="unavailable-card"]');
+/** The notice the tooltip of the layouts parts and the team default dialogs use. */
+export const toastOf = (page: Page, title: string): Locator =>
+  page.locator('[data-slot="toast"]').filter({ hasText: title });
+
+const GROUP_LABEL = { seo: 'SEO', ai: 'AI', cross: 'Cross-channel', activity: 'Activity' } as const;
+const GROUP_ORDER = ['seo', 'ai', 'cross', 'activity'] as const;
+/** The active card types of the screen that need no permission: what the catalog lists for a member who holds none of them. */
+const FREE_TYPES = CARD_TYPES.filter(
+  (type) => type.status === 'active' && type.screens.includes('ai_overview') && type.permission === null,
+);
+
+/** The titles the card catalog lists on this screen for a member without a permission-gated card, sorted. */
+export const aiCatalogTitles = (): string[] => FREE_TYPES.map((type) => type.title).sort();
+
+/** The group headings the catalog shows on this screen, in the order it shows them. */
+export const aiCatalogGroups = (): string[] =>
+  GROUP_ORDER.filter((group) => FREE_TYPES.some((type) => type.group === group)).map((group) => GROUP_LABEL[group]);
+
+/** The titles of the types that need a permission, which a member may or may not see in the catalog. */
+export const permissionGatedTitles = (): string[] =>
+  CARD_TYPES.filter(
+    (type) => type.status === 'active' && type.screens.includes('ai_overview') && type.permission !== null,
+  ).map((type) => type.title);
+
+/** The cards of the built-in layout that a project with no AI engine cannot show, by the catalog's own rule. */
+export function cardsUnavailableWithoutAi(): string[] {
+  const capabilities = { channels: ['seo'], permissions: ['data:read'], integrations: [] } as const;
+  return (SCREENS.ai_overview.builtin.cards ?? [])
+    .filter((item) => {
+      const type = cardType(item.type);
+      return type !== undefined && cardAvailability(type, capabilities).state === 'unavailable';
+    })
+    .map((item) => item.id);
+}
+
+/** What a card of the built-in layout is called in its toolbar ("Hide AI opportunities"). */
+export function builtinCardName(id: string): string {
+  const item = (SCREENS.ai_overview.builtin.cards ?? []).find((card) => card.id === id);
+  if (item === undefined) throw new Error(`The built-in layout of the AI visibility screen has no card "${id}"`);
+  return cardName(item);
+}
+
+/** The cards of the grid in the order drawn, as the ids they carry in `data-layout-card`. */
+export async function cardOrder(page: Page): Promise<string[]> {
+  return cardGrid(page)
+    .locator('[data-layout-card]')
+    .evaluateAll((nodes) => nodes.map((node) => (node instanceof HTMLElement ? (node.dataset.layoutCard ?? '') : '')));
+}
+
+/** The page draws the cards of an edit a render after it says so: the order is read until it is the one expected. */
+export async function expectCardOrder(page: Page, expected: readonly string[]): Promise<void> {
+  await expect.poll(() => cardOrder(page)).toEqual([...expected]);
+}
+
+/** What the strip says of its numbers, in order, in either mode: "Prompts", "Mention rate Gemini". */
+export async function numberLabels(page: Page): Promise<string[]> {
+  return numbersGroup(page)
+    .locator('dt')
+    .evaluateAll((nodes) =>
+      // innerText: the metric and the engine are two blocks, which textContent runs together
+      nodes.map((node) => (node instanceof HTMLElement ? node.innerText : '').replace(/\s+/g, ' ').trim()),
+    );
+}
+
+export async function expectNumberLabels(page: Page, expected: readonly string[]): Promise<void> {
+  await expect.poll(() => numberLabels(page)).toEqual([...expected]);
+}
+
+/** Presses Customize and waits until the mode is on: the save bar is there and the first card has its handle. */
+export async function openCustomize(page: Page): Promise<void> {
+  await expect(customizeButton(page)).toBeEnabled();
+  await customizeButton(page).click();
+  await expect(customizeButton(page)).toHaveAttribute('aria-pressed', 'true');
+  await expect(saveBar(page)).toBeVisible();
+  await layoutSettled(page);
+}
+
+/** Hides a card of the built-in layout with its toolbar button, and waits for the words and the new order. */
+export async function hideCard(page: Page, id: string, remaining: readonly string[]): Promise<void> {
+  const name = builtinCardName(id);
+  await cardGrid(page)
+    .getByRole('button', { name: `Hide ${name}`, exact: true })
+    .click();
+  await waitForAnnouncement(page, `${name} hidden. Add it back from the catalog.`);
+  await expectCardOrder(page, remaining);
+}
+
+/** Saves the draft and waits until the mode has ended. */
+export async function saveLayout(page: Page): Promise<void> {
+  await barButton(page, 'Save layout').click();
+  await waitForAnnouncement(page, 'Layout saved');
+  await expect(saveBar(page)).toHaveCount(0);
+}
+
+export { waitForAnnouncement };
+
+/** One row of the card grid as it is drawn: which cards, and whether they fill the grid's width. */
+export interface DrawnRow {
+  cards: string[];
+  full: boolean;
+}
+
+/**
+ * The rows of the cards grid as drawn at the window's width, read from the boxes: cards that share a top are one row,
+ * and a row is full when its last card ends where the grid does. Pending and finished cards alike are measured, since
+ * the cell's width is the grid's, not the card's.
+ */
+export async function drawnRows(page: Page): Promise<DrawnRow[]> {
+  return cardGrid(page)
+    .locator('[data-layout-card]')
+    .evaluateAll((nodes) => {
+      const cells = nodes.filter((node): node is HTMLElement => node instanceof HTMLElement);
+      const grid = cells[0]?.parentElement?.getBoundingClientRect();
+      if (grid === undefined) return [];
+      const rows: Array<{ top: number; right: number; cards: string[] }> = [];
+      for (const cell of cells) {
+        const box = cell.getBoundingClientRect();
+        const row = rows.find((candidate) => Math.abs(candidate.top - box.top) < 4);
+        if (row === undefined) rows.push({ top: box.top, right: box.right, cards: [cell.dataset.layoutCard ?? ''] });
+        else {
+          row.right = Math.max(row.right, box.right);
+          row.cards.push(cell.dataset.layoutCard ?? '');
+        }
+      }
+      return rows.map((row) => ({ cards: row.cards, full: row.right >= grid.right - 2 }));
+    });
+}
+
+/** The 1 based numbers of the rows that do not fill the grid. */
+export const partEmptyRows = (rows: readonly DrawnRow[]): number[] =>
+  rows.flatMap((row, index) => (row.full ? [] : [index + 1]));
+
+// -------------------------------------------------------------------------------------------------
+// The Export Numbers file and the tooltip of a number
+
+/** The sentence of a number's tooltip, which its cell keeps as its description for assistive technology. */
+export async function numberTip(page: Page, label: string): Promise<string> {
+  const tip = await numbersGroup(page)
+    .locator('dl > div')
+    .filter({ has: page.locator('dt', { hasText: label }) })
+    .evaluate((cell) => {
+      const id = cell.querySelector('dd')?.getAttribute('aria-describedby');
+      return id === null || id === undefined ? '' : (document.getElementById(id)?.textContent ?? '');
+    });
+  return tip.replace(WHITESPACE, ' ').trim();
+}
+
+/** A CSV file as rows of cells (RFC 4180: quoted cells, doubled quotes, CRLF), without its byte order mark. */
+export function parseCsv(text: string): string[][] {
+  const source = text.startsWith('﻿') ? text.slice(1) : text;
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let cell = '';
+  let quoted = false;
+  for (let index = 0; index < source.length; index += 1) {
+    const char = source[index];
+    if (quoted) {
+      if (char === '"' && source[index + 1] === '"') {
+        cell += '"';
+        index += 1;
+      } else if (char === '"') quoted = false;
+      else cell += char;
+    } else if (char === '"') quoted = true;
+    else if (char === ',') {
+      row.push(cell);
+      cell = '';
+    } else if (char === '\r' || char === '\n') {
+      if (char === '\r' && source[index + 1] === '\n') index += 1;
+      row.push(cell);
+      rows.push(row);
+      row = [];
+      cell = '';
+    } else cell += char;
+  }
+  if (cell !== '' || row.length > 0) {
+    row.push(cell);
+    rows.push(row);
+  }
+  return rows;
 }
