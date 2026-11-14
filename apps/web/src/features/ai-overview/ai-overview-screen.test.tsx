@@ -236,12 +236,14 @@ describe('the numbers strip of the AI visibility page', () => {
     expect(terms[3]).toMatch(/^Mention rate.*AI Mode$/);
     const [prompts, chatgpt, gemini, aiMode] = valuesOf(strip);
     expect(prompts).toHaveTextContent(/^\d+/);
-    // No engine is pooled: each number is its own engine's, with its counts beside it
-    expect(chatgpt).toHaveTextContent(/%.*\d[\d,]* of \d[\d,]* answers|answers?/);
-    expect(gemini).toHaveTextContent(/%.*\d[\d,]* of \d[\d,]* answers|answers?/);
+    // Inline chips show the rate; counts and window are in the tooltip
+    expect(chatgpt).toHaveTextContent(/%/);
+    expect(gemini).toHaveTextContent(/%/);
+    expect(chatgpt).toHaveAccessibleDescription(/\d[\d,]* of \d[\d,]* valid answers/);
+    expect(gemini).toHaveAccessibleDescription(/\d[\d,]* of \d[\d,]* valid answers/);
     // Fynix has AI Mode off: it is not asked, and never a zero
     expect(aiMode).toHaveTextContent('Not asked');
-    expect(aiMode).toHaveTextContent('Off in this project');
+    expect(aiMode).toHaveAccessibleDescription(/off in this project/i);
     expect(aiMode).not.toHaveTextContent('0%');
     expect(chatgpt).toHaveAttribute('tabindex', '0');
     expect(chatgpt).toHaveAccessibleDescription(/Window: Oct 16 to Nov 12, 2026 \(branded prompts excluded\)/);
@@ -303,7 +305,7 @@ describe('the numbers strip of the AI visibility page', () => {
     });
     const [, chatgpt, gemini] = valuesOf(strip);
     expect(chatgpt).toHaveTextContent('Not asked');
-    expect(chatgpt).toHaveTextContent('Not in the engine filter');
+    expect(chatgpt).toHaveAccessibleDescription(/not in the engine filter/i);
     expect(gemini).not.toHaveTextContent('Not asked');
   });
 

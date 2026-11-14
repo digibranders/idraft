@@ -177,7 +177,7 @@ export function MetricStrip({ size, label, groups, status, nowrap = false }: Met
                     {item.delta === undefined || item.delta === null ? null : (
                       <span className="num type-body-strong">{item.delta}</span>
                     )}
-                    {item.context === undefined || item.context === null ? null : (
+                    {tipped || item.context === undefined || item.context === null ? null : (
                       <span className="sr-only">{item.context}</span>
                     )}
                   </dd>
