@@ -105,6 +105,59 @@ describe('MetricStrip', () => {
     expect(screen.getByRole('link', { name: 'Tracked keywords' })).toBeInTheDocument();
   });
 
+  describe('a linked number with a tooltip', () => {
+    const TIP = 'Mentioned: 4 of 8 answers';
+    const mixed: MetricStripGroup[] = [
+      {
+        id: 'ai',
+        items: [
+          { id: 'linked', label: 'Mention rate', value: '50%', tip: TIP, href: '/design-system' },
+          { id: 'plain', label: 'Citation rate', value: '25%', tip: 'Cited: 2 of 8 answers' },
+        ],
+      },
+    ];
+    const tooltip = (text: string): Promise<HTMLElement> =>
+      screen.findByText(text, { selector: '[data-slot="tooltip"] span' });
+
+    it('shows its tooltip when the mouse is over the link that covers the cell', async () => {
+      const { user } = renderWithProviders(<MetricStrip size="md" label="Summary" groups={mixed} status="ready" />);
+      await user.hover(screen.getByRole('link', { name: 'Mention rate' }));
+      expect(await tooltip(TIP)).toBeInTheDocument();
+    });
+
+    it('is described once: the hover tooltip on the link adds no description, the value cell keeps it', async () => {
+      const { container } = renderWithProviders(
+        <MetricStrip size="md" label="Summary" groups={mixed} status="ready" />,
+      );
+      expect(screen.getByRole('link', { name: 'Mention rate' })).not.toHaveAccessibleDescription();
+      const [linked] = screen.getAllByRole('definition');
+      expect(linked).toHaveAccessibleDescription(TIP);
+      expect(linked).toHaveAttribute('tabindex', '0');
+      expect(await axe(container)).toHaveNoViolations();
+    });
+
+    it('leaves an unlinked number as it was, and gives no tooltip to a link without a tip or while loading', async () => {
+      const { user, rerender } = renderWithProviders(
+        <MetricStrip size="md" label="Summary" groups={mixed} status="ready" />,
+      );
+      const [, plain] = screen.getAllByRole('definition');
+      await user.hover(plain as HTMLElement);
+      expect(await tooltip('Cited: 2 of 8 answers')).toBeInTheDocument();
+      expect(screen.getAllByRole('link')).toHaveLength(1);
+      await user.unhover(plain as HTMLElement);
+      const bare: MetricStripGroup[] = [
+        { id: 'ai', items: [{ id: 'bare', label: 'Mention rate', value: '50%', href: '/design-system' }] },
+      ];
+      rerender(<MetricStrip size="md" label="Summary" groups={bare} status="ready" />);
+      await user.hover(screen.getByRole('link', { name: 'Mention rate' }));
+      expect(screen.queryByText(TIP)).toBeNull();
+      expect(document.querySelector('[data-slot="tooltip"]')).toBeNull();
+      rerender(<MetricStrip size="md" label="Summary" groups={mixed} status="loading" />);
+      await user.hover(screen.getByRole('link', { name: 'Mention rate' }));
+      expect(screen.queryByText(TIP)).toBeNull();
+    });
+  });
+
   it('describes an item with the tooltip text that carries its counts, and draws none while loading', () => {
     const tipped: MetricStripGroup[] = [
       { id: 'ai', items: [{ id: 'mention', label: 'Mention rate', value: '50%', tip: 'Mentioned: 4 of 8 answers' }] },

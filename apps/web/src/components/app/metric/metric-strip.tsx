@@ -47,8 +47,8 @@ export interface MetricStripItem {
   /**
    * Where the item leads inside the app. The label (with its addon) becomes the link, stretched over the whole
    * cell, so the addon must not be a control of its own. `md` and `sm` strips only; an `inline` chip ignores it.
-   * A cell with both `href` and `tip` has its tooltip reachable by keyboard only: the link's `::after` covers the
-   * value, so a pointer never reaches it.
+   * A cell with both `href` and `tip` shows the tooltip when the mouse is over the link (its `::after` covers the
+   * value, so the value cell never gets the pointer) and when the value cell is focused by keyboard.
    */
   href?: Route | undefined;
 }
@@ -208,12 +208,17 @@ export function MetricStrip({ size, label, groups, status, nowrap = false }: Met
                 {item.href === undefined ? (
                   name
                 ) : (
-                  <Link
-                    href={item.href}
-                    className="flex min-w-0 items-center gap-1 outline-none after:absolute after:inset-0"
-                  >
-                    {name}
-                  </Link>
+                  // The link's ::after covers the value cell, so the mouse never reaches the value's own tooltip: the
+                  // link shows the same one. `label` purpose: the value cell keeps the description for assistive
+                  // technology, so this one is not announced a second time
+                  <Tooltip content={item.tip ?? ''} purpose="label" disabled={!tipped}>
+                    <Link
+                      href={item.href}
+                      className="flex min-w-0 items-center gap-1 outline-none after:absolute after:inset-0"
+                    >
+                      {name}
+                    </Link>
+                  </Tooltip>
                 )}
               </dt>
               <Tooltip content={item.tip ?? ''} disabled={!tipped}>

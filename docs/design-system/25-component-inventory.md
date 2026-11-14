@@ -3073,6 +3073,8 @@ interface MetricStripProps {
 - **Use:** page summaries on T1, T2, T3; inspector summary (`sm`).
 - **Not for:** KPI card grids, more than 6 items (split the scope), pooled AI values without the "Equal-weight average (3 engines)" label, repeating metrics shown elsewhere on the page.
 
+> As built (WP-33): an item with `href` is a link across its whole cell, and a linked metric shows its `tip` tooltip when the mouse is over it, as an unlinked one does (the link carries a label-purpose copy, so assistive technology still hears the description once, from the value cell).
+
 ### 9.2 MetricItem (MetricLabel)
 `app/metric/metric-item.tsx` · V1 · [23 §2.1](23-application-patterns.md), [23 §2.4](23-application-patterns.md)
 
