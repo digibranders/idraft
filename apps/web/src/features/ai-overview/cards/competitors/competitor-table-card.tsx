@@ -7,7 +7,7 @@ import { useMemo, type ReactElement, type ReactNode } from 'react';
 import { useCompetitorReads, useTrackedSet } from './data/use-competitor-reads';
 import { entityTotals, previousEntityTotals } from './model/entity-totals';
 import type { EngineEntityTotals, EntityFigures, TrackedEntity, TrackedSet } from './model/types';
-import { useFrameState, type DataSituation, type FrameState } from './parts/frame-state';
+import { frameSummary, useFrameState, type DataSituation, type FrameState } from './parts/frame-state';
 import { percentOf } from './parts/percent';
 import { TrackedFootnote } from './parts/tracked-footnote';
 import { useCardDrill, useCardExport } from '../engines/use-card-seams';
@@ -383,7 +383,8 @@ export default function CompetitorTableCard({ item, options, live }: CardProps):
           ? null
           : t('meta', { window: range, engines: asked.length, branded: scope.branded })
       }
-      summary={
+      summary={frameSummary(
+        frame,
         leaders.length === 0
           ? t('summaryNone', { metric, engines: engineNames })
           : t('summary', {
@@ -392,37 +393,36 @@ export default function CompetitorTableCard({ item, options, live }: CardProps):
               engines: engineNames,
               many: showAverage ? 'yes' : 'no',
               list: formatList(leaders.slice(0, 3)),
-            })
-      }
+            }),
+      )}
       footnote={
         <>
           {set === null ? null : <TrackedFootnote set={set} />}
-          <p>{metric === 'mention' ? t('noteMention') : t('noteShare')}</p>
-          {showAverage ? <p>{t('noteAverage')}</p> : null}
-          {columns.length === 0 ? null : <p>{showAverage ? t('noteOrderAverage') : t('noteOrderOne')}</p>}
-          {hidden > 0 ? <p>{t('moreRows', { count: hidden })}</p> : null}
-        </>
-      }
-      body={
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center gap-2 type-meta">
+          <p className="flex items-start gap-1">
+            <span>{metric === 'mention' ? t('noteMention') : t('noteShare')}</span>
             <MetricInfo
               name={t('infoName', { metric })}
               definition={t('infoDefinition', { metric })}
               formula={t('infoFormula', { metric })}
               methodologyHref={METHODOLOGY_HREF}
             />
-          </div>
-          <PlainTable
-            caption={t('caption', { metric })}
-            columns={tableColumns}
-            rows={shown}
-            rowKey={(row) => row.brand.entityId}
-            status="ready"
-            errorState={null}
-            emptyText={t('noAnswers')}
-          />
-        </div>
+          </p>
+          {showAverage ? <p>{t('noteAverage')}</p> : null}
+          {columns.length === 0 ? null : <p>{showAverage ? t('noteOrderAverage') : t('noteOrderOne')}</p>}
+          {hidden > 0 ? <p>{t('moreRows', { count: hidden })}</p> : null}
+        </>
+      }
+      body={
+        <PlainTable
+          caption={t('caption', { metric })}
+          columns={tableColumns}
+          rows={shown}
+          rowKey={(row) => row.brand.entityId}
+          status="ready"
+          errorState={null}
+          emptyText={t('noAnswers')}
+          scrollHint={t('scrollHint')}
+        />
       }
       table={
         <PlainTable

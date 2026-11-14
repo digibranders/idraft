@@ -11,7 +11,7 @@ import { trimIdleShares } from './model/trim-weeks';
 import type { EngineEntityTotals, FoldedPoint, TrackedEntity, TrackedSet } from './model/types';
 import { foldOthers, weeklyShares } from './model/weekly-series';
 import { useCardEngine } from './parts/card-engine';
-import { useFrameState, type DataSituation, type FrameState, type ReadFacts } from './parts/frame-state';
+import { frameSummary, useFrameState, type DataSituation, type FrameState, type ReadFacts } from './parts/frame-state';
 import { TrackedFootnote } from './parts/tracked-footnote';
 import { useOverview, useOverviewSummary } from '../../overview-context';
 import { useCardMeta } from '../engines/card-meta';
@@ -23,7 +23,7 @@ import { boundaryMarkLines, type ChartBoundary } from '@/lib/charts/boundaries';
 import { escapeHtml, type CategorySeries } from '@/lib/charts/category-chart';
 import { tipRowHtml, tipTitleHtml } from '@/lib/charts/tooltip-row';
 import type { ChartTokens } from '@/lib/design/read-tokens';
-import { formatChartDate, formatDateRange, formatPercent } from '@/lib/format';
+import { formatChartDate, formatDateRange, formatList, formatPercent } from '@/lib/format';
 import { MIN_OBSERVATIONS } from '@/lib/stats';
 
 /**
@@ -47,7 +47,8 @@ interface ColumnsModel {
   totals: EngineEntityTotals;
   /** Bottom to top: you, then the competitors by slot. */
   brands: readonly Brand[];
-  hasOther: boolean;
+  /** The names of the tracked brands with no colour slot, folded into "Other tracked". */
+  others: readonly string[];
   points: readonly FoldedPoint[];
   /** Weeks in which any answer names a tracked brand. */
   weeksWithAnswers: number;
@@ -74,7 +75,7 @@ function columnsModel(
   return {
     totals,
     brands,
-    hasOther: set.entities.some((entity) => !slots.has(entity.entityId)),
+    others: set.entities.filter((entity) => !slots.has(entity.entityId)).map((entity) => entity.name),
     points: drawn.map((point) => foldOthers(point, set)),
     weeksWithAnswers: drawn.filter((point) => point.answers > 0).length,
     weeksDrawn: drawn.filter((point) => point.state === 'ok').length,
@@ -180,7 +181,7 @@ export default function SovOverTimeCard({ item, options, live }: CardProps): Rea
           null,
       ),
     }));
-    return ready?.hasOther === true
+    return ready !== null && ready.others.length > 0
       ? [
           ...own,
           {
@@ -279,7 +280,7 @@ export default function SovOverTimeCard({ item, options, live }: CardProps): Rea
     if (ready === null || (frame.status !== 'ready' && frame.status !== 'refetching')) return null;
     return {
       id: item.id,
-      header: ['week', 'brand', 'share_of_voice', 'answers_naming_tracked', 'state'],
+      header: [t('weekColumn'), t('exportBrand'), t('exportShare'), t('exportAnswers'), t('exportState')],
       rows: points.flatMap((point) =>
         series.map((entry) => {
           const value = entry.values[points.indexOf(point)];
@@ -317,13 +318,16 @@ export default function SovOverTimeCard({ item, options, live }: CardProps): Rea
         set === null ? null : (
           <>
             <TrackedFootnote set={set} />
+            {ready === null || ready.others.length === 0 ? null : (
+              <p>{t('footnoteOthers', { count: ready.others.length, names: formatList(ready.others) })}</p>
+            )}
             <p>{t('footnoteColumns', { min: MIN_OBSERVATIONS })}</p>
             {pooled ? <p>{t('footnotePooled')}</p> : null}
           </>
         )
       }
       height={HEIGHT}
-      summary={summaryText}
+      summary={frameSummary(frame, summaryText)}
       categories={categories}
       categoryHeader={t('weekColumn')}
       series={series}

@@ -128,6 +128,35 @@ describe('PlainTable', () => {
     }
   });
 
+  it('shows its scroll hint only while the table is wider than its region, and only when it has one', () => {
+    class Observer {
+      constructor(private readonly callback: ResizeObserverCallback) {}
+      observe(target: Element): void {
+        this.callback([{ target } as ResizeObserverEntry], this as unknown as ResizeObserver);
+      }
+      unobserve(): void {}
+      disconnect(): void {}
+    }
+    vi.stubGlobal('ResizeObserver', Observer);
+    const scroll = vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockReturnValue(900);
+    const client = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(300);
+    try {
+      const { unmount } = render({ scrollHint: 'Scroll sideways for more' });
+      expect(screen.getByText('Scroll sideways for more')).toBeInTheDocument();
+      unmount();
+      const plain = render();
+      expect(screen.queryByText('Scroll sideways for more')).toBeNull();
+      plain.unmount();
+      client.mockReturnValue(900);
+      render({ scrollHint: 'Scroll sideways for more' });
+      expect(screen.queryByText('Scroll sideways for more')).toBeNull();
+    } finally {
+      scroll.mockRestore();
+      client.mockRestore();
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('draws a footer row when it is given and there are rows', () => {
     render({ footer: ['Total', '', ''] });
     expect(screen.getByText('Total')).toBeInTheDocument();

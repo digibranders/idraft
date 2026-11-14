@@ -79,7 +79,15 @@ export interface HeatmapGridProps {
   density: Density;
   /** `table`: the Table view of the frame; no fill, each cell prints its `tip` words. */
   form?: 'grid' | 'table' | undefined;
+  /**
+   * Width of each data column in the grid form: `default` is 88 px (`w-22`), `wide` is 112 px (`w-28`), for
+   * headers that are names, such as brands. The Table form keeps its own 240 px column.
+   */
+  columnWidth?: 'default' | 'wide' | undefined;
 }
+
+/** Whole class names, so Tailwind finds them. */
+const GRID_COLUMN_WIDTH = { default: 'w-22', wide: 'w-28' } as const;
 
 /** DS 15 section 5: cell text is drawn only when the cell is at least this wide, in px. */
 const MIN_TEXT_WIDTH = 36;
@@ -175,6 +183,7 @@ export function HeatmapGrid({
   boundaries = [],
   density,
   form = 'grid',
+  columnWidth = 'default',
 }: HeatmapGridProps): ReactElement {
   const t = useTranslations('chart.heatmap');
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
@@ -313,7 +322,7 @@ export function HeatmapGrid({
     insufficient: (answers: number): string => t('insufficient', { count: answers }),
     none: t('none'),
   };
-  const dataWidth = asTable ? 'w-60' : 'w-22';
+  const dataWidth = asTable ? 'w-60' : GRID_COLUMN_WIDTH[columnWidth];
   const headClass = 'sticky top-0 border-b border-border bg-surface-subtle px-3 font-normal type-table-header';
 
   return (
@@ -484,19 +493,21 @@ function HeatKey({ scale }: { scale: HeatScale }): ReactElement {
   const t = useTranslations('chart.heatmap');
   const bins = scale === 'sequential' ? SEQUENTIAL_BINS : DIVERGING_BINS;
   const swatch = 'size-4 shrink-0 rounded-xs border border-border-subtle forced-color-adjust-none';
+  // Always 9 items (7 bins and 2 cells without a bin): three even columns wrap to 3 rows, never one left over
+  const item = 'flex w-1/3 items-start gap-1.5 pr-3';
   return (
-    <ul aria-label={t('key')} className="flex flex-wrap items-center gap-x-4 gap-y-2 type-meta">
+    <ul aria-label={t('key')} className="flex max-w-dialog-md flex-wrap gap-y-2 type-meta">
       {bins.map((bin) => (
-        <li key={bin.key} className="flex items-center gap-1.5">
+        <li key={bin.key} className={item}>
           <span aria-hidden="true" className={cn(swatch, bin.fill)} />
           {t(`bins.${bin.key}`)}
         </li>
       ))}
-      <li className="flex items-center gap-1.5">
+      <li className={item}>
         <span aria-hidden="true" className={cn(swatch, 'bg-insufficient')} />
         {t('keyInsufficient', { min: MIN_OBSERVATIONS })}
       </li>
-      <li className="flex items-center gap-1.5">
+      <li className={item}>
         <span aria-hidden="true" className={cn(swatch, 'bg-surface')} />
         {t('keyNone')}
       </li>

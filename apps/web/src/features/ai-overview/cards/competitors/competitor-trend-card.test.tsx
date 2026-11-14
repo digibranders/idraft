@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import CompetitorTrendCard from './competitor-trend-card';
 import { id } from './model/summary-fixtures';
 import { axe } from '@/test/axe';
+import { chartSummaryText } from '@/test/chart-summary';
 import { stubViewport } from '@/test/customize-harness';
 import {
   drawnCategories,
@@ -208,7 +209,14 @@ describe('the competitor trend card (CH-06)', () => {
     const [block, ...rest] = await readExport(user);
     expect(rest).toEqual([]);
     expect(block?.id).toBe('card-under-test');
-    expect(block?.header).toEqual(['week', 'brand', 'value', 'k', 'n', 'state']);
+    expect(block?.header).toEqual([
+      'Week',
+      'Brand',
+      'Mention rate',
+      'Answers naming the brand',
+      'Valid answers',
+      'Status',
+    ]);
     // The week of Oct 19 for you: 40 percent, 80 of 200; the leading week with no answers is not drawn, so not exported
     expect(block?.rows).toContainEqual(['2026-10-19', 'Fynix', 40, 80, 200, 'ok']);
     expect(block?.rows.some((row) => row[0] === '2026-10-12')).toBe(false);
@@ -248,6 +256,17 @@ describe('the competitor trend card states', () => {
     );
     expect(await screen.findByText('ChatGPT is not asked in this scope')).toBeInTheDocument();
     expect(screen.getByText(/outside the engine filter/)).toBeInTheDocument();
+  });
+
+  it('tells assistive technology no figure for an engine that is not asked, and the figures for one that is', async () => {
+    const { unmount } = renderCard(TYPE, CompetitorTrendCard, { engine: 'google_ai_mode', competitors: '3' });
+    const off = chartSummaryText(await screen.findByRole('heading', { level: 2, name: 'Mention rate on AI Mode' }));
+    expect(off).toBe('');
+    expect(off).not.toMatch(/\d|too few/i);
+    unmount();
+    serveWorld(weeklySummary(), entityRows());
+    await drawTrend();
+    expect(chartSummaryText(screen.getByRole('heading', { level: 2, name: TITLE }))).toMatch(/^You \d+%/);
   });
 
   it('says the engine is not asked when the project has it off, with the way to turn it on', async () => {

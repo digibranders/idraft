@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { cleanup, screen, waitFor, within } from '@testing-library/react';
 import type { Route } from 'next';
 import { http, HttpResponse, delay } from 'msw';
 import { useEffect, type ReactElement } from 'react';
@@ -26,6 +26,7 @@ import { engineRates } from '@/lib/rates/strip-model';
 import { setAiSeeded } from '@/mocks/ai-seed';
 import { axe } from '@/test/axe';
 import { cardInOverview, type OverviewWorld } from '@/test/ai-overview-harness';
+import { chartSummaryText } from '@/test/chart-summary';
 import { stubViewport } from '@/test/customize-harness';
 import { server } from '@/test/msw';
 import { renderWithProviders } from '@/test/render';
@@ -573,6 +574,63 @@ describe('the competitor table card', () => {
       expect.stringContaining('/settings/entities'),
     );
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
+  });
+
+  it('tells assistive technology no figure when no engine is asked or the read failed, and the figures otherwise', async () => {
+    serve(summary());
+    const none = renderCard('cmp=off&engine=google_ai_mode');
+    const off = chartSummaryText(await screen.findByRole('heading', { level: 2, name: HEADING }));
+    expect(off).toBe('');
+    expect(off).not.toMatch(/\d|no mention rate/i);
+    none.unmount();
+    server.use(http.get(SUMMARY, () => failing('req-1')));
+    const failed = renderCard();
+    await screen.findByText('Could not load competitors by engine');
+    expect(chartSummaryText(screen.getByRole('heading', { level: 2, name: HEADING }))).not.toMatch(/\d/);
+    failed.unmount();
+    serve(summary());
+    renderCard();
+    await table();
+    expect(chartSummaryText(screen.getByRole('heading', { level: 2, name: HEADING }))).toMatch(
+      /^Mention rate of \d+ tracked brands on ChatGPT and Gemini, averaged over the engines with equal weight: /,
+    );
+  });
+
+  it('puts the info button in the footnote and leaves no row of its own above the table', async () => {
+    serve(summary());
+    renderCard();
+    const grid = await table();
+    const info = screen.getByRole('button', { name: 'About Mention rate' });
+    expect(info.closest('div.type-meta')).toHaveTextContent('Each cell is one engine');
+    // Nothing sits between the card's header and the table's own region
+    expect(grid.closest('[class*="overflow-x-auto"]')?.previousElementSibling).toBeNull();
+  });
+
+  it('says there is more to scroll to only while the table is wider than its region', async () => {
+    serve(summary());
+    renderCard();
+    await table();
+    expect(screen.queryByText('Scroll sideways for more engines.')).not.toBeInTheDocument();
+    cleanup();
+
+    class Observer {
+      constructor(private readonly callback: ResizeObserverCallback) {}
+      observe(target: Element): void {
+        this.callback([{ target } as ResizeObserverEntry], this as unknown as ResizeObserver);
+      }
+      unobserve(): void {}
+      disconnect(): void {}
+    }
+    vi.stubGlobal('ResizeObserver', Observer);
+    const scroll = vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockReturnValue(1200);
+    const client = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500);
+    try {
+      renderCard();
+      expect(await screen.findByText('Scroll sideways for more engines.')).toBeInTheDocument();
+    } finally {
+      scroll.mockRestore();
+      client.mockRestore();
+    }
   });
 
   it('shows Retry for a failed read, and Retry reads again', async () => {

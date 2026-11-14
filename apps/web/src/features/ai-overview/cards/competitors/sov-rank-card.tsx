@@ -11,7 +11,7 @@ import { trimIdleShares } from './model/trim-weeks';
 import type { EngineEntityTotals, EntityFigures, RankedWeek, TrackedSet } from './model/types';
 import { rankSeries, weeklyShares } from './model/weekly-series';
 import { useCardEngine } from './parts/card-engine';
-import { useFrameState, type DataSituation, type FrameState, type ReadFacts } from './parts/frame-state';
+import { frameSummary, useFrameState, type DataSituation, type FrameState, type ReadFacts } from './parts/frame-state';
 import { TrackedFootnote } from './parts/tracked-footnote';
 import { rankAxisOption, type RankTip } from './rank-axis';
 import { useOverview, useOverviewSummary } from '../../overview-context';
@@ -23,7 +23,7 @@ import type { PromptsSummary } from '@/lib/api/types';
 import type { ChartBoundary } from '@/lib/charts/boundaries';
 import type { CategorySeries } from '@/lib/charts/category-chart';
 import type { ChartTokens } from '@/lib/design/read-tokens';
-import { formatChartDate, formatInteger, formatPercent } from '@/lib/format';
+import { formatChartDate, formatInteger, formatList, formatPercent } from '@/lib/format';
 import { MIN_OBSERVATIONS } from '@/lib/stats';
 
 /**
@@ -99,6 +99,29 @@ function rankModel(
 
 const rankOf = (week: RankedWeek, entityId: string): number | null =>
   week.entities.find((entity) => entity.entityId === entityId)?.rank ?? null;
+
+interface TiedRank {
+  rank: number;
+  names: readonly string[];
+}
+
+/**
+ * The drawn brands that share a rank in the latest week that has any, one group for each shared rank, best first.
+ * Their lines lie on top of each other, so the footnote names them: moving a line to show it would falsify the rank.
+ */
+function tiedAtLatest(weeks: readonly RankedWeek[], drawn: readonly DrawnBrand[]): TiedRank[] {
+  const latest = [...weeks].reverse().find((week) => week.entities.some((entity) => entity.rank !== null));
+  if (latest === undefined) return [];
+  const groups = new Map<number, string[]>();
+  for (const { figures } of drawn) {
+    const rank = rankOf(latest, figures.entity.entityId);
+    if (rank !== null) groups.set(rank, [...(groups.get(rank) ?? []), figures.entity.name]);
+  }
+  return [...groups]
+    .filter(([, names]) => names.length > 1)
+    .map(([rank, names]) => ({ rank, names }))
+    .sort((a, b) => a.rank - b.rank);
+}
 
 export default function SovRankCard({ item, options, live }: CardProps): ReactElement {
   const t = useTranslations('aiOverview.competitors.sovRank');
@@ -242,7 +265,7 @@ export default function SovRankCard({ item, options, live }: CardProps): ReactEl
     if (ready === null || (frame.status !== 'ready' && frame.status !== 'refetching')) return null;
     return {
       id: item.id,
-      header: ['week', 'brand', 'rank', 'share_of_voice', 'answers_naming_tracked'],
+      header: [t('weekColumn'), t('exportBrand'), t('exportRank'), t('exportShare'), t('exportAnswers')],
       rows: weeks.flatMap((week) =>
         drawn.map(({ figures }) => {
           const share = shareOf(week, figures.entity.entityId);
@@ -258,6 +281,7 @@ export default function SovRankCard({ item, options, live }: CardProps): ReactEl
     };
   });
 
+  const tied = useMemo(() => tiedAtLatest(weeks, drawn), [weeks, drawn]);
   const meta =
     summary === undefined || ready === null
       ? null
@@ -278,6 +302,9 @@ export default function SovRankCard({ item, options, live }: CardProps): ReactEl
         ready === null || set === null ? null : (
           <>
             <TrackedFootnote set={set} />
+            {tied.map((group) => (
+              <p key={group.rank}>{t('footnoteTied', { rank: group.rank, names: formatList(group.names) })}</p>
+            ))}
             <p>{t(ready.asRead ? 'footnoteAsRead' : 'footnoteTrailing', { min: MIN_OBSERVATIONS })}</p>
             {ready.hidden > 0 ? (
               <p>{t('footnoteHidden', { count: ready.hidden, shown: ready.drawn.length - 1 })}</p>
@@ -286,7 +313,7 @@ export default function SovRankCard({ item, options, live }: CardProps): ReactEl
         )
       }
       height={HEIGHT}
-      summary={summaryText}
+      summary={frameSummary(frame, summaryText)}
       categories={categories}
       categoryHeader={t('weekColumn')}
       series={series}

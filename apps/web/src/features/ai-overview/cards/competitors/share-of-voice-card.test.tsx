@@ -27,6 +27,7 @@ import { formatPercent } from '@/lib/format';
 import { engineRates } from '@/lib/rates/strip-model';
 import { axe } from '@/test/axe';
 import { cardInOverview, type OverviewWorld } from '@/test/ai-overview-harness';
+import { chartSummaryText } from '@/test/chart-summary';
 import { stubViewport } from '@/test/customize-harness';
 import { server } from '@/test/msw';
 import { renderWithProviders } from '@/test/render';
@@ -220,6 +221,20 @@ describe('the share of voice card', () => {
     renderCard('cmp=off&engine=gemini_web');
     expect(await screen.findByText('ChatGPT is not asked in this scope')).toBeInTheDocument();
     expect(screen.getByText(/outside the engine filter/)).toBeInTheDocument();
+  });
+
+  it('tells assistive technology no figure for an engine that is not asked, and the figures for one that is', async () => {
+    serve(summary());
+    const { unmount } = renderCard('cmp=off&engine=gemini_web');
+    const outside = chartSummaryText(await screen.findByRole('heading', { level: 2, name: HEADING }));
+    expect(outside).toBe('');
+    expect(outside).not.toMatch(/\d|too few/i);
+    unmount();
+    renderCard();
+    await barList();
+    expect(chartSummaryText(screen.getByRole('heading', { level: 2, name: HEADING }))).toMatch(
+      /^Share of voice on ChatGPT, of 100 answers that name a tracked brand: HubSpot 50%/,
+    );
   });
 
   it('is not mounted by the page for an engine that is off, which says so itself', async () => {

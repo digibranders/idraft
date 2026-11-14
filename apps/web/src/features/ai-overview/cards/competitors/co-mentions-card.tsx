@@ -7,7 +7,7 @@ import { SHAPE_OPTIONS, useTrackedSet } from './data/use-competitor-reads';
 import { coMentionMatrix } from './model/co-mentions';
 import type { CoMentionCell, CoMentionMatrix, TrackedEntity, TrackedSet } from './model/types';
 import { useCardEngine } from './parts/card-engine';
-import { useFrameState, type DataSituation } from './parts/frame-state';
+import { frameSummary, useFrameState, type DataSituation } from './parts/frame-state';
 import { percentOf } from './parts/percent';
 import { TrackedFootnote } from './parts/tracked-footnote';
 import { useCardDensity } from '../engines/use-card-density';
@@ -139,6 +139,7 @@ export default function CoMentionsCard({ item, options, live }: CardProps): Reac
       columns={columns}
       rows={rows}
       scale="sequential"
+      columnWidth="wide"
       density={density}
       form={form}
     />
@@ -183,7 +184,8 @@ export default function CoMentionsCard({ item, options, live }: CardProps): Reac
           ? null
           : t('meta', { window: range, count: matrix.answers, branded: scope.branded })
       }
-      summary={
+      summary={frameSummary(
+        frame,
         partners.length === 0
           ? t('summaryNone', { engine: engine.label })
           : t('summary', {
@@ -192,8 +194,8 @@ export default function CoMentionsCard({ item, options, live }: CardProps): Reac
               list: formatList(
                 partners.map((partner) => t('summaryItem', { name: partner.name, value: percent(partner.value) })),
               ),
-            })
-      }
+            }),
+      )}
       footnote={
         <>
           {set === null ? null : <TrackedFootnote set={set} />}

@@ -12,6 +12,7 @@ import type { CardProps } from '@/features/layouts';
 import type { EngineSummary, PromptSummaryRow, PromptsSummary, SummaryEntity } from '@/lib/api/types';
 import { axe } from '@/test/axe';
 import { cardInOverview } from '@/test/ai-overview-harness';
+import { chartSummaryText } from '@/test/chart-summary';
 import { stubViewport } from '@/test/customize-harness';
 import { server } from '@/test/msw';
 import { renderWithProviders } from '@/test/render';
@@ -319,6 +320,26 @@ describe('the opportunities card', () => {
     serve(summary(PROMPTS));
     await user.click(screen.getByRole('button', { name: 'Try again' }));
     expect(await barList()).toBeInTheDocument();
+  });
+
+  it('tells assistive technology no figure when no engine is asked or the read failed, and the figures otherwise', async () => {
+    serve(summary(PROMPTS));
+    const none = renderCard('cmp=off&engine=google_ai_mode');
+    const off = chartSummaryText(await screen.findByRole('heading', { level: 2, name: TITLE }));
+    expect(off).toBe('');
+    expect(off).not.toMatch(/\d|no prompt/i);
+    none.unmount();
+    server.use(http.get(SUMMARY, () => failing('req-1')));
+    const failed = renderCard();
+    await screen.findByText('Could not load AI opportunities');
+    expect(chartSummaryText(screen.getByRole('heading', { level: 2, name: TITLE }))).not.toMatch(/\d/);
+    failed.unmount();
+    serve(summary(PROMPTS));
+    renderCard();
+    await barList();
+    expect(chartSummaryText(screen.getByRole('heading', { level: 2, name: TITLE }))).toMatch(
+      /^Prompts by condition, of \d+ prompts in scope: /,
+    );
   });
 
   it('says there is no valid answer when no prompt has one in scope', async () => {

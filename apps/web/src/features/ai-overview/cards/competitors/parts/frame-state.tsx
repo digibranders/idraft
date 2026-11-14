@@ -163,7 +163,16 @@ export function mapReadToFrame(input: FrameInput, words: FrameWords, ctx: FrameC
   return { status: read.status, notice: noticeOf(input, words.say) };
 }
 
-/** `mapReadToFrame` bound to the page: the family's messages, the member's permissions, the links of the project. */
+/**
+ * What a frame tells assistive technology about its figures. The sentence of the figures (`figures`) is for data
+ * that is read. An empty, failed or loading frame says nothing here: its own title and reason are on the page and
+ * are read there, and "0 prompts" or "of 0 answers" is never read out for what was not asked, read or answered.
+ */
+export function frameSummary(frame: FrameState, figures: string): string {
+  return frame.status === 'ready' || frame.status === 'refetching' ? figures : '';
+}
+
+/** `mapReadToFrame` bound to the page:the family's messages, the member's permissions, the links of the project. */
 export function useFrameState(input: FrameInput): FrameState {
   const say = useTranslations('aiOverview.competitors.common') as Say;
   const status = useTranslations('status.error');

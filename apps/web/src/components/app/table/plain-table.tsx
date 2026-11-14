@@ -38,6 +38,8 @@ export interface PlainTableProps<TRow> {
   emptyText: string;
   /** How many placeholder rows draw while the rows load. Default 4. */
   skeletonRows?: number | undefined;
+  /** Said under the table while it scrolls sideways in its region ("Scroll for more engines"); never when it fits. */
+  scrollHint?: string | undefined;
 }
 
 const alignClass = (actions: boolean | undefined): string => (actions === true ? 'text-right' : 'text-left');
@@ -57,6 +59,7 @@ export function PlainTable<TRow>({
   errorState,
   emptyText,
   skeletonRows = 4,
+  scrollHint,
 }: PlainTableProps<TRow>): ReactElement {
   // A table wider than the screen scrolls inside its own region, which then takes the keyboard (arrow keys
   // scroll it) and a name: a region that scrolls and holds nothing focusable would be out of reach
@@ -72,7 +75,7 @@ export function PlainTable<TRow>({
   if (status === 'error') {
     return <div className="rounded-lg border border-border bg-surface">{errorState}</div>;
   }
-  return (
+  const table = (
     <div
       ref={region}
       {...(scrollable ? { role: 'region', 'aria-label': caption, tabIndex: 0 } : {})}
@@ -152,6 +155,14 @@ export function PlainTable<TRow>({
           </tfoot>
         ) : null}
       </table>
+    </div>
+  );
+  if (scrollHint === undefined) return table;
+  // The wrapper exists whether or not the table scrolls, so the region keeps its place in the tree when the width changes
+  return (
+    <div className="flex flex-col gap-1">
+      {table}
+      {scrollable ? <p className="type-meta">{scrollHint}</p> : null}
     </div>
   );
 }

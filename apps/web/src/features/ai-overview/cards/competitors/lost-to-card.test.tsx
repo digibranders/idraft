@@ -13,6 +13,7 @@ import type { PromptSummaryRow, PromptsSummary, SummaryEntity } from '@/lib/api/
 import { setAiSeeded } from '@/mocks/ai-seed';
 import { axe } from '@/test/axe';
 import { cardInOverview, type OverviewWorld } from '@/test/ai-overview-harness';
+import { chartSummaryText } from '@/test/chart-summary';
 import { stubViewport } from '@/test/customize-harness';
 import { server } from '@/test/msw';
 import { renderWithProviders } from '@/test/render';
@@ -192,6 +193,21 @@ describe('the lost to a competitor card', () => {
       screen.getByText('In each of the 4 prompts with 4 or more valid answers, you are named or no competitor is.'),
     ).toBeInTheDocument();
     expect(screen.queryByRole('list', { name: TITLE })).not.toBeInTheDocument();
+  });
+
+  it('tells assistive technology no figure for an engine that is not asked, and the figures for one that is', async () => {
+    serve(summary(PROMPTS));
+    const { unmount } = renderCard('cmp=off&engine=gemini_web');
+    const outside = chartSummaryText(await screen.findByRole('heading', { level: 2, name: TITLE }));
+    // The empty state beside it already says why; the hidden summary must not repeat it as zeros
+    expect(outside).toBe('');
+    expect(outside).not.toMatch(/\d|too few|no prompt is lost/i);
+    unmount();
+    renderCard();
+    await barList();
+    expect(chartSummaryText(screen.getByRole('heading', { level: 2, name: TITLE }))).toMatch(
+      /^Prompts where a competitor is named and you are not, on ChatGPT, of 5 prompts with 4 or more valid answers: HubSpot 3 prompts/,
+    );
   });
 
   it('says no prompt has enough valid answers when every prompt is under 4 answers', async () => {

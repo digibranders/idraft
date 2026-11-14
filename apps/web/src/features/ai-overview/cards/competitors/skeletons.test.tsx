@@ -1,7 +1,7 @@
 import { render } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-import { COMPETITOR_SKELETONS, SKELETON_HEIGHTS } from './skeletons';
+import { COMPETITOR_SKELETONS, SKELETON_HEIGHTS, SKELETON_TOTALS } from './skeletons';
 import { CARD_TYPES } from '@/lib/layouts';
 
 /** D-13 of the plan: the height of the body of each card of the family. */
@@ -42,6 +42,30 @@ describe('the skeletons of the competitors family', () => {
     expect(panelOf(key)).toHaveAttribute('data-height', String(height));
   });
 
+  /** The whole panel of the card once loaded, at the default options (the breakdown is in `skeletons.tsx`). */
+  const TOTALS: Record<string, number> = {
+    'ai.share_of_voice': 514,
+    'ai.lost_to_competitor': 382,
+    'ai.opportunities': 542,
+    'ai.competitor_trend': 422,
+    'ai.sov_over_time': 462,
+    'ai.sov_rank': 542,
+    'ai.co_mentions': 966,
+    'ai.competitor_table': 685,
+  };
+
+  it.each(Object.entries(TOTALS))('%s is as tall as the loaded card, %s px', (key, total) => {
+    expect(SKELETON_TOTALS[key]).toBe(total);
+    expect(panelOf(key)).toHaveStyle({ height: `${total}px` });
+  });
+
+  it('is never shorter than the body its frame reserves plus the chrome of a panel', () => {
+    for (const [key, body] of Object.entries(SKELETON_HEIGHTS)) {
+      // Border and padding (34 px) and the title line (20 px) at the least
+      expect(SKELETON_TOTALS[key]).toBeGreaterThanOrEqual(body + 54);
+    }
+  });
+
   it('draws the panel of the pending card: a border, a title line and a body, hidden from assistive technology', () => {
     const panel = panelOf('ai.share_of_voice');
     expect(panel.className).toContain('border-border');
@@ -50,8 +74,9 @@ describe('the skeletons of the competitors family', () => {
     for (const part of parts) expect(part).toHaveAttribute('aria-hidden', 'true');
   });
 
-  it('uses the tall body class of 280 px and of 240 px', () => {
-    expect(panelOf('ai.share_of_voice').innerHTML).toContain('h-70');
-    expect(panelOf('ai.sov_rank').innerHTML).toContain('h-60');
+  it('lets the body take what is left of the panel after the title line', () => {
+    const body = panelOf('ai.sov_rank').lastElementChild;
+    expect(body?.className).toContain('flex-1');
+    expect(body?.querySelector('[data-slot="skeleton"]')?.className).toContain('h-full');
   });
 });

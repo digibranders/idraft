@@ -7,7 +7,7 @@ import { SHAPE_OPTIONS, useTrackedSet } from './data/use-competitor-reads';
 import { lostToRows } from './model/lost-to';
 import type { LostToRead, TrackedSet } from './model/types';
 import { useCardEngine } from './parts/card-engine';
-import { useFrameState, type DataSituation, type FrameState } from './parts/frame-state';
+import { frameSummary, useFrameState, type DataSituation, type FrameState } from './parts/frame-state';
 import { useCardDensity } from '../engines/use-card-density';
 import { useCardDrill, useCardExport } from '../engines/use-card-seams';
 import { useOverview, useOverviewSummary } from '../../overview-context';
@@ -136,7 +136,8 @@ export default function LostToCard({ item, options, live }: CardProps): ReactEle
           ? null
           : t('meta', { window: range, count: enough, min: MIN_OBSERVATIONS, branded: scope.branded })
       }
-      summary={
+      summary={frameSummary(
+        frame,
         rows.length === 0
           ? t('summaryNone', { engine: engine.label, total: enough, min: MIN_OBSERVATIONS })
           : t('summary', {
@@ -146,8 +147,8 @@ export default function LostToCard({ item, options, live }: CardProps): ReactEle
               list: formatList(
                 rows.slice(0, 3).map((row) => `${row.label} ${row.value.kind === 'value' ? row.value.valueText : ''}`),
               ),
-            })
-      }
+            }),
+      )}
       footnote={
         notes.length === 0 ? undefined : (
           <>

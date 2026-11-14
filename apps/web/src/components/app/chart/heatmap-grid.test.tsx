@@ -421,6 +421,51 @@ describe('HeatmapGrid', () => {
     expect(within(diverging).getByText('Within normal variation')).toBeInTheDocument();
   });
 
+  describe('column width', () => {
+    const dataCols = (container: HTMLElement): readonly Element[] =>
+      Array.from(container.querySelectorAll('colgroup col')).slice(2);
+
+    it('keeps the 88 px column (w-22) by default, so no other user changes', () => {
+      const { container } = renderWithProviders(<HeatmapGrid {...BASE} />);
+      expect(dataCols(container)).toHaveLength(COLUMNS.length);
+      dataCols(container).forEach((col) => {
+        expect(col).toHaveClass('w-22');
+        expect(col).not.toHaveClass('w-28');
+      });
+    });
+
+    it('draws a wider column (w-28) in the data columns only when columnWidth is wide', () => {
+      const { container } = renderWithProviders(<HeatmapGrid {...BASE} columnWidth="wide" />);
+      dataCols(container).forEach((col) => {
+        expect(col).toHaveClass('w-28');
+        expect(col).not.toHaveClass('w-22');
+      });
+      // The row header and the Prompts column keep their width
+      const [rowHeader, prompts] = Array.from(container.querySelectorAll('colgroup col'));
+      expect(rowHeader).toHaveClass('w-(--heatmap-row-header)');
+      expect(prompts).toHaveClass('w-22');
+    });
+
+    it('leaves the Table view at its own 240 px column whatever columnWidth says', () => {
+      const { container } = renderWithProviders(<HeatmapGrid {...BASE} form="table" columnWidth="wide" />);
+      dataCols(container).forEach((col) => expect(col).toHaveClass('w-60'));
+    });
+  });
+
+  it('lays the key out as a flex-wrap list of three even columns, so nine items leave no single orphan', () => {
+    const { rerender } = renderWithProviders(<HeatmapGrid {...BASE} />);
+    const check = (): void => {
+      const key = screen.getByRole('list', { name: 'Key to the cell fills' });
+      expect(key).toHaveClass('flex', 'flex-wrap');
+      const items = within(key).getAllByRole('listitem');
+      expect(items).toHaveLength(9);
+      items.forEach((item) => expect(item).toHaveClass('w-1/3'));
+    };
+    check();
+    rerender(<HeatmapGrid {...BASE} scale="diverging" />);
+    check();
+  });
+
   it.each(['light', 'dark'] as const)(
     'has no axe violations in %s, with a hatched, a none and an open row',
     async (theme) => {

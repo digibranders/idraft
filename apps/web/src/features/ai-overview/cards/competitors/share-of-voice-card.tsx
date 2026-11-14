@@ -7,7 +7,7 @@ import { useCompetitorReads, useTrackedSet } from './data/use-competitor-reads';
 import { entityTotals, previousEntityTotals } from './model/entity-totals';
 import type { EntityFigures, EntityTotals, TrackedSet } from './model/types';
 import { useCardEngine } from './parts/card-engine';
-import { useFrameState, type DataSituation } from './parts/frame-state';
+import { frameSummary, useFrameState, type DataSituation } from './parts/frame-state';
 import { TrackedFootnote } from './parts/tracked-footnote';
 import { useCardDensity } from '../engines/use-card-density';
 import { useCardDrill, useCardExport } from '../engines/use-card-seams';
@@ -164,7 +164,7 @@ export default function ShareOfVoiceCard({ item, options, live }: CardProps): Re
           ? null
           : t('meta', { window: range, count: answers, branded: scope.branded })
       }
-      summary={t('summary', { engine: engine.label, count: answers, list: leaders })}
+      summary={frameSummary(frame, t('summary', { engine: engine.label, count: answers, list: leaders }))}
       footnote={
         set === null ? undefined : (
           <>

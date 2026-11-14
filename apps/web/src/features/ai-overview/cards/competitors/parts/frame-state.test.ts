@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { CardEngine } from './card-engine';
 import {
+  frameSummary,
   mapReadToFrame,
   type DataSituation,
   type FrameContext,
@@ -210,5 +211,26 @@ describe('mapReadToFrame', () => {
     expect(map({ engine: null }).status).toBe('ready');
     const state = map({ engine: null, situation: { kind: 'no_answers' } });
     expect(state.status === 'empty' && state.empty.title).toBe('No valid answers in these 28 days');
+  });
+});
+
+describe('frameSummary', () => {
+  const figures = 'Share of voice on ChatGPT, of 0 answers that name a tracked brand: .';
+
+  it('gives the sentence of the figures only for data that is read', () => {
+    expect(frameSummary(map(), figures)).toBe(figures);
+    expect(frameSummary(map({ read: read({ status: 'refetching' }) }), figures)).toBe(figures);
+  });
+
+  it('gives nothing for an engine that is not asked, never the figures', () => {
+    const off: CardEngine = { code: 'chatgpt_web', label: 'ChatGPT', availability: 'outside' };
+    expect(frameSummary(map({ engine: off }), figures)).toBe('');
+  });
+
+  it('gives nothing for an empty, failed or loading frame', () => {
+    expect(frameSummary(map({ situation: { kind: 'no_answers' } }), figures)).toBe('');
+    expect(frameSummary(map({ situation: { kind: 'too_few', answers: 3 } }), figures)).toBe('');
+    expect(frameSummary(map({ read: read({ status: 'error' }) }), figures)).toBe('');
+    expect(frameSummary(map({ read: read({ status: 'loading' }) }), figures)).toBe('');
   });
 });

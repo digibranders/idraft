@@ -7,7 +7,7 @@ import { useMemo, type ReactElement } from 'react';
 import { SHAPE_OPTIONS, useTrackedSet } from './data/use-competitor-reads';
 import { opportunityRows } from './model/lost-to';
 import type { OpportunityRow } from './model/types';
-import { useFrameState, type FrameState } from './parts/frame-state';
+import { frameSummary, useFrameState, type FrameState } from './parts/frame-state';
 import { useCardDensity } from '../engines/use-card-density';
 import { useCardDrill, useCardExport, type CardDrill } from '../engines/use-card-seams';
 import { askedEngines } from '../../data/overview-queries';
@@ -146,10 +146,13 @@ export default function OpportunitiesCard({ item, options, live }: CardProps): R
       height={240}
       title={cardName(item)}
       meta={range === null || read === null ? null : t('meta', { window: range, count: total, branded: scope.branded })}
-      summary={t('summary', {
-        total,
-        list: formatList(rows.map((row) => `${row.label} ${row.value.kind === 'value' ? row.value.valueText : ''}`)),
-      })}
+      summary={frameSummary(
+        frame,
+        t('summary', {
+          total,
+          list: formatList(rows.map((row) => `${row.label} ${row.value.kind === 'value' ? row.value.valueText : ''}`)),
+        }),
+      )}
       footnote={
         <>
           <p>{t('scopeNote', { list: formatList(engines.map(engineLabel)) })}</p>

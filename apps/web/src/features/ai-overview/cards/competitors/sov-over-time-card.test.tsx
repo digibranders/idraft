@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import SovOverTimeCard from './sov-over-time-card';
 import { id } from './model/summary-fixtures';
 import { axe } from '@/test/axe';
+import { chartSummaryText } from '@/test/chart-summary';
 import { stubViewport } from '@/test/customize-harness';
 import {
   drawnCategories,
@@ -64,7 +65,35 @@ const sevenWeeks = (): WeekSpec[] =>
     mentions: { n: spec.mentions.n, ks: [...spec.mentions.ks, 10] },
   }));
 
+/** Nine brands: the six slots are taken and the last three fold into Other tracked. */
+const NINE_NAMES = [...SIX_NAMES, 'Monday', 'Close', 'Copper'];
+const nineWeeks = (): WeekSpec[] =>
+  SIX_WEEKS.map((spec) => {
+    const last = (spec.numerators[5] ?? 0) / 4;
+    return {
+      ...spec,
+      numerators: [...spec.numerators.slice(0, 5), last, last, last, last],
+      mentions: { n: spec.mentions.n, ks: [...spec.mentions.ks, 10, 10, 10] },
+    };
+  });
+
 describe('the share of voice over time card (CH-19)', () => {
+  it('says how many brands are folded into Other tracked, and which', async () => {
+    serveWorld(weeklySummary({ weeks: nineWeeks(), names: NINE_NAMES }), entityRows(NINE_NAMES));
+    await drawColumns();
+    expect(screen.getByText('Other tracked: 3 brands (Monday, Close, and Copper).')).toBeInTheDocument();
+  });
+
+  it('says it for one brand too, and says nothing while every brand has a slot', async () => {
+    serveWorld(weeklySummary({ weeks: sevenWeeks(), names: SEVEN_NAMES }), entityRows(SEVEN_NAMES));
+    const { unmount } = await drawColumns();
+    expect(screen.getByText('Other tracked: 1 brand (Monday).')).toBeInTheDocument();
+    unmount();
+    serveWorld(weeklySummary(), entityRows());
+    await drawColumns();
+    expect(screen.queryByText(/Other tracked:/)).not.toBeInTheDocument();
+  });
+
   it('draws 100 percent columns: you at the bottom, the palette in order, other tracked on top, axis 0 to 1', async () => {
     serveWorld(weeklySummary({ weeks: sevenWeeks(), names: SEVEN_NAMES }), entityRows(SEVEN_NAMES));
     await drawColumns();
@@ -193,7 +222,7 @@ describe('the share of voice over time card (CH-19)', () => {
     const { user } = await drawColumns();
     const [block] = await readExport(user);
     expect(block?.id).toBe('card-under-test');
-    expect(block?.header).toEqual(['week', 'brand', 'share_of_voice', 'answers_naming_tracked', 'state']);
+    expect(block?.header).toEqual(['Week', 'Brand', 'Share of voice', 'Answers naming a tracked brand', 'Status']);
     expect(block?.rows).toContainEqual(['2026-10-19', 'Fynix', 40, 100, 'ok']);
     expect(block?.rows).toContainEqual(['2026-10-26', 'Fynix', null, 3, 'insufficient']);
   });
@@ -226,6 +255,21 @@ describe('the share of voice over time card states', () => {
     serveWorld(weeklySummary({ names: ['Fynix'] }), entityRows(['Fynix']));
     renderCard(TYPE, SovOverTimeCard, OPTIONS);
     expect(await screen.findByText('No competitor is tracked')).toBeInTheDocument();
+  });
+
+  it('tells assistive technology no figure for an engine that is not asked, and the figures for one that is', async () => {
+    const { unmount } = renderCard(TYPE, SovOverTimeCard, { engine: 'google_ai_mode' });
+    const off = chartSummaryText(
+      await screen.findByRole('heading', { level: 2, name: 'Share of voice over time on AI Mode' }),
+    );
+    expect(off).toBe('');
+    expect(off).not.toMatch(/\d|too few|no week/i);
+    unmount();
+    serveWorld(weeklySummary(), entityRows());
+    await drawColumns();
+    expect(chartSummaryText(screen.getByRole('heading', { level: 2, name: TITLE }))).toMatch(
+      /^Share of voice by week on ChatGPT\. In the week of/,
+    );
   });
 
   it('says the engine is not asked when the project has it off', async () => {

@@ -11,7 +11,7 @@ import { trimIdleMentions } from './model/trim-weeks';
 import type { EngineEntityTotals, EntityFigures, TrackedSet, WeeklyMention, WeeklyMentionPoint } from './model/types';
 import { weeklyMention } from './model/weekly-series';
 import { useCardEngine } from './parts/card-engine';
-import { useFrameState, type DataSituation, type FrameState, type ReadFacts } from './parts/frame-state';
+import { frameSummary, useFrameState, type DataSituation, type FrameState, type ReadFacts } from './parts/frame-state';
 import { TrackedFootnote } from './parts/tracked-footnote';
 import { useOverview, useOverviewSummary } from '../../overview-context';
 import { useCardMeta } from '../engines/card-meta';
@@ -253,7 +253,14 @@ export default function CompetitorTrendCard({ item, options, live }: CardProps):
     if (ready === null || (frame.status !== 'ready' && frame.status !== 'refetching')) return null;
     return {
       id: item.id,
-      header: ['week', 'brand', 'value', 'k', 'n', 'state'],
+      header: [
+        t('weekColumn'),
+        t('exportBrand'),
+        t('exportValue'),
+        t('exportNaming'),
+        t('exportValid'),
+        t('exportState'),
+      ],
       rows: weeks.flatMap((week) =>
         drawn.flatMap(({ figures }) => {
           const point = week.entities.find((entry) => entry.entityId === figures.entity.entityId);
@@ -306,7 +313,7 @@ export default function CompetitorTrendCard({ item, options, live }: CardProps):
         )
       }
       height={HEIGHT}
-      summary={summaryText}
+      summary={frameSummary(frame, summaryText)}
       categories={categories}
       categoryHeader={t('weekColumn')}
       series={series}

@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import SovRankCard from './sov-rank-card';
 import { id } from './model/summary-fixtures';
 import { axe } from '@/test/axe';
+import { chartSummaryText } from '@/test/chart-summary';
 import { stubViewport } from '@/test/customize-harness';
 import {
   drawnCategories,
@@ -132,6 +133,23 @@ describe('the share of voice rank card (CH-29)', () => {
     });
   });
 
+  it('names the brands tied at the latest drawn rank in the footnote, since their lines overlap', async () => {
+    const tie = [40, 40, 20];
+    serveWorld(weeklySummary({ weeks: unpooled([tie, tie, tie, tie]) }), entityRows());
+    await drawRanks();
+    expect(screen.getByText('Tied at rank 1: Fynix and HubSpot.')).toBeInTheDocument();
+    // The brand below the tie is alone at its rank
+    expect(screen.queryByText(/Tied at rank 3/)).not.toBeInTheDocument();
+  });
+
+  it('names only the tie of the latest week, and says nothing when no drawn brands tie', async () => {
+    const tie = [40, 40, 20];
+    const apart = [45, 35, 20];
+    serveWorld(weeklySummary({ weeks: unpooled([tie, tie, tie, apart]) }), entityRows());
+    await drawRanks();
+    expect(screen.queryByText(/Tied at rank/)).not.toBeInTheDocument();
+  });
+
   it('says the rank, the share and the answers behind it in the tooltip, best rank first', async () => {
     serveWorld(weeklySummary(), entityRows());
     await drawRanks();
@@ -205,7 +223,7 @@ describe('the share of voice rank card (CH-29)', () => {
     const { user } = await drawRanks();
     const [block] = await readExport(user);
     expect(block?.id).toBe('card-under-test');
-    expect(block?.header).toEqual(['week', 'brand', 'rank', 'share_of_voice', 'answers_naming_tracked']);
+    expect(block?.header).toEqual(['Week', 'Brand', 'Rank', 'Share of voice', 'Answers naming a tracked brand']);
     expect(block?.rows).toContainEqual(['2026-10-19', 'Fynix', 1, 40, 100]);
     expect(block?.rows).toContainEqual(['2026-10-26', 'Fynix', null, null, 3]);
   });
@@ -229,6 +247,21 @@ describe('the share of voice rank card states', () => {
     serveWorld(weeklySummary({ weeks: WEEKS.slice(0, 2) }), entityRows());
     renderCard(TYPE, SovRankCard, OPTIONS);
     expect(await screen.findByText('A trend needs two weeks of answers')).toBeInTheDocument();
+  });
+
+  it('tells assistive technology no figure for an engine that is not asked, and the figures for one that is', async () => {
+    const { unmount } = renderCard(TYPE, SovRankCard, { engine: 'google_ai_mode' });
+    const off = chartSummaryText(
+      await screen.findByRole('heading', { level: 2, name: 'Share of voice rank on AI Mode' }),
+    );
+    expect(off).toBe('');
+    expect(off).not.toMatch(/\d|too few|no week/i);
+    unmount();
+    serveWorld(weeklySummary(), entityRows());
+    await drawRanks();
+    expect(chartSummaryText(screen.getByRole('heading', { level: 2, name: TITLE }))).toMatch(
+      / ranks \d+ of \d+ tracked brands by share of voice on ChatGPT/,
+    );
   });
 
   it('says the engine is not asked when the project has it off', async () => {
