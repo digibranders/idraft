@@ -254,6 +254,7 @@ function CostsContent({
     <div className={PAGE_CLASS}>
       <PageHeader
         title={t('title')}
+        titleHidden
         meta={meta}
         toolbar={
           <div className="flex flex-wrap items-start gap-3">
