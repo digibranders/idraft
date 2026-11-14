@@ -147,6 +147,8 @@ export interface HtmlFrameProps extends ChartFrameCommon {
   /** Show the Patterns toggle (bars that use decals or hatching). */
   patterns?: boolean | undefined;
   menu?: HtmlChartMenu | undefined;
+  /** Natural content height: does not force minHeight on the loaded body. */
+  fitContent?: boolean | undefined;
 }
 
 export type ChartFrameProps = (CategoryFrameProps | HtmlFrameProps) & ChartFrameState;
@@ -306,7 +308,9 @@ function HtmlFrame(props: HtmlProps): ReactElement {
       {table ? (
         tableView
       ) : (
-        <div style={{ minHeight: height }}>{typeof body === 'function' ? body({ patterns }) : body}</div>
+        <div style={{ minHeight: props.fitContent ? undefined : height }}>
+          {typeof body === 'function' ? body({ patterns }) : body}
+        </div>
       )}
     </FrameShell>
   );
@@ -429,6 +433,7 @@ function FrameShell({
       <section
         ref={section}
         aria-label={title}
+        data-slot="empty-state"
         className={cn(
           'flex flex-col justify-center min-w-0 transition-colors',
           inspector ? 'py-1' : 'rounded-lg border border-border bg-surface px-4 py-3',
@@ -455,7 +460,10 @@ function FrameShell({
     <section
       ref={section}
       aria-busy={status === 'loading' || status === 'refetching' ? true : undefined}
-      className={cn('flex flex-col gap-3', inspector ? 'py-1' : 'rounded-lg border border-border bg-surface p-4')}
+      className={cn(
+        'flex h-full flex-col gap-3',
+        inspector ? 'py-1' : 'rounded-lg border border-border bg-surface p-4',
+      )}
     >
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         {/* The title keeps a readable measure: the legend and the views wrap to the next line before it narrows */}
@@ -494,11 +502,13 @@ function FrameShell({
       <p id={summaryId} className="sr-only">
         {summary}
       </p>
-      <FrameBody state={state} height={height} loadingHeight={loadingHeight}>
-        {children}
-      </FrameBody>
+      <div className="flex-1 min-h-0">
+        <FrameBody state={state} height={height} loadingHeight={loadingHeight}>
+          {children}
+        </FrameBody>
+      </div>
       {footnote === undefined || footnote === null ? null : (
-        <div ref={footnoteRef} className="type-meta">
+        <div ref={footnoteRef} className="mt-auto type-meta">
           {footnote}
         </div>
       )}

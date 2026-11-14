@@ -5020,6 +5020,7 @@
         "newSources": "{count, plural, one {# domain was} other {# domains were}} cited for the first time, with at least {minSupport, plural, one {# citation unit} other {# citation units}} each in {days, plural, one {this # day} other {these # days}} and none in the {days, plural, one {# day} other {# days}} before.",
         "more": "{count, plural, one {# more fact is} other {# more facts are}} in the Table view.",
         "summaryNone": "No facts to report.",
+        "summaryText": "Summary of changes across AI engines.",
         "footnote": "Each sentence is a count of answers or prompts. A change is written only when the test on the pooled counts finds it detectable.",
         "howWritten": "How this is written",
         "rulesTitle": "How this is written",
