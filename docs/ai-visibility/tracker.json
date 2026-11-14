@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13T23:30:29+05:30",
+ "updated": "2026-11-14T08:26:46+05:30",
  "base": "develop 246d3574",
  "waves": [
   {
@@ -703,7 +703,7 @@
    "title": "Topics & Prompts: header, filters, facets, strip, menus and shell items",
    "wave": "W2",
    "kind": "web",
-   "status": "not_started",
+   "status": "building",
    "dependsOn": [
     "WP-02",
     "WP-07",
@@ -802,7 +802,7 @@
     "done": 53
    },
    "owner": "",
-   "notes": "file work-packages/WP-17-tp-header-filters.md; estimate 8 tasks; decisions D-03, D-35 | from WP-16: adopt NumberStrip inside CustomizableScreen yourself and add Customize numbers to the page More menu (plan docs/superpowers/plans/2026-11-13-ai-wp-16-layouts-customize.md section 5); WP-16 does not edit your strip files | from WP-16: build on @/features/layouts only; parts: CustomizableScreen, CustomizeButton, CustomizingBadge (PageHeader titleAddon), NumberStrip, CustomizableGrid, definePresets in useMemo, capabilities wait, registry from defineCards; tests need @/test/next-navigation and @/test/customize-harness; contract in docs/superpowers/plans/2026-11-13-ai-wp-16-layouts-customize.md section 5; As built at the end of section 10 of docs/superpowers/specs/2026-09-30-layout-customization-design.md"
+   "notes": "file work-packages/WP-17-tp-header-filters.md; estimate 8 tasks; decisions D-03, D-35 | from WP-16: adopt NumberStrip inside CustomizableScreen yourself and add Customize numbers to the page More menu (plan docs/superpowers/plans/2026-11-13-ai-wp-16-layouts-customize.md section 5); WP-16 does not edit your strip files | from WP-16: build on @/features/layouts only; parts: CustomizableScreen, CustomizeButton, CustomizingBadge (PageHeader titleAddon), NumberStrip, CustomizableGrid, definePresets in useMemo, capabilities wait, registry from defineCards; tests need @/test/next-navigation and @/test/customize-harness; contract in docs/superpowers/plans/2026-11-13-ai-wp-16-layouts-customize.md section 5; As built at the end of section 10 of docs/superpowers/specs/2026-09-30-layout-customization-design.md | 08:26: PARKED: ai/wp-17-tp-header aa2db33e (T1, T5 pure parts); plan on develop"
   },
   {
    "id": "WP-18",
@@ -914,7 +914,7 @@
    "title": "Compare with the previous period and deltas everywhere (W3)",
    "wave": "W2",
    "kind": "web",
-   "status": "building",
+   "status": "merged",
    "dependsOn": [
     "WP-07",
     "WP-12"
@@ -946,7 +946,7 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-19-compare-deltas.md; estimate 6 tasks; decisions D-03 | measured: compare adds +23 percent to the page read (Fynix 206 KB to 253 KB, Eventus 643 KB to 790 KB; gzip 8.6 to 10.6 KB and 26 to 33 KB): no lean-rows request needed; fixtures have no detectable change on Fynix, a few on Eventus: no fixture edit, e2e asserts the neutral rule and a mock cookie shows one coloured delta; T1b mock compare answers committed (a9243b27), T1c compare select and chip next | 23:30: P1 lib/compare on develop; T1b mock compare reviewed; T1c select and chip review passed with fixes (failed read with the chip on must keep rows and show the banner, no false empty state)"
+   "notes": "file work-packages/WP-19-compare-deltas.md; estimate 6 tasks; decisions D-03 | measured: compare adds +23 percent to the page read (Fynix 206 KB to 253 KB, Eventus 643 KB to 790 KB; gzip 8.6 to 10.6 KB and 26 to 33 KB): no lean-rows request needed; fixtures have no detectable change on Fynix, a few on Eventus: no fixture edit, e2e asserts the neutral rule and a mock cookie shows one coloured delta; T1b mock compare answers committed (a9243b27), T1c compare select and chip next | 23:30: P1 lib/compare on develop; T1b mock compare reviewed; T1c select and chip review passed with fixes (failed read with the chip on must keep rows and show the banner, no false empty state) | 08:26: merged 053bac90, in release A"
   },
   {
    "id": "WP-20",
@@ -1085,7 +1085,7 @@
    "title": "Citations: New and lost, domain and source inspectors, country, mobile",
    "wave": "W2",
    "kind": "web",
-   "status": "building",
+   "status": "merged",
    "dependsOn": [
     "WP-21",
     "WP-14"
@@ -1123,7 +1123,7 @@
     "done": 3
    },
    "owner": "",
-   "notes": "file work-packages/WP-22-citations-inspectors.md; estimate 6 tasks; decisions none | plan pushed (10 tasks); T1 mock fixtures (New and lost data) first; shared parts to create: components/app/scope/country-scope-control.tsx, lib/locations/country-scope.ts; WB-DOM-06 SEO share of voice stays an honest not-available section (F-26) | 23:30: T1 fixtures and T2 New and lost tab pushed (87d74bc1, a reviewer bug fixed: saved columns leaked across tabs); T3 country scope next; tasks 2/10"
+   "notes": "file work-packages/WP-22-citations-inspectors.md; estimate 6 tasks; decisions none | plan pushed (10 tasks); T1 mock fixtures (New and lost data) first; shared parts to create: components/app/scope/country-scope-control.tsx, lib/locations/country-scope.ts; WB-DOM-06 SEO share of voice stays an honest not-available section (F-26) | 23:30: T1 fixtures and T2 New and lost tab pushed (87d74bc1, a reviewer bug fixed: saved columns leaked across tabs); T3 country scope next; tasks 2/10 | 08:26: merged 760810ae, in release A"
   },
   {
    "id": "WP-23",
@@ -1168,7 +1168,7 @@
    "title": "Fan-out tab and views (W9)",
    "wave": "W2",
    "kind": "web",
-   "status": "not_started",
+   "status": "building",
    "dependsOn": [
     "WP-08",
     "WP-05"
@@ -1204,7 +1204,7 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-24-fanout-views.md; estimate 5 tasks; decisions D-02 | from WP-25: add tabs through features/prompts seams/inspector-tabs.ts (More tabs absorbs overflow); the e2e phone test hard-codes 4 tabs and no More button: update it when your tab lands; domain chips take href once the domain inspector route exists | WP-14 on develop: sources/changes, sources/diversity, sources/domains/{registrable_domain}, sources/prompts, include=series, cited_with, by_role_by_engine, fanout include=topics, filter[country_iso], min_support, include_unresolved_redirects and include_engine_internal; generated client already current | from WP-21: WP-21 builds the MSW mocks for sources/changes, sources/diversity and sources/prompts and the shared reads in apps/web/src/lib/citations/; reuse them, do not rebuild"
+   "notes": "file work-packages/WP-24-fanout-views.md; estimate 5 tasks; decisions D-02 | from WP-25: add tabs through features/prompts seams/inspector-tabs.ts (More tabs absorbs overflow); the e2e phone test hard-codes 4 tabs and no More button: update it when your tab lands; domain chips take href once the domain inspector route exists | WP-14 on develop: sources/changes, sources/diversity, sources/domains/{registrable_domain}, sources/prompts, include=series, cited_with, by_role_by_engine, fanout include=topics, filter[country_iso], min_support, include_unresolved_redirects and include_engine_internal; generated client already current | from WP-21: WP-21 builds the MSW mocks for sources/changes, sources/diversity and sources/prompts and the shared reads in apps/web/src/lib/citations/; reuse them, do not rebuild | 08:26: plan, T1, T2 and WB-SRC-04 on develop (release A, no screen reachable); T3 unreviewed on ai/wp-24-fanout-views-wip d1ee2758"
   },
   {
    "id": "WP-25",
@@ -1276,7 +1276,7 @@
    "title": "Evidence viewer completion: citation markers, entity toggles, views, answer diff",
    "wave": "W2",
    "kind": "both",
-   "status": "building",
+   "status": "merged",
    "dependsOn": [
     "WP-08"
    ],
@@ -1323,14 +1323,14 @@
     "done": 9
    },
    "owner": "",
-   "notes": "file work-packages/WP-26-evidence-viewer.md; estimate 7 tasks; decisions none | plan committed (8 tasks, backed up on origin/ai/wp-26-evidence); CF-25 already populated, CF-26 hashes need no migration, quote per citation needs one nullable column (migration 0023+); T0 contract push next | 23:30: T0 contract on develop f2a7049d; T1 backend and T3 web committed on the branch with reviews passed; T2 (compare read) and T4 (web parts) running; quote migration renumbers to 0024"
+   "notes": "file work-packages/WP-26-evidence-viewer.md; estimate 7 tasks; decisions none | plan committed (8 tasks, backed up on origin/ai/wp-26-evidence); CF-25 already populated, CF-26 hashes need no migration, quote per citation needs one nullable column (migration 0023+); T0 contract push next | 23:30: T0 contract on develop f2a7049d; T1 backend and T3 web committed on the branch with reviews passed; T2 (compare read) and T4 (web parts) running; quote migration renumbers to 0024 | 08:26: merged 517ed2e4, in release A"
   },
   {
    "id": "WP-27",
    "title": "Add prompts dialog redesign: plan block, checks, fields, topics, after the add (R-10)",
    "wave": "W2",
    "kind": "web",
-   "status": "not_started",
+   "status": "building",
    "dependsOn": [
     "WP-13",
     "WP-07"
@@ -1485,7 +1485,7 @@
     "done": 20
    },
    "owner": "",
-   "notes": "file work-packages/WP-27-add-dialog.md; estimate 10 tasks; decisions D-07, D-21, D-35 | from WP-13: send is_branded only when the person touches the switch (any PATCH sending it marks the source override); lint estimate only for the items shape; PromptCreate.prompt_type null = absent (rule applies) but PATCH null is 422"
+   "notes": "file work-packages/WP-27-add-dialog.md; estimate 10 tasks; decisions D-07, D-21, D-35 | from WP-13: send is_branded only when the person touches the switch (any PATCH sending it marks the source override); lint estimate only for the items shape; PromptCreate.prompt_type null = absent (rule applies) but PATCH null is 422 | 08:26: PARKED, not shipped: ai/wp-27-add-dialog e177efb2 (T0 to T5 reviewed, T6 WIP)"
   },
   {
    "id": "WP-28",
@@ -1632,7 +1632,7 @@
    "title": "Runs, costs, budgets and collection health (W21 freshness)",
    "wave": "W2",
    "kind": "both",
-   "status": "building",
+   "status": "merged",
    "dependsOn": [
     "WP-03",
     "WP-07"
@@ -1691,14 +1691,14 @@
     "done": 22
    },
    "owner": "",
-   "notes": "file work-packages/WP-30-runs-costs-health.md; estimate 8 tasks; decisions D-26 | plan on develop (T0 contract push then tasks 1-8, no migration); budgets CRUD, forecast, unit costs stubs; amends published C3 (valid = complete + partial) | 23:30: P1 contract on develop c40c4a00 (six 501 stubs for budgets, forecast, unit costs); T1 ai-coverage and daily collection plus T4a web mocks committed locally (0a81d95f, 9519fc70), reviewers running; T2 budgets CRUD next; no migration"
+   "notes": "file work-packages/WP-30-runs-costs-health.md; estimate 8 tasks; decisions D-26 | plan on develop (T0 contract push then tasks 1-8, no migration); budgets CRUD, forecast, unit costs stubs; amends published C3 (valid = complete + partial) | 23:30: P1 contract on develop c40c4a00 (six 501 stubs for budgets, forecast, unit costs); T1 ai-coverage and daily collection plus T4a web mocks committed locally (0a81d95f, 9519fc70), reviewers running; T2 budgets CRUD next; no migration | 08:26: merged 1051034d, in release A"
   },
   {
    "id": "WP-31",
    "title": "Settings: engines page extras, data retention, setup checklist",
    "wave": "W2",
    "kind": "both",
-   "status": "building",
+   "status": "merged",
    "dependsOn": [
     "WP-07"
    ],
@@ -1739,14 +1739,14 @@
     "done": 15
    },
    "owner": "",
-   "notes": "file work-packages/WP-31-settings-engines.md; estimate 5 tasks; decisions none | rows 15/19 pending push; Task 4 engines page extras reviewed PASS (browser 4 widths x 2 themes) committed locally (005338a4); Task 1 device contract needs ONE grant-only migration for provider_params; Task 6 entities Added column and retention page in progress | 23:30: pushed to develop 412e7e57: Task 1 device per engine contract with MIGRATION 0023 (grant on provider_params only), Task 4 engines badge, Task 6 entities column and read-only data retention page; Task 7 SetupChecklist passed re-review, Tasks 5 and 3 in review or build, Task 2 committed locally; Task 8 left; tasks 3/8"
+   "notes": "file work-packages/WP-31-settings-engines.md; estimate 5 tasks; decisions none | rows 15/19 pending push; Task 4 engines page extras reviewed PASS (browser 4 widths x 2 themes) committed locally (005338a4); Task 1 device contract needs ONE grant-only migration for provider_params; Task 6 entities Added column and retention page in progress | 23:30: pushed to develop 412e7e57: Task 1 device per engine contract with MIGRATION 0023 (grant on provider_params only), Task 4 engines badge, Task 6 entities column and read-only data retention page; Task 7 SetupChecklist passed re-review, Tasks 5 and 3 in review or build, Task 2 committed locally; Task 8 left; tasks 3/8 | 08:26: merged 12e44d2b, in release A"
   },
   {
    "id": "WP-32",
    "title": "Overview aggregate routes and the competitors read",
    "wave": "W3",
    "kind": "backend",
-   "status": "building",
+   "status": "merged",
    "dependsOn": [
     "WP-12",
     "WP-14"
@@ -1781,7 +1781,7 @@
     "done": 2
    },
    "owner": "",
-   "notes": "file work-packages/WP-32-overview-aggregates.md; estimate 8 tasks; decisions D-17 | FIRST PUSH ON DEVELOP (45864845): contract notes c8-metrics.md and c5-competitors.md, models ai_metrics.py, 7 GET routes as 501 stubs (ai/metrics/overview, overview/ai, ai/metrics/{metric}, .../series, .../breakdown, ai/competitors, overview/competitors), v1.json and schema.ts regenerated once on top of WP-26 T0 (additive), registry rows ai.prompts_in_scope and ai.valid_answers in doc 16 2.1; backend check 6123 passed cov 97.84; steps 2/8; next Task 3 routes (overview first) each pushed when reviewed | 23:30: Task 3 committed c31f39ea: first two Overview routes filled plus fixed 3 statements, reviewer running; Task 6 competitors core running in parallel on disjoint files"
+   "notes": "file work-packages/WP-32-overview-aggregates.md; estimate 8 tasks; decisions D-17 | FIRST PUSH ON DEVELOP (45864845): contract notes c8-metrics.md and c5-competitors.md, models ai_metrics.py, 7 GET routes as 501 stubs (ai/metrics/overview, overview/ai, ai/metrics/{metric}, .../series, .../breakdown, ai/competitors, overview/competitors), v1.json and schema.ts regenerated once on top of WP-26 T0 (additive), registry rows ai.prompts_in_scope and ai.valid_answers in doc 16 2.1; backend check 6123 passed cov 97.84; steps 2/8; next Task 3 routes (overview first) each pushed when reviewed | 23:30: Task 3 committed c31f39ea: first two Overview routes filled plus fixed 3 statements, reviewer running; Task 6 competitors core running in parallel on disjoint files | 08:26: merged e4ab649e, in release A"
   },
   {
    "id": "WP-33",
@@ -1815,17 +1815,17 @@
    },
    "counts": {
     "total": 7,
-    "done": 3
+    "done": 7
    },
    "owner": "",
-   "notes": "file work-packages/WP-33-overview-shell.md; estimate 7 tasks; decisions D-01, D-03, D-13, D-19, D-20 | tasks 4/13: T1 scope model, T2 ai_overview catalog (38 card types, reviewed vs inventory: 47 rows, no mismatch), T3 read hooks and fan-out mock handler, T4 aggregates model (60 tests) in review; T5 route, header, customize wiring and registry next; milestone M1 at T6; backed up on origin/ai/wp-33-overview-shell | from WP-19: adopt apps/web/src/lib/compare (on develop, b69b7374) instead of a local parseCompare | from WP-31: SetupChecklist is exported from features/onboarding; mount it on the Overview with one line (WP-33 owns the slot) once WP-31 merges | WP-32 contract ON develop (45864845): mock against docs/ai-visibility/contracts/c8-metrics.md and c5-competitors.md; extra optional fields: AiCompetitorEngine.lost_prompts_total and lost_prompts_with_min_answers, AiOverview.topics_in_scope, meta.entity_config_changes; AiCi {low, high, level, method}; doc 16 2.1 already has ai.prompts_in_scope and ai.valid_answers (do not duplicate) | 23:30: M1 pushed 600c758e (cards can start); export model and block registry committed 7c251639 (34 tests), reviewer running; T8 running; tasks 8/13"
+   "notes": "file work-packages/WP-33-overview-shell.md; estimate 7 tasks; decisions D-01, D-03, D-13, D-19, D-20 | tasks 4/13: T1 scope model, T2 ai_overview catalog (38 card types, reviewed vs inventory: 47 rows, no mismatch), T3 read hooks and fan-out mock handler, T4 aggregates model (60 tests) in review; T5 route, header, customize wiring and registry next; milestone M1 at T6; backed up on origin/ai/wp-33-overview-shell | from WP-19: adopt apps/web/src/lib/compare (on develop, b69b7374) instead of a local parseCompare | from WP-31: SetupChecklist is exported from features/onboarding; mount it on the Overview with one line (WP-33 owns the slot) once WP-31 merges | WP-32 contract ON develop (45864845): mock against docs/ai-visibility/contracts/c8-metrics.md and c5-competitors.md; extra optional fields: AiCompetitorEngine.lost_prompts_total and lost_prompts_with_min_answers, AiOverview.topics_in_scope, meta.entity_config_changes; AiCi {low, high, level, method}; doc 16 2.1 already has ai.prompts_in_scope and ai.valid_answers (do not duplicate) | 23:30: M1 pushed 600c758e (cards can start); export model and block registry committed 7c251639 (34 tests), reviewer running; T8 running; tasks 8/13 | 08:26: on develop (Overview page, nav live) in release A; parked leftovers on ai/wp-33-overview-shell 5314932e: equal height frames, e2e part 2"
   },
   {
    "id": "WP-34",
    "title": "Overview cards: rates by engine, outcomes, funnel, change summary, movers",
    "wave": "W3",
    "kind": "web",
-   "status": "planning",
+   "status": "merged",
    "dependsOn": [
     "WP-33",
     "WP-05",
@@ -1861,14 +1861,14 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-34-overview-cards-engines.md; estimate 8 tasks; decisions D-04 | from WP-12: request include=series,entities with rows=topics, or rows=none plus include=total (all rows with 20 entities is 14.5 MB); contract changes in docs/ai-visibility/contracts/c2-summary.md change log C-1..C-11 | from WP-33: registry slot file apps/web/src/features/ai-overview/cards/<your folder>/index.ts is yours to fill; start after WP-33 milestone M1 (T6) | from WP-32: contract notes c8-metrics.md and c5-competitors.md and the 7 stub routes are the FIRST PUSH of WP-32 (scope params from, to, filter[engine_code_in], include_branded, branded_only, filter[country_iso], filter[term], compare, compare_from, compare_to; tiles per engine, engine_average, previous beside each value, weekly series, breakdown by dimension capped at 300 rows, ai/competitors with is_top_competitor) | WP-32 contract ON develop (45864845): mock against docs/ai-visibility/contracts/c8-metrics.md and c5-competitors.md; extra optional fields: AiCompetitorEngine.lost_prompts_total and lost_prompts_with_min_answers, AiOverview.topics_in_scope, meta.entity_config_changes; AiCi {low, high, level, method}; doc 16 2.1 already has ai.prompts_in_scope and ai.valid_answers (do not duplicate) | 23:30: session started on owner go at 23:3x from develop 9216e710; planner writes the task plan; family map per M1 notes"
+   "notes": "file work-packages/WP-34-overview-cards-engines.md; estimate 8 tasks; decisions D-04 | from WP-12: request include=series,entities with rows=topics, or rows=none plus include=total (all rows with 20 entities is 14.5 MB); contract changes in docs/ai-visibility/contracts/c2-summary.md change log C-1..C-11 | from WP-33: registry slot file apps/web/src/features/ai-overview/cards/<your folder>/index.ts is yours to fill; start after WP-33 milestone M1 (T6) | from WP-32: contract notes c8-metrics.md and c5-competitors.md and the 7 stub routes are the FIRST PUSH of WP-32 (scope params from, to, filter[engine_code_in], include_branded, branded_only, filter[country_iso], filter[term], compare, compare_from, compare_to; tiles per engine, engine_average, previous beside each value, weekly series, breakdown by dimension capped at 300 rows, ai/competitors with is_top_competitor) | WP-32 contract ON develop (45864845): mock against docs/ai-visibility/contracts/c8-metrics.md and c5-competitors.md; extra optional fields: AiCompetitorEngine.lost_prompts_total and lost_prompts_with_min_answers, AiOverview.topics_in_scope, meta.entity_config_changes; AiCi {low, high, level, method}; doc 16 2.1 already has ai.prompts_in_scope and ai.valid_answers (do not duplicate) | 23:30: session started on owner go at 23:3x from develop 9216e710; planner writes the task plan; family map per M1 notes | 08:26: on develop 4774f178, in release A; follow-ups: region formatter, change summary gap, third width card, loadingHeight"
   },
   {
    "id": "WP-35",
    "title": "Overview cards: share of voice, lost to a competitor, competitor trends",
    "wave": "W3",
    "kind": "web",
-   "status": "planning",
+   "status": "merged",
    "dependsOn": [
     "WP-33",
     "WP-05",
@@ -1900,14 +1900,14 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-35-overview-cards-competitors.md; estimate 6 tasks; decisions none | from WP-12: request include=series,entities with rows=topics, or rows=none plus include=total (all rows with 20 entities is 14.5 MB); contract changes in docs/ai-visibility/contracts/c2-summary.md change log C-1..C-11 | from WP-33: registry slot file apps/web/src/features/ai-overview/cards/<your folder>/index.ts is yours to fill; start after WP-33 milestone M1 (T6) | from WP-32: contract notes c8-metrics.md and c5-competitors.md and the 7 stub routes are the FIRST PUSH of WP-32 (scope params from, to, filter[engine_code_in], include_branded, branded_only, filter[country_iso], filter[term], compare, compare_from, compare_to; tiles per engine, engine_average, previous beside each value, weekly series, breakdown by dimension capped at 300 rows, ai/competitors with is_top_competitor) | WP-32 contract ON develop (45864845): mock against docs/ai-visibility/contracts/c8-metrics.md and c5-competitors.md; extra optional fields: AiCompetitorEngine.lost_prompts_total and lost_prompts_with_min_answers, AiOverview.topics_in_scope, meta.entity_config_changes; AiCi {low, high, level, method}; doc 16 2.1 already has ai.prompts_in_scope and ai.valid_answers (do not duplicate) | 23:30: session started on owner go at 23:3x from develop 9216e710; planner writes the task plan; family map per M1 notes"
+   "notes": "file work-packages/WP-35-overview-cards-competitors.md; estimate 6 tasks; decisions none | from WP-12: request include=series,entities with rows=topics, or rows=none plus include=total (all rows with 20 entities is 14.5 MB); contract changes in docs/ai-visibility/contracts/c2-summary.md change log C-1..C-11 | from WP-33: registry slot file apps/web/src/features/ai-overview/cards/<your folder>/index.ts is yours to fill; start after WP-33 milestone M1 (T6) | from WP-32: contract notes c8-metrics.md and c5-competitors.md and the 7 stub routes are the FIRST PUSH of WP-32 (scope params from, to, filter[engine_code_in], include_branded, branded_only, filter[country_iso], filter[term], compare, compare_from, compare_to; tiles per engine, engine_average, previous beside each value, weekly series, breakdown by dimension capped at 300 rows, ai/competitors with is_top_competitor) | WP-32 contract ON develop (45864845): mock against docs/ai-visibility/contracts/c8-metrics.md and c5-competitors.md; extra optional fields: AiCompetitorEngine.lost_prompts_total and lost_prompts_with_min_answers, AiOverview.topics_in_scope, meta.entity_config_changes; AiCi {low, high, level, method}; doc 16 2.1 already has ai.prompts_in_scope and ai.valid_answers (do not duplicate) | 23:30: session started on owner go at 23:3x from develop 9216e710; planner writes the task plan; family map per M1 notes | 08:26: on develop 3a7a7885, in release A; full suite and e2e ran only in the release"
   },
   {
    "id": "WP-36",
    "title": "Overview cards: topics by engine and prompts",
    "wave": "W3",
    "kind": "web",
-   "status": "planning",
+   "status": "merged",
    "dependsOn": [
     "WP-33",
     "WP-06",
@@ -1944,14 +1944,14 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-36-overview-cards-topics.md; estimate 7 tasks; decisions D-04, D-05 | from WP-12: request include=series,entities with rows=topics, or rows=none plus include=total (all rows with 20 entities is 14.5 MB); contract changes in docs/ai-visibility/contracts/c2-summary.md change log C-1..C-11 | from WP-33: registry slot file apps/web/src/features/ai-overview/cards/<your folder>/index.ts is yours to fill; start after WP-33 milestone M1 (T6) | from WP-32: contract notes c8-metrics.md and c5-competitors.md and the 7 stub routes are the FIRST PUSH of WP-32 (scope params from, to, filter[engine_code_in], include_branded, branded_only, filter[country_iso], filter[term], compare, compare_from, compare_to; tiles per engine, engine_average, previous beside each value, weekly series, breakdown by dimension capped at 300 rows, ai/competitors with is_top_competitor) | WP-32 contract ON develop (45864845): mock against docs/ai-visibility/contracts/c8-metrics.md and c5-competitors.md; extra optional fields: AiCompetitorEngine.lost_prompts_total and lost_prompts_with_min_answers, AiOverview.topics_in_scope, meta.entity_config_changes; AiCi {low, high, level, method}; doc 16 2.1 already has ai.prompts_in_scope and ai.valid_answers (do not duplicate) | 23:30: session started on owner go at 23:3x from develop 9216e710; planner writes the task plan; family map per M1 notes"
+   "notes": "file work-packages/WP-36-overview-cards-topics.md; estimate 7 tasks; decisions D-04, D-05 | from WP-12: request include=series,entities with rows=topics, or rows=none plus include=total (all rows with 20 entities is 14.5 MB); contract changes in docs/ai-visibility/contracts/c2-summary.md change log C-1..C-11 | from WP-33: registry slot file apps/web/src/features/ai-overview/cards/<your folder>/index.ts is yours to fill; start after WP-33 milestone M1 (T6) | from WP-32: contract notes c8-metrics.md and c5-competitors.md and the 7 stub routes are the FIRST PUSH of WP-32 (scope params from, to, filter[engine_code_in], include_branded, branded_only, filter[country_iso], filter[term], compare, compare_from, compare_to; tiles per engine, engine_average, previous beside each value, weekly series, breakdown by dimension capped at 300 rows, ai/competitors with is_top_competitor) | WP-32 contract ON develop (45864845): mock against docs/ai-visibility/contracts/c8-metrics.md and c5-competitors.md; extra optional fields: AiCompetitorEngine.lost_prompts_total and lost_prompts_with_min_answers, AiOverview.topics_in_scope, meta.entity_config_changes; AiCi {low, high, level, method}; doc 16 2.1 already has ai.prompts_in_scope and ai.valid_answers (do not duplicate) | 23:30: session started on owner go at 23:3x from develop 9216e710; planner writes the task plan; family map per M1 notes | 08:26: merged 48fdde4d, in release A"
   },
   {
    "id": "WP-37",
    "title": "Overview cards: sources, fan-out, activity and operations",
    "wave": "W3",
    "kind": "web",
-   "status": "not_started",
+   "status": "merged",
    "dependsOn": [
     "WP-33",
     "WP-05",
@@ -1990,7 +1990,7 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-37-overview-cards-sources.md; estimate 6 tasks; decisions none | WP-14 on develop: sources/changes, sources/diversity, sources/domains/{registrable_domain}, sources/prompts, include=series, cited_with, by_role_by_engine, fanout include=topics, filter[country_iso], min_support, include_unresolved_redirects and include_engine_internal; generated client already current | from WP-33: registry slot file apps/web/src/features/ai-overview/cards/<your folder>/index.ts is yours to fill; start after WP-33 milestone M1 (T6) | from WP-32: contract notes c8-metrics.md and c5-competitors.md and the 7 stub routes are the FIRST PUSH of WP-32 (scope params from, to, filter[engine_code_in], include_branded, branded_only, filter[country_iso], filter[term], compare, compare_from, compare_to; tiles per engine, engine_average, previous beside each value, weekly series, breakdown by dimension capped at 300 rows, ai/competitors with is_top_competitor) | WP-32 contract ON develop (45864845): mock against docs/ai-visibility/contracts/c8-metrics.md and c5-competitors.md; extra optional fields: AiCompetitorEngine.lost_prompts_total and lost_prompts_with_min_answers, AiOverview.topics_in_scope, meta.entity_config_changes; AiCi {low, high, level, method}; doc 16 2.1 already has ai.prompts_in_scope and ai.valid_answers (do not duplicate)"
+   "notes": "file work-packages/WP-37-overview-cards-sources.md; estimate 6 tasks; decisions none | WP-14 on develop: sources/changes, sources/diversity, sources/domains/{registrable_domain}, sources/prompts, include=series, cited_with, by_role_by_engine, fanout include=topics, filter[country_iso], min_support, include_unresolved_redirects and include_engine_internal; generated client already current | from WP-33: registry slot file apps/web/src/features/ai-overview/cards/<your folder>/index.ts is yours to fill; start after WP-33 milestone M1 (T6) | from WP-32: contract notes c8-metrics.md and c5-competitors.md and the 7 stub routes are the FIRST PUSH of WP-32 (scope params from, to, filter[engine_code_in], include_branded, branded_only, filter[country_iso], filter[term], compare, compare_from, compare_to; tiles per engine, engine_average, previous beside each value, weekly series, breakdown by dimension capped at 300 rows, ai/competitors with is_top_competitor) | WP-32 contract ON develop (45864845): mock against docs/ai-visibility/contracts/c8-metrics.md and c5-competitors.md; extra optional fields: AiCompetitorEngine.lost_prompts_total and lost_prompts_with_min_answers, AiOverview.topics_in_scope, meta.entity_config_changes; AiCi {low, high, level, method}; doc 16 2.1 already has ai.prompts_in_scope and ai.valid_answers (do not duplicate) | 08:26: on develop 63a99fe5, in release A; ChartFrame loadingHeight adoption pending"
   },
   {
    "id": "WP-38",
@@ -2034,7 +2034,7 @@
    "title": "Competitors page (Comparison, AI tab, inspector)",
    "wave": "W3",
    "kind": "web",
-   "status": "not_started",
+   "status": "building",
    "dependsOn": [
     "WP-32",
     "WP-05",
@@ -2069,7 +2069,7 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-39-competitors-page.md; estimate 8 tasks; decisions none"
+   "notes": "file work-packages/WP-39-competitors-page.md; estimate 8 tasks; decisions none | 08:26: PARKED, not shipped: ai/wp-39-competitors-page 867839f6 (T1, T2 incl nav flip)"
   },
   {
    "id": "WP-40",
@@ -3077,7 +3077,7 @@
    "title": "Performance: rollups, caching, EXPLAIN gate, quality counters",
    "wave": "W5",
    "kind": "backend",
-   "status": "not_started",
+   "status": "building",
    "dependsOn": [
     "WP-12",
     "WP-32"
@@ -3104,7 +3104,7 @@
     "done": 0
    },
    "owner": "",
-   "notes": "file work-packages/WP-62-performance.md; estimate 6 tasks; decisions D-33"
+   "notes": "file work-packages/WP-62-performance.md; estimate 6 tasks; decisions D-33 | 08:26: PARKED: ai/wp-62-performance e9c469b2 (ANALYZE and quality counters unreviewed); plan on develop"
   },
   {
    "id": "WP-63",
@@ -4847,5 +4847,13 @@
   "subagents_per_session_max": 2,
   "rule": "Owner (22:20): only idraft sessions tonight, run the maximum, finish release A including Tier 2, then go further. 7 working sessions, up to 2 subagents each (the second is a read-only reviewer where possible). Heavy lock slots raised to 2 heavy and 3 medium (/tmp/idraft-health/slots); health-watch load thresholds 18 warn and 28 critical; swap counts only with low free memory. Full suites still only via infra/dev/heavy with --maxWorkers=3 under the gate (pause OFF, memory free at least 40 percent)."
  },
- "baselineDone": 279
+ "baselineDone": 279,
+ "releases": [
+  {
+   "name": "A",
+   "at": "2026-11-14T08:26:46+05:30",
+   "main": "17e7669d",
+   "note": "Overview, cards, compare, citations new and lost, evidence viewer, runs and costs and budgets, settings extras, seven aggregate routes; migrations 0021 to 0024; real data run and ANALYZE not done"
+  }
+ ]
 }
