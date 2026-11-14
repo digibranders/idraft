@@ -288,3 +288,52 @@ Also lit up and proven, not rows of this package: WP-20's By engine rows and exp
 | R10. The seam's `PromptColumnContext` has no compare flag. | The cell reads `useCompare()`; no seam edit beyond the two lines. |
 | R11. An existing test asserts "no change" or an exact column list. | F16: read first, change only what the feature makes false. |
 | R12. A number without its count slips in. | The reviewer's first check: every delta tooltip names the previous value with its answers. |
+
+## 11. As built (2026-11-14)
+
+T1a to T4b were committed before this note; T5 is this note and the one in `docs/design-system/24-page-templates.md` (sections 9.5 and 9.6). Pushed so far: P1 `b69b7374` and P2 `e858fe71` on develop; P3 is not pushed. Of the 10 rows, 9 are closed by the page, the mock, the tests and the e2e; the tenth, WB-TPF-07, lacks its "interim test" tooltip (see below). `13-filters-search.md` needed nothing after T1c: its key table already has the `detectable` row, and this note adds none. `docs/29-phase-roadmap.md` is not touched (web packages do not record themselves there).
+
+### Decisions that changed on the way
+
+- **Q11, no fixture edit.** The plan said to leave the fixtures alone and assert the rule on whatever the mock draws. At 28 days the Fynix mock has no detectable Mention change at all, so the e2e could not see a coloured delta. A cookie, `mock-compare-detectable` (`COMPARE_DETECTABLE_COOKIE` in `mocks/session.ts`, lease taken in tracker commit `42a3db8b`), makes the summary mock flip the mentions of one topic in the compared window only (`withDetectableChange` in `mocks/handlers/compare.ts`): Paid Search and its two prompts, same answers, opposite mentions, +58.3 pts on the topic. Without the cookie the answer is unchanged. Nothing in the app writes the cookie.
+- **R10, the seam context grew.** The plan left `PromptColumnContext` alone and had the cell read `useCompare()`. A `cellTip` is a pure function, and the Prompts columns are built above the page's provider, so the context gained `compare`, `comparedWindow` and `changeWords`, and `ComparedWindowProvider` plus an optional window argument of `usePromptColumns` and `useRateColumns` were added. `seams/columns.test.ts` follows. `cellsOfPrompt` moved from `prompt-columns.tsx` to `prompt-model.ts` so the new column file can import it without a cycle.
+- **D10, `DeltaValue`, not `DeltaCell`.** A change cell draws `DeltaValue` inside a `col.volumeTrend` cell. `DeltaCell` pushes its value to the right edge, and the column API has no header alignment, so a `DeltaCell` sits far from its left aligned header. The Citations tables draw `DeltaCell` and have the same mismatch.
+- **Mention column width.** The plan said to widen the column to its maximum (200 px) if the change clipped. The fixed table gives the column 152 px whatever it asks for, so nothing was widened. The widest case, "100% avg of 2 +13.4 pts", is 139 px with a `gap-1` and no wrapping in a 140 px content box, about 1 px to spare.
+- **Helper names.** The plan's `averageChange` and `stripChange` helpers are `averageChangeOf` and `stripChangeOf` in `lib/compare/change-model.ts`, with `engineChangeOf`, `deltaInput` and the exported `RateChangeInput`. The words-and-change pair `averageChange` lives in `features/prompts/compare/average-change.ts`.
+- **New small parts.** `TippedChange` (the tab stop that holds the tooltip of a drawer card or a prompt meta line, only where a tip exists), `DetectableEmpty` (the empty state of the chip), and `ChangeInline` wrapped in a `relative inline-flex` box. Without the box the spoken text of the `Delta`, positioned absolutely, widened the page to 405 px at 390 px.
+- **The chip and its reads.** While the held read has not been compared yet (compare just turned on), and after a failed read, the chip leaves the rows alone, so a toggle does not empty the table for a moment. The empty state also tells "the previous period has no answers" (`previous_answers` 0) and "no row has enough answers in both periods" (`tooFewReason`, not in section 5). With a search active the generic filtered state shows.
+- **Edits in WP-20 files, outside the leases table.** `topic-drawer/engine-panel.tsx` (the `compare` guard, so the held rows show no change at once when comparison is off) and `topic-drawer/engine-filter.tsx` (the change of the chosen metric on the chosen engine, not the Mention average that D11 named). The By engine spec `ai-topics-by-engine.spec.ts` has one assertion made visible-only, because a card change holds its tooltip text in a hidden description.
+- **Adoption of `lib/compare`.** The plan expected WP-33 and WP-21 to adopt it on their next rebase. WP-33 already did (`90a67822`, and its cards import the change model). WP-21 still has `cmpOf` in `citations-screen.tsx` and `search.cmp !== 'off'` in `citation-scope.ts`.
+- **The select** is 192 px wide (`w-48`), in the toolbar right group beside the Updated text.
+
+### Kept as planned
+
+D1 to D5, D7 to D9, D12 and D13. Q1 (the average of engines is tested on pooled answers, labelled), Q2 (each period its own prompts, counts in the tooltip), Q3 (an enum field "Show" with one option), Q4 (vs previous period and No comparison only), Q5 (on by default), Q7 (`col.volumeTrend`, no new column type), Q8 (change columns hidden), Q9 (the chip stays with comparison off and says why), Q10 (the prompts of a kept topic stay whole), Q12 (three copies of the select stay), Q13 (the `detectable` row, added in T1c), Q14. One summary read, with no two read fallback. `prompt-inspector.tsx`, `topics-table.tsx`, `engine-values.ts`, `schema.ts` and `v1.json` untouched.
+
+### Measured and counted
+
+- **Request size** (T1b, mock, the page's own query `include=series&include_branded=false`, 28 days against the previous 28): Fynix 205,687 B to 252,913 B (+47,226 B, +23.0 percent; gzip 8.6 KB to 10.6 KB). Eventus 643,445 B to 790,365 B (+146,920 B, +22.8 percent; gzip 26.2 KB to 33.4 KB). The coordinator decided that no lean rows request is needed (Q6, R1). Not measured against the dev API.
+- **Detectable Mention change at 28 days** (Q11, R2). Fynix: none anywhere (0 of 7 topic rows, 0 of 23 prompt rows, 0 of 14 topic engine cells, 0 of 46 prompt engine cells, 0 of 2 strip chips). At 7 days 2 of 14 topic engine cells and no row; at 14 days 1 of 14; at 45 days 0. Eventus: 3 of 29 topic rows, 2 of 65 prompt rows, 4 of 58 topic engine cells, 6 of 130 prompt engine cells, 0 of 2 strip chips. Share of voice is never detectable. Cited: Fynix 0; Eventus 2 topic engine cells and 2 prompt engine cells. The e2e build cannot serve Eventus, so the e2e asserts the neutral rule on Fynix and one coloured delta through the cookie.
+- **Mock**: the summary answers `compare`, `compare_from`, `compare_to` and `previous_year` as C-1 and C-2 say. A custom window wins over a valid `compare`; an invalid `compare` value is `literal_error` first; a compared window over 92 days is `window_too_large`; `previous` is null only where the compared days hold no fact row of that engine; `previous_answers` counts valid answers on the engines shown; 29 February becomes the 28th. Without `compare` the answer is byte for byte unchanged (hash checked over 7 queries per project at T1b).
+- **Rows**: WB-TPF-06, WB-TPF-07 (minus the tooltip), WB-TPS-05, WB-TOP-15, WB-PRM-12, WB-PI-11, WB-TI-09, WB-TI-16, WB-DATA-02, WB-E2E-09.
+- **Colour rule proof** (WB-DATA-02): a matrix of 7 surfaces by 6 cases, 71 tests in `compare/colour-rule.test.tsx`, plus a scan that no source file names a tone class. Weakening `rateChange` three ways fails 24, 6 and 3 tests.
+- **e2e**: 15 tests in `e2e/flows/ai-compare.spec.ts` (11 flows, and axe in 2 themes at 1280 and 390 px).
+- Mention column 152 px effective, widest case 139 px (see above).
+
+### Not done, not checked
+
+- The "interim test" tooltip of the chip (WB-TPF-07): `FilterField` and `FilterOption` take no tooltip. The message `prompts.compare.detectable.tip` is written and unused. By grep, `prompts.compare.change.header` and `prompts.compare.tip.average` are unused too.
+- Not built on purpose (D14): Same period last year and Custom, the "Show previous values" chooser option, the dashed previous period series, the version boundary marker, the interval of a change in the tooltip, a change on the prompt inspector's Citation average.
+- A failed read after a toggle shows the summary banner with Try again and the Prompts rows stay; the held rows do not stay, because a changed query key drops the placeholder data. The planned test ("keeps the held rows") describes the other behaviour.
+- The sort value of the change columns follows the compare switch (n/a, sorted last, with comparison off).
+- The mobile Topics list (390 px) shows no change per row. The inspector strip at 390 px lets "100% +14.3 pts" cross the item divider (the shared `MetricStrip` delta does not wrap).
+- Shared findings, not fixed: the chip truncates in the shared toolbar ("Show: Det...") and the toolbar wraps to three rows on the Eventus Prompts tab at 1280 px; the `DataTable` empty state is centred on the full table width (off screen at 390 px on the Prompts table); the last `MetricStrip` chip has a focus ring that scrolls 4 px; at 1280 px the inspector overlays and does not dock; the By engine row change has no tooltip of its own (the row's tip shows).
+- Tooltips use "interim test" and "pooled answers", which is jargon for an end user.
+- `topic-drawer-wiring` "keeps the drawer content while the summary is read again" fails about 1 run in 3 of the full suite on plain develop; it is not from this package.
+- Not checked against the dev API. Eventus cannot be served in the e2e build. This note ran no test, build, lint or browser: the numbers above were handed over from T1b, T4a and T4b, not measured again here. The rebase, the final heavy run, the e2e run, the second review and P3 are still to do.
+
+### Asks and follow-ups
+
+- Backend: none new. The null rules of C-2 for `previous` are enough.
+- Coordinator: WP-21 adopts `lib/compare` (`cmpOf`, `search.cmp`); one shared `CompareSelect` once WP-33 has merged (Q12); tooltip support on `FilterField` and `FilterOption`, then the chip's tooltip; a header alignment option in the column API, or the `col.rateDelta` type of Q7; a flex wrap for the `sm` value line of `MetricStrip`; the `DataTable` empty state centring; the flaky `topic-drawer-wiring` test.
+- Owner: the end user wording of "interim test" and "pooled answers".
