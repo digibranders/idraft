@@ -126,10 +126,14 @@ export function MetricStrip({ size, label, groups, status, nowrap = false }: Met
               >
                 <dt id={termId} className="type-meta text-foreground-tertiary">
                   {item.href === undefined ? (
-                    <span className="flex items-center gap-1">
-                      {item.label}
-                      {item.labelAddon}
-                    </span>
+                    item.labelAddon === undefined ? (
+                      item.label
+                    ) : (
+                      <span className="flex items-center gap-1">
+                        {item.label}
+                        {item.labelAddon}
+                      </span>
+                    )
                   ) : (
                     <Tooltip content={item.tip ?? ''} purpose="label" disabled={!tipped}>
                       <Link

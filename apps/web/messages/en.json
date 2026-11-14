@@ -2222,12 +2222,14 @@
       "showAll": "Show all {count, number}"
     },
     "progress": {
+      "collecting": "Collecting answers",
       "counted": "Collecting answers: {done, number} of {total, number} {total, plural, one {task} other {tasks}}{failed, plural, =0 {} other {, # failed}}",
       "preparing": "Collecting answers: preparing the tasks",
       "viewRun": "View run",
       "finished": "Collection finished"
     },
     "notice": {
+      "degraded": "{name} degraded",
       "engine": "{name}: {valid, number} of {planned, number} {planned, plural, one {answer} other {answers}} valid, {percent}. Below {threshold}, so this engine is degraded in the latest run.",
       "viewRunFor": "View run for {name}",
       "loadFailed": "Answer coverage of the latest run did not load."

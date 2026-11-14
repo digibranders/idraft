@@ -1956,7 +1956,9 @@ describe('Topics & Prompts: the metric strip', () => {
       'Mentioned: 8 of 12 answers. Cited: 6 of 12 answers. Over 3 prompts, each counted once. Share of voice: 8 answers that name a brand.',
     );
     // The chips are in the page header's toolbar, with the Filter button, not a panel of their own
-    expect(screen.getByRole('group', { name: STRIP }).closest('[data-slot="page-header"]')).not.toBeNull();
+    expect(
+      screen.getByRole('group', { name: STRIP }).closest('[data-slot="page-toolbar"], [data-slot="page-header"]'),
+    ).not.toBeNull();
     expect(await axe(container)).toHaveNoViolations();
   });
 

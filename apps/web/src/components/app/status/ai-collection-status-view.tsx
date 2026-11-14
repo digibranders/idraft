@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import type { ReactElement } from 'react';
 
+import { StatusChip } from '@/components/app/page-toolbar/status-chip';
 import { Banner } from './banner';
 import { CollectionProgress } from './collection-progress';
 import { Button } from '@/components/ui/button';
@@ -24,6 +25,8 @@ export interface AiCollectionStatusViewProps {
   notice: { engines: readonly DegradedEngineView[]; href: Route } | null;
   /** The read behind the notice failed: a quiet line with Retry, never a banner. */
   failure: { onRetry: () => void; retrying: boolean } | null;
+  /** Presentation variant: full width banners (default) or compact toolbar chips. */
+  variant?: 'banner' | 'inline' | undefined;
 }
 
 /**
@@ -37,10 +40,57 @@ export function AiCollectionStatusView({
   progress,
   notice,
   failure,
+  variant = 'banner',
 }: AiCollectionStatusViewProps): ReactElement | null {
   const t = useTranslations('runs');
   const common = useTranslations('common');
   if (progress === null && notice === null && failure === null) return null;
+
+  if (variant === 'inline') {
+    return (
+      <div data-slot="ai-collection-status" className="flex items-center gap-2">
+        {progress === null ? null : (
+          <StatusChip
+            tone="info"
+            label={t('progress.collecting')}
+            tooltip={
+              progress.counts === null
+                ? t('progress.preparing')
+                : t('progress.counted', {
+                    done: progress.counts.processed,
+                    total: progress.counts.total,
+                    failed: progress.counts.failed,
+                  })
+            }
+            href={progress.href}
+          />
+        )}
+        {notice?.engines.map((row) => (
+          <StatusChip
+            key={row.engine}
+            tone="warning"
+            label={t('notice.degraded', { name: row.name })}
+            tooltip={t('notice.engine', {
+              name: row.name,
+              valid: row.valid,
+              planned: row.planned,
+              percent: formatCoverageRate(row.rate),
+              threshold: formatPercent(DEGRADED_BELOW, { decimals: 0 }),
+            })}
+            href={notice.href}
+          />
+        ))}
+        {failure === null ? null : (
+          <div className="flex items-center gap-1 type-meta text-foreground-tertiary">
+            <p>{t('notice.loadFailed')}</p>
+            <Button variant="ghost" size="sm" loading={failure.retrying} onClick={failure.onRetry}>
+              {common('retry')}
+            </Button>
+          </div>
+        )}
+      </div>
+    );
+  }
   return (
     <div data-slot="ai-collection-status" className="flex flex-col gap-2">
       {progress === null ? null : (
