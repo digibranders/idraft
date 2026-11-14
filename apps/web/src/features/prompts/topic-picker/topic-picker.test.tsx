@@ -239,13 +239,14 @@ describe('Topic picker', () => {
     expect(screen.queryByRole('option', { name: /^Create/ })).toBeNull();
   });
 
-  it('offers a member limited to some projects no Create in the shared topics, and Create in the vocabulary of their project', async () => {
+  it('offers a member limited to some projects no Create in the shared topics, a new vocabulary of their project, and Create in the one they have', async () => {
     const limited = membership('editor', { projectIds: [SCOPE.projectId] });
     const first = render({ member: limited });
     await open(first.user);
     await first.user.keyboard('Startups');
-    expect(await screen.findByText(/Only editors can create topics\./)).toBeInTheDocument();
-    expect(screen.queryByRole('option', { name: /^Create/ })).toBeNull();
+    // The shared vocabulary is not theirs to write: the topic goes in a vocabulary made for the project
+    await first.user.click(await screen.findByRole('option', { name: 'Create topic “Startups”' }));
+    expect(chosen()).toEqual([{ kind: 'new', vocabularyId: null, path: 'Startups' }]);
     first.unmount();
 
     withProjectTopics();
@@ -289,7 +290,7 @@ describe('Topic picker', () => {
     expect(chosen()).toHaveLength(20);
   });
 
-  it('shows loading without saying there are none, then an empty list with how to create one', async () => {
+  it('shows loading without saying there are none, then an empty list with how to create the first topic', async () => {
     let release: () => void = () => undefined;
     const gate = new Promise<void>((resolve) => {
       release = resolve;
@@ -305,7 +306,66 @@ describe('Topic picker', () => {
     expect(field()).toHaveAttribute('placeholder', 'Loading topics');
     release();
     await open(user);
-    expect(await screen.findByText('No topics yet. Only editors can create topics.')).toBeInTheDocument();
+    expect(await screen.findByText('No topics yet. Type a name to create the first topic.')).toBeInTheDocument();
+  });
+
+  describe('where the project has no topic vocabulary', () => {
+    /** The project sees no vocabulary at all, as the owner's Eventus project: 134 prompts and no topics. */
+    function withoutVocabularies(): void {
+      server.use(
+        http.get(mswPath(VOCABULARIES), () =>
+          HttpResponse.json({ data: [], page: { offset: 0, limit: 200, total: 0 } }),
+        ),
+      );
+    }
+
+    it('offers an editor to create the typed topic, holds it for a vocabulary that is made on submit, and writes nothing', async () => {
+      withoutVocabularies();
+      const posts = termPosts();
+      const { user } = render();
+      await open(user);
+      await user.keyboard('Startups');
+      expect(screen.queryByText(/Only editors can create topics\./)).toBeNull();
+      await user.click(await screen.findByRole('option', { name: 'Create topic “Startups”' }));
+      expect(chosen()).toEqual([{ kind: 'new', vocabularyId: null, path: 'Startups' }]);
+      expect(screen.getByRole('button', { name: 'Remove Startups (new)' })).toBeInTheDocument();
+      expect(posts).toEqual([]);
+    });
+
+    it('offers a member limited to some projects to create it too, as the vocabulary is the one of their project', async () => {
+      withoutVocabularies();
+      const { user } = render({ member: membership('editor', { projectIds: [SCOPE.projectId] }) });
+      await open(user);
+      await user.keyboard('Startups');
+      await user.click(await screen.findByRole('option', { name: 'Create topic “Startups”' }));
+      expect(chosen()).toEqual([{ kind: 'new', vocabularyId: null, path: 'Startups' }]);
+    });
+
+    it('offers a viewer no Create and says only editors can create topics', async () => {
+      withoutVocabularies();
+      const { user } = render({ member: membership('viewer') });
+      await open(user);
+      await user.keyboard('Startups');
+      expect(await screen.findByText(/Only editors can create topics\./)).toBeInTheDocument();
+      expect(screen.queryByRole('option', { name: /^Create/ })).toBeNull();
+    });
+
+    it('says what is empty per role when nothing is typed', async () => {
+      withoutVocabularies();
+      const editor = render();
+      await open(editor.user);
+      expect(await screen.findByText('No topics yet. Type a name to create the first topic.')).toBeInTheDocument();
+      editor.unmount();
+
+      const viewer = render({ member: membership('viewer') });
+      await open(viewer.user);
+      expect(await screen.findByText('No topics yet. Only editors can create topics.')).toBeInTheDocument();
+      viewer.unmount();
+
+      const noWrite = render({ member: membership('editor', { without: 'taxonomy:write' }) });
+      await open(noWrite.user);
+      expect(await screen.findByText('No topics yet. Only editors can create topics.')).toBeInTheDocument();
+    });
   });
 
   it('says the topics could not be loaded and reads them again on retry', async () => {

@@ -6,7 +6,10 @@ import {
   keepOnePerSingleVocabulary,
   leafTermId,
   MAX_TOPIC_TERMS,
+  newTopicChoice,
+  NEW_TOPIC_VOCABULARY,
   nextTopicValue,
+  selectionOf,
   splitSelections,
   topicPathProblem,
   type TopicChoice,
@@ -178,6 +181,29 @@ describe('splitSelections', () => {
   });
 });
 
+describe('a topic typed where no vocabulary exists yet', () => {
+  it('is held with no vocabulary id, and carries it through the choice, the selection and the split', () => {
+    const typed = newTopicChoice('CRM/Startups', NEW_TOPIC_VOCABULARY, (path) => `${path} (new)`);
+    expect(typed).toMatchObject({
+      kind: 'new',
+      label: 'CRM / Startups (new)',
+      vocabularyId: null,
+      path: 'CRM / Startups',
+    });
+    const selection = selectionOf(typed);
+    expect(selection).toEqual({ kind: 'new', vocabularyId: null, path: 'CRM / Startups' });
+    expect(splitSelections([selection]).created).toEqual([{ vocabularyId: null, path: 'CRM / Startups' }]);
+  });
+
+  it('keeps the same typed path once, whatever its case', () => {
+    const first = newTopicChoice('Startups', NEW_TOPIC_VOCABULARY, (path) => path);
+    const again = newTopicChoice('STARTUPS', NEW_TOPIC_VOCABULARY, (path) => path);
+    expect(again.key).toBe(first.key);
+    const { value } = nextTopicValue([], [first, again], []);
+    expect(value).toHaveLength(1);
+  });
+});
+
 describe('createTarget', () => {
   const own = vocabulary({ vocabulary_id: 'v-own', name: 'Fynix topics', kind: 'topic', project_id: 'p-1' });
   const withOwn: readonly VocabularyTerms[] = [...LOADED, { vocabulary: own, terms: [] }];
@@ -189,25 +215,37 @@ describe('createTarget', () => {
 
   it('gives a member limited to some projects only the vocabulary of their project, and none without taxonomy write', () => {
     expect(createTarget(withOwn, 'p-1', { canWrite: true, canWriteShared: false })?.vocabulary_id).toBe('v-own');
-    expect(createTarget(LOADED, 'p-1', { canWrite: true, canWriteShared: false })).toBeNull();
     expect(createTarget(withOwn, 'p-1', { canWrite: false, canWriteShared: false })).toBeNull();
   });
 
   it('never targets a vocabulary of another project or one that is not a topic vocabulary', () => {
     const other = vocabulary({ vocabulary_id: 'v-other', name: 'Other', kind: 'topic', project_id: 'p-2' });
-    expect(
-      createTarget(
-        [
-          { vocabulary: other, terms: [] },
-          { vocabulary: SERVICES, terms: [] },
-        ],
-        'p-1',
-        {
-          canWrite: true,
-          canWriteShared: true,
-        },
-      ),
-    ).toBeNull();
+    const target = createTarget(
+      [
+        { vocabulary: other, terms: [] },
+        { vocabulary: SERVICES, terms: [] },
+      ],
+      'p-1',
+      { canWrite: true, canWriteShared: true },
+    );
+    expect(target).toEqual(NEW_TOPIC_VOCABULARY);
+  });
+
+  it('offers to make the topic vocabulary of the project when none exists to write to, to a person who can write', () => {
+    for (const vocabularies of [[], [{ vocabulary: SERVICES, terms: [] }]] satisfies VocabularyTerms[][]) {
+      expect(createTarget(vocabularies, 'p-1', { canWrite: true, canWriteShared: true })).toEqual(NEW_TOPIC_VOCABULARY);
+    }
+    expect(NEW_TOPIC_VOCABULARY.vocabulary_id).toBeNull();
+    expect(NEW_TOPIC_VOCABULARY.name).toBe('Topics');
+  });
+
+  it('lets a member limited to some projects make the vocabulary of their project beside a shared one they cannot write', () => {
+    expect(createTarget(LOADED, 'p-1', { canWrite: true, canWriteShared: false })).toEqual(NEW_TOPIC_VOCABULARY);
+  });
+
+  it('offers nothing to a person who cannot write when there is no topic vocabulary', () => {
+    expect(createTarget([], 'p-1', { canWrite: false, canWriteShared: false })).toBeNull();
+    expect(createTarget(LOADED, 'p-1', { canWrite: false, canWriteShared: true })).toBeNull();
   });
 });
 

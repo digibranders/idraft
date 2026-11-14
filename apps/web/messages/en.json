@@ -4478,7 +4478,7 @@
         "quoted": "“{value}”",
         "create": "Create topic “{name}”",
         "createPath": "Create “{path}”",
-        "noneYet": "No topics yet. Type a name to create one.",
+        "noneYet": "No topics yet. Type a name to create the first topic.",
         "noneYetReadOnly": "No topics yet. Only editors can create topics.",
         "noMatch": "No topics match “{query}”.",
         "noMatchReadOnly": "No topics match “{query}”. Only editors can create topics.",

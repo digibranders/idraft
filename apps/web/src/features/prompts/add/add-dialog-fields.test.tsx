@@ -393,6 +393,71 @@ describe('Add prompts: shell and fields', () => {
     expect(seen.writes.filter((path) => path.endsWith('bulk-create'))).toHaveLength(1);
   });
 
+  describe('in a project with no topic vocabulary', () => {
+    const VOCABULARIES = '/api/v1/workspaces/{workspace_id}/vocabularies';
+
+    /** The project sees no vocabulary, as the Eventus project does: 134 prompts and no topics. */
+    function noVocabularies(): void {
+      server.use(
+        http.get(mswPath(VOCABULARIES), () =>
+          HttpResponse.json({ data: [], page: { offset: 0, limit: 200, total: 0 } }),
+        ),
+      );
+    }
+
+    async function typeTopic(user: User, dialog: HTMLElement, name: string): Promise<void> {
+      const field = within(dialog).getByRole('combobox', { name: /Topics/ });
+      await waitFor(() => expect(field).toBeEnabled());
+      await user.click(field);
+      await user.type(field, name);
+      await user.click(await screen.findByRole('option', { name: `Create topic “${name}”` }));
+      await user.keyboard('{Escape}');
+    }
+
+    it('makes the vocabulary, then the topic in it, then adds the prompt under the new term, all on submit', async () => {
+      const seen = record('/prompts/bulk-create');
+      const madeTerms: string[] = [];
+      server.events.on('response:mocked', ({ request, response }) => {
+        if (request.method !== 'POST' || !new URL(request.url).pathname.endsWith('/terms')) return;
+        void response
+          .clone()
+          .json()
+          .then((body: { data: { term_id: string }[] }) => madeTerms.push(...body.data.map((term) => term.term_id)));
+      });
+      noVocabularies();
+      server.use(
+        http.post(bulkCreate, () =>
+          HttpResponse.json({ data: { created: ['0192d1a8-e000-7a10-8e00-000000000100'], skipped: [], rejected: [] } }),
+        ),
+      );
+      const { user } = renderWithProviders(asEditor());
+      const dialog = await openDialog(user);
+      await typeTopic(user, dialog, 'Startups');
+      await typeList(user, dialog, QUESTION);
+      expect(seen.writes.filter((path) => /vocabularies$|terms$/.test(path))).toEqual([]);
+      await user.click(await within(dialog).findByRole('button', { name: 'Add 1 prompt' }));
+      await screen.findByText('1 prompt added');
+      const writes = seen.writes.filter((path) => /(vocabularies|terms|bulk-create)$/.test(path));
+      expect(writes.map((path) => path.split('/').at(-1))).toEqual(['vocabularies', 'terms', 'bulk-create']);
+      expect(madeTerms).toHaveLength(1);
+      expect((seen.bodies[0] as Created).items[0]?.term_ids).toEqual(madeTerms);
+    });
+
+    it('says the topic was created and the prompts were not added when the add fails after the vocabulary and the topic', async () => {
+      noVocabularies();
+      server.use(http.post(bulkCreate, () => HttpResponse.error()));
+      const { user } = renderWithProviders(asEditor());
+      const dialog = await openDialog(user);
+      await typeTopic(user, dialog, 'Startups');
+      await typeList(user, dialog, QUESTION);
+      await user.click(await within(dialog).findByRole('button', { name: 'Add 1 prompt' }));
+      expect(
+        await within(dialog).findByText('Topic “Startups” was created. The prompts were not added.'),
+      ).toBeInTheDocument();
+      expect(within(dialog).getByRole('textbox', { name: 'Prompts' })).toHaveValue(QUESTION);
+    });
+  });
+
   it('says the topic was created and the prompts were not added when the add fails after it', async () => {
     server.use(http.post(bulkCreate, () => HttpResponse.error()));
     const { user } = renderWithProviders(asEditor());

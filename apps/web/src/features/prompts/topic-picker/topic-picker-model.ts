@@ -12,8 +12,25 @@ export const MAX_TOPIC_TERMS = 20;
 export const MAX_TOPIC_DEPTH = 10;
 export const MAX_TOPIC_NAME = 200;
 
-/** What a form holds: a term that exists, or a path to make in a vocabulary when the form is saved. */
-export type TopicSelection = { kind: 'existing'; termId: string } | { kind: 'new'; vocabularyId: string; path: string };
+/**
+ * What a form holds: a term that exists, or a path to make in a vocabulary when the form is saved. A `null`
+ * `vocabularyId` is a path for the topic vocabulary of the project, which does not exist yet: the save makes it first.
+ */
+export type TopicSelection =
+  { kind: 'existing'; termId: string } | { kind: 'new'; vocabularyId: string | null; path: string };
+
+/** The vocabulary a typed topic is made in: one that exists, or (`vocabulary_id: null`) the one the save makes. */
+export type TopicTarget = Pick<Vocabulary, 'name' | 'is_single_valued'> & { vocabulary_id: string | null };
+
+/** The name of the topic vocabulary made for a project that has none. */
+export const TOPIC_VOCABULARY_NAME = 'Topics';
+
+/** The project's topic vocabulary as it is before the save makes it. */
+export const NEW_TOPIC_VOCABULARY: TopicTarget = {
+  vocabulary_id: null,
+  name: TOPIC_VOCABULARY_NAME,
+  is_single_valued: false,
+};
 
 /** One row of the list and one chip of the field. */
 export interface TopicChoice {
@@ -26,7 +43,8 @@ export interface TopicChoice {
   termId?: string;
   /** The term's place by name in its vocabulary, "CRM / Startups". */
   path: string;
-  vocabularyId: string;
+  /** `null` for a topic to make in the vocabulary the save makes. */
+  vocabularyId: string | null;
   vocabularyName: string;
   /** Its vocabulary takes one term per prompt. */
   single: boolean;
@@ -85,14 +103,10 @@ export function buildTopicChoices(
 }
 
 /** A typed path as a choice to make in `vocabulary`; `label` words it for the chip ("CRM / Startups (new)"). */
-export function newTopicChoice(
-  text: string,
-  vocabulary: Pick<Vocabulary, 'vocabulary_id' | 'name' | 'is_single_valued'>,
-  label: (path: string) => string,
-): TopicChoice {
+export function newTopicChoice(text: string, vocabulary: TopicTarget, label: (path: string) => string): TopicChoice {
   const path = displayTopicPath(text);
   return {
-    key: `new:${vocabulary.vocabulary_id}:${foldPath(text)}`,
+    key: `new:${vocabulary.vocabulary_id ?? ''}:${foldPath(text)}`,
     label: label(path),
     kind: 'new',
     path,
@@ -150,7 +164,7 @@ export function nextTopicValue(
 /** The form's value as the terms that exist and the paths to make, each in the order chosen. */
 export function splitSelections(selections: readonly TopicSelection[]): {
   termIds: string[];
-  created: { vocabularyId: string; path: string }[];
+  created: { vocabularyId: string | null; path: string }[];
 } {
   return {
     termIds: selections.flatMap((selection) => (selection.kind === 'existing' ? [selection.termId] : [])),
@@ -168,18 +182,21 @@ export const selectionOf = (choice: TopicChoice): TopicSelection =>
 /**
  * The vocabulary a typed topic is made in: a topic vocabulary of the project itself first, then a workspace-wide
  * one. A member limited to some projects may write only the first kind (the API refuses a shared vocabulary with
- * 403), and without `taxonomy:write` nothing can be made.
+ * 403), and without `taxonomy:write` nothing can be made. When there is none to write to, the target is the
+ * project's topic vocabulary that the save makes first (`NEW_TOPIC_VOCABULARY`; the API lets a member limited to
+ * some projects make a vocabulary of their project).
  */
 export function createTarget(
   vocabularies: readonly VocabularyTerms[],
   projectId: string,
   access: { canWrite: boolean; canWriteShared: boolean },
-): Vocabulary | null {
+): TopicTarget | null {
   if (!access.canWrite) return null;
   const topics = vocabularies.map((entry) => entry.vocabulary).filter((vocabulary) => vocabulary.kind === 'topic');
   const own = topics.find((vocabulary) => vocabulary.project_id === projectId);
   if (own !== undefined) return own;
-  return access.canWriteShared ? (topics.find((vocabulary) => vocabulary.project_id === null) ?? null) : null;
+  const shared = access.canWriteShared ? topics.find((vocabulary) => vocabulary.project_id === null) : undefined;
+  return shared ?? NEW_TOPIC_VOCABULARY;
 }
 
 /** A term of a tree read from the API: what `leafTermId` walks. */

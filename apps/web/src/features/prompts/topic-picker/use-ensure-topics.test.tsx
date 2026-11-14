@@ -172,6 +172,118 @@ describe('useEnsureTopics', () => {
   });
 });
 
+/** The POSTs to vocabularies and terms in the order they start, each as `{ what, body }`. */
+function vocabularyAndTermWrites(): { what: 'vocabularies' | 'terms'; body: unknown }[] {
+  const writes: { what: 'vocabularies' | 'terms'; body: unknown }[] = [];
+  server.events.on('request:start', ({ request }) => {
+    const path = new URL(request.url).pathname;
+    if (request.method !== 'POST') return;
+    const what = path.endsWith('/terms') ? 'terms' : path.endsWith('/vocabularies') ? 'vocabularies' : null;
+    if (what === null) return;
+    // The slot is taken now, in order; the body arrives a moment later
+    const entry: { what: 'vocabularies' | 'terms'; body: unknown } = { what, body: undefined };
+    writes.push(entry);
+    void request
+      .clone()
+      .json()
+      .then((body: unknown) => {
+        entry.body = body;
+      });
+  });
+  return writes;
+}
+
+describe('useEnsureTopics where the project has no topic vocabulary', () => {
+  it('makes the project vocabulary first and then the terms in it, and answers the new leaf id', async () => {
+    const writes = vocabularyAndTermWrites();
+    const { user } = render([{ kind: 'new', vocabularyId: null, path: 'CRM / Startups' }]);
+    await user.click(screen.getByRole('button', { name: /Submit/ }));
+    await waitFor(() => expect(result().made).toEqual(['CRM / Startups']));
+    expect(writes.map((write) => write.what)).toEqual(['vocabularies', 'terms']);
+    expect(writes[0]?.body).toEqual({
+      kind: 'topic',
+      name: 'Topics',
+      project_id: SCOPE.projectId,
+      is_hierarchical: true,
+      is_single_valued: false,
+    });
+    expect(writes[1]?.body).toEqual({ items: [{ path: 'CRM/Startups' }] });
+    expect(result().termIds).toHaveLength(1);
+  });
+
+  it('makes the vocabulary once for several topics and the terms in one request', async () => {
+    const writes = vocabularyAndTermWrites();
+    const { user } = render([
+      { kind: 'new', vocabularyId: null, path: 'Startups' },
+      { kind: 'new', vocabularyId: null, path: 'CRM / Agencies' },
+    ]);
+    await user.click(screen.getByRole('button', { name: /Submit/ }));
+    await waitFor(() => expect(result().made).toEqual(['Startups', 'CRM / Agencies']));
+    expect(writes.map((write) => write.what)).toEqual(['vocabularies', 'terms']);
+    expect(writes[1]?.body).toEqual({ items: [{ path: 'Startups' }, { path: 'CRM/Agencies' }] });
+    expect(result().termIds).toHaveLength(2);
+  });
+
+  it('uses the vocabulary that exists when the create answers 409 duplicate, and does not call its topics made', async () => {
+    const writes = vocabularyAndTermWrites();
+    const { user } = render([{ kind: 'new', vocabularyId: null, path: 'Startups' }]);
+    await user.click(screen.getByRole('button', { name: /Submit/ }));
+    await waitFor(() => expect(result().made).toEqual(['Startups']));
+    const first = result().termIds;
+    // The same submit again: the vocabulary is there now, so the create is refused and the one that exists is used
+    await user.click(screen.getByRole('button', { name: /Submit/ }));
+    await waitFor(() => expect(result().made).toEqual([]));
+    expect(result().termIds).toEqual(first);
+    expect(writes.map((write) => write.what)).toEqual(['vocabularies', 'terms', 'vocabularies', 'terms']);
+  });
+
+  it('says the topic was created when the add fails after the vocabulary and the topic were made', async () => {
+    const { user } = render([{ kind: 'new', vocabularyId: null, path: 'Startups' }], true);
+    await user.click(screen.getByRole('button', { name: /Submit/ }));
+    await waitFor(() =>
+      expect(screen.getByTestId('out')).toHaveTextContent('Topic “Startups” was created. The prompts were not added.'),
+    );
+  });
+
+  it('names nothing as made when the terms are refused after the vocabulary was made, and uses that vocabulary on the next try', async () => {
+    let refuse = true;
+    server.use(
+      http.post(mswPath(TERMS), () =>
+        refuse
+          ? HttpResponse.json(
+              { type: 'about:blank', title: 'Server error', status: 500, code: 'internal_error', request_id: 'r' },
+              { status: 500 },
+            )
+          : undefined,
+      ),
+    );
+    const writes = vocabularyAndTermWrites();
+    const { user } = render([{ kind: 'new', vocabularyId: null, path: 'Startups' }]);
+    await user.click(screen.getByRole('button', { name: /Submit/ }));
+    await waitFor(() => expect(screen.getByTestId('out')).toHaveTextContent('failed after []'));
+    refuse = false;
+    await user.click(screen.getByRole('button', { name: /Submit/ }));
+    await waitFor(() => expect(result().made).toEqual(['Startups']));
+    expect(writes.filter((write) => write.what === 'vocabularies')).toHaveLength(2);
+  });
+
+  it('rejects with the failure and writes no term when the vocabulary is refused for another reason', async () => {
+    server.use(
+      http.post(mswPath('/api/v1/workspaces/{workspace_id}/vocabularies'), () =>
+        HttpResponse.json(
+          { type: 'about:blank', title: 'Forbidden', status: 403, code: 'forbidden', request_id: 'r' },
+          { status: 403 },
+        ),
+      ),
+    );
+    const writes = vocabularyAndTermWrites();
+    const { user } = render([{ kind: 'new', vocabularyId: null, path: 'Startups' }]);
+    await user.click(screen.getByRole('button', { name: /Submit/ }));
+    await waitFor(() => expect(screen.getByTestId('out')).toHaveTextContent('failed after []'));
+    expect(writes.map((write) => write.what)).toEqual(['vocabularies']);
+  });
+});
+
 describe('the topic picker and the submit', () => {
   it('holds a typed topic in the form and writes nothing until the form submits', async () => {
     const writes = termWrites();
