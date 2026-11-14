@@ -34,10 +34,15 @@ export function previousWindow({ from, to }: DayWindow): DayWindow {
 export const rowKey = (row: Pick<FanoutQueryRow, 'engine_code' | 'normalized_text'>): string =>
   `${row.engine_code}:${row.normalized_text}`;
 
-/** The part of a read the verdict needs: `idle` and `loading` mean the period before is not in hand. */
+/**
+ * The part of a read the verdict needs: `idle` and `loading` mean the period before is not in hand, and so does
+ * `refreshing`: the read keeps the last window's page while a new window loads, so `ready` with `refreshing` holds
+ * the wrong period.
+ */
 export interface PreviousRead {
   status: 'idle' | 'loading' | 'error' | 'ready';
   data: FanoutQueryPage | undefined;
+  refreshing: boolean;
 }
 
 /** Why a query cannot be called new or not new. `loading` says nothing to the person: the read is on its way. */
@@ -57,7 +62,9 @@ export type NewVerdict =
  */
 export function newVerdict(rows: readonly FanoutQueryRow[], previous: PreviousRead): NewVerdict {
   if (previous.status === 'error') return { kind: 'unknown', reason: 'failed' };
-  if (previous.status !== 'ready' || previous.data === undefined) return { kind: 'unknown', reason: 'loading' };
+  if (previous.status !== 'ready' || previous.data === undefined || previous.refreshing) {
+    return { kind: 'unknown', reason: 'loading' };
+  }
   const { data, meta, page } = previous.data;
   if (meta.answers === 0) return { kind: 'unknown', reason: 'noPrevious' };
   if (page.total > data.length) return { kind: 'unknown', reason: 'tooMany' };
@@ -77,9 +84,11 @@ export function listCut(page: FanoutQueryPage): { shown: number; total: number }
 
 /**
  * The newest `last_seen_at` of the rows when it is more than `STALE_AFTER_DAYS` days before `now`, else `null`. A
- * list with no row is not called old: there is no date to say.
+ * list with no row is not called old: there is no date to say. Nor is a window that stops before today: its newest
+ * query is old by the window's choice, and the list is as current as it can be (`reachesToday`, plan D11).
  */
-export function staleAt(rows: readonly FanoutQueryRow[], now: Date): string | null {
+export function staleAt(rows: readonly FanoutQueryRow[], now: Date, reachesToday: boolean): string | null {
+  if (!reachesToday) return null;
   let newest: { at: string; time: number } | null = null;
   for (const row of rows) {
     const time = Date.parse(row.last_seen_at);

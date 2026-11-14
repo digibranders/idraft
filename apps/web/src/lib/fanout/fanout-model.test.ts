@@ -49,7 +49,7 @@ const page = (
   page: { limit: 200, offset: 0, total },
 });
 
-const ready = (data: FanoutQueryPage): PreviousRead => ({ status: 'ready', data });
+const ready = (data: FanoutQueryPage): PreviousRead => ({ status: 'ready', data, refreshing: false });
 
 /** Whole days from the first to the last day, both counted. */
 const daysIn = ({ from, to }: { from: string; to: string }): number =>
@@ -136,12 +136,30 @@ describe('newVerdict', () => {
   });
 
   it('is unknown for a failed previous read', () => {
-    expect(newVerdict(current, { status: 'error', data: undefined })).toEqual({ kind: 'unknown', reason: 'failed' });
+    expect(newVerdict(current, { status: 'error', data: undefined, refreshing: false })).toEqual({
+      kind: 'unknown',
+      reason: 'failed',
+    });
   });
 
   it('is unknown while the previous read loads, and while it has not been asked, never new', () => {
-    expect(newVerdict(current, { status: 'loading', data: undefined })).toEqual({ kind: 'unknown', reason: 'loading' });
-    expect(newVerdict(current, { status: 'idle', data: undefined })).toEqual({ kind: 'unknown', reason: 'loading' });
+    expect(newVerdict(current, { status: 'loading', data: undefined, refreshing: false })).toEqual({
+      kind: 'unknown',
+      reason: 'loading',
+    });
+    expect(newVerdict(current, { status: 'idle', data: undefined, refreshing: false })).toEqual({
+      kind: 'unknown',
+      reason: 'loading',
+    });
+  });
+
+  it('is unknown while the previous read is refreshing, because its page is the old window and not this one', () => {
+    // keepPreviousData: status is ready and data is complete, but it belongs to the window that was left
+    const oldWindow = page([row({ normalized_text: 'crm pricing' })]);
+    expect(newVerdict(current, { status: 'ready', data: oldWindow, refreshing: true })).toEqual({
+      kind: 'unknown',
+      reason: 'loading',
+    });
   });
 });
 
@@ -171,23 +189,29 @@ describe('staleAt', () => {
 
   it('is the newest last_seen_at when it is older than 7 days', () => {
     const rows = [row({ last_seen_at: '2026-10-20T08:00:00Z' }), row({ last_seen_at: '2026-11-02T08:00:00Z' })];
-    expect(staleAt(rows, now)).toBe('2026-11-02T08:00:00Z');
+    expect(staleAt(rows, now, true)).toBe('2026-11-02T08:00:00Z');
   });
 
   it('is null for a fresh list', () => {
-    expect(staleAt([row({ last_seen_at: '2026-11-10T08:00:00Z' })], now)).toBeNull();
+    expect(staleAt([row({ last_seen_at: '2026-11-10T08:00:00Z' })], now, true)).toBeNull();
   });
 
   it('is null at exactly 7 days and stale one second past it', () => {
     const edge = new Date(Date.parse('2026-11-05T08:00:00Z') + STALE_AFTER_DAYS * 86_400_000);
-    expect(staleAt([row({ last_seen_at: '2026-11-05T08:00:00Z' })], edge)).toBeNull();
-    expect(staleAt([row({ last_seen_at: '2026-11-05T08:00:00Z' })], new Date(edge.getTime() + 1000))).toBe(
+    expect(staleAt([row({ last_seen_at: '2026-11-05T08:00:00Z' })], edge, true)).toBeNull();
+    expect(staleAt([row({ last_seen_at: '2026-11-05T08:00:00Z' })], new Date(edge.getTime() + 1000), true)).toBe(
       '2026-11-05T08:00:00Z',
     );
   });
 
   it('is null with no rows, because there is nothing to call old', () => {
-    expect(staleAt([], now)).toBeNull();
+    expect(staleAt([], now, true)).toBeNull();
+  });
+
+  it('is null when the window does not reach today, because a past window is old by its nature', () => {
+    const rows = [row({ last_seen_at: '2026-09-20T08:00:00Z' })];
+    expect(staleAt(rows, now, true)).toBe('2026-09-20T08:00:00Z');
+    expect(staleAt(rows, now, false)).toBeNull();
   });
 });
 
