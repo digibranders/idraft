@@ -62,6 +62,7 @@ export function AiCollectionStatusView({
                     failed: progress.counts.failed,
                   })
             }
+            ariaLabel={t('progress.viewRun')}
             href={progress.href}
           />
         )}
@@ -77,6 +78,7 @@ export function AiCollectionStatusView({
               percent: formatCoverageRate(row.rate),
               threshold: formatPercent(DEGRADED_BELOW, { decimals: 0 }),
             })}
+            ariaLabel={t('notice.viewRunFor', { name: row.name })}
             href={notice.href}
           />
         ))}

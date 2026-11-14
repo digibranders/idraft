@@ -51,20 +51,21 @@ export function PageToolbar({
         {title}
       </h1>
       {before}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 lg:flex-nowrap">
-        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-2 lg:flex-nowrap">
-          {stats !== undefined && stats !== null ? (
-            <div className="scrollbar-none flex h-control-sm max-w-full min-w-0 shrink items-center overflow-x-auto">
-              {stats}
-            </div>
-          ) : null}
-          {tabs !== undefined && tabs !== null ? (
-            <div className="flex h-control-sm shrink-0 items-center">{tabs}</div>
-          ) : null}
-          {filters !== undefined && filters !== null ? <div className="min-w-0 shrink-0">{filters}</div> : null}
-        </div>
+      <div className="flex w-full max-w-full min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
+        {stats !== undefined && stats !== null ? (
+          <div
+            className="scrollbar-none flex h-control-sm max-w-full min-w-0 items-center overflow-x-auto"
+            style={{ contain: 'paint' }}
+          >
+            {stats}
+          </div>
+        ) : null}
+        {tabs !== undefined && tabs !== null ? (
+          <div className="flex h-control-sm shrink-0 items-center">{tabs}</div>
+        ) : null}
+        {filters !== undefined && filters !== null ? <div className="min-w-0 shrink-0">{filters}</div> : null}
         {status !== undefined || actions !== undefined ? (
-          <div className="ml-auto flex h-control-sm shrink-0 items-center gap-3">
+          <div className="ml-auto flex min-h-control-sm max-w-full flex-wrap items-center gap-3">
             {status}
             {actions}
           </div>

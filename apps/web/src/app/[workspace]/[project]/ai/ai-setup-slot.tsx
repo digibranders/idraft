@@ -10,6 +10,7 @@ export interface AiSetupSlotProps {
   workspaceSlug: string;
   projectId: string;
   projectSlug: string;
+  hideWhenComplete?: boolean | undefined;
 }
 
 /**
@@ -17,7 +18,7 @@ export interface AiSetupSlotProps {
  * Dismiss once every step is done, and a dismissal kept for this workspace and project in this browser. The route
  * is where the two features meet: the Overview takes the checklist as a slot and never imports it.
  */
-export function AiSetupSlot(props: AiSetupSlotProps): ReactElement | null {
+export function AiSetupSlot({ hideWhenComplete = false, ...props }: AiSetupSlotProps): ReactElement | null {
   const { dismissed, dismiss } = useSetupDismissed(props.workspaceId, props.projectId);
   const [forceShow, setForceShow] = useState(false);
 
@@ -35,5 +36,5 @@ export function AiSetupSlot(props: AiSetupSlotProps): ReactElement | null {
   }, [props.projectId]);
 
   if (dismissed && !forceShow) return null;
-  return <AiSetupChecklist {...props} forceShow={forceShow} dense onDismiss={dismiss} />;
+  return <AiSetupChecklist {...props} forceShow={forceShow || !hideWhenComplete} dense onDismiss={dismiss} />;
 }

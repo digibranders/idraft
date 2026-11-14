@@ -18,6 +18,8 @@ export interface StatusChipProps {
   tooltip?: string | undefined;
   /** Link destination (for example, settings page to resume schedules). */
   href?: Route | string | undefined;
+  /** Optional accessible name for the link. */
+  ariaLabel?: string | undefined;
   /** Semantic tone for the status. */
   tone?: 'neutral' | 'info' | 'warning' | 'positive' | undefined;
   className?: string | undefined;
@@ -27,7 +29,15 @@ export interface StatusChipProps {
  * Small inline status chip for page toolbars (14-badges-status.md, 18-notifications-alerts.md).
  * Replaces full-width notice banners with a compact inline chip.
  */
-export function StatusChip({ label, icon, tooltip, href, tone = 'neutral', className }: StatusChipProps): ReactElement {
+export function StatusChip({
+  label,
+  icon,
+  tooltip,
+  href,
+  ariaLabel,
+  tone = 'neutral',
+  className,
+}: StatusChipProps): ReactElement {
   const badge = (
     <Badge tone={tone} variant="subtle" icon={icon} className={className}>
       {label}
@@ -40,6 +50,7 @@ export function StatusChip({ label, icon, tooltip, href, tone = 'neutral', class
     href !== undefined ? (
       <Link
         href={href as Route}
+        aria-label={ariaLabel}
         className={cn('inline-flex shrink-0 rounded-sm outline-none focus-visible:focus-ring')}
       >
         {badge}

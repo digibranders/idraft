@@ -112,7 +112,11 @@ export function OverviewHeader({ stats, filters, noticeChip, setupSlot }: Overvi
       status={
         <>
           {noticeChip}
-          {meta === undefined ? null : <span className="type-meta whitespace-nowrap">{meta}</span>}
+          {meta === undefined ? null : (
+            <span data-slot="overview-meta" className="type-meta">
+              {meta}
+            </span>
+          )}
           {mode === 'customize' ? <CustomizingBadge /> : null}
         </>
       }

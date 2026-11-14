@@ -33,6 +33,7 @@ export default async function AiOverviewPage({ params }: PageProps<'/[workspace]
           workspaceSlug={membership.workspace.slug}
           projectId={current.project_id}
           projectSlug={current.slug}
+          hideWhenComplete
         />
       }
       project={{

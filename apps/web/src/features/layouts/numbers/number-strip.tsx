@@ -336,6 +336,7 @@ export function NumberStrip({ readBanner = false, size = 'md', ...props }: Numbe
         label={props.label}
         groups={groupsOf(numbers, props.valueOf)}
         status={status === 'loading' ? 'loading' : props.status}
+        nowrap={size === 'inline'}
       />
     </>
   );

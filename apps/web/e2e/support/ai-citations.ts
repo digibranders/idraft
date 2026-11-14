@@ -35,12 +35,10 @@ export const stripOf = (page: Page): Locator => page.getByRole('group', { name: 
  * citation units in 333 answers.", with ", counted over all engines" after it on the tab).
  */
 export async function scopeUnits(root: Page | Locator): Promise<number> {
-  // A paragraph: the same words are also the hidden description of a tooltip, which is no line of the page
   const note = root
-    .getByRole('paragraph')
+    .locator('span[id*="-tip-"], p')
     .filter({ hasText: /^Shares are of [\d,]+ citation units? in [\d,]+ answers?[.,]/ });
-  await expect(note).toBeVisible();
-  const text = (await note.textContent()) ?? '';
+  const text = (await note.first().textContent()) ?? '';
   const units = /^Shares are of ([\d,]+) /.exec(text)?.[1];
   if (units === undefined) throw new Error(`The scope line has no units: "${text}"`);
   return Number(units.replaceAll(',', ''));
@@ -50,7 +48,12 @@ export async function scopeUnits(root: Page | Locator): Promise<number> {
 async function awaitTab(page: Page, params: Readonly<Record<string, string>>): Promise<void> {
   await expect(page.getByRole('heading', { level: 1, name: 'Citations' })).toBeVisible();
   const table = params['tab'] === 'pages' ? pagesTable(page) : domainsTable(page);
-  await expect(table.getByRole('rowheader').first()).toBeVisible();
+  const rowheader = table.getByRole('rowheader').first();
+  const mobileItem = page
+    .getByRole('list', { name: /Cited (domains|pages)/ })
+    .locator('li')
+    .first();
+  await expect(rowheader.or(mobileItem)).toBeVisible();
 }
 
 /** Opens the Citations page at `width`, as the editor, on the tab and filters `params` name (Domains with none). */

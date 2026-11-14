@@ -56,7 +56,8 @@ export const cardGrid = (page: Page): Locator => page.getByRole('region', { name
 export const cardById = (page: Page, id: string): Locator => cardGrid(page).locator(`[data-layout-card="${id}"]`);
 export const bannersOf = (page: Page): Locator => page.getByRole('main').locator('[data-slot="banner"]');
 /** The meta line under the title: "AI updated Nov 13, 02:10 · 24 prompts · 2 engines". */
-export const metaLine = (page: Page): Locator => page.locator('[data-slot="page-header"] p.type-meta');
+export const metaLine = (page: Page): Locator =>
+  page.locator('[data-slot="overview-meta"], [data-slot="page-header"] p.type-meta');
 /** The strip error row of the numbers zone, with its own Retry. */
 export const stripError = (page: Page): Locator =>
   page.locator('[data-slot="inline-error"]').filter({ hasText: 'The AI numbers could not be read' });

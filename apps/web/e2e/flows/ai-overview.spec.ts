@@ -352,8 +352,7 @@ test.describe('the AI visibility Overview', () => {
       // A full load: the engines are the fixtures' again, the schedules stay paused
       await page.goto(overviewPath('Fynix'));
       await waitForOverview(page);
-      await expect(bannersOf(page)).toHaveCount(1);
-      await expect(bannersOf(page)).toContainText(PAUSED);
+      await expect(page.getByRole('link', { name: 'Schedules paused' })).toBeVisible();
     });
 
     await test.step('a country with no prompt is the body state, and the paused banner leaves with the strip and the grid', async () => {
@@ -361,13 +360,12 @@ test.describe('the AI visibility Overview', () => {
       await expect(page.locator('[data-slot="empty-state"]').getByRole('heading', { level: 2 })).toContainText(
         /^No prompts ask in /,
       );
-      await expect(bannersOf(page)).toHaveCount(0);
+      await expect(page.getByRole('link', { name: 'Schedules paused' })).toHaveCount(0);
       await expect(numbersGroup(page)).toHaveCount(0);
       await expect(cardGrid(page)).toHaveCount(0);
       await page.getByRole('button', { name: 'Clear location' }).click();
       await waitForOverview(page);
-      await expect(bannersOf(page)).toHaveCount(1);
-      await expect(bannersOf(page)).toContainText(PAUSED);
+      await expect(page.getByRole('link', { name: 'Schedules paused' })).toBeVisible();
     });
   });
 

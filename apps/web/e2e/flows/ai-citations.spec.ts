@@ -23,7 +23,7 @@ import {
 /** The domains the Fynix mock answers cite, most cited first, with the role the project gives each. */
 const OWN = 'fynix.digital';
 const COMPETITOR = 'brightwave.digital';
-const THIRD_PARTIES = ['searchenginejournal.com', 'example.com'];
+const THIRD_PARTIES = ['searchenginejournal.com', 'example.com', 'agency-radar.example'];
 const STRIP_FIGURES = [
   'Citation units',
   'Distinct domains',
@@ -120,7 +120,7 @@ test.describe('The Citations page', () => {
 
   test('a Role filter narrows the rows and leaves the Own citation share', async ({ page }) => {
     await openCitations(page, 1280);
-    await expect(domainsTable(page).getByRole('rowheader')).toHaveCount(4);
+    await expect(domainsTable(page).getByRole('rowheader')).toHaveCount(1 + 1 + THIRD_PARTIES.length);
     const share = await textOf(stripValue(page, 'Own citation share'));
     const units = await textOf(stripValue(page, 'Citation units'));
 
@@ -142,6 +142,7 @@ test.describe('The Citations page', () => {
 
   test('a larger minimum leaves rows out and keeps the strip', async ({ page }) => {
     await openCitations(page, 1280);
+    await expect(stripValue(page, 'Citation units')).toContainText(/\d+/);
     const units = await textOf(stripValue(page, 'Citation units'));
     const share = await textOf(stripValue(page, 'Own citation share'));
 
@@ -159,7 +160,7 @@ test.describe('The Citations page', () => {
 
     await page.getByRole('button', { name: 'Clear filters' }).click();
     await expect(page).not.toHaveURL(/[?&]min=/);
-    await expect(domainsTable(page).getByRole('rowheader')).toHaveCount(4);
+    await expect(domainsTable(page).getByRole('rowheader')).toHaveCount(1 + 1 + THIRD_PARTIES.length);
     await expect(page.getByRole('combobox', { name: 'Fewest citation units' })).toHaveText('At least 2 units');
   });
 
@@ -172,7 +173,9 @@ test.describe('The Citations page', () => {
       page.getByRole('button', { name: 'Export CSV' }).click(),
     ]);
     expect(download.suggestedFilename()).toMatch(/^citations-domains-\d{4}-\d{2}-\d{2}-to-\d{4}-\d{2}-\d{2}\.csv$/);
-    await expect(page.getByRole('region', { name: 'Notifications' })).toContainText('4 of 4 domains exported');
+    await expect(page.getByRole('region', { name: 'Notifications' })).toContainText(
+      `${String(1 + 1 + THIRD_PARTIES.length)} of ${String(1 + 1 + THIRD_PARTIES.length)} domains exported`,
+    );
     const [header = '', ...rows] = await readDownload(download);
     const columns = header.split(',');
     // The units and what they are of: a share is never exported without the units it is a share of
@@ -187,7 +190,7 @@ test.describe('The Citations page', () => {
     ]);
     expect(columns).toContain('Citation units on ChatGPT');
     expect(columns).toContain('Citation units on Gemini');
-    expect(rows).toHaveLength(4);
+    expect(rows).toHaveLength(1 + 1 + THIRD_PARTIES.length);
     let listed = 0;
     for (const row of rows) {
       const cells = row.split(',');
@@ -207,7 +210,7 @@ test.describe('The Citations page', () => {
     expect(pagesDownload.suggestedFilename()).toMatch(/^citations-pages-/);
     const [pagesHeader = '', ...pageRows] = await readDownload(pagesDownload);
     expect(pagesHeader.split(',').slice(0, 5)).toEqual(['URL', 'Title', 'Domain', 'Role', 'Citation units']);
-    expect(pageRows).toHaveLength(4);
+    expect(pageRows).toHaveLength(1 + 1 + THIRD_PARTIES.length);
     expect(pageRows[0]?.startsWith('https://www.searchenginejournal.com/seo-guide/,')).toBe(true);
   });
 
