@@ -100,7 +100,6 @@ describe('the fan-out mock of the AI overview', () => {
       engines_without_fanout: ['gemini_web', 'google_ai_mode'],
       include_branded: false,
       min_support: 2,
-      answers_truncated: 0,
       window: { from: '2026-10-16', to: '2026-11-12', timezone: fynix.timezone },
     });
     expect(page.meta.answers).toBeGreaterThan(0);

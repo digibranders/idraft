@@ -12,7 +12,7 @@ import {
   unitsOf,
 } from './citations-model';
 import { booleanQuery, offsetPageOf, offsetPaging, queryError, unknownQuery, uuidError } from './rules';
-import { fanoutQueryRows, type FanoutAnswer } from '../ai-fanout-queries';
+import { fanoutQueryRows, truncatedAnswerIds, type FanoutAnswer } from '../ai-fanout-queries';
 import { ENGINE_CODES, ENGINE_FACTS } from '../prompt-fixtures';
 import { promptsOf } from '../prompts-state';
 import { invalid, mock, problem } from '../respond';
@@ -155,7 +155,7 @@ export const aiOverviewHandlers: HttpHandler[] = [
     }
     const includeBranded = booleanQuery(url, 'include_branded', false);
     if (typeof includeBranded !== 'boolean') errors.push(includeBranded);
-    listOf(url, 'include', ['topics'], 1, errors);
+    const withTopics = listOf(url, 'include', ['topics'], 1, errors).includes('topics');
     const minSupport = minSupportOf(url, errors);
     const paging = offsetPaging(url);
     if (Array.isArray(paging)) errors.push(...paging);
@@ -186,6 +186,21 @@ export const aiOverviewHandlers: HttpHandler[] = [
     const showing = scope.engines.filter((code) => ENGINE_FACTS[code].exposes_fanout);
     const counted = countedAnswers(answersWithCitations(projectId, now), { ...scope, engines: showing });
     const issuing = counted.flatMap(fanoutAnswerOf);
+    // The topic terms a prompt is tagged with: terms of a `topic` vocabulary, whatever else it is tagged with
+    const { terms, vocabularies } = caller.world;
+    const topicVocabularies = new Set(
+      vocabularies.filter((vocabulary) => vocabulary.kind === 'topic').map((vocabulary) => vocabulary.vocabulary_id),
+    );
+    const topicTerms = new Set(
+      terms.filter((term) => topicVocabularies.has(term.vocabulary_id)).map((term) => term.term_id),
+    );
+    const termsOfPrompts = new Map(
+      promptsOf(projectId).prompts.map((prompt) => [
+        prompt.prompt_id,
+        prompt.term_ids.filter((id) => topicTerms.has(id)),
+      ]),
+    );
+    const cut = truncatedAnswerIds(issuing);
     const meta: Schemas['FanoutMeta'] = {
       window: { from: scope.window.first, to: scope.window.last, timezone: zone },
       include_branded: scope.includeBranded,
@@ -193,9 +208,14 @@ export const aiOverviewHandlers: HttpHandler[] = [
       engines_without_fanout: scope.engines.filter((code) => !ENGINE_FACTS[code].exposes_fanout),
       min_support: minSupport,
       answers: counted.length,
-      answers_truncated: 0,
+      answers_truncated: cut.size,
       answers_with_fanout: issuing.length,
     };
-    return HttpResponse.json({ ...offsetPageOf(fanoutQueryRows(issuing, minSupport), paging), meta });
+    const rows = fanoutQueryRows(
+      issuing,
+      minSupport,
+      withTopics ? (promptId) => termsOfPrompts.get(promptId) ?? [] : undefined,
+    );
+    return HttpResponse.json({ ...offsetPageOf(rows, paging), meta });
   }),
 ];
