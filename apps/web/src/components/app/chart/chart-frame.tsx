@@ -435,25 +435,19 @@ function FrameShell({
         aria-label={title}
         data-slot="empty-state"
         className={cn(
-          'flex flex-col justify-center min-w-0 transition-colors',
+          'flex min-w-0 flex-col justify-center transition-colors',
           inspector ? 'py-1' : 'rounded-lg border border-border bg-surface px-4 py-3',
         )}
       >
         <p id={summaryId} className="sr-only">
           {summary}
         </p>
-        {hasControls ? (
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-2 pb-2">
-            {controls}
-          </div>
-        ) : null}
-        <div data-slot="chart-state" className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 min-w-0">
+        {hasControls ? <div className="flex flex-wrap items-center gap-x-2 gap-y-2 pb-2">{controls}</div> : null}
+        <div data-slot="chart-state" className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2">
           <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-0.5">
-            <Title className={inspector ? 'type-subsection-title' : 'type-section-title shrink-0'}>{title}</Title>
+            <Title className={inspector ? 'type-subsection-title' : 'shrink-0 type-section-title'}>{title}</Title>
             <h3 className="sr-only">{empty.title}</h3>
-            <p className="type-meta text-foreground-secondary truncate max-w-full">
-              {empty.reason || empty.title}
-            </p>
+            <p className="max-w-full truncate type-meta text-foreground-secondary">{empty.reason || empty.title}</p>
           </div>
           {empty.action ? <div className="shrink-0">{empty.action}</div> : null}
         </div>
@@ -561,7 +555,7 @@ function FrameBody({
   }
   return (
     // The same wrapper for ready and refetching, so the chart stays mounted when a refetch starts
-    <div className="relative flex-1 min-h-0">
+    <div className="relative min-h-0 flex-1">
       {state.status === 'refetching' ? (
         <div aria-hidden="true" data-slot="chart-refetch-bar" className="absolute inset-x-0 top-0 h-0.5 bg-primary" />
       ) : null}

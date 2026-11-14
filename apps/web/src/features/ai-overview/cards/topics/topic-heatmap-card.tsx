@@ -121,15 +121,14 @@ export default function TopicHeatmapCard({ item, options, live }: CardProps): Re
   );
 
   const hasRealTopics = data.nodes.some((node) => node.key !== NO_TOPIC && node.termId !== null);
-  const empty =
-    !hasRealTopics
-      ? empties.noTopics
-      : model.answered
-        ? null
-        : empties.noAnswers(
-            data.engines.map((engine) => engine.label),
-            scope.range.days,
-          );
+  const empty = !hasRealTopics
+    ? empties.noTopics
+    : model.answered
+      ? null
+      : empties.noAnswers(
+          data.engines.map((engine) => engine.label),
+          scope.range.days,
+        );
   const grid = (form: 'grid' | 'table'): ReactElement => (
     <HeatmapGrid
       caption={title}

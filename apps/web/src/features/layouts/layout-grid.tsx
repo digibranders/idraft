@@ -232,9 +232,7 @@ export function LayoutGrid({
   } else {
     const isCustomized = screen.resolved.source !== 'builtin';
     const displayedCards =
-      !customizing && !isCustomized
-        ? adaptCardsByReadiness(shownCards, (id) => readiness.isNotReady(id))
-        : shownCards;
+      !customizing && !isCustomized ? adaptCardsByReadiness(shownCards, (id) => readiness.isNotReady(id)) : shownCards;
     body = (
       <div className={containerClass}>
         {displayedCards.map((item) => (
