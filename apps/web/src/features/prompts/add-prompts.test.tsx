@@ -339,11 +339,17 @@ describe('Add prompts', () => {
     await user.paste(`First question?\n\nSecond question?\n${TRACKED}\nThird question?`);
     await user.click(await within(dialog).findByRole('button', { name: 'Add 3 prompts' }));
     const result = await screen.findByRole('dialog', { name: 'Result of the add' });
-    expect(within(result).getByText('1 prompt was added.')).toBeInTheDocument();
-    expect(within(result).getByText('1 was already tracked.')).toBeInTheDocument();
-    expect(within(result).getByText('Line 5: an enabled engine does not ask in this country.')).toBeInTheDocument();
+    expect(within(result).getByText('1 prompt added.')).toBeInTheDocument();
+    // Line 3 was skipped by the API and line 4 was found tracked by the check: the result lists both, each with its text
+    expect(within(result).getByText('2 already tracked')).toBeInTheDocument();
+    expect(within(result).getByText('Second question?')).toBeInTheDocument();
+    expect(within(result).getByText(TRACKED)).toBeInTheDocument();
+    // The API's own words name the engine (PD-ERR-04)
+    expect(within(result).getByText('Line 5: ChatGPT runs in no location of this country.')).toBeInTheDocument();
     await user.click(within(result).getByRole('button', { name: 'Done' }));
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    // The toast of the add, with its Undo, is a dialog too and stays: it is the add dialog that has gone
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Result of the add' })).toBeNull());
+    expect(screen.queryByRole('dialog', { name: 'Add prompts' })).toBeNull();
   });
 
   it('shows a prompt the API already tracks, an archived one for example, as already tracked and not as an error', async () => {
@@ -365,7 +371,8 @@ describe('Add prompts', () => {
     await user.click(await within(dialog).findByRole('button', { name: 'Add 1 prompt' }));
     const result = await screen.findByRole('dialog', { name: 'Result of the add' });
     expect(within(result).getByText('No prompt was added.')).toBeInTheDocument();
-    expect(within(result).getByText('1 was already tracked.')).toBeInTheDocument();
+    expect(within(result).getByText('1 already tracked')).toBeInTheDocument();
+    expect(within(result).getByText('An archived question?')).toBeInTheDocument();
     expect(within(result).queryByText(/could not be added/)).toBeNull();
     expect(await axe(container)).toHaveNoViolations();
   });
@@ -566,6 +573,6 @@ describe('Add prompts', () => {
     await user.click(await within(dialog).findByRole('button', { name: 'Add 1 prompt' }));
     const result = await screen.findByRole('dialog', { name: 'Result of the add' });
     await waitFor(() => expect(within(result).getByRole('button', { name: 'Done' })).toHaveFocus());
-    expect(announced('add-prompts-result')).toEqual(['No prompt was added. 1 was already tracked.']);
+    expect(announced('add-prompts-result')).toEqual(['No prompt was added. 1 already tracked']);
   });
 });

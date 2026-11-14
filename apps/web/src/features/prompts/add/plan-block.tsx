@@ -32,6 +32,15 @@ export function askReasonText(ask: AskNowState | null, t: PlanTranslate): string
     : t('askShort', { runs: formatInteger(block.runs), left: block.left, leftText: formatInteger(block.left) });
 }
 
+/** What asking now costs in words: "about $0.03", "under $0.01", or that the price book has none. */
+export function askCostText(ask: AskNowState, t: PlanTranslate, locale: string): string {
+  if (ask.cost === null) return t('askNoPrice');
+  const dollars = (usd: number): string => formatCurrency(usd, { locale });
+  return isUnderCent(ask.cost, ask.answers)
+    ? t('askCostUnder', { amount: dollars(ONE_CENT) })
+    : t('askCostAbout', { amount: dollars(ask.cost) });
+}
+
 /** An engine that skips some of the prompts to create, with the length it takes. */
 export interface PlanSkip {
   engineCode: EngineCode;
@@ -155,12 +164,7 @@ export function PlanBlock({
   })();
 
   const askReason = askReasonText(ask, t);
-  const askCost = ((): string => {
-    if (ask === null || ask.cost === null) return t('askNoPrice');
-    return isUnderCent(ask.cost, ask.answers)
-      ? t('askCostUnder', { amount: dollars(ONE_CENT) })
-      : t('askCostAbout', { amount: dollars(ask.cost) });
-  })();
+  const askCost = ask === null ? t('askNoPrice') : askCostText(ask, t, locale);
 
   return (
     <div
