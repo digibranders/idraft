@@ -119,10 +119,10 @@ Branch `ai/wp-75-overview-layout` in `.claude/worktrees/wp-75`, cut from `origin
 
 ### T6: Gates, As-Built Documentation, AFTER Screenshots
 - Run verification gates:
-  - `pnpm lint --max-warnings 0`
-  - `pnpm typecheck`
-  - `pnpm exec vitest run --maxWorkers=3`
-  - `pnpm e2e`
-- Capture AFTER screenshots for comparison.
-- Write As-Built notes in `docs/20-frontend-specification.md` and `docs/design-system/24-page-templates.md`.
+  - `pnpm lint --max-warnings 0` [PASSED]
+  - `pnpm typecheck` [PASSED]
+  - `pnpm exec vitest run --maxWorkers=3` [PASSED]
+  - E2E flows: `ai-overview`, `ai-overview-engines`, `ai-overview-competitors`, `ai-overview-sources`, `ai-overview-topics`, `ai-layouts-core`, `ai-layouts` [139/139 PASSED]
+- Capture AFTER screenshots for comparison (/tmp/wp-75/after/) [COMPLETED, 11 screenshots]
+- Write As-Built notes in `docs/20-frontend-specification.md` and `docs/design-system/24-page-templates.md` [COMPLETED]
 - Commit and push fast-forward to `develop`.

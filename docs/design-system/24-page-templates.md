@@ -426,6 +426,15 @@ The wireframes below define structure. For the finished visual quality of sectio
 
 ### 9.2a AI visibility Overview (T1, customizable)
 
+> As built (AI visibility Overview layout review and redesign, WP-75, 2026-11-14, plan `docs/superpowers/plans/2026-11-14-ai-wp-75-overview-layout.md`):
+> - First-screen information hierarchy: built-in Default layout answers in sequence: (1) how visible am I (numbers strip), (2) what changed (`ai.change_summary`, full), (3) the trend (`ai.rate_trend_by_engine`, half, and `ai.outcome_mix`, half), (4) sources (`ai.top_domains`, half) and topics (`ai.topic_heatmap`, half), (5) competitors (`ai.share_of_voice`, half, and `ai.competitor_trend`, half), (6) what to do (`ai.key_changes`, half, and `ai.opportunities`, half).
+> - Slim empty states: empty and not-ready cards render a compact 56px to 72px banner with title, reason, action button, and accessible sr-only methodology footnote instead of taking a full 240px to 320px box holding one sentence.
+> - Adaptive card ordering: ready cards with meaningful data sort first; not-ready and empty cards (needs 2 weeks data, no competitors, no topics) sort to the bottom of the grid automatically.
+> - Equal height rows and no ragged bottoms: card frames stretch with `h-full`, `FrameBody` has `flex-1 min-h-0`, and footnotes use `mt-auto` to pin consistently across rows.
+> - What changed card dead space: `fitContent` option allows natural height when there are few points, eliminating 70px to 116px dead space gaps above footnotes; duplicate empty sentences replaced with concise summary text.
+> - Presets balance: SEO analyst preset uses paired half-width cards for citation metrics, and Topic owner preset pairs engine gap with sample coverage, eliminating ragged bottom edges and lonely half rows.
+> - Offscreen card resolution: CardFrame sets `data-card-title` allowing virtual and offscreen cards to be found and scrolled into view for lazy evaluation.
+
 As built by WP-33 (decision D-20 of the AI visibility work: the wireframe of the Overview, copied here). Route `/[workspace]/[project]/ai`, sidebar group AI Visibility, entry Overview. It is the Overview of 9.2 with the AI channel only, the same customization (cards in 12 columns, a numbers zone of up to 6, Start from presets) and a scope bar of its own. Where the inventory (`ai-visibility/inventory/overview-and-charts.md` section 3.3) draws the filter bar above the notice region, this page follows 9.2 and the approved preview: the notice region, then the numbers, then the filter bar.
 
 ```text
