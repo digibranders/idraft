@@ -17,6 +17,7 @@ import { ScopeBar } from './scope/scope-bar';
 import { EnginesError } from './states/engines-error';
 import { NoEngineState } from './states/no-engine-state';
 import { NoCountryPromptsState, NoPromptsState } from './states/no-prompts-state';
+import { StatusChip } from '@/components/app/page-toolbar';
 import { PAGE_CLASS, PageHeader } from '@/components/app/shell/page-header';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { RefetchBar } from '@/components/app/status/refetch-bar';
@@ -28,6 +29,7 @@ import {
   type LayoutPreset,
 } from '@/features/layouts';
 import { useCan, useMembership } from '@/lib/permissions';
+import { projectPath } from '@/lib/routes/paths';
 
 export interface AiOverviewScreenProps {
   workspaceId: string;
@@ -43,10 +45,10 @@ export interface AiOverviewScreenProps {
 }
 
 /**
- * The rhythm of the approved preview's Overview: gutters of 12, 16 and 20 px at 390, 768 and 1024 px, 20 px above
- * the header and 16 px between the blocks. `PAGE_CLASS` is the table pages' rhythm (12 px, 12 px).
+ * The rhythm of the approved preview's Overview: gutters of 12, 16 and 20 px at 390, 768 and 1024 px, 12 px above
+ * the header and 12 px between the blocks.
  */
-const OVERVIEW_PAGE_CLASS = 'flex flex-col gap-4 px-3 pt-5 pb-8 md:px-4 lg:px-5';
+const OVERVIEW_PAGE_CLASS = 'flex flex-col gap-3 px-3 pt-3 pb-8 md:px-4 lg:px-5';
 
 /**
  * The page's body in each of its states. The engines decide what the page can say, so until they are read it holds
@@ -56,7 +58,8 @@ const OVERVIEW_PAGE_CLASS = 'flex flex-col gap-4 px-3 pt-5 pb-8 md:px-4 lg:px-5'
  */
 function OverviewBody({ setupSlot }: { setupSlot: ReactNode }): ReactElement {
   const t = useTranslations('aiOverview');
-  const { engines } = useOverview();
+  const tNotices = useTranslations('aiOverview.notices');
+  const { engines, workspaceSlug, project } = useOverview();
   const { mode } = useLayoutScreen();
   const { notice, settled } = useOverviewNotice();
   const periods = useOverviewPeriods();
@@ -64,53 +67,93 @@ function OverviewBody({ setupSlot }: { setupSlot: ReactNode }): ReactElement {
   // Values of the last scope stay on screen while this one is read: the strip and the grid say so, and the bar shows
   const refetching = periods.current.status === 'refetching' || periods.previous?.status === 'refetching';
   const empty = customizing ? null : notice?.kind;
-  let content: ReactNode;
+
   // The setup checklist is left out where an empty state already says the same step and gives its action (turn on
   // an engine, add prompts). While the engines load it holds its place, so the strip does not move when it arrives
-  let showSetup = notice?.kind !== 'noEngine' && notice?.kind !== 'noPrompts';
+  const showSetup = notice?.kind !== 'noEngine' && notice?.kind !== 'noPrompts';
+
+  const pausedChip =
+    notice?.kind === 'paused' ? (
+      <StatusChip
+        label={tNotices('pausedChip')}
+        href={projectPath(workspaceSlug, project.slug, '/settings/schedules')}
+        tooltip={tNotices('paused')}
+        tone="warning"
+      />
+    ) : null;
+
   if (engines.status === 'loading') {
-    content = (
-      <>
-        <StripPlaceholder />
-        <ScopeBarPlaceholder />
+    return (
+      <div className={OVERVIEW_PAGE_CLASS}>
+        <OverviewHeader
+          stats={<StripPlaceholder />}
+          filters={<ScopeBarPlaceholder />}
+          setupSlot={showSetup ? setupSlot : null}
+        />
         <GridPlaceholder />
-      </>
-    );
-  } else if (!customizing && engines.status === 'error') {
-    showSetup = false;
-    content = <EnginesError />;
-  } else if (empty === 'noEngine') {
-    content = <NoEngineState />;
-  } else if (empty === 'noPrompts') {
-    content = <NoPromptsState />;
-  } else {
-    // A country with no prompt leaves the strip and the grid out; the scope bar stays, in the same place in the tree
-    // whatever the body, so a control the person is using is not remounted when the answer comes
-    const countryEmpty = !customizing && notice?.kind === 'noCountryPrompts' ? notice : null;
-    content = (
-      <>
-        <OverviewNotices notice={notice} settled={settled} />
-        {countryEmpty === null ? <NumbersZone /> : null}
-        {/* The bar overlays the gap under the scope bar, so it takes no room when it appears */}
-        <div className="relative">
-          <ScopeBar />
-          <RefetchBar active={refetching} position="under-filter-bar" />
-        </div>
-        {countryEmpty === null ? (
-          <div aria-busy={refetching || undefined}>
-            <CustomizableGrid label={t('cards')} />
-          </div>
-        ) : (
-          <NoCountryPromptsState country={countryEmpty.country} />
-        )}
-      </>
+      </div>
     );
   }
+
+  if (!customizing && engines.status === 'error') {
+    return (
+      <div className={OVERVIEW_PAGE_CLASS}>
+        <OverviewHeader setupSlot={showSetup ? setupSlot : null} />
+        <EnginesError />
+      </div>
+    );
+  }
+
+  if (empty === 'noEngine') {
+    return (
+      <div className={OVERVIEW_PAGE_CLASS}>
+        <OverviewHeader setupSlot={showSetup ? setupSlot : null} />
+        <NoEngineState />
+      </div>
+    );
+  }
+
+  if (empty === 'noPrompts') {
+    return (
+      <div className={OVERVIEW_PAGE_CLASS}>
+        <OverviewHeader setupSlot={showSetup ? setupSlot : null} />
+        <NoPromptsState />
+      </div>
+    );
+  }
+
+  // A country with no prompt leaves the strip and the grid out; the scope bar stays, in the same place in the tree
+  // whatever the body, so a control the person is using is not remounted when the answer comes
+  const countryEmpty = !customizing && notice?.kind === 'noCountryPrompts' ? notice : null;
+
+  const scopeFilters = (
+    <div className="relative">
+      <ScopeBar />
+      <RefetchBar active={refetching} position="under-filter-bar" />
+    </div>
+  );
+
   return (
     <div className={OVERVIEW_PAGE_CLASS}>
-      <OverviewHeader />
-      {showSetup ? setupSlot : null}
-      {content}
+      <OverviewHeader
+        stats={countryEmpty === null && !customizing ? <NumbersZone size="inline" /> : null}
+        filters={scopeFilters}
+        noticeChip={pausedChip}
+        setupSlot={showSetup ? setupSlot : null}
+      />
+      {notice?.kind !== 'paused' ? <OverviewNotices notice={notice} settled={settled} /> : null}
+      {customizing ? (
+        <div className="my-2">
+          <NumbersZone size="md" />
+        </div>
+      ) : null}
+      {countryEmpty === null ? (
+        <div aria-busy={refetching || undefined}>
+          <CustomizableGrid label={t('cards')} />
+        </div>
+      ) : (
+        <NoCountryPromptsState country={countryEmpty.country} />
+      )}
     </div>
   );
 }

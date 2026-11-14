@@ -14,24 +14,14 @@ import { SCREENS } from '@/lib/layouts';
  * grid of the built-in layout. They are skeletons: they pulse and are hidden from assistive technology.
  */
 
-/** The panel of the metric strip, 76 px, with the cells of the built-in layout's numbers (two on a phone). */
+/** Inline metric chips skeleton for the page toolbar. */
 export function StripPlaceholder(): ReactElement {
   return (
-    <div
-      aria-hidden="true"
-      className="flex h-metric-strip divide-x divide-border-subtle overflow-hidden rounded-lg border border-border bg-surface"
-    >
+    <div aria-hidden="true" data-slot="strip-placeholder" className="flex items-center gap-4">
       {[0, 1, 2, 3].map((cell) => (
-        <div
-          key={cell}
-          className={
-            cell < 2
-              ? 'flex min-w-0 flex-1 flex-col justify-center gap-1 px-4'
-              : 'hidden min-w-0 flex-1 flex-col justify-center gap-1 px-4 md:flex'
-          }
-        >
-          <Skeleton shape="text-12" widthPct={56} />
-          <Skeleton shape="text-14" widthPct={72} />
+        <div key={cell} className={cell < 2 ? 'flex items-center gap-1.5' : 'hidden items-center gap-1.5 md:flex'}>
+          <Skeleton shape="text-12" widthPct={48} />
+          <Skeleton shape="text-14" widthPct={64} />
         </div>
       ))}
     </div>
@@ -41,9 +31,9 @@ export function StripPlaceholder(): ReactElement {
 /** The row of the scope controls, one control high. */
 export function ScopeBarPlaceholder(): ReactElement {
   return (
-    <div aria-hidden="true" className="flex h-control items-center gap-2">
-      <span className="h-control w-44 animate-skeleton-pulse rounded-md border border-border bg-surface" />
-      <span className="h-control w-32 animate-skeleton-pulse rounded-md border border-border bg-surface" />
+    <div aria-hidden="true" data-slot="scope-bar-placeholder" className="flex h-control-sm items-center gap-2">
+      <span className="h-control-sm w-36 animate-skeleton-pulse rounded-md border border-border bg-surface" />
+      <span className="h-control-sm w-28 animate-skeleton-pulse rounded-md border border-border bg-surface" />
     </div>
   );
 }

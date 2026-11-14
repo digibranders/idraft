@@ -4848,6 +4848,7 @@
     "moreActions": "More actions",
     "copyLink": "Copy link",
     "linkCopied": "Link copied",
+    "showSetupSteps": "Show setup steps",
     "cards": "AI visibility cards",
     "loading": "Loading AI visibility",
     "enginesFailedTitle": "The engines of this project could not be read",
@@ -4970,6 +4971,7 @@
       "firstAnswers": "First answers arrive after {time}",
       "firstAnswersGeneric": "No AI answers have been collected yet. The first ones arrive after the next scheduled run.",
       "paused": "Scheduled AI runs are paused for this project",
+      "pausedChip": "Schedules paused",
       "invalid": "{count, number} of {total, number} answers were not valid on {engine} {days, plural, one {on this day} other {in these # days}}",
       "stale": "The newest valid answer is {days, plural, one {# day} other {# days}} old",
       "viewRuns": "View runs"

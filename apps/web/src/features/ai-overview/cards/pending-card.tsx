@@ -16,9 +16,12 @@ import { cardName } from '@/lib/layouts';
 export default function PendingCard({ item }: CardProps): ReactElement {
   const t = useTranslations('aiOverview.pending');
   return (
-    <section data-slot="pending-card" className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4">
+    <section
+      data-slot="pending-card"
+      className="flex h-full flex-col gap-3 rounded-lg border border-border bg-surface p-4"
+    >
       <h2 className="type-section-title">{cardName(item)}</h2>
-      <div className="flex min-h-45 flex-col gap-1">
+      <div className="flex flex-col gap-1">
         <p className="type-subsection-title">{t('title')}</p>
         <p className="type-body text-foreground-secondary">{t('reason')}</p>
       </div>

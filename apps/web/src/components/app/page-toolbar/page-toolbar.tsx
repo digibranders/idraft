@@ -11,6 +11,8 @@ export interface PageToolbarProps {
   lang?: string | undefined;
   /** Heading element ID for skip links and focus management. */
   headingId?: string | undefined;
+  /** Content placed right after h1 and before the toolbar row, for example setup slots. */
+  before?: ReactNode | undefined;
   /** Inline stat chips (label + value + delta + tooltip), or MetricStrip size="inline". */
   stats?: ReactNode | undefined;
   /** Page navigation tabs rendered as a segmented control or tab nav inline in the toolbar. */
@@ -34,6 +36,7 @@ export function PageToolbar({
   title,
   lang,
   headingId,
+  before,
   stats,
   tabs,
   filters,
@@ -47,6 +50,7 @@ export function PageToolbar({
       <h1 id={headingId} tabIndex={-1} lang={lang} className="sr-only outline-none">
         {title}
       </h1>
+      {before}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-2">
           {stats !== undefined && stats !== null ? (
