@@ -46,6 +46,8 @@ export interface EnsuredTopics {
   termIds: readonly string[];
   /** The paths this call made, which stay when what follows fails. */
   made: readonly string[];
+  /** The term id of each path in `made`, so the form can hold it as an existing term. */
+  madeTermIds: ReadonlyMap<string, string>;
 }
 
 /** Why the topics could not be made, and which were made before it. */
@@ -110,9 +112,10 @@ export function useEnsureTopics(
   return useCallback(
     async (selections) => {
       const { termIds, created } = splitSelections(selections);
-      if (created.length === 0) return { termIds, made: [] };
+      if (created.length === 0) return { termIds, made: [], madeTermIds: new Map() };
       const ids = new Set(termIds);
       const made: string[] = [];
+      const madeTermIds = new Map<string, string>();
       try {
         // The vocabulary comes before any term in it, and is made once however many topics were typed
         let projectVocabularyId: string | null = null;
@@ -132,10 +135,13 @@ export function useEnsureTopics(
             const id = leafTermId(tree.data, splitTopicPath(entry.path));
             if (id === null) throw new Error(`The topic ${entry.path} is not in the tree it was made in`);
             ids.add(id);
-            if (madeIds.has(id)) made.push(entry.path);
+            if (madeIds.has(id)) {
+              made.push(entry.path);
+              madeTermIds.set(entry.path, id);
+            }
           }
         }
-        return { termIds: [...ids], made };
+        return { termIds: [...ids], made, madeTermIds };
       } catch (error) {
         throw new EnsureTopicsFailure(error, made);
       }

@@ -19,6 +19,7 @@ import { useAddCheck, type AddCheck } from './use-add-check';
 import { useAddPlan, type AddPlan } from './use-add-plan';
 import { BULK_MAX, countriesForEngines, PROMPT_TEXT_MAX } from '../prompt-model';
 import { BULK_CREATE_PROMPTS, bulkArchive, refreshPrompts, type PromptScope } from '../prompt-queries';
+import type { TopicSelection } from '../topic-picker/topic-picker-model';
 import { EnsureTopicsFailure, useEnsureTopics, useTopicLeftover } from '../topic-picker/use-ensure-topics';
 import { useInspector } from '@/components/app/inspector/use-inspector';
 import { useSubmitOnce } from '@/components/app/forms/use-form-helpers';
@@ -48,6 +49,16 @@ const inspectorTitle = (): HTMLElement | null => {
   const titleId = frame?.getAttribute('aria-labelledby');
   return titleId === null || titleId === undefined ? null : document.getElementById(titleId);
 };
+
+/** The topics the save made, held as the terms they now are: each typed path that was made becomes its term. */
+const madeTopicsAsTerms = (
+  topics: readonly TopicSelection[],
+  madeTermIds: ReadonlyMap<string, string>,
+): TopicSelection[] =>
+  topics.map((selection): TopicSelection => {
+    const termId = selection.kind === 'new' ? madeTermIds.get(selection.path) : undefined;
+    return termId === undefined ? selection : { kind: 'existing', termId };
+  });
 
 /** How often and how long to look for an inspector that is on its way: the URL changes, then the record loads. */
 const INSPECTOR_POLL_MS = 50;
@@ -137,6 +148,12 @@ export function useAddForm({ scope, open, onOpenChange, engines, existing, defau
   useEffect(() => cancelInspectorFocus, []);
   const [alert, setAlert] = useState<string | null>(null);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
+  // A result stays drawn while the dialog fades out; the next open starts from the form, before anything is drawn
+  const [shownOpen, setShownOpen] = useState(open);
+  if (open !== shownOpen) {
+    setShownOpen(open);
+    if (open) setOutcome(null);
+  }
   const [restoreOn, setRestoreOn] = useState(true);
   const [askOn, setAskOn] = useState(false);
   // The add asked the prompts already, so the result view does not offer it again
@@ -192,7 +209,6 @@ export function useAddForm({ scope, open, onOpenChange, engines, existing, defau
   const close = (): void => {
     form.reset(initialValues(defaults));
     setAlert(null);
-    setOutcome(null);
     setAsked(false);
     setRestoreOn(true);
     setAskOn(false);
@@ -265,14 +281,18 @@ export function useAddForm({ scope, open, onOpenChange, engines, existing, defau
       // Topics typed and not yet made are made now, so cancelling the form leaves none behind
       let termIds: readonly string[];
       let made: readonly string[];
+      let madeTermIds: ReadonlyMap<string, string>;
       try {
         const ensured = await ensureTopics(values.topics);
         termIds = ensured.termIds;
         made = ensured.made;
+        madeTermIds = ensured.madeTermIds;
       } catch (error) {
         setAlert((error instanceof EnsureTopicsFailure ? topicLeftover(error.made) : null) ?? t('failed'));
         return;
       }
+      // A topic made here is a term now: held as one, a failed add tried again does not make it a second time
+      if (madeTermIds.size > 0) form.setValue('topics', madeTopicsAsTerms(form.getValues('topics'), madeTermIds));
       // Topics made before an add that then fails stay: the person is told, ahead of the reason
       const failedWith = (reason: string | null): void => {
         const message = [topicLeftover(made), reason].filter((part) => part !== null).join(' ');

@@ -475,4 +475,85 @@ describe('Add prompts: shell and fields', () => {
     ).toBeInTheDocument();
     expect(within(dialog).getByRole('textbox', { name: 'Prompts' })).toHaveValue(QUESTION);
   });
+
+  it('shows a topic made before a failed add as an existing one, and a retry files under it without making it again', async () => {
+    const seen = record('/prompts/bulk-create');
+    let attempts = 0;
+    server.use(
+      http.post(bulkCreate, () => {
+        attempts += 1;
+        return attempts === 1
+          ? HttpResponse.error()
+          : HttpResponse.json({
+              data: { created: ['0192d1a8-e000-7a10-8e00-000000000100'], skipped: [], rejected: [] },
+            });
+      }),
+    );
+    const { user } = renderWithProviders(asEditor());
+    const dialog = await openDialog(user);
+    const field = within(dialog).getByRole('combobox', { name: /Topics/ });
+    await waitFor(() => expect(field).toBeEnabled());
+    await user.click(field);
+    await user.type(field, 'Startups');
+    await user.click(await screen.findByRole('option', { name: /Create topic/ }));
+    await user.keyboard('{Escape}');
+    await typeList(user, dialog, QUESTION);
+    await user.click(await within(dialog).findByRole('button', { name: 'Add 1 prompt' }));
+    expect(
+      await within(dialog).findByText('Topic “Startups” was created. The prompts were not added.'),
+    ).toBeInTheDocument();
+    expect(within(dialog).getByText('Startups')).toBeInTheDocument();
+    expect(within(dialog).queryByText('Startups (new)')).toBeNull();
+
+    await user.click(await within(dialog).findByRole('button', { name: 'Add 1 prompt' }));
+    await screen.findByText('1 prompt added');
+    await waitFor(() => expect(seen.bodies).toHaveLength(2));
+    const [first, retry] = seen.bodies as Created[];
+    expect(first?.items[0]?.term_ids).toHaveLength(1);
+    expect(retry?.items[0]?.term_ids).toEqual(first?.items[0]?.term_ids);
+    expect(seen.writes.filter((path) => path.endsWith('terms'))).toHaveLength(1);
+  });
+
+  it('keeps the result drawn while the dialog closes after Done, and opens the next add with a clean form', async () => {
+    server.use(
+      http.post(bulkCreate, () =>
+        HttpResponse.json({
+          data: {
+            created: [],
+            skipped: [{ index: 0, existing_id: '0192d1a8-e000-7a10-8e00-000000000001' }],
+            rejected: [],
+          },
+        }),
+      ),
+    );
+    const { user } = renderWithProviders(asEditor());
+    const dialog = await openDialog(user);
+    await typeList(user, dialog, QUESTION);
+    await user.click(await within(dialog).findByRole('button', { name: 'Add 1 prompt' }));
+    const result = await screen.findByRole('dialog', { name: 'Result of the add' });
+    // jsdom has no exit animation: hold one open, as a browser does, so the dialog stays mounted while it fades out
+    let finishExit: () => void = () => undefined;
+    const exiting = new Promise<void>((resolve) => {
+      finishExit = resolve;
+    });
+    Object.defineProperty(Element.prototype, 'getAnimations', {
+      value: () => [{ finished: exiting }],
+      configurable: true,
+      writable: true,
+    });
+    try {
+      await user.click(within(result).getByRole('button', { name: 'Done' }));
+      // Still fading out: the result stays drawn and the add form is not drawn again
+      expect(within(result).queryByRole('textbox', { name: 'Prompts', hidden: true })).toBeNull();
+      expect(within(result).getByRole('button', { name: 'Done', hidden: true })).toBeInTheDocument();
+      finishExit();
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Result of the add', hidden: true })).toBeNull());
+    } finally {
+      Reflect.deleteProperty(Element.prototype, 'getAnimations');
+    }
+
+    const again = await openDialog(user);
+    expect(within(again).getByRole('textbox', { name: 'Prompts' })).toHaveValue('');
+    expect(screen.queryByRole('dialog', { name: 'Result of the add' })).toBeNull();
+  });
 });
