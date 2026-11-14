@@ -1,9 +1,19 @@
 'use client';
 
-import { Ban, CircleAlert, Globe, TrendingDown, TrendingUp, TriangleAlert, type LucideIcon } from 'lucide-react';
+import {
+  Ban,
+  CircleAlert,
+  CircleDashed,
+  Clock,
+  Globe,
+  TrendingDown,
+  TrendingUp,
+  TriangleAlert,
+  type LucideIcon,
+} from 'lucide-react';
 import type { Route } from 'next';
 import { useTranslations } from 'next-intl';
-import { useMemo, type ReactElement } from 'react';
+import { useId, useMemo, type ReactElement } from 'react';
 
 import { useAiRuns, useCollectionDaily } from './data/activity-reads';
 import { buildFeed, type FeedEntry, type FeedLink } from './model/feed-model';
@@ -19,11 +29,14 @@ import { useCitationsDrill } from '../sources/parts/drill';
 import { ChangeFeed, type ChangeFeedState } from '@/components/app/feed/change-feed';
 import type { ChangeFeedItem } from '@/components/app/feed/feed-model';
 import type { ChartNotice } from '@/components/app/chart/chart-frame';
+import { EmptyState } from '@/components/app/status/empty-state';
+import { Icon } from '@/components/ui/icon';
 import type { CardProps } from '@/features/layouts';
 import type { CsvCell } from '@/lib/csv/csv-write';
 import {
   formatBusinessDate,
   formatInteger,
+  formatIsoDate,
   formatList,
   formatPercent,
   formatTableDateTime,
@@ -32,6 +45,8 @@ import {
 
 const ROWS = { '5': 5, '8': 8 } as const;
 const DEFAULT_ROWS = 8;
+/** The newest AI runs the card reads (the route takes up to 200): enough to reach back over a past window. */
+const RUNS_ASKED = 100;
 
 const GLYPH: Readonly<Record<FeedEntry['kind'], LucideIcon>> = {
   rate: TrendingUp,
@@ -74,7 +89,7 @@ export default function KeyChangesCard({ item, options, live }: CardProps): Reac
   const drill = useCardDrill();
   const citations = useCitationsDrill();
   const data = useCardData({ previous: 'optional', subscribed: live });
-  const runs = useAiRuns({ subscribed: live });
+  const runs = useAiRuns({ subscribed: live, limit: RUNS_ASKED });
   const daily = useCollectionDaily({ subscribed: live });
   // Only the count of the new domains is needed: the list of the lost ones is not asked for
   const changes = useSourceChanges({ limit: 1, lost: false, subscribed: live });
@@ -134,6 +149,17 @@ export default function KeyChangesCard({ item, options, live }: CardProps): Reac
   if (comparison === 'unread' || (data.phase === 'error' && !failed)) unchecked.push(t('partComparison'));
   if (!canViewRuns) unchecked.push(t('partRunsNoAccess'));
   else if (runs.status === 'error') unchecked.push(t('partRuns'));
+  // A full page whose oldest run is inside the window: older runs of the window may exist and were not read
+  const oldestRun = runs.data?.reduce<string | null>(
+    (oldest, run) => (oldest === null || run.created_at < oldest ? run.created_at : oldest),
+    null,
+  );
+  const runsLimited =
+    (runs.data?.length ?? 0) >= RUNS_ASKED &&
+    oldestRun !== null &&
+    oldestRun !== undefined &&
+    formatIsoDate(oldestRun, timeZone) > scope.range.from;
+  if (runsLimited) unchecked.push(t('partRunsLimited', { shown: formatInteger(RUNS_ASKED) }));
   if (daily.status === 'error') unchecked.push(t('partDaily'));
   const newSourcesUnread =
     changes.newer.status === 'error' ||
@@ -258,16 +284,88 @@ export default function KeyChangesCard({ item, options, live }: CardProps): Reac
     };
   });
 
+  const windowText = t('window', { days: scope.range.days, shown: formatInteger(scope.range.days) });
+  // Held changes and nothing to list: the part's empty state would say no change was found, which is not what was
+  // checked. The card says that the changes were not compared, why, and what collection showed where it was read.
+  if ((state.status === 'ready' || state.status === 'refetching') && items.length === 0 && holdText !== undefined) {
+    const reasons = {
+      off: ['emptyHoldTitle', 'emptyOffReason'],
+      noPrevious: ['emptyHoldTitle', 'emptyNoPreviousReason'],
+      noEngine: ['emptyNoEngineTitle', 'emptyNoEngineReason'],
+    } as const;
+    const [title, reason] = reasons[feed.hold ?? 'noEngine'];
+    const collectionClear = runs.data !== undefined && daily.data !== undefined && !runsLimited;
+    return (
+      <HeldEmpty
+        title={t('title')}
+        notice={notice}
+        refetching={state.status === 'refetching'}
+        emptyTitle={t(title)}
+        reason={t(reason)}
+        details={collectionClear ? t('emptyCollectionClear', { window: windowText }) : undefined}
+      />
+    );
+  }
   return (
     <ChangeFeed
       title={t('title')}
       state={state}
-      windowText={t('window', { days: scope.range.days, shown: formatInteger(scope.range.days) })}
+      windowText={windowText}
       notice={notice}
       holdText={holdText}
       timeZone={timeZone}
       max={limit}
     />
+  );
+}
+
+interface HeldEmptyProps {
+  title: string;
+  notice: ChartNotice | undefined;
+  refetching: boolean;
+  emptyTitle: string;
+  reason: string;
+  details: string | undefined;
+}
+
+/**
+ * The card's own empty state while the changes are held and no collection notice is listed: the frame, title and
+ * notice of the feed (same classes, so the card does not change look), with the reason the changes are not compared.
+ */
+function HeldEmpty({ title, notice, refetching, emptyTitle, reason, details }: HeldEmptyProps): ReactElement {
+  const titleId = useId();
+  return (
+    <section
+      aria-labelledby={titleId}
+      aria-busy={refetching ? true : undefined}
+      className="relative overflow-hidden rounded-lg border border-border bg-surface"
+    >
+      {refetching ? (
+        <div aria-hidden="true" data-slot="feed-refetch-bar" className="absolute inset-x-0 top-0 h-0.5 bg-primary" />
+      ) : null}
+      <div className="flex min-h-12 items-center gap-3 px-4 py-3">
+        <div className="flex min-w-0 flex-1 flex-col">
+          <h2 id={titleId} className="type-section-title">
+            {title}
+          </h2>
+          {notice === undefined ? null : (
+            <p className="inline-flex items-center gap-1 type-meta text-warning-text">
+              <Icon icon={notice.kind === 'stale' ? Clock : CircleDashed} size="sm" />
+              {notice.text}
+            </p>
+          )}
+        </div>
+      </div>
+      <div className="border-t border-border-subtle">
+        <EmptyState
+          variant="inline"
+          headingLevel={3}
+          title={emptyTitle}
+          reason={reason}
+          details={details === undefined ? undefined : <p className="type-body text-foreground-secondary">{details}</p>}
+        />
+      </div>
+    </section>
   );
 }
 

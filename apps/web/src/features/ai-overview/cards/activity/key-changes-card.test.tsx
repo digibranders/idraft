@@ -355,6 +355,86 @@ describe('the key changes card', () => {
     ).toBeInTheDocument();
   });
 
+  it('says why in its own empty state, not "No detectable changes", when the changes are held and nothing is listed', async () => {
+    serve({ runs: [] });
+    const { user } = render({ searchParams: `${WINDOW}&cmp=off` });
+    expect(
+      await screen.findByRole('heading', { name: 'Changes are not compared for this window' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('The comparison with the window before is off.')).toBeInTheDocument();
+    expect(screen.getByText('No collection issues were found in these 28 days.')).toBeInTheDocument();
+    expect(screen.queryByText(/No detectable changes/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Changes within normal variation/)).not.toBeInTheDocument();
+    // The card is still one frame with its title, and its export block is registered and empty
+    expect(screen.getByRole('heading', { level: 2, name: 'Key changes' })).toBeInTheDocument();
+    const [block] = await readExport(user);
+    expect(block).toMatchObject({ id: ITEM_ID, rows: [] });
+  });
+
+  it('does not say collection is clear when a collection read failed, and names it as not checked', async () => {
+    serve({ runs: [], daily: 'fail' });
+    render({ searchParams: `${WINDOW}&cmp=off` });
+    expect(
+      await screen.findByRole('heading', { name: 'Changes are not compared for this window' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Not checked: collection by day')).toBeInTheDocument();
+    expect(screen.queryByText(/No collection issues were found/)).not.toBeInTheDocument();
+  });
+
+  it('says the window before has no valid answers in its own empty state', async () => {
+    serve({ runs: [], summaries: { now: MOVED.now, before: windowOf([0, 0], [0, 0], [0, 0]) } });
+    render();
+    expect(
+      await screen.findByRole('heading', { name: 'Changes are not compared for this window' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('The window before has no valid answers.')).toBeInTheDocument();
+    expect(screen.queryByText(/No detectable changes/)).not.toBeInTheDocument();
+  });
+
+  it('says no engine is asked in its own empty state when nothing is listed', async () => {
+    serve({ runs: [] });
+    render({ searchParams: `${WINDOW}&engine=google_ai_mode` });
+    expect(
+      await screen.findByRole('heading', { name: 'Changes are not compared: no engine is asked' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Turn on an engine, or choose one that is on.')).toBeInTheDocument();
+    expect(screen.queryByText(/No detectable changes/)).not.toBeInTheDocument();
+  });
+
+  it('still draws the feed, with the hold banner, when the changes are held but a collection notice is listed', async () => {
+    serve();
+    render({ searchParams: `${WINDOW}&cmp=off` });
+    await screen.findByText(RUN_ERRORS);
+    expect(screen.getByRole('list', { name: 'Notices' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Changes are not compared for this window' })).not.toBeInTheDocument();
+  });
+
+  it('asks for the newest 100 runs, so a past window sees more than the latest few', async () => {
+    const seen = recordRequests();
+    serve();
+    render();
+    await screen.findByText(RISE);
+    const asked = seen.filter((url) => url.pathname.endsWith('/runs'));
+    expect(asked).toHaveLength(1);
+    expect(asked[0]?.searchParams.get('limit')).toBe('100');
+  });
+
+  it('says collection runs were not all checked when the newest 100 do not reach back to the window', async () => {
+    // A hundred runs, every one newer than the start of the window: the window begins before the oldest read
+    const runs = Array.from({ length: 100 }, (_, index) =>
+      run({
+        n: index + 1,
+        createdAt: '2026-11-11T00:00:00Z',
+        completedAt: '2026-11-11T01:00:00Z',
+        failed: 0,
+        succeeded: 250,
+      }),
+    );
+    serve({ runs });
+    render({ searchParams: 'from=2026-09-01&to=2026-11-12' });
+    expect(await screen.findByText('Not checked: collection runs (only the newest 100 are read)')).toBeInTheDocument();
+  });
+
   it('asks for one list of changes, the new domains, and not for the lost ones', async () => {
     const seen = recordRequests();
     serve();

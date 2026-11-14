@@ -7,15 +7,16 @@ import { useCollectionDaily, type CollectionDaily } from '../data/activity-reads
 import { engineDays, engineTabs, isRunDay, totalsOf, type DayCounts } from '../model/status-model';
 import { EngineTabs } from './engine-tabs';
 import { useErrorState, useStaleNotice, type FrameState } from './frame-state';
+import { LoadingControls } from './loading-controls';
 import type { EngineDays } from './daily-table';
 import { askedEngines } from '../../../data/overview-queries';
 import type { Read } from '../../../data/read-state';
 import { useOverview } from '../../../overview-context';
 import { engineLabel } from '../../engines/engine-role';
-import { Skeleton } from '@/components/ui/skeleton';
 import { announce } from '@/lib/a11y/announcer';
 import type { EngineCode } from '@/lib/api/types';
 import { formatDateRange, formatInteger } from '@/lib/format';
+import { ENGINES } from '@/lib/layouts/catalog';
 
 /**
  * What the two cards of the collection days (the calendar and the status chart) do the same way: read the days once,
@@ -43,13 +44,15 @@ export interface DailyCard {
   meta: string | null;
   /** The days to show are of the engine chosen: the frame is ready or refetching. */
   shown: boolean;
+  /** The frame is loading: the controls are placeholders, and the card adds `NarrowReserve` to its footnote. */
+  loading: boolean;
 }
 
 const NO_DAYS: readonly DayCounts[] = [];
 /** A meta line that holds its line height while the real one is not known yet. */
 const NO_BREAK_SPACE = String.fromCharCode(0xa0);
 
-export function useDailyCard(live: boolean, subject: string): DailyCard {
+export function useDailyCard(live: boolean, subject: string, { patterns }: { patterns: boolean }): DailyCard {
   const t = useTranslations('aiOverview.activity.daily');
   const { scope, enabledEngines, engines } = useOverview();
   const read = useCollectionDaily({ subscribed: live });
@@ -109,15 +112,13 @@ export function useDailyCard(live: boolean, subject: string): DailyCard {
       key: 'activity-daily-engine',
     });
   };
-  // While loading, the tabs row and the meta line are held at their height, so nothing moves when the days arrive
+  // While loading, the tabs and the views group are held as placeholders that wrap like the real ones, and the meta
+  // line at one line; what the loaded card takes when it is narrow is the card's `NarrowReserve` (see loading-controls)
   const loading = frame.status === 'loading';
   let controls: ReactNode = null;
   if (loading) {
-    controls = (
-      <div data-slot="controls-placeholder" className="h-control-sm w-60 max-w-full">
-        <Skeleton shape="block" className="h-full w-full" />
-      </div>
-    );
+    // The tabs are the engines of the response, which can include engines that are off, so every engine of the catalog
+    controls = <LoadingControls engines={ENGINES.length} patterns={patterns} />;
   } else if (response !== undefined && engine !== null) {
     controls = (
       <EngineTabs
@@ -141,5 +142,5 @@ export function useDailyCard(live: boolean, subject: string): DailyCard {
     });
   }
 
-  return { read, tabs, engine, engineName, days, runDays, allRunDays, totals, frame, controls, meta, shown };
+  return { read, tabs, engine, engineName, days, runDays, allRunDays, totals, frame, controls, meta, shown, loading };
 }

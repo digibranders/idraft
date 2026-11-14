@@ -34,11 +34,11 @@ export type CollectionDaily = Schemas['CollectionDailyResponse'];
 export const AI_RUNS_PAGE = 10;
 
 /** `GET {P}/runs` of the AI workload, newest first. */
-export const aiRunsQuery = (project: ProjectRef): ApiQueryOptions<typeof RUNS> =>
+export const aiRunsQuery = (project: ProjectRef, limit: number = AI_RUNS_PAGE): ApiQueryOptions<typeof RUNS> =>
   apiQuery(RUNS, {
     params: {
       path: { workspace_id: project.workspaceId, project_id: project.projectId },
-      query: { 'filter[workload_in]': ['ai_prompt'], limit: AI_RUNS_PAGE },
+      query: { 'filter[workload_in]': ['ai_prompt'], limit },
     },
   });
 
@@ -70,10 +70,15 @@ const gateOf = (allowed: boolean, subscribed: boolean): Gate => (!allowed ? 'idl
  * The newest AI runs. Not asked, and `idle`, for a member without access to runs (`canViewRuns`): a card that
  * would show them says so instead.
  */
-export function useAiRuns({ subscribed = true }: ReadOptions = {}): Read<readonly Run[]> {
+export function useAiRuns({
+  subscribed = true,
+  limit = AI_RUNS_PAGE,
+}: ReadOptions & {
+  /** The newest runs asked for (the route takes up to 200); a card that looks at a past window asks for more. */ limit?: number;
+} = {}): Read<readonly Run[]> {
   const { workspaceId, project, canViewRuns } = useOverview();
   const gate = gateOf(canViewRuns, subscribed);
-  const query = useQuery({ ...aiRunsQuery({ workspaceId, projectId: project.id }), enabled: gate === 'run' });
+  const query = useQuery({ ...aiRunsQuery({ workspaceId, projectId: project.id }, limit), enabled: gate === 'run' });
   const read = useRead(query, gate);
   return useMemo(() => mapRead(read, (page): readonly Run[] => page.data), [read]);
 }

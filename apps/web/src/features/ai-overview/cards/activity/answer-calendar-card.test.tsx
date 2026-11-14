@@ -77,7 +77,9 @@ describe('the answer collection calendar card (CH-20)', () => {
     await card();
     const placeholder = document.querySelector('[data-slot="controls-placeholder"]');
     expect(placeholder).not.toBeNull();
-    expect(placeholder?.className).toContain('h-control-sm');
+    // Each block of the placeholder is as tall as a control; the views group is held beside it (daily-loading.test.tsx)
+    expect(placeholder?.querySelector('[class*="h-control-sm"]')).not.toBeNull();
+    expect(document.querySelector('[data-slot="views-placeholder"]')).not.toBeNull();
     expect(document.querySelector('section p.type-meta')).not.toBeNull();
     const loadingBody = document.querySelector(LOADING_BODY)?.parentElement;
     const reserved = loadingBody?.style.height;

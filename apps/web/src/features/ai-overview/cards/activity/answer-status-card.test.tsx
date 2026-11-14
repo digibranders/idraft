@@ -82,7 +82,9 @@ describe('the answer status card (CH-21)', () => {
     await screen.findByRole('heading', { name: TITLE });
     const placeholder = document.querySelector('[data-slot="controls-placeholder"]');
     expect(placeholder).not.toBeNull();
-    expect(placeholder?.className).toContain('h-control-sm');
+    // Each block of the placeholder is as tall as a control; the views group is held beside it (daily-loading.test.tsx)
+    expect(placeholder?.querySelector('[class*="h-control-sm"]')).not.toBeNull();
+    expect(document.querySelector('[data-slot="views-placeholder"]')).not.toBeNull();
     expect(document.querySelector('section p.type-meta')).not.toBeNull();
     const reserved = document.querySelector(LOADING_BODY)?.parentElement?.style.height;
     await screen.findByTestId('echart-canvas');

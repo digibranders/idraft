@@ -6,6 +6,7 @@ import { useMemo, type ReactElement } from 'react';
 import { calendarWeeks } from './model/calendar-model';
 import { CalendarGrid } from './parts/calendar-grid';
 import { DayTable, useDailyCsv } from './parts/daily-table';
+import { NarrowReserve } from './parts/loading-controls';
 import { useDailyCard } from './parts/use-daily-card';
 import { useCardExport } from '../engines/use-card-seams';
 import { ChartFrame } from '@/components/app/chart/chart-frame';
@@ -20,7 +21,7 @@ import { formatInteger } from '@/lib/format';
 export default function AnswerCalendarCard({ item, live }: CardProps): ReactElement {
   const t = useTranslations('aiOverview.activity.calendar');
   const daily = useTranslations('aiOverview.activity.daily');
-  const card = useDailyCard(live, t('subject'));
+  const card = useDailyCard(live, t('subject'), { patterns: false });
   const weeks = useMemo(() => calendarWeeks(card.days), [card.days]);
   const toCsv = useDailyCsv();
   const csv = toCsv(card.allRunDays);
@@ -44,7 +45,12 @@ export default function AnswerCalendarCard({ item, live }: CardProps): ReactElem
       meta={card.meta}
       summary={summary}
       controls={card.controls}
-      footnote={<p>{daily('footnote')}</p>}
+      footnote={
+        <>
+          <p>{daily('footnote')}</p>
+          {card.loading ? <NarrowReserve calendarKey /> : null}
+        </>
+      }
       body={<CalendarGrid caption={t('caption', { engine: card.engineName })} weeks={weeks} />}
       table={<DayTable engine={card.engineName} days={card.runDays} />}
       menu={{ fileName: t('fileName'), csv }}

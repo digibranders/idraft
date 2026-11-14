@@ -5,6 +5,7 @@ import { useCallback, useMemo, type ReactElement } from 'react';
 
 import { STATUSES, type AnswerStatus, type DayCounts } from './model/status-model';
 import { useDailyCsv, useDayText } from './parts/daily-table';
+import { NarrowReserve } from './parts/loading-controls';
 import { useDailyCard } from './parts/use-daily-card';
 import { useCardExport } from '../engines/use-card-seams';
 import { ChartFrame } from '@/components/app/chart/chart-frame';
@@ -74,7 +75,7 @@ function shownLines(option: Record<string, unknown>): { id: string; name: string
 export default function AnswerStatusCard({ item, live }: CardProps): ReactElement {
   const t = useTranslations('aiOverview.activity.status');
   const daily = useTranslations('aiOverview.activity.daily');
-  const card = useDailyCard(live, t('subject'));
+  const card = useDailyCard(live, t('subject'), { patterns: true });
   const dayText = useDayText();
   const toCsv = useDailyCsv();
   const csv = toCsv(card.allRunDays);
@@ -147,7 +148,12 @@ export default function AnswerStatusCard({ item, live }: CardProps): ReactElemen
       meta={card.meta}
       summary={summary}
       controls={card.controls}
-      footnote={<p>{daily('footnote')}</p>}
+      footnote={
+        <>
+          <p>{daily('footnote')}</p>
+          {card.loading ? <NarrowReserve calendarKey={false} /> : null}
+        </>
+      }
       categories={categories}
       categoryHeader={t('categoryHeader')}
       series={series}
