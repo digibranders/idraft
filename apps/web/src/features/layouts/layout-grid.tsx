@@ -19,7 +19,9 @@ import {
 
 import { AddCardSlot } from './add-card-slot';
 import { CardFrame } from './card-frame';
+import { adaptCardsByReadiness } from './cards/adapt-cards';
 import { CardFailureNotice, CardFailuresContext, createCardFailures } from './cards/card-failures';
+import { CardReadinessContext, createCardReadinessStore } from '@/components/app/chart/card-readiness';
 import { useLayoutScreen, type LayoutContextValue } from './layout-provider';
 import { LayoutReadBanner } from './layout-read-banner';
 import { CardSkeleton, type CardRegistry, type RegisteredCard } from './registry';
@@ -152,6 +154,15 @@ export function LayoutGrid({
   const root = useRef<HTMLElement>(null);
   // The failures of this grid's cards: a card's boundary reports to it, the frame's notice reads from it
   const [failures] = useState(createCardFailures);
+  const [readiness] = useState(createCardReadinessStore);
+  const [, setReadinessTick] = useState(0);
+
+  useEffect(() => {
+    return readiness.subscribe(() => {
+      setReadinessTick((t) => t + 1);
+    });
+  }, [readiness]);
+
   useFocusRequests(root, screen);
 
   const customizing = mode === 'customize';
@@ -219,9 +230,14 @@ export function LayoutGrid({
       />
     );
   } else {
+    const isCustomized = screen.resolved.source !== 'builtin';
+    const displayedCards =
+      !customizing && !isCustomized
+        ? adaptCardsByReadiness(shownCards, (id) => readiness.isNotReady(id))
+        : shownCards;
     body = (
       <div className={containerClass}>
-        {shownCards.map((item) => (
+        {displayedCards.map((item) => (
           <CardFrame key={item.id} item={item} className={cellClass(item)} notice={noticeOf(item)}>
             {bodyOf(item)}
           </CardFrame>
@@ -232,17 +248,19 @@ export function LayoutGrid({
 
   return (
     <CardFailuresContext value={failures}>
-      <section ref={root} aria-label={label} className="relative">
-        {refetching ? (
-          <div
-            aria-hidden="true"
-            data-slot="layout-refetch-bar"
-            className="absolute inset-x-0 top-0 h-0.5 bg-primary"
-          />
-        ) : null}
-        <LayoutReadBanner />
-        {body}
-      </section>
+      <CardReadinessContext value={readiness}>
+        <section ref={root} aria-label={label} className="relative">
+          {refetching ? (
+            <div
+              aria-hidden="true"
+              data-slot="layout-refetch-bar"
+              className="absolute inset-x-0 top-0 h-0.5 bg-primary"
+            />
+          ) : null}
+          <LayoutReadBanner />
+          {body}
+        </section>
+      </CardReadinessContext>
     </CardFailuresContext>
   );
 }

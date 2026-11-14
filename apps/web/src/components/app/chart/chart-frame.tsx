@@ -14,6 +14,7 @@ import {
   type RefObject,
 } from 'react';
 
+import { useCardReadiness, useCurrentCardId } from './card-readiness';
 import { ChartLegend, type LegendItem } from './chart-legend';
 import { ChartMenu, type ChartMenuAction } from './chart-menu';
 import { InlineError, type InlineErrorProps } from '@/components/app/status/inline-error';
@@ -161,6 +162,14 @@ type HtmlProps = Extract<ChartFrameProps, { kind: 'html' }>;
  * height, and refetching keeps the chart.
  */
 export function ChartFrame(props: ChartFrameProps): ReactElement {
+  const cardId = useCurrentCardId();
+  const readiness = useCardReadiness();
+  useEffect(() => {
+    if (cardId && readiness) {
+      readiness.report(cardId, props.status);
+    }
+  }, [cardId, readiness, props.status]);
+
   return props.kind === 'html' ? <HtmlFrame {...props} /> : <CategoryFrame {...props} />;
 }
 
@@ -413,6 +422,35 @@ function FrameShell({
   const viewsGroup = showViews ? <ChartViews title={title} {...views} alignEnd={hasControls} /> : null;
   const inspector = variant === 'inspector';
   const Title = inspector ? 'h3' : 'h2';
+
+  if (status === 'empty') {
+    const { empty } = state;
+    return (
+      <section
+        ref={section}
+        aria-label={title}
+        className={cn(
+          'flex flex-col justify-center min-w-0 transition-colors',
+          inspector ? 'py-1' : 'rounded-lg border border-border bg-surface px-4 py-3',
+        )}
+      >
+        <p id={summaryId} className="sr-only">
+          {summary}
+        </p>
+        <div data-slot="chart-state" className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 min-w-0">
+          <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-0.5">
+            <Title className={inspector ? 'type-subsection-title' : 'type-section-title shrink-0'}>{title}</Title>
+            <h3 className="sr-only">{empty.title}</h3>
+            <p className="type-meta text-foreground-secondary truncate max-w-full">
+              {empty.reason || empty.title}
+            </p>
+          </div>
+          {empty.action ? <div className="shrink-0">{empty.action}</div> : null}
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section
       ref={section}

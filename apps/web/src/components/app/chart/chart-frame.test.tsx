@@ -247,7 +247,7 @@ describe('ChartFrame loadingHeight', () => {
     expect(reserved(container)).toHaveStyle({ height: '180px' });
   });
 
-  it('leaves the empty and the error state at the chart height', () => {
+  it('renders a slim empty state without forcing the tall chart height, and leaves error at chart height', () => {
     const empty = renderWithProviders(
       <ChartFrame
         {...HTML_BASE}
@@ -256,7 +256,8 @@ describe('ChartFrame loadingHeight', () => {
         empty={{ title: 'No answers yet', reason: 'The first run is on Thursday.' }}
       />,
     );
-    expect(empty.container.querySelector('[data-slot="chart-state"]')).toHaveStyle({ minHeight: '180px' });
+    expect(empty.container.querySelector('[data-slot="chart-state"]')).not.toHaveStyle({ minHeight: '180px' });
+    expect(empty.container.querySelector('section')).toHaveClass('py-3');
     empty.unmount();
     const error = renderWithProviders(
       <ChartFrame
@@ -327,7 +328,7 @@ describe('ChartFrame states', () => {
     vi.useRealTimers();
   });
 
-  it('says what is missing and what changes it when empty, in the height it reserves', () => {
+  it('says what is missing and what changes it when empty, in a slim state', () => {
     const { container } = renderWithProviders(
       <ChartFrame
         {...HTML_BASE}
@@ -346,7 +347,8 @@ describe('ChartFrame states', () => {
     expect(screen.getByRole('button', { name: 'Run now' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Table' })).toBeNull();
     expect(screen.queryByRole('button', { name: /More actions/ })).toBeNull();
-    expect(container.querySelector('[data-slot="chart-state"]')).toHaveStyle({ minHeight: '180px' });
+    expect(container.querySelector('[data-slot="chart-state"]')).not.toHaveStyle({ minHeight: '180px' });
+    expect(container.querySelector('section')).toHaveClass('py-3');
   });
 
   it('replaces the chart with the error and its retry, which shows it is running', async () => {

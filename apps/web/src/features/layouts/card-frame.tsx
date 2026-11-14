@@ -3,6 +3,7 @@
 import { useTranslations } from 'next-intl';
 import { forwardRef, type ReactNode, type RefAttributes } from 'react';
 
+import { CardIdContext } from '@/components/app/chart/card-readiness';
 import { useLayoutScreen } from './layout-provider';
 import { cardName, type CardItem } from '@/lib/layouts';
 import { cn } from '@/lib/utils';
@@ -53,9 +54,11 @@ export const CardFrame = forwardRef<HTMLDivElement, CardFrameProps & RefAttribut
       ) : null}
       {notice === undefined ? null : <div className="min-w-0">{notice}</div>}
       {/* A filling column: the card surface stretches with the frame, so a row shares its tallest height */}
-      <div inert={customizing} className="flex min-w-0 flex-1 flex-col">
-        {children}
-      </div>
+      <CardIdContext value={item.id}>
+        <div inert={customizing} className="flex min-w-0 flex-1 flex-col">
+          {children}
+        </div>
+      </CardIdContext>
       {customizing ? edge : null}
     </div>
   );
