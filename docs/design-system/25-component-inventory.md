@@ -537,7 +537,7 @@ interface SegmentedControlProps<TValue extends string> {
 - **Use:** density toggle, chart or table view, "Absolute or Share", triage status (New, Accepted, Snoozed, Rejected), device in forms.
 - **Not for:** more than 5 options or labels longer than 2 words (`Select`), switching panels (`Tabs variant="segmented"`), independent toggles (`ToggleButton`).
 
-> As built (WP-37): three AI Overview cards put a `SegmentedControl size="sm" semantics="view"` in their frame's `controls`: Ranked or By role (`sources.top_domains`), Distinct domains or Effective sources (`sources.diversity`). The choice is viewer state in the card, announced through the page announcer ("View changed to By role"), and not kept in the address; UI rule 15 asks for it, so it is a follow-up.
+> As built (WP-37): two AI Overview cards put a `SegmentedControl size="sm" semantics="view"` in their frame's `controls`: Ranked or By role (`sources.top_domains`), Distinct domains or Effective sources (`sources.diversity`). The choice is viewer state in the card, announced through the page announcer ("View changed to By role"), and not kept in the address; UI rule 15 asks for it, so it is a follow-up.
 
 ### 3.6 Toolbar
 `ui/toolbar.tsx` · V1 · [09 §7](09-buttons-controls.md)
