@@ -12,7 +12,6 @@ type ModuleLoader = () => Promise<Record<string, unknown>>;
 const SLOTS: ReadonlyArray<readonly [slug: string, name: string, load: ModuleLoader]> = [
   ['compare', 'compareHandlers', () => import('./compare')],
   ['fanout', 'fanoutHandlers', () => import('./fanout')],
-  ['prompt-limits', 'promptLimitHandlers', () => import('./prompt-limits')],
   ['prompt-edits', 'promptEditHandlers', () => import('./prompt-edits')],
   ['retention', 'retentionHandlers', () => import('./retention')],
   ['notes', 'noteHandlers', () => import('./notes')],

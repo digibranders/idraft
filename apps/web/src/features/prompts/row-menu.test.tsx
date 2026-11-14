@@ -168,7 +168,8 @@ describe('the row menu of a topic', () => {
     await openMenu(user, await topics(), 'SEO');
     await user.click(screen.getByRole('menuitem', { name: 'Add prompt' }));
     const dialog = await screen.findByRole('dialog', { name: 'Add prompts' });
-    expect(within(dialog).getByRole('combobox', { name: /^Topic/ })).toHaveTextContent('SEO');
+    // The topic is a chip of the topic picker now, not the text of a select
+    expect(await within(dialog).findByText('SEO')).toBeInTheDocument();
   });
 
   it('asks before it runs the prompts of the topic, and says it is one of the 20 manual runs of the day', async () => {

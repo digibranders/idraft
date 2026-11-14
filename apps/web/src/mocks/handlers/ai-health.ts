@@ -21,7 +21,6 @@ import {
   uuidError,
 } from './rules';
 import {
-  PLANNED_PER_ENGINE,
   addBudget,
   aiCoverage,
   budgetView,
@@ -53,9 +52,6 @@ import { formatIsoDate } from '@/lib/format';
 
 const W = '/api/v1/workspaces/{workspace_id}';
 const P = `${W}/projects/{project_id}`;
-/** The plan's quotas the limits read shows: AI answers a UTC month, and manual runs a UTC day (the prompt quota is the planned 150). */
-const AI_ANSWERS_PER_MONTH = 2000;
-const MANUAL_RUNS_PER_DAY = 20;
 const DEFAULT_DAYS = 28;
 const MAX_DAYS = 92;
 const MAX_ENGINES = 3;
@@ -243,28 +239,6 @@ export const aiHealthHandlers: HttpHandler[] = [
     return HttpResponse.json({
       data: collectionDays(scope, engines),
       meta: { window: { from: scope.firstDate, to: scope.lastDate, timezone: zone }, engine_codes: engines },
-    });
-  }),
-
-  mock('get', `${P}/ai/limits`, ({ request, cookies, params }) => {
-    const caller = operationsProjectCaller(request, cookies, params.workspace_id, params.project_id, {
-      permission: 'data:read',
-    });
-    if (caller instanceof Response) return caller;
-    const month = new Date(Date.now()).toISOString().slice(0, 7);
-    // The quotas are the workspace's: the prompts of every project the caller sees, and this UTC month's answers
-    const answers = caller.operations.runs
-      .filter((run) => run.workload === 'ai_prompt' && run.cancelled_at === null && run.created_at.startsWith(month))
-      .reduce((sum, run) => sum + run.tasks_total, 0);
-    return HttpResponse.json({
-      data: {
-        prompts: {
-          limit: PLANNED_PER_ENGINE,
-          used: caller.projects.reduce((sum, project) => sum + activePrompts(project.project_id), 0),
-        },
-        ai_observations_month: { limit: AI_ANSWERS_PER_MONTH, used: answers },
-        manual_runs_today: { limit: MANUAL_RUNS_PER_DAY, used: 0 },
-      },
     });
   }),
 

@@ -12,7 +12,7 @@ import { can, type Permission } from '@/lib/permissions/permissions';
 // import { copyLinkAction } from '../actions/copy-link-action';
 
 // WP-27 add-dialog
-// import { addPromptForTopicsAction } from '../actions/add-prompt-for-topics-action';
+import { addPromptForTopicsAction } from '../add/add-for-topics-action';
 
 // WP-29 edit-archive
 // import { bulkEditAction } from '../actions/bulk-edit-action';
@@ -71,7 +71,7 @@ export const PROMPT_ACTION_ENTRIES: readonly PromptActionEntry[] = [
   // WP-17 tp-header-filters (WB-MNU-08)
   // copyLinkAction,
   // WP-27 add-dialog (WB-BLK-09)
-  // addPromptForTopicsAction,
+  addPromptForTopicsAction,
   // WP-29 edit-archive (WB-MNU-05, WB-BLK-11, WB-BLK-12)
   // editDetailsAction,
   // bulkEditAction,

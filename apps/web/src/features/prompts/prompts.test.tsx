@@ -1,8 +1,9 @@
-import { screen, within } from '@testing-library/react';
+import { act, screen, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { Suspense, type ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { clearJustAdded, markJustAdded } from './add/just-added-store';
 import { enginesKey } from './prompt-queries';
 import { PromptsScreen, type PromptsProject } from './prompts-screen';
 import { TopBarSlotProvider, TopBarSlotTarget } from '@/components/app/shell/top-bar-slot';
@@ -13,6 +14,7 @@ import { MOCK_PROJECTS, MOCK_WORKSPACE, mockUser } from '@/mocks/fixtures';
 import { mswPath } from '@/mocks/respond';
 import { SESSION_COOKIE } from '@/mocks/session';
 import { MOCK_TERM_IDS } from '@/mocks/entity-fixtures';
+import { FIXTURE_PROMPTS } from '@/mocks/prompt-fixtures';
 import { NO_COUNTS, promptCells, topicCells, type Counts } from '@/mocks/prompt-summary';
 import { axe } from '@/test/axe';
 import { server } from '@/test/msw';
@@ -181,6 +183,26 @@ describe('Topics & Prompts', () => {
     renderOnPrompts(promptsAs('viewer'), { searchParams: '?tab=prompts' });
     await grid();
     expect(screen.queryByRole('button', { name: 'Add prompts' })).toBeNull();
+  });
+
+  it('draws the prompts an add just created on the accent tint, until the add lets them go', async () => {
+    const text = 'Which SEO agency is best for a SaaS startup in Germany?';
+    const promptId = FIXTURE_PROMPTS.get(fynix.project_id)?.find((prompt) => prompt.text === text)?.prompt_id;
+    if (promptId === undefined) throw new Error('The fixture prompt is missing');
+    renderOnPrompts(promptsAs('editor'), { searchParams: '?tab=prompts' });
+    const table = await grid();
+    const rowOf = async (): Promise<HTMLElement> =>
+      (await within(table).findByText(text)).closest<HTMLElement>('[role="row"]') as HTMLElement;
+    expect(await rowOf()).not.toHaveAttribute('data-tone');
+    act(() => markJustAdded([promptId]));
+    expect(await rowOf()).toHaveAttribute('data-tone', 'own');
+    // Only the rows of the add: the next prompt keeps its own colour
+    const others = within(table)
+      .getAllByRole('row')
+      .filter((row) => row.getAttribute('data-tone') === 'own');
+    expect(others).toHaveLength(1);
+    act(() => clearJustAdded());
+    expect(await rowOf()).not.toHaveAttribute('data-tone');
   });
 });
 

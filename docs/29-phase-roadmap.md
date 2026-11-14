@@ -384,6 +384,40 @@ citation has a quote (ChatGPT gives none) instead of showing an empty state; the
 marker (it had none before this package; only the compare panel keeps its data under a refetch bar); a flagged
 citation states its reason as visible text instead of a tooltip.
 
+**As built (AI visibility WP-27, 2026-11-14): Add prompts dialog.** The Add prompts dialog is rebuilt (requirement R-10) in
+`apps/web/src/features/prompts/add/`, `topic-picker/` and `limits/`, mounted on the Prompts screen through
+`useAddPrompts` (header button, empty states, topic row menu and drawer; `N` opens it and is listed in the shortcut
+sheet). The fields are Prompts, Country, Language, Topics and a Details disclosure (Type, Intent, Stage, Importance,
+Branded). A pasted list is checked line by line by the lint (the `items` shape with language and country): a check list
+groups lines by outcome (cannot be added, warnings, will be added, already tracked, archived, repeats), names the seven
+lint rules, and counts are announced once the typing settles. A plan block shows answers a month, cost per engine
+("under $0.01" or "no price in the price book", never $0.00), the workspace quota ("N of L used, M after this add",
+over the room blocks), the cost and manual runs of asking now (only with `runs:trigger`), the next run ("Scheduled
+answers are paused" when no schedule is active), and the reason a disabled Add is disabled. `is_branded` is sent only
+when the person chose Always or Never, `prompt_type` is absent for "Set from wording". The topic picker (multi-select,
+type to filter) picks existing topics and CREATES a topic by typing a name: topics are made on submit, before the
+prompts, and a failed add says the topic was created and the prompts were not added; with no topic vocabulary in the
+project an editor's first topic first makes the project's "Topics" vocabulary (kind topic, hierarchical). After the add:
+a toast with Undo (Undo archives exactly the created ids, POST bulk-archive, never a delete), "Ask them now as well"
+(one run per 150 prompts, stops at the first refusal), restore of archived lines, a result view (added, already tracked
+with Show it, lines not added with the reason and a copy button) and the new rows tinted for 4 seconds. The mock for
+`GET {P}/ai/limits` is one state-backed handler (`prompt-limits.ts`) that moves with an add, an archive and a run. Rows
+built: PD-ADD-01..29 (split button chevron and "Generate from keywords" wait for WP-28, WP-44 and WP-46: the registry
+`add/add-menu-entries.ts` is their seam), PD-LINT-*, PD-QC-01..06, PD-POST-01..05, PD-TOP-*, PD-ROLE-05, PD-STATE-*,
+the matching WB-ADD rows and PD-TEST rows named in the plan
+`docs/superpowers/plans/2026-11-14-ai-wp-27-add-dialog.md`. Not built (follow-ups): the "Asked next on <date>" tooltip on
+"Not asked yet" cells and the "Added just now: N" filter chip (PD-POST-06), the header limits meter and the bulk "Add
+prompt" action (T7), the full role and error map pass (T8), a per-line Restore button in the result view (the person
+restores from Archived), and nesting depth in the topic list (the shared `MultiSelect` is flat, depth shows in the
+label). Known defects left: the open topic list covers the footer buttons at 1280 px in light mode until Escape (shared
+component), and the topic picker offers "Create topic X" next to a partial match. The 20 existing cases of
+`add-prompts.test.tsx` (the plan said 22) are all kept: only assertions that pinned the old wire format, the old inline
+findings and the old quota note changed (create body without `prompt_type`; lint body in the `items` shape; the quota and
+findings facts now read from the check list and plan block; case 6 title extended; a `{Escape}` step after picking a topic;
+result view copy). Checks: unit and component tests beside the files, and the end to end flows in
+`apps/web/e2e/flows/ai-add-prompts.spec.ts` (create a topic on submit, pick an existing one, failed add, Undo, N, axe at
+1280 and 390 in light and dark).
+
 **As built (AI visibility WP-32, 2026-11-14): overview aggregates and competitors.** The seven routes the AI
 Overview reads are built: `GET {P}/ai/metrics/overview` and `GET {P}/overview/ai` (one body), `GET
 {P}/ai/metrics/{metric}` with its `series` (weekly, the summary's pooling reused) and `breakdown` (eight dimensions),

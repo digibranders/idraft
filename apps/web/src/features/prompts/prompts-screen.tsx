@@ -19,7 +19,8 @@ import Link from 'next/link';
 import { parseAsString, useQueryStates } from 'nuqs';
 import { Fragment, useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 
-import { AddPromptsDialog } from './add-prompts-dialog';
+import { useJustAdded } from './add/just-added-store';
+import { useAddPrompts } from './add/use-add-prompts';
 import { AiCollectionStatus } from './ai-collection-status';
 import { AnswerInspector } from './answer-inspector';
 import {
@@ -200,7 +201,6 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   const locale = useLocale();
   const canWrite = useCan('prompts:write');
   const { permissions } = useMembership();
-  const [addOpen, setAddOpen] = useState(false);
   const scope = useMemo((): PromptScope => ({ workspaceId, projectId: project.id }), [workspaceId, project.id]);
   const [view, setView] = useQueryStates(VIEW_STATE, { history: 'replace' });
   const tab = parseTab(view.tab);
@@ -565,13 +565,16 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     else inspector.open({ type: 'topic', id: key }, { tab });
   };
 
-  // Add prompts, from the header (no topic) or from a topic's menu (that topic chosen). The form is made once, so a
-  // new topic is a new dialog
-  const [addTopic, setAddTopic] = useState<string | null>(null);
-  const openAdd = (termId: string | null): void => {
-    setAddTopic(termId);
-    setAddOpen(true);
-  };
+  // Add prompts: the header entry, `N`, the empty states, a topic's menu and drawer, and the dialog (add/use-add-prompts)
+  const add = useAddPrompts({
+    scope,
+    project,
+    engines: engines.data === undefined ? undefined : enabled,
+    canWrite,
+    existing: list.rows,
+  });
+  // The prompts an add has just created, tinted for a few seconds
+  const justAdded = useJustAdded();
   /** The Prompts tab with this topic as its topic filter, the other filters, the window and the country kept. */
   const showInPrompts = (key: string): void => {
     void setValues({ ...values, topic: { kind: 'enum', values: [key] } });
@@ -620,14 +623,14 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
             },
           ]
         : []),
-      ...(canWrite && real && engines.data !== undefined
+      ...(add.canAdd && real
         ? [
             {
               id: 'add-prompt',
               label: t('rowMenu.addPrompt'),
               icon: Plus,
               group: 'object' as const,
-              run: () => openAdd(target.key),
+              run: () => add.openAdd(target.key),
             },
           ]
         : []),
@@ -695,21 +698,6 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     }
     return summary.isFetching || list.fetching ? 'refetching' : 'ready';
   })();
-
-  // Not before the engines are known: the dialog takes the enabled ones
-  const addButton =
-    canWrite && engines.data !== undefined ? (
-      <Button variant="primary" size="sm" icon={Plus} onClick={() => openAdd(null)}>
-        {t('addPrompts')}
-      </Button>
-    ) : null;
-  // In the header row the label gives way to the icon below 640 px, and stays the button's name
-  const headerAdd =
-    addButton === null ? null : (
-      <Button variant="primary" size="sm" icon={Plus} onClick={() => openAdd(null)}>
-        <span className="sr-only sm:not-sr-only">{t('addPrompts')}</span>
-      </Button>
-    );
 
   // The views of the page, in the toolbar of whichever table is shown, so the table is drawn again when the view
   // changes and the switch with it: the focus is put back on it when the change was made from it
@@ -849,11 +837,12 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
       title={t('noPromptsTitle')}
       reason={t('noPromptsReason')}
       headingLevel={2}
-      primaryAction={addButton ?? undefined}
+      primaryAction={add.emptyActions.primary}
+      secondaryAction={add.emptyActions.secondary}
     />
   );
 
-  const showAdd = list.rows.length > 0 && headerAdd !== null;
+  const showAdd = list.rows.length > 0 && add.entry !== null;
   let content: ReactNode;
   // The filters belong to the table: the other states have nothing to filter
   let toolbar: ReactNode;
@@ -924,7 +913,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
           )}
           {extraControls}
           {moreMenu}
-          {showAdd ? headerAdd : null}
+          {showAdd ? add.entry : null}
         </div>
       </div>
     );
@@ -1060,6 +1049,8 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
                 searchPlaceholder={t('search')}
                 searchText={searchText}
                 rowName={rowName}
+                // The accent tint of the prompts an add has just created (the store lets them go after 4 seconds)
+                rowTone={(row) => (justAdded.has(row.prompt.prompt_id) ? 'own' : undefined)}
                 status={status}
                 errorState={listError}
                 emptyState={noPrompts}
@@ -1188,7 +1179,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
           projectSlug: project.slug,
           tree: topicTree,
           countryName: nameOfCountry,
-          onAddPrompt: canWrite && engines.data !== undefined ? openAdd : null,
+          onAddPrompt: add.canAdd ? add.openAdd : null,
           run: canRun ? { onRun: actions.run, blockedReason: actions.busyReason ?? listReason } : null,
         }}
         tab={topicTab}
@@ -1199,7 +1190,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     );
 
   // With neither Add prompts nor a control of the seam nothing is passed, so no wrapper is drawn
-  const addInEmpty = showAdd ? headerAdd : undefined;
+  const addInEmpty = showAdd ? add.entry : undefined;
   const emptyActions: ReactNode =
     extraControls.length === 0 ? (
       addInEmpty
@@ -1246,21 +1237,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
           {content}
         </div>
         {actions.dialogs}
-        {canWrite ? (
-          <AddPromptsDialog
-            key={addTopic ?? 'no-topic'}
-            scope={scope}
-            open={addOpen}
-            onOpenChange={setAddOpen}
-            engines={enabled}
-            existing={list.rows}
-            defaults={{
-              languageCode: project.defaultLanguage,
-              countryIso: project.defaultCountryIso,
-              termId: addTopic,
-            }}
-          />
-        ) : null}
+        {add.dialog}
       </InspectorLayout>
     </ComparedWindowProvider>
   );

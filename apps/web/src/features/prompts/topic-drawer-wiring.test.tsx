@@ -270,7 +270,8 @@ describe('the topic drawer: Add prompt and Run now', () => {
     const panel = await drawer('Paid Search');
     await user.click(await within(panel).findByRole('button', { name: 'Add prompt' }));
     const dialog = await screen.findByRole('dialog', { name: 'Add prompts' });
-    expect(within(dialog).getByRole('combobox', { name: /Topic/ })).toHaveTextContent('Paid Search');
+    // The topic is a chip of the topic picker now, not the text of a select
+    expect(await within(dialog).findByText('Paid Search')).toBeInTheDocument();
   });
 
   it('asks first and starts the prompts of the topic', async () => {

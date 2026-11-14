@@ -349,8 +349,11 @@ describe('prompts', () => {
       await editor.call('POST', `${FYNIX}/prompts/lint`, { texts: [ROCKET.repeat(700), ROCKET.repeat(701)] }),
       LINT,
     );
-    expect(lint[0]?.warnings).toEqual([]);
-    expect(lint[1]?.warnings.map((warning) => warning.engine_code)).toEqual(['google_ai_mode']);
+    // The rules that read the text run for every body (one emoji is one word, so word_count fires on both)
+    const limits = (index: number): (string | null)[] =>
+      (lint[index]?.warnings ?? []).filter((warning) => warning.rule === 'engine_limit').map((w) => w.engine_code);
+    expect(limits(0)).toEqual([]);
+    expect(limits(1)).toEqual(['google_ai_mode']);
   });
 
   it('bulk-creates to the 150 prompt limit, skips what is tracked, rejects what cannot be saved', async () => {
@@ -425,9 +428,12 @@ describe('prompts', () => {
           message: 'Names Fynix. Answers to a branded prompt are left out of the rates unless they are asked for.',
           span: { start: 3, end: 8 },
         },
+        // Four words: the rules that read the text run for a body without a language too
+        { rule: 'word_count', severity: 'warning', engine_code: null },
       ],
     });
     expect(lints[1]?.warnings).toEqual([
+      expect.objectContaining({ rule: 'word_count', severity: 'warning', engine_code: null }),
       expect.objectContaining({ rule: 'engine_limit', severity: 'warning', engine_code: 'google_ai_mode' }),
     ]);
     expect(QUOTA.parse(answer.body.quota)).toEqual({ limit: PROMPT_QUOTA, used: 24 });
