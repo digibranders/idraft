@@ -424,6 +424,41 @@ The wireframes below define structure. For the finished visual quality of sectio
 
 [20-frontend-specification.md](../20-frontend-specification.md) section 5.2 lists 12 SEO tiles. They are distributed here: visibility, top 10 and AIO citation in S1; rank distribution (which carries top 3, top 20 and the full bucket histogram) in S2; equal-weight visibility, average rank and estimated clicks in the Visibility item's inspector and on the Rankings strip.
 
+### 9.2a AI visibility Overview (T1, customizable)
+
+As built by WP-33 (decision D-20 of the AI visibility work: the wireframe of the Overview, copied here). Route `/[workspace]/[project]/ai`, sidebar group AI Visibility, entry Overview. It is the Overview of 9.2 with the AI channel only, the same customization (cards in 12 columns, a numbers zone of up to 6, Start from presets) and a scope bar of its own. Where the inventory (`ai-visibility/inventory/overview-and-charts.md` section 3.3) draws the filter bar above the notice region, this page follows 9.2 and the approved preview: the notice region, then the numbers, then the filter bar.
+
+```text
+| AI visibility  [Customizing]                                  [Customize] [Export v] [...]           |
+| AI updated Nov 12, 02:10 · 250 prompts · 3 engines                                                   |
++------------------------------------------------------------------------------------------------------+
+| (notice region: setup checklist slot, or one Banner, never two)                                      |
++------------------+------------------+------------------+------------------+--------------------------+
+| Prompts          | Mention rate     | Mention rate     | Mention rate     |                          |
+| 250              | ChatGPT 34%      | Gemini 29%       | AI Mode          |  0 to 6 numbers          |
+| in 13 topics     | 612 of 1,800     | 402 of 1,296     | Not asked        |                          |
++------------------+------------------+------------------+------------------+--------------------------+
+| [vs previous period v] [Engines: 3 of 3 v] [Branded: Excluded x] [+ Filter]        (RefetchBar 2 px) |
++------------------------------------------------------------------------------------------------------+
+| Card grid, 12 columns, widths third, half, two thirds, full; Add card slot in customize mode         |
++------------------------------------------------------------------------------------------------------+
+| Save bar (customize mode only): Undo Redo, Start from, Reset to default, Cancel, Save layout         |
+```
+
+| Region | Component | Notes |
+|---|---|---|
+| Header | `PageHeader` with `titleAddon` (`CustomizingBadge`), `meta`, actions Customize, Export, More | The badge is outside the heading. Actions in this order; Create report joins them with Reports (WP-51) |
+| Meta | `FreshnessIndicator`, then the prompts and the engines of the scope | The `PageHeader` rule of 25 holds: freshness first, at most two middle dots. The window is not in the meta: it lives in the top bar and in every tooltip and the export. Freshness is a fact of the project (its newest answer in the last 92 days), so it does not move with the window |
+| Notice region | The setup checklist (a slot the route fills, left out where an empty state says the same step), or one `Banner` `placement="region"` | One Banner at a time, in this order: paused schedules or first answers pending, invalid answers, newest valid answer older than 5 days. No banner is a toast |
+| Numbers | `NumberStrip` over `MetricStrip` `md` | A number is a link when its destination is live; an engine that is off or outside the filter says so and is never 0 |
+| Filter bar | Compare menu, Engines control, `FilterBar` with the Branded chip (default "Branded: Excluded") and "+ Filter" for Topic | Date range and country are in the top bar (13 section 4) |
+| Cards | `CustomizableGrid`; a card is a `ChartFrame` | Every card keeps its height through loading, empty, error and refetch |
+| Save bar | `LayoutSaveBar` | Part of the screen; closes it |
+
+**Phones.** Below 768 px the page is display only: Customize, the save bar and the `c` shortcut are absent, and the saved layout shows as one column in its order. The filter bar is one Filters button with a count badge that opens a sheet holding the same controls (the window and the country move into it). `e` still opens the Export menu at every width.
+
+**States.** No engine on (or the engines could not be read): a body empty state with the action by role (Settings > Engines with `projects:write`, else "Ask a workspace admin"), and no strip or grid. Engines on and no prompts: a body empty state with "Open Topics and prompts". A country with no prompts: the strip and the grid are replaced by an empty state with "Clear location" and the scope bar stays. Before the first collection or with paused schedules: an info Banner and the strip says "No valid answers" where it has none. Loading: the strip keeps its labels with bars for values and each card its own skeleton at its final height; no spinner. A scope change keeps the values, sets `aria-busy` and shows a 2 px `RefetchBar` under the filter bar after 150 ms. A failed summary: one error row with Retry in place of the numbers while the cards keep their own states. In customize mode a card the project cannot show is a placeholder with its reason, and view mode leaves it out.
+
 ### 9.3 Rank Tracker (T2)
 
 Route `/seo/rankings`. Default state with the inspector closed:

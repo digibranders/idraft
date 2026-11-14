@@ -583,11 +583,11 @@ What the shell provides, all in `apps/web/src/features/ai-overview/` (a card is 
 
    `cards/registry.ts` spreads the five family maps over the pending placeholders, so a card replaces its placeholder by being listed. Default export of a card file: `ComponentType<CardProps>`. Skeleton at the card's final height.
 3. **Card props** (`CardProps` of `@/features/layouts`): `item`, `options` (sanitized, every key present), `width`, `mode`, `live`. A card passes `subscribed: live` to its queries, renders inside `inert` in customize mode, and never stores a topic, a competitor or a keyword in its options (options are project agnostic).
-4. **Scope and context.** `useOverview()` gives `{ workspaceId, workspaceSlug, project, scope, enabledEngines, canManageEngines }`; `scope` is the `OverviewScope` of 3.2 and is the only scope a card may use (R12). A card never reads the URL itself.
-5. **Reads.** Cards read only through `useOverviewSummary({ include?, rows? })`, `useOverviewPeriods(options)`, `useOverviewSources(options)`, `useOverviewFanout()`, `useOverviewEngines()`, `useOverviewSchedule()` (3.3). Same options means one request (shared key). `include` values: `series`, `entities` (CH-01, CH-19), `rows: 'topics'` (the topic cards), `cells`, `total` and `co_mentions` are not served by the mock yet: a card that needs them asks the owner of `prompt-answers.ts` (WP-20, lease) before using them, and the swap to server totals is follow-up F1. Aggregates: `buildAggregates` and `OverviewAggregates` give project level figures with the same arithmetic as the strip.
+4. **Scope and context.** `useOverview()` gives `{ workspaceId, workspaceSlug, project, scope, setScope, dropped, engines, enabledEngines, canManageEngines, canViewRuns }`; `scope` is the `OverviewScope` of 3.2 and is the only scope a card may use (R12). A card never reads the URL itself.
+5. **Reads.** Cards read only through `useOverviewSummary({ include?, rows? })`, `useOverviewPeriods(options)`, `useOverviewSources(options)`, `useOverviewFanout()`, `useOverviewEngines()`, `useOverviewSchedule()` (3.3). Same options means one request (shared key). Every read takes `{ subscribed }` (default true): a card passes the `live` of its `CardProps`, and while it is false the read asks nothing and shows the data it has for this scope, or is `idle` (customize mode, out of view). `useOverviewPeriods` also returns `paired`: true when the two windows answer for the same scope (each is `ready` or refetched for the same scope, or there is no previous read by design). A scope change keeps the last data of each read and the two settle separately, so for a moment one window can be the new scope and the other the old one; a caller of `buildAggregates` passes `previous: null` while `paired` is false, so a change between two scopes is never drawn. It also returns `settled` (no read shows the last scope's data in place of this one's: show loading, not empty) and `busy`. `Read.placeholder` marks data kept from the last scope. `include` values: `series`, `entities` (CH-01, CH-19), `rows: 'topics'` (the topic cards), `cells`, `total` and `co_mentions` are not served by the mock yet: a card that needs them asks the owner of `prompt-answers.ts` (WP-20, lease) before using them, and the swap to server totals is follow-up F1. Aggregates: `buildAggregates` and `OverviewAggregates` give project level figures with the same arithmetic as the strip.
 6. **Frames and states.** Charts and html cards use `ChartFrame` (`kind="html"` for lists, tables and bars) so title, meta, legend, Table toggle, menu, footnote, stale and partial notices, empty, error and refetch look alike. Status mapping: `Read.status` loading/ready/refetching/error to `ChartStatus`; `Read.stale` to the `stale` notice. Empty reasons teach (inventory section 12). Heights from DS 15.
-7. **Drill-down.** `drillHref(kind, scope, extra)` returns a `Route` or `null` (destination not live): render plain text on `null`. Never build a link to a page by hand.
-8. **Export.** A card with a Table view calls `useExportBlock(id, () => block | null)`; the Export menu includes its block when it is ready.
+7. **Drill-down.** `drillHref(kind, scope, extra, { workspace, project }, support?)` returns a `Route` or `null` (destination not live, or it cannot show the scope): render plain text on `null`. `support` defaults to `DRILL_SUPPORT`, which says which destinations read outcome and opportunity parameters (none yet). Never build a link to a page by hand.
+8. **Export.** A card with a Table view calls `useExportBlock(layoutItemId, getBlock)`, where the block id is the layout item id (`item.id` of `CardProps`, not the catalog key, so two instances of one type export two blocks) and `getBlock` returns the block or `null` while the card is still loading; one that throws fails the whole export. The Export menu includes the block when it is ready and counts the ones that were not in a note row.
 9. **Numbers.** Card packages do not add numbers. A new number type is a catalog edit (lease) plus a builder in `numbers/number-model.ts` (a lease on this package's file).
 10. **Messages.** Own sub-namespace of `aiOverview`: WP-34 `engines`, WP-35 `competitors`, WP-36 `topics`, WP-37 `sources` (WP-37's `activity` cards use `sources` too; ask before adding a sixth).
 11. **Tests.** `src/test/ai-overview-harness.tsx` renders a card inside `OverviewProvider`, `CustomizableScreen` and the grid with a scope and a world (Fynix, Eventus); component tests need `@/test/next-navigation` and the harness. A card's test proves its states (loading, empty, error, stale, partial, refetching) and that its numbers equal the strip's for the same scope.
@@ -689,3 +689,44 @@ folders (except L9), `design-preview/*`, tracker files, the main checkout, `.cla
 - F11: finer catalog groups (AI, Topics, Competitors, Sources, Activity) with the owner.
 - F12: stored named layouts instead of code presets, if the owner changes D-01.
 - F13: undo step names in the Undo tooltip (WP-16 F1) and the per card Window option if D-13 changes.
+
+## 13. As built
+
+Built on the branch `ai/wp-33-overview-shell` (worktree `.claude/worktrees/ai-wp-02-web-scaffold-ca73e6`), rebased on `develop`. The as built description of the page is the section "As built (WP-33)" at the end of `docs/ai-visibility/inventory/overview-and-charts.md`, the template is DS 24 section 9.2a. Every task was a fresh implementer followed by a reviewer, so most tasks have a second commit of review fixes. Commits (`git log --grep WP-33`):
+
+| Task | Commits |
+|---|---|
+| Plan, leases | `64ee2e77` (leases and plan choices), `c71b1038` (this plan) |
+| T1 scope model and URL state | `360ebf5a` |
+| T2 `ai_overview` screen definition and card catalog | `cbb73495`, `17889ca4` (review fixes) |
+| T3 reads and hooks | `c5a7809e` |
+| T4 aggregates | `b3f1efe4`, `96133be3` (T3 and T4 review fixes) |
+| T6 presets (before T5, as the plan allows) | `0aee039d` |
+| T5 route, screen shell and card registry | `98474442` |
+| T6 presets in the screen, Start from, milestone M1 | `e523954b`, `600c758e` (shell review fixes), `90a67822` (the shared compare helper of WP-19) |
+| T10 drill-down helpers | `7cac8254`, `af6f4d03` (range fix), `ff78f804` (kind for a prompt) |
+| T11 export model and block registry | `0a8cf063`, `b819886e` (review fixes) |
+| T8 numbers zone | `38e8e2da`, `0fdd4b64` (export test counts the note rows from the end), `634b43a4` (review fixes) |
+| `subscribed` option on the reads | `a6af5ed1`, `3c89a6b8` (the country read) |
+| T7 scope bar | `e2d68296`, `0eb47809` (review fixes), `2413ef1d` (rate trend card test follows the `paired` rule) |
+| T10b links on the numbers | `0592ad36` |
+| T9 notices, empty states, freshness, refetch bar | `e885bed0`, `6fc2ab96` (the invalid answers notice needs a threshold) |
+| T11b Export menu and shortcuts | `8670e1d8`, `bf5a2af0` (export reads and copy review fixes) |
+| T12 navigation live and e2e part 1 | `4a1fbd20`, `ee505850` (tooltip on linked numbers) |
+| T13 As built notes | `WP-33: As built notes` (the commit that carries this section) |
+| T13 e2e part 2 | `WIP: WP-33 e2e part 2 (not run)`: 11 tests written, typed and linted, not yet run in a browser |
+
+Differences from the plan as written:
+
+1. The order of the tasks changed (T8 numbers before T7 scope bar, T9 and T10b after, T11 split into the model and the menu), and the milestone M1 push came after T6 as planned. Reviews moved some fixes into later commits.
+2. `useOverviewFreshness` is a separate read over the last 92 days (T9 follow-up): the T5 meta line bound "AI updated" to the window, which is wrong for a 7 day window, and the overview route of WP-32 has the same binding.
+3. The invalid answers notice needs 20 percent of an engine's answers and at least 5 of them (T9 follow-up), not any invalid answer.
+4. The reads take explicit input and a `subscribed` option, and the hooks the cards see are the ones bound in `overview-context.tsx`; the contract text of section 5 was corrected above (`drillHref` signature, the export block id is the layout item id, `subscribed`, `paired`, `settled`, `Read.placeholder`).
+5. `parseCompare` and the compare window come from the shared `lib/compare` of WP-19 (`90a67822`), not from the local copy of T1.
+6. WP-32's `ai/metrics/overview` and `overview/ai` are real on `develop` now. The swap of the numbers to them is a follow-up behind the same seam (follow-up F2), together with `ai/competitors` for WP-35.
+7. All four card families have cards on `develop`, so the e2e asserts the built-in layout with real cards: it checks a card by its title and a finished state, never its contents.
+8. Part 2 of the e2e found that `e` opens the Export menu at 390 px as well as at 1280 px (the Export button is in the header at every width); only `c` and Customize are absent below 768 px. The test pins that.
+9. The e2e cannot show a notice with an action (the invalid answers Banner has "View runs") or a stale Banner: the mock world has no failed run and no old answers. The thresholds are unit tests; the Tab walk is checked with no notice.
+10. A project with AI off shows the no engine state in view mode, so "skipped in view" is checked as: no grid and no unavailable card is drawn; the placeholders are checked in customize mode.
+
+Checks: see the final report of the task; the e2e files are `e2e/flows/ai-overview.spec.ts` (25 tests) and `e2e/support/ai-overview.ts`.
