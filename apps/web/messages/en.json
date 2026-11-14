@@ -6627,7 +6627,45 @@
     "emptyNoneReason": "{answers, plural, one {# {engine} answer was} other {# {engine} answers were}} collected in this window, and none issued a query.",
     "emptyUnderMinTitle": "No query was issued by {min, plural, one {# answer} other {# or more answers}}",
     "emptyUnderMinReason": "Queries issued by fewer answers are left out. Lower the minimum or choose a longer window.",
-    "showEvery": "Show every query"
+    "showEvery": "Show every query",
+    "columns": {
+      "query": "Query",
+      "timesUsed": "Times used",
+      "new": "New",
+      "prompts": "Prompts",
+      "lastSeen": "Last seen",
+      "cited": "Cited in the same answers"
+    },
+    "timesUsed": "In {count, number} of {total, plural, one {# {engine} answer} other {# {engine} answers}}",
+    "timesUsedTip": "{count, plural, one {# answer} other {# answers}} issued this query, of {total, plural, one {# valid answer} other {# valid answers}} on {engine} in this window.",
+    "promptsCount": "{count, plural, one {# prompt} other {# prompts}}",
+    "newBadge": "New in window",
+    "newTip": "First seen {date}. Not issued in the {days, number} days before this window.",
+    "citedLabel": "{count, plural, one {# domain} other {# domains}} cited in the same answers, show them",
+    "citedTitle": "Cited in the same answers",
+    "citedAssociation": "These domains were cited in answers that issued this query. The data does not say which query found which source.",
+    "citedNone": "None cited",
+    "citedUnits": "{units, plural, one {# unit} other {# units}}",
+    "minLabel": "Fewest answers",
+    "minOption": "{count, plural, one {At least # answer} other {At least # answers}}",
+    "minNote": "Queries issued by fewer answers are left out. The counts above do not change.",
+    "caption": "Fan-out queries",
+    "itemNoun": {
+      "one": "query",
+      "other": "queries"
+    },
+    "search": "Search queries",
+    "showMore": "Show more queries",
+    "showing": "{shown, number} of {total, number} queries",
+    "strip": {
+      "label": "Fan-out summary",
+      "withFanout": "Answers with fan-out",
+      "withFanoutContext": "{k, number} of {n, plural, one {# {engine} answer} other {# {engine} answers}}",
+      "withFanoutTip": "{k, number} of {n, plural, one {# valid {engine} answer} other {# valid {engine} answers}} issued at least one query (docs/16 F1).",
+      "noAnswers": "No valid {engine} answer in this window.",
+      "listed": "Queries listed",
+      "listedContext": "issued by at least {min, plural, one {# answer} other {# answers}}"
+    }
   },
   "competitors": {},
   "discover": {},
