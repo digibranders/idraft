@@ -108,7 +108,14 @@ export function ExportButton({ source, scope, previousMeta, engines, range }: Ex
 
   return (
     <Tooltip content={reason ?? ''} disabled={reason === null}>
-      <Button variant="secondary" icon={Download} disabled={reason !== null} focusableWhenDisabled onClick={exportRows}>
+      <Button
+        variant="secondary"
+        size="sm"
+        icon={Download}
+        disabled={reason !== null}
+        focusableWhenDisabled
+        onClick={exportRows}
+      >
         {t('export')}
       </Button>
     </Tooltip>

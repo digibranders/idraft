@@ -7,12 +7,7 @@ import type { Route } from 'next';
 import { useCallback, useEffect, useMemo, useState, type ReactElement } from 'react';
 
 import { DEFAULT_MIN_SUPPORT, DEFAULT_SORT } from './citation-scope';
-import {
-  CitationEmptyState,
-  CitationFilteredEmptyState,
-  CitationTableNotes,
-  resolveTableStatus,
-} from './citation-table-states';
+import { CitationEmptyState, CitationFilteredEmptyState, resolveTableStatus } from './citation-table-states';
 import type { CitationTabContext } from './citation-tabs';
 import type { ExportSource } from './citations-export';
 import { LoadFailed } from './citations-states';
@@ -26,6 +21,8 @@ import { useExpandedPages } from './use-expanded-pages';
 import { DataTable } from '@/components/app/data-table/data-table';
 import { ListTableSwitch } from '@/components/app/data-table/data-table-list';
 import type { RecordAction, RowTree } from '@/components/app/data-table/types';
+import { Banner } from '@/components/app/status/banner';
+import { Button } from '@/components/ui/button';
 import { useErrorId } from '@/lib/api/use-error-id';
 import { entitiesQuery } from '@/lib/citations/entities-query';
 import { sourceDomainsQuery, type DomainInclude } from '@/lib/citations/source-queries';
@@ -66,6 +63,7 @@ export function DomainsTab({ context }: DomainsTabProps): ReactElement {
     context;
   const { filterBar, inspect } = context;
   const tt = useTranslations('citations.table');
+  const common = useTranslations('common');
   const inspectorWords = useTranslations('citations.inspectors.domain');
   const locale = useLocale();
   // The tab asks nothing while another one is shown, or before the engines are known: with none listed the scope
@@ -275,19 +273,27 @@ export function DomainsTab({ context }: DomainsTabProps): ReactElement {
     </>
   );
 
+  const footerNote =
+    read.data !== undefined && total > domains.length
+      ? tt('truncatedFooter', { shown: domains.length, total })
+      : undefined;
+
   // The tab scrolls as a whole when the strip above leaves the table under 20rem (a phone), so it is never squeezed away
   return (
     <div className="flex flex-col gap-3 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
-      <CitationTableNotes
-        meta={meta}
-        compare={scope.compare}
-        refreshFailed={refreshFailed}
-        refetching={read.isFetching}
-        onRetry={() => void read.refetch()}
-        truncated={
-          read.data !== undefined && total > domains.length ? tt('truncated', { shown: domains.length, total }) : null
-        }
-      />
+      {refreshFailed ? (
+        <Banner
+          tone="warning"
+          placement="region"
+          live
+          message={tt('refreshFailed')}
+          actions={
+            <Button variant="secondary" size="sm" loading={read.isFetching} onClick={() => void read.refetch()}>
+              {common('retry')}
+            </Button>
+          }
+        />
+      ) : null}
       <div className="flex h-96 min-h-80 flex-col lg:h-auto lg:flex-1">
         {layout.mode === 'list' ? (
           <DomainList
@@ -298,6 +304,7 @@ export function DomainsTab({ context }: DomainsTabProps): ReactElement {
             onSearchChange={setQuery}
             activeRowId={activeRowId}
             toolbarEnd={toolbarEnd}
+            footerNote={footerNote}
             errorState={errorState}
             emptyState={emptyState}
             filteredEmptyState={filteredEmptyState}
@@ -318,6 +325,7 @@ export function DomainsTab({ context }: DomainsTabProps): ReactElement {
             compactToolbar
             columnGroups
             toolbarEnd={toolbarEnd}
+            footerNote={footerNote}
             density={scope.density}
             onDensityChange={(next: Density) => setSearch({ density: next === DEFAULT_DENSITY ? null : next })}
             columnState={{

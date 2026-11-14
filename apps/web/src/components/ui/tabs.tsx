@@ -40,6 +40,8 @@ export interface TabsProps<TValue extends string> extends Omit<
    * ("More tabs"). Without it every tab stays in the row.
    */
   overflowLabel?: string | undefined;
+  /** Custom slot for placing the tab list (e.g. inside a toolbar). */
+  renderList?: ((list: ReactElement) => ReactNode) | undefined;
 }
 
 /** The label with an unseen heavier copy under it, so the tab has the same width whether chosen or not. */
@@ -158,6 +160,7 @@ export function Tabs<TValue extends string>({
   className,
   listClassName,
   overflowLabel,
+  renderList,
   ...props
 }: TabsProps<TValue>): ReactElement {
   const underline = variant === 'underline';
@@ -195,6 +198,43 @@ export function Tabs<TValue extends string>({
       ) : null}
     </TabsPrimitive.List>
   );
+  const listElement = overflowing ? (
+    <div ref={row} className={cn('relative flex items-center gap-6 border-b border-border', listClassName)}>
+      {list}
+      {/* shortcut: a disabled tab that does not fit is left out of the menu, which cannot show a disabled item without a reason; no tab is disabled where this is used */}
+      {hiddenItems.length === 0 ? null : (
+        <Menu
+          trigger={<IconButton icon={Ellipsis} size="icon-sm" label={overflowLabel} className="shrink-0" />}
+          items={hiddenItems
+            .filter((item) => item.disabled !== true)
+            .map((item) => ({
+              id: item.value,
+              label: item.label,
+              detail: item.count,
+              onSelect: () => onValueChange(item.value),
+            }))}
+        />
+      )}
+      {/* A copy of every tab and of the More tabs button, out of sight and out of reach, to read their widths from */}
+      <div
+        ref={probe}
+        aria-hidden="true"
+        inert
+        className="pointer-events-none invisible absolute top-0 left-0 flex h-0 w-max max-w-full gap-6 overflow-hidden"
+      >
+        {items.map((item) => (
+          <span key={item.value} data-measure="tab" className={UNDERLINE_TAB}>
+            <UnderlineTabContent item={item} />
+          </span>
+        ))}
+        <span data-measure="more">
+          <IconButton icon={Ellipsis} size="icon-sm" label={overflowLabel} />
+        </span>
+      </div>
+    </div>
+  ) : (
+    list
+  );
   return (
     <TabsPrimitive.Root
       data-slot="tabs"
@@ -206,43 +246,7 @@ export function Tabs<TValue extends string>({
       }}
       className={cn('flex min-w-0 flex-col', className)}
     >
-      {overflowing ? (
-        <div ref={row} className={cn('relative flex items-center gap-6 border-b border-border', listClassName)}>
-          {list}
-          {/* shortcut: a disabled tab that does not fit is left out of the menu, which cannot show a disabled item without a reason; no tab is disabled where this is used */}
-          {hiddenItems.length === 0 ? null : (
-            <Menu
-              trigger={<IconButton icon={Ellipsis} size="icon-sm" label={overflowLabel} className="shrink-0" />}
-              items={hiddenItems
-                .filter((item) => item.disabled !== true)
-                .map((item) => ({
-                  id: item.value,
-                  label: item.label,
-                  detail: item.count,
-                  onSelect: () => onValueChange(item.value),
-                }))}
-            />
-          )}
-          {/* A copy of every tab and of the More tabs button, out of sight and out of reach, to read their widths from */}
-          <div
-            ref={probe}
-            aria-hidden="true"
-            inert
-            className="pointer-events-none invisible absolute top-0 left-0 flex h-0 w-max max-w-full gap-6 overflow-hidden"
-          >
-            {items.map((item) => (
-              <span key={item.value} data-measure="tab" className={UNDERLINE_TAB}>
-                <UnderlineTabContent item={item} />
-              </span>
-            ))}
-            <span data-measure="more">
-              <IconButton icon={Ellipsis} size="icon-sm" label={overflowLabel} />
-            </span>
-          </div>
-        </div>
-      ) : (
-        list
-      )}
+      {renderList !== undefined ? renderList(listElement) : listElement}
       {children}
     </TabsPrimitive.Root>
   );

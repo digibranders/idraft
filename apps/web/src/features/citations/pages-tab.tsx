@@ -6,12 +6,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import { useCallback, useEffect, useMemo, useState, type ReactElement } from 'react';
 
 import { DEFAULT_MIN_SUPPORT, DEFAULT_SORT } from './citation-scope';
-import {
-  CitationEmptyState,
-  CitationFilteredEmptyState,
-  CitationTableNotes,
-  resolveTableStatus,
-} from './citation-table-states';
+import { CitationEmptyState, CitationFilteredEmptyState, resolveTableStatus } from './citation-table-states';
 import { LoadFailed } from './citations-states';
 import type { CitationTabContext } from './citation-tabs';
 import type { ExportSource } from './citations-export';
@@ -211,35 +206,43 @@ export function PagesTab({ context }: PagesTabProps): ReactElement {
     </>
   );
 
+  const footerNote =
+    read.data !== undefined && total > pages.length
+      ? tt('truncatedPagesFooter', { shown: pages.length, total })
+      : undefined;
+  const refreshFailed = read.isError && read.data !== undefined;
+  const citedWithFailed = cited.isError;
+
   // The tab scrolls as a whole when the card above the table and the notes leave it under 20rem, so the table is never squeezed away
   return (
     <div className="flex flex-col gap-3 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
       <NoOwnPage context={context} />
-      <CitationTableNotes
-        meta={meta}
-        compare={scope.compare}
-        // A refresh that failed leaves the rows of the last read on screen: say so, with a way to ask again
-        refreshFailed={read.isError && read.data !== undefined}
-        refetching={read.isFetching}
-        onRetry={() => void read.refetch()}
-        truncated={
-          read.data !== undefined && total > pages.length ? tt('truncatedPages', { shown: pages.length, total }) : null
-        }
-      >
-        {cited.isError ? (
-          <Banner
-            tone="warning"
-            placement="region"
-            live
-            message={tt('citedWithFailed')}
-            actions={
-              <Button variant="secondary" size="sm" loading={cited.isFetching} onClick={() => void cited.refetch()}>
-                {common('retry')}
-              </Button>
-            }
-          />
-        ) : null}
-      </CitationTableNotes>
+      {refreshFailed ? (
+        <Banner
+          tone="warning"
+          placement="region"
+          live
+          message={tt('refreshFailed')}
+          actions={
+            <Button variant="secondary" size="sm" loading={read.isFetching} onClick={() => void read.refetch()}>
+              {common('retry')}
+            </Button>
+          }
+        />
+      ) : null}
+      {citedWithFailed ? (
+        <Banner
+          tone="warning"
+          placement="region"
+          live
+          message={tt('citedWithFailed')}
+          actions={
+            <Button variant="secondary" size="sm" loading={cited.isFetching} onClick={() => void cited.refetch()}>
+              {common('retry')}
+            </Button>
+          }
+        />
+      ) : null}
       <div className="flex h-96 min-h-80 flex-col lg:h-auto lg:flex-1">
         {layout.mode === 'list' ? (
           <PageList
@@ -250,6 +253,7 @@ export function PagesTab({ context }: PagesTabProps): ReactElement {
             onSearchChange={setQuery}
             activeRowId={activeRowId}
             toolbarEnd={toolbarEnd}
+            footerNote={footerNote}
             errorState={errorState}
             emptyState={emptyState}
             filteredEmptyState={filteredEmptyState}
@@ -270,6 +274,7 @@ export function PagesTab({ context }: PagesTabProps): ReactElement {
             compactToolbar
             columnGroups
             toolbarEnd={toolbarEnd}
+            footerNote={footerNote}
             density={scope.density}
             onDensityChange={(next: Density) => setSearch({ density: next === DEFAULT_DENSITY ? null : next })}
             columnState={{

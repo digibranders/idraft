@@ -78,6 +78,7 @@ export interface ListChrome {
   errorState: ReactNode;
   emptyState: ReactNode;
   filteredEmptyState: ReactNode;
+  footerNote?: string | undefined;
 }
 
 export interface CitationListShellProps<TRow extends RowData> extends ListChrome {
@@ -108,6 +109,7 @@ export function CitationListShell<TRow extends RowData>({
   errorState,
   emptyState,
   filteredEmptyState,
+  footerNote,
 }: CitationListShellProps<TRow>): ReactElement {
   const table = useTranslations('dataTable');
   return (
@@ -119,6 +121,7 @@ export function CitationListShell<TRow extends RowData>({
       total={rows.length}
       getRowId={getRowId}
       sort={NO_SORT}
+      footerNote={footerNote}
       // The tab searched the rows already, by their names
       search=""
       line1={(row) => firstLine(lines(row))}

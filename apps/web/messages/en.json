@@ -6502,7 +6502,8 @@
     "compare": {
       "label": "Compare with",
       "previous": "vs previous period",
-      "off": "No comparison"
+      "off": "No comparison",
+      "noPrevious": "No answers in the previous period"
     },
     "minSupport": {
       "label": "Fewest citation units",
@@ -6616,7 +6617,9 @@
         "other": "pages"
       },
       "truncated": "The {shown, number} most cited domains are listed of {total, number}. Raise the minimum or narrow the filters.",
+      "truncatedFooter": "{shown, number} of {total, number} domains. Raise the minimum to see more",
       "truncatedPages": "The {shown, number} most cited pages are listed of {total, number}. Raise the minimum or narrow the filters.",
+      "truncatedPagesFooter": "{shown, number} of {total, number} pages. Raise the minimum to see more",
       "noPrevious": "The previous period has no answers, so nothing is marked New.",
       "emptyMinimum": "Lower the fewest citation units to see more rows.",
       "refreshFailed": "The list could not be refreshed. The rows shown are from the last read."
@@ -6698,6 +6701,7 @@
       "failed": "{kind, select, new {The new sources} other {The lost sources}} could not be loaded.",
       "countFailed": "The count of {kind, select, new {new} other {lost}} sources could not be loaded.",
       "truncated": "The {limit, number} sources with the most units are listed of {total, number}. Raise the minimum or narrow the filters.",
+      "truncatedFooter": "{limit, number} of {total, number} sources. Raise the minimum to see more",
       "columns": {
         "domain": "Domain",
         "role": "Role",
