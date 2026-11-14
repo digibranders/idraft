@@ -22,7 +22,7 @@ export interface CitationsStripProps {
  * the minimum of the tables never narrow it (the minimum is the one the New and Lost counts are read with).
  * Each figure comes from its own read, so one that fails is n/a with its reason and the rest stays.
  */
-export function CitationsStrip({ reads, scope, labelOf, size = 'inline' }: CitationsStripProps): ReactElement {
+export function CitationsStrip({ reads, scope, labelOf, size = 'md' }: CitationsStripProps): ReactElement {
   const t = useTranslations('citations.strip');
   const groups: readonly MetricStripGroup[] = [{ id: 'citations', items: stripItems(reads, scope, { t, labelOf }) }];
   return (
