@@ -213,13 +213,6 @@ export async function openSummary(page: Page): Promise<void> {
   }, GATE_GLOBAL);
 }
 
-/** The top of the first card from the top of the document, as whole pixels: what sits above the grid shows in it. */
-export async function firstCardTop(page: Page): Promise<number> {
-  return allCards(page)
-    .first()
-    .evaluate((card) => Math.round(card.getBoundingClientRect().top + window.scrollY));
-}
-
 /** The distance of each card's top from the top of the grid, in document order, as whole pixels. */
 export async function cardTops(page: Page): Promise<number[]> {
   const grid = await cardGrid(page).elementHandle();
