@@ -14,6 +14,7 @@ import { useCardEngine } from './parts/card-engine';
 import { frameSummary, useFrameState, type DataSituation, type FrameState, type ReadFacts } from './parts/frame-state';
 import { TrackedFootnote } from './parts/tracked-footnote';
 import { rankAxisOption, type RankTip } from './rank-axis';
+import { loadingBodyHeight } from './skeletons';
 import { useOverview, useOverviewSummary } from '../../overview-context';
 import { useCardMeta } from '../engines/card-meta';
 import { useCardExport } from '../engines/use-card-seams';
@@ -35,6 +36,7 @@ import { MIN_OBSERVATIONS } from '@/lib/stats';
  */
 
 const HEIGHT = 240;
+const LOADING_HEIGHT = loadingBodyHeight('ai.sov_rank');
 /** A rank needs this many brands to order. */
 const MIN_BRANDS = 3;
 const formatShare = (value: number): string => formatPercent(value, { decimals: 0 });
@@ -313,6 +315,7 @@ export default function SovRankCard({ item, options, live }: CardProps): ReactEl
         )
       }
       height={HEIGHT}
+      loadingHeight={LOADING_HEIGHT}
       summary={frameSummary(frame, summaryText)}
       categories={categories}
       categoryHeader={t('weekColumn')}

@@ -13,6 +13,7 @@ import { foldOthers, weeklyShares } from './model/weekly-series';
 import { useCardEngine } from './parts/card-engine';
 import { frameSummary, useFrameState, type DataSituation, type FrameState, type ReadFacts } from './parts/frame-state';
 import { TrackedFootnote } from './parts/tracked-footnote';
+import { loadingBodyHeight } from './skeletons';
 import { useOverview, useOverviewSummary } from '../../overview-context';
 import { useCardMeta } from '../engines/card-meta';
 import { useCardExport } from '../engines/use-card-seams';
@@ -34,6 +35,7 @@ import { MIN_OBSERVATIONS } from '@/lib/stats';
  */
 
 const HEIGHT = 280;
+const LOADING_HEIGHT = loadingBodyHeight('ai.sov_over_time');
 const OTHER_ID = 'other';
 const TOO_FEW_ID = 'too-few';
 const formatShare = (value: number): string => formatPercent(value, { decimals: 0 });
@@ -327,6 +329,7 @@ export default function SovOverTimeCard({ item, options, live }: CardProps): Rea
         )
       }
       height={HEIGHT}
+      loadingHeight={LOADING_HEIGHT}
       summary={frameSummary(frame, summaryText)}
       categories={categories}
       categoryHeader={t('weekColumn')}

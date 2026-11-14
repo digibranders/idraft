@@ -1,7 +1,7 @@
 import { render } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-import { COMPETITOR_SKELETONS, SKELETON_HEIGHTS, SKELETON_TOTALS } from './skeletons';
+import { COMPETITOR_SKELETONS, loadingBodyHeight, SKELETON_HEIGHTS, SKELETON_TOTALS } from './skeletons';
 import { CARD_TYPES } from '@/lib/layouts';
 
 /** D-13 of the plan: the height of the body of each card of the family. */
@@ -57,6 +57,34 @@ describe('the skeletons of the competitors family', () => {
   it.each(Object.entries(TOTALS))('%s is as tall as the loaded card, %s px', (key, total) => {
     expect(SKELETON_TOTALS[key]).toBe(total);
     expect(panelOf(key)).toHaveStyle({ height: `${total}px` });
+  });
+
+  /**
+   * The body a card's own loading frame reserves, by catalog key. While its read loads a card draws the border and
+   * padding (34 px), a title line (24 px) and the gap below it (12 px) around it, plus the footnote lines it already
+   * has without data: the opportunities scope notes (2 lines), the table's one note, and the co-mentions footnote
+   * element with no lines yet (still one 12 px gap).
+   */
+  const LOADING_BODIES: Record<string, number> = {
+    'ai.share_of_voice': 444,
+    'ai.lost_to_competitor': 312,
+    'ai.opportunities': 420,
+    'ai.competitor_trend': 352,
+    'ai.sov_over_time': 392,
+    'ai.sov_rank': 472,
+    'ai.co_mentions': 884,
+    'ai.competitor_table': 583,
+  };
+
+  it.each(Object.entries(LOADING_BODIES))('%s reserves %s px of body while its read loads', (key, body) => {
+    expect(loadingBodyHeight(key)).toBe(body);
+  });
+
+  it('never reserves less than the body of its frame, and throws for a key that is not in the family', () => {
+    for (const [key, body] of Object.entries(SKELETON_HEIGHTS)) {
+      expect(loadingBodyHeight(key)).toBeGreaterThanOrEqual(body);
+    }
+    expect(() => loadingBodyHeight('ai.unknown')).toThrow('ai.unknown');
   });
 
   it('is never shorter than the body its frame reserves plus the chrome of a panel', () => {

@@ -13,6 +13,7 @@ import { weeklyMention } from './model/weekly-series';
 import { useCardEngine } from './parts/card-engine';
 import { frameSummary, useFrameState, type DataSituation, type FrameState, type ReadFacts } from './parts/frame-state';
 import { TrackedFootnote } from './parts/tracked-footnote';
+import { loadingBodyHeight } from './skeletons';
 import { useOverview, useOverviewSummary } from '../../overview-context';
 import { useCardMeta } from '../engines/card-meta';
 import { useCardExport } from '../engines/use-card-seams';
@@ -36,6 +37,7 @@ import { isDetectableChange, MIN_OBSERVATIONS, wilsonInterval } from '@/lib/stat
  */
 
 const HEIGHT = 240;
+const LOADING_HEIGHT = loadingBodyHeight('ai.competitor_trend');
 const formatRate = (value: number): string => formatPercent(value, { decimals: 0 });
 
 interface DrawnBrand {
@@ -313,6 +315,7 @@ export default function CompetitorTrendCard({ item, options, live }: CardProps):
         )
       }
       height={HEIGHT}
+      loadingHeight={LOADING_HEIGHT}
       summary={frameSummary(frame, summaryText)}
       categories={categories}
       categoryHeader={t('weekColumn')}

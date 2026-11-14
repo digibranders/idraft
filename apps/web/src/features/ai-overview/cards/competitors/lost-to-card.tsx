@@ -8,6 +8,7 @@ import { lostToRows } from './model/lost-to';
 import type { LostToRead, TrackedSet } from './model/types';
 import { useCardEngine } from './parts/card-engine';
 import { frameSummary, useFrameState, type DataSituation, type FrameState } from './parts/frame-state';
+import { loadingBodyHeight } from './skeletons';
 import { useCardDensity } from '../engines/use-card-density';
 import { useCardDrill, useCardExport } from '../engines/use-card-seams';
 import { useOverview, useOverviewSummary } from '../../overview-context';
@@ -27,6 +28,7 @@ import { MIN_OBSERVATIONS } from '@/lib/stats';
 /** The `rows` option (catalog 5 or 10, default 5). */
 const ROW_OPTIONS = [5, 10] as const;
 const DEFAULT_ROWS = 5;
+const LOADING_HEIGHT = loadingBodyHeight('ai.lost_to_competitor');
 
 function rowsOf(option: string | undefined): number {
   const rows = Number(option);
@@ -130,6 +132,7 @@ export default function LostToCard({ item, options, live }: CardProps): ReactEle
       kind="html"
       variant="panel"
       height={240}
+      loadingHeight={LOADING_HEIGHT}
       title={t('title', { engine: engine.label })}
       meta={
         range === null || read === null

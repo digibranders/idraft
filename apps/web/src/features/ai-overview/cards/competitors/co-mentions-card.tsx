@@ -10,6 +10,7 @@ import { useCardEngine } from './parts/card-engine';
 import { frameSummary, useFrameState, type DataSituation } from './parts/frame-state';
 import { percentOf } from './parts/percent';
 import { TrackedFootnote } from './parts/tracked-footnote';
+import { loadingBodyHeight } from './skeletons';
 import { useCardDensity } from '../engines/use-card-density';
 import { useCardDrill, useCardExport, type CardDrill } from '../engines/use-card-seams';
 import { useOverview, useOverviewSummary } from '../../overview-context';
@@ -24,6 +25,8 @@ import type { CardProps } from '@/features/layouts';
 import { METHODOLOGY_HREF } from '@/lib/citations/methodology';
 import { EMPTY_VALUE, formatDateRange, formatInteger, formatList } from '@/lib/format';
 import { MIN_OBSERVATIONS } from '@/lib/stats';
+
+const LOADING_HEIGHT = loadingBodyHeight('ai.co_mentions');
 
 /** The first of these that holds, so nothing is drawn from too little. Fewer than 4 answers still draws, as insufficient cells. */
 function situationOf(matrix: CoMentionMatrix | null, set: TrackedSet | null, unread: boolean): DataSituation {
@@ -178,6 +181,7 @@ export default function CoMentionsCard({ item, options, live }: CardProps): Reac
       kind="html"
       variant="panel"
       height={280}
+      loadingHeight={LOADING_HEIGHT}
       title={t('title', { engine: engine.label })}
       meta={
         range === null || matrix === null

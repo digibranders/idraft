@@ -62,6 +62,37 @@ export const SKELETON_TOTALS: Readonly<Record<string, number>> = {
   'ai.competitor_table': 685,
 };
 
+/** What a card's frame draws around its body while the read loads: border and padding (34 px), the title line (24 px) and the gap below it (12 px). No meta line yet. */
+const LOADING_CHROME = 70;
+/** The gap above a footnote (12 px). */
+const NOTE_GAP = 12;
+/**
+ * The lines of footnote a card has before its data arrives, by catalog key: none when the card leaves the footnote out
+ * until it can name the tracked set, 0 for a footnote element with no line yet (its gap is still drawn), and the
+ * number of lines it already says (the opportunities scope notes, the table's one note).
+ */
+const LOADING_NOTES: Readonly<Record<string, number | null>> = {
+  'ai.share_of_voice': null,
+  'ai.lost_to_competitor': null,
+  'ai.opportunities': 2,
+  'ai.competitor_trend': null,
+  'ai.sov_over_time': null,
+  'ai.sov_rank': null,
+  'ai.co_mentions': 0,
+  'ai.competitor_table': 1,
+};
+
+/**
+ * The body a card passes as `ChartFrame.loadingHeight`: what is left of `SKELETON_TOTALS` once the chrome its loading
+ * frame draws is taken off, so the loading panel is as tall as the skeleton before it and the loaded card after it.
+ */
+export function loadingBodyHeight(key: string): number {
+  const total = SKELETON_TOTALS[key];
+  const notes = LOADING_NOTES[key];
+  if (total === undefined || notes === undefined) throw new Error(`No loading height for the card ${key}`);
+  return total - LOADING_CHROME - (notes === null ? 0 : NOTE_GAP + notes * NOTE_LINE);
+}
+
 function skeletonOf(height: number, total: number): ComponentType {
   function CompetitorCardSkeleton(): ReactElement {
     return (

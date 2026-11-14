@@ -18,6 +18,7 @@ import {
   weighted,
 } from './model/summary-fixtures';
 import ShareOfVoiceCard from './share-of-voice-card';
+import { loadingBodyHeight } from './skeletons';
 import { ExportProvider, useExportBlocks, type ExportRead } from '../../export/export-registry';
 import { useOverview } from '../../overview-context';
 import type { CardDrill } from '../engines/use-card-seams';
@@ -152,7 +153,8 @@ describe('the share of voice card', () => {
     const heading = await screen.findByRole('heading', { name: HEADING });
     const frame = heading.closest('section');
     expect(frame).toHaveAttribute('aria-busy', 'true');
-    expect(frame?.querySelector('[style*="height: 280px"]')).not.toBeNull();
+    // The loading body reserves what the loaded panel needs, so the skeleton before it and the card after it match
+    expect(frame?.querySelector(`[style*="height: ${loadingBodyHeight('ai.share_of_voice')}px"]`)).not.toBeNull();
     const list = await barList();
     const items = within(list).getAllByRole('listitem');
     expect(items.map((item) => item.textContent)).toEqual([

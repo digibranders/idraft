@@ -8,6 +8,7 @@ import { SHAPE_OPTIONS, useTrackedSet } from './data/use-competitor-reads';
 import { opportunityRows } from './model/lost-to';
 import type { OpportunityRow } from './model/types';
 import { frameSummary, useFrameState, type FrameState } from './parts/frame-state';
+import { loadingBodyHeight } from './skeletons';
 import { useCardDensity } from '../engines/use-card-density';
 import { useCardDrill, useCardExport, type CardDrill } from '../engines/use-card-seams';
 import { askedEngines } from '../../data/overview-queries';
@@ -29,6 +30,7 @@ import { MIN_OBSERVATIONS } from '@/lib/stats';
 /** The `rows` option (catalog 4 or 8, default 4). */
 const ROW_OPTIONS = [4, 8] as const;
 const DEFAULT_ROWS = 4;
+const LOADING_HEIGHT = loadingBodyHeight('ai.opportunities');
 
 function rowsOf(option: string | undefined): number {
   const rows = Number(option);
@@ -144,6 +146,7 @@ export default function OpportunitiesCard({ item, options, live }: CardProps): R
       kind="html"
       variant="panel"
       height={240}
+      loadingHeight={LOADING_HEIGHT}
       title={cardName(item)}
       meta={range === null || read === null ? null : t('meta', { window: range, count: total, branded: scope.branded })}
       summary={frameSummary(

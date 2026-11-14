@@ -5,6 +5,7 @@ import { useEffect, type ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import CompetitorTableCard from './competitor-table-card';
+import { loadingBodyHeight } from './skeletons';
 import {
   at,
   cell,
@@ -193,7 +194,8 @@ describe('the competitor table card', () => {
     const heading = await screen.findByRole('heading', { name: HEADING });
     const frame = heading.closest('section');
     expect(frame).toHaveAttribute('aria-busy', 'true');
-    expect(frame?.querySelector('[style*="height: 280px"]')).not.toBeNull();
+    // The loading body reserves what the loaded panel needs, so the skeleton before it and the card after it match
+    expect(frame?.querySelector(`[style*="height: ${loadingBodyHeight('ai.competitor_table')}px"]`)).not.toBeNull();
 
     const element = await table();
     expect(headers(element)).toEqual(['Brand', 'ChatGPT', 'Gemini', AVERAGE]);

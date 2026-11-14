@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import CompetitorTrendCard from './competitor-trend-card';
 import { id } from './model/summary-fixtures';
+import { loadingBodyHeight } from './skeletons';
 import { axe } from '@/test/axe';
 import { chartSummaryText } from '@/test/chart-summary';
 import { stubViewport } from '@/test/customize-harness';
@@ -58,6 +59,14 @@ const lineIds = (): string[] =>
     .map((entry) => entry.id);
 
 describe('the competitor trend card (CH-06)', () => {
+  it('reserves the height of its skeleton panel while its read loads', async () => {
+    serveWorld(weeklySummary(), entityRows());
+    renderCard(TYPE, CompetitorTrendCard, { engine: ENGINE, competitors: '3' });
+    const frame = (await screen.findByRole('heading', { level: 2, name: TITLE })).closest('section');
+    expect(frame).toHaveAttribute('aria-busy', 'true');
+    expect(frame?.querySelector(`[style*="height: ${loadingBodyHeight('ai.competitor_trend')}px"]`)).not.toBeNull();
+  });
+
   it('draws you and the top 3 competitors by window mention rate, and 5 with the option 5', async () => {
     serveWorld(weeklySummary({ weeks: SIX_WEEKS, names: SIX_NAMES }), entityRows(SIX_NAMES));
     await drawTrend({ engine: ENGINE, competitors: '3' });

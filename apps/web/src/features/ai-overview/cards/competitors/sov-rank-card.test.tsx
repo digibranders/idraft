@@ -2,6 +2,7 @@ import { screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import SovRankCard from './sov-rank-card';
+import { loadingBodyHeight } from './skeletons';
 import { id } from './model/summary-fixtures';
 import { axe } from '@/test/axe';
 import { chartSummaryText } from '@/test/chart-summary';
@@ -68,6 +69,14 @@ const unpooled = (shares: readonly (readonly number[])[], from = 0): WeekSpec[] 
   }));
 
 describe('the share of voice rank card (CH-29)', () => {
+  it('reserves the height of its skeleton panel while its read loads', async () => {
+    serveWorld(weeklySummary(), entityRows());
+    renderCard(TYPE, SovRankCard, OPTIONS);
+    const frame = (await screen.findByRole('heading', { level: 2, name: TITLE })).closest('section');
+    expect(frame).toHaveAttribute('aria-busy', 'true');
+    expect(frame?.querySelector(`[style*="height: ${loadingBodyHeight('ai.sov_rank')}px"]`)).not.toBeNull();
+  });
+
   it('draws an inverted whole number axis from 1 to the lowest rank drawn, with no SERP guide lines', async () => {
     serveWorld(weeklySummary(), entityRows());
     await drawRanks();

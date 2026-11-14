@@ -5,6 +5,7 @@ import { useEffect, type ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import OpportunitiesCard from './opportunities-card';
+import { loadingBodyHeight } from './skeletons';
 import { at, cell, competitor, engine, entityCells, own, promptRow, share, summaryOf } from './model/summary-fixtures';
 import { ExportProvider, useExportBlocks, type ExportRead } from '../../export/export-registry';
 import type { CardDrill } from '../engines/use-card-seams';
@@ -309,7 +310,8 @@ describe('the opportunities card', () => {
     const heading = await screen.findByRole('heading', { name: TITLE });
     const frame = heading.closest('section');
     expect(frame).toHaveAttribute('aria-busy', 'true');
-    expect(frame?.querySelector('[style*="height: 240px"]')).not.toBeNull();
+    // The loading body reserves what the loaded panel needs, so the skeleton before it and the card after it match
+    expect(frame?.querySelector(`[style*="height: ${loadingBodyHeight('ai.opportunities')}px"]`)).not.toBeNull();
     expect(await barList()).toBeInTheDocument();
   });
 

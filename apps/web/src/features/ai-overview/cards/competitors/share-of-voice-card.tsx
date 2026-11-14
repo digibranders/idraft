@@ -9,6 +9,7 @@ import type { EntityFigures, EntityTotals, TrackedSet } from './model/types';
 import { useCardEngine } from './parts/card-engine';
 import { frameSummary, useFrameState, type DataSituation } from './parts/frame-state';
 import { TrackedFootnote } from './parts/tracked-footnote';
+import { loadingBodyHeight } from './skeletons';
 import { useCardDensity } from '../engines/use-card-density';
 import { useCardDrill, useCardExport } from '../engines/use-card-seams';
 import { useOverview } from '../../overview-context';
@@ -29,6 +30,7 @@ import { formatDateRange, formatInteger, formatList, formatPercent, formatPoints
 /** The `rows` option: the brands drawn before the own brand is added (catalog 5 or 10, default 10). */
 const ROW_OPTIONS = [5, 10] as const;
 const DEFAULT_ROWS = 10;
+const LOADING_HEIGHT = loadingBodyHeight('ai.share_of_voice');
 
 function rowsOf(option: string | undefined): number {
   const rows = Number(option);
@@ -158,6 +160,7 @@ export default function ShareOfVoiceCard({ item, options, live }: CardProps): Re
       kind="html"
       variant="panel"
       height={280}
+      loadingHeight={LOADING_HEIGHT}
       title={t('title', { engine: engine.label })}
       meta={
         range === null || totals?.status !== 'read'

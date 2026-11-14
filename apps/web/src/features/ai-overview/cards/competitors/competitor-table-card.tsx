@@ -10,6 +10,7 @@ import type { EngineEntityTotals, EntityFigures, TrackedEntity, TrackedSet } fro
 import { frameSummary, useFrameState, type DataSituation, type FrameState } from './parts/frame-state';
 import { percentOf } from './parts/percent';
 import { TrackedFootnote } from './parts/tracked-footnote';
+import { loadingBodyHeight } from './skeletons';
 import { useCardDrill, useCardExport } from '../engines/use-card-seams';
 import { askedEngines } from '../../data/overview-queries';
 import { useOverview } from '../../overview-context';
@@ -38,6 +39,7 @@ const metricOf = (option: string | undefined): Metric => (option === 'share_of_v
  * the table scrolls in its own region instead. PlainTable has no column width, so the cell content holds it.
  */
 const COLUMN_MIN = 'min-w-40';
+const LOADING_HEIGHT = loadingBodyHeight('ai.competitor_table');
 
 /** The `rows` option: the brands drawn, you included (catalog 5 or 10, default 5). */
 const ROW_OPTIONS = [5, 10] as const;
@@ -377,6 +379,7 @@ export default function CompetitorTableCard({ item, options, live }: CardProps):
       kind="html"
       variant="panel"
       height={280}
+      loadingHeight={LOADING_HEIGHT}
       title={t('title', { metric })}
       meta={
         range === null || set === null

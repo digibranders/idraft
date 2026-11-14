@@ -1,10 +1,11 @@
 import { screen, within } from '@testing-library/react';
 import type { Route } from 'next';
-import { http, HttpResponse } from 'msw';
+import { http, HttpResponse, delay } from 'msw';
 import { useEffect, type ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import LostToCard from './lost-to-card';
+import { loadingBodyHeight } from './skeletons';
 import { at, cell, competitor, engine, entityCells, own, promptRow, share, summaryOf } from './model/summary-fixtures';
 import { ExportProvider, useExportBlocks, type ExportRead } from '../../export/export-registry';
 import type { CardDrill } from '../engines/use-card-seams';
@@ -133,6 +134,20 @@ function renderCard(
 const barList = (): Promise<HTMLElement> => screen.findByRole('list', { name: TITLE });
 
 describe('the lost to a competitor card', () => {
+  it('reserves the height of its skeleton panel while its read loads', async () => {
+    server.use(
+      http.get(SUMMARY, async () => {
+        await delay(60);
+        return HttpResponse.json({ data: summary(PROMPTS) });
+      }),
+    );
+    renderCard();
+    const frame = (await screen.findByRole('heading', { name: TITLE })).closest('section');
+    expect(frame).toHaveAttribute('aria-busy', 'true');
+    expect(frame?.querySelector(`[style*="height: ${loadingBodyHeight('ai.lost_to_competitor')}px"]`)).not.toBeNull();
+    expect(await barList()).toBeInTheDocument();
+  });
+
   it('titles the card with the engine, not with the catalog wording of the picker', async () => {
     serve(summary(PROMPTS));
     renderCard();

@@ -2,6 +2,7 @@ import { screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import SovOverTimeCard from './sov-over-time-card';
+import { loadingBodyHeight } from './skeletons';
 import { id } from './model/summary-fixtures';
 import { axe } from '@/test/axe';
 import { chartSummaryText } from '@/test/chart-summary';
@@ -235,6 +236,14 @@ describe('the share of voice over time card (CH-19)', () => {
 });
 
 describe('the share of voice over time card states', () => {
+  it('reserves the height of its skeleton panel while its read loads', async () => {
+    serveWorld(weeklySummary(), entityRows());
+    renderCard(TYPE, SovOverTimeCard, OPTIONS);
+    const frame = (await screen.findByRole('heading', { level: 2, name: TITLE })).closest('section');
+    expect(frame).toHaveAttribute('aria-busy', 'true');
+    expect(frame?.querySelector(`[style*="height: ${loadingBodyHeight('ai.sov_over_time')}px"]`)).not.toBeNull();
+  });
+
   it('asks for two weeks when only one week has answers', async () => {
     serveWorld(weeklySummary({ weeks: WEEKS.slice(0, 2) }), entityRows());
     renderCard(TYPE, SovOverTimeCard, OPTIONS);
