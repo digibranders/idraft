@@ -179,11 +179,11 @@ test.describe('Add prompts', () => {
     await expect(toastsOf(page).getByText('3 prompts added')).toHaveCount(0);
     for (const line of NEW_LINES) await expect(promptsGrid(page).getByText(line, { exact: true })).toHaveCount(0);
 
-    // Trying again sends the add; the call that makes the topic is repeated and makes nothing, so there is one topic
+    // Trying again sends the add; the topic that was made is now an existing one, so it is not made again
     await setAddFault(page, 'none');
     await dialog.getByRole('button', { name: 'Add 3 prompts' }).click();
     await settleAdd(page);
-    expect(writes.terms).toHaveLength(2);
+    expect(writes.terms).toHaveLength(1);
     expect(writes.madeTermIds).toHaveLength(1);
     expect(writes.creates.at(-1)?.items.map((item) => item.term_ids)).toEqual(NEW_LINES.map(() => writes.madeTermIds));
     await expectTopicListed(await openAddDialog(page), NEW_TOPIC);
@@ -216,7 +216,7 @@ test.describe('Add prompts', () => {
     expect(archived?.ids).toHaveLength(3);
   });
 
-  test('a project with no topic vocabulary still adds the prompts, and the picker says it has no topic to offer', async ({
+  test('a project with no topic vocabulary offers to create the first topic, and still adds without one', async ({
     page,
   }) => {
     // The mock world has no such project (every project sees the workspace's Topics vocabulary), so the list of
@@ -230,9 +230,9 @@ test.describe('Add prompts', () => {
     await expect(addButton(page)).toBeVisible();
     const dialog = await openAddDialog(page);
     await topicField(dialog).fill(NEW_TOPIC);
-    // Nothing to choose, and no row that makes a topic: there is no vocabulary to make it in
-    await expect(page.getByText(`No topics match “${NEW_TOPIC}”.`, { exact: false })).toBeVisible();
-    await expect(page.getByRole('option')).toHaveCount(0);
+    // Nothing to choose, but one row makes the topic: on submit the project's topic vocabulary is made first
+    await expect(page.getByRole('option', { name: `Create topic “${NEW_TOPIC}”` })).toBeVisible();
+    await expect(page.getByRole('option')).toHaveCount(1);
     await expectAccessible(page);
     await topicField(dialog).press('Escape');
     await fillLines(dialog, NEW_LINES);
