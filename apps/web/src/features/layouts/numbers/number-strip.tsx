@@ -72,6 +72,10 @@ export interface NumberStripProps {
    * Try again. A page with a grid leaves it off, as the grid says it.
    */
   readBanner?: boolean | undefined;
+  /**
+   * md: the page strip, one panel in a row. inline: label and value side by side without a panel, for a page toolbar.
+   */
+  size?: 'md' | 'inline' | undefined;
 }
 
 const renderAddNumberSlot = (): ReactNode => <AddNumberSlot />;
@@ -310,7 +314,7 @@ function CustomizeStrip({
  * The headline numbers of the screen's layout. A strip with no numbers is not drawn in view mode (spec 5.3); in
  * customize mode the Add number slot keeps it.
  */
-export function NumberStrip({ readBanner = false, ...props }: NumberStripProps): ReactElement | null {
+export function NumberStrip({ readBanner = false, size = 'md', ...props }: NumberStripProps): ReactElement | null {
   const { mode, document, status } = useLayoutScreen();
   const numbers = document.numbers ?? [];
   const banner = readBanner ? <LayoutReadBanner /> : null;
@@ -328,10 +332,11 @@ export function NumberStrip({ readBanner = false, ...props }: NumberStripProps):
     <>
       {banner}
       <MetricStrip
-        size="md"
+        size={size}
         label={props.label}
         groups={groupsOf(numbers, props.valueOf)}
         status={status === 'loading' ? 'loading' : props.status}
+        nowrap={size === 'inline'}
       />
     </>
   );

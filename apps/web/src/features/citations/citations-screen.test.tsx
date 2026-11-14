@@ -383,7 +383,7 @@ describe('Citations page', () => {
     const reads = watch();
     render('?role=competitor');
     await waitFor(() => expect(cell('Own citation share')).toHaveTextContent(/\d+(\.\d)?%/));
-    expect(cell('Own citation share')).toHaveTextContent(/of [\d,]+ units/);
+    expect(cell('Own citation share')).toHaveTextContent(/of [\d,]+ (?:citation )?units/);
     const strips = [
       ...to(reads, '/ai/sources/domains'),
       ...to(reads, '/ai/sources/diversity'),

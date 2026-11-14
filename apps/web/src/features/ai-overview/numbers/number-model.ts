@@ -182,9 +182,12 @@ function unread(item: NumberItem, ctx: NumberContext, say: Say): NumberDisplay {
 
 /** The counts behind a figure that has a value: the numerator, the denominator, the prompts, the invalid answers. */
 function countsSentence(item: NumberItem, figure: NumberFigure, say: Say): string | null {
-  const { k, n, prompts, invalid } = figure;
+  const { k, n, prompts, invalid, topics } = figure;
   const counts = { count: k ?? 0, total: n ?? 0, prompts: prompts ?? 0, invalid: invalid ?? 0 };
-  if (figure.unit === 'prompts') return say('tipPrompts', { count: figure.value ?? 0 });
+  if (figure.unit === 'prompts') {
+    const base = say('tipPrompts', { count: figure.value ?? 0 });
+    return topics === null ? base : `${base} (${say('inTopics', { count: topics })})`;
+  }
   if (figure.unit === 'citationUnits') return say('tipUnits', counts);
   if (figure.unit === 'namingAnswers') return say('tipNaming', counts);
   if (item.metric === 'ai.valid_answers') return say('tipValid', counts);

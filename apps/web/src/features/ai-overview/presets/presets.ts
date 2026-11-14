@@ -52,10 +52,10 @@ export const SEO_ANALYST_LAYOUT: LayoutDocument = {
     {
       id: 'citation-vs-mention',
       type: 'ai.citation_vs_mention',
-      width: 'two_thirds',
+      width: 'half',
       options: { engine: 'chatgpt_web' },
     },
-    { id: 'citation-share-by-domain-type', type: 'ai.citation_share_by_domain_type', width: 'third' },
+    { id: 'citation-share-by-domain-type', type: 'ai.citation_share_by_domain_type', width: 'half' },
     { id: 'fanout-top', type: 'ai.fanout_top', width: 'half', options: { rows: '10' } },
     {
       id: 'prompt-movers-chatgpt',
@@ -136,10 +136,10 @@ export const TOPIC_OWNER_LAYOUT: LayoutDocument = {
     {
       id: 'topic-engine-gap',
       type: 'ai.topic_engine_gap',
-      width: 'two_thirds',
+      width: 'half',
       options: { metric: 'mention', rows: '10' },
     },
-    { id: 'sample-coverage', type: 'ai.sample_coverage', width: 'third' },
+    { id: 'sample-coverage', type: 'ai.sample_coverage', width: 'half' },
     { id: 'topic-trends', type: 'ai.topic_trends', width: 'full', options: { metric: 'mention', topics: '6' } },
     { id: 'engine-disagreement', type: 'ai.engine_disagreement', width: 'half', options: { rows: '5' } },
     {

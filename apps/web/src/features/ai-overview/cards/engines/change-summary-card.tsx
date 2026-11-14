@@ -133,6 +133,11 @@ export default function ChangeSummaryCard({ item, options, live }: CardProps): R
   });
 
   const [first] = facts;
+  // One sentence per fact; avoid duplicate sentences
+  const uniqueShown = shown.filter((fact, index, arr) => {
+    const s = text.sentence(fact);
+    return arr.findIndex((f) => text.sentence(f) === s) === index;
+  });
   // No fact is said while the reads are not paired (first load, or a refetch of the same scope): that is not "none"
   const waiting = data.phase === 'loading' || comparison === 'pending';
   const answers =
@@ -155,12 +160,19 @@ export default function ChangeSummaryCard({ item, options, live }: CardProps): R
         </div>
       }
       height={140}
-      summary={waiting ? loading('loading') : first === undefined ? t('summaryNone') : text.sentence(first)}
+      fitContent
+      summary={
+        waiting
+          ? loading('loading')
+          : first === undefined || first.kind === 'noPrevious'
+            ? t('summaryNone')
+            : text.sentence(first)
+      }
       body={
         <div className="flex flex-col gap-2">
-          {shown.length === 0 ? null : (
+          {uniqueShown.length === 0 ? null : (
             <ol aria-label={title} className="flex flex-col gap-2">
-              {shown.map((fact) => (
+              {uniqueShown.map((fact) => (
                 <li key={fact.id} className="type-body text-foreground">
                   <FactSentence fact={fact} />
                 </li>

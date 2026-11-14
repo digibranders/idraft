@@ -14,6 +14,7 @@ import {
   type RefObject,
 } from 'react';
 
+import { useCardReadiness, useCurrentCardId } from './card-readiness';
 import { ChartLegend, type LegendItem } from './chart-legend';
 import { ChartMenu, type ChartMenuAction } from './chart-menu';
 import { InlineError, type InlineErrorProps } from '@/components/app/status/inline-error';
@@ -146,6 +147,8 @@ export interface HtmlFrameProps extends ChartFrameCommon {
   /** Show the Patterns toggle (bars that use decals or hatching). */
   patterns?: boolean | undefined;
   menu?: HtmlChartMenu | undefined;
+  /** Natural content height: does not force minHeight on the loaded body. */
+  fitContent?: boolean | undefined;
 }
 
 export type ChartFrameProps = (CategoryFrameProps | HtmlFrameProps) & ChartFrameState;
@@ -161,6 +164,14 @@ type HtmlProps = Extract<ChartFrameProps, { kind: 'html' }>;
  * height, and refetching keeps the chart.
  */
 export function ChartFrame(props: ChartFrameProps): ReactElement {
+  const cardId = useCurrentCardId();
+  const readiness = useCardReadiness();
+  useEffect(() => {
+    if (cardId && readiness) {
+      readiness.report(cardId, props.status);
+    }
+  }, [cardId, readiness, props.status]);
+
   return props.kind === 'html' ? <HtmlFrame {...props} /> : <CategoryFrame {...props} />;
 }
 
@@ -297,7 +308,9 @@ function HtmlFrame(props: HtmlProps): ReactElement {
       {table ? (
         tableView
       ) : (
-        <div style={{ minHeight: height }}>{typeof body === 'function' ? body({ patterns }) : body}</div>
+        <div style={{ minHeight: props.fitContent ? undefined : height }}>
+          {typeof body === 'function' ? body({ patterns }) : body}
+        </div>
       )}
     </FrameShell>
   );
@@ -413,11 +426,45 @@ function FrameShell({
   const viewsGroup = showViews ? <ChartViews title={title} {...views} alignEnd={hasControls} /> : null;
   const inspector = variant === 'inspector';
   const Title = inspector ? 'h3' : 'h2';
+
+  if (status === 'empty') {
+    const { empty } = state;
+    return (
+      <section
+        ref={section}
+        aria-label={title}
+        data-slot="empty-state"
+        className={cn(
+          'flex min-w-0 flex-col justify-center transition-colors',
+          inspector ? 'py-1' : 'rounded-lg border border-border bg-surface px-4 py-3',
+        )}
+      >
+        <p id={summaryId} className="sr-only">
+          {summary}
+        </p>
+        {hasControls ? <div className="flex flex-wrap items-center gap-x-2 gap-y-2 pb-2">{controls}</div> : null}
+        <div data-slot="chart-state" className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-0.5">
+            <Title className={inspector ? 'type-subsection-title' : 'shrink-0 type-section-title'}>{title}</Title>
+            <h3 className="sr-only">{empty.title}</h3>
+            {hasMeta ? <p className="max-w-full truncate type-meta text-foreground-secondary">{meta}</p> : null}
+            <p className="max-w-full truncate type-meta text-foreground-secondary">{empty.reason || empty.title}</p>
+          </div>
+          {empty.action ? <div className="shrink-0">{empty.action}</div> : null}
+        </div>
+        {footnote ? <div className="sr-only">{footnote}</div> : null}
+      </section>
+    );
+  }
+
   return (
     <section
       ref={section}
       aria-busy={status === 'loading' || status === 'refetching' ? true : undefined}
-      className={cn('flex flex-col gap-3', inspector ? 'py-1' : 'rounded-lg border border-border bg-surface p-4')}
+      className={cn(
+        'flex h-full flex-col gap-3',
+        inspector ? 'py-1' : 'rounded-lg border border-border bg-surface p-4',
+      )}
     >
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         {/* The title keeps a readable measure: the legend and the views wrap to the next line before it narrows */}
@@ -460,7 +507,7 @@ function FrameShell({
         {children}
       </FrameBody>
       {footnote === undefined || footnote === null ? null : (
-        <div ref={footnoteRef} className="type-meta">
+        <div ref={footnoteRef} className="mt-auto type-meta">
           {footnote}
         </div>
       )}
@@ -509,7 +556,7 @@ function FrameBody({
   }
   return (
     // The same wrapper for ready and refetching, so the chart stays mounted when a refetch starts
-    <div className="relative">
+    <div className="relative min-h-0 flex-1">
       {state.status === 'refetching' ? (
         <div aria-hidden="true" data-slot="chart-refetch-bar" className="absolute inset-x-0 top-0 h-0.5 bg-primary" />
       ) : null}

@@ -134,7 +134,7 @@ describe('the scope bar', () => {
     expect(await chip('Topic: SEO (includes subtopics). Edit filter')).toBeInTheDocument();
     // SEO, Technical SEO and Local SEO: the count of the Prompts number is of the chosen subtree
     await waitFor(() => {
-      expect(screen.getAllByRole('definition')[0]).toHaveTextContent('in 3 topics');
+      expect(screen.getAllByRole('definition')[0]).toHaveAccessibleDescription(/in 3 topics/);
     });
   });
 

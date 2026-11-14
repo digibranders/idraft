@@ -18,6 +18,10 @@ export interface AiSetupChecklistProps extends AiSetupScope {
   extraSteps?: readonly SetupStep[] | undefined;
   /** Offered when every step is done. Keeping it dismissed for the project is the page's (open question 3). */
   onDismiss?: (() => void) | undefined;
+  /** When true, keeps complete setup bar rendered. If false, hides completed bar until toggled. Defaults to true for test compatibility. */
+  forceShow?: boolean | undefined;
+  /** Render as a slim single line inside a toolbar area instead of a full width card. */
+  dense?: boolean | undefined;
 }
 
 /**
@@ -27,7 +31,13 @@ export interface AiSetupChecklistProps extends AiSetupScope {
  * Loading is a 40 px skeleton bar. When both reads fail the bar says so, with Retry and the error id, and no step
  * is shown, so none reads as done. When one fails, its step says it could not be checked and the rest render.
  */
-export function AiSetupChecklist({ extraSteps = [], onDismiss, ...scope }: AiSetupChecklistProps): ReactElement {
+export function AiSetupChecklist({
+  extraSteps = [],
+  onDismiss,
+  forceShow = true,
+  dense = false,
+  ...scope
+}: AiSetupChecklistProps): ReactElement | null {
   const t = useTranslations('setupChecklist');
   const common = useTranslations('common');
   const state = useAiSetupSteps(scope);
@@ -62,6 +72,13 @@ export function AiSetupChecklist({ extraSteps = [], onDismiss, ...scope }: AiSet
 
   const steps = [...extraSteps, ...state.steps];
   const progress = setupProgress(steps);
+  const done = steps.filter((step) => step.done).length;
+  const complete = steps.length > 0 && done === steps.length;
+
+  if (complete && forceShow === false) {
+    return null;
+  }
+
   return (
     <SetupChecklist
       steps={steps}
@@ -71,6 +88,7 @@ export function AiSetupChecklist({ extraSteps = [], onDismiss, ...scope }: AiSet
       onDismiss={onDismiss}
       continueHref={continueHref(steps, aiSetupHrefs(scope).engines)}
       refetching={state.fetching}
+      dense={dense}
     />
   );
 }

@@ -18,7 +18,7 @@ import { useChangeColumns } from './change-columns';
 import { ChangeEmpty, ChangeFailed, CountFailed } from './new-lost-states';
 import { useChangeList } from '../citation-reads';
 import { DEFAULT_MIN_SUPPORT, type ChangeKind } from '../citation-scope';
-import { CitationFilteredEmptyState, CitationTableNotes } from '../citation-table-states';
+import { CitationFilteredEmptyState } from '../citation-table-states';
 import type { CitationTabContext } from '../citation-tabs';
 import { useRegisterExport } from '../export-button';
 import { MinSupportSelect } from '../min-support-select';
@@ -27,6 +27,8 @@ import { DataTable } from '@/components/app/data-table/data-table';
 import { ListTableSwitch } from '@/components/app/data-table/data-table-list';
 import type { TableStatus } from '@/components/app/data-table/types';
 import { MetricInfo } from '@/components/app/metric/metric-info';
+import { Banner } from '@/components/app/status/banner';
+import { Button } from '@/components/ui/button';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { METHODOLOGY_HREF } from '@/lib/citations/methodology';
 import type { SourceChangePage, SourceChangeRow } from '@/lib/citations/types';
@@ -54,6 +56,7 @@ export function NewLostTab({ context }: NewLostTabProps): ReactElement {
   const { source, timeZone, scope, filters, range, enabledEngines, setSearch, filterBar } = context;
   const t = useTranslations('citations.newLost');
   const tt = useTranslations('citations.table');
+  const common = useTranslations('common');
   const locale = useLocale();
   const kind = scope.changeKind;
   const otherKind: ChangeKind = kind === 'new' ? 'lost' : 'new';
@@ -191,22 +194,25 @@ export function NewLostTab({ context }: NewLostTabProps): ReactElement {
           methodologyHref={METHODOLOGY_HREF}
         />
       </div>
-      <CitationTableNotes
-        meta={undefined}
-        compare={false}
-        // A refresh that failed leaves the rows of the last read on screen: say so, with a way to ask again
-        refreshFailed={read.errorId !== null && read.data !== undefined}
-        refetching={read.retrying}
-        onRetry={read.retry}
-        truncated={cut === null ? null : t('truncated', { limit: cut.shown, total: cut.total })}
-      >
-        {other.status === 'error' ? (
-          <CountFailed kind={otherKind} onRetry={other.retry} retrying={other.retrying} />
-        ) : null}
-        {kind === 'lost' && meta !== undefined ? (
-          <p className="type-meta">{t('lostCost', { days: lostDays(meta), window: lostWindowDays(meta) })}</p>
-        ) : null}
-      </CitationTableNotes>
+      {read.errorId !== null && read.data !== undefined ? (
+        <Banner
+          tone="warning"
+          placement="region"
+          live
+          message={tt('refreshFailed')}
+          actions={
+            <Button variant="secondary" size="sm" loading={read.retrying} onClick={read.retry}>
+              {common('retry')}
+            </Button>
+          }
+        />
+      ) : null}
+      {other.status === 'error' ? (
+        <CountFailed kind={otherKind} onRetry={other.retry} retrying={other.retrying} />
+      ) : null}
+      {kind === 'lost' && meta !== undefined ? (
+        <p className="type-meta">{t('lostCost', { days: lostDays(meta), window: lostWindowDays(meta) })}</p>
+      ) : null}
       <div className="flex h-96 min-h-80 flex-col lg:h-auto lg:flex-1">
         {layout.mode === 'list' ? (
           <ChangeList
@@ -218,6 +224,7 @@ export function NewLostTab({ context }: NewLostTabProps): ReactElement {
             onSearchChange={setQuery}
             activeRowId={activeRowId}
             toolbarEnd={toolbarEnd}
+            footerNote={cut === null ? undefined : t('truncatedFooter', { limit: cut.shown, total: cut.total })}
             errorState={errorState}
             emptyState={emptyState}
             filteredEmptyState={filteredEmptyState}
@@ -237,6 +244,7 @@ export function NewLostTab({ context }: NewLostTabProps): ReactElement {
             defaultSort={NO_SORT}
             compactToolbar
             toolbarEnd={toolbarEnd}
+            footerNote={cut === null ? undefined : t('truncatedFooter', { limit: cut.shown, total: cut.total })}
             density={scope.density}
             onDensityChange={(next: Density) => setSearch({ density: next === DEFAULT_DENSITY ? null : next })}
             columnState={{

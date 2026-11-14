@@ -1,0 +1,50 @@
+{
+  "keywords": {
+    "kind": "table-row",
+    "top": 162,
+    "topbarBottom": 52,
+    "offset": 110
+  },
+  "overview": {
+    "kind": "table-row",
+    "top": 743,
+    "topbarBottom": 52,
+    "offset": 691
+  },
+  "prompts": {
+    "kind": "table-row",
+    "top": 162,
+    "topbarBottom": 52,
+    "offset": 110
+  },
+  "citations-domains": {
+    "kind": "table-row",
+    "top": 202,
+    "topbarBottom": 52,
+    "offset": 150
+  },
+  "citations-pages": {
+    "kind": "table-row",
+    "top": 275,
+    "topbarBottom": 52,
+    "offset": 223
+  },
+  "citations-new-lost": {
+    "kind": "table-row",
+    "top": 246,
+    "topbarBottom": 52,
+    "offset": 194
+  },
+  "runs": {
+    "kind": "table-row",
+    "top": 162,
+    "topbarBottom": 52,
+    "offset": 110
+  },
+  "costs": {
+    "kind": "table-row",
+    "top": 296,
+    "topbarBottom": 52,
+    "offset": 244
+  }
+}

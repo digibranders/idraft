@@ -24,6 +24,8 @@ export interface SetupChecklistProps {
   continueHref: Route;
   /** A read is under way while the steps stay: the static 2 px bar of a refetch (17 section 3.4). */
   refetching?: boolean | undefined;
+  /** Whether to render as a slim single line inside a toolbar area instead of a full width card. */
+  dense?: boolean | undefined;
 }
 
 /**
@@ -70,11 +72,51 @@ export function SetupChecklist({
   onDismiss,
   continueHref,
   refetching = false,
+  dense = false,
 }: SetupChecklistProps): ReactElement {
   const t = useTranslations('setupChecklist');
   const listId = useId();
   const done = steps.filter((step) => step.done).length;
   const complete = steps.length > 0 && done === steps.length;
+  if (dense && !expanded) {
+    return (
+      <div
+        data-slot="setup-checklist-dense"
+        className="flex h-control-sm flex-wrap items-center gap-x-3 gap-y-1 text-foreground-secondary"
+      >
+        <p className="type-body-strong text-foreground">{complete ? t('complete') : progressText}</p>
+        <div
+          role="progressbar"
+          aria-label={t('progressBar')}
+          aria-valuemin={0}
+          aria-valuemax={steps.length}
+          aria-valuenow={done}
+          aria-valuetext={progressText}
+          className="h-1.5 w-16 overflow-hidden rounded-full bg-neutral-subtle"
+        >
+          <span className="block h-full rounded-full bg-primary" style={{ width: share(done, steps.length) }} />
+        </div>
+        <span className="ml-auto flex items-center gap-1">
+          {complete ? (
+            onDismiss === undefined ? null : (
+              <Button variant="ghost" size="sm" onClick={onDismiss}>
+                {t('dismiss')}
+              </Button>
+            )
+          ) : (
+            <>
+              <LinkButton render={<Link href={continueHref} />} variant="ghost" size="sm">
+                {t('continue')}
+              </LinkButton>
+              <Button variant="ghost" size="sm" onClick={() => onExpandedChange(true)}>
+                {t('showSteps')}
+              </Button>
+            </>
+          )}
+        </span>
+      </div>
+    );
+  }
   return (
     <SetupFrame refetching={refetching}>
       <div className="flex min-h-10 flex-wrap items-center gap-x-3 gap-y-1 px-4 py-1">

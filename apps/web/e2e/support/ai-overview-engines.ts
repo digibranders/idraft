@@ -108,8 +108,12 @@ const OTHER_CARDS = [
 /** A card by the exact text of its heading; several cards of the family share words, so a substring would not do. */
 export const cardByHeading = (page: Page, title: string): Locator =>
   cardGrid(page)
-    .locator('[data-layout-card]')
-    .filter({ has: page.getByRole('heading', { level: 2, name: title, exact: true }) });
+    .locator(`[data-layout-card][data-card-title="${title}"]`)
+    .or(
+      cardGrid(page)
+        .locator('[data-layout-card]')
+        .filter({ has: page.getByRole('heading', { level: 2, name: title, exact: true }) }),
+    );
 
 /** Every card the grid holds, whichever its state. */
 export const allCards = (page: Page): Locator => cardGrid(page).locator('[data-layout-card]');

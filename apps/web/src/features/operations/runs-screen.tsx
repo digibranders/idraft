@@ -342,6 +342,7 @@ function RunsContent({ workspaceId, project }: Readonly<{ workspaceId: string; p
       <div className="flex h-page-body min-h-page-body-min flex-col gap-3 px-3 pt-3 pb-5 md:px-4 lg:px-5">
         <PageHeader
           title={t('title')}
+          titleHidden
           meta={meta}
           toolbar={
             <div className="flex flex-wrap items-start gap-3">

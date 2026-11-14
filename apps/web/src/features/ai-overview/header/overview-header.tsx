@@ -1,6 +1,6 @@
 'use client';
 
-import { Link2, MoreHorizontal } from 'lucide-react';
+import { Link2, ListChecks, MoreHorizontal } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { ReactElement, ReactNode } from 'react';
 
@@ -12,18 +12,26 @@ import { useNow } from '../notices/use-now';
 import { useOverview, useOverviewFreshness } from '../overview-context';
 import { CustomizeShortcut } from './customize-shortcut';
 import { metaLine } from './meta-line';
-import { PageHeader } from '@/components/app/shell/page-header';
+import { PageToolbar } from '@/components/app/page-toolbar';
 import { FreshnessIndicator } from '@/components/app/status/freshness-indicator';
 import { IconButton } from '@/components/ui/icon-button';
 import { Menu } from '@/components/ui/menu';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from '@/components/ui/toast';
-import { CustomizeButton, CustomizingBadge } from '@/features/layouts';
+import { CustomizeButton, CustomizingBadge, useLayoutScreen } from '@/features/layouts';
 import { copyText } from '@/lib/dom/clipboard';
 import { formatTableDateTime } from '@/lib/format';
 
 /** The id of the More actions item that copies the link. */
 const COPY_LINK = 'copy-link';
+const SHOW_SETUP = 'show-setup';
+
+export interface OverviewHeaderProps {
+  stats?: ReactNode | undefined;
+  filters?: ReactNode | undefined;
+  noticeChip?: ReactNode | undefined;
+  setupSlot?: ReactNode | undefined;
+}
 
 /**
  * The meta line: when the project's newest answer came, how many prompts are asked and on how many engines. The
@@ -71,32 +79,53 @@ function useMeta(): ReactNode {
 }
 
 /**
- * The title block of the page (24 section 9.2, the approved preview): the title with the Customizing badge beside
- * it, the meta line under it, and Customize, Export and More actions at the end. While the engines load there is no Customize: the layout counts AI cards as unavailable until they
- * are read, so entering the mode then would show every AI card as a placeholder.
+ * The toolbar of the AI Overview page: unified compact row with inline stats, scope filters, freshness meta,
+ * Customize toggle, Export and More actions.
  */
-export function OverviewHeader(): ReactElement {
+export function OverviewHeader({ stats, filters, noticeChip, setupSlot }: OverviewHeaderProps = {}): ReactElement {
   const t = useTranslations('aiOverview');
   const common = useTranslations('common');
-  const { engines } = useOverview();
+  const { engines, project } = useOverview();
+  const { mode } = useLayoutScreen();
   const meta = useMeta();
+
   const copyLink = (): void => {
     void copyText(window.location.href).then((copied) =>
       toast(copied ? { type: 'success', title: t('linkCopied') } : { type: 'error', title: common('copy.failed') }),
     );
   };
+
+  const handleShowSetup = (): void => {
+    window.dispatchEvent(
+      new CustomEvent('idraft:show-setup-steps', {
+        detail: { projectId: project.id },
+      }),
+    );
+  };
+
   return (
-    <PageHeader
+    <PageToolbar
       title={t('title')}
-      titleAddon={<CustomizingBadge />}
-      meta={meta}
+      before={setupSlot}
+      stats={stats}
+      filters={filters}
+      status={
+        <>
+          {noticeChip}
+          {meta === undefined ? null : (
+            <span data-slot="overview-meta" className="type-meta">
+              {meta}
+            </span>
+          )}
+          {mode === 'customize' ? <CustomizingBadge /> : null}
+        </>
+      }
       actions={
         <>
           {engines.status === 'loading' ? (
-            // The size of the Customize button, so the actions do not move when it arrives
             <span
               aria-hidden="true"
-              className="hidden h-control w-28 animate-skeleton-pulse rounded-md bg-surface-subtle md:block"
+              className="hidden h-control-sm w-28 animate-skeleton-pulse rounded-md bg-surface-subtle md:block"
             />
           ) : (
             <CustomizeButton />
@@ -106,7 +135,10 @@ export function OverviewHeader(): ReactElement {
           <Menu
             align="end"
             trigger={<IconButton icon={MoreHorizontal} variant="secondary" label={t('moreActions')} />}
-            items={[{ id: COPY_LINK, label: t('copyLink'), icon: Link2, onSelect: copyLink }]}
+            items={[
+              { id: COPY_LINK, label: t('copyLink'), icon: Link2, onSelect: copyLink },
+              { id: SHOW_SETUP, label: t('showSetupSteps'), icon: ListChecks, onSelect: handleShowSetup },
+            ]}
           />
         </>
       }

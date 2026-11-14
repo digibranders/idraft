@@ -2222,12 +2222,14 @@
       "showAll": "Show all {count, number}"
     },
     "progress": {
+      "collecting": "Collecting answers",
       "counted": "Collecting answers: {done, number} of {total, number} {total, plural, one {task} other {tasks}}{failed, plural, =0 {} other {, # failed}}",
       "preparing": "Collecting answers: preparing the tasks",
       "viewRun": "View run",
       "finished": "Collection finished"
     },
     "notice": {
+      "degraded": "{name} degraded",
       "engine": "{name}: {valid, number} of {planned, number} {planned, plural, one {answer} other {answers}} valid, {percent}. Below {threshold}, so this engine is degraded in the latest run.",
       "viewRunFor": "View run for {name}",
       "loadFailed": "Answer coverage of the latest run did not load."
@@ -4848,6 +4850,7 @@
     "moreActions": "More actions",
     "copyLink": "Copy link",
     "linkCopied": "Link copied",
+    "showSetupSteps": "Show setup steps",
     "cards": "AI visibility cards",
     "loading": "Loading AI visibility",
     "enginesFailedTitle": "The engines of this project could not be read",
@@ -4970,6 +4973,7 @@
       "firstAnswers": "First answers arrive after {time}",
       "firstAnswersGeneric": "No AI answers have been collected yet. The first ones arrive after the next scheduled run.",
       "paused": "Scheduled AI runs are paused for this project",
+      "pausedChip": "Schedules paused",
       "invalid": "{count, number} of {total, number} answers were not valid on {engine} {days, plural, one {on this day} other {in these # days}}",
       "stale": "The newest valid answer is {days, plural, one {# day} other {# days}} old",
       "viewRuns": "View runs"
@@ -5020,6 +5024,7 @@
         "newSources": "{count, plural, one {# domain was} other {# domains were}} cited for the first time, with at least {minSupport, plural, one {# citation unit} other {# citation units}} each in {days, plural, one {this # day} other {these # days}} and none in the {days, plural, one {# day} other {# days}} before.",
         "more": "{count, plural, one {# more fact is} other {# more facts are}} in the Table view.",
         "summaryNone": "No facts to report.",
+        "summaryText": "Summary of changes across AI engines.",
         "footnote": "Each sentence is a count of answers or prompts. A change is written only when the test on the pooled counts finds it detectable.",
         "howWritten": "How this is written",
         "rulesTitle": "How this is written",
@@ -6499,7 +6504,8 @@
     "compare": {
       "label": "Compare with",
       "previous": "vs previous period",
-      "off": "No comparison"
+      "off": "No comparison",
+      "noPrevious": "No answers in the previous period"
     },
     "minSupport": {
       "label": "Fewest citation units",
@@ -6613,7 +6619,9 @@
         "other": "pages"
       },
       "truncated": "The {shown, number} most cited domains are listed of {total, number}. Raise the minimum or narrow the filters.",
+      "truncatedFooter": "{shown, number} of {total, number} domains. Raise the minimum to see more",
       "truncatedPages": "The {shown, number} most cited pages are listed of {total, number}. Raise the minimum or narrow the filters.",
+      "truncatedPagesFooter": "{shown, number} of {total, number} pages. Raise the minimum to see more",
       "noPrevious": "The previous period has no answers, so nothing is marked New.",
       "emptyMinimum": "Lower the fewest citation units to see more rows.",
       "refreshFailed": "The list could not be refreshed. The rows shown are from the last read."
@@ -6695,6 +6703,7 @@
       "failed": "{kind, select, new {The new sources} other {The lost sources}} could not be loaded.",
       "countFailed": "The count of {kind, select, new {new} other {lost}} sources could not be loaded.",
       "truncated": "The {limit, number} sources with the most units are listed of {total, number}. Raise the minimum or narrow the filters.",
+      "truncatedFooter": "{limit, number} of {total, number} sources. Raise the minimum to see more",
       "columns": {
         "domain": "Domain",
         "role": "Role",

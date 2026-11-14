@@ -125,7 +125,26 @@ export function MetricStrip({ size, label, groups, status, nowrap = false }: Met
                 className={cn('flex min-w-0 items-baseline gap-1.5', nowrap && 'shrink-0')}
               >
                 <dt id={termId} className="type-meta text-foreground-tertiary">
-                  {item.label}
+                  {item.href === undefined ? (
+                    item.labelAddon === undefined ? (
+                      item.label
+                    ) : (
+                      <span className="flex items-center gap-1">
+                        {item.label}
+                        {item.labelAddon}
+                      </span>
+                    )
+                  ) : (
+                    <Tooltip content={item.tip ?? ''} purpose="label" disabled={!tipped}>
+                      <Link
+                        href={item.href}
+                        className="flex items-center gap-1 text-foreground-secondary outline-none hover:text-foreground"
+                      >
+                        {item.label}
+                        {item.labelAddon}
+                      </Link>
+                    </Tooltip>
+                  )}
                 </dt>
                 <Tooltip content={item.tip ?? ''} disabled={!tipped}>
                   <dd
@@ -158,8 +177,7 @@ export function MetricStrip({ size, label, groups, status, nowrap = false }: Met
                     {item.delta === undefined || item.delta === null ? null : (
                       <span className="num type-body-strong">{item.delta}</span>
                     )}
-                    {/* The tooltip carries the counts, so the context is read once */}
-                    {item.context === undefined || item.context === null || tipped ? null : (
+                    {tipped || item.context === undefined || item.context === null ? null : (
                       <span className="sr-only">{item.context}</span>
                     )}
                   </dd>

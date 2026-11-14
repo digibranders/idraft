@@ -17,7 +17,7 @@ import { topicDrawerHref, topicEngineHref, topicsTabHref, type LinkContext } fro
 import type { TopicData } from './model-types';
 import { countOf, enumOf, metricOf } from './options';
 import { TopicFootnote } from './topic-footnote';
-import { overlapCount } from './topic-nodes';
+import { NO_TOPIC, overlapCount } from './topic-nodes';
 import { useTopicSummary } from './use-topic-reads';
 import { useTopicWords } from './use-topic-words';
 import { useOverview } from '../../overview-context';
@@ -120,15 +120,15 @@ export default function TopicHeatmapCard({ item, options, live }: CardProps): Re
     [model.columns],
   );
 
-  const empty =
-    data.nodes.length === 0
-      ? empties.noTopics
-      : model.answered
-        ? null
-        : empties.noAnswers(
-            data.engines.map((engine) => engine.label),
-            scope.range.days,
-          );
+  const hasRealTopics = data.nodes.some((node) => node.key !== NO_TOPIC && node.termId !== null);
+  const empty = !hasRealTopics
+    ? empties.noTopics
+    : model.answered
+      ? null
+      : empties.noAnswers(
+          data.engines.map((engine) => engine.label),
+          scope.range.days,
+        );
   const grid = (form: 'grid' | 'table'): ReactElement => (
     <HeatmapGrid
       caption={title}

@@ -91,7 +91,11 @@ describe('CompareSelect', () => {
     screen.getByRole('combobox', { name: 'Compare with' }).focus();
     await user.keyboard('{ArrowDown}');
     await screen.findByRole('listbox');
-    await user.keyboard('{ArrowDown}{Enter}');
+    await waitFor(() =>
+      expect(document.querySelector('[data-slot="select-popup"]')?.contains(document.activeElement)).toBe(true),
+    );
+    await user.keyboard('{ArrowDown}');
+    await user.keyboard('{Enter}');
     await waitFor(() => expect(writes.at(-1)?.queryString).toContain('cmp=off'));
   });
 

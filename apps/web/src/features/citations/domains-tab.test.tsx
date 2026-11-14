@@ -563,45 +563,28 @@ describe('DomainsTab', () => {
     await waitFor(() => expect(updates.at(-1)).not.toContain('sort='));
   });
 
-  it('says the shares and the units they are of, above the table', async () => {
+  it('leaves the stray share scope line off the page, keeping it in the share header tooltip', async () => {
     renderTab();
     await loaded();
-    // The Share header says it too, in its tooltip: the line is the paragraph above the table
-    const lines = screen.getAllByText('Shares are of 18,420 citation units in 4,812 answers.');
-    expect(lines.some((line) => line.tagName === 'P')).toBe(true);
+    expect(screen.queryAllByText(/^Shares are of/).some((el) => el.tagName === 'P')).toBe(false);
   });
 
-  it('says the 200 most cited domains are listed of N above 200', async () => {
+  it('says the 200 most cited domains are listed of N above 200 in the footer', async () => {
     serveDomains([G2, HUBSPOT], { total: 1204 });
     renderTab();
     await loaded();
-    expect(
-      screen.getByText('The 2 most cited domains are listed of 1,204. Raise the minimum or narrow the filters.'),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/2 of 1,204 domains\. Raise the minimum to see more/)).toBeInTheDocument();
   });
 
   it('says nothing when every domain is listed', async () => {
     renderTab();
     await loaded();
-    expect(screen.queryByText(/most cited domains are listed of/)).toBeNull();
+    expect(screen.queryByText(/Raise the minimum to see more/)).toBeNull();
   });
 
-  it('says nothing is marked New when the previous period has no answers', async () => {
+  it('leaves the full width no previous answers banner off the table', async () => {
     serveDomains([G2, HUBSPOT], { meta: { ...META, previous_answers: 0 } });
     renderTab();
-    await loaded();
-    expect(screen.getByText('The previous period has no answers, so nothing is marked New.')).toBeInTheDocument();
-  });
-
-  it('says nothing of the previous period when it had answers', async () => {
-    renderTab();
-    await loaded();
-    expect(screen.queryByText(/previous period has no answers/)).toBeNull();
-  });
-
-  it('says nothing of the previous period when the comparison is off', async () => {
-    serveDomains([G2, HUBSPOT], { meta: { ...META, previous_answers: 0 } });
-    renderTab('cmp=off');
     await loaded();
     expect(screen.queryByText(/previous period has no answers/)).toBeNull();
   });

@@ -16,7 +16,6 @@ import {
   collectSeriousViolations,
   EDITOR,
   expectNoSeriousViolations,
-  GEMINI_NOTICE,
   inspectAddress,
   minorFindings,
   openBudgets,
@@ -70,20 +69,19 @@ test.describe('runs, costs and budgets', () => {
     await runUnderWay(page);
     await page.reload();
     await waitForContent(page);
-    await expect(page.getByText(/^Collecting answers: [\d,]+ of [\d,]+ tasks/)).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Collecting answers' })).toBeVisible();
     await expect(collectionLine(page)).toHaveText('Running now');
-    await expect(page.getByRole('link', { name: 'View run' })).toBeVisible();
 
     // The poll (every 10 s while a run is open) sees the end: the progress goes and the notice comes
     await runFinished(page);
-    await expect(page.getByText(/^Collecting answers/)).toHaveCount(0, { timeout: 25_000 });
-    await expect(page.getByText(GEMINI_NOTICE)).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Collecting answers' })).toHaveCount(0, { timeout: 25_000 });
+    await expect(page.getByRole('link', { name: 'Gemini degraded' })).toBeVisible();
     await expect(page.getByText(/^ChatGPT: .* valid/)).toHaveCount(0);
     await expect(page.getByText(/^Google AI Mode: .* valid/)).toHaveCount(0);
-    await expect(collectionLine(page)).toContainText(/^Last run .*, [\d,]+ of [\d,]+ answers$/, { timeout: 70_000 });
+    await expect(collectionLine(page)).toContainText(/^Last run .*, [\d,]+ of [\d,]+ answers/);
 
     // The notice links to the run, which opens in the inspector of the Runs page
-    await page.getByRole('link', { name: 'View run for Gemini' }).click();
+    await page.getByRole('link', { name: 'Gemini degraded' }).click();
     await expect(page).toHaveURL(/\/ops\/runs\?inspect=run(%3A|:)/);
     await expect(runInspector(page)).toBeVisible();
   });
@@ -248,7 +246,7 @@ test.describe('runs, costs and budgets', () => {
         name: 'topics',
         address: PROMPTS_PAGE,
         ready: async (): Promise<void> => {
-          await expect(page.getByText(GEMINI_NOTICE)).toBeVisible();
+          await expect(page.getByRole('link', { name: 'Gemini degraded' })).toBeVisible();
         },
       },
       {

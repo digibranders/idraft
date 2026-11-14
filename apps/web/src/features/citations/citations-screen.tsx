@@ -26,7 +26,8 @@ import { useUrlFilters } from '@/components/app/filters/use-url-filters';
 import { InspectorLayout } from '@/components/app/inspector/inspector-layout';
 import { useInspector } from '@/components/app/inspector/use-inspector';
 import { CountryScopeControl, type CountryScopeLabels } from '@/components/app/scope/country-scope-control';
-import { PAGE_CLASS, PageHeader } from '@/components/app/shell/page-header';
+import { PageToolbar } from '@/components/app/page-toolbar';
+import { PAGE_CLASS } from '@/components/app/shell/page-header';
 import { TopBarPortal } from '@/components/app/shell/top-bar-slot';
 import { Banner } from '@/components/app/status/banner';
 import { EmptyState } from '@/components/app/status/empty-state';
@@ -92,7 +93,7 @@ export function CitationsScreen(props: CitationsScreenProps): ReactNode {
   if (!canRead) {
     return (
       <div className={PAGE_CLASS}>
-        <PageHeader title={t('title')} />
+        <PageToolbar title={t('title')} />
         <EmptyState icon={Ban} title={t('noAccessTitle')} reason={t('noAccessReason')} headingLevel={2} />
       </div>
     );
@@ -285,46 +286,50 @@ function CitationsContent({ workspaceId, workspaceSlug, project }: CitationsScre
           date: dropped.code === 'before_start' ? formatBusinessDate(dropped.earliest) : '',
         });
 
-  const header = (
-    <PageHeader
-      title={t('title')}
-      meta={enginesReady ? metaLine : undefined}
-      actions={
-        <>
-          <SavedViewMenu
-            views={views}
-            current={savedView.view}
-            viewKeys={CITATION_VIEW_KEYS}
-            edited={savedView.edited}
-            onApply={savedView.apply}
-            onReset={savedView.reset}
-          />
-          {/* The export rows type covers domains and pages: New and lost rows have no file (plan D7) */}
-          {activeId === 'new-lost' ? null : (
-            <ExportButton
-              source={exportSource}
-              scope={source}
-              previousMeta={previousMeta.data?.meta}
-              engines={exportEngines}
-              range={range}
-            />
-          )}
-          <Menu
-            align="end"
-            trigger={<IconButton icon={MoreHorizontal} variant="secondary" label={t('moreActions')} />}
-            items={[{ id: COPY_LINK, label: t('copyLink'), icon: Link2, onSelect: copyLink }]}
-          />
-        </>
-      }
-    />
+  const toolbarActions = (
+    <>
+      <SavedViewMenu
+        views={views}
+        current={savedView.view}
+        viewKeys={CITATION_VIEW_KEYS}
+        edited={savedView.edited}
+        onApply={savedView.apply}
+        onReset={savedView.reset}
+      />
+      {/* The export rows type covers domains and pages: New and lost rows have no file (plan D7) */}
+      {activeId === 'new-lost' ? null : (
+        <ExportButton
+          source={exportSource}
+          scope={source}
+          previousMeta={previousMeta.data?.meta}
+          engines={exportEngines}
+          range={range}
+        />
+      )}
+      <Menu
+        align="end"
+        trigger={<IconButton icon={MoreHorizontal} variant="secondary" label={t('moreActions')} />}
+        items={[{ id: COPY_LINK, label: t('copyLink'), icon: Link2, onSelect: copyLink }]}
+      />
+    </>
   );
 
   let body: ReactNode;
   if (engines.isError && engines.data === undefined) {
     // Never an empty list: that would read as every engine
-    body = <LoadFailed errorId={null} onRetry={() => void engines.refetch()} retrying={engines.isFetching} />;
+    body = (
+      <>
+        <PageToolbar title={t('title')} actions={toolbarActions} />
+        <LoadFailed errorId={null} onRetry={() => void engines.refetch()} retrying={engines.isFetching} />
+      </>
+    );
   } else if (engines.data !== undefined && enabledEngines.length === 0) {
-    body = <NoEngine workspaceSlug={workspaceSlug} projectSlug={project.slug} />;
+    body = (
+      <>
+        <PageToolbar title={t('title')} actions={toolbarActions} />
+        <NoEngine workspaceSlug={workspaceSlug} projectSlug={project.slug} />
+      </>
+    );
   } else {
     const context: CitationTabContext = {
       source,
@@ -349,21 +354,45 @@ function CitationsContent({ workspaceId, workspaceSlug, project }: CitationsScre
     // With the comparison off the read of the previous period has nothing to ask, so it has no error to count
     const failed = Object.values(stripReads).filter((read) => read.errorId !== null);
     const partial = !scopeFailed && failed.length > 0;
+    const toolbarFilters = (
+      <div className="flex items-center gap-2">
+        <FilterBar fields={fields} values={values} onChange={setValues} />
+        <CompareSelect
+          compare={scope.compare}
+          onCompareChange={(next) => setSearch({ cmp: cmpOf(next) })}
+          noPrevious={scope.compare && meta?.previous_answers === 0}
+        />
+      </div>
+    );
     body = (
       <Tabs
-        variant="underline"
+        variant="segmented"
         label={t('tabs.label')}
         value={activeId}
         // A view is a place to go back to: the tab is the one change of the page that makes a history entry
         onValueChange={(next) => setSearch({ tab: next === 'domains' ? null : next, cols: null }, { history: 'push' })}
         items={CITATION_TABS.map((entry) => ({ value: entry.id, label: entry.label(t) }))}
+        renderList={(tabList) => (
+          <PageToolbar
+            title={t('title')}
+            stats={
+              scopeFailed ? null : <CitationsStrip reads={stripReads} scope={scope} labelOf={labelOf} size="inline" />
+            }
+            tabs={tabList}
+            filters={toolbarFilters}
+            status={
+              enginesReady && metaLine !== EMPTY_VALUE ? (
+                <span className="type-meta text-foreground-tertiary">{metaLine}</span>
+              ) : null
+            }
+            actions={toolbarActions}
+          />
+        )}
         className="gap-3 lg:min-h-0 lg:flex-1"
       >
         {scopeFailed ? (
           <LoadFailed errorId={scopeMeta.errorId} onRetry={scopeMeta.retry} retrying={scopeMeta.retrying} />
-        ) : (
-          <CitationsStrip reads={stripReads} scope={scope} labelOf={labelOf} />
-        )}
+        ) : null}
         {partial ? (
           <Banner
             tone="warning"
@@ -384,16 +413,10 @@ function CitationsContent({ workspaceId, workspaceSlug, project }: CitationsScre
             }
           />
         ) : null}
-        <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
-          <div className="min-w-0 flex-1 basis-24">
-            <FilterBar fields={fields} values={values} onChange={setValues} />
-          </div>
-          <div className="ml-auto flex h-control shrink-0 items-center">
-            <CompareSelect compare={scope.compare} onCompareChange={(next) => setSearch({ cmp: cmpOf(next) })} />
-          </div>
-        </div>
         {scope.country === null ? null : (
-          <p className="type-meta">{scopeWords('note', { country: countries.nameOf(scope.country) })}</p>
+          <p className="type-meta text-foreground-tertiary">
+            {scopeWords('note', { country: countries.nameOf(scope.country) })}
+          </p>
         )}
         {scopeFailed || tab === null ? null : (
           <TabsPanel value={tab.id} className="flex flex-col gap-3 lg:min-h-0 lg:flex-1">
@@ -445,7 +468,6 @@ function CitationsContent({ workspaceId, workspaceSlug, project }: CitationsScre
       </TopBarPortal>
       {/* From lg up the window's height, as the Prompts page has it: the table of a tab fills what the strip and the filters leave. Below it the page scrolls as a whole, so a short phone keeps the table whole */}
       <div className="flex flex-col gap-3 px-3 pt-3 pb-5 md:px-4 lg:h-page-body lg:min-h-page-body-min lg:px-5">
-        {header}
         {droppedWords === null ? null : <Banner tone="info" placement="region" message={droppedWords} />}
         {body}
       </div>

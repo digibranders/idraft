@@ -540,33 +540,30 @@ describe('PagesTab', () => {
     await waitFor(() => expect(updates.at(-1)).not.toContain('sort='));
   });
 
-  it('says the shares and the units they are of, above the table', async () => {
+  it('leaves the stray share scope line off the page, keeping it in the share header tooltip', async () => {
     renderTab();
     await loaded();
-    const lines = screen.getAllByText('Shares are of 18,420 citation units in 4,812 answers.');
-    expect(lines.some((line) => line.tagName === 'P')).toBe(true);
+    expect(screen.queryAllByText(/^Shares are of/).some((el) => el.tagName === 'P')).toBe(false);
   });
 
-  it('says the 200 most cited pages are listed of N above 200', async () => {
+  it('says the 200 most cited pages are listed of N above 200 in the footer', async () => {
     servePages([ONE, TWO], { total: 1204 });
     renderTab();
     await loaded();
-    expect(
-      screen.getByText('The 2 most cited pages are listed of 1,204. Raise the minimum or narrow the filters.'),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/2 of 1,204 pages\. Raise the minimum to see more/)).toBeInTheDocument();
   });
 
   it('says nothing when every page is listed', async () => {
     renderTab();
     await loaded();
-    expect(screen.queryByText(/most cited pages are listed of/)).toBeNull();
+    expect(screen.queryByText(/Raise the minimum to see more/)).toBeNull();
   });
 
-  it('says nothing is marked New when the previous period has no answers', async () => {
+  it('leaves the full width no previous answers banner off the table', async () => {
     servePages([ONE, TWO], { meta: { ...META, previous_answers: 0 } });
     renderTab();
     await loaded();
-    expect(screen.getByText('The previous period has no answers, so nothing is marked New.')).toBeInTheDocument();
+    expect(screen.queryByText(/previous period has no answers/)).toBeNull();
   });
 
   it('marks a page New when it was not cited in the previous period', async () => {

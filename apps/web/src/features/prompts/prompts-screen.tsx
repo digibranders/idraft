@@ -87,7 +87,8 @@ import type { FilterField, FilterValues } from '@/components/app/filters/types';
 import { useUrlFilters } from '@/components/app/filters/use-url-filters';
 import { InspectorLayout } from '@/components/app/inspector/inspector-layout';
 import { DEFAULT_INSPECTOR_TAB, useInspector } from '@/components/app/inspector/use-inspector';
-import { PAGE_CLASS, PageHeader } from '@/components/app/shell/page-header';
+import { PageToolbar } from '@/components/app/page-toolbar';
+import { PAGE_CLASS } from '@/components/app/shell/page-header';
 import { TopBarPortal } from '@/components/app/shell/top-bar-slot';
 import { Banner } from '@/components/app/status/banner';
 import { EmptyState } from '@/components/app/status/empty-state';
@@ -186,7 +187,7 @@ export function PromptsScreen(props: PromptsScreenProps): ReactNode {
   if (!canRead) {
     return (
       <div className={PAGE_CLASS}>
-        <PageHeader title={t('title')} />
+        <PageToolbar title={t('title')} />
         <EmptyState icon={Ban} title={t('noAccessTitle')} reason={t('noAccessReason')} headingLevel={2} />
       </div>
     );
@@ -845,7 +846,10 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   const showAdd = list.rows.length > 0 && add.entry !== null;
   let content: ReactNode;
   // The filters belong to the table: the other states have nothing to filter
-  let toolbar: ReactNode;
+  let statsSlot: ReactNode;
+  let filtersSlot: ReactNode;
+  let statusSlot: ReactNode;
+  let actionsSlot: ReactNode;
   // A failed read in the background leaves the page as it is
   if (engines.isError && engines.data === undefined) {
     content = (
@@ -880,42 +884,51 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     // The chips, then the filters: chips of the filters set wrap under them, and a bar without filters is one button
     // On a phone: the chips on one line of their own (they scroll sideways when they do not fit), then the Filter
     // button with the menu and Add prompts at the end of the same row. From 768 px it is one row, wrapping when full
-    toolbar = (
-      <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
-        {engines.data !== undefined && (waiting || rows.length > 0) ? (
-          <div className="scrollbar-none flex min-h-control w-full items-center overflow-x-auto md:w-auto">
-            <PromptsStrip
-              prompts={stripPrompts}
-              engines={shown}
-              topics={stripTopics}
-              status={stripStatus}
-              countsFailed={summaryFailed}
-            />
-          </div>
-        ) : null}
-        <div className="min-w-0 flex-1 basis-24">
-          <FilterBar fields={fields} values={values} onChange={setValues} />
-        </div>
-        <div className="ml-auto flex h-control shrink-0 items-center gap-3">
-          <CompareSelect window={comparedWindow(summaryData)} />
-          {updatedText === null ? null : (
-            // Shown while the header's container is at least 64rem wide (about a 1280 px window with the sidebar open); a narrower one has it in the More actions menu
-            <Tooltip content={windowCaption} purpose="label" side="bottom">
-              <span className="hidden type-meta whitespace-nowrap @5xl:inline">
-                <UpdatedRunLink
-                  scope={scope}
-                  workspaceSlug={workspaceSlug}
-                  projectSlug={project.slug}
-                  text={updatedText}
-                />
-              </span>
-            </Tooltip>
-          )}
-          {extraControls}
-          {moreMenu}
-          {showAdd ? add.entry : null}
-        </div>
+    statsSlot =
+      engines.data !== undefined && (waiting || rows.length > 0) ? (
+        <PromptsStrip
+          prompts={stripPrompts}
+          engines={shown}
+          topics={stripTopics}
+          status={stripStatus}
+          countsFailed={summaryFailed}
+        />
+      ) : null;
+    filtersSlot = (
+      <div className="flex items-center gap-2">
+        <FilterBar fields={fields} values={values} onChange={setValues} />
+        <CompareSelect window={comparedWindow(summaryData)} />
       </div>
+    );
+    statusSlot = (
+      <div className="flex items-center gap-3">
+        <AiCollectionStatus
+          scope={scope}
+          workspaceSlug={workspaceSlug}
+          projectSlug={project.slug}
+          onFinished={() => void summary.refetch()}
+          variant="inline"
+        />
+        {updatedText === null ? null : (
+          <Tooltip content={windowCaption} purpose="label" side="bottom">
+            <span className="type-meta whitespace-nowrap">
+              <UpdatedRunLink
+                scope={scope}
+                workspaceSlug={workspaceSlug}
+                projectSlug={project.slug}
+                text={updatedText}
+              />
+            </span>
+          </Tooltip>
+        )}
+      </div>
+    );
+    actionsSlot = (
+      <>
+        {extraControls}
+        {moreMenu}
+        {showAdd ? add.entry : null}
+      </>
     );
     content = (
       <>
@@ -1219,21 +1232,14 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
           />
         </TopBarPortal>
         <div className="flex h-page-body min-h-page-body-min flex-col gap-3 px-3 pt-3 pb-5 md:px-4 lg:px-5">
-          <PageHeader
+          <PageToolbar
             title={t('title')}
-            titleHidden
-            toolbar={toolbar}
-            // Without the table (an empty state) only Add prompts is left of the header's right side, and the controls
-            // of the toolbar seam before it
-            actions={toolbar === undefined ? emptyActions : undefined}
+            stats={statsSlot}
+            filters={filtersSlot}
+            status={statusSlot}
+            actions={actionsSlot ?? emptyActions}
           />
           {droppedWords === null ? null : <Banner tone="info" placement="region" message={droppedWords} />}
-          <AiCollectionStatus
-            scope={scope}
-            workspaceSlug={workspaceSlug}
-            projectSlug={project.slug}
-            onFinished={() => void summary.refetch()}
-          />
           {content}
         </div>
         {actions.dialogs}

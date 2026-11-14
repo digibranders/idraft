@@ -24,7 +24,8 @@ export interface AiCollectionStatusProps {
   workspaceSlug: string;
   projectSlug: string;
   /** Called once when an AI run that was open ends, so the page reads the answers it collected. */
-  onFinished: () => void;
+  onFinished?: (() => void) | undefined;
+  variant?: 'banner' | 'inline' | undefined;
 }
 
 /**
@@ -38,6 +39,7 @@ export function AiCollectionStatus({
   workspaceSlug,
   projectSlug,
   onFinished,
+  variant = 'banner',
 }: AiCollectionStatusProps): ReactElement | null {
   const t = useTranslations('runs');
   const queryClient = useQueryClient();
@@ -66,7 +68,7 @@ export function AiCollectionStatus({
     wasOpen.current = false;
     announce(message);
     void queryClient.invalidateQueries({ queryKey: [...projectKey(scope.workspaceId, scope.projectId), 'runs'] });
-    finished.current();
+    finished.current?.();
   }, [open, message, queryClient, scope.workspaceId, scope.projectId]);
 
   const answer = coverage.data?.data;
@@ -79,6 +81,7 @@ export function AiCollectionStatus({
         }));
   return (
     <AiCollectionStatusView
+      variant={variant}
       progress={
         open === null
           ? null

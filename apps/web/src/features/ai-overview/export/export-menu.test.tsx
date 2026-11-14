@@ -152,8 +152,10 @@ describe('the Export menu of the AI visibility page', () => {
     const text = chatgptCell?.textContent ?? '';
     const percent = /(\d+(?:\.\d)?)%/.exec(text)?.[1];
     expect(Math.abs(Number(percent) - Number(value))).toBeLessThanOrEqual(0.5);
-    expect(text).toContain(
-      `${Number(numerator).toLocaleString('en-US')} of ${Number(denominator).toLocaleString('en-US')} answers`,
+    expect(chatgptCell).toHaveAccessibleDescription(
+      new RegExp(
+        `${Number(numerator).toLocaleString('en-US')} of ${Number(denominator).toLocaleString('en-US')} (?:valid )?answers`,
+      ),
     );
     const prompts = rows.find((row) => row[2] === 'ai.prompts_in_scope');
     expect(promptsCell).toHaveTextContent(new RegExp(`^${prompts?.[4] ?? 'none'}`));

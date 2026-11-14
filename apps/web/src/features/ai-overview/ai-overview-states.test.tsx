@@ -167,8 +167,9 @@ describe('the notice region and the freshness of the AI visibility page', () => 
       ),
     );
     renderWithProviders(overviewAs('admin'));
-    expect(await screen.findByText('Scheduled AI runs are paused for this project')).toBeInTheDocument();
-    expect(document.querySelectorAll('[data-slot="banner"]')).toHaveLength(1);
+    const chip = await screen.findByRole('link', { name: 'Schedules paused' });
+    expect(chip).toHaveAttribute('href', '/digibranders/fynix/settings/schedules');
+    expect(document.querySelectorAll('[data-slot="banner"]')).toHaveLength(0);
   });
 
   it('names the next run of the schedule before the first answers arrive', async () => {
@@ -272,8 +273,8 @@ describe('the page while it loads and refetches', () => {
       }),
     );
     const { container } = renderWithProviders(overviewAs('admin'));
-    expect(container.querySelector('.h-metric-strip[aria-hidden="true"]')).not.toBeNull();
-    expect(container.querySelector('.h-control[aria-hidden="true"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="strip-placeholder"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="scope-bar-placeholder"]')).not.toBeNull();
     expect(screen.getByRole('status', { name: 'Loading AI visibility' })).toBeInTheDocument();
     release.open();
     expect(await screen.findByRole('group', { name: STRIP })).toBeInTheDocument();
