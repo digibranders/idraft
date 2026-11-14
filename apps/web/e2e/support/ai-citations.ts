@@ -46,10 +46,26 @@ export async function scopeUnits(root: Page | Locator): Promise<number> {
   return Number(units.replaceAll(',', ''));
 }
 
-/** Waits until the page has drawn its tab: the heading, then the first cited domain or page. */
+/** The rows the Domains table draws now: the whole count the tests compare a filter or a minimum against. */
+export const domainCount = (page: Page): Promise<number> => domainsTable(page).getByRole('rowheader').count();
+
+/** Below this width the Domains and Pages tabs are lists, not tables (WP-22: `features/citations/mobile-rows`). */
+const TABLE_FROM = 768;
+
+/**
+ * Waits until the page has drawn its tab: the heading, then the first cited domain or page. From 768 px that is a
+ * table's row header; below it the tab is a list named with its count ("Cited domains, 5 results"), so its first
+ * item is awaited instead.
+ */
 async function awaitTab(page: Page, params: Readonly<Record<string, string>>): Promise<void> {
   await expect(page.getByRole('heading', { level: 1, name: 'Citations' })).toBeVisible();
-  const table = params['tab'] === 'pages' ? pagesTable(page) : domainsTable(page);
+  const pages = params['tab'] === 'pages';
+  if ((page.viewportSize()?.width ?? TABLE_FROM) < TABLE_FROM) {
+    const list = page.getByRole('list', { name: new RegExp(`^Cited ${pages ? 'pages' : 'domains'}, \\d+ results?$`) });
+    await expect(list.getByRole('listitem').first()).toBeVisible();
+    return;
+  }
+  const table = pages ? pagesTable(page) : domainsTable(page);
   await expect(table.getByRole('rowheader').first()).toBeVisible();
 }
 

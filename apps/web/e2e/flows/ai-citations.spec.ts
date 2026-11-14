@@ -5,6 +5,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import { formatInteger } from '../../src/lib/format';
 import { expectAccessible, signIn } from '../support';
 import {
+  domainCount,
   domainsTable,
   EDITOR,
   FIRST_PROMPT,
@@ -120,7 +121,10 @@ test.describe('The Citations page', () => {
 
   test('a Role filter narrows the rows and leaves the Own citation share', async ({ page }) => {
     await openCitations(page, 1280);
-    await expect(domainsTable(page).getByRole('rowheader')).toHaveCount(4);
+    // Every row the table draws, so the filter has something to narrow: the four domains of the answers and any
+    // the New and lost fixtures add (agency-radar.example)
+    const all = await domainCount(page);
+    expect(all).toBeGreaterThan(THIRD_PARTIES.length);
     const share = await textOf(stripValue(page, 'Own citation share'));
     const units = await textOf(stripValue(page, 'Citation units'));
 
@@ -132,6 +136,7 @@ test.describe('The Citations page', () => {
     await expect(page).toHaveURL(/[?&]role=third_party(&|$)/);
     await expect(page.getByRole('button', { name: 'Role: Third party. Edit filter' })).toBeVisible();
     await expect(domainsTable(page).getByRole('rowheader')).toHaveCount(THIRD_PARTIES.length);
+    expect(THIRD_PARTIES.length).toBeLessThan(all);
     for (const domain of THIRD_PARTIES) await expect(domainRow(page, domain)).toBeVisible();
     await expect(domainRow(page, OWN)).toHaveCount(0);
     await expect(domainRow(page, COMPETITOR)).toHaveCount(0);
@@ -142,6 +147,8 @@ test.describe('The Citations page', () => {
 
   test('a larger minimum leaves rows out and keeps the strip', async ({ page }) => {
     await openCitations(page, 1280);
+    const all = await domainCount(page);
+    expect(all).toBeGreaterThan(0);
     const units = await textOf(stripValue(page, 'Citation units'));
     const share = await textOf(stripValue(page, 'Own citation share'));
 
@@ -159,20 +166,24 @@ test.describe('The Citations page', () => {
 
     await page.getByRole('button', { name: 'Clear filters' }).click();
     await expect(page).not.toHaveURL(/[?&]min=/);
-    await expect(domainsTable(page).getByRole('rowheader')).toHaveCount(4);
+    await expect(domainsTable(page).getByRole('rowheader')).toHaveCount(all);
     await expect(page.getByRole('combobox', { name: 'Fewest citation units' })).toHaveText('At least 2 units');
   });
 
   test('exports the table as a CSV with the units and the total', async ({ page }) => {
     await openCitations(page, 1280);
     const total = await scopeUnits(page);
+    const all = await domainCount(page);
+    expect(all).toBeGreaterThan(0);
 
     const [download] = await Promise.all([
       page.waitForEvent('download'),
       page.getByRole('button', { name: 'Export CSV' }).click(),
     ]);
     expect(download.suggestedFilename()).toMatch(/^citations-domains-\d{4}-\d{2}-\d{2}-to-\d{4}-\d{2}-\d{2}\.csv$/);
-    await expect(page.getByRole('region', { name: 'Notifications' })).toContainText('4 of 4 domains exported');
+    await expect(page.getByRole('region', { name: 'Notifications' })).toContainText(
+      `${String(all)} of ${String(all)} domains exported`,
+    );
     const [header = '', ...rows] = await readDownload(download);
     const columns = header.split(',');
     // The units and what they are of: a share is never exported without the units it is a share of
@@ -187,14 +198,14 @@ test.describe('The Citations page', () => {
     ]);
     expect(columns).toContain('Citation units on ChatGPT');
     expect(columns).toContain('Citation units on Gemini');
-    expect(rows).toHaveLength(4);
+    expect(rows).toHaveLength(all);
     let listed = 0;
     for (const row of rows) {
       const cells = row.split(',');
       expect(Number(cells[4])).toBe(total);
       listed += Number(cells[2]);
     }
-    // All four domains are listed, so their units are the whole scope
+    // Every domain is listed, so their units are the whole scope
     expect(listed).toBe(total);
     expect(rows[0]?.startsWith(`${THIRD_PARTIES[0] ?? ''},Third party,`)).toBe(true);
 
@@ -345,6 +356,7 @@ for (const theme of ['light', 'dark'] as const) {
       test(`has no accessibility violation on Domains, Pages and the prompt tab at ${String(width)} px`, async ({
         page,
       }) => {
+        // At 390 px the Domains and Pages tabs are lists (WP-22), so `openCitations` waits for the list there
         await openCitations(page, width);
         await expectAccessible(page);
         await visitCitations(page, { tab: 'pages' });
