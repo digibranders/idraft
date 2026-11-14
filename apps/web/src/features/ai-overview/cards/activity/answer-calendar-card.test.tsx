@@ -53,6 +53,8 @@ const summaryOf = (container: HTMLElement): string | undefined =>
   container.querySelector('section > p.sr-only')?.textContent;
 
 /** Every cell of the calendar grid that has a day in it: they are the ones that carry a name. */
+/** The skeleton that stands for the body of the frame while loading: the one inside a box of the frame's height. */
+const LOADING_BODY = 'section[aria-busy="true"] div[style*="height"] > [data-slot="skeleton"]';
 const dayCells = (): HTMLElement[] => screen.getAllByRole('cell').filter((node) => node.getAttribute('aria-label'));
 
 describe('the answer collection calendar card (CH-20)', () => {
@@ -60,9 +62,31 @@ describe('the answer collection calendar card (CH-20)', () => {
     server.use(http.get(DAILY, async () => delay('infinite')));
     render();
     await card();
-    const busy = document.querySelector('[aria-busy="true"]');
-    expect(busy).not.toBeNull();
-    expect(busy?.querySelector('[data-slot="skeleton"]')?.parentElement).toHaveStyle({ height: '240px' });
+    expect(document.querySelector('[aria-busy="true"]')).not.toBeNull();
+    expect(document.querySelector(LOADING_BODY)?.parentElement).toHaveStyle({ height: '280px' });
+  });
+
+  it('reserves the engine tabs and the meta line while loading, so nothing jumps when the days arrive', async () => {
+    server.use(
+      http.get(DAILY, async () => {
+        await delay(80);
+        return HttpResponse.json(twoWeeks());
+      }),
+    );
+    render();
+    await card();
+    const placeholder = document.querySelector('[data-slot="controls-placeholder"]');
+    expect(placeholder).not.toBeNull();
+    expect(placeholder?.className).toContain('h-control-sm');
+    expect(document.querySelector('section p.type-meta')).not.toBeNull();
+    const loadingBody = document.querySelector(LOADING_BODY)?.parentElement;
+    const reserved = loadingBody?.style.height;
+    await screen.findByRole('table', { name: /^Collection calendar for ChatGPT/ });
+    // The tabs take the placeholder's height, and the loaded body is held to the height the skeleton had
+    expect(document.querySelector('[data-slot="controls-placeholder"]')).toBeNull();
+    expect(screen.getByRole('button', { name: /^ChatGPT, / }).className).toContain('h-control-sm');
+    const region = screen.getByRole('region', { name: /^Collection calendar for ChatGPT/ });
+    expect(region.closest<HTMLElement>('div[style]')?.style.minHeight).toBe(reserved);
   });
 
   it('draws weekdays as rows and weeks as columns, for the first asked engine', async () => {
@@ -103,6 +127,13 @@ describe('the answer collection calendar card (CH-20)', () => {
     render();
     await screen.findByRole('table', { name: /^Collection calendar for ChatGPT/ });
     const unknown = cell('Tue Nov 3: Schedule unknown');
+    // A dashed outline tells it from the lowest bin without colour, and the key shows the same outline
+    expect(unknown.className).toContain('border-dashed');
+    expect(cell(FRIDAY).className).not.toContain('border-dashed');
+    expect(cell('Fri Nov 13: 0 of 750 answers valid').className).not.toContain('border-dashed');
+    expect(
+      within(screen.getByRole('list', { name: 'Key to the calendar' })).getByText('Schedule unknown').firstElementChild,
+    ).toHaveClass('border-dashed');
     expect(unknown.className).toContain('bg-surface');
     expect(unknown.className).not.toContain('bg-seq-');
     expect(unknown).not.toHaveTextContent('0');
@@ -119,6 +150,21 @@ describe('the answer collection calendar card (CH-20)', () => {
     render();
     expect(
       await screen.findByRole('cell', { name: 'Tue Nov 3: Schedule unknown, 12 answers collected, 12 valid' }),
+    ).toBeInTheDocument();
+  });
+
+  it('writes every count of a day with the number formatter, plurals and runs blocked included', async () => {
+    serve(
+      dailyResponse([day({ date: '2026-11-06', scheduled: 2000, complete: 800, error: 1200, blocked: 1 })], {
+        from: '2026-11-06',
+        to: '2026-11-06',
+      }),
+    );
+    render();
+    expect(
+      await screen.findByRole('cell', {
+        name: 'Fri Nov 6: 800 of 2,000 answers valid, 1,200 errors, 1 run blocked by the budget',
+      }),
     ).toBeInTheDocument();
   });
 
@@ -380,6 +426,8 @@ describe('the answer collection calendar card (CH-20)', () => {
     ).toEqual(['750', '750', '742', '42', '0', '6', '2', '0']);
     const unknown = within(table).getByRole('row', { name: /^Tue Nov 3/ });
     expect(within(unknown).getAllByRole('cell')[0]).toHaveTextContent('Schedule unknown');
+    // A day never wraps onto three lines at half width
+    expect(within(unknown).getByRole('rowheader').firstElementChild).toHaveClass('whitespace-nowrap');
     expect(within(table).queryByRole('row', { name: /^Wed Nov 4/ })).not.toBeInTheDocument();
   });
 

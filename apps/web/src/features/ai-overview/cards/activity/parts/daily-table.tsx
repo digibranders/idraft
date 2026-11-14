@@ -85,7 +85,12 @@ export function DayTable({ engine, days }: DayTableProps): ReactElement {
   const t = useTranslations('aiOverview.activity.daily');
   const dayText = useDayText();
   const columns: PlainColumn<DayCounts>[] = [
-    { id: 'day', header: t('headerDay'), cell: (day) => dayText(day.date) },
+    // The first column is a row header, which the table lets wrap: a day stays on one line
+    {
+      id: 'day',
+      header: t('headerDay'),
+      cell: (day) => <span className="whitespace-nowrap">{dayText(day.date)}</span>,
+    },
     {
       id: 'scheduled',
       header: t('headerScheduled'),

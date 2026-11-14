@@ -7,6 +7,7 @@ import AnswerCalendarCard from './answer-calendar-card';
 import AnswerStatusCard from './answer-status-card';
 import CollectionStatusCard from './collection-status-card';
 import EnginesCard from './engines-card';
+import KeyChangesCard from './key-changes-card';
 import { recordRequests, renderActivityCard, stopRecording } from '@/test/ai-activity-kit';
 import type { CardProps } from '@/features/layouts';
 import { stubViewport } from '@/test/customize-harness';
@@ -27,6 +28,7 @@ const CARDS: readonly (readonly [type: string, Card: ComponentType<CardProps>, r
   ['ops.ai_spend', AiSpendCard, /\/budgets\/status$/],
   ['ops.answer_calendar', AnswerCalendarCard, /\/ai\/collection\/daily$/],
   ['ops.answer_status', AnswerStatusCard, /\/ai\/collection\/daily$/],
+  ['activity.key_changes', KeyChangesCard, /\/(runs|ai\/collection\/daily|ai\/sources\/changes|ai\/prompts-summary)$/],
 ];
 
 const LOADING = 'section[aria-busy="true"] [data-slot="skeleton"]';

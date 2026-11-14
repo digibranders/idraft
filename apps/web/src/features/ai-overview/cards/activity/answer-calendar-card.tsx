@@ -30,6 +30,7 @@ export default function AnswerCalendarCard({ item, live }: CardProps): ReactElem
     ? t('summary', {
         engine: card.engineName,
         runDays: card.runDays.length,
+        shown: formatInteger(card.runDays.length),
         valid: formatInteger(card.totals.valid),
         answers: formatInteger(card.totals.answers),
       })
@@ -38,7 +39,7 @@ export default function AnswerCalendarCard({ item, live }: CardProps): ReactElem
     <ChartFrame
       kind="html"
       variant="panel"
-      height={240}
+      height={280}
       title={t('title')}
       meta={card.meta}
       summary={summary}

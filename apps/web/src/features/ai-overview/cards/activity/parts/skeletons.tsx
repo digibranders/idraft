@@ -13,8 +13,11 @@ export const SKELETON_HEIGHTS: Readonly<Record<string, 140 | 180 | 240 | 280>> =
   'activity.collection_status': 180,
   'ops.engines': 180,
   'ops.ai_spend': 140,
-  'ops.answer_calendar': 240,
+  // The grid and its key are taller than 240 px
+  'ops.answer_calendar': 280,
   'ops.answer_status': 240,
+  // The feed draws its own frame: its loading state is a title row and five rows, about 235 px, as tall as this panel
+  'activity.key_changes': 180,
 };
 
 const BODY: Readonly<Record<140 | 180 | 240 | 280, SkeletonHeight>> = {

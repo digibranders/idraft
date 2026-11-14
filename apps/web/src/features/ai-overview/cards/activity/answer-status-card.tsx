@@ -9,7 +9,7 @@ import { useDailyCard } from './parts/use-daily-card';
 import { useCardExport } from '../engines/use-card-seams';
 import { ChartFrame } from '@/components/app/chart/chart-frame';
 import type { CardProps } from '@/features/layouts';
-import type { CategorySeries, SeriesRole } from '@/lib/charts/category-chart';
+import { escapeHtml, type CategorySeries, type SeriesRole } from '@/lib/charts/category-chart';
 import { tipRowHtml, tipTitleHtml } from '@/lib/charts/tooltip-row';
 import type { ChartTokens } from '@/lib/design/read-tokens';
 import { formatChartDate, formatInteger } from '@/lib/format';
@@ -37,6 +37,12 @@ const NAME_KEYS = {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 const recordOf = (value: unknown): Record<string, unknown> => (isRecord(value) ? value : {});
+
+/** A tooltip row of a fact that is not a series: the same layout as `tipRowHtml`, without its swatch. */
+function plainRowHtml(name: string, valueText: string, tokens: ChartTokens, first = false): string {
+  const gap = first ? 'margin-top:4px;' : '';
+  return `<div style="${gap}display:flex;gap:8px;align-items:center"><span style="color:${escapeHtml(tokens.foregroundSecondary)}">${escapeHtml(name)}</span><span style="margin-left:auto;font-variant-numeric:tabular-nums">${escapeHtml(valueText)}</span></div>`;
+}
 
 interface TipParam {
   dataIndex?: number;
@@ -101,12 +107,12 @@ export default function AnswerStatusCard({ item, live }: CardProps): ReactElemen
             ? []
             : [tipRowHtml(line.color ?? tokens.other, line.name, formatInteger(entry[status]), tokens)];
         });
+        // Not series, so no swatch: the valid total (complete plus partial), what was scheduled, and blocked runs
         const scheduled = entry.scheduled === null ? daily('scheduleUnknown') : formatInteger(entry.scheduled);
-        rows.push(tipRowHtml(tokens.foregroundMuted, t('tooltipScheduled'), scheduled, tokens));
+        rows.push(plainRowHtml(t('tooltipValid'), formatInteger(entry.valid), tokens, true));
+        rows.push(plainRowHtml(t('tooltipScheduled'), scheduled, tokens));
         if (entry.budgetBlocked > 0) {
-          rows.push(
-            tipRowHtml(tokens.foregroundMuted, t('tooltipBlocked'), formatInteger(entry.budgetBlocked), tokens),
-          );
+          rows.push(plainRowHtml(t('tooltipBlocked'), formatInteger(entry.budgetBlocked), tokens));
         }
         return `${tipTitleHtml(dayText(entry.date))}${rows.join('')}`;
       };
@@ -129,6 +135,7 @@ export default function AnswerStatusCard({ item, live }: CardProps): ReactElemen
         empty: formatInteger(totals.empty),
         refused: formatInteger(totals.refused),
         error: totals.error,
+        errorText: formatInteger(totals.error),
       })
     : t('title');
   return (

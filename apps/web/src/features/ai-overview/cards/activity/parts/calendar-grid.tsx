@@ -39,14 +39,19 @@ const BIN_WORDS = {
   divPos3: 'bins.divPos3',
 } as const satisfies Record<HeatBinKey, string>;
 
-const SWATCH = 'size-4 shrink-0 rounded-xs border border-border-subtle forced-color-adjust-none';
-/** A day with no rate (no schedule known, nothing planned): the surface, with a hairline like the other cells. */
-const NO_RATE = 'bg-surface text-foreground';
+const SWATCH = 'size-4 shrink-0 rounded-xs border forced-color-adjust-none';
+/** A cell with a rate has a hairline of the surface tokens. */
+const HAIRLINE = 'border-border-subtle';
+/**
+ * A day with no rate (no schedule known, nothing planned): the surface with a dashed outline. The dashes tell it from
+ * the lowest bin without colour, and the key shows the same outline.
+ */
+const NO_RATE = 'border-dashed border-border bg-surface text-foreground';
 /** The look of a cell: the fill of its bin and the text colour measured for that fill. */
 function lookOf(cell: CalendarCell): string {
   if (cell.state.kind !== 'rate') return NO_RATE;
   const bin = sequentialBin(cell.state.rate);
-  return `${bin.fill} ${bin.text}`;
+  return `${HAIRLINE} ${bin.fill} ${bin.text}`;
 }
 
 /** The name of a day, with its counts: what a screen reader reads in the cell and what the tooltip says. */
@@ -68,8 +73,10 @@ export function useCellLabel(): (cell: CalendarCell) => string {
     }
     if (counts.empty > 0) parts.push(t('cellEmpty', { count: formatInteger(counts.empty) }));
     if (counts.refused > 0) parts.push(t('cellRefused', { count: formatInteger(counts.refused) }));
-    if (counts.error > 0) parts.push(t('cellError', { count: counts.error }));
-    if (counts.budgetBlocked > 0) parts.push(t('cellBlocked', { count: counts.budgetBlocked }));
+    if (counts.error > 0) parts.push(t('cellError', { count: counts.error, shown: formatInteger(counts.error) }));
+    if (counts.budgetBlocked > 0) {
+      parts.push(t('cellBlocked', { count: counts.budgetBlocked, shown: formatInteger(counts.budgetBlocked) }));
+    }
     return t('cellLabel', { day: dayText(counts.date), parts: parts.join(', ') });
   };
 }
@@ -132,7 +139,7 @@ export function CalendarGrid({ caption, weeks }: CalendarGridProps): ReactElemen
                       <td
                         aria-label={label}
                         className={cn(
-                          'h-5 min-w-10 rounded-xs border border-border-subtle p-0 text-center align-middle type-micro',
+                          'h-5 min-w-10 rounded-xs border p-0 text-center align-middle type-micro',
                           lookOf(cell),
                         )}
                       >
@@ -161,12 +168,12 @@ export function CalendarGrid({ caption, weeks }: CalendarGridProps): ReactElemen
       <ul aria-label={t('keyLabel')} className="flex flex-wrap items-center gap-x-4 gap-y-1 type-meta">
         {SEQUENTIAL_BINS.map((bin) => (
           <li key={bin.key} className="flex items-center gap-1.5">
-            <span aria-hidden="true" className={cn(SWATCH, bin.fill)} />
+            <span aria-hidden="true" className={cn(SWATCH, HAIRLINE, bin.fill)} />
             {heatmap(BIN_WORDS[bin.key])}
           </li>
         ))}
         <li className="flex items-center gap-1.5">
-          <span aria-hidden="true" className={cn(SWATCH, NO_RATE)} />
+          <span aria-hidden="true" data-swatch="unknown" className={cn(SWATCH, NO_RATE)} />
           {t('keyUnknown')}
         </li>
         <li className="flex items-center gap-1.5">

@@ -12,6 +12,7 @@ import { askedEngines } from '../../../data/overview-queries';
 import type { Read } from '../../../data/read-state';
 import { useOverview } from '../../../overview-context';
 import { engineLabel } from '../../engines/engine-role';
+import { Skeleton } from '@/components/ui/skeleton';
 import { announce } from '@/lib/a11y/announcer';
 import type { EngineCode } from '@/lib/api/types';
 import { formatDateRange, formatInteger } from '@/lib/format';
@@ -45,6 +46,8 @@ export interface DailyCard {
 }
 
 const NO_DAYS: readonly DayCounts[] = [];
+/** A meta line that holds its line height while the real one is not known yet. */
+const NO_BREAK_SPACE = String.fromCharCode(0xa0);
 
 export function useDailyCard(live: boolean, subject: string): DailyCard {
   const t = useTranslations('aiOverview.activity.daily');
@@ -106,8 +109,17 @@ export function useDailyCard(live: boolean, subject: string): DailyCard {
       key: 'activity-daily-engine',
     });
   };
-  const controls: ReactNode =
-    response === undefined || engine === null ? null : (
+  // While loading, the tabs row and the meta line are held at their height, so nothing moves when the days arrive
+  const loading = frame.status === 'loading';
+  let controls: ReactNode = null;
+  if (loading) {
+    controls = (
+      <div data-slot="controls-placeholder" className="h-control-sm w-60 max-w-full">
+        <Skeleton shape="block" className="h-full w-full" />
+      </div>
+    );
+  } else if (response !== undefined && engine !== null) {
+    controls = (
       <EngineTabs
         engines={perEngine.map((entry) => ({
           code: entry.code,
@@ -118,15 +130,16 @@ export function useDailyCard(live: boolean, subject: string): DailyCard {
         onChange={choose}
       />
     );
-  const meta =
-    response === undefined || !shown
-      ? null
-      : t('meta', {
-          window: formatDateRange(response.meta.window.from, response.meta.window.to),
-          engine: engineName,
-          valid: formatInteger(totals.valid),
-          answers: formatInteger(totals.answers),
-        });
+  }
+  let meta: string | null = loading ? NO_BREAK_SPACE : null;
+  if (response !== undefined && shown) {
+    meta = t('meta', {
+      window: formatDateRange(response.meta.window.from, response.meta.window.to),
+      engine: engineName,
+      valid: formatInteger(totals.valid),
+      answers: formatInteger(totals.answers),
+    });
+  }
 
   return { read, tabs, engine, engineName, days, runDays, allRunDays, totals, frame, controls, meta, shown };
 }

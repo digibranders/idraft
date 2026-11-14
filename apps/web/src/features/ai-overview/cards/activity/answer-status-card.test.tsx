@@ -18,12 +18,14 @@ import {
 import { axe } from '@/test/axe';
 import { stubViewport } from '@/test/customize-harness';
 import { server } from '@/test/msw';
-import { drawnCategories, drawnSeries, tooltipText, type DrawnSeries } from '@/test/weekly-card-kit';
+import { drawnCategories, drawnOption, drawnSeries, tooltipText, type DrawnSeries } from '@/test/weekly-card-kit';
 
 vi.mock('next/navigation', async () => (await import('@/test/next-navigation')).navigationModule);
 vi.mock('@/components/app/chart/echart', async () => (await import('@/test/weekly-card-kit')).echartStandIn);
 
 const DAILY = `${PROJECT}/ai/collection/daily`;
+/** The skeleton that stands for the body of the frame while loading: the one inside a box of the frame's height. */
+const LOADING_BODY = 'section[aria-busy="true"] div[style*="height"] > [data-slot="skeleton"]';
 const TYPE = 'ops.answer_status';
 const TITLE = 'Answer status by engine and day';
 
@@ -66,7 +68,28 @@ describe('the answer status card (CH-21)', () => {
     render();
     const heading = await screen.findByRole('heading', { name: TITLE });
     expect(heading.closest('section')).toHaveAttribute('aria-busy', 'true');
-    expect(document.querySelector('[data-slot="skeleton"]')?.parentElement).toHaveStyle({ height: '240px' });
+    expect(document.querySelector(LOADING_BODY)?.parentElement).toHaveStyle({ height: '240px' });
+  });
+
+  it('reserves the engine tabs and the meta line while loading, so nothing jumps when the days arrive', async () => {
+    server.use(
+      http.get(DAILY, async () => {
+        await delay(80);
+        return HttpResponse.json(twoWeeks());
+      }),
+    );
+    render();
+    await screen.findByRole('heading', { name: TITLE });
+    const placeholder = document.querySelector('[data-slot="controls-placeholder"]');
+    expect(placeholder).not.toBeNull();
+    expect(placeholder?.className).toContain('h-control-sm');
+    expect(document.querySelector('section p.type-meta')).not.toBeNull();
+    const reserved = document.querySelector(LOADING_BODY)?.parentElement?.style.height;
+    await screen.findByTestId('echart-canvas');
+    expect(document.querySelector('[data-slot="controls-placeholder"]')).toBeNull();
+    expect(screen.getByRole('button', { name: /^ChatGPT, / }).className).toContain('h-control-sm');
+    // The loaded chart is held to the height the skeleton had
+    expect(screen.getByRole('img', { name: TITLE }).style.height).toBe(reserved);
   });
 
   it('draws the run days of the first asked engine, as stacked bars of counts', async () => {
@@ -121,12 +144,26 @@ describe('the answer status card (CH-21)', () => {
     expect(screen.getByRole('button', { name: 'Patterns' })).toBeInTheDocument();
   });
 
-  it('tells in the tooltip the counts of the day and what was scheduled', async () => {
+  it('tells in the tooltip the counts of the day, the valid total, and what was scheduled', async () => {
     serve();
     await drawn();
     expect(tooltipText(1)).toBe(
-      'Fri Nov 6|Valid, complete|700|Valid, partial|42|Empty|0|Refused|6|Error|2|Scheduled|750',
+      'Fri Nov 6|Valid, complete|700|Valid, partial|42|Empty|0|Refused|6|Error|2|Valid in total|742|Scheduled|750',
     );
+  });
+
+  it('gives a swatch to the five statuses only: the valid total, the schedule and blocked runs have none', async () => {
+    serve(
+      dailyResponse([day({ date: '2026-11-06', scheduled: 750, complete: 700, partial: 42, blocked: 1 })], {
+        from: '2026-11-06',
+        to: '2026-11-06',
+      }),
+    );
+    await drawn();
+    const tooltip = drawnOption().tooltip as { formatter: (params: unknown) => string };
+    const html = tooltip.formatter([{ dataIndex: 0, axisValueLabel: 'axis' }]);
+    expect(html.match(/border-radius:50%/g)).toHaveLength(5);
+    expect(tooltipText(0)).toContain('Valid in total|742|Scheduled|750|Runs blocked by the budget|1');
   });
 
   it('names a run blocked by the budget in the tooltip of its day, and says Schedule unknown, never 0', async () => {

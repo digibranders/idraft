@@ -21,4 +21,8 @@ export const ACTIVITY_CARDS: Readonly<Record<string, CardRegistration>> = {
     load: () => import('./answer-status-card'),
     skeleton: ACTIVITY_SKELETONS['ops.answer_status'],
   },
+  'activity.key_changes': {
+    load: () => import('./key-changes-card'),
+    skeleton: ACTIVITY_SKELETONS['activity.key_changes'],
+  },
 };

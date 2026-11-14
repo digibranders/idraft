@@ -151,6 +151,8 @@ export function useSourcePages({ limit, subscribed = true }: PageListOptions): S
 export interface ChangeListOptions extends ReadOptions {
   /** The rows asked for from each list. */
   limit: number;
+  /** `false` leaves the lost list unread (it is `idle`): a card that needs only the new domains asks for one list. Default `true`. */
+  lost?: boolean;
 }
 
 export interface SourceChanges {
@@ -172,7 +174,11 @@ export interface SourceChanges {
  * window before. The route compares the window before on its own, so these reads do not depend on the scope's
  * comparison switch. `min_support` is asked of the route (default 2), not applied here.
  */
-export function useSourceChanges({ limit, subscribed = true }: ChangeListOptions): SourceChanges {
+export function useSourceChanges({
+  limit,
+  lost: wantsLost = true,
+  subscribed = true,
+}: ChangeListOptions): SourceChanges {
   const { workspaceId, project, scope, enabledEngines } = useOverview();
   const readScope = useMemo(() => ({ scope, enabledEngines }), [scope, enabledEngines]);
   const askable = sourcesAskable(readScope);
@@ -187,11 +193,11 @@ export function useSourceChanges({ limit, subscribed = true }: ChangeListOptions
   });
   const lostQuery = useQuery({
     ...sourceChangesQuery(ref, filters, { kind: 'lost', minSupport: MIN_DOMAIN_UNITS, limit }),
-    enabled: gate === 'run',
+    enabled: gate === 'run' && wantsLost,
     placeholderData: keepPreviousData,
   });
   const newer = useRead(newQuery, gate);
-  const lost = useRead(lostQuery, gate);
+  const lost = useRead(lostQuery, wantsLost ? gate : 'idle');
 
   const compareWindow = newer.data?.meta.compare_window ?? null;
   const askBefore = runs && compareWindow !== null;
