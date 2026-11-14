@@ -113,7 +113,7 @@ export function OverviewHeader({ stats, filters, noticeChip, setupSlot }: Overvi
         <>
           {noticeChip}
           {meta === undefined ? null : (
-            <span data-slot="overview-meta" className="type-meta">
+            <span data-slot="overview-meta" className="type-meta text-foreground-tertiary">
               {meta}
             </span>
           )}

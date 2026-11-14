@@ -45,32 +45,46 @@ export function PageToolbar({
   children,
   className,
 }: PageToolbarProps): ReactElement {
+  const hasStats = stats !== undefined && stats !== null;
+  const hasRow2 =
+    (tabs !== undefined && tabs !== null) ||
+    (filters !== undefined && filters !== null) ||
+    actions !== undefined ||
+    (!hasStats && status !== undefined && status !== null);
+
   return (
     <div data-slot="page-toolbar" className={cn('@container flex min-w-0 flex-col gap-2', className)}>
       <h1 id={headingId} tabIndex={-1} lang={lang} className="sr-only outline-none">
         {title}
       </h1>
       {before}
-      <div className="flex w-full max-w-full min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
-        {stats !== undefined && stats !== null ? (
+      {hasStats ? (
+        <div className="flex w-full max-w-full min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-1.5">
           <div
             className="scrollbar-none flex h-control-sm max-w-full min-w-0 items-center overflow-x-auto"
             style={{ contain: 'paint' }}
           >
             {stats}
           </div>
-        ) : null}
-        {tabs !== undefined && tabs !== null ? (
-          <div className="flex h-control-sm shrink-0 items-center">{tabs}</div>
-        ) : null}
-        {filters !== undefined && filters !== null ? <div className="min-w-0 shrink-0">{filters}</div> : null}
-        {status !== undefined || actions !== undefined ? (
-          <div className="ml-auto flex min-h-control-sm max-w-full flex-wrap items-center gap-3">
-            {status}
-            {actions}
-          </div>
-        ) : null}
-      </div>
+          {status !== undefined && status !== null ? (
+            <div className="ml-auto flex min-h-control-sm shrink-0 items-center gap-3">{status}</div>
+          ) : null}
+        </div>
+      ) : null}
+      {hasRow2 ? (
+        <div className="flex w-full max-w-full min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
+          {tabs !== undefined && tabs !== null ? (
+            <div className="flex h-control-sm shrink-0 items-center">{tabs}</div>
+          ) : null}
+          {filters !== undefined && filters !== null ? <div className="min-w-0 shrink-0">{filters}</div> : null}
+          {actions !== undefined || (!hasStats && status !== undefined && status !== null) ? (
+            <div className="ml-auto flex min-h-control-sm max-w-full flex-wrap items-center gap-3">
+              {!hasStats ? status : null}
+              {actions}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
       {children}
     </div>
   );
