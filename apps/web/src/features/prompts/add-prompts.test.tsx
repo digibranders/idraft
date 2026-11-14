@@ -126,9 +126,14 @@ describe('Add prompts', () => {
     await user.paste(
       `Which agency audits shop sites in Munich?\n${TRACKED}\nWhich agency audits shop sites in Munich?`,
     );
-    expect(await within(dialog).findByText('Line 2 is already tracked and is left out.')).toBeInTheDocument();
-    expect(within(dialog).getByText('Line 3 repeats line 1 and is left out.')).toBeInTheDocument();
-    expect(await within(dialog).findByText('Adds 1 prompt of your remaining 126.')).toBeInTheDocument();
+    // The check list says line 2 is tracked and line 3 repeats line 1; the plan says the places the add takes
+    await user.click(await within(dialog).findByRole('button', { name: /Check the list/ }));
+    expect(await within(dialog).findByText('Already tracked, so it is left out.')).toBeInTheDocument();
+    expect(within(dialog).getByText('Repeats line 1 and is left out.')).toBeInTheDocument();
+    expect(within(dialog).getByText('3 lines: 1 new, 1 already tracked, and 1 repeat')).toBeInTheDocument();
+    expect(
+      await within(dialog).findByText('Workspace prompts: 24 of 150 used, 25 after this add.'),
+    ).toBeInTheDocument();
     expect(await axe(container)).toHaveNoViolations();
     await user.click(within(dialog).getByRole('button', { name: 'Add 1 prompt' }));
     expect(await screen.findByText('1 prompt added')).toBeInTheDocument();
@@ -160,9 +165,10 @@ describe('Add prompts', () => {
     const dialog = await openDialog(user);
     await user.click(within(dialog).getByRole('textbox', { name: 'Prompts' }));
     await user.paste('Is Fynix any good?');
+    await user.click(await within(dialog).findByRole('button', { name: /Check the list/ }));
     expect(
       await within(dialog).findByText(
-        'Line 1 names Fynix, so it counts as branded and stays out of the rates unless branded prompts are included.',
+        'Names Fynix, so it counts as branded and stays out of the rates unless branded prompts are included.',
       ),
     ).toBeInTheDocument();
     // AI Mode is off for Fynix: its length limit is not asked about
@@ -176,12 +182,17 @@ describe('Add prompts', () => {
     const dialog = await openDialog(user);
     await user.click(within(dialog).getByRole('textbox', { name: 'Prompts' }));
     await user.paste(`Is Fynix any good?\n${'x'.repeat(2100)}`);
-    expect(
-      await within(dialog).findByText('Line 2 is longer than 2,000 characters and cannot be added.'),
-    ).toBeInTheDocument();
+    // The check list opens by itself for a line that cannot be added
+    expect(await within(dialog).findByRole('heading', { level: 3, name: 'Cannot be added (1)' })).toBeInTheDocument();
+    expect(within(dialog).getByText('Line 2')).toBeInTheDocument();
+    expect(await within(dialog).findByText('Longer than 2,000 characters, so it cannot be added.')).toBeInTheDocument();
     await waitFor(() => expect(linted).toHaveLength(1));
     expect(linted).toEqual([{ items: [LINTED('Is Fynix any good?')], engine_codes: ['chatgpt_web', 'gemini_web'] }]);
-    await user.click(within(dialog).getByRole('button', { name: 'Add 2 prompts' }));
+    // Before any click: Add is off, still focusable, and describes why
+    const add = within(dialog).getByRole('button', { name: 'Add 2 prompts' });
+    expect(add).toHaveAttribute('aria-disabled', 'true');
+    expect(add).toHaveAccessibleDescription(/cannot be added/);
+    await user.click(add);
     expect(
       await within(dialog).findByText('Some lines cannot be added. Fix or remove them first.'),
     ).toBeInTheDocument();
@@ -194,8 +205,12 @@ describe('Add prompts', () => {
     const dialog = await openDialog(user);
     await user.click(within(dialog).getByRole('textbox', { name: 'Prompts' }));
     await user.paste(`Joined${ZERO_WIDTH_JOINER}words?\nA plain question?`);
-    expect(await within(dialog).findByText('Line 1 has a character that cannot be saved.')).toBeInTheDocument();
-    expect(await within(dialog).findByText('Adds 2 prompts of your remaining 126.')).toBeInTheDocument();
+    expect(await within(dialog).findByText('Has a character that cannot be saved.')).toBeInTheDocument();
+    expect(within(dialog).getByText('Line 1')).toBeInTheDocument();
+    // The lint counts only the line it can check: the plan takes one place for the line that can be saved
+    expect(
+      await within(dialog).findByText('Workspace prompts: 24 of 150 used, 25 after this add.'),
+    ).toBeInTheDocument();
     expect(linted).toEqual([{ items: [LINTED('A plain question?')], engine_codes: ['chatgpt_web', 'gemini_web'] }]);
   });
 
@@ -207,7 +222,9 @@ describe('Add prompts', () => {
     await user.click(within(dialog).getByRole('textbox', { name: 'Prompts' }));
     await user.paste(`Which agency${TAB}audits shop sites?\n\n  Second   question?  `);
     // The lint answers a moment after the typing stops
-    expect(await within(dialog).findByText('Adds 2 prompts of your remaining 126.')).toBeInTheDocument();
+    expect(
+      await within(dialog).findByText('Workspace prompts: 24 of 150 used, 26 after this add.'),
+    ).toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Add 2 prompts' }));
     expect(await screen.findByText('2 prompts added')).toBeInTheDocument();
     // Every request of the lint carries the cleaned lines, none the pasted tab or the blank line
@@ -223,7 +240,7 @@ describe('Add prompts', () => {
     ]);
   });
 
-  it('says what the list would take of the quota and that it does not fit, then lets the API refuse it', async () => {
+  it('says what the list would take of the quota and that it does not fit, blocks the add, then lets the API refuse it when it races', async () => {
     server.use(
       http.post(lintRoute, async ({ request }) => {
         const body = (await request.json()) as { items: { text: string }[] };
@@ -253,11 +270,18 @@ describe('Add prompts', () => {
     await user.paste('First question?\nSecond question?');
     expect(
       await within(dialog).findByText(
-        'That is 2 prompts, and the workspace has room for 1. Remove lines or archive prompts you no longer need.',
+        'This add needs 2 places and the workspace has 1. Remove 1 line, or archive prompts you no longer need.',
       ),
     ).toBeInTheDocument();
-    // The line is a note: the API has the last word, and it refuses all or none
-    await user.click(within(dialog).getByRole('button', { name: 'Add 2 prompts' }));
+    // Over the room left, the add is off and says why (D4); it is no longer only a note
+    expect(within(dialog).getByRole('button', { name: 'Add 2 prompts' })).toHaveAttribute('aria-disabled', 'true');
+    // With a line removed it fits. The API still has the last word, and it refuses all or none: here the last
+    // place is taken between the check and the click
+    await user.clear(within(dialog).getByRole('textbox', { name: 'Prompts' }));
+    await user.paste('First question?');
+    const fits = await within(dialog).findByRole('button', { name: 'Add 1 prompt' });
+    await waitFor(() => expect(fits).not.toHaveAttribute('aria-disabled', 'true'));
+    await user.click(fits);
     expect(
       await within(dialog).findByText(
         'The workspace has 149 of 150 active prompts, so these do not fit. Archive prompts you no longer need, then try again.',
@@ -502,9 +526,15 @@ describe('Add prompts', () => {
     expect(dialog.querySelector('[aria-live]')).toBeNull();
     await user.click(within(dialog).getByRole('textbox', { name: 'Prompts' }));
     await user.type(within(dialog).getByRole('textbox', { name: 'Prompts' }), 'Is it any good?');
-    expect(await within(dialog).findByText('Adds 1 prompt of your remaining 126.')).toBeInTheDocument();
-    // One message for the whole typing, held back a moment by the announcer
-    await waitFor(() => expect(announced('add-prompts-quota')).toEqual(['Adds 1 prompt of your remaining 126.']));
+    expect(
+      await within(dialog).findByText('Workspace prompts: 24 of 150 used, 25 after this add.'),
+    ).toBeInTheDocument();
+    // One message each for the whole typing, held back a moment by the announcer: the plan in one line (the places
+    // among it) and the counts of the check list
+    await waitFor(() =>
+      expect(announced('add-prompts-quota')).toEqual(['1 prompt, about $0.02 a month, and 25 of 150']),
+    );
+    await waitFor(() => expect(announced('add-prompts-checks')).toEqual(['1 line: 1 new']));
     expect(
       vi.mocked(announce).mock.calls.find(([, options]) => options?.key === 'add-prompts-quota')?.[1],
     ).toMatchObject({
@@ -512,7 +542,9 @@ describe('Add prompts', () => {
     });
     expect(dialog.querySelector('[aria-live]')).toBeNull();
     await user.paste(` ${'x'.repeat(2100)}`);
-    await waitFor(() => expect(announced('add-prompts-errors')).toEqual(['1 line cannot be added.']));
+    await waitFor(() =>
+      expect(announced('add-prompts-checks')).toEqual(['1 line: 1 new', '1 line: 1 cannot be added']),
+    );
   });
 
   it('announces the result and puts the focus on Done when the form gives way to it', async () => {

@@ -187,20 +187,37 @@ describe('the next scheduled answers', () => {
       http.get(`${PROJECT}/schedules`, ({ request }) => {
         queries.push(new URL(request.url).searchParams);
         return HttpResponse.json({
-          data: [schedule('a', '2026-11-16T00:00:00Z'), schedule('b', '2026-11-14T00:00:00Z')],
+          data: [
+            schedule('a', '2026-11-16T00:00:00Z'),
+            schedule('b', '2026-11-14T00:00:00Z', { timezone: 'Asia/Kolkata' }),
+          ],
           page: { offset: 0, limit: 50, total: 2 },
         });
       }),
     );
     const { result } = renderHook(() => useNextScheduled(scope), { wrapper });
-    expect(result.current).toEqual({ status: 'loading', nextRunAt: null });
+    expect(result.current).toEqual({ status: 'loading', nextRunAt: null, timeZone: null });
     await waitFor(() => expect(result.current.status).toBe('ready'));
     expect(result.current.nextRunAt).toBe('2026-11-14T00:00:00Z');
+    // The time zone is the one of the schedule that runs first
+    expect(result.current.timeZone).toBe('Asia/Kolkata');
     expect(queries[0]?.get('filter[workload]')).toBe('ai_prompt');
     expect(queries[0]?.get('filter[is_active]')).toBe('true');
     // The key is the one the Schedules screen and the engines screen refresh
     const key = client.getQueryCache().findAll()[0]?.queryKey ?? [];
     expect(key.slice(0, 5)).toEqual([...projectKey(scope.workspaceId, scope.projectId), 'schedules']);
+
+    // Not wanted, as for a dialog that is closed: nothing is asked and it stays loading
+    const asked = queries.length;
+    const unwanted = makeQueryClient({ retry: false });
+    const idle = renderHook(() => useNextScheduled(scope, { enabled: false }), {
+      wrapper: ({ children }: { children: ReactNode }): ReactNode => (
+        <QueryClientProvider client={unwanted}>{children}</QueryClientProvider>
+      ),
+    });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(idle.result.current).toEqual({ status: 'loading', nextRunAt: null, timeZone: null });
+    expect(queries).toHaveLength(asked);
 
     server.use(http.get(`${PROJECT}/schedules`, () => HttpResponse.json({ code: 'forbidden' }, { status: 403 })));
     client = makeQueryClient({ retry: false });

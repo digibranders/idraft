@@ -39,6 +39,7 @@ const context = (extra: Partial<CheckContext> = {}): CheckContext => ({
   languageCode: 'en',
   engineLabels: ENGINES,
   promptType: null,
+  branded: 'auto',
   ...extra,
 });
 
@@ -163,6 +164,34 @@ describe('the rows of the check list', () => {
         text: 'Names Acme Inc, so it counts as branded and stays out of the rates unless branded prompts are included.',
       },
     ]);
+  });
+
+  it('warns instead of noting the own brand when the person marked the prompts as never branded', () => {
+    const text = 'Is Acme worth it for a small agency?';
+    const lint = [
+      lintRow(text, {
+        is_branded: true,
+        matched_aliases: [
+          { alias: 'Acme', entity: { entity_id: 'e', canonical_name: 'Acme Inc', kind: 'company' } },
+        ] as unknown as Schemas['PromptLint']['matched_aliases'],
+        warnings: [warning('contains_brand_alias', 'Names Acme.')],
+      }),
+    ];
+    expect(only(rowsOf(text, lint, { branded: 'never' })).reasons).toEqual([
+      { tone: 'warning', text: 'Names Acme Inc but is marked not branded. Its answers will count in the rates.' },
+    ]);
+    // Set from the names and always branded: the line is branded, which is a note and not a problem
+    for (const branded of ['auto', 'always'] as const) {
+      expect(only(rowsOf(text, lint, { branded })).reasons).toEqual([
+        {
+          tone: 'note',
+          text: 'Names Acme Inc, so it counts as branded and stays out of the rates unless branded prompts are included.',
+        },
+      ]);
+    }
+    // A line that names no own brand has nothing to warn about, whatever the person chose
+    const plain = 'Which agency audits shop sites?';
+    expect(only(rowsOf(plain, [lintRow(plain)], { branded: 'never' })).reasons).toEqual([]);
   });
 
   it('shows a near duplicate as a note that does not move the line out of the new ones', () => {

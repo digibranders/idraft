@@ -1,6 +1,7 @@
 import type { useTranslations } from 'next-intl';
 
 import type { ClassifiedLine, LineCounts, LineGroup } from './add-model';
+import type { BrandedChoice } from './add-values';
 import { PROMPT_TEXT_MAX } from '../prompt-model';
 import type { EngineCode, Schemas } from '@/lib/api/types';
 import { formatInteger, formatList } from '@/lib/format';
@@ -46,6 +47,8 @@ export interface CheckContext {
   engineLabels: ReadonlyMap<EngineCode, string>;
   /** The type the person chose; `null` when it is set from the wording. */
   promptType: PromptType | null;
+  /** The Branded choice: a line that names the own brand is a problem only for "never". */
+  branded: BrandedChoice;
 }
 
 /** The catalog key of each prompt type: keys are camelCase. */
@@ -78,7 +81,11 @@ function findingOf(
   switch (warning.rule) {
     case 'contains_brand_alias': {
       const brand = lint.matched_aliases[0]?.entity.canonical_name;
-      return [{ tone: 'note', text: brand === undefined ? warning.message : t('check.reason.branded', { brand }) }];
+      if (brand === undefined) return [{ tone: 'note', text: warning.message }];
+      // Marked not branded, the line's answers count in the rates though it names the own brand
+      return context.branded === 'never'
+        ? [{ tone: 'warning', text: t('check.reason.neverBranded', { brand }) }]
+        : [{ tone: 'note', text: t('check.reason.branded', { brand }) }];
     }
     case 'engine_limit': {
       const engine = warning.engine_code === null ? undefined : context.engineLabels.get(warning.engine_code);

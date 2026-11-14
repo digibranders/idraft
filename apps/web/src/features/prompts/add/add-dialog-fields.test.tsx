@@ -241,11 +241,12 @@ describe('Add prompts: shell and fields', () => {
     await openDetails(user, dialog);
     await user.click(within(dialog).getByRole('radio', { name: 'Never branded' }));
     await typeList(user, dialog, 'Is Fynix any good for audits?');
+    // The warning is on the line, in the check list, which a warning does not open by itself
+    await user.click(await within(dialog).findByRole('button', { name: /Check the list/ }));
     expect(
-      await within(dialog).findByText(
-        'Line 1 names Fynix but is marked not branded. Its answers will count in the rates.',
-      ),
+      await within(dialog).findByText('Names Fynix but is marked not branded. Its answers will count in the rates.'),
     ).toBeInTheDocument();
+    expect(within(dialog).getByRole('heading', { level: 3, name: 'Warnings (1)' })).toBeInTheDocument();
   });
 
   it('submits once on Mod+Enter in the textarea, also when it is pressed twice', async () => {

@@ -71,26 +71,41 @@ export function useAddLint(scope: PromptScope, input: AddLintInput): UseQueryRes
   });
 }
 
-/** The earliest next run of the schedules that are active; `null` when none is, as when they are all paused. */
-export function nextRunOf(schedules: readonly Pick<Schemas['Schedule'], 'is_active' | 'next_run_at'>[]): string | null {
-  const times = schedules.filter((schedule) => schedule.is_active).map((schedule) => schedule.next_run_at);
-  return times.length === 0
-    ? null
-    : times.reduce((first, time) => (Date.parse(time) < Date.parse(first) ? time : first));
+type RunningSchedule = Pick<Schemas['Schedule'], 'is_active' | 'next_run_at' | 'timezone'>;
+
+/** The active schedule that runs first; `null` when none is active, as when they are all paused. */
+function firstActive(schedules: readonly RunningSchedule[]): RunningSchedule | null {
+  return schedules
+    .filter((schedule) => schedule.is_active)
+    .reduce<RunningSchedule | null>(
+      (first, schedule) =>
+        first === null || Date.parse(schedule.next_run_at) < Date.parse(first.next_run_at) ? schedule : first,
+      null,
+    );
 }
+
+/** The earliest next run of the schedules that are active; `null` when none is, as when they are all paused. */
+export const nextRunOf = (schedules: readonly RunningSchedule[]): string | null =>
+  firstActive(schedules)?.next_run_at ?? null;
 
 export interface NextScheduled {
   status: 'loading' | 'ready' | 'failed';
   nextRunAt: string | null;
+  /** The time zone of the schedule that runs first, in which its time of day is its own. */
+  timeZone: string | null;
 }
 
 /** When the project's active AI answer schedules run next. The key is the one the Schedules screen refreshes. */
-export function useNextScheduled(scope: PromptScope): NextScheduled {
-  const query = useQuery(
-    apiQuery(SCHEDULES, {
+export function useNextScheduled(scope: PromptScope, { enabled = true }: { enabled?: boolean } = {}): NextScheduled {
+  const query = useQuery({
+    ...apiQuery(SCHEDULES, {
       params: { path: pathOf(scope), query: { 'filter[workload]': 'ai_prompt', 'filter[is_active]': true } },
     }),
-  );
-  if (query.data !== undefined) return { status: 'ready', nextRunAt: nextRunOf(query.data.data) };
-  return { status: query.isError ? 'failed' : 'loading', nextRunAt: null };
+    enabled,
+  });
+  if (query.data !== undefined) {
+    const first = firstActive(query.data.data);
+    return { status: 'ready', nextRunAt: first?.next_run_at ?? null, timeZone: first?.timezone ?? null };
+  }
+  return { status: query.isError ? 'failed' : 'loading', nextRunAt: null, timeZone: null };
 }

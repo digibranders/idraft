@@ -1,6 +1,5 @@
 'use client';
 
-import { CircleAlert, Info, TriangleAlert } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import type { ReactElement } from 'react';
 
@@ -8,7 +7,9 @@ import { AddResult } from './add/add-result';
 import { CheckList } from './add/check-list';
 import { DetailsSection } from './add/details-section';
 import { MarketFields } from './add/market-fields';
+import { PlanBlock, PlanSummary } from './add/plan-block';
 import { useAddForm } from './add/use-add-form';
+import { useAddPlan } from './add/use-add-plan';
 import { BULK_MAX } from './prompt-model';
 import type { PromptScope } from './prompt-queries';
 import { TopicPicker } from './topic-picker/topic-picker';
@@ -16,21 +17,10 @@ import { FormField } from '@/components/app/forms/form-field';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogBody, DialogClose, DialogFooter, DialogHeader } from '@/components/ui/dialog';
 import { FormAlert } from '@/components/ui/form-alert';
-import { Icon } from '@/components/ui/icon';
 import { Textarea } from '@/components/ui/textarea';
+import { Tooltip } from '@/components/ui/tooltip';
 import type { ProjectEngine, Prompt } from '@/lib/api/types';
 import { formatInteger, formatList } from '@/lib/format';
-import { cn } from '@/lib/utils';
-
-/** The findings named under the field before the rest are counted. */
-const SHOWN_FINDINGS = 5;
-
-const FINDING_ICON = { error: CircleAlert, warning: TriangleAlert, note: Info } as const;
-const FINDING_CLASS = {
-  error: cn('text-negative-text'),
-  warning: cn('text-warning-text'),
-  note: cn('text-foreground-secondary'),
-} as const;
 
 export interface AddPromptsDialogProps {
   scope: PromptScope;
@@ -51,7 +41,8 @@ export interface AddPromptsDialogProps {
  * Add prompts (prompt-dialogs 4): one field for one prompt or a pasted list, one per line, with the market, the
  * topics and the details they share. Each line is checked before anything is saved (`useAddCheck`): the lint says
  * what the project tracks, a repeat and a tracked prompt are left out, and a line the API would refuse blocks the
- * add. The form, the check and the submit live in `add/`; this is the frame that puts them in order.
+ * add. The plan under the fields says what the add takes and costs and why it is off when it is (`useAddPlan`). The
+ * form, the check, the plan and the submit live in `add/`; this is the frame that puts them in order.
  */
 export function AddPromptsDialog({
   scope,
@@ -65,8 +56,9 @@ export function AddPromptsDialog({
   const common = useTranslations('common');
   const discard = useTranslations('account.discard');
   const locale = useLocale();
-  const add = useAddForm({ scope, open, onOpenChange, engines, existing, defaults });
-  const { form, check, findings, quota, outcome } = add;
+  const add = useAddForm({ scope, onOpenChange, engines, existing, defaults });
+  const { form, check, outcome } = add;
+  const plan = useAddPlan({ scope, open, check, engines });
 
   return (
     <Dialog
@@ -119,27 +111,12 @@ export function AddPromptsDialog({
                 />
               )}
             />
-            {findings.length === 0 ? null : (
-              <ul aria-label={t('findingsLabel')} className="flex flex-col gap-1">
-                {findings.slice(0, SHOWN_FINDINGS).map((finding) => (
-                  <li
-                    key={`${String(finding.line)} ${finding.text}`}
-                    className={cn('flex items-start gap-1.5 type-meta', FINDING_CLASS[finding.tone])}
-                  >
-                    <Icon icon={FINDING_ICON[finding.tone]} size="sm" className="mt-0.5" />
-                    {finding.text}
-                  </li>
-                ))}
-                {findings.length > SHOWN_FINDINGS ? (
-                  <li className="type-meta">{t('moreFindings', { count: findings.length - SHOWN_FINDINGS })}</li>
-                ) : null}
-              </ul>
-            )}
+            {/* The plan block says that the list could not be checked and that a country is needed: once, there */}
             <CheckList
               rows={check.rows}
               checking={check.checking}
-              failed={check.failed}
-              needsCountry={check.needsCountry}
+              failed={false}
+              needsCountry={false}
               restore={null}
               onShow={null}
             />
@@ -167,15 +144,24 @@ export function AddPromptsDialog({
               )}
             />
             <DetailsSection control={form.control} />
-            {quota === null ? null : (
-              <p className={cn('type-meta', quota.over && 'text-negative-text')}>{quota.text}</p>
-            )}
+            <PlanBlock {...plan.block} />
           </DialogBody>
           <DialogFooter
+            start={<PlanSummary text={plan.summary} />}
             primary={
-              <Button type="submit" variant="primary" loading={add.pending}>
-                {t('submit', { count: add.sendCount })}
-              </Button>
+              // Off with its reason, which stays focusable and is read from the plan block; the API has the last word
+              <Tooltip content={plan.reason ?? ''} purpose="label" disabled={plan.reason === null}>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  loading={add.pending}
+                  disabled={plan.disabled !== null}
+                  focusableWhenDisabled
+                  aria-describedby={plan.id}
+                >
+                  {t('submit', { count: add.sendCount })}
+                </Button>
+              </Tooltip>
             }
             secondary={
               <DialogClose>

@@ -19,6 +19,9 @@ export type AiLimitsAnswer = ApiResponse<'get', typeof LIMITS>;
 export const aiLimitsQuery = (scope: PromptScope): ApiQueryOptions<typeof LIMITS> =>
   apiQuery(LIMITS, { params: { path: { workspace_id: scope.workspaceId, project_id: scope.projectId } } });
 
-export function useAiLimits(scope: PromptScope): UseQueryResult<AiLimitsAnswer> {
-  return useQuery({ ...aiLimitsQuery(scope), staleTime: STALE_MS });
+export function useAiLimits(
+  scope: PromptScope,
+  { enabled = true }: { enabled?: boolean } = {},
+): UseQueryResult<AiLimitsAnswer> {
+  return useQuery({ ...aiLimitsQuery(scope), enabled, staleTime: STALE_MS });
 }

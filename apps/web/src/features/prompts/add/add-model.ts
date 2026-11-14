@@ -209,6 +209,73 @@ export function planNumbers(
   };
 }
 
+export interface EngineSkip {
+  engineCode: EngineCode;
+  /** How many of the prompts to create the engine will not ask, for their length. */
+  count: number;
+}
+
+/** The engines that skip some of the prompts to create: what the estimate counts as fitting is what they take. */
+export function engineSkips(plan: PlanNumbers | null, wouldCreate: number): EngineSkip[] {
+  if (plan === null) return [];
+  return plan.engines.flatMap((engine) =>
+    wouldCreate > engine.promptsFit ? [{ engineCode: engine.engineCode, count: wouldCreate - engine.promptsFit }] : [],
+  );
+}
+
+export interface AskNowState {
+  /** Manual runs the ask takes: one for each `runSize` prompts. */
+  runs: number;
+  /** The prompts of each run, in order: 150, 150 and the rest. */
+  sizes: number[];
+  /** The answers one ask of the new prompts makes, on every engine that takes them. */
+  answers: number;
+  /** US dollars; `null` when no engine has a price. */
+  cost: number | null;
+  /** The manual runs the project has used today and the day's limit; `null` while they are not known. */
+  used: number | null;
+  limit: number | null;
+  /** The day does not have this many runs left. */
+  blocked: boolean;
+}
+
+/** What asking the prompts to create right after the add takes; `null` with nothing to ask or no estimate of it. */
+export function askNowState(
+  plan: PlanNumbers | null,
+  prompts: number,
+  manualRuns: { used: number; limit: number } | null,
+  runSize: number,
+): AskNowState | null {
+  if (plan === null || prompts === 0) return null;
+  const runs = Math.ceil(prompts / runSize);
+  const sizes = Array.from({ length: runs }, (_, index) => Math.min(runSize, prompts - index * runSize));
+  return {
+    runs,
+    sizes,
+    answers: plan.runNowAnswers,
+    cost: plan.runNowCost,
+    used: manualRuns?.used ?? null,
+    limit: manualRuns?.limit ?? null,
+    blocked: manualRuns !== null && manualRuns.used + runs > manualRuns.limit,
+  };
+}
+
+/** Why asking now is off: the day's manual runs are all used, or fewer are left than the ask needs. */
+export type AskBlock = { kind: 'used'; limit: number } | { kind: 'short'; runs: number; left: number };
+
+/** The reason `ask.blocked` stands on; `null` when asking is possible. */
+export function askBlockOf(ask: AskNowState): AskBlock | null {
+  if (!ask.blocked || ask.used === null || ask.limit === null) return null;
+  const left = Math.max(0, ask.limit - ask.used);
+  return left === 0 ? { kind: 'used', limit: ask.limit } : { kind: 'short', runs: ask.runs, left };
+}
+
+/** What an estimate under this many dollars is written as: "under $0.01". The price book is to the cent. */
+export const ONE_CENT = 0.01;
+
+/** An estimate of answers that costs less than a cent; no answers cost nothing, which is no estimate under a cent. */
+export const isUnderCent = (usd: number, answers: number): boolean => answers > 0 && usd < ONE_CENT;
+
 /** Why the Add button is off, in the order the dialog says them. */
 export type DisabledReason = 'empty' | 'cannotAdd' | 'allTracked' | 'overQuota';
 

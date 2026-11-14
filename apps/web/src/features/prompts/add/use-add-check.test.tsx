@@ -44,6 +44,7 @@ function CheckHarness({ initialCountry = 'DE', onShow }: CheckHarnessProps): Rea
     engines: engines.data?.data.filter((engine) => engine.is_enabled) ?? [],
     existing: list.rows,
     promptType: null,
+    branded: 'auto',
   });
   if (engines.data === undefined || list.loading) return <p>Loading</p>;
   return (

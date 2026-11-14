@@ -6,8 +6,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import { useEffect, useMemo, useRef, useState, type FormEvent, type RefObject } from 'react';
 import { useForm, useWatch, type UseFormReturn } from 'react-hook-form';
 
-import { ANNOUNCE_DELAY_MS, ERRORS_KEY, QUOTA_KEY, RESULT_KEY, WARNINGS_KEY } from './add-announce';
-import { findingsOf, type Finding } from './add-findings';
+import { RESULT_KEY } from './add-announce';
 import { linesToSend } from './add-model';
 import { buildCreateBody } from './add-payload';
 import type { Outcome } from './add-result';
@@ -39,7 +38,6 @@ const isRejectCode = (code: string): code is keyof typeof REJECT_KEYS => Object.
 
 export interface UseAddFormInput {
   scope: PromptScope;
-  open: boolean;
   onOpenChange: (open: boolean) => void;
   engines: readonly ProjectEngine[];
   existing: readonly Prompt[];
@@ -49,9 +47,6 @@ export interface UseAddFormInput {
 export interface AddForm {
   form: UseFormReturn<AddValues>;
   check: AddCheck;
-  findings: Finding[];
-  /** The note under the fields about the workspace limit; `null` until the lint has told the room left. */
-  quota: { text: string; over: boolean } | null;
   /** How many prompts the add takes by the button's count: the lines not tracked or repeated, refused ones included. */
   sendCount: number;
   countries: CountryList;
@@ -69,7 +64,7 @@ export interface AddForm {
  * check did not find tracked. `bulk-create` has the last word: what it skips is "already tracked", not an error,
  * and the lines it refuses are named by their line number.
  */
-export function useAddForm({ scope, open, onOpenChange, engines, existing, defaults }: UseAddFormInput): AddForm {
+export function useAddForm({ scope, onOpenChange, engines, existing, defaults }: UseAddFormInput): AddForm {
   const t = useTranslations('prompts.add');
   const locale = useLocale();
   const queryClient = useQueryClient();
@@ -112,43 +107,10 @@ export function useAddForm({ scope, open, onOpenChange, engines, existing, defau
     engines,
     existing,
     promptType: promptType === 'auto' ? null : promptType,
+    branded,
   });
-  const engineLabels = useMemo(
-    () => new Map(engines.map((engine) => [engine.engine.engine_code, engine.engine.label])),
-    [engines],
-  );
-  const findings = useMemo(
-    () => findingsOf({ lines: check.lines, lint: check.answer?.data ?? null, engineLabels, branded, t }),
-    [check.lines, check.answer, engineLabels, branded, t],
-  );
   const sendCount = check.counts.new + check.counts.refused;
   const hasErrors = check.counts.refused > 0;
-  const lintQuota = check.answer?.quota ?? null;
-  const remaining = lintQuota === null ? null : Math.max(0, lintQuota.limit - lintQuota.used);
-  // Only a note: the API has the last word, and a prompt it skips does not take a place
-  const over = remaining !== null && sendCount > remaining;
-  const quotaText =
-    remaining === null || sendCount === 0
-      ? null
-      : over
-        ? t('quotaOver', { count: sendCount, remaining })
-        : t('quota', { count: sendCount, remaining });
-
-  // What changes under the field is spoken once, a moment after the typing and the lint have settled
-  const checking = open && outcome === null;
-  const errorCount = findings.filter((finding) => finding.tone === 'error').length;
-  const warningCount = findings.filter((finding) => finding.tone === 'warning').length;
-  const errorsText = errorCount === 0 ? null : t('announce.errors', { count: errorCount });
-  const warningsText = warningCount === 0 ? null : t('announce.warnings', { count: warningCount });
-  useEffect(() => {
-    if (checking && quotaText !== null) announce(quotaText, { key: QUOTA_KEY, debounceMs: ANNOUNCE_DELAY_MS });
-  }, [checking, quotaText]);
-  useEffect(() => {
-    if (checking && errorsText !== null) announce(errorsText, { key: ERRORS_KEY, debounceMs: ANNOUNCE_DELAY_MS });
-  }, [checking, errorsText]);
-  useEffect(() => {
-    if (checking && warningsText !== null) announce(warningsText, { key: WARNINGS_KEY, debounceMs: ANNOUNCE_DELAY_MS });
-  }, [checking, warningsText]);
 
   // The form is gone when the result takes its place, and the focus with it: it goes to Done
   const doneRef = useRef<HTMLButtonElement>(null);
@@ -277,8 +239,6 @@ export function useAddForm({ scope, open, onOpenChange, engines, existing, defau
   return {
     form,
     check,
-    findings,
-    quota: quotaText === null ? null : { text: quotaText, over },
     sendCount,
     countries,
     alert,

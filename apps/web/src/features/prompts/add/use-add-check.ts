@@ -5,6 +5,7 @@ import { useMemo } from 'react';
 
 import { classifyLines, lineCounts, refusalOf, wouldCreateOf, type ClassifiedLine, type LineCounts } from './add-model';
 import { lintBodyOf, useAddLint } from './add-queries';
+import type { BrandedChoice } from './add-values';
 import { checkRowsOf, counterText, type CheckRow, type PromptType } from './check-rows';
 import { BULK_MAX, promptKeyOf, readPromptLines } from '../prompt-model';
 import type { LintAnswer, PromptScope } from '../prompt-queries';
@@ -26,6 +27,8 @@ export interface AddCheckInput {
   existing: readonly Prompt[];
   /** The type the person chose; `null` when it is set from the wording. */
   promptType: PromptType | null;
+  /** The Branded choice: "never" turns a line that names the own brand into a warning. */
+  branded: BrandedChoice;
 }
 
 export interface AddCheck {
@@ -60,6 +63,7 @@ export function useAddCheck({
   engines,
   existing,
   promptType,
+  branded,
 }: AddCheckInput): AddCheck {
   const t = useTranslations('prompts.add');
   const locale = useLocale();
@@ -108,8 +112,8 @@ export function useAddCheck({
     [engines],
   );
   const rows = useMemo(
-    () => checkRowsOf(lines, answer?.data ?? null, { languageCode, engineLabels, promptType }, t),
-    [lines, answer, languageCode, engineLabels, promptType, t],
+    () => checkRowsOf(lines, answer?.data ?? null, { languageCode, engineLabels, promptType, branded }, t),
+    [lines, answer, languageCode, engineLabels, promptType, branded, t],
   );
   const asking = texts.length > 0;
   return {

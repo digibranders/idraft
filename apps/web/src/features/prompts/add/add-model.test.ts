@@ -1,14 +1,19 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  askBlockOf,
+  askNowState,
   classifyLines,
   disabledReason,
+  engineSkips,
+  isUnderCent,
   lineCounts,
   linesToSend,
   planNumbers,
   quotaState,
   refusalOf,
   wouldCreateOf,
+  type AskNowState,
   type ClassifiedLine,
 } from './add-model';
 import { promptKeyOf, readPromptLines } from '../prompt-model';
@@ -300,5 +305,118 @@ describe('why the add is off', () => {
     const archived = { lines: 2, new: 0, tracked: 2, archived: 2, repeats: 0, refused: 0 };
     expect(disabledReason(archived, quotaState({ limit: 150, used: 24 }, 0, 2), 2)).toBeNull();
     expect(disabledReason(archived, quotaState({ limit: 150, used: 24 }, 0, 0), 0)).toBe('allTracked');
+  });
+});
+
+describe('the engines that skip some of the prompts', () => {
+  const engine = (code: Schemas['EngineEstimate']['engine_code'], fit: number): Schemas['EngineEstimate'] => ({
+    engine_code: code,
+    prompts_fit: fit,
+    answers_per_month: fit * 8,
+    monthly_cost_usd: '0.01',
+    run_now_answers: fit,
+    run_now_cost_usd: '0.001200',
+  });
+
+  it('counts, per engine, the prompts that do not fit its length, and leaves out the engines that skip none', () => {
+    const plan = planNumbers(
+      { engines: [engine('chatgpt_web', 9), engine('google_ai_mode', 7)], total_monthly_cost_usd: '0.02' },
+      9,
+    );
+    expect(engineSkips(plan, 9)).toEqual([{ engineCode: 'google_ai_mode', count: 2 }]);
+    expect(engineSkips(null, 9)).toEqual([]);
+  });
+});
+
+describe('asking the new prompts now', () => {
+  const plan = (prompts: number): NonNullable<ReturnType<typeof planNumbers>> => {
+    const made = planNumbers(
+      {
+        engines: [
+          {
+            engine_code: 'chatgpt_web',
+            prompts_fit: prompts,
+            answers_per_month: prompts * 8,
+            monthly_cost_usd: '0.03',
+            run_now_answers: prompts,
+            run_now_cost_usd: '0.010800',
+          },
+        ],
+        total_monthly_cost_usd: '0.03',
+      },
+      prompts,
+    );
+    if (made === null) throw new Error('The estimate gave no plan');
+    return made;
+  };
+
+  it('is one manual run up to the size of a run, and a run for each part beyond it', () => {
+    expect(askNowState(plan(9), 9, { used: 4, limit: 20 }, 150)).toMatchObject({
+      runs: 1,
+      sizes: [9],
+      answers: 9,
+      used: 4,
+      limit: 20,
+    });
+    expect(askNowState(plan(150), 150, { used: 4, limit: 20 }, 150)).toMatchObject({ runs: 1, sizes: [150] });
+    expect(askNowState(plan(180), 180, { used: 4, limit: 20 }, 150)).toMatchObject({ runs: 2, sizes: [150, 30] });
+    expect(askNowState(plan(400), 400, { used: 4, limit: 20 }, 150)).toMatchObject({
+      runs: 3,
+      sizes: [150, 150, 100],
+    });
+  });
+
+  it('is blocked only when the day does not have the runs left, and exactly fitting is not blocked', () => {
+    expect(askNowState(plan(180), 180, { used: 18, limit: 20 }, 150)?.blocked).toBe(false);
+    expect(askNowState(plan(180), 180, { used: 19, limit: 20 }, 150)?.blocked).toBe(true);
+    expect(askNowState(plan(9), 9, { used: 20, limit: 20 }, 150)?.blocked).toBe(true);
+  });
+
+  it('keeps the run count when the day is not known, and says the run is not blocked by it', () => {
+    expect(askNowState(plan(9), 9, null, 150)).toMatchObject({ runs: 1, used: null, limit: null, blocked: false });
+  });
+
+  it('has nothing to ask for no prompt or without an estimate', () => {
+    expect(askNowState(null, 9, { used: 0, limit: 20 }, 150)).toBeNull();
+    expect(askNowState(plan(9), 0, { used: 0, limit: 20 }, 150)).toBeNull();
+  });
+
+  it('names why asking is off: every run of the day used, or fewer left than the ask needs, and nothing while it fits', () => {
+    const asked = (prompts: number, manual: { used: number; limit: number } | null): AskNowState => {
+      const state = askNowState(plan(prompts), prompts, manual, 150);
+      if (state === null) throw new Error('The ask was expected');
+      return state;
+    };
+    expect(askBlockOf(asked(9, { used: 20, limit: 20 }))).toEqual({ kind: 'used', limit: 20 });
+    expect(askBlockOf(asked(180, { used: 19, limit: 20 }))).toEqual({ kind: 'short', runs: 2, left: 1 });
+    expect(askBlockOf(asked(180, { used: 18, limit: 20 }))).toBeNull();
+    expect(askBlockOf(asked(9, null))).toBeNull();
+  });
+
+  it('writes under a cent only for answers that cost less than one, never for no answers', () => {
+    expect(isUnderCent(0.004, 8)).toBe(true);
+    expect(isUnderCent(0, 8)).toBe(true);
+    expect(isUnderCent(0.01, 8)).toBe(false);
+    expect(isUnderCent(0, 0)).toBe(false);
+  });
+
+  it('gives no cost, not zero, when no engine has a run price', () => {
+    const unpriced = planNumbers(
+      {
+        engines: [
+          {
+            engine_code: 'google_ai_mode',
+            prompts_fit: 2,
+            answers_per_month: 17,
+            monthly_cost_usd: null,
+            run_now_answers: 2,
+            run_now_cost_usd: null,
+          },
+        ],
+        total_monthly_cost_usd: null,
+      },
+      2,
+    );
+    expect(askNowState(unpriced, 2, { used: 0, limit: 20 }, 150)).toMatchObject({ answers: 2, cost: null });
   });
 });

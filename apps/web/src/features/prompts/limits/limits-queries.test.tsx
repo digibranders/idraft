@@ -44,6 +44,20 @@ describe('useAiLimits', () => {
     await waitFor(() => expect(result.current.data?.data.prompts.used).toBe(23));
   });
 
+  it('asks nothing while it is not wanted, as for a dialog that is closed', async () => {
+    const asked: string[] = [];
+    server.use(
+      http.get('*/api/v1/workspaces/:w/projects/:p/ai/limits', ({ request }) => {
+        asked.push(request.url);
+        return HttpResponse.json({ code: 'forbidden' }, { status: 403 });
+      }),
+    );
+    const { result } = renderHook(() => useAiLimits(scope, { enabled: false }), { wrapper });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(asked).toEqual([]);
+    expect(result.current.fetchStatus).toBe('idle');
+  });
+
   it('is an error, not zeros, when the limits could not be read', async () => {
     server.use(
       http.get('*/api/v1/workspaces/:w/projects/:p/ai/limits', () =>
