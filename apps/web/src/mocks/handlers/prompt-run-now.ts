@@ -5,6 +5,8 @@ import { deliveredOf } from './prompt-answers';
 import { MANUAL_RUN_LIMIT, manualRunsToday, operationsProjectCaller, savedOperations } from './operations-rules';
 import { countryOf, isoOf, workspaceProjects } from './prompts';
 import { bodyError, extraMembers, isOneOf, isRecord, notAnObject, uuidError } from './rules';
+import { usdOfMicros } from '../factories/operations';
+import { AI_ANSWER_MICROS } from '../operations-fixtures';
 import { operationIdMinter, runTime, withRun, type StoredRun } from '../operations-state';
 import {
   ENGINE_CODES,
@@ -12,11 +14,12 @@ import {
   fixtureEngines,
   fixturePrompts,
   runInstants,
+  type StoredEngine,
   type StoredPrompt,
 } from '../prompt-fixtures';
 import { AI_ANSWER_QUOTA, isProviderPaused, mintPromptNumber, PENDING_MS, promptsOf } from '../prompts-state';
 import { invalid, mock, problem } from '../respond';
-import type { EngineCode, Run, ValidationItem } from '@/lib/api/types';
+import type { EngineCode, Run, RunSkip, ValidationItem } from '@/lib/api/types';
 import { textLength } from '@/lib/text/length';
 
 /**
@@ -34,9 +37,21 @@ import { textLength } from '@/lib/text/length';
  * them; the run's `config_snapshot` is the keyword runs' (`provider_mode` live, a keyword count) and not the backend's
  * `{prompt_ids, engine_codes}` on the standard queue, since the stored run keeps no prompt or engine ids. Keep them on
  * the run if a screen reads them.
+ *
+ * The bulk run (`POST {P}/ai/runs`, `ai_bulk_run` in the same backend file, plan D2) is Run now for up to 150 prompts as
+ * ONE manual run: one of the day's 20, each answer one of the month's. Its checks, in the API's order: the body, the
+ * provider is not paused, every prompt is one the project collects (one `prompt_unknown` error on `prompt_ids`), every
+ * engine is on (`engine_not_enabled` for each that is not), then what the planner leaves out (`prompt_too_long`,
+ * `location_not_enabled`) and every engine of a prompt that has an answer on its way (`check_pending` where it is,
+ * `prompt_pending` on the others) are listed in `meta.skipped` and the rest runs. Nothing left is `409 check_pending`
+ * (with `prompt_ids`) when something was pending, else `422 nothing_to_run`, both with `skipped`; then the day's runs
+ * and the month's answers, as for one prompt. Its answers arrive at once, as Run now's do.
  */
 
-const PROMPT = '/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts/{prompt_id}';
+const P = '/api/v1/workspaces/{workspace_id}/projects/{project_id}';
+const PROMPT = `${P}/prompts/{prompt_id}`;
+const BULK_RUN = `${P}/ai/runs` as const;
+const BULK_RUN_MAX = 150;
 const ENGINES_MAX = 3;
 const RUN_WINDOW_MS = 3_600_000;
 /** What a refused engine is told, by the planner's own reason (`_NOT_ASKED_WHY`). */
@@ -73,6 +88,49 @@ function enginesOf(body: unknown): EngineCode[] | ValidationItem[] {
 /** The locations an engine would ask a prompt in: those of the engine in the prompt's country. */
 const locationsFor = (engine: { location_ids: readonly number[] }, prompt: StoredPrompt): number =>
   engine.location_ids.filter((id) => countryOf(id) === prompt.country_iso).length;
+
+/** Why the planner would ask a prompt nothing of an engine that is on, or `null` when it would ask. */
+function plannerSkip(prompt: StoredPrompt, engine: StoredEngine): 'prompt_too_long' | 'location_not_enabled' | null {
+  if (textLength(prompt.text) > ENGINE_FACTS[engine.engine_code].max_prompt_chars) return 'prompt_too_long';
+  return locationsFor(engine, prompt) === 0 ? 'location_not_enabled' : null;
+}
+
+/** The body of a bulk run: its prompts and, unless left to the project's engines, its engines; or its errors. */
+function bulkBodyOf(body: unknown): { promptIds: string[]; engineCodes: EngineCode[] | null } | ValidationItem[] {
+  if (!isRecord(body)) return [notAnObject()];
+  const errors = extraMembers(body, ['prompt_ids', 'engine_codes']);
+  const ids = body.prompt_ids;
+  const codes = body.engine_codes;
+  if (ids === undefined) errors.push(bodyError('prompt_ids', 'missing', 'Field required'));
+  else if (!Array.isArray(ids)) errors.push(bodyError('prompt_ids', 'list_type', 'Input should be a valid list'));
+  else if (ids.length === 0) errors.push(bodyError('prompt_ids', 'too_short', 'List should have at least 1 item'));
+  else if (ids.length > BULK_RUN_MAX)
+    errors.push(bodyError('prompt_ids', 'too_long', `List should have at most ${String(BULK_RUN_MAX)} items`));
+  else ids.forEach((id: unknown, place) => errors.push(...uuidError(id, `prompt_ids.${String(place)}`)));
+  if (codes !== undefined && codes !== null) {
+    if (!Array.isArray(codes)) errors.push(bodyError('engine_codes', 'list_type', 'Input should be a valid list'));
+    else if (codes.length === 0)
+      errors.push(bodyError('engine_codes', 'too_short', 'List should have at least 1 item'));
+    else if (codes.length > ENGINES_MAX)
+      errors.push(bodyError('engine_codes', 'too_long', 'List should have at most 3 items'));
+    else
+      codes.forEach((code: unknown, place) => {
+        if (!isOneOf(code, ENGINE_CODES)) {
+          errors.push(bodyError(`engine_codes.${String(place)}`, 'enum', `Allowed: ${ENGINE_CODES.join(', ')}.`));
+        }
+      });
+  }
+  if (errors.length > 0 || !Array.isArray(ids)) return errors;
+  // A repeat is dropped, and each engine is once, by code
+  return {
+    promptIds: [...new Set(ids.filter((id): id is string => typeof id === 'string'))].sort(),
+    engineCodes: Array.isArray(codes)
+      ? [...new Set(codes.filter((code): code is EngineCode => isOneOf(code, ENGINE_CODES)))].sort()
+      : null,
+  };
+}
+
+const byText = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
 
 /** The answers the fixtures' schedules asked of the workspace's projects in the month of `now`. */
 function scheduledAnswers(projectIds: readonly string[], now: number): number {
@@ -242,5 +300,145 @@ export const promptRunHandlers: HttpHandler[] = [
       state.observations.push(deliveredOf(prompt, prompt.index ?? 0, engine, now, id, runId));
     }
     return HttpResponse.json({ data: runOf(caller, now, runId) }, { status: 202, headers: { 'set-cookie': cookie } });
+  }),
+
+  mock('post', BULK_RUN, async ({ request, cookies, params }) => {
+    const caller = operationsProjectCaller(request, cookies, params.workspace_id, params.project_id, {
+      permission: 'runs:trigger',
+    });
+    if (caller instanceof Response) return caller;
+    let body: unknown;
+    try {
+      body = JSON.parse(await request.text());
+    } catch {
+      return invalid(request, [bodyError('', 'json_invalid', 'JSON decode error')]);
+    }
+    const asked = bulkBodyOf(body);
+    if (Array.isArray(asked)) return invalid(request, asked);
+    if (isProviderPaused()) {
+      return problem(request, 'provider_paused', {
+        detail: 'The data provider is not being asked just now. Try again in a few minutes.',
+        headers: { 'retry-after': RETRY_AFTER_SECONDS },
+      });
+    }
+    const projectId = caller.project.project_id;
+    const state = promptsOf(projectId);
+    const prompts = asked.promptIds.flatMap((id) => {
+      const found = state.prompts.find((candidate) => candidate.prompt_id === id && candidate.is_active);
+      return found === undefined ? [] : [found];
+    });
+    if (prompts.length !== asked.promptIds.length) {
+      return invalid(request, [
+        bodyError(
+          'prompt_ids',
+          'prompt_unknown',
+          'A prompt the project does not ask: archived, deleted or of another project.',
+        ),
+      ]);
+    }
+    const on = state.engines.filter((engine) => engine.is_enabled);
+    const engines = asked.engineCodes ?? on.map((engine) => engine.engine_code).sort();
+    const refused = engines
+      .filter((code) => !on.some((engine) => engine.engine_code === code))
+      .map((code) => bodyError('engine_codes', 'engine_not_enabled', `${code}: ${NOT_ASKED_WHY.engine_not_enabled}`));
+    if (refused.length > 0) return invalid(request, refused);
+    if (engines.length === 0) {
+      return invalid(request, [
+        bodyError('engine_codes', 'engine_not_enabled', 'The project has no engine turned on.'),
+      ]);
+    }
+
+    // What the planner leaves out, then every engine of a prompt that has an answer on its way
+    const now = Date.now();
+    const skips = new Map<string, RunSkip>();
+    const pairs = prompts.flatMap((prompt) =>
+      engines.flatMap((code) => {
+        const engine = on.find((candidate) => candidate.engine_code === code);
+        return engine === undefined ? [] : [{ prompt, engine }];
+      }),
+    );
+    for (const { prompt, engine } of pairs) {
+      const reason = plannerSkip(prompt, engine);
+      if (reason !== null)
+        skips.set(`${prompt.prompt_id} ${engine.engine_code}`, {
+          prompt_id: prompt.prompt_id,
+          engine_code: engine.engine_code,
+          reason,
+        });
+    }
+    const pending = (prompt: StoredPrompt, code: EngineCode): boolean =>
+      now - (state.asked.get(`${prompt.prompt_id} ${code}`) ?? -PENDING_MS) < PENDING_MS;
+    const held = prompts.filter((prompt) => engines.some((code) => pending(prompt, code)));
+    for (const prompt of held) {
+      for (const code of engines) {
+        const key = `${prompt.prompt_id} ${code}`;
+        if (pending(prompt, code))
+          skips.set(key, { prompt_id: prompt.prompt_id, engine_code: code, reason: 'check_pending' });
+        else if (!skips.has(key))
+          skips.set(key, { prompt_id: prompt.prompt_id, engine_code: code, reason: 'prompt_pending' });
+      }
+    }
+    const skipped = [...skips.values()].sort(
+      (a, b) => byText(a.prompt_id, b.prompt_id) || byText(a.engine_code, b.engine_code),
+    );
+    const left = pairs.filter(
+      ({ prompt, engine }) => !held.includes(prompt) && !skips.has(`${prompt.prompt_id} ${engine.engine_code}`),
+    );
+    if (left.length === 0) {
+      return held.length > 0
+        ? problem(request, 'check_pending', {
+            detail: 'These prompts already have an answer queued or under way. Wait for it to end.',
+            prompt_ids: held.map((prompt) => prompt.prompt_id).sort(),
+            skipped,
+          })
+        : problem(request, 'nothing_to_run', { detail: 'Every prompt is skipped on every engine asked.', skipped });
+    }
+    // The day's manual runs are shared with every other manual run of the project
+    const runsToday = manualRunsToday(caller.operations, projectId, now);
+    if (runsToday >= MANUAL_RUN_LIMIT) {
+      return problem(request, 'manual_run_limit', {
+        detail: `The project has had its ${String(MANUAL_RUN_LIMIT)} manual runs today (UTC).`,
+        limit: MANUAL_RUN_LIMIT,
+      });
+    }
+    // One answer for each location of each engine, in the prompt's country
+    const requested = left.reduce((sum, { prompt, engine }) => sum + locationsFor(engine, prompt), 0);
+    const projects = workspaceProjects(caller);
+    const used =
+      scheduledAnswers(projects, now) +
+      projects.reduce((sum, id) => sum + (promptsOf(id).answersAsked.get(month(now)) ?? 0), 0);
+    if (used + requested > AI_ANSWER_QUOTA) {
+      return problem(request, 'quota_exceeded', {
+        detail: `The workspace has asked for ${String(used)} of its ${String(AI_ANSWER_QUOTA)} AI answers this month (UTC); ${String(requested)} more do not fit.`,
+        limit: AI_ANSWER_QUOTA,
+        used,
+        requested,
+        quota: 'max_ai_observations_per_month',
+      });
+    }
+    const minter = operationIdMinter(caller.operationChanges);
+    const runId = minter.next('run');
+    const changes = minter.commit(withRun(caller.operationChanges, aiRunOf(caller, runId, left.length, now)));
+    const cookie = savedOperations(request, changes);
+    if (typeof cookie !== 'string') return cookie;
+    state.answersAsked.set(month(now), (state.answersAsked.get(month(now)) ?? 0) + requested);
+    for (const { prompt, engine } of left) {
+      state.asked.set(`${prompt.prompt_id} ${engine.engine_code}`, now);
+      const id = String(DELIVERED_ID_BASE + mintPromptNumber());
+      state.observations.push(deliveredOf(prompt, prompt.index ?? 0, engine, now, id, runId));
+    }
+    return HttpResponse.json(
+      {
+        data: runOf(caller, now, runId),
+        meta: {
+          prompts: new Set(left.map(({ prompt }) => prompt.prompt_id)).size,
+          answers: requested,
+          estimated_cost_usd: usdOfMicros(requested * AI_ANSWER_MICROS),
+          skipped,
+          manual_runs_today: { used: runsToday + 1, limit: MANUAL_RUN_LIMIT },
+        },
+      },
+      { status: 202, headers: { 'set-cookie': cookie } },
+    );
   }),
 ];

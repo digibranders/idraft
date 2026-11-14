@@ -96,8 +96,8 @@ Components never use raw z-index numbers; they use `z-(--z-dropdown)` style util
 | `--z-sticky` | 30 | sticky page header and filter bar |
 | `--z-sidebar` | 40 | left navigation (overlays content on tablet) |
 | `--z-inspector` | 50 | docked right inspector |
-| `--z-dropdown` | 60 | menus, popovers, selects, date pickers, combobox lists |
 | `--z-drawer` | 70 | overlay drawers (tablet and mobile inspector) |
+| `--z-dropdown` | 75 | menus, popovers, selects, date pickers, combobox lists (above the overlay drawer so a popup opened inside the inspector is not hidden behind it; F-19) |
 | `--z-dialog` | 80 | modal dialogs and their scrim |
 | `--z-command` | 90 | command palette |
 | `--z-toast` | 100 | toasts |

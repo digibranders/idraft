@@ -500,6 +500,30 @@ export interface paths {
         patch: operations["update_workspace_api_v1_workspaces__workspace_id__patch"];
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/budgets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The workspace's budgets
+         * @description Oldest first, in pages. A member limited to some projects sees those projects' budgets only, not the workspace's; `404` for a `filter[project_id]` outside them.
+         */
+        get: operations["list_budgets_api_v1_workspaces__workspace_id__budgets_get"];
+        put?: never;
+        /**
+         * Add a budget
+         * @description One per project (or the workspace), group and month. `limit_usd` is from 0 to 99999999999.99 with two places; a limit of 0 blocks every run of the group. `soft_limit_pct` is 1 to 100 (80 when left out) and `action_on_hard` `pause` when left out. Only stores a limit; it starts no run and spends nothing. `409 duplicate` when the budget exists; `422 validation_failed` with field code `project_unknown` at `project_id` for a project the workspace does not have. A member limited to some projects can add budgets for those projects only (`404` otherwise).
+         */
+        post: operations["create_budget_api_v1_workspaces__workspace_id__budgets_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/budgets/status": {
         parameters: {
             query?: never;
@@ -518,6 +542,30 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/budgets/{budget_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a budget
+         * @description Runs it blocked stay blocked; nothing else changes. `404` for a budget that is not the workspace's, or not in the member's projects.
+         */
+        delete: operations["delete_budget_api_v1_workspaces__workspace_id__budgets__budget_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Change a budget's limit
+         * @description The limit, its soft share and the action at the hard limit. The scope and the group cannot change: delete the budget and add another. `404` for a budget that is not the workspace's, or not in the member's projects.
+         */
+        patch: operations["update_budget_api_v1_workspaces__workspace_id__budgets__budget_id__patch"];
         trace?: never;
     };
     "/api/v1/workspaces/{workspace_id}/connections": {
@@ -609,6 +657,46 @@ export interface paths {
          * @description From `from` to `to`, both included (UTC days, at most 366). `group_by` is a comma list of `project`, `workload`, `provider`, `endpoint`, `engine`, `day`, `channel`; without it there is one total row. Rows are most expensive first. Read from the hourly rollup, so up to an hour behind; `meta.cost_sources` is read from the cost events. Money has six decimal places.
          */
         get: operations["list_costs_api_v1_workspaces__workspace_id__costs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/costs/forecast": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What the live schedules are expected to cost in a month
+         * @description `month` is `YYYY-MM` (UTC; this month when left out). A row per visible project with live AI schedules: the windows its schedules open in the month times the price book's price of one full run. An estimate, never what is charged; nothing is planned or started. A project whose run has no price is left out. `404` for a `filter[project_id]` the caller does not reach.
+         */
+        get: operations["cost_forecast_api_v1_workspaces__workspace_id__costs_forecast_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/costs/unit-costs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What one unit of work cost in a month
+         * @description `month` is `YYYY-MM` (UTC; this month when left out). A row per visible project: the cost of a tracked keyword, a provider request, an active prompt and an AI answer, the last by engine with the answers counted. A figure with nothing to divide by is `null`, never 0. `404` for a `filter[project_id]` the caller does not reach.
+         */
+        get: operations["unit_costs_api_v1_workspaces__workspace_id__costs_unit_costs_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -829,6 +917,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/layouts/{screen}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The layout a member sees on a screen
+         * @description Their personal layout, else the team default, else `source: builtin` with a null document. The `ETag` covers the caller's personal layout and the team default of the screen; send it as `If-Match` to save. An unknown screen is `404`.
+         */
+        get: operations["get_layout_api_v1_workspaces__workspace_id__layouts__screen__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/layouts/{screen}/default": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Save the team default of a screen
+         * @description As the personal layout, for the team default (owner and admin only); audited as `layout.default.set` with the documents before and after.
+         */
+        put: operations["put_team_layout_api_v1_workspaces__workspace_id__layouts__screen__default_put"];
+        post?: never;
+        /**
+         * Remove the team default of a screen
+         * @description Audited as `layout.default.remove` with the document removed; `204` also when there was none.
+         */
+        delete: operations["delete_team_layout_api_v1_workspaces__workspace_id__layouts__screen__default_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/me/layouts/{screen}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Save the caller's own layout of a screen
+         * @description Card types and metric keys of the catalog for the screen, allowed widths, at most 12 cards and 6 numbers, at most 16 KB (`422 validation_failed` with field paths). `If-Match` is required once the caller has a layout of the screen; a missing or stale one is `412 precondition_failed`. Answers the layout as it now resolves, with its new `ETag`.
+         */
+        put: operations["put_personal_layout_api_v1_workspaces__workspace_id__me_layouts__screen__put"];
+        post?: never;
+        /**
+         * Go back to the team or built-in default
+         * @description `204` also when there was nothing to remove.
+         */
+        delete: operations["delete_personal_layout_api_v1_workspaces__workspace_id__me_layouts__screen__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/members": {
         parameters: {
             query?: never;
@@ -932,6 +1088,26 @@ export interface paths {
         patch: operations["update_project_api_v1_workspaces__workspace_id__projects__project_id__patch"];
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/annotations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The changes every AI time chart marks
+         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`), oldest first: a new `model_reported` per engine, entity set, extractor and prompt set changes. Not built yet: `501 not_implemented`.
+         */
+        get: operations["list_annotations_api_v1_workspaces__workspace_id__projects__project_id__ai_annotations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/citations": {
         parameters: {
             query?: never;
@@ -952,6 +1128,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/collection/daily": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * AI collection per project day and engine
+         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`): per day and engine the answers the schedules planned, the answers stored by status, the valid ones, the runs a budget blocked and the runs behind them.
+         */
+        get: operations["collection_daily_api_v1_workspaces__workspace_id__projects__project_id__ai_collection_daily_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/competitors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Each tracked entity's mention rate, share of voice and citation share, per engine
+         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`), on the answers the prompts summary counts: valid, current ones of the active prompts. Branded prompts are left out unless `include_branded` is true (`branded_only` keeps them alone), `filter[country_iso]` keeps the prompts of one market and `filter[term]` the prompts given a term or one below it. Rates and shares are read from the project summary, so they are the same numbers as on the Topics & Prompts page; citation shares, lost prompts and top sources are read from the same answers as the Sources page. Engines are never pooled: each engine has its own value, and the equal-weight average of the engines is a value of its own. One row per tracked entity (the own entities, then the competitors by name, those tracked in AI answers, at most 20; `entity_ids` narrows them), each with one entry per engine shown: Mentioned and Share of voice from the prompts summary's entity cells, citation share (the entity's citation units over all those of the engine, as the Sources page counts them) and recommendation (suppressed: `not_classified`). `is_top_competitor` is true on at most one competitor of the engine, the one with the most share of voice among the tracked competitors (read before `entity_ids` narrows the rows), and false for every row when no competitor was named. `include=lost_prompts` adds, per competitor and engine, the prompts where it is named and the own brand is not (the `lost_to` opportunity of the summary), by importance, at most `lost_limit`, with `lost_prompts_total` (the per-answer rule, before the cap, which can exceed the next one), `lost_prompts_with_min_answers` (prompts with at least 4 valid answers) and `lost_prompts_clear_total` (of those, the prompts where the own brand is named in none of the valid answers); `include=top_sources` adds the domains cited most with the entity, at most `sources_limit`, over all engines. `compare=previous_period` (as many days just before the window), `compare=previous_year` (the same dates a year earlier) or `compare_from` with `compare_to` (both or neither, at most 92 days; they win over `compare`) add `meta.compare_window`, `meta.previous_answers` and, on the keys that compare, `previous` beside the value.
+         */
+        get: operations["competitors_api_v1_workspaces__workspace_id__projects__project_id__ai_competitors_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/fanout-queries": {
         parameters: {
             query?: never;
@@ -961,9 +1177,109 @@ export interface paths {
         };
         /**
          * The queries ChatGPT issued while answering, by how many answers issued them
-         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). The answers the prompts summary counts: valid, current and not superseded, of the active prompts, branded ones only with `include_branded`; `filter[prompt_id]` reads one prompt's answers whatever its state, and `filter[term]` the prompts given the term or one under it. A citation unit is a distinct canonical URL per answer (docs/16 C2). Aggregated by query over `ai.citations` (no rollup table: a 28 day window of a full project is about 3,600 answers). Read from the lists ingest stored with each answer (engines that show them: ChatGPT; `filter[engine_code_in]` naming another is `422 engine_has_no_fanout`, and `meta.engines_without_fanout` lists them so they read as not exposed, never zero). One row per normalized text (lower case, trimmed, inner whitespace as one space) and engine, the most issued first: the most common spelling, the answers and prompts that issued it, when it was first and last seen, and the 5 registrable domains with the most citation units in those answers (an association: which query found which source is not stored). A query issued by fewer than `min_support` answers (default 2) is left out. `meta.answers` is the denominator; `meta.answers_truncated` counts the answers whose stored list is shorter than the queries they issued (the 16 KB bound keeps the first ones). Offset pages.
+         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). The answers the prompts summary counts: valid, current and not superseded, of the active prompts, branded ones only with `include_branded`; `filter[prompt_id]` reads one prompt's answers whatever its state, and `filter[term]` the prompts given the term or one under it. A citation unit is a distinct canonical URL per answer (docs/16 C2). Aggregated by query over `ai.citations` (no rollup table: a 28 day window of a full project is about 3,600 answers). Read from the lists ingest stored with each answer (engines that show them: ChatGPT; `filter[engine_code_in]` naming another is `422 engine_has_no_fanout`, and `meta.engines_without_fanout` lists them so they read as not exposed, never zero). One row per normalized text (lower case, trimmed, inner whitespace as one space) and engine, the most issued first: the most common spelling, the answers and prompts that issued it, when it was first and last seen, and the 5 registrable domains with the most citation units in those answers (an association: which query found which source is not stored). A query issued by fewer than `min_support` answers (default 2) is left out. `meta.answers` is the denominator; `meta.answers_truncated` counts the answers whose stored list is shorter than the queries they issued (the 16 KB bound keeps the first ones). `include=topics` adds the topic terms (of a `topic` vocabulary of the project or of the workspace) tagged on the prompts that issued each query, the most answers first, at most 10. Offset pages.
          */
         get: operations["fanout_queries_api_v1_workspaces__workspace_id__projects__project_id__ai_fanout_queries_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/limits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Active prompts, monthly AI answers and manual runs: used and limit
+         * @description The workspace's active prompts and AI answers this UTC month, and the project's manual runs today (UTC), each with its limit, as the writes count them. Reading changes nothing.
+         */
+        get: operations["ai_limits_api_v1_workspaces__workspace_id__projects__project_id__ai_limits_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/metrics/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The Overview numbers of the AI answers, per engine
+         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`), on the answers the prompts summary counts: valid, current ones of the active prompts. Branded prompts are left out unless `include_branded` is true (`branded_only` keeps them alone), `filter[country_iso]` keeps the prompts of one market and `filter[term]` the prompts given a term or one below it. Rates and shares are read from the project summary, so they are the same numbers as on the Topics & Prompts page; citation shares, lost prompts and top sources are read from the same answers as the Sources page. Engines are never pooled: each engine has its own value, and the equal-weight average of the engines is a value of its own. Per engine shown: the valid answers, Mentioned, Cited, named and cited, the four outcomes, recommendation (suppressed: `not_classified`), share of voice, citation share (own citation units over all those of the engine, as the Sources page counts them), Cited given citations, first mention and, on an engine that exposes fan-out, its presence and mean. `engine_average` holds the equal-weight average of the engines for five of them when two engines have a value. `prompts_in_scope`, `topics_in_scope`, `last_observed_at` and `last_valid_at` sit beside the engines. `compare=previous_period` (as many days just before the window), `compare=previous_year` (the same dates a year earlier) or `compare_from` with `compare_to` (both or neither, at most 92 days; they win over `compare`) add `meta.compare_window`, `meta.previous_answers` and, on the keys that compare, `previous` beside the value. `overview/ai` answers the same body.
+         */
+        get: operations["metrics_overview_api_v1_workspaces__workspace_id__projects__project_id__ai_metrics_overview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/metrics/{metric}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One AI metric, per engine
+         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`), on the answers the prompts summary counts: valid, current ones of the active prompts. Branded prompts are left out unless `include_branded` is true (`branded_only` keeps them alone), `filter[country_iso]` keeps the prompts of one market and `filter[term]` the prompts given a term or one below it. Rates and shares are read from the project summary, so they are the same numbers as on the Topics & Prompts page; citation shares, lost prompts and top sources are read from the same answers as the Sources page. Engines are never pooled: each engine has its own value, and the equal-weight average of the engines is a value of its own. A registry key of docs/16 section 2.1: `ai.prompts_in_scope`, `ai.valid_answers`, `ai.mention_rate`, `ai.citation_rate`, `ai.mention_and_citation_rate`, `ai.outcome_mix` (and its four `.x` keys), `ai.share_of_voice`, `ai.citation_rate_given_citations`, `ai.first_mention_rate`, `ai.fanout_presence_rate`, `ai.fanout_mean_queries`, `ai.citation_share`, `ai.recommendation_rate` and `ai.recommended_given_mentioned` (suppressed: nothing classifies a recommendation yet). Any other AI key of that table answers `not_implemented`, naming the key; any other key `404 unknown_metric`. One value per engine, sorted by engine code, then the engine averages for the keys that have them; `ai.outcome_mix` gives four values per engine that add up to the whole. `entity_ids` gives one value per listed entity and engine instead. `compare=previous_period` (as many days just before the window), `compare=previous_year` (the same dates a year earlier) or `compare_from` with `compare_to` (both or neither, at most 92 days; they win over `compare`) add `meta.compare_window`, `meta.previous_answers` and, on the keys that compare, `previous` beside the value.
+         */
+        get: operations["metric_value_api_v1_workspaces__workspace_id__projects__project_id__ai_metrics__metric__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/metrics/{metric}/breakdown": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One AI metric broken down by a dimension of the prompts
+         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`), on the answers the prompts summary counts: valid, current ones of the active prompts. Branded prompts are left out unless `include_branded` is true (`branded_only` keeps them alone), `filter[country_iso]` keeps the prompts of one market and `filter[term]` the prompts given a term or one below it. Rates and shares are read from the project summary, so they are the same numbers as on the Topics & Prompts page; citation shares, lost prompts and top sources are read from the same answers as the Sources page. Engines are never pooled: each engine has its own value, and the equal-weight average of the engines is a value of its own. One row per group of `dimension`, each with its prompts and one value per engine (four per engine for `ai.outcome_mix`), sorted by prompts, most first, then label, at most 300 (`meta.rows_total`, `meta.truncated`). Prompts with no value of the dimension (for example no persona) form one row with `dimension.id` null. A prompt in two topics counts in each, so topic values do not add up to the total (`meta.notes`). A breakdown has no compare parameters.
+         */
+        get: operations["metric_breakdown_api_v1_workspaces__workspace_id__projects__project_id__ai_metrics__metric__breakdown_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/metrics/{metric}/series": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One AI metric over the weeks of the window, per engine
+         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`), on the answers the prompts summary counts: valid, current ones of the active prompts. Branded prompts are left out unless `include_branded` is true (`branded_only` keeps them alone), `filter[country_iso]` keeps the prompts of one market and `filter[term]` the prompts given a term or one below it. Rates and shares are read from the project summary, so they are the same numbers as on the Topics & Prompts page; citation shares, lost prompts and top sources are read from the same answers as the Sources page. Engines are never pooled: each engine has its own value, and the equal-weight average of the engines is a value of its own. One series per engine (and per listed entity with `entity_ids`) for `ai.mention_rate`, `ai.citation_rate` and `ai.share_of_voice`: a point for each week the window touches (weeks start on Monday in the project's timezone), oldest first, at most 14. A point holds the week's own answers, or the trailing four weeks inside the window when fewer than 10 prompts answered that week (`is_pooled`, `pool`); the first and last weeks may be partial (`is_partial`). They are the weekly points of the prompts summary's `total` row. `day` and `month` granularities are refused (`422`, code `not_built`). A series has no compare parameters: a previous window drawn over it is a second read with `from` and `to` shifted.
+         */
+        get: operations["metric_series_api_v1_workspaces__workspace_id__projects__project_id__ai_metrics__metric__series_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1012,6 +1328,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/observations/{observation_id}/compare": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What an AI answer gained, lost and kept against the earlier answer
+         * @description The tracked entities and the cited domains of this answer against the newest earlier valid answer of the same prompt and engine in which the own brand was mentioned (same project, not superseded, strictly earlier). Entities are the accepted mentions of the current derivation in any tracked role, matched by entity; sources are matched by registrable domain, and citations flagged `unresolved_redirect` or `engine_internal` are left out. Problems: `404 not_found` (no such answer in the project), `404 no_baseline` (no earlier answer to compare with, or this answer has no current facts), `403` (no `data:read`), `422` (an id that is not a 64-bit integer).
+         */
+        get: operations["compare_observation_api_v1_workspaces__workspace_id__projects__project_id__ai_observations__observation_id__compare_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/observations/{observation_id}/raw": {
         parameters: {
             query?: never;
@@ -1041,7 +1377,7 @@ export interface paths {
         };
         /**
          * Mentioned, Cited, outcomes and Share of voice per prompt, engine and topic
-         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). Each cell counts valid, current answers: `numerator` of `denominator`, with `n_observations` every answer of the cell and `value` null when the denominator is 0. Share of voice is doc 16 section 5 per observation: the own brand's share of the tracked entities each answer names, over the answers that name one; the response lists the entity set once. Branded prompts are left out unless `include_branded` is true; `branded_only` keeps them alone. A prompt of two topics counts in both; prompts without a topic share a row with `term_id` null. `filter[country_iso]` keeps the prompts of one market and `filter[term]` the prompts given the term or one under it; the topic rows then hold only those prompts, and under `filter[term]` they are the term and the topics below it, with no row for prompts without a topic. Each row says when its last counted answer and its last valid one came. `include=entities` adds, per engine, a Mentioned and a Share of voice cell for each tracked entity (the own ones first, at most 20); across all the entities an answer names, its shares add up to 1.
+         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). Each cell counts valid, current answers: `numerator` of `denominator`, with `n_observations` every answer of the cell and `value` null when the denominator is 0. Share of voice is doc 16 section 5 per observation: the own brand's share of the tracked entities each answer names, over the answers that name one; the response lists the entity set once. Branded prompts are left out unless `include_branded` is true; `branded_only` keeps them alone. A prompt of two topics counts in both; prompts without a topic share a row with `term_id` null. `filter[country_iso]` keeps the prompts of one market and `filter[term]` the prompts given the term or one under it; the topic rows then hold only those prompts, and under `filter[term]` they are the term and the topics below it, with no row for prompts without a topic. Each row says when its last counted answer and its last valid one came. `include=series` adds a point for each week the window touches (weeks start on Monday in the project's timezone), with Mentioned, Cited and Share of voice over the week's answers. The first and last weeks may be partial (cut at the window bounds; the first `week_start` can precede `window.from`). A point of a prompt row always holds the trailing four weeks to its week, and one of a topic, total or country row does when fewer than 10 of its prompts answered that week (`is_pooled`, `pool`, `prompts`): a pooled point never reaches outside the window, so the first points hold fewer weeks, and the points of a prompt row do not add up to its window cell. `include=entities` adds, per engine, a Mentioned and a Share of voice cell for each tracked entity (the own ones first, at most 20); across all the entities an answer names, its shares add up to 1. With `include=series` too, each point also holds those cells over the very weeks the point holds (its own week, or the weeks it pools), as `entities`, without `previous`. `compare=previous_period` (as many days just before the window), `compare=previous_year` (the same dates a year earlier; 29 February becomes the 28th) or `compare_from` with `compare_to` (both or neither, at most 92 days, any position; they win over `compare`) add `compare_window` and `previous_answers` (the valid answers in scope there), and `previous` beside each engine's cells, and beside each entity's with `include=entities`: null when none of the row's prompts has an answer of the engine in that window, cells with a denominator of 0 when it has answers and none valid. `include=total` adds `total`: every prompt in scope as one row, aggregated as a topic row is, with the `previous`, `series` and `entities` blocks when asked. `rows=topics` leaves the prompt rows out and `rows=none` both row lists; `total` does not depend on `rows`. `include=co_mentions` adds `co_mentions`: per engine shown, the valid answers in scope and, for each pair of the tracked entities (the own ones first, at most 20) named in the same valid answer, how many answers name both; it does not depend on `rows`. `include=cells` adds `detail` to every engine of the rows, `total` and `by_country`: Cited among the answers with citations, the own share of the citation units, First mention (the own brand named before any other tracked entity, of the answers that name it) and the fan-out presence and mean (null on an engine that does not expose fan-out), over the window alone, with `metric_context.detail`. Blocks not asked for are left out. `filter[outcome]=O` keeps a prompt row when at least one of its valid answers in the window, on the engines shown, had outcome O; `filter[opportunity]` keeps it by the same rule: `named_not_cited` is outcome `mentioned_only`, `cited_not_named` is `cited_only`, `nobody_named` is no tracked entity named, `lost_to:<entity_id>` is that competitor named and the own brand not (an id that is not a competitor of the project keeps no row and is not an error). With both, a row must pass each. They narrow `prompts` only: cells, topic rows, `total`, `co_mentions` and `prompt_count` still count every prompt in scope. `group_by=country` adds `by_country`: one entry per market of the prompts in scope (the prompt's own, sorted by code), with the engines built as a topic row of those prompts and the blocks the rows carry when asked; a prompt without a market is in no entry, and the block does not depend on `rows`, the outcome or opportunity filters.
          */
         get: operations["prompts_summary_api_v1_workspaces__workspace_id__projects__project_id__ai_prompts_summary_get"];
         put?: never;
@@ -1072,6 +1408,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/changes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * New and lost sources against the window before
+         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). The answers the prompts summary counts: valid, current and not superseded, of the active prompts, branded ones only with `include_branded`; `filter[prompt_id]` reads one prompt's answers whatever its state, and `filter[term]` the prompts given the term or one under it. A citation unit is a distinct canonical URL per answer (docs/16 C2). Aggregated by query over `ai.citations` (no rollup table: a 28 day window of a full project is about 3,600 answers). `kind=new` (default): domains with at least `min_support` citation units in the window and none in as many days before (docs/16 C5). `kind=lost` (docs/16 C6): domains with at least `min_support` units in a support window and none in each of the 2 windows after it. The windows are as long as the asked one: for `lost`, `meta.window` is the asked window and the one before it (the 2 empty windows) and `meta.compare_window` the support window before those, so a 92 day ask reads 276 days; for `new`, `meta.window` is the asked window and `meta.compare_window` the one before. `min_support` (default 2) counts citation units. `current_units` and `previous_units` are the units in `meta.window` and `meta.compare_window`; `first_seen_at` and `last_seen_at` are in `meta.window` (null for `lost`). One row per registrable domain and role (and entity), the most units first; offset pages.
+         */
+        get: operations["source_changes_api_v1_workspaces__workspace_id__projects__project_id__ai_sources_changes_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/diversity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Source diversity per engine
+         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). The answers the prompts summary counts: valid, current and not superseded, of the active prompts, branded ones only with `include_branded`; `filter[prompt_id]` reads one prompt's answers whatever its state, and `filter[term]` the prompts given the term or one under it. A citation unit is a distinct canonical URL per answer (docs/16 C2). Aggregated by query over `ai.citations` (no rollup table: a 28 day window of a full project is about 3,600 answers). Per engine: the valid answers, the answers that cite a source, the citation units, the registrable domains cited (roles merged) and the effective number of sources (docs/16 C3: 1 over the sum of squared source shares, with its numerator and denominator visible). Engines are never pooled: `meta.distinct_domains` is a count over every engine in scope and `meta.effective_sources_engine_average` the equal-weight mean of the engines with units. `include=series` adds a weekly point per engine and `include=ads` the answers that showed an ad.
+         */
+        get: operations["source_diversity_api_v1_workspaces__workspace_id__projects__project_id__ai_sources_diversity_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/domains": {
         parameters: {
             query?: never;
@@ -1092,6 +1468,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/domains/{registrable_domain}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One cited domain
+         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). The answers the prompts summary counts: valid, current and not superseded, of the active prompts, branded ones only with `include_branded`; `filter[prompt_id]` reads one prompt's answers whatever its state, and `filter[term]` the prompts given the term or one under it. A citation unit is a distinct canonical URL per answer (docs/16 C2). Aggregated by query over `ai.citations` (no rollup table: a 28 day window of a full project is about 3,600 answers). One registrable domain as the domain list names it: its rows (one per role and entity, at most 10), its units per engine and week, its 10 most cited pages, the 20 prompts whose answers cite it most and the 5 tracked entities named most in those answers. A domain that is not cited in scope answers `200` with empty lists; the name is read in lower case.
+         */
+        get: operations["source_domain_api_v1_workspaces__workspace_id__projects__project_id__ai_sources_domains__registrable_domain__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/pages": {
         parameters: {
             query?: never;
@@ -1104,6 +1500,26 @@ export interface paths {
          * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). The answers the prompts summary counts: valid, current and not superseded, of the active prompts, branded ones only with `include_branded`; `filter[prompt_id]` reads one prompt's answers whatever its state, and `filter[term]` the prompts given the term or one under it. A citation unit is a distinct canonical URL per answer (docs/16 C2). Aggregated by query over `ai.citations` (no rollup table: a 28 day window of a full project is about 3,600 answers). One row per canonical page and role: as the domain rows, plus the URL, host, registrable domain and a title an answer gave it. `filter[registrable_domain]` keeps one domain's pages, whose units add up to its row's. Offset pages; the same sorts as the domains. `compare=previous_period` (default `none`) adds `previous` to each row, its units and citing answers over as many days just before the window (0 when not cited there: docs/16 C5), with `meta.compare_window` and `meta.previous_answers`.
          */
         get: operations["source_pages_api_v1_workspaces__workspace_id__projects__project_id__ai_sources_pages_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/prompts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Each prompt's own pages, per engine
+         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). The answers the prompts summary counts: valid, current and not superseded, of the active prompts, branded ones only with `include_branded`; `filter[prompt_id]` reads one prompt's answers whatever its state, and `filter[term]` the prompts given the term or one under it. A citation unit is a distinct canonical URL per answer (docs/16 C2). Aggregated by query over `ai.citations` (no rollup table: a 28 day window of a full project is about 3,600 answers). One row per prompt and engine with a counted answer: the valid answers, the answers that cite an own page, the own citation units, the distinct own pages and the one with the most units. `filter[own_cited]=false` keeps the prompts whose answers cite no own page. Keyset pages `(prompt_id, engine_code)`; a cursor is bound to its filters (`400 invalid_cursor` otherwise). An engine with no counted answer of a prompt has no row.
+         */
+        get: operations["source_prompts_api_v1_workspaces__workspace_id__projects__project_id__ai_sources_prompts_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1179,7 +1595,7 @@ export interface paths {
         get?: never;
         /**
          * Turn an engine on or off for the project
-         * @description The first engine turned on makes the project's AI answer schedules (twice a week). `location_ids` must be active countries (`422 validation_failed` with `location_not_supported`). The provider is DataForSEO and the engine gives one answer per prompt and run.
+         * @description The first engine turned on makes the project's AI answer schedules (twice a week). `location_ids` must be active countries (`422 validation_failed` with `location_not_supported`). The provider is DataForSEO and the engine gives one answer per prompt and run. `provider_params.device` (`desktop` or `mobile`) is for Google AI Mode only (`422 validation_failed` with `device_not_supported` for the others); leave it out to keep the saved device.
          */
         put: operations["put_engine_api_v1_workspaces__workspace_id__projects__project_id__engines__engine_code__put"];
         post?: never;
@@ -1534,6 +1950,90 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The project's chart notes
+         * @description Notes drawn on days from `from` to `to` (default the 28 days ending today; at most 92, `422 window_too_large`), project wide and per term. Not built yet: `501 not_implemented`.
+         */
+        get: operations["list_notes_api_v1_workspaces__workspace_id__projects__project_id__notes_get"];
+        put?: never;
+        /**
+         * Add a chart note
+         * @description At most 140 characters on one line, for the project or one term (`term_unknown` for a term the project may not use). Not built yet: `501 not_implemented`.
+         */
+        post: operations["create_note_api_v1_workspaces__workspace_id__projects__project_id__notes_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/notes/{note_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a chart note
+         * @description Not built yet: `501 not_implemented`.
+         */
+        delete: operations["delete_note_api_v1_workspaces__workspace_id__projects__project_id__notes__note_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/overview/ai": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The Overview numbers of the AI answers, per engine (Overview alias)
+         * @description The same body, parameters and errors as `GET .../ai/metrics/overview`, under the path the Overview report reads. Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`), on the answers the prompts summary counts: valid, current ones of the active prompts. Branded prompts are left out unless `include_branded` is true (`branded_only` keeps them alone), `filter[country_iso]` keeps the prompts of one market and `filter[term]` the prompts given a term or one below it. Rates and shares are read from the project summary, so they are the same numbers as on the Topics & Prompts page; citation shares, lost prompts and top sources are read from the same answers as the Sources page. Engines are never pooled: each engine has its own value, and the equal-weight average of the engines is a value of its own. `compare=previous_period` (as many days just before the window), `compare=previous_year` (the same dates a year earlier) or `compare_from` with `compare_to` (both or neither, at most 92 days; they win over `compare`) add `meta.compare_window`, `meta.previous_answers` and, on the keys that compare, `previous` beside the value.
+         */
+        get: operations["overview_ai_api_v1_workspaces__workspace_id__projects__project_id__overview_ai_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/overview/competitors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The AI half of the Overview competitor table
+         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`), on the answers the prompts summary counts: valid, current ones of the active prompts. Branded prompts are left out unless `include_branded` is true (`branded_only` keeps them alone), `filter[country_iso]` keeps the prompts of one market and `filter[term]` the prompts given a term or one below it. Rates and shares are read from the project summary, so they are the same numbers as on the Topics & Prompts page; citation shares, lost prompts and top sources are read from the same answers as the Sources page. Engines are never pooled: each engine has its own value, and the equal-weight average of the engines is a value of its own. One row per tracked entity, in the order of `ai/competitors`, each with its share of voice and its mention rate per engine shown (no citation share, lost prompts or sources). The SEO share of voice and visibility are declared and left out until they are built. `compare=previous_period` (as many days just before the window), `compare=previous_year` (the same dates a year earlier) or `compare_from` with `compare_to` (both or neither, at most 92 days; they win over `compare`) add `meta.compare_window`, `meta.previous_answers` and, on the keys that compare, `previous` beside the value.
+         */
+        get: operations["overview_competitors_api_v1_workspaces__workspace_id__projects__project_id__overview_competitors_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts": {
         parameters: {
             query?: never;
@@ -1543,13 +2043,13 @@ export interface paths {
         };
         /**
          * The project's prompts
-         * @description Newest first. `filter[is_active]` is true when left out; archived prompts are listed with false. `filter[term]` takes the term or one under it, `filter[q]` matches the text as a substring without case, and `filter[intent_in]` takes a comma list. A cursor is bound to its filters (`400 invalid_cursor` otherwise).
+         * @description Newest first, or by `sort`. `filter[is_active]` is true when left out; archived prompts are listed with false, and both with `any`. `filter[term]` takes the term or one under it, `filter[q]` matches the text as a substring without case, and `filter[intent_in]`, `filter[prompt_type_in]`, `filter[funnel_stage_in]` and `filter[importance_in]` take a comma list. `filter[is_branded]` lists branded or unbranded prompts; left out, both are listed (a list is not a rate). A cursor is bound to its filters and its sort (`400 invalid_cursor` otherwise).
          */
         get: operations["list_prompts_api_v1_workspaces__workspace_id__projects__project_id__prompts_get"];
         put?: never;
         /**
          * Add a prompt
-         * @description `409 duplicate` (with `existing_id`) when the project has the same text in the same language and country, archived prompts included; `422 quota_exceeded` (with `limit`, `used` and `requested`) past the workspace's active prompt limit. Field codes: `prompt_too_long` (over 2,000 characters, the most any engine takes), `location_not_supported` (`country_iso` has no location of an enabled engine), `term_unknown` and `single_valued_vocabulary`. `is_branded` is computed from the project's own aliases.
+         * @description `409 duplicate` (with `existing_id`) when the project has the same text in the same language and country, archived prompts included; `422 quota_exceeded` (with `limit`, `used` and `requested`) past the workspace's active prompt limit. Field codes: `prompt_too_long` (over 2,000 characters, the most any engine takes), `location_not_supported` (`country_iso` has no location of an enabled engine), `term_unknown`, `single_valued_vocabulary` and `tracked_keyword_unknown` (`generated_from` names a keyword the project does not track). `is_branded` left out is computed from the project's own aliases and `is_branded_source` says `computed`; sent, it is kept and says `override`. `source` left out is `manual` and `creation_method` is `human` (`template` with `generated_from`, which is kept in the audit entry). `prompt_type` left out is chosen from the wording (`rule`: `vs` or `versus` is a comparison, `how to` is how_to, a leading question word or a question mark is a question, anything else is other) and `prompt_type_source` says `rule`; sent, it is kept and says `person`.
          */
         post: operations["create_prompt_api_v1_workspaces__workspace_id__projects__project_id__prompts_post"];
         delete?: never;
@@ -1569,7 +2069,7 @@ export interface paths {
         put?: never;
         /**
          * Archive or bring back many prompts
-         * @description Up to 1,000 `ids` of the project's prompts; an id it does not have is not matched. `archive: true` archives them as `DELETE` does one, `false` brings them back as `PATCH is_active: true` does; answers, versions and terms stay. Bringing back counts against the workspace's active prompt limit, all or none (`422 quota_exceeded` with `limit`, `used` and `requested`). `matched` is the prompts found, `updated` those whose state changed. One audit entry for the request and one per prompt changed.
+         * @description Up to 1,000 `ids` of the project's prompts, or a `filter` (the list's filters; `is_active` left out takes archived and active prompts alike), exactly one; an id the project does not have is not matched, and a filter matching more than 1,000 prompts is `422 too_many_subjects` with `limit`. `archive: true` archives them as `DELETE` does one, `false` brings them back as `PATCH is_active: true` does; answers, versions and terms stay. Bringing back counts against the workspace's active prompt limit, all or none (`422 quota_exceeded` with `limit`, `used` and `requested`). `matched` is the prompts found, `updated` those whose state changed. One audit entry for the request and one per prompt changed.
          */
         post: operations["bulk_archive_prompts_api_v1_workspaces__workspace_id__projects__project_id__prompts_bulk_archive_post"];
         delete?: never;
@@ -1589,9 +2089,29 @@ export interface paths {
         put?: never;
         /**
          * Add a list of prompts
-         * @description Up to 1,000 items. An item that cannot be saved is rejected with its code (`location_not_supported`, `term_unknown`, `single_valued_vocabulary`, `duplicate_in_request` for the same prompt twice in the list, and `duplicate` with `on_duplicate: error`); with `skip`, a prompt the project has is listed in `skipped`. The rest are written together: `422 quota_exceeded` past the workspace's active prompt limit, and nothing is written. No Idempotency-Key: sending the list again skips what it added.
+         * @description Up to 1,000 items. An item that cannot be saved is rejected with its code (`location_not_supported`, `term_unknown`, `single_valued_vocabulary`, `tracked_keyword_unknown`, `duplicate_in_request` for the same prompt twice in the list, and `duplicate` with `on_duplicate: error`); with `skip`, a prompt the project has is listed in `skipped`. The rest are written together: `422 quota_exceeded` past the workspace's active prompt limit, and nothing is written. Each item without a `prompt_type` takes the wording rule on its own. No Idempotency-Key: sending the list again skips what it added.
          */
         post: operations["bulk_create_prompts_api_v1_workspaces__workspace_id__projects__project_id__prompts_bulk_create_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts/bulk-update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Change the metadata of many prompts
+         * @description Up to 1,000 `ids` of the project's prompts, or `filter` (the list's filters), exactly one. `set` changes intent, funnel stage, type, importance and the branded flag; `add_term_ids` and `remove_term_ids` add and remove terms. `matched` is the prompts found, `updated` those that changed. Setting `prompt_type` makes `prompt_type_source` `person`, and setting `is_branded` makes `is_branded_source` `override`. An added term of a single-valued vocabulary takes the place of the prompt's other term of it; field codes `term_unknown` and `single_valued_vocabulary` name `add_term_ids` or `remove_term_ids`. A filter matching more than 1,000 prompts is `422 too_many_subjects` with `limit`. One transaction; one `prompt.bulk_changed` audit entry and one `prompt.updated` per prompt changed.
+         */
+        post: operations["bulk_update_prompts_api_v1_workspaces__workspace_id__projects__project_id__prompts_bulk_update_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1609,7 +2129,7 @@ export interface paths {
         put?: never;
         /**
          * Check prompts before saving them
-         * @description Nothing is stored. For each text, as it would be saved: whether it names an own brand (`contains_brand_alias`, with the name's place in UTF-16 code units) and each engine it is too long for (`engine_limit`: a warning when the engine skips it, an error when it is too long to save). `quota` is the workspace's active prompt limit and use.
+         * @description Nothing is stored. For each text, as it would be saved: whether it names an own brand (`contains_brand_alias`, with the name's place in UTF-16 code units) and each engine it is too long for (`engine_limit`: a warning when the engine skips it, an error when it is too long to save). `quota` is the workspace's active prompt limit and use. With `items` (text, language and country) each result also says which prompt of the project it is (`tracked`, archived ones too) or, when none, the one that differs only in case and spacing (`near_duplicate_of`), and `quota.would_create` counts the items saving would create: not tracked, not a repeat of an earlier item, not too long to save. Five rules read the text, after `contains_brand_alias` and before `engine_limit`: `contains_competitor_alias` (a warning, a note when the text compares with `vs` or `versus`; it never makes the prompt branded), `leading_wording` (a superlative within 3 words of an own or competitor name, or "why is X the best"), `multiple_questions`, `word_count` (5 to 60 words; scripts written without spaces count half their characters) and `language_mismatch` (the text reads as another script, or for en, de, fr, es, it, pt and nl another language, than the item's `language_code`, or the body's for `texts`; texts under 4 words and unknown languages are not checked). The competitor and leading rules carry a span; the others carry none. Every result has `suggested_prompt_type`, the type the wording rule gives the text. With `items`, `estimate` says what the prompts that would be created cost on the standard queue, for each of `engine_codes` or, left out, each engine the project has on: the prompts the engine takes, the answers a month at two runs a week (rounded down), the cost a month to the cent, and the answers and cost of one run now. An engine the price book has no price for has null costs.
          */
         post: operations["lint_prompts_api_v1_workspaces__workspace_id__projects__project_id__prompts_lint_post"];
         delete?: never;
@@ -1625,7 +2145,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** A prompt */
+        /**
+         * A prompt
+         * @description With an `ETag` header: 32 lowercase hex characters, quoted. It changes with every change of the prompt's metadata or terms.
+         */
         get: operations["get_prompt_api_v1_workspaces__workspace_id__projects__project_id__prompts__prompt_id__get"];
         put?: never;
         post?: never;
@@ -1638,7 +2161,7 @@ export interface paths {
         head?: never;
         /**
          * Change a prompt's metadata
-         * @description The text, language and country cannot change (`422 validation_failed` with `immutable_field`): archive the prompt and add a new one. `term_ids` replaces the terms. `is_active: true` brings an archived prompt back and counts against the quota.
+         * @description The text, language and country cannot change (`422 validation_failed` with `immutable_field`): archive the prompt and add a new one. `term_ids` replaces the terms. `is_active: true` brings an archived prompt back and counts against the quota. Setting `prompt_type` makes `prompt_type_source` `person`, and setting `is_branded` makes `is_branded_source` `override`. The answer carries the new `ETag`.
          */
         patch: operations["update_prompt_api_v1_workspaces__workspace_id__projects__project_id__prompts__prompt_id__patch"];
         trace?: never;
@@ -1695,6 +2218,26 @@ export interface paths {
          * @description With how many of its tasks are in each status, and the configuration it ran with.
          */
         get: operations["get_run_api_v1_workspaces__workspace_id__projects__project_id__runs__run_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/runs/{run_id}/ai-coverage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Per engine, what an AI run planned, stored and found valid
+         * @description A run of workload `ai_prompt` (`422 not_an_ai_run` otherwise): per engine the tasks planned, the answers stored, the valid ones and the others by status, with the valid rate; and every planned task with no stored answer.
+         */
+        get: operations["ai_coverage_api_v1_workspaces__workspace_id__projects__project_id__runs__run_id__ai_coverage_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1920,8 +2463,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Add, remove or replace terms of tracked keywords
-         * @description Exactly one of `subject_ids` (up to 5,000) and `subject_filter` (the list's filters; `422 too_many_subjects` over 20,000 matches). `add` with a term of a single-valued vocabulary replaces the keyword's other term of it; `replace` makes the given terms the keyword's only ones within their vocabularies, and other vocabularies are kept. Two terms of one single-valued vocabulary are `422 validation_failed` with `single_valued_vocabulary`; `subject_type: 'prompt'` is `subject_type_not_supported` until prompts exist.
+         * Add, remove or replace terms of tracked keywords or prompts
+         * @description Exactly one of `subject_ids` (up to 5,000) and `subject_filter` (the list's filters; `422 too_many_subjects` over 20,000 matches). `add` with a term of a single-valued vocabulary replaces the subject's other term of it; `replace` makes the given terms the subject's only ones within their vocabularies, and other vocabularies are kept. Two terms of one single-valued vocabulary are `422 validation_failed` with `single_valued_vocabulary`. `subject_type: 'prompt'` also needs `prompts:write` (`403` without it) and takes `subject_ids` only: a `subject_filter` is `422 validation_failed` with `filter_not_supported` (to choose prompts by filter, use bulk-update). Ids that are not live prompts of the project are not matched and are no error.
          */
         post: operations["assign_terms_api_v1_workspaces__workspace_id__projects__project_id__term_assignments_post"];
         delete?: never;
@@ -2311,7 +2854,7 @@ export interface paths {
         };
         /**
          * A vocabulary's terms, as a tree or flat
-         * @description In path order. `flat` lists every term with empty `children`.
+         * @description In path order. `flat` lists every term with empty `children`. `include=prompt_count` adds `prompt_count` to every term (one grouped query, left out otherwise).
          */
         get: operations["list_terms_api_v1_workspaces__workspace_id__vocabularies__vocabulary_id__terms_get"];
         put?: never;
@@ -2363,6 +2906,657 @@ export interface components {
             actor_type: "user" | "api_key" | "system";
             /** Label */
             label: string;
+        };
+        /** AdPresence */
+        AdPresence: {
+            /**
+             * Ads
+             * @description Ads stored with those answers.
+             */
+            ads: number;
+            /** @description Answers that showed at least one ad, of the valid answers on the engine. Ads are kept out of answers and citations (docs/07 section 5.4); extras the 16 KB bound emptied count as no ad. */
+            answers_with_ads: components["schemas"]["MetricCell"];
+        };
+        /** AiBreakdownMeta */
+        AiBreakdownMeta: {
+            /**
+             * Branded Only
+             * @description Only branded prompts are counted.
+             */
+            branded_only: boolean;
+            /** @description With a compare window: the days compared with. Left out otherwise. */
+            compare_window?: components["schemas"]["MetricWindow"] | null;
+            /**
+             * Engine Codes
+             * @description The engines shown, sorted: enabled or answering, after the filter.
+             */
+            engine_codes: string[];
+            /**
+             * Entities
+             * @description The tracked entity set share of voice is computed over now, as the prompts summary lists it (competitors by name, then the own entities); watched entities are not in it. Read `role`: do not assume the own brand is first.
+             */
+            entities: components["schemas"]["SummaryEntity"][];
+            /**
+             * Entity Config Changes
+             * @description When more than one version is listed in `entity_config_versions`: the project-local day each first derived an answer, oldest first, so a chart can mark where share of voice changes basis. Left out when the window holds one version.
+             */
+            entity_config_changes?: components["schemas"]["AiEntityConfigChange"][] | null;
+            /**
+             * Entity Config Versions
+             * @description More than one means the entity set changed inside the window and older answers keep their set.
+             */
+            entity_config_versions: number[];
+            /**
+             * Include Branded
+             * @description Branded prompts are counted.
+             */
+            include_branded: boolean;
+            /**
+             * Notes
+             * @description What a route has to say about its numbers; [] if nothing.
+             */
+            notes: string[];
+            /**
+             * Previous Answers
+             * @description With a compare window: the valid answers in scope there, on the engines shown; 0 means it has no data. Left out otherwise.
+             */
+            previous_answers?: number | null;
+            /**
+             * Rows Total
+             * @description The rows before the cap of 300.
+             */
+            rows_total: number;
+            /**
+             * Truncated
+             * @description True when `rows_total` is over 300.
+             */
+            truncated: boolean;
+            /** @description The window; project-local days both included. */
+            window: components["schemas"]["MetricWindow"];
+        };
+        /** AiBreakdownResponse */
+        AiBreakdownResponse: {
+            /**
+             * Data
+             * @description Sorted by prompts, most first, then label; at most 300.
+             */
+            data: components["schemas"]["AiBreakdownRow"][];
+            /** @description The scope the numbers were computed over. */
+            meta: components["schemas"]["AiBreakdownMeta"];
+        };
+        /** AiBreakdownRow */
+        AiBreakdownRow: {
+            /** @description The group this row is of. */
+            dimension: components["schemas"]["AiDimension"];
+            /**
+             * Prompts
+             * @description The prompts of the group.
+             */
+            prompts: number;
+            /**
+             * Values
+             * @description One value per engine, no averages; four per engine for `ai.outcome_mix`. With `dimension=engine` the row is one engine.
+             */
+            values: components["schemas"]["AiMetricValue"][];
+        };
+        /**
+         * AiCi
+         * @description A confidence interval, as docs/16 section 2 and docs/19 section 2.6 write it. Declared and
+         *     never returned in this package: the interval stays on the client (Wilson, rule R8) until the
+         *     statistics package adds it.
+         */
+        AiCi: {
+            /**
+             * High
+             * @description The upper bound, in the unit of the value.
+             */
+            high: number;
+            /**
+             * Level
+             * @description The confidence level: always 0.95.
+             */
+            level: number;
+            /**
+             * Low
+             * @description The lower bound, in the unit of the value.
+             */
+            low: number;
+            /**
+             * Method
+             * @description How the interval was computed.
+             * @enum {string}
+             */
+            method: "wilson" | "bootstrap_cluster" | "normal_fixed_panel";
+        };
+        /** AiCompetitor */
+        AiCompetitor: {
+            /**
+             * By Engine
+             * @description One entry per engine shown, sorted by engine code.
+             */
+            by_engine: components["schemas"]["AiCompetitorEngine"][];
+            /** @description The tracked entity of the row. */
+            entity: components["schemas"]["EntityRef"];
+            /**
+             * Top Sources
+             * @description With `include=top_sources`: the domains cited most with the entity, over all engines; [] when it has none. Left out otherwise.
+             */
+            top_sources?: components["schemas"]["CompetitorSource"][] | null;
+        };
+        /** AiCompetitorEngine */
+        AiCompetitorEngine: {
+            /** @description `ai.citation_share`: the entity's citation units over all those of the engine. */
+            citation_share: components["schemas"]["AiMetricValue"];
+            /**
+             * Engine Code
+             * @description The engine.
+             */
+            engine_code: string;
+            /**
+             * Is Top Competitor
+             * @description True for at most one competitor of the engine: the one with the most share of voice among the tracked competitors, read over the tracked set before `entity_ids` narrows the rows. False for every row when no competitor was named, or when the top one is narrowed away.
+             */
+            is_top_competitor: boolean;
+            /**
+             * Lost Prompts
+             * @description With `include=lost_prompts`, on a competitor: the prompts where it is named and the own brand is not; [] when none. Left out otherwise.
+             */
+            lost_prompts?: components["schemas"]["LostPrompt"][] | null;
+            /**
+             * Lost Prompts Clear Total
+             * @description With `include=lost_prompts`, on a competitor: the prompts on the engine where it is named in at least one valid answer, the own brand in none of the prompt's valid answers, and the prompt has at least 4 valid answers; not capped by `lost_limit`. Never larger than `lost_prompts_with_min_answers`. Left out otherwise.
+             */
+            lost_prompts_clear_total?: number | null;
+            /**
+             * Lost Prompts Total
+             * @description With `include=lost_prompts`, on a competitor: every prompt lost to it on the engine under the per-answer rule (it is named in at least one valid answer that does not name the own brand), before the `lost_limit` cap of `lost_prompts`. It can exceed `lost_prompts_with_min_answers`, so it is not the count to show over it: use `lost_prompts_clear_total`. Left out otherwise.
+             */
+            lost_prompts_total?: number | null;
+            /**
+             * Lost Prompts With Min Answers
+             * @description With `include=lost_prompts`, on a competitor: the prompts in scope with at least 4 valid answers on the engine, the 'of N prompts' beside `lost_prompts_clear_total`. Left out otherwise.
+             */
+            lost_prompts_with_min_answers?: number | null;
+            /** @description `ai.mention_rate` of the entity. */
+            mention_rate: components["schemas"]["AiMetricValue"];
+            /** @description `ai.recommendation_rate` of the entity: suppressed, `not_classified`. */
+            recommendation_rate: components["schemas"]["AiMetricValue"];
+            /** @description `ai.share_of_voice` of the entity. */
+            share_of_voice: components["schemas"]["AiMetricValue"];
+        };
+        /** AiCompetitorsResponse */
+        AiCompetitorsResponse: {
+            /**
+             * Data
+             * @description The tracked set: the own entities, then the competitors by name; at most 20.
+             */
+            data: components["schemas"]["AiCompetitor"][];
+            /** @description The scope the numbers were computed over. */
+            meta: components["schemas"]["AiMetricMeta"];
+        };
+        /** AiCoverage */
+        AiCoverage: {
+            /** By Engine */
+            by_engine: components["schemas"]["AiCoverageEngine"][];
+            /**
+             * Missing
+             * @description Every planned task with no stored answer, at most the run's tasks.
+             */
+            missing: components["schemas"]["AiCoverageMissing"][];
+        };
+        /** AiCoverageEngine */
+        AiCoverageEngine: {
+            engine_code: components["schemas"]["EngineCode"];
+            invalid_by_status: components["schemas"]["InvalidByStatus"];
+            /**
+             * Observed
+             * @description Answers stored, of any status: `valid` plus `invalid_by_status`.
+             */
+            observed: number;
+            /**
+             * Partial
+             * @description Of the valid answers, the ones flagged `partial`.
+             */
+            partial: number;
+            /**
+             * Planned
+             * @description Tasks the run planned on the engine.
+             */
+            planned: number;
+            /**
+             * Valid
+             * @description Answers stored with status `complete` or `partial`.
+             */
+            valid: number;
+            /** @description `valid` of `planned`. */
+            valid_rate: components["schemas"]["MetricCell"];
+        };
+        /** AiCoverageMissing */
+        AiCoverageMissing: {
+            engine_code: components["schemas"]["EngineCode"];
+            /** Location Id */
+            location_id: number | null;
+            /**
+             * Prompt Id
+             * Format: uuid
+             */
+            prompt_id: string;
+            /** Replicate Index */
+            replicate_index: number;
+            /**
+             * Task Status
+             * @enum {string}
+             */
+            task_status: "pending" | "submit_unknown" | "submitted" | "ready" | "fetched" | "ingested" | "failed" | "dead" | "cancelled" | "skipped_cached";
+        };
+        /** AiCoverageResponse */
+        AiCoverageResponse: {
+            data: components["schemas"]["AiCoverage"];
+        };
+        /** AiDimension */
+        AiDimension: {
+            /**
+             * Id
+             * @description The id of the group; null for the prompts with no value.
+             */
+            id: string | null;
+            /**
+             * Label
+             * @description The name of the group; null for the prompts with no value.
+             */
+            label: string | null;
+            /**
+             * Type
+             * @description The dimension the rows are of.
+             * @enum {string}
+             */
+            type: "topic" | "intent" | "funnel_stage" | "engine" | "country" | "language" | "persona" | "prompt_type";
+        };
+        /**
+         * AiEntityConfigChange
+         * @description The project-local day an entity configuration version first derived an answer.
+         */
+        AiEntityConfigChange: {
+            /**
+             * From
+             * Format: date
+             * @description The project-local day this version first derived an answer of the project; it can precede the window.
+             */
+            from: string;
+            /**
+             * Version
+             * @description The entity configuration version.
+             */
+            version: number;
+        };
+        /**
+         * AiFilters
+         * @description The scope a value was counted over, resolved: what the request left out is null.
+         */
+        AiFilters: {
+            /**
+             * Branded Only
+             * @description Only branded prompts are counted.
+             */
+            branded_only: boolean;
+            /**
+             * Country Iso
+             * @description The market the prompts were limited to, or null.
+             */
+            country_iso: string | null;
+            /**
+             * Include Branded
+             * @description Branded prompts are counted.
+             */
+            include_branded: boolean;
+            /**
+             * Term Id
+             * @description The term whose prompts (and those of the terms below it) were counted, or null.
+             */
+            term_id: string | null;
+        };
+        /**
+         * AiLimits
+         * @description What the page header and the confirm dialogs show before a click (CF-11, prompt-dialogs
+         *     N06): the same numbers the writes check.
+         */
+        AiLimits: {
+            /** @description AI answers of the whole workspace this UTC month, planned runs included, against `max_ai_observations_per_month`, counted as Run now counts them. */
+            ai_observations_month: components["schemas"]["QuotaUse"];
+            manual_runs_today: components["schemas"]["ManualRuns"];
+            /** @description Active prompts of the whole workspace against `max_active_prompts`. */
+            prompts: components["schemas"]["QuotaUse"];
+        };
+        /** AiLimitsResponse */
+        AiLimitsResponse: {
+            data: components["schemas"]["AiLimits"];
+        };
+        /**
+         * AiMetricMeta
+         * @description What every body says about the scope it was computed over.
+         */
+        AiMetricMeta: {
+            /**
+             * Branded Only
+             * @description Only branded prompts are counted.
+             */
+            branded_only: boolean;
+            /** @description With a compare window: the days compared with. Left out otherwise. */
+            compare_window?: components["schemas"]["MetricWindow"] | null;
+            /**
+             * Engine Codes
+             * @description The engines shown, sorted: enabled or answering, after the filter.
+             */
+            engine_codes: string[];
+            /**
+             * Entities
+             * @description The tracked entity set share of voice is computed over now, as the prompts summary lists it (competitors by name, then the own entities); watched entities are not in it. Read `role`: do not assume the own brand is first.
+             */
+            entities: components["schemas"]["SummaryEntity"][];
+            /**
+             * Entity Config Changes
+             * @description When more than one version is listed in `entity_config_versions`: the project-local day each first derived an answer, oldest first, so a chart can mark where share of voice changes basis. Left out when the window holds one version.
+             */
+            entity_config_changes?: components["schemas"]["AiEntityConfigChange"][] | null;
+            /**
+             * Entity Config Versions
+             * @description More than one means the entity set changed inside the window and older answers keep their set.
+             */
+            entity_config_versions: number[];
+            /**
+             * Include Branded
+             * @description Branded prompts are counted.
+             */
+            include_branded: boolean;
+            /**
+             * Notes
+             * @description What a route has to say about its numbers; [] if nothing.
+             */
+            notes: string[];
+            /**
+             * Previous Answers
+             * @description With a compare window: the valid answers in scope there, on the engines shown; 0 means it has no data. Left out otherwise.
+             */
+            previous_answers?: number | null;
+            /** @description The window; project-local days both included. */
+            window: components["schemas"]["MetricWindow"];
+        };
+        /** AiMetricPoint */
+        AiMetricPoint: {
+            /**
+             * Denominator
+             * @description As in `AiMetricValue`.
+             */
+            denominator: number | null;
+            /**
+             * Is Partial
+             * @description The week is cut by a window bound (`t` before `window.from`, or the Sunday after `window.to`), or holds today.
+             */
+            is_partial: boolean;
+            /**
+             * Is Pooled
+             * @description The cells hold the trailing weeks, inside the window, and not the week alone.
+             */
+            is_pooled: boolean;
+            /**
+             * N Observations
+             * @description Every answer behind the point, valid or not.
+             */
+            n_observations: number;
+            /**
+             * N Prompts
+             * @description The prompts with a valid answer in that week alone, whether the point is pooled or not.
+             */
+            n_prompts: number;
+            /**
+             * Numerator
+             * @description As in `AiMetricValue`.
+             */
+            numerator: number | null;
+            /** @description Present exactly when `is_pooled`: the weeks and days the cells hold, and why. */
+            pool?: components["schemas"]["PointPool"] | null;
+            /** @description The answers behind a prompt weighted point. Left out on share of voice. */
+            pooled?: components["schemas"]["Pooled"] | null;
+            /**
+             * T
+             * Format: date
+             * @description The Monday the week starts on, in the project's zone.
+             */
+            t: string;
+            /**
+             * Value
+             * @description numerator / denominator; null when the denominator is 0.
+             */
+            value: number | null;
+        };
+        /** AiMetricResponse */
+        AiMetricResponse: {
+            /**
+             * Data
+             * @description One value per engine sorted by engine code (per listed entity and engine with `entity_ids`, the own entities first), then the engine averages. An outcome key gives four values per engine.
+             */
+            data: components["schemas"]["AiMetricValue"][];
+            /** @description The scope the numbers were computed over. */
+            meta: components["schemas"]["AiMetricMeta"];
+        };
+        /** AiMetricSeries */
+        AiMetricSeries: {
+            /**
+             * Aggregation
+             * @description How the points are weighted.
+             * @enum {string}
+             */
+            aggregation: "observation_weighted" | "prompt_weighted";
+            /**
+             * Engine Code
+             * @description The engine of the series.
+             */
+            engine_code: string;
+            /**
+             * Entity Id
+             * @description Set on the series of one tracked entity. Left out otherwise.
+             */
+            entity_id?: string | null;
+            /** @description The scope the points were counted over. */
+            filters: components["schemas"]["AiFilters"];
+            /**
+             * Granularity
+             * @description `week`: the only granularity.
+             * @constant
+             */
+            granularity: "week";
+            /**
+             * Is Estimate
+             * @description Always false for AI answers.
+             */
+            is_estimate: boolean;
+            /**
+             * Method
+             * @description A short human description of the computation.
+             */
+            method: string;
+            /**
+             * Method Version
+             * @description As in `AiMetricValue`.
+             */
+            method_version: number;
+            /**
+             * Metric
+             * @description The registry key of docs/16 section 2.1.
+             */
+            metric: string;
+            /**
+             * Points
+             * @description A point for each week the window touches, oldest first, at most 14; a week without answers has counts of 0 and no value.
+             */
+            points: components["schemas"]["AiMetricPoint"][];
+            /**
+             * Unit
+             * @description `ratio` for every key a series has.
+             * @enum {string}
+             */
+            unit: "ratio" | "count";
+            /** @description The window the points cover. */
+            window: components["schemas"]["MetricWindow"];
+        };
+        /**
+         * AiMetricValue
+         * @description One metric over one scope and one engine (or one entity), with what it was computed from.
+         */
+        AiMetricValue: {
+            /**
+             * Aggregation
+             * @description How the value is weighted. Left out on counts and on averages of engines.
+             */
+            aggregation?: ("observation_weighted" | "prompt_weighted") | null;
+            /** @description Not returned yet: left out of every response until it is built. */
+            ci?: components["schemas"]["AiCi"] | null;
+            /**
+             * Denominator
+             * @description Answers, or the prompts with a valid answer for a prompt weighted rate; for `ai.fanout_mean_queries`, the valid answers that have fan-out queries. Null on `ai.valid_answers` and `ai.prompts_in_scope` (plain counts) and when suppressed; otherwise value = numerator / denominator.
+             */
+            denominator: number | null;
+            /**
+             * Engine Code
+             * @description Set when the value is for exactly one engine. Left out otherwise.
+             */
+            engine_code?: string | null;
+            /**
+             * Engines
+             * @description On an engine average only: the engines averaged.
+             */
+            engines?: string[] | null;
+            /**
+             * Entity Id
+             * @description Set when the value is about one tracked entity. Left out otherwise.
+             */
+            entity_id?: string | null;
+            /** @description The scope the value was counted over. */
+            filters: components["schemas"]["AiFilters"];
+            /**
+             * Is Estimate
+             * @description Always false for AI answers.
+             */
+            is_estimate: boolean;
+            /**
+             * Method
+             * @description A short human description of the computation.
+             */
+            method: string;
+            /**
+             * Method Version
+             * @description 1 for every key now; a change of the formula raises it (docs/16 rule 7).
+             */
+            method_version: number;
+            /**
+             * Metric
+             * @description The registry key of docs/16 section 2.1; `<key>.engine_average` for an average of engines.
+             */
+            metric: string;
+            /**
+             * N Observations
+             * @description Every answer behind the value, valid or not. Two keys carry the engine's valid answers instead, so their tiles read lower than the others (8 beside 10): `ai.citation_share` and `ai.recommendation_rate`.
+             */
+            n_observations: number;
+            /**
+             * N Prompts
+             * @description Prompt weighted values only: the prompts with a valid answer (the denominator). Left out otherwise.
+             */
+            n_prompts?: number | null;
+            /**
+             * Numerator
+             * @description A count of answers, or the sum of the prompts' rates for a prompt weighted rate. Null when suppressed.
+             */
+            numerator: number | null;
+            /** @description How the engine's answers were observed. Left out on an average of engines and on the prompts in scope. */
+            observation_class?: components["schemas"]["ObservationClass"] | null;
+            /** @description The answers behind a prompt weighted rate: 4 of 8 answers. The headline `value` is never successes / trials when this is set: it is the mean of the prompts' rates. Left out on share of voice, shares of units and counts. */
+            pooled?: components["schemas"]["Pooled"] | null;
+            /**
+             * Previous
+             * @description With a compare window, on the keys that compare: the same value over `meta.compare_window`. Null when the engine had no answer of the scope there (no data is not a rate of 0); a cell with a denominator of 0 when it had answers and none valid. Left out when no compare window was asked for and on the keys that do not compare.
+             */
+            previous?: components["schemas"]["MetricCell"] | null;
+            /**
+             * Suppressed Reason
+             * @description Why the value is withheld; `not_classified` for the recommendation keys, which nothing classifies yet. Left out when the value is shown.
+             */
+            suppressed_reason?: ("insufficient_data" | "no_surface" | "not_classified" | "below_min_impressions") | null;
+            /**
+             * Unit
+             * @description `ratio` (0 to 1) for rates and shares; `count` for valid answers, prompts in scope and fan-out queries per answer.
+             * @enum {string}
+             */
+            unit: "ratio" | "count";
+            /**
+             * Value
+             * @description numerator / denominator; null when the denominator is 0 or the metric is suppressed. Never 0 for an empty denominator.
+             */
+            value: number | null;
+            /** @description The window the value covers: project-local days. */
+            window: components["schemas"]["MetricWindow"];
+        };
+        /** AiOverview */
+        AiOverview: {
+            /**
+             * Engine Average
+             * @description The equal-weight average of the engines' values for Mentioned, Cited, named and cited, share of voice and citation share, in that order; [] under two engines with a value.
+             */
+            engine_average: components["schemas"]["AiMetricValue"][];
+            /**
+             * Engines
+             * @description One entry per engine shown, sorted by engine code.
+             */
+            engines: components["schemas"]["AiOverviewEngine"][];
+            /**
+             * Last Observed At
+             * @description The newest counted answer of any status; null when there is none.
+             */
+            last_observed_at: string | null;
+            /**
+             * Last Valid At
+             * @description The newest valid answer; null when there is none.
+             */
+            last_valid_at: string | null;
+            /** @description The prompts counted once, whether they have a valid answer or not. */
+            prompts_in_scope: components["schemas"]["AiMetricValue"];
+            /**
+             * Topics In Scope
+             * @description The topics that have a prompt in scope (a prompt in two topics counts in both topics, so the number is the topic rows of the prompts summary, without the row of prompts that have no topic). Left out when it is not known.
+             */
+            topics_in_scope?: number | null;
+        };
+        /** AiOverviewEngine */
+        AiOverviewEngine: {
+            /**
+             * Engine Code
+             * @description The engine.
+             */
+            engine_code: string;
+            /** @description How the engine's answers are observed. */
+            observation_class: components["schemas"]["ObservationClass"];
+            /**
+             * Tiles
+             * @description The tiles of the engine, in the order of the contract: valid answers, Mentioned, Cited, named and cited, the four outcomes, recommendation (suppressed), share of voice, citation share, Cited given citations, first mention and, on an engine that exposes fan-out, its presence and mean. An engine that does not has no such tile.
+             */
+            tiles: components["schemas"]["AiMetricValue"][];
+        };
+        /** AiOverviewResponse */
+        AiOverviewResponse: {
+            /** @description The Overview numbers, per engine. */
+            data: components["schemas"]["AiOverview"];
+            /** @description The scope the numbers were computed over. */
+            meta: components["schemas"]["AiMetricMeta"];
+        };
+        /** AiSeriesResponse */
+        AiSeriesResponse: {
+            /**
+             * Data
+             * @description One series per engine, and with `entity_ids` one per listed entity and engine.
+             */
+            data: components["schemas"]["AiMetricSeries"][];
+            /** @description The scope the numbers were computed over. */
+            meta: components["schemas"]["AiMetricMeta"];
         };
         /** AioCitations */
         AioCitations: {
@@ -2649,6 +3843,76 @@ export interface components {
             /** Data */
             data: components["schemas"]["AnalyticsProperty"][];
         };
+        /**
+         * Annotation
+         * @description A boundary drawn on every time chart (overview-and-charts N9).
+         */
+        Annotation: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** @description Set for a model change. */
+            engine_code: components["schemas"]["EngineCode"] | null;
+            /**
+             * From
+             * @description The value before the change.
+             */
+            from: number | string | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "model_changed" | "entity_set_changed" | "extractor_changed" | "prompt_set_changed";
+            /** Label */
+            label: string;
+            /**
+             * To
+             * @description The value after the change.
+             */
+            to: number | string | null;
+        };
+        /** AnnotationList */
+        AnnotationList: {
+            /**
+             * Data
+             * @description Oldest first.
+             */
+            data: components["schemas"]["Annotation"][];
+        };
+        /** AnswerCompare */
+        AnswerCompare: {
+            /** @description The newest earlier valid answer of the same prompt and engine that mentioned the own brand. */
+            baseline: components["schemas"]["CompareSide"];
+            engine_code: components["schemas"]["EngineCode"];
+            entities: components["schemas"]["CompareEntities"];
+            /** @description The answer of the path. */
+            latest: components["schemas"]["CompareSide"];
+            /**
+             * Prompt Id
+             * Format: uuid
+             */
+            prompt_id: string;
+            sources: components["schemas"]["CompareSources"];
+        };
+        /** AnswerCompareResponse */
+        AnswerCompareResponse: {
+            data: components["schemas"]["AnswerCompare"];
+        };
+        /** AnswerStatusCounts */
+        AnswerStatusCounts: {
+            /** Complete */
+            complete: number;
+            /** Empty */
+            empty: number;
+            /** Error */
+            error: number;
+            /** Partial */
+            partial: number;
+            /** Refused */
+            refused: number;
+        };
         /** AuthorizationResponse */
         AuthorizationResponse: {
             data: components["schemas"]["OAuthStart"];
@@ -2703,6 +3967,48 @@ export interface components {
              */
             workload: "seo_rank" | "ai_prompt" | "keyword_research" | "ai_benchmark" | "extraction_llm" | "first_party" | "all";
         };
+        /** BudgetCreate */
+        BudgetCreate: {
+            /**
+             * Action On Hard
+             * @description What reaching the limit does; `pause` when left out.
+             */
+            action_on_hard?: ("pause" | "alert_only") | null;
+            /**
+             * Limit Usd
+             * @description Per month, UTC. 0 blocks every run of the group.
+             * @example 0.012000
+             */
+            limit_usd: string;
+            /**
+             * Project Id
+             * @description Left out, the budget covers the whole workspace.
+             */
+            project_id?: string | null;
+            /**
+             * Soft Limit Pct
+             * @description The soft share of the limit; 80 when left out.
+             */
+            soft_limit_pct?: number | null;
+            /**
+             * Workload
+             * @enum {string}
+             */
+            workload: "seo_rank" | "ai_prompt" | "keyword_research" | "ai_benchmark" | "extraction_llm" | "first_party" | "all";
+        };
+        /** BudgetPage */
+        BudgetPage: {
+            /**
+             * Data
+             * @description Oldest first.
+             */
+            data: components["schemas"]["Budget"][];
+            page: components["schemas"]["OffsetPageInfo"];
+        };
+        /** BudgetResponse */
+        BudgetResponse: {
+            data: components["schemas"]["Budget"];
+        };
         /** BudgetStatus */
         BudgetStatus: {
             /** Blocked Runs */
@@ -2730,6 +4036,24 @@ export interface components {
         BudgetStatusList: {
             /** Data */
             data: components["schemas"]["BudgetStatus"][];
+        };
+        /**
+         * BudgetUpdate
+         * @description At least one member; the scope and the group cannot change.
+         */
+        BudgetUpdate: {
+            /**
+             * Action On Hard
+             * @enum {string}
+             */
+            action_on_hard?: "pause" | "alert_only";
+            /**
+             * Limit Usd
+             * @example 0.012000
+             */
+            limit_usd?: string;
+            /** Soft Limit Pct */
+            soft_limit_pct?: number;
         };
         /** BulkArchiveResponse */
         BulkArchiveResponse: {
@@ -2803,6 +4127,25 @@ export interface components {
             /** Updated */
             updated: number;
         };
+        /** CardItem */
+        CardItem: {
+            /** Id */
+            id: string;
+            /**
+             * Options
+             * @description A flat object of strings; each card type checks its own in the web app.
+             */
+            options?: {
+                [key: string]: string;
+            } | null;
+            /** Type */
+            type: string;
+            /**
+             * Width
+             * @description Dashboard screens only; left out: the type's default.
+             */
+            width?: ("third" | "half" | "two_thirds" | "full") | null;
+        };
         /**
          * CheckNow
          * @description Keywords to check at once, each a search of its own through the standard queue.
@@ -2837,6 +4180,11 @@ export interface components {
             host: string;
             /** Occurrences */
             occurrences: number;
+            /**
+             * Quote
+             * @description The passage the provider quoted from the source, whitespace collapsed, at most 1,000 characters. Null when the provider gave none or the answer was stored before quotes were kept.
+             */
+            quote?: string | null;
             /** Raw Url */
             raw_url: string;
             /** Referral Tag */
@@ -2891,6 +4239,11 @@ export interface components {
              */
             prompt_id: string;
             /**
+             * Quote
+             * @description The passage the provider quoted from the source, whitespace collapsed, at most 1,000 characters. Null when the provider gave none or the answer was stored before quotes were kept.
+             */
+            quote?: string | null;
+            /**
              * Raw Url
              * @description As the provider gave it: evidence, not a link (untrusted: never follow or render it as one); cut to 1000 characters with a trailing `...`.
              */
@@ -2911,6 +4264,182 @@ export interface components {
             url: string;
             /** Url Id */
             url_id: number;
+        };
+        /** CitedWith */
+        CitedWith: {
+            /**
+             * Entity Id
+             * Format: uuid
+             * @description The tracked entity most named in answers citing it.
+             */
+            entity_id: string;
+            /**
+             * Observations
+             * @description Answers citing it that name the entity.
+             */
+            observations: number;
+        };
+        /** CoMentionPair */
+        CoMentionPair: {
+            /**
+             * A
+             * Format: uuid
+             * @description A tracked entity.
+             */
+            a: string;
+            /**
+             * Answers
+             * @description Valid answers in scope that name both.
+             */
+            answers: number;
+            /**
+             * B
+             * Format: uuid
+             * @description Another tracked entity.
+             */
+            b: string;
+        };
+        /** CollectionDailyMeta */
+        CollectionDailyMeta: {
+            /** Engine Codes */
+            engine_codes: components["schemas"]["EngineCode"][];
+            window: components["schemas"]["MetricWindow"];
+        };
+        /** CollectionDailyResponse */
+        CollectionDailyResponse: {
+            /**
+             * Data
+             * @description A row per day and engine.
+             */
+            data: components["schemas"]["CollectionDay"][];
+            meta: components["schemas"]["CollectionDailyMeta"];
+        };
+        /** CollectionDay */
+        CollectionDay: {
+            /** Answers */
+            answers: number;
+            /**
+             * Budget Blocked
+             * @description Runs of the day a budget blocked.
+             */
+            budget_blocked: number;
+            by_status: components["schemas"]["AnswerStatusCounts"];
+            /**
+             * Date
+             * Format: date
+             * @description A project day.
+             */
+            date: string;
+            engine_code: components["schemas"]["EngineCode"];
+            /**
+             * Runs
+             * @description The runs whose answers the day holds.
+             */
+            runs: string[];
+            /**
+             * Scheduled
+             * @description Answers the schedules active that day planned; null when unknown, never 0 for unknown.
+             */
+            scheduled: number | null;
+            /**
+             * Valid
+             * @description Answers with status `complete` or `partial`.
+             */
+            valid: number;
+        };
+        /** CompareEntities */
+        CompareEntities: {
+            /**
+             * Gained
+             * @description Named now, not in the baseline.
+             */
+            gained: components["schemas"]["CompareEntity"][];
+            /**
+             * Kept
+             * @description Named in both.
+             */
+            kept: components["schemas"]["CompareEntity"][];
+            /**
+             * Lost
+             * @description Named in the baseline, not now.
+             */
+            lost: components["schemas"]["CompareEntity"][];
+        };
+        /**
+         * CompareEntity
+         * @description A tracked entity the answer names.
+         */
+        CompareEntity: {
+            /**
+             * Entity Id
+             * Format: uuid
+             */
+            entity_id: string;
+            /** Name */
+            name: string;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "own" | "competitor" | "watch";
+        };
+        /**
+         * CompareSide
+         * @description One of the two answers compared.
+         */
+        CompareSide: {
+            /** Observation Id */
+            observation_id: string;
+            /**
+             * Observed At
+             * Format: date-time
+             */
+            observed_at: string;
+            /** Own Domain Cited */
+            own_domain_cited: boolean;
+            /** Own Mentioned */
+            own_mentioned: boolean;
+        };
+        /**
+         * CompareSource
+         * @description A cited source, by registrable domain.
+         */
+        CompareSource: {
+            /**
+             * Domain Role
+             * @enum {string}
+             */
+            domain_role: "own" | "competitor" | "third_party";
+            /**
+             * Host
+             * @description The host of the first citation of the domain.
+             */
+            host: string;
+            /** Registrable Domain */
+            registrable_domain: string;
+            /**
+             * Title
+             * @description The title of the first citation of the domain.
+             */
+            title: string | null;
+        };
+        /** CompareSources */
+        CompareSources: {
+            /**
+             * Gained
+             * @description Cited now, not in the baseline.
+             */
+            gained: components["schemas"]["CompareSource"][];
+            /**
+             * Kept Count
+             * @description Registrable domains cited in both.
+             */
+            kept_count: number;
+            /**
+             * Lost
+             * @description Cited in the baseline, not now.
+             */
+            lost: components["schemas"]["CompareSource"][];
         };
         /** CompetitorOverride */
         CompetitorOverride: {
@@ -2948,6 +4477,24 @@ export interface components {
         /** CompetitorSetResponse */
         CompetitorSetResponse: {
             data: components["schemas"]["CompetitorSet"];
+        };
+        /** CompetitorSource */
+        CompetitorSource: {
+            /**
+             * Answers
+             * @description The answers that cite it for the entity.
+             */
+            answers: number;
+            /**
+             * Citation Units
+             * @description Its citation units: distinct canonical URLs per answer.
+             */
+            citation_units: number;
+            /**
+             * Registrable Domain
+             * @description A domain cited with the entity as its role.
+             */
+            registrable_domain: string;
         };
         /** ConfigHistory */
         ConfigHistory: {
@@ -3103,6 +4650,13 @@ export interface components {
          * @enum {string}
          */
         CostWorkload: "seo_rank" | "ai_prompt" | "ai_mode_keyword" | "keyword_metrics" | "discovery" | "ai_benchmark" | "gsc_sync" | "bing_sync" | "ga4_sync" | "cloudflare_sync" | "ai_overview" | "extraction_llm" | "keyword_research" | "first_party";
+        /** CountrySummary */
+        CountrySummary: {
+            /** Country Iso */
+            country_iso: string;
+            /** Engines */
+            engines: components["schemas"]["EngineSummary"][];
+        };
         /**
          * CursorPageInfo
          * @description A keyset page (docs/19 section 2.4). `next_cursor` is opaque; pass it back as `cursor`.
@@ -3122,6 +4676,23 @@ export interface components {
             /** Mobile */
             mobile: number;
         };
+        /** DiversityWeek */
+        DiversityWeek: {
+            /** Citation Units */
+            citation_units: number;
+            /** Distinct Domains */
+            distinct_domains: number;
+            /**
+             * Effective Sources
+             * @description Null when the week has no unit.
+             */
+            effective_sources: number | null;
+            /**
+             * Week Start
+             * Format: date
+             */
+            week_start: string;
+        };
         /** DomainCategory */
         DomainCategory: {
             /** Code */
@@ -3135,6 +4706,31 @@ export interface components {
         DomainCategoryList: {
             /** Data */
             data: components["schemas"]["DomainCategory"][];
+        };
+        /** DomainEngineSeries */
+        DomainEngineSeries: {
+            engine_code: components["schemas"]["EngineCode"];
+            /** Series */
+            series: components["schemas"]["DomainEngineWeek"][];
+        };
+        /** DomainEngineWeek */
+        DomainEngineWeek: {
+            /**
+             * All Citation Units
+             * @description Every unit of the engine that week: the share's denominator.
+             */
+            all_citation_units: number;
+            /** Answers */
+            answers: number;
+            /** Citation Units */
+            citation_units: number;
+            /** Observations */
+            observations: number;
+            /**
+             * Week Start
+             * Format: date
+             */
+            week_start: string;
         };
         /** DomainInput */
         DomainInput: {
@@ -3151,6 +4747,18 @@ export interface components {
              * @description Given exactly when `match_scope` is `path_prefix`.
              */
             path_prefix?: string | null;
+        };
+        /** DomainPrompt */
+        DomainPrompt: {
+            /** Citation Units */
+            citation_units: number;
+            /** Observations */
+            observations: number;
+            /**
+             * Prompt Id
+             * Format: uuid
+             */
+            prompt_id: string;
         };
         /** DomainRef */
         DomainRef: {
@@ -3195,13 +4803,109 @@ export interface components {
             vendor: string;
         };
         /**
+         * EngineCells
+         * @description The cells of one engine over the comparison window, weighted as the current ones.
+         */
+        EngineCells: {
+            cited: components["schemas"]["MetricCell"];
+            mentioned: components["schemas"]["MetricCell"];
+            outcomes: components["schemas"]["OutcomeCells"];
+            share_of_voice: components["schemas"]["MetricCell"];
+        };
+        /** EngineCoMentions */
+        EngineCoMentions: {
+            /**
+             * Answers
+             * @description Valid answers in scope on the engine: the denominator.
+             */
+            answers: number;
+            /** Engine Code */
+            engine_code: string;
+            /** Pairs */
+            pairs: components["schemas"]["CoMentionPair"][];
+        };
+        /**
          * EngineCode
          * @enum {string}
          */
         EngineCode: "chatgpt_web" | "gemini_web" | "google_ai_mode";
+        /**
+         * EngineDetailCells
+         * @description The small cells of one engine over the window (contract C2, change log C-9): each is a
+         *     count of answers over another, with `value` null when the denominator is 0. In a topic, total
+         *     or country row the three rates are prompt weighted (`pooled` holds the answers) and the
+         *     share and the mean are sums over sums.
+         */
+        EngineDetailCells: {
+            /** @description The own domain's citation units over all the citation units of the valid answers (docs/16 A8): a unit is a distinct canonical URL of an answer. */
+            citation_share: components["schemas"]["MetricCell"];
+            /** @description Valid answers that cite the own domain over valid answers with at least one citation (docs/16 A2 variant). */
+            cited_given_citations: components["schemas"]["MetricCell"];
+            /** @description Fan-out queries over the valid answers that have some (docs/16 F2). Null on an engine that does not expose fan-out, never 0. */
+            fanout_mean: components["schemas"]["MetricCell"] | null;
+            /** @description Valid answers with at least one fan-out query over valid answers (docs/16 F1). Null on an engine that does not expose fan-out, never a rate of 0. */
+            fanout_presence: components["schemas"]["MetricCell"] | null;
+            /** @description Valid answers that name the own brand before any other tracked entity over valid answers that name it (docs/16 A12). */
+            first_mention: components["schemas"]["MetricCell"];
+        };
+        /** EngineEstimate */
+        EngineEstimate: {
+            /**
+             * Answers Per Month
+             * @description Answers in an average month: prompts x runs a week x answers per run x 52 weeks / 12 months, rounded down.
+             */
+            answers_per_month: number;
+            engine_code: components["schemas"]["EngineCode"];
+            /**
+             * Monthly Cost Usd
+             * @description What those answers cost, to the cent. Null when the price book has no price.
+             */
+            monthly_cost_usd: string | null;
+            /**
+             * Prompts Fit
+             * @description Prompts it would create that the engine takes.
+             */
+            prompts_fit: number;
+            /**
+             * Run Now Answers
+             * @description Answers one run of these prompts asks for.
+             */
+            run_now_answers: number;
+            /**
+             * Run Now Cost Usd
+             * @description What one run costs, not rounded. Null when the price book has no price.
+             */
+            run_now_cost_usd: string | null;
+        };
+        /** EngineProviderParams */
+        EngineProviderParams: {
+            /**
+             * Device
+             * @description The device the engine asks from. Null when the engine takes no device (ChatGPT, Gemini). Google AI Mode reads `desktop` until one is saved.
+             */
+            device?: ("desktop" | "mobile") | null;
+        };
+        /** EngineProviderParamsUpdate */
+        EngineProviderParamsUpdate: {
+            /**
+             * Device
+             * @description `desktop` or `mobile`, Google AI Mode only (`422 validation_failed` with `device_not_supported` for another engine).
+             * @enum {string}
+             */
+            device: "desktop" | "mobile";
+        };
+        /** EngineRoleUnits */
+        EngineRoleUnits: {
+            competitor: components["schemas"]["RoleAnswers"];
+            engine_code: components["schemas"]["EngineCode"];
+            own: components["schemas"]["RoleAnswers"];
+            third_party: components["schemas"]["RoleAnswers"];
+        };
         /** EngineSummary */
         EngineSummary: {
             cited: components["schemas"]["MetricCell"];
+            /** @description With `include=cells`: the small cells of the engine over the window, weighted as the row's cells are. Never in `previous` or in a week. Left out otherwise. */
+            detail?: components["schemas"]["EngineDetailCells"] | null;
             /** Engine Code */
             engine_code: string;
             /**
@@ -3211,6 +4915,16 @@ export interface components {
             entities?: components["schemas"]["EntityCells"][] | null;
             mentioned: components["schemas"]["MetricCell"];
             outcomes: components["schemas"]["OutcomeCells"];
+            /**
+             * Previous
+             * @description With a compare window: the same cells over `compare_window`. Null when none of the row's prompts has an answer of any status on the engine there (no data is not a rate of 0); with answers but no valid one, cells with a denominator of 0 and no value. Left out when no compare window was asked for.
+             */
+            previous?: components["schemas"]["EngineCells"] | null;
+            /**
+             * Series
+             * @description With `include=series`: a point for each week the window touches, oldest first, at most 14; a week without answers has counts of 0. The first and last weeks may be partial (cut at the window bounds). The points of a prompt row are always pooled over the trailing four weeks; those of a topic, total or country row are when fewer than 10 of its prompts answered that week (`is_pooled`, `pool`). A pool stays inside the window. Left out otherwise.
+             */
+            series?: components["schemas"]["WeekCells"][] | null;
             share_of_voice: components["schemas"]["MetricCell"];
         };
         /** EngineUnits */
@@ -3232,6 +4946,8 @@ export interface components {
              * @description Active countries the engine runs the prompts in.
              */
             location_ids: number[];
+            /** @description Omit to keep the saved device; a save of the countries or the switch never resets it. */
+            provider_params?: components["schemas"]["EngineProviderParamsUpdate"] | null;
         };
         /** Entity */
         Entity: {
@@ -3285,6 +5001,11 @@ export interface components {
             entity_id: string;
             /** @description Valid answers whose share of voice set names the entity. */
             mentioned: components["schemas"]["MetricCell"];
+            /**
+             * Previous
+             * @description With a compare window and `include=entities`: Mentioned and Share of voice over `compare_window`. Null exactly when the engine's `previous` is null, that is, when none of the row's prompts has an answer of the engine there; otherwise cells, an entity not named in the valid answers being 0 of their number. Never set inside a week. Left out when no compare window was asked for.
+             */
+            previous?: components["schemas"]["EntityPreviousCells"] | null;
             /** @description The entity's share of each answer that names a tracked entity: 1 / the tracked entities the answer names. */
             share_of_voice: components["schemas"]["MetricCell"];
         };
@@ -3409,6 +5130,11 @@ export interface components {
             /** Data */
             data: components["schemas"]["Entity"][];
             page: components["schemas"]["CursorPageInfo"];
+        };
+        /** EntityPreviousCells */
+        EntityPreviousCells: {
+            mentioned: components["schemas"]["MetricCell"];
+            share_of_voice: components["schemas"]["MetricCell"];
         };
         /** EntityProjectRole */
         EntityProjectRole: {
@@ -3568,6 +5294,24 @@ export interface components {
              * @description Its most common spelling in the answers. Provider text (untrusted: show it as text, never as markup); cut to 300 characters with a trailing `...`.
              */
             query_text: string;
+            /**
+             * Topics
+             * @description With `include=topics`: the topic terms tagged on the prompts whose answers issued it, the most answers first, then by term id, at most 10; an empty list when no such prompt is tagged with a topic. Absent unless `include=topics`.
+             */
+            topics?: components["schemas"]["FanoutTopic"][] | null;
+        };
+        /** FanoutTopic */
+        FanoutTopic: {
+            /**
+             * Observations
+             * @description Answers of the term's prompts that issued the query.
+             */
+            observations: number;
+            /**
+             * Term Id
+             * Format: uuid
+             */
+            term_id: string;
         };
         /** FeatureCheck */
         FeatureCheck: {
@@ -3604,13 +5348,65 @@ export interface components {
             presence_rate: components["schemas"]["MetricValue"];
         };
         FilterList_Annotated_int__FieldInfo_annotation_NoneType__required_True__metadata__Ge_ge_1___Le_le_2147483647_____: number[];
+        FilterList_Annotated_int__FieldInfo_annotation_NoneType__required_True__metadata__Ge_ge_1___Le_le_5_____: number[];
         FilterList_Literal__absent____present_not_cited____present_cited____not_loaded____unknown___: ("absent" | "present_not_cited" | "present_cited" | "not_loaded" | "unknown")[];
         FilterList_Literal__informational____navigational____commercial____transactional____local____unknown___: ("informational" | "navigational" | "commercial" | "transactional" | "local" | "unknown")[];
         FilterList_Literal__light____standard____deep____full____weekly____weekly_light____until_own_match_100___: ("light" | "standard" | "deep" | "full" | "weekly" | "weekly_light" | "until_own_match_100")[];
         FilterList_Literal__manual____csv_import____api____gsc_import____discovery____bulk_paste___: ("manual" | "csv_import" | "api" | "gsc_import" | "discovery" | "bulk_paste")[];
         FilterList_Literal__numeric____new____lost____unchanged_beyond____consistent_beyond____first_check___: ("numeric" | "new" | "lost" | "unchanged_beyond" | "consistent_beyond" | "first_check")[];
+        FilterList_Literal__question____comparison____recommendation____how_to____definition____local____transactional____other___: ("question" | "comparison" | "recommendation" | "how_to" | "definition" | "local" | "transactional" | "other")[];
         FilterList_Literal__tofu____mofu____bofu____retention____unknown___: ("tofu" | "mofu" | "bofu" | "retention" | "unknown")[];
         FilterList_UUID_: string[];
+        /** ForecastResponse */
+        ForecastResponse: {
+            /**
+             * Data
+             * @description A row per visible project with live AI schedules and a price; a project with no price is left out, not shown as 0.
+             */
+            data: components["schemas"]["ForecastRow"][];
+        };
+        /** ForecastRow */
+        ForecastRow: {
+            /**
+             * Estimated Cost Usd
+             * @description What the project's live schedules are expected to cost in the month.
+             * @example 0.012000
+             */
+            estimated_cost_usd: string;
+            /**
+             * Is Estimate
+             * @constant
+             */
+            is_estimate: true;
+            /**
+             * Method
+             * @constant
+             */
+            method: "price_book_x_schedules";
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /**
+             * Workload
+             * @constant
+             */
+            workload: "ai_prompt";
+        };
+        /** GeneratedFrom */
+        GeneratedFrom: {
+            /**
+             * Template
+             * @enum {string}
+             */
+            template: "recommendation" | "comparison" | "how_to" | "procurement";
+            /**
+             * Tracked Keyword Id
+             * Format: uuid
+             */
+            tracked_keyword_id: string;
+        };
         /** GroupMembers */
         GroupMembers: {
             /** Tracked Keyword Ids */
@@ -4059,6 +5855,19 @@ export interface components {
              */
             window_start: string | null;
         };
+        /**
+         * InvalidByStatus
+         * @description The stored answers that are not valid. A partial answer counts as valid (doc 07 section
+         *     5.5), so it is not here.
+         */
+        InvalidByStatus: {
+            /** Empty */
+            empty: number;
+            /** Error */
+            error: number;
+            /** Refused */
+            refused: number;
+        };
         /** Invitation */
         Invitation: {
             /**
@@ -4458,12 +6267,74 @@ export interface components {
             data: components["schemas"]["Keyword"][];
             page: components["schemas"]["CursorPageInfo"];
         };
+        /**
+         * LayoutDocument
+         * @description The numbers and cards of one screen, in order: a full snapshot, at most 16 KB.
+         */
+        LayoutDocument: {
+            /** Cards */
+            cards?: components["schemas"]["CardItem"][] | null;
+            /** Numbers */
+            numbers?: components["schemas"]["NumberItem"][] | null;
+            /**
+             * Schema
+             * @description The document format version.
+             * @constant
+             */
+            schema: 1;
+        };
+        /** LayoutEditor */
+        LayoutEditor: {
+            /** Name */
+            name: string;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+        };
+        /**
+         * LintEstimate
+         * @description What the prompts that would be created cost on the standard queue (prompt-dialogs N05).
+         */
+        LintEstimate: {
+            /**
+             * Engines
+             * @description The engines in `engine_codes`, or the project's enabled engines, in the engines' own order.
+             */
+            engines: components["schemas"]["EngineEstimate"][];
+            /**
+             * Total Monthly Cost Usd
+             * @description The engines' monthly costs added; null when none has a price.
+             */
+            total_monthly_cost_usd: string | null;
+        };
+        /** LintNearDuplicate */
+        LintNearDuplicate: {
+            /**
+             * Prompt Id
+             * Format: uuid
+             */
+            prompt_id: string;
+            /** Text */
+            text: string;
+        };
         /** LintSpan */
         LintSpan: {
             /** End */
             end: number;
             /** Start */
             start: number;
+        };
+        /** LintTracked */
+        LintTracked: {
+            /** Is Active */
+            is_active: boolean;
+            /**
+             * Prompt Id
+             * Format: uuid
+             */
+            prompt_id: string;
         };
         /** LintWarning */
         LintWarning: {
@@ -4475,7 +6346,7 @@ export interface components {
              * Rule
              * @enum {string}
              */
-            rule: "contains_brand_alias" | "engine_limit";
+            rule: "contains_brand_alias" | "engine_limit" | "word_count" | "multiple_questions" | "leading_wording" | "language_mismatch" | "contains_competitor_alias";
             /**
              * Severity
              * @enum {string}
@@ -4527,6 +6398,27 @@ export interface components {
             location_type: string;
             /** Name */
             name: string;
+        };
+        /** LostPrompt */
+        LostPrompt: {
+            /**
+             * Importance
+             * @description The prompt's importance, 1 to 5.
+             */
+            importance: number;
+            /** @description `numerator`: the answers on the engine that name the competitor and not the own brand; `denominator`: the prompt's valid answers on the engine; `n_observations`: all its answers; `value` null when the denominator is 0. */
+            lost: components["schemas"]["MetricCell"];
+            /**
+             * Prompt Id
+             * Format: uuid
+             * @description The prompt.
+             */
+            prompt_id: string;
+            /**
+             * Text
+             * @description The prompt's current text.
+             */
+            text: string;
         };
         /** ManualRuns */
         ManualRuns: {
@@ -4877,6 +6769,79 @@ export interface components {
             /** Year */
             year: number;
         };
+        /** Note */
+        Note: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            created_by: components["schemas"]["NoteAuthor"] | null;
+            /**
+             * Note Id
+             * Format: uuid
+             */
+            note_id: string;
+            /**
+             * On
+             * Format: date
+             */
+            on: string;
+            /** Scope */
+            scope: components["schemas"]["ProjectNoteScope"] | components["schemas"]["TermNoteScope"];
+            /**
+             * Text
+             * @description Shown as text, never as markup.
+             */
+            text: string;
+        };
+        /** NoteAuthor */
+        NoteAuthor: {
+            /** Name */
+            name: string;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+        };
+        /** NoteCreate */
+        NoteCreate: {
+            /**
+             * On
+             * Format: date
+             * @description The project day the note is drawn on.
+             */
+            on: string;
+            /** Scope */
+            scope: components["schemas"]["ProjectNoteScope"] | components["schemas"]["TermNoteScope"];
+            /** Text */
+            text: string;
+        };
+        /** NoteList */
+        NoteList: {
+            /**
+             * Data
+             * @description By `on`, then `created_at`, oldest first.
+             */
+            data: components["schemas"]["Note"][];
+        };
+        /** NoteResponse */
+        NoteResponse: {
+            data: components["schemas"]["Note"];
+        };
+        /** NumberItem */
+        NumberItem: {
+            /** @description Required when `metric` is an AI metric. */
+            engine?: components["schemas"]["EngineCode"] | null;
+            /** Id */
+            id: string;
+            /**
+             * Metric
+             * @description A metric registry key (docs/16 section 2.1).
+             */
+            metric: string;
+        };
         /** OAuthStart */
         OAuthStart: {
             /**
@@ -4900,6 +6865,11 @@ export interface components {
         ObservationDetail: {
             /** Answer Char Count */
             answer_char_count: number | null;
+            /**
+             * Answer Sha256
+             * @description SHA-256 of the answer text as UTF-8, lowercase hex, 64 characters. Null when the answer has no text.
+             */
+            answer_sha256?: string | null;
             /** Answer Text */
             answer_text: string | null;
             /** Check Url */
@@ -4946,6 +6916,11 @@ export interface components {
             offsets_unit: "utf16";
             /** Query Text */
             query_text: string;
+            /**
+             * Raw Sha256
+             * @description SHA-256 of the provider's body as received, lowercase hex, 64 characters. Null when the payload row is gone.
+             */
+            raw_sha256?: string | null;
             /** Replicate Index */
             replicate_index: number;
             /** Run Id */
@@ -5115,6 +7090,57 @@ export interface components {
              */
             project_id: string;
         };
+        /** OverviewCompetitorEngine */
+        OverviewCompetitorEngine: {
+            /**
+             * Engine Code
+             * @description The engine.
+             */
+            engine_code: string;
+            /** @description `ai.mention_rate` of the entity. */
+            mention_rate: components["schemas"]["AiMetricValue"];
+            /** @description `ai.share_of_voice` of the entity. */
+            share_of_voice: components["schemas"]["AiMetricValue"];
+        };
+        /** OverviewCompetitorRow */
+        OverviewCompetitorRow: {
+            /**
+             * Ai
+             * @description One entry per engine shown, sorted by engine code.
+             */
+            ai: components["schemas"]["OverviewCompetitorEngine"][];
+            /** @description The tracked entity of the row. */
+            entity: components["schemas"]["EntityRef"];
+            /** @description Not returned yet: left out of every response until it is built. */
+            seo?: components["schemas"]["OverviewSeoCells"] | null;
+        };
+        /** OverviewCompetitors */
+        OverviewCompetitors: {
+            /**
+             * Rows
+             * @description The tracked set: the own entities, then the competitors by name; at most 20.
+             */
+            rows: components["schemas"]["OverviewCompetitorRow"][];
+            /** @description Not returned yet: the SEO share of the domains that are not tracked. */
+            seo_other_domains?: components["schemas"]["MetricValue"] | null;
+        };
+        /** OverviewCompetitorsResponse */
+        OverviewCompetitorsResponse: {
+            /** @description The AI half of the Overview competitor table. */
+            data: components["schemas"]["OverviewCompetitors"];
+            /** @description The scope the numbers were computed over. */
+            meta: components["schemas"]["AiMetricMeta"];
+        };
+        /**
+         * OverviewSeoCells
+         * @description Declared and never returned in this package: SEO share of voice is built nowhere yet.
+         */
+        OverviewSeoCells: {
+            /** @description The entity's SEO share of voice. */
+            share_of_voice: components["schemas"]["MetricValue"];
+            /** @description The entity's SEO visibility. */
+            visibility: components["schemas"]["MetricValue"];
+        };
         /** OwnEntityInput */
         OwnEntityInput: {
             /**
@@ -5130,6 +7156,13 @@ export interface components {
              */
             domains?: string[];
         };
+        /** OwnPage */
+        OwnPage: {
+            /** Url */
+            url: string;
+            /** Url Id */
+            url_id: number;
+        };
         /** PasswordChangeRequest */
         PasswordChangeRequest: {
             /** Current Password */
@@ -5143,6 +7176,31 @@ export interface components {
             new_password: string;
             /** Token */
             token: string;
+        };
+        /**
+         * PointPool
+         * @description What a pooled point holds: the answers of its own week and of the weeks before it, inside
+         *     the window (contract C2, change log C-11).
+         */
+        PointPool: {
+            /**
+             * Below Prompts
+             * @description The number of prompts under which a topic, total or country point pools.
+             */
+            below_prompts: number;
+            /**
+             * Reason
+             * @description `prompt_point`: the point is of a prompt row, which always pools. `few_prompts`: the point is of a topic, total or country row and fewer than `below_prompts` of its prompts answered that week.
+             * @enum {string}
+             */
+            reason: "prompt_point" | "few_prompts";
+            /**
+             * Weeks
+             * @description The weeks pooled, 1 to 4: fewer than 4 when the window opens inside the four weeks before the point.
+             */
+            weeks: number;
+            /** @description The first and last day the pool covers, never outside the response's `window`. */
+            window: components["schemas"]["MetricWindow"];
         };
         /**
          * Pooled
@@ -5386,6 +7444,8 @@ export interface components {
             location_ids: number[];
             /** Provider Code */
             provider_code: string;
+            /** @description Settings beyond the countries (the device of Google AI Mode). */
+            provider_params?: components["schemas"]["EngineProviderParams"];
             /** Replicates */
             replicates: number;
         };
@@ -5490,6 +7550,14 @@ export interface components {
             /** Track Seo */
             track_seo?: boolean;
         };
+        /** ProjectNoteScope */
+        ProjectNoteScope: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "project";
+        };
         /** ProjectPage */
         ProjectPage: {
             /** Data */
@@ -5587,6 +7655,12 @@ export interface components {
              * @description Names an own brand: computed from the project's own aliases when the prompt is saved; a change may set it.
              */
             is_branded: boolean;
+            /**
+             * Is Branded Source
+             * @description `computed` from the own aliases, or `override` when a person set the flag.
+             * @enum {string}
+             */
+            is_branded_source: "computed" | "override";
             /** Language Code */
             language_code: string;
             /**
@@ -5599,6 +7673,12 @@ export interface components {
              * @enum {string}
              */
             prompt_type: "question" | "comparison" | "recommendation" | "how_to" | "definition" | "local" | "transactional" | "other";
+            /**
+             * Prompt Type Source
+             * @description `rule` when the server's wording rule set the type, `person` when a person sent or changed it.
+             * @enum {string}
+             */
+            prompt_type_source: "rule" | "person";
             /** Source */
             source: string;
             /** Terms */
@@ -5621,6 +7701,18 @@ export interface components {
             archive: boolean;
             /** Ids */
             ids: string[];
+        };
+        /**
+         * PromptBulkArchiveByFilter
+         * @description Every prompt of the project the filter matches, at most 1,000 (`422 too_many_subjects`).
+         */
+        PromptBulkArchiveByFilter: {
+            /**
+             * Archive
+             * @description false brings the prompts back, within the active prompt quota.
+             */
+            archive: boolean;
+            filter: components["schemas"]["PromptSelectionFilter"];
         };
         /** PromptBulkCreate */
         PromptBulkCreate: {
@@ -5648,6 +7740,63 @@ export interface components {
             skipped: components["schemas"]["PromptSkipped"][];
         };
         /**
+         * PromptBulkSet
+         * @description At least one member; none may be null.
+         */
+        PromptBulkSet: {
+            /**
+             * Funnel Stage
+             * @enum {string}
+             */
+            funnel_stage?: "tofu" | "mofu" | "bofu" | "retention" | "unknown";
+            /** Importance */
+            importance?: number;
+            /**
+             * Intent
+             * @enum {string}
+             */
+            intent?: "informational" | "navigational" | "commercial" | "transactional" | "local" | "unknown";
+            /** Is Branded */
+            is_branded?: boolean;
+            /**
+             * Prompt Type
+             * @enum {string}
+             */
+            prompt_type?: "question" | "comparison" | "recommendation" | "how_to" | "definition" | "local" | "transactional" | "other";
+        };
+        /**
+         * PromptBulkUpdate
+         * @description Exactly one of `ids` and `filter`; at least one of `set`, `add_term_ids` and
+         *     `remove_term_ids`.
+         */
+        PromptBulkUpdate: {
+            /** Add Term Ids */
+            add_term_ids?: string[];
+            filter?: components["schemas"]["PromptSelectionFilter"] | null;
+            /** Ids */
+            ids?: string[] | null;
+            /** Remove Term Ids */
+            remove_term_ids?: string[];
+            set?: components["schemas"]["PromptBulkSet"] | null;
+        };
+        /** PromptBulkUpdateResponse */
+        PromptBulkUpdateResponse: {
+            data: components["schemas"]["PromptBulkUpdateResult"];
+        };
+        /** PromptBulkUpdateResult */
+        PromptBulkUpdateResult: {
+            /**
+             * Matched
+             * @description The project's prompts found.
+             */
+            matched: number;
+            /**
+             * Updated
+             * @description Of those, the prompts that changed.
+             */
+            updated: number;
+        };
+        /**
          * PromptCreate
          * @description One prompt. Its text is fixed once saved: to change it, archive the prompt and add a new
          *     one.
@@ -5659,11 +7808,18 @@ export interface components {
              */
             country_iso: string;
             /**
+             * Creation Method
+             * @description How it was written; left out: `human`, or `template` with `generated_from`.
+             */
+            creation_method?: ("human" | "template" | "imported") | null;
+            /**
              * Funnel Stage
              * @default unknown
              * @enum {string}
              */
             funnel_stage: "tofu" | "mofu" | "bofu" | "retention" | "unknown";
+            /** @description The tracked keyword (one of the project's, else `tracked_keyword_unknown`) and template it was generated from. Kept in the audit entry only. */
+            generated_from?: components["schemas"]["GeneratedFrom"] | null;
             /**
              * Importance
              * @default 3
@@ -5675,14 +7831,23 @@ export interface components {
              * @enum {string}
              */
             intent: "informational" | "navigational" | "commercial" | "transactional" | "local" | "unknown";
+            /**
+             * Is Branded
+             * @description Overrides the branded flag computed from the own aliases; sent, it is kept and `is_branded_source` is `override`.
+             */
+            is_branded?: boolean | null;
             /** Language Code */
             language_code: string;
             /**
              * Prompt Type
-             * @default question
-             * @enum {string}
+             * @description Left out: the server rule reads the wording and `prompt_type_source` is `rule`. Sent: kept as sent, `person`.
              */
-            prompt_type: "question" | "comparison" | "recommendation" | "how_to" | "definition" | "local" | "transactional" | "other";
+            prompt_type?: ("question" | "comparison" | "recommendation" | "how_to" | "definition" | "local" | "transactional" | "other") | null;
+            /**
+             * Source
+             * @description Where the prompt came from; left out: `manual`.
+             */
+            source?: ("manual" | "csv_import" | "seo_keyword" | "paa" | "gsc_query") | null;
             /**
              * Term Ids
              * @description Topics and other terms the project may use.
@@ -5703,13 +7868,45 @@ export interface components {
              * @description Own brand names found, each once.
              */
             matched_aliases: components["schemas"]["MatchedAlias"][];
+            /** @description A prompt of the same language and country that differs only in case and spacing (with `items`, when the text is not tracked). */
+            near_duplicate_of?: components["schemas"]["LintNearDuplicate"] | null;
+            /**
+             * Suggested Prompt Type
+             * @description The type the server rule gives the text when none is sent.
+             * @enum {string}
+             */
+            suggested_prompt_type: "question" | "comparison" | "recommendation" | "how_to" | "definition" | "local" | "transactional" | "other";
             /**
              * Text
              * @description As it would be saved.
              */
             text: string;
+            /** @description The project's prompt with this identity, archived ones too (with `items`). */
+            tracked?: components["schemas"]["LintTracked"] | null;
             /** Warnings */
             warnings: components["schemas"]["LintWarning"][];
+        };
+        /** PromptLintItem */
+        PromptLintItem: {
+            /** Country Iso */
+            country_iso: string;
+            /** Language Code */
+            language_code: string;
+            /** Text */
+            text: string;
+        };
+        /**
+         * PromptLintItems
+         * @description Texts with their language and country, so the lint can say which are tracked already.
+         */
+        PromptLintItems: {
+            /**
+             * Engine Codes
+             * @description The engines whose length limits apply. Left out: every one.
+             */
+            engine_codes?: components["schemas"]["EngineCode"][] | null;
+            /** Items */
+            items: components["schemas"]["PromptLintItem"][];
         };
         /** PromptLintRequest */
         PromptLintRequest: {
@@ -5718,6 +7915,11 @@ export interface components {
              * @description The engines whose length limits apply. Left out: every one.
              */
             engine_codes?: components["schemas"]["EngineCode"][] | null;
+            /**
+             * Language Code
+             * @description The language the texts should be in, for `language_mismatch`. Left out: that rule is not checked.
+             */
+            language_code?: string | null;
             /** Texts */
             texts: string[];
         };
@@ -5725,7 +7927,49 @@ export interface components {
         PromptLintResponse: {
             /** Data */
             data: components["schemas"]["PromptLint"][];
+            /** @description With `items`: what the prompts that would be created cost. Absent for `texts`. */
+            estimate?: components["schemas"]["LintEstimate"] | null;
             quota: components["schemas"]["PromptQuota"];
+        };
+        /** PromptOwnPagesMeta */
+        PromptOwnPagesMeta: {
+            /** Engine Codes */
+            engine_codes: components["schemas"]["EngineCode"][];
+            /** Include Branded */
+            include_branded: boolean;
+            window: components["schemas"]["MetricWindow"];
+        };
+        /** PromptOwnPagesPage */
+        PromptOwnPagesPage: {
+            /** Data */
+            data: components["schemas"]["PromptOwnPagesRow"][];
+            meta: components["schemas"]["PromptOwnPagesMeta"];
+            page: components["schemas"]["CursorPageInfo"];
+        };
+        /** PromptOwnPagesRow */
+        PromptOwnPagesRow: {
+            /**
+             * Answers
+             * @description Valid answers of the prompt on the engine in scope.
+             */
+            answers: number;
+            /** Answers Citing Own */
+            answers_citing_own: number;
+            engine_code: components["schemas"]["EngineCode"];
+            /** Own Citation Units */
+            own_citation_units: number;
+            /**
+             * Own Pages
+             * @description Distinct own pages cited.
+             */
+            own_pages: number;
+            /**
+             * Prompt Id
+             * Format: uuid
+             */
+            prompt_id: string;
+            /** @description The own page with the most units; null if none. */
+            top_own_page: components["schemas"]["OwnPage"] | null;
         };
         /** PromptPage */
         PromptPage: {
@@ -5755,7 +7999,10 @@ export interface components {
              * @description `true` brings an archived prompt back; it counts against the quota.
              */
             is_active?: boolean;
-            /** Is Branded */
+            /**
+             * Is Branded
+             * @description Sets the branded flag; `is_branded_source` becomes `override`, even when the value is the one the aliases give.
+             */
             is_branded?: boolean;
             /**
              * Prompt Type
@@ -5777,6 +8024,11 @@ export interface components {
              * @description Active prompts in the whole workspace.
              */
             used: number;
+            /**
+             * Would Create
+             * @description With `items`: of the items, those neither tracked nor repeated nor too long to save.
+             */
+            would_create?: number | null;
         };
         /** PromptRejected */
         PromptRejected: {
@@ -5790,6 +8042,32 @@ export interface components {
         /** PromptResponse */
         PromptResponse: {
             data: components["schemas"]["Prompt"];
+        };
+        /**
+         * PromptSelectionFilter
+         * @description The list's filters as a body: the names of `GET {P}/prompts` without the brackets. A list
+         *     holds 1 to 100 values. `is_active` left out takes archived and active prompts alike.
+         */
+        PromptSelectionFilter: {
+            /** Country Iso */
+            country_iso?: string | null;
+            funnel_stage_in?: components["schemas"]["FilterList_Literal__tofu____mofu____bofu____retention____unknown___"] | null;
+            importance_in?: components["schemas"]["FilterList_Annotated_int__FieldInfo_annotation_NoneType__required_True__metadata__Ge_ge_1___Le_le_5_____"] | null;
+            intent_in?: components["schemas"]["FilterList_Literal__informational____navigational____commercial____transactional____local____unknown___"] | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Is Branded */
+            is_branded?: boolean | null;
+            /** Language Code */
+            language_code?: string | null;
+            prompt_type_in?: components["schemas"]["FilterList_Literal__question____comparison____recommendation____how_to____definition____local____transactional____other___"] | null;
+            /** Q */
+            q?: string | null;
+            /**
+             * Term
+             * @description The term or one under it.
+             */
+            term?: string | null;
         };
         /** PromptSkipped */
         PromptSkipped: {
@@ -5898,6 +8176,18 @@ export interface components {
              * @description Only branded prompts are counted.
              */
             branded_only: boolean;
+            /**
+             * By Country
+             * @description With `group_by=country`: one entry per market (`country_iso`) of the prompts in scope, sorted by code, each with the engines built as a topic row of those prompts (the same blocks the rows carry when asked). The market is the prompt's, not the location of its answers; a prompt without a market is in no entry, and a market with prompts and no answer has an entry of zero cells. `filter[country_iso]` leaves that one entry. It does not depend on `rows`. Left out otherwise.
+             */
+            by_country?: components["schemas"]["CountrySummary"][] | null;
+            /**
+             * Co Mentions
+             * @description With `include=co_mentions`: one entry per engine shown, with how often two tracked entities are named in one valid answer. It does not depend on `rows`. Left out otherwise.
+             */
+            co_mentions?: components["schemas"]["EngineCoMentions"][] | null;
+            /** @description With a compare window (`compare`, or `compare_from` and `compare_to`): the days compared with. The window before `window`, as many days, for `previous_period`; the same dates a year earlier for `previous_year`; the two dates given, which win over `compare`. */
+            compare_window?: components["schemas"]["MetricWindow"] | null;
             /** Engine Codes */
             engine_codes: string[];
             /**
@@ -5916,15 +8206,29 @@ export interface components {
              */
             include_branded: boolean;
             metric_context: components["schemas"]["SummaryMetricContext"];
+            /**
+             * Previous Answers
+             * @description With a compare window: the valid answers in scope in that window, on the engines shown; 0 means it has no data.
+             */
+            previous_answers?: number | null;
             /** Prompts */
             prompts: components["schemas"]["PromptSummaryRow"][];
             /** Topics */
             topics: components["schemas"]["TopicSummaryRow"][];
+            /** @description With `include=total`: every prompt in scope as one row, aggregated as a topic row is, and carrying the blocks the rows carry when asked. It does not depend on `rows`. Left out otherwise. */
+            total?: components["schemas"]["SummaryTotal"] | null;
             window: components["schemas"]["MetricWindow"];
         };
         /** PromptsSummaryResponse */
         PromptsSummaryResponse: {
             data: components["schemas"]["PromptsSummary"];
+        };
+        /** QuotaUse */
+        QuotaUse: {
+            /** Limit */
+            limit: number;
+            /** Used */
+            used: number;
         };
         /**
          * RankCell
@@ -6141,11 +8445,44 @@ export interface components {
          * @enum {string}
          */
         ReservedWorkspaceSlug: "account" | "admin" | "api" | "assets" | "design-system" | "docs" | "favicon" | "forgot-password" | "health" | "healthz" | "help" | "icon" | "invite" | "login" | "logout" | "new" | "null" | "onboarding" | "public" | "reset-password" | "robots" | "settings" | "sign-in" | "sign-up" | "signup" | "sitemap" | "static" | "two-factor" | "undefined" | "verify-email" | "www";
+        /** ResolvedLayout */
+        ResolvedLayout: {
+            /** @description Null when `source` is `builtin`: the web app holds the built-in default. */
+            document: components["schemas"]["LayoutDocument"] | null;
+            /**
+             * Screen
+             * @enum {string}
+             */
+            screen: "overview" | "ai_overview" | "rankings" | "prompts" | "citations" | "sources" | "pages" | "inspector.keyword" | "inspector.prompt" | "inspector.page" | "inspector.citation" | "inspector.topic";
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "personal" | "team" | "builtin";
+            /** Team Default Exists */
+            team_default_exists: boolean;
+            /** @description The team default document of the screen, also when the caller's personal layout is the one in `document`; null when there is no usable team default. It is the team row only, the same for every member, so the web can reset to it. */
+            team_document?: components["schemas"]["LayoutDocument"] | null;
+            /** Updated At */
+            updated_at: string | null;
+            updated_by: components["schemas"]["LayoutEditor"] | null;
+        };
+        /** ResolvedLayoutResponse */
+        ResolvedLayoutResponse: {
+            data: components["schemas"]["ResolvedLayout"];
+        };
         /**
          * Role
          * @enum {string}
          */
         Role: "owner" | "admin" | "editor" | "analyst" | "viewer" | "billing";
+        /** RoleAnswers */
+        RoleAnswers: {
+            /** Answers Citing */
+            answers_citing: number;
+            /** Citation Units */
+            citation_units: number;
+        };
         /** RoleUnits */
         RoleUnits: {
             /** Citation Units */
@@ -7000,6 +9337,129 @@ export interface components {
             /** Data */
             data: components["schemas"]["SiteProperty"][];
         };
+        /** SourceChangePage */
+        SourceChangePage: {
+            /** Data */
+            data: components["schemas"]["SourceChangeRow"][];
+            meta: components["schemas"]["SourceChangesMeta"];
+            page: components["schemas"]["OffsetPageInfo"];
+        };
+        /** SourceChangeRow */
+        SourceChangeRow: {
+            /**
+             * Current Units
+             * @description Citation units in `meta.window` (0 for `lost`).
+             */
+            current_units: number;
+            /**
+             * Domain Role
+             * @enum {string}
+             */
+            domain_role: "own" | "competitor" | "third_party";
+            /**
+             * First Seen At
+             * @description Its first citation in `meta.window`; null when it has none (`lost`).
+             */
+            first_seen_at: string | null;
+            /**
+             * Last Seen At
+             * @description Its last citation in `meta.window`; null when it has none (`lost`).
+             */
+            last_seen_at: string | null;
+            /**
+             * Previous Units
+             * @description Citation units in `meta.compare_window` (0 for `new`).
+             */
+            previous_units: number;
+            /** Registrable Domain */
+            registrable_domain: string;
+            /** Role Entity Id */
+            role_entity_id: string | null;
+        };
+        /** SourceChangesMeta */
+        SourceChangesMeta: {
+            compare_window: components["schemas"]["MetricWindow"];
+            /** Engine Codes */
+            engine_codes: components["schemas"]["EngineCode"][];
+            /** Include Branded */
+            include_branded: boolean;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "new" | "lost";
+            /** Min Support */
+            min_support: number;
+            window: components["schemas"]["MetricWindow"];
+        };
+        /** SourceDiversity */
+        SourceDiversity: {
+            /** Data */
+            data: components["schemas"]["SourceDiversityEngine"][];
+            meta: components["schemas"]["SourceDiversityMeta"];
+        };
+        /** SourceDiversityEngine */
+        SourceDiversityEngine: {
+            /** @description With `include=ads`: the answers of the engine that showed an ad. */
+            ads?: components["schemas"]["AdPresence"] | null;
+            /** Answers */
+            answers: number;
+            /** Answers Citing */
+            answers_citing: number;
+            /** Citation Units */
+            citation_units: number;
+            /**
+             * Distinct Domains
+             * @description Registrable domains cited, roles merged (C3).
+             */
+            distinct_domains: number;
+            /** @description Effective number of sources (docs/16 C3): 1 / sum of squared source shares, as (sum of units)^2 over the sum of squared units per domain. */
+            effective_sources: components["schemas"]["MetricCell"];
+            engine_code: components["schemas"]["EngineCode"];
+            /**
+             * Series
+             * @description With `include=series`: a point per week of the window, oldest first, at most 14, zero filled.
+             */
+            series?: components["schemas"]["DiversityWeek"][] | null;
+        };
+        /** SourceDiversityMeta */
+        SourceDiversityMeta: {
+            /**
+             * Distinct Domains
+             * @description Over every engine in scope (a count).
+             */
+            distinct_domains: number;
+            /**
+             * Effective Sources Engine Average
+             * @description The equal-weight mean of the engines' effective sources, engines with units only (docs/16 rule 2: never pooled).
+             */
+            effective_sources_engine_average: number | null;
+            /** Engine Codes */
+            engine_codes: components["schemas"]["EngineCode"][];
+            /** Include Branded */
+            include_branded: boolean;
+            window: components["schemas"]["MetricWindow"];
+        };
+        /** SourceDomainDetail */
+        SourceDomainDetail: {
+            data: components["schemas"]["SourceDomainDetailData"];
+            meta: components["schemas"]["SourcesMeta"];
+        };
+        /** SourceDomainDetailData */
+        SourceDomainDetailData: {
+            /** Cited With */
+            cited_with: components["schemas"]["CitedWith"][];
+            /** Engines */
+            engines: components["schemas"]["DomainEngineSeries"][];
+            /** Prompts */
+            prompts: components["schemas"]["DomainPrompt"][];
+            /** Registrable Domain */
+            registrable_domain: string;
+            /** Rows */
+            rows: components["schemas"]["SourceDomainRow"][];
+            /** Top Pages */
+            top_pages: components["schemas"]["SourcePageRow"][];
+        };
         /** SourceDomainPage */
         SourceDomainPage: {
             /** Data */
@@ -7010,10 +9470,22 @@ export interface components {
         /** SourceDomainRow */
         SourceDomainRow: {
             /**
+             * Category
+             * @description The domain's category. Not returned yet: absent from every response until it is built.
+             */
+            category?: string | null;
+            /**
+             * Category Source
+             * @description Not returned yet: absent from every response until it is built.
+             */
+            category_source?: ("seed_list" | "rule" | "llm" | "manual" | "tenant_override") | null;
+            /**
              * Citation Units
              * @description Citation units: distinct canonical URLs per answer (docs/16 C2); a URL an answer cites twice is one, and `occurrences` never counts.
              */
             citation_units: number;
+            /** @description With `include=cited_with`: the tracked entity named in the most answers that cite this row (this role and entity), ties by entity id, with the answers citing it that name the entity. Absent when no counted answer citing it names one. */
+            cited_with?: components["schemas"]["CitedWith"] | null;
             /**
              * Domain Role
              * @enum {string}
@@ -7058,6 +9530,11 @@ export interface components {
              * @description The tracked entity whose domain rule the citations matched; null for a third party. A registrable domain whose citations matched different rules has a row per role and entity.
              */
             role_entity_id: string | null;
+            /**
+             * Series
+             * @description With `include=series`: a point per week of the window, oldest first, at most 14, zero filled.
+             */
+            series?: components["schemas"]["SourceWeekUnits"][] | null;
             /** @description Its citation units over every citation unit in scope (docs/16 C1); `n_observations` is the valid answers in scope. */
             source_share: components["schemas"]["MetricCell"];
         };
@@ -7110,6 +9587,11 @@ export interface components {
             registrable_domain: string;
             /** Role Entity Id */
             role_entity_id: string | null;
+            /**
+             * Series
+             * @description With `include=series`: a point per week of the window, oldest first, at most 14, zero filled.
+             */
+            series?: components["schemas"]["SourceWeekUnits"][] | null;
             source_share: components["schemas"]["MetricCell"];
             /**
              * Title
@@ -7123,6 +9605,19 @@ export interface components {
             url: string;
             /** Url Id */
             url_id: number;
+        };
+        /** SourceWeekUnits */
+        SourceWeekUnits: {
+            /** Citation Units */
+            citation_units: number;
+            /** Observations */
+            observations: number;
+            /**
+             * Week Start
+             * Format: date
+             * @description The Monday the week starts on, in the project's zone.
+             */
+            week_start: string;
         };
         /** SourcesMeta */
         SourcesMeta: {
@@ -7142,6 +9637,11 @@ export interface components {
              */
             by_role: components["schemas"]["RoleUnits"][];
             /**
+             * By Role By Engine
+             * @description With `include=by_role_by_engine` on domains: every engine of `engine_codes`, in that order, with the units and citing answers of each role over every citation in scope; `filter[domain_role_in]` does not narrow it. Per role the units over the engines add up to `by_role`.
+             */
+            by_role_by_engine?: components["schemas"]["EngineRoleUnits"][] | null;
+            /**
              * Citation Units
              * @description Every citation unit in scope: the denominator of `source_share`. `filter[domain_role_in]` narrows the rows, not this.
              */
@@ -7157,7 +9657,26 @@ export interface components {
              * @description With `compare`: the valid answers in scope in that window. 0 means it has no data, so a `previous` of 0 there says nothing about the source.
              */
             previous_answers?: number | null;
+            /**
+             * Series
+             * @description With `include=series`: a point per week of the window, oldest first, at most 14: the answers (citing or not), citation units and registrable domains cited in each week, the denominators of the rows' weekly points. The row filters (`filter[domain_role_in]`, and `filter[registrable_domain]` on pages) narrow the rows, not these.
+             */
+            series?: components["schemas"]["SourcesWeek"][] | null;
             window: components["schemas"]["MetricWindow"];
+        };
+        /** SourcesWeek */
+        SourcesWeek: {
+            /** Answers */
+            answers: number;
+            /** Citation Units */
+            citation_units: number;
+            /** Distinct Domains */
+            distinct_domains: number;
+            /**
+             * Week Start
+             * Format: date
+             */
+            week_start: string;
         };
         /** Sparkline */
         Sparkline: {
@@ -7190,6 +9709,17 @@ export interface components {
              */
             t: string;
         };
+        /**
+         * SummaryDetailContext
+         * @description What is true of every cell of `EngineSummary.detail` in the response.
+         */
+        SummaryDetailContext: {
+            citation_share: components["schemas"]["MetricContext"];
+            cited_given_citations: components["schemas"]["MetricContext"];
+            fanout_mean: components["schemas"]["MetricContext"];
+            fanout_presence: components["schemas"]["MetricContext"];
+            first_mention: components["schemas"]["MetricContext"];
+        };
         /** SummaryEntity */
         SummaryEntity: {
             /**
@@ -7208,9 +9738,34 @@ export interface components {
         /** SummaryMetricContext */
         SummaryMetricContext: {
             cited: components["schemas"]["MetricContext"];
+            /** @description With `include=cells`: how the cells of `detail` are weighted. Left out otherwise. */
+            detail?: components["schemas"]["SummaryDetailContext"] | null;
             mentioned: components["schemas"]["MetricContext"];
             outcomes: components["schemas"]["MetricContext"];
             share_of_voice: components["schemas"]["MetricContext"];
+        };
+        /**
+         * SummaryTotal
+         * @description Every prompt in scope as one row, aggregated as a topic row is (OV-N1).
+         */
+        SummaryTotal: {
+            /** Engines */
+            engines: components["schemas"]["EngineSummary"][];
+            /**
+             * Last Observed At
+             * @description The newest answer counted in the window (current, not superseded), of any status, on the engines shown; null when there is none.
+             */
+            last_observed_at: string | null;
+            /**
+             * Last Valid At
+             * @description The newest valid answer counted in the window, on the engines shown; null if none.
+             */
+            last_valid_at: string | null;
+            /**
+             * Prompt Count
+             * @description The prompts in scope, whatever the engines shown.
+             */
+            prompt_count: number;
         };
         /** Term */
         Term: {
@@ -7265,7 +9820,7 @@ export interface components {
             subject_ids?: string[] | null;
             /**
              * Subject Type
-             * @description `prompt` arrives with prompts.
+             * @description `prompt` also needs `prompts:write` and takes `subject_ids` only.
              * @enum {string}
              */
             subject_type: "tracked_keyword" | "prompt";
@@ -7341,6 +9896,11 @@ export interface components {
              * @description Slugs from the root down, joined by `/`.
              */
             path: string;
+            /**
+             * Prompt Count
+             * @description With `include=prompt_count`: active, live prompts with the term or one under it, branded or not, in projects the caller can see; each prompt once. A membership count, not a rate. Left out of the answer unless asked for.
+             */
+            prompt_count?: number | null;
             /** Slug */
             slug: string;
             /**
@@ -7358,6 +9918,20 @@ export interface components {
              * Format: uuid
              */
             vocabulary_id: string;
+        };
+        /** TermNoteScope */
+        TermNoteScope: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "term";
+            /**
+             * Term Id
+             * Format: uuid
+             * @description A term the project may use (`term_unknown` otherwise).
+             */
+            term_id: string;
         };
         /** TermRef */
         TermRef: {
@@ -8100,6 +10674,58 @@ export interface components {
              */
             tracked_keyword_id: string;
         };
+        /** UnitCostResponse */
+        UnitCostResponse: {
+            /** Data */
+            data: components["schemas"]["UnitCostRow"][];
+        };
+        /** UnitCostRow */
+        UnitCostRow: {
+            /**
+             * Ai Answers By Engine
+             * @description The costed answers behind `per_engine`.
+             */
+            ai_answers_by_engine: {
+                [key: string]: number;
+            };
+            /**
+             * Extraction Llm Usd
+             * @description Extraction spend of the month; null when none was recorded.
+             */
+            extraction_llm_usd: string | null;
+            /**
+             * Per Active Prompt Month
+             * @description AI spend of the month per active prompt; null with none.
+             */
+            per_active_prompt_month: string | null;
+            /**
+             * Per Ai Observation
+             * @description Mean cost of the month's AI answers that have a cost; null with none.
+             */
+            per_ai_observation: string | null;
+            /**
+             * Per Engine
+             * @description `per_ai_observation` by engine; null for an engine with no costed answer.
+             */
+            per_engine: {
+                [key: string]: string | null;
+            };
+            /**
+             * Per Serp Check
+             * @description Rank spend of the month per provider request; null with none.
+             */
+            per_serp_check: string | null;
+            /**
+             * Per Tracked Keyword Month
+             * @description Rank spend of the month per active tracked keyword; null with none.
+             */
+            per_tracked_keyword_month: string | null;
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+        };
         /** UrlRef */
         UrlRef: {
             /** Canonical Url */
@@ -8226,6 +10852,45 @@ export interface components {
             is_single_valued?: boolean;
             /** Name */
             name?: string;
+        };
+        /**
+         * WeekCells
+         * @description One point of a series, for the week starting `week_start`. It holds the answers of that
+         *     week alone when `is_pooled` is false (a topic, total or country row with enough prompts
+         *     answering). Otherwise it holds the trailing four weeks to that week, inside the window, and
+         *     `pool` says which days (a prompt row always pools: one prompt answers once or twice a week).
+         *     A pooled prompt cell is answers over answers. A pooled topic, total or country cell sums
+         *     each prompt's counts over the pooled weeks first and is then prompt weighted, as the window
+         *     cell is. The points of a prompt row therefore do not add up to its window cell. Weeks before
+         *     the window are never read, so the first points of a window pool fewer weeks.
+         */
+        WeekCells: {
+            cited: components["schemas"]["MetricCell"];
+            /**
+             * Entities
+             * @description With `include=series,entities`: the cells of each tracked entity of the engine's `entities` (the own ones first, at most 20) over the weeks the point holds: its own week, or, when `is_pooled`, the weeks of `pool`. Weighted as the point's own cells are: Mentioned prompt weighted in a topic, total or country row. Has no `previous`. Left out otherwise.
+             */
+            entities?: components["schemas"]["EntityCells"][] | null;
+            /**
+             * Is Pooled
+             * @description Whether the cells hold more than the week's own answers.
+             */
+            is_pooled: boolean;
+            mentioned: components["schemas"]["MetricCell"];
+            /** @description Present exactly when `is_pooled`: the weeks and days the cells hold, and why. */
+            pool?: components["schemas"]["PointPool"] | null;
+            /**
+             * Prompts
+             * @description The prompts of the row with a valid answer on the engine in that week alone, whether the point is pooled or not.
+             */
+            prompts: number;
+            share_of_voice: components["schemas"]["MetricCell"];
+            /**
+             * Week Start
+             * Format: date
+             * @description The Monday the week starts on, in the project's zone.
+             */
+            week_start: string;
         };
         /** Workspace */
         Workspace: {
@@ -9226,6 +11891,76 @@ export interface operations {
             };
         };
     };
+    list_budgets_api_v1_workspaces__workspace_id__budgets_get: {
+        parameters: {
+            query?: {
+                "filter[project_id]"?: string | null;
+                offset?: number;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetPage"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_budget_api_v1_workspaces__workspace_id__budgets_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BudgetCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     budget_status_api_v1_workspaces__workspace_id__budgets_status_get: {
         parameters: {
             query?: {
@@ -9247,6 +11982,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BudgetStatusList"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_budget_api_v1_workspaces__workspace_id__budgets__budget_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                budget_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_budget_api_v1_workspaces__workspace_id__budgets__budget_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                budget_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BudgetUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetResponse"];
                 };
             };
             /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
@@ -9417,6 +12218,76 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CostList"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    cost_forecast_api_v1_workspaces__workspace_id__costs_forecast_get: {
+        parameters: {
+            query?: {
+                /** @description `YYYY-MM`, 2000 to 2100. */
+                month?: string | null;
+                "filter[project_id]"?: string | null;
+            };
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForecastResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    unit_costs_api_v1_workspaces__workspace_id__costs_unit_costs_get: {
+        parameters: {
+            query?: {
+                /** @description `YYYY-MM`, 2000 to 2100. */
+                month?: string | null;
+                "filter[project_id]"?: string | null;
+            };
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnitCostResponse"];
                 };
             };
             /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
@@ -10044,6 +12915,181 @@ export interface operations {
             };
         };
     };
+    get_layout_api_v1_workspaces__workspace_id__layouts__screen__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description A screen key (layout spec section 4); an unknown one is `404`. */
+                screen: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResolvedLayoutResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    put_team_layout_api_v1_workspaces__workspace_id__layouts__screen__default_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description The `ETag` of the layout as read; required when one exists, `412 precondition_failed` when it changed. */
+                "If-Match"?: string | null;
+            };
+            path: {
+                /** @description A screen key (layout spec section 4); an unknown one is `404`. */
+                screen: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LayoutDocument"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResolvedLayoutResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_team_layout_api_v1_workspaces__workspace_id__layouts__screen__default_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description A screen key (layout spec section 4); an unknown one is `404`. */
+                screen: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    put_personal_layout_api_v1_workspaces__workspace_id__me_layouts__screen__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description The `ETag` of the layout as read; required when one exists, `412 precondition_failed` when it changed. */
+                "If-Match"?: string | null;
+            };
+            path: {
+                /** @description A screen key (layout spec section 4); an unknown one is `404`. */
+                screen: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LayoutDocument"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResolvedLayoutResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_personal_layout_api_v1_workspaces__workspace_id__me_layouts__screen__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description A screen key (layout spec section 4); an unknown one is `404`. */
+                screen: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     list_members_api_v1_workspaces__workspace_id__members_get: {
         parameters: {
             query?: {
@@ -10320,12 +13366,50 @@ export interface operations {
             };
         };
     };
+    list_annotations_api_v1_workspaces__workspace_id__projects__project_id__ai_annotations_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+                "filter[engine_code_in]"?: components["schemas"]["EngineCode"][] | null;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnnotationList"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     citation_list_api_v1_workspaces__workspace_id__projects__project_id__ai_citations_get: {
         parameters: {
             query?: {
                 /** @description The sources of one registrable domain, as a domain row names it. */
                 "filter[registrable_domain]"?: string | null;
                 "filter[url_id]"?: number | null;
+                /** @description The answers of the prompts of one market, ISO 3166-1 alpha-2 in capitals; prompts with no market are left out. Also narrows `meta` and every share. */
+                "filter[country_iso]"?: string | null;
                 "filter[domain_role_in]"?: ("own" | "competitor" | "third_party")[] | null;
                 from?: string | null;
                 to?: string | null;
@@ -10368,11 +13452,112 @@ export interface operations {
             };
         };
     };
+    collection_daily_api_v1_workspaces__workspace_id__projects__project_id__ai_collection_daily_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+                "filter[engine_code_in]"?: components["schemas"]["EngineCode"][] | null;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionDailyResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    competitors_api_v1_workspaces__workspace_id__projects__project_id__ai_competitors_get: {
+        parameters: {
+            query?: {
+                /** @description Narrows the rows to these tracked entities. An id that is not tracked, or was cut by the 20 entity cap, is left out, never a 404. At most 20. */
+                entity_ids?: string[] | null;
+                /** @description Blocks to add: `lost_prompts`, `top_sources`. Left out otherwise. */
+                include?: ("lost_prompts" | "top_sources")[] | null;
+                /** @description Rows of `lost_prompts` per entity and engine. */
+                lost_limit?: number;
+                /** @description Rows of `top_sources` per entity. */
+                sources_limit?: number;
+                /** @description `previous_period`: as many days just before the window; `previous_year`: the same dates a year earlier. */
+                compare?: "none" | "previous_period" | "previous_year";
+                /** @description First day of a window to compare with, project-local; needs `compare_to`, and wins over `compare`. */
+                compare_from?: string | null;
+                /** @description Last day of the window to compare with, included; at most 92 days from `compare_from`. */
+                compare_to?: string | null;
+                /** @description First day of the window, project-local. */
+                from?: string | null;
+                /** @description Last day of the window, included; at most 92 days. */
+                to?: string | null;
+                /** @description The engines shown. Default: every engine of the project that is enabled or has an answer in the window. A code outside the three engines is a `422`; a listed engine that is neither enabled nor answering is left out of the engines shown. */
+                "filter[engine_code_in]"?: components["schemas"]["EngineCode"][] | null;
+                /** @description Count the branded prompts too. */
+                include_branded?: boolean;
+                /** @description Only the branded prompts; wins over `include_branded`. */
+                branded_only?: boolean;
+                /** @description The prompts of one market, ISO 3166-1 alpha-2. */
+                "filter[country_iso]"?: string | null;
+                /** @description The prompts given the term or one under it. */
+                "filter[term]"?: string | null;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiCompetitorsResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     fanout_queries_api_v1_workspaces__workspace_id__projects__project_id__ai_fanout_queries_get: {
         parameters: {
             query?: {
                 /** @description The fewest answers a query is listed for. */
                 min_support?: number;
+                /** @description Blocks to add: `topics` (on each row, the topic terms tagged on the prompts whose answers issued the query). */
+                include?: "topics"[] | null;
+                /** @description The answers of the prompts of one market, ISO 3166-1 alpha-2 in capitals; prompts with no market are left out. Also narrows `meta` and every share. */
+                "filter[country_iso]"?: string | null;
                 from?: string | null;
                 to?: string | null;
                 "filter[engine_code_in]"?: components["schemas"]["EngineCode"][] | null;
@@ -10400,6 +13585,252 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FanoutQueryPage"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    ai_limits_api_v1_workspaces__workspace_id__projects__project_id__ai_limits_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiLimitsResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    metrics_overview_api_v1_workspaces__workspace_id__projects__project_id__ai_metrics_overview_get: {
+        parameters: {
+            query?: {
+                /** @description `previous_period`: as many days just before the window; `previous_year`: the same dates a year earlier. */
+                compare?: "none" | "previous_period" | "previous_year";
+                /** @description First day of a window to compare with, project-local; needs `compare_to`, and wins over `compare`. */
+                compare_from?: string | null;
+                /** @description Last day of the window to compare with, included; at most 92 days from `compare_from`. */
+                compare_to?: string | null;
+                /** @description First day of the window, project-local. */
+                from?: string | null;
+                /** @description Last day of the window, included; at most 92 days. */
+                to?: string | null;
+                /** @description The engines shown. Default: every engine of the project that is enabled or has an answer in the window. A code outside the three engines is a `422`; a listed engine that is neither enabled nor answering is left out of the engines shown. */
+                "filter[engine_code_in]"?: components["schemas"]["EngineCode"][] | null;
+                /** @description Count the branded prompts too. */
+                include_branded?: boolean;
+                /** @description Only the branded prompts; wins over `include_branded`. */
+                branded_only?: boolean;
+                /** @description The prompts of one market, ISO 3166-1 alpha-2. */
+                "filter[country_iso]"?: string | null;
+                /** @description The prompts given the term or one under it. */
+                "filter[term]"?: string | null;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiOverviewResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    metric_value_api_v1_workspaces__workspace_id__projects__project_id__ai_metrics__metric__get: {
+        parameters: {
+            query?: {
+                /** @description One value per listed tracked entity (the own brand or a competitor tracked in AI answers) and engine, in place of the engine's own cells; only for `ai.mention_rate` and `ai.share_of_voice`. An id that is not a tracked entity of the project is left out, never a `404`. */
+                entity_ids?: string[] | null;
+                /** @description `previous_period`: as many days just before the window; `previous_year`: the same dates a year earlier. */
+                compare?: "none" | "previous_period" | "previous_year";
+                /** @description First day of a window to compare with, project-local; needs `compare_to`, and wins over `compare`. */
+                compare_from?: string | null;
+                /** @description Last day of the window to compare with, included; at most 92 days from `compare_from`. */
+                compare_to?: string | null;
+                /** @description First day of the window, project-local. */
+                from?: string | null;
+                /** @description Last day of the window, included; at most 92 days. */
+                to?: string | null;
+                /** @description The engines shown. Default: every engine of the project that is enabled or has an answer in the window. A code outside the three engines is a `422`; a listed engine that is neither enabled nor answering is left out of the engines shown. */
+                "filter[engine_code_in]"?: components["schemas"]["EngineCode"][] | null;
+                /** @description Count the branded prompts too. */
+                include_branded?: boolean;
+                /** @description Only the branded prompts; wins over `include_branded`. */
+                branded_only?: boolean;
+                /** @description The prompts of one market, ISO 3166-1 alpha-2. */
+                "filter[country_iso]"?: string | null;
+                /** @description The prompts given the term or one under it. */
+                "filter[term]"?: string | null;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                /** @description A registry key of docs/16 section 2.1, for example `ai.mention_rate`. */
+                metric: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiMetricResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    metric_breakdown_api_v1_workspaces__workspace_id__projects__project_id__ai_metrics__metric__breakdown_get: {
+        parameters: {
+            query: {
+                /** @description What the rows are. */
+                dimension: "topic" | "intent" | "funnel_stage" | "engine" | "country" | "language" | "persona" | "prompt_type";
+                /** @description First day of the window, project-local. */
+                from?: string | null;
+                /** @description Last day of the window, included; at most 92 days. */
+                to?: string | null;
+                /** @description The engines shown. Default: every engine of the project that is enabled or has an answer in the window. A code outside the three engines is a `422`; a listed engine that is neither enabled nor answering is left out of the engines shown. */
+                "filter[engine_code_in]"?: components["schemas"]["EngineCode"][] | null;
+                /** @description Count the branded prompts too. */
+                include_branded?: boolean;
+                /** @description Only the branded prompts; wins over `include_branded`. */
+                branded_only?: boolean;
+                /** @description The prompts of one market, ISO 3166-1 alpha-2. */
+                "filter[country_iso]"?: string | null;
+                /** @description The prompts given the term or one under it. */
+                "filter[term]"?: string | null;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                /** @description A registry key of docs/16 section 2.1, for example `ai.mention_rate`. */
+                metric: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiBreakdownResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    metric_series_api_v1_workspaces__workspace_id__projects__project_id__ai_metrics__metric__series_get: {
+        parameters: {
+            query?: {
+                /** @description One value per listed tracked entity (the own brand or a competitor tracked in AI answers) and engine, in place of the engine's own cells; only for `ai.mention_rate` and `ai.share_of_voice`. An id that is not a tracked entity of the project is left out, never a `404`. */
+                entity_ids?: string[] | null;
+                /** @description `week`: the only granularity. */
+                granularity?: "week";
+                /** @description First day of the window, project-local. */
+                from?: string | null;
+                /** @description Last day of the window, included; at most 92 days. */
+                to?: string | null;
+                /** @description The engines shown. Default: every engine of the project that is enabled or has an answer in the window. A code outside the three engines is a `422`; a listed engine that is neither enabled nor answering is left out of the engines shown. */
+                "filter[engine_code_in]"?: components["schemas"]["EngineCode"][] | null;
+                /** @description Count the branded prompts too. */
+                include_branded?: boolean;
+                /** @description Only the branded prompts; wins over `include_branded`. */
+                branded_only?: boolean;
+                /** @description The prompts of one market, ISO 3166-1 alpha-2. */
+                "filter[country_iso]"?: string | null;
+                /** @description The prompts given the term or one under it. */
+                "filter[term]"?: string | null;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                /** @description A registry key of docs/16 section 2.1, for example `ai.mention_rate`. */
+                metric: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiSeriesResponse"];
                 };
             };
             /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
@@ -10492,6 +13923,39 @@ export interface operations {
             };
         };
     };
+    compare_observation_api_v1_workspaces__workspace_id__projects__project_id__ai_observations__observation_id__compare_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                observation_id: number;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnswerCompareResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     observation_raw_api_v1_workspaces__workspace_id__projects__project_id__ai_observations__observation_id__raw_get: {
         parameters: {
             query?: {
@@ -10541,8 +14005,22 @@ export interface operations {
                 "filter[country_iso]"?: string | null;
                 /** @description The prompts given the term or one under it. */
                 "filter[term]"?: string | null;
-                /** @description Blocks to add: `entities`. */
-                include?: "entities"[] | null;
+                /** @description Blocks to add: `series`, `entities`, `total`, `co_mentions`, `cells`. */
+                include?: ("series" | "entities" | "total" | "co_mentions" | "cells")[] | null;
+                /** @description `previous_period`: as many days just before the window; `previous_year`: the same dates a year earlier. Adds `compare_window`, `previous_answers` and `previous` cells. */
+                compare?: "none" | "previous_period" | "previous_year";
+                /** @description First day of a window to compare with, project-local; needs `compare_to`, and wins over `compare`. */
+                compare_from?: string | null;
+                /** @description Last day of the window to compare with, included; at most 92 days from `compare_from`. */
+                compare_to?: string | null;
+                /** @description `topics` leaves the prompt rows out, `none` both row lists (with `include=total`). Left out: every row. `total`, `co_mentions` and `by_country` do not depend on it. */
+                rows?: ("topics" | "none") | null;
+                /** @description Prompt rows with at least one valid answer of this outcome, on the engines shown. Narrows `prompts` only. */
+                "filter[outcome]"?: ("mentioned_and_cited" | "mentioned_only" | "cited_only" | "neither") | null;
+                /** @description Prompt rows with at least one valid answer that is `named_not_cited`, `cited_not_named`, `nobody_named` or `lost_to:<entity_id>` (a competitor named, the own brand not), on the engines shown. Narrows `prompts` only. */
+                "filter[opportunity]"?: string | null;
+                /** @description `country` adds `by_country`. `language` is not built (the language half of BE-METRICS-22 is not in contract C2): `422`, as any other value. */
+                group_by?: "country" | null;
             };
             header?: never;
             path: {
@@ -10609,11 +14087,13 @@ export interface operations {
             };
         };
     };
-    source_domains_api_v1_workspaces__workspace_id__projects__project_id__ai_sources_domains_get: {
+    source_changes_api_v1_workspaces__workspace_id__projects__project_id__ai_sources_changes_get: {
         parameters: {
             query?: {
-                sort?: "-citation_units" | "-observations" | "-prompts";
-                compare?: "none" | "previous_period";
+                kind?: "new" | "lost";
+                min_support?: number;
+                /** @description The answers of the prompts of one market, ISO 3166-1 alpha-2 in capitals; prompts with no market are left out. Also narrows `meta` and every share. */
+                "filter[country_iso]"?: string | null;
                 "filter[domain_role_in]"?: ("own" | "competitor" | "third_party")[] | null;
                 from?: string | null;
                 to?: string | null;
@@ -10625,6 +14105,115 @@ export interface operations {
                 include_branded?: boolean;
                 offset?: number;
                 limit?: number;
+                /** @description Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out of every share and unit by default (docs/14 section 9). A citation with several excluded flags counts only when every one of them is asked for. The citation list and the fan-out read always keep them. */
+                include_unresolved_redirects?: boolean;
+                /** @description Count the citations flagged `engine_internal` (links into the engine's own product), which are left out of every share and unit by default (docs/14 section 9). Ingest does not set this flag yet, so nothing is left out until it does. A citation with several excluded flags counts only when every one of them is asked for. */
+                include_engine_internal?: boolean;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceChangePage"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    source_diversity_api_v1_workspaces__workspace_id__projects__project_id__ai_sources_diversity_get: {
+        parameters: {
+            query?: {
+                /** @description Blocks to add to each engine: `series` (a weekly point) and `ads` (the answers that showed an ad). Default none. */
+                include?: ("series" | "ads")[] | null;
+                /** @description The answers of the prompts of one market, ISO 3166-1 alpha-2 in capitals; prompts with no market are left out. Also narrows `meta` and every share. */
+                "filter[country_iso]"?: string | null;
+                from?: string | null;
+                to?: string | null;
+                "filter[engine_code_in]"?: components["schemas"]["EngineCode"][] | null;
+                /** @description One prompt's answers, whether it is active, archived or branded. */
+                "filter[prompt_id]"?: string | null;
+                /** @description The prompts given the term or one under it. */
+                "filter[term]"?: string | null;
+                include_branded?: boolean;
+                /** @description Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out of every share and unit by default (docs/14 section 9). A citation with several excluded flags counts only when every one of them is asked for. The citation list and the fan-out read always keep them. */
+                include_unresolved_redirects?: boolean;
+                /** @description Count the citations flagged `engine_internal` (links into the engine's own product), which are left out of every share and unit by default (docs/14 section 9). Ingest does not set this flag yet, so nothing is left out until it does. A citation with several excluded flags counts only when every one of them is asked for. */
+                include_engine_internal?: boolean;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceDiversity"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    source_domains_api_v1_workspaces__workspace_id__projects__project_id__ai_sources_domains_get: {
+        parameters: {
+            query?: {
+                sort?: "-citation_units" | "-observations" | "-prompts";
+                compare?: "none" | "previous_period";
+                /** @description Blocks to add: `series` (a point per week of the window), `cited_with` (on each row, the tracked entity named in the most answers that cite it, ties by entity id; absent when none is named) and `by_role_by_engine` (`meta`: per engine the units and citing answers of each role, whatever `filter[domain_role_in]` says). */
+                include?: ("series" | "cited_with" | "by_role_by_engine")[] | null;
+                /** @description The fewest citation units in the window a row is listed for (docs/16 C5). Rows with fewer are left out of the rows and of `page.total`; `meta` and every share still count them. */
+                min_support?: number | null;
+                /** @description The answers of the prompts of one market, ISO 3166-1 alpha-2 in capitals; prompts with no market are left out. Also narrows `meta` and every share. */
+                "filter[country_iso]"?: string | null;
+                "filter[domain_role_in]"?: ("own" | "competitor" | "third_party")[] | null;
+                from?: string | null;
+                to?: string | null;
+                "filter[engine_code_in]"?: components["schemas"]["EngineCode"][] | null;
+                /** @description One prompt's answers, whether it is active, archived or branded. */
+                "filter[prompt_id]"?: string | null;
+                /** @description The prompts given the term or one under it. */
+                "filter[term]"?: string | null;
+                include_branded?: boolean;
+                offset?: number;
+                limit?: number;
+                /** @description Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out of every share and unit by default (docs/14 section 9). A citation with several excluded flags counts only when every one of them is asked for. The citation list and the fan-out read always keep them. */
+                include_unresolved_redirects?: boolean;
+                /** @description Count the citations flagged `engine_internal` (links into the engine's own product), which are left out of every share and unit by default (docs/14 section 9). Ingest does not set this flag yet, so nothing is left out until it does. A citation with several excluded flags counts only when every one of them is asked for. */
+                include_engine_internal?: boolean;
             };
             header?: never;
             path: {
@@ -10655,6 +14244,54 @@ export interface operations {
             };
         };
     };
+    source_domain_api_v1_workspaces__workspace_id__projects__project_id__ai_sources_domains__registrable_domain__get: {
+        parameters: {
+            query?: {
+                /** @description The answers of the prompts of one market, ISO 3166-1 alpha-2 in capitals; prompts with no market are left out. Also narrows `meta` and every share. */
+                "filter[country_iso]"?: string | null;
+                from?: string | null;
+                to?: string | null;
+                "filter[engine_code_in]"?: components["schemas"]["EngineCode"][] | null;
+                /** @description One prompt's answers, whether it is active, archived or branded. */
+                "filter[prompt_id]"?: string | null;
+                /** @description The prompts given the term or one under it. */
+                "filter[term]"?: string | null;
+                include_branded?: boolean;
+                /** @description Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out of every share and unit by default (docs/14 section 9). A citation with several excluded flags counts only when every one of them is asked for. The citation list and the fan-out read always keep them. */
+                include_unresolved_redirects?: boolean;
+                /** @description Count the citations flagged `engine_internal` (links into the engine's own product), which are left out of every share and unit by default (docs/14 section 9). Ingest does not set this flag yet, so nothing is left out until it does. A citation with several excluded flags counts only when every one of them is asked for. */
+                include_engine_internal?: boolean;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                registrable_domain: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceDomainDetail"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     source_pages_api_v1_workspaces__workspace_id__projects__project_id__ai_sources_pages_get: {
         parameters: {
             query?: {
@@ -10662,6 +14299,12 @@ export interface operations {
                 "filter[registrable_domain]"?: string | null;
                 sort?: "-citation_units" | "-observations" | "-prompts";
                 compare?: "none" | "previous_period";
+                /** @description Blocks to add: `series` (a point per week of the window, and `meta.series`). */
+                include?: "series"[] | null;
+                /** @description The fewest citation units in the window a row is listed for (docs/16 C5). Rows with fewer are left out of the rows and of `page.total`; `meta` and every share still count them. */
+                min_support?: number | null;
+                /** @description The answers of the prompts of one market, ISO 3166-1 alpha-2 in capitals; prompts with no market are left out. Also narrows `meta` and every share. */
+                "filter[country_iso]"?: string | null;
                 "filter[domain_role_in]"?: ("own" | "competitor" | "third_party")[] | null;
                 from?: string | null;
                 to?: string | null;
@@ -10673,6 +14316,10 @@ export interface operations {
                 include_branded?: boolean;
                 offset?: number;
                 limit?: number;
+                /** @description Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out of every share and unit by default (docs/14 section 9). A citation with several excluded flags counts only when every one of them is asked for. The citation list and the fan-out read always keep them. */
+                include_unresolved_redirects?: boolean;
+                /** @description Count the citations flagged `engine_internal` (links into the engine's own product), which are left out of every share and unit by default (docs/14 section 9). Ingest does not set this flag yet, so nothing is left out until it does. A citation with several excluded flags counts only when every one of them is asked for. */
+                include_engine_internal?: boolean;
             };
             header?: never;
             path: {
@@ -10690,6 +14337,58 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SourcePagePage"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    source_prompts_api_v1_workspaces__workspace_id__projects__project_id__ai_sources_prompts_get: {
+        parameters: {
+            query?: {
+                /** @description `false` keeps the prompt and engine pairs whose answers cite no own page; `true` those that cite one. Default: both. */
+                "filter[own_cited]"?: boolean | null;
+                /** @description The answers of the prompts of one market, ISO 3166-1 alpha-2 in capitals; prompts with no market are left out. Also narrows `meta` and every share. */
+                "filter[country_iso]"?: string | null;
+                from?: string | null;
+                to?: string | null;
+                "filter[engine_code_in]"?: components["schemas"]["EngineCode"][] | null;
+                /** @description One prompt's answers, whether it is active, archived or branded. */
+                "filter[prompt_id]"?: string | null;
+                /** @description The prompts given the term or one under it. */
+                "filter[term]"?: string | null;
+                include_branded?: boolean;
+                /** @description `page.next_cursor` of the previous page. */
+                cursor?: string | null;
+                limit?: number;
+                /** @description Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out of every share and unit by default (docs/14 section 9). A citation with several excluded flags counts only when every one of them is asked for. The citation list and the fan-out read always keep them. */
+                include_unresolved_redirects?: boolean;
+                /** @description Count the citations flagged `engine_internal` (links into the engine's own product), which are left out of every share and unit by default (docs/14 section 9). Ingest does not set this flag yet, so nothing is left out until it does. A citation with several excluded flags counts only when every one of them is asked for. */
+                include_engine_internal?: boolean;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromptOwnPagesPage"];
                 };
             };
             /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
@@ -11719,6 +15418,214 @@ export interface operations {
             };
         };
     };
+    list_notes_api_v1_workspaces__workspace_id__projects__project_id__notes_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoteList"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_note_api_v1_workspaces__workspace_id__projects__project_id__notes_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NoteCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoteResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_note_api_v1_workspaces__workspace_id__projects__project_id__notes__note_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                note_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    overview_ai_api_v1_workspaces__workspace_id__projects__project_id__overview_ai_get: {
+        parameters: {
+            query?: {
+                /** @description `previous_period`: as many days just before the window; `previous_year`: the same dates a year earlier. */
+                compare?: "none" | "previous_period" | "previous_year";
+                /** @description First day of a window to compare with, project-local; needs `compare_to`, and wins over `compare`. */
+                compare_from?: string | null;
+                /** @description Last day of the window to compare with, included; at most 92 days from `compare_from`. */
+                compare_to?: string | null;
+                /** @description First day of the window, project-local. */
+                from?: string | null;
+                /** @description Last day of the window, included; at most 92 days. */
+                to?: string | null;
+                /** @description The engines shown. Default: every engine of the project that is enabled or has an answer in the window. A code outside the three engines is a `422`; a listed engine that is neither enabled nor answering is left out of the engines shown. */
+                "filter[engine_code_in]"?: components["schemas"]["EngineCode"][] | null;
+                /** @description Count the branded prompts too. */
+                include_branded?: boolean;
+                /** @description Only the branded prompts; wins over `include_branded`. */
+                branded_only?: boolean;
+                /** @description The prompts of one market, ISO 3166-1 alpha-2. */
+                "filter[country_iso]"?: string | null;
+                /** @description The prompts given the term or one under it. */
+                "filter[term]"?: string | null;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiOverviewResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    overview_competitors_api_v1_workspaces__workspace_id__projects__project_id__overview_competitors_get: {
+        parameters: {
+            query?: {
+                /** @description `previous_period`: as many days just before the window; `previous_year`: the same dates a year earlier. */
+                compare?: "none" | "previous_period" | "previous_year";
+                /** @description First day of a window to compare with, project-local; needs `compare_to`, and wins over `compare`. */
+                compare_from?: string | null;
+                /** @description Last day of the window to compare with, included; at most 92 days from `compare_from`. */
+                compare_to?: string | null;
+                /** @description First day of the window, project-local. */
+                from?: string | null;
+                /** @description Last day of the window, included; at most 92 days. */
+                to?: string | null;
+                /** @description The engines shown. Default: every engine of the project that is enabled or has an answer in the window. A code outside the three engines is a `422`; a listed engine that is neither enabled nor answering is left out of the engines shown. */
+                "filter[engine_code_in]"?: components["schemas"]["EngineCode"][] | null;
+                /** @description Count the branded prompts too. */
+                include_branded?: boolean;
+                /** @description Only the branded prompts; wins over `include_branded`. */
+                branded_only?: boolean;
+                /** @description The prompts of one market, ISO 3166-1 alpha-2. */
+                "filter[country_iso]"?: string | null;
+                /** @description The prompts given the term or one under it. */
+                "filter[term]"?: string | null;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OverviewCompetitorsResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     list_prompts_api_v1_workspaces__workspace_id__projects__project_id__prompts_get: {
         parameters: {
             query?: {
@@ -11727,7 +15634,18 @@ export interface operations {
                 "filter[intent_in]"?: ("informational" | "navigational" | "commercial" | "transactional" | "local" | "unknown")[] | null;
                 "filter[country_iso]"?: string | null;
                 "filter[language_code]"?: string | null;
-                "filter[is_active]"?: boolean;
+                /** @description `true` (default) or `false`; `any` lists archived and active prompts together. */
+                "filter[is_active]"?: boolean | "any";
+                /** @description A comma list of types; prompts of any of them. */
+                "filter[prompt_type_in]"?: ("question" | "comparison" | "recommendation" | "how_to" | "definition" | "local" | "transactional" | "other")[] | null;
+                /** @description A comma list of funnel stages; prompts at any of them. */
+                "filter[funnel_stage_in]"?: ("tofu" | "mofu" | "bofu" | "retention" | "unknown")[] | null;
+                /** @description A comma list of importances, 1 to 5; prompts with any of them. */
+                "filter[importance_in]"?: number[] | null;
+                /** @description `true` lists branded prompts, `false` the others; left out, both. */
+                "filter[is_branded]"?: boolean | null;
+                /** @description A field, `-` first for descending; left out: newest first. */
+                sort?: ("text" | "-text" | "importance" | "-importance" | "created_at" | "-created_at" | "updated_at" | "-updated_at") | null;
                 /** @description `page.next_cursor` of the previous page. */
                 cursor?: string | null;
                 limit?: number;
@@ -11809,7 +15727,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["PromptBulkArchive"];
+                "application/json": components["schemas"]["PromptBulkArchive"] | components["schemas"]["PromptBulkArchiveByFilter"];
             };
         };
         responses: {
@@ -11869,6 +15787,42 @@ export interface operations {
             };
         };
     };
+    bulk_update_prompts_api_v1_workspaces__workspace_id__projects__project_id__prompts_bulk_update_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PromptBulkUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromptBulkUpdateResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     lint_prompts_api_v1_workspaces__workspace_id__projects__project_id__prompts_lint_post: {
         parameters: {
             query?: never;
@@ -11881,7 +15835,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["PromptLintRequest"];
+                "application/json": components["schemas"]["PromptLintRequest"] | components["schemas"]["PromptLintItems"];
             };
         };
         responses: {
@@ -11972,7 +15926,10 @@ export interface operations {
     update_prompt_api_v1_workspaces__workspace_id__projects__project_id__prompts__prompt_id__patch: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description The `ETag` of the prompt as read, a comma list of them, or `*` (any existing prompt). When none is the prompt's current `ETag`, the answer is `412 precondition_failed` and nothing changes. Left out, the change is made as it is. */
+                "If-Match"?: string | null;
+            };
             path: {
                 project_id: string;
                 prompt_id: string;
@@ -12107,6 +16064,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RunDetailResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    ai_coverage_api_v1_workspaces__workspace_id__projects__project_id__runs__run_id__ai_coverage_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                run_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiCoverageResponse"];
                 };
             };
             /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
@@ -13556,6 +17546,8 @@ export interface operations {
                 format?: "tree" | "flat";
                 /** @description Terms whose name holds the text; the tree keeps their ancestors. */
                 "filter[q]"?: string | null;
+                /** @description Counts to add: `prompt_count`. */
+                include?: "prompt_count"[] | null;
             };
             header?: never;
             path: {
@@ -13639,10 +17631,23 @@ export const pathsApiV1WorkspacesWorkspace_idEntitiesGetParametersQueryFilterEnt
 export const pathsApiV1WorkspacesWorkspace_idEntitiesGetParametersQueryFilterRoleAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/entities"]["get"]["parameters"]["query"]["filter[role]"]> = ["own", "competitor", "watch"];
 export const pathsApiV1WorkspacesWorkspace_idKeywordsKeyword_idMetricsHistoryGetParametersQuerySourceValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/keywords/{keyword_id}/metrics-history"]["get"]["parameters"]["query"]["source"]> = ["dataforseo_labs", "dataforseo_google_ads", "dataforseo_clickstream"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiCitationsGetParametersQueryFilterDomain_role_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/citations"]["get"]["parameters"]["query"]["filter[domain_role_in]"]> = ["own", "competitor", "third_party"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiCompetitorsGetParametersQueryIncludeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/competitors"]["get"]["parameters"]["query"]["include"]> = ["lost_prompts", "top_sources"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiCompetitorsGetParametersQueryCompareValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/competitors"]["get"]["parameters"]["query"]["compare"]> = ["none", "previous_period", "previous_year"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiMetricsOverviewGetParametersQueryCompareValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/metrics/overview"]["get"]["parameters"]["query"]["compare"]> = ["none", "previous_period", "previous_year"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiMetricsMetricGetParametersQueryCompareValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/metrics/{metric}"]["get"]["parameters"]["query"]["compare"]> = ["none", "previous_period", "previous_year"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiMetricsMetricBreakdownGetParametersQueryDimensionValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/metrics/{metric}/breakdown"]["get"]["parameters"]["query"]["dimension"]> = ["topic", "intent", "funnel_stage", "engine", "country", "language", "persona", "prompt_type"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiObservationsGetParametersQueryFilterStatus_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/observations"]["get"]["parameters"]["query"]["filter[status_in]"]> = ["complete", "partial", "empty", "refused", "error"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiObservationsGetParametersQueryFilterOutcome_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/observations"]["get"]["parameters"]["query"]["filter[outcome_in]"]> = ["mentioned_and_cited", "mentioned_only", "cited_only", "neither"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiPromptsSummaryGetParametersQueryIncludeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/prompts-summary"]["get"]["parameters"]["query"]["include"]> = ["series", "entities", "total", "co_mentions", "cells"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiPromptsSummaryGetParametersQueryCompareValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/prompts-summary"]["get"]["parameters"]["query"]["compare"]> = ["none", "previous_period", "previous_year"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiPromptsSummaryGetParametersQueryRowsAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/prompts-summary"]["get"]["parameters"]["query"]["rows"]> = ["topics", "none"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiPromptsSummaryGetParametersQueryFilterOutcomeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/prompts-summary"]["get"]["parameters"]["query"]["filter[outcome]"]> = ["mentioned_and_cited", "mentioned_only", "cited_only", "neither"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiSourcesChangesGetParametersQueryKindValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/changes"]["get"]["parameters"]["query"]["kind"]> = ["new", "lost"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiSourcesChangesGetParametersQueryFilterDomain_role_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/changes"]["get"]["parameters"]["query"]["filter[domain_role_in]"]> = ["own", "competitor", "third_party"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiSourcesDiversityGetParametersQueryIncludeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/diversity"]["get"]["parameters"]["query"]["include"]> = ["series", "ads"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiSourcesDomainsGetParametersQuerySortValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/domains"]["get"]["parameters"]["query"]["sort"]> = ["-citation_units", "-observations", "-prompts"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiSourcesDomainsGetParametersQueryCompareValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/domains"]["get"]["parameters"]["query"]["compare"]> = ["none", "previous_period"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiSourcesDomainsGetParametersQueryIncludeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/domains"]["get"]["parameters"]["query"]["include"]> = ["series", "cited_with", "by_role_by_engine"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiSourcesDomainsGetParametersQueryFilterDomain_role_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/domains"]["get"]["parameters"]["query"]["filter[domain_role_in]"]> = ["own", "competitor", "third_party"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiSourcesPagesGetParametersQuerySortValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/pages"]["get"]["parameters"]["query"]["sort"]> = ["-citation_units", "-observations", "-prompts"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiSourcesPagesGetParametersQueryCompareValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/pages"]["get"]["parameters"]["query"]["compare"]> = ["none", "previous_period"];
@@ -13653,7 +17658,12 @@ export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idKeywordGroupsGetP
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idKeywordImportsGetParametersQueryFilterStatusAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-imports"]["get"]["parameters"]["query"]["filter[status]"]> = ["uploaded", "parsing", "needs_mapping", "preview_ready", "writing", "completed", "completed_with_errors", "failed", "cancelled", "expired"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idKeywordImportsImport_idRowsGetParametersQueryFilterOutcome_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-imports/{import_id}/rows"]["get"]["parameters"]["query"]["filter[outcome_in]"]> = ["new", "duplicate", "variant", "conflict", "invalid"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idKeywordImportsImport_idRowsGetParametersQueryFilterActionAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-imports/{import_id}/rows"]["get"]["parameters"]["query"]["filter[action]"]> = ["create", "skip", "merge", "force_separate"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idOverviewAiGetParametersQueryCompareValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/overview/ai"]["get"]["parameters"]["query"]["compare"]> = ["none", "previous_period", "previous_year"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idOverviewCompetitorsGetParametersQueryCompareValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/overview/competitors"]["get"]["parameters"]["query"]["compare"]> = ["none", "previous_period", "previous_year"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idPromptsGetParametersQueryFilterIntent_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts"]["get"]["parameters"]["query"]["filter[intent_in]"]> = ["informational", "navigational", "commercial", "transactional", "local", "unknown"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idPromptsGetParametersQueryFilterPrompt_type_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts"]["get"]["parameters"]["query"]["filter[prompt_type_in]"]> = ["question", "comparison", "recommendation", "how_to", "definition", "local", "transactional", "other"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idPromptsGetParametersQueryFilterFunnel_stage_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts"]["get"]["parameters"]["query"]["filter[funnel_stage_in]"]> = ["tofu", "mofu", "bofu", "retention", "unknown"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idPromptsGetParametersQuerySortAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts"]["get"]["parameters"]["query"]["sort"]> = ["text", "-text", "importance", "-importance", "created_at", "-created_at", "updated_at", "-updated_at"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idRunsGetParametersQueryFilterWorkload_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/runs"]["get"]["parameters"]["query"]["filter[workload_in]"]> = ["seo_rank", "ai_prompt", "ai_mode_keyword", "keyword_metrics", "discovery", "ai_benchmark", "gsc_sync", "bing_sync", "ga4_sync", "cloudflare_sync"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idRunsGetParametersQueryFilterStatus_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/runs"]["get"]["parameters"]["query"]["filter[status_in]"]> = ["planned", "running", "completed", "completed_with_errors", "failed", "cancelled", "budget_blocked"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idRunsGetParametersQueryFilterTrigger_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/runs"]["get"]["parameters"]["query"]["filter[trigger_in]"]> = ["schedule", "manual", "backfill", "retry"];
@@ -13672,6 +17682,14 @@ export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idTrackedKeywordsTr
 export const pathsApiV1WorkspacesWorkspace_idVocabulariesGetParametersQueryFilterKindAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/vocabularies"]["get"]["parameters"]["query"]["filter[kind]"]> = ["topic", "cluster", "product", "service", "market", "campaign", "persona", "tag", "custom"];
 export const pathsApiV1WorkspacesWorkspace_idVocabulariesVocabulary_idTermsGetParametersQueryFormatValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/vocabularies/{vocabulary_id}/terms"]["get"]["parameters"]["query"]["format"]> = ["tree", "flat"];
 export const actorActor_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Actor"]["actor_type"]> = ["user", "api_key", "system"];
+export const aiCiMethodValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AiCi"]["method"]> = ["wilson", "bootstrap_cluster", "normal_fixed_panel"];
+export const aiCoverageMissingTask_statusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AiCoverageMissing"]["task_status"]> = ["pending", "submit_unknown", "submitted", "ready", "fetched", "ingested", "failed", "dead", "cancelled", "skipped_cached"];
+export const aiDimensionTypeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AiDimension"]["type"]> = ["topic", "intent", "funnel_stage", "engine", "country", "language", "persona", "prompt_type"];
+export const aiMetricSeriesAggregationValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AiMetricSeries"]["aggregation"]> = ["observation_weighted", "prompt_weighted"];
+export const aiMetricSeriesUnitValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AiMetricSeries"]["unit"]> = ["ratio", "count"];
+export const aiMetricValueAggregationAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AiMetricValue"]["aggregation"]> = ["observation_weighted", "prompt_weighted"];
+export const aiMetricValueSuppressed_reasonAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AiMetricValue"]["suppressed_reason"]> = ["insufficient_data", "no_surface", "not_classified", "below_min_impressions"];
+export const aiMetricValueUnitValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AiMetricValue"]["unit"]> = ["ratio", "count"];
 export const aioCitationsStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AioCitations"]["state"]> = ["absent", "present_not_cited", "present_cited", "not_loaded", "unknown"];
 export const aioHistoryItemAi_overview_stateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AioHistoryItem"]["ai_overview_state"]> = ["absent", "present_not_cited", "present_cited", "not_loaded", "unknown"];
 export const aioStateInfoStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AioStateInfo"]["state"]> = ["absent", "present_not_cited", "present_cited", "not_loaded", "unknown"];
@@ -13682,11 +17700,18 @@ export const aliasTestSpanMatch_methodValues: ReadonlyArray<FlattenedDeepRequire
 export const aliasTestSpanStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AliasTestSpan"]["status"]> = ["accepted", "uncertain", "discarded"];
 export const aliasUpdateMatch_modeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AliasUpdate"]["match_mode"]> = ["word_boundary", "exact_case", "substring", "regex"];
 export const analyticsPropertyProperty_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AnalyticsProperty"]["property_type"]> = ["ordinary", "subproperty", "rollup", "unspecified"];
+export const annotationKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Annotation"]["kind"]> = ["model_changed", "entity_set_changed", "extractor_changed", "prompt_set_changed"];
 export const budgetAction_on_hardValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Budget"]["action_on_hard"]> = ["pause", "alert_only"];
 export const budgetWorkloadValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Budget"]["workload"]> = ["seo_rank", "ai_prompt", "keyword_research", "ai_benchmark", "extraction_llm", "first_party", "all"];
+export const budgetCreateAction_on_hardAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["BudgetCreate"]["action_on_hard"]> = ["pause", "alert_only"];
+export const budgetCreateWorkloadValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["BudgetCreate"]["workload"]> = ["seo_rank", "ai_prompt", "keyword_research", "ai_benchmark", "extraction_llm", "first_party", "all"];
 export const budgetStatusStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["BudgetStatus"]["state"]> = ["ok", "soft_exceeded", "hard_exceeded"];
+export const budgetUpdateAction_on_hardValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["BudgetUpdate"]["action_on_hard"]> = ["pause", "alert_only"];
+export const cardItemWidthAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CardItem"]["width"]> = ["third", "half", "two_thirds", "full"];
 export const citationOutDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CitationOut"]["domain_role"]> = ["own", "competitor", "third_party"];
 export const citationRowDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CitationRow"]["domain_role"]> = ["own", "competitor", "third_party"];
+export const compareEntityRoleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CompareEntity"]["role"]> = ["own", "competitor", "watch"];
+export const compareSourceDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CompareSource"]["domain_role"]> = ["own", "competitor", "third_party"];
 export const competitorOverrideModeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CompetitorOverride"]["mode"]> = ["include", "exclude"];
 export const configVersionDepth_profileValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ConfigVersion"]["depth_profile"]> = ["light", "standard", "deep", "full", "weekly", "weekly_light", "until_own_match_100"];
 export const connectionAuth_methodValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Connection"]["auth_method"]> = ["oauth", "api_key", "api_token", "service_account"];
@@ -13696,6 +17721,8 @@ export const costWorkloadValues: ReadonlyArray<FlattenedDeepRequired<components>
 export const domainInputMatch_scopeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["DomainInput"]["match_scope"]> = ["path_prefix", "host", "registrable"];
 export const domainRefCategory_sourceAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["DomainRef"]["category_source"]> = ["seed_list", "rule", "llm", "manual", "tenant_override"];
 export const engineCodeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EngineCode"]> = ["chatgpt_web", "gemini_web", "google_ai_mode"];
+export const engineProviderParamsDeviceAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EngineProviderParams"]["device"]> = ["desktop", "mobile"];
+export const engineProviderParamsUpdateDeviceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EngineProviderParamsUpdate"]["device"]> = ["desktop", "mobile"];
 export const entityEntity_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Entity"]["entity_type"]> = ["brand", "product", "organization", "person", "other"];
 export const entityCreateEntity_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EntityCreate"]["entity_type"]> = ["brand", "product", "organization", "person", "other"];
 export const entityDetailEntity_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EntityDetail"]["entity_type"]> = ["brand", "product", "organization", "person", "other"];
@@ -13710,7 +17737,9 @@ export const filterList_Literal__informational____navigational____commercial____
 export const filterList_Literal__light____standard____deep____full____weekly____weekly_light____until_own_match_100___Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["FilterList_Literal__light____standard____deep____full____weekly____weekly_light____until_own_match_100___"]> = ["light", "standard", "deep", "full", "weekly", "weekly_light", "until_own_match_100"];
 export const filterList_Literal__manual____csv_import____api____gsc_import____discovery____bulk_paste___Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["FilterList_Literal__manual____csv_import____api____gsc_import____discovery____bulk_paste___"]> = ["manual", "csv_import", "api", "gsc_import", "discovery", "bulk_paste"];
 export const filterList_Literal__numeric____new____lost____unchanged_beyond____consistent_beyond____first_check___Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["FilterList_Literal__numeric____new____lost____unchanged_beyond____consistent_beyond____first_check___"]> = ["numeric", "new", "lost", "unchanged_beyond", "consistent_beyond", "first_check"];
+export const filterList_Literal__question____comparison____recommendation____how_to____definition____local____transactional____other___Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["FilterList_Literal__question____comparison____recommendation____how_to____definition____local____transactional____other___"]> = ["question", "comparison", "recommendation", "how_to", "definition", "local", "transactional", "other"];
 export const filterList_Literal__tofu____mofu____bofu____retention____unknown___Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["FilterList_Literal__tofu____mofu____bofu____retention____unknown___"]> = ["tofu", "mofu", "bofu", "retention", "unknown"];
+export const generatedFromTemplateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["GeneratedFrom"]["template"]> = ["recommendation", "comparison", "how_to", "procurement"];
 export const gscBlockStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["GscBlock"]["state"]> = ["ok", "pending", "not_connected"];
 export const historyColumnsStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["HistoryColumns"]["state"]> = ["ranked", "beyond_depth", "failed"];
 export const historyPointStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["HistoryPoint"]["state"]> = ["ranked", "beyond_depth", "failed"];
@@ -13732,7 +17761,7 @@ export const keywordImportConfirmDuplicate_actionValues: ReadonlyArray<Flattened
 export const keywordImportCreateSourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["KeywordImportCreate"]["source"]> = ["paste", "api"];
 export const keywordMetricsCompetition_levelAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["KeywordMetrics"]["competition_level"]> = ["LOW", "MEDIUM", "HIGH"];
 export const keywordMetricsSourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["KeywordMetrics"]["source"]> = ["dataforseo_labs", "dataforseo_google_ads", "dataforseo_clickstream"];
-export const lintWarningRuleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["LintWarning"]["rule"]> = ["contains_brand_alias", "engine_limit"];
+export const lintWarningRuleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["LintWarning"]["rule"]> = ["contains_brand_alias", "engine_limit", "word_count", "multiple_questions", "leading_wording", "language_mismatch", "contains_competitor_alias"];
 export const lintWarningSeverityValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["LintWarning"]["severity"]> = ["info", "warning", "error"];
 export const meWorkspaceStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["MeWorkspace"]["status"]> = ["active", "suspended", "deleting"];
 export const mentionOutMention_statusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["MentionOut"]["mention_status"]> = ["accepted", "uncertain"];
@@ -13746,21 +17775,31 @@ export const observationFactsOutcomeAnyOf0Values: ReadonlyArray<FlattenedDeepReq
 export const observationSummaryStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ObservationSummary"]["status"]> = ["complete", "partial", "empty", "refused", "error"];
 export const operationKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Operation"]["kind"]> = ["collection_run", "keyword_import"];
 export const operationStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Operation"]["status"]> = ["queued", "running", "waiting_for_input", "succeeded", "succeeded_with_errors", "failed", "cancelled", "blocked"];
+export const pointPoolReasonValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PointPool"]["reason"]> = ["prompt_point", "few_prompts"];
 export const progressUnitValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Progress"]["unit"]> = ["tasks", "rows", "observations", "days", "items"];
 export const projectStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Project"]["status"]> = ["active", "paused", "archived"];
 export const projectDomainMatch_scopeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ProjectDomain"]["match_scope"]> = ["path_prefix", "host", "registrable"];
 export const projectEntityRoleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ProjectEntity"]["role"]> = ["own", "competitor", "watch"];
 export const projectEntityCreateRoleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ProjectEntityCreate"]["role"]> = ["own", "competitor", "watch"];
 export const projectEntityUpdateRoleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ProjectEntityUpdate"]["role"]> = ["own", "competitor", "watch"];
+export const projectNoteScopeKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ProjectNoteScope"]["kind"]> = ["project"];
 export const projectUpdateStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ProjectUpdate"]["status"]> = ["active", "paused", "archived"];
 export const promptCreation_methodValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Prompt"]["creation_method"]> = ["human", "template", "llm_generated", "imported"];
 export const promptFunnel_stageValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Prompt"]["funnel_stage"]> = ["tofu", "mofu", "bofu", "retention", "unknown"];
 export const promptIntentValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Prompt"]["intent"]> = ["informational", "navigational", "commercial", "transactional", "local", "unknown"];
+export const promptIs_branded_sourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Prompt"]["is_branded_source"]> = ["computed", "override"];
 export const promptPrompt_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Prompt"]["prompt_type"]> = ["question", "comparison", "recommendation", "how_to", "definition", "local", "transactional", "other"];
+export const promptPrompt_type_sourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Prompt"]["prompt_type_source"]> = ["rule", "person"];
 export const promptBulkCreateOn_duplicateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PromptBulkCreate"]["on_duplicate"]> = ["skip", "error"];
+export const promptBulkSetFunnel_stageValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PromptBulkSet"]["funnel_stage"]> = ["tofu", "mofu", "bofu", "retention", "unknown"];
+export const promptBulkSetIntentValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PromptBulkSet"]["intent"]> = ["informational", "navigational", "commercial", "transactional", "local", "unknown"];
+export const promptBulkSetPrompt_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PromptBulkSet"]["prompt_type"]> = ["question", "comparison", "recommendation", "how_to", "definition", "local", "transactional", "other"];
+export const promptCreateCreation_methodAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PromptCreate"]["creation_method"]> = ["human", "template", "imported"];
 export const promptCreateFunnel_stageValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PromptCreate"]["funnel_stage"]> = ["tofu", "mofu", "bofu", "retention", "unknown"];
 export const promptCreateIntentValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PromptCreate"]["intent"]> = ["informational", "navigational", "commercial", "transactional", "local", "unknown"];
-export const promptCreatePrompt_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PromptCreate"]["prompt_type"]> = ["question", "comparison", "recommendation", "how_to", "definition", "local", "transactional", "other"];
+export const promptCreatePrompt_typeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PromptCreate"]["prompt_type"]> = ["question", "comparison", "recommendation", "how_to", "definition", "local", "transactional", "other"];
+export const promptCreateSourceAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PromptCreate"]["source"]> = ["manual", "csv_import", "seo_keyword", "paa", "gsc_query"];
+export const promptLintSuggested_prompt_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PromptLint"]["suggested_prompt_type"]> = ["question", "comparison", "recommendation", "how_to", "definition", "local", "transactional", "other"];
 export const promptPatchFunnel_stageValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PromptPatch"]["funnel_stage"]> = ["tofu", "mofu", "bofu", "retention", "unknown"];
 export const promptPatchIntentValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PromptPatch"]["intent"]> = ["informational", "navigational", "commercial", "transactional", "local", "unknown"];
 export const promptPatchPrompt_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PromptPatch"]["prompt_type"]> = ["question", "comparison", "recommendation", "how_to", "definition", "local", "transactional", "other"];
@@ -13770,6 +17809,8 @@ export const rankChangeLabelValues: ReadonlyArray<FlattenedDeepRequired<componen
 export const readinessStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Readiness"]["status"]> = ["ready", "not_ready"];
 export const reservedProjectSlugValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ReservedProjectSlug"]> = ["billing", "costs", "members", "new", "onboarding", "ops", "projects", "settings"];
 export const reservedWorkspaceSlugValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ReservedWorkspaceSlug"]> = ["account", "admin", "api", "assets", "design-system", "docs", "favicon", "forgot-password", "health", "healthz", "help", "icon", "invite", "login", "logout", "new", "null", "onboarding", "public", "reset-password", "robots", "settings", "sign-in", "sign-up", "signup", "sitemap", "static", "two-factor", "undefined", "verify-email", "www"];
+export const resolvedLayoutScreenValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ResolvedLayout"]["screen"]> = ["overview", "ai_overview", "rankings", "prompts", "citations", "sources", "pages", "inspector.keyword", "inspector.prompt", "inspector.page", "inspector.citation", "inspector.topic"];
+export const resolvedLayoutSourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ResolvedLayout"]["source"]> = ["personal", "team", "builtin"];
 export const roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Role"]> = ["owner", "admin", "editor", "analyst", "viewer", "billing"];
 export const roleUnitsDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["RoleUnits"]["domain_role"]> = ["own", "competitor", "third_party"];
 export const rowActionInputActionValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["RowActionInput"]["action"]> = ["create", "skip", "merge", "force_separate"];
@@ -13806,6 +17847,9 @@ export const serpSnapshotDetailTitles_sourceValues: ReadonlyArray<FlattenedDeepR
 export const serpSnapshotSummaryAi_overview_stateAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SerpSnapshotSummary"]["ai_overview_state"]> = ["absent", "present", "present_async_loaded", "present_not_loaded"];
 export const signInResponseStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SignInResponse"]["status"]> = ["signed_in", "totp_required"];
 export const sitePropertyProperty_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SiteProperty"]["property_type"]> = ["domain", "url_prefix"];
+export const sourceChangeRowDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SourceChangeRow"]["domain_role"]> = ["own", "competitor", "third_party"];
+export const sourceChangesMetaKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SourceChangesMeta"]["kind"]> = ["new", "lost"];
+export const sourceDomainRowCategory_sourceAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SourceDomainRow"]["category_source"]> = ["seed_list", "rule", "llm", "manual", "tenant_override"];
 export const sourceDomainRowDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SourceDomainRow"]["domain_role"]> = ["own", "competitor", "third_party"];
 export const sourcePageRowDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SourcePageRow"]["domain_role"]> = ["own", "competitor", "third_party"];
 export const sparklinePointStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SparklinePoint"]["state"]> = ["ranked", "beyond_depth"];
@@ -13814,6 +17858,7 @@ export const termSourceValues: ReadonlyArray<FlattenedDeepRequired<components>["
 export const termAssignmentOpValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TermAssignment"]["op"]> = ["add", "remove", "replace"];
 export const termAssignmentSubject_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TermAssignment"]["subject_type"]> = ["tracked_keyword", "prompt"];
 export const termNodeSourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TermNode"]["source"]> = ["manual", "import", "auto_cluster", "ai_suggestion"];
+export const termNoteScopeKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TermNoteScope"]["kind"]> = ["term"];
 export const trackedKeywordDepth_profileValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeyword"]["depth_profile"]> = ["light", "standard", "deep", "full", "weekly", "weekly_light", "until_own_match_100"];
 export const trackedKeywordDeviceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeyword"]["device"]> = ["desktop", "mobile"];
 export const trackedKeywordFrequencyValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeyword"]["frequency"]> = ["daily", "weekly", "custom"];

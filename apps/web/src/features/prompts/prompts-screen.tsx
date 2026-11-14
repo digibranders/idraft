@@ -1,21 +1,45 @@
 'use client';
 
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { Ban, Link2, ListTree, MessageSquare, MoreHorizontal, Plus, Power } from 'lucide-react';
+import {
+  Ban,
+  Download,
+  History,
+  Link2,
+  ListTree,
+  MessageSquare,
+  MoreHorizontal,
+  PanelRight,
+  Play,
+  Plus,
+  Power,
+} from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { parseAsString, useQueryStates } from 'nuqs';
-import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { AddPromptsDialog } from './add-prompts-dialog';
+import { AiCollectionStatus } from './ai-collection-status';
 import { AnswerInspector } from './answer-inspector';
+import {
+  ComparedWindowProvider,
+  CompareSelect,
+  comparedRowCount,
+  DetectableEmpty,
+  detectableField,
+  isDetectableOnly,
+  keepPromptRows,
+  narrowSummary,
+  useCompare,
+} from './compare';
+import { asRecordActions, type PromptAction } from './prompt-action';
 import { usePromptColumns, type PromptRow } from './prompt-columns';
 import { PromptInspector, type PromptCounts } from './prompt-inspector';
 import {
   collectTopicTerms,
   countryChoices,
   DEFAULT_PROMPT_SORT,
-  DEFAULT_WINDOW,
   hasAnswers,
   lastObservedAt,
   matchesTopics,
@@ -23,8 +47,6 @@ import {
   parseCountry,
   parseMetric,
   parseTab,
-  parseTopicTab,
-  parseWindow,
   PROMPTS_TABS,
   RATE_METRICS,
   topicChoices,
@@ -32,20 +54,30 @@ import {
   topicPrompts,
   topicOriginOf,
   topicsBelow,
+  topicsSpanned,
   topicSummaryRow,
   topicTermsOf,
-  windowRange,
+  type DateRange,
   type PromptsTab,
   type RateMetric,
   type TopicOrigin,
   type TopicTab,
 } from './prompt-model';
 import { enginesQuery, observationQuery, summaryQuery, usePromptList, type PromptScope } from './prompt-queries';
-import { PromptsCountryControl, PromptsWindowControl } from './prompts-scope';
+import { PromptsCountryControl } from './prompts-scope';
 import { PromptsStrip } from './prompts-strip';
-import { topicsSpanned, type StripPrompt } from './strip-model';
+import { PROMPT_ACTION_ENTRIES, withActionEntries } from './seams/actions';
+import { PROMPTS_TOOLBAR_ENTRIES, promptsToolbarItems } from './seams/toolbar';
+import { UpdatedRunLink, useUpdatedRunHref } from './updated-run-link';
+import { usePromptActions } from './use-prompt-actions';
 import { TopicInspector } from './topic-inspector';
-import { TopicsTable } from './topics-table';
+import { selectionKeyOf } from './selection-model';
+import { DRAWER_ENTRY_KEYS } from './topics-by-engine/drill';
+import { TopicsView } from './topics-by-engine/topics-view';
+import type { TopicMenuTarget } from './topics-table';
+import { DateRangePicker } from '@/components/app/date-range/date-range-picker';
+import { droppedMessageKey } from '@/components/app/date-range/range-model';
+import { useDateRangeParams } from '@/components/app/date-range/use-date-range-params';
 import { DataTable } from '@/components/app/data-table/data-table';
 import type { TableStatus } from '@/components/app/data-table/types';
 import { FilterBar } from '@/components/app/filters/filter-bar';
@@ -61,22 +93,25 @@ import { EmptyState } from '@/components/app/status/empty-state';
 import { InlineError } from '@/components/app/status/inline-error';
 import { Button } from '@/components/ui/button';
 import { IconButton } from '@/components/ui/icon-button';
-import { Menu } from '@/components/ui/menu';
+import { Menu, type MenuItemDef } from '@/components/ui/menu';
 import type { FocusHandle } from '@/components/ui/radio-group';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { Select } from '@/components/ui/select';
 import { TextLink } from '@/components/ui/text-link';
 import { toast } from '@/components/ui/toast';
 import { Tooltip } from '@/components/ui/tooltip';
+import type { SummaryEntity } from '@/lib/api/types';
 import { useErrorId } from '@/lib/api/use-error-id';
+import { comparedWindow, isCompared } from '@/lib/compare/compare-model';
 import { copyText } from '@/lib/dom/clipboard';
-import { useUtcDay } from '@/lib/dom/use-utc-day';
+import { useZoneDay } from '@/lib/dom/use-zone-day';
 import { enumValuesOf } from '@/lib/filters/filter-values';
 import { formatBusinessDate, formatInteger, formatList, formatRelative } from '@/lib/format';
 import { formatInspectTarget } from '@/lib/inspector/placement';
 import { useVocabularies } from '@/lib/keywords/taxonomy-reads';
 import { useCountries } from '@/lib/locations/countries';
-import { useCan } from '@/lib/permissions';
+import { useCan, useMembership } from '@/lib/permissions';
+import type { StripPrompt } from '@/lib/rates/strip-model';
 import { projectPath } from '@/lib/routes/paths';
 import {
   DEFAULT_DENSITY,
@@ -108,13 +143,13 @@ export interface PromptsScreenProps {
 }
 
 /**
- * The URL's keys besides the filters': the tab (Topics has none), the window, the country of the top bar and the
- * tables' state. They all stay when the tab changes. Each table reads the sort ids it has and ignores the others
- * (`SORT_ID` in prompt-model.ts); the columns and the metric of the engine columns are the Prompts table's.
+ * The URL's keys besides the filters': the tab (Topics has none), the country of the top bar and the tables'
+ * state. They all stay when the tab changes, and so do the date range's own keys (`useDateRangeParams`). Each table
+ * reads the sort ids it has and ignores the others (`SORT_ID` in prompt-model.ts); the columns and the metric of
+ * the engine columns are the Prompts table's.
  */
 const VIEW_STATE = {
   tab: parseAsString,
-  window: parseAsString,
   country: parseAsString,
   q: parseAsString.withDefault(''),
   sort: parseAsString,
@@ -123,9 +158,17 @@ const VIEW_STATE = {
   metric: parseAsString,
 };
 
+/** The weekly series, asked of the summary for the Trend column. Module level, so the query's key stays the same. */
+const SERIES: readonly ['series'] = ['series'];
+const NO_ENTITIES: readonly SummaryEntity[] = [];
+
 const promptRowId = (row: PromptRow): string => row.prompt.prompt_id;
+const NO_PROMPTS: ReadonlySet<string> = new Set();
+const nothing = (): void => undefined;
 /** The id of the More actions item that copies the link. */
 const COPY_LINK = 'copy-link';
+/** The id of the More actions item that opens the newest AI run. */
+const OPEN_RUN = 'open-run';
 
 /**
  * AI > Topics & Prompts (spec 2026-11-11 section 4.6, ADR-DS-022): the project's prompts over a window of
@@ -152,19 +195,24 @@ export function PromptsScreen(props: PromptsScreenProps): ReactNode {
 
 function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenProps): ReactNode {
   const t = useTranslations('prompts');
+  const root = useTranslations();
   const common = useTranslations('common');
   const locale = useLocale();
   const canWrite = useCan('prompts:write');
+  const { permissions } = useMembership();
   const [addOpen, setAddOpen] = useState(false);
   const scope = useMemo((): PromptScope => ({ workspaceId, projectId: project.id }), [workspaceId, project.id]);
   const [view, setView] = useQueryStates(VIEW_STATE, { history: 'replace' });
   const tab = parseTab(view.tab);
-  const windowDays = parseWindow(view.window);
   // The market of the top bar: every country unless the address names one
   const country = parseCountry(view.country);
-  // The same date all UTC day; a new day is read at midnight UTC
-  const now = useUtcDay();
-  const range = useMemo(() => windowRange(windowDays, now, project.timeZone), [windowDays, now, project.timeZone]);
+  // The period before: on unless the address says `cmp=off` (D-03). Scope like the country, so Clear filters leaves it
+  const { compare, setCompare } = useCompare();
+  // The range of every query of the page, from the picker's keys (`win`, `from`, `to`; `window` of older links).
+  // `today` is a day of the project's zone, the one place the clock is read; it turns at that zone's midnight
+  const today = useZoneDay(project.timeZone);
+  const picked = useDateRangeParams({ today, legacyWindowKey: 'window' });
+  const range = useMemo((): DateRange => ({ from: picked.range.from, to: picked.range.to }), [picked.range]);
 
   const engines = useQuery(enginesQuery(scope));
   const enginesErrorId = useErrorId(engines.error);
@@ -225,6 +273,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
         multi: false,
         options: [{ value: 'include', label: t('filters.brandedInclude') }],
       },
+      detectableField({ field: t('compare.detectable.field'), option: t('compare.detectable.option') }),
     ];
   }, [t, optionsPending, topicsUnknown, topicTree, topicTerms, enabled, engines.data]);
   // A filter of a shared link that does not read is left out, and the person is told (13 section 5)
@@ -263,8 +312,9 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     (): FilterValues => (country === null ? values : { ...values, country: { kind: 'enum', values: [country] } }),
     [values, country],
   );
-  // The topic and country narrow the rows; the engine only picks columns, and Branded adds rows
-  const narrowed = values.topic !== undefined || country !== null;
+  // The topic, country and Detectable changes only narrow the rows; the engine only picks columns, and Branded adds rows
+  const detectableOnly = isDetectableOnly(values);
+  const narrowed = values.topic !== undefined || country !== null || detectableOnly;
   const clearFilters = useCallback(() => {
     setValues({});
     void setView({ country: null });
@@ -276,12 +326,32 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     return chosen.length === 0 ? enabled : enabled.filter((engine) => chosen.includes(engine.engine.engine_code));
   }, [enabled, values.engine]);
 
-  // The table stays on the last counts while a new window, or the Branded filter, is read
+  // The table stays on the last counts while a new window, or the Branded filter, is read. The weekly series of the
+  // Trend column comes with them in the one read, which the strip and the drawers use too: a failed series cannot
+  // be told from a failed summary, and a summary without series (an older API) leaves the Trend cells blank
   const summary = useQuery({
-    ...summaryQuery(scope, range, includeBranded, country === null ? {} : { country }),
+    ...summaryQuery(scope, range, includeBranded, {
+      ...(country === null ? {} : { country }),
+      include: SERIES,
+      compare,
+    }),
     enabled: enabled.length > 0,
     placeholderData: keepPreviousData,
   });
+  const summaryData = summary.data?.data;
+  const codes = useMemo(() => shown.map((engine) => engine.engine.engine_code), [shown]);
+  // Counts held from a read made without the comparison carry no `previous`: while the new read is on its way the chip
+  // waits for it, so it does not empty the table for a moment. A read that failed has no counts to judge by either:
+  // the rows stay and the banner says so, rather than the chip claiming there is nothing to compare
+  const detectableHeld = detectableOnly && compare && !isCompared(summaryData) && summary.isFetching;
+  const readFailed = summary.isError && summaryData === undefined;
+  const detectableIds = useMemo(
+    (): ReadonlySet<string> | null =>
+      detectableOnly && !detectableHeld && !readFailed
+        ? new Set(keepPromptRows(summaryData?.prompts ?? [], codes, compare).map((row) => row.prompt_id))
+        : null,
+    [detectableOnly, detectableHeld, readFailed, summaryData, codes, compare],
+  );
   const summaryById = useMemo(
     () => new Map((summary.data?.data.prompts ?? []).map((row) => [row.prompt_id, row])),
     [summary.data],
@@ -302,7 +372,8 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
         (prompt) =>
           (includeBranded || !prompt.is_branded) &&
           (topicIds.length === 0 || matchesTopics(prompt, kept)) &&
-          (country === null || prompt.country_iso === country),
+          (country === null || prompt.country_iso === country) &&
+          (detectableIds === null || detectableIds.has(prompt.prompt_id)),
       )
       .map((prompt) => {
         // Where a topic sits comes from the tree; until it is read the name is all there is
@@ -325,7 +396,63 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
           country: prompt.country_iso === null ? null : (countryName.get(prompt.country_iso) ?? prompt.country_iso),
         };
       });
-  }, [list.rows, includeBranded, topicIds, kept, country, summaryById, countsLoaded, countryName, topicPaths, locale]);
+  }, [
+    list.rows,
+    includeBranded,
+    topicIds,
+    kept,
+    country,
+    detectableIds,
+    summaryById,
+    countsLoaded,
+    countryName,
+    topicPaths,
+    locale,
+  ]);
+  // The Topics views read the topic rows that changed by more than normal variation; the prompt rows stay whole
+  const topicsSummary = useMemo(
+    () =>
+      summaryData === undefined || detectableIds === null ? summaryData : narrowSummary(summaryData, codes, compare),
+    [summaryData, detectableIds, codes, compare],
+  );
+
+  // The prompts chosen, by id: kept through sorting, searching and opening topics, and dropped for good when the rows
+  // asked for change (the project, the tab, the topic filter, the country, the Branded filter), as Rankings drops its
+  // choice when its filters change. Prompts that left the rows (archived, or off a new page) are not chosen any more
+  const selectionKey = selectionKeyOf({ projectId: project.id, tab, country, topicIds, includeBranded });
+  const [selection, setSelection] = useState<{ key: string; ids: ReadonlySet<string> }>({
+    key: selectionKey,
+    ids: NO_PROMPTS,
+  });
+  if (selection.key !== selectionKey) setSelection({ key: selectionKey, ids: NO_PROMPTS });
+  const rowsById = useMemo(() => new Map(rows.map((row) => [row.prompt.prompt_id, row])), [rows]);
+  const chosen = useMemo(
+    (): ReadonlySet<string> =>
+      selection.key === selectionKey ? new Set([...selection.ids].filter((id) => rowsById.has(id))) : NO_PROMPTS,
+    [selection, selectionKey, rowsById],
+  );
+  const setChosen = useCallback(
+    (ids: ReadonlySet<string>): void => setSelection({ key: selectionKey, ids }),
+    [selectionKey],
+  );
+  const actions = usePromptActions({
+    scope,
+    rowsById,
+    engines: enabled,
+    shown,
+    range,
+    // Only the prompts an action changed leave the choice: the rest of it stays, a row's own action included
+    onDone: (done) =>
+      setSelection((current) => {
+        if (current.key !== selectionKey) return current;
+        const changed = new Set(done);
+        return { key: current.key, ids: new Set([...current.ids].filter((id) => !changed.has(id))) };
+      }),
+  });
+  // In the order of the list, as the table shows them
+  const bulkActions: readonly PromptAction[] = actions.bar(
+    [...rowsById.keys()].filter((promptId) => chosen.has(promptId)),
+  );
 
   // The strip reads the prompts in scope (a search is no filter, so it does not narrow it, ADR-DS-022 decision 6)
   const stripPrompts = useMemo(
@@ -346,7 +473,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   );
 
   const metric = parseMetric(view.metric);
-  const { columns, sortFields, searchText, rowName } = usePromptColumns(shown, metric);
+  const { columns, sortFields, searchText, rowName } = usePromptColumns(shown, metric, comparedWindow(summaryData));
   const columnIds = useMemo(() => new Set(columns.map((column) => column.id)), [columns]);
   const sort = useMemo((): readonly SortKey[] => {
     const parsed = parseSort(view.sort, sortFields);
@@ -356,7 +483,8 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   const density = parseDensity(view.density);
 
   // The inspector: a prompt opened from either tab, stepping in the order of the table on screen
-  const inspector = useInspector();
+  // The topic drawer's engine filter (`?eng=`) belongs to its entry: Close after a drill-down goes back and drops it
+  const inspector = useInspector({ entryKeys: DRAWER_ENTRY_KEYS });
   const openPrompt = inspector.target?.type === 'prompt' ? inspector.target.id : null;
   // An answer opens from a prompt's answers and takes the inspector's place until it goes back to the prompt
   const openAnswer = inspector.target?.type === 'answer' ? inspector.target.id : null;
@@ -376,7 +504,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   // The topic drawer, and the topic a prompt was opened from the drawer of: its prompts are the list J and K step
   // through and its badge leads back to the tab it left (ADR-DS-022 decision 8). A link has none, like any list it lacks
   const openTopic = inspector.target?.type === 'topic' ? inspector.target.id : null;
-  const topicTab = parseTopicTab(inspector.tab);
+  const topicTab = inspector.tab;
   const [promptFrom, setPromptFrom] = useState<TopicOrigin | null>(null);
   const firstShown = shown[0]?.engine.engine_code;
   const originKey = promptFrom?.key ?? null;
@@ -437,6 +565,101 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     else inspector.open({ type: 'topic', id: key }, { tab });
   };
 
+  // Add prompts, from the header (no topic) or from a topic's menu (that topic chosen). The form is made once, so a
+  // new topic is a new dialog
+  const [addTopic, setAddTopic] = useState<string | null>(null);
+  const openAdd = (termId: string | null): void => {
+    setAddTopic(termId);
+    setAddOpen(true);
+  };
+  /** The Prompts tab with this topic as its topic filter, the other filters, the window and the country kept. */
+  const showInPrompts = (key: string): void => {
+    void setValues({ ...values, topic: { kind: 'enum', values: [key] } });
+    void setView({ tab: 'prompts' }, { history: 'push' });
+  };
+  const canRun = useCan('runs:trigger');
+  // A topic's prompts come from the summary, and an action reads them from the list: until the list is whole (or when
+  // it failed) some of them are not in it, so the actions that read them wait
+  const listReason = optionsPending ? t('bulk.listLoading') : null;
+  /** The "More" menu of a row of the Topics tab: a topic's, or the prompt listed under a topic's. */
+  const topicMenu = (target: TopicMenuTarget): readonly PromptAction[] => {
+    if (target.kind === 'prompt') {
+      return actions.forPrompt(target.promptId, () => openPromptRow(target.promptId, 'inspector', target.topicKey));
+    }
+    // The prompts without a topic are no topic to filter by or to add a prompt to
+    const real = target.key !== NO_TOPIC;
+    const held = target.promptIds.length > 0;
+    const builtIns: PromptAction[] = [
+      {
+        id: 'open',
+        label: t('rowMenu.open'),
+        icon: PanelRight,
+        group: 'open',
+        run: () => openTopicDrawer(target.key, 'overview'),
+      },
+      ...(real
+        ? [
+            {
+              id: 'show-in-prompts',
+              label: t('rowMenu.showInPrompts'),
+              icon: MessageSquare,
+              group: 'open' as const,
+              run: () => showInPrompts(target.key),
+            },
+          ]
+        : []),
+      ...(canRun && held
+        ? [
+            {
+              id: 'run-now',
+              label: t('bulk.run'),
+              icon: Play,
+              group: 'object' as const,
+              disabledReason: actions.busyReason ?? listReason,
+              run: () => actions.run(target.promptIds),
+            },
+          ]
+        : []),
+      ...(canWrite && real && engines.data !== undefined
+        ? [
+            {
+              id: 'add-prompt',
+              label: t('rowMenu.addPrompt'),
+              icon: Plus,
+              group: 'object' as const,
+              run: () => openAdd(target.key),
+            },
+          ]
+        : []),
+      ...(held
+        ? [
+            {
+              id: 'export',
+              label: t('bulk.export'),
+              icon: Download,
+              group: 'copy' as const,
+              disabledReason: listReason,
+              run: () => actions.exportPrompts(target.promptIds),
+            },
+          ]
+        : []),
+    ];
+    return withActionEntries(
+      builtIns,
+      PROMPT_ACTION_ENTRIES,
+      {
+        surface: 'topicRow',
+        scope,
+        promptIds: target.promptIds,
+        prompts: target.promptIds.flatMap((id) => rowsById.get(id)?.prompt ?? []),
+        topicKey: target.key,
+        busyReason: actions.busyReason,
+        t: root,
+      },
+      permissions,
+    );
+  };
+
   // The summary is pending only before its first answer: a new window keeps the last counts meanwhile
   // A topic or country that matches nothing so far may still match a page that is on its way
   const waiting =
@@ -476,14 +699,14 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   // Not before the engines are known: the dialog takes the enabled ones
   const addButton =
     canWrite && engines.data !== undefined ? (
-      <Button variant="primary" size="sm" icon={Plus} onClick={() => setAddOpen(true)}>
+      <Button variant="primary" size="sm" icon={Plus} onClick={() => openAdd(null)}>
         {t('addPrompts')}
       </Button>
     ) : null;
   // In the header row the label gives way to the icon below 640 px, and stays the button's name
   const headerAdd =
     addButton === null ? null : (
-      <Button variant="primary" size="sm" icon={Plus} onClick={() => setAddOpen(true)}>
+      <Button variant="primary" size="sm" icon={Plus} onClick={() => openAdd(null)}>
         <span className="sr-only sm:not-sr-only">{t('addPrompts')}</span>
       </Button>
     );
@@ -521,15 +744,41 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   // (its container's width) and a tooltip carries the second, a narrower toolbar has both in the More actions menu
   const updatedAt = lastObservedAt(summary.data?.data);
   const updatedText = updatedAt === null ? null : t('updated', { time: formatRelative(updatedAt, project.timeZone) });
+  const runHref = useUpdatedRunHref(scope, workspaceSlug, project.slug);
   const windowCaption = t('meta', {
     from: formatBusinessDate(range.from, { withYear: false }),
     to: formatBusinessDate(range.to),
   });
+  // A link whose range was not used says why, for as long as the address keeps it (13 section 5)
+  const { dropped } = picked;
+  const droppedWords =
+    dropped === null
+      ? null
+      : common(`dateRange.${droppedMessageKey(dropped)}`, {
+          max: dropped.code === 'too_long' ? dropped.max : 0,
+          date: dropped.code === 'before_start' ? formatBusinessDate(dropped.earliest) : '',
+        });
   const copyLink = (): void => {
     void copyText(window.location.href).then((copied) =>
       toast(copied ? { type: 'success', title: t('linkCopied') } : { type: 'error', title: common('copy.failed') }),
     );
   };
+  // What later packages add to the header: items of the More actions menu, and controls before it
+  const extras = promptsToolbarItems(PROMPTS_TOOLBAR_ENTRIES, { scope, project, t: root }, permissions);
+  const extraControls = extras.actions.map(({ id, node }) => <Fragment key={id}>{node}</Fragment>);
+  // A menu item, not a link in the header: a header link would take the menu's first focus
+  const openRun: MenuItemDef[] =
+    runHref === null
+      ? []
+      : [
+          {
+            id: OPEN_RUN,
+            kind: 'link',
+            label: root('runs.openLatestRun'),
+            icon: History,
+            link: <Link href={runHref} />,
+          },
+        ];
   const moreMenu = (
     <Menu
       align="end"
@@ -540,7 +789,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
           <span>{windowCaption}</span>
         </div>
       }
-      items={[{ id: COPY_LINK, label: t('copyLink'), icon: Link2, onSelect: copyLink }]}
+      items={[{ id: COPY_LINK, label: t('copyLink'), icon: Link2, onSelect: copyLink }, ...openRun, ...extras.more]}
     />
   );
 
@@ -566,23 +815,34 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
       live
     />
   );
-  const filteredEmpty = (
-    <EmptyState
-      title={t('emptyFiltered')}
-      reason={t('emptyFilteredReason')}
-      headingLevel={2}
-      details={
-        filtered || country !== null ? <ReadOnlyFilterChips fields={emptyFields} values={emptyValues} /> : undefined
-      }
-      primaryAction={
-        filtered || country !== null ? (
-          <Button variant="secondary" onClick={clearFilters}>
-            {t('clearFilters')}
-          </Button>
-        ) : undefined
-      }
-    />
-  );
+  const filteredEmpty =
+    // A search that finds nothing is the generic state; otherwise the chip says why no row is left
+    detectableOnly && view.q === '' ? (
+      <DetectableEmpty
+        compare={compare}
+        compared={comparedRowCount(summaryData, tab, topicIds.length > 0 ? kept : null, codes)}
+        previousAnswers={summaryData?.previous_answers ?? null}
+        details={<ReadOnlyFilterChips fields={emptyFields} values={emptyValues} />}
+        onTurnOn={() => setCompare(true)}
+        onClear={clearFilters}
+      />
+    ) : (
+      <EmptyState
+        title={t('emptyFiltered')}
+        reason={t('emptyFilteredReason')}
+        headingLevel={2}
+        details={
+          filtered || country !== null ? <ReadOnlyFilterChips fields={emptyFields} values={emptyValues} /> : undefined
+        }
+        primaryAction={
+          filtered || country !== null ? (
+            <Button variant="secondary" onClick={clearFilters}>
+              {t('clearFilters')}
+            </Button>
+          ) : undefined
+        }
+      />
+    );
   const noPrompts = (
     <EmptyState
       icon={MessageSquare}
@@ -648,12 +908,21 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
           <FilterBar fields={fields} values={values} onChange={setValues} />
         </div>
         <div className="ml-auto flex h-control shrink-0 items-center gap-3">
+          <CompareSelect window={comparedWindow(summaryData)} />
           {updatedText === null ? null : (
             // Shown while the header's container is at least 64rem wide (about a 1280 px window with the sidebar open); a narrower one has it in the More actions menu
             <Tooltip content={windowCaption} purpose="label" side="bottom">
-              <span className="hidden type-meta whitespace-nowrap @5xl:inline">{updatedText}</span>
+              <span className="hidden type-meta whitespace-nowrap @5xl:inline">
+                <UpdatedRunLink
+                  scope={scope}
+                  workspaceSlug={workspaceSlug}
+                  projectSlug={project.slug}
+                  text={updatedText}
+                />
+              </span>
             </Tooltip>
           )}
+          {extraControls}
           {moreMenu}
           {showAdd ? headerAdd : null}
         </div>
@@ -695,14 +964,20 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
                 }
               />
             ) : null}
-            <TopicsTable
-              summary={summary.data?.data}
+            <TopicsView
+              scope={scope}
+              range={range}
+              includeBranded={includeBranded}
+              country={country}
+              summary={topicsSummary}
               engines={shown}
               descendants={descendants}
               tree={topicTree}
               kept={kept}
               filtering={topicIds.length > 0}
-              countryChosen={country !== null}
+              // shortcut: the prop means "a scope narrowed the rows that is not a topic filter", so the chip rides on it
+              // (an empty table is then filtered-empty, not empty); rename it when a third such narrowing appears
+              countryChosen={country !== null || detectableOnly}
               status={topicsStatus}
               errorState={summaryFailed ? summaryError : listError}
               emptyState={noPrompts}
@@ -718,7 +993,11 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
               onOpenPrompt={openPromptRow}
               onOpenTopic={openTopicDrawer}
               onPromptOrderChange={setOrder}
-              toolbarStart={viewSwitch}
+              viewSwitch={viewSwitch}
+              chosen={chosen}
+              onChosenChange={setChosen}
+              bulkActions={bulkActions}
+              rowMenu={topicMenu}
             />
           </div>
         ) : (
@@ -754,17 +1033,21 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
                   void setView({ sort: sameSort(next, DEFAULT_PROMPT_SORT) ? null : formatSort(next) })
                 }
                 defaultSort={DEFAULT_PROMPT_SORT}
+                // The metric of the engine columns, then the view switch, as Rankings has its switch before the icons
                 toolbarEnd={
-                  <div className="w-44">
-                    <Select<RateMetric>
-                      aria-label={t('metric.label')}
-                      size="sm"
-                      value={metric}
-                      onValueChange={(next) => void setView({ metric: next === 'mention' ? null : next })}
-                      placeholder={t('metric.placeholder')}
-                      options={RATE_METRICS.map((value) => ({ value, label: t(`metric.${value}`) }))}
-                    />
-                  </div>
+                  <>
+                    <div className="w-44">
+                      <Select<RateMetric>
+                        aria-label={t('metric.label')}
+                        size="sm"
+                        value={metric}
+                        onValueChange={(next) => void setView({ metric: next === 'mention' ? null : next })}
+                        placeholder={t('metric.placeholder')}
+                        options={RATE_METRICS.map((value) => ({ value, label: t(`metric.${value}`) }))}
+                      />
+                    </div>
+                    {viewSwitch}
+                  </>
                 }
                 density={density}
                 onDensityChange={(next: Density) => void setView({ density: next === DEFAULT_DENSITY ? null : next })}
@@ -784,8 +1067,21 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
                 onRowOpen={(row, intent) => openPromptRow(row.prompt.prompt_id, intent)}
                 activeRowId={selectedPrompt}
                 onRowOrderChange={setOrder}
-                toolbarStart={viewSwitch}
                 compactToolbar
+                selection={{
+                  selectedIds: chosen,
+                  onChange: setChosen,
+                  // The list holds every prompt the filters match, so there is no "all matching" beyond the rows
+                  matchingTotal: null,
+                  allMatching: false,
+                  onAllMatchingChange: nothing,
+                }}
+                bulkActions={asRecordActions<PromptRow>(bulkActions)}
+                rowActions={(row) =>
+                  asRecordActions<PromptRow>(
+                    actions.forPrompt(row.prompt.prompt_id, () => openPromptRow(row.prompt.prompt_id)),
+                  )
+                }
               />
             </div>
           </div>
@@ -803,6 +1099,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
         ? 'loading'
         : 'ready',
     brandedIncluded: includeBranded,
+    entities: summary.data?.data.entities ?? NO_ENTITIES,
     row: openPrompt === null ? undefined : summaryById.get(openPrompt),
     errorId: summaryErrorId,
     retry: () => void summary.refetch(),
@@ -845,6 +1142,9 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
                 onOpen: () => inspector.open({ type: 'topic', id: origin.key }, { tab: origin.tab }),
               }
         }
+        tab={inspector.tab}
+        // Latest is the inspector's first tab, which the address leaves out
+        onTabChange={(next) => inspector.setTab(next === 'latest' ? DEFAULT_INSPECTOR_TAB : next)}
         onClose={() => inspector.close()}
         onOpenAnswer={(observationId, observedAt) => {
           setAnswerRow({ id: observationId, observedAt, promptId: openPrompt });
@@ -879,6 +1179,18 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
         descendants={descendants}
         treeName={topicTree.find((term) => term.termId === openTopic)?.name ?? null}
         treePending={vocabularies.pending}
+        extras={{
+          scope,
+          range,
+          includeBranded,
+          country,
+          workspaceSlug,
+          projectSlug: project.slug,
+          tree: topicTree,
+          countryName: nameOfCountry,
+          onAddPrompt: canWrite && engines.data !== undefined ? openAdd : null,
+          run: canRun ? { onRun: actions.run, blockedReason: actions.busyReason ?? listReason } : null,
+        }}
         tab={topicTab}
         onTabChange={inspector.setTab}
         onOpenPrompt={openPromptFromTopic}
@@ -886,41 +1198,70 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
       />
     );
 
+  // With neither Add prompts nor a control of the seam nothing is passed, so no wrapper is drawn
+  const addInEmpty = showAdd ? headerAdd : undefined;
+  const emptyActions: ReactNode =
+    extraControls.length === 0 ? (
+      addInEmpty
+    ) : (
+      <>
+        {extraControls}
+        {addInEmpty}
+      </>
+    );
+
   return (
-    <InspectorLayout inspector={promptInspector ?? answerInspector ?? topicInspector}>
-      <TopBarPortal>
-        <PromptsWindowControl
-          days={windowDays}
-          onDaysChange={(days) => void setView({ window: days === DEFAULT_WINDOW ? null : String(days) })}
-          caption={windowCaption}
-        />
-        <PromptsCountryControl
-          country={country}
-          isos={countryIsos}
-          nameOf={nameOfCountry}
-          onCountryChange={(iso) => void setView({ country: iso })}
-        />
-      </TopBarPortal>
-      <div className="flex h-page-body min-h-page-body-min flex-col gap-3 px-3 pt-3 pb-5 md:px-4 lg:px-5">
-        <PageHeader
-          title={t('title')}
-          titleHidden
-          toolbar={toolbar}
-          // Without the table (an empty state) only Add prompts is left of the header's right side
-          actions={toolbar === undefined && showAdd ? headerAdd : undefined}
-        />
-        {content}
-      </div>
-      {canWrite ? (
-        <AddPromptsDialog
-          scope={scope}
-          open={addOpen}
-          onOpenChange={setAddOpen}
-          engines={enabled}
-          existing={list.rows}
-          defaults={{ languageCode: project.defaultLanguage, countryIso: project.defaultCountryIso }}
-        />
-      ) : null}
-    </InspectorLayout>
+    <ComparedWindowProvider value={comparedWindow(summaryData)}>
+      <InspectorLayout inspector={promptInspector ?? answerInspector ?? topicInspector}>
+        <TopBarPortal>
+          <DateRangePicker
+            value={picked.value}
+            onValueChange={picked.onValueChange}
+            today={today}
+            timeZone={project.timeZone}
+          />
+          <PromptsCountryControl
+            country={country}
+            isos={countryIsos}
+            nameOf={nameOfCountry}
+            onCountryChange={(iso) => void setView({ country: iso })}
+          />
+        </TopBarPortal>
+        <div className="flex h-page-body min-h-page-body-min flex-col gap-3 px-3 pt-3 pb-5 md:px-4 lg:px-5">
+          <PageHeader
+            title={t('title')}
+            titleHidden
+            toolbar={toolbar}
+            // Without the table (an empty state) only Add prompts is left of the header's right side, and the controls
+            // of the toolbar seam before it
+            actions={toolbar === undefined ? emptyActions : undefined}
+          />
+          {droppedWords === null ? null : <Banner tone="info" placement="region" message={droppedWords} />}
+          <AiCollectionStatus
+            scope={scope}
+            workspaceSlug={workspaceSlug}
+            projectSlug={project.slug}
+            onFinished={() => void summary.refetch()}
+          />
+          {content}
+        </div>
+        {actions.dialogs}
+        {canWrite ? (
+          <AddPromptsDialog
+            key={addTopic ?? 'no-topic'}
+            scope={scope}
+            open={addOpen}
+            onOpenChange={setAddOpen}
+            engines={enabled}
+            existing={list.rows}
+            defaults={{
+              languageCode: project.defaultLanguage,
+              countryIso: project.defaultCountryIso,
+              termId: addTopic,
+            }}
+          />
+        ) : null}
+      </InspectorLayout>
+    </ComparedWindowProvider>
   );
 }

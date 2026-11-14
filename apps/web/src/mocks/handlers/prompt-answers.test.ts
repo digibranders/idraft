@@ -1,8 +1,10 @@
+import { createHash } from 'node:crypto';
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 
 import { MOCK_ENTITY_IDS, MOCK_TERM_IDS, MOCK_TERMS } from '../entity-fixtures';
-import { MOCK_PROJECTS, MOCK_WORKSPACE } from '../fixtures';
+import { MOCK_PROJECTS, MOCK_WORKSPACE, mockUser } from '../fixtures';
 import { mockId } from '../mock-ids';
 import {
   answerOf,
@@ -13,6 +15,9 @@ import {
   runInstants,
   type Answer,
 } from '../prompt-fixtures';
+import { SESSION_COOKIE } from '../session';
+import type { Schemas } from '@/lib/api/types';
+import { TEST_API_ORIGIN } from '@/test/api-server';
 import { dataOf, fieldCodes, mockBrowser, pageOf, type MockBrowser } from '@/test/mock-api';
 
 const W = `/api/v1/workspaces/${MOCK_WORKSPACE.workspace_id}`;
@@ -488,6 +493,89 @@ describe('the raw answer', () => {
     expect(fieldCodes(await mockBrowser('analyst').call('GET', `${FYNIX}/ai/observations/abc/raw`))).toEqual([
       'observation_id:int_parsing',
     ]);
+  });
+});
+
+/**
+ * The members WP-26 added to the detail (`answer_sha256`, `raw_sha256`, `quote`), read through a shape declared against
+ * the generated type: a change to `ObservationDetail` or `CitationOut` breaks this file at compile time.
+ */
+const EVIDENCE_FIELDS: z.ZodType<
+  Pick<Schemas['ObservationDetail'], 'answer_text' | 'answer_sha256' | 'raw_sha256' | 'status'> & {
+    citations: Pick<Schemas['CitationOut'], 'citation_index' | 'quote'>[];
+  }
+> = z.object({
+  answer_text: z.string().nullable(),
+  answer_sha256: z
+    .string()
+    .regex(/^[0-9a-f]{64}$/)
+    .nullable(),
+  raw_sha256: z
+    .string()
+    .regex(/^[0-9a-f]{64}$/)
+    .nullable(),
+  status: z.enum(['complete', 'partial', 'empty', 'refused', 'error']),
+  citations: z.array(z.object({ citation_index: z.number(), quote: z.string().nullable() })),
+});
+const digest = (text: string): string => createHash('sha256').update(text, 'utf8').digest('hex');
+
+describe('the evidence fields of one answer', () => {
+  /** The id of the newest fixture answer of the 28 days on one engine that `test` picks. */
+  function answerOn(engine: 'chatgpt_web' | 'gemini_web', test: (answer: Answer) => boolean): string {
+    for (const at of runInstants(NOW).slice(0, RUNS_IN_28_DAYS)) {
+      const day = Math.floor(at / DAY_MS);
+      for (const prompt of PROMPTS) {
+        if (prompt.index !== null && test(answerOf(prompt.index, prompt.language_code, engine, day))) {
+          return observationIdOf(day, prompt.index, ENGINE_CODES.indexOf(engine));
+        }
+      }
+    }
+    throw new Error('No fixture answer matches');
+  }
+  const fieldsOf = async (
+    id: string,
+    who: MockBrowser = mockBrowser('viewer'),
+  ): Promise<z.infer<typeof EVIDENCE_FIELDS>> =>
+    dataOf(await who.call('GET', `${FYNIX}/ai/observations/${id}`), EVIDENCE_FIELDS);
+
+  it('carries the SHA-256 of the answer text as lowercase hex, and none for an answer with no text', async () => {
+    const withText = answerWhere((answer) => answer.answer_text !== null && answer.status === 'complete');
+    const fields = await fieldsOf(withText);
+    expect(fields.answer_sha256).toBe(digest(fields.answer_text ?? ''));
+    const failed = answerWhere((answer) => answer.status === 'error');
+    const error = await fieldsOf(failed);
+    expect(error.answer_text).toBeNull();
+    expect(error.answer_sha256).toBeNull();
+  });
+
+  it('carries the SHA-256 of the raw body the raw route serves, and none for the answer the mock keeps no payload of', async () => {
+    const analyst = mockBrowser('analyst');
+    const withRaw = answerWhere((answer) => answer.status === 'complete');
+    const fields = await fieldsOf(withRaw, analyst);
+    const raw = await fetch(`${TEST_API_ORIGIN}${FYNIX}/ai/observations/${withRaw}/raw`, {
+      headers: {
+        cookie: `${SESSION_COOKIE}=mock.active.${mockUser('analyst').user_id}.${String(Date.now() + 600_000)}`,
+      },
+    });
+    expect(raw.status).toBe(200);
+    expect(fields.raw_sha256).toBe(digest(await raw.text()));
+    // An empty answer has no payload row in the mock: null, never zeros
+    const empty = await fieldsOf(answerWhere((answer) => answer.status === 'empty'));
+    expect(empty.raw_sha256).toBeNull();
+  });
+
+  it('gives every Gemini source a quote that is plain text, and ChatGPT sources none', async () => {
+    const gemini = answerOn('gemini_web', (answer) => answer.citations.length > 0);
+    const quotes = (await fieldsOf(gemini)).citations.map((citation) => citation.quote);
+    expect(quotes.length).toBeGreaterThan(0);
+    for (const quote of quotes) {
+      expect(typeof quote).toBe('string');
+      expect(quote).not.toMatch(/^\s*$/);
+      expect(quote).not.toMatch(/[<>]/);
+      expect((quote ?? '').length).toBeLessThanOrEqual(1000);
+    }
+    const chatgpt = answerOn('chatgpt_web', (answer) => answer.citations.length > 0);
+    expect((await fieldsOf(chatgpt)).citations.every((citation) => citation.quote === null)).toBe(true);
   });
 });
 
@@ -1179,18 +1267,23 @@ describe('prompts summary with include=entities', () => {
     expect(engineRows(comma).every((engine) => engine.entities?.length === 6)).toBe(true);
   });
 
-  it('refuses a block the API does not build yet, `series` and any unknown value, as the API does', async () => {
+  it('refuses any value but series and entities, as the API does', async () => {
     const viewer = mockBrowser('viewer');
     const codes = async (value: string): Promise<string[]> =>
       fieldCodes(await viewer.call('GET', `${FYNIX}/ai/prompts-summary?include=${value}`));
-    expect(await codes('series')).toEqual(['include.0:literal_error']);
-    expect(await codes('entities,series')).toEqual(['include.1:literal_error']);
-    expect(await codes('bogus,series')).toEqual(['include.0:literal_error', 'include.1:literal_error']);
-    const answer = await viewer.call('GET', `${FYNIX}/ai/prompts-summary?include=series`);
+    expect(await codes('bogus')).toEqual(['include.0:literal_error']);
+    expect(await codes('entities,bogus')).toEqual(['include.1:literal_error']);
+    expect(await codes('bogus,weeks')).toEqual(['include.0:literal_error', 'include.1:literal_error']);
+    const answer = await viewer.call('GET', `${FYNIX}/ai/prompts-summary?include=bogus`);
     expect(answer.status).toBe(422);
     expect(answer.code).toBe('validation_failed');
     expect(answer.body.errors).toEqual([
-      { location: 'query', path: 'include.0', code: 'literal_error', message: "Input should be 'entities'" },
+      {
+        location: 'query',
+        path: 'include.0',
+        code: 'literal_error',
+        message: "Input should be 'series' or 'entities'",
+      },
     ]);
   });
 });

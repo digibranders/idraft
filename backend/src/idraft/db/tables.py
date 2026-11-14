@@ -635,6 +635,28 @@ taxonomy_vocabularies = Table(
     schema="core",
 )
 
+# Who sees which cards and numbers on a screen (docs/04-data-model.md section 11.6a). A row with
+# no `owner_user_id` is the workspace's team default; row security keeps personal rows private.
+layouts = Table(
+    "layouts",
+    metadata,
+    _id(),
+    Column("workspace_id", Uuid, ForeignKey(workspaces.c.id, ondelete="CASCADE"), nullable=False),
+    Column("owner_user_id", Uuid),
+    Column("screen", Text, nullable=False),
+    Column("document", JSONB, nullable=False),
+    Column("schema_version", Integer, nullable=False),
+    Column("updated_by", Uuid, ForeignKey(users.c.id), nullable=False),
+    _created_at(),
+    Column("updated_at", DateTime(timezone=True), nullable=False, server_default=FetchedValue()),
+    ForeignKeyConstraint(
+        ["workspace_id", "owner_user_id"],
+        [memberships.c.workspace_id, memberships.c.user_id],
+        ondelete="CASCADE",
+    ),
+    schema="core",
+)
+
 taxonomy_terms = Table(
     "taxonomy_terms",
     metadata,
@@ -1428,6 +1450,8 @@ ai_prompts = Table(
     Column("funnel_stage", Text, nullable=False, server_default=FetchedValue()),
     Column("is_branded", Boolean, nullable=False, server_default=FetchedValue()),
     Column("prompt_type", Text, nullable=False, server_default=FetchedValue()),
+    Column("prompt_type_source", Text, nullable=False, server_default=FetchedValue()),
+    Column("is_branded_source", Text, nullable=False, server_default=FetchedValue()),
     Column("importance", SmallInteger, nullable=False, server_default=FetchedValue()),
     Column("expected_frequency", Text, nullable=False, server_default=FetchedValue()),
     Column("source", Text, nullable=False, server_default=FetchedValue()),
@@ -1597,6 +1621,7 @@ ai_citations = Table(
     Column("role_entity_id", Uuid),
     Column("referral_tag", Text),
     Column("flags", ARRAY(Text), nullable=False, server_default=FetchedValue()),
+    Column("quote", Text),
     _answer_key(),
     schema="ai",
 )

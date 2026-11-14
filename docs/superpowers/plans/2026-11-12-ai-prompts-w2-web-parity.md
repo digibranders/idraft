@@ -220,6 +220,8 @@ apps/web/messages/en.json                                     prompts.strip.*, p
 
 **Commit:** `Prompt inspector: tabs for latest answers, history with intervals, competitors and stats`
 
+**Status (2026-11-12): done, without the Citations tab** (commits "Prompt inspector: the models behind the tabs ...", "Prompt inspector: tabs for the latest answer of each engine, weekly history with Wilson bands, competitors and stats" and the e2e and docs commit). It lives in `latest-model.ts`, `history-model.ts` (`weeklyHistory`, `historyEvents`, `rateCeiling`, `engineRole`), `competitor-counts.ts`, `stats-model.ts`, `inspector-strip.tsx`, `inspector-latest.tsx`, `inspector-history.tsx`, `inspector-competitors.tsx`, `inspector-stats.tsx`, `marked-answer.tsx` (shared with the answer viewer), `inspector-reads.ts`, `prompt-inspector.tsx` and `prompts-screen.tsx`, with `lib/charts/rate-band-chart.ts` for the band and `components/app/metric/confidence-indicator.tsx`. Decided on the way: History draws points over the trailing 4 weeks of the summary's weekly series (summed, so the weeks add up exactly on a prompt row; the plan's 28 day rolling series from daily answers is not built, and a single week holds about 2 answers, too few for a band), the first three points pool fewer weeks; Latest reads its own newest valid answer per engine over 90 days (92 calendar days would be refused across a clock change, the API counting elapsed time) so the page window does not change it. The mock needed no change (it already returns 92 days of answers with `competitor_mentions` and `model_reported`). Not done: the Citations tab (W7), the "Gemini had no valid answer for N days" event, version and panel events (slice 4), the interval in the rate tooltips of the tables (G48), a registry entry of `ConfidenceIndicator` in the design system preview, and `pnpm build` and the e2e run (left to the owner).
+
 ### Task W5: Menus, bulk actions, export, views and details (G02 to G04, G07, G08, G26 to G28, G46, G47, G82, G110, G118, G123 to G125)
 
 **Needs from the backend:** none. Bulk Run now is capped at 20 manual runs a day until B7 (decision D-5). **Mocks first:** existing run-now, archive and patch mocks.
@@ -246,6 +248,8 @@ apps/web/messages/en.json                                     prompts.strip.*, p
 - [ ] Add prompt buttons: topic menu, drawer header, bulk bar; the dialog takes the topic as a default term.
 - [ ] Client CSV export reusing the rankings export file helper through `@/lib` (move the helper there if needed, features do not import each other).
 - [ ] Messages, then gate (with `pnpm build`).
+
+**Status (2026-11-12): the selection, bulk actions and row menus of W5 are done** (commits "Topics & Prompts: row selection with a bulk bar", "Topics & Prompts: bulk Run now, Archive and Export CSV" and the row menus commit). They live in `selection-model.ts`, `run-model.ts`, `export-rows.ts`, `prompt-action.ts`, `use-prompt-actions.tsx` (not the plan's `row-menu.tsx` and `bulk-bar.tsx`: the shared `DataTable` bulk bar and row menus are reused), `topics-table.tsx` and `prompts-screen.tsx`, and the CSV writer moved to `lib/csv/csv-write.ts`. The client loops are replaced (W10, below): bulk Run now is one `POST {P}/ai/runs` and Archive one `bulk-archive`, and the 20 a day cap text is now the confirm's "one manual run" sentence. Not done: view presets (`views-model.ts`, G02), the Edit details dialog and its menu item (G46), the header "Add prompt" beyond the existing button, the Add prompt and Run now buttons in the topic drawer, "Select all N matching" (the list holds every matching prompt, as Rankings in client mode), right click (the shared table has none) and the Branded three way (G08).
 
 **Commit:** `Topics & Prompts: row and topic menus, bulk actions, CSV export, view presets, details dialog`
 
@@ -307,6 +311,8 @@ apps/web/messages/en.json                                     prompts.strip.*, p
 
 ### Task W10: Bulk run (G26, G47, G66; U-21)
 
+**Status (2026-11-12): done** (commit "Topics & Prompts: bulk Run now and Archive use the bulk routes"). It lives in `use-prompt-actions.tsx` and `run-model.ts` (`chunkIds`, `skipCounts`, `runProblemOf`, `summarizeRuns`), with `bulkRun` and `bulkArchive` of `prompt-queries.ts`. More than 150 prompts are sent as requests of 150, each one manual run; the confirm says so, and says how many of the 20 are used once a run of the project has answered. One prompt keeps the prompt's own run-now route.
+
 **Needs from the backend:** B7 (`POST {P}/ai/runs` with `prompt_ids` and `engine_codes`, one manual run). **Mocks first:** to the handoff.
 
 **Files:** Modify `bulk-bar.tsx`, `row-menu.tsx`, `prompt-queries.ts`, mocks.
@@ -316,6 +322,8 @@ apps/web/messages/en.json                                     prompts.strip.*, p
 **Commit:** `Bulk run and bulk archive for prompts`
 
 ### Task W11: Weekly trend sparklines and the topic visibility trend (G29, G44, G112; DB-01)
+
+**Status (2026-11-12): the Trend columns are done** (commit "Topics & Prompts: a weekly Trend column"): `trend-model.ts` (`trendPoints`, `trendDirection`), `trend-column.tsx` (`useTrendColumn` on `SparklineCell`), both tables, and the page's one summary read now asks `include=series`. On the Eventus mock data that read is 479 KB for 28 days and 1.03 MB for 90 days, against 178 KB and 188 KB without it, so gzip (B0) should be on first. Not built: the topic drawer's trend chart, entity lines, hollow points for weeks under 4 answers, and the second read from 55 days back (the series follows the window of the page).
 
 **Needs from the backend:** B3 (D1 Task 4: `include=series`, weeks start Monday in the project timezone, at most 14 points, empty weeks as zero counts with `value` null). Entity lines in the drawer also need B5, and the API gzip task B0 should be on develop first (decided 2026-11-12; `include=series,entities` is about 1.5 MB at full capacity). **Mocks first:** to D1 Decision 9.
 

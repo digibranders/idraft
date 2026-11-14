@@ -3,14 +3,17 @@
 import { useLocale, useTranslations } from 'next-intl';
 import { useMemo } from 'react';
 
-import { countText, engineSortId, SORT_ID, validAnswers, type RateMetric } from './prompt-model';
+import { useChangeWords, useComparedWindow, useCompare, type ComparedWindow } from './compare';
+import { cellsOfPrompt, countText, engineSortId, SORT_ID, type RateMetric } from './prompt-model';
 import { ENGINE_COLUMN_WIDTH, useEngineRateColumns, useRateColumns } from './rate-columns';
-import { cellFigure } from './rate-model';
+import { PROMPT_COLUMN_ENTRIES, withColumnEntries } from './seams/columns';
+import { useTrendColumn } from './trend-column';
 import { col, type UnknownValue } from '@/components/app/data-table/columns';
 import type { DataTableColumn } from '@/components/app/data-table/types';
 import { Badge } from '@/components/ui/badge';
 import type { EngineSummary, MetricCell, ProjectEngine, Prompt, PromptSummaryRow } from '@/lib/api/types';
 import { EMPTY_VALUE, formatList } from '@/lib/format';
+import { cellFigure, validAnswers } from '@/lib/rates/rate-model';
 
 /** A row of the Prompts tab: the prompt, its counts when the summary has them, and its facts in words. */
 export interface PromptRow {
@@ -105,23 +108,31 @@ export interface PromptColumns {
   rowName: (row: PromptRow) => string;
 }
 
-/** No row in counts that have arrived is no answers; no counts yet is not knowing. */
-const cellsOfPrompt = (row: PromptRow): readonly EngineSummary[] | undefined =>
-  row.summary?.engines ?? (row.countsLoaded ? [] : undefined);
-
 /**
  * The columns of the Prompts tab (ADR-DS-022 decision 9): Prompt, Topic, Country, Mention rate and Citation
- * rate (the average of the engines shown), then each engine shown with the value of `metric`. The counts of
+ * rate (the average of the engines shown), Trend (the weekly mention rate), then each engine shown with the
+ * value of `metric`. The counts of
  * Mentioned and Cited per engine wait in the column chooser.
  */
-export function usePromptColumns(engines: readonly ProjectEngine[], metric: RateMetric): PromptColumns {
+export function usePromptColumns(
+  engines: readonly ProjectEngine[],
+  metric: RateMetric,
+  /** The window the summary was compared with: the screen builds these columns above its provider of it. */
+  comparedWindow?: ComparedWindow,
+): PromptColumns {
   const t = useTranslations('prompts');
+  const root = useTranslations();
   const locale = useLocale();
-  const { mention, citation } = useRateColumns(engines, cellsOfPrompt);
+  const { compare } = useCompare();
+  const changeWords = useChangeWords();
+  const contextWindow = useComparedWindow();
+  const compared = comparedWindow ?? contextWindow;
+  const { mention, citation } = useRateColumns(engines, cellsOfPrompt, { window: compared });
+  const trend = useTrendColumn(engines, cellsOfPrompt);
   const engineRateColumns = useEngineRateColumns(engines, cellsOfPrompt, metric);
   const countColumns = useEngineColumns(engines, cellsOfPrompt, { sortable: true, defaultVisible: false });
   return useMemo(() => {
-    const columns: DataTableColumn<PromptRow>[] = [
+    const builtIn: DataTableColumn<PromptRow>[] = [
       col.keyword<PromptRow>(SORT_ID.prompt, (row) => row.prompt.current_version.text, {
         header: t('columns.prompt'),
         trailing: (row) => (row.prompt.is_branded ? <Badge>{t('branded')}</Badge> : null),
@@ -166,14 +177,39 @@ export function usePromptColumns(engines: readonly ProjectEngine[], metric: Rate
       }),
       mention,
       citation,
+      trend,
       ...engineRateColumns,
       ...countColumns,
     ];
+    // Before the sort fields are read, so a sortable column of an entry is a valid `?sort=` id
+    const columns = withColumnEntries(builtIn, PROMPT_COLUMN_ENTRIES, {
+      engines,
+      metric,
+      t: root,
+      locale,
+      compare,
+      comparedWindow: compared,
+      changeWords,
+    });
     return {
       columns,
       sortFields: new Set(columns.flatMap((column) => (column.sortValue === undefined ? [] : [column.id]))),
       searchText: (row) => `${row.prompt.current_version.text} ${row.topics ?? ''}`.toLocaleLowerCase(locale),
       rowName: (row) => row.prompt.current_version.text,
     };
-  }, [t, locale, mention, citation, engineRateColumns, countColumns]);
+  }, [
+    t,
+    root,
+    locale,
+    engines,
+    metric,
+    compare,
+    compared,
+    changeWords,
+    mention,
+    citation,
+    trend,
+    engineRateColumns,
+    countColumns,
+  ]);
 }

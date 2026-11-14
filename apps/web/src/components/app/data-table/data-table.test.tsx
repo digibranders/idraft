@@ -4,7 +4,16 @@ import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } fr
 
 import { col } from './columns';
 import { DataTable } from './data-table';
-import type { DataTableColumn, RecordAction, RowActions, RowTree, Selection, ServerPaging, TableStatus } from './types';
+import type {
+  ColumnGroup,
+  DataTableColumn,
+  RecordAction,
+  RowActions,
+  RowTree,
+  Selection,
+  ServerPaging,
+  TableStatus,
+} from './types';
 import { CopyButton } from '@/components/app/cells/copy-button';
 import { InspectorOverlayContext } from '@/components/app/inspector/inspector-layout';
 import { CELL_CONTROL } from '@/lib/tables/grid-focus';
@@ -68,7 +77,16 @@ function Harness({
   columns = COLUMNS,
   loadProgress = null,
   rowTone,
+  pinActions = false,
+  columnGroups = false,
+  startDensity,
+  search: searchFromOutside,
 }: {
+  /** A search the page sets from outside (a link, the browser's Back), over what was typed in the table. */
+  search?: string;
+  pinActions?: boolean;
+  columnGroups?: boolean;
+  startDensity?: Density;
   rowTone?: (row: Row) => 'own' | undefined;
   loadProgress?: { loaded: number; total: number } | null;
   columns?: readonly DataTableColumn<Row>[];
@@ -82,9 +100,10 @@ function Harness({
   rowName?: (row: Row) => string;
 }): ReactElement {
   const [sort, setSort] = useState<readonly SortKey[]>(DEFAULT_SORT);
-  const [density, setDensity] = useState<Density>(parseDensity(null));
+  const [density, setDensity] = useState<Density>(startDensity ?? parseDensity(null));
   const [visible, setVisible] = useState<readonly string[] | null>(null);
-  const [search, setSearch] = useState('');
+  const [typed, setSearch] = useState('');
+  const search = searchFromOutside ?? typed;
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [allMatching, setAllMatching] = useState(false);
   return (
@@ -93,6 +112,8 @@ function Harness({
         caption="Keywords"
         itemNoun={{ one: 'keyword', other: 'keywords' }}
         columns={columns}
+        pinActions={pinActions}
+        columnGroups={columnGroups}
         getRowId={rowId}
         rows={rows}
         total={server === undefined ? rows.length : 4812}
@@ -130,15 +151,22 @@ function Harness({
   );
 }
 
-/** The width the bulk bar's action area is given; the grid's region is always 1600 px. */
+/** The width the bulk bar's action area is given. */
 let actionsWidth = 1600;
+/** The width the grid's region is given: 1600 px unless a test makes the table overflow. */
+let regionWidth = 1600;
 
 class FixedResizeObserver {
   constructor(private readonly callback: ResizeObserverCallback) {}
   observe(target: Element): void {
     const inBar = target instanceof HTMLElement && target.dataset.slot === 'bulk-actions';
     this.callback(
-      [{ target, contentRect: { width: inBar ? actionsWidth : 1600, height: 480 } } as unknown as ResizeObserverEntry],
+      [
+        {
+          target,
+          contentRect: { width: inBar ? actionsWidth : regionWidth, height: 480 },
+        } as unknown as ResizeObserverEntry,
+      ],
       this as unknown as ResizeObserver,
     );
   }
@@ -148,6 +176,7 @@ class FixedResizeObserver {
 
 beforeEach(() => {
   actionsWidth = 1600;
+  regionWidth = 1600;
   onOpen.mockReset();
   archive.mockReset();
   vi.stubGlobal('ResizeObserver', FixedResizeObserver);
@@ -1416,14 +1445,12 @@ describe('DataTable tree mode', () => {
     sort = [],
     selection = {},
     toolbarEnd,
-    toolbarStart,
     rows = TREE_ROWS,
     tree = TREE,
   }: {
     sort?: readonly SortKey[];
     selection?: Partial<Selection>;
     toolbarEnd?: ReactElement;
-    toolbarStart?: ReactElement;
     rows?: Row[];
     tree?: Readonly<Record<string, RowTree>>;
   }): ReactElement {
@@ -1453,7 +1480,6 @@ describe('DataTable tree mode', () => {
           rowTree={(row) => tree[row.id]}
           onToggleGroup={toggle}
           toolbarEnd={toolbarEnd}
-          toolbarStart={toolbarStart}
           status="ready"
           errorState={<p>The keywords did not load.</p>}
           emptyState={<p>No keywords yet.</p>}
@@ -1618,6 +1644,37 @@ describe('DataTable tree mode', () => {
     expect(toggle).not.toHaveBeenCalled();
   });
 
+  it('has the header checkbox cover the group rows as well when the screen asks for it', async () => {
+    const onChange = vi.fn<(ids: ReadonlySet<string>) => void>();
+    const { user, rerender } = renderWithProviders(<TreeHarness selection={{ onChange }} />);
+    expect(screen.getByRole('checkbox', { name: 'Select all 2 keywords loaded' })).toBeInTheDocument();
+    rerender(<TreeHarness selection={{ onChange, headerCoversGroups: true }} />);
+    await user.click(screen.getByRole('checkbox', { name: 'Select all 4 keywords loaded' }));
+    expect(onChange).toHaveBeenCalledExactlyOnceWith(new Set(['g1', 'c1', 'c2', 'g2']));
+  });
+
+  it('has Clear call the screen own clear, and not change the selected ids, when it gives one', async () => {
+    const onChange = vi.fn<(ids: ReadonlySet<string>) => void>();
+    const onClear = vi.fn<() => void>();
+    const { user } = renderWithProviders(
+      <TreeHarness selection={{ selectedIds: new Set(['c1']), selectedCount: 3, onChange, onClear }} />,
+    );
+    await user.click(within(bulkBar()).getByRole('button', { name: 'Clear selection' }));
+    expect(onClear).toHaveBeenCalledOnce();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('says in the bulk bar what the screen words the selection as, in place of the count of ids', () => {
+    renderWithProviders(
+      <TreeHarness
+        selection={{ selectedIds: new Set(['g1']), selectedCount: 7, selectedLabel: '2 topics selected, 7 prompts' }}
+      />,
+    );
+    expect(within(bulkBar()).getByText('2 topics selected, 7 prompts')).toBeInTheDocument();
+    expect(within(bulkBar()).queryByText('7 selected')).toBeNull();
+    expect(screen.getByRole('group', { name: 'Bulk actions, 2 topics selected, 7 prompts' })).toBeInTheDocument();
+  });
+
   it('draws a group checkbox as mixed when its id is in indeterminateIds and checked when it is selected', () => {
     renderWithProviders(
       <TreeHarness selection={{ selectedIds: new Set(['g2']), indeterminateIds: new Set(['g1']) }} />,
@@ -1672,14 +1729,6 @@ describe('DataTable tree mode', () => {
     expect(search.compareDocumentPosition(end) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(end.compareDocumentPosition(controls) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(controls).not.toContainElement(end);
-  });
-
-  it('renders toolbarStart first, before the search field', () => {
-    renderWithProviders(<TreeHarness toolbarStart={<button type="button">Topics</button>} />);
-    const start = screen.getByRole('button', { name: 'Topics' });
-    const search = screen.getByRole('searchbox', { name: 'Search in table' });
-    expect(start.compareDocumentPosition(search) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(screen.getByRole('toolbar', { name: /Keywords/ })).not.toContainElement(start);
   });
 
   it('wraps the toolbar on a narrow table: the switch and the controls drop to a second line together', () => {
@@ -1814,8 +1863,1471 @@ describe('DataTable tree mode', () => {
     });
   });
 
+  describe('announcing the label of its own', () => {
+    it('announces a new label when only the label changes and the count stays', async () => {
+      const { rerender } = renderWithProviders(
+        <TreeHarness
+          selection={{ selectedIds: new Set(['g1']), selectedCount: 7, selectedLabel: '1 topic, 7 prompts' }}
+        />,
+      );
+      const region = document.getElementById('live-region-polite');
+      expect(region?.textContent).toBe('');
+      rerender(
+        <TreeHarness
+          selection={{ selectedIds: new Set(['g1']), selectedCount: 7, selectedLabel: '2 topics, 7 prompts' }}
+        />,
+      );
+      await waitFor(() => expect(region).toHaveTextContent('2 topics, 7 prompts'));
+    });
+  });
+
   it('passes the accessibility check', async () => {
     const { container } = renderWithProviders(<TreeHarness />);
     expect(await axe(container)).toHaveNoViolations();
+  });
+});
+
+describe('DataTable column groups', () => {
+  const ENGINE_A: ColumnGroup = { id: 'engine-a', label: 'Engine A' };
+  const ENGINE_B: ColumnGroup = { id: 'engine-b', label: 'Engine B' };
+  // No column has a tooltip here, so the header markup holds no generated ids that differ between two renders
+  const columnsOf = (grouped: boolean): DataTableColumn<Row>[] => [
+    col.keyword<Row>('keyword', (row) => row.keyword, { header: 'Keyword' }),
+    col.volume<Row>('volume', (row) => row.volume, { header: 'Volume', group: grouped ? ENGINE_A : undefined }),
+    col.count<Row>('difficulty', (row) => row.difficulty, { header: 'KD', group: grouped ? ENGINE_A : undefined }),
+    col.count<Row>('rank', (row) => row.difficulty + 1, { header: 'Rank', group: grouped ? ENGINE_B : undefined }),
+    col.count<Row>('score', (row) => row.difficulty + 2, { header: 'Score', group: grouped ? ENGINE_B : undefined }),
+  ];
+  const GROUPED = columnsOf(true);
+  const SELECTION_STATE = { matchingTotal: null, allMatching: false, onAllMatchingChange: vi.fn() };
+
+  function GroupHarness({
+    rows = rowsOf(3),
+    columns = GROUPED,
+    columnGroups = true,
+    server,
+    status = 'ready',
+    bare = false,
+  }: {
+    rows?: Row[];
+    columns?: readonly DataTableColumn<Row>[];
+    columnGroups?: boolean;
+    server?: ServerPaging;
+    status?: TableStatus;
+    /** No selection and no row actions: the data columns are the whole table, so a group can end it. */
+    bare?: boolean;
+  }): ReactElement {
+    const [sort, setSort] = useState<readonly SortKey[]>(DEFAULT_SORT);
+    const [visible, setVisible] = useState<readonly string[] | null>(null);
+    const [search, setSearch] = useState('');
+    const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+    return (
+      <div className="flex h-200 flex-col">
+        <DataTable<Row>
+          caption="Keywords"
+          itemNoun={{ one: 'keyword', other: 'keywords' }}
+          columns={columns}
+          columnGroups={columnGroups}
+          getRowId={rowId}
+          rows={rows}
+          total={server === undefined ? rows.length : 4812}
+          server={server}
+          sort={sort}
+          onSortChange={setSort}
+          defaultSort={DEFAULT_SORT}
+          density="compact"
+          onDensityChange={vi.fn()}
+          columnState={{ visible, onChange: setVisible }}
+          search={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="Search keywords"
+          searchText={keywordOf}
+          selection={bare ? undefined : { ...SELECTION_STATE, selectedIds: selected, onChange: setSelected }}
+          rowActions={bare ? undefined : ACTIONS}
+          rowName={keywordOf}
+          onRowOpen={onOpen}
+          status={status}
+          errorState={<p>The keywords did not load.</p>}
+          emptyState={<p>No keywords yet.</p>}
+          filteredEmptyState={<p>No keywords match.</p>}
+        />
+      </div>
+    );
+  }
+
+  const headerRowElements = (): HTMLElement[] => [...grid().querySelectorAll<HTMLElement>('thead tr')];
+  const headerCell = (name: RegExp | string): HTMLElement => within(grid()).getByRole('columnheader', { name });
+  /** The header markup without the attributes that carry generated ids. */
+  const headMarkup = (): string =>
+    (grid().querySelector('thead')?.innerHTML ?? '').replace(/ (?:id|for|aria-\w+)="[^"]*"/g, '');
+  const cellOf = (row: number, column: number): HTMLElement => {
+    const cell = grid().querySelector<HTMLElement>(`[data-cell="${String(row)}:${String(column)}"]`);
+    if (cell === null) throw new Error(`No cell ${String(row)}:${String(column)}`);
+    return cell;
+  };
+
+  it('draws one header row when columns have groups but columnGroups is off', () => {
+    const { unmount } = renderWithProviders(<GroupHarness columns={GROUPED} columnGroups={false} />);
+    const withGroups = headMarkup();
+    expect(headerRowElements()).toHaveLength(1);
+    expect(headerRowElements()[0]).toHaveClass('h-row-header');
+    expect(screen.queryByRole('columnheader', { name: 'Engine A' })).toBeNull();
+    unmount();
+    renderWithProviders(<GroupHarness columns={columnsOf(false)} columnGroups={false} />);
+    expect(headMarkup()).toBe(withGroups);
+  });
+
+  it('draws a group cell with colSpan over its columns and one sortable header per column', async () => {
+    const { user } = renderWithProviders(<GroupHarness />);
+    const engineA = headerCell('Engine A');
+    expect(engineA).toHaveAttribute('colspan', '2');
+    expect(engineA).toHaveAttribute('scope', 'colgroup');
+    expect(engineA).toHaveClass('h-6');
+    expect(headerCell('Engine B')).toHaveAttribute('colspan', '2');
+    // A group cell is static text: no tab stop, no sort, no options menu
+    expect(engineA).not.toHaveAttribute('tabindex');
+    expect(engineA).not.toHaveAttribute('data-cell');
+    expect(within(engineA).queryByRole('button')).toBeNull();
+    // Columns under a group have their own header in the second row; the others span both rows
+    const [first, second] = headerRowElements();
+    expect(first).toContainElement(engineA);
+    expect(second).toContainElement(headerCell(/^Volume/));
+    expect(second).toContainElement(headerCell(/^KD/));
+    expect(second).toContainElement(headerCell(/^Score/));
+    expect(first).toContainElement(headerCell(/^Keyword/));
+    for (const name of [/^Keyword/, /^Actions/]) expect(headerCell(name)).toHaveAttribute('rowspan', '2');
+    expect(cellOf(-1, 0)).toHaveAttribute('rowspan', '2');
+    expect(headerCell(/^Volume/)).not.toHaveAttribute('rowspan');
+    // One sortable header per column
+    expect(headerCell(/^KD/)).not.toHaveAttribute('aria-sort');
+    await user.click(within(headerCell(/^KD/)).getByRole('button', { name: 'KD' }));
+    expect(headerCell(/^KD/)).toHaveAttribute('aria-sort');
+    expect(headerCell(/^Volume/)).not.toHaveAttribute('aria-sort');
+  });
+
+  it('numbers header rows 1 and 2, body rows from 3, and counts both in aria-rowcount (client and server mode)', () => {
+    const { unmount } = renderWithProviders(<GroupHarness rows={rowsOf(3)} />);
+    expect(grid()).toHaveAttribute('aria-rowcount', '5');
+    const rows = within(grid()).getAllByRole('row');
+    expect(rows.map((row) => row.getAttribute('aria-rowindex'))).toEqual(['1', '2', '3', '4', '5']);
+    unmount();
+    const server = renderWithProviders(<GroupHarness rows={rowsOf(3)} server={SERVER_PAGE} />);
+    expect(grid()).toHaveAttribute('aria-rowcount', '4814');
+    expect(within(grid()).getAllByRole('row')[2]).toHaveAttribute('aria-rowindex', '203');
+    server.unmount();
+    // A message in the body is the row after both header rows
+    renderWithProviders(<GroupHarness rows={[]} status="empty" />);
+    expect(grid()).toHaveAttribute('aria-rowcount', '3');
+    expect(within(grid()).getAllByRole('row')[2]).toHaveAttribute('aria-rowindex', '3');
+  });
+
+  it("collapses a group to the column's own tall header when the chooser hides all but one of its columns", async () => {
+    const { user } = renderWithProviders(<GroupHarness />);
+    await user.click(screen.getByRole('button', { name: 'KD column options' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Hide column' }));
+    expect(screen.queryByRole('columnheader', { name: 'Engine A' })).toBeNull();
+    expect(headerCell(/^Volume/)).toHaveAttribute('rowspan', '2');
+    expect(headerRowElements()[0]).toContainElement(headerCell(/^Volume/));
+    // The other group still spans, so two header rows remain
+    expect(headerCell('Engine B')).toHaveAttribute('colspan', '2');
+    expect(headerRowElements()).toHaveLength(2);
+    expect(grid()).toHaveAttribute('aria-rowcount', '5');
+  });
+
+  it('keeps one header row when every group has one shown column', () => {
+    const lone = [
+      col.keyword<Row>('keyword', (row) => row.keyword, { header: 'Keyword' }),
+      col.volume<Row>('volume', (row) => row.volume, { header: 'Volume', group: ENGINE_A }),
+      col.count<Row>('rank', (row) => row.difficulty + 1, { header: 'Rank', group: ENGINE_B }),
+    ];
+    renderWithProviders(<GroupHarness columns={lone} />);
+    expect(headerRowElements()).toHaveLength(1);
+    expect(headerRowElements()[0]).toHaveClass('h-row-header');
+    expect(screen.queryByRole('columnheader', { name: 'Engine A' })).toBeNull();
+    expect(grid().querySelector('[rowspan]')).toBeNull();
+    expect(grid()).toHaveAttribute('aria-rowcount', '4');
+    expect(within(grid()).getAllByRole('row')[1]).toHaveAttribute('aria-rowindex', '2');
+  });
+
+  it('keeps roving focus on the leaf header row: ArrowUp from the first body row lands on a column header and Enter sorts', async () => {
+    const { user } = renderWithProviders(<GroupHarness />);
+    expect(headerCell('Engine A')).toBeInTheDocument();
+    act(() => cellOf(0, 3).focus());
+    await user.keyboard('{ArrowUp}');
+    expect(document.activeElement).toBe(headerCell(/^KD/));
+    expect((document.activeElement as HTMLElement).dataset.cell).toBe('-1:3');
+    await user.keyboard('{Enter}');
+    expect(headerCell(/^KD/)).toHaveAttribute('aria-sort');
+    // The group cell is not in the tab order: the one tab stop is on a leaf header
+    expect(grid().querySelectorAll('[tabindex="0"]')).toHaveLength(1);
+  });
+
+  it("sets the leaf header's sticky offset below the group row and leaves rowWindow math in step (page keys move by the same rows)", async () => {
+    class TallObserver {
+      constructor(private readonly callback: ResizeObserverCallback) {}
+      observe(target: Element): void {
+        this.callback(
+          [{ target, contentRect: { width: 1600, height: 520 } } as unknown as ResizeObserverEntry],
+          this as unknown as ResizeObserver,
+        );
+      }
+      unobserve(): void {}
+      disconnect(): void {}
+    }
+    vi.stubGlobal('ResizeObserver', TallObserver);
+    const { user, unmount } = renderWithProviders(<GroupHarness rows={rowsOf(40)} />);
+    expect(headerCell('Engine A')).toHaveClass('top-0');
+    expect(headerCell(/^Volume/)).toHaveClass('top-6');
+    expect(headerCell(/^Keyword/)).toHaveClass('top-0');
+    // A 520 px view shows 15 rows under a 40 px header and 14 under the 64 px two row header; a page key moves one less
+    act(() => cellOf(0, 1).focus());
+    await user.keyboard('{PageDown}');
+    expect((document.activeElement as HTMLElement).dataset.cell).toBe('13:1');
+    unmount();
+    renderWithProviders(<GroupHarness rows={rowsOf(40)} columnGroups={false} />);
+    act(() => cellOf(0, 1).focus());
+    await user.keyboard('{PageDown}');
+    expect((document.activeElement as HTMLElement).dataset.cell).toBe('14:1');
+  });
+
+  it('puts no aria-colindex on any cell', () => {
+    renderWithProviders(<GroupHarness />);
+    expect(grid().querySelector('[aria-colindex]')).toBeNull();
+    expect(grid()).not.toHaveAttribute('aria-colcount');
+  });
+
+  it('draws no right border on the group cell that ends the table, and one on a group cell with a column after it', () => {
+    renderWithProviders(<GroupHarness bare />);
+    // Engine B ends the table (no selection or actions column); Engine A has Engine B's columns after it
+    expect(headerCell('Engine A')).toHaveClass('border-r');
+    expect(headerCell('Engine B')).not.toHaveClass('border-r');
+  });
+
+  it('draws the refetch bar on the leaf and tall header cells, whose bottom edge ends the header, and not on a group cell', () => {
+    renderWithProviders(<GroupHarness status="refetching" />);
+    const bar = 'after:h-0.5';
+    for (const name of [/^Keyword/, /^Volume/, /^KD/, /^Score/, /^Actions/]) expect(headerCell(name)).toHaveClass(bar);
+    expect(headerCell('Engine A')).not.toHaveClass(bar);
+    expect(headerCell('Engine B')).not.toHaveClass(bar);
+  });
+
+  it('passes the accessibility check with groups', async () => {
+    const { container } = renderWithProviders(<GroupHarness />);
+    expect(await axe(container)).toHaveNoViolations();
+  });
+});
+
+describe('DataTable tree mode, third level', () => {
+  // A topic, its subtopics (one open, one closed), a plain row at level 2, and a second topic
+  const ROWS3: Row[] = [
+    { id: 't1', keyword: 'Topic A', volume: 50, difficulty: 1 },
+    { id: 's1', keyword: 'Sub A1', volume: 30, difficulty: 2 },
+    { id: 'p1', keyword: 'prompt one', volume: 20, difficulty: 3 },
+    { id: 'p2', keyword: 'prompt two', volume: 10, difficulty: 4 },
+    { id: 's2', keyword: 'Sub A2', volume: 15, difficulty: 5 },
+    { id: 'l1', keyword: 'Plain A3', volume: 5, difficulty: 6 },
+    { id: 't2', keyword: 'Topic B', volume: 40, difficulty: 7 },
+  ];
+  const TREE3: Readonly<Record<string, RowTree>> = {
+    t1: { level: 1, expanded: true, setSize: 2, posInSet: 1 },
+    s1: { level: 2, expanded: true, setSize: 3, posInSet: 1 },
+    p1: { level: 3, setSize: 2, posInSet: 1 },
+    p2: { level: 3, setSize: 2, posInSet: 2 },
+    s2: { level: 2, expanded: false, setSize: 3, posInSet: 2 },
+    l1: { level: 2, setSize: 3, posInSet: 3 },
+    t2: { level: 1, expanded: false, setSize: 2, posInSet: 2 },
+  };
+  const toggle = vi.fn<(row: Row) => void>();
+  const onChange = vi.fn<(ids: ReadonlySet<string>) => void>();
+
+  function ThreeHarness({
+    rows = ROWS3,
+    tree = TREE3,
+    selection = {},
+  }: {
+    rows?: Row[];
+    tree?: Readonly<Record<string, RowTree>>;
+    selection?: Partial<Selection>;
+  }): ReactElement {
+    const [search, setSearch] = useState('');
+    const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(new Set());
+    return (
+      <div className="flex h-200 flex-col">
+        <DataTable<Row>
+          caption="Keywords"
+          itemNoun={{ one: 'keyword', other: 'keywords' }}
+          columns={COLUMNS}
+          getRowId={rowId}
+          rows={rows}
+          total={rows.length}
+          sort={[]}
+          onSortChange={vi.fn()}
+          defaultSort={DEFAULT_SORT}
+          density="compact"
+          onDensityChange={vi.fn()}
+          columnState={{ visible: null, onChange: vi.fn() }}
+          search={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="Search keywords"
+          selection={{
+            selectedIds,
+            onChange: (next) => {
+              onChange(next);
+              setSelectedIds(next);
+            },
+            matchingTotal: null,
+            allMatching: false,
+            onAllMatchingChange: vi.fn(),
+            ...selection,
+          }}
+          rowName={keywordOf}
+          onRowOpen={onOpen}
+          rowTree={(row) => tree[row.id]}
+          onToggleGroup={toggle}
+          status="ready"
+          errorState={<p>The keywords did not load.</p>}
+          emptyState={<p>No keywords yet.</p>}
+          filteredEmptyState={<p>No keywords match.</p>}
+        />
+      </div>
+    );
+  }
+
+  const treeGrid = (): HTMLElement => screen.getByRole('treegrid', { name: 'Keywords' });
+  const bodyRows = (): HTMLElement[] => within(treeGrid()).getAllByRole('row').slice(1);
+  const rowOf = (id: string): HTMLElement => {
+    const index = ROWS3.findIndex((row) => row.id === id);
+    const row = bodyRows()[index];
+    if (row === undefined) throw new Error(`No row ${id}`);
+    return row;
+  };
+  const cellAt = (row: number, column: number): HTMLElement => {
+    const cell = treeGrid().querySelector<HTMLElement>(`[data-cell="${String(row)}:${String(column)}"]`);
+    if (cell === null) throw new Error(`No cell ${String(row)}:${String(column)}`);
+    return cell;
+  };
+  const focusedCell = (): string | undefined => (document.activeElement as HTMLElement | null)?.dataset.cell;
+  const headerOf = (id: string): HTMLElement => within(rowOf(id)).getByRole('rowheader');
+
+  beforeEach(() => {
+    toggle.mockReset();
+    onChange.mockReset();
+  });
+
+  it('sets aria-level 3 with its own setsize and posinset, aria-expanded on level 2 groups only, and ignores expanded on level 3', () => {
+    renderWithProviders(
+      <ThreeHarness tree={{ ...TREE3, p1: { level: 3, expanded: true, setSize: 2, posInSet: 1 } }} />,
+    );
+    expect(rowOf('p1')).toHaveAttribute('aria-level', '3');
+    expect(rowOf('p1')).toHaveAttribute('aria-setsize', '2');
+    expect(rowOf('p2')).toHaveAttribute('aria-posinset', '2');
+    expect(rowOf('p1')).not.toHaveAttribute('aria-expanded');
+    expect(rowOf('p1')).not.toHaveAttribute('data-group-row');
+    expect(within(rowOf('p1')).queryByRole('button', { name: /(Expand|Collapse)/ })).toBeNull();
+    expect(rowOf('s1')).toHaveAttribute('aria-level', '2');
+    expect(rowOf('s1')).toHaveAttribute('aria-expanded', 'true');
+    expect(rowOf('s1')).toHaveAttribute('data-group-row');
+    expect(rowOf('s2')).toHaveAttribute('aria-expanded', 'false');
+    expect(rowOf('l1')).not.toHaveAttribute('aria-expanded');
+    expect(rowOf('t1')).toHaveAttribute('aria-level', '1');
+  });
+
+  it('draws a level 2 group row as a band with a disclosure button, in the strong body type', async () => {
+    const { user } = renderWithProviders(<ThreeHarness />);
+    expect(headerOf('s1')).toHaveClass('type-body-strong', 'bg-surface-subtle');
+    expect(headerOf('l1')).not.toHaveClass('type-body-strong');
+    await user.click(screen.getByRole('button', { name: 'Collapse Sub A1' }));
+    expect(toggle).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: 's1' }));
+    expect(screen.getByRole('button', { name: 'Expand Sub A2' })).toBeInTheDocument();
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it('toggles a level 2 group on click, Enter and Right and Left Arrow, calling onToggleGroup with that row', async () => {
+    const { user } = renderWithProviders(<ThreeHarness />);
+    await user.click(within(rowOf('s1')).getByText('Sub A1'));
+    expect(toggle).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: 's1' }));
+    expect(onOpen).not.toHaveBeenCalled();
+    toggle.mockClear();
+    act(() => cellAt(4, 1).focus());
+    await user.keyboard('{Enter}');
+    expect(toggle).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: 's2' }));
+    toggle.mockClear();
+    await user.keyboard('{ArrowRight}');
+    expect(toggle).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: 's2' }));
+    toggle.mockClear();
+    act(() => cellAt(1, 1).focus());
+    await user.keyboard('{ArrowLeft}');
+    expect(toggle).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: 's1' }));
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it('moves Right from an open level 2 group to its first level 3 row and Left from level 3 to the level 2 parent, not the level 1 group', async () => {
+    const { user } = renderWithProviders(<ThreeHarness />);
+    act(() => cellAt(1, 1).focus());
+    await user.keyboard('{ArrowRight}');
+    expect(focusedCell()).toBe('2:1');
+    expect(toggle).not.toHaveBeenCalled();
+    await user.keyboard('{ArrowLeft}');
+    expect(focusedCell()).toBe('1:1');
+    act(() => cellAt(3, 1).focus());
+    await user.keyboard('{ArrowLeft}');
+    expect(focusedCell()).toBe('1:1');
+    // The level 1 group still moves into its first row, which is the level 2 group
+    act(() => cellAt(0, 1).focus());
+    await user.keyboard('{ArrowRight}');
+    expect(focusedCell()).toBe('1:1');
+    expect(toggle).not.toHaveBeenCalled();
+  });
+
+  it('moves Left from a closed level 2 group to its level 1 parent and from a closed level 1 group one cell left', async () => {
+    const { user } = renderWithProviders(<ThreeHarness />);
+    act(() => cellAt(4, 1).focus());
+    await user.keyboard('{ArrowLeft}');
+    expect(focusedCell()).toBe('0:1');
+    act(() => cellAt(5, 1).focus());
+    await user.keyboard('{ArrowLeft}');
+    expect(focusedCell()).toBe('0:1');
+    act(() => cellAt(6, 1).focus());
+    await user.keyboard('{ArrowLeft}');
+    expect(focusedCell()).toBe('6:0');
+    expect(toggle).not.toHaveBeenCalled();
+  });
+
+  it('hands focus to the level 2 group when it closes under a focused level 3 row, and to the level 1 group when that one closes', () => {
+    const { rerender } = renderWithProviders(<ThreeHarness />);
+    act(() => cellAt(2, 1).focus());
+    expect(cellAt(2, 1)).toHaveAttribute('tabindex', '0');
+    const withoutPrompts = ROWS3.filter((row) => row.id !== 'p1' && row.id !== 'p2');
+    rerender(
+      <ThreeHarness
+        rows={withoutPrompts}
+        tree={{ ...TREE3, s1: { level: 2, expanded: false, setSize: 3, posInSet: 1 } }}
+      />,
+    );
+    expect(cellAt(1, 1)).toHaveAttribute('tabindex', '0');
+    expect(focusedCell()).toBe('1:1');
+  });
+
+  it('hands focus to the level 1 group when its level 2 and level 3 rows go, and to the row at that place when every ancestor went', () => {
+    const { rerender, unmount } = renderWithProviders(<ThreeHarness />);
+    act(() => cellAt(2, 1).focus());
+    const onlyTopics = ROWS3.filter((row) => row.id === 't1' || row.id === 't2');
+    rerender(
+      <ThreeHarness
+        rows={onlyTopics}
+        tree={{ ...TREE3, t1: { level: 1, expanded: false, setSize: 2, posInSet: 1 } }}
+      />,
+    );
+    expect(cellAt(0, 1)).toHaveAttribute('tabindex', '0');
+    expect(focusedCell()).toBe('0:1');
+    unmount();
+    const other = renderWithProviders(<ThreeHarness />);
+    act(() => cellAt(2, 1).focus());
+    const fresh: Row[] = ['x0', 'x1', 'x2'].map((id) => ({ id, keyword: id, volume: 1, difficulty: 1 }));
+    const freshTree: Record<string, RowTree> = Object.fromEntries(
+      fresh.map((row, index) => [row.id, { level: 1, setSize: 3, posInSet: index + 1 } satisfies RowTree]),
+    );
+    other.rerender(<ThreeHarness rows={fresh} tree={freshTree} />);
+    expect(cellAt(2, 1)).toHaveAttribute('tabindex', '0');
+    expect(focusedCell()).toBe('2:1');
+  });
+
+  it('selects level 3 rows with a Shift range, the header checkbox and Ctrl+A, and leaves level 2 group rows out unless headerCoversGroups', async () => {
+    const { user, unmount } = renderWithProviders(<ThreeHarness />);
+    await user.click(screen.getByRole('checkbox', { name: 'Select prompt one' }));
+    await user.keyboard('{Shift>}');
+    await user.click(screen.getByRole('checkbox', { name: 'Select Plain A3' }));
+    await user.keyboard('{/Shift}');
+    expect(onChange).toHaveBeenLastCalledWith(new Set(['p1', 'p2', 'l1']));
+    unmount();
+    onChange.mockClear();
+    const header = renderWithProviders(<ThreeHarness />);
+    await header.user.click(screen.getByRole('checkbox', { name: 'Select all 3 keywords loaded' }));
+    expect(onChange).toHaveBeenLastCalledWith(new Set(['p1', 'p2', 'l1']));
+    header.unmount();
+    onChange.mockClear();
+    const keys = renderWithProviders(<ThreeHarness />);
+    act(() => cellAt(2, 1).focus());
+    await keys.user.keyboard('{Control>}a{/Control}');
+    expect(onChange).toHaveBeenLastCalledWith(new Set(['p1', 'p2', 'l1']));
+    keys.unmount();
+    onChange.mockClear();
+    const groups = renderWithProviders(<ThreeHarness selection={{ headerCoversGroups: true }} />);
+    await groups.user.click(screen.getByRole('checkbox', { name: 'Select all 7 keywords loaded' }));
+    expect(onChange).toHaveBeenLastCalledWith(new Set(ROWS3.map((row) => row.id)));
+  });
+
+  it('gives an indeterminate level 2 group checkbox from indeterminateIds', () => {
+    renderWithProviders(
+      <ThreeHarness selection={{ selectedIds: new Set(['s2']), indeterminateIds: new Set(['s1']) }} />,
+    );
+    expect(screen.getByRole('checkbox', { name: 'Select Sub A1' })).toHaveAttribute('aria-checked', 'mixed');
+    expect(screen.getByRole('checkbox', { name: 'Select Sub A2' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Select prompt one' })).not.toBeChecked();
+  });
+
+  it('indents with no spacer in a two level tree, with the spacer on level 3 and on level 2 leaves once a level 2 group exists', () => {
+    const twoLevels: Readonly<Record<string, RowTree>> = {
+      t1: { level: 1, expanded: true, setSize: 1, posInSet: 1 },
+      s1: { level: 2, setSize: 4, posInSet: 1 },
+      p1: { level: 2, setSize: 4, posInSet: 2 },
+      p2: { level: 2, setSize: 4, posInSet: 3 },
+      s2: { level: 2, setSize: 4, posInSet: 4 },
+    };
+    const { unmount } = renderWithProviders(<ThreeHarness rows={ROWS3.slice(0, 5)} tree={{ ...twoLevels }} />);
+    expect(treeGrid().querySelector('[data-tree-spacer]')).toBeNull();
+    expect(headerOf('s1')).toHaveClass('pl-10');
+    expect(headerOf('t1')).not.toHaveClass('pl-10');
+    unmount();
+    renderWithProviders(<ThreeHarness />);
+    // Level 3 and the level 2 leaf line up under the text of a level 2 group: both have the spacer
+    expect(headerOf('p1')).toHaveClass('pl-10');
+    expect(headerOf('p1').querySelector('[data-tree-spacer]')).not.toBeNull();
+    expect(headerOf('l1')).toHaveClass('pl-10');
+    expect(headerOf('l1').querySelector('[data-tree-spacer]')).not.toBeNull();
+    expect(headerOf('s1').querySelector('[data-tree-spacer]')).toBeNull();
+    expect(headerOf('t1').querySelector('[data-tree-spacer]')).toBeNull();
+    expect(headerOf('p1').querySelector('[data-tree-spacer]')).toHaveAttribute('aria-hidden', 'true');
+  });
+
+  it('gives level 3 the spacer and level 2 leaves none while no level 2 row is a group', () => {
+    const noGroups: Readonly<Record<string, RowTree>> = {
+      ...TREE3,
+      s1: { level: 2, setSize: 3, posInSet: 1 },
+      s2: { level: 2, setSize: 3, posInSet: 2 },
+    };
+    renderWithProviders(<ThreeHarness tree={noGroups} />);
+    expect(headerOf('p1').querySelector('[data-tree-spacer]')).not.toBeNull();
+    expect(headerOf('l1').querySelector('[data-tree-spacer]')).toBeNull();
+    expect(headerOf('s1').querySelector('[data-tree-spacer]')).toBeNull();
+  });
+
+  it('counts every rendered row in aria-rowcount and numbers aria-rowindex across three levels', () => {
+    renderWithProviders(<ThreeHarness />);
+    expect(treeGrid()).toHaveAttribute('aria-rowcount', '8');
+    expect(
+      within(treeGrid())
+        .getAllByRole('row')
+        .map((row) => row.getAttribute('aria-rowindex')),
+    ).toEqual(['1', '2', '3', '4', '5', '6', '7', '8']);
+  });
+
+  it('passes the accessibility check with three levels', async () => {
+    const { container } = renderWithProviders(<ThreeHarness />);
+    expect(await axe(container)).toHaveNoViolations();
+  });
+});
+
+describe('DataTable pinned actions column', () => {
+  const PIN_CLASSES = ['right-0', 'border-l', 'border-l-border', 'z-(--z-sticky)'];
+  const actionsHeader = (): HTMLElement => within(grid()).getByRole('columnheader', { name: 'Actions' });
+  const actionCells = (): HTMLElement[] =>
+    within(grid())
+      .getAllByRole('gridcell')
+      .filter((cell) => cell.classList.contains('text-right'));
+  const scrollRegion = (): HTMLElement => {
+    const element = grid().parentElement;
+    if (element === null) throw new Error('The grid has no scroll region');
+    return element;
+  };
+  /** The region as a browser lays it out (jsdom has no layout), scrolled to `left`, then the scroll event. */
+  const scrollTo = (left: number, scrollWidth = 1000, clientWidth = 700): void => {
+    const element = scrollRegion();
+    Object.defineProperty(element, 'scrollWidth', { value: scrollWidth, configurable: true });
+    Object.defineProperty(element, 'clientWidth', { value: clientWidth, configurable: true });
+    Object.defineProperty(element, 'scrollLeft', { value: left, configurable: true });
+    fireEvent.scroll(element);
+  };
+  const hasEdge = (element: HTMLElement): boolean =>
+    element.classList.contains('border-l') && element.classList.contains('border-l-border');
+
+  // The three columns of the harness need 448 px at their narrowest, so these regions are narrower than the table
+  it('leaves the actions column static unless pinActions is set', () => {
+    regionWidth = 400;
+    renderWithProviders(<Harness rows={rowsOf(3)} />);
+    scrollTo(0);
+    // Every header cell is sticky at the top already; only the right pin and its edge are new
+    for (const name of PIN_CLASSES) expect(actionsHeader()).not.toHaveClass(name);
+    expect(actionsHeader()).toHaveClass('z-(--z-table-header)');
+    expect(actionCells()).toHaveLength(3);
+    for (const cell of actionCells()) {
+      for (const name of ['sticky', ...PIN_CLASSES]) expect(cell).not.toHaveClass(name);
+      expect(cell.className).not.toMatch(/z-\(--z-(sticky|pinned-cell)\)/);
+    }
+  });
+
+  it('pins the actions header and cells to the right edge with the right z-index tokens', () => {
+    renderWithProviders(<Harness rows={rowsOf(3)} pinActions />);
+    expect(actionsHeader()).toHaveClass('sticky', 'right-0', 'top-0', 'z-(--z-sticky)');
+    expect(actionCells()).toHaveLength(3);
+    for (const cell of actionCells()) expect(cell).toHaveClass('sticky', 'right-0', 'z-(--z-pinned-cell)');
+    // The other columns are not pinned on the right
+    for (const header of within(grid()).getAllByRole('columnheader')) {
+      if (header !== actionsHeader()) expect(header).not.toHaveClass('right-0');
+    }
+  });
+
+  it('draws the pinned edge only while columns are hidden behind it: overflowing and not at the end, none when the table fits or after scrolling to the end', () => {
+    regionWidth = 400;
+    renderWithProviders(<Harness rows={rowsOf(3)} pinActions />);
+    scrollTo(0);
+    for (const cell of [actionsHeader(), ...actionCells()]) expect(hasEdge(cell)).toBe(true);
+    // Columns before the actions column carry no edge of their own
+    const keywordHeader = within(grid()).getByRole('columnheader', { name: /^Keyword/ });
+    expect(keywordHeader).not.toHaveClass('border-l');
+    scrollTo(150);
+    for (const cell of [actionsHeader(), ...actionCells()]) expect(hasEdge(cell)).toBe(true);
+    // Scrolled to the end (scrollWidth 1000, clientWidth 700): nothing is behind the pin
+    scrollTo(300);
+    for (const cell of [actionsHeader(), ...actionCells()]) expect(hasEdge(cell)).toBe(false);
+    scrollTo(100);
+    for (const cell of [actionsHeader(), ...actionCells()]) expect(hasEdge(cell)).toBe(true);
+  });
+
+  it('gives a body cell with the edge 6 px of left padding, so the trigger does not move by the 1 px border', () => {
+    regionWidth = 400;
+    renderWithProviders(<Harness rows={rowsOf(3)} pinActions />);
+    scrollTo(0);
+    for (const cell of actionCells()) expect(cell).toHaveClass('border-l', 'pl-1.5');
+    scrollTo(300);
+    for (const cell of actionCells()) expect(cell).not.toHaveClass('pl-1.5');
+  });
+
+  it('draws no edge when the table fits the region', () => {
+    renderWithProviders(<Harness rows={rowsOf(3)} pinActions />);
+    scrollTo(0, 1600, 1600);
+    for (const cell of [actionsHeader(), ...actionCells()]) expect(hasEdge(cell)).toBe(false);
+  });
+
+  it('re-renders only when the edge flips, not on every scroll event', () => {
+    regionWidth = 300;
+    const getVolume = vi.fn((row: Row) => row.volume);
+    const columns = [
+      col.keyword<Row>('keyword', (row) => row.keyword, { header: 'Keyword' }),
+      col.volume<Row>('volume', getVolume, { header: 'Volume', priority: 2 }),
+    ];
+    renderWithProviders(<Harness rows={rowsOf(3)} columns={columns} pinActions />);
+    scrollTo(0);
+    // The first no-change update may still be rendered once before React bails out
+    scrollTo(20);
+    const rendered = getVolume.mock.calls.length;
+    scrollTo(60);
+    scrollTo(120);
+    scrollTo(200);
+    expect(getVolume).toHaveBeenCalledTimes(rendered);
+    // The flip at the end is a render
+    scrollTo(300);
+    expect(getVolume.mock.calls.length).toBeGreaterThan(rendered);
+  });
+
+  it('keeps the left pin and the right pin together: selection cell left 0, identity left 40, actions right 0 at a 1280 wide region', () => {
+    regionWidth = 1280;
+    renderWithProviders(<Harness rows={rowsOf(3)} pinActions />);
+    const headers = within(grid()).getAllByRole('columnheader');
+    expect(headers[0]?.style.left).toBe('0px');
+    expect(within(grid()).getByRole('columnheader', { name: /^Keyword/ }).style.left).toBe('40px');
+    expect(actionsHeader()).toHaveClass('right-0');
+    expect(actionsHeader().style.left).toBe('');
+    const [firstRow] = within(grid()).getAllByRole('row').slice(1);
+    if (firstRow === undefined) throw new Error('no row');
+    const cells = within(firstRow).getAllByRole('gridcell');
+    expect(cells[0]?.style.left).toBe('0px');
+    expect(within(firstRow).getByRole('rowheader').style.left).toBe('40px');
+    expect(cells.at(-1)).toHaveClass('right-0');
+    expect(cells.at(-1)?.style.left).toBe('');
+  });
+
+  it('works under two header rows: the cell spans both, at the top', () => {
+    const group: ColumnGroup = { id: 'engine', label: 'Engine' };
+    const columns = [
+      col.keyword<Row>('keyword', (row) => row.keyword, { header: 'Keyword' }),
+      col.volume<Row>('volume', (row) => row.volume, { header: 'Volume', group }),
+      col.count<Row>('difficulty', (row) => row.difficulty, { header: 'KD', group }),
+    ];
+    renderWithProviders(<Harness rows={rowsOf(3)} columns={columns} columnGroups pinActions />);
+    const headerRows = grid().querySelectorAll('thead tr');
+    expect(headerRows).toHaveLength(2);
+    expect(actionsHeader()).toHaveAttribute('rowspan', '2');
+    expect(actionsHeader()).toHaveClass('sticky', 'right-0', 'top-0', 'z-(--z-sticky)');
+    expect(headerRows[0]?.contains(actionsHeader())).toBe(true);
+    expect(headerRows[1]?.contains(actionsHeader())).toBe(false);
+  });
+
+  it('changes nothing about row height in either density: the pin only adds its own classes to the actions cells', () => {
+    const rowClasses = (): string[] =>
+      within(grid())
+        .getAllByRole('row')
+        .map((row) => row.className);
+    const actionClasses = (): string[] => [actionsHeader(), ...actionCells()].map((cell) => cell.className);
+    const added = new Set(['sticky', 'right-0', 'z-(--z-sticky)', 'z-(--z-pinned-cell)']);
+    for (const startDensity of ['compact', 'default'] as const) {
+      const plain = renderWithProviders(<Harness rows={rowsOf(3)} startDensity={startDensity} />);
+      const rowsBefore = rowClasses();
+      const actionsBefore = actionClasses();
+      plain.unmount();
+      const pinned = renderWithProviders(<Harness rows={rowsOf(3)} startDensity={startDensity} pinActions />);
+      expect(rowClasses()).toEqual(rowsBefore);
+      const rowHeight = startDensity === 'compact' ? 'h-row-compact' : 'h-row';
+      for (const row of within(grid()).getAllByRole('row').slice(1)) expect(row).toHaveClass(rowHeight);
+      actionClasses().forEach((pinned, index) => {
+        const before = new Set((actionsBefore[index] ?? '').split(' '));
+        const extra = pinned.split(' ').filter((name) => !before.has(name));
+        // Only the pin's own classes: no height, padding or line-height of its own
+        expect(extra.filter((name) => !added.has(name))).toEqual([]);
+      });
+      pinned.unmount();
+    }
+  });
+
+  it('opens the row menu with Shift+F10 from the pinned cell and returns focus to the pinned cell', async () => {
+    const { user } = renderWithProviders(<Harness rows={rowsOf(3)} pinActions />);
+    const cell = actionCells()[0];
+    if (cell === undefined) throw new Error('no actions cell');
+    act(() => cell.focus());
+    await user.keyboard('{Shift>}{F10}{/Shift}');
+    await user.click(await screen.findByRole('menuitem', { name: 'Open' }));
+    await waitFor(() => {
+      expect(document.activeElement).toBe(cell);
+    });
+  });
+
+  it('passes the accessibility check', async () => {
+    regionWidth = 400;
+    const { container } = renderWithProviders(<Harness rows={rowsOf(3)} pinActions />);
+    scrollTo(0);
+    expect(await axe(container)).toHaveNoViolations();
+  });
+});
+
+describe('DataTable server paging and Select all N matching', () => {
+  const PAGE_ONE = rowsOf(200).slice(0, 100);
+  const PAGE_TWO = rowsOf(200).slice(100);
+  const SERVER_ONE: ServerPaging = { ...SERVER_PAGE, offset: 0, hasPrevious: false };
+  const SERVER_TWO: ServerPaging = { ...SERVER_PAGE, offset: 100 };
+  const ALL_ON_PAGE = 'Select all 100 keywords loaded';
+  const ANNOUNCEMENT = 'All 4,812 matching keywords selected. Bulk actions apply to all of them.';
+  const offerOf = (): HTMLElement | null => within(bulkBar()).queryByRole('button', { name: /matching$/ });
+  const liveRegion = (): HTMLElement => {
+    const element = document.getElementById('live-region-polite');
+    if (element === null) throw new Error('No live region');
+    return element;
+  };
+
+  it('keeps the selection across server pages: ids from page 1 stay selected on page 2, the bar says so', async () => {
+    const { user, rerender } = renderWithProviders(<Harness rows={PAGE_ONE} server={SERVER_ONE} />);
+    await user.click(screen.getByRole('checkbox', { name: ALL_ON_PAGE }));
+    expect(within(bulkBar()).getByText('100 selected')).toBeInTheDocument();
+    rerender(<Harness rows={PAGE_TWO} server={SERVER_TWO} />);
+    expect(within(bulkBar()).getByText('100 selected')).toBeInTheDocument();
+    expect(within(bulkBar()).getByText('100 selected rows are on other pages')).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: ALL_ON_PAGE })).not.toBeChecked();
+    await user.click(screen.getByRole('checkbox', { name: ALL_ON_PAGE }));
+    // Page 1's ids are still on another page, so the bar still says so
+    expect(within(bulkBar()).getByText('200 selected')).toBeInTheDocument();
+    expect(within(bulkBar()).getByText('100 selected rows are on other pages')).toBeInTheDocument();
+  });
+
+  it('offers all matching from a server page once every row of that page is selected, and the header checkbox stays checked on the next page while all matching is on', async () => {
+    const { user, rerender } = renderWithProviders(
+      <Harness rows={PAGE_ONE} server={SERVER_ONE} matchingTotal={4812} />,
+    );
+    await user.click(screen.getByRole('checkbox', { name: 'Select keyword 000' }));
+    expect(offerOf()).toBeNull();
+    await user.click(screen.getByRole('checkbox', { name: ALL_ON_PAGE }));
+    await user.click(within(bulkBar()).getByRole('button', { name: 'Select all 4,812 matching' }));
+    expect(within(bulkBar()).getByText('All 4,812 matching selected')).toBeInTheDocument();
+    rerender(<Harness rows={PAGE_TWO} server={SERVER_TWO} matchingTotal={4812} />);
+    expect(screen.getByRole('checkbox', { name: ALL_ON_PAGE })).toBeChecked();
+    expect(within(bulkBar()).getByText('All 4,812 matching selected')).toBeInTheDocument();
+    expect(within(bulkBar()).queryByText(/on other pages/)).toBeNull();
+    expect(offerOf()).toBeNull();
+  });
+
+  it('announces that every matching keyword is selected, once', async () => {
+    const spoken: string[] = [];
+    const observer = new MutationObserver(() => {
+      if (liveRegion().textContent === ANNOUNCEMENT) spoken.push(ANNOUNCEMENT);
+    });
+    const { user, rerender } = renderWithProviders(
+      <Harness rows={PAGE_ONE} server={SERVER_ONE} matchingTotal={4812} />,
+    );
+    observer.observe(liveRegion(), { childList: true, characterData: true, subtree: true });
+    await user.click(screen.getByRole('checkbox', { name: ALL_ON_PAGE }));
+    await user.click(within(bulkBar()).getByRole('button', { name: 'Select all 4,812 matching' }));
+    await waitFor(() => expect(liveRegion()).toHaveTextContent(ANNOUNCEMENT));
+    rerender(<Harness rows={PAGE_TWO} server={SERVER_TWO} matchingTotal={4812} />);
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+    });
+    observer.disconnect();
+    expect(spoken).toEqual([ANNOUNCEMENT]);
+  });
+
+  it('sends the filters, not ids: the action gets allMatching true across a page change', async () => {
+    const { user, rerender } = renderWithProviders(
+      <Harness rows={PAGE_ONE} server={SERVER_ONE} matchingTotal={4812} />,
+    );
+    await user.click(screen.getByRole('checkbox', { name: ALL_ON_PAGE }));
+    await user.click(within(bulkBar()).getByRole('button', { name: 'Select all 4,812 matching' }));
+    rerender(<Harness rows={PAGE_TWO} server={SERVER_TWO} matchingTotal={4812} />);
+    await user.click(within(bulkBar()).getByRole('button', { name: 'Archive' }));
+    expect(archive).toHaveBeenCalledTimes(1);
+    expect(archive).toHaveBeenCalledWith(expect.any(Array), expect.objectContaining({ allMatching: true }));
+  });
+
+  it('keeps Select all N matching out of reach while matchingTotal is null (unknown total)', async () => {
+    const { user } = renderWithProviders(<Harness rows={PAGE_ONE} server={SERVER_ONE} matchingTotal={null} />);
+    await user.click(screen.getByRole('checkbox', { name: ALL_ON_PAGE }));
+    expect(within(bulkBar()).getByText('100 selected')).toBeInTheDocument();
+    expect(offerOf()).toBeNull();
+  });
+
+  it('keeps focus in the bulk bar after Select all N matching', async () => {
+    const { user } = renderWithProviders(<Harness rows={rowsOf(5)} matchingTotal={4812} />);
+    await user.click(screen.getByRole('checkbox', { name: 'Select all 5 keywords loaded' }));
+    await user.click(within(bulkBar()).getByRole('button', { name: 'Select all 4,812 matching' }));
+    expect(offerOf()).toBeNull();
+    expect(document.activeElement).not.toBe(document.body);
+    expect(bulkBar()).toContainElement(document.activeElement instanceof HTMLElement ? document.activeElement : null);
+    expect(document.activeElement).toHaveTextContent('All 4,812 matching selected');
+    // A way to focus the count, not a tab stop of its own
+    expect(document.activeElement).toHaveAttribute('tabindex', '-1');
+  });
+
+  it('does not offer all matching while a search in memory narrows the loaded rows (client mode)', async () => {
+    const { user } = renderWithProviders(<Harness rows={rowsOf(5)} matchingTotal={4812} />);
+    await user.type(screen.getByRole('searchbox', { name: 'Search in table' }), '003');
+    await user.click(screen.getByRole('checkbox', { name: 'Select all 1 keyword loaded' }));
+    expect(within(bulkBar()).getByText('1 selected')).toBeInTheDocument();
+    expect(offerOf()).toBeNull();
+  });
+
+  it('leaves all matching out of an action while a search set from outside narrows the list, and takes it back when the search clears', async () => {
+    const { user, rerender } = renderWithProviders(<Harness rows={rowsOf(5)} matchingTotal={4812} search="" />);
+    await user.click(screen.getByRole('checkbox', { name: 'Select all 5 keywords loaded' }));
+    await user.click(within(bulkBar()).getByRole('button', { name: 'Select all 4,812 matching' }));
+    expect(within(bulkBar()).getByText('All 4,812 matching selected')).toBeInTheDocument();
+    rerender(<Harness rows={rowsOf(5)} matchingTotal={4812} search="003" />);
+    expect(within(bulkBar()).getByText('5 selected')).toBeInTheDocument();
+    expect(within(bulkBar()).queryByText(/matching selected/)).toBeNull();
+    await user.click(within(bulkBar()).getByRole('button', { name: 'Archive' }));
+    expect(archive).toHaveBeenLastCalledWith(expect.any(Array), {
+      ids: new Set(['k0', 'k1', 'k2', 'k3', 'k4']),
+      allMatching: false,
+    });
+    rerender(<Harness rows={rowsOf(5)} matchingTotal={4812} search="" />);
+    expect(within(bulkBar()).getByText('All 4,812 matching selected')).toBeInTheDocument();
+    await user.click(within(bulkBar()).getByRole('button', { name: 'Archive' }));
+    expect(archive).toHaveBeenLastCalledWith(expect.any(Array), expect.objectContaining({ allMatching: true }));
+  });
+
+  it('does offer it again when the search is cleared', async () => {
+    const { user, rerender } = renderWithProviders(<Harness rows={rowsOf(5)} matchingTotal={4812} search="003" />);
+    await user.click(screen.getByRole('checkbox', { name: 'Select all 1 keyword loaded' }));
+    expect(offerOf()).toBeNull();
+    rerender(<Harness rows={rowsOf(5)} matchingTotal={4812} search="" />);
+    await user.click(screen.getByRole('checkbox', { name: 'Select all 5 keywords loaded' }));
+    expect(offerOf()).toHaveTextContent('Select all 4,812 matching');
+  });
+});
+
+describe('DataTable row context menu', () => {
+  /** A note field in a cell: the browser's own menu belongs to it. */
+  const NOTE = col.url<Row>('note', () => null, {
+    header: 'Note',
+    sortable: false,
+    cell: () => <input aria-label="Note" />,
+  });
+  const NO_ACTIONS_FOR_K1 = (row: Row): readonly RecordAction<Row>[] => (row.id === 'k1' ? [] : ACTIONS);
+  const TREE: Readonly<Record<string, RowTree>> = {
+    k0: { level: 1, expanded: true, setSize: 1, posInSet: 1 },
+    k1: { level: 2, setSize: 2, posInSet: 1 },
+    k2: { level: 2, setSize: 2, posInSet: 2 },
+  };
+  const toggle = vi.fn<(row: Row) => void>();
+
+  /** The columns are: 0 selection, 1 keyword, 2 volume, 3 KD, 4 actions (the note column, when given, is 4). */
+  function ContextHarness({
+    rows,
+    rowActions = ACTIONS,
+    rowContextMenu = true,
+    columns = COLUMNS,
+    tree = false,
+  }: {
+    rows: Row[];
+    /** `null`: the table has no `rowActions` at all. */
+    rowActions?: RowActions<Row> | null;
+    rowContextMenu?: boolean;
+    columns?: readonly DataTableColumn<Row>[];
+    tree?: boolean;
+  }): ReactElement {
+    const [density, setDensity] = useState<Density>(parseDensity(null));
+    const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+    const [allMatching, setAllMatching] = useState(false);
+    return (
+      <div className="flex h-200 flex-col">
+        <DataTable<Row>
+          caption="Keywords"
+          itemNoun={{ one: 'keyword', other: 'keywords' }}
+          columns={columns}
+          getRowId={rowId}
+          rows={rows}
+          total={rows.length}
+          sort={[]}
+          onSortChange={vi.fn()}
+          defaultSort={DEFAULT_SORT}
+          density={density}
+          onDensityChange={setDensity}
+          columnState={{ visible: null, onChange: vi.fn() }}
+          search=""
+          onSearchChange={vi.fn()}
+          searchPlaceholder="Search keywords"
+          selection={{
+            selectedIds: selected,
+            onChange: setSelected,
+            matchingTotal: null,
+            allMatching,
+            onAllMatchingChange: setAllMatching,
+          }}
+          rowActions={rowActions ?? undefined}
+          rowContextMenu={rowContextMenu}
+          rowTree={tree ? (row) => TREE[row.id] : undefined}
+          onToggleGroup={toggle}
+          rowName={keywordOf}
+          onRowOpen={onOpen}
+          status="ready"
+          errorState={<p>The keywords did not load.</p>}
+          emptyState={<p>No keywords yet.</p>}
+          filteredEmptyState={<p>No keywords match.</p>}
+        />
+      </div>
+    );
+  }
+
+  // Looked up in the DOM and not by role: an open menu hides the page behind it from the accessibility tree
+  const bodyRows = (): HTMLElement[] => [...document.querySelectorAll<HTMLElement>('tbody tr[role="row"]')];
+  const bodyRow = (name: string): HTMLElement => {
+    const row = bodyRows().find((candidate) => candidate.querySelector('[role="rowheader"]')?.textContent === name);
+    if (row === undefined) throw new Error(`No row ${name}`);
+    return row;
+  };
+  /** A cell of a row by its column, as the grid numbers them. */
+  const cellOf = (name: string, column: number): HTMLElement => {
+    const cell = bodyRow(name).querySelector<HTMLElement>(`[data-cell$=":${String(column)}"]`);
+    if (cell === null) throw new Error(`No cell ${String(column)} in ${name}`);
+    return cell;
+  };
+  const anchor = (): HTMLElement | null => document.querySelector<HTMLElement>('[data-slot="row-context-anchor"]');
+  const menuLabels = (): (string | null)[] =>
+    within(screen.getByRole('menu'))
+      .getAllByRole('menuitem')
+      .map((item) => item.textContent);
+  /** Whether the event was left to the browser's own menu: not prevented. */
+  const leftToBrowser = (element: Element, init: MouseEventInit = {}): boolean =>
+    fireEvent.contextMenu(element, { clientX: 40, clientY: 30, ...init });
+  const markup = (html: string): string => html.replace(/(?:_r_|:r)[0-9a-z]+[_:]/g, 'ID');
+  const selectedKeywords = (): (string | null | undefined)[] =>
+    bodyRows()
+      .filter((row) => row.getAttribute('aria-selected') === 'true')
+      .map((row) => row.querySelector('[role="rowheader"]')?.textContent);
+
+  beforeEach(() => {
+    toggle.mockReset();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("opens the row menu on right click with the More menu's items, and the browser menu is prevented", async () => {
+    const { user } = renderWithProviders(<ContextHarness rows={rowsOf(3)} />);
+    expect(anchor()).toBeNull();
+    const handled = !leftToBrowser(cellOf('keyword 001', 1));
+    expect(handled).toBe(true);
+    expect(await screen.findByRole('menu', { name: 'Actions for keyword 001' })).toBeInTheDocument();
+    const fromContextMenu = menuLabels();
+    expect(fromContextMenu).toEqual(['Open', 'Archive']);
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+    await user.click(within(bodyRow('keyword 001')).getByRole('button', { name: 'Actions for keyword 001' }));
+    await screen.findByRole('menu');
+    expect(menuLabels()).toEqual(fromContextMenu);
+  });
+
+  it('puts the anchor at the pointer coordinates', async () => {
+    renderWithProviders(<ContextHarness rows={rowsOf(3)} />);
+    leftToBrowser(cellOf('keyword 001', 2), { clientX: 233, clientY: 147 });
+    await screen.findByRole('menu');
+    expect(anchor()).toHaveStyle({ left: '233px', top: '147px' });
+    expect(anchor()).toHaveAccessibleName('Actions for keyword 001');
+  });
+
+  it('focuses the clicked cell and leaves selection, the active row and the inspector alone', async () => {
+    const { user } = renderWithProviders(<ContextHarness rows={rowsOf(3)} />);
+    await user.click(screen.getByRole('checkbox', { name: 'Select keyword 000' }));
+    onOpen.mockClear();
+    const cell = cellOf('keyword 002', 2);
+    leftToBrowser(cell);
+    await screen.findByRole('menu');
+    // The tab stop is on the cell that was clicked
+    expect(cell).toHaveAttribute('tabindex', '0');
+    expect(document.querySelectorAll('table [tabindex="0"]')).toHaveLength(1);
+    expect(onOpen).not.toHaveBeenCalled();
+    expect(toggle).not.toHaveBeenCalled();
+    expect(selectedKeywords()).toEqual(['keyword 000']);
+    expect(bodyRows().some((row) => row.hasAttribute('aria-current'))).toBe(false);
+  });
+
+  it('runs an action on that row only, with the same arguments as the More menu, also while another row is selected', async () => {
+    const { user } = renderWithProviders(<ContextHarness rows={rowsOf(3)} />);
+    await user.click(screen.getByRole('checkbox', { name: 'Select keyword 000' }));
+    leftToBrowser(cellOf('keyword 002', 1));
+    await user.click(await screen.findByRole('menuitem', { name: 'Archive' }));
+    expect(archive).toHaveBeenCalledTimes(1);
+    expect(archive).toHaveBeenLastCalledWith([expect.objectContaining({ id: 'k2' })], {
+      ids: new Set(['k2']),
+      allMatching: false,
+    });
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+    // The same call from the More menu
+    await user.click(within(bodyRow('keyword 002')).getByRole('button', { name: 'Actions for keyword 002' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Archive' }));
+    expect(archive).toHaveBeenCalledTimes(2);
+    expect(archive.mock.calls[1]).toEqual(archive.mock.calls[0]);
+    // Neither opened the row, and the earlier selection is as it was
+    expect(onOpen).not.toHaveBeenCalled();
+    expect(selectedKeywords()).toEqual(['keyword 000']);
+  });
+
+  it('closes on Escape, returns focus to the clicked cell, and the arrows move on from it', async () => {
+    const { user } = renderWithProviders(<ContextHarness rows={rowsOf(3)} />);
+    const cell = cellOf('keyword 001', 2);
+    leftToBrowser(cell);
+    await screen.findByRole('menu');
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(cell));
+    expect(anchor()).toBeNull();
+    await user.keyboard('{ArrowDown}');
+    expect(document.activeElement).toBe(cellOf('keyword 002', 2));
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it('closes on a press outside the menu and leaves the tab stop on the clicked cell', async () => {
+    const { user } = renderWithProviders(<ContextHarness rows={rowsOf(3)} />);
+    const cell = cellOf('keyword 001', 2);
+    leftToBrowser(cell);
+    await screen.findByRole('menu');
+    await user.click(document.body);
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+    expect(anchor()).toBeNull();
+    expect(cell).toHaveAttribute('tabindex', '0');
+    expect(selectedKeywords()).toEqual([]);
+  });
+
+  it('moves the menu to another row on a second right click, never two menus', async () => {
+    renderWithProviders(<ContextHarness rows={rowsOf(3)} />);
+    leftToBrowser(cellOf('keyword 000', 1), { clientX: 10, clientY: 10 });
+    await screen.findByRole('menu', { name: 'Actions for keyword 000' });
+    leftToBrowser(cellOf('keyword 002', 3), { clientX: 300, clientY: 200 });
+    expect(await screen.findByRole('menu', { name: 'Actions for keyword 002' })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getAllByRole('menu')).toHaveLength(1));
+    expect(document.querySelectorAll('[data-slot="row-context-anchor"]')).toHaveLength(1);
+    expect(anchor()).toHaveStyle({ left: '300px', top: '200px' });
+    // The old menu's close must not pull the tab stop back to the cell it was opened from
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    });
+    expect(cellOf('keyword 002', 3)).toHaveAttribute('tabindex', '0');
+    expect(document.querySelectorAll('table [tabindex="0"]')).toHaveLength(1);
+  });
+
+  it('closes the More menu that is open when the context menu opens', async () => {
+    const { user } = renderWithProviders(<ContextHarness rows={rowsOf(3)} />);
+    await user.click(within(bodyRow('keyword 000')).getByRole('button', { name: 'Actions for keyword 000' }));
+    await screen.findByRole('menu', { name: 'Actions for keyword 000' });
+    leftToBrowser(cellOf('keyword 001', 1));
+    await waitFor(() => expect(screen.getAllByRole('menu')).toHaveLength(1));
+    expect(screen.getByRole('menu', { name: 'Actions for keyword 001' })).toBeInTheDocument();
+  });
+
+  it('leaves Shift plus right click, a link in a cell and an input to the browser', async () => {
+    const { rerender, user } = renderWithProviders(<ContextHarness rows={rowsOf(3)} />);
+    expect(leftToBrowser(cellOf('keyword 001', 1), { shiftKey: true })).toBe(true);
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(anchor()).toBeNull();
+    rerender(<ContextHarness rows={rowsOf(3)} columns={CONTROLLED} />);
+    const link = within(bodyRow('keyword 001')).getByRole('link');
+    expect(leftToBrowser(link)).toBe(true);
+    expect(screen.queryByRole('menu')).toBeNull();
+    // The cell around the link is the table's
+    expect(leftToBrowser(link.closest('td') ?? link)).toBe(false);
+    const menu = await screen.findByRole('menu');
+    // Escape goes to the menu only once focus is inside it, and the menu leaves the tree after its close
+    // animation: under load either can take longer than the default one second
+    await waitFor(() => expect(menu.contains(document.activeElement)).toBe(true), { timeout: 5000 });
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull(), { timeout: 5000 });
+    rerender(<ContextHarness rows={rowsOf(3)} columns={[...COLUMNS, NOTE]} />);
+    expect(leftToBrowser(within(bodyRow('keyword 001')).getByRole('textbox', { name: 'Note' }))).toBe(true);
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  it('opens nothing for a row the actions function gives no actions, or without rowActions', async () => {
+    const { rerender, user } = renderWithProviders(<ContextHarness rows={rowsOf(3)} rowActions={NO_ACTIONS_FOR_K1} />);
+    expect(leftToBrowser(cellOf('keyword 001', 1))).toBe(true);
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(leftToBrowser(cellOf('keyword 002', 1))).toBe(false);
+    expect(await screen.findByRole('menu', { name: 'Actions for keyword 002' })).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+    rerender(<ContextHarness rows={rowsOf(3)} rowActions={null} />);
+    expect(leftToBrowser(cellOf('keyword 002', 1))).toBe(true);
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  it('ignores a right click inside the More menu, which reaches the row through React', async () => {
+    const { user } = renderWithProviders(<ContextHarness rows={rowsOf(3)} />);
+    await user.click(within(bodyRow('keyword 001')).getByRole('button', { name: 'Actions for keyword 001' }));
+    const item = await screen.findByRole('menuitem', { name: 'Archive' });
+    expect(leftToBrowser(item)).toBe(true);
+    expect(anchor()).toBeNull();
+    expect(screen.getAllByRole('menu')).toHaveLength(1);
+  });
+
+  describe('from the keyboard', () => {
+    const focus = (cell: HTMLElement): void => {
+      act(() => cell.focus());
+    };
+
+    it('keeps Shift+F10 and the Menu key opening the More menu on the focused row, and one menu when the browser also raises contextmenu for that key press', async () => {
+      const { user } = renderWithProviders(<ContextHarness rows={rowsOf(3)} />);
+      const cell = cellOf('keyword 001', 1);
+      focus(cell);
+      fireEvent.keyDown(cell, { key: 'F10', shiftKey: true });
+      // The browser's own contextmenu for the same key press: prevented, and no second menu
+      expect(leftToBrowser(cell)).toBe(false);
+      await screen.findByRole('menu', { name: 'Actions for keyword 001' });
+      expect(screen.getAllByRole('menu')).toHaveLength(1);
+      expect(anchor()).toBeNull();
+      await user.keyboard('{Escape}');
+      await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+      // The More menu returns focus to the actions cell of its row, as it always has
+      await waitFor(() => expect(document.activeElement).toBe(cellOf('keyword 001', 4)));
+      fireEvent.keyDown(cellOf('keyword 001', 4), { key: 'ContextMenu' });
+      expect(leftToBrowser(cell)).toBe(false);
+      await screen.findByRole('menu', { name: 'Actions for keyword 001' });
+      expect(screen.getAllByRole('menu')).toHaveLength(1);
+      expect(anchor()).toBeNull();
+    });
+
+    it('does not hold the keyboard flag past that key press: a right click after it opens the context menu', async () => {
+      const { user } = renderWithProviders(<ContextHarness rows={rowsOf(3)} />);
+      const cell = cellOf('keyword 001', 1);
+      focus(cell);
+      fireEvent.keyDown(cell, { key: 'F10', shiftKey: true });
+      await screen.findByRole('menu');
+      await user.keyboard('{Escape}');
+      await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      });
+      expect(leftToBrowser(cellOf('keyword 002', 1), { clientX: 90, clientY: 70 })).toBe(false);
+      await screen.findByRole('menu', { name: 'Actions for keyword 002' });
+      expect(anchor()).toHaveStyle({ left: '90px', top: '70px' });
+    });
+
+    it('treats a contextmenu raised on key up (Windows, Linux) as the key press that opened the menu', async () => {
+      renderWithProviders(<ContextHarness rows={rowsOf(3)} />);
+      const cell = cellOf('keyword 001', 1);
+      focus(cell);
+      fireEvent.keyDown(cell, { key: 'F10', shiftKey: true });
+      await screen.findByRole('menu');
+      // Time passes while the key is held, then it is released and the browser answers
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      });
+      fireEvent.keyUp(document.activeElement ?? cell, { key: 'F10', shiftKey: true });
+      expect(leftToBrowser(cell, { clientX: 5, clientY: 6 })).toBe(false);
+      expect(anchor()).toBeNull();
+      expect(screen.getAllByRole('menu')).toHaveLength(1);
+      // The key up re-armed the flag for that one event only
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      });
+      leftToBrowser(cellOf('keyword 002', 1), { clientX: 77, clientY: 88 });
+      await waitFor(() => expect(anchor()).toHaveStyle({ left: '77px', top: '88px' }));
+    });
+
+    it('arms nothing on a key up when the key opened no menu', () => {
+      renderWithProviders(<ContextHarness rows={rowsOf(3)} rowActions={NO_ACTIONS_FOR_K1} />);
+      const cell = cellOf('keyword 001', 1);
+      focus(cell);
+      fireEvent.keyDown(cell, { key: 'F10', shiftKey: true });
+      fireEvent.keyUp(cell, { key: 'F10', shiftKey: true });
+      expect(leftToBrowser(cell)).toBe(true);
+      expect(screen.queryByRole('menu')).toBeNull();
+    });
+
+    it('leaves a contextmenu of the browser alone when the key opened no menu (a row without actions)', () => {
+      renderWithProviders(<ContextHarness rows={rowsOf(3)} rowActions={NO_ACTIONS_FOR_K1} />);
+      const cell = cellOf('keyword 001', 1);
+      focus(cell);
+      fireEvent.keyDown(cell, { key: 'F10', shiftKey: true });
+      expect(leftToBrowser(cell)).toBe(true);
+      expect(screen.queryByRole('menu')).toBeNull();
+    });
+  });
+
+  describe('touch long press', () => {
+    const REGION = (): HTMLElement => {
+      const element = grid().parentElement;
+      if (element === null) throw new Error('The grid has no scroll region');
+      return element;
+    };
+    const touch = (init: PointerEventInit = {}): PointerEventInit => ({
+      pointerType: 'touch',
+      pointerId: 7,
+      clientX: 60,
+      clientY: 90,
+      ...init,
+    });
+    /** Time passes, with React rendering what the timers changed. */
+    const wait = (ms: number): void => {
+      act(() => {
+        vi.advanceTimersByTime(ms);
+      });
+    };
+    const target = (): HTMLElement => cellOf('keyword 001', 2);
+
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    });
+
+    it('opens on a long press of 500 ms at the touch point, and the click after it does not open the row', () => {
+      renderWithProviders(<ContextHarness rows={rowsOf(3)} />);
+      fireEvent.pointerDown(target(), touch());
+      wait(499);
+      expect(screen.queryByRole('menu')).toBeNull();
+      wait(1);
+      expect(screen.getByRole('menu', { name: 'Actions for keyword 001' })).toBeInTheDocument();
+      expect(anchor()).toHaveStyle({ left: '60px', top: '90px' });
+      expect(target()).toHaveAttribute('tabindex', '0');
+      fireEvent.pointerUp(target(), touch());
+      fireEvent.click(target());
+      expect(onOpen).not.toHaveBeenCalled();
+      expect(selectedKeywords()).toEqual([]);
+    });
+
+    it('stays within a slop of 10 px, and a move beyond it cancels', () => {
+      renderWithProviders(<ContextHarness rows={rowsOf(3)} />);
+      fireEvent.pointerDown(target(), touch());
+      fireEvent.pointerMove(target(), touch({ clientX: 66, clientY: 98 }));
+      wait(500);
+      expect(screen.getByRole('menu')).toBeInTheDocument();
+      expect(anchor()).toHaveStyle({ left: '60px', top: '90px' });
+    });
+
+    it.each([
+      ['a move over 10 px', () => fireEvent.pointerMove(target(), touch({ clientX: 60, clientY: 101 }))],
+      ['a lift', () => fireEvent.pointerUp(target(), touch())],
+      ['a cancel', () => fireEvent.pointerCancel(target(), touch())],
+      ['a scroll of the table', () => fireEvent.scroll(REGION())],
+    ])('does not open after %s before 500 ms', (_name, interrupt) => {
+      renderWithProviders(<ContextHarness rows={rowsOf(3)} />);
+      fireEvent.pointerDown(target(), touch());
+      wait(300);
+      interrupt();
+      wait(600);
+      expect(screen.queryByRole('menu')).toBeNull();
+      expect(anchor()).toBeNull();
+      // Nothing was held back from the click that follows a plain tap
+      fireEvent.click(target());
+      expect(onOpen).toHaveBeenCalledTimes(1);
+    });
+
+    it('is for touch only, not for the mouse or a pen', () => {
+      renderWithProviders(<ContextHarness rows={rowsOf(3)} />);
+      fireEvent.pointerDown(target(), touch({ pointerType: 'mouse' }));
+      wait(600);
+      fireEvent.pointerDown(target(), touch({ pointerType: 'pen' }));
+      wait(600);
+      expect(screen.queryByRole('menu')).toBeNull();
+    });
+
+    it('leaves a link and a row without actions alone, and respects rowContextMenu false', () => {
+      const { rerender } = renderWithProviders(<ContextHarness rows={rowsOf(3)} columns={CONTROLLED} />);
+      fireEvent.pointerDown(within(bodyRow('keyword 001')).getByRole('link'), touch());
+      wait(600);
+      expect(screen.queryByRole('menu')).toBeNull();
+      rerender(<ContextHarness rows={rowsOf(3)} rowActions={NO_ACTIONS_FOR_K1} />);
+      fireEvent.pointerDown(target(), touch());
+      wait(600);
+      expect(screen.queryByRole('menu')).toBeNull();
+      rerender(<ContextHarness rows={rowsOf(3)} rowContextMenu={false} />);
+      fireEvent.pointerDown(target(), touch());
+      wait(600);
+      expect(screen.queryByRole('menu')).toBeNull();
+    });
+
+    it('does not open a second time for a press on the row whose menu is already open', () => {
+      renderWithProviders(<ContextHarness rows={rowsOf(3)} />);
+      // Android raises contextmenu on the long press as well, a pixel away from where the press began
+      fireEvent.pointerDown(target(), touch());
+      leftToBrowser(target(), { clientX: 61, clientY: 90 });
+      expect(anchor()).toHaveStyle({ left: '61px', top: '90px' });
+      wait(500);
+      // The press's own timer found the menu open and left it: the anchor is where contextmenu put it
+      expect(anchor()).toHaveStyle({ left: '61px', top: '90px' });
+      expect(screen.getAllByRole('menu')).toHaveLength(1);
+      expect(document.querySelectorAll('[data-slot="row-context-anchor"]')).toHaveLength(1);
+    });
+
+    it('does not press for a touch on the More menu, which reaches the row through React', () => {
+      renderWithProviders(<ContextHarness rows={rowsOf(3)} />);
+      const cell = cellOf('keyword 001', 1);
+      act(() => cell.focus());
+      fireEvent.keyDown(cell, { key: 'F10', shiftKey: true });
+      const item = screen.getByRole('menuitem', { name: 'Archive' });
+      fireEvent.pointerDown(item, touch());
+      wait(600);
+      expect(anchor()).toBeNull();
+      expect(screen.getAllByRole('menu')).toHaveLength(1);
+      expect(screen.getByRole('menuitem', { name: 'Archive' })).toBeInTheDocument();
+    });
+
+    it('clears the timer of a press that is still running when the table goes', () => {
+      const set = vi.spyOn(globalThis, 'setTimeout');
+      const clear = vi.spyOn(globalThis, 'clearTimeout');
+      const { unmount } = renderWithProviders(<ContextHarness rows={rowsOf(3)} />);
+      fireEvent.pointerDown(target(), touch());
+      const press = set.mock.calls.findIndex(([, delay]) => delay === 500);
+      expect(press).toBeGreaterThanOrEqual(0);
+      const timer: unknown = set.mock.results[press]?.value;
+      clear.mockClear();
+      unmount();
+      expect(clear).toHaveBeenCalledWith(timer);
+      wait(600);
+      expect(screen.queryByRole('menu')).toBeNull();
+      set.mockRestore();
+      clear.mockRestore();
+    });
+
+    it('lets the next tap open a row even when no click followed the long press', () => {
+      renderWithProviders(<ContextHarness rows={rowsOf(3)} />);
+      fireEvent.pointerDown(target(), touch());
+      wait(500);
+      fireEvent.pointerUp(target(), touch());
+      // No click came; a new press starts afresh
+      fireEvent.pointerDown(cellOf('keyword 002', 2), touch());
+      fireEvent.pointerUp(cellOf('keyword 002', 2), touch());
+      fireEvent.click(cellOf('keyword 002', 2));
+      expect(onOpen).toHaveBeenCalledTimes(1);
+      expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ id: 'k2' }), 'inspector');
+    });
+  });
+
+  it('counts Ctrl plus click, which a Mac raises as contextmenu, as a right click', async () => {
+    renderWithProviders(<ContextHarness rows={rowsOf(3)} />);
+    expect(leftToBrowser(cellOf('keyword 001', 1), { ctrlKey: true })).toBe(false);
+    expect(await screen.findByRole('menu', { name: 'Actions for keyword 001' })).toBeInTheDocument();
+  });
+
+  it('leaves a contenteditable cell to the browser', () => {
+    const editable = col.url<Row>('editable', () => null, {
+      header: 'Editable',
+      sortable: false,
+      cell: () => (
+        <div contentEditable suppressContentEditableWarning>
+          <b>text</b>
+        </div>
+      ),
+    });
+    renderWithProviders(<ContextHarness rows={rowsOf(3)} columns={[...COLUMNS, editable]} />);
+    const inner = bodyRow('keyword 001').querySelector('b');
+    if (inner === null) throw new Error('no editable text');
+    expect(leftToBrowser(inner)).toBe(true);
+    expect(screen.queryByRole('menu')).toBeNull();
+    // Its cell around it is still the table's
+    expect(leftToBrowser(cellOf('keyword 001', 1))).toBe(false);
+  });
+
+  it('opens the row menu, once, on the selection cell, its checkbox, the actions cell and the More button, and selects nothing', async () => {
+    const { user } = renderWithProviders(<ContextHarness rows={rowsOf(3)} />);
+    const row = bodyRow('keyword 001');
+    const targets: [string, Element | null][] = [
+      ['selection cell', cellOf('keyword 001', 0)],
+      ['checkbox', row.querySelector('[role="checkbox"]')],
+      ['actions cell', cellOf('keyword 001', 4)],
+      ['More button', row.querySelector('button[aria-label="Actions for keyword 001"]')],
+    ];
+    for (const [, element] of targets) {
+      if (element === null) throw new Error('missing target');
+      expect(leftToBrowser(element)).toBe(false);
+      expect(await screen.findByRole('menu', { name: 'Actions for keyword 001' })).toBeInTheDocument();
+      expect(screen.getAllByRole('menu')).toHaveLength(1);
+      expect(document.querySelectorAll('[data-slot="row-context-anchor"]')).toHaveLength(1);
+      expect(selectedKeywords()).toEqual([]);
+      expect(onOpen).not.toHaveBeenCalled();
+      await user.keyboard('{Escape}');
+      await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+    }
+  });
+
+  it('forgets the menu when its row goes, so it does not reopen at the old point when the row returns', async () => {
+    const { rerender } = renderWithProviders(<ContextHarness rows={rowsOf(3)} />);
+    leftToBrowser(cellOf('keyword 001', 1), { clientX: 120, clientY: 80 });
+    await screen.findByRole('menu');
+    rerender(<ContextHarness rows={rowsOf(3).filter((row) => row.id !== 'k1')} />);
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+    rerender(<ContextHarness rows={rowsOf(3)} />);
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(anchor()).toBeNull();
+  });
+
+  it('forgets the menu when its row loses its actions, and when the actions come back', async () => {
+    const { rerender } = renderWithProviders(<ContextHarness rows={rowsOf(3)} />);
+    leftToBrowser(cellOf('keyword 001', 1));
+    await screen.findByRole('menu');
+    rerender(<ContextHarness rows={rowsOf(3)} rowActions={NO_ACTIONS_FOR_K1} />);
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+    rerender(<ContextHarness rows={rowsOf(3)} />);
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  it('right click on a tree group row opens its menu and does not toggle the group', async () => {
+    renderWithProviders(<ContextHarness rows={rowsOf(3)} tree />);
+    expect(screen.getByRole('treegrid', { name: 'Keywords' })).toBeInTheDocument();
+    const group = within(screen.getByRole('treegrid')).getByRole('rowheader', { name: 'keyword 000' }).closest('tr');
+    if (group === null) throw new Error('no group row');
+    expect(group).toHaveAttribute('aria-expanded', 'true');
+    const cell = group.querySelector<HTMLElement>('[data-cell$=":2"]');
+    if (cell === null) throw new Error('no cell');
+    expect(leftToBrowser(cell)).toBe(false);
+    expect(await screen.findByRole('menu', { name: 'Actions for keyword 000' })).toBeInTheDocument();
+    expect(toggle).not.toHaveBeenCalled();
+    expect(group).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  it('rowContextMenu false leaves the browser menu in place', () => {
+    renderWithProviders(<ContextHarness rows={rowsOf(3)} rowContextMenu={false} />);
+    expect(leftToBrowser(cellOf('keyword 001', 1))).toBe(true);
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(anchor()).toBeNull();
+  });
+
+  it('adds nothing to the markup before it is used', () => {
+    const on = renderWithProviders(<ContextHarness rows={rowsOf(5)} rowContextMenu />);
+    const withMenu = markup(on.container.innerHTML);
+    on.unmount();
+    const off = renderWithProviders(<ContextHarness rows={rowsOf(5)} rowContextMenu={false} />);
+    expect(markup(off.container.innerHTML)).toBe(withMenu);
+    expect(document.querySelector('[data-slot="row-context-anchor"]')).toBeNull();
+  });
+
+  it('passes the accessibility check with the context menu open', async () => {
+    renderWithProviders(<ContextHarness rows={rowsOf(3)} />);
+    leftToBrowser(cellOf('keyword 001', 1));
+    await screen.findByRole('menu');
+    expect(await axe(document.body)).toHaveNoViolations();
   });
 });

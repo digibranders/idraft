@@ -17,6 +17,7 @@ import { projectKey, queryKey, type QueryKey } from '@/lib/api/keys';
 import { ApiProblem } from '@/lib/api/problem';
 import { apiMutation, apiQuery, type ApiQueryOptions, type ApiResponse } from '@/lib/api/query';
 import type { EngineCode, Prompt } from '@/lib/api/types';
+import { compareParams } from '@/lib/compare/compare-model';
 
 /**
  * A project's AI prompts and engines (19 section 3.7, cut to slice 1 by plan A). Every key starts with the
@@ -169,8 +170,13 @@ export interface SummaryScope {
   term?: string;
   /** The branded prompts alone; the API lets it win over `includeBranded`. */
   brandedOnly?: boolean;
-  /** Blocks to add; `entities` gives each engine a Mentioned and a Share of voice cell per tracked entity. */
-  include?: readonly 'entities'[];
+  /**
+   * Blocks to add. `series` gives each engine a point for each week the window touches (Monday start, in the
+   * project's zone, at most 14); `entities` gives each engine a Mentioned and a Share of voice cell per tracked entity.
+   */
+  include?: readonly ('series' | 'entities')[];
+  /** Ask for the previous period (`compare=previous_period`): each engine of each row then carries `previous`. */
+  compare?: boolean;
 }
 
 /** `GET {P}/ai/prompts-summary`: Mentioned, Cited and the rest per prompt, topic and engine over the window. */
@@ -178,7 +184,7 @@ export const summaryQuery = (
   scope: PromptScope,
   range: DateRange,
   includeBranded: boolean,
-  { country, term, brandedOnly, include }: SummaryScope = {},
+  { country, term, brandedOnly, include, compare }: SummaryScope = {},
 ): ApiQueryOptions<typeof SUMMARY> =>
   apiQuery(SUMMARY, {
     params: {
@@ -191,6 +197,7 @@ export const summaryQuery = (
         ...(term === undefined ? {} : { 'filter[term]': term }),
         ...(brandedOnly === true ? { branded_only: true } : {}),
         ...(include === undefined || include.length === 0 ? {} : { include: [...include] }),
+        ...compareParams(compare === true),
       },
     },
   });
@@ -205,6 +212,31 @@ export const observationsQuery = (
     params: {
       path: pathOf(scope),
       query: { 'filter[prompt_id]': promptId, from: range.from, to: range.to, limit: ANSWERS_PAGE },
+    },
+  });
+
+/**
+ * `GET {P}/ai/observations` for the newest answer of one prompt on one engine over `range`, the one row: the newest
+ * valid one with `validOnly`, else the newest of any status (which tells why an engine has no valid one).
+ */
+export const newestAnswerQuery = (
+  scope: PromptScope,
+  promptId: string,
+  engineCode: string,
+  range: DateRange,
+  validOnly: boolean,
+): ApiQueryOptions<typeof OBSERVATIONS> =>
+  apiQuery(OBSERVATIONS, {
+    params: {
+      path: pathOf(scope),
+      query: {
+        'filter[prompt_id]': promptId,
+        'filter[engine_code_in]': [engineCode],
+        ...(validOnly ? { 'filter[is_valid]': true } : {}),
+        from: range.from,
+        to: range.to,
+        limit: 1,
+      },
     },
   });
 
@@ -305,3 +337,45 @@ export const ARCHIVE_PROMPT = apiMutation('delete', PROMPT);
  * `refreshPrompts`, which reads again every answer under `aiKey`, and refreshes the project's runs.
  */
 export const RUN_NOW = apiMutation('post', `${PROMPT}/run-now`);
+
+const BULK_RUN = `${P}/ai/runs` as const;
+const BULK_ARCHIVE = `${PROMPTS}/bulk-archive` as const;
+/** The run a bulk run queued, with what it asks (`meta.prompts`, `answers`, `estimated_cost_usd`) and leaves out (`skipped`). */
+export type BulkRunAnswer = ApiResponse<'post', typeof BULK_RUN>;
+/** How many prompts a bulk archive found (`matched`) and changed (`updated`). */
+export type BulkArchiveAnswer = ApiResponse<'post', typeof BULK_ARCHIVE>;
+
+/**
+ * `POST {P}/ai/runs`: Run now for up to 150 prompts as ONE manual run (one of the day's 20), each prompt once on
+ * each of `engineCodes`, or on every engine the project has on when they are left out. A prompt that cannot be asked
+ * on an engine is left out and listed in `meta.skipped`; the rest runs. A refusal rejects with an `ApiProblem`:
+ * `422 validation_failed` (`prompt_unknown` on `prompt_ids`, `engine_not_enabled` on `engine_codes`), `409
+ * check_pending` (`body.prompt_ids`, `body.skipped`) when every prompt is on its way, `422 nothing_to_run`
+ * (`body.skipped`), `429 manual_run_limit` (`limit` only), `422 quota_exceeded` (`limit`, `used`, `requested`, `quota`)
+ * and `503 provider_paused` (`retryAfterSeconds`). On success the caller calls `refreshPrompts`.
+ */
+export function bulkRun(
+  scope: PromptScope,
+  promptIds: readonly string[],
+  engineCodes?: readonly EngineCode[],
+): Promise<BulkRunAnswer> {
+  return unwrap(
+    api.POST(BULK_RUN, {
+      params: { path: pathOf(scope) },
+      body: {
+        prompt_ids: [...promptIds],
+        ...(engineCodes === undefined ? {} : { engine_codes: [...engineCodes] }),
+      },
+    }),
+  );
+}
+
+/**
+ * `POST {P}/prompts/bulk-archive`: archives (`archive` true, as the single archive does) or brings back (false, as
+ * `PATCH is_active: true` does) up to 1,000 prompts at once; answers, versions and terms stay. An id the project does
+ * not have is not matched. Bringing back is all or none: `422 quota_exceeded` (`limit`, `used`, `requested`) when the
+ * prompts would pass the workspace's active prompt limit. On success the caller calls `refreshPrompts`.
+ */
+export function bulkArchive(scope: PromptScope, ids: readonly string[], archive: boolean): Promise<BulkArchiveAnswer> {
+  return unwrap(api.POST(BULK_ARCHIVE, { params: { path: pathOf(scope) }, body: { ids: [...ids], archive } }));
+}

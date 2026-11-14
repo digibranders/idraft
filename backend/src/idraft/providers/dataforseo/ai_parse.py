@@ -38,6 +38,8 @@ EXTRAS_MAX_BYTES: Final = 16 * 1024
 REFUSAL_MAX_CHARS: Final = 40
 # A text opening with a refusal phrase is a refusal only when shorter than this.
 REFUSAL_LONG_CHARS: Final = 300
+# A source's quote is cut to this many characters.
+QUOTE_MAX_CHARS: Final = 1000
 # What a refusal opens with, without case.
 REFUSALS: Final = (
     "i can't help with",
@@ -64,13 +66,16 @@ READS_PATHS: Final = (
     "tasks[].result[].sources[].url",
     "tasks[].result[].sources[].title",
     "tasks[].result[].sources[].source_name",
+    "tasks[].result[].sources[].snippet",
     "tasks[].result[].fan_out_queries[]",
     "tasks[].result[].brand_entities[].title",
     "tasks[].result[].items[].type",
     "tasks[].result[].items[].markdown",
     "tasks[].result[].items[].sources[].url",
+    "tasks[].result[].items[].sources[].snippet",
     "tasks[].result[].items[].references[].url",
     "tasks[].result[].items[].references[].source",
+    "tasks[].result[].items[].references[].text",
     "tasks[].result[].items[].items[].type",
     "tasks[].result[].items[].items[].links[].url",
 )
@@ -96,6 +101,9 @@ class CitedSource:
     occurrences: int
     # The first block (item position, from 0) that cites it; None when no block does.
     answer_block_index: int | None
+    # The passage the provider quoted from the page: plain text, the first one it gave for the
+    # page; None when it gave none.
+    quote: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -270,10 +278,12 @@ def _ai_mode(
             position += 1
     sources = _Sources(_ad_keys(ads))
     for reference in references:
-        sources.add(reference, "reference_card", None, cited=False, name_field="source")
+        sources.add(
+            reference, "reference_card", None, cited=False, name_field="source", quote_field="text"
+        )
     for position, element in cited:
         for link in _mappings(element.get("links")):
-            sources.add(link, "inline", position, cited=True)
+            sources.add(link, "inline", position, cited=True, quote_field=None)
     return "\n\n".join(part for part in parts if part), sources.found(), ads
 
 
@@ -288,6 +298,7 @@ class _Sources:
         self._first: dict[str, CitedSource] = {}
         self._cited: dict[str, int] = {}
         self._block: dict[str, int] = {}
+        self._quote: dict[str, str] = {}
 
     def add(
         self,
@@ -297,6 +308,7 @@ class _Sources:
         *,
         cited: bool,
         name_field: str = "source_name",
+        quote_field: str | None = "snippet",
     ) -> None:
         raw = _text(source.get("url"))
         if not raw:
@@ -304,6 +316,10 @@ class _Sources:
         url, key = _identify(raw)
         if key in self._advertised:
             return
+        if quote_field is not None and key not in self._quote:
+            quote = _quote(source.get(quote_field))
+            if quote is not None:
+                self._quote[key] = quote
         if key not in self._first:
             self._order.append(key)
             self._first[key] = CitedSource(
@@ -335,9 +351,19 @@ class _Sources:
                     kind=first.kind,
                     occurrences=max(1, self._cited.get(key, 0)),
                     answer_block_index=block,
+                    quote=self._quote.get(key),
                 )
             )
         return found
+
+
+def _quote(value: object) -> str | None:
+    """A provider's passage as plain text: whitespace collapsed, cut to `QUOTE_MAX_CHARS`, None
+    when blank or not a string. NUL and lone surrogates are already cleaned from the document."""
+    text = _text(value)
+    if text is None:
+        return None
+    return " ".join(text.split())[:QUOTE_MAX_CHARS].rstrip() or None
 
 
 def _identify(raw: str) -> tuple[CanonicalUrl | None, str]:
@@ -452,14 +478,16 @@ def _fits(payload: Mapping[str, Any]) -> bool:
 
 
 def _bounded(payload: dict[str, Any]) -> dict[str, Any]:
-    """The extras with their longest list halved until they fit; `{"truncated": true}` when
-    that is not enough."""
+    """The extras with their longest list halved until they fit, the fan-out queries last (the
+    fan-out read counts them; the ads and brand entities are only kept for reference);
+    `{"truncated": true}` when that is not enough."""
     kept = {
         name: list(value) if isinstance(value, list) else value for name, value in payload.items()
     }
     lists = [name for name, value in kept.items() if isinstance(value, list)]
     while not _fits(kept):
-        longest = max(lists, key=lambda name: len(kept[name]), default=None)
+        others = [name for name in lists if name != "fan_out_queries" and kept[name]]
+        longest = max(others or lists, key=lambda name: len(kept[name]), default=None)
         if longest is None or not kept[longest]:
             return {"truncated": True}
         del kept[longest][len(kept[longest]) // 2 :]

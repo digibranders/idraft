@@ -25,6 +25,7 @@ from uuid import UUID
 
 from sqlalchemy import (
     BigInteger,
+    Date,
     Select,
     and_,
     case,
@@ -41,11 +42,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from idraft.db.tables import (
     ai_citations,
+    ai_entity_mentions,
     ai_observation_facts,
     ai_observations,
     ai_prompt_terms,
     ai_prompts,
     domains,
+    taxonomy_terms,
+    taxonomy_vocabularies,
     urls,
 )
 from idraft.keywords.trees import descendants
@@ -71,6 +75,8 @@ class SourceScope:
     until: datetime
     engine_codes: tuple[str, ...]
     prompt_ids: tuple[UUID, ...]
+    # Citations carrying any of these flags are not read (`citation_bounds`).
+    excluded_flags: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -120,10 +126,12 @@ async def scope_prompts(
     include_branded: bool,
     prompt_id: UUID | None,
     term_id: UUID | None,
+    country_iso: str | None,
 ) -> tuple[UUID, ...]:
     """The ids of the prompts whose answers count: with `prompt_id` that prompt alone, archived
     or branded (the inspector shows any prompt's sources); else the active prompts, the branded
-    ones only with `include_branded`. `term_id` keeps those given the term or a term under it."""
+    ones only with `include_branded`. `term_id` keeps those given the term or a term under it,
+    and `country_iso` those of that market (also the one prompt, as the prompts summary does)."""
     p = ai_prompts.c
     statement = select(p.id).where(
         p.workspace_id == workspace_id, p.project_id == project_id, p.deleted_at.is_(None)
@@ -142,16 +150,19 @@ async def scope_prompts(
             ),
         )
         statement = statement.where(p.id.in_(tagged))
+    if country_iso is not None:
+        statement = statement.where(p.country_iso == country_iso)
     return tuple((await db.execute(statement)).scalars())
 
 
 def counted_answers(scope: SourceScope) -> Any:
-    """The counted answers, one row each: `observation_id`, `observed_at`, `prompt_id` and
-    `engine_code`, from the facts alone. It does not join `ai.observations` (see the module
-    note): the fan-out reads need `fanout_count` and `provider_extras`, and join them to this
-    themselves on (`id`, `observed_at`, `workspace_id`) after the counted answers are known."""
+    """The counted answers, one row each: `observation_id`, `observed_at`, `prompt_id`,
+    `engine_code` and the `derivation_id` of the fact row, from the facts alone. It does not
+    join `ai.observations` (see the module note): the fan-out and ads reads need `fanout_count`
+    and `provider_extras`, and join them to this themselves on (`id`, `observed_at`,
+    `workspace_id`) after the counted answers are known."""
     return (
-        select(_F.observation_id, _F.observed_at, _F.prompt_id, _F.engine_code)
+        select(_F.observation_id, _F.observed_at, _F.prompt_id, _F.engine_code, _F.derivation_id)
         .where(
             _F.workspace_id == scope.workspace_id,
             _F.project_id == scope.project_id,
@@ -184,13 +195,19 @@ def counted_answers(scope: SourceScope) -> Any:
 
 
 def citation_bounds(scope: SourceScope) -> list[Any]:
-    """The conditions that keep `ai.citations` to the project and the window's partitions."""
-    return [
+    """The conditions that keep `ai.citations` to the project and the window's partitions, and to
+    the citations that count: none with an excluded flag (docs/14 section 9). Every read of
+    citations applies them, in a `WHERE` or in the `ON` of an outer join, so a flagged citation
+    leaves the units and the citing answers while its answer still counts."""
+    bounds = [
         _C.workspace_id == scope.workspace_id,
         _C.project_id == scope.project_id,
         _C.observed_at >= scope.since,
         _C.observed_at < scope.until,
     ]
+    if scope.excluded_flags:
+        bounds.append(~_C.flags.overlap(list(scope.excluded_flags)))
+    return bounds
 
 
 def _cited(scope: SourceScope) -> tuple[Any, Any]:
@@ -268,11 +285,15 @@ async def domain_counts(
     scope: SourceScope,
     *,
     roles: Sequence[str] | None,
+    registrable_domain: str | None = None,
     sort: str,
+    min_support: int | None = None,
     offset: int,
     limit: int,
 ) -> tuple[list[DomainCount], int]:
-    """A page of sources by (registrable domain, role, entity), and how many there are."""
+    """A page of sources by (registrable domain, role, entity), and how many there are; with
+    `min_support` only those with at least that many citation units (docs/16 C5), with
+    `registrable_domain` only that domain's rows."""
     answers, source = _cited(scope)
     keys = (_D.registrable_domain, _C.domain_role, _C.role_entity_id)
     grouped = (
@@ -281,8 +302,12 @@ async def domain_counts(
         .where(*citation_bounds(scope))
         .group_by(*keys)
     )
+    if min_support is not None:
+        grouped = grouped.having(func.count(unit()) >= min_support)
     if roles:
         grouped = grouped.where(_C.domain_role.in_(list(roles)))
+    if registrable_domain is not None:
+        grouped = grouped.where(_D.registrable_domain == registrable_domain)
     rows, total = await page_of(
         db,
         grouped,
@@ -329,11 +354,13 @@ async def page_counts(
     roles: Sequence[str] | None,
     registrable_domain: str | None,
     sort: str,
+    min_support: int | None = None,
     offset: int,
     limit: int,
 ) -> tuple[list[PageCount], int]:
-    """A page of sources by (page, role, entity), and how many there are. The title is the
-    greatest one an answer gave the page (any one, the same on every read)."""
+    """A page of sources by (page, role, entity), and how many there are; `min_support` as for
+    the domains. The title is the greatest one an answer gave the page (any one, the same on
+    every read)."""
     answers, source = _cited(scope)
     u = urls.c
     keys = (
@@ -350,6 +377,8 @@ async def page_counts(
         .where(*citation_bounds(scope))
         .group_by(*keys)
     )
+    if min_support is not None:
+        grouped = grouped.having(func.count(unit()) >= min_support)
     if roles:
         grouped = grouped.where(_C.domain_role.in_(list(roles)))
     if registrable_domain is not None:
@@ -373,6 +402,84 @@ async def page_counts(
             domain_role=row.domain_role,
             role_entity_id=row.role_entity_id,
             counted=_counted(row, scope),
+        )
+        for row in rows
+    ], total
+
+
+@dataclass(frozen=True, slots=True)
+class ChangeCount:
+    registrable_domain: str
+    domain_role: str
+    role_entity_id: UUID | None
+    current_units: int
+    previous_units: int
+    first_seen_at: datetime | None
+    last_seen_at: datetime | None
+
+
+async def changes(
+    db: AsyncSession,
+    scope: SourceScope,
+    *,
+    split: datetime,
+    kind: str,
+    min_support: int,
+    roles: Sequence[str] | None,
+    offset: int,
+    limit: int,
+) -> tuple[list[ChangeCount], int]:
+    """New or lost sources in one grouped statement (docs/16 C5 and C6). `scope` spans the
+    window compared with and the window answered; `split` is where the answered window starts.
+    Units before `split` are the previous ones, units from it the current ones. A new source
+    has at least `min_support` current units and no previous one; a lost one at least
+    `min_support` previous units and no current one. The most units first."""
+    _, source = _cited(scope)
+    keys = (_D.registrable_domain, _C.domain_role, _C.role_entity_id)
+    current = func.count(unit()).filter(_C.observed_at >= split)
+    previous = func.count(unit()).filter(_C.observed_at < split)
+    grouped = (
+        select(
+            *keys,
+            current.label("current_units"),
+            previous.label("previous_units"),
+            func.min(_C.observed_at).filter(_C.observed_at >= split).label("first_seen_at"),
+            func.max(_C.observed_at).filter(_C.observed_at >= split).label("last_seen_at"),
+        )
+        .select_from(source)
+        # The join to the counted answers already decides what counts: the bounds only prune the
+        # partitions and keep the project's rows, so dropping them changes no number.
+        .where(*citation_bounds(scope))
+        .group_by(*keys)
+        .having(
+            and_(current >= min_support, previous == 0)
+            if kind == "new"
+            else and_(previous >= min_support, current == 0)
+        )
+    )
+    if roles:
+        grouped = grouped.where(_C.domain_role.in_(list(roles)))
+    rows, total = await page_of(
+        db,
+        grouped,
+        [
+            desc(literal_column("current_units" if kind == "new" else "previous_units")),
+            _D.registrable_domain,
+            _C.domain_role,
+            _C.role_entity_id.asc().nulls_first(),
+        ],
+        offset=offset,
+        limit=limit,
+    )
+    return [
+        ChangeCount(
+            registrable_domain=row.registrable_domain,
+            domain_role=row.domain_role,
+            role_entity_id=row.role_entity_id,
+            current_units=row.current_units,
+            previous_units=row.previous_units,
+            first_seen_at=row.first_seen_at,
+            last_seen_at=row.last_seen_at,
         )
         for row in rows
     ], total
@@ -430,6 +537,456 @@ async def previous_pages(
     }
 
 
+def week_of(column: Any, timezone: str) -> Any:
+    """The Monday of `column`'s week in the project's zone (docs/19 section 2.5). Select it in a
+    subquery and group by that column: grouped by the expression, its bound zone would be a
+    second parameter, which PostgreSQL reads as a different expression (`weekly_counts`)."""
+    return cast(func.date_trunc("week", func.timezone(timezone, column)), Date)
+
+
+async def row_weeks(
+    db: AsyncSession,
+    scope: SourceScope,
+    timezone: str,
+    *,
+    by_page: bool,
+    names: Collection[str] = (),
+    url_ids: Collection[int] = (),
+) -> dict[tuple[Any, str, UUID | None], dict[date, tuple[int, int]]]:
+    """The citation units and citing answers per week of a page's rows: by (registrable domain,
+    or url id with `by_page`; role; entity), then by week. One statement."""
+    if not (url_ids if by_page else names):
+        return {}
+    _, source = _cited(scope)
+    key = _C.url_id if by_page else _D.registrable_domain
+    inner = (
+        select(
+            key.label("key"),
+            _C.domain_role,
+            _C.role_entity_id,
+            _C.observation_id,
+            _C.url_id,
+            week_of(_C.observed_at, timezone).label("week_start"),
+        )
+        .select_from(source)
+        .where(
+            *citation_bounds(scope),
+            _C.url_id.in_(sorted(url_ids)) if by_page else _D.registrable_domain.in_(sorted(names)),
+        )
+        .subquery("cited_weeks")
+    )
+    c = inner.c
+    rows = await db.execute(
+        select(
+            c.key,
+            c.domain_role,
+            c.role_entity_id,
+            c.week_start,
+            func.count(tuple_(c.observation_id, c.url_id).distinct()).label("units"),
+            func.count(c.observation_id.distinct()).label("observations"),
+        ).group_by(c.key, c.domain_role, c.role_entity_id, c.week_start)
+    )
+    found: dict[tuple[Any, str, UUID | None], dict[date, tuple[int, int]]] = {}
+    for row in rows:
+        found.setdefault((row.key, row.domain_role, row.role_entity_id), {})[row.week_start] = (
+            row.units,
+            row.observations,
+        )
+    return found
+
+
+async def scope_weeks(
+    db: AsyncSession, scope: SourceScope, timezone: str
+) -> dict[date, tuple[int, int, int]]:
+    """Per week of the scope: the counted answers (citing or not), the citation units and the
+    registrable domains cited. One statement: the answers left joined to their citations, so an
+    answer that cites nothing still counts."""
+    counted = counted_answers(scope)
+    answers = select(
+        counted.c.observation_id,
+        counted.c.observed_at,
+        week_of(counted.c.observed_at, timezone).label("week_start"),
+    ).subquery("answer_weeks")
+    cited = ai_citations.join(domains, _D.id == _C.domain_id)
+    rows = await db.execute(
+        select(
+            answers.c.week_start,
+            func.count(answers.c.observation_id.distinct()).label("answers"),
+            func.count(unit()).filter(_C.url_id.is_not(None)).label("units"),
+            func.count(_D.registrable_domain.distinct()).label("domains"),
+        )
+        .select_from(
+            answers.outerjoin(
+                cited,
+                and_(
+                    _C.observation_id == answers.c.observation_id,
+                    _C.observed_at == answers.c.observed_at,
+                    *citation_bounds(scope),
+                ),
+            )
+        )
+        .group_by(answers.c.week_start)
+    )
+    return {row.week_start: (row.answers, row.units, row.domains) for row in rows}
+
+
+@dataclass(frozen=True, slots=True)
+class DiversityCount:
+    """One engine's diversity inputs: its counted answers, those that cite, its citation units,
+    the registrable domains cited (roles merged) and the sum of each domain's units squared."""
+
+    answers: int
+    answers_citing: int
+    citation_units: int
+    distinct_domains: int
+    squares: int
+
+
+async def diversity(db: AsyncSession, scope: SourceScope) -> tuple[dict[str, DiversityCount], int]:
+    """Per engine, and the registrable domains cited over every engine of the scope (docs/16 C3),
+    in one statement: the answers left joined to their citations give the counts (the row of the
+    `ROLLUP` without an engine is the whole), and the units per (engine, domain) squared and
+    summed give the squares. An engine without a counted answer has no entry."""
+    answers, source = _cited(scope)
+    per_domain = (
+        select(answers.c.engine_code, func.count(unit()).label("units"))
+        .select_from(source)
+        .where(*citation_bounds(scope))
+        .group_by(answers.c.engine_code, _D.registrable_domain)
+        .subquery("per_domain")
+    )
+    squares = (
+        select(
+            per_domain.c.engine_code,
+            func.sum(per_domain.c.units * per_domain.c.units).label("squares"),
+        )
+        .group_by(per_domain.c.engine_code)
+        .subquery("squares")
+    )
+    whole = (
+        select(
+            answers.c.engine_code,
+            func.count(answers.c.observation_id.distinct()).label("answers"),
+            func.count(_C.observation_id.distinct()).label("citing"),
+            func.count(unit()).filter(_C.url_id.is_not(None)).label("units"),
+            func.count(_D.registrable_domain.distinct()).label("domains"),
+        )
+        .select_from(
+            answers.outerjoin(
+                ai_citations.join(domains, _D.id == _C.domain_id),
+                and_(
+                    _C.observation_id == answers.c.observation_id,
+                    _C.observed_at == answers.c.observed_at,
+                    *citation_bounds(scope),
+                ),
+            )
+        )
+        .group_by(func.rollup(answers.c.engine_code))
+        .subquery("whole")
+    )
+    rows = await db.execute(
+        select(
+            whole.c.engine_code,
+            whole.c.answers,
+            whole.c.citing,
+            whole.c.units,
+            whole.c.domains,
+            func.coalesce(squares.c.squares, 0).label("squares"),
+        ).select_from(whole.outerjoin(squares, squares.c.engine_code == whole.c.engine_code))
+    )
+    found: dict[str, DiversityCount] = {}
+    pooled = 0
+    for row in rows:
+        if row.engine_code is None:
+            pooled = row.domains
+        else:
+            found[row.engine_code] = DiversityCount(
+                answers=row.answers,
+                answers_citing=row.citing,
+                citation_units=row.units,
+                distinct_domains=row.domains,
+                squares=int(row.squares),
+            )
+    return found, pooled
+
+
+async def diversity_weeks(
+    db: AsyncSession, scope: SourceScope, timezone: str
+) -> dict[tuple[str, date], tuple[int, int, int]]:
+    """Per (engine, week): the citation units, the registrable domains cited and the sum of each
+    domain's units squared. One statement; a week without a citation has no entry."""
+    answers, source = _cited(scope)
+    cited = (
+        select(
+            answers.c.engine_code,
+            _D.registrable_domain.label("domain"),
+            _C.observation_id,
+            _C.url_id,
+            week_of(_C.observed_at, timezone).label("week_start"),
+        )
+        .select_from(source)
+        .where(*citation_bounds(scope))
+        .subquery("cited_weeks")
+    )
+    c = cited.c
+    per_domain = (
+        select(
+            c.engine_code,
+            c.week_start,
+            func.count(tuple_(c.observation_id, c.url_id).distinct()).label("units"),
+        )
+        .group_by(c.engine_code, c.week_start, c.domain)
+        .subquery("week_domains")
+    )
+    p = per_domain.c
+    rows = await db.execute(
+        select(
+            p.engine_code,
+            p.week_start,
+            func.sum(p.units).label("units"),
+            func.count().label("domains"),
+            func.sum(p.units * p.units).label("squares"),
+        ).group_by(p.engine_code, p.week_start)
+    )
+    return {
+        (row.engine_code, row.week_start): (int(row.units), row.domains, int(row.squares))
+        for row in rows
+    }
+
+
+async def ads_presence(db: AsyncSession, scope: SourceScope) -> dict[str, tuple[int, int, int]]:
+    """Per engine: the counted answers, those that stored at least one ad and the ads stored
+    (`provider_extras.ads`, a list ingest wrote for every engine). Extras the 16 KB bound
+    emptied or never stored hold no list and count as no ad. One statement."""
+    answers = counted_answers(scope)
+    stored = _O.provider_extras["ads"]
+    ads = case((func.jsonb_typeof(stored) == "array", func.jsonb_array_length(stored)), else_=0)
+    joined, bounds = _observed(scope, answers)
+    rows = await db.execute(
+        select(
+            answers.c.engine_code,
+            func.count().label("answers"),
+            func.count().filter(ads > 0).label("with_ads"),
+            func.sum(ads).label("ads"),
+        )
+        .select_from(joined)
+        .where(*bounds)
+        .group_by(answers.c.engine_code)
+    )
+    return {row.engine_code: (row.answers, row.with_ads, int(row.ads)) for row in rows}
+
+
+async def domain_prompts(
+    db: AsyncSession, scope: SourceScope, name: str, *, top: int
+) -> list[tuple[UUID, int, int]]:
+    """The `top` prompts whose answers cite the registrable domain most, as (prompt id, citation
+    units, citing answers), roles merged: the most units first, then the prompt id."""
+    answers, source = _cited(scope)
+    rows = await db.execute(
+        select(
+            answers.c.prompt_id,
+            func.count(unit()).label("units"),
+            func.count(_C.observation_id.distinct()).label("observations"),
+        )
+        .select_from(source)
+        .where(*citation_bounds(scope), _D.registrable_domain == name)
+        .group_by(answers.c.prompt_id)
+        .order_by(desc(literal_column("units")), answers.c.prompt_id)
+        .limit(top)
+    )
+    return [(row.prompt_id, row.units, row.observations) for row in rows]
+
+
+async def domain_engine_weeks(
+    db: AsyncSession, scope: SourceScope, name: str, timezone: str
+) -> dict[tuple[str, date], tuple[int, int, int, int]]:
+    """Per (engine, week): the registrable domain's citation units and citing answers, every
+    citation unit of the engine that week and its counted answers. One statement: the answers
+    left joined to their citations, so an answer that cites nothing still counts."""
+    counted = counted_answers(scope)
+    answers = select(
+        counted.c.observation_id,
+        counted.c.observed_at,
+        counted.c.engine_code,
+        week_of(counted.c.observed_at, timezone).label("week_start"),
+    ).subquery("answer_weeks")
+    mine = _D.registrable_domain == name
+    rows = await db.execute(
+        select(
+            answers.c.engine_code,
+            answers.c.week_start,
+            func.count(unit()).filter(mine).label("units"),
+            func.count(_C.observation_id.distinct()).filter(mine).label("observations"),
+            func.count(unit()).filter(_C.url_id.is_not(None)).label("all_units"),
+            func.count(answers.c.observation_id.distinct()).label("answers"),
+        )
+        .select_from(
+            answers.outerjoin(
+                ai_citations.join(domains, _D.id == _C.domain_id),
+                and_(
+                    _C.observation_id == answers.c.observation_id,
+                    _C.observed_at == answers.c.observed_at,
+                    *citation_bounds(scope),
+                ),
+            )
+        )
+        .group_by(answers.c.engine_code, answers.c.week_start)
+    )
+    return {
+        (row.engine_code, row.week_start): (
+            row.units,
+            row.observations,
+            row.all_units,
+            row.answers,
+        )
+        for row in rows
+    }
+
+
+async def cited_with(
+    db: AsyncSession,
+    scope: SourceScope,
+    names: Collection[str],
+    *,
+    top: int,
+    by_row: bool = False,
+) -> dict[tuple[str, str | None, UUID | None], list[tuple[UUID, int]]]:
+    """For each registrable domain, the `top` tracked entities named in the most answers that
+    cite it, as (entity id, answers), the most first, then the entity id. The key is
+    `(domain, None, None)`; with `by_row` it is the list row's, `(domain, role, role entity)`, and
+    the answers are those citing the domain in that role. A mention counts when it is current,
+    accepted and of the derivation the answer's counted facts are (an older extraction's
+    mention is not what the counted answer says). One statement."""
+    if not names:
+        return {}
+    answers, source = _cited(scope)
+    row_keys = [_C.domain_role.label("role"), _C.role_entity_id.label("role_entity_id")]
+    cites = (
+        select(
+            answers.c.observation_id,
+            answers.c.observed_at,
+            answers.c.derivation_id,
+            _D.registrable_domain.label("domain"),
+            *(row_keys if by_row else ()),
+        )
+        .select_from(source)
+        .where(*citation_bounds(scope), _D.registrable_domain.in_(sorted(names)))
+        .distinct()
+        .subquery("cites")
+    )
+    keys = [cites.c.domain, *((cites.c.role, cites.c.role_entity_id) if by_row else ())]
+    m = ai_entity_mentions.c
+    named = (
+        select(*keys, m.entity_id, func.count().label("seen"))
+        .select_from(
+            cites.join(
+                ai_entity_mentions,
+                and_(
+                    m.observation_id == cites.c.observation_id,
+                    m.observed_at == cites.c.observed_at,
+                    m.derivation_id == cites.c.derivation_id,
+                    m.workspace_id == scope.workspace_id,
+                ),
+            )
+        )
+        .where(
+            m.project_id == scope.project_id,
+            m.observed_at >= scope.since,
+            m.observed_at < scope.until,
+            m.is_current,
+            m.mention_status == "accepted",
+        )
+        .group_by(*keys, m.entity_id)
+        .subquery("named")
+    )
+    row_cols = [named.c[key.name] for key in keys]
+    ranked = select(
+        *row_cols,
+        named.c.entity_id,
+        named.c.seen,
+        func.row_number()
+        .over(partition_by=row_cols, order_by=(desc(named.c.seen), named.c.entity_id))
+        .label("place"),
+    ).subquery("ranked")
+    rows = await db.execute(
+        select(*(ranked.c[col.name] for col in row_cols), ranked.c.entity_id, ranked.c.seen)
+        .where(ranked.c.place <= top)
+        .order_by(*(ranked.c[col.name] for col in row_cols), ranked.c.place)
+    )
+    found: dict[tuple[str, str | None, UUID | None], list[tuple[UUID, int]]] = {}
+    for row in rows:
+        mapping = row._mapping
+        key = (
+            (row.domain, mapping["role"], mapping["role_entity_id"])
+            if by_row
+            else (row.domain, None, None)
+        )
+        found.setdefault(key, []).append((row.entity_id, row.seen))
+    return found
+
+
+async def prompt_own_pages(
+    db: AsyncSession,
+    scope: SourceScope,
+    *,
+    own_cited: bool | None,
+    after: tuple[UUID, str] | None,
+    limit: int,
+) -> list[Any]:
+    """Per (prompt, engine) of the counted answers: the answers, those citing an own page, the own
+    citation units, the distinct own pages and the own page with the most units (ties: the lowest
+    url id), with its canonical URL. An answer that cites no own page still counts (outer join),
+    so an engine with no counted answer has no row. Keyset `(prompt_id, engine_code)`, `own_cited`
+    keeping the pairs that cite an own page or none. One statement."""
+    answers = counted_answers(scope)
+    own = (
+        select(_C.observation_id, _C.observed_at, _C.url_id)
+        .where(*citation_bounds(scope), _C.domain_role == "own")
+        .distinct()
+        .subquery("own_cited")
+    )
+    joined = answers.outerjoin(
+        own,
+        and_(
+            own.c.observation_id == answers.c.observation_id,
+            own.c.observed_at == answers.c.observed_at,
+        ),
+    )
+    citing = func.count(answers.c.observation_id.distinct()).filter(own.c.url_id.is_not(None))
+    grouped = (
+        select(
+            answers.c.prompt_id,
+            answers.c.engine_code,
+            func.count(answers.c.observation_id.distinct()).label("answers"),
+            citing.label("answers_citing_own"),
+            func.count(own.c.url_id).label("own_citation_units"),
+            func.count(own.c.url_id.distinct()).label("own_pages"),
+            func.mode()
+            .within_group(own.c.url_id)
+            .filter(own.c.url_id.is_not(None))
+            .label("top_url_id"),
+        )
+        .select_from(joined)
+        .group_by(answers.c.prompt_id, answers.c.engine_code)
+    )
+    if own_cited is not None:
+        grouped = grouped.having(citing > 0 if own_cited else citing == 0)
+    per_prompt = grouped.subquery("per_prompt")
+    u = urls.c
+    statement = select(per_prompt, u.canonical_url).select_from(
+        per_prompt.outerjoin(urls, u.id == per_prompt.c.top_url_id)
+    )
+    if after is not None:
+        statement = statement.where(
+            tuple_(per_prompt.c.prompt_id, per_prompt.c.engine_code) > tuple_(*after)
+        )
+    return list(
+        await db.execute(
+            statement.order_by(per_prompt.c.prompt_id, per_prompt.c.engine_code).limit(limit)
+        )
+    )
+
+
 async def citation_rows(
     db: AsyncSession,
     scope: SourceScope,
@@ -459,6 +1016,7 @@ async def citation_rows(
             _C.domain_role,
             _C.role_entity_id,
             _C.occurrences,
+            _C.quote,
         )
         .select_from(source.join(urls, u.id == _C.url_id))
         .where(*citation_bounds(scope))
@@ -515,6 +1073,26 @@ class FanoutTotals:
     answers_truncated: int
 
 
+def _observed(scope: SourceScope, answers: Any) -> tuple[Any, list[Any]]:
+    """The counted `answers` joined to their observations on the key, and the conditions that
+    bound those to the project and the window's partitions."""
+    joined = answers.join(
+        ai_observations,
+        and_(
+            _O.id == answers.c.observation_id,
+            _O.observed_at == answers.c.observed_at,
+            _O.workspace_id == scope.workspace_id,
+        ),
+    )
+    return joined, [
+        _O.project_id == scope.project_id,
+        _O.observed_at >= scope.since,
+        _O.observed_at < scope.until,
+        _O.observed_date >= _shifted(scope.since, -1),
+        _O.observed_date <= _shifted(scope.until, 1),
+    ]
+
+
 def _answers_with_queries(scope: SourceScope) -> Any:
     """The counted answers with what ingest stored of their fan-out: `fanout_count` (the queries
     issued, before the 16 KB bound) and `fan_out`, the stored list (an empty array when there is
@@ -523,6 +1101,7 @@ def _answers_with_queries(scope: SourceScope) -> Any:
     partitions."""
     answers = counted_answers(scope)
     stored = _O.provider_extras["fan_out_queries"]
+    joined, bounds = _observed(scope, answers)
     return (
         select(
             answers.c.observation_id,
@@ -535,23 +1114,8 @@ def _answers_with_queries(scope: SourceScope) -> Any:
                 else_=literal_column("'[]'::jsonb"),
             ).label("fan_out"),
         )
-        .select_from(
-            answers.join(
-                ai_observations,
-                and_(
-                    _O.id == answers.c.observation_id,
-                    _O.observed_at == answers.c.observed_at,
-                    _O.workspace_id == scope.workspace_id,
-                ),
-            )
-        )
-        .where(
-            _O.project_id == scope.project_id,
-            _O.observed_at >= scope.since,
-            _O.observed_at < scope.until,
-            _O.observed_date >= _shifted(scope.since, -1),
-            _O.observed_date <= _shifted(scope.until, 1),
-        )
+        .select_from(joined)
+        .where(*bounds)
         .subquery("answers")
     )
 
@@ -728,6 +1292,73 @@ async def fanout_cited(
     return found
 
 
+async def fanout_topics(
+    db: AsyncSession, scope: SourceScope, keys: Sequence[tuple[str, str]], *, top: int
+) -> dict[tuple[str, str], list[tuple[UUID, int]]]:
+    """For each (normalized text, engine), the `top` topic terms tagged on the prompts whose
+    answers issued it, as (term id, answers), the most answers first, then the term id. A topic
+    is a term of a `topic` vocabulary of the project or of the whole workspace; an answer counts
+    once for each term of its prompt, however often it lists the query. One statement."""
+    if not keys:
+        return {}
+    issued = _issued(scope)
+    pairs = (
+        select(
+            issued.c.observation_id,
+            issued.c.prompt_id,
+            issued.c.normalized_text,
+            issued.c.engine_code,
+        )
+        .where(issued.c.normalized_text.in_(sorted({text for text, _ in keys})))
+        .distinct()
+        .subquery("pairs")
+    )
+    tagged, t, v = ai_prompt_terms.c, taxonomy_terms.c, taxonomy_vocabularies.c
+    seen = (
+        select(
+            pairs.c.normalized_text,
+            pairs.c.engine_code,
+            tagged.term_id,
+            func.count(pairs.c.observation_id.distinct()).label("seen"),
+        )
+        .select_from(
+            pairs.join(
+                ai_prompt_terms,
+                and_(
+                    tagged.prompt_id == pairs.c.prompt_id,
+                    tagged.workspace_id == scope.workspace_id,
+                ),
+            )
+            .join(
+                taxonomy_terms,
+                and_(t.id == tagged.term_id, t.workspace_id == scope.workspace_id),
+            )
+            .join(taxonomy_vocabularies, v.id == t.vocabulary_id)
+        )
+        .where(v.kind == "topic", or_(v.project_id.is_(None), v.project_id == scope.project_id))
+        .group_by(pairs.c.normalized_text, pairs.c.engine_code, tagged.term_id)
+        .subquery("seen")
+    )
+    ranked = select(
+        seen,
+        func.row_number()
+        .over(
+            partition_by=(seen.c.normalized_text, seen.c.engine_code),
+            order_by=(seen.c.seen.desc(), seen.c.term_id),
+        )
+        .label("place"),
+    ).subquery("ranked")
+    rows = await db.execute(
+        select(ranked.c.normalized_text, ranked.c.engine_code, ranked.c.term_id, ranked.c.seen)
+        .where(ranked.c.place <= top)
+        .order_by(ranked.c.normalized_text, ranked.c.engine_code, ranked.c.place)
+    )
+    found: dict[tuple[str, str], list[tuple[UUID, int]]] = {}
+    for row in rows:
+        found.setdefault((row.normalized_text, row.engine_code), []).append((row.term_id, row.seen))
+    return found
+
+
 async def fanout_totals(db: AsyncSession, scope: SourceScope) -> FanoutTotals:
     """The counted answers, those that issued a query (docs/16 F1) and those whose stored list
     is shorter than what they issued: a list is complete exactly when its length is the
@@ -781,3 +1412,24 @@ async def totals(db: AsyncSession, scope: SourceScope) -> Totals:
     return Totals(
         answers=answers_in_scope, answers_citing=citing, citation_units=units, by_role=by_role
     )
+
+
+async def role_engine_totals(
+    db: AsyncSession, scope: SourceScope
+) -> dict[tuple[str, str], tuple[int, int]]:
+    """The citation units and citing answers per (engine, role) over every citation in scope: the
+    role filter of a list does not narrow it. One statement; a pair with no citation has no
+    entry."""
+    answers, source = _cited(scope)
+    rows = await db.execute(
+        select(
+            answers.c.engine_code,
+            _C.domain_role,
+            func.count(unit()).label("units"),
+            func.count(_C.observation_id.distinct()).label("observations"),
+        )
+        .select_from(source)
+        .where(*citation_bounds(scope))
+        .group_by(answers.c.engine_code, _C.domain_role)
+    )
+    return {(row.engine_code, row.domain_role): (row.units, row.observations) for row in rows}

@@ -89,19 +89,23 @@ async def enable_engine(
     *,
     location_ids: Sequence[int] = (LOCATION,),
     enabled: bool = True,
+    provider_params: str = "{}",
 ) -> None:
-    """The engine turned on (or off) for the project at these locations (1 to 50 countries)."""
+    """The engine turned on (or off) for the project at these locations (1 to 50 countries).
+    `provider_params` is the JSON text of the engine's saved settings (the device of AI Mode)."""
     await execute(
         pg,
         "INSERT INTO ai.project_engines (project_id, engine_code, workspace_id, location_ids, "
-        "provider_code, is_enabled) VALUES ($1, $2, $3, $4, 'dataforseo', $5) "
+        "provider_code, is_enabled, provider_params) "
+        "VALUES ($1, $2, $3, $4, 'dataforseo', $5, $6::jsonb) "
         "ON CONFLICT (project_id, engine_code) DO UPDATE SET is_enabled = excluded.is_enabled, "
-        "location_ids = excluded.location_ids",
+        "location_ids = excluded.location_ids, provider_params = excluded.provider_params",
         project.id,
         engine_code,
         project.workspace_id,
         list(location_ids),
         enabled,
+        provider_params,
     )
 
 

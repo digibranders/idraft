@@ -1,54 +1,88 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, ClipboardList, Link2, MessageSquareText, Users } from 'lucide-react';
+import { ArrowLeft, ClipboardList, ExternalLink, Link2, MessageSquareText, Quote, Users } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useState, type ReactElement, type ReactNode } from 'react';
+import { parseAsString, useQueryState } from 'nuqs';
+import { useEffect, useId, useRef, useState, type ReactElement, type ReactNode } from 'react';
 
-import { answerSegments } from './answer-segments';
-import { outcomeKey } from './prompt-model';
+import { answerCompareQuery } from './answer-compare-query';
+import { markerAnchors } from './answer-markers';
+import { answerSegments, type AnswerSegment } from './answer-segments';
+import { entityColorOf, MarkedAnswer } from './marked-answer';
+import { failedReasonKey, outcomeKey } from './prompt-model';
 import {
+  aiKey,
   fetchRawAnswer,
   observationQuery,
   projectEntitiesQuery,
   type ObservationAnswer,
   type PromptScope,
 } from './prompt-queries';
-import { EvidenceHighlight, type EntityColorIndex } from '@/components/app/evidence/evidence-highlight';
+import { AnswerComparePanel, type AnswerCompareState } from '@/components/app/evidence/answer-compare-panel';
+import { AnswerViewMode, type AnswerView } from '@/components/app/evidence/answer-view-mode';
+import { CitationList, citationItemId, type CitationListItem } from '@/components/app/evidence/citation-list';
+import { EntityToggleList, type EntityToggleItem } from '@/components/app/evidence/entity-toggle-list';
+import { FactsFooter, type FactsFooterFacts } from '@/components/app/evidence/facts-footer';
+import { QuotedPassage } from '@/components/app/evidence/quoted-passage';
+import { SafeMarkdown } from '@/components/app/evidence/safe-markdown';
 import { Inspector } from '@/components/app/inspector/inspector';
 import { InspectorSection } from '@/components/app/inspector/inspector-section';
 import { InspectorBody } from '@/components/app/inspector/inspector-tabs';
 import { KeyValues, type KeyValue } from '@/components/app/inspector/key-values';
+import { useInspector } from '@/components/app/inspector/use-inspector';
 import { Banner } from '@/components/app/status/banner';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { InlineError } from '@/components/app/status/inline-error';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Icon } from '@/components/ui/icon';
+import { Skeleton } from '@/components/ui/skeleton';
 import { TextLink } from '@/components/ui/text-link';
 import { toast } from '@/components/ui/toast';
 import { isApiProblem } from '@/lib/api/problem';
-import type { CitationOut, ProjectEngine } from '@/lib/api/types';
+import type { ProjectEngine } from '@/lib/api/types';
 import { useErrorId } from '@/lib/api/use-error-id';
 import { downloadUrl } from '@/lib/dom/download';
-import { EMPTY_VALUE, formatDetailDateTime, formatTableDateTime } from '@/lib/format';
+import { EMPTY_VALUE, formatDetailDateTime, formatInteger, formatTableDateTime, webHref } from '@/lib/format';
 import { useCan } from '@/lib/permissions';
-
-const colorOf = (value: number | null | undefined): EntityColorIndex | null =>
-  value === 1 || value === 2 || value === 3 || value === 4 || value === 5 || value === 6 ? value : null;
 
 /** How long the address of a downloaded raw answer lives, in milliseconds. */
 const RAW_URL_RELEASE_MS = 1000;
-const SOURCE_ROLE_KEYS = { own: 'own', competitor: 'competitor', third_party: 'thirdParty' } as const;
-
-/** Only an http or https address becomes a link; anything else (`javascript:`, say) stays text. */
-const isWebAddress = (url: string | null): url is string => url !== null && /^https?:\/\//i.test(url);
+/** The Raw view shows this many characters of the provider's answer; the download has all of it. */
+const RAW_VIEW_LIMIT = 200_000;
 
 /**
- * Why an answer could not be read, in words. The code is the provider's task status as text (`missing` when it
- * sent none; DataForSEO's 50000 range is its own errors), and is never shown as it is.
+ * The first `RAW_VIEW_LIMIT` UTF-16 units of a text the viewer shows whole in no view but Evidence (the raw answer, the
+ * markdown), never ending between the halves of one character.
  */
-const failedReasonKey = (code: string | null): 'missing' | 'providerError' | 'unknown' =>
-  code === 'missing' ? 'missing' : code !== null && /^5\d{4}$/.test(code) ? 'providerError' : 'unknown';
+function rawExcerpt(text: string): string {
+  if (text.length <= RAW_VIEW_LIMIT) return text;
+  const last = text.charCodeAt(RAW_VIEW_LIMIT - 1);
+  return text.slice(0, last >= 0xd800 && last <= 0xdbff ? RAW_VIEW_LIMIT - 1 : RAW_VIEW_LIMIT);
+}
+
+/** Takes focus to an element and scrolls it into view, smoothly unless the reader asked for less motion. */
+function reveal(target: HTMLElement | null): void {
+  if (target === null) return;
+  target.focus({ preventScroll: true });
+  // Not every environment has either (jsdom): focus has happened regardless
+  if (typeof target.scrollIntoView === 'function') {
+    const reduced =
+      typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    target.scrollIntoView({ block: 'nearest', behavior: reduced ? 'auto' : 'smooth' });
+  }
+}
+
+/**
+ * The citation the `cite` address key names, or `null` for anything but a plain positive whole number that one of the
+ * answer's citations carries (negative, zero, decimal, text, empty and out of range values are all ignored).
+ */
+function citedIndex(raw: string | null, citations: ObservationAnswer['citations']): number | null {
+  if (raw === null || !/^[1-9]\d*$/.test(raw)) return null;
+  const index = Number(raw);
+  return citations.some((citation) => citation.citation_index === index) ? index : null;
+}
 
 export interface AnswerInspectorProps {
   scope: PromptScope;
@@ -64,14 +98,20 @@ export interface AnswerInspectorProps {
 }
 
 /**
- * One answer (spec 2026-11-11 section 4.6, 23-application-patterns.md section 5.3): the answer text with the
- * own brand and the tracked competitors marked at their evidence spans, the brands it names, the sources it
- * cites with their role (own, competitor, third party), what it came to, and for `raw:read` a link to the
- * provider's raw answer. Ads are left out of mentions and sources by the normalizer, which the viewer says. A
- * failed, empty or refused answer says so, since it counts in no rate; one whose facts are not read yet says so.
- * It replaces the prompt inspector while it is open, and goes back to it.
+ * One answer (spec 2026-11-11 section 4.6, 23-application-patterns.md section 5): the answer text in three views
+ * (Evidence, with the own brand and the tracked competitors marked at their evidence spans and a marker after each
+ * cited address; Formatted, the markdown as elements; Raw, the provider's reply as received, for `raw:read`), the
+ * brands it names, the sources it cites with their role (own, competitor, third party), what it came to, and for
+ * `raw:read` a link to the provider's raw answer. Ads are left out of mentions and sources by the normalizer, which
+ * the viewer says. A failed, empty or refused answer says so, since it counts in no rate; one whose facts are not
+ * read yet says so. It replaces the prompt inspector while it is open, and goes back to it. The view, the entities
+ * turned off and the citation in focus belong to one answer: opening another starts them again.
  */
-export function AnswerInspector({
+export function AnswerInspector(props: AnswerInspectorProps): ReactElement {
+  return <AnswerInspectorBody key={props.observationId} {...props} />;
+}
+
+function AnswerInspectorBody({
   scope,
   observationId,
   observedAt,
@@ -81,6 +121,7 @@ export function AnswerInspector({
   onClose,
 }: AnswerInspectorProps): ReactElement {
   const t = useTranslations('prompts.answer');
+  const evidence = useTranslations('evidence');
   const words = useTranslations('prompts.inspector');
   const statuses = useTranslations('prompts.inspector.statuses');
   const common = useTranslations('common');
@@ -96,6 +137,54 @@ export function AnswerInspector({
   // An id that is no answer's (a hand-typed address) is an answer that is not there
   const notFound = isApiProblem(detail.error, 'not_found') || isApiProblem(detail.error, 'validation_failed');
   const [rawPending, setRawPending] = useState(false);
+
+  const [view, setView] = useState<AnswerView>('evidence');
+  const [hidden, setHidden] = useState<ReadonlySet<string>>(() => new Set());
+  const [activeCitation, setActiveCitation] = useState<number | null>(null);
+  const idPrefix = useId();
+  const textRef = useRef<HTMLDivElement>(null);
+  // "Show in answer" from another view first goes back to the marked text, and the marker takes focus once it is drawn
+  const pendingMarker = useRef<number | null>(null);
+  // Raw is only for a member who may read it, whatever was chosen before
+  const shownView: AnswerView = view === 'raw' && !canReadRaw ? 'evidence' : view;
+
+  // The raw answer is read when Raw is opened, once: it stays for the life of the viewer, and a failure is kept until
+  // Try again. A refusal reads as a problem: past its retention (410) or not readable now (503) each says so.
+  const raw = useQuery({
+    queryKey: [...aiKey(scope), 'raw-answer', observationId],
+    queryFn: async () => (await fetchRawAnswer(scope, observationId, answer?.observed_at ?? observedAt)).text(),
+    enabled: shownView === 'raw' && answer !== null,
+    retry: false,
+    staleTime: Infinity,
+  });
+  const rawErrorId = useErrorId(raw.error);
+
+  // The source inspector's "Open evidence" link names the citation to come to: it is the active one until the reader
+  // uses another, and is scrolled to and focused once, when the answer is first drawn. A repeated key (`cite=1&cite=2`)
+  // reads as its first value, which is what `useQueryState` returns.
+  const [cite, setCite] = useQueryState('cite', parseAsString);
+  const cited = answer === null ? null : citedIndex(cite, answer.citations);
+  // Taken once, while rendering, so the citation stays active after the key is spent below
+  const [arrivedAt, setArrivedAt] = useState<number | null>(null);
+  if (arrivedAt === null && cited !== null) setArrivedAt(cited);
+  const shownCitation = activeCitation ?? arrivedAt;
+  const citeRevealed = useRef(false);
+  useEffect(() => {
+    if (citeRevealed.current || answer === null) return;
+    citeRevealed.current = true;
+    if (cited === null) return;
+    reveal(document.getElementById(citationItemId(idPrefix, cited)));
+    // The key is spent: kept in the address it would point at a citation of the next answer opened. A refresh does
+    // not come back to it.
+    void setCite(null);
+  }, [answer, cited, idPrefix, setCite]);
+
+  useEffect(() => {
+    const index = pendingMarker.current;
+    if (index === null) return;
+    pendingMarker.current = null;
+    reveal(textRef.current?.querySelector<HTMLElement>(`[data-citation-marker="${String(index)}"]`) ?? null);
+  });
 
   // The raw answer is fetched through the API client, so a refusal reads as a problem: past its retention (410) or
   // not readable now (503) each says so; any other failure gets the generic line
@@ -116,6 +205,94 @@ export function AnswerInspector({
     }
   };
 
+  /** A marker in the text was used: its item in the list is marked, scrolled to and given focus. */
+  const showCitation = (index: number): void => {
+    setActiveCitation(index);
+    reveal(document.getElementById(citationItemId(idPrefix, index)));
+  };
+  /** "Show in answer" in the list: the marker in the text is marked, scrolled to and given focus. */
+  const showInAnswer = (index: number): void => {
+    setActiveCitation(index);
+    if (shownView === 'evidence') {
+      reveal(textRef.current?.querySelector<HTMLElement>(`[data-citation-marker="${String(index)}"]`) ?? null);
+      return;
+    }
+    pendingMarker.current = index;
+    setView('evidence');
+  };
+  const toggleEntity = (entityId: string, visible: boolean): void => {
+    setHidden((current) => {
+      const next = new Set(current);
+      if (visible) next.delete(entityId);
+      else next.add(entityId);
+      return next;
+    });
+  };
+
+  const rawView = (): ReactNode => {
+    if (raw.isError) {
+      if (isApiProblem(raw.error, 'raw_expired')) {
+        return (
+          <EmptyState variant="inline" title={evidence('raw.expiredTitle')} reason={t('rawExpired')} headingLevel={3} />
+        );
+      }
+      const failedReason = isApiProblem(raw.error, 'raw_unavailable') ? t('rawUnavailable') : t('rawFailed');
+      return (
+        <InlineError
+          title={evidence('raw.failedTitle')}
+          reason={failedReason}
+          errorId={rawErrorId}
+          onRetry={() => void raw.refetch()}
+          retrying={raw.isFetching}
+          retryLabel={common('retry')}
+        />
+      );
+    }
+    if (raw.data === undefined) {
+      return (
+        <div role="status" aria-label={evidence('raw.loading')} className="flex flex-col gap-2">
+          <Skeleton shape="text-13" widthPct={100} />
+          <Skeleton shape="text-13" widthPct={80} />
+          <Skeleton shape="text-13" widthPct={64} />
+        </div>
+      );
+    }
+    return (
+      <div className="flex flex-col gap-2">
+        {/* Escaped text as the provider sent it: React text, never markup */}
+        <pre className="rounded-md bg-surface-subtle p-3 type-mono wrap-anywhere whitespace-pre-wrap">
+          {rawExcerpt(raw.data)}
+        </pre>
+        {raw.data.length > RAW_VIEW_LIMIT ? (
+          <p className="type-meta">{evidence('raw.truncated', { count: formatInteger(RAW_VIEW_LIMIT) })}</p>
+        ) : null}
+      </div>
+    );
+  };
+
+  /** The entities the text marks, the own brand first, each with the number of marks it has there. */
+  const entityItems = (
+    segments: readonly AnswerSegment<ObservationAnswer['mentions'][number]>[],
+  ): EntityToggleItem[] => {
+    const found = new Map<string, EntityToggleItem>();
+    for (const segment of segments) {
+      if (segment.kind !== 'mention') continue;
+      const { mention } = segment;
+      // A competitor's marks wait for its color, so its toggle does too
+      if (entities.isPending && mention.role !== 'own') continue;
+      const current = found.get(mention.entity_id);
+      found.set(mention.entity_id, {
+        entityId: mention.entity_id,
+        name: mention.name,
+        own: mention.role === 'own',
+        colorIndex: entityColorOf(colors.get(mention.entity_id)),
+        spanCount: (current?.spanCount ?? 0) + 1,
+        visible: !hidden.has(mention.entity_id),
+      });
+    }
+    return [...found.values()].sort((a, b) => Number(b.own) - Number(a.own));
+  };
+
   const answerText = (shown: ObservationAnswer): ReactNode => {
     if (shown.answer_text === null || shown.answer_text === '') {
       if (shown.status === 'error') {
@@ -134,85 +311,147 @@ export function AnswerInspector({
         <EmptyState variant="inline" title={t('empty')} reason={t('emptyReason')} headingLevel={3} />
       );
     }
+    const segments = answerSegments(shown.answer_text, shown.mentions);
+    const hosts = new Map(shown.citations.map((citation) => [citation.citation_index, citation.host]));
     return (
       <div className="flex flex-col gap-3">
         {shown.status === 'refused' ? <Banner tone="info" placement="region" message={t('refused')} /> : null}
         {shown.status === 'partial' ? <Banner tone="warning" placement="region" message={t('partial')} /> : null}
-        <p lang={shown.language_code ?? undefined} className="type-prose wrap-anywhere whitespace-pre-wrap">
-          {answerSegments(shown.answer_text, shown.mentions).map((segment) =>
-            // The own brand is always the accent; the others wait for their colors, so none is drawn in the
-            // style of "no color" and then recolored
-            segment.kind === 'text' || (entities.isPending && segment.mention.role !== 'own') ? (
-              <span key={segment.start}>{segment.text}</span>
-            ) : (
-              <EvidenceHighlight
-                key={segment.start}
-                entity={{
-                  name: segment.mention.name,
-                  own: segment.mention.role === 'own',
-                  colorIndex: colorOf(colors.get(segment.mention.entity_id)),
-                }}
-                matchLabel={t(`matchLabels.${segment.mention.role}`)}
-                confidence={segment.mention.confidence}
-                certainty={segment.mention.mention_status === 'accepted' ? 'certain' : 'uncertain'}
-              >
-                {segment.text}
-              </EvidenceHighlight>
-            ),
-          )}
-        </p>
-        <p className="type-meta">{t('adsNote')}</p>
+        {shownView === 'evidence' ? (
+          <>
+            <EntityToggleList items={entityItems(segments)} onToggle={toggleEntity} />
+            <div ref={textRef}>
+              <MarkedAnswer
+                segments={segments}
+                colors={colors}
+                colorsPending={entities.isPending}
+                lang={shown.language_code ?? undefined}
+                className="type-prose wrap-anywhere whitespace-pre-wrap"
+                hidden={hidden}
+                markers={markerAnchors(shown.answer_text, shown.citations)}
+                citationLabel={(index) => evidence('citationMarker.label', { index, host: hosts.get(index) ?? '' })}
+                activeCitation={shownCitation}
+                onCitation={showCitation}
+              />
+            </div>
+          </>
+        ) : shownView === 'formatted' ? (
+          <>
+            <SafeMarkdown source={rawExcerpt(shown.answer_text)} lang={shown.language_code ?? undefined} />
+            {shown.answer_text.length > RAW_VIEW_LIMIT ? (
+              <p className="type-meta">{evidence('raw.truncated', { count: formatInteger(RAW_VIEW_LIMIT) })}</p>
+            ) : null}
+          </>
+        ) : (
+          rawView()
+        )}
+        {shownView === 'raw' ? null : <p className="type-meta">{t('adsNote')}</p>}
       </div>
     );
   };
 
-  const sourceBadge = (citation: CitationOut): ReactNode => {
-    const label = t(`sourceRoles.${SOURCE_ROLE_KEYS[citation.domain_role]}`);
-    if (citation.domain_role === 'own') return <Badge tone="info">{label}</Badge>;
-    if (citation.domain_role === 'competitor') return <Badge variant="outline">{label}</Badge>;
-    return <Badge>{label}</Badge>;
+  const citationItems = (shown: ObservationAnswer): CitationListItem[] => {
+    const anchored = new Set(
+      markerAnchors(shown.answer_text ?? '', shown.citations).map((anchor) => anchor.citationIndex),
+    );
+    return shown.citations.map((citation) => ({
+      index: citation.citation_index,
+      title: citation.title ?? citation.host,
+      url: citation.url,
+      rawUrl: citation.raw_url,
+      host: citation.host,
+      role: citation.domain_role,
+      // The passages have a section of their own (QuotedPassage): the source list does not repeat them
+      quote: null,
+      flags: citation.flags,
+      inAnswer: anchored.has(citation.citation_index),
+    }));
   };
 
-  const detailsOf = (shown: ObservationAnswer): KeyValue[] => [
-    { id: 'engine', label: t('engine'), value: engineName(shown.engine_code) },
-    { id: 'observed', label: t('observed'), value: formatDetailDateTime(shown.observed_at, timeZone) },
-    { id: 'model', label: t('model'), value: shown.model_reported ?? EMPTY_VALUE },
-    { id: 'outcome', label: t('outcome'), value: words(`outcomes.${outcomeKey(shown.status, shown.facts)}`) },
-    ...(isWebAddress(shown.check_url)
-      ? [
-          {
-            id: 'check',
-            label: t('checkLabel'),
-            value: (
-              <TextLink href={shown.check_url} target="_blank" rel="noopener noreferrer">
-                {t('check')}
-              </TextLink>
-            ),
-          },
-        ]
-      : []),
-    ...(canReadRaw
-      ? [
-          {
-            id: 'raw',
-            label: t('rawLabel'),
-            value: (
-              <Button
-                variant="link"
-                size="sm"
-                // Loading, not disabled: the button keeps its focus, and a second click is ignored
-                loading={rawPending}
-                onClick={() => void rawAnswer(shown.observed_at)}
-              >
-                {t('raw')}
-              </Button>
-            ),
-          },
-        ]
-      : []),
-  ];
+  const detailsOf = (shown: ObservationAnswer): KeyValue[] => {
+    // Only an http or https address without credentials becomes a link; anything else (`javascript:`, say) stays text
+    const checkHref = shown.check_url === null ? null : webHref(shown.check_url);
+    return [
+      { id: 'engine', label: t('engine'), value: engineName(shown.engine_code) },
+      { id: 'observed', label: t('observed'), value: formatDetailDateTime(shown.observed_at, timeZone) },
+      { id: 'model', label: t('model'), value: shown.model_reported ?? EMPTY_VALUE },
+      { id: 'outcome', label: t('outcome'), value: words(`outcomes.${outcomeKey(shown.status, shown.facts)}`) },
+      ...(checkHref !== null
+        ? [
+            {
+              id: 'check',
+              label: t('checkLabel'),
+              value: (
+                <TextLink
+                  href={checkHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1"
+                >
+                  {evidence('provider.open')}
+                  <Icon icon={ExternalLink} size="sm" />
+                </TextLink>
+              ),
+            },
+          ]
+        : []),
+      ...(canReadRaw
+        ? [
+            {
+              id: 'raw',
+              label: t('rawLabel'),
+              value: (
+                <Button
+                  variant="link"
+                  size="sm"
+                  // Loading, not disabled: the button keeps its focus, and a second click is ignored
+                  loading={rawPending}
+                  onClick={() => void rawAnswer(shown.observed_at)}
+                >
+                  {t('raw')}
+                </Button>
+              ),
+            },
+          ]
+        : []),
+    ];
+  };
+
+  /** What the extractor read, as the facts footer lists it; `null` while the answer has not been read yet. */
+  const factsOf = (shown: ObservationAnswer): FactsFooterFacts | null =>
+    shown.facts === null
+      ? null
+      : {
+          ownMentioned: shown.facts.own_mentioned,
+          ownDomainCited: shown.facts.own_domain_cited,
+          ownMentionOrder: shown.facts.own_mention_order,
+          ownProminence: shown.facts.own_prominence,
+          ownCitationCount: shown.facts.own_citation_count,
+          totalCitationCount: shown.facts.total_citation_count,
+          derivationId: shown.facts.derivation_id,
+        };
 
   const mentionsPending = answer !== null && outcomeKey(answer.status, answer.facts) === 'pending';
+  const hasText = answer !== null && answer.answer_text !== null && answer.answer_text !== '';
+  // An answer with no text has no brands or sources to compare. `no_baseline` is a reason, not a failure
+  const compare = useQuery({ ...answerCompareQuery(scope, observationId), enabled: hasText });
+  const compareErrorId = useErrorId(compare.error);
+  const compareState: AnswerCompareState =
+    compare.data !== undefined
+      ? { status: compare.isFetching ? 'refetching' : 'ready', compare: compare.data.data }
+      : isApiProblem(compare.error, 'no_baseline')
+        ? { status: 'empty' }
+        : compare.isError
+          ? {
+              status: 'error',
+              errorId: compareErrorId,
+              onRetry: () => void compare.refetch(),
+              retrying: compare.isFetching,
+            }
+          : { status: 'loading' };
+  // The viewer opens another answer by the address, as the prompt inspector does
+  const inspector = useInspector();
+  const hasQuotes = answer !== null && answer.citations.some((citation) => (citation.quote ?? '') !== '');
 
   return (
     <Inspector
@@ -260,7 +499,16 @@ export function AnswerInspector({
           )
         ) : (
           <>
-            <InspectorSection title={t('text')} icon={MessageSquareText} status={answer === null ? 'loading' : 'ready'}>
+            <InspectorSection
+              title={t('text')}
+              icon={MessageSquareText}
+              status={answer === null ? 'loading' : 'ready'}
+              action={
+                hasText ? (
+                  <AnswerViewMode value={shownView} onValueChange={setView} canViewRaw={canReadRaw} />
+                ) : undefined
+              }
+            >
               {answer === null ? null : answerText(answer)}
             </InspectorSection>
             <InspectorSection
@@ -314,28 +562,46 @@ export function AnswerInspector({
               }
             >
               {answer === null ? null : (
-                <ol aria-label={t('sourcesCaption')} className="flex flex-col gap-2">
-                  {answer.citations.map((citation) => (
-                    <li key={citation.citation_index} className="flex items-start justify-between gap-3">
-                      <span className="flex min-w-0 flex-col wrap-anywhere">
-                        {/* The canonical address, never the raw one the provider sent */}
-                        {isWebAddress(citation.url) ? (
-                          <TextLink href={citation.url} target="_blank" rel="noopener noreferrer">
-                            {citation.title ?? citation.host}
-                          </TextLink>
-                        ) : (
-                          <span className="type-body">{citation.title ?? citation.host}</span>
-                        )}
-                        <span className="truncate type-meta">{citation.host}</span>
-                      </span>
-                      {sourceBadge(citation)}
-                    </li>
-                  ))}
-                </ol>
+                <CitationList
+                  items={citationItems(answer)}
+                  idPrefix={idPrefix}
+                  activeIndex={shownCitation}
+                  lang={answer.language_code ?? undefined}
+                  onShowInAnswer={showInAnswer}
+                />
               )}
             </InspectorSection>
+            {answer !== null && hasQuotes ? (
+              <InspectorSection title={evidence('quotedPassage.title')} icon={Quote} status="ready">
+                <QuotedPassage
+                  lang={answer.language_code ?? undefined}
+                  items={answer.citations.map((citation) => ({
+                    index: citation.citation_index,
+                    host: citation.host,
+                    url: citation.url,
+                    quote: citation.quote ?? null,
+                  }))}
+                />
+              </InspectorSection>
+            ) : null}
+            {hasText ? (
+              <AnswerComparePanel
+                state={compareState}
+                timeZone={timeZone}
+                onOpenBaseline={(baselineId) => inspector.open({ type: 'answer', id: baselineId })}
+              />
+            ) : null}
             <InspectorSection title={t('details')} icon={ClipboardList} status={answer === null ? 'loading' : 'ready'}>
-              {answer === null ? null : <KeyValues items={detailsOf(answer)} />}
+              {answer === null ? null : (
+                <div className="flex flex-col gap-3">
+                  <KeyValues items={detailsOf(answer)} />
+                  <FactsFooter
+                    facts={factsOf(answer)}
+                    answerSha256={answer.answer_sha256}
+                    rawSha256={answer.raw_sha256}
+                  />
+                </div>
+              )}
             </InspectorSection>
           </>
         )}

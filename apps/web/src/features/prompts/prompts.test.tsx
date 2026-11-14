@@ -18,10 +18,15 @@ import { axe } from '@/test/axe';
 import { server } from '@/test/msw';
 import { restoreWideScreen, stubWideScreen } from '@/test/rankings-harness';
 import { renderWithProviders, type ProvidedRender, type ProvidedRenderOptions } from '@/test/render';
+// A topic drawer reads the entities and the tracked keywords: the harness answers both with none
+import '@/test/topic-drawer-harness';
 
+// jsdom has no canvas: a topic drawer's charts are drawn as an empty box
+vi.mock('@/components/app/chart/echart', () => ({ EChart: () => <div data-testid="echart-canvas" /> }));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
   usePathname: () => '/digibranders/fynix/ai/prompts',
+  useSearchParams: () => new URLSearchParams(''),
 }));
 
 /** Thursday 12 November 2026, noon UTC: the 02:00 run has answered. */
@@ -244,8 +249,10 @@ const promptOf = (index: number, branded = false): Prompt => ({
   intent: 'unknown',
   is_active: true,
   is_branded: branded,
+  is_branded_source: 'computed',
   language_code: 'en',
   prompt_type: 'question',
+  prompt_type_source: 'rule',
   source: 'manual',
   terms: [],
   updated_at: NOW.toISOString(),
@@ -271,6 +278,10 @@ const withTopBar = (ui: ReactElement): ReactElement => (
     {ui}
   </TopBarSlotProvider>
 );
+
+/** The date range picker of the top bar: a button whose name starts with this. */
+const RANGE_NAME = 'Date range:';
+const rangeTrigger = (): Promise<HTMLElement> => screen.findByRole('button', { name: /^Date range: / });
 
 describe('Topics & Prompts: what the list and the counts do while they load or fail', () => {
   it('leaves a branded prompt out of the table', async () => {
@@ -342,15 +353,168 @@ describe('Topics & Prompts: what the list and the counts do while they load or f
         return HttpResponse.json(EMPTY_SUMMARY);
       }),
     );
+    // The legacy key of the address: a link made before the date range picker keeps its 7 days
     renderOnPrompts(withTopBar(promptsAs('viewer')), { searchParams: '?window=7' });
-    expect(await screen.findByRole('combobox', { name: 'Window' })).toHaveAccessibleDescription(
-      'Answers from Nov 6 to Nov 12, 2026',
-    );
+    expect(await rangeTrigger()).toHaveAccessibleName(`${RANGE_NAME} Last 7 days (7d), Nov 6 to Nov 12, 2026`);
     await grid();
     expect(asked.map((url) => [url.searchParams.get('from'), url.searchParams.get('to')])).toContainEqual([
       '2026-11-06',
       '2026-11-12',
     ]);
+  });
+
+  it('shows the date range picker first in the top bar, on the 28 days of a page opened without a range', async () => {
+    const asked: URL[] = [];
+    server.use(
+      http.get(SUMMARY_PATH, ({ request }) => {
+        asked.push(new URL(request.url));
+        return HttpResponse.json(EMPTY_SUMMARY);
+      }),
+    );
+    renderOnPrompts(withTopBar(promptsAs('viewer')));
+    const trigger = await rangeTrigger();
+    expect(trigger).toHaveAccessibleName(`${RANGE_NAME} Last 28 days (28d), Oct 16 to Nov 12, 2026`);
+    const country = await screen.findByRole('combobox', { name: /^Country:/ });
+    expect(trigger.compareDocumentPosition(country) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await grid();
+    expect(asked.map((url) => [url.searchParams.get('from'), url.searchParams.get('to')])).toContainEqual([
+      '2026-10-16',
+      '2026-11-12',
+    ]);
+  });
+
+  it('writes win to the address when a preset is chosen, and asks the summary for its days', async () => {
+    const asked: URL[] = [];
+    server.use(
+      http.get(SUMMARY_PATH, ({ request }) => {
+        asked.push(new URL(request.url));
+        return HttpResponse.json(EMPTY_SUMMARY);
+      }),
+    );
+    const writes: string[] = [];
+    const { user } = renderOnPrompts(withTopBar(promptsAs('viewer')), {
+      onUrlUpdate: ({ queryString }) => writes.push(queryString),
+    });
+    await grid();
+    await user.click(await rangeTrigger());
+    await user.click(await screen.findByRole('button', { name: 'Last 90 days' }));
+    await vi.waitFor(() => expect(new URLSearchParams(writes.at(-1)).get('win')).toBe('90d'));
+    await vi.waitFor(() =>
+      expect(asked.map((url) => [url.searchParams.get('from'), url.searchParams.get('to')])).toContainEqual([
+        '2026-08-15',
+        '2026-11-12',
+      ]),
+    );
+  });
+
+  it('writes from and to, and drops the legacy window, when a custom range is applied', async () => {
+    const asked: URL[] = [];
+    server.use(
+      http.get(SUMMARY_PATH, ({ request }) => {
+        asked.push(new URL(request.url));
+        return HttpResponse.json(EMPTY_SUMMARY);
+      }),
+    );
+    const writes: string[] = [];
+    const { user } = renderOnPrompts(withTopBar(promptsAs('viewer')), {
+      searchParams: '?window=7',
+      onUrlUpdate: ({ queryString }) => writes.push(queryString),
+    });
+    await grid();
+    await user.click(await rangeTrigger());
+    await user.click(await screen.findByRole('button', { name: 'Custom range' }));
+    const start = await screen.findByRole('textbox', { name: 'Start date' });
+    await user.clear(start);
+    await user.type(start, '2026-09-01');
+    const end = screen.getByRole('textbox', { name: 'End date' });
+    await user.clear(end);
+    await user.type(end, '2026-10-31');
+    await user.click(screen.getByRole('button', { name: 'Apply' }));
+    await vi.waitFor(() => {
+      const written = new URLSearchParams(writes.at(-1));
+      expect([written.get('from'), written.get('to'), written.has('window'), written.has('win')]).toEqual([
+        '2026-09-01',
+        '2026-10-31',
+        false,
+        false,
+      ]);
+    });
+    await vi.waitFor(() =>
+      expect(asked.map((url) => [url.searchParams.get('from'), url.searchParams.get('to')])).toContainEqual([
+        '2026-09-01',
+        '2026-10-31',
+      ]),
+    );
+    expect(await rangeTrigger()).toHaveAccessibleName(`${RANGE_NAME} Sep 1 to Oct 31, 2026 (61d)`);
+  });
+
+  it('reads a custom range of the address, and asks the summary for those dates', async () => {
+    const asked: URL[] = [];
+    server.use(
+      http.get(SUMMARY_PATH, ({ request }) => {
+        asked.push(new URL(request.url));
+        return HttpResponse.json(EMPTY_SUMMARY);
+      }),
+    );
+    renderOnPrompts(withTopBar(promptsAs('viewer')), { searchParams: '?from=2026-09-01&to=2026-10-31' });
+    expect(await rangeTrigger()).toHaveAccessibleName(`${RANGE_NAME} Sep 1 to Oct 31, 2026 (61d)`);
+    await grid();
+    expect(asked.map((url) => [url.searchParams.get('from'), url.searchParams.get('to')])).toContainEqual([
+      '2026-09-01',
+      '2026-10-31',
+    ]);
+    expect(screen.queryByText(/^The link asked for/)).toBeNull();
+  });
+
+  it('shows the 28 days and says why when the link asks for a range that is too long', async () => {
+    const asked: URL[] = [];
+    server.use(
+      http.get(SUMMARY_PATH, ({ request }) => {
+        asked.push(new URL(request.url));
+        return HttpResponse.json(EMPTY_SUMMARY);
+      }),
+    );
+    renderOnPrompts(withTopBar(promptsAs('viewer')), { searchParams: '?from=2026-06-01&to=2026-10-31' });
+    expect(
+      await screen.findByText('The link asked for more than 91 days, so the last 28 days are shown.'),
+    ).toBeInTheDocument();
+    expect(await rangeTrigger()).toHaveAccessibleName(`${RANGE_NAME} Last 28 days (28d), Oct 16 to Nov 12, 2026`);
+    await grid();
+    expect(asked.map((url) => [url.searchParams.get('from'), url.searchParams.get('to')])).toContainEqual([
+      '2026-10-16',
+      '2026-11-12',
+    ]);
+  });
+
+  it('says why when the link has dates that cannot be read, or in the future, and not when it has none', async () => {
+    const first = renderOnPrompts(withTopBar(promptsAs('viewer')), { searchParams: '?from=abc&to=2026-10-31' });
+    expect(
+      await screen.findByText('The dates in the link could not be read, so the last 28 days are shown.'),
+    ).toBeInTheDocument();
+    first.unmount();
+    const second = renderOnPrompts(withTopBar(promptsAs('viewer')), { searchParams: '?from=2026-11-01&to=2026-11-30' });
+    expect(
+      await screen.findByText('The link asked for dates after today, so the last 28 days are shown.'),
+    ).toBeInTheDocument();
+    second.unmount();
+    renderOnPrompts(withTopBar(promptsAs('viewer')));
+    await rangeTrigger();
+    expect(screen.queryByText(/^The link /)).toBeNull();
+  });
+
+  it('refuses a custom range of 92 days in the picker: the answers route takes no more than 91', async () => {
+    const { user } = renderOnPrompts(withTopBar(promptsAs('viewer')));
+    await grid();
+    await user.click(await rangeTrigger());
+    await user.click(await screen.findByRole('button', { name: 'Custom range' }));
+    const start = await screen.findByRole('textbox', { name: 'Start date' });
+    await user.clear(start);
+    await user.type(start, '2026-08-13');
+    const end = screen.getByRole('textbox', { name: 'End date' });
+    await user.clear(end);
+    await user.type(end, '2026-11-12');
+    expect(screen.getByRole('button', { name: 'Apply' })).toBeDisabled();
+    expect(screen.getAllByText(/^92 days is longer than the 91 day limit/).length).toBeGreaterThan(0);
   });
 
   it('keeps the table on screen while a new window is read', async () => {
@@ -366,11 +530,11 @@ describe('Topics & Prompts: what the list and the counts do while they load or f
     const { user } = renderOnPrompts(withTopBar(promptsAs('viewer')));
     const table = await grid();
     await within(table).findByText('Which SEO agency is best for a SaaS startup in Germany?');
-    await user.click(await screen.findByRole('combobox', { name: 'Window' }));
-    await user.click(await screen.findByRole('option', { name: 'Last 7 days' }));
+    await user.click(await rangeTrigger());
+    await user.click(await screen.findByRole('button', { name: 'Last 7 days' }));
     await vi.waitFor(() =>
-      expect(screen.getByRole('combobox', { name: 'Window' })).toHaveAccessibleDescription(
-        'Answers from Nov 6 to Nov 12, 2026',
+      expect(screen.getByRole('button', { name: /^Date range: / })).toHaveAccessibleName(
+        `${RANGE_NAME} Last 7 days (7d), Nov 6 to Nov 12, 2026`,
       ),
     );
     await settle();
@@ -460,7 +624,8 @@ const FIRST_TEXT = 'Which SEO agency is best for a SaaS startup in Germany?';
 
 describe('Topics & Prompts: Mentioned and Cited per engine, filters and sort', () => {
   it('shows the Mention of each enabled engine as a percent with its count of valid answers, and only for enabled engines', async () => {
-    renderOnPrompts(promptsAs('viewer'), { searchParams: '?tab=prompts' });
+    // Without a comparison: the change beside the Mention rate has its own tests (rate-columns.test.tsx)
+    renderOnPrompts(promptsAs('viewer'), { searchParams: '?tab=prompts&cmp=off' });
     const table = await grid();
     expect(await within(table).findByRole('columnheader', { name: /^ChatGPT mention/ })).toBeInTheDocument();
     expect(within(table).getByRole('columnheader', { name: /^Gemini mention/ })).toBeInTheDocument();
@@ -479,13 +644,25 @@ describe('Topics & Prompts: Mentioned and Cited per engine, filters and sort', (
     const rowOf = (text: string): (string | null)[] =>
       within(within(table).getByText(text).closest('[role="row"]') as HTMLElement)
         .getAllByRole('gridcell')
+        // The first cell holds the row's checkbox, the last its menu
+        .slice(1, -1)
         .map((cell) => cell.textContent);
-    expect(rowOf(FIRST_TEXT)).toEqual(['SEO', 'Germany', '63% avg of 2', '33% avg of 2', '50% 3 of 6', '75% 6 of 8']);
+    // The empty text is the Trend cell, a sparkline that says its weeks in its accessible name
+    expect(rowOf(FIRST_TEXT)).toEqual([
+      'SEO',
+      'Germany',
+      '63% avg of 2',
+      '33% avg of 2',
+      '',
+      '50% 3 of 6',
+      '75% 6 of 8',
+    ]);
     expect(rowOf('How do I run a technical SEO audit on a large site?')).toEqual([
       'Technical SEO',
       'Germany',
       '79% avg of 2',
       '25% avg of 2',
+      '',
       '83% 5 of 6',
       '75% 6 of 8',
     ]);
@@ -958,7 +1135,7 @@ describe('Topics & Prompts: the Topics tab', () => {
     // A child is a row of its own, with its own numbers and no disclosure button, and opens the topic's drawer
     expect(within(rowOf(tree, 'Technical SEO')).getByText('4')).toBeInTheDocument();
     expect(rowOf(tree, 'Technical SEO')).not.toHaveAttribute('aria-expanded');
-    expect(within(tree).getByRole('button', { name: 'Open the topic Technical SEO' })).toBeInTheDocument();
+    expect(within(tree).queryByRole('button', { name: 'Open the topic Technical SEO' })).toBeNull();
     expect(within(tree).getByRole('button', { name: 'Collapse SEO, 2 topics' })).toBeInTheDocument();
     expect(await axe(container)).toHaveNoViolations();
   });
@@ -984,14 +1161,35 @@ describe('Topics & Prompts: the Topics tab', () => {
     expect(screen.queryByText(ROLLUP_NOTE)).toBeNull();
   });
 
-  it('says how many topics a parent holds in its chevron, not beside its name where it would cover the next column', async () => {
-    renderWithProviders(promptsAs('viewer'));
+  it('reads a parent as Rankings reads a group: its name with a muted count of what it opens onto, as "12 keywords" there', async () => {
+    const { user } = renderWithProviders(promptsAs('viewer'));
     const tree = await treegrid();
     await within(tree).findByText('Paid Search');
+    const count = within(rowOf(tree, 'SEO')).getByText('2 topics');
+    // Cut to an ellipsis in a narrow cell, the count says all of itself in a tooltip
+    await user.hover(count);
+    expect(await screen.findByText('2 topics', { selector: '[data-slot="tooltip"] span' })).toBeInTheDocument();
+    await user.unhover(count);
+    // The count gives way before the name does: it ends in an ellipsis where the name keeps its room
+    expect(count).toHaveClass('text-foreground-tertiary', 'min-w-0', 'truncate');
+    expect(within(rowOf(tree, 'SEO')).getByRole('button', { name: 'Open the topic SEO' })).toHaveClass('shrink-0');
+    expect(within(rowOf(tree, 'Content Marketing')).getByText('1 topic')).toBeInTheDocument();
+    // A topic with none below it opens onto its prompts
+    expect(within(rowOf(tree, 'Paid Search')).getByText('2 prompts')).toBeInTheDocument();
     expect(within(tree).getByRole('button', { name: 'Expand SEO, 2 topics' })).toBeInTheDocument();
-    expect(within(tree).getByRole('button', { name: 'Expand Content Marketing, 1 topic' })).toBeInTheDocument();
-    expect(within(rowOf(tree, 'SEO')).queryByText('2 topics')).toBeNull();
-    expect(within(rowOf(tree, 'Paid Search')).queryByText(/topic/)).toBeNull();
+  });
+
+  it('draws the name of a parent in the text color of a group name, and a topic under it as text that a click on the row opens', async () => {
+    const { user } = renderWithProviders(promptsAs('viewer'));
+    const tree = await treegrid();
+    await user.click(await within(tree).findByRole('button', { name: 'Expand SEO, 2 topics' }));
+    const name = within(tree).getByRole('button', { name: 'Open the topic SEO' });
+    expect(name).toHaveClass('text-foreground');
+    expect(name).not.toHaveClass('text-link');
+    // The row's height and type are the table's: no class of the topic rows sets them
+    expect(rowOf(tree, 'SEO').className).not.toMatch(/\bh-(9|11)\b/);
+    await user.click(within(tree).getByText('Technical SEO'));
+    expect(await screen.findByRole('complementary', { name: 'Technical SEO' })).toBeInTheDocument();
   });
 
   it('counts the topics and the prompts in the footer, each once: the topics shown with those under them, the prompts in scope', async () => {
@@ -1255,11 +1453,11 @@ describe('Topics & Prompts: the Topics tab', () => {
     );
     const { user } = renderWithProviders(withTopBar(promptsAs('viewer')));
     await within(await treegrid()).findByText('No topic');
-    await user.click(await screen.findByRole('combobox', { name: 'Window' }));
-    await user.click(await screen.findByRole('option', { name: 'Last 7 days' }));
+    await user.click(await rangeTrigger());
+    await user.click(await screen.findByRole('button', { name: 'Last 7 days' }));
     await vi.waitFor(() =>
-      expect(screen.getByRole('combobox', { name: 'Window' })).toHaveAccessibleDescription(
-        'Answers from Nov 6 to Nov 12, 2026',
+      expect(screen.getByRole('button', { name: /^Date range: / })).toHaveAccessibleName(
+        `${RANGE_NAME} Last 7 days (7d), Nov 6 to Nov 12, 2026`,
       ),
     );
     await settle();
@@ -1321,7 +1519,7 @@ describe('Topics & Prompts: the Topics tab', () => {
     await vi.waitFor(() => expect(screen.getByRole('radio', { name: 'Topics' })).toHaveFocus());
   });
 
-  it('is a radio group named for the two views, in the toolbar before the search, and the table keeps its own name', async () => {
+  it('is a radio group named for the two views, at the end of the toolbar before the density and columns as on Rankings, and the table keeps its own name', async () => {
     renderWithProviders(promptsAs('viewer'));
     const tree = await treegrid();
     const group = screen.getByRole('radiogroup', { name: 'Topics and prompts' });
@@ -1329,7 +1527,10 @@ describe('Topics & Prompts: the Topics tab', () => {
     expect(within(group).getByRole('radio', { name: 'Prompts' })).not.toBeChecked();
     expect(within(group).getByRole('radio', { name: 'Topics' })).toBeChecked();
     const search = screen.getByRole('searchbox');
-    expect(group.compareDocumentPosition(search) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(search.compareDocumentPosition(group) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const controls = screen.getByRole('toolbar', { name: /Topics table actions/ });
+    expect(group.compareDocumentPosition(controls) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(controls).not.toContainElement(group);
     expect(tree).toHaveAccessibleName('Topics');
     expect(screen.queryByRole('tablist')).toBeNull();
   });
@@ -1923,11 +2124,14 @@ describe('Topics & Prompts: rate columns, Top engine, sorting and the metric swi
   const cellsOf = (table: HTMLElement, name: string): (string | null)[] =>
     within(rowOf(table, name))
       .getAllByRole('gridcell')
+      // The first cell holds the row's checkbox, the last its menu
+      .slice(1, -1)
       .map((cell) => cell.textContent);
+  // A parent's name is its row's label, which its muted count ("2 prompts") follows in the cell
   const order = (table: HTMLElement): string[] =>
     within(table)
       .getAllByRole('rowheader')
-      .map((cell) => cell.textContent ?? '');
+      .map((cell) => cell.getAttribute('aria-label') ?? cell.textContent ?? '');
 
   it('shows the Mention rate and Citation rate of the engines in scope, an insufficient one as its answers, highest Mention rate first', async () => {
     serveRates();
@@ -1938,14 +2142,27 @@ describe('Topics & Prompts: rate columns, Top engine, sorting and the metric swi
     expect(
       within(table)
         .getAllByRole('columnheader')
+        // The first header holds the checkbox that selects every row, the last is the menus' column
+        .slice(1, -1)
         .map((header) => header.textContent?.replace(/\d$/, '')),
-    ).toEqual(['Prompt', 'Topic', 'Country', 'Mention rate', 'Citation rate', 'ChatGPT mention', 'Gemini mention']);
-    // The average is over the engines that have a rate, and says how many; the count behind each engine stays
+    ).toEqual([
+      'Prompt',
+      'Topic',
+      'Country',
+      'Mention rate',
+      'Citation rate',
+      'Trend',
+      'ChatGPT mention',
+      'Gemini mention',
+    ]);
+    // The average is over the engines that have a rate, and says how many; the count behind each engine stays.
+    // The empty text is the Trend cell, which has no text of its own (and none at all in these summaries)
     expect(cellsOf(table, 'Question number 1?')).toEqual([
       'SEO',
       'Germany',
       '50% avg of 2',
       '69% avg of 2',
+      '',
       '75% 6 of 8',
       '25% 2 of 8',
     ]);
@@ -1954,6 +2171,7 @@ describe('Topics & Prompts: rate columns, Top engine, sorting and the metric swi
       'Germany',
       '56% avg of 2',
       '25% avg of 2',
+      '',
       '38% 3 of 8',
       '75% 3 of 4',
     ]);
@@ -1963,13 +2181,14 @@ describe('Topics & Prompts: rate columns, Top engine, sorting and the metric swi
       'Germany',
       '2 answers',
       '2 answers',
+      '',
       '2 answers',
       'No answers',
     ]);
     const third = rowOf(table, 'Question number 3?');
     expect(within(third).getAllByText('2 answers')[0]).toHaveClass('bg-insufficient');
     // An equal weight percent gets the count of each engine, not a pooled count that would read as another rate
-    const [, , mention] = within(rowOf(table, 'Question number 1?')).getAllByRole('gridcell');
+    const [, , , mention] = within(rowOf(table, 'Question number 1?')).getAllByRole('gridcell');
     expect(mention).toHaveAccessibleDescription(
       'ChatGPT 6 of 8 and Gemini 2 of 8 Equal weight average of ChatGPT and Gemini, each engine counting once',
     );
@@ -2013,7 +2232,7 @@ describe('Topics & Prompts: rate columns, Top engine, sorting and the metric swi
       within(table)
         .getAllByRole('columnheader')
         .map((header) => header.textContent)
-        .slice(-2),
+        .slice(-3, -1),
     ).toEqual(['ChatGPT citation', 'Gemini citation']);
     expect(cellsOf(table, 'Question number 1?').slice(-2)).toEqual(['50% 4 of 8', '88% 7 of 8']);
     expect(new URLSearchParams(writes.at(-1)).get('metric')).toBe('citation');
@@ -2023,7 +2242,7 @@ describe('Topics & Prompts: rate columns, Top engine, sorting and the metric swi
     expect(cellsOf(table, 'Question number 1?').slice(-2)).toEqual(['50% 6 answers', 'n/a']);
     expect(new URLSearchParams(writes.at(-1)).get('metric')).toBe('sov');
     // Three answers that name a brand are too few for a share, and the tip says so in those words
-    expect(within(rowOf(table, 'Question number 2?')).getAllByRole('gridcell').at(-2)).toHaveAccessibleDescription(
+    expect(within(rowOf(table, 'Question number 2?')).getAllByRole('gridcell').at(-3)).toHaveAccessibleDescription(
       'Too few answers that name a brand for a share: 3 of the 4 it needs.',
     );
     await user.click(screen.getByRole('button', { name: 'Columns' }));
@@ -2042,6 +2261,8 @@ describe('Topics & Prompts: rate columns, Top engine, sorting and the metric swi
     expect(
       within(tree)
         .getAllByRole('columnheader')
+        // The first header holds the checkbox that selects every row, the last is the menus' column
+        .slice(1, -1)
         .map((header) => header.textContent),
     ).toEqual([
       'Topic',
@@ -2049,6 +2270,7 @@ describe('Topics & Prompts: rate columns, Top engine, sorting and the metric swi
       'Mention rate',
       'Citation rate',
       'Top engine',
+      'Trend',
       'ChatGPT mentioned',
       'ChatGPT cited',
       'Gemini mentioned',
@@ -2060,6 +2282,7 @@ describe('Topics & Prompts: rate columns, Top engine, sorting and the metric swi
       '53% avg of 2',
       '47% avg of 2',
       'ChatGPT',
+      '',
       '9 of 16',
       '4 of 16',
       '5 of 12',
@@ -2070,6 +2293,7 @@ describe('Topics & Prompts: rate columns, Top engine, sorting and the metric swi
       '2 answers',
       '2 answers',
       'n/a',
+      '',
       '1 of 2',
       '0 of 2',
       'No answers',
@@ -2183,12 +2407,12 @@ describe('Topics & Prompts: the compact header and the country in the top bar', 
       ),
     );
 
-  it('puts the country in the top bar beside the window, with all countries and the countries of the prompts', async () => {
+  it('puts the country in the top bar beside the date range, with all countries and the countries of the prompts', async () => {
     const { user } = renderWithProviders(withTopBar(promptsAs('viewer')));
     await treegrid();
     expect(await countryControl()).toBeInTheDocument();
     expect(screen.getAllByRole('combobox', { name: /^Country:/ })).toHaveLength(1);
-    expect(screen.getByRole('combobox', { name: 'Window' })).toBeInTheDocument();
+    expect(await rangeTrigger()).toBeInTheDocument();
     await user.click(await countryControl());
     expect((await screen.findAllByRole('option')).map((option) => option.textContent)).toEqual([
       'All countries',
@@ -2328,7 +2552,7 @@ describe('Topics & Prompts: the compact header and the country in the top bar', 
     expect(more.compareDocumentPosition(add) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it('shows the window of the top bar as 28d below 640 px, with its dates in the description', async () => {
+  it('shows the date range of the top bar as 28d below 640 px, with its dates in the name', async () => {
     vi.stubGlobal('matchMedia', (query: string) => ({
       matches: false,
       media: query,
@@ -2336,9 +2560,9 @@ describe('Topics & Prompts: the compact header and the country in the top bar', 
       removeEventListener: vi.fn(),
     }));
     renderWithProviders(withTopBar(promptsAs('viewer')));
-    const select = await screen.findByRole('combobox', { name: 'Window' });
-    expect(select).toHaveTextContent('28d');
-    expect(select).toHaveAccessibleDescription('Answers from Oct 16 to Nov 12, 2026');
+    const trigger = await rangeTrigger();
+    expect(trigger).toHaveTextContent('28d');
+    expect(trigger).toHaveAccessibleName(`${RANGE_NAME} Last 28 days (28d), Oct 16 to Nov 12, 2026`);
   });
 
   it('ends a long topic badge in an ellipsis inside its cell, with the whole name in the cell tooltip and no native title', async () => {

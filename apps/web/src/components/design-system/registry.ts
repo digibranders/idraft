@@ -2,12 +2,19 @@ import type { ReactNode } from 'react';
 
 import { BadgesSection } from './badges-section';
 import { ButtonsSection } from './buttons-section';
+import { ChartGridsSection } from './chart-grids-section';
+import { ControlsSection } from './controls-section';
+import { DomainsFeedsSection } from './domains-feeds-section';
+import { LayoutsSection } from './layouts-section';
+import { ChartPartsSection } from './chart-parts-section';
+import { ChartsSection } from './charts-section';
 import { DataDisplaySection } from './data-display-section';
 import { FeedbackSection } from './feedback-section';
 import { FiltersSection } from './filters-section';
 import { FormsSection } from './forms-section';
 import { IconsSection } from './icons-section';
 import { InspectorPreviewSection } from './inspector-section';
+import { MetricPartsSection } from './metric-parts-section';
 import { OverlaysSection } from './overlays-section';
 import type { PreviewSectionSlug } from './section-slugs';
 import { SizesSection } from './sizes-section';
@@ -34,8 +41,15 @@ export const PREVIEW_SECTIONS: readonly PreviewSection[] = [
   { slug: 'filters', title: 'Filters', render: FiltersSection },
   { slug: 'inspector', title: 'Inspector', render: InspectorPreviewSection },
   { slug: 'data-display', title: 'Data display', render: DataDisplaySection },
+  { slug: 'charts', title: 'Charts', render: ChartsSection },
+  { slug: 'chart-parts', title: 'Chart parts', render: ChartPartsSection },
   { slug: 'overlays', title: 'Overlays', render: OverlaysSection },
   { slug: 'feedback', title: 'Feedback', render: FeedbackSection },
+  { slug: 'metric-parts', title: 'Metrics and engines', render: MetricPartsSection },
+  { slug: 'chart-grids', title: 'Chart grids', render: ChartGridsSection },
+  { slug: 'domains-feeds', title: 'Domains, feeds and stepping', render: DomainsFeedsSection },
+  { slug: 'controls', title: 'Lists, views and dates', render: ControlsSection },
+  { slug: 'layouts', title: 'Layouts', render: LayoutsSection },
 ];
 
 export const previewSection = (slug: string): PreviewSection | undefined =>

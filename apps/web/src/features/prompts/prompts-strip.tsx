@@ -3,11 +3,13 @@
 import { useTranslations } from 'next-intl';
 import type { ReactElement } from 'react';
 
+import { ChangeInline, useChangeWords, useComparedWindow, useCompare } from './compare';
 import { useRateWords } from './rate-view';
-import { engineRates, type RateFigure, type StripPrompt } from './strip-model';
 import { MetricStrip, type MetricStripGroup, type MetricStripItem } from '@/components/app/metric/metric-strip';
 import type { ProjectEngine } from '@/lib/api/types';
-import { formatInteger } from '@/lib/format';
+import { stripChangeOf } from '@/lib/compare/change-model';
+import { formatDateRange, formatInteger } from '@/lib/format';
+import { engineRates, type RateFigure, type StripPrompt } from '@/lib/rates/strip-model';
 
 export interface PromptsStripProps {
   /** The prompts in scope: those the Prompts tab lists after the filters. */
@@ -30,7 +32,11 @@ export interface PromptsStripProps {
  */
 export function PromptsStrip({ prompts, engines, topics, status, countsFailed }: PromptsStripProps): ReactElement {
   const t = useTranslations('prompts.strip');
+  const tc = useTranslations('prompts.compare');
   const words = useRateWords();
+  const changeWords = useChangeWords();
+  const { compare } = useCompare();
+  const compared = useComparedWindow();
 
   /** One rate in the tooltip: the counts behind it, or why there is none. */
   const detailOf = (figure: RateFigure, ofBrandNamed = false): string => {
@@ -57,6 +63,12 @@ export function PromptsStrip({ prompts, engines, topics, status, countsFailed }:
         cited: t('tipRate', { metric: t('tipCited'), detail: detailOf(cited) }),
         shareOfVoice: t('tipRate', { metric: t('tipShareOfVoice'), detail: detailOf(shareOfVoice, true) }),
       };
+      // Each side counts its own prompts (a prompt added since has no earlier figure), and the tip says how many
+      const change = compare && status !== 'loading' ? stripChangeOf(prompts, code, 'mentioned') : null;
+      const base =
+        mentioned.prompts === 0
+          ? t('tipNoPrompts', parts)
+          : t('tip', { ...parts, prompts: t('tipPrompts', { count: mentioned.prompts }) });
       items.push({
         id: code,
         label: engine.engine.label,
@@ -65,10 +77,17 @@ export function PromptsStrip({ prompts, engines, topics, status, countsFailed }:
           mentioned.state === 'ok'
             ? null
             : { kind: mentioned.state === 'insufficient' ? 'insufficient' : 'not-applicable' },
+        delta: change === null ? undefined : <ChangeInline change={change} />,
         tip:
-          mentioned.prompts === 0
-            ? t('tipNoPrompts', parts)
-            : t('tip', { ...parts, prompts: t('tipPrompts', { count: mentioned.prompts }) }),
+          change === null
+            ? base
+            : tc('strip.tip', {
+                tip: base,
+                change: changeWords.tip(change, {
+                  kind: 'strip',
+                  range: compared === null ? null : formatDateRange(compared.from, compared.to),
+                }),
+              }),
       });
     }
   }

@@ -1,0 +1,466 @@
+import { describe, expect, it } from 'vitest';
+
+import {
+  engineRole,
+  historyEvents,
+  modelBoundaries,
+  pooledWeeks,
+  rateCeiling,
+  rateCeilingOf,
+  STALE_AFTER_DAYS,
+  staleEvents,
+  staleWindow,
+  weeklyHistory,
+  type HistoryEvent,
+} from './history-model';
+import type { EngineSummary, MetricCell, ObservationSummary, WeekCells } from '@/lib/api/types';
+import { MIN_OBSERVATIONS, wilsonInterval } from '@/lib/stats';
+
+const cell = (k: number, n: number): MetricCell => ({
+  numerator: k,
+  denominator: n,
+  n_observations: n,
+  value: n === 0 ? null : k / n,
+});
+const week = (weekStart: string, k: number, n: number): WeekCells => ({
+  week_start: weekStart,
+  prompts: 1,
+  is_pooled: false,
+  mentioned: cell(k, n),
+  cited: cell(0, n),
+  share_of_voice: cell(0, 0),
+});
+/** A point the API pooled: a prompt row's point holds the week and the weeks before it, `weeks` in all. */
+const pooledWeek = (weekStart: string, k: number, n: number, weeks: number): WeekCells => ({
+  ...week(weekStart, k, n),
+  is_pooled: true,
+  pool: {
+    weeks,
+    window: { from: '2026-10-05', to: weekStart, timezone: 'UTC' },
+    reason: 'prompt_point',
+    below_prompts: 10,
+  },
+});
+const engine = (code: string, series: readonly WeekCells[] | null | undefined): EngineSummary =>
+  ({
+    engine_code: code,
+    mentioned: cell(0, 0),
+    cited: cell(0, 0),
+    share_of_voice: cell(0, 0),
+    ...(series === undefined ? {} : { series: series === null ? null : [...series] }),
+  }) as unknown as EngineSummary;
+
+const W1 = '2026-10-12';
+const W2 = '2026-10-19';
+const W3 = '2026-10-26';
+const CHATGPT = 'chatgpt_web';
+const GEMINI = 'gemini_web';
+
+describe('the weeks a history pools', () => {
+  it('is 1 when nothing is pooled or there is no history', () => {
+    expect(pooledWeeks(null)).toBe(1);
+    expect(pooledWeeks(weeklyHistory([CHATGPT], [engine(CHATGPT, [week(W1, 3, 6), week(W2, 2, 5)])]))).toBe(1);
+  });
+
+  it('skips a gap and an engine without a point for the week', () => {
+    const history = weeklyHistory(
+      [CHATGPT, GEMINI],
+      [engine(CHATGPT, [week(W1, 3, 6)]), engine(GEMINI, [week(W2, 1, 2)])],
+    );
+    expect(history?.engines.map((entry) => entry.points)).toEqual([
+      [expect.anything(), null],
+      [null, expect.anything()],
+    ]);
+    expect(pooledWeeks(history)).toBe(1);
+  });
+});
+
+describe('the weekly history of a prompt', () => {
+  it('is not there while the summary has no series: not loaded, an older API or a read without it', () => {
+    expect(weeklyHistory([CHATGPT], undefined)).toBeNull();
+    expect(weeklyHistory([CHATGPT], [])).toBeNull();
+    expect(weeklyHistory([CHATGPT, GEMINI], [engine(CHATGPT, undefined), engine(GEMINI, null)])).toBeNull();
+  });
+
+  it('has a point for each week of each engine on the weeks of all of them, oldest first', () => {
+    const history = weeklyHistory(
+      [CHATGPT, GEMINI],
+      [engine(CHATGPT, [week(W2, 3, 5), week(W1, 2, 4)]), engine(GEMINI, [week(W3, 4, 4)])],
+    );
+    expect(history?.weeks).toEqual([W1, W2, W3]);
+    expect(history?.engines.map((entry) => entry.engineCode)).toEqual([CHATGPT, GEMINI]);
+    // Each point is read as it is: the engine has no point for the third week, so there is a gap, not a carried rate
+    expect(history?.engines[0]?.points.map((point) => point?.value ?? null)).toEqual([0.5, 0.6, null]);
+    // An engine whose series lists no week of the window has a gap there, not a week with no answers
+    expect(history?.engines[1]?.points.map((point) => point === null)).toEqual([true, true, false]);
+  });
+
+  it('leaves out the engines that were not asked for, and keeps the order that was', () => {
+    const history = weeklyHistory([GEMINI], [engine(CHATGPT, [week(W1, 1, 4)]), engine(GEMINI, [week(W1, 2, 4)])]);
+    expect(history?.engines.map((entry) => entry.engineCode)).toEqual([GEMINI]);
+  });
+
+  describe('as the API pools it', () => {
+    /** Five Mondays, 4 weeks apart from the first to the fourth and one more after. */
+    const MONDAYS = ['2026-10-05', '2026-10-12', '2026-10-19', '2026-10-26', '2026-11-02'] as const;
+    // What the API gives for a prompt row with two answers a week: each point already pools the week and the weeks
+    // before it inside the window, as (mentioned, valid, weeks pooled)
+    const POOLS = [
+      [1, 2, 1],
+      [1, 4, 2],
+      [3, 6, 3],
+      [4, 8, 4],
+      [5, 8, 4],
+    ] as const;
+    const points = () =>
+      weeklyHistory(
+        [CHATGPT],
+        [
+          engine(
+            CHATGPT,
+            POOLS.map(([k, n, weeks], at) => pooledWeek(MONDAYS[at] ?? '', k, n, weeks)),
+          ),
+        ],
+      )?.engines[0]?.points;
+
+    it('reads each point as it is: its own numerator and denominator, never added to the points before it', () => {
+      const [, , , , last] = points() ?? [];
+      expect(last).toMatchObject({ weekStart: MONDAYS[4], k: 5, n: 8, value: 5 / 8, thin: false });
+      expect(last?.band).toEqual(wilsonInterval(5, 8));
+    });
+
+    it('does not count an answer twice: four pooled points do not add up', () => {
+      const [first, second, third, fourth] = points() ?? [];
+      // Added again the fourth point would hold 1 + 4 + 6 + 8 = 19 answers
+      expect([first?.n, second?.n, third?.n, fourth?.n]).toEqual([2, 4, 6, 8]);
+      expect(fourth?.band).toEqual(wilsonInterval(4, 8));
+    });
+
+    it('takes the span from the weeks the point pools, and the days from its pool window', () => {
+      const pooled = points() ?? [];
+      expect(pooled.map((point) => point?.span)).toEqual([1, 2, 3, 4, 4]);
+      expect(pooled[3]?.window).toEqual({ from: '2026-10-05', to: MONDAYS[3], timezone: 'UTC' });
+    });
+
+    it('gives a point that is not pooled a span of 1 and no window', () => {
+      const point = weeklyHistory([CHATGPT], [engine(CHATGPT, [week(W1, 3, 6)])])?.engines[0]?.points[0];
+      expect(point).toMatchObject({ k: 3, n: 6, span: 1 });
+      expect(point?.window).toBeUndefined();
+    });
+
+    it('carries the reason the API gave for the pool, and none for a point that is not pooled', () => {
+      expect(points()?.map((point) => point?.reason)).toEqual(Array<string>(5).fill('prompt_point'));
+      const plain = weeklyHistory([CHATGPT], [engine(CHATGPT, [week(W1, 3, 6)])])?.engines[0]?.points[0];
+      expect(plain?.reason).toBeUndefined();
+    });
+
+    it('names the most weeks any shown point pools', () => {
+      expect(
+        pooledWeeks(
+          weeklyHistory(
+            [CHATGPT],
+            [
+              engine(
+                CHATGPT,
+                POOLS.map(([k, n, w], at) => pooledWeek(MONDAYS[at] ?? '', k, n, w)),
+              ),
+            ],
+          ),
+        ),
+      ).toBe(4);
+      // Only the opening points of the range: fewer than 4 weeks are pooled
+      expect(
+        pooledWeeks(
+          weeklyHistory(
+            [CHATGPT],
+            [engine(CHATGPT, [pooledWeek(MONDAYS[0], 1, 2, 1), pooledWeek(MONDAYS[1], 1, 4, 2)])],
+          ),
+        ),
+      ).toBe(2);
+    });
+
+    it('is thin until a point holds the minimum of valid answers, with no band', () => {
+      const [first, second] = points() ?? [];
+      expect([first?.thin, second?.thin]).toEqual([true, false]);
+      expect(first?.band).toBeNull();
+      // A hand built case where a band appears: the second point is the first to hold four valid answers
+      expect(second?.band).toEqual(wilsonInterval(1, 4));
+      expect(second?.band?.low).toBeLessThan(0.25);
+    });
+
+    it('leaves a window with no valid answer a gap, and a window with no week of the engine too', () => {
+      const empty = weeklyHistory([CHATGPT], [engine(CHATGPT, [week(MONDAYS[0], 0, 0)])])?.engines[0]?.points[0];
+      expect(empty).toMatchObject({ k: 0, n: 0, value: null, band: null, thin: false });
+    });
+
+    it('draws a window of fewer than the minimum valid answers as thin, with its value and no band', () => {
+      const point = weeklyHistory([CHATGPT], [engine(CHATGPT, [week(W1, 1, MIN_OBSERVATIONS - 1)])])?.engines[0]
+        ?.points[0];
+      expect(point?.thin).toBe(true);
+      expect(point?.band).toBeNull();
+      expect(point?.value).toBeCloseTo(1 / (MIN_OBSERVATIONS - 1));
+    });
+
+    it('gives a rate of 0 over enough answers a value of 0 with its band', () => {
+      const point = weeklyHistory([CHATGPT], [engine(CHATGPT, [week(W1, 0, 8)])])?.engines[0]?.points[0];
+      expect(point?.value).toBe(0);
+      expect(point?.band).toEqual(wilsonInterval(0, 8));
+    });
+
+    it('ignores a point with counts that cannot be real, and keeps the others', () => {
+      const history = weeklyHistory([CHATGPT], [engine(CHATGPT, [week(W1, 9, 5), week(W2, 2, 4)])]);
+      expect(history?.engines[0]?.points[0]).toBeNull();
+      expect(history?.engines[0]?.points[1]).toMatchObject({ k: 2, n: 4 });
+    });
+  });
+});
+
+describe('the colour of an engine in a chart', () => {
+  it('follows the fixed order of the engines, never the order of the data', () => {
+    expect(engineRole('chatgpt_web')).toEqual({ kind: 'brand' });
+    expect(engineRole('gemini_web')).toEqual({ kind: 'palette', index: 2 });
+    expect(engineRole('google_ai_mode')).toEqual({ kind: 'palette', index: 3 });
+  });
+
+  it('gives an engine that is not in the order the colour of everything else', () => {
+    expect(engineRole('perplexity_api')).toEqual({ kind: 'other' });
+  });
+});
+
+describe('the ceiling of the rate axis', () => {
+  const history = (k: number, n: number) => weeklyHistory([CHATGPT], [engine(CHATGPT, [week(W1, k, n)])]);
+
+  it('is the next tenth above the highest rate or band, at least 10 percent and at most 100 percent', () => {
+    expect(rateCeiling(null)).toBe(0.1);
+    expect(rateCeiling(history(0, 0))).toBe(0.1);
+    const high = wilsonInterval(2, 8)?.high ?? 0;
+    expect(rateCeiling(history(2, 8))).toBe(Math.ceil(high * 10) / 10);
+    expect(rateCeiling(history(8, 8))).toBe(1);
+  });
+
+  it('is the same for any points that have a value and a band, as the points of a topic', () => {
+    expect(rateCeilingOf([])).toBe(0.1);
+    expect(rateCeilingOf([null, { value: null, band: null }])).toBe(0.1);
+    // A tenth that floating point puts a hair above (0.3 as 0.30000000000000004) stays at it
+    expect(rateCeilingOf([{ value: 0.1 + 0.2, band: null }])).toBe(0.3);
+    expect(rateCeilingOf([{ value: 0.25, band: { low: 0.1, high: 0.62 } }, null])).toBe(0.7);
+    expect(rateCeilingOf([{ value: 1, band: { low: 0.8, high: 1 } }])).toBe(1);
+  });
+});
+
+const model = (id: string, engine: string, observedAt: string, model: string | null): ObservationSummary =>
+  ({ observation_id: id, engine_code: engine, observed_at: observedAt, model_reported: model }) as ObservationSummary;
+
+describe('the events of a prompt', () => {
+  const ADDED = '2026-09-01T09:00:00Z';
+
+  it('lists when the prompt was added, and nothing else for answers from one model', () => {
+    expect(
+      historyEvents(ADDED, [
+        model('1', CHATGPT, '2026-10-01T02:00:00Z', 'gpt-5'),
+        model('2', CHATGPT, '2026-10-05T02:00:00Z', 'gpt-5'),
+      ]),
+    ).toEqual([{ id: 'added', kind: 'added', at: ADDED }]);
+  });
+
+  it('adds a change of the model an engine reports, dated by the first answer of the new one, newest first', () => {
+    const events = historyEvents(ADDED, [
+      model('4', CHATGPT, '2026-10-12T02:00:00Z', 'gpt-5.1'),
+      model('1', CHATGPT, '2026-10-01T02:00:00Z', 'gpt-5'),
+      model('3', GEMINI, '2026-10-08T02:00:00Z', 'gemini-3'),
+      model('2', GEMINI, '2026-10-02T02:00:00Z', 'gemini-2.5'),
+    ]);
+    expect(events.map((event) => [event.kind, event.at, event.engineCode, event.from, event.to])).toEqual([
+      ['model', '2026-10-12T02:00:00Z', CHATGPT, 'gpt-5', 'gpt-5.1'],
+      ['model', '2026-10-08T02:00:00Z', GEMINI, 'gemini-2.5', 'gemini-3'],
+      ['added', ADDED, undefined, undefined, undefined],
+    ]);
+  });
+
+  it('compares the models of one engine only, and skips an answer that reports none', () => {
+    const events = historyEvents(ADDED, [
+      model('1', CHATGPT, '2026-10-01T02:00:00Z', 'gpt-5'),
+      model('2', GEMINI, '2026-10-02T02:00:00Z', 'gemini-3'),
+      model('3', CHATGPT, '2026-10-05T02:00:00Z', null),
+      model('4', CHATGPT, '2026-10-09T02:00:00Z', 'gpt-5'),
+    ]);
+    expect(events.map((event) => event.kind)).toEqual(['added']);
+  });
+});
+
+describe('the model changes on the weeks of the chart', () => {
+  const WEEKS = ['2026-10-12', '2026-10-19', '2026-10-26'];
+  const change = (id: string, at: string, engineCode: string, from: string, to: string): HistoryEvent => ({
+    id,
+    kind: 'model',
+    at,
+    engineCode,
+    from,
+    to,
+  });
+
+  it('puts a model change on the week it happened in', () => {
+    // Wed Oct 21 is in the week of Mon Oct 19, Sun Oct 25 is still in it, Mon Oct 26 starts the next
+    const events = [
+      change('a', '2026-10-21T02:00:00Z', CHATGPT, 'gpt-4o', 'gpt-5'),
+      change('b', '2026-10-25T23:00:00Z', GEMINI, 'gemini-2.5', 'gemini-3'),
+      change('c', '2026-10-26T01:00:00Z', CHATGPT, 'gpt-5', 'gpt-5.1'),
+    ];
+    expect(modelBoundaries(events, WEEKS, 'UTC').map((entry) => [entry.engineCode, entry.week])).toEqual([
+      [CHATGPT, '2026-10-19'],
+      [GEMINI, '2026-10-19'],
+      [CHATGPT, '2026-10-26'],
+    ]);
+  });
+
+  it('keeps the model before and after, and drops a change before the first week and every other kind of event', () => {
+    const events: HistoryEvent[] = [
+      change('early', '2026-10-05T02:00:00Z', CHATGPT, 'a', 'b'),
+      change('a', '2026-10-21T02:00:00Z', CHATGPT, 'gpt-4o', 'gpt-5'),
+      { id: 'added', kind: 'added', at: '2026-10-21T02:00:00Z' },
+    ];
+    expect(modelBoundaries(events, WEEKS, 'UTC')).toEqual([
+      { week: '2026-10-19', engineCode: CHATGPT, from: 'gpt-4o', to: 'gpt-5' },
+    ]);
+    expect(modelBoundaries(events, [], 'UTC')).toEqual([]);
+  });
+
+  it('reads the day of a change in the project zone', () => {
+    // Sun Oct 25, 23:00 UTC is Mon Oct 26 in Berlin (UTC+1 after the clocks change)
+    const events = [change('a', '2026-10-25T23:30:00Z', CHATGPT, 'gpt-4o', 'gpt-5')];
+    expect(modelBoundaries(events, WEEKS, 'Europe/Berlin').map((entry) => entry.week)).toEqual(['2026-10-26']);
+    expect(modelBoundaries(events, WEEKS, 'UTC').map((entry) => entry.week)).toEqual(['2026-10-19']);
+  });
+
+  it('gives two engines that change in one week a boundary each', () => {
+    const events = [
+      change('a', '2026-10-21T02:00:00Z', CHATGPT, 'gpt-4o', 'gpt-5'),
+      change('b', '2026-10-22T02:00:00Z', GEMINI, 'gemini-2.5', 'gemini-3'),
+    ];
+    const boundaries = modelBoundaries(events, WEEKS, 'UTC');
+    expect(boundaries).toHaveLength(2);
+    expect(new Set(boundaries.map((entry) => entry.engineCode))).toEqual(new Set([CHATGPT, GEMINI]));
+  });
+});
+
+describe('the stale engines of a prompt', () => {
+  const FROM = '2026-10-01T00:00:00Z';
+  const END = '2026-11-02T00:00:00Z';
+  const answer = (id: string, engine: string, observedAt: string, valid: boolean | null = true): ObservationSummary =>
+    ({
+      observation_id: id,
+      engine_code: engine,
+      observed_at: observedAt,
+      facts: valid === null ? null : { is_valid: valid },
+    }) as ObservationSummary;
+  /** ChatGPT answers every 3 days, so it is never stale. */
+  const chatgptEvery3Days = Array.from({ length: 11 }, (_, at) =>
+    answer(`c${String(at)}`, CHATGPT, new Date(Date.parse(FROM) + at * 3 * 86_400_000).toISOString()),
+  );
+  const stale = (observations: readonly ObservationSummary[], end = END, engines = [CHATGPT, GEMINI]) =>
+    staleEvents(engines, observations, { from: FROM, end });
+
+  it('adds a stale event for each enabled engine with no valid answer for 7 days or more', () => {
+    const events = stale([
+      ...chatgptEvery3Days,
+      answer('g1', GEMINI, '2026-10-20T02:00:00Z'),
+      answer('g2', GEMINI, '2026-10-30T02:00:00Z'),
+    ]);
+    expect(events).toEqual([
+      {
+        id: 'stale:gemini_web:2026-10-20T02:00:00Z',
+        kind: 'stale',
+        at: '2026-10-20T02:00:00Z',
+        engineCode: GEMINI,
+        days: 10,
+      },
+    ]);
+  });
+
+  it('counts a gap of exactly 7 days and not one of 6', () => {
+    expect(STALE_AFTER_DAYS).toBe(7);
+    const gap = (days: number) =>
+      stale(
+        [
+          answer('g1', GEMINI, '2026-10-10T00:00:00Z'),
+          answer('g2', GEMINI, new Date(Date.parse('2026-10-10T00:00:00Z') + days * 86_400_000).toISOString()),
+        ],
+        '2026-10-20T00:00:00Z',
+        [GEMINI],
+      );
+    expect(gap(7).map((event) => event.days)).toEqual([7]);
+    expect(gap(6)).toEqual([]);
+  });
+
+  it('gives an engine with no valid answer in the list one event from the start of the window', () => {
+    const events = stale(chatgptEvery3Days);
+    expect(events).toEqual([{ id: `stale:gemini_web:${FROM}`, kind: 'stale', at: FROM, engineCode: GEMINI, days: 32 }]);
+  });
+
+  it('says nothing of an engine with no valid answer in a list that holds only the newest answers', () => {
+    const events = staleEvents([CHATGPT, GEMINI], chatgptEvery3Days, { from: FROM, end: END }, false);
+    expect(events).toEqual([]);
+  });
+
+  it('does not let an invalid answer, or one with no facts, end a gap', () => {
+    const events = stale(
+      [
+        ...chatgptEvery3Days,
+        answer('g1', GEMINI, '2026-10-20T02:00:00Z'),
+        answer('g2', GEMINI, '2026-10-25T02:00:00Z', false),
+        answer('g3', GEMINI, '2026-10-28T02:00:00Z', null),
+      ],
+      END,
+    );
+    expect(events.map((event) => [event.engineCode, event.at, event.days])).toEqual([
+      [GEMINI, '2026-10-20T02:00:00Z', 12],
+    ]);
+  });
+
+  it('measures the gap between two valid answers whatever the order of the list', () => {
+    const events = stale(
+      [
+        answer('g2', GEMINI, '2026-10-30T02:00:00Z'),
+        ...chatgptEvery3Days,
+        answer('g1', GEMINI, '2026-10-20T02:00:00Z'),
+      ],
+      END,
+    );
+    expect(events.map((event) => event.days)).toEqual([10]);
+  });
+
+  it('says nothing of an engine that is not in the list of enabled engines', () => {
+    expect(stale([], END, [])).toEqual([]);
+    expect(
+      stale([answer('g1', GEMINI, '2026-10-01T00:00:00Z')], END, [CHATGPT]).map((event) => event.engineCode),
+    ).toEqual([CHATGPT]);
+  });
+
+  it('measures the last gap to the end of the window, never past now', () => {
+    const observations = [...chatgptEvery3Days, answer('g1', GEMINI, '2026-10-30T02:00:00Z')];
+    // Window ends Nov 30 but now is Nov 5: 6 days since Oct 30, not stale; at Nov 6 it is 7
+    const window = { from: '2026-10-01', to: '2026-11-30' };
+    const at = (now: string) => staleWindow(window, FROM, 'UTC', new Date(now));
+    expect(stale(observations, at('2026-11-05T02:00:00Z').end)).toEqual([]);
+    expect(stale(observations, at('2026-11-06T02:00:00Z').end).map((event) => event.days)).toEqual([7]);
+    // A window that ended before now ends at the close of its last day
+    expect(at('2026-12-20T00:00:00Z').end).toBe('2026-12-01T00:00:00.000Z');
+  });
+});
+
+describe('the window a stale gap is measured in', () => {
+  it('starts at the start of the first project day, or when the prompt was added if that is later', () => {
+    const range = { from: '2026-10-01', to: '2026-10-31' };
+    const now = new Date('2026-11-20T00:00:00Z');
+    expect(staleWindow(range, '2026-09-01T09:00:00Z', 'UTC', now).from).toBe('2026-10-01T00:00:00.000Z');
+    expect(staleWindow(range, '2026-10-25T09:00:00Z', 'UTC', now).from).toBe('2026-10-25T09:00:00.000Z');
+  });
+
+  it('reads the days in the project zone', () => {
+    const range = { from: '2026-10-01', to: '2026-10-31' };
+    const now = new Date('2026-11-20T00:00:00Z');
+    const window = staleWindow(range, '2026-01-01T00:00:00Z', 'Asia/Kolkata', now);
+    expect(window.from).toBe('2026-09-30T18:30:00.000Z');
+    expect(window.end).toBe('2026-10-31T18:30:00.000Z');
+  });
+});

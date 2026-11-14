@@ -1,4 +1,6 @@
+import type { PromptRow } from './prompt-columns';
 import type {
+  EngineSummary,
   MetricCell,
   ObservationSummary,
   ProjectEngine,
@@ -10,7 +12,7 @@ import type {
 import { formatIsoDate, formatSampleCount } from '@/lib/format';
 import type { NamedTerm } from '@/lib/keywords/taxonomy-reads';
 import type { Country } from '@/lib/locations/countries';
-import { rateState } from '@/lib/stats';
+import type { StripPrompt } from '@/lib/rates/strip-model';
 import type { SortKey } from '@/lib/tables/table-state';
 
 /**
@@ -18,27 +20,29 @@ import type { SortKey } from '@/lib/tables/table-state';
  * list of prompts and the countries a prompt may stand for. The screens put words to it.
  */
 
-/** The windows offered; the API takes at most 92 days. */
-export const WINDOW_DAYS = [7, 28, 90] as const;
-export type WindowDays = (typeof WINDOW_DAYS)[number];
-export const DEFAULT_WINDOW: WindowDays = 28;
-
-export const parseWindow = (value: string | null): WindowDays =>
-  WINDOW_DAYS.find((days) => String(days) === value) ?? DEFAULT_WINDOW;
-
 /** Project dates, `to` included, as the API's `from` and `to` take them. */
 export interface DateRange {
   from: string;
   to: string;
 }
 
-/** The last `days` days in the project's time zone, today included. */
-export function windowRange(days: WindowDays, now: Date, timeZone: string): DateRange {
-  const to = formatIsoDate(now, timeZone);
+/**
+ * How far back the Latest tab looks: the longest preset of the page (90 days). A custom range reaches 91 days
+ * (`MAX_RANGE_DAYS`); the API refuses more than 92 days of elapsed time (`422 window_too_large`), so 92 calendar
+ * days would be refused across the clock change of a project's zone.
+ */
+export const WIDEST_WINDOW = 90;
+
+/** The `days` days ending on the project day `to`, both included. Calendar arithmetic in UTC, so a clock change moves no day. */
+export function trailingRange(to: string, days: number): DateRange {
   const [year = 1970, month = 1, day = 1] = to.split('-').map(Number);
-  // Calendar arithmetic in UTC, so a clock change in the project's zone moves no day
   const from = new Date(Date.UTC(year, month - 1, day - (days - 1)));
   return { from: from.toISOString().slice(0, 10), to };
+}
+
+/** The last `days` days in the project's time zone, today included. The page's own range comes from the date range picker. */
+export function windowRange(days: number, now: Date, timeZone: string): DateRange {
+  return trailingRange(formatIsoDate(now, timeZone), days);
 }
 
 /**
@@ -55,6 +59,10 @@ export const CELL_OF_METRIC = {
   citation: 'cited',
   sov: 'share_of_voice',
 } as const satisfies Record<RateMetric, string>;
+
+/** The engine cells of a Prompts row: no row in counts that have arrived is no answers; no counts yet is not knowing. */
+export const cellsOfPrompt = (row: PromptRow): readonly EngineSummary[] | undefined =>
+  row.summary?.engines ?? (row.countsLoaded ? [] : undefined);
 
 /**
  * The ids `?sort=` names (`-id` for descending, two keys at most). A value a column does not have, or a rate
@@ -183,6 +191,28 @@ export function topicMembers<T extends Pick<PromptSummaryRow, 'topic_term_ids'>>
   return prompts.filter((prompt) => prompt.topic_term_ids.some((id) => below.has(id)));
 }
 
+/**
+ * How many topics the prompts in scope span: the topics of the summary that hold at least one of them, as the
+ * Topics tab lists them (the topic a prompt is given and every topic above it; the "No topic" row is not a
+ * topic), within `kept` when a topic filter is set (`null` otherwise). The caller must not ask before the
+ * vocabulary trees are read: a topic the tree does not hold cannot be rolled up, and this counts it only when a
+ * prompt carries it itself.
+ */
+export function topicsSpanned(
+  topics: readonly TopicSummaryRow[],
+  prompts: readonly StripPrompt[],
+  descendants: TopicDescendants,
+  kept: ReadonlySet<string> | null,
+): number {
+  return topics.filter((topic) => {
+    // The row of no topic is not a topic the prompts span
+    const termId = topic.term_id;
+    if (termId === null || (kept !== null && !topicRowKept(termId, kept))) return false;
+    const members = topicMembers(termId, prompts, descendants);
+    return members === null ? prompts.some((prompt) => prompt.topic_term_ids.includes(termId)) : members.length > 0;
+  }).length;
+}
+
 /** The topic key of the prompts without a topic, in the address (`topic:__none`) and in the table's row ids. */
 export const NO_TOPIC = '__none';
 
@@ -221,10 +251,17 @@ export function topicPrompts(
 export const topicSummaryRow = (summary: PromptsSummary | undefined, key: string): TopicSummaryRow | undefined =>
   summary?.topics.find((topic) => (topic.term_id ?? NO_TOPIC) === key);
 
-/** The tabs of the topic drawer built in slice 1: Competitors and Related wait for slices 2 and 3. */
-export const TOPIC_TABS = ['overview', 'prompts'] as const;
-export type TopicTab = (typeof TOPIC_TABS)[number];
-export const parseTopicTab = (value: string): TopicTab => (value === 'prompts' ? 'prompts' : 'overview');
+/** The `itab` of the topic drawer: a built-in tab or one of `TOPIC_TAB_ENTRIES`. */
+export type TopicTab = string;
+/** The built-in tabs of the topic drawer, as the address names them. */
+export const TOPIC_TAB = { overview: 'overview', prompts: 'prompts' } as const;
+
+/**
+ * Why an answer could not be read, as a key of `prompts.answer.failedReasons`. The code is the provider's task
+ * status as text (`missing` when it sent none; DataForSEO's 50000 range is its own errors), and is never shown as it is.
+ */
+export const failedReasonKey = (code: string | null): 'missing' | 'providerError' | 'unknown' =>
+  code === 'missing' ? 'missing' : code !== null && /^5\d{4}$/.test(code) ? 'providerError' : 'unknown';
 
 /** The topic a prompt was opened from (ADR-DS-022 decision 8), and what it was opened for. */
 export interface TopicOrigin {
@@ -246,24 +283,6 @@ export function topicOriginOf(
 ): TopicOrigin | null {
   if (origin === null || open.promptId === null || origin.projectId !== open.projectId) return null;
   return origin.promptId === open.promptId || open.order?.includes(open.promptId) === true ? origin : null;
-}
-
-/** The answers behind a cell: a topic's cell is prompt weighted and counts them in `pooled`, a prompt's in its denominator. */
-export const validAnswers = (cell: MetricCell): number => cell.pooled?.trials ?? cell.denominator;
-
-/** Whether the engine shows a rate of its own: a value over at least `MIN_OBSERVATIONS` valid answers. */
-export const hasRate = (cell: MetricCell): boolean => cell.value !== null && rateState(validAnswers(cell)) === 'ok';
-
-/**
- * The equal-weight average of the engines' rates, and how many engines took part (ADR-DS-022 decision 3): only
- * an engine that shows a rate of its own takes part (`hasRate`), so "avg of N" is the number of percents in the
- * engines' columns. An engine with no valid answer, or too few of them, is left out, not counted as 0. `null` when
- * no engine has a rate.
- */
-export function acrossEngines(cells: readonly MetricCell[]): { value: number; engines: number } | null {
-  const values = cells.flatMap((cell) => (hasRate(cell) && cell.value !== null ? [cell.value] : []));
-  if (values.length === 0) return null;
-  return { value: values.reduce((sum, value) => sum + value, 0) / values.length, engines: values.length };
 }
 
 export interface TopicChoice {

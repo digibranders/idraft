@@ -1,0 +1,843 @@
+{
+  "generated_by": "apps/web: pnpm gen:layout-catalog",
+  "source_sha256": "f08103aa3db15c0791cd272418aa4d586704363b437856e5c0984ac5a301dac1",
+  "limits": {
+    "cards": 12,
+    "numbers": 6
+  },
+  "screens": {
+    "ai_overview": {
+      "numbers": true,
+      "cards": true,
+      "widths": true
+    },
+    "citations": {
+      "numbers": true,
+      "cards": false,
+      "widths": false
+    },
+    "inspector.citation": {
+      "numbers": false,
+      "cards": true,
+      "widths": false
+    },
+    "inspector.keyword": {
+      "numbers": false,
+      "cards": true,
+      "widths": false
+    },
+    "inspector.page": {
+      "numbers": false,
+      "cards": true,
+      "widths": false
+    },
+    "inspector.prompt": {
+      "numbers": false,
+      "cards": true,
+      "widths": false
+    },
+    "inspector.topic": {
+      "numbers": false,
+      "cards": true,
+      "widths": false
+    },
+    "overview": {
+      "numbers": true,
+      "cards": true,
+      "widths": true
+    },
+    "pages": {
+      "numbers": true,
+      "cards": false,
+      "widths": false
+    },
+    "prompts": {
+      "numbers": true,
+      "cards": false,
+      "widths": false
+    },
+    "rankings": {
+      "numbers": true,
+      "cards": false,
+      "widths": false
+    },
+    "sources": {
+      "numbers": true,
+      "cards": false,
+      "widths": false
+    }
+  },
+  "card_types": [
+    {
+      "key": "activity.collection_status",
+      "screens": [
+        "ai_overview",
+        "overview"
+      ],
+      "widths": [
+        "third",
+        "half"
+      ],
+      "status": "active"
+    },
+    {
+      "key": "activity.key_changes",
+      "screens": [
+        "ai_overview",
+        "overview"
+      ],
+      "widths": [
+        "half",
+        "two_thirds",
+        "full"
+      ],
+      "status": "active"
+    },
+    {
+      "key": "ai.answer_funnel",
+      "screens": [
+        "ai_overview"
+      ],
+      "widths": [
+        "third",
+        "half"
+      ],
+      "status": "active"
+    },
+    {
+      "key": "ai.by_engine",
+      "screens": [
+        "ai_overview",
+        "overview"
+      ],
+      "widths": [
+        "half",
+        "two_thirds",
+        "full"
+      ],
+      "status": "active"
+    },
+    {
+      "key": "ai.change_summary",
+      "screens": [
+        "ai_overview"
+      ],
+      "widths": [
+        "full",
+        "two_thirds"
+      ],
+      "status": "active"
+    },
+    {
+      "key": "ai.change_waterfall",
+      "screens": [
+        "ai_overview"
+      ],
+      "widths": [
+        "half",
+        "two_thirds"
+      ],
+      "status": "active"
+    },
+    {
+      "key": "ai.citation_share_by_domain_type",
+      "screens": [
+        "ai_overview",
+        "overview"
+      ],
+      "widths": [
+        "third",
+        "half"
+      ],
+      "status": "active"
+    },
+    {
+      "key": "ai.citation_vs_mention",
+      "screens": [
+        "ai_overview"
+      ],
+      "widths": [
+        "half",
+        "two_thirds"
+      ],
+      "status": "active"
+    },
+    {
+      "key": "ai.co_mentions",
+      "screens": [
+        "ai_overview"
+      ],
+      "widths": [
+        "half",
+        "two_thirds"
+      ],
+      "status": "active"
+    },
+    {
+      "key": "ai.competitor_table",
+      "screens": [
+        "ai_overview"
+      ],
+      "widths": [
+        "half",
+        "two_thirds",
+        "full"
+      ],
+      "status": "active"
+    },
+    {
+      "key": "ai.competitor_trend",
+      "screens": [
+        "ai_overview"
+      ],
+      "widths": [
+        "half",
+        "two_thirds",
+        "full"
+      ],
+      "status": "active"
+    },
+    {
+      "key": "ai.country_breakdown",
+      "screens": [
+        "ai_overview"
+      ],
+      "widths": [
+        "half",
+        "two_thirds"
+      ],
+      "status": "active"
+    },
+    {
+      "key": "ai.engine_agreement",
+      "screens": [
+        "ai_overview"
+      ],
+      "widths": [
+        "third",
+        "half"
+      ],
+      "status": "active"
+    },
+    {
+      "key": "ai.engine_disagreement",
+      "screens": [
+        "ai_overview"
+      ],
+      "widths": [
+        "half",
+        "two_thirds"
+      ],
+      "status": "active"
+    },
+    {
+      "key": "ai.fanout_top",
+      "screens": [
+        "ai_overview"
+      ],
+      "widths": [
+        "half",
+        "third"
+      ],
+      "status": "active"
+    },
+    {
+      "key": "ai.lost_to_competitor",
+      "screens": [
+        "ai_overview"
+      ],
+      "widths": [
+        "third",
+        "half"
+      ],
+      "status": "active"
+    },
+    {
+      "key": "ai.mention_trend",
+      "screens": [
+        "ai_overview",
+        "overview"
+      ],
+      "widths": [
+        "half",
+        "two_thirds",
+        "full"
+      ],
+      "status": "active"
+    },
+    {
+      "key": "ai.opportunities",
+      "screens": [
+        "ai_overview"
+      ],
+      "widths": [
+        "half",
+        "third"
+      ],
+      "status": "active"
+    },
+    {
+      "key": "ai.outcome_mix",
+      "screens": [
+        "ai_overview"
+      ],
+      "widths": [
+        "third",
+        "half"
+      ],
+      "status": "active"
+    },
+    {
+      "key": "ai.period_comparison",
+      "screens": [
+        "ai_overview"
+      ],
+      "widths": [
+        "third",
+        "half"
+      ],
+      "status": "active"
+    },
+    {
+      "key": "ai.prompt_heatmap",
+      "screens": [
+        "ai_overview"
+      ],
+      "widths": [
+        "two_thirds",
+        "full"
+      ],
+      "status": "active"
+    },
+    {
+      "key": "ai.prompt_movers",
+      "screens": [
+        "ai_overview"
+      ],
+      "widths": [
+        "half",
+        "two_thirds"
+      ],
+      "status": "active"
+    },
+    {
+      "key": "ai.rate_trend_by_engine",
+      "screens": [
+        "ai_overview"
+      ],
+      "widths": [
+        "two_thirds",
+        "full"
+      ],
+      "status": "active"
+    },
+    {
+      "key": "ai.sample_coverage",
+      "screens": [
+        "ai_overview"
+      ],
+      "widths": [
+        "third",
+        "half"
+      ],
+      "status": "active"
+    },
+    {
+      "key": "ai.share_of_voice",
+      "screens": [
+        "ai_overview"
+      ],
+      "widths": [
+        "half",
+        "third"
+      ],
+      "status": "active"
+    },
+    {
+      "key": "ai.sov_over_time",
+      "screens": [
+        "ai_overview"
+      ],
+      "widths": [
+        "two_thirds",
+        "half",
+        "full"
+      ],
+      "status": "active"
+    },
+    {
+      "key": "ai.sov_rank",
+      "screens": [
+        "ai_overview"
+      ],
+      "widths": [
+        "half",
+        "two_thirds"
+      ],
+      "status": "active"
+    },
+    {
+      "key": "ai.top_prompts",
+      "screens": [
+        "ai_overview"
+      ],
+      "widths": [
+        "half",
+        "third"
+      ],
+      "status": "active"
+    },
+    {
+      "key": "ai.topic_contribution",
+      "screens": [
+        "ai_overview"
+      ],
+      "widths": [
+        "half",
+        "two_thirds"
+      ],
+      "status": "active"
+    },
+    {
+      "key": "ai.topic_engine_gap",
+      "screens": [
+        "ai_overview"
+      ],
+      "widths": [
+        "two_thirds",
+        "half",
+        "full"
+      ],
+      "status": "active"
+    },
+    {
+      "key": "ai.topic_extremes",
+      "screens": [
+        "ai_overview"
+      ],
+      "widths": [
+        "half",
+        "third",
+        "two_thirds"
+      ],
+      "status": "active"
+    },
+    {
+      "key": "ai.topic_heatmap",
+      "screens": [
+        "ai_overview"
+      ],
+      "widths": [
+        "two_thirds",
+        "full"
+      ],
+      "status": "active"
+    },
+    {
+      "key": "ai.topic_movers",
+      "screens": [
+        "ai_overview"
+      ],
+      "widths": [
+        "half",
+        "two_thirds"
+      ],
+      "status": "active"
+    },
+    {
+      "key": "ai.topic_small_multiples",
+      "screens": [
+        "ai_overview"
+      ],
+      "widths": [
+        "two_thirds",
+        "full"
+      ],
+      "status": "active"
+    },
+    {
+      "key": "ai.topic_trends",
+      "screens": [
+        "ai_overview"
+      ],
+      "widths": [
+        "full",
+        "two_thirds"
+      ],
+      "status": "active"
+    },
+    {
+      "key": "competitors.share_of_voice",
+      "screens": [
+        "overview"
+      ],
+      "widths": [
+        "third",
+        "half"
+      ],
+      "status": "active"
+    },
+    {
+      "key": "competitors.summary",
+      "screens": [
+        "overview"
+      ],
+      "widths": [
+        "half",
+        "two_thirds",
+        "full"
+      ],
+      "status": "active"
+    },
+    {
+      "key": "cross.matrix_summary",
+      "screens": [
+        "overview"
+      ],
+      "widths": [
+        "half",
+        "two_thirds"
+      ],
+      "status": "active"
+    },
+    {
+      "key": "cross.opportunities",
+      "screens": [
+        "overview"
+      ],
+      "widths": [
+        "half",
+        "third"
+      ],
+      "status": "active"
+    },
+    {
+      "key": "cross.unclassified",
+      "screens": [
+        "overview"
+      ],
+      "widths": [
+        "third",
+        "half"
+      ],
+      "status": "active"
+    },
+    {
+      "key": "inspector.ai_by_engine",
+      "screens": [
+        "inspector.keyword"
+      ],
+      "widths": [],
+      "status": "active"
+    },
+    {
+      "key": "inspector.competing_domains",
+      "screens": [
+        "inspector.keyword"
+      ],
+      "widths": [],
+      "status": "active"
+    },
+    {
+      "key": "inspector.key_numbers",
+      "screens": [
+        "inspector.keyword"
+      ],
+      "widths": [],
+      "status": "active"
+    },
+    {
+      "key": "inspector.rank_history",
+      "screens": [
+        "inspector.keyword"
+      ],
+      "widths": [],
+      "status": "active"
+    },
+    {
+      "key": "inspector.serp_features",
+      "screens": [
+        "inspector.keyword"
+      ],
+      "widths": [],
+      "status": "active"
+    },
+    {
+      "key": "inspector.url_history",
+      "screens": [
+        "inspector.keyword"
+      ],
+      "widths": [],
+      "status": "active"
+    },
+    {
+      "key": "ops.ai_spend",
+      "screens": [
+        "ai_overview"
+      ],
+      "widths": [
+        "third"
+      ],
+      "status": "active"
+    },
+    {
+      "key": "ops.answer_calendar",
+      "screens": [
+        "ai_overview"
+      ],
+      "widths": [
+        "half",
+        "full"
+      ],
+      "status": "active"
+    },
+    {
+      "key": "ops.answer_status",
+      "screens": [
+        "ai_overview"
+      ],
+      "widths": [
+        "half",
+        "two_thirds"
+      ],
+      "status": "active"
+    },
+    {
+      "key": "ops.engines",
+      "screens": [
+        "ai_overview"
+      ],
+      "widths": [
+        "third",
+        "half"
+      ],
+      "status": "active"
+    },
+    {
+      "key": "seo.rank_distribution",
+      "screens": [
+        "overview"
+      ],
+      "widths": [
+        "third",
+        "half"
+      ],
+      "status": "active"
+    },
+    {
+      "key": "seo.serp_features",
+      "screens": [
+        "overview"
+      ],
+      "widths": [
+        "third",
+        "half"
+      ],
+      "status": "active"
+    },
+    {
+      "key": "seo.top_movers",
+      "screens": [
+        "overview"
+      ],
+      "widths": [
+        "half",
+        "third"
+      ],
+      "status": "active"
+    },
+    {
+      "key": "sources.diversity",
+      "screens": [
+        "ai_overview"
+      ],
+      "widths": [
+        "half",
+        "two_thirds"
+      ],
+      "status": "active"
+    },
+    {
+      "key": "sources.new_lost",
+      "screens": [
+        "ai_overview"
+      ],
+      "widths": [
+        "half",
+        "third"
+      ],
+      "status": "active"
+    },
+    {
+      "key": "sources.own_pages",
+      "screens": [
+        "ai_overview"
+      ],
+      "widths": [
+        "third",
+        "half"
+      ],
+      "status": "active"
+    },
+    {
+      "key": "sources.top_domains",
+      "screens": [
+        "ai_overview"
+      ],
+      "widths": [
+        "third",
+        "half"
+      ],
+      "status": "active"
+    },
+    {
+      "key": "trend.visibility_mentions",
+      "screens": [
+        "overview"
+      ],
+      "widths": [
+        "two_thirds",
+        "full"
+      ],
+      "status": "active"
+    }
+  ],
+  "numbers": [
+    {
+      "metric": "ai.citation_rate",
+      "per_engine": true,
+      "screens": [
+        "ai_overview",
+        "overview"
+      ]
+    },
+    {
+      "metric": "ai.citation_share",
+      "per_engine": true,
+      "screens": [
+        "ai_overview"
+      ]
+    },
+    {
+      "metric": "ai.fanout_presence_rate",
+      "per_engine": true,
+      "screens": [
+        "ai_overview"
+      ]
+    },
+    {
+      "metric": "ai.mention_and_citation_rate",
+      "per_engine": true,
+      "screens": [
+        "ai_overview"
+      ]
+    },
+    {
+      "metric": "ai.mention_rate",
+      "per_engine": true,
+      "screens": [
+        "ai_overview",
+        "overview"
+      ]
+    },
+    {
+      "metric": "ai.prompts_in_scope",
+      "per_engine": false,
+      "screens": [
+        "ai_overview"
+      ]
+    },
+    {
+      "metric": "ai.recommendation_rate",
+      "per_engine": true,
+      "screens": [
+        "overview"
+      ]
+    },
+    {
+      "metric": "ai.share_of_voice",
+      "per_engine": true,
+      "screens": [
+        "ai_overview",
+        "overview"
+      ]
+    },
+    {
+      "metric": "ai.valid_answers",
+      "per_engine": true,
+      "screens": [
+        "ai_overview"
+      ]
+    },
+    {
+      "metric": "seo.aio_citation_rate",
+      "per_engine": false,
+      "screens": [
+        "overview"
+      ]
+    },
+    {
+      "metric": "seo.average_rank",
+      "per_engine": false,
+      "screens": [
+        "overview"
+      ]
+    },
+    {
+      "metric": "seo.est_clicks",
+      "per_engine": false,
+      "screens": [
+        "overview"
+      ]
+    },
+    {
+      "metric": "seo.keywords_tracked",
+      "per_engine": false,
+      "screens": [
+        "overview"
+      ]
+    },
+    {
+      "metric": "seo.share_of_voice",
+      "per_engine": false,
+      "screens": [
+        "overview"
+      ]
+    },
+    {
+      "metric": "seo.top10_count",
+      "per_engine": false,
+      "screens": [
+        "overview"
+      ]
+    },
+    {
+      "metric": "seo.top20_count",
+      "per_engine": false,
+      "screens": [
+        "overview"
+      ]
+    },
+    {
+      "metric": "seo.top3_count",
+      "per_engine": false,
+      "screens": [
+        "overview"
+      ]
+    },
+    {
+      "metric": "seo.visibility_equal",
+      "per_engine": false,
+      "screens": [
+        "overview"
+      ]
+    },
+    {
+      "metric": "seo.visibility_volume",
+      "per_engine": false,
+      "screens": [
+        "overview"
+      ]
+    }
+  ]
+}

@@ -12,16 +12,29 @@ from starlette.middleware.gzip import GZipMiddleware
 
 from idraft import __version__
 from idraft.api.access_log import AccessLogMiddleware
+from idraft.api.ai.annotation_routes import router as ai_annotations_router
+from idraft.api.ai.candidate_routes import router as ai_candidates_router
+from idraft.api.ai.competitor_routes import router as ai_competitors_router
+from idraft.api.ai.derivation_routes import router as ai_derivations_router
 from idraft.api.ai.engine_routes import router as engine_routes_router
 from idraft.api.ai.engine_service import EngineService
+from idraft.api.ai.limits_routes import router as ai_limits_router
+from idraft.api.ai.link_routes import router as ai_links_router
+from idraft.api.ai.metrics_routes import router as ai_metrics_router
 from idraft.api.ai.observation_routes import router as ai_observations_router
 from idraft.api.ai.observations import ObservationService
+from idraft.api.ai.panel_routes import router as ai_panels_router
 from idraft.api.ai.prompt_routes import router as prompt_routes_router
 from idraft.api.ai.prompt_service import PromptService
+from idraft.api.ai.retrieval_routes import router as ai_retrieval_router
+from idraft.api.ai.source_intel_routes import router as ai_source_intel_router
 from idraft.api.ai.source_routes import router as ai_sources_router
 from idraft.api.ai.sources import SourceService
+from idraft.api.ai.stats_routes import router as ai_stats_router
 from idraft.api.ai.summary import SummaryService
 from idraft.api.ai.summary_routes import router as ai_summary_router
+from idraft.api.ai.version_routes import router as ai_versions_router
+from idraft.api.alerts.routes import router as alerts_router
 from idraft.api.auth.passwords import BreachedPasswords
 from idraft.api.auth.routes import router as auth_router
 from idraft.api.auth.service import AuthService
@@ -32,10 +45,12 @@ from idraft.api.auth.totp import TotpCipher
 from idraft.api.body_limit import UPLOADS, BodyLimitMiddleware
 from idraft.api.csrf import OriginCheckMiddleware
 from idraft.api.document import router as document_router
+from idraft.api.entities.candidate_routes import router as entity_candidates_router
 from idraft.api.entities.project_routes import router as project_entities_router
 from idraft.api.entities.project_service import ProjectEntityService
 from idraft.api.entities.routes import router as entities_router
 from idraft.api.entities.service import EntityService
+from idraft.api.exports.routes import router as exports_router
 from idraft.api.health import router as health_router
 from idraft.api.imports.routes import router as imports_router
 from idraft.api.imports.service import ImportService
@@ -49,6 +64,9 @@ from idraft.api.keywords.group_service import GroupService
 from idraft.api.keywords.routes import keywords_router
 from idraft.api.keywords.routes import router as tracked_keywords_router
 from idraft.api.keywords.service import KeywordService
+from idraft.api.layouts.routes import router as layouts_router
+from idraft.api.notes.routes import router as notes_router
+from idraft.api.operations.collection_routes import router as collection_routes_router
 from idraft.api.operations.cost_routes import router as cost_routes_router
 from idraft.api.operations.costs import CostService
 from idraft.api.operations.run_routes import router as run_routes_router
@@ -67,12 +85,16 @@ from idraft.api.ranks.routes import keyword_router as rank_history_router
 from idraft.api.ranks.routes import snapshot_router as serp_snapshots_router
 from idraft.api.ranks.service import RankService
 from idraft.api.registries import router as registries_router
+from idraft.api.reports.routes import router as reports_router
 from idraft.api.request_id import RequestIdMiddleware
 from idraft.api.resources import Resources
 from idraft.api.schema import install_openapi
 from idraft.api.taxonomy.assignments import router as term_assignments_router
 from idraft.api.taxonomy.routes import router as taxonomy_router
 from idraft.api.taxonomy.service import TaxonomyService
+from idraft.api.uploads.routes import router as uploads_router
+from idraft.api.views.routes import router as views_router
+from idraft.api.webhooks.routes import router as webhooks_router
 from idraft.api.workspaces.invitations import InvitationService
 from idraft.api.workspaces.members import MemberService
 from idraft.api.workspaces.routes import router as workspaces_router
@@ -265,6 +287,31 @@ def create_app(
     register_problem_handlers(app, app_origin=settings.app_origin)
     app.include_router(health_router)
     app.include_router(auth_router)
+    # The routers of the AI visibility packages (docs/ai-visibility/MASTER-PLAN.md section 3.3),
+    # in that table's order and before the older routers: a request goes to the first route that
+    # matches, so a new word in a path is never taken by an older route's parameter.
+    app.include_router(layouts_router)
+    app.include_router(ai_limits_router)
+    app.include_router(collection_routes_router)
+    app.include_router(ai_metrics_router)
+    app.include_router(ai_competitors_router)
+    app.include_router(ai_annotations_router)
+    app.include_router(notes_router)
+    app.include_router(ai_versions_router)
+    app.include_router(ai_panels_router)
+    app.include_router(ai_links_router)
+    app.include_router(ai_candidates_router)
+    app.include_router(uploads_router)
+    app.include_router(alerts_router)
+    app.include_router(views_router)
+    app.include_router(exports_router)
+    app.include_router(reports_router)
+    app.include_router(ai_derivations_router)
+    app.include_router(entity_candidates_router)
+    app.include_router(ai_retrieval_router)
+    app.include_router(ai_stats_router)
+    app.include_router(ai_source_intel_router)
+    app.include_router(webhooks_router)
     app.include_router(workspaces_router)
     app.include_router(projects_router)
     app.include_router(entities_router)

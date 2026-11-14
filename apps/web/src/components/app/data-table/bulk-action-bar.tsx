@@ -17,6 +17,8 @@ import { fitCount } from '@/lib/tables/bulk-fit';
 
 export interface BulkActionBarProps<TRow> {
   selectedCount: number;
+  /** What the bar says in place of "{count} selected" ("2 topics selected, 7 prompts"). */
+  selectedLabel?: string | undefined;
   /** Rows the filters match, when more exist than are loaded. */
   matchingTotal: number | null;
   /** Every loaded row in view is selected: the condition for offering every matching row. */
@@ -53,6 +55,7 @@ const sameWidths = (a: readonly number[], b: readonly number[]): boolean =>
  */
 export function BulkActionBar<TRow>({
   selectedCount,
+  selectedLabel,
   matchingTotal,
   allLoadedSelected,
   allMatching,
@@ -68,7 +71,7 @@ export function BulkActionBar<TRow>({
   const selectedText =
     allMatching && matchingTotal !== null
       ? t('allMatchingSelected', { count: formatInteger(matchingTotal) })
-      : t('selected', { count: formatInteger(selectedCount) });
+      : (selectedLabel ?? t('selected', { count: formatInteger(selectedCount) }));
   const ordered = [...actions].sort((a, b) => ORDER[a.group] - ORDER[b.group]);
   const firstDestructive = ordered.findIndex((action) => action.group === 'destructive');
 
@@ -76,6 +79,7 @@ export function BulkActionBar<TRow>({
   // begins, so the actions and Clear stay in sight, and the actions that no longer fit go into More
   const overlayLeft = use(InspectorOverlayContext);
   const bar = useRef<HTMLDivElement>(null);
+  const count = useRef<HTMLParagraphElement>(null);
   const [covered, setCovered] = useState(0);
   useLayoutEffect(() => {
     const element = bar.current;
@@ -145,9 +149,19 @@ export function BulkActionBar<TRow>({
       style={covered === 0 ? undefined : { paddingRight: covered + BAR_PADDING_PX }}
       className="flex h-12 shrink-0 items-center gap-3 border-b border-border-subtle bg-surface-selected px-3"
     >
-      <p className="shrink-0 num type-body-strong">{selectedText}</p>
+      <p ref={count} tabIndex={-1} data-slot="bulk-count" className="shrink-0 num type-body-strong outline-none">
+        {selectedText}
+      </p>
       {matchingTotal !== null && allLoadedSelected && !allMatching && matchingTotal > selectedCount ? (
-        <Button variant="link" size="sm" onClick={onSelectAllMatching}>
+        <Button
+          variant="link"
+          size="sm"
+          onClick={() => {
+            // The button goes once all matching is on: the count stays, so focus stays in the bar
+            count.current?.focus();
+            onSelectAllMatching();
+          }}
+        >
           {t('selectAllMatching', { count: formatInteger(matchingTotal) })}
         </Button>
       ) : null}

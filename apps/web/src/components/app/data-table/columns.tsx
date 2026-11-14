@@ -1,6 +1,6 @@
 import type { ReactElement, ReactNode } from 'react';
 
-import type { CellTip, ColumnPriority, DataTableColumn } from './types';
+import type { CellTip, ColumnGroup, ColumnPriority, DataTableColumn } from './types';
 import { CopyButton } from '@/components/app/cells/copy-button';
 import { CollectionStatusIcon, type CollectionStatus } from '@/components/app/status/collection-progress';
 import { Badge } from '@/components/ui/badge';
@@ -32,6 +32,8 @@ interface Options {
    */
   minWidth?: number | undefined;
   defaultVisible?: boolean | undefined;
+  /** The group header over this column and its adjacent neighbours with the same group (`columnGroups` on the table). */
+  group?: ColumnGroup | undefined;
   /** Whether the column sorts; on by default for the types that sort. */
   sortable?: boolean | undefined;
   /** Its cells hold `CELL_CONTROL` controls (a screen's own `cell` with a copy button or a link). */
@@ -59,6 +61,7 @@ function base<TRow>(
     headerTooltip: options.headerTooltip,
     cellTip,
     hasControls: options.hasControls,
+    group: options.group,
     priority: options.priority ?? 1,
     width: clampWidth(type, options.width, options.minWidth),
     minWidth: options.minWidth,

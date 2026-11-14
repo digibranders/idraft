@@ -527,6 +527,18 @@ async def test_a_domains_pages_add_up_to_its_units(api: httpx.AsyncClient, scene
     assert sum(row[1] for row in own_rows) == 4
 
 
+@pytest.mark.parametrize("route", [("sources", "pages"), ("citations",)])
+@pytest.mark.parametrize("name", ["a\x00b", "a\nb", "a\x7fb"])
+async def test_a_control_character_in_the_domain_filter_is_refused(
+    api: httpx.AsyncClient, scene: Scene, route: tuple[str, ...], name: str
+) -> None:
+    """The house rule (schemas.common): a control character, NUL included, is a 422 and never a
+    500 from the database."""
+    response = await _get(scene.world, api, *route, **{"filter[registrable_domain]": name})
+
+    assert problem(response) == (422, "validation_failed")
+
+
 async def test_pages_page_by_offset(api: httpx.AsyncClient, scene: Scene) -> None:
     second = await _get(scene.world, api, "sources", "pages", offset=2, limit=2)
     beyond = await _get(scene.world, api, "sources", "pages", offset=10, limit=2)

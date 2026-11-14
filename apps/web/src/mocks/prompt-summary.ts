@@ -1,4 +1,15 @@
-import type { EngineSummary, EntityCells, MentionOut, MetricCell, ObservationDetail } from '@/lib/api/types';
+import type {
+  EngineSummary,
+  EntityCells,
+  MentionOut,
+  MetricCell,
+  ObservationDetail,
+  PointPool,
+  Schemas,
+  WeekCells,
+} from '@/lib/api/types';
+
+type EngineCoMentions = Schemas['EngineCoMentions'];
 
 /**
  * The arithmetic of the prompts summary, as the API does it (backend `api/ai/summary.py` and
@@ -137,6 +148,145 @@ export function topicCells(engineCode: string, members: readonly Counts[]): Engi
   };
 }
 
+// The weekly series of `include=series` (backend `summary.py` `summary_weeks` and `_week`): a week starts on Monday
+// in the project's zone, and the days given here are already project days.
+
+const WEEK_DAYS = 7;
+const dayNumber = (isoDate: string): number => Date.parse(`${isoDate}T00:00:00Z`) / 86_400_000;
+const isoOfDay = (day: number): string => new Date(day * 86_400_000).toISOString().slice(0, 10);
+
+/** The Monday of the week a project day is in. */
+export function mondayOf(isoDate: string): string {
+  const day = dayNumber(isoDate);
+  // Day 0 (1970-01-01) was a Thursday, so a Monday is day 4 modulo 7
+  return isoOfDay(day - ((((day - 4) % WEEK_DAYS) + WEEK_DAYS) % WEEK_DAYS));
+}
+
+/** The Mondays of the weeks the days `first` to `last` touch, oldest first: at most 14 in 92 days. */
+export function summaryWeeks(first: string, last: string): string[] {
+  const weeks: string[] = [];
+  for (let week = dayNumber(mondayOf(first)); week <= dayNumber(last); week += WEEK_DAYS) weeks.push(isoOfDay(week));
+  return weeks;
+}
+
+/** The weeks a point pools (the week and the three before it) and the prompts under which a topic point pools. */
+const POOL_WEEKS = 4;
+const FEW_PROMPTS = 10;
+
+/** The row's prompts with a valid answer in the cells: a prompt cell (`pooled` null) holds answers, so 1 or 0; a topic cell's denominator is the count. */
+const promptsIn = (cells: EngineSummary): number =>
+  cells.mentioned.pooled === null ? Number(cells.mentioned.denominator > 0) : cells.mentioned.denominator;
+
+/** A pooled point's cells and what they hold. */
+export interface PooledCells {
+  cells: EngineSummary;
+  pool: PointPool;
+}
+
+/**
+ * One point of a series: the week, and the cells of the engine row over the week's answers (`own`), or over the
+ * weeks of `pooled` (the API pools prompt points and topic points under 10 prompts, contract C2 C-11). `prompts` is
+ * always the row's prompts with a valid answer in the week alone.
+ */
+export const weekCells = (
+  weekStart: string,
+  own: EngineSummary,
+  pooled?: PooledCells,
+  entities?: EntityCells[],
+): WeekCells => {
+  const shown = pooled?.cells ?? own;
+  return {
+    week_start: weekStart,
+    prompts: promptsIn(own),
+    is_pooled: pooled !== undefined,
+    ...(pooled === undefined ? {} : { pool: pooled.pool }),
+    mentioned: shown.mentioned,
+    cited: shown.cited,
+    share_of_voice: shown.share_of_voice,
+    ...(entities === undefined ? {} : { entities }),
+  };
+};
+
+/** The counts of the parts added up, field by field. */
+export function sumCounts(parts: readonly Counts[]): Counts {
+  const total = { ...NO_COUNTS };
+  for (const part of parts) {
+    for (const field of Object.keys(total) as (keyof Counts)[]) total[field] += part[field];
+  }
+  return total;
+}
+
+/**
+ * The entities a series carries cells for (`include=series,entities`), and how often each is named: `named` says it
+ * for one prompt of the row and one week, both as indexes into `perPrompt` and `weeks` of `weeklySeries`.
+ */
+export interface SeriesEntities {
+  ids: readonly string[];
+  named: (prompt: number, week: number, entityId: string) => EntityCounts;
+}
+
+/**
+ * The series of one engine row. `perPrompt` holds, for each prompt of the row (one on a prompt row), its counts for
+ * each of `weeks`. A prompt point pools the week and the three before it, never reading a week outside `range`; a
+ * topic point pools only when under 10 prompts answered that week alone: each prompt's counts are added over the
+ * weeks first, then weighted by prompt. With `entities`, each point also carries the cells of those tracked entities
+ * over the very weeks it holds (contract C2, C-9 and C-10), pooled as the point is.
+ */
+export function weeklySeries(
+  engineCode: string,
+  weeks: readonly string[],
+  range: { from: string; to: string; timezone: string },
+  perPrompt: readonly (readonly Counts[])[],
+  topic = false,
+  entities?: SeriesEntities,
+): WeekCells[] {
+  const cellsOf = (pick: (counts: readonly Counts[]) => Counts): EngineSummary =>
+    topic ? topicCells(engineCode, perPrompt.map(pick)) : promptCells(engineCode, pick(perPrompt[0] ?? []));
+  /** The entities' cells over the weeks `from` to `to` (exclusive), weighted as the point's own cells are. */
+  const entityCellsOf = (from: number, to: number): EntityCells[] | undefined =>
+    entities?.ids.map((entityId) => {
+      const parts = perPrompt.map((counts, prompt) => ({
+        counts: sumCounts(counts.slice(from, to)),
+        named: weeks.slice(from, to).reduce<EntityCounts>(
+          (total, _week, offset) => {
+            const part = entities.named(prompt, from + offset, entityId);
+            return { mentioned: total.mentioned + part.mentioned, sov_share: total.sov_share + part.sov_share };
+          },
+          { ...NOT_NAMED },
+        ),
+      }));
+      return topic
+        ? topicEntityCells(entityId, parts)
+        : promptEntityCells(entityId, parts[0]?.counts ?? NO_COUNTS, parts[0]?.named ?? NOT_NAMED);
+    });
+  return weeks.map((week, at) => {
+    const own = cellsOf((counts) => counts[at] ?? NO_COUNTS);
+    if (topic && promptsIn(own) >= FEW_PROMPTS) return weekCells(week, own, undefined, entityCellsOf(at, at + 1));
+    const first = Math.max(0, at - POOL_WEEKS + 1);
+    const pooledWeeks = weeks.slice(first, at + 1);
+    const sunday = isoOfDay(dayNumber(week) + WEEK_DAYS - 1);
+    const start = pooledWeeks[0] ?? week;
+    return weekCells(
+      week,
+      own,
+      {
+        cells: cellsOf((counts) => sumCounts(counts.slice(first, at + 1))),
+        pool: {
+          weeks: pooledWeeks.length,
+          window: {
+            from: range.from > start ? range.from : start,
+            to: range.to < sunday ? range.to : sunday,
+            timezone: range.timezone,
+          },
+          reason: topic ? 'few_prompts' : 'prompt_point',
+          below_prompts: FEW_PROMPTS,
+        },
+      },
+      entityCellsOf(first, at + 1),
+    );
+  });
+}
+
 // The cells per tracked entity of `include=entities` (backend `summary.py` `_entity_cells`, `summary_repository.py`
 // `entity_counts`): an answer's share of voice set is its mentions with a mention order, so an entity is named by a
 // valid answer that has such a mention of it, and takes 1 / the entities the answer names.
@@ -206,4 +356,36 @@ export function cellEntityIds(tracked: readonly { entity_id: string; role: 'own'
     .sort((a, b) => Number(a.role !== 'own') - Number(b.role !== 'own'))
     .slice(0, ENTITY_CELLS_MAX)
     .map((entity) => entity.entity_id);
+}
+
+// The co-mentions of `include=co_mentions` (c2 C-8): per engine, how often two tracked entities are named in one valid
+// answer. An entity is named by the same rule as its cells (`entityCountsOf`).
+
+const byId = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
+
+/**
+ * The pairs of one engine over its answers in scope. `answers` is every valid answer, naming anyone or not; a pair is
+ * `a < b` by id, no self pair, only pairs with an answer, the most answers first, then by `a` and `b`.
+ */
+export function coMentionsOf(
+  engineCode: string,
+  entityIds: readonly string[],
+  answers: readonly NamedAnswer[],
+): EngineCoMentions {
+  const valid = answers.filter(({ facts }) => facts.is_valid);
+  const counted = new Map<string, { a: string; b: string; answers: number }>();
+  for (const answer of valid) {
+    const named = entityIds.filter((id) => entityCountsOf(id, [answer]).mentioned === 1).sort(byId);
+    named.forEach((a, place) => {
+      for (const b of named.slice(place + 1)) {
+        const pair = counted.get(`${a} ${b}`) ?? { a, b, answers: 0 };
+        counted.set(`${a} ${b}`, { ...pair, answers: pair.answers + 1 });
+      }
+    });
+  }
+  return {
+    engine_code: engineCode,
+    answers: valid.length,
+    pairs: [...counted.values()].sort((x, y) => y.answers - x.answers || byId(x.a, y.a) || byId(x.b, y.b)),
+  };
 }

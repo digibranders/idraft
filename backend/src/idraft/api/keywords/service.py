@@ -92,6 +92,13 @@ SUBJECTS_MAX = 20_000
 LINK_CHANGES_MAX = 200_000
 
 
+def subjects_limit(links: int = 0) -> int:
+    """The rows one bulk change or assignment may take when each gains or loses `links` groups
+    and terms: `SUBJECTS_MAX`, and at most `LINK_CHANGES_MAX` link changes in all. Prompts follow
+    the same rule."""
+    return SUBJECTS_MAX if links == 0 else min(SUBJECTS_MAX, LINK_CHANGES_MAX // links)
+
+
 @dataclass(frozen=True, slots=True)
 class _Defaults:
     location_id: int | None
@@ -1027,7 +1034,7 @@ class KeywordService:
         """The chosen rows, locked: the given ids of the project's live tracked keywords, or
         the rows the filter matches. At most `SUBJECTS_MAX`, and when each row gains or loses
         `links` groups and terms, at most `LINK_CHANGES_MAX` link changes in all."""
-        limit = SUBJECTS_MAX if links == 0 else min(SUBJECTS_MAX, LINK_CHANGES_MAX // links)
+        limit = subjects_limit(links)
         if ids is not None:
             where = filters.chosen(workspace_id=access.workspace_id, project_id=project_id, ids=ids)
         else:

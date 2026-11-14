@@ -3,14 +3,17 @@
 import { useLocale, useTranslations } from 'next-intl';
 import { useMemo, type ReactElement } from 'react';
 
-import { CELL_OF_METRIC, countText, engineSortId, hasRate, SORT_ID, type RateMetric } from './prompt-model';
-import { averageRate, cellFigure, engineRatesOf, topEngine, type AverageRate } from './rate-model';
-import { InsufficientPill, useRateWords } from './rate-view';
-import type { RateReading } from './strip-model';
+import { ChangeInline, useChangeWords, useComparedWindow, useCompare, type ComparedWindow } from './compare';
+import { CELL_OF_METRIC, countText, engineSortId, SORT_ID, type RateMetric } from './prompt-model';
+import { useRateWords } from './rate-view';
 import { col } from '@/components/app/data-table/columns';
 import type { CellTip, DataTableColumn } from '@/components/app/data-table/types';
+import { InsufficientPill } from '@/components/app/metric/insufficient-pill';
 import type { EngineSummary, ProjectEngine } from '@/lib/api/types';
-import { EMPTY_VALUE, formatList } from '@/lib/format';
+import { averageChangeOf, engineChangeOf, type RateChange } from '@/lib/compare/change-model';
+import { EMPTY_VALUE, formatDateRange, formatList } from '@/lib/format';
+import { averageRate, cellFigure, engineRatesOf, hasRate, topEngine, type AverageRate } from '@/lib/rates/rate-model';
+import type { RateReading } from '@/lib/rates/strip-model';
 import { MIN_OBSERVATIONS } from '@/lib/stats';
 
 /**
@@ -53,14 +56,31 @@ export interface RateColumns<TRow> {
 export function useRateColumns<TRow>(
   engines: readonly ProjectEngine[],
   cellsOf: (row: TRow) => readonly EngineSummary[] | undefined,
-  { note }: { note?: string } = {},
+  { note, window }: { note?: string; window?: ComparedWindow | undefined } = {},
 ): RateColumns<TRow> {
   const t = useTranslations('prompts.columns');
   const rate = useTranslations('prompts.rate');
+  const tc = useTranslations('prompts.compare');
   const words = useRateWords();
+  const changeWords = useChangeWords();
+  const { compare } = useCompare();
+  const contextWindow = useComparedWindow();
+  // The Prompts tab builds its columns above the page's provider, so the screen hands it the window to use
+  const comparedWindow = window ?? contextWindow;
   const locale = useLocale();
   return useMemo(() => {
     const codes = engines.map((engine) => engine.engine.engine_code);
+    const range = comparedWindow === null ? null : formatDateRange(comparedWindow.from, comparedWindow.to);
+    /** The change of the Mention rate average: only the engines with a rate in both periods take part (D4). */
+    const changeOf = (row: TRow): RateChange | null => averageChangeOf(cellsOf(row), codes, 'mentioned');
+    /** Why a row has no change while comparison is on: no engine has a previous period, or none has a rate in both. */
+    const gapOfChange = (row: TRow): string => {
+      const anyPrevious = cellsOf(row)?.some(
+        (cell) => codes.some((code) => code === cell.engine_code) && cell.previous != null,
+      );
+      if (anyPrevious !== true) return changeWords.gap('noPrevious');
+      return changeWords.gap(codes.length > 1 ? 'noEngineInBoth' : 'tooFew');
+    };
     const labelOf = (code: string): string =>
       engines.find((engine) => engine.engine.engine_code === code)?.engine.label ?? code;
     const withNote = (text: string): string => (note === undefined ? text : `${text}. ${note}`);
@@ -96,11 +116,14 @@ export function useRateColumns<TRow>(
           if (average.state === 'insufficient') return <InsufficientPill answers={average.answers} tip={false} />;
           if (average.state === 'none') return <Missing label={gapOf(row, average).label} />;
           return (
-            <span className="inline-flex items-baseline gap-1.5">
+            // The widest case, "100% avg of 2 +13.4 pts", is 139 px wide with a 4 px gap (measured in Chrome): it fits
+            // the 152 px column the table gives it, whatever width the column asks for, with its 12 px of padding
+            <span className="inline-flex items-baseline gap-1 whitespace-nowrap">
               <span className="num">{words.text(average)}</span>{' '}
               <span className="type-label text-foreground-tertiary">
                 {rate('avgLabel', { count: average.engines })}
               </span>
+              {metric === 'mentioned' && compare ? <ChangeInline change={changeOf(row)} size="sm" /> : null}
             </span>
           );
         },
@@ -121,15 +144,35 @@ export function useRateColumns<TRow>(
             counting.map(({ name }) => name),
             locale,
           );
+          const avgDetail =
+            counting.length === 1
+              ? rate('onlyTip', { engines: engineNames })
+              : rate('avgTip', { engines: engineNames });
+          // Every change shows what it rests on: the previous figure with its answers, the window and the test, or why none
+          const change = metric === 'mentioned' && compare ? changeOf(row) : null;
+          // The one engine a change of several is of, so the tip names it. A row without a change says why only when the
+          // response was compared: the read held right after turning comparison on is not, and says nothing yet
+          const took = codes.filter((code) => engineChangeOf(cellsOf(row), code, 'mentioned') !== null);
+          const [only] = took;
+          const changeText =
+            metric !== 'mentioned' || !compare
+              ? null
+              : change === null
+                ? comparedWindow === null
+                  ? null
+                  : gapOfChange(row)
+                : changeWords.tip(change, {
+                    kind: 'average',
+                    range,
+                    shown: average.engines,
+                    ...(took.length === 1 && only !== undefined ? { engine: labelOf(only) } : {}),
+                  });
           return {
             content: formatList(
               counting.map(({ name, count }) => t('engineCount', { engine: name, count })),
               locale,
             ),
-            detail:
-              counting.length === 1
-                ? rate('onlyTip', { engines: engineNames })
-                : rate('avgTip', { engines: engineNames }),
+            detail: changeText === null ? avgDetail : tc('cell.detail', { average: avgDetail, change: changeText }),
           };
         },
       };
@@ -169,7 +212,7 @@ export function useRateColumns<TRow>(
       citation: rateColumn(SORT_ID.citation, 'cited', t('citationRate'), t('citationRateTip')),
       topEngine: topColumn,
     };
-  }, [engines, cellsOf, note, t, rate, words, locale]);
+  }, [engines, cellsOf, note, t, rate, tc, words, changeWords, compare, comparedWindow, locale]);
 }
 
 const HEADER_KEY = { mention: 'engineMention', citation: 'engineCitation', sov: 'engineShareOfVoice' } as const;

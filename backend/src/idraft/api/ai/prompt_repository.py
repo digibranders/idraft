@@ -7,14 +7,30 @@ is shown with its current version, in slice 1 the first and only one.
 
 from __future__ import annotations
 
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Row, Select, and_, delete, func, insert, literal, select, update
+from sqlalchemy import (
+    ColumnElement,
+    Row,
+    ScalarSelect,
+    Select,
+    Text,
+    and_,
+    delete,
+    func,
+    insert,
+    literal,
+    or_,
+    select,
+    tuple_,
+    update,
+)
+from sqlalchemy.dialects.postgresql import insert as upsert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from idraft.api.keywords.repository import UserRecord
@@ -24,6 +40,7 @@ from idraft.db.tables import (
     ai_prompts,
     projects,
     taxonomy_terms,
+    tracked_keywords,
     users,
     workspace_quotas,
 )
@@ -33,6 +50,9 @@ from idraft.keywords.trees import among_ids, descendants
 
 # Rows per insert: 14 values a prompt row stays far under the 32,767 parameters of a statement.
 INSERT_MAX = 1000
+# The database default of `max_ai_observations_per_month` (migration 0003): a workspace without a
+# quota row has this limit (test_the_limit_defaults_match_the_database).
+MONTHLY_ANSWERS_DEFAULT = 20_000
 # Term links per insert: three values each.
 _TERM_ROWS_MAX = 5000
 
@@ -56,8 +76,10 @@ class PromptRecord:
     intent: str
     funnel_stage: str
     prompt_type: str
+    prompt_type_source: str
     importance: int
     is_branded: bool
+    is_branded_source: str
     source: str
     creation_method: str
     is_active: bool
@@ -73,9 +95,18 @@ class PromptFilter:
     # The term or one under it.
     term: UUID | None = None
     intents: frozenset[str] = frozenset()
+    prompt_types: frozenset[str] = frozenset()
+    funnel_stages: frozenset[str] = frozenset()
+    importances: frozenset[int] = frozenset()
+    is_branded: bool | None = None
     country_iso: str | None = None
     language_code: str | None = None
+    # `None` lists archived and active prompts together.
     is_active: bool | None = True
+
+
+# The value a keyset page continues after: text, importance or an instant, with the prompt's id.
+type SortValue = str | int | datetime
 
 
 @dataclass(frozen=True, slots=True)
@@ -89,8 +120,14 @@ class NewPrompt:
     intent: str
     funnel_stage: str
     prompt_type: str
+    # `rule` when the server's wording rule chose the type, `person` when the caller sent it.
+    prompt_type_source: str
     importance: int
     is_branded: bool
+    # `override` when the caller sent `is_branded`, `computed` when the own aliases gave it.
+    is_branded_source: str
+    source: str
+    creation_method: str
     term_ids: tuple[UUID, ...]
 
 
@@ -119,8 +156,10 @@ def _prompts(workspace_id: UUID, project_id: UUID) -> Select[tuple[object, ...]]
             p.intent,
             p.funnel_stage,
             p.prompt_type,
+            p.prompt_type_source,
             p.importance,
             p.is_branded,
+            p.is_branded_source,
             p.source,
             p.creation_method,
             p.is_active,
@@ -161,8 +200,10 @@ def _record(row: Row[Any], terms: Mapping[UUID, list[TermRecord]]) -> PromptReco
         intent=row.intent,
         funnel_stage=row.funnel_stage,
         prompt_type=row.prompt_type,
+        prompt_type_source=row.prompt_type_source,
         importance=row.importance,
         is_branded=row.is_branded,
+        is_branded_source=row.is_branded_source,
         source=row.source,
         creation_method=row.creation_method,
         is_active=row.is_active,
@@ -210,20 +251,13 @@ async def _with_terms(
     return [_record(row, terms) for row in rows]
 
 
-async def list_prompts(
-    db: AsyncSession,
-    workspace_id: UUID,
-    project_id: UUID,
-    given: PromptFilter,
-    *,
-    after: UUID | None,
-    limit: int,
-) -> list[PromptRecord]:
-    """Newest first: prompt ids are time-ordered (`uuidv7()`)."""
+def _conditions(workspace_id: UUID, given: PromptFilter) -> list[ColumnElement[bool]]:
+    """The `WHERE` terms of a filter over `_prompts`, one per filter that is used: shared by the
+    list and by the selections of the bulk writes, so both mean the same prompts."""
     p, v = ai_prompts.c, ai_prompt_versions.c
-    statement = _prompts(workspace_id, project_id)
+    found: list[ColumnElement[bool]] = []
     if given.q is not None:
-        statement = statement.where(v.text.ilike(_contains(given.q), escape="\\"))
+        found.append(v.text.ilike(_contains(given.q), escape="\\"))
     if given.term is not None:
         tagged = select(ai_prompt_terms.c.prompt_id).where(
             ai_prompt_terms.c.workspace_id == workspace_id,
@@ -231,18 +265,99 @@ async def list_prompts(
                 descendants("term", [given.term], workspace_id, "term_tree")
             ),
         )
-        statement = statement.where(p.id.in_(tagged))
+        found.append(p.id.in_(tagged))
     if given.intents:
-        statement = statement.where(p.intent.in_(sorted(given.intents)))
+        found.append(p.intent.in_(sorted(given.intents)))
+    if given.prompt_types:
+        found.append(p.prompt_type.in_(sorted(given.prompt_types)))
+    if given.funnel_stages:
+        found.append(p.funnel_stage.in_(sorted(given.funnel_stages)))
+    if given.importances:
+        found.append(p.importance.in_(sorted(given.importances)))
+    if given.is_branded is not None:
+        found.append(p.is_branded == given.is_branded)
     if given.country_iso is not None:
-        statement = statement.where(p.country_iso == given.country_iso)
+        found.append(p.country_iso == given.country_iso)
     if given.language_code is not None:
-        statement = statement.where(p.language_code == given.language_code)
+        found.append(p.language_code == given.language_code)
     if given.is_active is not None:
-        statement = statement.where(p.is_active == given.is_active)
-    if after is not None:
-        statement = statement.where(p.id < after)
-    rows = (await db.execute(statement.order_by(p.id.desc()).limit(limit))).all()
+        found.append(p.is_active == given.is_active)
+    return found
+
+
+def _sort_column(field: str) -> ColumnElement[Any]:
+    p, v = ai_prompts.c, ai_prompt_versions.c
+    columns: dict[str, ColumnElement[Any]] = {
+        "text": v.text,
+        "importance": p.importance,
+        "created_at": p.created_at,
+        "updated_at": p.updated_at,
+    }
+    return columns[field]
+
+
+def _anchor_text(workspace_id: UUID, project_id: UUID, prompt_id: UUID) -> ScalarSelect[str]:
+    """The current text of this prompt of the project, as `_prompts` sorts it. Archived and
+    deleted prompts count: a page continues past a prompt changed after the page before. Another
+    project's prompt, or another workspace's, is NULL, so its text and place are never read."""
+    anchor, version = ai_prompts.alias(), ai_prompt_versions.alias()
+    return (
+        select(version.c.text)
+        .select_from(
+            anchor.join(
+                version,
+                and_(
+                    version.c.id == anchor.c.current_version_id,
+                    version.c.workspace_id == anchor.c.workspace_id,
+                ),
+            )
+        )
+        .where(
+            anchor.c.workspace_id == workspace_id,
+            anchor.c.project_id == project_id,
+            anchor.c.id == prompt_id,
+        )
+        .scalar_subquery()
+    )
+
+
+async def list_prompts(
+    db: AsyncSession,
+    workspace_id: UUID,
+    project_id: UUID,
+    given: PromptFilter,
+    *,
+    sort: str | None,
+    after: tuple[SortValue | None, UUID] | None,
+    limit: int,
+) -> list[PromptRecord]:
+    """Newest first (prompt ids are time-ordered, `uuidv7()`), or by `sort`: a field, `-` first
+    for descending, the id breaking ties. `after` is the last row's sort value and id (the value
+    is `None` without `sort` and for `text`, which is read from the id); the page continues past
+    it."""
+    p = ai_prompts.c
+    statement = _prompts(workspace_id, project_id).where(*_conditions(workspace_id, given))
+    if sort is None:
+        if after is not None:
+            statement = statement.where(p.id < after[1])
+        statement = statement.order_by(p.id.desc())
+    else:
+        field = sort.removeprefix("-")
+        column = _sort_column(field)
+        descending = sort.startswith("-")
+        if after is not None:
+            key = tuple_(column, p.id)
+            # A text is too long for a cursor: its prompt is, and the text is read in this
+            # statement. An id the project does not have reads NULL: an empty page.
+            anchor: ScalarSelect[str] | SortValue | None = after[0]
+            if field == "text":
+                anchor = _anchor_text(workspace_id, project_id, after[1])
+            past = tuple_(anchor, after[1])
+            statement = statement.where(key < past if descending else key > past)
+        statement = statement.order_by(
+            *((column.desc(), p.id.desc()) if descending else (column, p.id))
+        )
+    rows = (await db.execute(statement.limit(limit))).all()
     return await _with_terms(db, workspace_id, rows)
 
 
@@ -317,6 +432,46 @@ async def quota_usage(db: AsyncSession, workspace_id: UUID) -> tuple[int, int]:
     return limit, used
 
 
+@dataclass(frozen=True, slots=True)
+class LimitsRow:
+    ai_observations_limit: int
+    # The database clock, read in the same statement.
+    now: datetime
+
+
+async def limits_row(db: AsyncSession, workspace_id: UUID) -> LimitsRow:
+    """The workspace's monthly limit of AI answers and the database clock, in one statement that
+    only reads: no quota row is created or locked (`run_repository.lock_ai_observation_limit`
+    does both, for the writes). Without a quota row the limit is the database default."""
+    stored = (
+        select(workspace_quotas.c.max_ai_observations_per_month)
+        .where(workspace_quotas.c.workspace_id == workspace_id)
+        .scalar_subquery()
+    )
+    limit, now = (
+        await db.execute(select(func.coalesce(stored, MONTHLY_ANSWERS_DEFAULT), func.now()))
+    ).one()
+    return LimitsRow(ai_observations_limit=limit, now=now)
+
+
+async def live_tracked_keywords(
+    db: AsyncSession, workspace_id: UUID, project_id: UUID, ids: Collection[UUID]
+) -> set[UUID]:
+    """Those of `ids` the project tracks (not deleted): one statement for all of them."""
+    if not ids:
+        return set()
+    t = tracked_keywords.c
+    rows = await db.execute(
+        select(t.id).where(
+            t.workspace_id == workspace_id,
+            t.project_id == project_id,
+            t.deleted_at.is_(None),
+            among_ids(t.id, sorted(ids)),
+        )
+    )
+    return set(rows.scalars())
+
+
 async def existing(
     db: AsyncSession, workspace_id: UUID, project_id: UUID, keys: Collection[PromptKey]
 ) -> dict[PromptKey, UUID]:
@@ -342,6 +497,54 @@ async def existing(
         if key in wanted:
             found[key] = row.id
     return found
+
+
+@dataclass(frozen=True, slots=True)
+class LintRow:
+    id: UUID
+    text: str
+    text_hash: bytes
+    language_code: str
+    country_iso: str | None
+    is_active: bool
+
+
+async def lint_matches(
+    db: AsyncSession,
+    workspace_id: UUID,
+    project_id: UUID,
+    markets: Collection[tuple[str, str]],
+) -> list[LintRow]:
+    """The project's prompts, archived ones too, in these (language, country) markets, oldest
+    first: one statement whatever the number of items linted."""
+    if not markets:
+        return []
+    p, v = ai_prompts.c, ai_prompt_versions.c
+    # shortcut: reads every prompt of these markets; a functional index on the folded text
+    # when a project passes 10,000 prompts.
+    rows = await db.execute(
+        select(p.id, v.text, v.text_hash, p.language_code, p.country_iso, p.is_active)
+        .select_from(ai_prompts.join(ai_prompt_versions, _current_version()))
+        .where(
+            p.workspace_id == workspace_id,
+            p.project_id == project_id,
+            p.deleted_at.is_(None),
+            v.workspace_id == workspace_id,
+            tuple_(p.language_code, p.country_iso).in_(sorted(markets)),
+        )
+        .order_by(p.id)
+    )
+    return [
+        LintRow(
+            id=row.id,
+            text=row.text,
+            text_hash=bytes(row.text_hash),
+            language_code=row.language_code,
+            country_iso=row.country_iso,
+            is_active=row.is_active,
+        )
+        for row in rows
+    ]
 
 
 async def insert_prompts(
@@ -378,8 +581,12 @@ async def insert_prompts(
                         "intent": items[index].intent,
                         "funnel_stage": items[index].funnel_stage,
                         "prompt_type": items[index].prompt_type,
+                        "prompt_type_source": items[index].prompt_type_source,
                         "importance": items[index].importance,
                         "is_branded": items[index].is_branded,
+                        "is_branded_source": items[index].is_branded_source,
+                        "source": items[index].source,
+                        "creation_method": items[index].creation_method,
                         "created_by": created_by,
                         "created_at": now,
                         "updated_at": now,
@@ -466,14 +673,183 @@ async def lock_prompts(
     return {row.id: row.is_active for row in rows}
 
 
+async def lock_matching(
+    db: AsyncSession, workspace_id: UUID, project_id: UUID, given: PromptFilter, limit: int
+) -> dict[UUID, bool]:
+    """The project's live prompts the filter matches (the list's meaning, archived ones too when
+    `is_active` is None), each with whether it is active, at most `limit`, held (FOR NO KEY
+    UPDATE) until the transaction ends and taken in id order, as `lock_prompts` does."""
+    p = ai_prompts.c
+    rows = await db.execute(
+        select(p.id, p.is_active)
+        .select_from(ai_prompts.join(ai_prompt_versions, _current_version()))
+        .where(
+            p.workspace_id == workspace_id,
+            p.project_id == project_id,
+            p.deleted_at.is_(None),
+            *_conditions(workspace_id, given),
+        )
+        .order_by(p.id)
+        .limit(limit)
+        .with_for_update(of=ai_prompts, key_share=True)
+    )
+    return {row.id: row.is_active for row in rows}
+
+
+async def set_metadata(
+    db: AsyncSession,
+    workspace_id: UUID,
+    project_id: UUID,
+    ids: Sequence[UUID],
+    values: Mapping[str, object],
+    sources: Mapping[str, str],
+    now: datetime,
+) -> set[UUID]:
+    """Sets `values` and the `sources` that go with them (`prompt_type_source`,
+    `is_branded_source`) on the project's prompts among `ids` that differ in at least one of
+    those columns, and says which prompts changed. A value already held but not yet marked as a
+    person's word changes the source, and counts. A prompt holding all of it is left as it is."""
+    if not ids or not values:
+        return set()
+    p = ai_prompts.c
+    rows = await db.execute(
+        update(ai_prompts)
+        .where(
+            p.workspace_id == workspace_id,
+            p.project_id == project_id,
+            p.deleted_at.is_(None),
+            among_ids(p.id, ids),
+            or_(
+                *(
+                    ai_prompts.c[name].is_distinct_from(value)
+                    for name, value in {**values, **sources}.items()
+                )
+            ),
+        )
+        .values(**values, **sources, updated_at=now)
+        .returning(p.id)
+    )
+    return set(rows.scalars())
+
+
+async def remove_terms(
+    db: AsyncSession,
+    workspace_id: UUID,
+    project_id: UUID,
+    ids: Sequence[UUID],
+    *,
+    removed: Collection[UUID],
+    replaced_in: Collection[UUID],
+    kept: Collection[UUID],
+) -> Counter[UUID]:
+    """Takes `removed` terms off the project's prompts among `ids`, and every term of the
+    vocabularies `replaced_in` that is not one of `kept` (the terms about to be added). Says how
+    many terms each prompt lost; the keys are the prompts that lost one."""
+    if not ids or not (removed or replaced_in):
+        return Counter()
+    links, terms, p = ai_prompt_terms.c, taxonomy_terms.c, ai_prompts.c
+    wanted: list[ColumnElement[bool]] = []
+    if removed:
+        wanted.append(among_ids(links.term_id, removed))
+    if replaced_in:
+        wanted.append(
+            and_(
+                ~among_ids(links.term_id, kept),
+                links.term_id.in_(
+                    select(terms.id).where(
+                        terms.workspace_id == workspace_id,
+                        among_ids(terms.vocabulary_id, replaced_in),
+                    )
+                ),
+            )
+        )
+    rows = await db.execute(
+        delete(ai_prompt_terms)
+        .where(
+            links.workspace_id == workspace_id,
+            links.prompt_id.in_(
+                select(p.id).where(
+                    p.workspace_id == workspace_id,
+                    p.project_id == project_id,
+                    among_ids(p.id, ids),
+                )
+            ),
+            or_(*wanted),
+        )
+        .returning(links.prompt_id)
+    )
+    return Counter(rows.scalars())
+
+
+async def add_terms_to_prompts(
+    db: AsyncSession,
+    workspace_id: UUID,
+    project_id: UUID,
+    ids: Sequence[UUID],
+    term_ids: Collection[UUID],
+) -> Counter[UUID]:
+    """Gives the project's prompts among `ids` each of these terms (the caller has checked
+    them) as a person's assignment; says how many terms each prompt gained (the keys are the
+    prompts that gained one). One statement however many prompts and terms: a link held
+    already is left as it is."""
+    if not ids or not term_ids:
+        return Counter()
+    p, terms, links = ai_prompts.c, taxonomy_terms.c, ai_prompt_terms.c
+    rows = await db.execute(
+        upsert(ai_prompt_terms)
+        .from_select(
+            ["prompt_id", "term_id", "workspace_id", "assigned_by"],
+            select(p.id, terms.id, p.workspace_id, literal("manual", Text))
+            .select_from(ai_prompts.join(taxonomy_terms, terms.workspace_id == p.workspace_id))
+            .where(
+                p.workspace_id == workspace_id,
+                p.project_id == project_id,
+                p.deleted_at.is_(None),
+                among_ids(p.id, ids),
+                among_ids(terms.id, term_ids),
+            ),
+        )
+        .on_conflict_do_nothing()
+        .returning(links.prompt_id)
+    )
+    return Counter(rows.scalars())
+
+
+async def touch(
+    db: AsyncSession, workspace_id: UUID, project_id: UUID, ids: Collection[UUID], now: datetime
+) -> None:
+    """`updated_at` of the project's prompts among `ids`: a change of terms alone is a change."""
+    if not ids:
+        return
+    p = ai_prompts.c
+    await db.execute(
+        update(ai_prompts)
+        .where(
+            p.workspace_id == workspace_id,
+            p.project_id == project_id,
+            among_ids(p.id, sorted(ids)),
+        )
+        .values(updated_at=now)
+    )
+
+
 async def set_active(
-    db: AsyncSession, workspace_id: UUID, ids: Sequence[UUID], is_active: bool, now: datetime
+    db: AsyncSession,
+    workspace_id: UUID,
+    project_id: UUID,
+    ids: Sequence[UUID],
+    is_active: bool,
+    now: datetime,
 ) -> None:
     if not ids:
         return
     await db.execute(
         update(ai_prompts)
-        .where(ai_prompts.c.workspace_id == workspace_id, among_ids(ai_prompts.c.id, ids))
+        .where(
+            ai_prompts.c.workspace_id == workspace_id,
+            ai_prompts.c.project_id == project_id,
+            among_ids(ai_prompts.c.id, ids),
+        )
         .values(is_active=is_active, updated_at=now)
     )
 

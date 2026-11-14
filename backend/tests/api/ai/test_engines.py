@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from datetime import time
 from decimal import Decimal
@@ -10,7 +11,7 @@ import httpx
 import pytest
 
 from idraft.api.resources import Resources
-from idraft.domain.ai_engines import BASE_PLAN
+from idraft.domain.ai_engines import BASE_PLAN, EngineCode
 from tests.api.ai.support import ai_project, seed_prompts
 from tests.api.auth.support import execute, fetch, make_workspace
 from tests.api.entities.support import member, problem
@@ -18,6 +19,9 @@ from tests.api.keywords.support import LOCATION, OTHER_LOCATION, errors, project
 from tests.conftest import PostgresServer
 
 CITY = 1023191
+# A country the platform does not offer (`core.locations.is_active` false).
+INACTIVE_COUNTRY = 9_990_101
+ENGINE_CODES = [code.value for code in EngineCode]
 
 
 def _row(data: dict[str, object]) -> tuple[object, ...]:
@@ -179,12 +183,14 @@ async def test_turning_an_engine_on_again_remakes_deleted_schedules_but_saving_i
     assert (len(after_save), len(after_off), len(after_on)) == (0, 0, 2)
 
 
+@pytest.mark.parametrize("engine_code", ENGINE_CODES)
 @pytest.mark.parametrize("location_ids", [[CITY], [LOCATION, 999_999_999]])
 async def test_an_engine_runs_in_active_countries_only(
     api: httpx.AsyncClient,
     resources: Resources,
     migrated: PostgresServer,
     location_ids: list[int],
+    engine_code: str,
 ) -> None:
     workspace = await make_workspace(migrated)
     editor = await member(resources, migrated, workspace, "editor")
@@ -198,7 +204,7 @@ async def test_an_engine_runs_in_active_countries_only(
     )
 
     response = await api.put(
-        project_url(workspace, project, "engines", "chatgpt_web"),
+        project_url(workspace, project, "engines", engine_code),
         json={"location_ids": location_ids},
         headers=editor.headers,
     )
@@ -211,6 +217,139 @@ async def test_an_engine_runs_in_active_countries_only(
         )
         == []
     )
+
+
+@pytest.mark.parametrize("engine_code", ENGINE_CODES)
+async def test_an_inactive_country_is_refused_for_every_engine(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer, engine_code: str
+) -> None:
+    workspace = await make_workspace(migrated)
+    editor = await member(resources, migrated, workspace, "editor")
+    project = await ai_project(migrated, workspace)
+    await execute(
+        migrated,
+        "INSERT INTO core.locations (id, name, country_iso, location_type, is_active) "
+        "VALUES ($1, 'Atlantis', 'ZZ', 'Country', false) "
+        "ON CONFLICT (id) DO UPDATE SET is_active = false, country_iso = 'ZZ'",
+        INACTIVE_COUNTRY,
+    )
+
+    response = await api.put(
+        project_url(workspace, project, "engines", engine_code),
+        json={"location_ids": [LOCATION, INACTIVE_COUNTRY]},
+        headers=editor.headers,
+    )
+
+    assert problem(response) == (422, "validation_failed")
+    assert errors(response) == [("location_ids", "location_not_supported")]
+    assert (
+        await fetch(
+            migrated, "SELECT engine_code FROM ai.project_engines WHERE project_id = $1", project
+        )
+        == []
+    )
+
+
+async def test_engines_of_a_deleted_project_are_not_found(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    editor = await member(resources, migrated, workspace, "editor")
+    project = await ai_project(migrated, workspace)
+    url = project_url(workspace, project, "engines", "chatgpt_web")
+    await api.put(url, json={"location_ids": [LOCATION]}, headers=editor.headers)
+    await execute(migrated, "UPDATE core.projects SET deleted_at = now() WHERE id = $1", project)
+
+    listed = await api.get(project_url(workspace, project, "engines"), headers=editor.headers)
+    put = await api.put(url, json={"location_ids": [LOCATION]}, headers=editor.headers)
+    delete = await api.delete(url, headers=editor.headers)
+
+    assert problem(listed) == problem(put) == problem(delete) == (404, "not_found")
+
+
+@pytest.mark.parametrize("location_ids", [[], list(range(1, 52))], ids=["none", "fifty_one"])
+async def test_location_ids_must_hold_between_one_and_fifty_countries(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    location_ids: list[int],
+) -> None:
+    workspace = await make_workspace(migrated)
+    editor = await member(resources, migrated, workspace, "editor")
+    project = await ai_project(migrated, workspace)
+
+    response = await api.put(
+        project_url(workspace, project, "engines", "chatgpt_web"),
+        json={"location_ids": location_ids},
+        headers=editor.headers,
+    )
+
+    assert problem(response) == (422, "validation_failed")
+    assert [path for path, _ in errors(response)] == ["location_ids"]
+    assert (
+        await fetch(
+            migrated, "SELECT engine_code FROM ai.project_engines WHERE project_id = $1", project
+        )
+        == []
+    )
+
+
+async def test_saving_an_engine_twice_with_the_same_settings_changes_nothing_but_the_audit(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    editor = await member(resources, migrated, workspace, "editor")
+    project = await ai_project(migrated, workspace)
+    url = project_url(workspace, project, "engines", "chatgpt_web")
+    body = {"location_ids": [LOCATION, OTHER_LOCATION]}
+    settings = "SELECT * FROM ai.project_engines WHERE project_id = $1"
+    schedules = "SELECT id FROM ops.schedules WHERE project_id = $1 ORDER BY id"
+
+    first = await api.put(url, json=body, headers=editor.headers)
+    saved = [tuple(row) for row in await fetch(migrated, settings, project)]
+    made = [row["id"] for row in await fetch(migrated, schedules, project)]
+    second = await api.put(url, json=body, headers=editor.headers)
+
+    assert first.status_code == second.status_code == 200, second.text
+    assert second.json()["data"] == first.json()["data"]
+    assert [tuple(row) for row in await fetch(migrated, settings, project)] == saved
+    assert [row["id"] for row in await fetch(migrated, schedules, project)] == made
+    assert len(made) == 2
+    entries = await fetch(
+        migrated,
+        "SELECT before, after FROM ops.audit_logs WHERE workspace_id = $1 ORDER BY occurred_at",
+        workspace.id,
+    )
+    assert len(entries) == 2
+    assert entries[1]["before"] == entries[0]["after"] == entries[1]["after"]
+
+
+async def test_two_engines_turned_on_at_once_make_the_schedules_once(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    editor = await member(resources, migrated, workspace, "editor")
+    project = await ai_project(migrated, workspace)
+
+    responses = await asyncio.gather(
+        *(
+            api.put(
+                project_url(workspace, project, "engines", engine_code),
+                json={"location_ids": [LOCATION]},
+                headers=editor.headers,
+            )
+            for engine_code in ("chatgpt_web", "gemini_web")
+        )
+    )
+
+    assert [response.status_code for response in responses] == [200, 200]
+    rows = await fetch(
+        migrated,
+        "SELECT weekday FROM ops.schedules WHERE project_id = $1 AND workload = 'ai_prompt' "
+        "AND deleted_at IS NULL ORDER BY weekday",
+        project,
+    )
+    assert [row["weekday"] for row in rows] == [1, 4]
 
 
 async def test_removing_an_engine_removes_its_settings_once(

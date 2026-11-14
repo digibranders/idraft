@@ -28,6 +28,7 @@ TENANT_TABLES: dict[str, str] = {
     "core.project_entities": "workspace_id",
     "core.taxonomy_vocabularies": "workspace_id",
     "core.taxonomy_terms": "workspace_id",
+    "core.layouts": "workspace_id",
     "ops.budgets": "workspace_id",
     "ops.schedules": "workspace_id",
     "ops.collection_runs": "workspace_id",
@@ -147,6 +148,12 @@ async def seed_tenant(pg: PostgresServer, label: str) -> Tenant:
             f"{label}-{suffix}",
         )
         await add_member(db, workspace_id, owner_id, "owner")
+        await db.execute(
+            "INSERT INTO core.layouts (workspace_id, screen, document, schema_version, updated_by) "
+            "VALUES ($1, 'overview', '{\"schema\": 1}', 1, $2)",
+            workspace_id,
+            owner_id,
+        )
         await db.execute(
             "INSERT INTO auth.invitations (workspace_id, email, role, token_hash, invited_by, "
             "expires_at) VALUES ($1, $2, 'viewer', $3, $4, now() + interval '7 days')",

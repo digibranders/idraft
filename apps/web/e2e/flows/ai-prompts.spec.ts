@@ -25,6 +25,12 @@ const namingTheBrand = (inspector: Locator): Locator =>
 
 const openAnswerButton = (row: Locator): Locator => row.getByRole('button', { name: /^Open the .* answer of / });
 
+/** The answers of the prompt are listed on the History tab. */
+async function openHistory(inspector: Locator): Promise<void> {
+  await inspector.getByRole('tab', { name: 'History' }).click();
+  await expect(inspector.getByRole('table', { name: 'Answers to this prompt' })).toBeVisible();
+}
+
 /** The toasts are also spoken by a live region, so the words are looked for in the toasts themselves. */
 const toastsOf = (page: Page): Locator => page.getByRole('region', { name: 'Notifications' });
 
@@ -33,7 +39,8 @@ const inspectorOf = (page: Page, name: string): Locator =>
   page.getByRole('complementary', { name }).or(page.getByRole('dialog', { name }));
 
 async function openFirstPrompt(page: Page): Promise<Locator> {
-  await page.getByRole('grid', { name: 'Prompts' }).getByText(FIRST_PROMPT).click();
+  // Exact, because a row's checkbox carries a screen reader label "Select <prompt>"
+  await page.getByRole('grid', { name: 'Prompts' }).getByText(FIRST_PROMPT, { exact: true }).click();
   const inspector = inspectorOf(page, FIRST_PROMPT);
   await expect(inspector).toBeVisible();
   return inspector;
@@ -87,8 +94,8 @@ test.describe('AI prompt tracking', () => {
     // Topics and Prompts are a segmented control in the table toolbar: a radio group, not a tab list
     await page.getByRole('radio', { name: 'Prompts' }).click();
     const table = page.getByRole('grid', { name: 'Prompts' });
-    await expect(table.getByText('How often should an office be cleaned?')).toBeVisible();
-    await expect(table.getByText('Which cleaning service is best in Boston?')).toBeVisible();
+    await expect(table.getByText('How often should an office be cleaned?', { exact: true })).toBeVisible();
+    await expect(table.getByText('Which cleaning service is best in Boston?', { exact: true })).toBeVisible();
     // New prompts have no answer until the next run, and the page says so
     await expect(page.getByText(/^No data yet\. Each prompt is asked twice a week/)).toBeVisible();
     await expectAccessible(page);
@@ -101,17 +108,39 @@ test.describe('AI prompt tracking', () => {
     await signIn(page, VIEWER);
     await page.goto(`${FYNIX_PROMPTS}?tab=prompts`);
     const table = page.getByRole('grid', { name: 'Prompts' });
-    await expect(table.getByText(FIRST_PROMPT)).toBeVisible();
+    await expect(table.getByText(FIRST_PROMPT, { exact: true })).toBeVisible();
     // The table is there, so a missing button is the viewer's, not a page still loading
     await expect(page.getByRole('button', { name: 'Add prompts' })).toHaveCount(0);
+    // A row's checkbox brings up the bulk bar, which gives a viewer Export CSV and no action that changes anything
+    await table.getByRole('checkbox', { name: `Select ${FIRST_PROMPT}` }).check();
+    const bulkBar = page.getByRole('group', { name: /^Bulk actions, 1 selected/ });
+    await expect(bulkBar.getByRole('button', { name: 'Export CSV' })).toBeVisible();
+    await expect(bulkBar.getByRole('button', { name: 'Archive' })).toHaveCount(0);
+    await bulkBar.getByRole('button', { name: 'Clear selection' }).click();
+    await expect(bulkBar).toBeHidden();
     const inspector = await openFirstPrompt(page);
-    await expect(inspector.getByRole('table', { name: 'Answers to this prompt' })).toBeVisible();
-    // The facts and the counts are in (the country is named once the countries have loaded, which Run now waits
-    // for too), so a missing Run now is the viewer's and not an inspector still loading
+    // The country is named once the countries have loaded, which Run now waits for too, and the strip holds the
+    // rates: so a missing Run now is the viewer's and not an inspector still loading
     await expect(inspector.getByText('Germany', { exact: true })).toBeVisible();
-    await expect(inspector.getByText(/^Mentioned \d+ of \d+, cited \d+ of \d+$/).first()).toBeVisible();
+    await expect(
+      inspector
+        .getByRole('group', { name: 'Mention and citation rates of this prompt' })
+        .getByText(/^\d+ of \d+ answers$/)
+        .first(),
+    ).toBeVisible();
     await expect(inspector.getByRole('button', { name: 'Run now' })).toHaveCount(0);
     await expectNoArchive(page, inspector);
+
+    // One thing on each tab: the newest answers, the history, the brands named, the statistics
+    await expect(inspector.getByRole('button', { name: /^Open the full answer from / }).first()).toBeVisible();
+    await openHistory(inspector);
+    await inspector.getByRole('tab', { name: 'Competitors' }).click();
+    await expect(inspector.getByRole('table', { name: 'Brands named in the answers to this prompt' })).toBeVisible();
+    await inspector.getByRole('tab', { name: 'Stats' }).click();
+    await expect(
+      inspector.getByText(/^The interval is the 95 percent Wilson interval over the valid answers/),
+    ).toBeVisible();
+    await openHistory(inspector);
 
     await openAnswerButton(namingTheBrand(inspector).first()).click();
     await expect(page.getByLabel(/^Fynix mention, own brand/).first()).toBeVisible();
@@ -145,6 +174,7 @@ test.describe('AI prompt tracking', () => {
       toasts.getByText('An answer is already on its way on ChatGPT and Gemini. Try again once it has arrived.'),
     ).toBeVisible();
 
+    await openHistory(inspector);
     await openAnswerButton(namingTheBrand(inspector).first()).click();
     await expect(page.getByRole('button', { name: 'Download the raw answer' })).toBeVisible();
     await expectAccessible(page);
@@ -154,17 +184,17 @@ test.describe('AI prompt tracking', () => {
     await signIn(page, EDITOR);
     await page.goto(`${FYNIX_PROMPTS}?tab=prompts`);
     const table = page.getByRole('grid', { name: 'Prompts' });
-    await table.getByText(SECOND_PROMPT).click();
+    await table.getByText(SECOND_PROMPT, { exact: true }).click();
     const inspector = page.getByRole('complementary', { name: SECOND_PROMPT });
     await inspector.getByRole('button', { name: `More actions for ${SECOND_PROMPT}` }).click();
     await page.getByRole('menuitem', { name: 'Archive' }).click();
     await expect(toastsOf(page).getByText('Prompt archived')).toBeVisible();
-    await expect(table.getByText(SECOND_PROMPT)).toBeHidden();
-    await expect(table.getByText(FIRST_PROMPT)).toBeVisible();
+    await expect(table.getByText(SECOND_PROMPT, { exact: true })).toBeHidden();
+    await expect(table.getByText(FIRST_PROMPT, { exact: true })).toBeVisible();
 
     await page.getByRole('button', { name: 'Undo' }).click();
     await expect(toastsOf(page).getByText('Prompt restored')).toBeVisible();
-    await expect(table.getByText(SECOND_PROMPT)).toBeVisible();
+    await expect(table.getByText(SECOND_PROMPT, { exact: true })).toBeVisible();
   });
 });
 
@@ -187,13 +217,34 @@ for (const theme of ['light', 'dark'] as const) {
         await page.setViewportSize({ width, height: 900 });
         await signIn(page, EDITOR);
         await page.goto(FYNIX_PROMPTS);
-        await expect(page.getByRole('treegrid', { name: 'Topics' })).toBeVisible();
+        // Under 768 px the topics are a list of rows (the best engine and the engine count on each), not a grid
+        if (width < 768) {
+          const topics = page.getByRole('list', { name: /^Topics, \d+ results/ });
+          await expect(topics).toBeVisible();
+          await expect(topics.getByRole('button').first()).toBeVisible();
+        } else {
+          await expect(page.getByRole('treegrid', { name: 'Topics' })).toBeVisible();
+        }
         await expectAccessible(page);
         await noSidewaysScroll();
 
         await page.goto(`${FYNIX_PROMPTS}?tab=prompts&inspect=${encodeURIComponent(`prompt:${FIRST_PROMPT_ID}`)}`);
         const inspector = inspectorOf(page, FIRST_PROMPT);
-        await expect(inspector.getByRole('table', { name: 'Answers to this prompt' })).toBeVisible();
+        await expect(inspector.getByRole('tablist', { name: 'Prompt sections' })).toBeVisible();
+        await expectAccessible(page);
+        await noSidewaysScroll();
+        // Every tab keeps the inspector inside the window, and the answers are on History
+        for (const tab of ['Competitors', 'Stats']) {
+          // On a phone Stats is under More tabs, and choosing it puts it in the row
+          if ((await inspector.getByRole('tab', { name: tab }).count()) === 0) {
+            await inspector.getByRole('button', { name: 'More tabs' }).click();
+            await page.getByRole('menuitem', { name: tab }).click();
+          } else {
+            await inspector.getByRole('tab', { name: tab }).click();
+          }
+          await noSidewaysScroll();
+        }
+        await openHistory(inspector);
         await expectAccessible(page);
         await noSidewaysScroll();
 

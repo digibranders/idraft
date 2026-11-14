@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { parseAsString, useQueryStates } from 'nuqs';
+import { parseAsString, useQueryState, useQueryStates } from 'nuqs';
 import { NuqsAdapter } from 'nuqs/adapters/react';
 import { withNuqsTestingAdapter, type UrlUpdateEvent } from 'nuqs/adapters/testing';
 import type { ReactNode } from 'react';
@@ -95,6 +95,42 @@ describe('useInspector', () => {
     expect(update.options.history).toBe('replace');
   });
 
+  describe('with another instance beside it (a drawer part reads the inspector too)', () => {
+    const wrapper = ({ children }: { children: ReactNode }): ReactNode => <NuqsAdapter>{children}</NuqsAdapter>;
+    beforeEach(() => {
+      window.history.replaceState(null, '', '/?metric=citation');
+    });
+    afterEach(() => {
+      window.history.replaceState(null, '', '/');
+    });
+
+    it('keeps the entry it pushed when another instance goes away, so Close still goes back', async () => {
+      const page = renderHook(() => useInspector(), { wrapper });
+      act(() => page.result.current.open({ type: 'topic', id: 't1' }));
+      await waitFor(() => expect(window.location.search).toBe('?metric=citation&inspect=topic:t1'));
+      const part = renderHook(() => useInspector(), { wrapper });
+      part.unmount();
+      const back = vi.spyOn(window.history, 'back');
+      act(() => page.result.current.close());
+      expect(back).toHaveBeenCalledTimes(1);
+      await waitFor(() => expect(window.location.search).toBe('?metric=citation'));
+    });
+
+    it('goes back to close a topic whose drawer instance went away after it opened a prompt', async () => {
+      const page = renderHook(() => useInspector(), { wrapper });
+      act(() => page.result.current.open({ type: 'topic', id: 't1' }));
+      await waitFor(() => expect(window.location.search).toBe('?metric=citation&inspect=topic:t1'));
+      const drawer = renderHook(() => useInspector(), { wrapper });
+      act(() => drawer.result.current.open({ type: 'prompt', id: 'p1' }));
+      await waitFor(() => expect(window.location.search).toBe('?metric=citation&inspect=prompt:p1'));
+      drawer.unmount();
+      const back = vi.spyOn(window.history, 'back');
+      act(() => page.result.current.close());
+      expect(back).toHaveBeenCalledTimes(1);
+      await waitFor(() => expect(window.location.search).toBe('?metric=citation'));
+    });
+  });
+
   describe('with the browser’s own history', () => {
     // The real adapter writes to window.location and the history, so what a close does to the URL is seen
     const wrapper = ({ children }: { children: ReactNode }): ReactNode => <NuqsAdapter>{children}</NuqsAdapter>;
@@ -149,6 +185,124 @@ describe('useInspector', () => {
       await waitFor(() => expect(window.location.search).not.toContain('inspect='));
       await settled();
       expect(new URLSearchParams(window.location.search).get('prio')).toBe('..3');
+    });
+  });
+
+  describe('with the engine of a topic drawer beside it (entryKeys: eng)', () => {
+    // The topic drawer's drill-down opens the inspector and writes `eng` in the same tick, as `useDrill` does
+    const wrapper = ({ children }: { children: ReactNode }): ReactNode => <NuqsAdapter>{children}</NuqsAdapter>;
+    const hooks = () =>
+      renderHook(
+        () => ({ inspector: useInspector({ entryKeys: ['eng'] }), engine: useQueryState('eng', parseAsString) }),
+        { wrapper },
+      );
+    const search = (): URLSearchParams => new URLSearchParams(window.location.search);
+
+    beforeEach(() => {
+      window.history.replaceState(null, '', '/?metric=citation');
+    });
+    afterEach(() => {
+      window.history.replaceState(null, '', '/');
+      vi.restoreAllMocks();
+    });
+
+    const drill = async (result: ReturnType<typeof hooks>['result']): Promise<void> => {
+      act(() => {
+        result.current.inspector.open({ type: 'topic', id: 't1' }, { tab: 'prompts' });
+        void result.current.engine[1]('chatgpt_web');
+      });
+      await waitFor(() => expect(search().get('eng')).toBe('chatgpt_web'));
+    };
+
+    it('writes the drill as one pushed entry, and Back leaves the page as it was', async () => {
+      const { result } = hooks();
+      const push = vi.spyOn(window.history, 'pushState');
+      await drill(result);
+      expect(window.location.search).toBe('?metric=citation&inspect=topic:t1&itab=prompts&eng=chatgpt_web');
+      // One entry for the inspector and the engine together, not two
+      expect(push).toHaveBeenCalledTimes(1);
+      act(() => window.history.back());
+      await waitFor(() => expect(window.location.search).toBe('?metric=citation'));
+      await waitFor(() => expect(result.current.inspector.target).toBeNull());
+      expect(result.current.engine[0]).toBeNull();
+    });
+
+    it('goes back to close a drill it pushed, which takes eng with it', async () => {
+      const { result } = hooks();
+      await drill(result);
+      const back = vi.spyOn(window.history, 'back');
+      act(() => result.current.inspector.close());
+      expect(back).toHaveBeenCalledTimes(1);
+      await waitFor(() => expect(window.location.search).toBe('?metric=citation'));
+    });
+
+    it('drops eng in the same write as the close when it closes by replacing', async () => {
+      window.history.replaceState(null, '', '/?metric=citation&inspect=topic:t1&itab=prompts&eng=chatgpt_web');
+      const { result } = hooks();
+      const back = vi.spyOn(window.history, 'back');
+      act(() => result.current.inspector.close());
+      await waitFor(() => expect(window.location.search).toBe('?metric=citation'));
+      expect(back).not.toHaveBeenCalled();
+    });
+
+    it('drops eng when the tab changes, and when another record opens', async () => {
+      window.history.replaceState(null, '', '/?inspect=topic:t1&itab=prompts&eng=chatgpt_web');
+      const { result } = hooks();
+      act(() => result.current.inspector.setTab('related'));
+      await waitFor(() => expect(window.location.search).toBe('?inspect=topic:t1&itab=related'));
+
+      window.history.replaceState(null, '', '/?inspect=topic:t1&itab=prompts&eng=chatgpt_web');
+      const again = hooks();
+      act(() => again.result.current.inspector.open({ type: 'prompt', id: 'p1' }));
+      // The tab of the open record carries over to the next, as it always did; the engine does not
+      await waitFor(() => expect(window.location.search).toBe('?inspect=prompt:p1&itab=prompts'));
+    });
+
+    it('keeps eng when it steps to the next topic', async () => {
+      window.history.replaceState(null, '', '/?inspect=topic:t1&itab=prompts&eng=chatgpt_web');
+      const { result } = hooks();
+      act(() => result.current.inspector.step('next', ['t1', 't2']));
+      await waitFor(() => expect(window.location.search).toBe('?inspect=topic:t2&itab=prompts&eng=chatgpt_web'));
+    });
+  });
+
+  describe('by default (no entryKeys)', () => {
+    // `eng` is a documented scope key of other pages: an inspector that was not told it owns it leaves it alone
+    const wrapper = ({ children }: { children: ReactNode }): ReactNode => <NuqsAdapter>{children}</NuqsAdapter>;
+    const OPEN = '/?inspect=topic:t1&itab=prompts&eng=chatgpt_web';
+    afterEach(() => {
+      window.history.replaceState(null, '', '/');
+    });
+
+    it('leaves eng alone on open, setTab and close', async () => {
+      window.history.replaceState(null, '', OPEN);
+      const { result } = renderHook(() => useInspector(), { wrapper });
+      act(() => result.current.open({ type: 'prompt', id: 'p1' }));
+      await waitFor(() => expect(window.location.search).toBe('?inspect=prompt:p1&itab=prompts&eng=chatgpt_web'));
+      act(() => result.current.setTab('history'));
+      await waitFor(() => expect(window.location.search).toBe('?inspect=prompt:p1&itab=history&eng=chatgpt_web'));
+      act(() => result.current.close());
+      await waitFor(() => expect(window.location.search).toBe('?eng=chatgpt_web'));
+    });
+
+    it('counts eng as page query: a close after it changed replaces, like after any filter', async () => {
+      window.history.replaceState(null, '', '/?metric=citation');
+      const back = vi.spyOn(window.history, 'back');
+      const { result } = renderHook(
+        () => ({ inspector: useInspector(), engine: useQueryState('eng', parseAsString) }),
+        {
+          wrapper,
+        },
+      );
+      act(() => {
+        result.current.inspector.open({ type: 'topic', id: 't1' });
+        void result.current.engine[1]('chatgpt_web');
+      });
+      await waitFor(() => expect(window.location.search).toContain('eng=chatgpt_web'));
+      act(() => result.current.inspector.close());
+      // The page's query changed while the inspector was open (eng is a page key here): close replaces, as for any filter
+      expect(back).not.toHaveBeenCalled();
+      back.mockRestore();
     });
   });
 

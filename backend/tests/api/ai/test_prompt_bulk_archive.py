@@ -13,7 +13,7 @@ import httpx
 import pytest
 
 from idraft.api.resources import Resources
-from tests.api.ai.support import ai_project, seed_prompts, set_prompt_quota
+from tests.api.ai.support import added, ai_project, seed_prompts, set_prompt_quota
 from tests.api.auth.support import Workspace, execute, fetch, make_workspace
 from tests.api.entities.support import Caller, member, problem
 from tests.api.keywords.support import project_url
@@ -33,6 +33,22 @@ async def _bulk(
     return await api.post(
         project_url(workspace, project, "prompts", "bulk-archive"),
         json={"ids": [str(prompt_id) for prompt_id in ids], "archive": archive},
+        headers=caller.headers,
+    )
+
+
+async def _bulk_by_filter(
+    api: httpx.AsyncClient,
+    workspace: Workspace,
+    project: uuid.UUID,
+    caller: Caller,
+    selection: dict[str, Any],
+    *,
+    archive: bool,
+) -> httpx.Response:
+    return await api.post(
+        project_url(workspace, project, "prompts", "bulk-archive"),
+        json={"filter": selection, "archive": archive},
         headers=caller.headers,
     )
 
@@ -336,3 +352,175 @@ async def test_a_deleted_project_and_a_bad_body_are_refused(
 
     assert problem(too_many) == problem(empty) == problem(no_flag) == (422, "validation_failed")
     assert problem(deleted) == (404, "not_found")
+
+
+async def test_bulk_archive_by_ids_works_as_before(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    editor = await member(resources, migrated, workspace, "editor")
+    project = await ai_project(migrated, workspace)
+    (prompt_id,) = await seed_prompts(migrated, workspace, project, 1)
+
+    response = await _bulk(api, workspace, project, editor, [prompt_id], archive=True)
+
+    assert response.status_code == 200, response.text
+    assert response.json() == {"data": {"matched": 1, "updated": 1}}
+
+
+async def test_bulk_archive_by_filter_archives_what_matches(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    editor = await member(resources, migrated, workspace, "editor")
+    project = await ai_project(migrated, workspace)
+    low, lower, resting, high = [
+        uuid.UUID(await added(api, workspace, project, editor, text, importance=importance))
+        for text, importance in (("Low?", 1), ("Lower?", 2), ("Resting?", 1), ("High?", 4))
+    ]
+    await _archive_directly(migrated, [resting])
+
+    response = await _bulk_by_filter(
+        api,
+        workspace,
+        project,
+        editor,
+        {"importance_in": [1, 2], "is_branded": False},
+        archive=True,
+    )
+    listed = await api.get(project_url(workspace, project, "prompts"), headers=editor.headers)
+
+    assert response.status_code == 200, response.text
+    assert response.json() == {"data": {"matched": 3, "updated": 2}}
+    assert await _active(migrated, [low, lower, resting, high]) == {
+        low: False,
+        lower: False,
+        resting: False,
+        high: True,
+    }
+    assert [row["prompt_id"] for row in listed.json()["data"]] == [str(high)]
+    entries = await _entries(migrated, workspace)
+    (summary,) = [entry for entry in entries if entry["action"] == "prompt.bulk_changed"]
+    assert summary["after"] == {"is_active": False, "matched": 3, "changed": 2}
+    archived = [entry for entry in entries if entry["action"] == "prompt.archived"]
+    assert sorted(entry["target_id"] for entry in archived) == sorted([str(low), str(lower)])
+    assert all(
+        (entry["before"], entry["after"])
+        == ({"is_active": True}, {"is_active": False, "bulk": True})
+        for entry in archived
+    )
+
+
+async def test_bringing_back_by_filter_past_the_quota_changes_nothing(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    editor = await member(resources, migrated, workspace, "editor")
+    project = await ai_project(migrated, workspace)
+    active, first, second, third = await seed_prompts(migrated, workspace, project, 4)
+    await _archive_directly(migrated, [first, second, third])
+    await execute(migrated, "UPDATE ai.prompts SET importance = 1 WHERE id = $1", first)
+    await set_prompt_quota(migrated, workspace, 2)
+
+    over = await _bulk_by_filter(
+        api, workspace, project, editor, {"is_active": False}, archive=False
+    )
+    fits = await _bulk_by_filter(
+        api, workspace, project, editor, {"importance_in": [1], "is_active": False}, archive=False
+    )
+
+    assert problem(over) == (422, "quota_exceeded")
+    assert (over.json()["limit"], over.json()["used"], over.json()["requested"]) == (2, 1, 3)
+    assert fits.json() == {"data": {"matched": 1, "updated": 1}}
+    assert await _active(migrated, [active, first, second, third]) == {
+        active: True,
+        first: True,
+        second: False,
+        third: False,
+    }
+    entries = await _entries(migrated, workspace)
+    assert [entry["action"] for entry in entries] == ["prompt.bulk_changed", "prompt.updated"]
+
+
+async def test_only_the_archived_prompts_of_a_filter_count_as_requested(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    editor = await member(resources, migrated, workspace, "editor")
+    project = await ai_project(migrated, workspace)
+    first, second, third = await seed_prompts(migrated, workspace, project, 3)
+    await _archive_directly(migrated, [first])
+    await set_prompt_quota(migrated, workspace, 3)
+
+    fits = await _bulk_by_filter(api, workspace, project, editor, {}, archive=False)
+    await _archive_directly(migrated, [second])
+    await set_prompt_quota(migrated, workspace, 2)
+    over = await _bulk_by_filter(api, workspace, project, editor, {}, archive=False)
+
+    assert fits.json() == {"data": {"matched": 3, "updated": 1}}
+    assert problem(over) == (422, "quota_exceeded")
+    assert (over.json()["limit"], over.json()["used"], over.json()["requested"]) == (2, 2, 1)
+    assert await _active(migrated, [first, second, third]) == {
+        first: True,
+        second: False,
+        third: True,
+    }
+
+
+async def test_bringing_back_by_filter_reads_the_quota_after_taking_the_workspace_lock(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    """Deterministic: a writer holds the lock while another takes the last place; the request
+    that waited must count the place as gone, so its quota check comes after the lock."""
+    workspace = await make_workspace(migrated)
+    editor = await member(resources, migrated, workspace, "editor")
+    project = await ai_project(migrated, workspace)
+    wanted, rival = await seed_prompts(migrated, workspace, project, 2)
+    await _archive_directly(migrated, [wanted, rival])
+    await set_prompt_quota(migrated, workspace, 1)
+
+    request: asyncio.Task[httpx.Response] | None = None
+    async with connection(migrated) as side:
+        try:
+            async with side.transaction():
+                await side.execute(
+                    "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
+                    f"prompts:{workspace.id}",
+                )
+                request = asyncio.create_task(
+                    _bulk_by_filter(
+                        api, workspace, project, editor, {"q": "prompt 1"}, archive=False
+                    )
+                )
+                finished, _ = await asyncio.wait({request}, timeout=1.5)
+                was_blocked = not finished
+                await side.execute("UPDATE ai.prompts SET is_active = true WHERE id = $1", rival)
+            response = await asyncio.wait_for(request, timeout=15)
+        finally:
+            if request is not None and not request.done():
+                request.cancel()
+
+    assert was_blocked
+    assert problem(response) == (422, "quota_exceeded")
+    assert (response.json()["limit"], response.json()["used"], response.json()["requested"]) == (
+        1,
+        1,
+        1,
+    )
+    assert await _active(migrated, [wanted, rival]) == {wanted: False, rival: True}
+
+
+async def test_a_filter_does_not_reach_another_projects_prompts(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    editor = await member(resources, migrated, workspace, "editor")
+    project = await ai_project(migrated, workspace)
+    other = await ai_project(migrated, workspace)
+    (mine,) = await seed_prompts(migrated, workspace, project, 1)
+    (theirs,) = await seed_prompts(migrated, workspace, other, 1)
+
+    response = await _bulk_by_filter(api, workspace, project, editor, {}, archive=True)
+
+    assert response.json() == {"data": {"matched": 1, "updated": 1}}
+    assert await _active(migrated, [mine, theirs]) == {mine: False, theirs: True}

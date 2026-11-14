@@ -183,3 +183,5 @@ The list shows domains with `reach_d >= 3`, sorted by `reach_d * opportunity_d`,
 | Citation to the engine's own properties (for example `google.com/search?q=` links in AI Mode) | Categorized `other`, flagged `engine_internal`, excluded from source share by default |
 | Tracking parameters on owned URLs creating false "new pages" | Removed by canonicalization; referral tag kept |
 | Canonicalizer upgrade | New `canonicalizer_version`; `core.url_remap` maps old ids to new; rollups recomputed for the affected window |
+
+**As built (AI visibility WP-14, 2026-11-13).** The two rows above that leave flagged citations out are implemented as the default of the aggregate source reads (doc 19 section 3.7.7): `unresolved_redirect` and `engine_internal` citations are not counted in units, shares or diversity unless `include_unresolved_redirects` or `include_engine_internal` asks for them (a citation with both flags needs both). The citation list and the fan-out read keep them, and ingest does not set `engine_internal` yet.

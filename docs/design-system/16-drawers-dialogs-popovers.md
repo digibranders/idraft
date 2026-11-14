@@ -136,6 +136,8 @@ Rules:
 - Semantics: Base UI Tabs (`role="tablist"`), arrow keys move between tabs with automatic activation ([20-accessibility.md](20-accessibility.md) section 5), the panel is `role="tabpanel"` labelled by its tab. Panels render their skeleton immediately, so arrow keys never wait on a fetch.
 - The first tab is always "Overview" and is the default. Tab state lives in the URL (section 2.7).
 
+> As built (2026-11-13, WP-25): decision D-02 allows six prompt inspector tabs (Latest, History, Citations, Competitors, Fan-out when an enabled engine exposes it, Stats). Tabs that do not fit the row move into a trailing More tabs menu (`overflowLabel` on `Tabs` and `InspectorTabs`). Each tab and the button are measured in a hidden copy and the row is observed with a `ResizeObserver`, so nothing scrolls or fades; the chosen tab always stays in the row, taking the place of the last tab that fits; the button is a 32 px ghost icon button outside the `tablist`, reached by Tab after the tab list, and Escape closes the menu with focus back on it. Without `overflowLabel` the tabs behave as before. Measured at 390, 440 and 1440 px in both themes: see 25 row 153.
+
 ### 2.4 Sections
 
 Every section of the inspector body is a card. This is the one place where bordered panels sit inside a container; [06-surfaces-borders-radius.md](06-surfaces-borders-radius.md) section 1 lists it as the exception.
@@ -182,7 +184,7 @@ The effective maximum for the resize separator when docked is `min(640, availabl
 | Mode | Stacking | Semantics | Behaviour |
 |---|---|---|---|
 | Docked | `--z-inspector` (50), `shadow-inspector` | Non-modal `aside` landmark | The page content below the top bar shrinks; the top bar does not. The card is sticky 12 px under the top bar and as tall as the rest of the window less 12 px. The table keeps scroll position and pinned columns |
-| Overlay | `--z-drawer` (70), `shadow-inspector`, no scrim | Non-modal `aside`; main content stays interactive | Clicking the main content does not close it (users compare rows while it is open); it floats 12 px under the top bar and 12 px from the right and bottom edges; popups opened from inside it portal into its container so they stack above it ([01-foundations.md](01-foundations.md) section 6) |
+| Overlay | `--z-drawer` (70), `shadow-inspector`, no scrim | Non-modal `aside`; main content stays interactive | Clicking the main content does not close it (users compare rows while it is open); it floats 12 px under the top bar and 12 px from the right and bottom edges; popups opened from inside it portal to the page body and stack above it because `--z-dropdown` (75) is above `--z-drawer` ([01-foundations.md](01-foundations.md) section 6) |
 | Sheet (below 768 px) | `--z-drawer` (70) with `--scrim` | Base UI Drawer, modal: focus trap, `aria-modal="true"`, background inert | Header shows a back button (`ChevronLeft`, "Back to Rankings") instead of Close; the sheet enters from the bottom edge and swipe down closes ([21-motion.md](21-motion.md) section 4.4, [19-responsive-behavior.md](19-responsive-behavior.md)) |
 
 The docked and overlay inspector are one layout component, not a Base UI popup. Only the sheet uses Base UI Drawer.

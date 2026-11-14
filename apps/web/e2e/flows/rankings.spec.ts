@@ -166,7 +166,8 @@ test.describe('rankings', () => {
     // Ranked keywords show a number and an arrow, a keyword beyond the depth shows the depth it was checked at,
     // and the one still waiting for its first check says so
     await expect(grid.getByText(/^[↑↓]\d+$/).first()).toBeVisible();
-    await expect(grid.getByText(/^>\d+$/).first()).toBeVisible();
+    await expect(grid.getByText(/^not in top \d+$/).first()).toBeAttached();
+    await expect(grid.getByText('-', { exact: true }).first()).toBeVisible();
     await expect(grid.getByText('Pending').first()).toBeVisible();
     await expect(grid.getByRole('img', { name: 'Check failed' })).toHaveCount(3);
     await expectAccessible(page);
@@ -749,7 +750,7 @@ test.describe('rankings', () => {
     await page.clock.runFor(60_000);
     await expect(row.getByText('Pending')).toHaveCount(0);
     const rank = await cellOf(grid, row, 'Rank');
-    await expect(rank).toHaveText(/^(\d+|>\d+not in top \d+)(first check)?$/);
+    await expect(rank).toHaveText(/^(\d+|-not in top \d+)(first check)?$/);
   });
 
   test('keywords are added in two countries, with the plan before Add, and the country control lists the new one', async ({

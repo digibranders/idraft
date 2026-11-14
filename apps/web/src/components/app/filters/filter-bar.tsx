@@ -34,6 +34,11 @@ export interface FilterBarProps {
   resultCount?: string | null | undefined;
   /** Right-aligned on the first row after the count: a legend. */
   trailing?: ReactNode | undefined;
+  /**
+   * Leaves out "Clear filters", for a screen whose defaults are chips (the AI Overview's "Branded: Excluded") and so
+   * has no empty bar to clear to: it draws its own reset.
+   */
+  hideClear?: boolean | undefined;
 }
 
 /**
@@ -41,7 +46,14 @@ export interface FilterBarProps {
  * "+ Filter" to add one, and "Clear filters" while any is applied. Scope controls (date range, location,
  * device) live elsewhere and are never cleared here.
  */
-export function FilterBar({ fields, values, onChange, resultCount, trailing }: FilterBarProps): ReactElement {
+export function FilterBar({
+  fields,
+  values,
+  onChange,
+  resultCount,
+  trailing,
+  hideClear = false,
+}: FilterBarProps): ReactElement {
   const t = useTranslations('filters');
   const groupRef = useRef<HTMLDivElement>(null);
   const countKey = useId();
@@ -107,7 +119,7 @@ export function FilterBar({ fields, values, onChange, resultCount, trailing }: F
           );
         })}
         <AddFilter fields={available} onAdd={(id, value) => set(id, value)} />
-        {active.length === 0 ? null : (
+        {active.length === 0 || hideClear ? null : (
           <Button variant="link" size="sm" onClick={clearAll}>
             {t('clearAll')}
           </Button>

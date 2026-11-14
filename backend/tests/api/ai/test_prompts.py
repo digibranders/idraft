@@ -7,10 +7,14 @@ import asyncio
 import hashlib
 import json
 import uuid
+from collections.abc import Iterator
+from typing import Any
 
+import asyncpg
 import httpx
 import pytest
 
+from idraft.api.openapi import build_openapi
 from idraft.api.resources import Resources
 from tests.api.ai.support import (
     add_prompt,
@@ -31,9 +35,13 @@ from tests.api.keywords.support import (
     vocabulary,
 )
 from tests.conftest import PostgresServer
+from tests.db.support import scoped
 
 # Built from code points so the file stays ASCII: the composed spelling is "cafe" with
 # e-acute, the decomposed one "cafe" with a combining acute accent after a plain "e".
+PROJECT_PATH = "/api/v1/workspaces/{workspace_id}/projects/{project_id}"
+PROMPTS_PATH = PROJECT_PATH + "/prompts"
+
 E_ACUTE = chr(0xE9)
 COMBINING_ACUTE = chr(0x301)
 CAFE = "Which caf" + E_ACUTE + " suits a meeting?"
@@ -238,6 +246,34 @@ async def test_a_prompt_takes_the_terms_the_project_may_use(
     ]
 
 
+async def test_a_patch_replaces_the_terms_of_a_prompt(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    editor = await member(resources, migrated, workspace, "editor")
+    project = await ai_project(migrated, workspace)
+    topics = await vocabulary(migrated, workspace)
+    crm = await term(migrated, workspace, topics, "crm")
+    pricing = await term(migrated, workspace, topics, "pricing", parent=crm)
+    single = await vocabulary(migrated, workspace, single=True)
+    one, two = (
+        await term(migrated, workspace, single, "a"),
+        await term(migrated, workspace, single, "b"),
+    )
+    prompt_id = await added(api, workspace, project, editor, "CRM pricing?", term_ids=[crm])
+    url = project_url(workspace, project, "prompts", prompt_id)
+
+    replaced = await api.patch(url, json={"term_ids": [pricing]}, headers=editor.headers)
+    both = await api.patch(url, json={"term_ids": [one, two]}, headers=editor.headers)
+    cleared = await api.patch(url, json={"term_ids": []}, headers=editor.headers)
+
+    assert replaced.status_code == 200, replaced.text
+    assert [entry["path"] for entry in replaced.json()["data"]["terms"]] == ["crm/pricing"]
+    assert errors(both) == [("term_ids", "single_valued_vocabulary")]
+    assert cleared.status_code == 200, cleared.text
+    assert cleared.json()["data"]["terms"] == []
+
+
 async def test_the_workspace_quota_stops_new_and_returning_prompts(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:
@@ -401,3 +437,358 @@ async def test_only_a_prompt_writer_changes_prompts(
     archive = await api.delete(url, headers=caller.headers)
 
     assert problem(create) == problem(change) == problem(archive) == (403, "forbidden")
+
+
+async def test_a_prompt_without_a_type_gets_the_rule_and_says_so(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    editor = await member(resources, migrated, workspace, "editor")
+    project = await ai_project(migrated, workspace)
+
+    versus = await add_prompt(api, workspace, project, editor, "Asana versus Trello for a team?")
+    plain = await add_prompt(api, workspace, project, editor, "best crm")
+
+    assert versus.status_code == plain.status_code == 201, plain.text
+    assert versus.json()["data"]["prompt_type"] == "comparison"
+    assert versus.json()["data"]["prompt_type_source"] == "rule"
+    assert plain.json()["data"]["prompt_type"] == "other"
+    assert plain.json()["data"]["prompt_type_source"] == "rule"
+    rows = await fetch(
+        migrated,
+        "SELECT prompt_type, prompt_type_source FROM ai.prompts WHERE project_id = $1 "
+        "ORDER BY prompt_type",
+        project,
+    )
+    assert [(row["prompt_type"], row["prompt_type_source"]) for row in rows] == [
+        ("comparison", "rule"),
+        ("other", "rule"),
+    ]
+    (entry, _) = await fetch(
+        migrated,
+        "SELECT after FROM ops.audit_logs WHERE workspace_id = $1 AND action = 'prompt.created' "
+        "ORDER BY id",
+        workspace.id,
+    )
+    assert json.loads(entry["after"])["prompt_type_source"] == "rule"
+
+
+async def test_a_null_type_is_the_same_as_none_sent(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    editor = await member(resources, migrated, workspace, "editor")
+    project = await ai_project(migrated, workspace)
+
+    # The documented lenient reading: null is "no type", so the rule answers.
+    response = await add_prompt(
+        api, workspace, project, editor, "Asana versus Trello?", prompt_type=None
+    )
+
+    assert response.status_code == 201, response.text
+    data = response.json()["data"]
+    assert (data["prompt_type"], data["prompt_type_source"]) == ("comparison", "rule")
+
+
+async def test_a_type_sent_is_kept_and_marked_person(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    editor = await member(resources, migrated, workspace, "editor")
+    project = await ai_project(migrated, workspace)
+
+    # The wording says comparison; the person's choice stands, even when it is the default.
+    sent = await add_prompt(
+        api, workspace, project, editor, "Asana versus Trello?", prompt_type="recommendation"
+    )
+    same = await add_prompt(
+        api, workspace, project, editor, "Is Asana good?", prompt_type="question"
+    )
+
+    for response, expected in ((sent, "recommendation"), (same, "question")):
+        assert response.status_code == 201, response.text
+        assert response.json()["data"]["prompt_type"] == expected
+        assert response.json()["data"]["prompt_type_source"] == "person"
+    assert sent.json()["data"]["is_branded_source"] == "computed"
+
+
+async def test_a_type_changed_by_patch_becomes_person(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    editor = await member(resources, migrated, workspace, "editor")
+    project = await ai_project(migrated, workspace)
+    prompt_id = await added(api, workspace, project, editor, "Asana versus Trello?")
+    url = project_url(workspace, project, "prompts", prompt_id)
+
+    other_field = await api.patch(url, json={"importance": 1}, headers=editor.headers)
+    retyped = await api.patch(url, json={"prompt_type": "recommendation"}, headers=editor.headers)
+
+    assert other_field.json()["data"]["prompt_type_source"] == "rule"
+    assert retyped.status_code == 200, retyped.text
+    data = retyped.json()["data"]
+    assert (data["prompt_type"], data["prompt_type_source"]) == ("recommendation", "person")
+    entries = await fetch(
+        migrated,
+        "SELECT before, after FROM ops.audit_logs WHERE workspace_id = $1 "
+        "AND action = 'prompt.updated' ORDER BY id",
+        workspace.id,
+    )
+    last = entries[-1]
+    assert json.loads(last["before"])["prompt_type_source"] == "rule"
+    assert json.loads(last["after"])["prompt_type_source"] == "person"
+
+
+async def test_a_patch_to_the_type_the_rule_gave_still_says_person(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    editor = await member(resources, migrated, workspace, "editor")
+    project = await ai_project(migrated, workspace)
+    prompt_id = await added(api, workspace, project, editor, "Asana versus Trello?")
+    url = project_url(workspace, project, "prompts", prompt_id)
+
+    same = await api.patch(url, json={"prompt_type": "comparison"}, headers=editor.headers)
+
+    assert same.status_code == 200, same.text
+    data = same.json()["data"]
+    assert (data["prompt_type"], data["prompt_type_source"]) == ("comparison", "person")
+
+
+async def test_a_cursor_does_not_cross_to_another_type_filter(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    editor = await member(resources, migrated, workspace, "editor")
+    project = await ai_project(migrated, workspace)
+    await added(api, workspace, project, editor, "Asana versus Trello?")
+    await added(api, workspace, project, editor, "Asana versus Monday?")
+    await added(api, workspace, project, editor, "How to pick a CRM")
+    url = project_url(workspace, project, "prompts")
+
+    first = await api.get(
+        url, params={"filter[prompt_type_in]": "comparison", "limit": "1"}, headers=editor.headers
+    )
+    crossed = await api.get(
+        url,
+        params={
+            "filter[prompt_type_in]": "how_to",
+            "limit": "1",
+            "cursor": first.json()["page"]["next_cursor"],
+        },
+        headers=editor.headers,
+    )
+
+    assert first.json()["page"]["has_more"] is True
+    assert problem(crossed) == (400, "invalid_cursor")
+
+
+async def test_the_list_filters_by_prompt_type(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    editor = await member(resources, migrated, workspace, "editor")
+    project = await ai_project(migrated, workspace)
+    versus = await added(api, workspace, project, editor, "Asana versus Trello?")
+    how_to = await added(api, workspace, project, editor, "How to pick a CRM")
+    await added(api, workspace, project, editor, "What is a CRM?")
+    url = project_url(workspace, project, "prompts")
+
+    both = await api.get(
+        url, params={"filter[prompt_type_in]": "comparison,how_to"}, headers=editor.headers
+    )
+    first = await api.get(
+        url,
+        params={"filter[prompt_type_in]": "comparison,how_to", "limit": "1"},
+        headers=editor.headers,
+    )
+    cursor = first.json()["page"]["next_cursor"]
+    rest = await api.get(
+        url,
+        params={"filter[prompt_type_in]": "comparison,how_to", "limit": "1", "cursor": cursor},
+        headers=editor.headers,
+    )
+    unfiltered = await api.get(url, params={"limit": "1"}, headers=editor.headers)
+    crossed = await api.get(
+        url,
+        params={
+            "filter[prompt_type_in]": "comparison",
+            "limit": "1",
+            "cursor": unfiltered.json()["page"]["next_cursor"],
+        },
+        headers=editor.headers,
+    )
+    unknown = await api.get(
+        url, params={"filter[prompt_type_in]": "comparison,poem"}, headers=editor.headers
+    )
+
+    # Newest first: the question (left out) is newest, then how to, then the comparison.
+    assert [row["prompt_id"] for row in both.json()["data"]] == [how_to, versus]
+    assert [row["prompt_id"] for row in first.json()["data"]] == [how_to]
+    assert [row["prompt_id"] for row in rest.json()["data"]] == [versus]
+    assert rest.json()["page"]["has_more"] is False
+    assert problem(crossed) == (400, "invalid_cursor")
+    assert problem(unknown) == (422, "validation_failed")
+
+
+async def test_a_cursor_issued_without_the_type_filter_still_decodes(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    editor = await member(resources, migrated, workspace, "editor")
+    project = await ai_project(migrated, workspace)
+    for text in ("Alpha?", "Beta?", "Gamma?"):
+        await added(api, workspace, project, editor, text)
+    url = project_url(workspace, project, "prompts")
+
+    first = await api.get(url, params={"limit": "2"}, headers=editor.headers)
+    rest = await api.get(
+        url,
+        params={"limit": "2", "cursor": first.json()["page"]["next_cursor"]},
+        headers=editor.headers,
+    )
+
+    # A page two cursor must not need the `prompt_types` key, which an older client never sent.
+    assert rest.status_code == 200, rest.text
+    assert len(rest.json()["data"]) == 1
+
+
+async def test_the_new_columns_default_and_are_granted(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    project = await ai_project(migrated, workspace)
+    # Written directly with no value for the new columns, as a row made before them is.
+    (prompt_id,) = await seed_prompts(migrated, workspace, project, 1)
+
+    read = await api.get(
+        project_url(workspace, project, "prompts", prompt_id), headers=viewer.headers
+    )
+    async with scoped(migrated, "app_api", workspace_id=workspace.id) as db:
+        updated = await db.execute(
+            "UPDATE ai.prompts SET prompt_type_source = 'rule', is_branded_source = 'override' "
+            "WHERE id = $1",
+            prompt_id,
+        )
+    async with scoped(migrated, "app_api", workspace_id=workspace.id) as db:
+        with pytest.raises(asyncpg.CheckViolationError):
+            await db.execute(
+                "UPDATE ai.prompts SET prompt_type_source = 'robot' WHERE id = $1", prompt_id
+            )
+    async with scoped(migrated, "app_api", workspace_id=workspace.id) as db:
+        with pytest.raises(asyncpg.CheckViolationError):
+            await db.execute(
+                "UPDATE ai.prompts SET is_branded_source = 'guess' WHERE id = $1", prompt_id
+            )
+
+    data = read.json()["data"]
+    assert (data["prompt_type_source"], data["is_branded_source"]) == ("person", "computed")
+    assert updated == "UPDATE 1"
+
+
+def test_the_api_document_has_the_prompt_additions() -> None:
+    document = build_openapi()
+    schemas = document["components"]["schemas"]
+
+    listing = document["paths"][PROMPTS_PATH]["get"]["parameters"]
+    names = {parameter["name"] for parameter in listing}
+    assert {
+        "filter[prompt_type_in]",
+        "filter[funnel_stage_in]",
+        "filter[importance_in]",
+        "filter[is_branded]",
+        "sort",
+    } <= names
+    active = next(item for item in listing if item["name"] == "filter[is_active]")
+    assert "boolean" in json.dumps(active["schema"])
+    assert '"any"' in json.dumps(active["schema"])
+
+    create = schemas["PromptCreate"]
+    new_members = {"is_branded", "source", "creation_method", "generated_from"}
+    assert new_members <= set(create["properties"])
+    assert not new_members & set(create.get("required", []))
+    assert "GeneratedFrom" in schemas
+
+    prompt = schemas["Prompt"]
+    assert {"prompt_type_source", "is_branded_source"} <= set(prompt["properties"])
+    assert {"prompt_type_source", "is_branded_source"} <= set(prompt["required"])
+
+    patch = document["paths"][PROMPTS_PATH + "/{prompt_id}"]["patch"]["parameters"]
+    header = next(item for item in patch if item["in"] == "header" and item["name"] == "If-Match")
+    assert not header.get("required", False)
+
+
+def test_the_api_document_has_the_lint_bulk_and_limits_additions() -> None:
+    document = build_openapi()
+    schemas = document["components"]["schemas"]
+
+    assert "post" in document["paths"][PROJECT_PATH + "/prompts/bulk-update"]
+    assert "get" in document["paths"][PROJECT_PATH + "/ai/limits"]
+    for name in (
+        "PromptLintItems",
+        "PromptLintItem",
+        "LintTracked",
+        "LintNearDuplicate",
+        "LintEstimate",
+        "EngineEstimate",
+        "PromptSelectionFilter",
+        "PromptBulkArchiveByFilter",
+        "PromptBulkSet",
+        "PromptBulkUpdate",
+        "PromptBulkUpdateResponse",
+        "AiLimits",
+        "QuotaUse",
+    ):
+        assert name in schemas, name
+
+    assert set(schemas["LintWarning"]["properties"]["rule"]["enum"]) == {
+        "contains_brand_alias",
+        "engine_limit",
+        "word_count",
+        "multiple_questions",
+        "leading_wording",
+        "language_mismatch",
+        "contains_competitor_alias",
+    }
+    assert set(schemas["PromptBulkArchive"].get("required", [])) == {"ids", "archive"}
+    assert "texts" in schemas["PromptLintRequest"].get("required", [])
+
+
+def _strings(node: Any, schemas: dict[str, Any], seen: set[str]) -> Iterator[str]:
+    """Every text in `node`, following each schema it refers to once."""
+    if isinstance(node, str):
+        yield node
+    elif isinstance(node, list):
+        for item in node:
+            yield from _strings(item, schemas, seen)
+    elif isinstance(node, dict):
+        for key, value in node.items():
+            if key == "$ref" and isinstance(value, str):
+                name = value.rsplit("/", 1)[-1]
+                if name not in seen:
+                    seen.add(name)
+                    yield from _strings(schemas[name], schemas, seen)
+            else:
+                yield from _strings(value, schemas, seen)
+
+
+def test_no_c1_description_says_not_built() -> None:
+    document = build_openapi()
+    schemas = document["components"]["schemas"]
+    lane = [
+        path
+        for path in document["paths"]
+        if (
+            path.startswith(PROJECT_PATH + "/prompts")
+            and not path.startswith(PROJECT_PATH + "/prompts-summary")
+        )
+        or path in (PROJECT_PATH + "/ai/limits", PROJECT_PATH + "/term-assignments")
+        or path.endswith("/vocabularies/{vocabulary_id}/terms")
+    ]
+
+    assert len(lane) >= 9, lane
+    for path in lane:
+        for text in _strings(document["paths"][path], schemas, set()):
+            assert "Not built yet" not in text, (path, text)
+            assert "Not returned yet" not in text, (path, text)

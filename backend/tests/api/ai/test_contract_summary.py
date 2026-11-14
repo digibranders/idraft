@@ -1,0 +1,613 @@
+"""Contract C2, prompts summary (docs/ai-visibility/contracts/c2-summary.md): every addition is
+built, answers a caller who may read the route and a value outside the contract with a 422;
+left out, the summary answers as before. Nothing answers 501 any more."""
+
+from __future__ import annotations
+
+import uuid
+
+import httpx
+import pytest
+
+from idraft.api.openapi import build_openapi
+from idraft.api.resources import Resources
+from idraft.api.schemas.ai import EngineSummary, EntityCells, WeekCells
+from tests.api.ai import test_prompts_summary
+from tests.api.ai.summary_support import day
+from tests.api.ai.support import ai_project
+from tests.api.ai.test_prompts_summary import Summary, _summary
+from tests.api.auth.support import make_workspace
+from tests.api.entities.support import member, problem
+from tests.api.keywords.support import project_url
+from tests.conftest import PostgresServer
+
+FORBIDDEN = (403, "forbidden")
+NOT_FOUND = (404, "not_found")
+INVALID = (422, "validation_failed")
+
+SUMMARY_PATH = "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/prompts-summary"
+# The seeded world of the summary tests: six prompts, two engines, answers over several weeks.
+seeded = test_prompts_summary.summary
+
+
+# Every value outside the contract (c2-summary.md, error codes) and the code of its 422.
+OUT_OF_THE_CONTRACT: list[tuple[dict[str, str], str]] = [
+    ({"compare": "previous_decade"}, "validation_failed"),
+    ({"compare_from": "2026-01-01"}, "validation_failed"),
+    ({"compare_to": "2026-01-10"}, "validation_failed"),
+    ({"compare_from": "2026-01-10", "compare_to": "2026-01-01"}, "validation_failed"),
+    ({"compare_from": "2026-01-01", "compare_to": "nope"}, "validation_failed"),
+    ({"compare_from": "2026-01-01", "compare_to": "2026-04-03"}, "window_too_large"),
+    ({"rows": "all"}, "validation_failed"),
+    ({"group_by": "language"}, "validation_failed"),
+    ({"group_by": "region"}, "validation_failed"),
+    ({"group_by": "country", "rows": "all"}, "validation_failed"),
+    ({"filter[outcome]": "lost"}, "validation_failed"),
+    ({"filter[opportunity]": "lost_to:nope"}, "validation_failed"),
+    ({"filter[opportunity]": "bogus"}, "validation_failed"),
+    ({"include": "bogus"}, "validation_failed"),
+    ({"include": "series,bogus"}, "validation_failed"),
+    ({"from": "2026-01-10", "to": "2026-01-01"}, "validation_failed"),
+    ({"from": "2026-01-01", "to": "2026-04-03"}, "window_too_large"),
+]
+# One request of each new parameter and value that the contract allows, and all of them at once.
+ALLOWED = [
+    {"compare": "previous_period"},
+    {"compare": "previous_year"},
+    {"compare_from": "2026-01-05", "compare_to": "2026-01-10"},
+    {"include": "total"},
+    {"include": "co_mentions"},
+    {"include": "cells"},
+    {"rows": "topics"},
+    {"rows": "none"},
+    {"filter[outcome]": "neither"},
+    {"filter[opportunity]": "nobody_named"},
+    {"filter[opportunity]": f"lost_to:{uuid.UUID(int=75)}"},
+    {"group_by": "country"},
+    {
+        "include": "series,entities,total,co_mentions,cells",
+        "compare": "previous_period",
+        "group_by": "country",
+        "rows": "none",
+        "filter[outcome]": "neither",
+        "filter[opportunity]": "nobody_named",
+    },
+]
+
+
+async def test_error_order_is_401_404_403_422(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    """Whatever the parameter and its value, a caller without a session gets 401, a member of
+    another workspace 404 (the workspace is not theirs to learn about: a bad value does not
+    turn it into a 422), a role without `data:read` 403, and only a caller who may read the route
+    gets the 422 of a bad value (or the 200 of a good one)."""
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    billing = await member(resources, migrated, workspace, "billing")
+    outsider = await member(resources, migrated, await make_workspace(migrated), "owner")
+    project = await ai_project(migrated, workspace)
+    url = project_url(workspace, project, "ai", "prompts-summary")
+    cases = [(params, (200, "")) for params in ALLOWED] + [
+        (params, (422, code)) for params, code in OUT_OF_THE_CONTRACT
+    ]
+
+    for params, answer in cases:
+        anonymous = await api.get(url, params=params)
+        unseen = await api.get(url, params=params, headers=outsider.headers)
+        refused = await api.get(url, params=params, headers=billing.headers)
+        read = await api.get(url, params=params, headers=viewer.headers)
+
+        assert problem(anonymous) == (401, "unauthenticated"), params
+        assert problem(unseen) == NOT_FOUND, params
+        assert problem(refused) == FORBIDDEN, params
+        if answer[0] == 200:
+            assert read.status_code == 200, (params, read.text)
+        else:
+            assert problem(read) == answer, params
+
+
+async def test_every_422_value(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    """The values of the error table, each with its code: a window over 92 days says its limit."""
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    project = await ai_project(migrated, workspace)
+    url = project_url(workspace, project, "ai", "prompts-summary")
+
+    for params, code in OUT_OF_THE_CONTRACT:
+        response = await api.get(url, params=params, headers=viewer.headers)
+
+        assert problem(response) == (422, code), params
+        if code == "window_too_large":
+            assert response.json()["limit_days"] == 92
+
+
+async def test_a_compare_window_is_at_most_92_days(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    project = await ai_project(migrated, workspace)
+    url = project_url(workspace, project, "ai", "prompts-summary")
+
+    longest = await api.get(
+        url,
+        params={"compare_from": "2026-01-01", "compare_to": "2026-04-02"},
+        headers=viewer.headers,
+    )
+    too_long = await api.get(
+        url,
+        params={"compare_from": "2026-01-01", "compare_to": "2026-04-03"},
+        headers=viewer.headers,
+    )
+
+    assert longest.status_code == 200, longest.text
+    assert problem(too_long) == (422, "window_too_large")
+    assert too_long.json()["limit_days"] == 92
+
+
+@pytest.mark.parametrize(
+    "params",
+    [
+        {"compare": "previous_period"},
+        {"compare": "previous_year"},
+        {"compare_from": "2026-01-05", "compare_to": "2026-01-10"},
+        {"compare": "none", "compare_from": "2026-01-05", "compare_to": "2026-01-10"},
+    ],
+    ids=str,
+)
+async def test_every_compare_option_is_built_and_states_its_window(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    params: dict[str, str],
+) -> None:
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    project = await ai_project(migrated, workspace)
+
+    response = await api.get(
+        project_url(workspace, project, "ai", "prompts-summary"),
+        params=params,
+        headers=viewer.headers,
+    )
+
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    assert set(data["compare_window"]) == {"from", "to", "timezone"}
+    assert data["previous_answers"] == 0
+
+
+TOTAL_AND_ROWS_OPTIONS = [
+    {"include": "total"},
+    {"rows": "topics"},
+    {"rows": "none"},
+    {"include": "total", "rows": "none"},
+    {"include": "series,entities,total", "rows": "topics", "compare": "previous_period"},
+]
+
+
+@pytest.mark.parametrize("params", TOTAL_AND_ROWS_OPTIONS, ids=str)
+async def test_the_total_and_rows_options_are_built(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    params: dict[str, str],
+) -> None:
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    billing = await member(resources, migrated, workspace, "billing")
+    project = await ai_project(migrated, workspace)
+    url = project_url(workspace, project, "ai", "prompts-summary")
+
+    response = await api.get(url, params=params, headers=viewer.headers)
+    refused = await api.get(url, params=params, headers=billing.headers)
+
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    assert ("total" in data) == ("total" in params.get("include", ""))
+    if params.get("rows") == "none":
+        assert (data["prompts"], data["topics"]) == ([], [])
+    assert problem(refused) == FORBIDDEN
+
+
+CO_MENTIONS_OPTIONS = [
+    {"include": "co_mentions"},
+    {"include": "series,co_mentions"},
+    {"include": "total,co_mentions", "rows": "none"},
+    {"include": "series,entities,total,co_mentions", "compare": "previous_period"},
+]
+
+
+@pytest.mark.parametrize("params", CO_MENTIONS_OPTIONS, ids=str)
+async def test_the_co_mentions_option_is_built(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    params: dict[str, str],
+) -> None:
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    billing = await member(resources, migrated, workspace, "billing")
+    project = await ai_project(migrated, workspace)
+    url = project_url(workspace, project, "ai", "prompts-summary")
+
+    response = await api.get(url, params=params, headers=viewer.headers)
+    refused = await api.get(url, params=params, headers=billing.headers)
+
+    assert response.status_code == 200, response.text
+    assert "co_mentions" in response.json()["data"]
+    assert problem(refused) == FORBIDDEN
+
+
+def test_the_api_document_no_longer_says_total_rows_and_co_mentions_are_not_built() -> None:
+    document = build_openapi()
+    parameters = {
+        item["name"]: item for item in document["paths"][SUMMARY_PATH]["get"]["parameters"]
+    }
+    properties = document["components"]["schemas"]["PromptsSummary"]["properties"]
+    total, co_mentions = properties["total"], properties["co_mentions"]
+
+    assert "Not built yet" not in parameters["rows"]["description"]
+    assert "not built" not in parameters["include"]["description"]
+    assert "`total`, `co_mentions`" in parameters["include"]["description"]
+    assert "Not returned yet" not in total["description"]
+    assert "include=total" in total["description"]
+    assert "Not returned yet" not in co_mentions["description"]
+    assert "include=co_mentions" in co_mentions["description"]
+    route = document["paths"][SUMMARY_PATH]["get"]["description"]
+    assert "`include=total`, `include=co_mentions`" not in route
+    assert "`include=co_mentions`, `filter[outcome]`" not in route
+    assert "`include=co_mentions` adds `co_mentions`" in route
+
+
+CELLS_OPTIONS = [
+    {"include": "cells"},
+    {"include": "total,cells", "rows": "none"},
+    {
+        "include": "series,entities,total,co_mentions,cells",
+        "compare": "previous_period",
+        "group_by": "country",
+    },
+]
+
+
+@pytest.mark.parametrize("params", CELLS_OPTIONS, ids=str)
+async def test_the_cells_option_is_built(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    params: dict[str, str],
+) -> None:
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    billing = await member(resources, migrated, workspace, "billing")
+    project = await ai_project(migrated, workspace)
+    url = project_url(workspace, project, "ai", "prompts-summary")
+
+    response = await api.get(url, params=params, headers=viewer.headers)
+    refused = await api.get(url, params=params, headers=billing.headers)
+
+    assert response.status_code == 200, response.text
+    # Said once, even when the project has no engine to carry a cell.
+    assert set(response.json()["data"]["metric_context"]["detail"]) == {
+        "cited_given_citations",
+        "citation_share",
+        "first_mention",
+        "fanout_presence",
+        "fanout_mean",
+    }
+    assert problem(refused) == FORBIDDEN
+
+
+def test_the_api_document_says_what_cells_adds() -> None:
+    document = build_openapi()
+    schemas = document["components"]["schemas"]
+    operation = document["paths"][SUMMARY_PATH]["get"]
+    parameters = {item["name"]: item for item in operation["parameters"]}
+
+    assert "`cells`" in parameters["include"]["description"]
+    assert "`include=cells` adds `detail`" in operation["description"]
+    for name in ("EngineSummary", "SummaryMetricContext"):
+        description = schemas[name]["properties"]["detail"]["description"]
+        assert "include=cells" in description
+        assert "Not returned yet" not in description
+    fanout = schemas["EngineDetailCells"]["properties"]["fanout_presence"]
+    assert {"type": "null"} in fanout["anyOf"]
+
+
+FILTER_OPTIONS = [
+    {"filter[outcome]": "neither"},
+    {"filter[opportunity]": "named_not_cited"},
+    {"filter[opportunity]": f"lost_to:{uuid.UUID(int=75)}"},
+    {"filter[outcome]": "cited_only", "filter[opportunity]": "nobody_named", "rows": "topics"},
+]
+
+
+@pytest.mark.parametrize("params", FILTER_OPTIONS, ids=str)
+async def test_the_outcome_and_opportunity_filters_are_built(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    params: dict[str, str],
+) -> None:
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    billing = await member(resources, migrated, workspace, "billing")
+    project = await ai_project(migrated, workspace)
+    url = project_url(workspace, project, "ai", "prompts-summary")
+
+    response = await api.get(url, params=params, headers=viewer.headers)
+    refused = await api.get(url, params=params, headers=billing.headers)
+
+    assert response.status_code == 200, response.text
+    assert response.json()["data"]["prompts"] == []
+    assert problem(refused) == FORBIDDEN
+
+
+def test_the_api_document_no_longer_says_the_filters_are_not_built() -> None:
+    document = build_openapi()
+    parameters = {
+        item["name"]: item for item in document["paths"][SUMMARY_PATH]["get"]["parameters"]
+    }
+
+    for name in ("filter[outcome]", "filter[opportunity]"):
+        assert "Not built yet" not in parameters[name]["description"], name
+    assert "lost_to:<entity_id>" in parameters["filter[opportunity]"]["description"]
+    route = document["paths"][SUMMARY_PATH]["get"]["description"]
+    assert "`filter[outcome]=O` keeps a prompt row" in route
+    assert "`filter[opportunity]`" in route
+
+
+GROUP_BY_OPTIONS = [
+    {"group_by": "country"},
+    {"group_by": "country", "filter[country_iso]": "US"},
+    {"group_by": "country", "include": "series,entities,total,co_mentions", "rows": "none"},
+]
+
+
+@pytest.mark.parametrize("params", GROUP_BY_OPTIONS, ids=str)
+async def test_the_group_by_option_is_built(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    params: dict[str, str],
+) -> None:
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    billing = await member(resources, migrated, workspace, "billing")
+    project = await ai_project(migrated, workspace)
+    url = project_url(workspace, project, "ai", "prompts-summary")
+
+    response = await api.get(url, params=params, headers=viewer.headers)
+    refused = await api.get(url, params=params, headers=billing.headers)
+
+    assert response.status_code == 200, response.text
+    # The project has no prompt, so the block is there and holds no entry.
+    assert response.json()["data"]["by_country"] == []
+    assert problem(refused) == FORBIDDEN
+
+
+def test_the_api_document_no_longer_says_group_by_is_not_built() -> None:
+    document = build_openapi()
+    operation = document["paths"][SUMMARY_PATH]["get"]
+    parameters = {item["name"]: item for item in operation["parameters"]}
+    by_country = document["components"]["schemas"]["PromptsSummary"]["properties"]["by_country"]
+
+    # Nothing of the summary is still "not built yet" or "not returned yet".
+    assert "Not built yet" not in operation["description"]
+    assert "not built yet" not in operation["description"]
+    for name, parameter in parameters.items():
+        assert "Not built yet" not in parameter.get("description", ""), name
+    assert "Not returned yet" not in by_country["description"]
+    assert "group_by=country" in by_country["description"]
+    assert "`group_by=country` adds `by_country`" in operation["description"]
+    # The one value is `country`; `language` is refused, with the reason in the parameter text.
+    group_by = parameters["group_by"]
+    values = next(option for option in group_by["schema"]["anyOf"] if option.get("type") != "null")
+    # One value is a `const` in the document, several would be an `enum`.
+    assert (values.get("enum") or [values["const"]]) == ["country"]
+    assert "`language` is not built" in group_by["description"]
+    assert "Not built yet" not in str(document["components"]["schemas"]["PromptsSummary"])
+
+
+@pytest.mark.parametrize(
+    "params", [{}, {"compare": "none"}, {"include": "series,entities"}], ids=str
+)
+async def test_the_defaults_and_the_built_options_answer_as_before(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    params: dict[str, str],
+) -> None:
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    project = await ai_project(migrated, workspace)
+
+    response = await api.get(
+        project_url(workspace, project, "ai", "prompts-summary"),
+        params=params,
+        headers=viewer.headers,
+    )
+
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    for absent in ("compare_window", "previous_answers", "total", "co_mentions", "by_country"):
+        assert absent not in data
+    assert "detail" not in data["metric_context"]
+
+
+@pytest.mark.parametrize("params", [{}, {"include": "series"}, {"include": "entities"}], ids=str)
+async def test_a_summary_leaves_out_the_blocks_it_was_not_asked_for(
+    api: httpx.AsyncClient, seeded: Summary, params: dict[str, str]
+) -> None:
+    response = await _summary(seeded, api, **params)
+
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    engines = [engine for row in (*data["prompts"], *data["topics"]) for engine in row["engines"]]
+    assert engines
+    for engine in engines:
+        assert "previous" not in engine
+        assert "detail" not in engine
+        # The cells per entity of a week need both `series` and `entities`.
+        for point in engine.get("series", []):
+            assert "entities" not in point
+        for cells in engine.get("entities", []):
+            assert "previous" not in cells
+    if params:
+        # Something is there to carry the nested keys, so their absence is not vacuous.
+        key = params["include"]
+        assert all(engine[key] for engine in engines)
+
+
+async def test_a_series_with_entities_has_the_cells_of_each_entity_in_every_week(
+    api: httpx.AsyncClient, seeded: Summary
+) -> None:
+    """`WeekCells.entities` is returned with `include=series,entities`, for the same entities as
+    the engine's cells, and with the cells but not the `previous` of an entity."""
+    response = await _summary(
+        seeded, api, include="series,entities", compare="previous_period", **{"from": day(2)}
+    )
+
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    engines = [engine for row in (*data["prompts"], *data["topics"]) for engine in row["engines"]]
+    assert engines
+    for engine in engines:
+        assert engine["series"]
+        assert all("previous" in cells for cells in engine["entities"])
+        for point in engine["series"]:
+            assert [c["entity_id"] for c in point["entities"]] == [
+                c["entity_id"] for c in engine["entities"]
+            ]
+            for cells in point["entities"]:
+                assert set(cells) == {"entity_id", "mentioned", "share_of_voice"}
+
+
+def _cell() -> dict[str, object]:
+    return {"value": None, "numerator": 0, "denominator": 0, "n_observations": 0}
+
+
+def test_a_summary_without_the_additions_is_a_valid_summary() -> None:
+    outcomes = {
+        name: _cell() for name in ("mentioned_and_cited", "mentioned_only", "cited_only", "neither")
+    }
+    engine = {
+        "engine_code": "chatgpt_web",
+        "mentioned": _cell(),
+        "cited": _cell(),
+        "outcomes": outcomes,
+        "share_of_voice": _cell(),
+    }
+    week = {
+        "week_start": "2026-01-05",
+        "prompts": 0,
+        "is_pooled": False,
+        "mentioned": _cell(),
+        "cited": _cell(),
+        "share_of_voice": _cell(),
+    }
+    entity = {
+        "entity_id": str(uuid.uuid4()),
+        "mentioned": _cell(),
+        "share_of_voice": _cell(),
+    }
+
+    assert "previous" not in EngineSummary.model_validate(engine).model_dump(mode="json")
+    point = WeekCells.model_validate(week).model_dump(mode="json")
+    assert "entities" not in point
+    assert "pool" not in point
+    assert "previous" not in EntityCells.model_validate(entity).model_dump(mode="json")
+
+
+def test_the_api_document_has_no_trace_of_the_not_asked_default() -> None:
+    """`previous` is left out when no compare was asked and null when there is no data; the
+    sentinel that tells them apart stays out of the document: no component of its own, and the
+    property is an optional `Inner or null`."""
+    schemas = build_openapi()["components"]["schemas"]
+
+    assert not [name for name in schemas if "asked" in name.lower()]
+    for model, inner in (("EngineSummary", "EngineCells"), ("EntityCells", "EntityPreviousCells")):
+        assert schemas[model]["properties"]["previous"]["anyOf"] == [
+            {"$ref": f"#/components/schemas/{inner}"},
+            {"type": "null"},
+        ]
+        assert "previous" not in schemas[model].get("required", [])
+
+
+def test_the_api_document_has_the_summary_additions() -> None:
+    document = build_openapi()
+    schemas = document["components"]["schemas"]
+
+    parameters = document["paths"][SUMMARY_PATH]["get"]["parameters"]
+    names = {parameter["name"] for parameter in parameters}
+    assert {
+        "compare",
+        "compare_from",
+        "compare_to",
+        "rows",
+        "filter[outcome]",
+        "filter[opportunity]",
+        "group_by",
+    } <= names
+    compare = next(item for item in parameters if item["name"] == "compare")
+    assert set(compare["schema"]["enum"]) == {"none", "previous_period", "previous_year"}
+    include = next(item for item in parameters if item["name"] == "include")
+    array = next(option for option in include["schema"]["anyOf"] if option["type"] == "array")
+    assert set(array["items"]["enum"]) == {
+        "series",
+        "entities",
+        "total",
+        "co_mentions",
+        "cells",
+    }
+
+    for name in (
+        "EngineCells",
+        "EngineDetailCells",
+        "SummaryDetailContext",
+        "EntityPreviousCells",
+        "SummaryTotal",
+        "CoMentionPair",
+        "EngineCoMentions",
+        "CountrySummary",
+        "PointPool",
+    ):
+        assert name in schemas, name
+    # The point fields that are always there (C-10) are required; `pool` is not.
+    assert {"prompts", "is_pooled"} <= set(schemas["WeekCells"]["required"])
+    assert set(schemas["PointPool"]["required"]) == {"weeks", "window", "reason", "below_prompts"}
+    assert schemas["PointPool"]["properties"]["reason"]["enum"] == ["prompt_point", "few_prompts"]
+    # The cells per entity of a week are built: no "not returned yet", and the weeks they hold.
+    week_entities = schemas["WeekCells"]["properties"]["entities"]["description"]
+    assert "Not returned yet" not in week_entities
+    assert "include=series,entities" in week_entities
+
+    # The small cells are all there when the block is; the fan-out two are null, not absent.
+    assert set(schemas["EngineDetailCells"]["required"]) == {
+        "cited_given_citations",
+        "citation_share",
+        "first_mention",
+        "fanout_presence",
+        "fanout_mean",
+    }
+
+    optional = {
+        "EngineSummary": {"previous", "detail"},
+        "SummaryMetricContext": {"detail"},
+        "EntityCells": {"previous"},
+        "WeekCells": {"entities", "pool"},
+        "PromptsSummary": {
+            "compare_window",
+            "previous_answers",
+            "total",
+            "co_mentions",
+            "by_country",
+        },
+    }
+    for name, fields in optional.items():
+        assert fields <= set(schemas[name]["properties"]), name
+        assert not fields & set(schemas[name].get("required", [])), name

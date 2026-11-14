@@ -4,24 +4,39 @@ page, the citations behind them, and the queries ChatGPT issued while answering.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, BeforeValidator, Field
 
 from idraft.api.pagination import CursorPageInfo, OffsetPageInfo
-from idraft.api.schemas.ai import MetricCell
+from idraft.api.schemas.ai import CitationOut, MetricCell
 from idraft.api.schemas.metrics import MetricWindow
 from idraft.domain.ai_engines import EngineCode
 
 DomainRole = Literal["own", "competitor", "third_party"]
 SourceSort = Literal["-citation_units", "-observations", "-prompts"]
 SourceCompare = Literal["none", "previous_period"]
+SourceDomainInclude = Literal["series", "cited_with", "by_role_by_engine"]
+SourcePageInclude = Literal["series"]
+SourceChangeKind = Literal["new", "lost"]
+DiversityInclude = Literal["series", "ads"]
+FanoutInclude = Literal["topics"]
+_NOT_RETURNED = "Not returned yet: absent from every response until it is built."
 
 TITLE_MAX = 300
 RAW_URL_MAX = 1000
 QUERY_MAX = 300
+SERIES_MAX = 14  # weeks: the 92 day window at most, plus the week it starts in
+ENGINES_MAX = 3  # one entry per engine
+DOMAIN_MAX = 253
+CATEGORY_MAX = 64
+DETAIL_ROWS_MAX = 10  # a domain's rows: one per role and entity
+DETAIL_PAGES_MAX = 10
+DETAIL_PROMPTS_MAX = 20
+CITED_WITH_MAX = 5
+TOPICS_MAX = 10
 
 
 def _bounded(limit: int) -> BeforeValidator:
@@ -74,6 +89,17 @@ class EngineUnits(BaseModel):
     citation_units: int
 
 
+class SourceWeekUnits(BaseModel):
+    week_start: date = Field(description="The Monday the week starts on, in the project's zone.")
+    citation_units: int
+    observations: int
+
+
+class CitedWith(BaseModel):
+    entity_id: UUID = Field(description="The tracked entity most named in answers citing it.")
+    observations: int = Field(description="Answers citing it that name the entity.")
+
+
 class SourceDomainRow(BaseModel):
     registrable_domain: str = Field(
         description="What sources are grouped by (docs/14 section 3, docs/16 C1): every host of "
@@ -98,12 +124,54 @@ class SourceDomainRow(BaseModel):
     first_seen_at: datetime = Field(description="Its first citation in the window.")
     last_seen_at: datetime = Field(description="Its last citation in the window.")
     previous: PreviousUnits | None = Field(default=None, exclude_if=_absent, description=_PREVIOUS)
+    series: list[SourceWeekUnits] | None = Field(
+        default=None,
+        exclude_if=_absent,
+        max_length=SERIES_MAX,
+        description="With `include=series`: a point per week of the window, oldest first, at "
+        "most 14, zero filled.",
+    )
+    cited_with: CitedWith | None = Field(
+        default=None,
+        exclude_if=_absent,
+        description="With `include=cited_with`: the tracked entity named in the most answers "
+        "that cite this row (this role and entity), ties by entity id, with the answers citing "
+        "it that name the entity. Absent when no counted answer citing it names one.",
+    )
+    category: str | None = Field(
+        default=None,
+        exclude_if=_absent,
+        max_length=CATEGORY_MAX,
+        description="The domain's category. " + _NOT_RETURNED,
+    )
+    category_source: Literal["seed_list", "rule", "llm", "manual", "tenant_override"] | None = (
+        Field(default=None, exclude_if=_absent, description=_NOT_RETURNED)
+    )
 
 
 class RoleUnits(BaseModel):
     domain_role: DomainRole
     citation_units: int
     observations: int = Field(description="Answers that cite a source of this role.")
+
+
+class SourcesWeek(BaseModel):
+    week_start: date
+    answers: int
+    citation_units: int
+    distinct_domains: int
+
+
+class RoleAnswers(BaseModel):
+    citation_units: int
+    answers_citing: int
+
+
+class EngineRoleUnits(BaseModel):
+    engine_code: EngineCode
+    own: RoleAnswers
+    competitor: RoleAnswers
+    third_party: RoleAnswers
 
 
 class SourcesMeta(BaseModel):
@@ -127,6 +195,25 @@ class SourcesMeta(BaseModel):
         exclude_if=_absent,
         description="With `compare`: the valid answers in scope in that window. 0 means it has no "
         "data, so a `previous` of 0 there says nothing about the source.",
+    )
+    series: list[SourcesWeek] | None = Field(
+        default=None,
+        exclude_if=_absent,
+        max_length=SERIES_MAX,
+        description="With `include=series`: a point per week of the window, oldest first, at "
+        "most 14: the answers (citing or not), citation units and registrable domains cited "
+        "in each week, the denominators of the rows' weekly points. The row filters "
+        "(`filter[domain_role_in]`, and `filter[registrable_domain]` on pages) narrow the "
+        "rows, not these.",
+    )
+    by_role_by_engine: list[EngineRoleUnits] | None = Field(
+        default=None,
+        exclude_if=_absent,
+        max_length=ENGINES_MAX,
+        description="With `include=by_role_by_engine` on domains: every engine of "
+        "`engine_codes`, in that order, with the units and citing answers of each role over "
+        "every citation in scope; `filter[domain_role_in]` does not narrow it. Per role the "
+        "units over the engines add up to `by_role`.",
     )
 
 
@@ -154,12 +241,175 @@ class SourcePageRow(BaseModel):
     first_seen_at: datetime
     last_seen_at: datetime
     previous: PreviousUnits | None = Field(default=None, exclude_if=_absent, description=_PREVIOUS)
+    series: list[SourceWeekUnits] | None = Field(
+        default=None,
+        exclude_if=_absent,
+        max_length=SERIES_MAX,
+        description="With `include=series`: a point per week of the window, oldest first, at "
+        "most 14, zero filled.",
+    )
 
 
 class SourcePagePage(BaseModel):
     data: list[SourcePageRow]
     page: OffsetPageInfo
     meta: SourcesMeta
+
+
+class SourceChangeRow(BaseModel):
+    registrable_domain: str = Field(max_length=DOMAIN_MAX)
+    domain_role: DomainRole
+    role_entity_id: UUID | None
+    current_units: int = Field(description="Citation units in `meta.window` (0 for `lost`).")
+    previous_units: int = Field(
+        description="Citation units in `meta.compare_window` (0 for `new`)."
+    )
+    first_seen_at: datetime | None = Field(
+        description="Its first citation in `meta.window`; null when it has none (`lost`)."
+    )
+    last_seen_at: datetime | None = Field(
+        description="Its last citation in `meta.window`; null when it has none (`lost`)."
+    )
+
+
+class SourceChangesMeta(BaseModel):
+    window: MetricWindow
+    compare_window: MetricWindow
+    include_branded: bool
+    engine_codes: list[EngineCode] = Field(max_length=ENGINES_MAX)
+    kind: SourceChangeKind
+    min_support: int
+
+
+class SourceChangePage(BaseModel):
+    data: list[SourceChangeRow]
+    page: OffsetPageInfo
+    meta: SourceChangesMeta
+
+
+class AdPresence(BaseModel):
+    answers_with_ads: MetricCell = Field(
+        description="Answers that showed at least one ad, of the valid answers on the engine. "
+        "Ads are kept out of answers and citations (docs/07 section 5.4); extras the 16 KB "
+        "bound emptied count as no ad."
+    )
+    ads: int = Field(description="Ads stored with those answers.")
+
+
+class DiversityWeek(BaseModel):
+    week_start: date
+    citation_units: int
+    distinct_domains: int
+    effective_sources: float | None = Field(description="Null when the week has no unit.")
+
+
+class SourceDiversityEngine(BaseModel):
+    engine_code: EngineCode
+    answers: int
+    answers_citing: int
+    citation_units: int
+    distinct_domains: int = Field(description="Registrable domains cited, roles merged (C3).")
+    effective_sources: MetricCell = Field(
+        description="Effective number of sources (docs/16 C3): 1 / sum of squared source "
+        "shares, as (sum of units)^2 over the sum of squared units per domain."
+    )
+    series: list[DiversityWeek] | None = Field(
+        default=None,
+        exclude_if=_absent,
+        max_length=SERIES_MAX,
+        description="With `include=series`: a point per week of the window, oldest first, at "
+        "most 14, zero filled.",
+    )
+    ads: AdPresence | None = Field(
+        default=None,
+        exclude_if=_absent,
+        description="With `include=ads`: the answers of the engine that showed an ad.",
+    )
+
+
+class SourceDiversityMeta(BaseModel):
+    window: MetricWindow
+    include_branded: bool
+    engine_codes: list[EngineCode] = Field(max_length=ENGINES_MAX)
+    distinct_domains: int = Field(description="Over every engine in scope (a count).")
+    effective_sources_engine_average: float | None = Field(
+        description="The equal-weight mean of the engines' effective sources, engines with units "
+        "only (docs/16 rule 2: never pooled)."
+    )
+
+
+class SourceDiversity(BaseModel):
+    data: list[SourceDiversityEngine] = Field(max_length=ENGINES_MAX)
+    meta: SourceDiversityMeta
+
+
+class DomainEngineWeek(BaseModel):
+    week_start: date
+    citation_units: int
+    observations: int
+    all_citation_units: int = Field(
+        description="Every unit of the engine that week: the share's denominator."
+    )
+    answers: int
+
+
+class DomainEngineSeries(BaseModel):
+    engine_code: EngineCode
+    series: list[DomainEngineWeek] = Field(max_length=SERIES_MAX)
+
+
+class DomainPrompt(BaseModel):
+    prompt_id: UUID
+    citation_units: int
+    observations: int
+
+
+class SourceDomainDetailData(BaseModel):
+    registrable_domain: str = Field(max_length=DOMAIN_MAX)
+    rows: list[SourceDomainRow] = Field(max_length=DETAIL_ROWS_MAX)
+    engines: list[DomainEngineSeries] = Field(max_length=ENGINES_MAX)
+    top_pages: list[SourcePageRow] = Field(max_length=DETAIL_PAGES_MAX)
+    prompts: list[DomainPrompt] = Field(max_length=DETAIL_PROMPTS_MAX)
+    cited_with: list[CitedWith] = Field(max_length=CITED_WITH_MAX)
+
+
+class SourceDomainDetail(BaseModel):
+    data: SourceDomainDetailData
+    meta: SourcesMeta
+
+
+class OwnPage(BaseModel):
+    url_id: int
+    url: str
+
+
+class PromptOwnPagesRow(BaseModel):
+    prompt_id: UUID
+    engine_code: EngineCode
+    answers: int = Field(description="Valid answers of the prompt on the engine in scope.")
+    answers_citing_own: int
+    own_citation_units: int
+    own_pages: int = Field(description="Distinct own pages cited.")
+    top_own_page: OwnPage | None = Field(
+        description="The own page with the most units; null if none."
+    )
+
+
+class PromptOwnPagesMeta(BaseModel):
+    window: MetricWindow
+    include_branded: bool
+    engine_codes: list[EngineCode] = Field(max_length=ENGINES_MAX)
+
+
+class PromptOwnPagesPage(BaseModel):
+    data: list[PromptOwnPagesRow]
+    page: CursorPageInfo
+    meta: PromptOwnPagesMeta
+
+
+class FanoutTopic(BaseModel):
+    term_id: UUID
+    observations: int = Field(description="Answers of the term's prompts that issued the query.")
 
 
 class CitationRow(BaseModel):
@@ -183,6 +433,10 @@ class CitationRow(BaseModel):
     domain_role: DomainRole
     role_entity_id: UUID | None
     occurrences: int
+    # The answer detail's text and cap (`CitationOut.quote`): written always, null when none.
+    quote: str | None = Field(
+        default=None, description=CitationOut.model_fields["quote"].description
+    )
 
 
 class CitationPage(BaseModel):
@@ -217,6 +471,14 @@ class FanoutQueryRow(BaseModel):
     cited_domains: list[FanoutCitedDomain] = Field(
         description="The 5 registrable domains with the most citation units in the answers that "
         "issued it: an association, not a link (which query found which source is not stored)."
+    )
+    topics: list[FanoutTopic] | None = Field(
+        default=None,
+        exclude_if=_absent,
+        max_length=TOPICS_MAX,
+        description="With `include=topics`: the topic terms tagged on the prompts whose answers "
+        "issued it, the most answers first, then by term id, at most 10; an empty list when no "
+        "such prompt is tagged with a topic. Absent unless `include=topics`.",
     )
 
 

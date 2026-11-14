@@ -140,6 +140,8 @@ As built (2026-11-05): the top bar has a slot before the theme switch that a pag
 
 Date range and location are project-wide scope: they sit in the top bar on every page, keep their value across pages, and are hidden (not disabled) on pages where they do not apply: Settings, Integrations, and the screens that [13-filters-search.md](13-filters-search.md) section 4 lists without them. Screen-specific scope controls (Compare, Device, Engine) and filters stay in the filter bar ([13-filters-search.md](13-filters-search.md) section 2). The URL keys do not change with the placement. Behavior of each element at narrower widths, including which controls collapse first, is defined in [19-responsive-behavior.md](19-responsive-behavior.md) section 3.2.
 
+As built (country scope, 2026-11-14, WP-22): the country control is shared (`components/app/scope/country-scope-control.tsx` with `lib/locations/country-scope.ts`). Citations and AI Overview use it; the Prompts page keeps its own copy (`PromptsCountryControl`) until it is folded in; Fan-out and Competitors adopt it when they are built.
+
 ## 5. Settings navigation
 
 Settings uses a local left navigation (`SettingsNav`, 200 px) inside the page, not the main sidebar:

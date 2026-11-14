@@ -3,6 +3,7 @@ export * from './types';
 export * from './catalog';
 export * from './sanitize';
 export * from './resolve';
+export * from './upgrade';
 export * from './availability';
 export * from './rows';
 export * from './draft';

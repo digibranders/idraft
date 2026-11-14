@@ -183,6 +183,8 @@ const POLICIES = [
     from: from('feature'),
     allow: { to: { element: { type: 'feature', captured: { feature: '{{from.captured.feature}}' } } } },
   },
+  // features/layouts is the layout platform used by customizable pages, like providers: no other feature-to-feature import is allowed.
+  { from: from('feature'), allow: { to: { element: { type: 'feature', captured: { feature: 'layouts' } } } } },
   // 4. Routes are thin: features, providers and server-side lib. A component reaches a route through a feature.
   { from: from('route'), allow: to('route', 'feature', 'providers', 'lib', 'styles', 'design-system') },
   // The preview sections show components. Product code never imports them; only the internal route does.

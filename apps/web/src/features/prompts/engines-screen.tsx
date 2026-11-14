@@ -3,16 +3,19 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
-import { useState, type ReactElement, type ReactNode } from 'react';
+import { useRef, useState, type ReactElement, type ReactNode } from 'react';
 
+import { engineCostChange, type EngineCostChange } from './engine-cost-model';
 import { enginesQuery, PUT_ENGINE, refreshPrompts, type PromptScope } from './prompt-queries';
 import { useMultiSelectHints } from '@/components/app/forms/use-multi-select-hints';
 import { Banner } from '@/components/app/status/banner';
 import { InlineError } from '@/components/app/status/inline-error';
 import { ConfirmDialog } from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field';
 import { MultiSelect } from '@/components/ui/multi-select';
+import { SegmentedControl } from '@/components/ui/segmented-control';
 import { SettingRow } from '@/components/ui/setting-row';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
@@ -40,6 +43,12 @@ export interface EnginesScreenProps {
 
 const SKELETON_ROWS = [0, 1, 2] as const;
 
+/** The devices Google AI Mode asks from (`provider_params.device`); the other engines send `null`. */
+type Device = NonNullable<NonNullable<ProjectEngine['provider_params']>['device']>;
+
+/** The class of the Perplexity API: an official API, never pooled with the other classes (spec 2026-11-11). */
+const PERPLEXITY_CLASS = 'official_api';
+
 /** The API refused a country: `422 validation_failed` with an error on `location_ids` (engine service `put`). */
 const refusedCountry = (failure: unknown): boolean =>
   isApiProblem(failure, 'validation_failed') && failure.errors.some((item) => item.path.startsWith('location_ids'));
@@ -64,6 +73,13 @@ export function EnginesScreen({
   const engines = useQuery(enginesQuery(scope));
   const countries = useCountries();
   const errorId = useErrorId(engines.error);
+  // The engine the last successful save switched on or off. It stays until the next save starts, and the
+  // summary is read from the list as it is now, so it follows the refetch that comes after the save.
+  const [switched, setSwitched] = useState<{ code: string; on: boolean } | null>(null);
+  const change =
+    switched === null || engines.data === undefined
+      ? null
+      : engineCostChange(engines.data.data, switched.code, switched.on);
   return (
     <section aria-labelledby="engines-title" className="flex flex-col gap-5">
       <div>
@@ -85,6 +101,7 @@ export function EnginesScreen({
       </div>
       <Banner tone="info" placement="region" message={t('spendNote')} />
       {canWrite ? null : <Banner tone="info" placement="region" lead={t('readOnlyLead')} message={t('readOnly')} />}
+      {change === null ? null : <CostChangeSummary change={change} />}
       {countries.isError ? (
         <Banner
           tone="warning"
@@ -122,12 +139,76 @@ export function EnginesScreen({
                 countries={countries.countries}
                 canWrite={canWrite}
                 defaultCountryIso={defaultCountryIso}
+                onSaveStart={() => setSwitched(null)}
+                onSwitched={(code, on) => setSwitched({ code, on })}
               />
             </li>
           ))}
+          <li className="px-4 pb-4">
+            <PerplexityRow />
+          </li>
         </ul>
       )}
     </section>
+  );
+}
+
+/** What the last switch did to the monthly estimate. A condition of the page, so a banner, read out as it appears. */
+function CostChangeSummary({ change }: { change: EngineCostChange }): ReactElement {
+  const t = useTranslations('aiEngines');
+  if (change.delta === null) return <Banner tone="info" placement="region" live message={t('costChangeNoPrice')} />;
+  const amount = formatCurrency(Math.abs(change.delta));
+  const direction = change.delta < 0 ? 'down' : 'up';
+  return (
+    <Banner
+      tone="info"
+      placement="region"
+      live
+      message={
+        change.enabledTotal === null
+          ? t('costChangeNoTotal', { amount, direction })
+          : t('costChange', {
+              amount,
+              direction,
+              count: change.enabledCount,
+              total: formatCurrency(change.enabledTotal),
+            })
+      }
+    />
+  );
+}
+
+/** The class of an engine (doc 04 section 8.1). A class a newer API sends shows as its code, never as nothing. */
+function EngineClass({ code }: { code: string }): ReactElement {
+  const t = useTranslations('aiEngines');
+  const labels = new Map([
+    ['consumer_ui', t('classes.consumerUi')],
+    ['serp_ai', t('classes.serpAi')],
+    ['official_api', t('classes.officialApi')],
+  ]);
+  return (
+    <span className="inline-flex items-center">
+      <span className="sr-only">{t('classPrefix')} </span>
+      <Badge>{labels.get(code) ?? code}</Badge>
+    </span>
+  );
+}
+
+/** The Perplexity API is planned, not built: a row that cannot be switched, never queried, saved or counted. */
+function PerplexityRow(): ReactElement {
+  const t = useTranslations('aiEngines');
+  return (
+    <SettingRow
+      label={t('perplexityName')}
+      description={t('perplexityState')}
+      disabled
+      control={
+        <div className="flex items-center gap-3">
+          <EngineClass code={PERPLEXITY_CLASS} />
+          <Switch checked={false} disabled />
+        </div>
+      }
+    />
   );
 }
 
@@ -137,9 +218,21 @@ interface EngineRowProps {
   countries: readonly Country[];
   canWrite: boolean;
   defaultCountryIso: string | null;
+  /** A save starts: the cost summary of the one before is no longer the last word. */
+  onSaveStart: () => void;
+  /** A save turned the engine on or off (not one that only changed its countries). */
+  onSwitched: (code: string, on: boolean) => void;
 }
 
-function EngineRow({ scope, engine, countries, canWrite, defaultCountryIso }: EngineRowProps): ReactElement {
+function EngineRow({
+  scope,
+  engine,
+  countries,
+  canWrite,
+  defaultCountryIso,
+  onSaveStart,
+  onSwitched,
+}: EngineRowProps): ReactElement {
   const t = useTranslations('aiEngines');
   const common = useTranslations('common');
   const hints = useMultiSelectHints();
@@ -153,6 +246,13 @@ function EngineRow({ scope, engine, countries, canWrite, defaultCountryIso }: En
   const [error, setError] = useState<string | null>(null);
   // The field is only said to be missing a country once it was changed, or turning the engine on was tried
   const [touched, setTouched] = useState(false);
+  // The device chosen for an engine that is off: it waits for the switch and goes with the turn-on
+  const [held, setHeld] = useState<Device | null>(null);
+  // A save of this engine is under way, from its start until the list has been read again
+  const saving = useRef(false);
+  // A string is the API's signal that the engine takes a device (Google AI Mode); ChatGPT and Gemini send null
+  const savedDevice = engine.provider_params?.device ?? null;
+  const shownDevice = engine.is_enabled ? savedDevice : (held ?? savedDevice);
   const byId = new Map(countries.map((country) => [country.location_id, country]));
   const saved = engine.location_ids.flatMap((id) => byId.get(id) ?? []);
   const projectCountry = countries.filter((country) => country.country_iso === defaultCountryIso).slice(0, 1);
@@ -168,12 +268,18 @@ function EngineRow({ scope, engine, countries, canWrite, defaultCountryIso }: En
     setError(message);
     announce(message, { politeness: 'assertive' });
   };
-  const save = async (isEnabled: boolean, locationIds: readonly number[]): Promise<void> => {
+  // `device` is sent only when the person chose one: every other save leaves it out, and the API keeps the saved one
+  const saveNow = async (isEnabled: boolean, locationIds: readonly number[], device?: Device): Promise<void> => {
     setError(null);
+    onSaveStart();
     try {
       await put.mutateAsync({
         params: { path: { workspace_id: scope.workspaceId, project_id: scope.projectId, engine_code: code } },
-        body: { location_ids: [...locationIds], is_enabled: isEnabled },
+        body: {
+          location_ids: [...locationIds],
+          is_enabled: isEnabled,
+          ...(device === undefined ? {} : { provider_params: { device } }),
+        },
       });
     } catch (failure) {
       if (refusedCountry(failure)) fail(t('countriesRefused'));
@@ -183,10 +289,24 @@ function EngineRow({ scope, engine, countries, canWrite, defaultCountryIso }: En
     }
     setDraft(null);
     setTouched(false);
+    setHeld(null);
     // The first engine on makes the project's AI schedules. The key is the Schedules screen's (project-settings
     // keeps it, and features do not import each other), so it is spelled out here as the runs key is elsewhere
     void queryClient.invalidateQueries({ queryKey: [...projectKey(scope.workspaceId, scope.projectId), 'schedules'] });
+    // Only a switch changes the cost: the price of an engine does not depend on its countries
+    if (isEnabled !== engine.is_enabled) onSwitched(code, isEnabled);
     await refreshPrompts(queryClient, scope);
+  };
+  // Until the list is read again after a save, `engine` is the row from before it. A device change made from that
+  // row would send its old switch and countries and undo the save (turn the engine back on without the question),
+  // so the device control does nothing meanwhile. The control stays enabled: a disabled one drops keyboard focus.
+  const save = async (isEnabled: boolean, locationIds: readonly number[], device?: Device): Promise<void> => {
+    saving.current = true;
+    try {
+      await saveNow(isEnabled, locationIds, device);
+    } finally {
+      saving.current = false;
+    }
   };
 
   const turn = (on: boolean): void => {
@@ -214,13 +334,28 @@ function EngineRow({ scope, engine, countries, canWrite, defaultCountryIso }: En
       ).catch(() => undefined);
     }
   };
+  const changeDevice = (next: Device): void => {
+    if (saving.current) return;
+    const device = t(next === 'mobile' ? 'deviceMobile' : 'deviceDesktop');
+    if (!engine.is_enabled) {
+      setHeld(next);
+      announce(t('deviceHeld', { engine: label, device }), { politeness: 'polite', key: `device-${code}` });
+      return;
+    }
+    // An engine that is on saves at once, with the countries it holds: a field the person left empty must not block it
+    save(true, engine.location_ids, next).then(
+      () => announce(t('deviceChanged', { engine: label, device }), { politeness: 'polite', key: `device-${code}` }),
+      // The row says why, and the control still shows the device the engine holds
+      () => undefined,
+    );
+  };
   const turnOn = async (): Promise<void> => {
     if (ids.length === 0) {
       setTouched(true);
       fail(t('countriesRequired'));
       throw new Error('An engine needs a country before it is turned on');
     }
-    await save(true, ids);
+    await save(true, ids, held ?? undefined);
     toast({ type: 'success', title: t('turnedOn', { engine: label }), description: t('turnedOnHint') });
   };
 
@@ -231,9 +366,28 @@ function EngineRow({ scope, engine, countries, canWrite, defaultCountryIso }: En
         description={cost === null ? t('noPrice') : t('estimate', { cost: formatCurrency(cost), prompts })}
         error={error}
         control={
-          <Switch checked={engine.is_enabled} busy={put.isPending} disabled={!canWrite} onCheckedChange={turn} />
+          <div className="flex items-center gap-3">
+            <EngineClass code={engine.engine.observation_class} />
+            <Switch checked={engine.is_enabled} busy={put.isPending} disabled={!canWrite} onCheckedChange={turn} />
+          </div>
         }
       />
+      {shownDevice === null ? null : (
+        <div className="flex flex-col gap-1.5">
+          <SegmentedControl<Device>
+            semantics="radio"
+            label={t('deviceLabel', { engine: label })}
+            value={shownDevice}
+            onValueChange={changeDevice}
+            disabled={!canWrite}
+            items={[
+              { value: 'desktop', label: t('deviceDesktop') },
+              { value: 'mobile', label: t('deviceMobile') },
+            ]}
+          />
+          <p className="type-meta">{t('deviceHint')}</p>
+        </div>
+      )}
       <Field invalid={missingCountry} disabled={!canWrite}>
         <FieldLabel>{t('countriesLabel', { engine: label })}</FieldLabel>
         <MultiSelect<Country>

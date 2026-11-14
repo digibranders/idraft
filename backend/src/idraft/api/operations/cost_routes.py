@@ -9,15 +9,29 @@ from datetime import date
 from typing import Annotated, Final
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
 from fastapi.exceptions import RequestValidationError
 from pydantic import AfterValidator
 
+from idraft.api.operations.budgets import BudgetService
 from idraft.api.operations.costs import BudgetLine, CostService
+from idraft.api.operations.costs_forecast import ForecastService
 from idraft.api.operations.costs_repository import BudgetRecord, PriceRecord
+from idraft.api.operations.costs_unit import UnitCostService
 from idraft.api.pagination import Commas, Offset, OffsetPageInfo
 from idraft.api.permissions import Permission
+from idraft.api.request_info import Info
 from idraft.api.resources import Resources, get_resources
+from idraft.api.schemas.budgets import (
+    BudgetCreate,
+    BudgetPage,
+    BudgetResponse,
+    BudgetUpdate,
+    ForecastResponse,
+    ForecastRow,
+    UnitCostResponse,
+    UnitCostRow,
+)
 from idraft.api.schemas.operations import (
     Budget,
     BudgetStatus,
@@ -37,6 +51,7 @@ from idraft.domain.workloads import CostWorkload
 router = APIRouter(prefix="/api/v1/workspaces/{workspace_id}", tags=["operations"])
 
 ReadCosts = Annotated[WorkspaceAccess, Depends(require_permission(Permission.COSTS_READ))]
+ManageBudgets = Annotated[WorkspaceAccess, Depends(require_permission(Permission.BUDGETS_MANAGE))]
 
 # A leap year's whole period.
 PERIOD_DAYS_MAX: Final = 366
@@ -60,6 +75,27 @@ def get_cost_service(resources: Annotated[Resources, Depends(get_resources)]) ->
 
 
 Costs = Annotated[CostService, Depends(get_cost_service)]
+
+
+def get_budget_service(resources: Annotated[Resources, Depends(get_resources)]) -> BudgetService:
+    return BudgetService(sessions=resources.sessions)
+
+
+def get_forecast_service(
+    resources: Annotated[Resources, Depends(get_resources)],
+) -> ForecastService:
+    return ForecastService(sessions=resources.sessions)
+
+
+def get_unit_cost_service(
+    resources: Annotated[Resources, Depends(get_resources)],
+) -> UnitCostService:
+    return UnitCostService(sessions=resources.sessions)
+
+
+Budgets = Annotated[BudgetService, Depends(get_budget_service)]
+Forecasts = Annotated[ForecastService, Depends(get_forecast_service)]
+UnitCosts = Annotated[UnitCostService, Depends(get_unit_cost_service)]
 
 
 def _query_error(name: str, code: str, message: str) -> RequestValidationError:
@@ -161,6 +197,143 @@ async def budget_status(
     first = None if month is None else date.fromisoformat(f"{month}-01")
     lines = await costs.budget_status(access, first)
     return BudgetStatusList(data=[_status(line) for line in lines])
+
+
+@router.get(
+    "/budgets",
+    summary="The workspace's budgets",
+    description="Oldest first, in pages. A member limited to some projects sees those "
+    "projects' budgets only, not the workspace's; `404` for a `filter[project_id]` outside "
+    "them.",
+)
+async def list_budgets(
+    access: ReadCosts,
+    budgets: Budgets,
+    page: Offset,
+    project_id: Annotated[UUID | None, Query(alias="filter[project_id]")] = None,
+) -> BudgetPage:
+    found = await budgets.page(access, project_id=project_id, offset=page.offset, limit=page.limit)
+    return BudgetPage(
+        data=[_budget(record) for record in found.budgets],
+        page=OffsetPageInfo(offset=page.offset, limit=page.limit, total=found.total),
+    )
+
+
+@router.post(
+    "/budgets",
+    status_code=201,
+    summary="Add a budget",
+    description="One per project (or the workspace), group and month. `limit_usd` is from 0 to "
+    "99999999999.99 with two places; a limit of 0 blocks every run of the group. "
+    "`soft_limit_pct` is 1 to 100 (80 when left out) and `action_on_hard` `pause` when left "
+    "out. Only stores a limit; it starts no run and spends nothing. `409 duplicate` when the "
+    "budget exists; `422 validation_failed` with field code `project_unknown` at `project_id` "
+    "for a project the workspace does not have. A member limited to some projects can add "
+    "budgets for those projects only (`404` otherwise).",
+)
+async def create_budget(
+    body: BudgetCreate, access: ManageBudgets, budgets: Budgets, info: Info
+) -> BudgetResponse:
+    return BudgetResponse(data=_budget(await budgets.create(access, body, info)))
+
+
+@router.patch(
+    "/budgets/{budget_id}",
+    summary="Change a budget's limit",
+    description="The limit, its soft share and the action at the hard limit. The scope and the "
+    "group cannot change: delete the budget and add another. `404` for a budget that is not "
+    "the workspace's, or not in the member's projects.",
+)
+async def update_budget(
+    budget_id: UUID, body: BudgetUpdate, access: ManageBudgets, budgets: Budgets, info: Info
+) -> BudgetResponse:
+    return BudgetResponse(data=_budget(await budgets.update(access, budget_id, body, info)))
+
+
+@router.delete(
+    "/budgets/{budget_id}",
+    status_code=204,
+    summary="Delete a budget",
+    description="Runs it blocked stay blocked; nothing else changes. `404` for a budget that is "
+    "not the workspace's, or not in the member's projects.",
+)
+async def delete_budget(
+    budget_id: UUID, access: ManageBudgets, budgets: Budgets, info: Info
+) -> Response:
+    await budgets.delete(access, budget_id, info)
+    return Response(status_code=204)
+
+
+def _first_of(month: str | None) -> date | None:
+    return None if month is None else date.fromisoformat(f"{month}-01")
+
+
+@router.get(
+    "/costs/forecast",
+    summary="What the live schedules are expected to cost in a month",
+    description="`month` is `YYYY-MM` (UTC; this month when left out). A row per visible "
+    "project with live AI schedules: the windows its schedules open in the month times the "
+    "price book's price of one full run. An estimate, never what is charged; nothing is "
+    "planned or started. A project whose run has no price is left out. `404` for a "
+    "`filter[project_id]` the caller does not reach.",
+)
+async def cost_forecast(
+    access: ReadCosts,
+    forecasts: Forecasts,
+    month: Annotated[
+        str | None, Query(pattern=_MONTH_PATTERN, description="`YYYY-MM`, 2000 to 2100.")
+    ] = None,
+    project_id: Annotated[UUID | None, Query(alias="filter[project_id]")] = None,
+) -> ForecastResponse:
+    lines = await forecasts.forecast(access, _first_of(month), project_id)
+    return ForecastResponse(
+        data=[
+            ForecastRow(
+                project_id=line.project_id,
+                workload="ai_prompt",
+                estimated_cost_usd=line.estimated_cost_usd,
+                method="price_book_x_schedules",
+                is_estimate=True,
+            )
+            for line in lines
+        ]
+    )
+
+
+@router.get(
+    "/costs/unit-costs",
+    summary="What one unit of work cost in a month",
+    description="`month` is `YYYY-MM` (UTC; this month when left out). A row per visible "
+    "project: the cost of a tracked keyword, a provider request, an active prompt and an AI "
+    "answer, the last by engine with the answers counted. A figure with nothing to divide by "
+    "is `null`, never 0. `404` for a `filter[project_id]` the caller does not reach.",
+)
+async def unit_costs(
+    access: ReadCosts,
+    units: UnitCosts,
+    month: Annotated[
+        str | None, Query(pattern=_MONTH_PATTERN, description="`YYYY-MM`, 2000 to 2100.")
+    ] = None,
+    project_id: Annotated[UUID | None, Query(alias="filter[project_id]")] = None,
+) -> UnitCostResponse:
+    lines = await units.unit_costs(access, _first_of(month), project_id)
+    return UnitCostResponse(
+        data=[
+            UnitCostRow.model_validate(
+                {
+                    "project_id": line.project_id,
+                    "per_tracked_keyword_month": line.per_tracked_keyword_month,
+                    "per_serp_check": line.per_serp_check,
+                    "per_active_prompt_month": line.per_active_prompt_month,
+                    "per_ai_observation": line.per_ai_observation,
+                    "extraction_llm_usd": line.extraction_llm_usd,
+                    "per_engine": line.per_engine,
+                    "ai_answers_by_engine": line.ai_answers_by_engine,
+                }
+            )
+            for line in lines
+        ]
+    )
 
 
 def _price(record: PriceRecord) -> Price:

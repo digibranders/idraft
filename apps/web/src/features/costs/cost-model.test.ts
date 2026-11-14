@@ -1,18 +1,21 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  aiEnginePrice,
   budgetRows,
   dayWorkloadSeries,
   money,
   projectBudget,
   shareOf,
   STATE_KEYS,
+  unitCostRows,
   workloadRole,
   workspaceBudget,
+  type UnitCostRow,
 } from './cost-model';
 import messages from '../../../messages/en.json';
 import { budgetStatusStateValues } from '@/lib/api/schema';
-import type { Budget, BudgetStatus, CostRow } from '@/lib/api/types';
+import type { Budget, BudgetStatus, CostRow, Price } from '@/lib/api/types';
 
 const costRow = (keys: Record<string, string>, cost: string): CostRow => ({
   keys,
@@ -170,5 +173,92 @@ describe('cost model', () => {
       'p2-all',
       'p2-ai_prompt',
     ]);
+  });
+});
+
+const unitRow = (projectId: string, over: Partial<UnitCostRow> = {}): UnitCostRow => ({
+  project_id: projectId,
+  per_tracked_keyword_month: null,
+  per_serp_check: null,
+  per_active_prompt_month: null,
+  per_ai_observation: null,
+  extraction_llm_usd: null,
+  per_engine: {},
+  ai_answers_by_engine: {},
+  ...over,
+});
+
+describe('unitCostRows', () => {
+  it('makes one line per project and engine, engines in the fixed order, projects as the API sent them', () => {
+    const rows = unitCostRows([
+      unitRow('p2', {
+        per_engine: { google_ai_mode: null, gemini_web: '0.000900', chatgpt_web: '0.001500' },
+        ai_answers_by_engine: { google_ai_mode: 0, gemini_web: 40, chatgpt_web: 148 },
+      }),
+      unitRow('p1', { per_engine: { chatgpt_web: '0.001234' }, ai_answers_by_engine: { chatgpt_web: 3 } }),
+    ]);
+    expect(rows.map((row) => `${row.projectId}/${row.engine}`)).toEqual([
+      'p2/chatgpt_web',
+      'p2/gemini_web',
+      'p2/google_ai_mode',
+      'p1/chatgpt_web',
+    ]);
+    expect(rows.map((row) => row.answers)).toEqual([148, 40, 0, 3]);
+  });
+
+  it('keeps a missing figure null and never turns it into zero', () => {
+    const [line] = unitCostRows([unitRow('p1', { per_engine: { google_ai_mode: null } })]);
+    expect(line).toEqual({ projectId: 'p1', engine: 'google_ai_mode', perAnswer: null, answers: 0 });
+  });
+
+  it('lists an engine that has a count but no figure, and one that has a figure but no count', () => {
+    const rows = unitCostRows([
+      unitRow('p1', { per_engine: { gemini_web: '0.000900' }, ai_answers_by_engine: { chatgpt_web: 2 } }),
+    ]);
+    expect(rows).toEqual([
+      { projectId: 'p1', engine: 'chatgpt_web', perAnswer: null, answers: 2 },
+      { projectId: 'p1', engine: 'gemini_web', perAnswer: '0.000900', answers: 0 },
+    ]);
+  });
+
+  it('puts an engine the fixed order does not know after the known ones', () => {
+    const rows = unitCostRows([unitRow('p1', { per_engine: { zeta: '0.001000', chatgpt_web: '0.002000' } })]);
+    expect(rows.map((row) => row.engine)).toEqual(['chatgpt_web', 'zeta']);
+  });
+
+  it('has no line for a project with no engine at all', () => {
+    expect(unitCostRows([unitRow('p1')])).toEqual([]);
+  });
+});
+
+describe('aiEnginePrice', () => {
+  const price = (endpoint: string, queue: string, usd: string): Price => ({
+    price_id: `${endpoint}-${queue}`,
+    provider_code: 'dataforseo',
+    endpoint,
+    price_unit: 'task',
+    unit_price_usd: usd,
+    conditions: { queue },
+    valid_from: '2026-07-01',
+    valid_to: null,
+    verified_at: '2026-07-01',
+    source_url: 'https://dataforseo.com/pricing',
+  });
+  const book = [
+    price('ai_optimization/chat_gpt/llm_scraper', 'priority', '0.002400'),
+    price('ai_optimization/chat_gpt/llm_scraper', 'standard', '0.001200'),
+    price('serp/google/ai_mode', 'standard', '0.001200'),
+    price('serp/google/organic', 'standard', '0.000600'),
+  ];
+
+  it('takes the standard queue price of the engine endpoint', () => {
+    expect(aiEnginePrice(book, 'chatgpt_web')).toBe('0.001200');
+    expect(aiEnginePrice(book, 'google_ai_mode')).toBe('0.001200');
+  });
+
+  it('is null for an engine whose endpoint has no standard price, and for an engine with no endpoint', () => {
+    expect(aiEnginePrice(book, 'gemini_web')).toBeNull();
+    expect(aiEnginePrice(book, 'google_ai_overview')).toBeNull();
+    expect(aiEnginePrice([], 'chatgpt_web')).toBeNull();
   });
 });

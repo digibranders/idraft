@@ -3,10 +3,10 @@
 import { useLocale, useTranslations } from 'next-intl';
 import { useEffect, useMemo, useRef, type ReactElement } from 'react';
 
-import { FileDropzone } from './file-dropzone';
 import type { CsvHeadOk, Device, FileProblem, UploadErrors, UploadValues } from './import-state';
 import { VocabularyField, type VocabularyListState } from './vocabulary-field';
 import type { Vocabulary } from '../taxonomy-queries';
+import { FileDropzone } from '@/components/app/forms/file-dropzone';
 import { LocationCombobox } from '@/components/app/forms/location-combobox';
 import { Field, FieldDescription, FieldError, FieldLabel, Fieldset } from '@/components/ui/field';
 import { SegmentedControl } from '@/components/ui/segmented-control';

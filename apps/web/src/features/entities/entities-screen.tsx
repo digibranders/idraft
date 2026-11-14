@@ -30,6 +30,7 @@ import { TextLink } from '@/components/ui/text-link';
 import { toast } from '@/components/ui/toast';
 import { isApiProblem } from '@/lib/api/problem';
 import { apiMutation } from '@/lib/api/query';
+import { formatDetailDateTime, formatTableDate } from '@/lib/format';
 import { canWriteEntities, useMembership } from '@/lib/permissions';
 import { projectPath } from '@/lib/routes/paths';
 
@@ -42,15 +43,24 @@ const SHOWN_DOMAINS = 2;
 export interface EntitiesScreenProps extends ProjectScope {
   workspaceSlug: string;
   projectSlug: string;
+  /** The project's time zone: the date a role was added is a business date, counted in it. */
+  timeZone: string;
 }
 
 /**
  * Settings > Project settings > Entities and aliases (20 section 5.19.6): the own brand, up to 10
- * competitors and the entities watched in answers, each with its domains, alias count and tracking. With
+ * competitors and the entities watched in answers, each with its domains, alias count, tracking and the date
+ * it was added (share of voice counts a competitor from that date). With
  * `entities:write`, competitors and watched entities are added here and every row opens its editor; a
  * removed role keeps its history (19 section 3.4).
  */
-export function EntitiesScreen({ workspaceId, projectId, workspaceSlug, projectSlug }: EntitiesScreenProps): ReactNode {
+export function EntitiesScreen({
+  workspaceId,
+  projectId,
+  workspaceSlug,
+  projectSlug,
+  timeZone,
+}: EntitiesScreenProps): ReactNode {
   const t = useTranslations('entitySettings');
   const common = useTranslations('common');
   const scope: ProjectScope = { workspaceId, projectId };
@@ -157,6 +167,7 @@ export function EntitiesScreen({ workspaceId, projectId, workspaceSlug, projectS
             loading={entities.isPending}
             count={role === 'competitor' ? t('competitorCount', { count: competitors, limit: COMPETITOR_LIMIT }) : null}
             canWrite={canWrite}
+            timeZone={timeZone}
             editorHref={editorHref}
             itemsFor={itemsFor}
           />
@@ -198,15 +209,25 @@ interface RoleTableProps {
   /** "4 of 10", for competitors. */
   count: string | null;
   canWrite: boolean;
+  timeZone: string;
   editorHref: (row: ProjectEntity) => ReturnType<typeof projectPath>;
   itemsFor: (row: ProjectEntity) => MenuItemDef[];
 }
 
 /** One role's entities: a heading, then a table, or a sentence when there are none. */
-function RoleTable({ role, rows, loading, count, canWrite, editorHref, itemsFor }: RoleTableProps): ReactNode {
+function RoleTable({
+  role,
+  rows,
+  loading,
+  count,
+  canWrite,
+  timeZone,
+  editorHref,
+  itemsFor,
+}: RoleTableProps): ReactNode {
   const t = useTranslations('entitySettings');
   const titleId = `entities-${role}`;
-  const columns = canWrite ? 5 : 4;
+  const columns = canWrite ? 6 : 5;
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-baseline gap-2">
@@ -215,6 +236,7 @@ function RoleTable({ role, rows, loading, count, canWrite, editorHref, itemsFor 
         </h3>
         {count === null ? null : <span className="num type-meta">{count}</span>}
       </div>
+      {role === 'competitor' ? <p className="type-meta">{t('addedHint')}</p> : null}
       {!loading && rows.length === 0 ? (
         <p className="type-meta">{t(`empty.${role}`)}</p>
       ) : (
@@ -233,6 +255,9 @@ function RoleTable({ role, rows, loading, count, canWrite, editorHref, itemsFor 
                 </th>
                 <th scope="col" className="hidden h-row-header px-3 text-left type-table-header sm:table-cell">
                   {t('columns.tracking')}
+                </th>
+                <th scope="col" className="hidden h-row-header px-3 text-left type-table-header md:table-cell">
+                  {t('columns.added')}
                 </th>
                 {canWrite ? (
                   <th scope="col" className="h-row-header px-4 text-right">
@@ -255,6 +280,7 @@ function RoleTable({ role, rows, loading, count, canWrite, editorHref, itemsFor 
                       key={row.entity.entity_id}
                       row={row}
                       canWrite={canWrite}
+                      timeZone={timeZone}
                       editorHref={editorHref(row)}
                       items={itemsFor(row)}
                     />
@@ -270,11 +296,13 @@ function RoleTable({ role, rows, loading, count, canWrite, editorHref, itemsFor 
 function EntityRow({
   row,
   canWrite,
+  timeZone,
   editorHref,
   items,
 }: {
   row: ProjectEntity;
   canWrite: boolean;
+  timeZone: string;
   editorHref: ReturnType<typeof projectPath>;
   items: MenuItemDef[];
 }): ReactNode {
@@ -307,6 +335,12 @@ function EntityRow({
           {row.track_ai ? <Badge variant="outline">{t('trackAi')}</Badge> : null}
           {row.track_seo || row.track_ai ? null : <span className="text-foreground-tertiary">{t('trackNone')}</span>}
         </span>
+      </td>
+      <td
+        className="hidden px-3 num whitespace-nowrap text-foreground-secondary md:table-cell"
+        title={formatDetailDateTime(row.added_at, timeZone)}
+      >
+        {formatTableDate(row.added_at, timeZone)}
       </td>
       {canWrite ? (
         <td className="px-4 text-right">

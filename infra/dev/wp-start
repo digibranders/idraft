@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# Opens the worktree and branch of one work package, cut from the freshly fetched origin/develop.
+#
+# Usage: infra/dev/wp-start WP-NN <slug>
+#
+#   worktree  <repo>/.claude/worktrees/wp-NN
+#   branch    ai/wp-NN-<slug>, with no upstream: a bare `git push` cannot reach develop by accident, the
+#             push is always `git push origin HEAD:develop`
+#
+# Works from the main checkout or from any worktree of the repository. It refuses (exit 1, nothing created)
+# when the package already has a branch or a worktree path, and it never changes the main checkout.
+# It starts no session and writes no plan. Exit 64 on bad usage.
+set -euo pipefail
+
+usage='usage: infra/dev/wp-start WP-NN <slug>   (slug: lowercase words joined by single hyphens)'
+die_usage() { printf 'wp-start: %s\n%s\n' "$1" "$usage" >&2; exit 64; }
+die() { printf 'wp-start: %s\n' "$*" >&2; exit 1; }
+
+[ "$#" -eq 2 ] || die_usage "expected a work package id and a slug"
+id="$1" slug="$2"
+id_re='^WP-[0-9][0-9]$'
+slug_re='^[a-z0-9]+(-[a-z0-9]+)*$'
+[[ $id =~ $id_re ]] || die_usage "work package id must look like WP-07, got '$id'"
+[[ $slug =~ $slug_re ]] || die_usage "bad slug '$slug'"
+
+lid="wp-${id#WP-}"
+branch="ai/$lid-$slug"
+common="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || die "not in a git repository"
+repo="$(dirname "$common")"
+path="$repo/.claude/worktrees/$lid"
+
+git -C "$repo" fetch --quiet origin develop || die "git fetch origin develop failed"
+
+existing="$(git -C "$repo" for-each-ref --format='%(refname:short)' "refs/heads/ai/$lid-*")"
+[ -z "$existing" ] || die "$id already has a branch ($(printf '%s' "$existing" | tr '\n' ' ')), one branch per package"
+[ ! -e "$path" ] && [ ! -L "$path" ] || die "$path already exists"
+listed="$(git -C "$repo" worktree list --porcelain)"
+if grep -Fxq -- "worktree $path" <<<"$listed"; then
+  die "git already lists a worktree at $path (git worktree prune?)"
+fi
+
+git -C "$repo" worktree add --quiet --no-track -b "$branch" "$path" origin/develop
+
+printf 'worktree  %s\n' "$path"
+printf 'branch    %s\n' "$branch"
+printf 'base      %s (origin/develop)\n' "$(git -C "$path" rev-parse --short HEAD)"
+printf 'next      cd %s && infra/dev/wp-status %s planning "<note>"\n' "$path" "$id"

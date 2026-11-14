@@ -2,6 +2,7 @@ import { TZDate } from '@date-fns/tz';
 import { HttpResponse, type HttpHandler } from 'msw';
 
 import { projectCaller, type ProjectCaller } from './access';
+import { attachPrevious, compareWindowOf, detectableAsked, previousEngineOf, withDetectableChange } from './compare';
 import { countryOf, enabledEngines, isoOf } from './prompts';
 import { booleanQuery, cursorPage, pageRequest, queryError, uuidError } from './rules';
 import { isActiveRole } from '../entities-state';
@@ -23,20 +24,25 @@ import {
 } from '../prompt-fixtures';
 import {
   cellEntityIds,
+  coMentionsOf,
   countsOf,
   entityCountsOf,
+  mondayOf,
   NO_COUNTS,
   NOT_NAMED,
   promptCells,
   promptEntityCells,
+  summaryWeeks,
   topicCells,
   topicEntityCells,
+  weeklySeries,
   type Counts,
   type EntityCounts,
 } from '../prompt-summary';
 import { promptsOf } from '../prompts-state';
 import { invalid, mock, problem } from '../respond';
 import { shiftIsoDate, validateDateWindow } from '../serp-views';
+import { sha256Hex } from '../sha256';
 import type {
   EngineSummary,
   EntityCells,
@@ -46,6 +52,7 @@ import type {
   PromptSummaryRow,
   TopicSummaryRow,
   ValidationItem,
+  WeekCells,
 } from '@/lib/api/types';
 import { formatIsoDate } from '@/lib/format';
 
@@ -84,20 +91,43 @@ type Bound = { date: string } | { at: number } | null;
 const hasCode = (value: unknown): value is ValidationItem =>
   typeof value === 'object' && value !== null && 'code' in value;
 
+// shortcut: the message still names the first two values, prompt-answers.test.ts and prompt-series.test.ts pin it; widen it when they move
+const INCLUDE_MESSAGE = "Input should be 'series' or 'entities'";
+
 /**
- * The summary's `include`: a comma list or repeated parameters. `entities` is the only block built; `series` is a
- * later task of the plan, so it is refused with any other value, one error for each (Pydantic's `literal_error`
- * at the value's place in the list).
+ * The summary's `include`: a comma list or repeated parameters of `series`, `entities`, `total` and `co_mentions`, the
+ * blocks built. Any other value (`cells` too, which the API has and the mock does not build) is refused, one error for
+ * each (Pydantic's `literal_error` at the value's place in the list).
  */
-function includeOf(url: URL): { entities: boolean } | ValidationItem[] {
+function includeOf(
+  url: URL,
+): { entities: boolean; series: boolean; total: boolean; coMentions: boolean } | ValidationItem[] {
   const values = url.searchParams
     .getAll('include')
     .flatMap((value) => value.split(','))
     .filter((value) => value !== '');
   const errors = values.flatMap((value, place) =>
-    value === 'entities' ? [] : [queryError(`include.${String(place)}`, 'literal_error', "Input should be 'entities'")],
+    value === 'series' || value === 'entities' || value === 'total' || value === 'co_mentions'
+      ? []
+      : [queryError(`include.${String(place)}`, 'literal_error', INCLUDE_MESSAGE)],
   );
-  return errors.length > 0 ? errors : { entities: values.length > 0 };
+  return errors.length > 0
+    ? errors
+    : {
+        entities: values.includes('entities'),
+        series: values.includes('series'),
+        total: values.includes('total'),
+        coMentions: values.includes('co_mentions'),
+      };
+}
+
+/** The summary's `rows` (C-3): left out, every row; `topics`, no prompt rows; `none`, no row at all. Any other value is a `literal_error`. */
+function rowsOf(url: URL): 'all' | 'topics' | 'none' | ValidationItem {
+  const value = url.searchParams.get('rows');
+  if (value === null) return 'all';
+  return value === 'topics' || value === 'none'
+    ? value
+    : queryError('rows', 'literal_error', "Input should be 'topics' or 'none'");
 }
 
 /** The start of a project day as an instant. */
@@ -138,6 +168,44 @@ function scopeOf(url: URL): string {
   return scope.toString();
 }
 
+/**
+ * The provider's task answer, cut to what the answer holds: the mocks keep no real payload. It is what the raw route
+ * serves and what `raw_sha256` is the digest of, so the two always agree.
+ */
+function rawBodyOf(
+  found: Pick<
+    ObservationDetail,
+    'observation_id' | 'status' | 'model_reported' | 'answer_text' | 'check_url' | 'citations'
+  >,
+): object {
+  const failed = found.status === 'error';
+  return {
+    status_code: 20000,
+    status_message: 'Ok.',
+    tasks: [
+      {
+        id: `task-${found.observation_id}`,
+        status_code: failed ? 50000 : 20000,
+        status_message: failed ? 'Internal error.' : 'Ok.',
+        result: failed
+          ? null
+          : [
+              {
+                model: found.model_reported,
+                markdown: found.answer_text,
+                check_url: found.check_url,
+                sources: found.citations.map((citation) => ({
+                  url: citation.raw_url,
+                  title: citation.title,
+                  domain: citation.host,
+                })),
+              },
+            ],
+      },
+    ],
+  };
+}
+
 /** An answer of a prompt on an engine, observed at `at`, with the answer the mock makes of it. */
 function detailFrom(
   prompt: StoredPrompt,
@@ -174,6 +242,12 @@ function detailFrom(
     offsets_unit: 'utf16',
     citations: answer.citations,
     mentions: answer.mentions,
+    // Null for an answer with no text, never zeros; the mock keeps no payload row of an empty answer, so it has no raw hash
+    answer_sha256: answer.answer_text === null ? null : sha256Hex(answer.answer_text),
+    raw_sha256:
+      answer.status === 'empty'
+        ? null
+        : sha256Hex(JSON.stringify(rawBodyOf({ observation_id: observationId, ...answer }))),
   };
 }
 
@@ -206,7 +280,7 @@ export function deliveredOf(
  * Every answer a project's fixture prompts got and every one Run now delivered, newest first. The fixtures'
  * history has no prompt added here nor an engine turned on here, and an engine turned off keeps what it answered.
  */
-function answersOf(projectId: string, now: number): ObservationDetail[] {
+export function answersOf(projectId: string, now: number): ObservationDetail[] {
   const prompts = fixturePrompts(projectId);
   const engines = fixtureEngines(projectId);
   return [
@@ -247,7 +321,7 @@ const summaryOf = (detail: ObservationDetail): ObservationSummary => ({
 });
 
 /** The number in an observation id's path, or the error the API answers with for a value it cannot take. */
-function idOf(raw: string): bigint | ValidationItem {
+export function idOf(raw: string): bigint | ValidationItem {
   const path = (code: string, message: string): ValidationItem => ({
     location: 'path',
     path: 'observation_id',
@@ -274,7 +348,7 @@ function hintOf(url: URL): number | null | ValidationItem {
 }
 
 /** The answer an id names, when it is a fixture prompt's on an engine it was asked on at a run, within the hint. */
-function findAnswer(projectId: string, id: bigint, hint: number | null, now: number): ObservationDetail | null {
+export function findAnswer(projectId: string, id: bigint, hint: number | null, now: number): ObservationDetail | null {
   const delivered = promptsOf(projectId).observations.find((row) => row.observation_id === id.toString());
   if (delivered !== undefined) {
     return hint !== null && Math.abs(Date.parse(delivered.observed_at) - hint) > HINT_SLACK_MS ? null : delivered;
@@ -289,12 +363,24 @@ function findAnswer(projectId: string, id: bigint, hint: number | null, now: num
   return detailOf(prompt, parsed.index, engine, at);
 }
 
-/** An answer that counts in the summary: its fact row and when it was observed. */
+/** An answer that counts in the summary: its fact row, when it was observed and its project day. */
 interface Counted {
   facts: NonNullable<ObservationDetail['facts']>;
   mentions: ObservationDetail['mentions'];
   at: string;
+  day: string;
 }
+
+/** The counted answers of a window by prompt and engine code. */
+type ByPrompt = Map<string, Map<string, Counted[]>>;
+
+/** The valid answers `source` holds on the engines `codes`: the summary's `previous_answers` over the compared window. */
+const validAnswersIn = (source: ByPrompt, codes: readonly string[]): number =>
+  [...source.values()].reduce(
+    (total, engines) =>
+      total + codes.reduce((sum, code) => sum + (engines.get(code) ?? []).filter((a) => a.facts.is_valid).length, 0),
+    0,
+  );
 
 /** The later of two instants, either of which may be missing. */
 const later = (current: string | null, at: string): string =>
@@ -458,43 +544,14 @@ export const promptAnswerHandlers: HttpHandler[] = [
     const found = findAnswer(caller.project.project_id, id, hint, Date.now());
     if (found === null) return problem(request, 'not_found');
     if (Date.now() - Date.parse(found.observed_at) > RAW_RETENTION_MS) return problem(request, 'raw_expired');
-    // The provider's task answer, cut to what the answer holds: the mocks keep no real payload
-    const failed = found.status === 'error';
-    return HttpResponse.json(
-      {
-        status_code: 20000,
-        status_message: 'Ok.',
-        tasks: [
-          {
-            id: `task-${found.observation_id}`,
-            status_code: failed ? 50000 : 20000,
-            status_message: failed ? 'Internal error.' : 'Ok.',
-            result: failed
-              ? null
-              : [
-                  {
-                    model: found.model_reported,
-                    markdown: found.answer_text,
-                    check_url: found.check_url,
-                    sources: found.citations.map((citation) => ({
-                      url: citation.raw_url,
-                      title: citation.title,
-                      domain: citation.host,
-                    })),
-                  },
-                ],
-          },
-        ],
+    return HttpResponse.json(rawBodyOf(found), {
+      headers: {
+        'content-disposition': `attachment; filename="ai-observation-${found.observation_id}.json"`,
+        'x-content-type-options': 'nosniff',
+        'content-security-policy': 'sandbox',
+        'cache-control': 'private, no-store',
       },
-      {
-        headers: {
-          'content-disposition': `attachment; filename="ai-observation-${found.observation_id}.json"`,
-          'x-content-type-options': 'nosniff',
-          'content-security-policy': 'sandbox',
-          'cache-control': 'private, no-store',
-        },
-      },
-    );
+    });
   }),
 
   mock('get', `${P}/ai/prompts-summary`, ({ request, cookies, params }) => {
@@ -509,6 +566,10 @@ export const promptAnswerHandlers: HttpHandler[] = [
         'filter[country_iso]',
         'filter[term]',
         'include',
+        'rows',
+        'compare',
+        'compare_from',
+        'compare_to',
       ],
     });
     if (caller instanceof Response) return caller;
@@ -528,6 +589,13 @@ export const promptAnswerHandlers: HttpHandler[] = [
         limit_days: window.limit_days,
       });
     }
+    const comparing = compareWindowOf(url, window.range, zone, MAX_DAYS);
+    if (comparing.kind === 'too_large') {
+      return problem(request, 'window_too_large', {
+        detail: `A window is at most ${String(MAX_DAYS)} days.`,
+        limit_days: comparing.limit_days,
+      });
+    }
     const asked = listOf(url, 'filter[engine_code_in]', null, MAX_ENGINE_FILTER);
     const branded = booleanQuery(url, 'include_branded', false);
     const brandedOnly = booleanQuery(url, 'branded_only', false);
@@ -542,16 +610,21 @@ export const promptAnswerHandlers: HttpHandler[] = [
         : uuidError(termFilter, 'filter[term]').map((item) => queryError(item.path, item.code, item.message))),
     ];
     const include = includeOf(url);
+    const rowsAsked = rowsOf(url);
     if (
       hasCode(asked) ||
       typeof branded !== 'boolean' ||
       typeof brandedOnly !== 'boolean' ||
       scopeErrors.length > 0 ||
-      Array.isArray(include)
+      Array.isArray(include) ||
+      hasCode(rowsAsked) ||
+      comparing.kind === 'invalid'
     ) {
       return invalid(request, [
         ...[asked, branded, brandedOnly, ...scopeErrors].filter(hasCode),
         ...(Array.isArray(include) ? include : []),
+        ...(hasCode(rowsAsked) ? [rowsAsked] : []),
+        ...(comparing.kind === 'invalid' ? comparing.errors : []),
       ]);
     }
     const { firstDate, lastDate } = window.range;
@@ -578,22 +651,27 @@ export const promptAnswerHandlers: HttpHandler[] = [
       )
       .sort((a, b) => byText(a.created_at, b.created_at) || byText(a.prompt_id, b.prompt_id));
     const included = new Set(prompts.map((prompt) => prompt.prompt_id));
-    // The answers of the window's project days that count: the fixtures' have a fact row each
-    const byPrompt = new Map<string, Map<string, Counted[]>>();
-    for (const answer of answersOf(projectId, now)) {
-      const day = formatIsoDate(answer.observed_at, zone);
-      const prompt = answer.subject.prompt_id;
-      if (day < firstDate || day > lastDate || !included.has(prompt) || answer.facts === null) continue;
-      if (asked.length > 0 && !asked.includes(answer.engine_code)) continue;
-      const engines = byPrompt.get(prompt) ?? new Map<string, Counted[]>();
-      engines.set(answer.engine_code, [
-        ...(engines.get(answer.engine_code) ?? []),
-        { facts: answer.facts, mentions: answer.mentions, at: answer.observed_at },
-      ]);
-      byPrompt.set(prompt, engines);
-    }
-    const counts = (promptId: string, code: string): Counts => {
-      const counted = byPrompt.get(promptId)?.get(code);
+    // The answers of a window's project days that count: the fixtures' have a fact row each
+    const everyAnswer = answersOf(projectId, now);
+    const collect = (first: string, last: string): ByPrompt => {
+      const found: ByPrompt = new Map();
+      for (const answer of everyAnswer) {
+        const day = formatIsoDate(answer.observed_at, zone);
+        const prompt = answer.subject.prompt_id;
+        if (day < first || day > last || !included.has(prompt) || answer.facts === null) continue;
+        if (asked.length > 0 && !asked.includes(answer.engine_code)) continue;
+        const engines = found.get(prompt) ?? new Map<string, Counted[]>();
+        engines.set(answer.engine_code, [
+          ...(engines.get(answer.engine_code) ?? []),
+          { facts: answer.facts, mentions: answer.mentions, at: answer.observed_at, day },
+        ]);
+        found.set(prompt, engines);
+      }
+      return found;
+    };
+    const byPrompt = collect(firstDate, lastDate);
+    const counts = (promptId: string, code: string, source: ByPrompt = byPrompt): Counts => {
+      const counted = source.get(promptId)?.get(code);
       return counted === undefined ? NO_COUNTS : countsOf(counted.map((answer) => answer.facts));
     };
     // The engines that are on or have answers in the window, by code
@@ -635,36 +713,137 @@ export const promptAnswerHandlers: HttpHandler[] = [
         }
       }
     }
+    // With `compare`, or `compare_from` and `compare_to`: the answers of the compared window, read the same way (and,
+    // for the e2e cookie only, with one topic's prompts moved: `withDetectableChange`)
+    const before =
+      comparing.kind === 'window'
+        ? withDetectableChange(
+            collect(comparing.window.from, comparing.window.to),
+            byPrompt,
+            held,
+            detectableAsked(cookies),
+          )
+        : null;
     // With `include=entities`, a cell for each tracked entity on every engine of a prompt row and of a topic row
     const cellIds = include.entities ? cellEntityIds(entitiesOf(caller)) : null;
-    const named = (promptId: string, code: string, entityId: string): EntityCounts => {
-      const counted = byPrompt.get(promptId)?.get(code);
+    const named = (promptId: string, code: string, entityId: string, source: ByPrompt = byPrompt): EntityCounts => {
+      const counted = source.get(promptId)?.get(code);
       return counted === undefined ? NOT_NAMED : entityCountsOf(entityId, counted);
     };
-    const withEntities = (cells: EngineSummary, entities: EntityCells[] | null): EngineSummary =>
-      entities === null ? cells : { ...cells, entities };
+    // With `include=series`, a point for each week the window touches, from the counts of the week's answers
+    const weeks = include.series ? summaryWeeks(firstDate, lastDate) : null;
+    const weekly = new Map<string, Counts>();
+    // The answers of each week, kept for the weekly entity cells (`include=series,entities`)
+    const weeklyAnswers = new Map<string, Counted[]>();
+    if (weeks !== null) {
+      for (const [promptId, engines] of byPrompt) {
+        for (const [code, counted] of engines) {
+          for (const week of weeks) {
+            const inWeek = counted.filter((answer) => mondayOf(answer.day) === week);
+            if (inWeek.length > 0) {
+              weekly.set(`${promptId} ${code} ${week}`, countsOf(inWeek.map((answer) => answer.facts)));
+              weeklyAnswers.set(`${promptId} ${code} ${week}`, inWeek);
+            }
+          }
+        }
+      }
+    }
+    /** The series of an engine row: a prompt row's one prompt, or a topic row's prompts, pooled as the API pools them. */
+    const seriesOf = (ids: readonly string[], code: string, topic: boolean): WeekCells[] | null =>
+      weeks === null
+        ? null
+        : weeklySeries(
+            code,
+            weeks,
+            { from: firstDate, to: lastDate, timezone: zone },
+            ids.map((id) => weeks.map((week) => weekly.get(`${id} ${code} ${week}`) ?? NO_COUNTS)),
+            topic,
+            cellIds === null
+              ? undefined
+              : {
+                  ids: cellIds,
+                  named: (prompt, week, entityId) =>
+                    entityCountsOf(
+                      entityId,
+                      weeklyAnswers.get(`${ids[prompt] ?? ''} ${code} ${weeks[week] ?? ''}`) ?? [],
+                    ),
+                },
+          );
+    const withBlocks = (
+      cells: EngineSummary,
+      series: WeekCells[] | null,
+      entities: EntityCells[] | null,
+    ): EngineSummary => ({
+      ...cells,
+      ...(series === null ? {} : { series }),
+      ...(entities === null ? {} : { entities }),
+    });
+    /** A topic row's engine over the answers `source` holds; only the asked window has a weekly series. */
+    const topicEngine = (
+      source: ByPrompt,
+      members: ReadonlySet<string>,
+      code: string,
+      series: WeekCells[] | null,
+    ): EngineSummary => {
+      const answered = [...members].filter((id) => source.get(id)?.has(code) === true);
+      return withBlocks(
+        topicCells(
+          code,
+          answered.map((id) => counts(id, code, source)),
+        ),
+        series,
+        cellIds === null
+          ? null
+          : cellIds.map((entityId) =>
+              topicEntityCells(
+                entityId,
+                answered.map((id) => ({ counts: counts(id, code, source), named: named(id, code, entityId, source) })),
+              ),
+            ),
+      );
+    };
+    /** A prompt row's engine over the answers `source` holds; only the asked window has a weekly series. */
+    const promptEngine = (
+      source: ByPrompt,
+      promptId: string,
+      code: string,
+      series: WeekCells[] | null,
+    ): EngineSummary =>
+      withBlocks(
+        promptCells(code, counts(promptId, code, source)),
+        series,
+        cellIds === null
+          ? null
+          : cellIds.map((entityId) =>
+              promptEntityCells(entityId, counts(promptId, code, source), named(promptId, code, entityId, source)),
+            ),
+      );
+    /** With a compare window, the engine with the same engine over it beside it (null where the row has no answer of the engine there). */
+    const compared = (
+      engine: EngineSummary,
+      ids: readonly string[],
+      build: (source: ByPrompt) => EngineSummary,
+    ): EngineSummary =>
+      before === null
+        ? engine
+        : attachPrevious(
+            engine,
+            previousEngineOf(
+              ids,
+              (id) => before.get(id)?.has(engine.engine_code) === true,
+              () => build(before),
+            ),
+          );
     const topicRow = (termId: string | null, members: ReadonlySet<string>): TopicSummaryRow => ({
       term_id: termId,
       name: termId === null ? null : (topicTerms.get(termId)?.name ?? null),
       prompt_count: members.size,
       ...lastOf(members),
-      engines: shown.map((code) => {
-        const answered = [...members].filter((id) => byPrompt.get(id)?.has(code) === true);
-        return withEntities(
-          topicCells(
-            code,
-            answered.map((id) => counts(id, code)),
-          ),
-          cellIds === null
-            ? null
-            : cellIds.map((entityId) =>
-                topicEntityCells(
-                  entityId,
-                  answered.map((id) => ({ counts: counts(id, code), named: named(id, code, entityId) })),
-                ),
-              ),
-        );
-      }),
+      engines: shown.map((code) =>
+        compared(topicEngine(byPrompt, members, code, seriesOf([...members], code, true)), [...members], (source) =>
+          topicEngine(source, members, code, null),
+        ),
+      ),
     });
     const rows: PromptSummaryRow[] = prompts.map((prompt) => ({
       prompt_id: prompt.prompt_id,
@@ -673,13 +852,10 @@ export const promptAnswerHandlers: HttpHandler[] = [
       topic_term_ids: topicsOf(prompt.term_ids),
       ...lastOf([prompt.prompt_id]),
       engines: shown.map((code) =>
-        withEntities(
-          promptCells(code, counts(prompt.prompt_id, code)),
-          cellIds === null
-            ? null
-            : cellIds.map((entityId) =>
-                promptEntityCells(entityId, counts(prompt.prompt_id, code), named(prompt.prompt_id, code, entityId)),
-              ),
+        compared(
+          promptEngine(byPrompt, prompt.prompt_id, code, seriesOf([prompt.prompt_id], code, false)),
+          [prompt.prompt_id],
+          (source) => promptEngine(source, prompt.prompt_id, code, null),
         ),
       ),
     }));
@@ -691,6 +867,19 @@ export const promptAnswerHandlers: HttpHandler[] = [
       .map(([termId, members]) => topicRow(termId, members));
     if (untopiced.size > 0 && termFilter === null) topics.push(topicRow(null, untopiced));
     const counted = [...byPrompt.values()].some((engines) => engines.size > 0);
+    // `include=total`: every prompt in scope as one topic-style row, whatever `rows` says
+    const total = include.total ? topicRow(null, included) : null;
+    // `include=co_mentions`: per engine shown, over every valid answer in scope
+    const trackedIds = cellEntityIds(entitiesOf(caller));
+    const coMentions = include.coMentions
+      ? shown.map((code) =>
+          coMentionsOf(
+            code,
+            trackedIds,
+            [...byPrompt.values()].flatMap((engines) => engines.get(code) ?? []),
+          ),
+        )
+      : null;
     const summary: PromptsSummary = {
       window: { from: firstDate, to: lastDate, timezone: zone },
       include_branded: branded || brandedOnly,
@@ -700,8 +889,23 @@ export const promptAnswerHandlers: HttpHandler[] = [
       entities: entitiesOf(caller),
       // Every fixture answer was derived under the first entity configuration
       entity_config_versions: counted ? [1] : [],
-      prompts: rows,
-      topics,
+      // `rows` only leaves lists out: every cell above was built from the full set, as the API's aggregates are
+      prompts: rowsAsked === 'all' ? rows : [],
+      topics: rowsAsked === 'none' ? [] : topics,
+      ...(total === null
+        ? {}
+        : {
+            total: {
+              prompt_count: total.prompt_count,
+              last_observed_at: total.last_observed_at,
+              last_valid_at: total.last_valid_at,
+              engines: total.engines,
+            },
+          }),
+      ...(coMentions === null ? {} : { co_mentions: coMentions }),
+      ...(before === null || comparing.kind !== 'window'
+        ? {}
+        : { compare_window: comparing.window, previous_answers: validAnswersIn(before, shown) }),
     };
     return HttpResponse.json({ data: summary });
   }),

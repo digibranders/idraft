@@ -291,6 +291,7 @@ Navigation mode (default):
 | Shift+Space | Selects the range from the selection anchor to the focused row |
 | Ctrl+A (Cmd+A on Mac) | Selects every row loaded in the current filter scope; the bulk bar offers "Select all N matching" when more exist |
 | Shift+F10 or the Menu key | Opens the row actions menu for the focused row |
+| Right click, touch long press (500 ms) | Built (WP-09): opens the same row actions menu at the pointer and focuses the clicked cell. Shift plus right click, a link and a field in the row keep the browser's menu. Escape returns focus to the clicked cell ([12-tables.md](12-tables.md) section 13) |
 | Enter on a column header | Sorts by that column (first activation uses the column's natural direction: ascending for rank, descending for volume and rates; next activation reverses) |
 | Shift+Enter on a column header | Adds the column as the next sort key, or reverses it if it is already a key |
 | Alt+Down Arrow on a column header | Opens the column options menu (sort, clear sort, hide, move left, move right, pin, resize) |
@@ -346,6 +347,8 @@ When a DataTable is grouped:
 1. The table role is `treegrid`. Group rows have `aria-expanded`, `aria-level="1"`, `aria-setsize` and `aria-posinset`; child rows have `aria-level="2"` and their own set size and position. Rows without children never carry `aria-expanded`.
 2. Right Arrow on a collapsed group row (focus on its first cell) expands it; on an expanded row it moves to the first child. Left Arrow on an expanded group row collapses it; on a child row it moves to the parent row.
 3. The group row's first cell contains the disclosure button ("Expand CRM group, 42 keywords").
+4. As built (2026-11-13, WP-09): a tree may have three levels. Level 3 rows have `aria-level="3"` with their own set size and position and never carry `aria-expanded`; a level 2 row that is a group has `aria-expanded` and the disclosure button. Right Arrow on a closed group of any level opens it; on an open group it moves to its first row. Left Arrow on an open group closes it; on a level 3 row or a closed level 2 group it moves to the parent row (the level 2 group for a level 3 row, the level 1 group for a level 2 one); on a closed level 1 group it moves one cell left, as the grid does. When the group of the focused row closes, focus goes to the nearest ancestor row still shown.
+5. As built (2026-11-13, WP-09): with column groups the header is two rows. The group cell is `th scope="colgroup"` with `colSpan`, static text and no tab stop; each column's own header keeps `scope="col"` and the roving focus on one header row, and a column with no group cell over it has one header cell with `rowSpan="2"`. There is no `aria-colindex` ([12-tables.md](12-tables.md) section 16).
 
 ### 6.8 Mobile list
 

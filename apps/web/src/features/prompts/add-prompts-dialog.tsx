@@ -119,7 +119,11 @@ export interface AddPromptsDialogProps {
   engines: readonly ProjectEngine[];
   /** The project's active prompts, to leave out what it already tracks. */
   existing: readonly Prompt[];
-  defaults: { languageCode: string | null; countryIso: string | null };
+  /**
+   * What the form starts on: the project's language and country, and a topic when the dialog opens from one
+   * (a new topic means a new dialog: give it a `key`, as the form is made once).
+   */
+  defaults: { languageCode: string | null; countryIso: string | null; termId?: string | null };
 }
 
 /**
@@ -206,7 +210,7 @@ export function AddPromptsDialog({
     });
   const initialValues = (): AddValues => ({
     text: '',
-    term_id: NO_TOPIC,
+    term_id: defaults.termId ?? NO_TOPIC,
     language_code: defaults.languageCode ?? 'en',
     country_iso: defaults.countryIso ?? '',
   });

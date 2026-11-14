@@ -10,6 +10,11 @@ export interface PageHeaderProps {
   title: string;
   /** The title's language, when it is not the interface's (a keyword in German). */
   lang?: string | undefined;
+  /**
+   * A small status after the title on the same line, such as the Customizing badge. It is not part of the
+   * heading, so the heading keeps its name. Not drawn when the title is hidden.
+   */
+  titleAddon?: ReactNode | undefined;
   /** The meta line under the title: freshness first, then one scope fact. */
   meta?: ReactNode | undefined;
   /** At most two secondary actions, then the one primary action, right-aligned. */
@@ -41,6 +46,7 @@ export interface PageHeaderProps {
 export function PageHeader({
   title,
   lang,
+  titleAddon,
   meta,
   actions,
   tabs,
@@ -68,6 +74,11 @@ export function PageHeader({
       </div>
     );
   }
+  const heading = (
+    <h1 id={headingId} tabIndex={-1} lang={lang} className="type-page-title break-words outline-none">
+      {title}
+    </h1>
+  );
   return (
     <div data-slot="page-header" className="@container flex flex-col gap-3">
       <div className={cn('flex flex-wrap gap-x-4 gap-y-3', compact ? 'items-center' : 'items-start')}>
@@ -77,9 +88,14 @@ export function PageHeader({
             compact ? 'order-1 items-baseline gap-3 md:flex-1 @6xl:flex-none' : 'flex-col gap-1 md:flex-1',
           )}
         >
-          <h1 id={headingId} tabIndex={-1} lang={lang} className="type-page-title break-words outline-none">
-            {title}
-          </h1>
+          {titleAddon === undefined ? (
+            heading
+          ) : (
+            <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+              {heading}
+              {titleAddon}
+            </div>
+          )}
           {meta === undefined ? null : <p className="type-meta">{meta}</p>}
         </div>
         {toolbar === undefined ? null : (

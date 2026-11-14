@@ -138,6 +138,20 @@
   --color-rank-band-4: var(--rank-band-4);
   --color-rank-band-5: var(--rank-band-5);
   --color-rank-band-none: var(--rank-band-none);
+  --color-seq-1: var(--seq-1);
+  --color-seq-2: var(--seq-2);
+  --color-seq-3: var(--seq-3);
+  --color-seq-4: var(--seq-4);
+  --color-seq-5: var(--seq-5);
+  --color-seq-6: var(--seq-6);
+  --color-seq-7: var(--seq-7);
+  --color-div-neg-3: var(--div-neg-3);
+  --color-div-neg-2: var(--div-neg-2);
+  --color-div-neg-1: var(--div-neg-1);
+  --color-div-zero: var(--div-zero);
+  --color-div-pos-1: var(--div-pos-1);
+  --color-div-pos-2: var(--div-pos-2);
+  --color-div-pos-3: var(--div-pos-3);
 
   /* shadcn/ui aliases exposed as utilities so copied components compile. Prefer canonical names. */
   --color-card: var(--card);

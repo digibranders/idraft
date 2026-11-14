@@ -15,10 +15,15 @@ import { SESSION_COOKIE } from '@/mocks/session';
 import { server } from '@/test/msw';
 import { restoreWideScreen, stubWideScreen } from '@/test/rankings-harness';
 import { renderWithProviders, type ProvidedRender } from '@/test/render';
+// The drawer reads the entities and the tracked keywords: the harness answers both with none
+import '@/test/topic-drawer-harness';
 
+// jsdom has no canvas: the drawer's charts are drawn as an empty box
+vi.mock('@/components/app/chart/echart', () => ({ EChart: () => <div data-testid="echart-canvas" /> }));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
   usePathname: () => '/digibranders/fynix/ai/prompts',
+  useSearchParams: () => new URLSearchParams(''),
 }));
 
 /** Thursday 12 November 2026, noon UTC: the 02:00 run has answered. */
@@ -150,8 +155,10 @@ describe('the topic drawer: the numbers', () => {
     intent: 'unknown',
     is_active: true,
     is_branded: false,
+    is_branded_source: 'computed',
     language_code: 'en',
     prompt_type: 'question',
+    prompt_type_source: 'rule',
     source: 'manual',
     terms: [{ term_id: ids.technical, name: 'Technical SEO', path: 'seo/technical-seo', vocabulary_kind: 'topic' }],
     updated_at: NOW.toISOString(),
@@ -205,10 +212,13 @@ describe('the topic drawer: the numbers', () => {
     expect(within(rates).getByText('No valid answers')).toBeInTheDocument();
     const byEngine = within(panel).getByRole('heading', { name: 'By engine' }).closest('section');
     if (byEngine === null) throw new Error('The By engine card is missing');
-    expect(within(byEngine).getByText('38%')).toBeInTheDocument();
-    // The answers behind the rate, not the sum of the prompts' rates over the prompts (0.75 of 2)
-    expect(within(byEngine).getByText('3 of 8')).toBeInTheDocument();
-    expect(within(byEngine).getByText('8 of 8')).toBeInTheDocument();
+    // The panel's row of each engine says the rate and the answers behind it, not the sum of the prompts' rates over the
+    // prompts (0.75 of 2); the rate is also in the table form beneath the panel
+    expect(within(byEngine).getByRole('link', { name: 'ChatGPT: 38%, 3 of 8 answers' })).toBeInTheDocument();
+    expect(within(byEngine).getByRole('link', { name: 'Gemini: 100%, 8 of 8 answers' })).toBeInTheDocument();
+    expect(within(byEngine).getAllByText('38%')).toHaveLength(2);
+    expect(within(byEngine).getByText('3 of 8 answers, 2 prompts')).toBeInTheDocument();
+    expect(within(byEngine).getByText('8 of 8 answers, 2 prompts')).toBeInTheDocument();
     expect(within(byEngine).queryByText(/^0\.75/)).toBeNull();
     expect(
       within(byEngine).getByText('Each prompt counts once, whatever the number of its answers.'),

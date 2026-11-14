@@ -301,7 +301,7 @@ describe('Eventus Security summary', () => {
     expect(summary.prompts.map((prompt) => prompt.engines.map((engine) => engine.mentioned))).toEqual(
       dataOf(plain, WITH_ENTITIES).prompts.map((prompt) => prompt.engines.map((engine) => engine.mentioned)),
     );
-    expect(fieldCodes(await viewer.call('GET', `${EVENTUS}/ai/prompts-summary?include=series`))).toEqual([
+    expect(fieldCodes(await viewer.call('GET', `${EVENTUS}/ai/prompts-summary?include=bogus`))).toEqual([
       'include.0:literal_error',
     ]);
   });

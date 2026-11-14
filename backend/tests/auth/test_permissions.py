@@ -30,6 +30,8 @@ DOC_24_MATRIX = {
     "audit:read": "owner admin",
     "alerts:write": "owner admin editor",
     "views:write": "owner admin editor analyst",
+    "layouts:manage": "owner admin",
+    "notes:write": "owner admin editor",
     "imports:write": "owner admin editor",
     "api_keys:manage": "owner admin",
     "ops:read": "owner admin editor",
@@ -75,3 +77,15 @@ def test_permissions_for_a_role_are_sorted_keys() -> None:
 
 def test_owner_and_admin_must_use_two_factor() -> None:
     assert frozenset({Role.OWNER, Role.ADMIN}) == TOTP_REQUIRED_ROLES
+
+
+def test_only_owner_and_admin_manage_the_team_default_layout() -> None:
+    """Owner decision D-11: stricter than workspace saved views."""
+    holders = {role for role in Role if Permission.LAYOUTS_MANAGE in ROLE_PERMISSIONS[role]}
+    assert holders == {Role.OWNER, Role.ADMIN}
+
+
+def test_notes_are_written_by_editors_and_above() -> None:
+    """Owner decision D-18."""
+    holders = {role for role in Role if Permission.NOTES_WRITE in ROLE_PERMISSIONS[role]}
+    assert holders == {Role.OWNER, Role.ADMIN, Role.EDITOR}

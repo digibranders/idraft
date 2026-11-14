@@ -3,6 +3,7 @@ import { Suspense, type ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ProjectShell, type ShellProject } from './project-shell';
+import { usePageShortcuts } from '@/components/app/shell/page-shortcuts';
 import type { Role } from '@/lib/api/types';
 import { PermissionProvider } from '@/lib/permissions';
 import { membershipFactory } from '@/mocks/factories/identity';
@@ -38,6 +39,9 @@ function viewport(width: number): void {
     return { matches, media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() };
   });
 }
+
+/** One key a page lists in the dialog; a constant, because the seam takes entries that keep their identity. */
+const PAGE_KEYS = [{ id: 'page', label: 'Do the page thing', keys: ['x'] }];
 
 function shell(role: Role = 'editor'): ReactElement {
   return (
@@ -151,7 +155,9 @@ describe('ProjectShell', () => {
     expect(listed).toEqual({
       editor: [
         'Keywords /digibranders/fynix/seo/keywords',
+        'Overview /digibranders/fynix/ai',
         'Topics & Prompts /digibranders/fynix/ai/prompts',
+        'Citations /digibranders/fynix/ai/citations',
         'Integrations /digibranders/fynix/integrations',
         'Runs /digibranders/fynix/ops/runs',
         'Costs /digibranders/fynix/costs',
@@ -159,7 +165,9 @@ describe('ProjectShell', () => {
       ],
       viewer: [
         'Keywords /digibranders/fynix/seo/keywords',
+        'Overview /digibranders/fynix/ai',
         'Topics & Prompts /digibranders/fynix/ai/prompts',
+        'Citations /digibranders/fynix/ai/citations',
         'Integrations /digibranders/fynix/integrations',
         'Runs /digibranders/fynix/ops/runs',
         'Settings /digibranders/fynix/settings',
@@ -282,6 +290,36 @@ describe('ProjectShell', () => {
     await user.click(await screen.findByRole('menuitem', { name: 'Keyboard shortcuts' }));
     const dialog = await screen.findByRole('dialog', { name: 'Keyboard shortcuts' });
     expect(within(dialog).getByText('Collapse or expand the sidebar')).toBeInTheDocument();
+  });
+
+  it('lists the shortcuts a page registered in the dialog, between the shell keys and the dialog key', async () => {
+    function PageKeys(): null {
+      usePageShortcuts(PAGE_KEYS);
+      return null;
+    }
+    const { user } = renderWithProviders(
+      <PermissionProvider membership={membershipFactory('editor')}>
+        <Suspense fallback={null}>
+          <ProjectShell
+            workspace={{ slug: 'digibranders', name: 'Digibranders' }}
+            project={FYNIX}
+            projects={[FYNIX, CLEANSTART]}
+            sidebarPreference="expanded"
+          >
+            <h1>Profile</h1>
+            <PageKeys />
+          </ProjectShell>
+        </Suspense>
+      </PermissionProvider>,
+    );
+    await screen.findByRole('heading', { name: 'Profile' });
+    await user.click(screen.getByRole('button', { name: 'Help' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Keyboard shortcuts' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Keyboard shortcuts' });
+    const labels = within(dialog)
+      .getAllByRole('term')
+      .map((term) => term.textContent);
+    expect(labels).toEqual(['Collapse or expand the sidebar', 'Do the page thing', 'Show the keyboard shortcuts']);
   });
 
   it.each(['light', 'dark'])('has no accessibility violations in the %s theme', async (theme) => {

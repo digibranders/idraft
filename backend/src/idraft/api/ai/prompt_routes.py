@@ -7,13 +7,13 @@ dependency has already refused a project outside the caller's scope.
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Response
+from fastapi import APIRouter, Depends, Header, Query, Response
 
 from idraft.api.ai.prompt_repository import PromptFilter, PromptRecord
-from idraft.api.ai.prompt_service import LintedPrompt, PromptService
+from idraft.api.ai.prompt_service import LintedPrompt, PromptService, etag
 from idraft.api.operations.run_routes import Runs, TriggerRuns, run_view
 from idraft.api.pagination import Commas, Cursor, CursorPageInfo
 from idraft.api.permissions import Permission
@@ -21,7 +21,12 @@ from idraft.api.request_info import Info
 from idraft.api.resources import Resources, get_resources
 from idraft.api.schemas.ai import (
     CountryIso,
+    EngineEstimate,
+    Importance,
+    LintEstimate,
+    LintNearDuplicate,
     LintSpan,
+    LintTracked,
     LintWarning,
     MatchedAlias,
     Prompt,
@@ -30,7 +35,7 @@ from idraft.api.schemas.ai import (
     PromptBulkResult,
     PromptCreate,
     PromptLint,
-    PromptLintRequest,
+    PromptLintBody,
     PromptLintResponse,
     PromptPage,
     PromptPatch,
@@ -38,12 +43,24 @@ from idraft.api.schemas.ai import (
     PromptRejected,
     PromptResponse,
     PromptSkipped,
+    PromptSort,
+    PromptType,
     RunNow,
 )
-from idraft.api.schemas.ai_bulk import PromptBulkArchive
+from idraft.api.schemas.ai_bulk import (
+    PromptBulkArchiveBody,
+    PromptBulkUpdate,
+    PromptBulkUpdateResponse,
+    PromptBulkUpdateResult,
+)
 from idraft.api.schemas.common import LanguageCode, QueryText
 from idraft.api.schemas.entities import EntityRef
-from idraft.api.schemas.keywords import BulkArchiveResponse, BulkArchiveResult, Intent
+from idraft.api.schemas.keywords import (
+    BulkArchiveResponse,
+    BulkArchiveResult,
+    FunnelStage,
+    Intent,
+)
 from idraft.api.schemas.operations import RunResponse
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.api.workspaces.dependencies import require_permission
@@ -61,6 +78,17 @@ def get_prompt_service(resources: Annotated[Resources, Depends(get_resources)]) 
 
 
 Prompts = Annotated[PromptService, Depends(get_prompt_service)]
+
+IfMatch = Annotated[
+    str | None,
+    Header(
+        alias="If-Match",
+        max_length=128,
+        description="The `ETag` of the prompt as read, a comma list of them, or `*` (any "
+        "existing prompt). When none is the prompt's current `ETag`, the answer is `412 "
+        "precondition_failed` and nothing changes. Left out, the change is made as it is.",
+    ),
+]
 
 
 def prompt_view(record: PromptRecord) -> Prompt:
@@ -81,8 +109,10 @@ def prompt_view(record: PromptRecord) -> Prompt:
             "intent": record.intent,
             "funnel_stage": record.funnel_stage,
             "prompt_type": record.prompt_type,
+            "prompt_type_source": record.prompt_type_source,
             "importance": record.importance,
             "is_branded": record.is_branded,
+            "is_branded_source": record.is_branded_source,
             "source": record.source,
             "creation_method": record.creation_method,
             "is_active": record.is_active,
@@ -111,10 +141,13 @@ def prompt_view(record: PromptRecord) -> Prompt:
 @router.get(
     "",
     summary="The project's prompts",
-    description="Newest first. `filter[is_active]` is true when left out; archived prompts are "
-    "listed with false. `filter[term]` takes the term or one under it, `filter[q]` matches the "
-    "text as a substring without case, and `filter[intent_in]` takes a comma list. A cursor is "
-    "bound to its filters (`400 invalid_cursor` otherwise).",
+    description="Newest first, or by `sort`. `filter[is_active]` is true when left out; archived "
+    "prompts are listed with false, and both with `any`. `filter[term]` takes the term or one "
+    "under it, `filter[q]` matches the text as a substring without case, and "
+    "`filter[intent_in]`, `filter[prompt_type_in]`, `filter[funnel_stage_in]` and "
+    "`filter[importance_in]` take a comma list. `filter[is_branded]` lists branded or unbranded "
+    "prompts; left out, both are listed (a list is not a rate). A cursor is bound to its filters "
+    "and its sort (`400 invalid_cursor` otherwise).",
 )
 async def list_prompts(
     project_id: UUID,
@@ -126,17 +159,65 @@ async def list_prompts(
     intent_in: Annotated[list[Intent] | None, Commas, Query(alias="filter[intent_in]")] = None,
     country_iso: Annotated[CountryIso | None, Query(alias="filter[country_iso]")] = None,
     language_code: Annotated[LanguageCode | None, Query(alias="filter[language_code]")] = None,
-    is_active: Annotated[bool, Query(alias="filter[is_active]")] = True,
+    is_active: Annotated[
+        bool | Literal["any"],
+        Query(
+            alias="filter[is_active]",
+            description="`true` (default) or `false`; `any` lists archived and active prompts "
+            "together.",
+        ),
+    ] = True,
+    prompt_type_in: Annotated[
+        list[PromptType] | None,
+        Commas,
+        Query(
+            alias="filter[prompt_type_in]",
+            description="A comma list of types; prompts of any of them.",
+        ),
+    ] = None,
+    funnel_stage_in: Annotated[
+        list[FunnelStage] | None,
+        Commas,
+        Query(
+            alias="filter[funnel_stage_in]",
+            description="A comma list of funnel stages; prompts at any of them.",
+        ),
+    ] = None,
+    importance_in: Annotated[
+        list[Importance] | None,
+        Commas,
+        Query(
+            alias="filter[importance_in]",
+            description="A comma list of importances, 1 to 5; prompts with any of them.",
+        ),
+    ] = None,
+    is_branded: Annotated[
+        bool | None,
+        Query(
+            alias="filter[is_branded]",
+            description="`true` lists branded prompts, `false` the others; left out, both.",
+        ),
+    ] = None,
+    sort: Annotated[
+        PromptSort | None,
+        Query(description="A field, `-` first for descending; left out: newest first."),
+    ] = None,
 ) -> PromptPage:
     given = PromptFilter(
         q=q,
         term=term,
         intents=frozenset(intent_in or ()),
+        prompt_types=frozenset(prompt_type_in or ()),
+        funnel_stages=frozenset(funnel_stage_in or ()),
+        importances=frozenset(importance_in or ()),
+        is_branded=is_branded,
         country_iso=country_iso,
         language_code=language_code,
-        is_active=is_active,
+        is_active=None if isinstance(is_active, str) else is_active,
     )
-    result = await prompts.page(access, project_id, given, cursor=page.cursor, limit=page.limit)
+    result = await prompts.page(
+        access, project_id, given, sort=sort, cursor=page.cursor, limit=page.limit
+    )
     return PromptPage(
         data=[prompt_view(record) for record in result.prompts],
         page=CursorPageInfo(
@@ -156,8 +237,14 @@ async def list_prompts(
     "`used` and `requested`) past the workspace's active prompt limit. Field codes: "
     "`prompt_too_long` (over 2,000 characters, the most any engine takes), "
     "`location_not_supported` (`country_iso` has no location of an enabled engine), "
-    "`term_unknown` and `single_valued_vocabulary`. `is_branded` is computed from the project's "
-    "own aliases.",
+    "`term_unknown`, `single_valued_vocabulary` and `tracked_keyword_unknown` "
+    "(`generated_from` names a keyword the project does not track). `is_branded` left out is "
+    "computed from the project's own aliases and `is_branded_source` says `computed`; sent, it "
+    "is kept and says `override`. `source` left out is `manual` and `creation_method` is `human` "
+    "(`template` with `generated_from`, which is kept in the audit entry). `prompt_type` left "
+    "out is chosen from the wording (`rule`: `vs` or `versus` is a comparison, `how to` is "
+    "how_to, a leading question word or a question mark is a question, anything else is other) "
+    "and `prompt_type_source` says `rule`; sent, it is kept and says `person`.",
 )
 async def create_prompt(
     project_id: UUID, body: PromptCreate, access: WritePrompts, prompts: Prompts, info: Info
@@ -194,6 +281,13 @@ def _lint_view(item: LintedPrompt) -> PromptLint:
             )
             for note in item.notes
         ],
+        suggested_prompt_type=item.suggested_prompt_type,
+        tracked=None
+        if item.tracked is None
+        else LintTracked(prompt_id=item.tracked[0], is_active=item.tracked[1]),
+        near_duplicate_of=None
+        if item.near_duplicate_of is None
+        else LintNearDuplicate(prompt_id=item.near_duplicate_of[0], text=item.near_duplicate_of[1]),
     )
 
 
@@ -202,10 +296,12 @@ def _lint_view(item: LintedPrompt) -> PromptLint:
     summary="Add a list of prompts",
     description="Up to 1,000 items. An item that cannot be saved is rejected with its code "
     "(`location_not_supported`, `term_unknown`, `single_valued_vocabulary`, "
+    "`tracked_keyword_unknown`, "
     "`duplicate_in_request` for the same prompt twice in the list, and `duplicate` with "
     "`on_duplicate: error`); with `skip`, a prompt the project has is listed in `skipped`. The "
     "rest are written together: `422 quota_exceeded` past the workspace's active prompt limit, "
-    "and nothing is written. No Idempotency-Key: sending the list again skips what it added.",
+    "and nothing is written. Each item without a `prompt_type` takes the wording rule on its "
+    "own. No Idempotency-Key: sending the list again skips what it added.",
 )
 async def bulk_create_prompts(
     project_id: UUID, body: PromptBulkCreate, access: WritePrompts, prompts: Prompts, info: Info
@@ -232,40 +328,115 @@ async def bulk_create_prompts(
     description="Nothing is stored. For each text, as it would be saved: whether it names an own "
     "brand (`contains_brand_alias`, with the name's place in UTF-16 code units) and each engine "
     "it is too long for (`engine_limit`: a warning when the engine skips it, an error when it "
-    "is too long to save). `quota` is the workspace's active prompt limit and use.",
+    "is too long to save). `quota` is the workspace's active prompt limit and use. With `items` "
+    "(text, language and country) each result also says which prompt of the project it is "
+    "(`tracked`, archived ones too) or, when none, the one that differs only in case and "
+    "spacing (`near_duplicate_of`), and `quota.would_create` counts the items saving would "
+    "create: not tracked, not a repeat of an earlier item, not too long to save. Five rules read "
+    "the text, after `contains_brand_alias` and before `engine_limit`: `contains_competitor_alias` "
+    "(a warning, a note when the text compares with `vs` or `versus`; it never makes the prompt "
+    "branded), `leading_wording` (a superlative within 3 words of an own or competitor name, or "
+    '"why is X the best"), `multiple_questions`, `word_count` (5 to 60 words; scripts written '
+    "without spaces count half their characters) and `language_mismatch` (the text reads as "
+    "another script, or for en, de, fr, es, it, pt and nl another language, than the item's "
+    "`language_code`, or the body's for `texts`; texts under 4 words and unknown languages are "
+    "not checked). The competitor and leading rules carry a span; the others carry none. Every "
+    "result has `suggested_prompt_type`, the type the wording rule gives the text. With `items`, "
+    "`estimate` says what the prompts that would be created cost on the standard queue, for "
+    "each of `engine_codes` or, left out, each engine the project has on: the prompts the "
+    "engine takes, the answers a month at two runs a week (rounded down), the cost a month to "
+    "the cent, and the answers and cost of one run now. An engine the price book has no price "
+    "for has null costs.",
 )
 async def lint_prompts(
-    project_id: UUID, body: PromptLintRequest, access: ReadData, prompts: Prompts
+    project_id: UUID, body: PromptLintBody, access: ReadData, prompts: Prompts
 ) -> PromptLintResponse:
     outcome = await prompts.lint(access, project_id, body)
     return PromptLintResponse(
         data=[_lint_view(item) for item in outcome.prompts],
-        quota=PromptQuota(limit=outcome.limit, used=outcome.used),
+        quota=PromptQuota(
+            limit=outcome.limit, used=outcome.used, would_create=outcome.would_create
+        ),
+        estimate=None
+        if outcome.estimate is None
+        else LintEstimate(
+            engines=[
+                EngineEstimate(
+                    engine_code=engine.engine_code,
+                    prompts_fit=engine.prompts_fit,
+                    answers_per_month=engine.answers_per_month,
+                    monthly_cost_usd=engine.monthly_cost,
+                    run_now_answers=engine.run_now_answers,
+                    run_now_cost_usd=engine.run_now_cost,
+                )
+                for engine in outcome.estimate.engines
+            ],
+            total_monthly_cost_usd=outcome.estimate.total_monthly_cost,
+        ),
     )
 
 
 @router.post(
     "/bulk-archive",
     summary="Archive or bring back many prompts",
-    description="Up to 1,000 `ids` of the project's prompts; an id it does not have is not "
-    "matched. `archive: true` archives them as `DELETE` does one, `false` brings them back as "
-    "`PATCH is_active: true` does; answers, versions and terms stay. Bringing back counts "
-    "against the workspace's active prompt limit, all or none (`422 quota_exceeded` with "
-    "`limit`, `used` and `requested`). `matched` is the prompts found, `updated` those whose "
-    "state changed. One audit entry for the request and one per prompt changed.",
+    description="Up to 1,000 `ids` of the project's prompts, or a `filter` (the list's filters; "
+    "`is_active` left out takes archived and active prompts alike), exactly one; an id the "
+    "project does not have is not matched, and a filter matching more than 1,000 prompts is "
+    "`422 too_many_subjects` with `limit`. `archive: true` archives them as `DELETE` does one, "
+    "`false` brings them back as `PATCH is_active: true` does; answers, versions and terms "
+    "stay. Bringing back counts against the workspace's active prompt limit, all or none "
+    "(`422 quota_exceeded` with `limit`, `used` and `requested`). `matched` is the prompts "
+    "found, `updated` those whose state changed. One audit entry for the request and one per "
+    "prompt changed.",
 )
 async def bulk_archive_prompts(
-    project_id: UUID, body: PromptBulkArchive, access: WritePrompts, prompts: Prompts, info: Info
+    project_id: UUID,
+    body: PromptBulkArchiveBody,
+    access: WritePrompts,
+    prompts: Prompts,
+    info: Info,
 ) -> BulkArchiveResponse:
     matched, updated = await prompts.bulk_archive(access, project_id, body, info)
     return BulkArchiveResponse(data=BulkArchiveResult(matched=matched, updated=updated))
 
 
-@router.get("/{prompt_id}", summary="A prompt")
+@router.post(
+    "/bulk-update",
+    summary="Change the metadata of many prompts",
+    description="Up to 1,000 `ids` of the project's prompts, or `filter` (the list's filters), "
+    "exactly one. `set` changes intent, funnel stage, type, importance and the branded flag; "
+    "`add_term_ids` and `remove_term_ids` add and remove terms. `matched` is the prompts found, "
+    "`updated` those that changed. Setting `prompt_type` makes `prompt_type_source` `person`, "
+    "and setting `is_branded` makes `is_branded_source` `override`. An added term of a "
+    "single-valued vocabulary takes the place of the prompt's other term of it; field codes "
+    "`term_unknown` and `single_valued_vocabulary` name `add_term_ids` or `remove_term_ids`. "
+    "A filter matching more than 1,000 prompts is `422 too_many_subjects` with `limit`. One "
+    "transaction; one `prompt.bulk_changed` audit entry and one `prompt.updated` per prompt "
+    "changed.",
+)
+async def bulk_update_prompts(
+    project_id: UUID,
+    body: PromptBulkUpdate,
+    access: WritePrompts,
+    prompts: Prompts,
+    info: Info,
+) -> PromptBulkUpdateResponse:
+    matched, updated = await prompts.bulk_update(access, project_id, body, info)
+    return PromptBulkUpdateResponse(data=PromptBulkUpdateResult(matched=matched, updated=updated))
+
+
+@router.get(
+    "/{prompt_id}",
+    summary="A prompt",
+    description="With an `ETag` header: 32 lowercase hex characters, quoted. It changes with "
+    "every change of the prompt's metadata or terms.",
+)
 async def get_prompt(
-    project_id: UUID, prompt_id: UUID, access: ReadData, prompts: Prompts
+    project_id: UUID, prompt_id: UUID, access: ReadData, prompts: Prompts, response: Response
 ) -> PromptResponse:
-    return PromptResponse(data=prompt_view(await prompts.get(access, project_id, prompt_id)))
+    record = await prompts.get(access, project_id, prompt_id)
+    response.headers["ETag"] = etag(record)
+    return PromptResponse(data=prompt_view(record))
 
 
 @router.patch(
@@ -273,7 +444,9 @@ async def get_prompt(
     summary="Change a prompt's metadata",
     description="The text, language and country cannot change (`422 validation_failed` with "
     "`immutable_field`): archive the prompt and add a new one. `term_ids` replaces the terms. "
-    "`is_active: true` brings an archived prompt back and counts against the quota.",
+    "`is_active: true` brings an archived prompt back and counts against the quota. Setting "
+    "`prompt_type` makes `prompt_type_source` `person`, and setting `is_branded` makes "
+    "`is_branded_source` `override`. The answer carries the new `ETag`.",
 )
 async def update_prompt(
     project_id: UUID,
@@ -282,8 +455,11 @@ async def update_prompt(
     access: WritePrompts,
     prompts: Prompts,
     info: Info,
+    response: Response,
+    if_match: IfMatch = None,
 ) -> PromptResponse:
-    record = await prompts.update(access, project_id, prompt_id, body, info)
+    record = await prompts.update(access, project_id, prompt_id, body, info, if_match)
+    response.headers["ETag"] = etag(record)
     return PromptResponse(data=prompt_view(record))
 
 

@@ -38,6 +38,7 @@ import {
   PROMPT_TEXT_MAX,
   promptId,
   versionId,
+  type EngineDevice,
   type StoredEngine,
   type StoredPrompt,
 } from '../prompt-fixtures';
@@ -201,7 +202,8 @@ function ownMentions(world: EntityWorld, projectId: string, text: string): OwnMe
   });
 }
 
-function promptView(stored: StoredPrompt): Prompt {
+/** A stored prompt as the API lists it (exported for tests that serve their own list). */
+export function promptView(stored: StoredPrompt): Prompt {
   return {
     prompt_id: stored.prompt_id,
     current_version: {
@@ -217,8 +219,10 @@ function promptView(stored: StoredPrompt): Prompt {
     intent: stored.intent,
     funnel_stage: stored.funnel_stage,
     prompt_type: stored.prompt_type,
+    prompt_type_source: 'rule',
     importance: stored.importance,
     is_branded: stored.is_branded,
+    is_branded_source: 'computed',
     source: 'manual',
     creation_method: 'human',
     is_active: stored.is_active,
@@ -243,7 +247,27 @@ function engineView(projectId: string, code: EngineCode): ProjectEngine {
     provider_code: 'dataforseo',
     active_prompts: fits,
     estimated_monthly_cost_usd: monthlyCostUsd(fits),
+    provider_params: { device: takesDevice(code) ? (configured?.device ?? 'desktop') : null },
   };
+}
+
+const DEVICES = ['desktop', 'mobile'] as const satisfies readonly EngineDevice[];
+
+/** Only Google AI Mode takes a device (`Engine.supports_device`). */
+const takesDevice = (code: EngineCode): boolean => code === 'google_ai_mode';
+
+/**
+ * The device of a body's `provider_params`, or the errors of a malformed one. Left out and `null` both mean
+ * "keep the saved device"; inside the object the device is required and must be `desktop` or `mobile`.
+ */
+function deviceOfBody(params: unknown): { device: EngineDevice | undefined; errors: ValidationItem[] } {
+  if (params === undefined || params === null) return { device: undefined, errors: [] };
+  if (!isRecord(params)) return { device: undefined, errors: [notAnObject('provider_params')] };
+  const errors = extraMembers(params, ['device'], 'provider_params');
+  const device = params.device;
+  if (device === undefined) errors.push(bodyError('provider_params.device', 'missing', 'Field required'));
+  else errors.push(...enumError(device, 'provider_params.device', DEVICES));
+  return { device: isOneOf(device, DEVICES) ? device : undefined, errors };
 }
 
 interface PromptItem {
@@ -450,7 +474,14 @@ export const promptHandlers: HttpHandler[] = [
     }
     const body: unknown = await request.json();
     if (!isRecord(body)) return invalid(request, [notAnObject()]);
-    const errors = extraMembers(body, ['location_ids', 'is_enabled']);
+    const errors = extraMembers(body, ['location_ids', 'is_enabled', 'provider_params']);
+    const { device, errors: deviceErrors } = deviceOfBody(body.provider_params);
+    errors.push(...deviceErrors);
+    if (device !== undefined && !takesDevice(code)) {
+      errors.push(
+        bodyError('provider_params.device', 'device_not_supported', `${ENGINE_FACTS[code].label} takes no device.`),
+      );
+    }
     const ids = body.location_ids;
     if (!Array.isArray(ids))
       errors.push(bodyError('location_ids', ids === undefined ? 'missing' : 'list_type', 'A list of location ids.'));
@@ -477,10 +508,13 @@ export const promptHandlers: HttpHandler[] = [
     }
     const state = promptsOf(caller.project.project_id);
     const before = state.engines.find((engine) => engine.engine_code === code);
+    // A save without `provider_params` keeps the saved device: the countries and the switch never reset it
+    const kept = takesDevice(code) ? (device ?? before?.device) : undefined;
     const next: StoredEngine = {
       engine_code: code,
       is_enabled: body.is_enabled !== false,
       location_ids: locationIds,
+      ...(kept === undefined ? {} : { device: kept }),
     };
     // Only an engine going from off to on makes the schedules; saving the countries of one that is on makes none
     const turnedOn = next.is_enabled && (before === undefined || !before.is_enabled);
@@ -619,6 +653,48 @@ export const promptHandlers: HttpHandler[] = [
     return HttpResponse.json({ data: { created: created.map((prompt) => prompt.prompt_id), skipped, rejected } });
   }),
 
+  // Archives (`archive: true`) or brings back (`false`) up to 1,000 of the project's prompts, as DELETE and
+  // `PATCH is_active: true` do one (backend `bulk_archive_prompts`, plan D2): an id the project does not have is not
+  // matched, and bringing back counts against the workspace's active prompt limit, all or none.
+  mock('post', `${PROMPTS}/bulk-archive`, async ({ request, cookies, params }) => {
+    const caller = projectCaller(request, cookies, params.workspace_id, params.project_id, {
+      permission: 'prompts:write',
+    });
+    if (caller instanceof Response) return caller;
+    let body: unknown;
+    try {
+      body = JSON.parse(await request.text());
+    } catch {
+      return invalid(request, [bodyError('', 'json_invalid', 'JSON decode error')]);
+    }
+    if (!isRecord(body)) return invalid(request, [notAnObject()]);
+    const errors = extraMembers(body, ['ids', 'archive']);
+    const given = body.ids;
+    if (given === undefined) errors.push(bodyError('ids', 'missing', 'Field required'));
+    else if (!Array.isArray(given)) errors.push(bodyError('ids', 'list_type', 'Input should be a valid list'));
+    else if (given.length === 0) errors.push(bodyError('ids', 'too_short', 'List should have at least 1 item'));
+    else if (given.length > BULK_MAX)
+      errors.push(bodyError('ids', 'too_long', `List should have at most ${String(BULK_MAX)} items`));
+    else given.forEach((id: unknown, index) => errors.push(...uuidError(id, `ids.${String(index)}`)));
+    if (body.archive === undefined) errors.push(bodyError('archive', 'missing', 'Field required'));
+    else errors.push(...booleanError(body.archive, 'archive'));
+    if (errors.length > 0 || !Array.isArray(given)) return invalid(request, errors);
+    const archive = body.archive === true;
+    const wanted = new Set(given.filter((id): id is string => typeof id === 'string'));
+    const found = promptsOf(caller.project.project_id).prompts.filter((prompt) => wanted.has(prompt.prompt_id));
+    const changing = found.filter((prompt) => prompt.is_active === archive);
+    if (!archive && changing.length > 0) {
+      const used = activePromptCount(workspaceProjects(caller));
+      if (used + changing.length > PROMPT_QUOTA) return quotaProblem(request, used, changing.length);
+    }
+    const now = isoOf(Date.now());
+    for (const prompt of changing) {
+      prompt.is_active = !archive;
+      prompt.updated_at = now;
+    }
+    return HttpResponse.json({ data: { matched: found.length, updated: changing.length } });
+  }),
+
   mock('post', `${PROMPTS}/lint`, async ({ request, cookies, params }) => {
     const caller = projectCaller(request, cookies, params.workspace_id, params.project_id, { permission: 'data:read' });
     if (caller instanceof Response) return caller;
@@ -651,6 +727,10 @@ export const promptHandlers: HttpHandler[] = [
         return {
           text,
           is_branded: found.length > 0,
+          // The mock's own simple rule: a question mark or a leading question word is a question, the rest is other
+          suggested_prompt_type: /\?\s*$|^(what|which|who|where|when|why|how|is|are|can|does|do)\b/i.test(text)
+            ? 'question'
+            : 'other',
           // Each text the aliases matched, once per brand: the alias is what the text says, not the brand's name
           matched_aliases: found.flatMap(({ entity, role, mention }) =>
             [

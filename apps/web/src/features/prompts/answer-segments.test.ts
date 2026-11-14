@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { answerSegments } from './answer-segments';
+import { answerSegments, clipSegments } from './answer-segments';
 import type { MentionOut } from '@/lib/api/types';
 
 /** Text built from code points, so this file stays ASCII. */
@@ -200,5 +200,57 @@ describe('answerSegments', () => {
       .map((segment) => segment.text)
       .join('');
     expect(joined).toBe(text);
+  });
+});
+
+describe('clipSegments', () => {
+  const text = 'Fynix is named here, and Rankforge follows later in the answer.';
+  const segments = answerSegments(text, [mention('Fynix', [[0, 5]]), mention('Rankforge', [[25, 34]])]);
+
+  it('keeps every segment of a text that fits, and says nothing was cut', () => {
+    expect(clipSegments(segments, text.length)).toEqual({ segments, clipped: false });
+  });
+
+  it('cuts the text at the limit, marking what is left of a mention it cuts through', () => {
+    const clip = clipSegments(segments, 29);
+    expect(clip.clipped).toBe(true);
+    expect(clip.segments.map((segment) => [segment.kind, segment.text])).toEqual([
+      ['mention', 'Fynix'],
+      ['text', ' is named here, and '],
+      ['mention', 'Rank'],
+    ]);
+  });
+
+  it('drops the segments that start past the limit', () => {
+    const clip = clipSegments(segments, 10);
+    expect(clip.segments.map((segment) => segment.text).join('')).toBe('Fynix is n');
+  });
+
+  it('never cuts a character past U+FFFF in two', () => {
+    const emoji = `ab${MAGNIFIER}cd`;
+    const clip = clipSegments(answerSegments(emoji, []), 3);
+    expect(clip.segments.map((segment) => segment.text).join('')).toBe('ab');
+    expect(
+      clipSegments(answerSegments(emoji, []), 4)
+        .segments.map((segment) => segment.text)
+        .join(''),
+    ).toBe(`ab${MAGNIFIER}`);
+  });
+
+  it('never cuts a letter from its accent, a joined emoji or a flag', () => {
+    const cases = [
+      [`ab${cp(0x65, 0x301)}cd`, 3, 'ab'],
+      [`ab${cp(0x1f468, 0x200d, 0x1f469, 0x200d, 0x1f467)}cd`, 6, 'ab'],
+      [`ab${cp(0x1f1ee, 0x1f1f3)}cd`, 4, 'ab'],
+    ] as const;
+    for (const [text, max, kept] of cases) {
+      const clip = clipSegments(answerSegments(text, []), max);
+      expect(clip.segments.map((segment) => segment.text).join('')).toBe(kept);
+      expect(clip.clipped).toBe(true);
+    }
+  });
+
+  it('gives nothing back for a text with no segments', () => {
+    expect(clipSegments([], 280)).toEqual({ segments: [], clipped: false });
   });
 });

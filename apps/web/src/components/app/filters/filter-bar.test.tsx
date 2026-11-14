@@ -184,6 +184,19 @@ describe('FilterBar', () => {
     expect(screen.getByRole('button', { name: 'Add a filter' })).toHaveFocus();
   });
 
+  it('leaves out Clear filters when the screen draws its own reset', () => {
+    renderWithProviders(
+      <FilterBar
+        fields={FIELDS}
+        values={{ device: { kind: 'enum', values: ['desktop'] } }}
+        onChange={() => undefined}
+        hideClear
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'Device: Desktop. Edit filter' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Clear filters' })).not.toBeInTheDocument();
+  });
+
   it('applies a single choice on Space, not while the arrows move through the options', async () => {
     const { user } = renderWithProviders(<Harness initial={{ device: { kind: 'enum', values: ['desktop'] } }} />);
     await user.click(screen.getByRole('button', { name: 'Device: Desktop. Edit filter' }));

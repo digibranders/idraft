@@ -1,0 +1,454 @@
+'use client';
+
+import { useQuery } from '@tanstack/react-query';
+import { Ban, Link2, MoreHorizontal } from 'lucide-react';
+import { useLocale, useTranslations } from 'next-intl';
+import { useSearchParams } from 'next/navigation';
+import { useCallback, useMemo, useState, type ReactElement, type ReactNode } from 'react';
+
+import { useCitationCountries } from './citation-country';
+import { CompareSelect } from './compare-select';
+import { useChangeCounts, useDiversity, useLatestCitation, usePreviousMeta, useScopeMeta } from './citation-reads';
+import { useCitationScope, toFilters } from './citation-scope';
+import { activeCitationTab, CITATION_TABS, type CitationInspect, type CitationTabContext } from './citation-tabs';
+import { CITATION_VIEW_KEYS, citationViews } from './citation-views';
+import type { ExportSource } from './citations-export';
+import { citationFilterFields } from './citations-filters';
+import { LoadFailed, NoEngine } from './citations-states';
+import { CitationsStrip } from './citations-strip';
+import { CitationInspectorHost } from './domain-inspector';
+import { ExportButton } from './export-button';
+import type { StripReads } from './strip-model';
+import { DateRangePicker } from '@/components/app/date-range/date-range-picker';
+import { droppedMessageKey } from '@/components/app/date-range/range-model';
+import { FilterBar } from '@/components/app/filters/filter-bar';
+import { useUrlFilters } from '@/components/app/filters/use-url-filters';
+import { InspectorLayout } from '@/components/app/inspector/inspector-layout';
+import { useInspector } from '@/components/app/inspector/use-inspector';
+import { CountryScopeControl, type CountryScopeLabels } from '@/components/app/scope/country-scope-control';
+import { PAGE_CLASS, PageHeader } from '@/components/app/shell/page-header';
+import { TopBarPortal } from '@/components/app/shell/top-bar-slot';
+import { Banner } from '@/components/app/status/banner';
+import { EmptyState } from '@/components/app/status/empty-state';
+import { SavedViewMenu } from '@/components/app/views/saved-view-menu';
+import { useSavedView } from '@/components/app/views/use-saved-view';
+import { Button } from '@/components/ui/button';
+import { IconButton } from '@/components/ui/icon-button';
+import { Menu } from '@/components/ui/menu';
+import { Tabs, TabsPanel } from '@/components/ui/tabs';
+import { toast } from '@/components/ui/toast';
+import { apiQuery } from '@/lib/api/query';
+import { roleUnits } from '@/lib/citations/share-model';
+import type { EngineCode, SourceScope } from '@/lib/citations/types';
+import { copyText } from '@/lib/dom/clipboard';
+import { useZoneDay } from '@/lib/dom/use-zone-day';
+import {
+  EMPTY_VALUE,
+  formatBusinessDate,
+  formatIsoDate,
+  formatList,
+  formatRelative,
+  formatTableDateTime,
+} from '@/lib/format';
+import { useVocabularies } from '@/lib/keywords/taxonomy-reads';
+import { formatInspectTarget, type InspectorTarget } from '@/lib/inspector/placement';
+import { useCan } from '@/lib/permissions';
+import { projectPath, withQuery } from '@/lib/routes/paths';
+
+export interface CitationsProject {
+  id: string;
+  slug: string;
+  name: string;
+  /** The project's time zone: the window's days are its days. */
+  timeZone: string;
+}
+
+export interface CitationsScreenProps {
+  workspaceId: string;
+  workspaceSlug: string;
+  project: CitationsProject;
+}
+
+const ENGINES = '/api/v1/workspaces/{workspace_id}/projects/{project_id}/engines';
+/** The id of the More actions item that copies the link. */
+const COPY_LINK = 'copy-link';
+const DAY_MS = 86_400_000;
+/** The address's `cmp` for a comparison that is on (no key, the default) or off. */
+const cmpOf = (compare: boolean): string | null => (compare ? null : 'off');
+// shortcut: stale from 7 days on, the same rule as the prompt History's `STALE_AFTER_DAYS` (features/prompts/
+// history-model.ts, which a feature may not import); replace both with the shared stale rule of WP-18 (CF-27)
+const STALE_AFTER_DAYS = 7;
+const NO_ENGINES: readonly never[] = [];
+
+/**
+ * AI > Citations (DS 9.6 and 9.7, WB-CIT-02 to 05): the header, the summary strip of the whole scope, the filter
+ * row and the tabs whose panels `CITATION_TABS` lists. The date range is the top bar's project-wide scope. Reads
+ * wait for the engines: an engine of a link that is off is left out of the scope, and an empty list would mean
+ * every engine, so nothing is asked until the engines are known.
+ */
+export function CitationsScreen(props: CitationsScreenProps): ReactNode {
+  const t = useTranslations('citations');
+  const canRead = useCan('data:read');
+  if (!canRead) {
+    return (
+      <div className={PAGE_CLASS}>
+        <PageHeader title={t('title')} />
+        <EmptyState icon={Ban} title={t('noAccessTitle')} reason={t('noAccessReason')} headingLevel={2} />
+      </div>
+    );
+  }
+  return <CitationsContent {...props} />;
+}
+
+function CitationsContent({ workspaceId, workspaceSlug, project }: CitationsScreenProps): ReactElement {
+  const t = useTranslations('citations');
+  const filterWords = useTranslations('citations.filters');
+  const flagWords = useTranslations('citations.flagFilters');
+  const scopeWords = useTranslations('citations.scope');
+  const common = useTranslations('common');
+  const locale = useLocale();
+  const source = useMemo((): SourceScope => ({ workspaceId, projectId: project.id }), [workspaceId, project.id]);
+
+  // The engines: which are on, and their names. Stable identities, so the scope is not rebuilt on every render
+  const engines = useQuery(
+    apiQuery(ENGINES, { params: { path: { workspace_id: workspaceId, project_id: project.id } } }),
+  );
+  const enabled = useMemo(
+    () => (engines.data === undefined ? NO_ENGINES : engines.data.data.filter((engine) => engine.is_enabled)),
+    [engines.data],
+  );
+  const enabledEngines = useMemo(
+    (): readonly EngineCode[] => enabled.map((engine) => engine.engine.engine_code),
+    [enabled],
+  );
+  const engineLabels = useMemo(
+    () => new Map((engines.data?.data ?? []).map((engine) => [engine.engine.engine_code, engine.engine.label])),
+    [engines.data],
+  );
+  const labelOf = useCallback((code: EngineCode): string => engineLabels.get(code) ?? code, [engineLabels]);
+  // Not before the engines are known: a disabled read shows loading, and nothing is requested
+  const enginesReady = engines.data !== undefined && enabledEngines.length > 0;
+
+  const { scope, picked, range, setSearch } = useCitationScope(project.timeZone, enabledEngines);
+  // The same day the scope's window ends on: a day of the project's zone, the one place the clock is read
+  const today = useZoneDay(project.timeZone);
+  const filters = useMemo(() => toFilters(scope, range), [scope, range]);
+  // The country is scope, like the date range: the top bar chooses it and the filter bar's Clear leaves it
+  const countries = useCitationCountries(source, scope.country);
+  const countryLabels = useMemo(
+    (): CountryScopeLabels => ({
+      country: (name) => scopeWords('country', { country: name }),
+      allCountries: scopeWords('allCountries'),
+      search: scopeWords('countrySearch'),
+      empty: (query) => scopeWords('countryEmpty', { query }),
+      clear: scopeWords('clear'),
+      open: scopeWords('open'),
+    }),
+    [scopeWords],
+  );
+
+  // The strip: each read loads and fails alone, and none takes the role filter
+  const scopeMeta = useScopeMeta(source, filters, enginesReady);
+  const previousMeta = usePreviousMeta(source, filters, scopeMeta.data?.meta, scope.compare);
+  const diversity = useDiversity(source, filters, enginesReady);
+  const newSources = useChangeCounts(source, filters, { kind: 'new', minSupport: scope.minSupport }, enginesReady);
+  const lostSources = useChangeCounts(source, filters, { kind: 'lost', minSupport: scope.minSupport }, enginesReady);
+  const latest = useLatestCitation(source, filters, enginesReady);
+  const stripReads: StripReads = {
+    scope: scopeMeta,
+    previous: previousMeta,
+    diversity,
+    newSources,
+    lostSources,
+  };
+
+  // The filter bar: Engine waits for the engines and Topic for the vocabularies, so a link's value is kept until then
+  const vocabularies = useVocabularies(source);
+  const topics = useMemo(
+    () => vocabularies.loaded.filter((entry) => entry.vocabulary.kind === 'topic').flatMap((entry) => entry.terms),
+    [vocabularies.loaded],
+  );
+  const meta = scopeMeta.data?.meta;
+  const byRole = useMemo(() => (meta === undefined ? null : roleUnits(meta)), [meta]);
+  // The tab shown: the one asked for, or Domains while that one is not listed. Its filters and context follow it
+  const tab = useMemo(() => activeCitationTab(CITATION_TABS, scope.tab), [scope.tab]);
+  const activeId = tab?.id ?? 'domains';
+  const fields = useMemo(
+    () =>
+      citationFilterFields({
+        t: filterWords,
+        flagWords,
+        tab: activeId,
+        engines: enabledEngines.map((code) => ({ code, label: labelOf(code) })),
+        enginesLoading: engines.data === undefined,
+        roleUnits: byRole,
+        topics,
+        topicsLoading: vocabularies.pending || vocabularies.error,
+      }),
+    [
+      filterWords,
+      flagWords,
+      activeId,
+      enabledEngines,
+      labelOf,
+      engines.data,
+      byRole,
+      topics,
+      vocabularies.pending,
+      vocabularies.error,
+    ],
+  );
+  const [values, setValues] = useUrlFilters(fields, {
+    onDropped: (dropped) =>
+      toast({
+        type: 'info',
+        title: filterWords('droppedTitle', { count: dropped.length }),
+        description: filterWords('droppedDescription', {
+          fields: formatList(
+            dropped.map((field) => field.label),
+            locale,
+          ),
+        }),
+      }),
+  });
+
+  // The rows the shown tab has loaded, which Export CSV writes; the tab gives them and takes them back
+  const [exportSource, setExportSource] = useState<ExportSource | null>(null);
+  const exportEngines = useMemo(
+    () => (scope.engines.length > 0 ? scope.engines : enabledEngines).map((code) => ({ code, label: labelOf(code) })),
+    [scope.engines, enabledEngines, labelOf],
+  );
+
+  // The inspector (`?inspect=<type>:<id>`): a record opened from a tab, stepped through in the order of that tab's
+  // list, which the tab reports. A link to one keeps the rest of the address, and a real link opens a new browser tab
+  const inspector = useInspector();
+  const [orders, setOrders] = useState<Record<'domain' | 'source', readonly string[]>>({ domain: [], source: [] });
+  const setOrder = useCallback<CitationInspect['setOrder']>((type, ids) => {
+    setOrders((current) =>
+      current[type].length === ids.length && current[type].every((id, place) => id === ids[place])
+        ? current
+        : { ...current, [type]: ids },
+    );
+  }, []);
+  const address = useSearchParams().toString();
+  const hrefOf = useCallback(
+    (target: InspectorTarget) => {
+      const next = new URLSearchParams(address);
+      next.set('inspect', formatInspectTarget(target));
+      // The tab of another record's inspector is not this one's
+      next.delete('itab');
+      return withQuery(projectPath(workspaceSlug, project.slug, '/ai/citations'), next.toString());
+    },
+    [address, workspaceSlug, project.slug],
+  );
+  const openRecord: CitationInspect['open'] = (target, intent = 'inspector') => {
+    if (intent === 'new-tab') window.open(hrefOf(target), '_blank', 'noopener');
+    else inspector.open(target);
+  };
+  const inspectorOrder = inspector.target?.type === 'domain' ? orders.domain : orders.source;
+  const at = inspector.position(inspectorOrder);
+  const step = (direction: 'next' | 'previous'): void => {
+    if (at === null || (direction === 'next' ? at.index === at.count - 1 : at.index === 0)) return;
+    inspector.step(direction, inspectorOrder);
+  };
+
+  // The saved view menu and the header
+  const views = useMemo(() => citationViews((key) => t(`views.${key}`)), [t]);
+  const savedView = useSavedView({ views, viewKeys: CITATION_VIEW_KEYS });
+  const copyLink = (): void => {
+    void copyText(window.location.href).then((copied) =>
+      toast(copied ? { type: 'success', title: t('linkCopied') } : { type: 'error', title: common('copy.failed') }),
+    );
+  };
+
+  // "Updated ..." is the newest citation in scope; a week old or more it says so
+  const newest = latest.data?.data[0]?.observed_at;
+  const metaLine = ((): string => {
+    if (meta === undefined) return EMPTY_VALUE;
+    if (meta.citation_units === 0) return t('metaNone');
+    const counts = { units: meta.citation_units, answers: meta.answers };
+    if (newest === undefined) return t('metaCounts', counts);
+    // Whole project days since the newest citation, so the clock is read in one place (`useZoneDay`)
+    if ((Date.parse(today) - Date.parse(formatIsoDate(newest, project.timeZone))) / DAY_MS >= STALE_AFTER_DAYS) {
+      return t('metaStale', { date: formatTableDateTime(newest, project.timeZone) });
+    }
+    return t('meta', { time: formatRelative(newest, project.timeZone), ...counts });
+  })();
+
+  // A link whose range was not used says why, for as long as the address keeps it (13 section 5)
+  const { dropped } = picked;
+  const droppedWords =
+    dropped === null
+      ? null
+      : common(`dateRange.${droppedMessageKey(dropped)}`, {
+          max: dropped.code === 'too_long' ? dropped.max : 0,
+          date: dropped.code === 'before_start' ? formatBusinessDate(dropped.earliest) : '',
+        });
+
+  const header = (
+    <PageHeader
+      title={t('title')}
+      meta={enginesReady ? metaLine : undefined}
+      actions={
+        <>
+          <SavedViewMenu
+            views={views}
+            current={savedView.view}
+            viewKeys={CITATION_VIEW_KEYS}
+            edited={savedView.edited}
+            onApply={savedView.apply}
+            onReset={savedView.reset}
+          />
+          {/* The export rows type covers domains and pages: New and lost rows have no file (plan D7) */}
+          {activeId === 'new-lost' ? null : (
+            <ExportButton
+              source={exportSource}
+              scope={source}
+              previousMeta={previousMeta.data?.meta}
+              engines={exportEngines}
+              range={range}
+            />
+          )}
+          <Menu
+            align="end"
+            trigger={<IconButton icon={MoreHorizontal} variant="secondary" label={t('moreActions')} />}
+            items={[{ id: COPY_LINK, label: t('copyLink'), icon: Link2, onSelect: copyLink }]}
+          />
+        </>
+      }
+    />
+  );
+
+  let body: ReactNode;
+  if (engines.isError && engines.data === undefined) {
+    // Never an empty list: that would read as every engine
+    body = <LoadFailed errorId={null} onRetry={() => void engines.refetch()} retrying={engines.isFetching} />;
+  } else if (engines.data !== undefined && enabledEngines.length === 0) {
+    body = <NoEngine workspaceSlug={workspaceSlug} projectSlug={project.slug} />;
+  } else {
+    const context: CitationTabContext = {
+      source,
+      workspaceSlug,
+      projectSlug: project.slug,
+      timeZone: project.timeZone,
+      scope: { ...scope, tab: activeId },
+      filters,
+      range,
+      enabledEngines,
+      labelOf,
+      meta: scopeMeta,
+      previousMeta,
+      setSearch,
+      registerExport: setExportSource,
+      inspect: { target: inspector.target, open: openRecord, setOrder, hrefOf },
+      filterBar: { fields, values, onClear: () => setValues({}) },
+    };
+    // The scope read failing leaves nothing to show a panel against; any other read fails alone, and the strip says so.
+    // A refetch that failed keeps its data and has an error id, so the read is failed whenever it has one
+    const scopeFailed = scopeMeta.status === 'error';
+    // With the comparison off the read of the previous period has nothing to ask, so it has no error to count
+    const failed = Object.values(stripReads).filter((read) => read.errorId !== null);
+    const partial = !scopeFailed && failed.length > 0;
+    body = (
+      <Tabs
+        variant="underline"
+        label={t('tabs.label')}
+        value={activeId}
+        // A view is a place to go back to: the tab is the one change of the page that makes a history entry
+        onValueChange={(next) => setSearch({ tab: next === 'domains' ? null : next, cols: null }, { history: 'push' })}
+        items={CITATION_TABS.map((entry) => ({ value: entry.id, label: entry.label(t) }))}
+        className="gap-3 lg:min-h-0 lg:flex-1"
+      >
+        {scopeFailed ? (
+          <LoadFailed errorId={scopeMeta.errorId} onRetry={scopeMeta.retry} retrying={scopeMeta.retrying} />
+        ) : (
+          <CitationsStrip reads={stripReads} scope={scope} labelOf={labelOf} />
+        )}
+        {partial ? (
+          <Banner
+            tone="warning"
+            placement="region"
+            live
+            message={t('strip.partial')}
+            actions={
+              <Button
+                variant="secondary"
+                size="sm"
+                loading={failed.some((read) => read.retrying)}
+                onClick={() => {
+                  for (const read of failed) read.retry();
+                }}
+              >
+                {common('retry')}
+              </Button>
+            }
+          />
+        ) : null}
+        <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
+          <div className="min-w-0 flex-1 basis-24">
+            <FilterBar fields={fields} values={values} onChange={setValues} />
+          </div>
+          <div className="ml-auto flex h-control shrink-0 items-center">
+            <CompareSelect compare={scope.compare} onCompareChange={(next) => setSearch({ cmp: cmpOf(next) })} />
+          </div>
+        </div>
+        {scope.country === null ? null : (
+          <p className="type-meta">{scopeWords('note', { country: countries.nameOf(scope.country) })}</p>
+        )}
+        {scopeFailed || tab === null ? null : (
+          <TabsPanel value={tab.id} className="flex flex-col gap-3 lg:min-h-0 lg:flex-1">
+            {tab.render(context)}
+          </TabsPanel>
+        )}
+      </Tabs>
+    );
+  }
+
+  // Not before the engines are known, for the same reason the reads of the page wait for them: with none listed the
+  // inspector would read every engine
+  const inspectorHost =
+    inspector.target === null || !enginesReady ? null : (
+      <CitationInspectorHost
+        // Another project's domain is another inspector; stepping inside one project keeps this one and its focus
+        key={project.id}
+        target={inspector.target}
+        source={source}
+        filters={filters}
+        timeZone={project.timeZone}
+        workspaceSlug={workspaceSlug}
+        projectSlug={project.slug}
+        engines={exportEngines}
+        position={at}
+        onStep={step}
+        tab={inspector.tab}
+        onTabChange={inspector.setTab}
+        onClose={inspector.close}
+      />
+    );
+
+  return (
+    <InspectorLayout inspector={inspectorHost}>
+      <TopBarPortal>
+        <DateRangePicker
+          value={picked.value}
+          onValueChange={picked.onValueChange}
+          today={today}
+          timeZone={project.timeZone}
+        />
+        <CountryScopeControl
+          country={scope.country}
+          isos={countries.isos}
+          nameOf={countries.nameOf}
+          labels={countryLabels}
+          onCountryChange={(iso) => setSearch({ country: iso })}
+        />
+      </TopBarPortal>
+      {/* From lg up the window's height, as the Prompts page has it: the table of a tab fills what the strip and the filters leave. Below it the page scrolls as a whole, so a short phone keeps the table whole */}
+      <div className="flex flex-col gap-3 px-3 pt-3 pb-5 md:px-4 lg:h-page-body lg:min-h-page-body-min lg:px-5">
+        {header}
+        {droppedWords === null ? null : <Banner tone="info" placement="region" message={droppedWords} />}
+        {body}
+      </div>
+    </InspectorLayout>
+  );
+}

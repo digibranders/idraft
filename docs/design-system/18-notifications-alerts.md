@@ -110,9 +110,9 @@ Toast copy: result first, past tense, with the object and count: "12 keywords ar
 | Metric strip ...                                                                          |
 ```
 
-| Property | Page banner | Region banner (inspector, dialog, panel) |
+| Property | Page banner | Region banner (dialog, panel) |
 |---|---|---|
-| Position | Directly under the page header (and filter bar), above the first content region | Top of the inspector body, dialog body or panel |
+| Position | Directly under the page header (and filter bar), above the first content region | Top of the dialog body or panel |
 | Width | Full content width, no radius, 1 px bottom border in the family's `-border` | Content width, `rounded-md`, 1 px border all sides |
 | Padding | 8 px vertical, 20 px horizontal (the page gutter) | 8 px vertical, 12 px horizontal |
 | Background | Family `-subtle` | Family `-subtle` |
@@ -121,7 +121,9 @@ Toast copy: result first, past tense, with the object and count: "12 keywords ar
 | Actions | Right-aligned, up to 2, as text links or 32 px (`sm`) secondary buttons | same |
 | Dismiss | `X` 24 px, only when dismissible | same |
 
-Variants: **info**, **warning**, **negative** (tokens from section 2; negative uses `CircleX`, because banners describe conditions, not events).
+Variants: **info**, **warning**, **negative** (tokens from section 2; negative uses `CircleX`, because banners describe conditions, not events). **neutral** states a fact with no judgement, such as "Not cited in any of the 8 answers": `border-border-subtle` on `bg-surface-subtle`, an `Info` icon in `foreground-tertiary`, and `role="status"` when it appears (`live`).
+
+Placement **inspector** is the banner under an inspector header: full width, no radius, 1 px bottom border, `px-4 py-2` (the inspector body gutter).
 
 Rules:
 - **Dismissible only when non-critical.** Banners about the correctness or completeness of the numbers on screen (partial, stale, provider failure, integration access lost, budget blocked) are not dismissible; they disappear when the condition ends. Info banners (scheduled maintenance, read-only mode notice) are dismissible; the setup checklist is not a banner ([23-application-patterns.md](23-application-patterns.md) section 13); a dismissal is stored per user and condition id, and the banner returns if the condition changes (a new maintenance window, a new failure).
@@ -437,7 +439,7 @@ Rules:
 | Component | Primitive | Section |
 |---|---|---|
 | `Toaster`, `toast()` | Base UI Toast | 3 |
-| `Banner` (info, warning, negative; page, region) | none | 4 |
+| `Banner` (info, warning, negative, neutral; page, region, inspector) | none | 4 |
 | `NotificationBell`, `NotificationCenter`, `NotificationItem`, `NotificationGroup` | Base UI Popover; Drawer on mobile | 5 |
 | `SeverityIcon`, `SeverityLabel` | none | 2 |
 | `AlertEventsTable` | `DataTable` | 6 |

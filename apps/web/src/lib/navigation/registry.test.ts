@@ -35,10 +35,12 @@ describe('the navigation registry', () => {
     }
   });
 
-  it('lists only what is live: Keywords, Topics & Prompts, Integrations, Runs, Costs and Settings, for now', () => {
+  it('lists only what is live: Keywords, AI Overview, Topics & Prompts, Citations, Integrations, Runs, Costs and Settings, for now', () => {
     expect(keysOf(visibleNavigation(NAVIGATION, permissionsFor('owner')))).toEqual([
       'keywords',
+      'aiOverview',
       'prompts',
+      'citations',
       'integrations',
       'runs',
       'costs',
@@ -58,8 +60,25 @@ describe('the navigation registry', () => {
   it('shows Runs to a reader and Costs to those who may read costs, hiding the one the role cannot open', () => {
     const shownTo = (role: (typeof roleValues)[number]): string[] =>
       keysOf(visibleNavigation(NAVIGATION, permissionsFor(role)));
-    expect(shownTo('viewer')).toEqual(['keywords', 'prompts', 'integrations', 'runs', 'settings']);
-    expect(shownTo('analyst')).toEqual(['keywords', 'prompts', 'integrations', 'runs', 'costs', 'settings']);
+    expect(shownTo('viewer')).toEqual([
+      'keywords',
+      'aiOverview',
+      'prompts',
+      'citations',
+      'integrations',
+      'runs',
+      'settings',
+    ]);
+    expect(shownTo('analyst')).toEqual([
+      'keywords',
+      'aiOverview',
+      'prompts',
+      'citations',
+      'integrations',
+      'runs',
+      'costs',
+      'settings',
+    ]);
     expect(shownTo('billing')).toEqual(['costs', 'settings']);
   });
 
@@ -151,6 +170,30 @@ describe('the navigation registry', () => {
     expect(at('/digibranders/fynix/costsx')).toBeUndefined();
     expect(at('/digibranders/fynix/aim')).toBeUndefined();
     expect(at('/digibranders/fynixx/settings')).toBeUndefined();
+  });
+
+  // Flipping a destination to live is a deliberate one line change here and in `registry.ts`.
+  it('pins the planned destinations, each with its route file already in place', () => {
+    expect(NAVIGATION.filter((item) => item.status === 'planned').map((item) => item.key)).toEqual([
+      'overview',
+      'matrix',
+      'rankings',
+      'pages',
+      'sources',
+      'competitors',
+      'discover',
+      'reports',
+    ]);
+  });
+
+  it('finds the planned destinations of the AI visibility pages by their paths', () => {
+    const at = (path: string): string | undefined => destinationOf(NAVIGATION, path, 'digibranders', 'fynix')?.key;
+    expect(at('/digibranders/fynix/ai/citations')).toBe('citations');
+    expect(at('/digibranders/fynix/ai/sources')).toBe('sources');
+    expect(at('/digibranders/fynix/competitors')).toBe('competitors');
+    expect(at('/digibranders/fynix/discover/prompts')).toBe('discover');
+    expect(at('/digibranders/fynix/reports')).toBe('reports');
+    expect(at('/digibranders/fynix/matrix')).toBe('matrix');
   });
 
   it('finds no destination for the path of a planned one among the live ones', () => {

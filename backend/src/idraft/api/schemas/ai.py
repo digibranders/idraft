@@ -17,17 +17,31 @@ from pydantic import (
     AfterValidator,
     BaseModel,
     BeforeValidator,
+    Discriminator,
     Field,
+    GetCoreSchemaHandler,
     StringConstraints,
+    Tag,
     field_validator,
     model_validator,
 )
 from pydantic.json_schema import SkipJsonSchema
-from pydantic_core import PydanticCustomError
+from pydantic_core import PydanticCustomError, core_schema
 
 from idraft.ai.text import normalize
 from idraft.api.pagination import CursorPageInfo
-from idraft.api.schemas.common import Body, LanguageCode, Patch, UserRef, printable, refuse_null
+from idraft.api.schemas.ai_engines import EngineProviderParams, EngineProviderParamsUpdate
+from idraft.api.schemas.common import (
+    BATCH_TAG,
+    ONE_TAG,
+    Body,
+    LanguageCode,
+    Patch,
+    UserRef,
+    body_shape,
+    printable,
+    refuse_null,
+)
 from idraft.api.schemas.entities import EntityRef
 from idraft.api.schemas.keywords import FunnelStage, Intent, LocationId
 from idraft.api.schemas.metrics import MetricWindow, Usd
@@ -45,8 +59,34 @@ PromptType = Literal[
 ]
 ChangeKind = Literal["initial", "wording", "typo", "context"]
 CreationMethod = Literal["human", "template", "llm_generated", "imported"]
-LintRule = Literal["contains_brand_alias", "engine_limit"]
+LintRule = Literal[
+    "contains_brand_alias",
+    "engine_limit",
+    # Contract C1 (prompt-dialogs section 16).
+    "word_count",
+    "multiple_questions",
+    "leading_wording",
+    "language_mismatch",
+    "contains_competitor_alias",
+]
 LintSeverity = Literal["info", "warning", "error"]
+PromptSort = Literal[
+    "text",
+    "-text",
+    "importance",
+    "-importance",
+    "created_at",
+    "-created_at",
+    "updated_at",
+    "-updated_at",
+]
+# What a caller may say a prompt came from when it adds one (prompt-dialogs N07). The column
+# holds more values (migration 0018), which only the server sets.
+PromptSource = Literal["manual", "csv_import", "seo_keyword", "paa", "gsc_query"]
+CreateMethod = Literal["human", "template", "imported"]
+# The templates of `POST {P}/prompts/from-keywords/preview` (docs/19 section 3.7.1).
+GeneratedTemplate = Literal["recommendation", "comparison", "how_to", "procurement"]
+_NOT_RETURNED = "Not returned yet: absent from every response until it is built."
 
 BULK_CREATE_MAX: Final = 1000
 LINT_MAX: Final = 1000
@@ -56,6 +96,11 @@ IMMUTABLE_FIELDS: Final = ("text", "language_code", "country_iso")
 # A character decomposes into at most four, so a text up to four times the limit may still
 # compose under it; anything longer cannot, and is not composed at all.
 _RAW_TEXT_MAX: Final = 4 * PROMPT_TEXT_MAX
+
+
+def _absent(value: object) -> bool:
+    """A block nobody asked for is left out of the answer, not sent as null."""
+    return value is None
 
 
 def _prompt_text(value: object) -> object:
@@ -106,6 +151,11 @@ Importance = Annotated[int, Field(ge=1, le=5)]
 TermIds = Annotated[list[UUID], Field(max_length=TERMS_MAX)]
 
 
+class GeneratedFrom(Body):
+    tracked_keyword_id: UUID
+    template: GeneratedTemplate
+
+
 class PromptCreate(Body):
     """One prompt. Its text is fixed once saved: to change it, archive the prompt and add a new
     one."""
@@ -118,10 +168,31 @@ class PromptCreate(Body):
     )
     intent: Intent = "unknown"
     funnel_stage: FunnelStage = "unknown"
-    prompt_type: PromptType = "question"
+    prompt_type: PromptType | None = Field(
+        default=None,
+        description="Left out: the server rule reads the wording and `prompt_type_source` is "
+        "`rule`. Sent: kept as sent, `person`.",
+    )
     importance: Importance = 3
     term_ids: TermIds = Field(
         default_factory=list, description="Topics and other terms the project may use."
+    )
+    is_branded: bool | None = Field(
+        default=None,
+        description="Overrides the branded flag computed from the own aliases; sent, it is kept "
+        "and `is_branded_source` is `override`.",
+    )
+    source: PromptSource | None = Field(
+        default=None, description="Where the prompt came from; left out: `manual`."
+    )
+    creation_method: CreateMethod | None = Field(
+        default=None,
+        description="How it was written; left out: `human`, or `template` with `generated_from`.",
+    )
+    generated_from: GeneratedFrom | None = Field(
+        default=None,
+        description="The tracked keyword (one of the project's, else `tracked_keyword_unknown`) "
+        "and template it was generated from. Kept in the audit entry only.",
     )
 
 
@@ -141,7 +212,11 @@ class PromptPatch(Patch):
     funnel_stage: FunnelStage | None = None
     prompt_type: PromptType | None = None
     importance: Importance | None = None
-    is_branded: bool | None = None
+    is_branded: bool | None = Field(
+        default=None,
+        description="Sets the branded flag; `is_branded_source` becomes `override`, even when "
+        "the value is the one the aliases give.",
+    )
     is_active: bool | None = Field(
         default=None,
         description="`true` brings an archived prompt back; it counts against the quota.",
@@ -196,10 +271,17 @@ class Prompt(BaseModel):
     intent: Intent
     funnel_stage: FunnelStage
     prompt_type: PromptType
+    prompt_type_source: Literal["rule", "person"] = Field(
+        description="`rule` when the server's wording rule set the type, `person` when a person "
+        "sent or changed it."
+    )
     importance: int
     is_branded: bool = Field(
         description="Names an own brand: computed from the project's own aliases when the "
         "prompt is saved; a change may set it."
+    )
+    is_branded_source: Literal["computed", "override"] = Field(
+        description="`computed` from the own aliases, or `override` when a person set the flag."
     )
     source: str
     creation_method: CreationMethod
@@ -245,6 +327,33 @@ class PromptLintRequest(Body):
     engine_codes: Annotated[list[EngineCode], Field(min_length=1)] | None = Field(
         default=None, description="The engines whose length limits apply. Left out: every one."
     )
+    language_code: LanguageCode | None = Field(
+        default=None,
+        description="The language the texts should be in, for `language_mismatch`. Left out: "
+        "that rule is not checked.",
+    )
+
+
+class PromptLintItem(Body):
+    text: LintText
+    language_code: LanguageCode
+    country_iso: CountryIso
+
+
+class PromptLintItems(Body):
+    """Texts with their language and country, so the lint can say which are tracked already."""
+
+    items: Annotated[list[PromptLintItem], Field(min_length=1, max_length=LINT_MAX)]
+    engine_codes: Annotated[list[EngineCode], Field(min_length=1)] | None = Field(
+        default=None, description="The engines whose length limits apply. Left out: every one."
+    )
+
+
+# `texts` or `items`: the shape sent is the one validated.
+PromptLintBody = Annotated[
+    Annotated[PromptLintRequest, Tag(ONE_TAG)] | Annotated[PromptLintItems, Tag(BATCH_TAG)],
+    Discriminator(body_shape),
+]
 
 
 class LintSpan(BaseModel):
@@ -267,21 +376,85 @@ class MatchedAlias(BaseModel):
     alias: str = Field(description="The text that matched.")
 
 
+class LintTracked(BaseModel):
+    prompt_id: UUID
+    is_active: bool
+
+
+class LintNearDuplicate(BaseModel):
+    prompt_id: UUID
+    text: str
+
+
 class PromptLint(BaseModel):
     text: str = Field(description="As it would be saved.")
     is_branded: bool
     matched_aliases: list[MatchedAlias] = Field(description="Own brand names found, each once.")
     warnings: list[LintWarning]
+    tracked: LintTracked | None = Field(
+        default=None,
+        exclude_if=_absent,
+        description="The project's prompt with this identity, archived ones too (with `items`).",
+    )
+    near_duplicate_of: LintNearDuplicate | None = Field(
+        default=None,
+        exclude_if=_absent,
+        description="A prompt of the same language and country that differs only in case and "
+        "spacing (with `items`, when the text is not tracked).",
+    )
+    suggested_prompt_type: PromptType = Field(
+        description="The type the server rule gives the text when none is sent."
+    )
 
 
 class PromptQuota(BaseModel):
     limit: int
     used: int = Field(description="Active prompts in the whole workspace.")
+    would_create: int | None = Field(
+        default=None,
+        exclude_if=_absent,
+        description="With `items`: of the items, those neither tracked nor repeated nor too long "
+        "to save.",
+    )
+
+
+class EngineEstimate(BaseModel):
+    engine_code: EngineCode
+    prompts_fit: int = Field(description="Prompts it would create that the engine takes.")
+    answers_per_month: int = Field(
+        description="Answers in an average month: prompts x runs a week x answers per run x 52 "
+        "weeks / 12 months, rounded down."
+    )
+    monthly_cost_usd: Usd | None = Field(
+        description="What those answers cost, to the cent. Null when the price book has no price."
+    )
+    run_now_answers: int = Field(description="Answers one run of these prompts asks for.")
+    run_now_cost_usd: Usd | None = Field(
+        description="What one run costs, not rounded. Null when the price book has no price."
+    )
+
+
+class LintEstimate(BaseModel):
+    """What the prompts that would be created cost on the standard queue (prompt-dialogs N05)."""
+
+    engines: list[EngineEstimate] = Field(
+        description="The engines in `engine_codes`, or the project's enabled engines, in the "
+        "engines' own order."
+    )
+    total_monthly_cost_usd: Usd | None = Field(
+        description="The engines' monthly costs added; null when none has a price."
+    )
 
 
 class PromptLintResponse(BaseModel):
     data: list[PromptLint]
     quota: PromptQuota
+    estimate: LintEstimate | None = Field(
+        default=None,
+        exclude_if=_absent,
+        description="With `items`: what the prompts that would be created cost. Absent for "
+        "`texts`.",
+    )
 
 
 class Engine(BaseModel):
@@ -301,6 +474,10 @@ class ProjectEngine(BaseModel):
     location_ids: list[int]
     replicates: int
     provider_code: str
+    provider_params: EngineProviderParams = Field(
+        default_factory=EngineProviderParams,
+        description="Settings beyond the countries (the device of Google AI Mode).",
+    )
     active_prompts: int = Field(
         description="Active prompts that fit the engine's length limit: what one run asks it."
     )
@@ -324,6 +501,11 @@ class EngineUpdate(Body):
     )
     is_enabled: bool = Field(
         default=True, description="On starts weekly spend; off keeps the settings."
+    )
+    provider_params: EngineProviderParamsUpdate | None = Field(
+        default=None,
+        description="Omit to keep the saved device; a save of the countries or the switch never "
+        "resets it.",
     )
 
 
@@ -411,6 +593,12 @@ class CitationOut(BaseModel):
     answer_block_index: int | None
     referral_tag: str | None
     flags: list[str]
+    quote: str | None = Field(
+        default=None,
+        description="The passage the provider quoted from the source, whitespace collapsed, at "
+        "most 1,000 characters. Null when the provider gave none or the answer was stored "
+        "before quotes were kept.",
+    )
 
 
 class MentionOut(BaseModel):
@@ -437,6 +625,16 @@ class ObservationDetail(ObservationSummary):
     offsets_unit: Literal["utf16"]
     citations: list[CitationOut]
     mentions: list[MentionOut]
+    answer_sha256: str | None = Field(
+        default=None,
+        description="SHA-256 of the answer text as UTF-8, lowercase hex, 64 characters. Null "
+        "when the answer has no text.",
+    )
+    raw_sha256: str | None = Field(
+        default=None,
+        description="SHA-256 of the provider's body as received, lowercase hex, 64 characters. "
+        "Null when the payload row is gone.",
+    )
 
 
 class ObservationResponse(BaseModel):
@@ -469,13 +667,28 @@ class MetricCell(BaseModel):
     )
 
 
-# Plan D1 adds `series` here with the weekly series.
-SummaryInclude = Literal["entities"]
+SummaryInclude = Literal["series", "entities", "total", "co_mentions", "cells"]
+SummaryCompare = Literal["none", "previous_period", "previous_year"]
+SummaryRows = Literal["topics", "none"]
 
 
-def _absent(value: object) -> bool:
-    """A block nobody asked for is left out of the answer, not sent as null."""
-    return value is None
+def _refuse_language(value: object) -> object:
+    """BE-METRICS-22 names a language breakdown that C2 does not have: refuse `language` with
+    that reason, where any other unknown value gets the plain "input should be"."""
+    if value == "language":
+        raise PydanticCustomError(
+            "not_built",
+            "`group_by=language` is not built: the language half of the breakdown (BE-METRICS-22) "
+            "is not in contract C2, which has `country` alone.",
+        )
+    return value
+
+
+SummaryGroupBy = Annotated[Literal["country"], BeforeValidator(_refuse_language)]
+OPPORTUNITY_PATTERN = (
+    r"^(named_not_cited|cited_not_named|nobody_named"
+    r"|lost_to:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$"
+)
 
 
 class OutcomeCells(BaseModel):
@@ -483,6 +696,42 @@ class OutcomeCells(BaseModel):
     mentioned_only: MetricCell
     cited_only: MetricCell
     neither: MetricCell
+
+
+class _NotAsked:
+    """The default of `previous`, which tells "compare was not asked" (the key is left out)
+    from None, "asked, and the window has no answer" (the key is null): the contract keeps
+    them apart (C2 change log, C-2). Only `NOT_ASKED` is ever an instance."""
+
+    @classmethod
+    def __get_pydantic_core_schema__(
+        cls, source: type[object], handler: GetCoreSchemaHandler
+    ) -> core_schema.CoreSchema:
+        # Serialized as null, which is how its default reads in the JSON schema.
+        return core_schema.is_instance_schema(
+            cls, serialization=core_schema.plain_serializer_function_ser_schema(lambda _: None)
+        )
+
+
+NOT_ASKED: Final = _NotAsked()
+
+
+def _not_asked(value: object) -> bool:
+    return value is NOT_ASKED
+
+
+class EngineCells(BaseModel):
+    """The cells of one engine over the comparison window, weighted as the current ones."""
+
+    mentioned: MetricCell
+    cited: MetricCell
+    outcomes: OutcomeCells
+    share_of_voice: MetricCell
+
+
+class EntityPreviousCells(BaseModel):
+    mentioned: MetricCell
+    share_of_voice: MetricCell
 
 
 class EntityCells(BaseModel):
@@ -499,6 +748,100 @@ class EntityCells(BaseModel):
         description="The entity's share of each answer that names a tracked entity: 1 / the "
         "tracked entities the answer names."
     )
+    previous: EntityPreviousCells | SkipJsonSchema[_NotAsked] | None = Field(
+        default=NOT_ASKED,
+        exclude_if=_not_asked,
+        json_schema_extra={"default": None},
+        description="With a compare window and `include=entities`: Mentioned and Share of voice "
+        "over `compare_window`. Null exactly when the engine's `previous` is null, that is, when "
+        "none of the row's prompts has an answer of the engine there; otherwise cells, an "
+        "entity not named in the valid answers being 0 of their number. Never set inside a week. "
+        "Left out when no compare window was asked for.",
+    )
+
+
+class EngineDetailCells(BaseModel):
+    """The small cells of one engine over the window (contract C2, change log C-9): each is a
+    count of answers over another, with `value` null when the denominator is 0. In a topic, total
+    or country row the three rates are prompt weighted (`pooled` holds the answers) and the
+    share and the mean are sums over sums."""
+
+    cited_given_citations: MetricCell = Field(
+        description="Valid answers that cite the own domain over valid answers with at least "
+        "one citation (docs/16 A2 variant)."
+    )
+    citation_share: MetricCell = Field(
+        description="The own domain's citation units over all the citation units of the valid "
+        "answers (docs/16 A8): a unit is a distinct canonical URL of an answer."
+    )
+    first_mention: MetricCell = Field(
+        description="Valid answers that name the own brand before any other tracked entity over "
+        "valid answers that name it (docs/16 A12)."
+    )
+    fanout_presence: MetricCell | None = Field(
+        description="Valid answers with at least one fan-out query over valid answers (docs/16 "
+        "F1). Null on an engine that does not expose fan-out, never a rate of 0."
+    )
+    fanout_mean: MetricCell | None = Field(
+        description="Fan-out queries over the valid answers that have some (docs/16 F2). Null on "
+        "an engine that does not expose fan-out, never 0."
+    )
+
+
+class PointPool(BaseModel):
+    """What a pooled point holds: the answers of its own week and of the weeks before it, inside
+    the window (contract C2, change log C-11)."""
+
+    weeks: int = Field(
+        description="The weeks pooled, 1 to 4: fewer than 4 when the window opens inside the "
+        "four weeks before the point."
+    )
+    window: MetricWindow = Field(
+        description="The first and last day the pool covers, never outside the response's `window`."
+    )
+    reason: Literal["prompt_point", "few_prompts"] = Field(
+        description="`prompt_point`: the point is of a prompt row, which always pools. "
+        "`few_prompts`: the point is of a topic, total or country row and fewer than "
+        "`below_prompts` of its prompts answered that week."
+    )
+    below_prompts: int = Field(
+        description="The number of prompts under which a topic, total or country point pools."
+    )
+
+
+class WeekCells(BaseModel):
+    """One point of a series, for the week starting `week_start`. It holds the answers of that
+    week alone when `is_pooled` is false (a topic, total or country row with enough prompts
+    answering). Otherwise it holds the trailing four weeks to that week, inside the window, and
+    `pool` says which days (a prompt row always pools: one prompt answers once or twice a week).
+    A pooled prompt cell is answers over answers. A pooled topic, total or country cell sums
+    each prompt's counts over the pooled weeks first and is then prompt weighted, as the window
+    cell is. The points of a prompt row therefore do not add up to its window cell. Weeks before
+    the window are never read, so the first points of a window pool fewer weeks."""
+
+    week_start: date = Field(description="The Monday the week starts on, in the project's zone.")
+    prompts: int = Field(
+        description="The prompts of the row with a valid answer on the engine in that week "
+        "alone, whether the point is pooled or not."
+    )
+    is_pooled: bool = Field(description="Whether the cells hold more than the week's own answers.")
+    pool: PointPool | None = Field(
+        default=None,
+        exclude_if=_absent,
+        description="Present exactly when `is_pooled`: the weeks and days the cells hold, and why.",
+    )
+    mentioned: MetricCell
+    cited: MetricCell
+    share_of_voice: MetricCell
+    entities: list[EntityCells] | None = Field(
+        default=None,
+        exclude_if=_absent,
+        description="With `include=series,entities`: the cells of each tracked entity of the "
+        "engine's `entities` (the own ones first, at most 20) over the weeks the point holds: "
+        "its own week, or, when `is_pooled`, the weeks of `pool`. Weighted as the point's own "
+        "cells are: Mentioned prompt weighted in a topic, total or country row. Has no "
+        "`previous`. Left out otherwise.",
+    )
 
 
 class EngineSummary(BaseModel):
@@ -507,11 +850,36 @@ class EngineSummary(BaseModel):
     cited: MetricCell
     outcomes: OutcomeCells
     share_of_voice: MetricCell
+    previous: EngineCells | SkipJsonSchema[_NotAsked] | None = Field(
+        default=NOT_ASKED,
+        exclude_if=_not_asked,
+        json_schema_extra={"default": None},
+        description="With a compare window: the same cells over `compare_window`. Null when none "
+        "of the row's prompts has an answer of any status on the engine there (no data is not a "
+        "rate of 0); with answers but no valid one, cells with a denominator of 0 and no value. "
+        "Left out when no compare window was asked for.",
+    )
+    series: list[WeekCells] | None = Field(
+        default=None,
+        exclude_if=_absent,
+        description="With `include=series`: a point for each week the window touches, oldest "
+        "first, at most 14; a week without answers has counts of 0. The first and last weeks "
+        "may be partial (cut at the window bounds). The points of a prompt row are always "
+        "pooled over the trailing four weeks; those of a topic, total or country row are when "
+        "fewer than 10 of its prompts answered that week (`is_pooled`, `pool`). A pool stays "
+        "inside the window. Left out otherwise.",
+    )
     entities: list[EntityCells] | None = Field(
         default=None,
         exclude_if=_absent,
         description="With `include=entities`: a cell for each tracked entity of `entities`, "
         "the own ones first, then competitors by name, at most 20. Left out otherwise.",
+    )
+    detail: EngineDetailCells | None = Field(
+        default=None,
+        exclude_if=_absent,
+        description="With `include=cells`: the small cells of the engine over the window, "
+        "weighted as the row's cells are. Never in `previous` or in a week. Left out otherwise.",
     )
 
 
@@ -542,6 +910,32 @@ class TopicSummaryRow(BaseModel):
     engines: list[EngineSummary]
 
 
+class SummaryTotal(BaseModel):
+    """Every prompt in scope as one row, aggregated as a topic row is (OV-N1)."""
+
+    prompt_count: int = Field(description="The prompts in scope, whatever the engines shown.")
+    last_observed_at: datetime | None = Field(description=_LAST_OBSERVED)
+    last_valid_at: datetime | None = Field(description=_LAST_VALID)
+    engines: list[EngineSummary]
+
+
+class CoMentionPair(BaseModel):
+    a: UUID = Field(description="A tracked entity.")
+    b: UUID = Field(description="Another tracked entity.")
+    answers: int = Field(description="Valid answers in scope that name both.")
+
+
+class EngineCoMentions(BaseModel):
+    engine_code: str
+    answers: int = Field(description="Valid answers in scope on the engine: the denominator.")
+    pairs: list[CoMentionPair]
+
+
+class CountrySummary(BaseModel):
+    country_iso: str
+    engines: list[EngineSummary]
+
+
 class SummaryEntity(BaseModel):
     entity_id: UUID
     name: str
@@ -560,15 +954,45 @@ class MetricContext(BaseModel):
     method: str
 
 
+class SummaryDetailContext(BaseModel):
+    """What is true of every cell of `EngineSummary.detail` in the response."""
+
+    cited_given_citations: MetricContext
+    citation_share: MetricContext
+    first_mention: MetricContext
+    fanout_presence: MetricContext
+    fanout_mean: MetricContext
+
+
 class SummaryMetricContext(BaseModel):
     mentioned: MetricContext
     cited: MetricContext
     outcomes: MetricContext
     share_of_voice: MetricContext
+    detail: SummaryDetailContext | None = Field(
+        default=None,
+        exclude_if=_absent,
+        description="With `include=cells`: how the cells of `detail` are weighted. Left out "
+        "otherwise.",
+    )
 
 
 class PromptsSummary(BaseModel):
     window: MetricWindow
+    compare_window: MetricWindow | None = Field(
+        default=None,
+        exclude_if=_absent,
+        description="With a compare window (`compare`, or `compare_from` and `compare_to`): the "
+        "days compared with. The window before `window`, as many days, for `previous_period`; "
+        "the same dates a year earlier for `previous_year`; the two dates given, which win over "
+        "`compare`.",
+    )
+    previous_answers: int | None = Field(
+        default=None,
+        exclude_if=_absent,
+        description="With a compare window: the valid answers in scope in that window, on the "
+        "engines shown; 0 means it has no data.",
+    )
     include_branded: bool = Field(
         description="Branded prompts are counted: `include_branded` or `branded_only` was set."
     )
@@ -585,6 +1009,30 @@ class PromptsSummary(BaseModel):
     )
     prompts: list[PromptSummaryRow]
     topics: list[TopicSummaryRow]
+    total: SummaryTotal | None = Field(
+        default=None,
+        exclude_if=_absent,
+        description="With `include=total`: every prompt in scope as one row, aggregated as a "
+        "topic row is, and carrying the blocks the rows carry when asked. It does not depend on "
+        "`rows`. Left out otherwise.",
+    )
+    co_mentions: list[EngineCoMentions] | None = Field(
+        default=None,
+        exclude_if=_absent,
+        description="With `include=co_mentions`: one entry per engine shown, with how often two "
+        "tracked entities are named in one valid answer. It does not depend on `rows`. Left out "
+        "otherwise.",
+    )
+    by_country: list[CountrySummary] | None = Field(
+        default=None,
+        exclude_if=_absent,
+        description="With `group_by=country`: one entry per market (`country_iso`) of the prompts "
+        "in scope, sorted by code, each with the engines built as a topic row of those prompts "
+        "(the same blocks the rows carry when asked). The market is the prompt's, not the "
+        "location of its answers; a prompt without a market is in no entry, and a market with "
+        "prompts and no answer has an entry of zero cells. `filter[country_iso]` leaves that one "
+        "entry. It does not depend on `rows`. Left out otherwise.",
+    )
 
 
 class PromptsSummaryResponse(BaseModel):

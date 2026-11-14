@@ -1,8 +1,8 @@
 """Bodies of the taxonomy routes (docs/19-api-specification.md section 3.5).
 
 Vocabularies are workspace-wide or belong to one project; terms form a tree under each, with the
-path of slugs from the root stored on every term. Term assignments, and the keyword and prompt
-counts on a term, arrive with keywords (step 5) and prompts (step 8).
+path of slugs from the root stored on every term. Term assignments, the keyword count on a term
+and, when asked for, its prompt count belong to keywords (step 5) and prompts (step 8).
 """
 
 from __future__ import annotations
@@ -36,6 +36,12 @@ from idraft.api.schemas.common import (
 from idraft.keywords.terms import SLUG_MAX as SLUG_MAX
 from idraft.keywords.terms import TERM_DEPTH_MAX as TERM_DEPTH_MAX
 from idraft.keywords.terms import TERM_NAME_MAX as TERM_NAME_MAX
+
+
+def _absent(value: object) -> bool:
+    """A count nobody asked for is left out of the answer, not sent as null."""
+    return value is None
+
 
 VocabularyKind = Literal[
     "topic", "cluster", "product", "service", "market", "campaign", "persona", "tag", "custom"
@@ -198,6 +204,13 @@ class TermNode(Term):
     keyword_count: int = Field(
         description="Active tracked keywords with the term or one under it, in projects the "
         "caller can see; each keyword once."
+    )
+    prompt_count: int | None = Field(
+        default=None,
+        exclude_if=_absent,
+        description="With `include=prompt_count`: active, live prompts with the term or one "
+        "under it, branded or not, in projects the caller can see; each prompt once. A "
+        "membership count, not a rate. Left out of the answer unless asked for.",
     )
     children: list[TermNode] = Field(description="Empty in the flat format.")
 

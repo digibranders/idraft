@@ -6,10 +6,11 @@ from __future__ import annotations
 
 from dataclasses import replace
 from datetime import date
-from typing import Annotated
+from typing import Annotated, Final
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Path, Query
+from pydantic import AfterValidator
 
 from idraft.api.ai.sources import SourceQuery, SourceService
 from idraft.api.pagination import Commas, Cursor, Offset
@@ -17,13 +18,23 @@ from idraft.api.permissions import Permission
 from idraft.api.resources import Resources, get_resources
 from idraft.api.schemas.ai_sources import (
     CitationPage,
+    DiversityInclude,
     DomainRole,
+    FanoutInclude,
     FanoutQueryPage,
+    PromptOwnPagesPage,
+    SourceChangeKind,
+    SourceChangePage,
     SourceCompare,
+    SourceDiversity,
+    SourceDomainDetail,
+    SourceDomainInclude,
     SourceDomainPage,
+    SourcePageInclude,
     SourcePagePage,
     SourceSort,
 )
+from idraft.api.schemas.common import printable
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.api.workspaces.dependencies import require_permission
 from idraft.domain.ai_engines import EngineCode
@@ -98,6 +109,68 @@ COMPARE = (
     "C5), with `meta.compare_window` and `meta.previous_answers`."
 )
 
+CountryFilter = Annotated[
+    str | None,
+    Query(
+        alias="filter[country_iso]",
+        pattern=r"^[A-Z]{2}$",
+        description="The answers of the prompts of one market, ISO 3166-1 alpha-2 in capitals; "
+        "prompts with no market are left out. Also narrows `meta` and every share.",
+    ),
+]
+MinSupport = Annotated[
+    int | None,
+    Query(
+        ge=1,
+        le=1000,
+        description="The fewest citation units in the window a row is listed for (docs/16 C5). "
+        "Rows with fewer are left out of the rows and of `page.total`; `meta` and every share "
+        "still count them.",
+    ),
+]
+
+AnswerScope = Annotated[SourceQuery, Depends(answer_scope)]
+
+_UNRESOLVED = (
+    "Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to "
+    "its target, such as Gemini's grounding links), which are left out of every share and unit "
+    "by default (docs/14 section 9). A citation with several excluded flags counts only when "
+    "every one of them is asked for. The citation list and the fan-out read always keep them."
+)
+_INTERNAL = (
+    "Count the citations flagged `engine_internal` (links into the engine's own product), which "
+    "are left out of every share and unit by default (docs/14 section 9). Ingest does not set "
+    "this flag yet, so nothing is left out until it does. A citation with several excluded "
+    "flags counts only when every one of them is asked for."
+)
+
+# Whether flagged citations count when a request does not say (docs/14 section 9: they do not;
+# open question O1 of the WP-14 plan). The one place the default is decided: `True` counts them
+# again in every read, and the two descriptions above then need their "by default" rewritten.
+FLAGGED_COUNTED_BY_DEFAULT: Final = False
+
+
+def flag_toggles(
+    include_unresolved_redirects: Annotated[
+        bool, Query(description=_UNRESOLVED)
+    ] = FLAGGED_COUNTED_BY_DEFAULT,
+    include_engine_internal: Annotated[
+        bool, Query(description=_INTERNAL)
+    ] = FLAGGED_COUNTED_BY_DEFAULT,
+) -> tuple[str, ...]:
+    """The citation flags a read leaves out (docs/14 section 9)."""
+    return tuple(
+        flag
+        for flag, counted in (
+            ("engine_internal", include_engine_internal),
+            ("unresolved_redirect", include_unresolved_redirects),
+        )
+        if not counted
+    )
+
+
+Flags = Annotated[tuple[str, ...], Depends(flag_toggles)]
+
 
 @router.get(
     "/sources/domains",
@@ -115,14 +188,41 @@ async def source_domains(
     sources: Sources,
     scope: Scope,
     page: Offset,
+    flags: Flags,
     sort: SourceSort = "-citation_units",
     compare: SourceCompare = "none",
+    include: Annotated[
+        list[SourceDomainInclude] | None,
+        Commas,
+        Query(
+            max_length=3,
+            description="Blocks to add: `series` (a point per week of the window), "
+            "`cited_with` (on each row, the tracked entity named in the most answers that cite "
+            "it, ties by entity id; absent when none is named) and `by_role_by_engine` "
+            "(`meta`: per engine the units and citing answers of each role, whatever "
+            "`filter[domain_role_in]` says).",
+        ),
+    ] = None,
+    min_support: MinSupport = None,
+    country_iso: CountryFilter = None,
 ) -> SourceDomainPage:
-    return await sources.domains(access, project_id, scope, sort=sort, compare=compare, page=page)
+    return await sources.domains(
+        access,
+        project_id,
+        replace(scope, country_iso=country_iso, excluded_flags=flags),
+        sort=sort,
+        compare=compare,
+        include=include or (),
+        min_support=min_support,
+        page=page,
+    )
 
+
+# A control character (NUL included) would reach the database as text and answer 500.
+DomainText = Annotated[str, AfterValidator(printable)]
 
 RegistrableDomain = Annotated[
-    str | None,
+    DomainText | None,
     Query(
         alias="filter[registrable_domain]",
         min_length=1,
@@ -147,17 +247,168 @@ async def source_pages(
     sources: Sources,
     scope: Scope,
     page: Offset,
+    flags: Flags,
     registrable_domain: RegistrableDomain = None,
     sort: SourceSort = "-citation_units",
     compare: SourceCompare = "none",
+    include: Annotated[
+        list[SourcePageInclude] | None,
+        Commas,
+        Query(
+            max_length=1,
+            description="Blocks to add: `series` (a point per week of the window, and "
+            "`meta.series`).",
+        ),
+    ] = None,
+    min_support: MinSupport = None,
+    country_iso: CountryFilter = None,
 ) -> SourcePagePage:
     return await sources.pages(
         access,
         project_id,
-        scope,
+        replace(scope, country_iso=country_iso, excluded_flags=flags),
         registrable_domain=registrable_domain,
         sort=sort,
         compare=compare,
+        include=include or (),
+        min_support=min_support,
+        page=page,
+    )
+
+
+@router.get(
+    "/sources/changes",
+    summary="New and lost sources against the window before",
+    description=SCOPE
+    + "`kind=new` (default): domains with at least `min_support` citation units in the window "
+    "and none in as many days before (docs/16 C5). `kind=lost` (docs/16 C6): domains with at "
+    "least `min_support` units in a support window and none in each of the 2 windows after it. "
+    "The windows are as long as the asked one: for `lost`, `meta.window` is the asked window "
+    "and the one before it (the 2 empty windows) and `meta.compare_window` the support window "
+    "before those, so a 92 day ask reads 276 days; for `new`, `meta.window` is the asked "
+    "window and `meta.compare_window` the one before. `min_support` (default 2) counts "
+    "citation units. `current_units` and `previous_units` are the units in `meta.window` and "
+    "`meta.compare_window`; `first_seen_at` and `last_seen_at` are in `meta.window` (null for "
+    "`lost`). One row per registrable domain and role (and entity), the most units first; "
+    "offset pages.",
+)
+async def source_changes(
+    project_id: UUID,
+    access: ReadData,
+    sources: Sources,
+    scope: Scope,
+    page: Offset,
+    flags: Flags,
+    kind: SourceChangeKind = "new",
+    min_support: Annotated[int, Query(ge=1, le=1000)] = 2,
+    country_iso: CountryFilter = None,
+) -> SourceChangePage:
+    return await sources.changes(
+        access,
+        project_id,
+        replace(scope, country_iso=country_iso, excluded_flags=flags),
+        kind=kind,
+        min_support=min_support,
+        page=page,
+    )
+
+
+@router.get(
+    "/sources/diversity",
+    summary="Source diversity per engine",
+    description=SCOPE
+    + "Per engine: the valid answers, the answers that cite a source, the citation units, the "
+    "registrable domains cited (roles merged) and the effective number of sources (docs/16 C3: "
+    "1 over the sum of squared source shares, with its numerator and denominator visible). "
+    "Engines are never pooled: `meta.distinct_domains` is a count over every engine in scope "
+    "and `meta.effective_sources_engine_average` the equal-weight mean of the engines with "
+    "units. `include=series` adds a weekly point per engine and `include=ads` the answers that "
+    "showed an ad.",
+)
+async def source_diversity(
+    project_id: UUID,
+    access: ReadData,
+    sources: Sources,
+    scope: AnswerScope,
+    flags: Flags,
+    include: Annotated[
+        list[DiversityInclude] | None,
+        Commas,
+        Query(
+            max_length=2,
+            description="Blocks to add to each engine: `series` (a weekly point) and `ads` (the "
+            "answers that showed an ad). Default none.",
+        ),
+    ] = None,
+    country_iso: CountryFilter = None,
+) -> SourceDiversity:
+    return await sources.diversity(
+        access,
+        project_id,
+        replace(scope, country_iso=country_iso, excluded_flags=flags),
+        include=include or (),
+    )
+
+
+@router.get(
+    "/sources/domains/{registrable_domain}",
+    summary="One cited domain",
+    description=SCOPE
+    + "One registrable domain as the domain list names it: its rows (one per role and entity, "
+    "at most 10), its units per engine and week, its 10 most cited pages, the 20 prompts "
+    "whose answers cite it most and the 5 tracked entities named most in those answers. A "
+    "domain that is not cited in scope answers `200` with empty lists; the name is read in "
+    "lower case.",
+)
+async def source_domain(
+    project_id: UUID,
+    registrable_domain: Annotated[DomainText, Path(min_length=1, max_length=253)],
+    access: ReadData,
+    sources: Sources,
+    scope: AnswerScope,
+    flags: Flags,
+    country_iso: CountryFilter = None,
+) -> SourceDomainDetail:
+    return await sources.domain(
+        access,
+        project_id,
+        replace(scope, country_iso=country_iso, excluded_flags=flags),
+        registrable_domain,
+    )
+
+
+@router.get(
+    "/sources/prompts",
+    summary="Each prompt's own pages, per engine",
+    description=SCOPE
+    + "One row per prompt and engine with a counted answer: the valid answers, the answers "
+    "that cite an own page, the own citation units, the distinct own pages and the one with "
+    "the most units. `filter[own_cited]=false` keeps the prompts whose answers cite no own page. "
+    "Keyset pages `(prompt_id, engine_code)`; a cursor is bound to its filters (`400 "
+    "invalid_cursor` otherwise). An engine with no counted answer of a prompt has no row.",
+)
+async def source_prompts(
+    project_id: UUID,
+    access: ReadData,
+    sources: Sources,
+    scope: AnswerScope,
+    page: Cursor,
+    flags: Flags,
+    own_cited: Annotated[
+        bool | None,
+        Query(
+            alias="filter[own_cited]",
+            description="`false` keeps the prompt and engine pairs whose answers cite no own page; "
+            "`true` those that cite one. Default: both.",
+        ),
+    ] = None,
+    country_iso: CountryFilter = None,
+) -> PromptOwnPagesPage:
+    return await sources.prompts(
+        access,
+        project_id,
+        replace(scope, country_iso=country_iso, excluded_flags=flags),
+        own_cited=own_cited,
         page=page,
     )
 
@@ -179,18 +430,16 @@ async def citation_list(
     page: Cursor,
     registrable_domain: RegistrableDomain = None,
     url_id: Annotated[int | None, Query(alias="filter[url_id]", ge=1, le=2**63 - 1)] = None,
+    country_iso: CountryFilter = None,
 ) -> CitationPage:
     return await sources.citations(
         access,
         project_id,
-        scope,
+        replace(scope, country_iso=country_iso),
         registrable_domain=registrable_domain,
         url_id=url_id,
         page=page,
     )
-
-
-AnswerScope = Annotated[SourceQuery, Depends(answer_scope)]
 
 
 @router.get(
@@ -206,7 +455,9 @@ AnswerScope = Annotated[SourceQuery, Depends(answer_scope)]
     "those answers (an association: which query found which source is not stored). A query "
     "issued by fewer than `min_support` answers (default 2) is left out. `meta.answers` is the "
     "denominator; `meta.answers_truncated` counts the answers whose stored list is shorter than "
-    "the queries they issued (the 16 KB bound keeps the first ones). Offset pages.",
+    "the queries they issued (the 16 KB bound keeps the first ones). `include=topics` adds the "
+    "topic terms (of a `topic` vocabulary of the project or of the workspace) tagged on the "
+    "prompts that issued each query, the most answers first, at most 10. Offset pages.",
 )
 async def fanout_queries(
     project_id: UUID,
@@ -217,5 +468,22 @@ async def fanout_queries(
     min_support: Annotated[
         int, Query(ge=1, le=1000, description="The fewest answers a query is listed for.")
     ] = 2,
+    include: Annotated[
+        list[FanoutInclude] | None,
+        Commas,
+        Query(
+            max_length=1,
+            description="Blocks to add: `topics` (on each row, the topic terms tagged on the "
+            "prompts whose answers issued the query).",
+        ),
+    ] = None,
+    country_iso: CountryFilter = None,
 ) -> FanoutQueryPage:
-    return await sources.fanout(access, project_id, scope, min_support=min_support, page=page)
+    return await sources.fanout(
+        access,
+        project_id,
+        replace(scope, country_iso=country_iso),
+        min_support=min_support,
+        include=include or (),
+        page=page,
+    )

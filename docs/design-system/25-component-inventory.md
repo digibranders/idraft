@@ -537,6 +537,8 @@ interface SegmentedControlProps<TValue extends string> {
 - **Use:** density toggle, chart or table view, "Absolute or Share", triage status (New, Accepted, Snoozed, Rejected), device in forms.
 - **Not for:** more than 5 options or labels longer than 2 words (`Select`), switching panels (`Tabs variant="segmented"`), independent toggles (`ToggleButton`).
 
+> As built (WP-37): two AI Overview cards put a `SegmentedControl size="sm" semantics="view"` in their frame's `controls`: Ranked or By role (`sources.top_domains`), Distinct domains or Effective sources (`sources.diversity`). The choice is viewer state in the card, announced through the page announcer ("View changed to By role"), and not kept in the address; UI rule 15 asks for it, so it is a follow-up.
+
 ### 3.6 Toolbar
 `ui/toolbar.tsx` · V1 · [09 §7](09-buttons-controls.md)
 
@@ -973,6 +975,7 @@ interface RowContextMenuProps<TRow> {
 
 - **Variants, States, A11y:** as `ContextMenu`; right-click also focuses that row.
 - **Use / Not for:** as `RowMenu`.
+- **As built (2026-11-13, WP-09):** props, the menu on the one clicked row and the reason it is not `ContextMenu` are in deviation 152.
 
 ### 3.29 Dialog (DialogHeader, DialogBody, DialogFooter)
 `ui/dialog.tsx` · V1 · [16 §4](16-drawers-dialogs-popovers.md)
@@ -1263,6 +1266,8 @@ interface ProgressProps {
 ### 3.42 Meter
 `ui/meter.tsx` · V1 · [23 §11.2](23-application-patterns.md)
 
+> As built (WP-07): the file is `apps/web/src/components/app/metric/meter.tsx`, not `ui/meter.tsx`, and it also holds BudgetMeter (17.2). The props are `warnFrom`, `allWarning` and `tick` in place of `thresholds` and `fillTone`; `label` is the accessible name and `width` takes `summary` or `cell`.
+
 Purpose: a static measure of a share of a known extent (budget use).
 
 ```ts
@@ -1343,6 +1348,10 @@ interface CountTabsProps<TValue extends string> {
 - **A11y:** `Toolbar` (`role="toolbar"`, named by `label`): one Tab stop, Left and Right move, Home and End; each item is a toggle button with `aria-pressed`; the accessible name includes the count ("Rank moves, 12").
 - **Use:** event-type filters above `EventTimeline` on full pages and in the inspector, and above full event lists.
 - **Not for:** switching panels (`Tabs`), a single-choice view option (`SegmentedControl`), page filters (`FilterBar`).
+
+> As built (WP-08): the file is `apps/web/src/components/app/feed/count-tabs.tsx`, not `ui/count-tabs.tsx`. It is a toolbar of `aria-pressed` buttons with one Tab stop and arrow-key movement; each label carries its count ("Lost sources, 3"), the pressed item is `type-body-strong` with a primary fill, pressing All when it is already pressed does nothing, and a disabled item stays focusable (`aria-disabled`) and gives its reason through a tooltip. A value that matches no item leaves nothing pressed and sets `data-unmatched-value` on the toolbar.
+
+> As built (WP-37): `CountTabs` is used as a one-choice switch in three AI Overview cards, and its "All" entry is reinterpreted there. In the collection calendar and the answer status cards (toolbar "Engine", `activity/parts/engine-tabs.tsx`) "All" is simply the first engine asked, because engines are never added up, so no item is a total; pressing another engine announces "Gemini shown, 1,159 answers collected". In New and lost (`sources.new_lost`, toolbar "Domains new or lost in this window") "All" is "Both", the list of new and lost domains together, and the card opens on New.
 
 ## 4. Form components
 
@@ -1564,7 +1573,7 @@ Purpose: a boolean that takes effect on save, "I agree", or row selection.
 interface CheckboxProps {
   checked: boolean | 'indeterminate';
   onCheckedChange?: (checked: boolean) => void;
-  label: string;                    // the visible label, or the name in a table cell ("Select crm pricing")
+  label: ReactNode;                 // the visible label, or the name in a table cell ("Select crm pricing"); an element (an engine's mark and name) is named by its text
   labelDisplay?: 'visible' | 'visually-hidden';
   description?: string;             // describes the box; not part of its name
   disabled?: boolean;
@@ -1731,6 +1740,8 @@ interface DateRangePickerProps {
 - **A11y:** trigger names its value; dialog-like popover; typed From and To inputs labeled "Start date" and "End date" first, grid second; focus moves to the selected preset, returns to the trigger.
 - **Use:** the top-bar date range on every page where it applies (hidden on Settings, Integrations and the screens 13 §4 lists without it); first section of the filter sheet on phones.
 - **Not for:** month scopes on Costs (`Select` of months).
+
+> As built (WP-10): `apps/web/src/components/app/date-range/date-range-picker.tsx`, not `ui/`. Props are `value`, `onValueChange`, `today`, `timeZone`, `maxDays`, `earliest` and `size`; the value is a preset (`7d`, `28d`, `90d`) or a custom `from` and `to` of `YYYY-MM-DD` strings. The longest range is 91 days (`MAX_RANGE_DAYS`: the backend refuses 92 project days across a fall-back clock change), shown as a message with Apply disabled, never clamped. The trigger name includes the short form ("Date range: Last 28 days (28d), Oct 17 to Nov 13, 2026"); the label is short below 640 px; one month below 768 px, two from 768 px; presets longer than `maxDays` are `aria-disabled`; every applied change is announced politely. `useDateRangeParams` reads and writes `win` or `from` and `to` and still reads the legacy `window` key.
 
 ### 4.19 NumberInput
 `ui/number-field.tsx` · V1 · [10 §11](10-forms.md)
@@ -2392,6 +2403,7 @@ interface FilterBarProps {
   notice?: string | null;           // "1 filter does not apply here"
   activeCount: number;              // badge on the "Filters" button below 768 px
   onOpenSheet: () => void;
+  hideClear?: boolean;              // leaves out "Clear filters" for a screen whose defaults are chips (the AI Overview's "Branded: Excluded"); the screen draws its own reset
 }
 ```
 
@@ -2563,7 +2575,7 @@ Purpose: 48 px bar above the header (the panel title row height; 32 px `h-contro
 interface DataTableToolbarProps { search: Slot; countText: string; sortSummary?: string | null; extras?: Slot; density: Slot; columns: Slot; exportMenu: Slot; updating: boolean }
 ```
 
-- **Variants:** `compact` (opt in through `DataTable` `compactToolbar`, with a `start` slot before the search): the search flexes on a phone, the count is hidden below 640 px and the sort summary is drawn from 1440 px instead of 1280 px; the default is unchanged. **States:** idle, updating (spinner plus "Updating" after 400 ms), new results available (`NewResultsNotice` in this slot).
+- **Variants:** `compact` (opt in through `DataTable` `compactToolbar`): the sort summary is drawn from 1440 px instead of 1280 px, for an end slot that holds more than a view switch; the default is unchanged. **States:** idle, updating (spinner plus "Updating" after 400 ms), new results available (`NewResultsNotice` in this slot).
 - **A11y:** search outside the `Toolbar`; view controls inside a `Toolbar` named "{Caption} table actions". **Use:** every `DataTable`. **Not for:** page filters (`FilterBar`), the saved view menu (page header).
 
 ### 7.3 BulkActionBar
@@ -2656,6 +2668,8 @@ interface SavedViewMenuProps {
 - **Variants:** none (32 px secondary `sm`). **States:** default view, named view, edited, missing references.
 - **A11y:** menu button with the view name in its name; applying announces "View CRM keywords applied, 3 filters". **Use:** T2, T6, Matrix, Competitors. **Not for:** Overview, detail pages, settings, the table toolbar.
 
+> As built (WP-10): the file is `apps/web/src/components/app/views/saved-view-menu.tsx`, with `useSavedView` and `views-model.ts` beside it, not `data-table/`. It shows preset views (`kind: 'preset'`, params for the keys the screen governs) and Default; `view=<id>` is the URL key and `view`, `inspect`, `itab`, `win`, `from` and `to` are never view keys. "Edited" compares the governed keys as sets, except `sort`, which is ordered. A missing Default degrades to the first view instead of throwing. Reset announces and replaces history. `extraItems` (`SavedViewExtraItem`) is the seam for the stored, workspace and personal views of WP-49; nothing else calls it yet.
+
 ### 7.8 TableFooter
 `app/data-table/table-footer.tsx` · V1 · [12 §1](12-tables.md), [24 §4](24-page-templates.md)
 
@@ -2697,6 +2711,8 @@ interface DataTableListProps<TRow> {
 
 - **Variants:** none (56 px rows). **States:** as DataTable minus selection and row actions.
 - **A11y:** `ul` with `aria-setsize` and `aria-posinset`; each row one link read as identity, value with label, context, delta. **Use:** below 768 px. **Not for:** desktop.
+
+> As built (WP-10): `apps/web/src/components/app/data-table/data-table-list.tsx`. `DataTableList` is generic over `TRow extends RowData`; rows are exactly 56 px (`LIST_ROW_HEIGHT`, the divider is drawn inside the box) and windowed with an aria-hidden spacer; a server-mode pager replaces windowing when the table pages on the server. `DataTableListSort` is the sort button and sheet, and announces each change ("Sorted by Rank, ascending"); `ListTableSwitch` and `useListMode` offer the List and Table switch when the device is not touch-primary. J and K step rows only from a grid, not from the list. A phone hard load shows the table for one frame before the list.
 
 ### 7.11 SimpleTable
 `app/data-table/simple-table.tsx` · V1 · [12 §15](12-tables.md), [20 §6.1](20-accessibility.md)
@@ -2844,6 +2860,8 @@ interface RankDeltaCellProps {
 ### 8.5 DeltaCell
 `app/cells/delta-cell.tsx` · V1 · [12 §6](12-tables.md), [02 §6](02-color-system.md)
 
+> As built (WP-07): the file is `apps/web/src/components/app/metric/delta-cell.tsx`, not `app/cells/`. The tooltip fields arrive as a `DeltaTip` object (`previousText`, `intervalText`, `method`), and `tip={false}` hands the tooltip to the container. With no comparison it shows `n/a`.
+
 Purpose: a metric change as a signed value in its unit, from `formatMetricDelta(input)`: `+5.3 pts`, `+12`, `+12.4%`.
 
 ```ts
@@ -2912,6 +2930,8 @@ interface DomainCellProps {
 - **Variants:** none. **States:** favicon loaded, placeholder square, redirect flag (`TriangleAlert`), truncated subdomain (registrable part always visible).
 - **A11y:** favicon `alt=""`; row header when it is the identity column. **Use:** `col.domain`. **Not for:** full URLs (`URLCell`), citation source rows (`SourceDomainCell` preset).
 
+> As built (WP-08): the file is `apps/web/src/components/app/cells/domain-cell.tsx`, with `DomainRoleBadge` and `Favicon` beside it. The role prop is `role` (`own`, `competitor`, `third_party`); it is never spread onto a DOM element, but `jsx-a11y/aria-role` flags a literal `role="own"`, so callers pass a typed constant. The icon is a `favicon` prop (`show`, `hide` or absent for no slot) because the project setting does not exist yet; the host is always visible beside it, the request carries only the normalized host (no scheme, path, query, port, credentials or leading www), and a host the normalizer refuses is never requested. The role is a neutral badge word. Bidi controls in host text are neutralised (`visible-text.ts`), the prefix shrinks first and the registrable domain stays, and the category is sr-only text outside the link.
+
 ### 8.9 URLCell
 `app/cells/url-cell.tsx` · V1 · [12 §6](12-tables.md), [22 §5](22-content-formatting.md)
 
@@ -2928,6 +2948,8 @@ interface URLCellProps {
 
 - **Variants:** none. **States:** valid, invalid URL (raw string with `warning-text` icon, "Invalid URL" tooltip), empty, focused (widget mode reaches Copy and Open).
 - **A11y:** buttons "Copy ranking URL" and "Open /pricing in a new tab" (24 px); tooltip shows the full display URL. **Use:** `col.url`. **Not for:** domains (`DomainCell`), ranking URL with target logic (`RankingURLCell`).
+
+> As built (WP-08): the file is `apps/web/src/components/app/cells/url-cell.tsx`. It takes the API's URL string and shows the display URL with the host always visible; an address a browser would run as script (`javascript:`, `data:`, `vbscript:`), one with credentials (including the `https://google.com@evil.com/` decoy) or a protocol-relative one is shown as plain text with the "Invalid URL" warning and no link. Hostile text is always React text. The link names carry the host and path, an external Open link is a plain `<a>` with `rel="noopener noreferrer nofollow"`, and a link to an inspector is a typed `Route`. `CopyButton` has a new `inGrid` prop (default true, unchanged): `URLCell` passes `inGrid={context === 'grid'}`, so Copy is a Tab stop in a list, a drawer or a card and keeps `tabindex` -1 in a grid.
 
 ### 8.10 SparklineCell
 `app/sparkline/sparkline-cell.tsx` · V1 · [12 §6](12-tables.md), [15 §9](15-data-visualization.md)
@@ -3055,6 +3077,8 @@ interface MetricStripProps {
 - **Use:** page summaries on T1, T2, T3; inspector summary (`sm`).
 - **Not for:** KPI card grids, more than 6 items (split the scope), pooled AI values without the "Equal-weight average (3 engines)" label, repeating metrics shown elsewhere on the page.
 
+> As built (WP-33): an item with `href` is a link across its whole cell, and a linked metric shows its `tip` tooltip when the mouse is over it, as an unlinked one does (the link carries a label-purpose copy, so assistive technology still hears the description once, from the value cell).
+
 ### 9.2 MetricItem (MetricLabel)
 `app/metric/metric-item.tsx` · V1 · [23 §2.1](23-application-patterns.md), [23 §2.4](23-application-patterns.md)
 
@@ -3094,6 +3118,8 @@ interface MetricCardProps extends Omit<MetricItemProps, 'sparkline'> { chart?: S
 ### 9.4 Delta
 `app/metric/delta.tsx` · V1 · [14 §5](14-badges-status.md), [02 §6](02-color-system.md)
 
+> As built (WP-07): the file is `apps/web/src/components/app/metric/delta.tsx`. The tooltip prop is `tip` (a `DeltaTip`, or `false`), and `test` (`paired` or `interim`) labels the interim test until the API sends `is_detectable` (D-2). With no comparison it renders nothing.
+
 Purpose: inline signed metric change outside tables (strips, inspector, sentences), from `formatMetricDelta`.
 
 ```ts
@@ -3128,6 +3154,8 @@ interface ConfidenceIndicatorProps {
 ### 9.6 SampleCount
 `app/metric/sample-count.tsx` · V1 · [23 §8.3](23-application-patterns.md)
 
+> As built (WP-07): the file is `apps/web/src/components/app/metric/sample-count.tsx`. The noun is a typed `noun` prop (`observations`, `answers`, `checks`, `prompts` or `keywords`), and a null count renders `n/a`.
+
 Purpose: "612 of 1,296 obs" from `formatSampleCount`, with the noun always present.
 
 ```ts
@@ -3139,6 +3167,8 @@ interface SampleCountProps { k: number | null; n: number | null; noun: SampleNou
 
 ### 9.7 MetricInfo
 `app/metric/metric-info.tsx` · V1 · [22 §10](22-content-formatting.md), [23 §8.1](23-application-patterns.md)
+
+> As built (WP-07): the file is `apps/web/src/components/app/metric/metric-info.tsx`. It takes `name`, `definition`, `formula` and `methodologyHref` as content props in place of `metricKey`, because no metric registry exists yet. The popover is non-modal and the Methodology link is always last.
 
 Purpose: the (i) button and 360 px popover that explain a metric's meaning in a fixed order.
 
@@ -3171,6 +3201,8 @@ interface MetricSwitcherProps { value: MetricKey; options: ReadonlyArray<{ key: 
 
 ### 9.9 StatisticsPanel
 `app/metric/statistics-panel.tsx` · V1 · [23 §8.6](23-application-patterns.md), [20-frontend-specification.md](../20-frontend-specification.md) §6
+
+> As built (WP-07): the file is `apps/web/src/components/app/metric/statistics-panel.tsx`. It takes `state` (loading, error, empty, ready or refetching) and a typed `StatisticsContent` object, in place of `metric`, `engine` and the API value types, because no metric registry or stats API exists yet. There is no `RefetchBar`: a refetching panel keeps its data with `aria-busy`, and the consumer draws the bar. Movers and panel sizing are not rendered.
 
 Purpose: estimate, uncertainty, period comparison, movers, version boundaries and panel sizing for one AI rate.
 
@@ -3224,6 +3256,9 @@ interface ChartFrameProps {
 - **A11y:** `figure` with `figcaption`; view switch is a single-choice segmented control; legend items are buttons with `aria-pressed` (the last visible item is `aria-disabled` with a reason); hiding announces "HubSpot hidden".
 - **Use:** every chart. **Not for:** sparklines (`SparklineCell`), charts inside dialogs.
 
+> As built (WP-37): the activity cards of `features/ai-overview/cards/activity/` that are lists of facts (`activity.collection_status`, `ops.engines`, `ops.ai_spend`) and the daily tables behind the calendar and status cards put a `PlainTable` (`components/app/table/plain-table.tsx`) in the frame's `table` view, and `ops.engines` also shows one as its body. Every card passes a caption, a first column as the row header and its own words. Known gap: the `PlainTable` cards are not tuned for Compact density (they keep the Default row height).
+
+> As built (WP-35): `loadingHeight` (optional, a number of px, no default) sets the height the loading body reserves when the loaded body is taller than `height`, as with a list of rows or a table that the frame cannot size from a token. The loading body is the larger of `height` and `loadingHeight`; left out, it is `height` as before, so no other chart changes. The empty and error states (`min-height` of `height`) and the ready chart ignore it. The competitor cards pass `loadingBodyHeight(key)` from `features/ai-overview/cards/competitors/skeletons.tsx`, which takes the frame's loading chrome (padding, title line, gap and the footnote lines the card already has) off the skeleton's total, so the panel is as tall while the frame loads as the skeleton before it and the card after it.
 ### 10.2 EChart
 `app/chart/echart.tsx` · V1 · [15 §3](15-data-visualization.md), [ADR-DS-006](adr/ADR-DS-006-echarts-wrapper.md)
 
@@ -3308,6 +3343,8 @@ interface OutcomeMixBarProps {
 - **Variants:** `size` 2 values. The `panel` size renders through `StackedBar100` (section 10.11) with the four outcomes in a fixed order; `OutcomeMixBar` fixes the segments, their order and their names, `StackedBar100` owns the drawing. **States:** data, insufficient (text instead of bar); never collapsed to fewer segments.
 - **A11y:** `role="img"` with "Mentioned and cited 4, mentioned only 3, cited only 1, neither 4 of 12"; tooltip counts. **Use:** Prompt Detail rate table, prompt inspector. **Not for:** a merged "visible" rate (never).
 
+> As built (WP-37): `ai.citation_share_by_domain_type` (`features/ai-overview/cards/sources/role-share-card.tsx`) draws one `StackedShareBar` (`components/app/chart/stacked-share-bar.tsx`) per asked engine and never one pooled bar. The segments are Own (`chart-1`, only for the own role), Competitor (`chart-2`) and Third party (`chart-other`); `denominatorText` is "of 285 citation units" and the legend table carries every count ("15.8%, 45 of 285 units"). An engine with no citation unit draws no bar and says "No citation on this engine", never 0%; an engine with fewer than 4 citing answers is `thin`, and its answer count is an upper bound because one answer can cite several roles.
+
 ### 10.7 Heatmap
 `app/chart/heatmap.tsx` · V1 · [15 §5](15-data-visualization.md), [24 §9.4](24-page-templates.md)
 
@@ -3324,6 +3361,11 @@ interface HeatmapProps {
 
 - **Variants:** none. **States:** as ChartFrame. **A11y:** table view is the full description; legend swatches exempt from forced colors. **Use:** Keyword Detail SERP features, topic engine grids. **Not for:** precise lookup (table).
 
+> As built (WP-06): the component is `components/app/chart/heatmap-grid.tsx` (`HeatmapGrid`, under `apps/web/src`), and the one bin function is `components/app/chart/heat-bins.ts`. The props are `caption`, `rowHeader`, `promptsHeader`, `columns` (`{ id, label }`), `rows` (`HeatRow`: `id`, `label`, `name`, `cells`, `prompts`, `href`, `children`), `scale` (`sequential` or `diverging`), `boundaries` (column indexes that start after a version boundary), `density` (`default` or `compact`) and `form` (`grid` or `table`). Departures from the inventory: there is no `bins` prop, because the bins are fixed by D-05 in `heat-bins.ts` and a page cannot pass its own; `form`, `density`, `name` (the row's plain name, used by its disclosure button) and `prompts` (the Prompts column, shown when any row has a count) are added; the `cells` index list, `cellLabels` and the `presence` scale are not built. The grid is `role="treegrid"` when any row has children and `role="grid"` otherwise. The row header pins only from a 576 px container (DS 19 rule 5a); narrower, it scrolls with the other columns. Data columns are 88 px (`w-22`), and 240 px in the Table form. Cell text is drawn only in cells at least 36 px wide (DS 15 section 5); below that the fill stays, and the accessible name and tooltip still carry the value and counts. Diverging bins follow the change in points: under 5, 5 to 15, and 15 and up on each side, coloured only when the change is detectable, otherwise the neutral bin "Within normal variation" (plan Q3). Dark `--seq-5` measured below 4.5:1 with both text colours, so it was changed from `oklch(0.58 0.15 262)` to `oklch(0.61 0.15 262)`: dark with `foreground-inverse` went from 4.02 (failed) to 4.55, and dark with `foreground` went from 3.71 to 3.28 (not used). Light is unchanged at 4.85 with `foreground` and 3.54 with `foreground-inverse`, so the seq-5 text is `foreground` in light and `foreground-inverse` in dark. The CH-04 text mapping in `docs/ai-visibility/inventory/overview-and-charts.md` was corrected to match (commit 4074a367). The seven `--color-div-*` theme colours were added to `apps/web/src/styles/globals.css` below WP-05's `seq` block. WP-05's `BarList` uses `bg-seq-1` to `bg-seq-7` as a named palette (CH-18) and is allow-listed in the one-bin-function guard of `heat-bins.test.ts`. Known limits: virtualising past 100 rows (CH-11) is not built; the CH-04 list form below 768 px belongs to the Overview feature; after a mouse collapse of a tree row that held the roving tab stop, the stop falls back to the first row.
+> As built (WP-35): `columnWidth` (`default` or `wide`) sets the data column of the grid form to 88 px (`w-22`, the default) or 112 px (`w-28`) for headers that are names, such as brands; the Table form keeps 240 px. The key under the grid is a flex wrap list of three even columns (`w-1/3` items, at most 560 px wide), so its nine items fill three rows and none is left alone.
+
+> As built (WP-37): the collection calendar (`ops.answer_calendar`, `features/ai-overview/cards/activity/parts/calendar-grid.tsx`) tried `HeatmapGrid` first and does not use it: its cell is one rate with one line of text, and the calendar needs a cell for a day with no known schedule, a failure glyph with its count and a distinct glyph for a run the budget blocked. It is an HTML table (weekdays are rows, weeks are columns) whose fills come from `sequentialBin` of `heat-bins.ts`, so one rate has one colour on every heat map and the guard test of the one bin function still holds. The fill is valid answers over scheduled answers; the cell prints counts, not a percent; a day with no known schedule is a dashed outline, never the lowest bin; the glyphs come with words, not colour alone. Cells are not focusable: the name and tooltip carry the text, and the Table view and the export list every day. A grid wider than its card scrolls inside one focusable region.
+
 ### 10.8 SmallMultiples
 `app/chart/small-multiples.tsx` · V1 · [15 §5](15-data-visualization.md)
 
@@ -3335,6 +3377,10 @@ interface SmallMultiplesProps { panels: ReadonlyArray<{ id: string; title: strin
 
 - **Variants:** none (`grid-cols-[repeat(auto-fill,minmax(280px,1fr))]`). **States:** as ChartFrame per panel.
 - **A11y:** each panel is its own figure with summary. **Use:** per-engine trends, 7 or more entities after "Show all", two measures over time instead of dual axes. **Not for:** one metric with 1 to 6 series (one chart).
+
+> As built (WP-06): the component is `components/app/chart/small-multiples.tsx`. The scatter series is not here: it lives in `components/app/chart/echart-scatter.tsx`, loaded only through `import()` (see section 4.6 of `20-frontend-specification.md`). The props are `title`, `variant`, `meta`, `notice`, `footnote`, `categories`, `categoryHeader`, `titles`, `panels` (`SmallMultiplePanel`: `id`, `name`, `role`, `points`, `previous`, `cellText`), `boundaries`, `height` (140 or 180), `summary`, `menu`, and a frame status (loading, ready, refetching, empty or error, with its `empty` or `error` content). The inventory's `panels` with `option`, `sharedY` and `group` are not built: each panel's option is built from its data, the y scale is always shared, and the connection group is a `useId` value. Layout: one column below 768 px, and from `md` two columns when there are more than two panels; the inventory's 280 px `auto-fill` grid is not used. Below 768 px, an even count of four or more panels also puts x labels on the second to last panel, because the labels are drawn in the canvas. `rateCeilingOf` is exported from this file and computes its own shared ceiling over bands and previous values, at least 0.1 and at most 1. Follow-up: `features/prompts/history-model.ts` should use it instead of its own rule. `EChart` in `components/app/chart/echart.tsx` gained an optional `group` prop that sets `instance.group` and calls `connect` once per group id. The connected crosshair shows the tooltip box only on the hovered panel (a ref read by the tooltip formatter). The menus carry CSV and link only, with no PNG (plan Q4). The parts do no pooling, and `POOL_BELOW_PROMPTS` is not in the code yet: it comes with WP-12 (decision D-04). The previous period line has values but no counts (R1), so it has no tooltip row, no Table column and no CSV column.
+
+> As built (WP-34): `SmallMultiples` takes an optional `controls` node, shown in the frame between the header and the charts, for a control that changes what every panel draws (the Series select of the rate trend card). It was added to this WP-06 file under a coordinator lease; it is additive, and a test shows the node in the frame. Used with `height` 140 (one panel per engine) and 180 (one panel) by `ai.rate_trend_by_engine` and `ai.mention_trend`.
 
 ### 10.9 Sparkline (renderer)
 `app/sparkline/sparkline.tsx` · V1 · [15 §9](15-data-visualization.md)
@@ -3375,7 +3421,25 @@ interface BarListProps { caption: string; mode: 'comparison' | 'distribution'; i
 - **Use:** comparison: share of voice, top cited domains, top competitors. Distribution: rank buckets (`RankDistribution`, section 14.3), workload spend side list.
 - **Not for:** time series, parts of a whole that must read as 100% (`StackedBar100`), more than 15 items inline.
 
-### 10.11 StackedBar100
+> As built (WP-20): the rows of both modes share `BarListRowBase` in `components/app/chart/bar-list.tsx` and gain two optional props. `replace` makes the row's link replace the history entry instead of adding one, for a link that moves a drawer that is already open. `onSelect` runs on a plain left click instead of the router following `href` (a click with a modifier key, or a middle click, still follows it, so a new tab works); it is for a link that moves state the page keeps in the address itself. The topic drawer's engine panel needed it: the router's own navigation changed the URL but left the drawer on Overview when a click had opened it, and only the browser pass showed it, because the jsdom tests could not. Rows without the props behave as before.
+
+> As built (WP-20): `TopicEnginePanel` (SC-26) is `apps/web/src/components/app/chart/topic-engine-panel.tsx`, a presentational part built on `BarList` in `comparison` mode with `max` 1, so a rate fills its bar as far as the rate goes. Props: `caption`, `labelHeader`, `valueHeader`, `contextHeader`, optional `changeHeader` and `density`, and `rows`, one `EnginePanelRow` per engine in the order the engines are shown: `code` (chooses the `EngineLogo`), `label`, `state` (`ok`, `insufficient` or `none`), `value` (0 to 1, only when `ok`), `valueText`, `contextText`, `answers`, `noneText`, `accessibleText`, and the optional `tip`, `href`, `replace`, `onSelect` and `delta`. A row with `ok` draws the bar and the percent; `insufficient` (fewer than 4 answers) says its answers and draws no bar; `none` says why and is never 0. No row is the own brand, so every bar is the neutral chart token (low non-text contrast, which the text beside each bar makes up for). The panel holds no string: the feature passes every word. `TopicEnginePanelTable` draws the same rows as a table for a frame's Table view. The gallery specimen is the group "TopicEnginePanel" in `components/design-system/chart-parts-section.tsx` (anchor `topic-engine-panel`), inside a `ChartFrame` with its Table view; no new gallery section. The feature part that builds the rows is `features/prompts/topic-drawer/engine-panel.tsx`.
+
+> As built (WP-36, 2026-11-14): four parts are feature local, in `apps/web/src/features/ai-overview/cards/topics/`. Each is presentational (the card passes finished words and numbers, the part computes no rate), and none is exported from `components/app`.
+>
+> `EngineRangePlot` (`parts/engine-range-plot.tsx`, CH-43): a list of rows, each a topic with one marker per engine on one shared 0 to 100 percent axis. Props: `rows` (`RangePlotRow`: `id`, `label`, optional `href`, `dots`, `spreadText`, `verdict`, `accessibleText`, `detail`) and `caption` (names the list). A dot (`RangeDot`) has `code`, `name`, `position` (a percent, or `null` to draw no dot, so an engine under 4 answers or with no answer is never placed), and `text` (its words with counts). The marker shape follows the engine (`markerOf`: circle, square, triangle), so colour is never the only difference. Every row has one `sr-only` text and the drawn part is `aria-hidden`. `EngineRangeTable` (props `rows`, `caption`, `labels`) is its Table view.
+>
+> `TopicTrellis` (`parts/topic-trellis.tsx`, CH-45): a grid of small charts, a row per topic and a cell per engine (up to 3 columns from the container's `@xl` width, one below it), built on `smallMultipleOption` and `rateCeilingOf` of `SmallMultiples`. Props: `rows` (`TrellisRow`: `id`, `label`, `meta`, `group`, `cells` of `TrellisCell` with `panel`, `column`, `caption`, `hasSeries`), `categories`, `titles`, `ceiling` (one top for every panel), `hidden` (the columns the legend turned off), `words` (`noWeekly`, `noValue`, `latest`) and an optional `legend` (`title`, `items`, `onToggle`). The crosshair is connected along a row only, the week labels are on the last row only, the captions of a row share one line height so the plots stay level, and a cell with no series says so in words and draws nothing. `TrellisTable` (props `rows`, `categories`, `categoryHeader`, `caption`, `hidden`, `words`) is the Table view, a row per week and a column per panel with the tooltip words, and `trellisCsv` writes the same words with a gap as an empty cell.
+>
+> `PromptWeekHeatmap` (`prompt-week/prompt-week-heatmap.tsx`, CH-12): `HeatmapGrid` with a column per week and a row per prompt. Props: `grid` (`PromptWeekView`: `columns` and `rows` of `HeatRow`), `caption`, `rowHeader`, `density` and optional `form` (`grid` or `table`). It uses no hook and imports nothing of the Overview, so any feature can render it once wired. A cell's tip says the pooled weeks, the answers and the percent, a cell under 4 answers is hatched and says its answers, and a week without a valid answer is n/a. `prompt-week-model.ts` builds the view.
+>
+> Follow-up: promote `EngineRangePlot`, `TopicTrellis` and `TrellisTable` to `components/app/chart` (the trellis folded into `SmallMultiples` with a `columns` prop, plan lease L-E) and `PromptWeekHeatmap` to `components/app` after a second consumer exists. The gallery has no specimen for any of them yet.
+
+> As built (WP-34): the engine cards of the Overview (`features/ai-overview/cards/engines/`) use the HTML chart parts of WP-05 in `ChartFrame` kind `html` without changing them. `BarList` in `distribution` mode draws `ai.engine_agreement` (prompts named by 0 to N asked engines, colors `seq-3` to `seq-6`) and `ai.sample_coverage` (prompts with 4 or more, 1 to 3 and no valid answers per engine, one group per engine); a count that is not one of the N prompts the bars are scaled to is a `none` row with words and no bar. `StepBars` draws `ai.answer_funnel` (answers, valid, named, named and cited, one scale for every engine; answers that were not valid are collection loss). `IntervalBar` draws `ai.period_comparison` in `dumbbell` form (the dot is the prompt weighted rate, the whisker the interval of the pooled counts, so the dot can sit outside it; share of voice has no interval and its rows are words) and `ai.prompt_movers` in `diverging` form, with the domain from `changeDomain(rows)` in both. `StackedShareBar` draws `ai.outcome_mix` and never uses `chart-1`. Two cards that are not parts: `ai.change_waterfall` draws a local `waterfall-body.tsx` (rows with a bar placed by percent, no string, ends in `chart-reference`), which may move to `components/app/chart` when a second card needs it, and `ai.country_breakdown` repeats `TopicEnginePanel` once per country. None of these cards has a PNG: there is no HTML rasteriser.
+> As built (WP-34): `StackedShareBar` writes a segment's share inside it only when the segment is at least 40 px wide (`MIN_LABEL_PX`, from the measured width of the bar); until the bar is measured, or when its width is 0, the old rule of 6% of the bar applies. A segment without a label keeps its share and count in the image name and in the legend table.
+
+> As built (WP-37): six cards of `features/ai-overview/cards/sources/` use `BarList` in `comparison` mode. `sources.top_domains` ranks domains by citation units: the label is the domain, the badge is `DomainRoleBadge`, the value is the share with "333 of 569 units" as context, and `chart-1` marks only the own domain; its change is `Delta` with `test: 'interim'` and no detectability, so it is never coloured. Its By role view (CH-34, the treemap is a follow-up) renders one `BarList` per role under a section title with the role total, all on one scale from 0, plus a remainder line for the units of the role that the listed domains leave; the Table view is a `PlainTable` with every domain and remainder. `sources.own_pages`, `sources.new_lost` and `ai.fanout_top` use the same row model (value text, context text, optional badge and tooltip). A row that cannot link is plain text, never a dead link. A share on too few answers is `kind: 'thin'`, never a percent.
+
 `app/chart/stacked-bar-100.tsx` · V1 · [15 §5.2](15-data-visualization.md), [visual-spec §5](reference/visual-spec.md)
 
 Purpose: one 100% stacked horizontal bar with a legend table below: parts of a whole. It replaces pie and donut charts. `OutcomeMixBar` (section 10.6) is the four-outcome preset built on it.
@@ -3570,6 +3634,8 @@ interface ErrorPageProps { errorId: string | null; onReset: () => void; homeHref
 ### 11.10 Banner
 `app/status/banner.tsx` · V1 · [18 §4](18-notifications-alerts.md)
 
+> As built (WP-07): the file is `apps/web/src/components/app/status/banner.tsx`. `tone` adds `neutral` (a fact with no judgement) and `placement` adds `inspector` (full width under the inspector header); both are additive. `live` replaces `liveOnAppear`, `actions` takes a ReactNode, and `dismissId` and `more` are not built.
+
 Purpose: a condition of the page, inspector, dialog or panel the user is looking at.
 
 ```ts
@@ -3697,6 +3763,14 @@ interface ChangeFeedProps { items: readonly ChangeFeedItem[]; totalText: string;
 - **Variants:** none. Each group (Needs attention, Changes, Notices) has a 48 px header row: name in `type-subsection-title` plus the count in `type-meta` ("Needs attention · 3"). Rows 36 px: time (`type-meta num`), 16 px glyph (`TrendingUp` in `positive-text` or `TrendingDown` in `negative-text` for rank moves, `foreground-tertiary` otherwise), sentence in `type-body` with entity names in weight 500 and links in `primary-text`, neutral type `Badge`, source in `type-meta`, right-aligned "View" link. **States:** items, empty ("No detectable changes in the last 28 days"), anomaly hold notice line.
 - **A11y:** group headers with counts; each item a link to its evidence. **Use:** Overview only. **Not for:** per-object history (`EventTimeline`); undetectable AI changes (excluded).
 
+> As built (WP-08): the files are `apps/web/src/components/app/feed/change-feed.tsx`, `feed-row.tsx` and `feed-model.ts`. The group wrappers are plain `div`s around lists named by their heading (the frame is the only `section`). `FeedRow` has a compact form (a 128 px relative time, the sentence, the change in a fixed slot) and a full form (fixed time, badge and source slots on every row, so columns never shift; the badge is hidden below 448 px and its words stay in the sr-only text). A change is text first and coloured only by `Delta` when detectable. The state is one of loading, empty, error, ready or refetching, with `notice` for stale and partial data and `hold` for days that are not compared; rows that arrive are announced through the page announcer, counting only the rows shown, and the error state takes the caller's title and reason. The built props differ from the table above: `state` (loading, error, ready or refetching) with `items` and a numeric `total`, `title`, `windowText`, `timeZone`, `viewAllHref`, `notice`, `holdText`, `emptyAction`, `filter` and `max`; an item has `change` (not `delta`), `at` as an ISO instant (not `timeText`), `group` and an `href` typed `Route`. `ChangeFeed` draws its own frame and title, so a card frame around it doubles the border until a frameless option is added; `FeedRow` has no selected state yet.
+
+> As built (WP-37, additive): the compact `FeedRow` sentence wraps to two lines (`line-clamp-2`, with the full text in its `title`) instead of one truncated line, so the figures at the end of a long sentence are not clipped; the full form still truncates to one line. `FeedItem.href` is optional: a row without one is plain text (the compact form is a `div` with no link, hover fill or focus ring; the full form has no hover fill and no "View" link, and keeps that column's width with an invisible, hidden spacer so the badge and source columns line up). `FeedItem.atLabel` replaces the time text ("28 days") for a row that describes a whole window, in both forms; the `time` element keeps `at` as its `datetime` and carries the exact time as its title. Existing callers render as before. The gallery shows the three cases in the "FeedRow compact" group of `domains-feeds`.
+
+> As built (WP-37): `activity.key_changes` (`features/ai-overview/cards/activity/key-changes-card.tsx`) renders `ChangeFeed` alone, with no `ChartFrame` around it, because the part draws its own frame and title. Its items are a detectable fall of an engine's rate (Needs attention), a detectable rise (Changes), and collection problems and new sources (Notices), each with the counts of both windows and a `Delta` that is coloured only because the move is detectable. With the comparison off, or no answers in the window before, the part's `holdText` says why and only the collection notices are listed. A row whose destination cannot show the scope has no `href` and is plain text. The card option `rows` (5 or 8) is the part's `max`; the group counts show only the visible rows.
+
+> As built (WP-37, narrow rows): the compact `FeedRow` is its own container query (`@container` on the `li`). Below 672 px of row width (`@2xl`) the change and the time sit in one line under the sentence, so the sentence has the whole line for its figures; from 672 px up they sit beside it, as before. The compact time is as wide as its text (no fixed 128 px column), so "10h ago" or "28 days" no longer reserves 128 px. The full form is unchanged, with its fixed 48 px time slot. The gallery group shows a wide and a narrow list.
+
 ### 12.3 SeverityIcon (SeverityLabel)
 `app/status/severity.tsx` · V1 · [18 §2](18-notifications-alerts.md)
 
@@ -3806,6 +3880,8 @@ interface SetupChecklistProps {
 
 - **Variants:** none. **States:** collapsed 40 px bar with 64 px `Progress`, expanded list of 32 px rows (`CircleCheck` done, `Circle` to do), complete (dismissible, permanent per project).
 - **A11y:** disclosure "Show steps"; list. **Use:** Overview only. **Not for:** banners on other pages (their empty states name the missing step), card grids.
+
+> As built (WP-31, 2026-11-14): the component is `features/onboarding/setup-checklist.tsx`, not `features/overview/components/`, because features may not import each other and Overview is not live; the Overview route file composes it (a route may import a feature). Props are the ones above with `href: Route` and `continueHref: Route`, plus `refetching?: boolean` (a read is under way while the steps stay: a static 2 px bar at the top of the panel, no skeleton). A step may also carry `unchecked?: boolean`: its fact says the step could not be read ("Could not be checked"), it is shown at every width where an ordinary fact is hidden on a phone, and the step counts as not done (unknown is never done). `AiSetupChecklist` (`ai-setup-checklist.tsx`) is the container: it reads the project's engines and answers, builds the three AI steps (`setup-steps.ts`), owns the open state (closed first) and takes `extraSteps?: readonly SetupStep[]` listed before them, so the page can add the steps that are not about AI and the progress text counts all of them. `onDismiss` is offered only when every step is done and only when it is passed; keeping a dismissal for the project is the page's, and no stored flag exists yet. Nothing mounts either component yet; the Overview owners (WP-33, WP-40) add the one line.
 
 ### 13.2 ConnectionStatus
 `features/integrations/components/connection-status.tsx` · Later · [24 §7](24-page-templates.md)
@@ -3996,6 +4072,8 @@ Mention and citation are separate facts everywhere: `MentionStatus` and `Citatio
 
 ### 15.1 EngineBadge
 `app/ai/engine-badge.tsx` · V1 · [14 §4](14-badges-status.md), [07 §5](07-icons.md)
+
+> As built (WP-07): the file is `apps/web/src/components/app/engine/engine-badge.tsx`, with `EngineLogo` in `engine-logo.tsx` beside it. The props are `engine`, `name` (the API's label) and `logo`. `label` and `observationClass` are not built: the observation class badge is out of scope, with no wave 1 consumer.
 
 Purpose: neutral text badge for an engine, with an optional leading `EngineLogo`; no brand colors. Adds a neutral outline observation class badge ("Consumer UI", "SERP AI", "Official API") where engines of different classes appear together.
 
@@ -4370,6 +4448,8 @@ interface DomainChipListProps {
 - **Use:** cited sources in the prompt and answer inspectors and in evidence headers.
 - **Not for:** filters (`FilterChip`), removable values (`Tag`), table cells (`DomainCell`), categorical metadata (`Badge`).
 
+> As built (WP-08): the files are `apps/web/src/components/app/cells/domain-chip.tsx` (`DomainChip`, `DomainChipList`, three chips by default and a "+N" button) and `count-popover.tsx` (`CountPopover`), not `app/ai/`. The chip list's "+N" opens a popover of the rest; `CountPopover` shows a count as a button that lists at most 5 domains each with its own count, "and N more" (a link when `moreHref` is given), a 24 px trigger, focus on the popup so one Escape closes it, and no trigger at all for a count of 0 or an unknown count. A count column is 64 px wide and fits about 9 characters. `ui/popover.tsx` now caps a `content` popover at the smaller of 360 px and the room the viewport leaves.
+
 ## 16. Cross-channel components
 
 Channels stay separate ([00-design-principles.md](00-design-principles.md) P9). No component in this section computes, displays or colors a combined SEO and AI score.
@@ -4547,6 +4627,8 @@ interface CostSummaryProps { monthToDate: MetricValue; projected: MetricValue; b
 ### 17.2 BudgetMeter
 `app/metric/budget-meter.tsx` · V1 · [23 §11.2](23-application-patterns.md)
 
+> As built (WP-07): the component is in `apps/web/src/components/app/metric/meter.tsx`, not `metric/budget-meter.tsx`, and `apps/web/src/features/costs/budget-meter.tsx` re-exports it. The props are the costs ones (`pct`, `softLimitPct`, `state`, `size`, `label`), not `spentUsd` and `limitUsd`, so the costs screens and this preset share one implementation. One edge differs from the old costs meter: when the soft limit is 100 or more and the share passes 100 without the hard state, the whole fill turns warning (the old meter drew a zero width warning segment). The API cannot produce that case.
+
 Purpose: `Meter` preset: 6 px outline-track meter, fill `foreground-muted` below the soft limit and `warning-solid` from it, tick at the soft limit, text value always beside it.
 
 ```ts
@@ -4554,6 +4636,8 @@ interface BudgetMeterProps { spentUsd: number; limitUsd: number; softLimitPct: n
 ```
 
 - **States:** below soft limit, soft limit reached, hard limit reached (whole fill warning), over 100% (text "112%"). **A11y:** "64% of $2,000.00, projected 96%". **Use:** Costs summary and project rows. **Not for:** progress of runs.
+
+> As built (WP-37): `ops.ai_spend` (`features/ai-overview/cards/activity/ai-spend-card.tsx`) uses `BudgetMeter` with `size="summary"`, the `pct`, `softLimitPct` and `state` of `GET budgets/status` (the share is the API's, never recomputed) and a `label` such as "AI spend this month: $12.40 of $50.00 this month (25%)", with the amounts through `formatCurrency` and the text always beside the bar. The budget shown is the project's `ai_prompt` budget, else the workspace `ai_prompt` budget, else the `all` budget, and the card names which one ("Project budget, AI prompts"); several budgets are never added up. Money committed by runs under way is its own line. There is no projected value: the forecast line is left out of v1 until the costs forecast route exists. The card reads `budgets/status` only for a member with `costs:read`, and the catalog hides it from everyone else.
 
 ### 17.3 BudgetStatusBadge
 `app/status/budget-status-badge.tsx` · V1 · [23 §11.5](23-application-patterns.md)
@@ -4716,6 +4800,8 @@ declare function useInspector(): UseInspectorResult;
 ```
 
 Used by: every `DataTable` `onRowOpen`, `CommandPalette`, `NotificationItem`, chart point clicks, `InspectorHeader`.
+
+> As built (WP-20): `useInspector` takes one optional argument, `{ entryKeys?: readonly string[] }` (`UseInspectorOptions`, default none). Entry keys are query keys that belong to the open record's entry, as `itab` does; the topic drawer's `eng` (the engine its Prompts tab is filtered to) is the first (`DRAWER_ENTRY_KEYS` in `features/prompts/topics-by-engine/drill.ts`). `open`, `close` and `setTab` set them to null in the same write, so the URL never keeps one for a record that is gone; `step` keeps them, so J and K stay on the engine. They are left out of the query that decides whether a close can use `history.back()`, so a close still goes back to the entry before the drawer. With no entry keys nothing changes, so a page that uses the same name for a scope key of its own (such as `eng` on other pages) is left alone; the other test files that use the hook pass unchanged. The module counts the mounted instances of the hook and clears `pushedFrom` only when the last one unmounts, because a drawer's header and tabs read the inspector too and come and go while it is open. An instance that passes no keys drops none, so every part of the drawer that opens, closes or steps passes `DRAWER_ENTRY_KEYS`.
 
 ### 19.2 useSavedView
 `app/data-table/use-saved-view.ts` · V1 · [12 §11](12-tables.md), [23 §14](23-application-patterns.md)
@@ -5076,3 +5162,13 @@ Disagreements between documents found while compiling this inventory. The resolu
 | 149 | `marker` and `trailing` on `col.keyword` | Keyword cell decoration in 12 §6 | `col.keyword` accepts `marker` and `trailing` render functions. `TargetMismatchMarker` renders when `target_url_match === false`; `trailing` renders an arrow-up-right link that opens the ranking URL in a new tab without opening the keyword inspector |
 | 150 | `ChartFrame.extendOption` and `rankAxis` | Custom chart axes and styling in 15 §7 | `ChartFrame` accepts `extendOption(baseOption, tokens)` callback so features can inject custom ECharts options without modifying internal chart builders. `rankAxis` (`lib/charts/rank-chart.ts`) provides inverted 1 to 20 scale up to the depth shown, guides at 3, 10, 20 with labels in right margin, and hatched depth bands |
 | 151 | Merged Rank and Change column | 24 §9.3 shows separate Rank and Change columns | Rank and Change merged into a single Rank column (`col.rank`) with 32 px fixed rank box and fixed change slot to its right. Change column removed from default columns and URL `cols` |
+| 152 | `DataTable` extensions: `columnGroups`, `ColumnGroup`, `RowTree` level 3, `pinActions`, `rowContextMenu`, and `RowContextMenu` | 12 sections 10, 13 and 16 and 24 §9.5 give a table grouped header cells, a third tree level, a right pinned actions column and a right-click row menu; 3.26 builds the menu as `ui/context-menu.tsx` and 3.28 has it act on the selection | Props, all optional and off or defaulted so no other table changes: `columnGroups` (opt in) with `DataTableColumn.group: ColumnGroup` (`{ id, label }`, also an option of every `col.*` helper); `RowTree.level` `1 \| 2 \| 3` with `expanded` on level 1 and 2 group rows and ignored on level 3; `pinActions` (opt in); `rowContextMenu` (default true, needs `rowActions`). The context menu is `app/data-table/row-menu.tsx`, not `ui/context-menu.tsx`, which does not exist: Base UI's `ContextMenu.Trigger` stops every `contextmenu` event and prevents the browser's menu inside its trigger, so it cannot leave Shift plus right click, a link or a field to the browser (16 §5.4). The table handles `contextmenu` itself (`context-menu.ts`) and opens the same `Menu` as the More button from a button of no size at the pointer; a touch long press of 500 ms and 10 px is run by the table because iOS Safari raises no `contextmenu`. Deviation from 3.28: the menu is the More menu and acts on the one row, with no "12 keywords selected" heading, because `PromptAction`s are bound to their rows by the screen (`prompt-action.ts`) and ignore the rows they are given, so applying them to a selection would silently act on one row; revisit with the screens. Lazy child rows have no table support: the caller sends a row with `selectable: false` in their place. Details in 12 §16 |
+| 153 | `Tabs.overflowLabel` and `InspectorTabs.overflowLabel` (supersedes row 105) | Section 3.38 had `overflow?: 'menu'` for a "More tabs" button | Built for the underline variant, as an optional `overflowLabel` (the accessible name of the button), by WP-25 for the six prompt inspector tabs (decision D-02). Each tab and the 32 px button are measured in a hidden copy (`aria-hidden`, `inert`, `invisible`) and the row is observed with a `ResizeObserver`; the tabs that fit stay in the `tablist` and the rest move into a trailing `Menu` outside it, in order. The chosen tab always stays in the row and takes the place of the last tab that fits. Arrow keys, Home and End move among the visible tabs; the menu button is reached with Tab, Escape closes the menu and focus returns to the button. Without `overflowLabel` the markup and classes are unchanged (keyword, topic and cost screens). A disabled tab that does not fit is left out of the menu (a menu item can only be disabled with a reason); no inspector tab is disabled. The prompt inspector passes "More tabs"; with four tabs it shows no button. Measured in a browser with two stub tabs added (Citations after History, Fan-out after Competitors), against the mock world, light and dark: before, six labels need about 440 px of row and the inspector gives 408 px (358 px as a sheet at 390 px), so the row would overflow; after, at 390 px (sheet), 440 px (sheet) and 1440 px (docked, 438 px row) the row shows Latest, History, Citations and Competitors, the "More tabs" button holds Fan-out and Stats, the row's `scrollWidth` equals its `clientWidth`, the page has no horizontal scroll, Enter opens the menu with focus on its first item and Escape closes it with focus back on the button |
+| 154 | `ConfidenceIndicator` specimen | Section 9.5 | A `ConfidenceIndicator` group (Text, Text and bar, Bar, Unknown) is on `/design-system/metric-parts`, after `SampleCount`. The unknown row shows `n/a` with no bar. The prompt inspector Stats tab now uses `SampleCount` (`noun="answers"`) for the sample of each rate, and `StatisticsPanel` with `placement="inspector-tab"` for "Open statistics" |
+| 155 | `TopicEnginePanel`, `BarList` row props `replace` and `onSelect`, and `useInspector` `entryKeys` | Not in the inventory (SC-26); 10.10 gives a row an `href` only; 19.1 has no options | `TopicEnginePanel` and `TopicEnginePanelTable` are `app/chart/topic-engine-panel.tsx`, built on `BarList`; `replace` and `onSelect` are optional on every `BarList` row; `useInspector({ entryKeys })` is opt-in and off by default. Details in the As built notes under 10.10 and 19.1, and in 24 section 9.5 |
+| 156 | `CountryScopeControl`, `parseCountry` and `countryChoices` | Not in the inventory; 11 section 4 says only that Keywords draws its country control in the top bar | Shared by WP-22: `components/app/scope/country-scope-control.tsx` and `lib/locations/country-scope.ts`. Props of the control: `country` (two capitals or `null`), `isos` (the countries of the prompts and the chosen one, from `countryChoices`), `nameOf(iso)`, `labels` (`country(name)`, `allCountries`, `search`, `empty(query)`, `clear`, `open`) and `onCountryChange(iso or null)`; each page gives its own words. Hide rule: it returns `null` when `isos` is empty and no country is chosen; with exactly one country and none chosen it is a label, not a button; otherwise a combobox. The name shows from 1024 px, the ISO code below, and the pin alone for all countries. Citations and AI Overview use it; Prompts keeps `PromptsCountryControl` until it is folded in. Details in 24 section 9.7 and 11 section 4 |
+| 157 | `DomainInspector` and `CitationInspectorHost` | 23 section 4.2 gives the content of the domain inspector, not its parts | Feature parts of Citations, not shared: `features/citations/domain-inspector/`. `domain-inspector.tsx` has the inspector and its typed tab list (Overview, Pages, Prompts); `domain-header.tsx` the role badges and "Last cited"; `domain-strip.tsx` and `domain-model.ts` (`domainFigures`, `engineRows`) the strip and the figures; `share-trend.tsx` with `share-trend-model.ts`, `engine-table.tsx`, `cited-with.tsx` and `domain-seo-share.tsx` with `use-domain-seo-share.ts` the Overview sections; `domain-pages-tab.tsx`, `domain-prompts-tab.tsx` and `prompt-engines-model.ts` the other two tabs; `domain-reads.ts` the reads. `inspector-host.tsx` is the `CitationInspectorHost` the page mounts for both inspectors. Details in 23 section 4.2 |
+| 158 | `SourceInspector` | 23 section 4.2 gives the content of the source inspector, not its parts | Feature part of Citations, not shared: `features/citations/source-inspector/`. `source-inspector.tsx` has the inspector and its typed tab list (Overview, Prompts, Answers); `source-header.tsx` the title, badges and dates; `source-strip.tsx`, `source-model.ts` (`identityOf`, `pageRowOf`, `figuresOf`, `trendOf`) and `source-overview.tsx` the strip and the Overview; `source-prompts-tab.tsx`, `source-answers-tab.tsx` and `answer-rows.ts` the other two tabs; `source-reads.ts` the three reads. It is mounted by `CitationInspectorHost`. Details in 23 section 4.2 |
+| 159 | Citations mobile list shell | 19 section 6.7 gives the two-line row for a list, not a shell for the three Citations tabs | Feature part of Citations, not shared: `features/citations/mobile-rows/`. `list-shell.tsx` has `CitationListShell` (a `DataTableList` with the search and the tab's own controls in its toolbar) and `useCitationListLayout` (list below 768 px, table from 768 px up, the List and Table switch only when the screen is not touch-primary); `list-lines.ts` builds the two lines of a row from the same rows and formatters as the table cells; `domain-list.tsx`, `page-list.tsx` and `change-list.tsx` are the three lists. Details in 24 section 9.7 |
+| 160 | `CollectionLineView`, `UpdatedLink` and `AiCollectionStatusView` (WP-30, 2026-11-14) | Not in the inventory. 24 section 9.1 and 11 give the sidebar a collection line, 17 section 4 and 23 section 12.1 give AI pages a progress line, 18 section 4 a degraded banner, and 20 section 5.6 an "Updated" time, without parts of their own | Three presentational parts in `apps/web/src/components/app/status/` (files `collection-line-view.tsx`, `updated-link.tsx`, `ai-collection-status-view.tsx`), each with a test with `vitest-axe`. They take plain props and fetch nothing; the words come from the `runs` message namespace; the logic is in `lib/runs/ai-health-model.ts` and the hooks in `lib/runs/ai-reads.ts`, and thin connectors in `features/shell`, `features/prompts` and `features/operations` pass props (lint forbids one feature importing another and forbids a component that fetches; the detail is in the web spec 4.8 As built note). **`CollectionLineView`**: `{ line: LineDescription \| null; rail?: boolean }`. `line` comes from `lineOf` (kinds `none`, `unavailable`, `running`, `finished`) and is `null` while the newest run is read. States: loading (a 12 px text skeleton, with a visually hidden "Loading run status"; a 48 percent wide skeleton in the rail), none ("No runs yet", a dashed circle icon), unavailable ("Run status unavailable", a warning triangle), running ("Running now", the spinning status icon, also for a planned run) and finished ("Last run 06:12, 141 of 150 answers", the run's status icon, the date instead of the time when the run ended on another day in the project's zone, "Last run 06:12" alone when the run planned no task). It sets no type of its own: it takes the `type-label` of the wrapper the sidebar puts it in. `rail` draws only the icon, inside a `role="region"` with `tabIndex` 0 whose `aria-label` is the words, so a pointer or the keyboard focus shows a right-side `Tooltip` (`purpose="label"`) and assistive technology reads the words once. **`UpdatedLink`**: `{ text: string; href: Route \| null }`. With `href` it is a `TextLink` (`tone="inherit"`) rendered as a `next/link`, with a 24 px minimum box (WCAG 2.5.8) and the accessible name "`text`. Open the run that collected these answers."; with `null` it is the same text and nothing else, so a page with nothing to link looks as before. **`AiCollectionStatusView`**: `{ progress: { counts: { processed; failed; total } \| null; href: Route } \| null; notice: { engines: readonly DegradedEngineView[]; href: Route } \| null; failure: { onRetry: () => void; retrying: boolean } \| null }` with `DegradedEngineView` the `DegradedEngine` of `ai-health-model.ts` (`engine`, `planned`, `valid`, `rate`) plus `name`. It renders nothing when all three are `null`. States: progress (a compact `CollectionProgress` with `status="running"`, "Collecting answers: 412 of 1,000 tasks, 3 failed", "preparing the tasks" when `counts` is `null`, and a "View run" `TextLink`), notice (one warning `Banner`, `placement="region"`, per engine, with the counts and the percent from `formatCoverageRate`, and a "View run for Gemini" link), and failure (a quiet `type-meta` line "Answer coverage of the latest run did not load." with a ghost Retry `Button` that shows its loading state). Accessibility: the banners are present when the page is read, so they carry no live role; the end of a run is announced once by the connector through the announcer (`runs.progress.finished`), not by this view; every link keeps a 24 px target and a visible focus ring; colour never carries the meaning alone (the banner has a warning tone and the words "Below 90%"). Use: the sidebar footer (`CollectionLineView`), the Topics & Prompts toolbar and More actions menu (`UpdatedLink`; the menu has its own "Open latest run" item), and the area under the Topics & Prompts header (`AiCollectionStatusView`). Not for: a run's own progress (`CollectionProgress` in the run inspector), and a refetch (a static top bar) |
+| 161 | `PlainTable.scrollHint` (WP-35) | Row 143 gives `PlainTable` no note for a table that scrolls sideways | `scrollHint` (optional string) is said under the table, in `type-meta`, only while the table is wider than its region and scrolls ("Scroll for more engines"); it is left out when the table fits. Left out of the props, `PlainTable` renders as before with no wrapper. The competitor table card passes it for its engine columns |

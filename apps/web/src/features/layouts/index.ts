@@ -1,0 +1,70 @@
+/**
+ * The public entry of the layout screens (docs/superpowers/plans/2026-11-13-ai-wp-15-layouts-core.md, section 3).
+ * WP-16 and the page packages import from here and never edit a file behind it.
+ */
+// Provider: mode, draft, history, saves, and the actions on them
+export { LayoutProvider, useLayoutScreen } from './layout-provider';
+export type { LayoutActions, LayoutContextValue, LayoutProviderProps, SaveOutcome } from './layout-provider';
+export type { CardPart, FocusRequest, LayoutMode } from './layout-state';
+export { useLayoutCapabilities } from './use-layout-capabilities';
+export type { LayoutCapabilities } from './use-layout-capabilities';
+
+// Customize mode (WP-16): the screen wrapper, the controller's hook, and the controls of the page header
+export { CustomizableGrid, CustomizableScreen } from './customize/customizable-screen';
+export type { CustomizableScreenProps } from './customize/customizable-screen';
+export { useCustomize } from './customize/customize-controller';
+export type { CustomizeContextValue } from './customize/customize-controller';
+export { CustomizeButton, useCustomizeMenuItem } from './customize/customize-button';
+export type { CustomizeButtonProps, CustomizeLabel } from './customize/customize-button';
+export { CustomizingBadge } from './customize/customizing-badge';
+
+// A record drawer's cards mode: the Customize cards item, the close guard, the footer bar and the one column grid
+export { DrawerCustomizer, DrawerGrid, useDrawerCustomize } from './drawer/drawer-customizer';
+export type { DrawerCustomize, DrawerCustomizerProps } from './drawer/drawer-customizer';
+
+// The bar of customize mode: changes, Undo and Redo, Reset, Cancel and Save
+export { LayoutSaveBar } from './save-bar/layout-save-bar';
+export type { LayoutSaveBarProps } from './save-bar/layout-save-bar';
+
+// Presets: built-in layouts a page offers in the Start from menu of the save bar
+export { definePresets, presetItems } from './presets/presets';
+export type { LayoutPreset } from './presets/presets';
+export { StartFromMenu } from './presets/start-from-menu';
+
+// The card catalog, opened by the Add card slot of the customizable grid
+export { CardCatalogDialog } from './catalog/card-catalog-dialog';
+export type { CardCatalogDialogProps } from './catalog/card-catalog-dialog';
+
+// The headline numbers of a screen: view mode is a MetricStrip, customize mode arranges the same cells
+export { NumberStrip } from './numbers/number-strip';
+export type { NumberStripProps, NumberValue } from './numbers/number-strip';
+
+// What a screen says when its layout could not be read: the grid draws it; a page with no grid sets `readBanner`
+export { LayoutReadBanner } from './layout-read-banner';
+
+// Grid and frame: the slots a page or WP-16 fills
+export { LayoutGrid, SPAN_CLASS } from './layout-grid';
+export type { LayoutGridProps } from './layout-grid';
+export { CardFrame } from './card-frame';
+export type { CardFrameProps } from './card-frame';
+export { useBreakpoint } from './use-breakpoint';
+
+// Registry contract: how a page says what each card type renders
+export { CardSkeleton, defineCards } from './registry';
+export type { CardProps, CardRegistration, CardRegistry, RegisteredCard } from './registry';
+
+// Drag and drop for other zones (the number strip) and what is said about it
+export {
+  SILENT_ANNOUNCEMENTS,
+  dropAnimationFor,
+  layoutCollisions,
+  noShift,
+  rowCoordinateGetter,
+  useDragAnnouncements,
+  useDragBreakpoint,
+  useLayoutSensors,
+} from './dnd';
+export type { DragAnnouncements, RowCoordinateGetterArgs } from './dnd';
+export { useLayoutAnnouncer } from './announcements';
+export type { LayoutAnnouncer } from './announcements';
+export { dropIndex, keyboardTarget } from '@/lib/layouts';

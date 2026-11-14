@@ -62,6 +62,8 @@ Every metric has one registry key (`metric`). Keys for A1 to A14 and C1, C3 are 
 | Citation rate among observations with any citation (A2 variant) | `ai.citation_rate_given_citations` |
 | Share of observations with a qualifying ranked list (A9 denominator) | `ai.ranked_list_presence_rate` |
 | AI surface presence (share of keyword checks with an AI Overview or AI Mode answer, section 1 rule 5) | `ai.surface_presence_rate` |
+| Prompts in scope (the prompts counted once, with a valid answer or not; branded prompts only when asked; a count, no denominator) | `ai.prompts_in_scope` |
+| Valid answers (the valid, current answers in scope; `n_observations` counts every answer, so the difference is the answers that are not valid; a count, no denominator) | `ai.valid_answers` |
 | Mention-count share (exports and explicit request only, section 5) | `ai.mention_count_share` |
 | V4 mention volatility, V5 citation volatility, V6 within-run instability | `ai.flip_rate`, `ai.citation_jaccard_distance`, `ai.within_run_disagreement` |
 | F1, F2, F3, F5 fan-out metrics (F4 is a ranked list, not a value) | `ai.fanout_presence_rate`, `ai.fanout_mean_queries`, `ai.fanout_keyword_coverage`, `ai.fanout_own_top10_share` |

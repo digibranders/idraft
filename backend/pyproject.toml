@@ -153,6 +153,18 @@ source_modules = [
 ]
 forbidden_modules = ["idraft.api", "idraft.worker"]
 
+# Every top-level package but the CLI (the one caller) and the seed itself; a test keeps this
+# list equal to the packages that exist (tests/devseed/test_import_contract.py).
+[[tool.importlinter.contracts]]
+name = "the dev seed is reached only from the operator CLI"
+type = "forbidden"
+source_modules = [
+  "idraft.ai", "idraft.api", "idraft.collectors", "idraft.config", "idraft.db",
+  "idraft.domain", "idraft.extraction", "idraft.keywords", "idraft.providers",
+  "idraft.ranks", "idraft.storage", "idraft.vault", "idraft.worker",
+]
+forbidden_modules = ["idraft.devseed"]
+
 [dependency-groups]
 dev = [
     "asgi-lifespan>=2.1.0",

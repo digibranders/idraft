@@ -15,8 +15,15 @@ export const PREVIEW_SECTION_SLUGS = [
   'filters',
   'inspector',
   'data-display',
+  'charts',
+  'chart-parts',
   'overlays',
   'feedback',
+  'metric-parts',
+  'chart-grids',
+  'domains-feeds',
+  'controls',
+  'layouts',
 ] as const;
 
 export type PreviewSectionSlug = (typeof PREVIEW_SECTION_SLUGS)[number];

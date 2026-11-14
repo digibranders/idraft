@@ -15,7 +15,7 @@ import asyncio
 import json
 import uuid
 from collections.abc import Sequence
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, time, timedelta
 from decimal import Decimal
 from functools import partial
 from typing import Any
@@ -231,7 +231,12 @@ async def test_a_due_daily_schedule_checks_each_keyword_once_even_when_the_provi
     world = await make_world(migrated)
     for text in ("crm one", "crm two", "crm three"):
         await track(migrated, world.project, text)
-    began = (datetime.now(UTC) - timedelta(hours=2)).replace(second=0, microsecond=0)
+    now = datetime.now(UTC)
+    # A keyword is planned once a project-local day (UTC here), so the window must open on today's
+    # date: two hours ago would be yesterday's date for the first two hours after midnight, and the
+    # check of the new keywords made now would then be a second, legitimate check of that day.
+    began = max(now - timedelta(hours=2), datetime.combine(now.date(), time(), tzinfo=UTC))
+    began = began.replace(second=0, microsecond=0)
     await make_schedule(
         migrated,
         world.project,

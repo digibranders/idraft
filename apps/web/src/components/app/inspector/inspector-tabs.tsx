@@ -13,8 +13,10 @@ export interface InspectorTabsProps<TValue extends string> {
   label: string;
   value: TValue;
   onValueChange: (value: TValue) => void;
-  /** At most five, "Overview" first (16-drawers-dialogs-popovers.md section 2.3). */
+  /** At most six for the prompt inspector (D-02); the rest move into More tabs. "Overview" first (16-drawers-dialogs-popovers.md section 2.3). */
   items: readonly TabItem<TValue>[];
+  /** The name of the More tabs button. Without it every tab stays in the row. */
+  overflowLabel?: string | undefined;
   /** One `InspectorPanel` per item. */
   children: ReactNode;
 }
@@ -28,6 +30,7 @@ export function InspectorTabs<TValue extends string>({
   value,
   onValueChange,
   items,
+  overflowLabel,
   children,
 }: InspectorTabsProps<TValue>): ReactElement {
   return (
@@ -37,6 +40,7 @@ export function InspectorTabs<TValue extends string>({
       value={value}
       onValueChange={onValueChange}
       items={items}
+      overflowLabel={overflowLabel}
       className="min-h-0 flex-1"
       listClassName={TAB_ROW}
     >
@@ -60,10 +64,19 @@ export function InspectorPanel<TValue extends string>({
   );
 }
 
-/** The body of an inspector without tabs: the same scroll container and spacing. */
-export function InspectorBody({ children }: { children: ReactNode }): ReactElement {
+/**
+ * The body of an inspector without tabs: the same scroll container and spacing. A body with nothing focusable
+ * in it passes a `label`, which makes the scroll container a named region a keyboard can reach and scroll.
+ */
+export function InspectorBody({ children, label }: { children: ReactNode; label?: string }): ReactElement {
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain border-t border-border">
+    <div
+      {...(label === undefined ? {} : { role: 'region', 'aria-label': label, tabIndex: 0 })}
+      className={cn(
+        'min-h-0 flex-1 overflow-y-auto overscroll-contain border-t border-border',
+        label !== undefined && 'outline-none focus-visible:focus-ring-inset',
+      )}
+    >
       <div className="flex flex-col gap-3 p-4">{children}</div>
     </div>
   );

@@ -1,12 +1,12 @@
 import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { FileText } from 'lucide-react';
-import type { ReactElement } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Inspector } from './inspector';
 import { InspectorLayout } from './inspector-layout';
 import { InspectorSection } from './inspector-section';
-import { InspectorPanel, InspectorTabs } from './inspector-tabs';
+import { InspectorBody, InspectorPanel, InspectorTabs } from './inspector-tabs';
 import { axe } from '@/test/axe';
 import { renderWithProviders } from '@/test/render';
 
@@ -30,9 +30,12 @@ const onStep = vi.fn();
 function Harness({
   atFirst = false,
   title = 'best crm for startups',
+  list = <button type="button">A row of the list</button>,
 }: {
   atFirst?: boolean;
   title?: string;
+  /** What the list beside the inspector holds. */
+  list?: ReactNode;
 }): ReactElement {
   return (
     <InspectorLayout
@@ -71,7 +74,7 @@ function Harness({
         </Inspector>
       }
     >
-      <button type="button">A row of the list</button>
+      {list}
     </InspectorLayout>
   );
 }
@@ -145,6 +148,50 @@ describe('Inspector', () => {
     expect(onStep).not.toHaveBeenCalled();
   });
 
+  it('J and K step from a row of a treegrid, as from a row of a grid', async () => {
+    const { user } = renderWithProviders(
+      <Harness
+        list={
+          <div role="treegrid" aria-label="Cited domains">
+            <div role="row">
+              <div role="gridcell" tabIndex={0}>
+                g2.com
+              </div>
+            </div>
+          </div>
+        }
+      />,
+    );
+    act(() => screen.getByRole('gridcell', { name: 'g2.com' }).focus());
+    await user.keyboard('j');
+    expect(onStep).toHaveBeenLastCalledWith('next');
+    await user.keyboard('k');
+    expect(onStep).toHaveBeenLastCalledWith('previous');
+    expect(onStep).toHaveBeenCalledTimes(2);
+  });
+
+  it('J and K still step from a row of a plain grid', async () => {
+    const { user } = renderWithProviders(
+      <Harness
+        list={
+          <div role="grid" aria-label="Keywords">
+            <div role="row">
+              <div role="gridcell" tabIndex={0}>
+                crm
+              </div>
+            </div>
+          </div>
+        }
+      />,
+    );
+    act(() => screen.getByRole('gridcell', { name: 'crm' }).focus());
+    await user.keyboard('j');
+    expect(onStep).toHaveBeenLastCalledWith('next');
+    await user.keyboard('k');
+    expect(onStep).toHaveBeenLastCalledWith('previous');
+    expect(onStep).toHaveBeenCalledTimes(2);
+  });
+
   it('previews a drag over the list and commits the width on release', () => {
     Object.defineProperty(Element.prototype, 'setPointerCapture', { configurable: true, value: () => undefined });
     renderWithProviders(<Harness />);
@@ -194,5 +241,32 @@ describe('Inspector', () => {
     await waitFor(() => {
       expect(inspector()).toHaveStyle({ width: '440px' });
     });
+  });
+});
+
+describe('InspectorBody', () => {
+  it('without a label is a plain scroll container, as before', () => {
+    renderWithProviders(
+      <InspectorBody>
+        <p>Run facts</p>
+      </InspectorBody>,
+    );
+    const body = screen.getByText('Run facts').parentElement?.parentElement;
+    expect(body).toBeDefined();
+    expect(body).not.toHaveAttribute('tabindex');
+    expect(body).not.toHaveAttribute('role');
+    expect(body).not.toHaveAttribute('aria-label');
+  });
+
+  it('with a label is a focusable named region, so a keyboard user can scroll it', () => {
+    renderWithProviders(
+      <InspectorBody label="Run details">
+        <p>Run facts</p>
+      </InspectorBody>,
+    );
+    const region = screen.getByRole('region', { name: 'Run details' });
+    expect(region).toHaveAttribute('tabindex', '0');
+    expect(region.className).toContain('focus-visible:focus-ring-inset');
+    expect(region).toContainElement(screen.getByText('Run facts'));
   });
 });

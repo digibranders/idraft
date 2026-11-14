@@ -1,0 +1,447 @@
+#!/usr/bin/env bash
+# Runs a heavy local job (full test suite, build, e2e) so that only a few run at once on this Mac, across
+# every worktree of the repository. Waiters queue first in, first out.
+#
+# Usage:
+#   infra/dev/heavy [--lane heavy|medium] [--label TEXT] [--wait MIN] [--max MIN] -- COMMAND [ARGS...]
+#   infra/dev/heavy --status
+#
+#   --lane   heavy (1 job at a time, the default) or medium (2 at a time)
+#   --label  name shown in --status and in the waiting lines (default: the command's basename)
+#   --wait   give up after MIN minutes in the queue, exit 75 (default 60)
+#   --max    kill the command's process group after MIN minutes, exit 124 (default 40)
+#
+# Exit codes: the command's own code; 64 usage; 75 gave up waiting; 124 run timeout; 129 HUP; 130 INT; 143 TERM.
+#
+# State lives in <git common dir>/idraft-locks/<lane>/: slot-N directories taken with mkdir, and a
+# tickets/ directory with one file per waiter. Dead waiters and dead jobs are swept on every poll. While
+# $IDRAFT_HEALTH_DIR/pause exists (infra/dev/health-watch.sh makes it at CRIT) no new job starts and the
+# queue keeps its order; running jobs are never touched. Environment, for the self-test only:
+#   IDRAFT_LOCK_ROOT   state root (default: <git common dir>/idraft-locks)
+#   IDRAFT_HEALTH_DIR  where the health watcher keeps pause and state (default /tmp/idraft-health)
+#   IDRAFT_HEAVY_POLL  seconds between polls, fractions allowed (default 5)
+#   IDRAFT_HEAVY_UNIT  seconds per "minute" of --wait, --max and the progress line (default 60)
+#   IDRAFT_HEAVY_GRACE seconds between TERM and KILL of the command's process group (default 10)
+set -euo pipefail
+
+say() { printf 'heavy: %s\n' "$*" >&2; }
+die_usage() {
+  say "$*"
+  say "usage: infra/dev/heavy [--lane heavy|medium] [--label TEXT] [--wait MIN] [--max MIN] -- COMMAND [ARGS...] | --status"
+  exit 64
+}
+
+is_uint() { case "$1" in '' | *[!0-9]*) return 1 ;; *) return 0 ;; esac; }
+is_num() { # digits with at most one inner dot: 5, 0.2
+  case "$1" in '' | *[!0-9.]* | .* | *. | *.*.*) return 1 ;; *) return 0 ;; esac
+}
+now_ns() { perl -MTime::HiRes=gettimeofday -e '($s, $u) = gettimeofday; printf "%d%06d000\n", $s, $u'; }
+fmt_dur() { # fmt_dur SECONDS -> 3m12s
+  local s="$1"
+  [ "$s" -ge 0 ] || s=0
+  printf '%dm%02ds' $((s / 60)) $((s % 60))
+}
+field() { # field FILE KEY: the value of the first KEY= line, nothing if the file or the key is missing
+  local line
+  [ -r "$1" ] || return 0
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in "$2="*) printf '%s\n' "${line#*=}"; return 0 ;; esac
+  done <"$1"
+}
+
+# ---- options ----
+
+lane=heavy label="" wait_min=60 max_min=40 want_status=0 have_cmd=0
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --lane | --label | --wait | --max)
+      [ "$#" -ge 2 ] || die_usage "missing value for $1"
+      case "$1" in
+        --lane) lane="$2" ;;
+        --label) label="$2" ;;
+        --wait) wait_min="$2" ;;
+        --max) max_min="$2" ;;
+      esac
+      shift 2
+      ;;
+    --status) want_status=1; shift ;;
+    --) shift; have_cmd=1; break ;;
+    *) die_usage "unknown option: $1" ;;
+  esac
+done
+
+poll="${IDRAFT_HEAVY_POLL:-5}" unit="${IDRAFT_HEAVY_UNIT:-60}" grace="${IDRAFT_HEAVY_GRACE:-10}"
+is_num "$poll" || die_usage "IDRAFT_HEAVY_POLL must be a number of seconds, got '$poll'"
+is_uint "$unit" && [ "$unit" -ge 1 ] || die_usage "IDRAFT_HEAVY_UNIT must be an integer >= 1"
+is_uint "$grace" || die_usage "IDRAFT_HEAVY_GRACE must be an integer >= 0"
+health="${IDRAFT_HEALTH_DIR:-/tmp/idraft-health}"
+
+if [ -n "${IDRAFT_LOCK_ROOT:-}" ]; then
+  root="$IDRAFT_LOCK_ROOT"
+else
+  common="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" ||
+    die_usage "not in a git repository and IDRAFT_LOCK_ROOT is not set"
+  root="$common/idraft-locks"
+fi
+
+# Slots per lane: 1 heavy and 2 medium by default; the coordinator can raise them without editing this file by
+# writing "heavy=2" and "medium=3" lines into $IDRAFT_SLOTS_FILE (default /tmp/idraft-health/slots).
+lane_slots() {
+  local default file value=""
+  case "$1" in heavy) default=1 ;; medium) default=2 ;; esac
+  file="${IDRAFT_SLOTS_FILE:-/tmp/idraft-health/slots}"
+  if [ -r "$file" ]; then value="$(sed -n "s/^$1=\\([1-9]\\)\$/\\1/p" "$file" | head -n 1)"; fi
+  echo "${value:-$default}"
+}
+
+# ---- liveness of a slot ----
+
+lstart_of() { # lstart_of PID: the process start time with spaces normalised, nothing if there is no such process
+  ps -o lstart= -p "$1" 2>/dev/null | awk '{ $1 = $1; print }' || true
+}
+
+# slot_alive SLOT_DIR: 0 while the job in a slot may still be running. Call it in a condition (it returns 1).
+# The wrapper counts while its pid answers and still has the start time the owner file recorded (a reused pid
+# does not), and the command's process group counts while it answers: kill -9 on the wrapper alone leaves the
+# command running and using the machine. An empty pgid is the moment before the wrapper started its command:
+# then the wrapper alone decides. A slot with no owner file yet is the window between mkdir and the owner
+# file: it goes stale only after 2 polls plus 5 s, far more than a live claimant needs.
+#
+# It also sets judged_pid, the owner pid it looked at (empty without an owner file), so a reaper can tell
+# later whether the slot it renames is still the one that was judged. A slot that vanishes under the stat
+# (its owner just removed it) counts as alive: there is nothing to reap.
+judged_pid=""
+slot_alive() {
+  local pid pgid ls
+  judged_pid=""
+  if [ ! -f "$1/owner" ]; then
+    perl -e '@s = stat($ARGV[0]) or exit 0; exit(time - $s[9] > 2 * $ARGV[1] + 5 ? 1 : 0)' "$1" "$poll"
+    return
+  fi
+  pid="$(field "$1/owner" pid)" pgid="$(field "$1/owner" pgid)" ls="$(field "$1/owner" lstart)"
+  judged_pid="$pid"
+  if is_uint "$pid" && kill -0 "$pid" 2>/dev/null; then
+    if [ -z "$ls" ] || [ "$(lstart_of "$pid")" = "$ls" ]; then return 0; fi
+  fi
+  if is_uint "$pgid" && [ "$pgid" -gt 1 ] && kill -0 -- "-$pgid" 2>/dev/null; then return 0; fi
+  return 1
+}
+
+# ---- status (read only) ----
+
+dead_note=" (dead, removed at next poll)"
+
+status_lane() { # status_lane LANE
+  local l="$1" dir slots n=1 held=0 o t name tpid k=0 now started q mark
+  dir="$root/$l"
+  slots="$(lane_slots "$l")"
+  now="$(date +%s)"
+  while [ "$n" -le "$slots" ]; do
+    if [ -d "$dir/slot-$n" ]; then
+      held=1
+      o="$dir/slot-$n/owner"
+      started="$(field "$o" start)"
+      mark=""
+      slot_alive "$dir/slot-$n" || mark="$dead_note"
+      printf '%s: slot-%s pid %s label %s worktree %s running %s cmd %s%s\n' "$l" "$n" \
+        "$(field "$o" pid)" "$(field "$o" label)" "$(field "$o" worktree)" \
+        "$(fmt_dur $((now - ${started:-$now})))" "$(field "$o" cmd)" "$mark"
+    fi
+    n=$((n + 1))
+  done
+  [ "$held" -eq 1 ] || printf '%s: idle\n' "$l"
+  for t in "$dir/tickets"/*; do
+    [ -f "$t" ] || continue
+    name="${t##*/}"
+    tpid="${name#*-}"
+    if kill -0 "$tpid" 2>/dev/null; then
+      k=$((k + 1))
+      q="$k"
+      mark=""
+    else
+      q="-"
+      mark="$dead_note"
+    fi
+    printf '%s: queue %s: pid %s label %s waiting %s%s\n' "$l" "$q" "$tpid" "$(field "$t" label)" \
+      "$(fmt_dur $((now - ${name%%-*} / 1000000000)))" "$mark"
+  done
+}
+
+pause_line() {
+  local first=""
+  if [ -e "$health/pause" ]; then
+    if [ -r "$health/state" ]; then IFS= read -r first <"$health/state" || true; fi
+    printf 'pause: on (%s/pause) %s\n' "$health" "${first:-no state file}"
+  else
+    printf 'pause: off\n'
+  fi
+}
+
+if [ "$want_status" -eq 1 ]; then
+  pause_line
+  status_lane heavy
+  status_lane medium
+  exit 0
+fi
+
+# ---- validation of a run ----
+
+[ "$have_cmd" -eq 1 ] || die_usage "missing -- before the command"
+if [ "$#" -eq 0 ] || [ -z "$1" ]; then die_usage "empty command"; fi
+case "$lane" in heavy | medium) ;; *) die_usage "--lane must be heavy or medium, got '$lane'" ;; esac
+is_uint "$wait_min" || die_usage "--wait must be an integer >= 0, got '$wait_min'"
+is_uint "$max_min" && [ "$max_min" -ge 1 ] || die_usage "--max must be an integer >= 1, got '$max_min'"
+wait_min=$((10#$wait_min))
+max_min=$((10#$max_min))
+[ -n "$label" ] || label="${1##*/}"
+label="${label//$'\n'/ }"
+
+slots="$(lane_slots "$lane")"
+lane_dir="$root/$lane"
+worktree="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+cmdline="$(printf '%q ' "$@")"
+cmdline="${cmdline% }"
+
+# ---- slot logic ----
+
+my_ns="$(now_ns)"
+ticket_name="$my_ns-$$"
+ticket="$lane_dir/tickets/$ticket_name"
+marker="$lane_dir/.timeout-$$"
+held="" child="" pgid="" watchdog="" ahead=0 free=0 run_start=0
+
+# shellcheck disable=SC2329  # runs from the EXIT trap and from on_signal
+cleanup() {
+  # The watchdog must not outlive us: it would write a stale marker and kill a recycled process group.
+  [ -z "$watchdog" ] || kill -TERM -- "-$watchdog" 2>/dev/null || true
+  rm -f "$ticket" "$lane_dir/tickets/.new-$$" "$marker"
+  # Only a slot that still says it is ours: a slot reaped and taken by someone else stays.
+  if [ -n "$held" ] && [ "$(field "$held/owner" pid)" = "$$" ]; then
+    rm -rf "$held"
+  elif [ -n "$held" ] && [ ! -e "$held/owner" ]; then
+    # Stopped between mkdir and the first owner file.
+    rm -f "$held/owner.tmp"
+    rmdir "$held" 2>/dev/null || true
+  fi
+  return 0
+}
+
+# TERM the command's process group, give it the grace period, then KILL what is left.
+finish_group() {
+  local end
+  end=$(($(date +%s) + grace))
+  while kill -0 -- "-$pgid" 2>/dev/null && [ "$(date +%s)" -lt "$end" ]; do sleep 0.1; done
+  if kill -0 -- "-$pgid" 2>/dev/null; then kill -KILL -- "-$pgid" 2>/dev/null || true; fi
+}
+# shellcheck disable=SC2329  # runs from on_signal
+stop_group() {
+  [ -n "$child" ] || return 0
+  kill -TERM -- "-$pgid" 2>/dev/null || true
+  finish_group
+}
+# shellcheck disable=SC2329  # runs from the HUP, INT and TERM traps
+on_signal() { # on_signal EXIT_CODE
+  trap '' HUP INT TERM
+  [ -z "$watchdog" ] || kill -TERM -- "-$watchdog" 2>/dev/null || true
+  stop_group
+  cleanup
+  exit "$1"
+}
+
+write_owner() { # write_owner PGID: tmp file then rename, so a reader never sees half an owner file
+  printf 'pid=%s\npgid=%s\nlabel=%s\nworktree=%s\ncmd=%s\nstart=%s\nlstart=%s\n' \
+    "$$" "$1" "$label" "$worktree" "$cmdline" "$run_start" "$my_lstart" >"$held/owner.tmp"
+  mv "$held/owner.tmp" "$held/owner"
+}
+
+# Rank and free slots, from live tickets only. Sets ahead (live tickets older than ours) and free.
+survey() {
+  local t name tns tpid n=1
+  ahead=0
+  free=0
+  while [ "$n" -le "$slots" ]; do
+    [ -d "$lane_dir/slot-$n" ] || free=$((free + 1))
+    n=$((n + 1))
+  done
+  for t in "$lane_dir/tickets"/*; do
+    [ -f "$t" ] || continue
+    name="${t##*/}"
+    [ "$name" != "$ticket_name" ] || continue
+    tns="${name%%-*}"
+    tpid="${name#*-}"
+    is_uint "$tns" || continue
+    is_uint "$tpid" || continue
+    kill -0 "$tpid" 2>/dev/null || continue
+    if [ "$((10#$tns))" -lt "$((10#$my_ns))" ] || { [ "$tns" = "$my_ns" ] && [ "$tpid" -lt "$$" ]; }; then
+      ahead=$((ahead + 1))
+    fi
+  done
+}
+
+claim() { # first free slot wins; mkdir is the atomic step
+  local n=1
+  while [ "$n" -le "$slots" ]; do
+    if mkdir "$lane_dir/slot-$n" 2>/dev/null; then
+      held="$lane_dir/slot-$n"
+      return 0
+    fi
+    n=$((n + 1))
+  done
+  return 1
+}
+
+progress_line() {
+  local n=1 hl="$label" hp="$$" hs="" now o
+  now="$(date +%s)"
+  while [ "$n" -le "$slots" ]; do
+    o="$lane_dir/slot-$n/owner"
+    if [ -r "$o" ]; then
+      hl="$(field "$o" label)"
+      hp="$(field "$o" pid)"
+      hs="$(field "$o" start)"
+      break
+    fi
+    n=$((n + 1))
+  done
+  say "waiting for $hl (pid $hp, $(fmt_dur $((now - ${hs:-$now})))), $ahead ahead"
+}
+
+# read_owner_pid FILE: sets owner_pid to the pid in an owner file (empty if there is none), without a fork.
+owner_pid=""
+read_owner_pid() {
+  local line
+  owner_pid=""
+  [ -f "$1" ] || return 0
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in pid=*) owner_pid="${line#pid=}"; return 0 ;; esac
+  done <"$1" 2>/dev/null
+  return 0
+}
+
+# reap_slot SLOT_DIR N JUDGED_PID: remove a slot that was judged dead (JUDGED_PID is slot_alive's judged_pid).
+# The judgement can be stale: the owner may have removed the slot meanwhile and a waiter taken it again. So
+# the owner pid is read once more, without a fork, right before the rename (a different pid: leave it), and
+# once more after it. Rename (atomic, so two reapers never both delete it), and delete only a copy that is
+# still the slot that was judged. If it is not (a sliver of time is left between the read and the rename),
+# put it back at once: while the path is empty a waiter could take it. An ownerless slot has no pid to
+# compare, so the renamed copy is judged again. When a put-back fails, the stale-slot-* directory is ignored
+# by every reader and the sweep removes it after a minute.
+reap_slot() {
+  local grave
+  grave="$lane_dir/stale-slot-$2-$(now_ns)"
+  read_owner_pid "$1/owner"
+  [ "$owner_pid" = "$3" ] || return 0
+  mv "$1" "$grave" 2>/dev/null || return 0
+  read_owner_pid "$grave/owner"
+  if [ "$owner_pid" != "$3" ] || { [ -z "$3" ] && slot_alive "$grave"; }; then
+    [ -e "$1" ] || mv "$grave" "$1" 2>/dev/null || true
+    return 0
+  fi
+  rm -rf "$grave"
+}
+
+# The stale sweep: drop tickets of dead waiters and slots of dead jobs, in our lane.
+sweep_stale() {
+  local t tpid n=1
+  for t in "$lane_dir/tickets"/*; do
+    [ -f "$t" ] || continue
+    tpid="${t##*/}"
+    tpid="${tpid#*-}"
+    # shortcut: a reused pid keeps a dead ticket queued until that process exits, upgrade if it is ever seen
+    if is_uint "$tpid" && kill -0 "$tpid" 2>/dev/null; then :; else rm -f "$t"; fi
+  done
+  while [ "$n" -le "$slots" ]; do
+    if [ -d "$lane_dir/slot-$n" ] && ! slot_alive "$lane_dir/slot-$n"; then reap_slot "$lane_dir/slot-$n" "$n" "$judged_pid"; fi
+    n=$((n + 1))
+  done
+  find "$lane_dir" -maxdepth 1 -name 'stale-slot-*' -mmin +1 -exec rm -rf {} + 2>/dev/null || true
+}
+
+pause_active() { [ -e "$health/pause" ]; }
+
+pause_message() {
+  say "paused by infra/dev/health-watch.sh ($health/pause)"
+  if [ -r "$health/state" ]; then cat "$health/state" >&2; else say "no state file"; fi
+}
+
+mkdir -p "$lane_dir/tickets"
+trap cleanup EXIT
+trap 'on_signal 129' HUP
+trap 'on_signal 130' INT
+trap 'on_signal 143' TERM
+
+# The ticket exists before the first poll, so a later arrival can never overtake us.
+printf 'label=%s\nworktree=%s\n' "$label" "$worktree" >"$lane_dir/tickets/.new-$$"
+mv "$lane_dir/tickets/.new-$$" "$ticket"
+
+my_lstart="$(lstart_of "$$")"
+wait_start="$(date +%s)"
+deadline=$((wait_start + wait_min * unit))
+last_note="$wait_start"
+pause_note=""
+while :; do
+  # Read the clock before the claim, so the owner file needs no fork after mkdir.
+  now="$(date +%s)"
+  sweep_stale
+  paused=0
+  if pause_active; then paused=1; fi
+  survey
+  if [ "$paused" -eq 0 ] && [ "$ahead" -lt "$free" ] && claim; then break; fi
+  # While paused the ticket stays (the queue order survives) and the timeout keeps counting.
+  if [ "$paused" -eq 1 ] && { [ -z "$pause_note" ] || [ $((now - pause_note)) -ge "$unit" ]; }; then
+    pause_message
+    pause_note="$now"
+  fi
+  if [ "$now" -ge "$deadline" ]; then
+    if [ "$paused" -eq 1 ]; then say "gave up after ${wait_min}m, machine paused"; else say "gave up after ${wait_min}m waiting for $lane"; fi
+    exit 75
+  fi
+  if [ "$paused" -eq 0 ] && [ $((now - last_note)) -ge "$unit" ]; then
+    progress_line
+    last_note="$now"
+  fi
+  sleep "$poll"
+done
+
+# The owner file is written before the ticket goes, so --status never shows a job in neither place.
+run_start="$now"
+write_owner ""
+rm -f "$ticket"
+# A marker left by an earlier wrapper with the same pid would read as a run timeout.
+rm -f "$marker"
+
+# Job control makes each background job a process group of its own, so pgid is the child's pid and a group
+# kill reaches its grandchildren. The command never reads the terminal (a background group that does is
+# stopped), and it is run as "$@": no eval, no re-splitting of arguments.
+set -m
+"$@" </dev/null &
+child=$!
+pgid="$child"
+(
+  # Not one long sleep: after a kill -9 of the wrapper (no trap runs) this ends once the wrapper and the
+  # command's group are both gone, instead of sitting there for the whole --max and then signalling a
+  # recycled process group.
+  end=$(($(date +%s) + max_min * unit))
+  while [ "$(date +%s)" -lt "$end" ]; do
+    kill -0 "$$" 2>/dev/null || kill -0 -- "-$pgid" 2>/dev/null || exit 0
+    sleep 1
+  done
+  : >"$marker"
+  kill -TERM -- "-$pgid" 2>/dev/null || true
+  sleep "$grace"
+  kill -KILL -- "-$pgid" 2>/dev/null || true
+) &
+watchdog=$!
+set +m
+write_owner "$pgid"
+
+rc=0
+wait "$child" 2>/dev/null || rc=$?
+{ kill -TERM -- "-$watchdog"; wait "$watchdog"; } 2>/dev/null || true
+watchdog=""
+if [ -e "$marker" ]; then
+  finish_group
+  rc=124
+fi
+child=""
+exit "$rc"

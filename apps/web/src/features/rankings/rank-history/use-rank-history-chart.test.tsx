@@ -24,6 +24,7 @@ const tokens: ChartTokens = {
   borderStrong: 'borderStrong',
   foreground: 'foreground',
   foregroundSecondary: 'foregroundSecondary',
+  foregroundMuted: 'foregroundMuted',
 };
 
 function Wrapper({ children }: { children: ReactNode }): ReactNode {

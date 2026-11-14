@@ -1,29 +1,8 @@
 import type { RankCell, TrackedKeywordRow } from '@/lib/api/types';
+import { safeText } from '@/lib/csv/csv-write';
+import type { ExportCell, ExportColumnKind, ExportKpi, KeywordExport } from '@/lib/export/export-file';
 import { gscCount } from '../gsc-counts';
 import type { Device, PairedRow } from '../keyword-pairs';
-
-/** A cell of the exported table: text, a number, or nothing. */
-export type ExportCell = string | number | null;
-
-export interface ExportKpi {
-  label: string;
-  value: number;
-}
-
-/** What a column holds, so the workbook can align, format and size it without reading its header. */
-export type ExportColumnKind =
-  | 'keyword'
-  | 'rank'
-  | 'url'
-  | 'volume'
-  | 'clicks'
-  | 'impressions'
-  | 'difficulty'
-  | 'cpc'
-  | 'intent'
-  | 'priority'
-  | 'groups'
-  | 'checked';
 
 /** The words of the file, from the catalog, so the model itself holds no text a person reads. */
 export interface ExportLabels {
@@ -49,15 +28,6 @@ export interface ExportLabels {
   intents: Readonly<Record<string, string>>;
 }
 
-export interface KeywordExport {
-  /** Counts of the tracked keywords of the device shown, as the strip above the table shows them. */
-  kpis: ExportKpi[];
-  header: string[];
-  /** The kind of each column, in the order of the header. */
-  kinds: ExportColumnKind[];
-  rows: ExportCell[][];
-}
-
 const TOPS = [3, 10, 20] as const;
 
 /** A rank as a number up to the depth read; beyond it `>` and that depth; nothing for a keyword not checked yet. */
@@ -72,11 +42,6 @@ export function rankCell(cell: RankCell | undefined): ExportCell {
 function trackedIn(row: PairedRow, device: Device): TrackedKeywordRow[] {
   const found = row.devices[device];
   return found === null ? [] : [found];
-}
-
-/** A cell that a spreadsheet would read as a formula is written as text (CSV injection). */
-export function safeText(value: string): string {
-  return /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
 }
 
 /** A figure the API sends as a number or as a decimal string, as a number. */
@@ -142,20 +107,4 @@ export function buildExport(rows: readonly PairedRow[], device: Device, labels: 
     ];
   });
   return { kpis, header, kinds, rows: body };
-}
-
-/** The byte order mark that tells Excel a CSV is UTF-8. */
-const BOM = String.fromCharCode(0xfeff);
-
-/** The text of one CSV field (RFC 4180): quoted when it holds a comma, a quote or a line break. */
-function field(cell: ExportCell): string {
-  if (cell === null) return '';
-  const text = String(cell);
-  return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
-}
-
-/** The table alone, as CSV with a byte order mark so Excel reads it as UTF-8. KPIs are left to the workbook: lines above the header would break the table for most tools. */
-export function toCsv(table: Pick<KeywordExport, 'header' | 'rows'>): string {
-  const lines = [table.header, ...table.rows].map((line) => line.map(field).join(','));
-  return `${BOM}${lines.join('\r\n')}\r\n`;
 }

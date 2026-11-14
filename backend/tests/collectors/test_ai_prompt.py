@@ -5,12 +5,15 @@ from __future__ import annotations
 
 import dataclasses
 import hashlib
+import json
 import uuid
+from collections.abc import Mapping, Sequence
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
 import pytest
+from sqlalchemy import event
 
 from idraft.collectors import ledger
 from idraft.collectors.ai_prompt import (
@@ -24,12 +27,15 @@ from idraft.collectors.ai_prompt import (
 from idraft.collectors.ledger import LedgerTask, NewRun, NewTask, TaskRef
 from idraft.collectors.registry import Plan, ScheduleWindow
 from idraft.domain.workloads import TaskWorkload
+from idraft.providers.contract import CanonicalRequest
 from idraft.providers.dataforseo.ai import (
     AI_MODE,
     CHATGPT_SCRAPER,
     ENGINE_ENDPOINTS,
     GEMINI_SCRAPER,
     AiAnswerParams,
+    ai_mode_body,
+    scraper_body,
 )
 from tests.api.auth.support import execute
 from tests.api.keywords.support import LOCATION, OTHER_LOCATION
@@ -381,6 +387,191 @@ async def test_a_request_asks_the_prompt_as_saved_at_its_location_and_queue(
     )
     assert (request.task_id, request.run_id, request.priority) == ("1", run_id, "high")
     assert WORKLOAD.batch_key(tasks[0]) == ""
+
+
+# The device of Google AI Mode (WP-31): a saved project setting, read when the request is built.
+
+TAG = "i:test:t:z:a:1:r:0192f0a13c447e108a512b7d9c0e4f11"
+SHAPED = '{"keyword":"%s","location_code":%d,"language_code":"en","priority":1,"tag":"%s"%s}'
+DESKTOP_TAIL = ',"device":"desktop","os":"windows"'
+
+
+def _params_of(request: CanonicalRequest) -> AiAnswerParams:
+    assert isinstance(request.params, AiAnswerParams)
+    return request.params
+
+
+def _assert_sent(request: CanonicalRequest, *, ai_mode: bool, tail: str = "") -> None:
+    """The task body of a request, as the client would serialize it (compact JSON), is the
+    literal body of today byte for byte: the prompt, its location, the queue and the tag, then
+    `tail` (the device and os of AI Mode)."""
+    build = ai_mode_body if ai_mode else scraper_body
+    sent = json.dumps(build(request, TAG), separators=(",", ":"), ensure_ascii=False).encode()
+    location = _params_of(request).location_code
+    assert sent == (SHAPED % (QUESTION, location, TAG, tail)).encode()
+
+
+async def _build_counting(
+    sessions: Ledger, tasks: Sequence[LedgerTask]
+) -> tuple[Mapping[TaskRef, CanonicalRequest], list[str]]:
+    """`build_requests` with the SQL statements it sent."""
+    seen: list[str] = []
+
+    def record(*args: Any) -> None:
+        seen.append(args[2])
+
+    async with sessions() as db:
+        engine = db.sync_session.get_bind()
+        event.listen(engine, "before_cursor_execute", record)
+        try:
+            requests = await WORKLOAD.build_requests(db, tasks)
+        finally:
+            event.remove(engine, "before_cursor_execute", record)
+    return requests, seen
+
+
+async def test_an_ai_mode_request_asks_the_device_the_project_chose(
+    worker_db: Ledger, migrated: PostgresServer, world: AiWorld
+) -> None:
+    mobile, desktop = world.project, await another_project(migrated, world.project)
+    stranger = (await make_ai_world(migrated)).project
+    await enable_engine(migrated, mobile, "google_ai_mode", provider_params='{"device": "mobile"}')
+    await enable_engine(
+        migrated, desktop, "google_ai_mode", provider_params='{"device": "desktop"}'
+    )
+    # Another workspace's project turned mobile on; no task of the two above may read it.
+    await enable_engine(
+        migrated, stranger, "google_ai_mode", provider_params='{"device": "mobile"}'
+    )
+    tasks: list[LedgerTask] = []
+    for number, project in enumerate((mobile, desktop), 1):
+        prompt = await add_prompt(migrated, project, QUESTION)
+        run_id = await _manual_run(worker_db, project, "standard")
+        tasks.append(_ledger_task(project, run_id, prompt, "google_ai_mode", number))
+
+    requests, _ = await _build_counting(worker_db, tasks)
+
+    devices = {task.project_id: _params_of(requests[task.ref]).device for task in tasks}
+    assert devices == {mobile.id: "mobile", desktop.id: "desktop"}
+
+
+async def test_a_task_naming_another_workspace_never_reads_the_project_engine_of_its_project_id(
+    worker_db: Ledger, migrated: PostgresServer, world: AiWorld
+) -> None:
+    """The device row is read by the task's own workspace and project: a task whose workspace is
+    not the project's finds no setting and asks the default."""
+    project = world.project
+    stranger = (await make_ai_world(migrated)).project
+    await enable_engine(migrated, project, "google_ai_mode", provider_params='{"device": "mobile"}')
+    prompt = await add_prompt(migrated, stranger, QUESTION)
+    run_id = await _manual_run(worker_db, stranger, "standard")
+    crossed = dataclasses.replace(
+        _ledger_task(stranger, run_id, prompt, "google_ai_mode", 1), project_id=project.id
+    )
+
+    requests, _ = await _build_counting(worker_db, [crossed])
+
+    assert _params_of(requests[crossed.ref]).device == "desktop"
+
+
+@pytest.mark.parametrize(
+    "saved",
+    [None, "{}", '{"device": "tablet"}', '{"device": null}', '"mobile"', "[1]", '{"os": "ios"}'],
+)
+async def test_a_request_for_an_engine_without_settings_asks_desktop_byte_for_byte(
+    worker_db: Ledger, migrated: PostgresServer, world: AiWorld, saved: str | None
+) -> None:
+    """No row, an empty object or junk: the request is what is sent today, byte for byte."""
+    project = world.project
+    if saved is not None:
+        await enable_engine(migrated, project, "google_ai_mode", provider_params=saved)
+    prompt = await add_prompt(migrated, project, QUESTION)
+    run_id = await _manual_run(worker_db, project, "standard")
+    task = _ledger_task(project, run_id, prompt, "google_ai_mode", 1)
+
+    requests, _ = await _build_counting(worker_db, [task])
+
+    params = _params_of(requests[task.ref])
+    assert params == AiAnswerParams(
+        prompt=QUESTION, location_code=params.location_code, language_code="en", queue="standard"
+    )
+    _assert_sent(requests[task.ref], ai_mode=True, tail=DESKTOP_TAIL)
+
+
+async def test_a_saved_desktop_asks_what_is_sent_today_and_mobile_changes_only_device_and_os(
+    worker_db: Ledger, migrated: PostgresServer, world: AiWorld
+) -> None:
+    project = world.project
+    await enable_engine(
+        migrated, project, "google_ai_mode", provider_params='{"device": "desktop"}'
+    )
+    prompt = await add_prompt(migrated, project, QUESTION)
+    run_id = await _manual_run(worker_db, project, "standard")
+    task = _ledger_task(project, run_id, prompt, "google_ai_mode", 1)
+
+    requests, _ = await _build_counting(worker_db, [task])
+    await enable_engine(migrated, project, "google_ai_mode", provider_params='{"device": "mobile"}')
+    on_mobile, _ = await _build_counting(worker_db, [task])
+
+    _assert_sent(requests[task.ref], ai_mode=True, tail=DESKTOP_TAIL)
+    _assert_sent(on_mobile[task.ref], ai_mode=True, tail=',"device":"mobile","os":"android"')
+
+
+async def test_chatgpt_and_gemini_requests_ignore_provider_params(
+    worker_db: Ledger, migrated: PostgresServer, world: AiWorld
+) -> None:
+    project = world.project
+    for code in ("chatgpt_web", "gemini_web"):
+        await enable_engine(migrated, project, code, provider_params='{"device": "mobile"}')
+    prompt = await add_prompt(migrated, project, QUESTION)
+    run_id = await _manual_run(worker_db, project, "standard")
+    tasks = [
+        _ledger_task(project, run_id, prompt, code, n)
+        for n, code in enumerate(("chatgpt_web", "gemini_web"), 1)
+    ]
+
+    requests, statements = await _build_counting(worker_db, tasks)
+
+    assert set(requests) == {task.ref for task in tasks}
+    for task in tasks:
+        assert _params_of(requests[task.ref]).device == "desktop"
+        _assert_sent(requests[task.ref], ai_mode=False)
+    # Scrapers take no device: the settings are not even read for them.
+    assert not [statement for statement in statements if "provider_params" in statement]
+
+
+async def test_the_devices_of_a_batch_are_one_query_however_many_ai_mode_tasks_it_holds(
+    worker_db: Ledger, migrated: PostgresServer, world: AiWorld
+) -> None:
+    first, second = world.project, await another_project(migrated, world.project)
+    for project in (first, second):
+        await enable_engine(
+            migrated, project, "google_ai_mode", provider_params='{"device": "mobile"}'
+        )
+    run_ids = {
+        project.id: await _manual_run(worker_db, project, "standard") for project in (first, second)
+    }
+    tasks: list[LedgerTask] = []
+    for number, project in enumerate((first, second, first, second, first), 1):
+        prompt = await add_prompt(migrated, project, f"{QUESTION} {number}")
+        tasks.append(_ledger_task(project, run_ids[project.id], prompt, "google_ai_mode", number))
+    scrapers = [
+        _ledger_task(
+            first, run_ids[first.id], await add_prompt(migrated, first, "Scraped?"), code, n
+        )
+        for n, code in enumerate(("chatgpt_web", "gemini_web"), 10)
+    ]
+
+    one, one_statements = await _build_counting(worker_db, tasks[:1])
+    many, many_statements = await _build_counting(worker_db, tasks)
+    none, none_statements = await _build_counting(worker_db, scrapers)
+
+    assert (len(one), len(many), len(none)) == (1, 5, 2)
+    reads = [s for s in many_statements if "provider_params" in s]
+    assert len(reads) == 1
+    assert "project_engines" in reads[0]
+    # The device read is the only statement more than a batch of scrapers sends, for 1 task or 5.
+    assert len(one_statements) == len(many_statements) == len(none_statements) + 1
 
 
 # What the plan may spend: these tests guard the money and the tenant boundary.

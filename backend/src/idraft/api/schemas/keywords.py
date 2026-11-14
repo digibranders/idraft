@@ -885,7 +885,7 @@ class TermAssignment(Body):
 
     op: Literal["add", "remove", "replace"]
     subject_type: Literal["tracked_keyword", "prompt"] = Field(
-        description="`prompt` arrives with prompts."
+        description="`prompt` also needs `prompts:write` and takes `subject_ids` only."
     )
     subject_ids: Annotated[list[UUID], Field(min_length=1, max_length=BULK_IDS_MAX)] | None = None
     subject_filter: TrackedKeywordFilter | None = None

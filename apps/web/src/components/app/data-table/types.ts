@@ -47,6 +47,12 @@ export interface ActionScope {
 /** A visible-at-width tier (19-responsive-behavior.md section 6.1): 1 always, 2 from 1280 px, 3 from 1440 px, 4 from 1680 px. */
 export type ColumnPriority = 1 | 2 | 3 | 4;
 
+/** A header cell over the adjacent shown columns that share it (24-page-templates.md 9.5). `label` is already translated. */
+export interface ColumnGroup {
+  id: string;
+  label: string;
+}
+
 /** A column as `col.*` builds it. Screens never set widths, alignment or formatting by hand. */
 export interface DataTableColumn<TRow> {
   id: string;
@@ -77,6 +83,8 @@ export interface DataTableColumn<TRow> {
   width?: number | undefined;
   /** The narrowest the column may be squeezed to, when its header needs more than its type's minimum. */
   minWidth?: number | undefined;
+  /** The group header over this column and the adjacent shown columns that share it; drawn only with `columnGroups`. */
+  group?: ColumnGroup | undefined;
   /** The identity column: the row header, always visible, pinned left. */
   identity?: boolean | undefined;
   /** Shown by default; the others wait in the column chooser. */
@@ -124,22 +132,42 @@ export interface Selection {
   indeterminateIds?: ReadonlySet<string> | undefined;
   /** What the bulk bar counts when it is not the number of ids (keywords chosen, not rows). */
   selectedCount?: number | undefined;
+  /**
+   * What the bulk bar and the live announcement say in place of "{count} selected", for a screen whose choice is of
+   * something other than rows ("2 topics selected, 7 prompts"). Given with `selectedCount`.
+   */
+  selectedLabel?: string | undefined;
+  /**
+   * Clear in the bulk bar, when emptying the table's selected ids would leave a choice behind: ids chosen through
+   * rows that are not drawn (a partly chosen topic that is closed). Without it Clear is `onChange(new Set())`.
+   */
+  onClear?: (() => void) | undefined;
+  /**
+   * In a tree, the header checkbox, a range and the "select all loaded" name cover the group rows too, not only the
+   * rows inside groups: for a tree whose group rows are chosen things (topics) and not only containers.
+   */
+  headerCoversGroups?: boolean | undefined;
   /** Selectable rows the table does not render (the keywords of closed groups): they are not "hidden by filters". */
   unrenderedCount?: number | undefined;
 }
 
 /** The place of a row in a tree table (`DataTableProps.rowTree`). */
 export interface RowTree {
-  /** 1 for a group row, 2 for a row inside one. */
-  level: 1 | 2;
-  /** Group rows only: whether its rows are shown. A level 1 row without it has no rows to show, and is an ordinary row. */
+  /** 1 for a top level row, 2 for a row inside one, 3 for a row inside a level 2 group row. */
+  level: 1 | 2 | 3;
+  /**
+   * Group rows only (level 1 and 2): whether its rows are shown. A row without it has no rows to show, and is an
+   * ordinary row. Ignored on level 3: a level 3 row is always a leaf. Rows that load later are the caller's: it
+   * puts a row with `selectable: false` in their place while they load.
+   */
   expanded?: boolean | undefined;
   /** Rows at this level in the group it belongs to, and this row's place among them (aria-setsize, aria-posinset). */
   setSize: number;
   posInSet: number;
   /**
    * A row with `false` (a "Show all" row) draws no checkbox and is not part of a range, a select-all or the
-   * "select all N loaded" count. Group rows never are, whatever this says: only level 2 rows are counted.
+   * "select all N loaded" count. Group rows never are, whatever this says: only the rows that are not groups,
+   * from level 2 down, are counted.
    */
   selectable?: boolean | undefined;
   /** Group rows only: the whole accessible name of the disclosure button ("Expand CRM group, 42 keywords"); the row's name with Expand or Collapse when not given. */
@@ -189,21 +217,28 @@ export interface DataTableProps<TRow> {
   onToggleGroup?: ((row: TRow) => void) | undefined;
   /** A slot at the end of the toolbar, before density and columns: the view switch. */
   toolbarEnd?: ReactNode;
-  /** A slot at the start of the toolbar, before the search: the switch between the views of a page. */
-  toolbarStart?: ReactNode;
-  /** Opt in to the compact toolbar (`DataTableToolbar` `compact`): one row beside a view switch, down to a phone. */
+  /** Opt in to the compact toolbar (`DataTableToolbar` `compact`): the sort summary is drawn from 1440 px, not 1280. */
   compactToolbar?: boolean;
   /**
    * Hold the identity column at its type maximum while the other columns can still widen toward theirs
    * (`resolveWidths` with `capIdentity`): for a table that shows few columns, the By group view.
    */
   identityCap?: boolean;
+  /** Opt in: draw a group row over columns that share a `group`. Off: one header row, as before. */
+  columnGroups?: boolean;
+  /** Opt in: the actions column sticks to the right edge while the columns scroll under it. Off: it scrolls with them. */
+  pinActions?: boolean;
   bulkActions?: readonly RecordAction<TRow>[] | undefined;
   /**
    * The actions of a row's menu: one list for every row, or a function of the row for actions that not
    * every row has (a run that has ended cannot be cancelled). A row with no action shows no menu.
    */
   rowActions?: RowActions<TRow> | undefined;
+  /**
+   * Right click and a touch long press open the row's menu at the pointer (Shift plus right click, a link and a
+   * field keep the browser's menu). Default true; it needs `rowActions`. `false` leaves the browser's menu on rows.
+   */
+  rowContextMenu?: boolean;
   /** The name a row's checkbox and menu carry ("Select crm pricing", "Actions for crm pricing"). */
   rowName: (row: TRow) => string;
   onRowOpen?: ((row: TRow, intent: 'inspector' | 'new-tab') => void) | undefined;

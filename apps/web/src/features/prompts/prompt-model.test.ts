@@ -1,7 +1,7 @@
+import { TZDate } from '@date-fns/tz';
 import { describe, expect, it } from 'vitest';
 
 import {
-  acrossEngines,
   asksIn,
   countriesForEngines,
   countryChoices,
@@ -9,6 +9,7 @@ import {
   DEFAULT_PROMPT_SORT,
   DEFAULT_TOPIC_SORT,
   engineSortId,
+  failedReasonKey,
   fitsEngine,
   collectTopicTerms,
   hasAnswers,
@@ -20,8 +21,6 @@ import {
   parseCountry,
   parseMetric,
   parseTab,
-  parseTopicTab,
-  parseWindow,
   PROMPT_TEXT_MAX,
   promptKeyOf,
   readPromptLines,
@@ -34,10 +33,14 @@ import {
   topicsBelow,
   topicOriginOf,
   topicSummaryRow,
+  topicsSpanned,
   topicTermsOf,
-  WINDOW_DAYS,
+  trailingRange,
+  WIDEST_WINDOW,
   windowRange,
+  type DateRange,
 } from './prompt-model';
+import { checkRange, MAX_RANGE_DAYS } from '@/components/app/date-range/range-model';
 import type {
   MetricCell,
   ObservationDetail,
@@ -45,9 +48,11 @@ import type {
   Prompt,
   PromptsSummary,
   PromptSummaryRow,
+  TopicSummaryRow,
 } from '@/lib/api/types';
 import type { NamedTerm } from '@/lib/keywords/taxonomy-reads';
 import type { Country } from '@/lib/locations/countries';
+import type { StripPrompt } from '@/lib/rates/strip-model';
 
 type Facts = NonNullable<ObservationDetail['facts']>;
 
@@ -93,12 +98,6 @@ const engine = (code: ProjectEngine['engine']['engine_code'], max: number, locat
 });
 
 describe('the window', () => {
-  it('reads 7, 28 and 90 days from the URL and falls back to 28', () => {
-    expect([parseWindow('7'), parseWindow('90'), parseWindow('28'), parseWindow('5'), parseWindow(null)]).toEqual([
-      7, 90, 28, 28, 28,
-    ]);
-  });
-
   it('is the last days in the time zone of the project, today included', () => {
     // 23:30 UTC on 1 November is already 2 November in Kolkata
     const late = new Date('2026-11-01T23:30:00Z');
@@ -106,14 +105,33 @@ describe('the window', () => {
     expect(windowRange(7, late, 'America/New_York')).toEqual({ from: '2026-10-26', to: '2026-11-01' });
   });
 
-  it('never asks for more days than the API takes, the 90 days across a clock change included', () => {
-    const MAX_DAYS = 92;
+  it('holds the days the preset names, whatever the clock changes in between', () => {
     const DAY = 86_400_000;
-    for (const days of WINDOW_DAYS) {
+    for (const days of [7, 28, 90]) {
       const { from, to } = windowRange(days, new Date('2026-11-12T12:00:00Z'), 'America/New_York');
       expect((Date.parse(to) - Date.parse(from)) / DAY + 1).toBe(days);
-      expect(days).toBeLessThanOrEqual(MAX_DAYS);
     }
+  });
+
+  it('accepts 91 days and refuses 92 across the fall-back clock change, as the answers route measures it', () => {
+    const zone = 'Europe/Amsterdam';
+    const DAY = 86_400_000;
+    const startOfDay = (iso: string, shift = 0): number => {
+      const [year = 1970, month = 1, day = 1] = iso.split('-').map(Number);
+      return new TZDate(year, month - 1, day + shift, zone).getTime();
+    };
+    // The route counts elapsed time from the start of the first day to the end of the last one
+    const elapsed = ({ from, to }: DateRange): number => startOfDay(to, 1) - startOfDay(from);
+    const limits = { today: '2026-11-12' };
+    // The clock goes back on 2026-10-25: both ranges contain that day
+    const edge = trailingRange('2026-11-02', MAX_RANGE_DAYS);
+    const over = trailingRange('2026-11-02', MAX_RANGE_DAYS + 1);
+    expect(edge.from < '2026-10-25' && '2026-10-25' < edge.to).toBe(true);
+    expect(checkRange(edge.from, edge.to, limits)).toBeNull();
+    expect(elapsed(edge)).toBeLessThanOrEqual(92 * DAY);
+    expect(checkRange(over.from, over.to, limits)).toEqual({ code: 'too_long', days: 92, max: 91 });
+    // 92 project days last 92 days and an hour there, which the route would refuse
+    expect(elapsed(over)).toBeGreaterThan(92 * DAY);
   });
 });
 
@@ -288,6 +306,48 @@ describe('the topic rows of the summary', () => {
 
   it('cannot list the prompts of a topic the tree does not hold', () => {
     expect(topicMembers('elsewhere', [row('a', 'seo')], below)).toBeNull();
+  });
+});
+
+describe('topicsSpanned', () => {
+  const topic = (term_id: string | null, name: string | null): TopicSummaryRow => ({
+    term_id,
+    name,
+    prompt_count: 1,
+    last_observed_at: null,
+    last_valid_at: null,
+    engines: [],
+  });
+  const topics = [topic('seo', 'SEO'), topic('technical', 'Technical SEO'), topic('paid', 'Paid'), topic(null, null)];
+  const tree = [
+    { termId: 'seo', parentId: null },
+    { termId: 'technical', parentId: 'seo' },
+    { termId: 'paid', parentId: null },
+  ].map((term) => ({ ...term, name: term.termId, path: term.termId }));
+  const below = topicDescendants(tree, []);
+  const inScope = (...ids: string[][]): StripPrompt[] =>
+    ids.map((topicIds) => ({ topic_term_ids: topicIds, engines: [] }));
+
+  it('counts each topic that has a prompt in scope, the topics above a prompt included, once', () => {
+    expect(topicsSpanned(topics, inScope(['technical'], ['technical'], ['paid']), below, null)).toBe(3);
+  });
+
+  it('never counts the row of the prompts without a topic: No topic is no topic', () => {
+    expect(topicsSpanned(topics, inScope([], ['paid']), below, null)).toBe(1);
+    expect(topicsSpanned(topics, inScope([], []), below, null)).toBe(0);
+  });
+
+  it('leaves out a topic no prompt in scope belongs to, and every topic a topic filter does not keep', () => {
+    expect(topicsSpanned(topics, inScope(['paid']), below, null)).toBe(1);
+    expect(topicsSpanned(topics, inScope(['technical']), below, new Set(['technical']))).toBe(1);
+  });
+
+  it('is 0 without a prompt', () => {
+    expect(topicsSpanned(topics, [], below, null)).toBe(0);
+  });
+
+  it('counts a topic a prompt carries when the tree does not hold it yet', () => {
+    expect(topicsSpanned([topic('seo', 'SEO'), topic('paid', 'Paid')], inScope(['paid']), new Map(), null)).toBe(1);
   });
 });
 
@@ -604,26 +664,6 @@ describe('the topic drawer', () => {
     expect(topicSummaryRow(summary, 'paid')).toBeUndefined();
     expect(topicSummaryRow(undefined, 'seo')).toBeUndefined();
   });
-
-  it('opens on Overview unless the link names the Prompts tab', () => {
-    expect(parseTopicTab('prompts')).toBe('prompts');
-    expect(parseTopicTab('overview')).toBe('overview');
-    expect(parseTopicTab('answers')).toBe('overview');
-  });
-
-  it('averages the rates of the engines that have one, and counts those engines', () => {
-    expect(acrossEngines([rated(0.25), rated(0.5), rated(0.75)])).toEqual({ value: 0.5, engines: 3 });
-    // An engine with no valid answer takes no part: it is not a rate of 0
-    expect(acrossEngines([rated(0.5), rated(null), rated(0)])).toEqual({ value: 0.25, engines: 2 });
-    expect(acrossEngines([rated(null)])).toBeNull();
-    expect(acrossEngines([])).toBeNull();
-  });
-
-  it('leaves out an engine with too few valid answers for a rate, as the table does', () => {
-    // 2 answers is a pill in the engine's own column, so it takes no part in "avg of N"
-    expect(acrossEngines([rated(0.25), rated(1, 2)])).toEqual({ value: 0.25, engines: 1 });
-    expect(acrossEngines([rated(1, 2), rated(0, 3)])).toBeNull();
-  });
 });
 
 describe('the topic a prompt was opened from', () => {
@@ -645,6 +685,27 @@ describe('the topic a prompt was opened from', () => {
     expect(topicOriginOf(origin, { ...open, projectId: 'other' })).toBeNull();
     expect(topicOriginOf(origin, { ...open, promptId: null })).toBeNull();
     expect(topicOriginOf(null, open)).toBeNull();
+  });
+});
+
+describe('the widest window of the API', () => {
+  it('ends on the day the page ends on and holds 90 days, both included: 92 would be refused across a clock change', () => {
+    expect(trailingRange('2026-11-12', WIDEST_WINDOW)).toEqual({ from: '2026-08-15', to: '2026-11-12' });
+    expect(WIDEST_WINDOW).toBe(90);
+  });
+
+  it('counts calendar days across a month and a year, whatever the zone', () => {
+    expect(trailingRange('2026-01-05', 7)).toEqual({ from: '2025-12-30', to: '2026-01-05' });
+    expect(trailingRange('2026-03-01', 2)).toEqual({ from: '2026-02-28', to: '2026-03-01' });
+  });
+});
+
+describe('why an answer could not be read', () => {
+  it('says the provider sent nothing, had an error of its own (the 50000 range), or something else', () => {
+    expect(failedReasonKey('missing')).toBe('missing');
+    expect(failedReasonKey('50301')).toBe('providerError');
+    expect(failedReasonKey('4000')).toBe('unknown');
+    expect(failedReasonKey(null)).toBe('unknown');
   });
 });
 

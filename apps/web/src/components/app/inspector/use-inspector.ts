@@ -9,6 +9,29 @@ import { formatInspectTarget, parseInspectTarget, type InspectorTarget } from '@
 export const DEFAULT_INSPECTOR_TAB = 'overview';
 
 const KEYS = { inspect: parseAsString, itab: parseAsString };
+const NO_KEYS: readonly string[] = [];
+
+interface KeySet {
+  keys: typeof KEYS & Record<string, typeof parseAsString>;
+  /** The entry keys set to null: what `open`, `close` and `setTab` add to their write. */
+  dropped: Record<string, null>;
+}
+const DEFAULT_KEY_SET: KeySet = { keys: KEYS, dropped: {} };
+const keySets = new Map<string, KeySet>();
+
+/** The keys one set of entry keys makes, one object for one set of names, so nuqs sees the same keys every render. */
+function keysFor(entryKeys: readonly string[]): KeySet {
+  if (entryKeys.length === 0) return DEFAULT_KEY_SET;
+  const name = entryKeys.join(',');
+  const known = keySets.get(name);
+  if (known !== undefined) return known;
+  const made: KeySet = {
+    keys: { ...KEYS, ...Object.fromEntries(entryKeys.map((key) => [key, parseAsString])) },
+    dropped: Object.fromEntries(entryKeys.map((key) => [key, null])),
+  };
+  keySets.set(name, made);
+  return made;
+}
 
 /**
  * Set when this page pushed the history entry the open inspector sits on: the query string of the entry
@@ -19,12 +42,24 @@ const KEYS = { inspect: parseAsString, itab: parseAsString };
  * section 2.7). History is one per window, so this is too.
  */
 let pushedFrom: string | null = null;
+/** How many instances of the hook are mounted: `pushedFrom` goes when the last one does. */
+let mounted = 0;
 
-/** The URL's query string without the inspector's keys. */
-function pageQuery(): string {
+/** The URL's query string without the inspector's keys, and the entry keys a caller says belong to the entry. */
+function pageQuery(entryKeys: readonly string[]): string {
   const params = new URLSearchParams(window.location.search);
-  for (const key of Object.keys(KEYS)) params.delete(key);
+  for (const key of [...Object.keys(KEYS), ...entryKeys]) params.delete(key);
   return params.toString();
+}
+
+export interface UseInspectorOptions {
+  /**
+   * Query keys that belong to the open record's entry, like `itab` does (the topic drawer's `eng`, the engine its Prompts
+   * tab is filtered to). They are no part of the page's query, so a close still goes back to the entry before the drawer,
+   * and `open`, `close` and `setTab` drop them in the same write, so the URL never keeps one for a record that is gone;
+   * `step` keeps them. None by default: a key that is a scope key of the page (such as `eng` on other pages) is left alone.
+   */
+  entryKeys?: readonly string[] | undefined;
 }
 
 export interface UseInspectorResult {
@@ -42,8 +77,9 @@ export interface UseInspectorResult {
 }
 
 /** The open inspector, read from and written to `?inspect=<type>:<id>&itab=<tab>`. */
-export function useInspector(): UseInspectorResult {
-  const [state, setState] = useQueryStates(KEYS);
+export function useInspector({ entryKeys = NO_KEYS }: UseInspectorOptions = {}): UseInspectorResult {
+  const { keys, dropped } = keysFor(entryKeys);
+  const [state, setState] = useQueryStates(keys);
   const target = parseInspectTarget(state.inspect);
   const tab = state.itab ?? DEFAULT_INSPECTOR_TAB;
   // Once the inspector is closed, by Close or by the browser's Back, the entry it sat on is gone: a later
@@ -52,21 +88,24 @@ export function useInspector(): UseInspectorResult {
   useEffect(() => {
     if (closed) pushedFrom = null;
   }, [closed]);
-  // A page that goes away takes its entry with it: what it pushed is not what a later inspector sits on
-  useEffect(
-    () => () => {
-      pushedFrom = null;
-    },
-    [],
-  );
+  // A page that goes away takes its entry with it: what it pushed is not what a later inspector sits on. Parts of a page
+  // (a drawer's header, its tabs) read the inspector too and come and go while it is open, so only the last one to go
+  // away counts as the page going
+  useEffect(() => {
+    mounted += 1;
+    return () => {
+      mounted -= 1;
+      if (mounted === 0) pushedFrom = null;
+    };
+  }, []);
   const tabParam = (next: string | undefined): string | null =>
     next === undefined || next === DEFAULT_INSPECTOR_TAB ? null : next;
 
   const open: UseInspectorResult['open'] = (next, options) => {
     const opening = target === null;
-    if (opening) pushedFrom = pageQuery();
+    if (opening) pushedFrom = pageQuery(entryKeys);
     void setState(
-      { inspect: formatInspectTarget(next), itab: tabParam(options?.tab ?? (opening ? undefined : tab)) },
+      { inspect: formatInspectTarget(next), itab: tabParam(options?.tab ?? (opening ? undefined : tab)), ...dropped },
       { history: opening ? 'push' : 'replace' },
     );
   };
@@ -74,14 +113,14 @@ export function useInspector(): UseInspectorResult {
     if (target === null) return;
     const from = pushedFrom;
     pushedFrom = null;
-    if (from !== null && from === pageQuery()) {
+    if (from !== null && from === pageQuery(entryKeys)) {
       window.history.back();
       return;
     }
-    void setState({ inspect: null, itab: null }, { history: 'replace' });
+    void setState({ inspect: null, itab: null, ...dropped }, { history: 'replace' });
   };
   const setTab = (next: string): void => {
-    void setState({ itab: tabParam(next) }, { history: 'replace' });
+    void setState({ itab: tabParam(next), ...dropped }, { history: 'replace' });
   };
   const position: UseInspectorResult['position'] = (orderedIds) => {
     if (target === null) return null;

@@ -1,5 +1,7 @@
 'use client';
 
+import type { Route } from 'next';
+import Link from 'next/link';
 import { useEffect, useId, useRef, useState, type ReactElement, type ReactNode } from 'react';
 
 import { Skeleton } from '@/components/ui/skeleton';
@@ -42,6 +44,13 @@ export interface MetricStripItem {
    * is read in its place.
    */
   tip?: string | undefined;
+  /**
+   * Where the item leads inside the app. The label (with its addon) becomes the link, stretched over the whole
+   * cell, so the addon must not be a control of its own. `md` and `sm` strips only; an `inline` chip ignores it.
+   * A cell with both `href` and `tip` shows the tooltip when the mouse is over the link (its `::after` covers the
+   * value, so the value cell never gets the pointer) and when the value cell is focused by keyboard.
+   */
+  href?: Route | undefined;
 }
 
 export interface MetricStripGroup {
@@ -65,11 +74,17 @@ export interface MetricStripProps {
   nowrap?: boolean | undefined;
 }
 
-/** Columns of the strip: one row when every cell gets 140 px, else two rows (23 section 2.3). */
+/**
+ * Columns of the strip: one row when every cell gets 140 px, else two rows (23 section 2.3). On a phone two rows of
+ * three would leave cells under 140 px, so the columns are as many as fit, and two at the least (the preview's phone
+ * strip). Above about 420 px, for six items, that is the two rows of three it always was. Two items that do not fit
+ * side by side stack in one column, as two cells of under 140 px would be worse.
+ */
 function columnsFor(count: number, width: number | null, size: 'md' | 'sm' | 'inline'): number {
   if (size === 'sm') return count === 4 ? 2 : Math.min(count, 3);
   if (width === null || width >= count * MIN_CELL + (count - 1)) return count;
-  return Math.ceil(count / 2);
+  const least = count === 2 ? 1 : 2;
+  return Math.min(count, Math.max(least, Math.min(Math.ceil(count / 2), Math.floor(width / MIN_CELL))));
 }
 
 /**
@@ -171,6 +186,12 @@ export function MetricStrip({ size, label, groups, status, nowrap = false }: Met
           const firstInRow = index % columns === 0;
           const unknown = item.unknown ?? null;
           const tipped = item.tip !== undefined && status !== 'loading';
+          const name = (
+            <>
+              <Truncate text={item.label} className="text-foreground-tertiary" />
+              {item.labelAddon}
+            </>
+          );
           return (
             <div
               key={item.id}
@@ -179,11 +200,26 @@ export function MetricStrip({ size, label, groups, status, nowrap = false }: Met
                 md ? 'px-5 py-3' : 'p-3',
                 !firstInRow && (groupStart ? 'border-l border-border' : 'border-l border-border-subtle'),
                 index >= columns && 'border-t border-border-subtle',
+                // the link's ::after covers the cell, so the cell is its box, and it shows hover and focus
+                item.href !== undefined && 'relative hover:bg-surface-hover has-focus-visible:focus-ring-inset',
               )}
             >
               <dt className={cn('flex min-w-0 items-center gap-1', md ? 'type-meta' : 'type-label')}>
-                <Truncate text={item.label} className="text-foreground-tertiary" />
-                {item.labelAddon}
+                {item.href === undefined ? (
+                  name
+                ) : (
+                  // The link's ::after covers the value cell, so the mouse never reaches the value's own tooltip: the
+                  // link shows the same one. `label` purpose: the value cell keeps the description for assistive
+                  // technology, so this one is not announced a second time
+                  <Tooltip content={item.tip ?? ''} purpose="label" disabled={!tipped}>
+                    <Link
+                      href={item.href}
+                      className="flex min-w-0 items-center gap-1 outline-none after:absolute after:inset-0"
+                    >
+                      {name}
+                    </Link>
+                  </Tooltip>
+                )}
               </dt>
               <Tooltip content={item.tip ?? ''} disabled={!tipped}>
                 <dd

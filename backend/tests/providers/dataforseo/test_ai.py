@@ -84,6 +84,92 @@ def test_an_ai_mode_task_is_a_windows_desktop_search() -> None:
     assert (body["device"], body["os"], body["keyword"]) == ("desktop", "windows", PROMPT)
 
 
+def test_an_ai_mode_task_for_mobile_asks_a_mobile_device() -> None:
+    body = ai_mode_body(_request(_params(device="mobile")), TAG)
+
+    # Mobile maps to android as the SERP adapter's _SYSTEMS do; never sent to a live API.
+    assert (body["device"], body["os"], body["keyword"]) == ("mobile", "android", PROMPT)
+    assert body == {**ai_mode_body(_request(_params()), TAG), "device": "mobile", "os": "android"}
+
+
+@pytest.mark.parametrize("device", ["desktop", "mobile"])
+def test_a_scraper_task_never_carries_a_device(device: str) -> None:
+    body = scraper_body(_request(_params(device=device)), TAG)
+
+    assert "device" not in body
+    assert "os" not in body
+
+
+@pytest.mark.parametrize("device", ["tablet", "", "Desktop", None])
+def test_a_device_other_than_desktop_or_mobile_is_not_a_valid_ai_request(device: object) -> None:
+    with pytest.raises(ValidationError):
+        _params(device=device)
+
+
+def test_the_device_of_an_ai_request_is_desktop_unless_set() -> None:
+    assert _params().device == "desktop"
+
+
+# What is sent today, as the bytes of the task_post body. An engine without a device setting, and
+# the desktop default, must keep sending exactly these (no existing behavior changes, and
+# ADAPTER_VERSION stays 1).
+_SENT_TODAY = {
+    CHATGPT_SCRAPER: (
+        b'[{"keyword":"What are the best managed SOC providers in India?",'
+        b'"location_code":2356,"language_code":"en","priority":1,'
+        b'"tag":"%(tag)s"}]'
+    ),
+    GEMINI_SCRAPER: (
+        b'[{"keyword":"What are the best managed SOC providers in India?",'
+        b'"location_code":2356,"language_code":"en","priority":1,'
+        b'"tag":"%(tag)s"}]'
+    ),
+    AI_MODE: (
+        b'[{"keyword":"What are the best managed SOC providers in India?",'
+        b'"location_code":2356,"language_code":"en","priority":1,'
+        b'"tag":"%(tag)s","device":"desktop","os":"windows"}]'
+    ),
+}
+
+
+@pytest.mark.parametrize("explicit", [False, True])
+@pytest.mark.parametrize(
+    ("endpoint", "base"),
+    [
+        (CHATGPT_SCRAPER, "/v3/ai_optimization/chat_gpt/llm_scraper"),
+        (GEMINI_SCRAPER, "/v3/ai_optimization/gemini/llm_scraper"),
+        (AI_MODE, "/v3/serp/google/ai_mode"),
+    ],
+)
+async def test_the_default_request_is_byte_identical_to_what_is_sent_today(
+    dataforseo: tuple[DataForSeo, Api], endpoint: str, base: str, explicit: bool
+) -> None:
+    provider, api = dataforseo
+    api.on(
+        "POST",
+        f"{base}/task_post",
+        lambda _request: as_json(
+            envelope(
+                [
+                    task_answer(
+                        status_code=20100,
+                        message="Task Created.",
+                        task_id="p-1",
+                        cost=0.0012,
+                        data=api.posted()[0],
+                    )
+                ]
+            )
+        ),
+    )
+    params = _params(device="desktop") if explicit else _params()
+
+    await provider.submit(endpoint, [_request(params)])
+
+    tag = make_tag("test", 35, 1, RUN).encode()
+    assert api.requests[-1].content == _SENT_TODAY[endpoint] % {b"tag": tag}
+
+
 def test_the_priority_queue_is_the_schedules_choice() -> None:
     assert scraper_body(_request(_params(queue="priority")), TAG)["priority"] == 2
 

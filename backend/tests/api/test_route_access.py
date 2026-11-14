@@ -4,7 +4,9 @@ The table is the contract. A new route must be added here with its access, and a
 access changes must change here too, so both show up in review.
 """
 
+import importlib
 import re
+from pathlib import Path
 from typing import Annotated
 
 import pytest
@@ -17,6 +19,7 @@ from idraft.api.main import create_app
 from idraft.api.openapi import placeholder_settings
 from idraft.api.pagination import _query_names
 from idraft.api.permissions import Permission
+from idraft.api.workspaces.routes import router as workspaces_router
 
 EXPECTED: dict[tuple[str, str], str] = {
     ("GET", "/api/healthz"): "public",
@@ -417,6 +420,108 @@ EXPECTED: dict[tuple[str, str], str] = {
         "DELETE",
         "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts/{prompt_id}",
     ): "prompts:write",
+    # AI visibility packages, one line each (docs/ai-visibility/MASTER-PLAN.md section 3.6): add
+    # your entries under your own line, nowhere else in this table.
+    # WP-03 contract-pack
+    ("POST", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts/bulk-update"): (
+        "prompts:write"
+    ),
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/limits"): "data:read",
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/runs/{run_id}/ai-coverage"): (
+        "data:read"
+    ),
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/collection/daily"): (
+        "data:read"
+    ),
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/changes"): (
+        "data:read"
+    ),
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/annotations"): (
+        "data:read"
+    ),
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/notes"): "data:read",
+    ("POST", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/notes"): "notes:write",
+    ("DELETE", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/notes/{note_id}"): (
+        "notes:write"
+    ),
+    ("GET", "/api/v1/workspaces/{workspace_id}/layouts/{screen}"): "member",
+    ("PUT", "/api/v1/workspaces/{workspace_id}/me/layouts/{screen}"): "member",
+    ("DELETE", "/api/v1/workspaces/{workspace_id}/me/layouts/{screen}"): "member",
+    ("PUT", "/api/v1/workspaces/{workspace_id}/layouts/{screen}/default"): "layouts:manage",
+    ("DELETE", "/api/v1/workspaces/{workspace_id}/layouts/{screen}/default"): "layouts:manage",
+    # WP-11 layouts-api
+    # WP-12 summary-lane
+    # WP-13 prompts-lane
+    # WP-14 sources-lane
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/diversity"): (
+        "data:read"
+    ),
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/domains/"
+        "{registrable_domain}",
+    ): "data:read",
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/prompts"): (
+        "data:read"
+    ),
+    # WP-26 evidence-viewer
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/observations/"
+        "{observation_id}/compare",
+    ): "data:read",
+    # WP-30 runs-costs-health
+    ("GET", "/api/v1/workspaces/{workspace_id}/budgets"): "costs:read",
+    ("POST", "/api/v1/workspaces/{workspace_id}/budgets"): "budgets:manage",
+    ("PATCH", "/api/v1/workspaces/{workspace_id}/budgets/{budget_id}"): "budgets:manage",
+    ("DELETE", "/api/v1/workspaces/{workspace_id}/budgets/{budget_id}"): "budgets:manage",
+    ("GET", "/api/v1/workspaces/{workspace_id}/costs/forecast"): "costs:read",
+    ("GET", "/api/v1/workspaces/{workspace_id}/costs/unit-costs"): "costs:read",
+    # WP-31 settings-engines
+    # WP-32 overview-aggregates
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/metrics/overview"): (
+        "data:read"
+    ),
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/overview/ai"): "data:read",
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/metrics/{metric}"): (
+        "data:read"
+    ),
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/metrics/{metric}/series",
+    ): "data:read",
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/metrics/{metric}/breakdown",
+    ): "data:read",
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/competitors"): (
+        "data:read"
+    ),
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/overview/competitors"): (
+        "data:read"
+    ),
+    # WP-38 notes-annotations
+    # WP-41 versions
+    # WP-42 panels-api
+    # WP-44 links-generate
+    # WP-45 candidates-api
+    # WP-47 alerts-api
+    # WP-49 saved-views
+    # WP-50 exports
+    # WP-51 reports
+    # WP-54 extract-recommend
+    # WP-56 rederive-candidates
+    # WP-57 retrieval-fanout
+    # WP-58 stats-api
+    # WP-60 source-intel-api
+    # WP-62 performance
+    # WP-63 ssrf-webhooks
+    # WP-64 aio-xch-api
+    # WP-66 discovery-sources
+    # WP-67 engine-expansion
+    # WP-68 llm-advanced
+    # WP-69 first-party-signals
+    # WP-70 geo-readiness
 }
 
 
@@ -488,6 +593,51 @@ PATH_PARAMETERS = {
     "engine_code",
     # Inside one project, after `{project_id}`: the service reads the prompt within it.
     "prompt_id",
+    # AI visibility packages, one line each (docs/ai-visibility/MASTER-PLAN.md section 3.6): add
+    # your entries under your own line, nowhere else in this table.
+    # WP-03 contract-pack
+    # A screen key of the layout spec (`ai_overview`), a word and not an id, after the workspace.
+    "screen",
+    # Inside one project, after `{project_id}`: the service reads the note within it.
+    "note_id",
+    # WP-11 layouts-api
+    # WP-12 summary-lane
+    # WP-13 prompts-lane
+    # WP-14 sources-lane
+    # A registrable domain (`g2.com`), a word and not an id, after `{project_id}`: the service
+    # reads its citations within that project.
+    "registrable_domain",
+    # WP-26 evidence-viewer
+    # WP-30 runs-costs-health
+    # A budget of the workspace; the service finds it within the workspace, and within the
+    # caller's projects for a member limited to some.
+    "budget_id",
+    # WP-31 settings-engines
+    # WP-32 overview-aggregates
+    # A registry key (`ai.mention_rate`), a word and not an id, after `{project_id}`.
+    "metric",
+    # WP-38 notes-annotations
+    # WP-41 versions
+    # WP-42 panels-api
+    # WP-44 links-generate
+    # WP-45 candidates-api
+    # WP-47 alerts-api
+    # WP-49 saved-views
+    # WP-50 exports
+    # WP-51 reports
+    # WP-54 extract-recommend
+    # WP-56 rederive-candidates
+    # WP-57 retrieval-fanout
+    # WP-58 stats-api
+    # WP-60 source-intel-api
+    # WP-62 performance
+    # WP-63 ssrf-webhooks
+    # WP-64 aio-xch-api
+    # WP-66 discovery-sources
+    # WP-67 engine-expansion
+    # WP-68 llm-advanced
+    # WP-69 first-party-signals
+    # WP-70 geo-readiness
 }
 # `{name}` or `{name:converter}`.
 PATH_PARAMETER = re.compile(r"\{(\w+)(?::\w+)?\}")
@@ -520,6 +670,132 @@ def test_no_router_adds_a_query_parameter_to_the_routes_it_includes() -> None:
         assert set(_query_names(route.dependant)) == set(
             _query_names(route.original_route.dependant)
         ), route.path
+
+
+# The routers of docs/ai-visibility/MASTER-PLAN.md section 3.3, in that table's order. Each work
+# package fills its own; api/main.py includes them all already.
+SCAFFOLDED = (
+    "idraft.api.layouts.routes",
+    "idraft.api.ai.limits_routes",
+    "idraft.api.operations.collection_routes",
+    "idraft.api.ai.metrics_routes",
+    "idraft.api.ai.competitor_routes",
+    "idraft.api.ai.annotation_routes",
+    "idraft.api.notes.routes",
+    "idraft.api.ai.version_routes",
+    "idraft.api.ai.panel_routes",
+    "idraft.api.ai.link_routes",
+    "idraft.api.ai.candidate_routes",
+    "idraft.api.uploads.routes",
+    "idraft.api.alerts.routes",
+    "idraft.api.views.routes",
+    "idraft.api.exports.routes",
+    "idraft.api.reports.routes",
+    "idraft.api.ai.derivation_routes",
+    "idraft.api.entities.candidate_routes",
+    "idraft.api.ai.retrieval_routes",
+    "idraft.api.ai.stats_routes",
+    "idraft.api.ai.source_intel_routes",
+    "idraft.api.webhooks.routes",
+)
+
+
+def test_the_scaffolded_routers_are_included_once_in_order_before_the_older_ones() -> None:
+    included = [
+        getattr(route, "original_router", None)
+        for route in create_app(placeholder_settings()).routes
+    ]
+    positions: list[int] = []
+    for name in SCAFFOLDED:
+        router = importlib.import_module(name).router
+        found = [index for index, candidate in enumerate(included) if candidate is router]
+        assert len(found) == 1, name
+        positions.append(found[0])
+    assert positions == sorted(positions)
+    older = [index for index, candidate in enumerate(included) if candidate is workspaces_router]
+    assert positions[-1] < older[0]
+
+
+# `{name}` or `{name:converter}` once the path is escaped for a regular expression.
+_ESCAPED_PARAMETER = re.compile(r"\\\{\w+(?::\w+)?\\\}")
+
+
+def _matcher(path: str) -> re.Pattern[str]:
+    """What the router matches for a route's path: any one segment where it has a parameter."""
+    return re.compile(_ESCAPED_PARAMETER.sub("[^/]+", re.escape(path)))
+
+
+def test_a_parameter_matches_any_one_segment() -> None:
+    matcher = _matcher("/projects/{project_id}/prompts/{prompt_id:uuid}")
+    assert matcher.fullmatch("/projects/{project_id}/prompts/limits")
+    assert matcher.fullmatch("/projects/p-1/prompts/{other_id}")
+    assert not matcher.fullmatch("/projects/{project_id}/prompts")
+    assert not matcher.fullmatch("/projects/{project_id}/prompts/a/b")
+
+
+def test_no_route_is_hidden_by_an_earlier_one() -> None:
+    """A request goes to the first route whose path matches, and a parameter matches any word:
+    `GET .../prompts/limits` after `GET .../prompts/{prompt_id}` would answer 422. The routers
+    of the AI visibility packages are included before the older ones, so a new word is safe and
+    a new parameter where an older route has a word is not."""
+    earlier: list[tuple[str, str, re.Pattern[str]]] = []
+    hidden: list[tuple[str, str, str]] = []
+    for route in iter_route_contexts(create_app(placeholder_settings()).routes):
+        assert route.path is not None
+        assert route.methods
+        for method in sorted(route.methods):
+            hidden += [
+                (method, path, route.path)
+                for seen, path, matcher in earlier
+                if seen == method and matcher.fullmatch(route.path)
+            ]
+        earlier += [(method, route.path, _matcher(route.path)) for method in sorted(route.methods)]
+    assert hidden == []
+
+
+# The AI visibility packages that add routes or tenant tables, in number order
+# (docs/ai-visibility/MASTER-PLAN.md section 3.6). Each has one anchor line in each table of this
+# file and of tests/security/test_cross_tenant.py, and adds its entries under that line only.
+PACKAGES = (
+    "WP-03 contract-pack",
+    "WP-11 layouts-api",
+    "WP-12 summary-lane",
+    "WP-13 prompts-lane",
+    "WP-14 sources-lane",
+    "WP-26 evidence-viewer",
+    "WP-30 runs-costs-health",
+    "WP-31 settings-engines",
+    "WP-32 overview-aggregates",
+    "WP-38 notes-annotations",
+    "WP-41 versions",
+    "WP-42 panels-api",
+    "WP-44 links-generate",
+    "WP-45 candidates-api",
+    "WP-47 alerts-api",
+    "WP-49 saved-views",
+    "WP-50 exports",
+    "WP-51 reports",
+    "WP-54 extract-recommend",
+    "WP-56 rederive-candidates",
+    "WP-57 retrieval-fanout",
+    "WP-58 stats-api",
+    "WP-60 source-intel-api",
+    "WP-62 performance",
+    "WP-63 ssrf-webhooks",
+    "WP-64 aio-xch-api",
+    "WP-66 discovery-sources",
+    "WP-67 engine-expansion",
+    "WP-68 llm-advanced",
+    "WP-69 first-party-signals",
+    "WP-70 geo-readiness",
+)
+ANCHOR = re.compile(r"^ *# (WP-\d{2} [a-z0-9-]+)$", re.MULTILINE)
+SECURITY_SUITE = Path(__file__).parents[1] / "security" / "test_cross_tenant.py"
+
+
+@pytest.mark.parametrize(("path", "tables"), [(Path(__file__), 2), (SECURITY_SUITE, 4)])
+def test_each_table_has_one_anchor_line_per_package_in_order(path: Path, tables: int) -> None:
+    assert ANCHOR.findall(path.read_text()) == list(PACKAGES) * tables
 
 
 def test_every_requirement_of_a_route_is_reported() -> None:

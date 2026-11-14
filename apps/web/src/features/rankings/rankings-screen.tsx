@@ -73,11 +73,12 @@ import { Button } from '@/components/ui/button';
 import { IconButton } from '@/components/ui/icon-button';
 import { Menu, type MenuItemDef } from '@/components/ui/menu';
 import { SplitButton } from '@/components/ui/split-button';
-import { buildCsv, buildWorkbook, download, fileName, type ExportFormat } from './export/export-file';
-import { readWorkbookColors } from './export/export-colors';
 import { buildExport } from './export/export-model';
 import { toast } from '@/components/ui/toast';
 import { announce } from '@/lib/a11y/announcer';
+import { downloadBlob } from '@/lib/csv/csv-write';
+import { readWorkbookColors } from '@/lib/export/export-colors';
+import { buildCsv, buildWorkbook, fileName, type ExportFormat } from '@/lib/export/export-file';
 import { useErrorId } from '@/lib/api/use-error-id';
 import type { EntityRef, TrackedKeywordRow } from '@/lib/api/types';
 import { useDebouncedValue } from '@/lib/dom/use-debounced-value';
@@ -643,7 +644,7 @@ export function RankingsScreen({
         format === 'xlsx'
           ? await buildWorkbook(t('export.sheet'), context, table, readWorkbookColors())
           : buildCsv(table);
-      download(blob, fileName(format, now));
+      downloadBlob(blob, fileName(format, now));
     } catch {
       toast({
         type: 'error',

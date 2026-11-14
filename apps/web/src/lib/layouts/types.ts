@@ -5,19 +5,21 @@
  * Everything in this folder is pure: no React, no DOM, no fetching. It is destined for packages/contracts,
  * where the API's list of valid keys is generated from the same catalog.
  */
+// `import type` is stripped by Node, so scripts/gen-layout-catalog.mjs still runs on catalog.ts.
+import type { components } from '@/lib/api/schema';
 
 export const WIDTHS = ['third', 'half', 'two_thirds', 'full'] as const;
 export type Width = (typeof WIDTHS)[number];
 
-/** A customizable place. More screens are added to the catalog as they are built. */
-export type ScreenKey = 'overview' | 'inspector.keyword';
+/** Every screen the API knows (ResolvedLayout.screen). The catalog fills a screen when its page is built. */
+export type ScreenKey = components['schemas']['ResolvedLayout']['screen'];
 
 export type Channel = 'seo' | 'ai';
 export type CardGroup = 'seo' | 'ai' | 'cross' | 'activity';
 export type Breakpoint = 'wide' | 'medium' | 'narrow';
 
-/** Engine codes of ai.engines (docs/04-data-model.md) that headline numbers and card options may name. */
-export type EngineCode = 'chatgpt_web' | 'gemini_web' | 'google_ai_mode' | 'google_ai_overview';
+/** Engines the API accepts (Q8 of WP-11). `google_ai_overview` comes back with slice 2. */
+export type EngineCode = components['schemas']['EngineCode'];
 
 /** One card type placed on a screen. */
 export interface CardItem {

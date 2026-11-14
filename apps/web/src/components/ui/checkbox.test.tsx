@@ -92,6 +92,11 @@ describe('Checkbox', () => {
     expect(screen.getByRole('checkbox')).toHaveAttribute('data-invalid');
   });
 
+  it('takes an element as its label and is named by that element text', () => {
+    renderWithProviders(<Checkbox checked={false} label={<span>ChatGPT</span>} />);
+    expect(screen.getByRole('checkbox', { name: 'ChatGPT' })).toBeInTheDocument();
+  });
+
   it('passes other attributes and its ref on to the box', () => {
     const ref = { current: null as HTMLElement | null };
     renderWithProviders(<Checkbox checked={false} label="Terms" name="terms" data-testid="terms" ref={ref} />);

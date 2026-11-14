@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import re
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import asyncpg
@@ -23,6 +23,7 @@ from idraft.api.auth.tokens import hash_token, new_token
 from idraft.api.main import create_app
 from idraft.api.openapi import placeholder_settings
 from idraft.api.resources import Resources
+from idraft.api.stubs import is_not_built
 from idraft.storage.raw import compress, digest
 from idraft.vault.envelope import EnvelopeCipher
 from idraft.vault.store import REFRESH_TOKEN
@@ -64,15 +65,43 @@ def _routes() -> list[tuple[str, str]]:
 ALL_ROUTES = _routes()
 
 
+def _not_built() -> set[tuple[str, str]]:
+    """Routes whose contract is published and whose body is not built (idraft.api.stubs): they
+    answer 501 once every access check has passed."""
+    found: set[tuple[str, str]] = set()
+    for route in iter_route_contexts(create_app(placeholder_settings()).routes):
+        assert route.path is not None
+        assert route.methods
+        if is_not_built(getattr(route.original_route, "endpoint", None)):
+            found.update((method, route.path) for method in route.methods)
+    return found
+
+
+NOT_BUILT = _not_built()
+
+
 def _names(path: str) -> list[str]:
     """The path's parameters, written `{name}` or `{name:converter}`."""
     return PATH_PARAMETER.findall(path)
 
 
+# A path parameter that is a word, not an id of the tenant: it must not count as one of its
+# secrets, since every response would then seem to hold it.
+WORDS = {
+    "kind": "gsc",
+    "engine_code": "chatgpt_web",
+    "screen": "ai_overview",
+    "registrable_domain": "acme.example",
+    "metric": "ai.mention_rate",
+}
+
 WORKSPACE_ROUTES = [(method, path) for method, path in ALL_ROUTES if "workspace_id" in _names(path)]
-# Routes that also name something inside the workspace: a project, a member, an invitation.
+# Routes that also name something inside the workspace: a project, a member, an invitation. A
+# word (`WORDS`) names nothing, so a path whose only other parameter is a word is no child.
 CHILD_ROUTES = [
-    (method, path) for method, path in WORKSPACE_ROUTES if set(_names(path)) - {"workspace_id"}
+    (method, path)
+    for method, path in WORKSPACE_ROUTES
+    if set(_names(path)) - {"workspace_id", *WORDS}
 ]
 # Every GET that returns tenant data without naming a child: the lists, and the two routes
 # that list the caller's workspaces.
@@ -205,10 +234,63 @@ BODIES: dict[tuple[str, str], dict[str, Any]] = {
     },
     ("POST", _W + "/projects/{project_id}/prompts/lint"): {"texts": ["Is Acme good?"]},
     ("PATCH", _W + "/projects/{project_id}/prompts/{prompt_id}"): {"importance": 1},
+    # AI visibility packages, one line each (docs/ai-visibility/MASTER-PLAN.md section 3.6): add
+    # your entries under your own line, nowhere else in this table.
+    # WP-03 contract-pack
+    ("POST", _W + "/projects/{project_id}/prompts/bulk-update"): {
+        "ids": ["{prompt_id}"],
+        "set": {"importance": 1},
+    },
+    ("POST", _W + "/projects/{project_id}/notes"): {
+        "on": "2026-11-03",
+        "text": "Planted note",
+        "scope": {"kind": "project"},
+    },
+    ("PUT", _W + "/me/layouts/{screen}"): {
+        "schema": 1,
+        "cards": [{"id": "c1", "type": "ai.by_engine"}],
+    },
+    ("PUT", _W + "/layouts/{screen}/default"): {
+        "schema": 1,
+        "cards": [{"id": "c1", "type": "ai.by_engine"}],
+    },
+    # WP-11 layouts-api
+    # WP-12 summary-lane
+    # WP-13 prompts-lane
+    # WP-14 sources-lane
+    # WP-26 evidence-viewer
+    # WP-30 runs-costs-health
+    ("POST", _W + "/budgets"): {
+        "project_id": "{project_id}",
+        "workload": "seo_rank",
+        "limit_usd": "10.00",
+    },
+    ("PATCH", _W + "/budgets/{budget_id}"): {"limit_usd": "9999.00"},
+    # WP-31 settings-engines
+    # WP-32 overview-aggregates
+    # WP-38 notes-annotations
+    # WP-41 versions
+    # WP-42 panels-api
+    # WP-44 links-generate
+    # WP-45 candidates-api
+    # WP-47 alerts-api
+    # WP-49 saved-views
+    # WP-50 exports
+    # WP-51 reports
+    # WP-54 extract-recommend
+    # WP-56 rederive-candidates
+    # WP-57 retrieval-fanout
+    # WP-58 stats-api
+    # WP-60 source-intel-api
+    # WP-62 performance
+    # WP-63 ssrf-webhooks
+    # WP-64 aio-xch-api
+    # WP-66 discovery-sources
+    # WP-67 engine-expansion
+    # WP-68 llm-advanced
+    # WP-69 first-party-signals
+    # WP-70 geo-readiness
 }
-# A path parameter that is a word, not an id of the tenant: it must not count as one of its
-# secrets, since every response would then seem to hold it.
-WORDS = {"kind": "gsc", "engine_code": "chatgpt_web"}
 # Routes that a member limited to some projects is refused even inside their own project: they
 # change the workspace's credentials, which belong to no one project (docs/24 section 3.2).
 EVERY_PROJECT_ONLY = {
@@ -227,9 +309,108 @@ QUERIES: dict[tuple[str, str], dict[str, str]] = {
     },
     ("GET", _W + "/costs"): {"from": "2026-01-01", "to": "2026-12-31", "group_by": "project"},
     # Every option, so the opt-in reads are scanned too.
-    ("GET", _W + "/projects/{project_id}/ai/prompts-summary"): {"include": "entities"},
+    ("GET", _W + "/projects/{project_id}/ai/prompts-summary"): {
+        "include": "series,entities,total,co_mentions,cells",
+        "compare": "previous_period",
+        "group_by": "country",
+    },
     # A tenant's answer issued one query; the default needs two answers.
-    ("GET", _W + "/projects/{project_id}/ai/fanout-queries"): {"min_support": "1"},
+    ("GET", _W + "/projects/{project_id}/ai/fanout-queries"): {
+        "min_support": "1",
+        "filter[country_iso]": "US",
+        "include": "topics",
+    },
+    # AI visibility packages, one line each (docs/ai-visibility/MASTER-PLAN.md section 3.6): add
+    # your entries under your own line, nowhere else in this table.
+    # WP-03 contract-pack
+    # WP-11 layouts-api
+    # WP-12 summary-lane
+    # WP-13 prompts-lane
+    ("GET", _W + "/vocabularies/{vocabulary_id}/terms"): {"include": "prompt_count"},
+    # WP-14 sources-lane
+    ("GET", _W + "/projects/{project_id}/ai/sources/domains"): {
+        "include": "series,cited_with,by_role_by_engine",
+        "compare": "previous_period",
+        "min_support": "1",
+        "filter[country_iso]": "US",
+        "include_unresolved_redirects": "true",
+        "include_engine_internal": "true",
+    },
+    ("GET", _W + "/projects/{project_id}/ai/sources/pages"): {
+        "include": "series",
+        "compare": "previous_period",
+        "min_support": "1",
+        "filter[country_iso]": "US",
+        "include_unresolved_redirects": "true",
+        "include_engine_internal": "true",
+    },
+    # The tenant's answer cites its own page once and is new in the default window.
+    ("GET", _W + "/projects/{project_id}/ai/sources/changes"): {
+        "kind": "new",
+        "min_support": "1",
+        "filter[country_iso]": "US",
+        "include_unresolved_redirects": "true",
+        "include_engine_internal": "true",
+    },
+    ("GET", _W + "/projects/{project_id}/ai/citations"): {"filter[country_iso]": "US"},
+    # Every block of the diversity read; the tenant's answer cites its own page once.
+    ("GET", _W + "/projects/{project_id}/ai/sources/diversity"): {
+        "include": "series,ads",
+        "filter[country_iso]": "US",
+        "include_unresolved_redirects": "true",
+        "include_engine_internal": "true",
+    },
+    # The domain of the tenant's seeded citation (`WORDS`), so the detail has rows to show.
+    ("GET", _W + "/projects/{project_id}/ai/sources/domains/{registrable_domain}"): {
+        "filter[country_iso]": "US",
+        "include_unresolved_redirects": "true",
+        "include_engine_internal": "true",
+    },
+    # The tenant's prompt cites its own page: the row names the page.
+    ("GET", _W + "/projects/{project_id}/ai/sources/prompts"): {
+        "filter[own_cited]": "true",
+        "filter[country_iso]": "US",
+        "include_unresolved_redirects": "true",
+        "include_engine_internal": "true",
+    },
+    # WP-26 evidence-viewer
+    # WP-30 runs-costs-health
+    # WP-31 settings-engines
+    # WP-32 overview-aggregates
+    ("GET", _W + "/projects/{project_id}/ai/metrics/overview"): {"compare": "previous_period"},
+    ("GET", _W + "/projects/{project_id}/overview/ai"): {"compare": "previous_period"},
+    ("GET", _W + "/projects/{project_id}/ai/metrics/{metric}"): {"compare": "previous_period"},
+    ("GET", _W + "/projects/{project_id}/ai/metrics/{metric}/series"): {
+        "filter[country_iso]": "US"
+    },
+    ("GET", _W + "/projects/{project_id}/ai/metrics/{metric}/breakdown"): {"dimension": "topic"},
+    ("GET", _W + "/projects/{project_id}/ai/competitors"): {
+        "compare": "previous_period",
+        "include": "lost_prompts,top_sources",
+    },
+    ("GET", _W + "/projects/{project_id}/overview/competitors"): {"compare": "previous_period"},
+    # WP-38 notes-annotations
+    # WP-41 versions
+    # WP-42 panels-api
+    # WP-44 links-generate
+    # WP-45 candidates-api
+    # WP-47 alerts-api
+    # WP-49 saved-views
+    # WP-50 exports
+    # WP-51 reports
+    # WP-54 extract-recommend
+    # WP-56 rederive-candidates
+    # WP-57 retrieval-fanout
+    # WP-58 stats-api
+    # WP-60 source-intel-api
+    # WP-62 performance
+    # WP-63 ssrf-webhooks
+    # WP-64 aio-xch-api
+    # WP-66 discovery-sources
+    # WP-67 engine-expansion
+    # WP-68 llm-advanced
+    # WP-69 first-party-signals
+    # WP-70 geo-readiness
 }
 # Lists under a workspace's path that hold the platform's data, the same for every workspace:
 # they have no tenant data of their own to show.
@@ -274,6 +455,8 @@ class Tenant:
     integration_id: uuid.UUID
     # A prompt of the project with the term, so changing or archiving it succeeds.
     prompt_id: uuid.UUID
+    # What the AI visibility packages seed in `_tenant`, by path parameter name.
+    more_ids: dict[str, str] = field(default_factory=dict)
 
     def ids(self) -> dict[str, str]:
         return {
@@ -299,6 +482,7 @@ class Tenant:
             "connection_id": str(self.connection_id),
             "integration_id": str(self.integration_id),
             "prompt_id": str(self.prompt_id),
+            **self.more_ids,
         }
 
     def secrets(self) -> list[str]:
@@ -567,6 +751,15 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str, fake: Fa
     ai_key = f"raw/v1/ai_raw/dataforseo/planted/{label}-{uuid.uuid4().hex}.json.zst"
     if resources.import_store is not None:
         await resources.import_store.put(ai_key, compress(ai_answer))
+    # An earlier answer of the prompt that names the brand, written first so it is older: the
+    # baseline the answer compare route reads.
+    earlier = await seed_observation(
+        pg,
+        Project(workspace.id, project_id),
+        seeded,
+        object_key=f"{ai_key}.earlier",
+        sha256=digest(ai_answer + b".earlier"),
+    )
     observation_id = await seed_observation(
         pg,
         Project(workspace.id, project_id),
@@ -576,6 +769,20 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str, fake: Fa
     )
     # Its extraction: a citation, a mention of the entity and the facts, read through the routes.
     await seed_extraction(pg, Project(workspace.id, project_id), observation_id, entity["id"])
+    # The earlier answer's facts (a derivation is one per project): valid, and naming the brand.
+    await execute(
+        pg,
+        "INSERT INTO ai.observation_facts (observation_id, observed_at, derivation_id, "
+        "workspace_id, project_id, observed_date, engine_code, observation_class, prompt_id, "
+        "prompt_version_id, replicate_index, is_valid, own_mentioned, own_domain_cited, "
+        "own_citation_count, total_citation_count, tracked_entities_mentioned, "
+        "had_structured_list) SELECT e.id, e.observed_at, f.derivation_id, f.workspace_id, "
+        "f.project_id, e.observed_date, f.engine_code, f.observation_class, f.prompt_id, "
+        "f.prompt_version_id, 1, true, true, false, 0, 0, 0, false FROM ai.observations e "
+        "CROSS JOIN ai.observation_facts f WHERE e.id = $1 AND f.observation_id = $2",
+        earlier,
+        observation_id,
+    )
     # The queries ChatGPT issued while answering, as ingest stores them.
     await execute(
         pg,
@@ -624,6 +831,114 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str, fake: Fa
         account.email,
         connection["id"],
     )
+    # Ids of what the AI visibility packages seed, by path parameter name; each package adds its
+    # rows under its own line (docs/ai-visibility/MASTER-PLAN.md section 3.6).
+    more_ids: dict[str, str] = {}
+    # WP-03 contract-pack
+    # No notes table yet: a note id that names nothing. WP-38 seeds a real note under its own
+    # line and removes this one.
+    more_ids["note_id"] = str(uuid.uuid4())
+
+    # WP-11 layouts-api
+    # The owner's own layout and the team default of the screen the suite fills in (`WORDS`).
+    await execute(
+        pg,
+        "INSERT INTO core.layouts (workspace_id, owner_user_id, screen, document, "
+        "schema_version, updated_by) VALUES ($1, $2, 'ai_overview', '{\"schema\": 1}', 1, $2), "
+        "($1, NULL, 'ai_overview', '{\"schema\": 1}', 1, $2)",
+        workspace.id,
+        owner.id,
+    )
+
+    # WP-12 summary-lane
+
+    # WP-13 prompts-lane
+
+    # WP-14 sources-lane
+
+    # WP-26 evidence-viewer
+
+    # WP-30 runs-costs-health
+    # An AI run under way takes the place of the rank run for the run routes: the coverage read
+    # answers 422 for a rank run, and cancelling an AI run that is open succeeds as well. A second
+    # AI run a budget blocked today shows in the daily collection, so that read is not empty.
+    ai_run = await fetchrow(
+        pg,
+        "INSERT INTO ops.collection_runs (workspace_id, project_id, workload, window_start, "
+        "window_end, trigger, status, config_snapshot) VALUES ($1, $2, 'ai_prompt', now(), "
+        "now() + interval '2 hours', 'manual', 'running', '{}') RETURNING id",
+        workspace.id,
+        project_id,
+    )
+    blocked_run = await fetchrow(
+        pg,
+        "INSERT INTO ops.collection_runs (workspace_id, project_id, workload, window_start, "
+        "window_end, trigger, status, config_snapshot, completed_at) VALUES ($1, $2, 'ai_prompt', "
+        "now(), now() + interval '2 hours', 'manual', 'budget_blocked', '{}', now()) "
+        "RETURNING id",
+        workspace.id,
+        project_id,
+    )
+    more_ids["run_id"] = str(ai_run["id"])
+    more_ids["blocked_run_id"] = str(blocked_run["id"])
+    # A live AI schedule, so the cost forecast has a row of the project's own to show.
+    await execute(
+        pg,
+        "INSERT INTO ops.schedules (workspace_id, project_id, workload, name, cadence, timezone, "
+        "next_run_at, selector) VALUES ($1, $2, 'ai_prompt', 'AI answers', 'daily', 'UTC', "
+        "now() + interval '1 day', '{}')",
+        workspace.id,
+        project_id,
+    )
+
+    # WP-31 settings-engines
+
+    # WP-32 overview-aggregates
+
+    # WP-38 notes-annotations
+
+    # WP-41 versions
+
+    # WP-42 panels-api
+
+    # WP-44 links-generate
+
+    # WP-45 candidates-api
+
+    # WP-47 alerts-api
+
+    # WP-49 saved-views
+
+    # WP-50 exports
+
+    # WP-51 reports
+
+    # WP-54 extract-recommend
+
+    # WP-56 rederive-candidates
+
+    # WP-57 retrieval-fanout
+
+    # WP-58 stats-api
+
+    # WP-60 source-intel-api
+
+    # WP-62 performance
+
+    # WP-63 ssrf-webhooks
+
+    # WP-64 aio-xch-api
+
+    # WP-66 discovery-sources
+
+    # WP-67 engine-expansion
+
+    # WP-68 llm-advanced
+
+    # WP-69 first-party-signals
+
+    # WP-70 geo-readiness
+
     # Fresh, so that a route wanting a recent credential is not refused for that instead.
     token, _ = await open_session(resources, owner, fresh=True)
     return Tenant(
@@ -652,6 +967,7 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str, fake: Fa
         connection_id=connection["id"],
         integration_id=integration["id"],
         prompt_id=prompt_id,
+        more_ids=more_ids,
     )
 
 
@@ -842,6 +1158,40 @@ _TENANT_ROWS = {
     "ai.citations": "workspace_id",
     "ai.entity_mentions": "workspace_id",
     "ai.observation_facts": "workspace_id",
+    # AI visibility packages, one line each (docs/ai-visibility/MASTER-PLAN.md section 3.6): add
+    # your entries under your own line, nowhere else in this table.
+    # WP-03 contract-pack
+    # WP-11 layouts-api
+    "core.layouts": "workspace_id",
+    # WP-12 summary-lane
+    # WP-13 prompts-lane
+    # WP-14 sources-lane
+    # WP-26 evidence-viewer
+    # WP-30 runs-costs-health
+    # WP-31 settings-engines
+    # WP-32 overview-aggregates
+    # WP-38 notes-annotations
+    # WP-41 versions
+    # WP-42 panels-api
+    # WP-44 links-generate
+    # WP-45 candidates-api
+    # WP-47 alerts-api
+    # WP-49 saved-views
+    # WP-50 exports
+    # WP-51 reports
+    # WP-54 extract-recommend
+    # WP-56 rederive-candidates
+    # WP-57 retrieval-fanout
+    # WP-58 stats-api
+    # WP-60 source-intel-api
+    # WP-62 performance
+    # WP-63 ssrf-webhooks
+    # WP-64 aio-xch-api
+    # WP-66 discovery-sources
+    # WP-67 engine-expansion
+    # WP-68 llm-advanced
+    # WP-69 first-party-signals
+    # WP-70 geo-readiness
 }
 
 
@@ -871,6 +1221,27 @@ def test_every_route_is_scoped_by_a_workspace_or_accounted_for() -> None:
     assert mutating_with_body == set(BODIES)
 
 
+def test_the_published_contracts_are_the_not_built_routes() -> None:
+    """A route whose contract is published and whose body is not built is a workspace route; a
+    package that builds a body drops its route from this set by removing the mark."""
+    assert NOT_BUILT.issubset(WORKSPACE_ROUTES)
+
+
+def test_a_word_in_a_path_is_never_a_child_and_always_resolves() -> None:
+    """A path whose only parameters besides the workspace are words names nothing inside the
+    workspace, so it is no child route. A parameter is an id (`*_id`, which `_fill` takes from
+    the tenant) or a word (`WORDS`, which `_fill` writes itself): a word left out of `WORDS`
+    would be asked for as an id, and one in it needs no id."""
+    children = set(CHILD_ROUTES)
+    for method, path in ALL_ROUTES:
+        for name in _names(path):
+            assert name.endswith("_id") or name in WORDS, f"{name} of {path} is neither"
+        if "workspace_id" in _names(path) and set(_names(path)) - {"workspace_id"} <= set(WORDS):
+            assert (method, path) not in children, (method, path)
+    for name, word in WORDS.items():
+        assert _fill(f"/{{{name}}}", {}) == f"/{word}", name
+
+
 @pytest.mark.parametrize(("method", "path"), WORKSPACE_ROUTES)
 async def test_another_workspaces_path_is_not_found(
     api: httpx.AsyncClient, tenants: tuple[Tenant, Tenant], method: str, path: str
@@ -887,6 +1258,18 @@ async def test_another_workspaces_path_is_not_found(
     assert _without_request_details(foreign) == _without_request_details(nowhere)
 
 
+def _answer_for_a_foreign_child(method: str, path: str) -> tuple[int, str]:
+    """What a route answers for a child id (a project, a member) that is not in the workspace.
+
+    A stub reads nothing and holds no project row, so a project outside this workspace gets the
+    same 501 as the caller's own project; the callers below still require the foreign id and an
+    id that names nothing to answer identically. The strict 404 applies the moment a package
+    drops `@not_built` (idraft.api.stubs), which also fails the stub branch: the route then
+    answers 404 or 200 instead of 501. WP-11 and later packages move a route out of NOT_BUILT
+    by dropping the mark, nowhere else."""
+    return (501, "not_implemented") if (method, path) in NOT_BUILT else (404, "not_found")
+
+
 @pytest.mark.parametrize(("method", "path"), CHILD_ROUTES)
 async def test_another_workspaces_child_in_the_callers_own_path_is_not_found(
     api: httpx.AsyncClient, tenants: tuple[Tenant, Tenant], method: str, path: str
@@ -900,7 +1283,7 @@ async def test_another_workspaces_child_in_the_callers_own_path_is_not_found(
     foreign = await _call(api, method, path, ids, a.headers)
     nowhere = await _call(api, method, path, missing, a.headers)
 
-    assert _problem(foreign) == _problem(nowhere) == (404, "not_found")
+    assert _problem(foreign) == _problem(nowhere) == _answer_for_a_foreign_child(method, path)
     assert _without_request_details(foreign) == _without_request_details(nowhere)
 
 
@@ -937,6 +1320,9 @@ async def test_a_project_outside_the_members_scope_is_not_found(
     assert _without_request_details(outside) == _without_request_details(nowhere)
     if (method, path) in EVERY_PROJECT_ONLY:
         assert _problem(inside) == (403, "forbidden")
+    elif (method, path) in NOT_BUILT:
+        # Inside the member's scope a published contract answers that its body is not built.
+        assert _problem(inside) == (501, "not_implemented")
     else:
         assert inside.status_code < 300, inside.text
     row = await fetchrow(migrated, "SELECT name FROM core.projects WHERE id = $1", hidden)
@@ -974,12 +1360,16 @@ async def test_a_list_holds_nothing_of_another_workspace(
         _fill(path, a.ids()), params=QUERIES.get((method, path)), headers=a.headers
     )
 
-    assert response.status_code == 200, response.text
+    if (method, path) in NOT_BUILT:
+        # A stub answers 501 and still must not carry anything of another workspace.
+        assert _problem(response) == (501, "not_implemented")
+    else:
+        assert response.status_code == 200, response.text
     body = response.json()
     for secret in b.secrets():
         assert not _leaks(body, secret), f"{path} shows {secret} of another workspace"
-    # The list is not empty for a trivial reason: it shows A's own data.
-    if path not in PLATFORM_LISTS | COUNT_ROUTES:
+    # The list is not empty for a trivial reason: it shows A's own data (a stub shows none).
+    if (method, path) not in NOT_BUILT and path not in PLATFORM_LISTS | COUNT_ROUTES:
         assert any(own in response.text for own in [*a.ids().values(), str(a.owner.id)])
 
 
@@ -1025,8 +1415,14 @@ async def test_the_same_holds_once_the_session_is_cached_and_for_a_member_of_bot
     # B's children are not reachable through A's path even for a member of both.
     for method, path in CHILD_ROUTES:
         ids = {**b.ids(), "workspace_id": str(a.workspace.id)}
+        missing = {**_nowhere(b.ids()), "workspace_id": str(a.workspace.id)}
         response = await _call(api, method, path, ids, cookie(token))
-        assert _problem(response) == (404, "not_found"), (method, path)
+        nowhere = await _call(api, method, path, missing, cookie(token))
+        assert _problem(response) == _answer_for_a_foreign_child(method, path), (method, path)
+        assert _without_request_details(response) == _without_request_details(nowhere), (
+            method,
+            path,
+        )
     rows = await fetch(migrated, "SELECT name FROM core.projects WHERE id = $1", b.project_id)
     assert [row["name"] for row in rows] == ["crm software"]
     await execute(migrated, "DELETE FROM auth.memberships WHERE user_id = $1", both.id)

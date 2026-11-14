@@ -26,18 +26,30 @@ export interface CopyButtonProps {
    * the content does not give up any width for it. `inline` is a place of its own beside the content.
    */
   placement?: 'overlay' | 'inline' | undefined;
+  /**
+   * `true` (default): a cell control of a grid, out of the tab order and reached with F2. `false`: in a list, a
+   * drawer or a card, where it is an ordinary tab stop with a focus ring.
+   */
+  inGrid?: boolean | undefined;
 }
 
 /**
  * A small button that copies one value from a table cell (12-tables.md section 6, 09-buttons-controls.md
- * section 9.1). It is out of the grid's tab order and marked for the table, which reaches it with F2. It is
+ * section 9.1). In a grid (`inGrid`, the default) it is out of the tab order and marked for the table, which
+ * reaches it with F2; elsewhere it is an ordinary tab stop. It is
  * drawn only when the row is hovered, when the cell or something in it has focus, and always on a touch
  * screen; hiding is by opacity alone, so it is there for the keyboard and for a screen reader all the time.
  * A copy shows a check for 2 seconds and is announced; a copy the browser refuses is an error toast, the
  * one toast for a direct action, since an icon button has no room for the words. Its clicks stop here, so
  * the row around it does not open.
  */
-export function CopyButton({ text, label, announcement, placement = 'overlay' }: CopyButtonProps): ReactElement {
+export function CopyButton({
+  text,
+  label,
+  announcement,
+  placement = 'overlay',
+  inGrid = true,
+}: CopyButtonProps): ReactElement {
   const t = useTranslations('common.copy');
   const [copied, setCopied] = useState(false);
   const timer = useRef<number | undefined>(undefined);
@@ -73,7 +85,7 @@ export function CopyButton({ text, label, announcement, placement = 'overlay' }:
       )}
     >
       <IconButton
-        {...CELL_CONTROL}
+        {...(inGrid ? CELL_CONTROL : {})}
         icon={copied ? Check : Copy}
         label={copied ? t('copied') : label}
         size="icon-xs"

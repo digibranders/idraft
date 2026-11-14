@@ -1,9 +1,12 @@
 'use client';
 
 import type { UseQueryResult } from '@tanstack/react-query';
+import type { Route } from 'next';
 import { useTranslations } from 'next-intl';
+import Link from 'next/link';
 import type { ReactElement } from 'react';
 
+import { AiUnitCosts } from './ai-unit-costs';
 import { BudgetMeter } from './budget-meter';
 import { BudgetStatusBadge } from './budget-status-badge';
 import { budgetRows, money, projectBudget, shareOf } from './cost-model';
@@ -12,9 +15,11 @@ import { useCosts, usePriceBook, type CostScope } from './costs-queries';
 import { PlainTable, type PlainColumn } from '@/components/app/table/plain-table';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsPanel } from '@/components/ui/tabs';
+import { TextLink } from '@/components/ui/text-link';
 import type { BudgetStatus, BudgetStatusList, CostRow, Price } from '@/lib/api/types';
 import { formatBusinessDate, formatCurrency, formatInteger, formatPercent, formatUnitPrice } from '@/lib/format';
 import type { MonthKey } from '@/lib/format/month';
+import { useCan } from '@/lib/permissions';
 import { useWorkloadName } from '@/lib/workloads/use-workload-name';
 
 export const COST_TABS = ['provider', 'project', 'units', 'budgets'] as const;
@@ -40,6 +45,8 @@ export interface CostBreakdownProps {
   month: MonthKey;
   projects: readonly CostsProject[];
   budgets: UseQueryResult<BudgetStatusList>;
+  /** The Budgets and usage page of Settings, where budgets are changed; linked for a member with `budgets:manage`. */
+  budgetsHref: Route;
   tab: CostTab;
   onTabChange: (tab: CostTab) => void;
   /** The sentence of a table with no rows: no costs in the month, or none for the filters. */
@@ -70,6 +77,7 @@ export function CostBreakdown({
   month,
   projects,
   budgets,
+  budgetsHref,
   tab,
   onTabChange,
   emptyText,
@@ -91,10 +99,10 @@ export function CostBreakdown({
         <ProjectPanel scope={scope} now={now} projects={projects} budgets={budgets} emptyText={emptyText} />
       </TabsPanel>
       <TabsPanel value="units">
-        <UnitsPanel scope={scope} month={month} now={now} />
+        <UnitsPanel scope={scope} month={month} now={now} projects={projects} />
       </TabsPanel>
       <TabsPanel value="budgets">
-        <BudgetsPanel projects={projects} budgets={budgets} />
+        <BudgetsPanel projects={projects} budgets={budgets} budgetsHref={budgetsHref} />
       </TabsPanel>
     </Tabs>
   );
@@ -219,9 +227,22 @@ function BudgetUse({ status, showWorkload = false }: { status: BudgetStatus; sho
   );
 }
 
-function UnitsPanel({ scope, month, now }: Pick<CostBreakdownProps, 'scope' | 'month' | 'now'>): ReactElement {
+function UnitsPanel({
+  scope,
+  month,
+  now,
+  projects,
+}: Pick<CostBreakdownProps, 'scope' | 'month' | 'now' | 'projects'>): ReactElement {
   const t = useTranslations('costs');
+  const projectLabel = useProjectLabel();
   const query = usePriceBook(scope.workspaceId, month, now);
+  const projectName = (id: string): string => {
+    if (id === '') return t('noProject');
+    const known = projects.find((project) => project.id === id);
+    return known === undefined ? t('deletedProject') : projectLabel(known);
+  };
+  // The engines are named alike in every project: the one in the filter, else the first that is not archived
+  const engineProjectId = scope.projectId ?? (projects.find((project) => project.archived !== true) ?? projects[0])?.id;
   const columns: PlainColumn<Price>[] = [
     { id: 'provider', header: t('provider'), cell: (row) => row.provider_code },
     { id: 'endpoint', header: t('endpoint'), cell: (row) => row.endpoint },
@@ -235,26 +256,40 @@ function UnitsPanel({ scope, month, now }: Pick<CostBreakdownProps, 'scope' | 'm
     { id: 'verified', header: t('verified'), cell: (row) => formatBusinessDate(row.verified_at) },
   ];
   return (
-    <div className="flex flex-col gap-3">
-      <p className="flex flex-wrap items-center gap-2 type-meta">
-        <Badge variant="outline">{t('estimate')}</Badge>
-        {t('unitCostsNote')}
-      </p>
-      <PlainTable
-        caption={t('tabs.units')}
-        columns={columns}
-        rows={query.data?.data ?? []}
-        rowKey={(row) => row.price_id}
-        status={statusOf(query)}
-        errorState={<CostsError error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} />}
-        emptyText={t('noPrices')}
-      />
+    <div className="flex flex-col gap-6">
+      <AiUnitCosts scope={scope} projectName={projectName} engineProjectId={engineProjectId} prices={query} />
+      <section aria-labelledby="costs-price-book" className="flex flex-col gap-2">
+        <h2 id="costs-price-book" className="type-section-title">
+          {t('priceBook')}
+        </h2>
+        <p className="flex flex-wrap items-center gap-2 type-meta">
+          <Badge variant="outline">{t('estimate')}</Badge>
+          {t('unitCostsNote')}
+        </p>
+        <PlainTable
+          caption={t('tabs.units')}
+          columns={columns}
+          rows={query.data?.data ?? []}
+          rowKey={(row) => row.price_id}
+          status={statusOf(query)}
+          errorState={
+            <CostsError error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} />
+          }
+          emptyText={t('noPrices')}
+        />
+      </section>
     </div>
   );
 }
 
-function BudgetsPanel({ projects, budgets }: Pick<CostBreakdownProps, 'projects' | 'budgets'>): ReactElement {
+function BudgetsPanel({
+  projects,
+  budgets,
+  budgetsHref,
+}: Pick<CostBreakdownProps, 'projects' | 'budgets' | 'budgetsHref'>): ReactElement {
   const t = useTranslations('costs');
+  const manage = useTranslations('budgets');
+  const canManage = useCan('budgets:manage');
   const projectLabel = useProjectLabel();
   const workloadName = useWorkloadName();
   const columns: PlainColumn<BudgetStatus>[] = [
@@ -279,16 +314,24 @@ function BudgetsPanel({ projects, budgets }: Pick<CostBreakdownProps, 'projects'
     { id: 'status', header: t('status'), cell: (row) => <BudgetStatusBadge state={row.state} /> },
   ];
   return (
-    <PlainTable
-      caption={t('tabs.budgets')}
-      columns={columns}
-      rows={budgetRows(budgets.data?.data ?? [])}
-      rowKey={(row) => row.budget.budget_id}
-      status={statusOf(budgets)}
-      errorState={
-        <CostsError error={budgets.error} onRetry={() => void budgets.refetch()} retrying={budgets.isFetching} />
-      }
-      emptyText={t('noBudget')}
-    />
+    <div className="flex flex-col gap-2">
+      {/* Budgets are edited in Settings; this tab only reads them */}
+      {canManage ? (
+        <p className="self-end">
+          <TextLink render={<Link href={budgetsHref} />}>{manage('manage')}</TextLink>
+        </p>
+      ) : null}
+      <PlainTable
+        caption={t('tabs.budgets')}
+        columns={columns}
+        rows={budgetRows(budgets.data?.data ?? [])}
+        rowKey={(row) => row.budget.budget_id}
+        status={statusOf(budgets)}
+        errorState={
+          <CostsError error={budgets.error} onRetry={() => void budgets.refetch()} retrying={budgets.isFetching} />
+        }
+        emptyText={t('noBudget')}
+      />
+    </div>
   );
 }

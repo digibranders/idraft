@@ -22,9 +22,10 @@ from idraft.api.schemas.ai import (
     ProjectEngineList,
     ProjectEngineResponse,
 )
+from idraft.api.schemas.ai_engines import EngineProviderParams
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.api.workspaces.dependencies import require_permission
-from idraft.domain.ai_engines import BASE_PLAN, PROVIDER_CODE, EngineCode
+from idraft.domain.ai_engines import BASE_PLAN, PROVIDER_CODE, EngineCode, device_of
 
 router = APIRouter(
     prefix="/api/v1/workspaces/{workspace_id}/projects/{project_id}/engines", tags=["ai"]
@@ -43,6 +44,11 @@ Engines = Annotated[EngineService, Depends(get_engine_service)]
 
 def engine_view(view: EngineView) -> ProjectEngine:
     engine, configured = view.engine, view.configured
+    device = (
+        device_of(None if configured is None else configured.provider_params)
+        if engine.supports_device
+        else None
+    )
     return ProjectEngine(
         engine=Engine(
             engine_code=engine.code,
@@ -58,6 +64,7 @@ def engine_view(view: EngineView) -> ProjectEngine:
         location_ids=[] if configured is None else configured.location_ids,
         replicates=BASE_PLAN.answers_per_engine if configured is None else configured.replicates,
         provider_code=PROVIDER_CODE if configured is None else configured.provider_code,
+        provider_params=EngineProviderParams(device=device),
         active_prompts=view.active_prompts,
         estimated_monthly_cost_usd=view.estimated_monthly_cost_usd,
     )
@@ -81,7 +88,9 @@ async def list_engines(project_id: UUID, access: ReadData, engines: Engines) -> 
     description="The first engine turned on makes the project's AI answer schedules (twice a "
     "week). `location_ids` must be active countries (`422 validation_failed` with "
     "`location_not_supported`). The provider is DataForSEO and the engine gives one answer "
-    "per prompt and run.",
+    "per prompt and run. `provider_params.device` (`desktop` or `mobile`) is for Google AI Mode "
+    "only (`422 validation_failed` with `device_not_supported` for the others); leave it out to "
+    "keep the saved device.",
 )
 async def put_engine(
     project_id: UUID,

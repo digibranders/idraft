@@ -1,0 +1,4851 @@
+{
+ "updated": "2026-11-13T23:30:29+05:30",
+ "base": "develop 246d3574",
+ "waves": [
+  {
+   "id": "W0",
+   "name": "Scaffolding, contracts and the lock",
+   "status": "not_started"
+  },
+  {
+   "id": "W1",
+   "name": "Shared web packages and the first backend lanes",
+   "status": "not_started"
+  },
+  {
+   "id": "W2",
+   "name": "Topics & Prompts, inspectors, Citations, dialogs, runs and settings",
+   "status": "not_started"
+  },
+  {
+   "id": "W3",
+   "name": "AI Visibility Overview, Competitors page, notes",
+   "status": "not_started"
+  },
+  {
+   "id": "W4",
+   "name": "Slice 4 management: versions, panels, links and generate, inbox, alerts, views, exports, reports, Prompt Detail, command palette",
+   "status": "not_started"
+  },
+  {
+   "id": "W5",
+   "name": "Slice 2 and 3 data: extraction, recommendation, candidates, retrieval, statistics, source intelligence, performance, SSRF and webhooks",
+   "status": "not_started"
+  },
+  {
+   "id": "W6",
+   "name": "Blocked by the provider or the owner: AI Overview engine and cross-channel, discovery sources, engine expansion, LLM features, first-party signals",
+   "status": "not_started"
+  },
+  {
+   "id": "W7",
+   "name": "Optional: page-level AI readiness",
+   "status": "not_started"
+  },
+  {
+   "id": "X",
+   "name": "Cross-wave: quality sweeps, docs, releases and acceptance",
+   "status": "not_started"
+  }
+ ],
+ "workPackages": [
+  {
+   "id": "WP-00",
+   "title": "Coordination kit: heavy-job lock, status files, worktree helper",
+   "wave": "W0",
+   "kind": "infra",
+   "status": "merged",
+   "dependsOn": [],
+   "session": "wp-00-kit",
+   "branch": "claude/ai-wp-00-kit-b3c1a8",
+   "rows": {
+    "BE": [],
+    "WB": [],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 0,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-00-coordination-kit.md; estimate 4 tasks; decisions none | merged 0a5c199f, review PASS, 44 self-tests"
+  },
+  {
+   "id": "WP-01",
+   "title": "Backend scaffolding: routers, permissions, problem codes, test anchors",
+   "wave": "W0",
+   "kind": "backend",
+   "status": "merged",
+   "dependsOn": [],
+   "session": "wp-01-be-scaffold",
+   "branch": "claude/ai-wp-01-backend-scaffold-0d8e58",
+   "rows": {
+    "BE": [
+     "BE-OPS-01",
+     "BE-OPS-02",
+     "BE-OPS-09",
+     "BE-LAYOUTS-05"
+    ],
+    "WB": [],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 4,
+    "done": 4
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-01-backend-scaffold.md; estimate 5 tasks; decisions D-11, D-18 | scaffold merged to develop"
+  },
+  {
+   "id": "WP-02",
+   "title": "Web scaffolding: routes, navigation, seams, namespaces, mocks, moves, deps",
+   "wave": "W0",
+   "kind": "web",
+   "status": "merged",
+   "dependsOn": [],
+   "session": "wp-02-web-scaffold",
+   "branch": "claude/ai-wp-02-web-scaffold-ca73e6",
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-NAV-01"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [
+     "SC-12",
+     "SC-17",
+     "SC-18"
+    ],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 4,
+    "done": 4
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-02-web-scaffold.md; estimate 7 tasks; decisions D-16 | scaffold merged to develop"
+  },
+  {
+   "id": "WP-03",
+   "title": "Contract pack: OpenAPI shapes for the wave 1 and wave 2 backend items",
+   "wave": "W0",
+   "kind": "backend",
+   "status": "merged",
+   "dependsOn": [
+    "WP-01"
+   ],
+   "session": "wp-01-be-scaffold",
+   "branch": "ai/wp-03-contract-pack",
+   "rows": {
+    "BE": [],
+    "WB": [],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 0,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-03-contract-pack.md; estimate 6 tasks; decisions D-01, D-09, D-10 | merged 2ccdb976; backend 5059 passed cov 97.67%; web 5167 passed; 14 stub routes, additive; 8 owner-choice statements in contracts notes"
+  },
+  {
+   "id": "WP-04",
+   "title": "Chart platform: ChartFrame html mode, legend, tooltips, sample markers, boundaries",
+   "wave": "W1",
+   "kind": "web",
+   "status": "merged",
+   "dependsOn": [
+    "WP-02"
+   ],
+   "session": "wp-02-web-scaffold",
+   "branch": "ai/wp-04-chart-platform",
+   "rows": {
+    "BE": [],
+    "WB": [],
+    "CH": [
+     "CH-14"
+    ],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 1,
+    "done": 1
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-04-chart-frame.md; estimate 6 tasks; decisions D-05 | merged 01d3eea3; full suite 5129 tests, e2e 15/15; gaps noted in doc 20 4.6"
+  },
+  {
+   "id": "WP-05",
+   "title": "Chart parts: BarList, StackedShareBar, StepBars, IntervalBar",
+   "wave": "W1",
+   "kind": "web",
+   "status": "merged",
+   "dependsOn": [
+    "WP-02"
+   ],
+   "session": "wp-02-web-scaffold",
+   "branch": "ai/wp-05-chart-bars",
+   "rows": {
+    "BE": [],
+    "WB": [],
+    "CH": [],
+    "PD": [],
+    "SC": [
+     "SC-13"
+    ],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 1,
+    "done": 1
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-05-chart-bars.md; estimate 5 tasks; decisions none | merged f3d87925; 5329 tests, e2e 15/15; prop differences from inventory section 6 in As built"
+  },
+  {
+   "id": "WP-06",
+   "title": "Chart parts: HeatmapGrid with tree rows, SmallMultiples, connected crosshair",
+   "wave": "W1",
+   "kind": "web",
+   "status": "merged",
+   "dependsOn": [
+    "WP-02"
+   ],
+   "session": "wp-00-kit",
+   "branch": "ai/wp-06-chart-grids",
+   "rows": {
+    "BE": [],
+    "WB": [],
+    "CH": [],
+    "PD": [],
+    "SC": [
+     "SC-14"
+    ],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 1,
+    "done": 1
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-06-chart-grids.md; estimate 5 tasks; decisions D-04, D-05 | merged a7b79079; 5557/5558 tests (1 load flake), e2e 53/53; ScatterChart lazy chunk, bundle proof in docs/20 4.6"
+  },
+  {
+   "id": "WP-07",
+   "title": "App components A: Delta, EngineLogo, Meter, Banner variants, statistics parts",
+   "wave": "W1",
+   "kind": "web",
+   "status": "merged",
+   "dependsOn": [
+    "WP-02"
+   ],
+   "session": "wp-00-kit",
+   "branch": "ai/wp-07-app-parts-a",
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-A11Y-11"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [
+     "SC-01",
+     "SC-02",
+     "SC-10",
+     "SC-15",
+     "SC-19"
+    ],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 6,
+    "done": 6
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-07-app-parts-a.md; estimate 5 tasks; decisions none | merged dbbc3948; 5165 tests, e2e 42/42; WB-PI-21 belongs to WP-21"
+  },
+  {
+   "id": "WP-08",
+   "title": "App components B: DomainCell, URLCell, count popover, ChangeFeed, inspector stepping",
+   "wave": "W1",
+   "kind": "web",
+   "status": "merged",
+   "dependsOn": [
+    "WP-02"
+   ],
+   "session": "wp-02-web-scaffold",
+   "branch": "ai/wp-08-app-parts-b",
+   "rows": {
+    "BE": [],
+    "WB": [],
+    "CH": [],
+    "PD": [],
+    "SC": [
+     "SC-07",
+     "SC-09",
+     "SC-16",
+     "SC-22"
+    ],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 4,
+    "done": 4
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-08-app-parts-b.md; estimate 5 tasks; decisions none | merged bd87a089; 5809 tests, e2e 28/28; leases popover + copy-button used"
+  },
+  {
+   "id": "WP-09",
+   "title": "DataTable extensions: column groups, third tree level, right pin, context menu",
+   "wave": "W1",
+   "kind": "web",
+   "status": "merged",
+   "dependsOn": [
+    "WP-02"
+   ],
+   "session": "ai-prompts-web",
+   "branch": "ai/wp-09-table-extensions",
+   "rows": {
+    "BE": [],
+    "WB": [],
+    "CH": [],
+    "PD": [],
+    "SC": [
+     "SC-03",
+     "SC-05"
+    ],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 2,
+    "done": 2
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-09-table-extensions.md; estimate 6 tasks; decisions D-40 | merged 6afda411; 5505 tests; table-extensions e2e 14/14; 10,000 bulk cap not built (owner)"
+  },
+  {
+   "id": "WP-10",
+   "title": "Mobile list rows, saved view presets menu, date range picker",
+   "wave": "W1",
+   "kind": "web",
+   "status": "merged",
+   "dependsOn": [
+    "WP-02"
+   ],
+   "session": "wp-02-web-scaffold",
+   "branch": "ai/wp-10-controls",
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-NAV-06"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [
+     "SC-04",
+     "SC-06",
+     "SC-08"
+    ],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 4,
+    "done": 4
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-10-controls.md; estimate 5 tasks; decisions none | merged 63fa3a4b; 6128 tests, e2e 183; date range cap 91 days (MAX_RANGE_DAYS)"
+  },
+  {
+   "id": "WP-11",
+   "title": "Layouts API: core.layouts, five routes, catalog validation, audit",
+   "wave": "W1",
+   "kind": "backend",
+   "status": "merged",
+   "dependsOn": [
+    "WP-01",
+    "WP-03"
+   ],
+   "session": "wp-01-be-scaffold",
+   "branch": "ai/wp-11-layouts-api",
+   "rows": {
+    "BE": [
+     "BE-LAYOUTS-01",
+     "BE-LAYOUTS-02",
+     "BE-LAYOUTS-03",
+     "BE-LAYOUTS-04",
+     "BE-LAYOUTS-06",
+     "BE-LAYOUTS-07",
+     "BE-LAYOUTS-08",
+     "BE-LAYOUTS-09",
+     "BE-LAYOUTS-10",
+     "BE-LAYOUTS-11",
+     "BE-LAYOUTS-13",
+     "BE-LAYOUTS-14",
+     "BE-LAYOUTS-15"
+    ],
+    "WB": [],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [
+     "CF-29"
+    ],
+    "N": []
+   },
+   "counts": {
+    "total": 14,
+    "done": 14
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-11-layouts-api.md; estimate 8 tasks; decisions D-01, D-09, D-10, D-11, D-12 | merged c72a7a4e; web 5810 passed; backend 5200 passed, 2 failed (1 pre-existing on develop, 1 load flake); dev DB needs alembic upgrade head"
+  },
+  {
+   "id": "WP-12",
+   "title": "Summary additions: compare, total, rows, entities per week, co-mentions, filters",
+   "wave": "W1",
+   "kind": "backend",
+   "status": "merged",
+   "dependsOn": [
+    "WP-03"
+   ],
+   "session": "ai-prompts-web",
+   "branch": "ai/wp-12-summary",
+   "rows": {
+    "BE": [
+     "BE-METRICS-01",
+     "BE-METRICS-02",
+     "BE-METRICS-03",
+     "BE-METRICS-04",
+     "BE-METRICS-05",
+     "BE-METRICS-06",
+     "BE-METRICS-07",
+     "BE-METRICS-13",
+     "BE-METRICS-14",
+     "BE-METRICS-15",
+     "BE-METRICS-21",
+     "BE-METRICS-22",
+     "BE-TOPICS-04",
+     "BE-TOPICS-05",
+     "BE-TOPICS-06"
+    ],
+    "WB": [],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [
+     "CF-01",
+     "CF-06"
+    ],
+    "N": [
+     "OV-N1",
+     "OV-N2",
+     "OV-N3",
+     "OV-N4",
+     "OV-N10",
+     "OV-N14",
+     "OV-N15"
+    ]
+   },
+   "counts": {
+    "total": 24,
+    "done": 24
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-12-summary-lane.md; estimate 10 tasks; decisions D-04 | merged 416c12b1; 24 rows minus the language half of BE-METRICS-22 (422 not_built); backend 5435 passed + 1 load flake; v1.json and schema.ts regenerated; session stopped"
+  },
+  {
+   "id": "WP-13",
+   "title": "Prompt records: lint upgrade, type rule, filters, bulk update, quotas, provenance",
+   "wave": "W1",
+   "kind": "backend",
+   "status": "merged",
+   "dependsOn": [
+    "WP-03"
+   ],
+   "session": "wp-00-kit",
+   "branch": "ai/wp-13-prompts-lane",
+   "rows": {
+    "BE": [
+     "BE-PROMPTS-01",
+     "BE-PROMPTS-02",
+     "BE-PROMPTS-03",
+     "BE-PROMPTS-04",
+     "BE-PROMPTS-05",
+     "BE-PROMPTS-06",
+     "BE-PROMPTS-07",
+     "BE-PROMPTS-08",
+     "BE-PROMPTS-09",
+     "BE-PROMPTS-10",
+     "BE-PROMPTS-11",
+     "BE-PROMPTS-12",
+     "BE-PROMPTS-15",
+     "BE-PROMPTS-16",
+     "BE-PROMPTS-25",
+     "BE-TOPICS-01",
+     "BE-TOPICS-02",
+     "BE-TOPICS-03"
+    ],
+    "WB": [],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [
+     "CF-11",
+     "CF-12",
+     "CF-13"
+    ],
+    "N": [
+     "PD-N01",
+     "PD-N02",
+     "PD-N03",
+     "PD-N04",
+     "PD-N05",
+     "PD-N06",
+     "PD-N07",
+     "PD-N09",
+     "PD-N11",
+     "PD-N13"
+    ]
+   },
+   "counts": {
+    "total": 31,
+    "done": 31
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-13-prompts-lane.md; estimate 10 tasks; decisions D-21, D-22, D-23, D-46 | merged 1a2e5fe0; 31/31 rows; backend 5698 passed cov 97.82%; migration 0022_ai_prompt_value_sources; session stopped"
+  },
+  {
+   "id": "WP-14",
+   "title": "Sources and fan-out reads: series, country, min_support, lost, cited with, ads",
+   "wave": "W1",
+   "kind": "backend",
+   "status": "merged",
+   "dependsOn": [
+    "WP-03"
+   ],
+   "session": "wp-01-be-scaffold",
+   "branch": "ai/wp-14-sources-lane",
+   "rows": {
+    "BE": [
+     "BE-SOURCES-01",
+     "BE-SOURCES-02",
+     "BE-SOURCES-03",
+     "BE-SOURCES-04",
+     "BE-SOURCES-05",
+     "BE-SOURCES-06",
+     "BE-SOURCES-07",
+     "BE-SOURCES-11",
+     "BE-SOURCES-20",
+     "BE-SOURCES-22",
+     "BE-SOURCES-25",
+     "BE-FANOUT-01",
+     "BE-FANOUT-03",
+     "BE-TOPICS-12"
+    ],
+    "WB": [],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [
+     "CF-05",
+     "CF-07",
+     "CF-08",
+     "CF-09",
+     "CF-10"
+    ],
+    "N": [
+     "OV-N6",
+     "OV-N7"
+    ]
+   },
+   "counts": {
+    "total": 21,
+    "done": 21
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-14-sources-lane.md; estimate 8 tasks; decisions D-41 | merged 13de1f65; 21/21 rows; backend 6035 passed + 1 load flake (passes alone); no migration; final whole-diff review PASS; session stopped"
+  },
+  {
+   "id": "WP-15",
+   "title": "Layouts React core: registry, use-layout, provider, grid with dnd-kit, card frame",
+   "wave": "W2",
+   "kind": "web",
+   "status": "merged",
+   "dependsOn": [
+    "WP-02",
+    "WP-03"
+   ],
+   "session": "wp-02-web-scaffold",
+   "branch": "ai/wp-15-layouts-core",
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-LAY-01",
+     "WB-LAY-02",
+     "WB-LAY-03",
+     "WB-LAY-04",
+     "WB-LAY-05",
+     "WB-LAY-06",
+     "WB-LAY-07",
+     "WB-LAY-08",
+     "WB-LAY-09",
+     "WB-LAY-10",
+     "WB-LAY-11",
+     "WB-LAY-12",
+     "WB-LAY-13",
+     "WB-LAY-14",
+     "WB-LAY-15",
+     "WB-LAY-16",
+     "WB-LAY-17",
+     "WB-LAY-18",
+     "WB-LAY-19",
+     "WB-LAY-20",
+     "WB-LAY-21",
+     "WB-LAY-22",
+     "WB-LAY-23",
+     "WB-LAY-24"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [
+     "SC-25"
+    ],
+    "CF": [
+     "CF-30"
+    ],
+    "N": []
+   },
+   "counts": {
+    "total": 26,
+    "done": 26
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-15-layouts-react-core.md; estimate 9 tasks; decisions D-14 | merged 3a29429c; 26/26 rows; e2e 143, backend layouts 547; session stopped per owner policy"
+  },
+  {
+   "id": "WP-16",
+   "title": "Layouts customize UI: catalog, numbers, save bar, team default, presets, undo",
+   "wave": "W2",
+   "kind": "web",
+   "status": "merged",
+   "dependsOn": [
+    "WP-15"
+   ],
+   "session": "wp-02-web-scaffold",
+   "branch": "ai/wp-16-layouts-customize",
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-LAY-25",
+     "WB-LAY-26",
+     "WB-LAY-27",
+     "WB-LAY-28",
+     "WB-LAY-29",
+     "WB-LAY-30",
+     "WB-LAY-31",
+     "WB-LAY-32",
+     "WB-LAY-33",
+     "WB-LAY-34",
+     "WB-LAY-35",
+     "WB-LAY-36",
+     "WB-LAY-37",
+     "WB-LAY-38",
+     "WB-LAY-39",
+     "WB-LAY-40",
+     "WB-LAY-41",
+     "WB-LAY-42",
+     "WB-LAY-43",
+     "WB-LAY-44",
+     "WB-LAY-45",
+     "WB-LAY-46",
+     "WB-LAY-47",
+     "WB-LAY-48"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 24,
+    "done": 22
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-16-layouts-react-customize.md; estimate 9 tasks; decisions D-01, D-06, D-12, D-15, D-42 | merged 5dd3a5da; vitest 7576 tests, e2e 88; rows 22/24 (42, 43 partial; 48 = F-16); real drawer wiring F-23; session stopped"
+  },
+  {
+   "id": "WP-17",
+   "title": "Topics & Prompts: header, filters, facets, strip, menus and shell items",
+   "wave": "W2",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-02",
+    "WP-07",
+    "WP-10",
+    "WP-13"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-TPH-01",
+     "WB-TPH-02",
+     "WB-TPH-03",
+     "WB-TPH-04",
+     "WB-TPH-07",
+     "WB-TPH-08",
+     "WB-TPH-09",
+     "WB-TPH-13",
+     "WB-TPH-15",
+     "WB-TPH-17",
+     "WB-TPF-01",
+     "WB-TPF-02",
+     "WB-TPF-03",
+     "WB-TPF-04",
+     "WB-TPF-05",
+     "WB-TPF-10",
+     "WB-TPF-11",
+     "WB-TPF-12",
+     "WB-TPF-13",
+     "WB-TPF-08",
+     "WB-TPF-16",
+     "WB-TPF-17",
+     "WB-TPF-18",
+     "WB-TPS-01",
+     "WB-TPS-02",
+     "WB-TPS-03",
+     "WB-TPS-04",
+     "WB-TPS-06",
+     "WB-TPS-09",
+     "WB-TPS-10",
+     "WB-MNU-01",
+     "WB-MNU-02",
+     "WB-MNU-03",
+     "WB-MNU-04",
+     "WB-MNU-08",
+     "WB-MNU-09",
+     "WB-MNU-10",
+     "WB-MNU-11",
+     "WB-MNU-12",
+     "WB-MNU-13",
+     "WB-MNU-14",
+     "WB-MNU-15",
+     "WB-BLK-01",
+     "WB-BLK-02",
+     "WB-BLK-04",
+     "WB-BLK-05",
+     "WB-BLK-06",
+     "WB-BLK-07",
+     "WB-BLK-08",
+     "WB-BLK-13",
+     "WB-NAV-05",
+     "WB-NAV-07",
+     "WB-NAV-11",
+     "WB-NAV-12",
+     "WB-KEY-01",
+     "WB-KEY-02",
+     "WB-KEY-03",
+     "WB-KEY-04",
+     "WB-KEY-05",
+     "WB-KEY-06",
+     "WB-KEY-10",
+     "WB-KEY-11",
+     "WB-IA-02",
+     "WB-E2E-06",
+     "WB-E2E-07",
+     "WB-E2E-08",
+     "WB-STATE-01",
+     "WB-STATE-02",
+     "WB-STATE-03",
+     "WB-STATE-04",
+     "WB-STATE-05",
+     "WB-STATE-06",
+     "WB-STATE-07",
+     "WB-STATE-10",
+     "WB-STATE-14"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 75,
+    "done": 53
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-17-tp-header-filters.md; estimate 8 tasks; decisions D-03, D-35 | from WP-16: adopt NumberStrip inside CustomizableScreen yourself and add Customize numbers to the page More menu (plan docs/superpowers/plans/2026-11-13-ai-wp-16-layouts-customize.md section 5); WP-16 does not edit your strip files | from WP-16: build on @/features/layouts only; parts: CustomizableScreen, CustomizeButton, CustomizingBadge (PageHeader titleAddon), NumberStrip, CustomizableGrid, definePresets in useMemo, capabilities wait, registry from defineCards; tests need @/test/next-navigation and @/test/customize-harness; contract in docs/superpowers/plans/2026-11-13-ai-wp-16-layouts-customize.md section 5; As built at the end of section 10 of docs/superpowers/specs/2026-09-30-layout-customization-design.md"
+  },
+  {
+   "id": "WP-18",
+   "title": "Topics & Prompts: table polish, stale, mobile rows, grouped header, In search counts",
+   "wave": "W2",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-09",
+    "WP-10",
+    "WP-07",
+    "WP-13"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-TOPICS-07",
+     "BE-TOPICS-08"
+    ],
+    "WB": [
+     "WB-TOP-01",
+     "WB-TOP-02",
+     "WB-TOP-03",
+     "WB-TOP-05",
+     "WB-TOP-06",
+     "WB-TOP-07",
+     "WB-TOP-08",
+     "WB-TOP-09",
+     "WB-TOP-10",
+     "WB-TOP-11",
+     "WB-TOP-12",
+     "WB-TOP-13",
+     "WB-TOP-14",
+     "WB-TOP-16",
+     "WB-TOP-17",
+     "WB-TOP-18",
+     "WB-TOP-19",
+     "WB-TOP-20",
+     "WB-TOP-21",
+     "WB-TOP-23",
+     "WB-TOP-24",
+     "WB-TOP-25",
+     "WB-TOP-26",
+     "WB-TOP-27",
+     "WB-TOP-28",
+     "WB-TOP-29",
+     "WB-TOP-30",
+     "WB-TOP-31",
+     "WB-TOP-32",
+     "WB-TOP-33",
+     "WB-TOP-34",
+     "WB-TOP-35",
+     "WB-TOP-36",
+     "WB-TOP-37",
+     "WB-TOP-38",
+     "WB-PRM-01",
+     "WB-PRM-02",
+     "WB-PRM-03",
+     "WB-PRM-05",
+     "WB-PRM-06",
+     "WB-PRM-07",
+     "WB-PRM-08",
+     "WB-PRM-09",
+     "WB-PRM-11",
+     "WB-PRM-14",
+     "WB-PRM-15",
+     "WB-PRM-16",
+     "WB-PRM-17",
+     "WB-PRM-23",
+     "WB-PRM-25",
+     "WB-PRM-26",
+     "WB-PRM-27",
+     "WB-PRM-28",
+     "WB-PRM-29",
+     "WB-PRM-30",
+     "WB-PRM-31",
+     "WB-PRM-32",
+     "WB-PRM-33",
+     "WB-STATE-11",
+     "WB-RSP-01",
+     "WB-RSP-02",
+     "WB-RSP-03",
+     "WB-RSP-04",
+     "WB-RSP-05",
+     "WB-RSP-06",
+     "WB-RSP-09",
+     "WB-DATA-06"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [
+     "CF-15",
+     "CF-27",
+     "CF-28"
+    ],
+    "N": []
+   },
+   "counts": {
+    "total": 72,
+    "done": 46
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-18-tp-tables.md; estimate 7 tasks; decisions D-36, D-37, D-38 | from WP-20: WP-20 owns WB-TPE-17 (phone rows for topics by engine); the list-view Trend column ignores is_pooled: add the C-18 sentence; rebase onto WP-20 edits in topics-table.tsx | from WP-20: WB-TOP-34 topics mobile list should adopt topics-by-engine/topics-mobile-list.tsx instead of building another"
+  },
+  {
+   "id": "WP-19",
+   "title": "Compare with the previous period and deltas everywhere (W3)",
+   "wave": "W2",
+   "kind": "web",
+   "status": "building",
+   "dependsOn": [
+    "WP-07",
+    "WP-12"
+   ],
+   "session": "wp-01-be-scaffold",
+   "branch": "ai/wp-19-compare",
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-TPF-06",
+     "WB-TPF-07",
+     "WB-TPS-05",
+     "WB-TOP-15",
+     "WB-PRM-12",
+     "WB-PI-11",
+     "WB-TI-09",
+     "WB-TI-16",
+     "WB-DATA-02",
+     "WB-E2E-09"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 10,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-19-compare-deltas.md; estimate 6 tasks; decisions D-03 | measured: compare adds +23 percent to the page read (Fynix 206 KB to 253 KB, Eventus 643 KB to 790 KB; gzip 8.6 to 10.6 KB and 26 to 33 KB): no lean-rows request needed; fixtures have no detectable change on Fynix, a few on Eventus: no fixture edit, e2e asserts the neutral rule and a mock cookie shows one coloured delta; T1b mock compare answers committed (a9243b27), T1c compare select and chip next | 23:30: P1 lib/compare on develop; T1b mock compare reviewed; T1c select and chip review passed with fixes (failed read with the chip on must keep rows and show the banner, no false empty state)"
+  },
+  {
+   "id": "WP-20",
+   "title": "Topics by engine and the topic drawer (R-09, R-11 topic part)",
+   "wave": "W2",
+   "kind": "web",
+   "status": "merged",
+   "dependsOn": [
+    "WP-05",
+    "WP-06",
+    "WP-07",
+    "WP-12"
+   ],
+   "session": "ai-prompts-web",
+   "branch": "ai/wp-20-topics-by-engine",
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-TPE-02",
+     "WB-TPE-03",
+     "WB-TPE-04",
+     "WB-TPE-05",
+     "WB-TPE-06",
+     "WB-TPE-07",
+     "WB-TPE-08",
+     "WB-TPE-09",
+     "WB-TPE-10",
+     "WB-TPE-11",
+     "WB-TPE-12",
+     "WB-TPE-13",
+     "WB-TPE-14",
+     "WB-TPE-15",
+     "WB-TPE-16",
+     "WB-TPE-17",
+     "WB-TPE-18",
+     "WB-TI-01",
+     "WB-TI-02",
+     "WB-TI-03",
+     "WB-TI-04",
+     "WB-TI-05",
+     "WB-TI-06",
+     "WB-TI-07",
+     "WB-TI-08",
+     "WB-TI-10",
+     "WB-TI-11",
+     "WB-TI-12",
+     "WB-TI-13",
+     "WB-TI-15",
+     "WB-TI-17",
+     "WB-TI-19",
+     "WB-TI-21",
+     "WB-TI-22",
+     "WB-TI-23"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [
+     "SC-26"
+    ],
+    "CF": [
+     "CF-31"
+    ],
+    "N": []
+   },
+   "counts": {
+    "total": 37,
+    "done": 37
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-20-topics-by-engine.md; estimate 9 tasks; decisions D-04, D-16 | merged 122cfefd; 37/37 rows proven; capped full run 7569 tests green before the last rebase, 504 files/7494 tests after; e2e last run 75/75 before the rebase (release gate runs e2e once); session stopped"
+  },
+  {
+   "id": "WP-21",
+   "title": "Citations tab in the prompt inspector and the Citations page (Domains, Pages)",
+   "wave": "W2",
+   "kind": "web",
+   "status": "merged",
+   "dependsOn": [
+    "WP-08",
+    "WP-05",
+    "WP-10"
+   ],
+   "session": "wp-01-be-scaffold",
+   "branch": "ai/wp-21-citations",
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-PIC-01",
+     "WB-PIC-02",
+     "WB-PIC-03",
+     "WB-PIC-04",
+     "WB-PIC-05",
+     "WB-PIC-06",
+     "WB-PIC-07",
+     "WB-PIC-08",
+     "WB-PIC-09",
+     "WB-PIC-10",
+     "WB-PI-13",
+     "WB-PI-21",
+     "WB-IA-03",
+     "WB-CIT-01",
+     "WB-CIT-02",
+     "WB-CIT-03",
+     "WB-CIT-04",
+     "WB-CIT-05",
+     "WB-CIT-06",
+     "WB-CIT-07",
+     "WB-CIT-08",
+     "WB-CIT-09",
+     "WB-CIT-10",
+     "WB-CIT-11",
+     "WB-CIT-14",
+     "WB-CIT-15",
+     "WB-CIT-16",
+     "WB-CIT-19",
+     "WB-E2E-10"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [
+     "CF-02",
+     "CF-03"
+    ],
+    "N": []
+   },
+   "counts": {
+    "total": 31,
+    "done": 31
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-21-citations-core.md; estimate 9 tasks; decisions D-02 | merged 46558677; 31/31 rows; full vitest 7963 passed, lint, typecheck, format, build 0; e2e 78 passed 2 failed (shell.spec.ts:126 Keywords 87 px wide at 375 = F-06; :156 expects /seo/keywords to 404); final reviewer PASS; session stopped"
+  },
+  {
+   "id": "WP-22",
+   "title": "Citations: New and lost, domain and source inspectors, country, mobile",
+   "wave": "W2",
+   "kind": "web",
+   "status": "building",
+   "dependsOn": [
+    "WP-21",
+    "WP-14"
+   ],
+   "session": "wp-25-inspector",
+   "branch": "ai/wp-22-citations-lost",
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-CIT-13",
+     "WB-CIT-18",
+     "WB-CIT-20",
+     "WB-CIT-21",
+     "WB-NAV-08",
+     "WB-DOM-01",
+     "WB-DOM-02",
+     "WB-DOM-03",
+     "WB-DOM-04",
+     "WB-DOM-05",
+     "WB-DOM-06",
+     "WB-DOM-07",
+     "WB-DOM-08",
+     "WB-SRC-01",
+     "WB-SRC-02",
+     "WB-SRC-03"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 16,
+    "done": 3
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-22-citations-inspectors.md; estimate 6 tasks; decisions none | plan pushed (10 tasks); T1 mock fixtures (New and lost data) first; shared parts to create: components/app/scope/country-scope-control.tsx, lib/locations/country-scope.ts; WB-DOM-06 SEO share of voice stays an honest not-available section (F-26) | 23:30: T1 fixtures and T2 New and lost tab pushed (87d74bc1, a reviewer bug fixed: saved columns leaked across tabs); T3 country scope next; tasks 2/10"
+  },
+  {
+   "id": "WP-23",
+   "title": "Competitor views inside Topics & Prompts (W8)",
+   "wave": "W2",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-07",
+    "WP-05",
+    "WP-20"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-PRM-13",
+     "WB-PICO-01",
+     "WB-PICO-02",
+     "WB-PICO-05",
+     "WB-PICO-06",
+     "WB-TI-18"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [
+     "CF-17"
+    ],
+    "N": []
+   },
+   "counts": {
+    "total": 7,
+    "done": 2
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-23-competitor-views.md; estimate 5 tasks; decisions none | from WP-20: WP-20 builds the drawer Competitors tab and the entity by engine table (WB-TI-18); WP-23 decorates it"
+  },
+  {
+   "id": "WP-24",
+   "title": "Fan-out tab and views (W9)",
+   "wave": "W2",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-08",
+    "WP-05"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-PI-14",
+     "WB-PIF-01",
+     "WB-PIF-02",
+     "WB-PIF-03",
+     "WB-PIF-04",
+     "WB-PIF-05",
+     "WB-PIF-06",
+     "WB-PIF-07",
+     "WB-PIF-10",
+     "WB-PRM-18",
+     "WB-STATE-08",
+     "WB-STATE-12"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [
+     "CF-04"
+    ],
+    "N": []
+   },
+   "counts": {
+    "total": 13,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-24-fanout-views.md; estimate 5 tasks; decisions D-02 | from WP-25: add tabs through features/prompts seams/inspector-tabs.ts (More tabs absorbs overflow); the e2e phone test hard-codes 4 tabs and no More button: update it when your tab lands; domain chips take href once the domain inspector route exists | WP-14 on develop: sources/changes, sources/diversity, sources/domains/{registrable_domain}, sources/prompts, include=series, cited_with, by_role_by_engine, fanout include=topics, filter[country_iso], min_support, include_unresolved_redirects and include_engine_internal; generated client already current | from WP-21: WP-21 builds the MSW mocks for sources/changes, sources/diversity and sources/prompts and the shared reads in apps/web/src/lib/citations/; reuse them, do not rebuild"
+  },
+  {
+   "id": "WP-25",
+   "title": "Prompt inspector completion: header, Latest, History, Stats (R-11 prompt part)",
+   "wave": "W2",
+   "kind": "web",
+   "status": "merged",
+   "dependsOn": [
+    "WP-07",
+    "WP-08",
+    "WP-04"
+   ],
+   "session": "wp-25-inspector",
+   "branch": "ai/wp-25-inspector-completion",
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-PI-01",
+     "WB-PI-02",
+     "WB-PI-04",
+     "WB-PI-05",
+     "WB-PI-06",
+     "WB-PI-08",
+     "WB-PI-09",
+     "WB-PI-10",
+     "WB-PI-12",
+     "WB-PI-15",
+     "WB-PI-16",
+     "WB-PI-17",
+     "WB-PI-18",
+     "WB-PI-19",
+     "WB-PI-22",
+     "WB-PI-23",
+     "WB-PIL-01",
+     "WB-PIL-02",
+     "WB-PIL-03",
+     "WB-PIL-04",
+     "WB-PIL-05",
+     "WB-PIL-06",
+     "WB-PIH-01",
+     "WB-PIH-02",
+     "WB-PIH-03",
+     "WB-PIH-04",
+     "WB-PIH-05",
+     "WB-PIH-07",
+     "WB-PIH-08",
+     "WB-PIH-11",
+     "WB-PIS-01",
+     "WB-PIS-02",
+     "WB-PIS-03",
+     "WB-PIS-04",
+     "WB-PIS-06"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 35,
+    "done": 34
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-25-inspector-completion.md; estimate 6 tasks; decisions D-02 | merged 0fcf837b; 34/35 rows (WB-PI-23 blocked on CF-26, WB-PI-01 skipped); vitest 6573/6574 (1 fixed upstream), e2e 6/6; stopped per policy"
+  },
+  {
+   "id": "WP-26",
+   "title": "Evidence viewer completion: citation markers, entity toggles, views, answer diff",
+   "wave": "W2",
+   "kind": "both",
+   "status": "building",
+   "dependsOn": [
+    "WP-08"
+   ],
+   "session": "wp-00-kit",
+   "branch": "ai/wp-26-evidence",
+   "rows": {
+    "BE": [
+     "BE-SOURCES-21",
+     "BE-REPORTS-04"
+    ],
+    "WB": [
+     "WB-ANS-01",
+     "WB-ANS-02",
+     "WB-ANS-03",
+     "WB-ANS-04",
+     "WB-ANS-05",
+     "WB-ANS-06",
+     "WB-ANS-07",
+     "WB-ANS-08",
+     "WB-ANS-09",
+     "WB-ANS-10",
+     "WB-ANS-11",
+     "WB-ANS-12",
+     "WB-ANS-13",
+     "WB-ANS-14",
+     "WB-ANS-15",
+     "WB-ANS-16",
+     "WB-SRC-04"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [
+     "SC-11",
+     "SC-23"
+    ],
+    "CF": [
+     "CF-25",
+     "CF-26"
+    ],
+    "N": []
+   },
+   "counts": {
+    "total": 23,
+    "done": 9
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-26-evidence-viewer.md; estimate 7 tasks; decisions none | plan committed (8 tasks, backed up on origin/ai/wp-26-evidence); CF-25 already populated, CF-26 hashes need no migration, quote per citation needs one nullable column (migration 0023+); T0 contract push next | 23:30: T0 contract on develop f2a7049d; T1 backend and T3 web committed on the branch with reviews passed; T2 (compare read) and T4 (web parts) running; quote migration renumbers to 0024"
+  },
+  {
+   "id": "WP-27",
+   "title": "Add prompts dialog redesign: plan block, checks, fields, topics, after the add (R-10)",
+   "wave": "W2",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-13",
+    "WP-07"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-ADD-01",
+     "WB-ADD-02",
+     "WB-ADD-03",
+     "WB-ADD-04",
+     "WB-ADD-05",
+     "WB-ADD-06",
+     "WB-ADD-07",
+     "WB-ADD-08",
+     "WB-ADD-09",
+     "WB-ADD-10",
+     "WB-ADD-11",
+     "WB-ADD-12",
+     "WB-ADD-13",
+     "WB-ADD-15",
+     "WB-ADD-16",
+     "WB-ADD-18",
+     "WB-TPH-14",
+     "WB-TPH-18",
+     "WB-PI-20",
+     "WB-BLK-09",
+     "WB-KEY-07"
+    ],
+    "CH": [],
+    "PD": [
+     "PD-ADD-01",
+     "PD-ADD-02",
+     "PD-ADD-03",
+     "PD-ADD-04",
+     "PD-ADD-05",
+     "PD-ADD-06",
+     "PD-ADD-08",
+     "PD-ADD-09",
+     "PD-ADD-10",
+     "PD-ADD-11",
+     "PD-ADD-12",
+     "PD-ADD-13",
+     "PD-ADD-14",
+     "PD-ADD-15",
+     "PD-ADD-16",
+     "PD-ADD-19",
+     "PD-ADD-20",
+     "PD-ADD-21",
+     "PD-ADD-22",
+     "PD-ADD-23",
+     "PD-ADD-24",
+     "PD-ADD-25",
+     "PD-ADD-26",
+     "PD-ADD-27",
+     "PD-ADD-28",
+     "PD-ADD-29",
+     "PD-TOP-01",
+     "PD-TOP-02",
+     "PD-TOP-03",
+     "PD-TOP-04",
+     "PD-TOP-06",
+     "PD-QC-01",
+     "PD-QC-02",
+     "PD-QC-03",
+     "PD-QC-04",
+     "PD-QC-05",
+     "PD-QC-06",
+     "PD-QC-07",
+     "PD-LINT-01",
+     "PD-LINT-02",
+     "PD-LINT-03",
+     "PD-LINT-04",
+     "PD-LINT-05",
+     "PD-LINT-06",
+     "PD-LINT-07",
+     "PD-LINT-08",
+     "PD-LINT-09",
+     "PD-POST-01",
+     "PD-POST-02",
+     "PD-POST-03",
+     "PD-POST-04",
+     "PD-POST-05",
+     "PD-POST-06",
+     "PD-POST-07",
+     "PD-ROLE-01",
+     "PD-ROLE-02",
+     "PD-ROLE-03",
+     "PD-ROLE-04",
+     "PD-ROLE-05",
+     "PD-ROLE-06",
+     "PD-ERR-01",
+     "PD-ERR-02",
+     "PD-ERR-03",
+     "PD-ERR-04",
+     "PD-ERR-05",
+     "PD-ERR-06",
+     "PD-ERR-07",
+     "PD-ERR-08",
+     "PD-ERR-09",
+     "PD-ERR-10",
+     "PD-ERR-11",
+     "PD-ERR-12",
+     "PD-ERR-13",
+     "PD-ERR-14",
+     "PD-ERR-15",
+     "PD-ERR-16",
+     "PD-ERR-17",
+     "PD-ERR-18",
+     "PD-ERR-19",
+     "PD-ERR-20",
+     "PD-ERR-21",
+     "PD-ERR-22",
+     "PD-STATE-01",
+     "PD-STATE-02",
+     "PD-STATE-03",
+     "PD-STATE-04",
+     "PD-STATE-05",
+     "PD-STATE-06",
+     "PD-A11Y-01",
+     "PD-A11Y-02",
+     "PD-A11Y-03",
+     "PD-A11Y-04",
+     "PD-A11Y-05",
+     "PD-A11Y-06",
+     "PD-A11Y-07",
+     "PD-A11Y-08",
+     "PD-A11Y-09",
+     "PD-TEST-01",
+     "PD-TEST-02",
+     "PD-TEST-03",
+     "PD-TEST-04",
+     "PD-TEST-05",
+     "PD-TEST-06",
+     "PD-TEST-07",
+     "PD-TEST-12",
+     "PD-TEST-13",
+     "PD-TEST-17",
+     "PD-TEST-18",
+     "PD-TEST-20",
+     "PD-TEST-23",
+     "PD-TEST-24"
+    ],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 132,
+    "done": 20
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-27-add-dialog.md; estimate 10 tasks; decisions D-07, D-21, D-35 | from WP-13: send is_branded only when the person touches the switch (any PATCH sending it marks the source override); lint estimate only for the items shape; PromptCreate.prompt_type null = absent (rule applies) but PATCH null is 422"
+  },
+  {
+   "id": "WP-28",
+   "title": "Paste with columns and CSV import (R-10)",
+   "wave": "W2",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-27"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-TPH-10",
+     "WB-TPH-11",
+     "WB-ADD-17"
+    ],
+    "CH": [],
+    "PD": [
+     "PD-PASTE-01",
+     "PD-PASTE-02",
+     "PD-PASTE-03",
+     "PD-PASTE-04",
+     "PD-PASTE-05",
+     "PD-PASTE-06",
+     "PD-CSV-01",
+     "PD-CSV-02",
+     "PD-CSV-03",
+     "PD-CSV-04",
+     "PD-CSV-05",
+     "PD-CSV-06",
+     "PD-CSV-07",
+     "PD-CSV-08",
+     "PD-CSV-09",
+     "PD-CSV-10",
+     "PD-CSV-11",
+     "PD-CSV-12",
+     "PD-CSV-13",
+     "PD-CSV-14",
+     "PD-CSV-15",
+     "PD-CSV-16",
+     "PD-CSV-17",
+     "PD-CSV-18",
+     "PD-STATE-12",
+     "PD-TEST-08",
+     "PD-TEST-09",
+     "PD-TEST-10",
+     "PD-TEST-21"
+    ],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 32,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-28-import-csv.md; estimate 6 tasks; decisions none"
+  },
+  {
+   "id": "WP-29",
+   "title": "Edit details, archive and restore, row, bulk and inspector menus",
+   "wave": "W2",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-13"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-EDT-01",
+     "WB-EDT-02",
+     "WB-EDT-03",
+     "WB-EDT-04",
+     "WB-EDT-05",
+     "WB-MNU-05",
+     "WB-BLK-12",
+     "WB-BLK-11"
+    ],
+    "CH": [],
+    "PD": [
+     "PD-EDIT-01",
+     "PD-EDIT-02",
+     "PD-EDIT-03",
+     "PD-EDIT-04",
+     "PD-EDIT-05",
+     "PD-EDIT-06",
+     "PD-EDIT-07",
+     "PD-EDIT-08",
+     "PD-EDIT-09",
+     "PD-EDIT-10",
+     "PD-ARC-01",
+     "PD-ARC-02",
+     "PD-ARC-03",
+     "PD-ARC-04",
+     "PD-ARC-05",
+     "PD-ARC-06",
+     "PD-ARC-07",
+     "PD-STATE-11",
+     "PD-ROW-01",
+     "PD-ROW-02",
+     "PD-ROW-03",
+     "PD-ROW-05",
+     "PD-ROW-07",
+     "PD-ROW-08",
+     "PD-ROW-09",
+     "PD-BULK-01",
+     "PD-BULK-02",
+     "PD-BULK-03",
+     "PD-BULK-04",
+     "PD-BULK-05",
+     "PD-BULK-06",
+     "PD-BULK-07",
+     "PD-BULK-09",
+     "PD-BULK-10",
+     "PD-INS-01",
+     "PD-INS-02",
+     "PD-INS-04",
+     "PD-INS-05",
+     "PD-INS-06",
+     "PD-TOP-05",
+     "PD-TEST-14",
+     "PD-TEST-16"
+    ],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 50,
+    "done": 12
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-29-edit-archive.md; estimate 6 tasks; decisions D-43, D-46 | from WP-13: send is_branded only when the person touches the switch (any PATCH sending it marks the source override); lint estimate only for the items shape; PromptCreate.prompt_type null = absent (rule applies) but PATCH null is 422"
+  },
+  {
+   "id": "WP-30",
+   "title": "Runs, costs, budgets and collection health (W21 freshness)",
+   "wave": "W2",
+   "kind": "both",
+   "status": "building",
+   "dependsOn": [
+    "WP-03",
+    "WP-07"
+   ],
+   "session": "wp-30-runs",
+   "branch": "ai/wp-30-runs-costs",
+   "rows": {
+    "BE": [
+     "BE-COLLECT-01",
+     "BE-COLLECT-02",
+     "BE-COLLECT-03",
+     "BE-COLLECT-04",
+     "BE-COLLECT-05",
+     "BE-COLLECT-06",
+     "BE-COLLECT-07",
+     "BE-COLLECT-08",
+     "BE-COLLECT-09",
+     "BE-COLLECT-10",
+     "BE-COLLECT-16",
+     "BE-COLLECT-17",
+     "BE-COLLECT-18",
+     "BE-COLLECT-19",
+     "BE-BILLING-PLAN-LINKS-08",
+     "BE-BILLING-PLAN-LINKS-09",
+     "BE-BILLING-PLAN-LINKS-10",
+     "BE-BILLING-PLAN-LINKS-11",
+     "BE-BILLING-PLAN-LINKS-14",
+     "BE-BILLING-PLAN-LINKS-15",
+     "BE-OPS-03",
+     "BE-OPS-04",
+     "BE-OPS-05",
+     "BE-OPS-06",
+     "BE-REPORTS-10"
+    ],
+    "WB": [
+     "WB-NAV-03",
+     "WB-OPS-01",
+     "WB-OPS-02",
+     "WB-OPS-03",
+     "WB-OPS-04",
+     "WB-OPS-05",
+     "WB-OPS-06",
+     "WB-OPS-07",
+     "WB-SET-15"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": [
+     "OV-N5"
+    ]
+   },
+   "counts": {
+    "total": 35,
+    "done": 22
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-30-runs-costs-health.md; estimate 8 tasks; decisions D-26 | plan on develop (T0 contract push then tasks 1-8, no migration); budgets CRUD, forecast, unit costs stubs; amends published C3 (valid = complete + partial) | 23:30: P1 contract on develop c40c4a00 (six 501 stubs for budgets, forecast, unit costs); T1 ai-coverage and daily collection plus T4a web mocks committed locally (0a81d95f, 9519fc70), reviewers running; T2 budgets CRUD next; no migration"
+  },
+  {
+   "id": "WP-31",
+   "title": "Settings: engines page extras, data retention, setup checklist",
+   "wave": "W2",
+   "kind": "both",
+   "status": "building",
+   "dependsOn": [
+    "WP-07"
+   ],
+   "session": "wp-31-settings",
+   "branch": "ai/wp-31-settings",
+   "rows": {
+    "BE": [
+     "BE-ENGINES-01",
+     "BE-ENGINES-02",
+     "BE-ENGINES-03",
+     "BE-ENGINES-04",
+     "BE-ENGINES-10",
+     "BE-ENGINES-12"
+    ],
+    "WB": [
+     "WB-SET-01",
+     "WB-SET-02",
+     "WB-SET-03",
+     "WB-SET-06",
+     "WB-SET-07",
+     "WB-SET-08",
+     "WB-SET-09",
+     "WB-SET-10",
+     "WB-SET-11",
+     "WB-SET-12",
+     "WB-SET-14",
+     "WB-SET-17",
+     "WB-IA-09"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 19,
+    "done": 15
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-31-settings-engines.md; estimate 5 tasks; decisions none | rows 15/19 pending push; Task 4 engines page extras reviewed PASS (browser 4 widths x 2 themes) committed locally (005338a4); Task 1 device contract needs ONE grant-only migration for provider_params; Task 6 entities Added column and retention page in progress | 23:30: pushed to develop 412e7e57: Task 1 device per engine contract with MIGRATION 0023 (grant on provider_params only), Task 4 engines badge, Task 6 entities column and read-only data retention page; Task 7 SetupChecklist passed re-review, Tasks 5 and 3 in review or build, Task 2 committed locally; Task 8 left; tasks 3/8"
+  },
+  {
+   "id": "WP-32",
+   "title": "Overview aggregate routes and the competitors read",
+   "wave": "W3",
+   "kind": "backend",
+   "status": "building",
+   "dependsOn": [
+    "WP-12",
+    "WP-14"
+   ],
+   "session": "ai-prompts-web",
+   "branch": "ai/wp-32-overview-aggregates",
+   "rows": {
+    "BE": [
+     "BE-METRICS-08",
+     "BE-METRICS-09",
+     "BE-METRICS-10",
+     "BE-METRICS-11",
+     "BE-METRICS-24",
+     "BE-REPORTS-01",
+     "BE-COMPETITORS-01",
+     "BE-COMPETITORS-02",
+     "BE-COMPETITORS-03",
+     "BE-COMPETITORS-05",
+     "BE-REPORTS-03"
+    ],
+    "WB": [],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [
+     "CF-16"
+    ],
+    "N": []
+   },
+   "counts": {
+    "total": 12,
+    "done": 2
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-32-overview-aggregates.md; estimate 8 tasks; decisions D-17 | FIRST PUSH ON DEVELOP (45864845): contract notes c8-metrics.md and c5-competitors.md, models ai_metrics.py, 7 GET routes as 501 stubs (ai/metrics/overview, overview/ai, ai/metrics/{metric}, .../series, .../breakdown, ai/competitors, overview/competitors), v1.json and schema.ts regenerated once on top of WP-26 T0 (additive), registry rows ai.prompts_in_scope and ai.valid_answers in doc 16 2.1; backend check 6123 passed cov 97.84; steps 2/8; next Task 3 routes (overview first) each pushed when reviewed | 23:30: Task 3 committed c31f39ea: first two Overview routes filled plus fixed 3 statements, reviewer running; Task 6 competitors core running in parallel on disjoint files"
+  },
+  {
+   "id": "WP-33",
+   "title": "AI Visibility Overview page: shell, scope, numbers, notices, presets, export",
+   "wave": "W3",
+   "kind": "web",
+   "status": "building",
+   "dependsOn": [
+    "WP-16",
+    "WP-04",
+    "WP-07"
+   ],
+   "session": "wp-02-web-scaffold",
+   "branch": "ai/wp-33-overview-shell",
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-IA-01",
+     "WB-OV-01",
+     "WB-OV-02",
+     "WB-OV-03",
+     "WB-OV-04",
+     "WB-OV-13",
+     "WB-OV-14"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 7,
+    "done": 3
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-33-overview-shell.md; estimate 7 tasks; decisions D-01, D-03, D-13, D-19, D-20 | tasks 4/13: T1 scope model, T2 ai_overview catalog (38 card types, reviewed vs inventory: 47 rows, no mismatch), T3 read hooks and fan-out mock handler, T4 aggregates model (60 tests) in review; T5 route, header, customize wiring and registry next; milestone M1 at T6; backed up on origin/ai/wp-33-overview-shell | from WP-19: adopt apps/web/src/lib/compare (on develop, b69b7374) instead of a local parseCompare | from WP-31: SetupChecklist is exported from features/onboarding; mount it on the Overview with one line (WP-33 owns the slot) once WP-31 merges | WP-32 contract ON develop (45864845): mock against docs/ai-visibility/contracts/c8-metrics.md and c5-competitors.md; extra optional fields: AiCompetitorEngine.lost_prompts_total and lost_prompts_with_min_answers, AiOverview.topics_in_scope, meta.entity_config_changes; AiCi {low, high, level, method}; doc 16 2.1 already has ai.prompts_in_scope and ai.valid_answers (do not duplicate) | 23:30: M1 pushed 600c758e (cards can start); export model and block registry committed 7c251639 (34 tests), reviewer running; T8 running; tasks 8/13"
+  },
+  {
+   "id": "WP-34",
+   "title": "Overview cards: rates by engine, outcomes, funnel, change summary, movers",
+   "wave": "W3",
+   "kind": "web",
+   "status": "planning",
+   "dependsOn": [
+    "WP-33",
+    "WP-05",
+    "WP-06",
+    "WP-19"
+   ],
+   "session": "wp-34-overview-cards-eng",
+   "branch": "ai/wp-34-cards-engines",
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-OV-05",
+     "WB-OV-06"
+    ],
+    "CH": [
+     "CH-01",
+     "CH-03",
+     "CH-09",
+     "CH-10",
+     "CH-13",
+     "CH-18",
+     "CH-23",
+     "CH-36",
+     "CH-37"
+    ],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 11,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-34-overview-cards-engines.md; estimate 8 tasks; decisions D-04 | from WP-12: request include=series,entities with rows=topics, or rows=none plus include=total (all rows with 20 entities is 14.5 MB); contract changes in docs/ai-visibility/contracts/c2-summary.md change log C-1..C-11 | from WP-33: registry slot file apps/web/src/features/ai-overview/cards/<your folder>/index.ts is yours to fill; start after WP-33 milestone M1 (T6) | from WP-32: contract notes c8-metrics.md and c5-competitors.md and the 7 stub routes are the FIRST PUSH of WP-32 (scope params from, to, filter[engine_code_in], include_branded, branded_only, filter[country_iso], filter[term], compare, compare_from, compare_to; tiles per engine, engine_average, previous beside each value, weekly series, breakdown by dimension capped at 300 rows, ai/competitors with is_top_competitor) | WP-32 contract ON develop (45864845): mock against docs/ai-visibility/contracts/c8-metrics.md and c5-competitors.md; extra optional fields: AiCompetitorEngine.lost_prompts_total and lost_prompts_with_min_answers, AiOverview.topics_in_scope, meta.entity_config_changes; AiCi {low, high, level, method}; doc 16 2.1 already has ai.prompts_in_scope and ai.valid_answers (do not duplicate) | 23:30: session started on owner go at 23:3x from develop 9216e710; planner writes the task plan; family map per M1 notes"
+  },
+  {
+   "id": "WP-35",
+   "title": "Overview cards: share of voice, lost to a competitor, competitor trends",
+   "wave": "W3",
+   "kind": "web",
+   "status": "planning",
+   "dependsOn": [
+    "WP-33",
+    "WP-05",
+    "WP-12"
+   ],
+   "session": "wp-35-overview-cards-com",
+   "branch": "ai/wp-35-cards-competitors",
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-OV-08",
+     "WB-OV-09"
+    ],
+    "CH": [
+     "CH-02",
+     "CH-05",
+     "CH-06",
+     "CH-19",
+     "CH-29",
+     "CH-38"
+    ],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 8,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-35-overview-cards-competitors.md; estimate 6 tasks; decisions none | from WP-12: request include=series,entities with rows=topics, or rows=none plus include=total (all rows with 20 entities is 14.5 MB); contract changes in docs/ai-visibility/contracts/c2-summary.md change log C-1..C-11 | from WP-33: registry slot file apps/web/src/features/ai-overview/cards/<your folder>/index.ts is yours to fill; start after WP-33 milestone M1 (T6) | from WP-32: contract notes c8-metrics.md and c5-competitors.md and the 7 stub routes are the FIRST PUSH of WP-32 (scope params from, to, filter[engine_code_in], include_branded, branded_only, filter[country_iso], filter[term], compare, compare_from, compare_to; tiles per engine, engine_average, previous beside each value, weekly series, breakdown by dimension capped at 300 rows, ai/competitors with is_top_competitor) | WP-32 contract ON develop (45864845): mock against docs/ai-visibility/contracts/c8-metrics.md and c5-competitors.md; extra optional fields: AiCompetitorEngine.lost_prompts_total and lost_prompts_with_min_answers, AiOverview.topics_in_scope, meta.entity_config_changes; AiCi {low, high, level, method}; doc 16 2.1 already has ai.prompts_in_scope and ai.valid_answers (do not duplicate) | 23:30: session started on owner go at 23:3x from develop 9216e710; planner writes the task plan; family map per M1 notes"
+  },
+  {
+   "id": "WP-36",
+   "title": "Overview cards: topics by engine and prompts",
+   "wave": "W3",
+   "kind": "web",
+   "status": "planning",
+   "dependsOn": [
+    "WP-33",
+    "WP-06",
+    "WP-20"
+   ],
+   "session": "wp-36-overview-cards-top",
+   "branch": "ai/wp-36-cards-topics",
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-TPE-01"
+    ],
+    "CH": [
+     "CH-04",
+     "CH-11",
+     "CH-12",
+     "CH-15",
+     "CH-33",
+     "CH-40",
+     "CH-41",
+     "CH-42",
+     "CH-43",
+     "CH-44",
+     "CH-45",
+     "CH-46"
+    ],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 13,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-36-overview-cards-topics.md; estimate 7 tasks; decisions D-04, D-05 | from WP-12: request include=series,entities with rows=topics, or rows=none plus include=total (all rows with 20 entities is 14.5 MB); contract changes in docs/ai-visibility/contracts/c2-summary.md change log C-1..C-11 | from WP-33: registry slot file apps/web/src/features/ai-overview/cards/<your folder>/index.ts is yours to fill; start after WP-33 milestone M1 (T6) | from WP-32: contract notes c8-metrics.md and c5-competitors.md and the 7 stub routes are the FIRST PUSH of WP-32 (scope params from, to, filter[engine_code_in], include_branded, branded_only, filter[country_iso], filter[term], compare, compare_from, compare_to; tiles per engine, engine_average, previous beside each value, weekly series, breakdown by dimension capped at 300 rows, ai/competitors with is_top_competitor) | WP-32 contract ON develop (45864845): mock against docs/ai-visibility/contracts/c8-metrics.md and c5-competitors.md; extra optional fields: AiCompetitorEngine.lost_prompts_total and lost_prompts_with_min_answers, AiOverview.topics_in_scope, meta.entity_config_changes; AiCi {low, high, level, method}; doc 16 2.1 already has ai.prompts_in_scope and ai.valid_answers (do not duplicate) | 23:30: session started on owner go at 23:3x from develop 9216e710; planner writes the task plan; family map per M1 notes"
+  },
+  {
+   "id": "WP-37",
+   "title": "Overview cards: sources, fan-out, activity and operations",
+   "wave": "W3",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-33",
+    "WP-05",
+    "WP-06",
+    "WP-30",
+    "WP-08"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-OV-07",
+     "WB-OV-10",
+     "WB-OV-11",
+     "WB-OV-12"
+    ],
+    "CH": [
+     "CH-07",
+     "CH-08",
+     "CH-16",
+     "CH-17",
+     "CH-20",
+     "CH-21",
+     "CH-22",
+     "CH-26",
+     "CH-34"
+    ],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 13,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-37-overview-cards-sources.md; estimate 6 tasks; decisions none | WP-14 on develop: sources/changes, sources/diversity, sources/domains/{registrable_domain}, sources/prompts, include=series, cited_with, by_role_by_engine, fanout include=topics, filter[country_iso], min_support, include_unresolved_redirects and include_engine_internal; generated client already current | from WP-33: registry slot file apps/web/src/features/ai-overview/cards/<your folder>/index.ts is yours to fill; start after WP-33 milestone M1 (T6) | from WP-32: contract notes c8-metrics.md and c5-competitors.md and the 7 stub routes are the FIRST PUSH of WP-32 (scope params from, to, filter[engine_code_in], include_branded, branded_only, filter[country_iso], filter[term], compare, compare_from, compare_to; tiles per engine, engine_average, previous beside each value, weekly series, breakdown by dimension capped at 300 rows, ai/competitors with is_top_competitor) | WP-32 contract ON develop (45864845): mock against docs/ai-visibility/contracts/c8-metrics.md and c5-competitors.md; extra optional fields: AiCompetitorEngine.lost_prompts_total and lost_prompts_with_min_answers, AiOverview.topics_in_scope, meta.entity_config_changes; AiCi {low, high, level, method}; doc 16 2.1 already has ai.prompts_in_scope and ai.valid_answers (do not duplicate)"
+  },
+  {
+   "id": "WP-38",
+   "title": "Chart notes and annotations (N9, N13, CH-35, M-14)",
+   "wave": "W3",
+   "kind": "both",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-01",
+    "WP-04"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-REPORTS-09"
+    ],
+    "WB": [
+     "WB-RPT-06"
+    ],
+    "CH": [
+     "CH-35"
+    ],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": [
+     "OV-N9",
+     "OV-N13"
+    ]
+   },
+   "counts": {
+    "total": 5,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-38-notes-annotations.md; estimate 6 tasks; decisions D-18, D-29"
+  },
+  {
+   "id": "WP-39",
+   "title": "Competitors page (Comparison, AI tab, inspector)",
+   "wave": "W3",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-32",
+    "WP-05",
+    "WP-06",
+    "WP-07"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-IA-05",
+     "WB-CMP-01",
+     "WB-CMP-02",
+     "WB-CMP-03",
+     "WB-CMP-04",
+     "WB-CMP-05",
+     "WB-CMP-06",
+     "WB-CMP-07",
+     "WB-CMP-10",
+     "WB-CMP-11",
+     "WB-CMP-12"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 11,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-39-competitors-page.md; estimate 8 tasks; decisions none"
+  },
+  {
+   "id": "WP-40",
+   "title": "Project Overview: AI cards and items (cross-channel)",
+   "wave": "W3",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-33"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-IA-13",
+     "WB-XCH-02"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 2,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-40-project-overview-ai.md; estimate 4 tasks; decisions none | from WP-31: SetupChecklist is exported from features/onboarding; mount it on the Overview with one line (WP-33 owns the slot) once WP-31 merges"
+  },
+  {
+   "id": "WP-41",
+   "title": "Versions: edit text, versions, restore, project feed, boundaries (B11, B12)",
+   "wave": "W4",
+   "kind": "both",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-13",
+    "WP-25"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-VERSIONS-01",
+     "BE-VERSIONS-02",
+     "BE-VERSIONS-03",
+     "BE-VERSIONS-04",
+     "BE-VERSIONS-06",
+     "BE-VERSIONS-08",
+     "BE-PROMPTS-14"
+    ],
+    "WB": [
+     "WB-PRM-34",
+     "WB-EDT-06",
+     "WB-MNU-06",
+     "WB-VER-01",
+     "WB-VER-02",
+     "WB-VER-03",
+     "WB-VER-04",
+     "WB-VER-05",
+     "WB-VER-06",
+     "WB-VER-07",
+     "WB-VER-08",
+     "WB-PRM-21",
+     "WB-PIH-10",
+     "WB-STATE-13"
+    ],
+    "CH": [],
+    "PD": [
+     "PD-EDIT-20",
+     "PD-EDIT-21",
+     "PD-EDIT-22",
+     "PD-EDIT-23",
+     "PD-EDIT-24",
+     "PD-EDIT-25",
+     "PD-ROW-04",
+     "PD-INS-03",
+     "PD-VER-01",
+     "PD-VER-02",
+     "PD-VER-03",
+     "PD-VER-04",
+     "PD-VER-05",
+     "PD-VER-06",
+     "PD-INS-07",
+     "PD-STATE-10",
+     "PD-TEST-15",
+     "PD-ERR-24"
+    ],
+    "SC": [],
+    "CF": [
+     "CF-21"
+    ],
+    "N": [
+     "PD-B11",
+     "PD-N12",
+     "PD-B12"
+    ]
+   },
+   "counts": {
+    "total": 43,
+    "done": 1
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-41-versions.md; estimate 10 tasks; decisions D-24"
+  },
+  {
+   "id": "WP-42",
+   "title": "Panels backend: tables, core seed, routes, memberships, planner (B10)",
+   "wave": "W4",
+   "kind": "backend",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-41"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-PANELS-01",
+     "BE-PANELS-02",
+     "BE-PANELS-03",
+     "BE-PANELS-04",
+     "BE-PANELS-05",
+     "BE-PANELS-06",
+     "BE-PANELS-07",
+     "BE-PANELS-09",
+     "BE-PANELS-10",
+     "BE-PROMPTS-13",
+     "BE-VERSIONS-05"
+    ],
+    "WB": [],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [
+     "CF-20"
+    ],
+    "N": [
+     "PD-N14",
+     "PD-B10"
+    ]
+   },
+   "counts": {
+    "total": 14,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-42-panels-api.md; estimate 10 tasks; decisions D-49"
+  },
+  {
+   "id": "WP-43",
+   "title": "Panels web: Panels tab, add to panel, locked core flows, filters",
+   "wave": "W4",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-42",
+    "WP-29"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-PNL-01",
+     "WB-PNL-02",
+     "WB-PNL-03",
+     "WB-PNL-04",
+     "WB-PNL-05",
+     "WB-PNL-06",
+     "WB-PNL-07",
+     "WB-PNL-09",
+     "WB-PNL-10",
+     "WB-PNL-11",
+     "WB-TPH-16",
+     "WB-TPF-09",
+     "WB-PRM-04",
+     "WB-PRM-22",
+     "WB-ADD-14",
+     "WB-BLK-10",
+     "WB-TPH-05",
+     "WB-PIH-09",
+     "WB-PI-07"
+    ],
+    "CH": [],
+    "PD": [
+     "PD-PAN-01",
+     "PD-PAN-02",
+     "PD-PAN-03",
+     "PD-PAN-04",
+     "PD-PAN-05",
+     "PD-PAN-06",
+     "PD-PAN-07",
+     "PD-PAN-08",
+     "PD-PAN-09",
+     "PD-PAN-10",
+     "PD-PAN-11",
+     "PD-PAN-12",
+     "PD-PAN-13",
+     "PD-ERR-23",
+     "PD-ARC-08",
+     "PD-ADD-17",
+     "PD-ADD-18",
+     "PD-ROW-06",
+     "PD-BULK-08",
+     "PD-INS-08"
+    ],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 39,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-43-panels-web.md; estimate 8 tasks; decisions none"
+  },
+  {
+   "id": "WP-44",
+   "title": "Keyword links and Generate from keywords (B18, N08, M-25)",
+   "wave": "W4",
+   "kind": "both",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-13",
+    "WP-27"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-BILLING-PLAN-LINKS-01",
+     "BE-BILLING-PLAN-LINKS-02",
+     "BE-BILLING-PLAN-LINKS-04",
+     "BE-PROMPTS-17"
+    ],
+    "WB": [
+     "WB-XCH-05",
+     "WB-EDT-07",
+     "WB-TPH-12",
+     "WB-DSC-09",
+     "WB-EDT-08",
+     "WB-TPF-14",
+     "WB-PRM-20",
+     "WB-PICO-04"
+    ],
+    "CH": [],
+    "PD": [
+     "PD-GEN-01",
+     "PD-GEN-02",
+     "PD-GEN-03",
+     "PD-GEN-04",
+     "PD-GEN-05",
+     "PD-GEN-06",
+     "PD-GEN-07",
+     "PD-GEN-08",
+     "PD-GEN-09",
+     "PD-GEN-10",
+     "PD-GEN-11",
+     "PD-GEN-12",
+     "PD-GEN-13",
+     "PD-GEN-14",
+     "PD-GEN-15",
+     "PD-GEN-16",
+     "PD-STATE-07",
+     "PD-STATE-08",
+     "PD-TEST-11",
+     "PD-TEST-22"
+    ],
+    "SC": [],
+    "CF": [],
+    "N": [
+     "PD-N08",
+     "PD-B18"
+    ]
+   },
+   "counts": {
+    "total": 34,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-44-links-generate.md; estimate 9 tasks; decisions none"
+  },
+  {
+   "id": "WP-45",
+   "title": "Prompt candidates inbox backend (B18 inbox, N10)",
+   "wave": "W4",
+   "kind": "backend",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-44"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-PROMPTS-18",
+     "BE-PROMPTS-19",
+     "BE-PROMPTS-20",
+     "BE-PROMPTS-21",
+     "BE-PROMPTS-23",
+     "BE-EXPORT-05"
+    ],
+    "WB": [],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [
+     "CF-22"
+    ],
+    "N": [
+     "PD-N10"
+    ]
+   },
+   "counts": {
+    "total": 8,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-45-candidates-api.md; estimate 8 tasks; decisions D-27"
+  },
+  {
+   "id": "WP-46",
+   "title": "Discover > Prompts: candidates inbox and suggestions (W12)",
+   "wave": "W4",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-45",
+    "WP-10"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-IA-06",
+     "WB-DSC-01",
+     "WB-DSC-02",
+     "WB-DSC-03",
+     "WB-DSC-04",
+     "WB-DSC-05",
+     "WB-DSC-06",
+     "WB-DSC-07",
+     "WB-DSC-08",
+     "WB-DSC-10",
+     "WB-DSC-12",
+     "WB-DSC-13",
+     "WB-NAV-02",
+     "WB-KEY-08"
+    ],
+    "CH": [],
+    "PD": [
+     "PD-CAND-01",
+     "PD-CAND-02",
+     "PD-CAND-03",
+     "PD-CAND-04",
+     "PD-CAND-05",
+     "PD-CAND-06",
+     "PD-CAND-07",
+     "PD-CAND-08",
+     "PD-CAND-09",
+     "PD-CAND-10",
+     "PD-CAND-11",
+     "PD-CAND-12",
+     "PD-CAND-13",
+     "PD-CAND-14",
+     "PD-CAND-20",
+     "PD-STATE-09",
+     "PD-ERR-25"
+    ],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 31,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-46-discover-web.md; estimate 8 tasks; decisions none"
+  },
+  {
+   "id": "WP-47",
+   "title": "Alerts backend: rules, events, evaluation, AI rule types, digests",
+   "wave": "W4",
+   "kind": "backend",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-01",
+    "WP-14"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-ALERTS-01",
+     "BE-ALERTS-02",
+     "BE-ALERTS-03",
+     "BE-ALERTS-04",
+     "BE-ALERTS-05",
+     "BE-ALERTS-06",
+     "BE-ALERTS-07",
+     "BE-ALERTS-08",
+     "BE-ALERTS-09",
+     "BE-ALERTS-10",
+     "BE-ALERTS-11",
+     "BE-ALERTS-12",
+     "BE-ALERTS-13"
+    ],
+    "WB": [],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [
+     "CF-23"
+    ],
+    "N": []
+   },
+   "counts": {
+    "total": 14,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-47-alerts-api.md; estimate 10 tasks; decisions none"
+  },
+  {
+   "id": "WP-48",
+   "title": "Alerts web: rule list, builder, bell, digest archive",
+   "wave": "W4",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-47",
+    "WP-08"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-ALR-01",
+     "WB-ALR-02",
+     "WB-ALR-03",
+     "WB-ALR-04",
+     "WB-ALR-05",
+     "WB-ALR-06",
+     "WB-ALR-07",
+     "WB-SET-13",
+     "WB-IA-10",
+     "WB-NAV-09"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [
+     "SC-21",
+     "SC-24"
+    ],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 12,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-48-alerts-web.md; estimate 7 tasks; decisions none"
+  },
+  {
+   "id": "WP-49",
+   "title": "Saved views persistence (B8) on every AI table",
+   "wave": "W4",
+   "kind": "both",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-10",
+    "WP-01"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-SAVEDVIEWS-01",
+     "BE-SAVEDVIEWS-02",
+     "BE-SAVEDVIEWS-03",
+     "BE-SAVEDVIEWS-04"
+    ],
+    "WB": [
+     "WB-TPH-06"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [
+     "CF-14"
+    ],
+    "N": []
+   },
+   "counts": {
+    "total": 6,
+    "done": 1
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-49-saved-views.md; estimate 6 tasks; decisions none"
+  },
+  {
+   "id": "WP-50",
+   "title": "Server exports with AI kinds and the caveat header",
+   "wave": "W4",
+   "kind": "both",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-01"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-OPS-08",
+     "BE-EXPORT-01",
+     "BE-EXPORT-02",
+     "BE-EXPORT-03",
+     "BE-REPORTS-11",
+     "BE-METRICS-16"
+    ],
+    "WB": [
+     "WB-RPT-01",
+     "WB-RPT-02"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 8,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-50-exports.md; estimate 8 tasks; decisions none"
+  },
+  {
+   "id": "WP-51",
+   "title": "Reports page, shareable report and scheduled digests (M-12, M-13)",
+   "wave": "W4",
+   "kind": "both",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-50",
+    "WP-47",
+    "WP-49"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-REPORTS-07",
+     "BE-REPORTS-08"
+    ],
+    "WB": [
+     "WB-IA-07",
+     "WB-RPT-03",
+     "WB-RPT-04",
+     "WB-RPT-05",
+     "WB-RPT-07"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 7,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-51-reports.md; estimate 8 tasks; decisions D-29"
+  },
+  {
+   "id": "WP-52",
+   "title": "Prompt Detail page `/ai/prompts/[promptId]` (T3)",
+   "wave": "W4",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-41",
+    "WP-21",
+    "WP-24",
+    "WP-06"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-IA-08",
+     "WB-PD-01",
+     "WB-PD-02",
+     "WB-PD-03",
+     "WB-PD-04",
+     "WB-PD-05",
+     "WB-PD-06",
+     "WB-PD-08",
+     "WB-PD-09",
+     "WB-PD-10",
+     "WB-PD-12",
+     "WB-PD-13",
+     "WB-PD-14",
+     "WB-PI-03",
+     "WB-MNU-07",
+     "WB-NAV-04",
+     "WB-PIH-12"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 17,
+    "done": 1
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-52-prompt-detail.md; estimate 8 tasks; decisions D-47"
+  },
+  {
+   "id": "WP-53",
+   "title": "Command palette (platform)",
+   "wave": "W4",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-02"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-NAV-10",
+     "WB-KEY-09"
+    ],
+    "CH": [],
+    "PD": [
+     "PD-ADD-07"
+    ],
+    "SC": [
+     "SC-20"
+    ],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 4,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-53-command-palette.md; estimate 5 tasks; decisions D-48"
+  },
+  {
+   "id": "WP-54",
+   "title": "Extraction: markdown structure, structured rank, recommendation, sentiment",
+   "wave": "W5",
+   "kind": "backend",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-12"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-EXTRACT-01",
+     "BE-EXTRACT-02",
+     "BE-EXTRACT-03",
+     "BE-EXTRACT-04",
+     "BE-EXTRACT-05",
+     "BE-EXTRACT-06",
+     "BE-EXTRACT-07",
+     "BE-EXTRACT-08",
+     "BE-EXTRACT-09",
+     "BE-EXTRACT-17",
+     "BE-RECOMMEND-01",
+     "BE-RECOMMEND-02",
+     "BE-RECOMMEND-03",
+     "BE-RECOMMEND-05",
+     "BE-RECOMMEND-06",
+     "BE-RECOMMEND-07"
+    ],
+    "WB": [],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [
+     "CF-18"
+    ],
+    "N": []
+   },
+   "counts": {
+    "total": 17,
+    "done": 8
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-54-extract-recommend.md; estimate 10 tasks; decisions D-44, D-45"
+  },
+  {
+   "id": "WP-55",
+   "title": "Recommendation, structured rank and sentiment on every AI page",
+   "wave": "W5",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-54"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-TPS-07",
+     "WB-PRM-10",
+     "WB-PIL-07",
+     "WB-PIH-06",
+     "WB-PICO-03",
+     "WB-PD-07"
+    ],
+    "CH": [
+     "CH-24",
+     "CH-25",
+     "CH-39"
+    ],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 9,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-55-recommend-web.md; estimate 6 tasks; decisions D-19"
+  },
+  {
+   "id": "WP-56",
+   "title": "Re-derivation, derivations routes and entity candidates (competitor discovery)",
+   "wave": "W5",
+   "kind": "both",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-54",
+    "WP-50"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-EXTRACT-10",
+     "BE-EXTRACT-11",
+     "BE-EXTRACT-12",
+     "BE-EXTRACT-13",
+     "BE-EXTRACT-14",
+     "BE-EXTRACT-15",
+     "BE-EXTRACT-16",
+     "BE-EXTRACT-18",
+     "BE-COLLECT-15",
+     "BE-COMPETITORS-06",
+     "BE-COMPETITORS-11",
+     "BE-METRICS-17"
+    ],
+    "WB": [
+     "WB-CMP-09"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 13,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-56-rederive-candidates.md; estimate 10 tasks; decisions none"
+  },
+  {
+   "id": "WP-57",
+   "title": "Retrieved but not cited, fan-out table and keyword match (C8, FO-07, F3)",
+   "wave": "W5",
+   "kind": "both",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-14",
+    "WP-24"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-SOURCES-13",
+     "BE-FANOUT-02",
+     "BE-FANOUT-04",
+     "BE-FANOUT-06"
+    ],
+    "WB": [
+     "WB-CIT-12",
+     "WB-PIF-08",
+     "WB-PIF-09"
+    ],
+    "CH": [
+     "CH-27",
+     "CH-28"
+    ],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": [
+     "OV-N11"
+    ]
+   },
+   "counts": {
+    "total": 10,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-57-retrieval-fanout.md; estimate 8 tasks; decisions none | from WP-14: ai_parse.py _bounded fix lands first (T8b); rebase onto it"
+  },
+  {
+   "id": "WP-58",
+   "title": "Statistics backend: intervals, paired verdict, flip rate, movers, sizing (slice 3)",
+   "wave": "W5",
+   "kind": "backend",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-12",
+    "WP-42"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-STATS-01",
+     "BE-STATS-02",
+     "BE-STATS-03",
+     "BE-STATS-04",
+     "BE-STATS-05",
+     "BE-STATS-06",
+     "BE-STATS-07",
+     "BE-STATS-08",
+     "BE-STATS-11",
+     "BE-STATS-12",
+     "BE-STATS-13",
+     "BE-METRICS-25",
+     "BE-REPORTS-02",
+     "BE-VERSIONS-07",
+     "BE-COMPETITORS-04",
+     "BE-PANELS-08",
+     "BE-COLLECT-11"
+    ],
+    "WB": [],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [
+     "CF-24"
+    ],
+    "N": [
+     "OV-N12"
+    ]
+   },
+   "counts": {
+    "total": 19,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-58-stats-api.md; estimate 10 tasks; decisions D-25"
+  },
+  {
+   "id": "WP-59",
+   "title": "Statistics web: server intervals, verdicts, volatility, sizing, replicates",
+   "wave": "W5",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-58",
+    "WP-52"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-PIS-05",
+     "WB-PRM-19",
+     "WB-PNL-08",
+     "WB-PIL-08",
+     "WB-SET-04",
+     "WB-PD-11"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 6,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-59-stats-web.md; estimate 5 tasks; decisions none"
+  },
+  {
+   "id": "WP-60",
+   "title": "Source intelligence backend: categories, publishers, overlap, opportunities",
+   "wave": "W5",
+   "kind": "backend",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-14"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-SOURCES-08",
+     "BE-SOURCES-09",
+     "BE-SOURCES-10",
+     "BE-SOURCES-12",
+     "BE-SOURCES-14",
+     "BE-SOURCES-15",
+     "BE-SOURCES-16",
+     "BE-SOURCES-17",
+     "BE-SOURCES-18",
+     "BE-SOURCES-19",
+     "BE-SOURCES-23",
+     "BE-TOPICS-11"
+    ],
+    "WB": [],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": [
+     "OV-N8"
+    ]
+   },
+   "counts": {
+    "total": 13,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-60-source-intel-api.md; estimate 10 tasks; decisions D-27, D-30, D-31, D-32"
+  },
+  {
+   "id": "WP-61",
+   "title": "Sources page, opportunities and source overlap views",
+   "wave": "W5",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-60",
+    "WP-05"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-IA-04",
+     "WB-SRCS-01",
+     "WB-SRCS-02",
+     "WB-SRCS-03",
+     "WB-SRCS-04",
+     "WB-SRCS-05",
+     "WB-CIT-17",
+     "WB-DSC-11",
+     "WB-CMP-08",
+     "WB-TOP-40"
+    ],
+    "CH": [
+     "CH-32"
+    ],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 11,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-61-sources-page.md; estimate 7 tasks; decisions none | WP-14 on develop: sources/changes, sources/diversity, sources/domains/{registrable_domain}, sources/prompts, include=series, cited_with, by_role_by_engine, fanout include=topics, filter[country_iso], min_support, include_unresolved_redirects and include_engine_internal; generated client already current"
+  },
+  {
+   "id": "WP-62",
+   "title": "Performance: rollups, caching, EXPLAIN gate, quality counters",
+   "wave": "W5",
+   "kind": "backend",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-12",
+    "WP-32"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-METRICS-18",
+     "BE-METRICS-19",
+     "BE-METRICS-20",
+     "BE-OPS-07",
+     "BE-OPS-14"
+    ],
+    "WB": [],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 5,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-62-performance.md; estimate 6 tasks; decisions D-33"
+  },
+  {
+   "id": "WP-63",
+   "title": "SSRF-safe fetcher and outbound webhooks",
+   "wave": "W5",
+   "kind": "backend",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-47"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-GEO-01",
+     "BE-ALERTS-14"
+    ],
+    "WB": [],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 2,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-63-ssrf-webhooks.md; estimate 7 tasks; decisions none"
+  },
+  {
+   "id": "WP-64",
+   "title": "AI Overview engine and cross-channel backend (needs rank data, OD-13)",
+   "wave": "W6",
+   "kind": "backend",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-44",
+    "WP-58"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-ENGINES-06",
+     "BE-AIO-01",
+     "BE-AIO-02",
+     "BE-AIO-03",
+     "BE-AIO-04",
+     "BE-AIO-05",
+     "BE-AIO-06",
+     "BE-COLLECT-12",
+     "BE-TOPICS-09",
+     "BE-BILLING-PLAN-LINKS-03",
+     "BE-BILLING-PLAN-LINKS-05",
+     "BE-BILLING-PLAN-LINKS-06",
+     "BE-BILLING-PLAN-LINKS-07",
+     "BE-FANOUT-05",
+     "BE-COMPETITORS-07",
+     "BE-COMPETITORS-09"
+    ],
+    "WB": [],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [
+     "CF-19"
+    ],
+    "N": []
+   },
+   "counts": {
+    "total": 17,
+    "done": 1
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-64-aio-xch-api.md; estimate 12 tasks; decisions D-50"
+  },
+  {
+   "id": "WP-65",
+   "title": "AI Overview and cross-channel web: AIO columns, Matrix, keyword AI tab, pages",
+   "wave": "W6",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-64"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-TPS-08",
+     "WB-PRM-24",
+     "WB-TOP-39",
+     "WB-SET-05",
+     "WB-XCH-01",
+     "WB-XCH-03",
+     "WB-XCH-04",
+     "WB-IA-12",
+     "WB-TOP-22",
+     "WB-TI-14",
+     "WB-TI-20"
+    ],
+    "CH": [
+     "CH-31"
+    ],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 12,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-65-aio-xch-web.md; estimate 9 tasks; decisions D-19"
+  },
+  {
+   "id": "WP-66",
+   "title": "Discovery sources: PAA, GSC questions, fan-out to inbox, modeled demand",
+   "wave": "W6",
+   "kind": "backend",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-45",
+    "WP-64"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-PROMPTS-22",
+     "BE-FANOUT-07",
+     "BE-PROMPTS-24"
+    ],
+    "WB": [],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 3,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-66-discovery-sources.md; estimate 8 tasks; decisions D-27, D-50"
+  },
+  {
+   "id": "WP-67",
+   "title": "Engine and data expansion: forced search, official APIs, other surfaces, API keys",
+   "wave": "W6",
+   "kind": "backend",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-58"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-ENGINES-05",
+     "BE-ENGINES-07",
+     "BE-ENGINES-08",
+     "BE-ENGINES-09",
+     "BE-ENGINES-11",
+     "BE-COLLECT-14",
+     "BE-FANOUT-08",
+     "BE-COLLECT-21",
+     "BE-COMPETITORS-08",
+     "BE-EXPORT-04"
+    ],
+    "WB": [],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 10,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-67-engine-expansion.md; estimate 12 tasks; decisions D-26, D-27"
+  },
+  {
+   "id": "WP-68",
+   "title": "LLM-backed and Phase 15 analytics: adjudication, claims, diagnostics, experiments",
+   "wave": "W6",
+   "kind": "both",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-54",
+    "WP-58"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-OPS-11",
+     "BE-BILLING-PLAN-LINKS-12",
+     "BE-RECOMMEND-04",
+     "BE-RECOMMEND-08",
+     "BE-COMPETITORS-10",
+     "BE-REPORTS-05",
+     "BE-REPORTS-06",
+     "BE-GEO-10",
+     "BE-PANELS-11",
+     "BE-STATS-09",
+     "BE-STATS-10"
+    ],
+    "WB": [
+     "WB-SET-16",
+     "WB-PD-15"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 13,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-68-llm-advanced.md; estimate 14 tasks; decisions D-27"
+  },
+  {
+   "id": "WP-69",
+   "title": "First-party AI signals: GA4 referrals, crawlers, GSC generative, Bing AI (Ph 12)",
+   "wave": "W6",
+   "kind": "both",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-50"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-GEO-11",
+     "BE-GEO-12",
+     "BE-GEO-13",
+     "BE-GEO-14",
+     "BE-GEO-15",
+     "BE-GEO-16"
+    ],
+    "WB": [
+     "WB-XCH-06"
+    ],
+    "CH": [
+     "CH-30"
+    ],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 8,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-69-first-party-signals.md; estimate 12 tasks; decisions D-51"
+  },
+  {
+   "id": "WP-70",
+   "title": "Page-level AI readiness (optional, only if the owner opens it, OD-11)",
+   "wave": "W7",
+   "kind": "both",
+   "status": "not_started",
+   "dependsOn": [
+    "WP-63"
+   ],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-GEO-02",
+     "BE-GEO-03",
+     "BE-GEO-04",
+     "BE-GEO-05",
+     "BE-GEO-06",
+     "BE-GEO-07",
+     "BE-GEO-08",
+     "BE-GEO-09",
+     "BE-SOURCES-24"
+    ],
+    "WB": [
+     "WB-IA-11",
+     "WB-GEO-01",
+     "WB-GEO-02",
+     "WB-GEO-03",
+     "WB-GEO-04",
+     "WB-GEO-05",
+     "WB-GEO-06",
+     "WB-GEO-07",
+     "WB-GEO-08",
+     "WB-GEO-09",
+     "WB-GEO-10",
+     "WB-GEO-11"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 21,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-70-geo-readiness.md; estimate 12 tasks; decisions D-08"
+  },
+  {
+   "id": "WP-71",
+   "title": "Quality sweeps: e2e, axe at four widths, visual, responsive, copy rules",
+   "wave": "X",
+   "kind": "web",
+   "status": "not_started",
+   "dependsOn": [],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [],
+    "WB": [
+     "WB-A11Y-01",
+     "WB-A11Y-02",
+     "WB-A11Y-03",
+     "WB-A11Y-04",
+     "WB-A11Y-05",
+     "WB-A11Y-06",
+     "WB-A11Y-07",
+     "WB-A11Y-08",
+     "WB-A11Y-09",
+     "WB-A11Y-10",
+     "WB-A11Y-12",
+     "WB-A11Y-13",
+     "WB-A11Y-14",
+     "WB-RSP-07",
+     "WB-RSP-08",
+     "WB-RSP-10",
+     "WB-E2E-01",
+     "WB-E2E-02",
+     "WB-E2E-03",
+     "WB-E2E-04",
+     "WB-E2E-05",
+     "WB-E2E-11",
+     "WB-E2E-12",
+     "WB-STATE-09",
+     "WB-COPY-01",
+     "WB-COPY-02",
+     "WB-COPY-03",
+     "WB-DATA-01",
+     "WB-DATA-03",
+     "WB-DATA-04",
+     "WB-DATA-05"
+    ],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 31,
+    "done": 21
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-71-quality-sweeps.md; estimate 8 tasks; decisions none"
+  },
+  {
+   "id": "WP-72",
+   "title": "Docs: As built notes, drift fixes, design-system additions",
+   "wave": "X",
+   "kind": "docs",
+   "status": "not_started",
+   "dependsOn": [],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-OPS-10",
+     "BE-TOPICS-10"
+    ],
+    "WB": [],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 2,
+    "done": 1
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-72-docs.md; estimate 5 tasks; decisions D-20, D-28"
+  },
+  {
+   "id": "WP-73",
+   "title": "Release gates and the first real-data acceptance run",
+   "wave": "X",
+   "kind": "infra",
+   "status": "not_started",
+   "dependsOn": [],
+   "session": null,
+   "branch": null,
+   "rows": {
+    "BE": [
+     "BE-COLLECT-20"
+    ],
+    "WB": [],
+    "CH": [],
+    "PD": [],
+    "SC": [],
+    "CF": [],
+    "N": []
+   },
+   "counts": {
+    "total": 1,
+    "done": 0
+   },
+   "owner": "",
+   "notes": "file work-packages/WP-73-release-acceptance.md; estimate 4 tasks; decisions D-26"
+  }
+ ],
+ "decisions": [
+  {
+   "id": "D-01",
+   "title": "Overview presets: code (built-in documents behind a Start from menu) or stored named layouts",
+   "default": "Code. No table change; the person saves the result as their layout or the team default",
+   "status": "open"
+  },
+  {
+   "id": "D-02",
+   "title": "Prompt inspector tabs: 5 or 6 (and where Versions and Runs go)",
+   "default": "6 tabs: Latest, History, Citations, Competitors, Fan-out (only when an enabled engine exposes it), Stats. Versions and runs are sections of History; the full timeline is on Prompt Detail. DS 23 4.1 amended to allow 6",
+   "status": "open"
+  },
+  {
+   "id": "D-03",
+   "title": "Compare on by default (Overview and Topics & Prompts)",
+   "default": "On: vs previous period by default on both, `cmp=off` in the URL turns it off",
+   "status": "open"
+  },
+  {
+   "id": "D-04",
+   "title": "Pooling threshold POOL_BELOW_PROMPTS for topic and project weekly points",
+   "default": "10 prompts",
+   "status": "open"
+  },
+  {
+   "id": "D-05",
+   "title": "Heat-map bins shared by every rate heat-map",
+   "default": "The 7 fixed bins of CH-04, mirrored in dark",
+   "status": "open"
+  },
+  {
+   "id": "D-06",
+   "title": "Undo and redo in customize mode",
+   "default": "Yes: 50 drafts of history, ends with the mode, Hide raises a toast with Undo",
+   "status": "open"
+  },
+  {
+   "id": "D-07",
+   "title": "Undo of an add",
+   "default": "Undo archives the created prompts (no hard delete); the toast says so",
+   "status": "open"
+  },
+  {
+   "id": "D-08",
+   "title": "Page-level AI readiness (GEO) in scope",
+   "default": "Stays closed; optional wave 7 only on the owner's word",
+   "status": "open"
+  },
+  {
+   "id": "D-09",
+   "title": "How personal layouts stay private inside a workspace (review log F10)",
+   "default": "Row-level security policy on the current user id plus the application check, both tested",
+   "status": "open"
+  },
+  {
+   "id": "D-10",
+   "title": "How the backend gets the layout catalog keys (packages/contracts does not exist)",
+   "default": "A checked-in JSON generated by the web (`pnpm gen:layout-catalog`), freshness test on both sides, like gen:api",
+   "status": "open"
+  },
+  {
+   "id": "D-11",
+   "title": "Who holds layouts:manage",
+   "default": "Owner and admin",
+   "status": "open"
+  },
+  {
+   "id": "D-12",
+   "title": "What shared layouts means",
+   "default": "The team default only; no sharing with one person",
+   "status": "open"
+  },
+  {
+   "id": "D-13",
+   "title": "Per-card Window option (weakens one denominator per page)",
+   "default": "No in the first release",
+   "status": "open"
+  },
+  {
+   "id": "D-14",
+   "title": "Snapping resize grip as a pointer alternative to the Width select",
+   "default": "Yes, snaps to allowed widths only",
+   "status": "open"
+  },
+  {
+   "id": "D-15",
+   "title": "Duplicate in the card More menu",
+   "default": "Yes, with the next free identity value",
+   "status": "open"
+  },
+  {
+   "id": "D-16",
+   "title": "New screen key inspector.topic (customizable topic drawer)",
+   "default": "Yes; the prompt inspector later",
+   "status": "open"
+  },
+  {
+   "id": "D-17",
+   "title": "New metric registry keys ai.prompts_in_scope and ai.valid_answers",
+   "default": "Yes, added to doc 16 2.1 first",
+   "status": "open"
+  },
+  {
+   "id": "D-18",
+   "title": "notes:write permission",
+   "default": "Editor and above",
+   "status": "open"
+  },
+  {
+   "id": "D-19",
+   "title": "AI Overview as a strip item and engine once slice 2 lands",
+   "default": "Yes, labelled \"AI Overviews\", counted not asked",
+   "status": "open"
+  },
+  {
+   "id": "D-20",
+   "title": "Copy the Overview wireframe into DS 24 as 9.2a",
+   "default": "Yes",
+   "status": "open"
+  },
+  {
+   "id": "D-21",
+   "title": "Branded definition for lint",
+   "default": "Own aliases only (as built); competitor aliases get their own warning rule",
+   "status": "open"
+  },
+  {
+   "id": "D-22",
+   "title": "Who sets the funnel stage",
+   "default": "The person, default unknown; no LLM",
+   "status": "open"
+  },
+  {
+   "id": "D-23",
+   "title": "Bulk archive by filter form",
+   "default": "Yes (small)",
+   "status": "open"
+  },
+  {
+   "id": "D-24",
+   "title": "Personas (context_preamble) before panels",
+   "default": "No; later, with a migration, when the owner asks",
+   "status": "open"
+  },
+  {
+   "id": "D-25",
+   "title": "Replicates and spike S-05 (provider spend)",
+   "default": "No until a budget is set",
+   "status": "open"
+  },
+  {
+   "id": "D-26",
+   "title": "Real provider spend: resume Eventus schedules and run the acceptance",
+   "default": "A monthly AI budget of USD 10 for Eventus: its 72 prompts on 3 engines cost about USD 2.25 a month on the schedule (USD 4.70 at the 150 prompt base plan) and about USD 0.26 per full Run now, so USD 10 covers the schedule, the two acceptance runs and Run now headroom",
+   "status": "open"
+  },
+  {
+   "id": "D-27",
+   "title": "LLM use (adjudication, category classification, candidate variants, onboarding suggestions)",
+   "default": "No until a provider and a budget are chosen; rules and templates first",
+   "status": "open"
+  },
+  {
+   "id": "D-28",
+   "title": "Topic routes of doc 20 5.11 (Topic Explorer)",
+   "default": "Drop; superseded by the Topics tab (ADR-DS-022)",
+   "status": "open"
+  },
+  {
+   "id": "D-29",
+   "title": "Reports: shareable link and PDF (M-12), scheduled reports (M-13)",
+   "default": "Later: build the Reports page with Exports and Saved views first; annotations (M-14) yes now",
+   "status": "open"
+  },
+  {
+   "id": "D-30",
+   "title": "Opportunity task status (OP-12, a new table)",
+   "default": "No for now",
+   "status": "open"
+  },
+  {
+   "id": "D-31",
+   "title": "Domain category seed list source",
+   "default": "Rules plus a small curated seed in the repository, no LLM",
+   "status": "open"
+  },
+  {
+   "id": "D-32",
+   "title": "Who maintains the publisher list",
+   "default": "Deferred with source intelligence; start with a curated seed",
+   "status": "open"
+  },
+  {
+   "id": "D-33",
+   "title": "When to add the rollup table",
+   "default": "When the summary p95 exceeds 800 ms at 150 prompts x 3 engines x 92 days, or before the first full-capacity month",
+   "status": "open"
+  },
+  {
+   "id": "D-34",
+   "title": "Hard delete of prompts added by mistake",
+   "default": "No; archive only",
+   "status": "open"
+  },
+  {
+   "id": "D-35",
+   "title": "\"Run now\" or \"Ask now\"",
+   "default": "Keep \"Run now\" on buttons",
+   "status": "open"
+  },
+  {
+   "id": "D-36",
+   "title": "Prompt type facet and badge before panels",
+   "default": "Yes, as soon as the prompts lane lands B16",
+   "status": "open"
+  },
+  {
+   "id": "D-37",
+   "title": "Topic subtitle: one line or a category line",
+   "default": "Keep the one-line form",
+   "status": "open"
+  },
+  {
+   "id": "D-38",
+   "title": "Trend: an 8 week line beside a 28 day table (second read)",
+   "default": "Yes, now that gzip is on develop",
+   "status": "open"
+  },
+  {
+   "id": "D-39",
+   "title": "Expanded topic set in the URL",
+   "default": "Already dropped by the owner; keep in memory",
+   "status": "open"
+  },
+  {
+   "id": "D-40",
+   "title": "Right-click row menu on every DataTable, Rankings included",
+   "default": "Yes",
+   "status": "open"
+  },
+  {
+   "id": "D-41",
+   "title": "Effective sources (C3): web or backend",
+   "default": "Backend (diversity read); the web may compute it in the interim",
+   "status": "open"
+  },
+  {
+   "id": "D-42",
+   "title": "Customize on phones",
+   "default": "Display only below 768 px",
+   "status": "open"
+  },
+  {
+   "id": "D-43",
+   "title": "Archived view with Status All",
+   "default": "Yes",
+   "status": "open"
+  },
+  {
+   "id": "D-44",
+   "title": "Competitor sentiment",
+   "default": "Off (cost)",
+   "status": "open"
+  },
+  {
+   "id": "D-45",
+   "title": "Who labels the AI gold set",
+   "default": "An Opus pass drafts labels for 200 answers; the owner's team reviews them",
+   "status": "open"
+  },
+  {
+   "id": "D-46",
+   "title": "Optimistic concurrency on prompt PATCH",
+   "default": "Yes (ETag and If-Match)",
+   "status": "open"
+  },
+  {
+   "id": "D-47",
+   "title": "Prompt Detail page in this programme",
+   "default": "Yes, wave 4",
+   "status": "open"
+  },
+  {
+   "id": "D-48",
+   "title": "Command palette in this programme",
+   "default": "Yes, wave 4",
+   "status": "open"
+  },
+  {
+   "id": "D-49",
+   "title": "Discovery panel engines",
+   "default": "ChatGPT and AI Mode only",
+   "status": "open"
+  },
+  {
+   "id": "D-50",
+   "title": "When rank data is reliable again (AI Overview, matrix, SEO per topic)",
+   "default": "Owner and the rank session decide; wave 6 waits",
+   "status": "open"
+  },
+  {
+   "id": "D-51",
+   "title": "First-party signals (Phase 12) in this programme",
+   "default": "Yes after the core waves, when a GA4 or Cloudflare connection exists for a test project",
+   "status": "open"
+  }
+ ],
+ "excluded": [
+  {
+   "row": "BE-COLLECT-13",
+   "reason": "DEFERRED BY OWNER: Run now uses the standard queue (OD-12)"
+  },
+  {
+   "row": "BE-METRICS-12",
+   "reason": "DEFERRED BY OWNER: Prompt Explorer routes replaced by the summary (S1 4.5)"
+  },
+  {
+   "row": "BE-METRICS-23",
+   "reason": "DEFERRED BY OWNER, ops session; note: gzip is on develop since de54a88d"
+  },
+  {
+   "row": "BE-OPS-12",
+   "reason": "DEFERRED BY OWNER, ops session; gzip is on develop since de54a88d"
+  },
+  {
+   "row": "BE-OPS-13",
+   "reason": "DEFERRED BY OWNER: VPS, release, backups, observability belong to the ops session"
+  },
+  {
+   "row": "BE-ALERTS-15",
+   "reason": "Ops session: platform alerts for operators (OD-8)"
+  },
+  {
+   "row": "BE-LAYOUTS-12",
+   "reason": "Decided out: one layout per person per workspace (layout spec decision 5)"
+  },
+  {
+   "row": "BE-BILLING-PLAN-LINKS-13",
+   "reason": "Out of AI scope: billing and plans are a product decision"
+  }
+ ],
+ "leases": [
+  {
+   "path": "apps/web/src/components/design-system/registry.ts",
+   "wp": "SHARED WP-04/05/07/08/09/10",
+   "granted": "2026-11-13T01:37:54+05:30",
+   "scope": "one-line additions per package; on rebase keep both sides",
+   "until": "all of those merged"
+  },
+  {
+   "path": "apps/web/src/components/design-system/section-slugs.ts",
+   "wp": "SHARED WP-04/05/07/08/09/10",
+   "granted": "2026-11-13T01:37:54+05:30",
+   "scope": "one-line additions per package; on rebase keep both sides",
+   "until": "all of those merged"
+  },
+  {
+   "path": "apps/web/src/components/design-system/registry.test.tsx",
+   "wp": "SHARED WP-04/05/07/08/09/10",
+   "granted": "2026-11-13T01:37:54+05:30",
+   "scope": "one-line additions per package; on rebase keep both sides",
+   "until": "all of those merged"
+  },
+  {
+   "path": "apps/web/messages/en.json",
+   "wp": "SHARED WP-06 (and any package adding under its own namespaces)",
+   "granted": "2026-11-13T03:12:21+05:30",
+   "scope": "additive: new sub-objects chart.heatmap and chart.multiples only",
+   "until": "WP-06 merged"
+  },
+  {
+   "path": "backend/src/idraft/api/schemas/ai.py",
+   "wp": "SHARED WP-12/WP-13/WP-14",
+   "granted": "2026-11-13T04:47:37+05:30",
+   "scope": "additive new models only; hot file: rebase before every push, keep both sides, never reorder",
+   "until": "lane merged"
+  },
+  {
+   "path": "backend/src/idraft/db/tables.py",
+   "wp": "WP-13 (alongside WP-11)",
+   "granted": "2026-11-13T05:06:30+05:30",
+   "scope": "two Column lines in ai_prompts (prompt_type_source, is_branded_source); WP-11 adds the layouts Table in the same file: both additive, rebase and keep both sides",
+   "until": "WP-13 merged"
+  },
+  {
+   "path": "backend/tests/db/test_grants.py",
+   "wp": "WP-13 (alongside WP-11)",
+   "granted": "2026-11-13T05:06:30+05:30",
+   "scope": "ai.prompts UPDATE tuple gains the two columns; WP-11 adds a layouts row: both additive",
+   "until": "WP-13 merged"
+  },
+  {
+   "path": "docs/design-system/25-component-inventory.md",
+   "wp": "WP-10 (sequential after WP-08)",
+   "granted": "2026-11-13T05:57:38+05:30",
+   "scope": "append-only As built lines under 4.18, 7.7 and 7.10",
+   "until": "WP-10 merged"
+  },
+  {
+   "path": "apps/web/src/components/app/metric/metric-strip.tsx",
+   "wp": "WP-16 (T3)",
+   "granted": "2026-11-13T12:42:47+05:30",
+   "scope": "additive optional href on a metric item (numbers link in view mode)",
+   "until": "WP-16 merged"
+  },
+  {
+   "path": "apps/web/src/components/app/shell/page-header.tsx",
+   "wp": "WP-16 (optional)",
+   "granted": "2026-11-13T12:42:47+05:30",
+   "scope": "additive titleAddon slot for the Customizing badge",
+   "until": "WP-16 merged"
+  },
+  {
+   "path": "apps/web/eslint.config.mjs",
+   "wp": "WP-33 (L1, T5)",
+   "granted": "2026-11-13T21:07:25+05:30",
+   "scope": "ONE boundaries policy entry allowing feature -> features/layouts (layouts is a platform, like providers); no other lint rule changes; document it in the As built",
+   "until": "WP-33 merged"
+  },
+  {
+   "path": "apps/web/src/lib/layouts/catalog.ts",
+   "wp": "WP-33 (L2, T2)",
+   "granted": "2026-11-13T21:07:25+05:30",
+   "scope": "add the ai_overview screen's 38 card types, numbers and built-in layout in ONE commit before milestone M1, plus the pinned tests and the regenerated backend/src/idraft/api/layouts/catalog.json (hash/content only, web freshness test green)",
+   "until": "WP-33 merged"
+  },
+  {
+   "path": "apps/web/src/lib/layouts/catalog.test.ts",
+   "wp": "WP-33 (L2)",
+   "granted": "2026-11-13T21:07:25+05:30",
+   "scope": "pinned tests for the ai_overview additions",
+   "until": "WP-33 merged"
+  },
+  {
+   "path": "backend/src/idraft/api/layouts/catalog.json",
+   "wp": "WP-33 (L2)",
+   "granted": "2026-11-13T21:07:25+05:30",
+   "scope": "regenerated with pnpm gen:layout-catalog in the same commit",
+   "until": "WP-33 merged"
+  },
+  {
+   "path": "apps/web/src/lib/navigation/registry.test.ts",
+   "wp": "WP-33 (L3, T12)",
+   "granted": "2026-11-13T21:07:25+05:30",
+   "scope": "smallest edit when the Overview entry flips to live",
+   "until": "WP-33 merged"
+  },
+  {
+   "path": "apps/web/src/lib/navigation/planned-routes.test.ts",
+   "wp": "WP-33 (L4)",
+   "granted": "2026-11-13T21:07:25+05:30",
+   "scope": "one row",
+   "until": "WP-33 merged"
+  },
+  {
+   "path": "apps/web/src/components/app/status/refetch-bar.tsx",
+   "wp": "WP-33 (L6, new file)",
+   "granted": "2026-11-13T21:07:25+05:30",
+   "scope": "owner WP-33",
+   "until": "WP-33 merged"
+  },
+  {
+   "path": "apps/web/src/components/app/status/freshness-indicator.tsx",
+   "wp": "WP-33 (L6, new file)",
+   "granted": "2026-11-13T21:07:25+05:30",
+   "scope": "owner WP-33",
+   "until": "WP-33 merged"
+  },
+  {
+   "path": "docs/design-system/16-drawers-dialogs-popovers.md",
+   "wp": "WP-33 (L7)",
+   "granted": "2026-11-13T21:07:25+05:30",
+   "scope": "section 2.1: two rows for D-17 (coordinate with WP-32)",
+   "until": "WP-33 merged"
+  },
+  {
+   "path": "docs/design-system/24-page-templates.md",
+   "wp": "WP-33 (L8)",
+   "granted": "2026-11-13T21:07:25+05:30",
+   "scope": "section 9.2a (D-20), append-only",
+   "until": "WP-33 merged"
+  },
+  {
+   "path": "apps/web/src/features/ai-overview/cards/*/index.ts",
+   "wp": "WP-33 (L9)",
+   "granted": "2026-11-13T21:07:25+05:30",
+   "scope": "five empty registry slot files for the WP-34 to 37 card folders; card packages fill them in",
+   "until": "WP-33 merged"
+  },
+  {
+   "path": "docs/16-metrics-methodology.md",
+   "wp": "SHARED WP-32/WP-33",
+   "granted": "2026-11-13T21:30:33+05:30",
+   "scope": "section 2.1: two rows ai.prompts_in_scope and ai.valid_answers (D-17); whoever pushes second rebases and keeps both sides (check develop first)",
+   "until": "WP-32 merged"
+  },
+  {
+   "path": "backend/tests/security/test_cross_tenant.py",
+   "wp": "WP-32",
+   "granted": "2026-11-13T21:30:33+05:30",
+   "scope": "one line in WORDS ('metric': 'ai.mention_rate'), outside the anchors; additive",
+   "until": "WP-32 merged"
+  },
+  {
+   "path": "docs/ai-visibility/contracts/README.md",
+   "wp": "WP-32",
+   "granted": "2026-11-13T21:30:33+05:30",
+   "scope": "two index rows and one Update line",
+   "until": "WP-32 merged"
+  },
+  {
+   "path": "apps/web/messages/en.json",
+   "wp": "WP-19",
+   "granted": "2026-11-13T22:09:37+05:30",
+   "scope": "additive prompts.compare.* only",
+   "until": "WP-19 merged"
+  },
+  {
+   "path": "apps/web/src/lib/compare/",
+   "wp": "WP-19",
+   "granted": "2026-11-13T22:09:37+05:30",
+   "scope": "new folder (parseCompare, cmpParam, compareParams, isCompared, comparedWindow, change-model); WP-33 and WP-21 adopt it on rebase",
+   "until": "WP-19 merged"
+  },
+  {
+   "path": "apps/web/src/mocks/handlers/prompt-answers.ts",
+   "wp": "WP-19",
+   "granted": "2026-11-13T22:09:37+05:30",
+   "scope": "summary handler only, about 60 lines (compare answers)",
+   "until": "WP-19 merged"
+  },
+  {
+   "path": "apps/web/src/features/prompts/prompt-queries.ts",
+   "wp": "WP-19",
+   "granted": "2026-11-13T22:09:37+05:30",
+   "scope": "SummaryScope.compare and one query line",
+   "until": "WP-19 merged"
+  },
+  {
+   "path": "apps/web/src/features/prompts/prompts-screen.tsx",
+   "wp": "WP-19",
+   "granted": "2026-11-13T22:09:37+05:30",
+   "scope": "five hunks, about 50 lines",
+   "until": "WP-19 merged"
+  },
+  {
+   "path": "apps/web/src/features/prompts/prompts-strip.tsx",
+   "wp": "WP-19",
+   "granted": "2026-11-13T22:09:37+05:30",
+   "scope": "change per engine chip",
+   "until": "WP-19 merged"
+  },
+  {
+   "path": "apps/web/src/features/prompts/rate-columns.tsx",
+   "wp": "WP-19",
+   "granted": "2026-11-13T22:09:37+05:30",
+   "scope": "Mention cell change",
+   "until": "WP-19 merged"
+  },
+  {
+   "path": "apps/web/src/features/prompts/inspector-strip.tsx",
+   "wp": "WP-19",
+   "granted": "2026-11-13T22:09:37+05:30",
+   "scope": "change per engine item",
+   "until": "WP-19 merged"
+  },
+  {
+   "path": "apps/web/src/features/prompts/topic-inspector.tsx",
+   "wp": "WP-19",
+   "granted": "2026-11-13T22:09:37+05:30",
+   "scope": "cards and top prompts change, one optional slot",
+   "until": "WP-19 merged"
+  },
+  {
+   "path": "apps/web/src/features/prompts/topic-drawer/prompt-row.tsx",
+   "wp": "WP-19",
+   "granted": "2026-11-13T22:09:37+05:30",
+   "scope": "change on top prompts, one optional slot",
+   "until": "WP-19 merged"
+  },
+  {
+   "path": "docs/design-system/13-filters-search.md",
+   "wp": "WP-19",
+   "granted": "2026-11-13T22:09:37+05:30",
+   "scope": "one key-table row (detectable)",
+   "until": "WP-19 merged"
+  },
+  {
+   "path": "docs/design-system/24-page-templates.md",
+   "wp": "WP-19",
+   "granted": "2026-11-13T22:09:37+05:30",
+   "scope": "append-only As built",
+   "until": "WP-19 merged"
+  },
+  {
+   "path": "apps/web/e2e/flows/ai-compare.spec.ts",
+   "wp": "WP-19",
+   "granted": "2026-11-13T22:09:37+05:30",
+   "scope": "new file",
+   "until": "WP-19 merged"
+  },
+  {
+   "path": "apps/web/e2e/support/ai-compare.ts",
+   "wp": "WP-19",
+   "granted": "2026-11-13T22:09:37+05:30",
+   "scope": "new file",
+   "until": "WP-19 merged"
+  },
+  {
+   "path": "backend/src/idraft/api/schemas/ai.py",
+   "wp": "SHARED WP-26 (with WP-30, WP-31, WP-32)",
+   "granted": "2026-11-13T22:22:48+05:30",
+   "scope": "additive: CitationOut.quote, ObservationDetail.answer_sha256 and raw_sha256, optional with default; hot file: rebase before every push, keep both sides",
+   "until": "WP-26 merged"
+  },
+  {
+   "path": "backend/src/idraft/db/tables.py",
+   "wp": "WP-26",
+   "granted": "2026-11-13T22:22:48+05:30",
+   "scope": "one Column on ai.citations (quote, nullable); migration 0023 or higher (renumber on rebase if another package took it)",
+   "until": "WP-26 merged"
+  },
+  {
+   "path": "backend/tests/db/test_grants.py",
+   "wp": "WP-26",
+   "granted": "2026-11-13T22:22:48+05:30",
+   "scope": "one row for the new column if needed",
+   "until": "WP-26 merged"
+  },
+  {
+   "path": "backend/tests/security/test_cross_tenant.py",
+   "wp": "WP-26",
+   "granted": "2026-11-13T22:22:48+05:30",
+   "scope": "one QUERIES line in its anchor plus a baseline answer in the _tenant seed for the compare read",
+   "until": "WP-26 merged"
+  },
+  {
+   "path": "backend/src/idraft/api/ai/observation_repository.py",
+   "wp": "WP-26",
+   "granted": "2026-11-13T22:22:48+05:30",
+   "scope": "observation detail hashes and compare baseline read",
+   "until": "WP-26 merged"
+  },
+  {
+   "path": "backend/src/idraft/collectors/ai_prompt_ingest.py",
+   "wp": "WP-26",
+   "granted": "2026-11-13T22:22:48+05:30",
+   "scope": "store the quote per citation",
+   "until": "WP-26 merged"
+  },
+  {
+   "path": "backend/src/idraft/providers/dataforseo/ai_parse.py",
+   "wp": "WP-26 (after WP-14's _bounded fix, already on develop)",
+   "granted": "2026-11-13T22:22:48+05:30",
+   "scope": "quote parse only",
+   "until": "WP-26 merged"
+  },
+  {
+   "path": "apps/web/src/mocks/handlers/prompt-answers.ts",
+   "wp": "WP-26",
+   "granted": "2026-11-13T22:22:48+05:30",
+   "scope": "additive fields (hashes, quote, compare)",
+   "until": "WP-26 merged"
+  },
+  {
+   "path": "apps/web/src/mocks/prompt-fixtures.ts",
+   "wp": "WP-26",
+   "granted": "2026-11-13T22:22:48+05:30",
+   "scope": "additive fields",
+   "until": "WP-26 merged"
+  },
+  {
+   "path": "apps/web/src/features/prompts/inspector-latest.tsx",
+   "wp": "WP-26",
+   "granted": "2026-11-13T22:22:48+05:30",
+   "scope": "WB-PI-23 hash line with a copy button",
+   "until": "WP-26 merged"
+  },
+  {
+   "path": "apps/web/src/features/prompts/inspector-latest.test.tsx",
+   "wp": "WP-26",
+   "granted": "2026-11-13T22:22:48+05:30",
+   "scope": "its test",
+   "until": "WP-26 merged"
+  },
+  {
+   "path": "apps/web/messages/en.json",
+   "wp": "WP-26",
+   "granted": "2026-11-13T22:22:48+05:30",
+   "scope": "namespace evidence.* only, additive",
+   "until": "WP-26 merged"
+  },
+  {
+   "path": "backend/src/idraft/api/schemas/ai.py",
+   "wp": "SHARED WP-31 (with WP-26, WP-30, WP-32)",
+   "granted": "2026-11-13T22:23:24+05:30",
+   "scope": "ProjectEngine and EngineUpdate only, additive; hot file: rebase before every push, keep both sides",
+   "until": "WP-31 merged"
+  },
+  {
+   "path": "backend/src/idraft/api/ai/engine_routes.py",
+   "wp": "WP-31",
+   "granted": "2026-11-13T22:23:24+05:30",
+   "scope": "device field on the engine routes",
+   "until": "WP-31 merged"
+  },
+  {
+   "path": "backend/src/idraft/api/ai/engine_repository.py",
+   "wp": "WP-31",
+   "granted": "2026-11-13T22:23:24+05:30",
+   "scope": "provider_params device (no migration: jsonb exists since 0018)",
+   "until": "WP-31 merged"
+  },
+  {
+   "path": "backend/src/idraft/domain/ai_engines.py",
+   "wp": "WP-31",
+   "granted": "2026-11-13T22:23:24+05:30",
+   "scope": "device option for google_ai_mode",
+   "until": "WP-31 merged"
+  },
+  {
+   "path": "backend/src/idraft/collectors/ai_prompt.py",
+   "wp": "WP-31",
+   "granted": "2026-11-13T22:23:24+05:30",
+   "scope": "build_requests only: read provider_params for google_ai_mode (device sent to the provider; schedules stay paused, no spend)",
+   "until": "WP-31 merged"
+  },
+  {
+   "path": "backend/src/idraft/providers/dataforseo/ai.py",
+   "wp": "WP-31",
+   "granted": "2026-11-13T22:23:24+05:30",
+   "scope": "AiAnswerParams.device and ai_mode_body",
+   "until": "WP-31 merged"
+  },
+  {
+   "path": "backend/tests/collectors/ai_support.py",
+   "wp": "WP-31",
+   "granted": "2026-11-13T22:23:24+05:30",
+   "scope": "test support for device",
+   "until": "WP-31 merged"
+  },
+  {
+   "path": "backend/tests/db/test_ai_schema.py",
+   "wp": "WP-31",
+   "granted": "2026-11-13T22:23:24+05:30",
+   "scope": "schema test line if needed",
+   "until": "WP-31 merged"
+  },
+  {
+   "path": "docs/ai-visibility/contracts/README.md",
+   "wp": "SHARED WP-31 (with WP-32)",
+   "granted": "2026-11-13T22:23:24+05:30",
+   "scope": "one index line plus the new note wp-31-engines-device.md",
+   "until": "WP-31 merged"
+  },
+  {
+   "path": "apps/web/src/features/settings/settings-frame.tsx",
+   "wp": "WP-31",
+   "granted": "2026-11-13T22:23:24+05:30",
+   "scope": "Data retention item; WP-33 also touched? no: settings frame only",
+   "until": "WP-31 merged"
+  },
+  {
+   "path": "apps/web/src/features/entities/entities-screen.tsx",
+   "wp": "WP-31",
+   "granted": "2026-11-13T22:23:24+05:30",
+   "scope": "Added column",
+   "until": "WP-31 merged"
+  },
+  {
+   "path": "apps/web/src/app/[workspace]/[project]/planned-routes.test.ts",
+   "wp": "WP-31 (and WP-33 later)",
+   "granted": "2026-11-13T22:23:24+05:30",
+   "scope": "remove the settings/retention planned line only",
+   "until": "WP-31 merged"
+  },
+  {
+   "path": "apps/web/src/mocks/handlers/prompts.ts",
+   "wp": "WP-31",
+   "granted": "2026-11-13T22:23:24+05:30",
+   "scope": "engine device in the PUT/GET mock, additive",
+   "until": "WP-31 merged"
+  },
+  {
+   "path": "apps/web/src/mocks/prompts-state.ts",
+   "wp": "WP-31",
+   "granted": "2026-11-13T22:23:24+05:30",
+   "scope": "same",
+   "until": "WP-31 merged"
+  },
+  {
+   "path": "apps/web/src/mocks/prompt-fixtures.ts",
+   "wp": "SHARED WP-31 (with WP-26)",
+   "granted": "2026-11-13T22:23:24+05:30",
+   "scope": "additive only; rebase keeping both sides",
+   "until": "WP-31 merged"
+  },
+  {
+   "path": "apps/web/messages/en.json",
+   "wp": "WP-31",
+   "granted": "2026-11-13T22:23:24+05:30",
+   "scope": "settings.items plus own namespaces, additive",
+   "until": "WP-31 merged"
+  },
+  {
+   "path": "apps/web/src/features/prompts/prompts-screen.tsx",
+   "wp": "SHARED WP-30 (Task 5) with WP-19 (five hunks held) and later WP-17",
+   "granted": "2026-11-13T22:26:05+05:30",
+   "scope": "swap the two Updated spans for UpdatedRunLink and add one AiCollectionStatus above the content; rebase before pushing, keep both sides",
+   "until": "WP-30 merged"
+  },
+  {
+   "path": "apps/web/src/features/shell/project-shell.tsx",
+   "wp": "WP-30",
+   "granted": "2026-11-13T22:26:05+05:30",
+   "scope": "one prop for the sidebar collection line (only caller of SidebarNav)",
+   "until": "WP-30 merged"
+  },
+  {
+   "path": "apps/web/src/features/settings/settings-frame.tsx",
+   "wp": "SHARED WP-30 with WP-31",
+   "granted": "2026-11-13T22:26:05+05:30",
+   "scope": "add 'budgets' to the WORKSPACE array; keep both sides",
+   "until": "WP-30 merged"
+  },
+  {
+   "path": "apps/web/src/features/settings/settings-frame.test.tsx",
+   "wp": "SHARED WP-30 with WP-31",
+   "granted": "2026-11-13T22:26:05+05:30",
+   "scope": "its test",
+   "until": "WP-30 merged"
+  },
+  {
+   "path": "apps/web/src/lib/routes/paths.ts",
+   "wp": "WP-30",
+   "granted": "2026-11-13T22:26:05+05:30",
+   "scope": "add 'budgets' to WorkspaceSettingsSection",
+   "until": "WP-30 merged"
+  },
+  {
+   "path": "apps/web/src/mocks/handlers/operations-rules.ts",
+   "wp": "WP-30",
+   "granted": "2026-11-13T22:26:05+05:30",
+   "scope": "one line: budgets/status reads a mutable mock budget list",
+   "until": "WP-30 merged"
+  },
+  {
+   "path": "apps/web/messages/en.json",
+   "wp": "SHARED WP-30",
+   "granted": "2026-11-13T22:26:05+05:30",
+   "scope": "keys under runs and costs plus a new top-level budgets namespace plus settings.items.budgets; additive",
+   "until": "WP-30 merged"
+  },
+  {
+   "path": "backend/src/idraft/api/schemas/ai.py",
+   "wp": "SHARED WP-30 with WP-26, WP-31, WP-32",
+   "granted": "2026-11-13T22:26:05+05:30",
+   "scope": "additive only if needed (new budget schemas go in the new schemas/budgets.py)",
+   "until": "WP-30 merged"
+  },
+  {
+   "path": "apps/web/src/features/citations/",
+   "wp": "WP-22",
+   "granted": "2026-11-13T22:28:23+05:30",
+   "scope": "the WP-21 files listed in its plan section 2 (citation-scope, citation-tabs, citations-filters, citation-reads, citations-screen, domains-tab, domain-columns, pages-tab, page-columns) with their tests; additive; WP-21 is merged",
+   "until": "WP-22 merged"
+  },
+  {
+   "path": "apps/web/src/lib/citations/",
+   "wp": "WP-22",
+   "granted": "2026-11-13T22:28:23+05:30",
+   "scope": "source-queries.ts and its test, types.ts",
+   "until": "WP-22 merged"
+  },
+  {
+   "path": "apps/web/messages/en.json",
+   "wp": "SHARED WP-22",
+   "granted": "2026-11-13T22:28:23+05:30",
+   "scope": "new keys only under citations.newLost, citations.flagFilters, citations.scope, citations.inspectors.*, citations.mobile",
+   "until": "WP-22 merged"
+  },
+  {
+   "path": "apps/web/src/mocks/handlers/citations-model.ts",
+   "wp": "WP-22",
+   "granted": "2026-11-13T22:28:23+05:30",
+   "scope": "New and lost data in the mocks, plus citation-details.ts and their tests",
+   "until": "WP-22 merged"
+  },
+  {
+   "path": "apps/web/src/components/app/inspector/inspector.tsx",
+   "wp": "WP-22",
+   "granted": "2026-11-13T22:28:23+05:30",
+   "scope": "ONE line so J/K work from the Domains treegrid (role=treegrid); every inspector consumer test must stay green",
+   "until": "WP-22 merged"
+  },
+  {
+   "path": "apps/web/src/components/app/inspector/inspector.test.tsx",
+   "wp": "WP-22",
+   "granted": "2026-11-13T22:28:23+05:30",
+   "scope": "its test line",
+   "until": "WP-22 merged"
+  },
+  {
+   "path": "docs/design-system/24-page-templates.md",
+   "wp": "SHARED WP-22",
+   "granted": "2026-11-13T22:28:23+05:30",
+   "scope": "append-only As built (also docs 23, 25, 20, 11)",
+   "until": "WP-22 merged"
+  },
+  {
+   "path": "apps/web/src/features/prompts/prompts-scope.tsx",
+   "wp": "WP-22 (optional)",
+   "granted": "2026-11-13T22:28:23+05:30",
+   "scope": "fold the prompts country control into the shared one only if no other package holds it at that time; WP-19 holds prompts-screen.tsx, not this file",
+   "until": "WP-22 merged"
+  },
+  {
+   "path": "apps/web/src/features/prompts/prompt-model.ts",
+   "wp": "WP-22 (optional)",
+   "granted": "2026-11-13T22:28:23+05:30",
+   "scope": "same condition",
+   "until": "WP-22 merged"
+  },
+  {
+   "path": "apps/web/src/mocks/session.ts",
+   "wp": "WP-19",
+   "granted": "2026-11-13T22:31:16+05:30",
+   "scope": "add one mock cookie (e.g. mock-compare-detectable) to MOCK_COOKIES so an e2e can see one coloured delta; additive",
+   "until": "WP-19 merged"
+  },
+  {
+   "path": "backend/tests/db/test_grants.py",
+   "wp": "SHARED WP-31 with WP-26",
+   "granted": "2026-11-13T22:46:37+05:30",
+   "scope": "expected column grant line for ai.project_engines provider_params; a test that app_api still cannot update any other column; additive",
+   "until": "WP-31 merged"
+  }
+ ],
+ "followups": [
+  {
+   "id": "F-01",
+   "found": "2026-11-13T03:32:20+05:30",
+   "by": "WP-09",
+   "title": "Rankings bulk 'Select all N matching' can act on more rows than the list shows",
+   "detail": "rankings-screen.tsx ~373-384: in client mode with the list not fully loaded, if Select all N matching was pressed and the search then changes from outside the table (URL back or link), the bulk action goes to every filter match while the list shows only narrowed rows (bulkSearch is '' in client mode). Pre-existing. Fix: reached.allMatching must be false when list.mode is client and search is not blank. WP-09's table-side fix already makes scope.allMatching false when the table narrows itself.",
+   "owner": "Rankings screen (rank tracking is on hold)",
+   "severity": "data safety, low frequency",
+   "status": "open"
+  },
+  {
+   "id": "F-02",
+   "found": "2026-11-13T04:20:25+05:30",
+   "by": "WP-08",
+   "title": "Favicon setting does not exist in the API or preferences",
+   "detail": "DomainCell favicons are a show/hide prop with a placeholder square fallback and the host text always visible. A per-user or workspace favicon preference needs a backend and settings decision.",
+   "owner": "owner decision (optional)",
+   "severity": "low",
+   "status": "open"
+  },
+  {
+   "id": "F-03",
+   "found": "2026-11-13T04:37:55+05:30",
+   "by": "WP-09",
+   "title": "10 e2e tests already fail on plain develop",
+   "detail": "CORRECTED by WP-10 (05:4x): not date dependent. Commit 058c7eab (5 Nov) changed rank-cells.tsx so a beyond-depth Rank cell renders '-' plus sr-only 'not in top 20', never '>20'; two rankings e2e assertions (lines ~172 and ~755) were not updated. Other failing specs: costs-runs.spec.ts:27,:98 expect URL /seo/rankings but the page is /seo/keywords; keyword-detail.spec.ts:390 rowheader not found in Tracked keywords grid (probably same route change); schedules.spec.ts:81 option /^Deep/ and :98 'Keyword defaults' text 'Standard' (UI changed); shell.spec.ts:126 /seo/keywords is 87 px wider than 375 px (REAL DEFECT, see F-06); shell.spec.ts:156 expects 404 on /seo/keywords but the route exists. Release does not run e2e (ship.sh). UPDATE: the two rankings assertions are FIXED on develop (55fa54a2, rankings spec 21/21); 8 specs remain.",
+   "owner": "web (rankings and shell owners); schedule in the quality sweep at wave end",
+   "severity": "test debt",
+   "status": "open"
+  },
+  {
+   "id": "F-04",
+   "found": "2026-11-13T04:51:06+05:30",
+   "by": "WP-06",
+   "title": "echarts shared chunk is 208 KB gzip, over the 170 KB budget, and a scatter consumer adds about 700 B",
+   "detail": "/ai/prompts is byte identical today (41 chunks, 896,979 gzip). The CH-15 package (scatter) must re-run the bundle proof (method in docs/20 4.6 As built). Budget needs an owner call or a code-split plan for echarts.",
+   "owner": "CH-15 package; owner decision on the budget",
+   "severity": "performance",
+   "status": "open"
+  },
+  {
+   "id": "F-05",
+   "found": "2026-11-13T04:51:06+05:30",
+   "by": "WP-06",
+   "title": "Load-sensitive flaky tests",
+   "detail": "data-table.test.tsx right-click context menu test fails once under load, passes alone 185/185; also rankings and prompts DOM-timeout tests under uncapped load; backend test_five_thousand_keywords; prompt-inspector counts test. Harden with fake timers or longer waits in the quality sweep. UPDATE 17:4x: the DataTable row context menu test (Shift plus right click, link in a cell, an input) failed in WP-06, WP-21 and WP-20 full runs under load; assigned to WP-20 to harden now (its own WP-09 code).",
+   "owner": "quality sweep at wave end",
+   "severity": "test debt",
+   "status": "open"
+  },
+  {
+   "id": "F-06",
+   "found": "2026-11-13T05:48:25+05:30",
+   "by": "WP-10 (via shell.spec.ts:126)",
+   "title": "Keywords page overflows horizontally at 375 px",
+   "detail": "/seo/keywords is 87 px wider than a 375 px screen: toolbar div.order-2 ml-auto flex h-control-sm with its icon buttons. Real phone-layout defect (owner requirement R-05 phone layouts).",
+   "owner": "web; small fix, schedule early in Wave 3 or the quality sweep",
+   "severity": "user-visible defect",
+   "status": "open"
+  },
+  {
+   "id": "F-07",
+   "found": "2026-11-13T06:24:23+05:30",
+   "by": "WP-11",
+   "title": "Backend test failing on develop: test_rank_end_to_end::test_a_due_daily_schedule_checks_each_keyword_once_even_when_the_provider_relists_them (6 sent, expected 3)",
+   "detail": "Reproduced alone on a clean develop checkout inside the Colima mount; it passed in the WP-03 full run about 3 hours earlier, so it is probably clock or schedule-window dependent. The release check (ship.sh runs the whole backend suite) will hit it. Also test_five_thousand_keywords_from_a_csv_get_their_metrics_and_a_cost (cancelled under load, passes alone; see F-05). ROOT CAUSE: test opened its schedule window at now-2h UTC; between 00:00 and 02:00 UTC (05:30 to 07:30 IST) that is yesterday, so schedule and check-now runs fall on different project-local days and each keyword is legitimately planned twice. Source is correct; test now uses max(now-2h, start of today UTC).",
+   "owner": "WP-11 session as a small side task before WP-14",
+   "severity": "blocks a release",
+   "status": "fixed cfac6ddc"
+  },
+  {
+   "id": "F-08",
+   "found": "2026-11-13T06:24:23+05:30",
+   "by": "WP-11",
+   "title": "GET layouts/{screen} returns per-user content with an ETag but no Cache-Control",
+   "detail": "Other per-user routes send private, no-store. About 3 lines plus a test in api/layouts.",
+   "owner": "WP-11 session",
+   "severity": "hardening",
+   "status": "fixed fb956fc0"
+  },
+  {
+   "id": "F-09",
+   "found": "2026-11-13T06:31:54+05:30",
+   "by": "WP-11 session",
+   "title": "Same 'now minus 2h' pattern in other worker tests",
+   "detail": "tests/worker/test_end_to_end.py:65 and tests/worker/test_assembly.py:82,116 use now-2h; they passed in the 00:xx UTC run (no day dedupe), so left alone. Latent risk only in the 05:30 to 07:30 IST window.",
+   "owner": "quality sweep",
+   "severity": "low, latent",
+   "status": "open"
+  },
+  {
+   "id": "F-10",
+   "found": "2026-11-13T07:59:37+05:30",
+   "by": "WP-15",
+   "title": "ResolvedLayout lacks the team document when a personal layout wins",
+   "detail": "GET layouts/{screen} returns only the resolved document. With a personal layout over a team default, Reset and the 'draft equals default' save rule cannot work (defaultDocument is null). Add team_document (null when no team default exists) to ResolvedLayout, always present when a team default exists. Additive contract change in api/layouts (WP-11 files) plus one regeneration of v1.json and schema.ts. Until then WP-15 stores the draft and WP-16 disables Reset with a reason.",
+   "owner": "backend session with WP-11 context (wp-01-be-scaffold), small push between WP-14 tasks",
+   "severity": "blocks Reset in the customize UI (R-07)",
+   "status": "fixed ccf28401 (team_document on ResolvedLayout; 5 mutation proofs, no separate fresh reviewer)"
+  },
+  {
+   "id": "F-11",
+   "found": "2026-11-13T09:33:49+05:30",
+   "by": "WP-25",
+   "title": "WB-PI-23 hashed evidence is blocked: ObservationDetail has no hash field",
+   "detail": "CF-26 is WP-26 step 1 (backend and web, not started). WP-25 task 9 is conditional. Start WP-26 early so WB-PI-23 can close. Also WB-PI-01 (quotes around the h2) skipped: would change the accessible name in 7 test files and needs inspector-header.tsx.",
+   "owner": "WP-26 session",
+   "severity": "one row blocked",
+   "status": "open"
+  },
+  {
+   "id": "F-12",
+   "found": "2026-11-13T10:03:54+05:30",
+   "by": "WP-12",
+   "title": "Ops runbook: ANALYZE ai.entity_mentions and ai.observation_facts after a restore, upgrade or large backfill",
+   "detail": "WP-12 Task 4 co-mentions statement: with no table statistics the planner chose a nested loop taking 69 s (over the 15 s statement timeout); with the leaf partitions analyzed it takes 0.4 s. Real pair volume is much lower than the 20-entity worst case. Add one line to the ops runbook (docs/ops).",
+   "owner": "ops session",
+   "severity": "performance hardening",
+   "status": "open"
+  },
+  {
+   "id": "F-13",
+   "found": "2026-11-13T11:18:20+05:30",
+   "by": "WP-25",
+   "title": "Small WP-25 leftovers",
+   "detail": "WB-PI-01 quotes around the h2 (needs inspector-header.tsx lease, changes the accessible name in 7 test files); badge path rule uses path.includes('/') so a root topic named CI/CD is treated as nested (harmless); BOUNDARY_ROOM=24 duplicated from small-multiples.tsx; DS25 row 105 still says Tabs.overflow not built (row 153 supersedes it); history stale event uses a 7 day shortcut: replace with the WP-18 CF-27 rule.",
+   "owner": "quality sweep and WP-18",
+   "severity": "low",
+   "status": "open"
+  },
+  {
+   "id": "F-14",
+   "found": "2026-11-13T12:09:13+05:30",
+   "by": "WP-12",
+   "title": "WEB BUG: history-model.ts sums overlapping pooled weekly points (n inflated up to 4 times)",
+   "detail": "apps/web/src/features/prompts/history-model.ts lines ~66-80 sums the trailing 4 weekly mentioned points of a prompt row. Under C-11 every prompt point is already a trailing 4 week pool, so summing four overlapping pools counts answers up to 4 times (n inflated, Wilson band too narrow, wrong insufficient state). Fix: read each point as it is (use its own pooled numerator and denominator, and pool.weeks/pool.window for the label); the web mock prompt-summary.ts should also pool (returns is_pooled false and no pool today). MUST be fixed before the web switches from mocks to the real API. Owner: WP-18 or WP-20 (first to touch history), or a small fix package.",
+   "owner": "web (assign to the next free session)",
+   "severity": "correctness, blocks wiring real API",
+   "status": "fixed e5ea65d0 (history-model reads each pooled point; mock pools prompt points always and topic points under 10 prompts)"
+  },
+  {
+   "id": "F-15",
+   "found": "2026-11-13T12:09:13+05:30",
+   "by": "WP-12",
+   "title": "citation counts rely on the parser deduplicating URLs",
+   "detail": "total_citation_count is the number of distinct canonical URLs only because the DataForSEO parser dedups before ingest. A future adapter that does not dedup would inflate citation_share and cited_given_citations: ai.citations has no unique key on the URL hash per answer.",
+   "owner": "extraction owner (with WP-57)",
+   "severity": "latent",
+   "status": "open"
+  },
+  {
+   "id": "F-16",
+   "found": "2026-11-13T12:42:47+05:30",
+   "by": "WP-16",
+   "title": "WB-LAY-48 audit entries visible in layouts has no home",
+   "detail": "No audit read route in the contract and no audit page in the web. Belongs with whoever builds the workspace audit log (settings or ops). Also: DS 3.34 ConflictDialog (720 px side by side) does not exist; WP-16 builds a 400 px alert conflict dialog instead.",
+   "owner": "settings or ops owner, owner decision",
+   "severity": "low",
+   "status": "open"
+  },
+  {
+   "id": "F-17",
+   "found": "2026-11-13T14:15:47+05:30",
+   "by": "WP-14",
+   "title": "WP-14 flags for the owner",
+   "detail": "(1) O1 moves numbers, owner confirms; reverse = FLAGGED_COUNTED_BY_DEFAULT in api/ai/source_routes.py plus default-pin tests. (2) engine_internal never set at ingest. (3) diversity scans ai.citations twice (speed only). (4) A domain whose role changes shows lost under the old role and new under the new one. (5) kind=lost reads three windows (276 days for a 92 day ask), the heaviest read. (6) Fan-out cut: docs/ops/ai-fanout-cut-measure.md read-only SQL for the ops session NOT run; real share of cut answers unknown; WP-57 rebases onto the _bounded fix. (7) fan-out topics include workspace-wide vocabularies. (10) diversity and detail lack an explicit same-workspace other-project test.",
+   "owner": "owner and ops session",
+   "severity": "info and one decision (O1)",
+   "status": "open"
+  },
+  {
+   "id": "F-18",
+   "found": "2026-11-13T15:31:00+05:30",
+   "by": "WP-21",
+   "title": "Backend: meta.previous_citation_units on the sources reads would save a second read for the share change",
+   "detail": "Citations share change needs the previous period total; the web does two reads for now (WP-21 plan Q5). Small additive backend field.",
+   "owner": "backend, next free session",
+   "severity": "optimization",
+   "status": "open"
+  },
+  {
+   "id": "F-19",
+   "found": "2026-11-13T16:41:15+05:30",
+   "by": "WP-21",
+   "title": "SHARED DEFECT: popovers and selects inside the prompt inspector open BEHIND it between 768 and about 1280 px",
+   "detail": "The inspector is a fixed overlay at --z-drawer (70) while popups use --z-dropdown (60). Affects every popover and Select in the inspector (WP-25 CountPopover, WP-21 count popover and min_support Select, other tabs). Fine at 390 and 1600+. Fix in the shared layer by WP-21 (lease granted): popup layer above the drawer.",
+   "owner": "WP-21 session",
+   "severity": "user-visible defect",
+   "status": "fixed dd3740da: --z-dropdown moved from 60 to 75 (between drawer 70 and dialog 80), no consumer class changed; popups now open above the inspector at 390, 768, 1024, 1280, 1600; ordering test pins it; docs 01 and 16 corrected"
+  },
+  {
+   "id": "F-20",
+   "found": "2026-11-13T16:41:15+05:30",
+   "by": "WP-21",
+   "title": "PlainTable header is string only: engine count headers (CHATGPT, GEMINI) are text and partly off the right edge at 358 and 440 px",
+   "detail": "The plan wanted EngineLogo headers: needs PlainTable support for node headers (shared file). Also: one 404 resource in the console per run (to be traced in T3); the existing message key domains.unitsOf reads '1 units for 1'.",
+   "owner": "later, shared-parts quality sweep",
+   "severity": "low",
+   "status": "open"
+  },
+  {
+   "id": "F-21",
+   "found": "2026-11-13T17:04:23+05:30",
+   "by": "WP-16",
+   "title": "Toast with an action never times out and the bottom-right toast viewport covers the sticky layout save bar",
+   "detail": "components/ui/toast.tsx. WP-16 works around it with an 8 s dismissal of the Hide toast. Proper fix: lift the toast viewport above the save bar and give action toasts a timeout.",
+   "owner": "shared parts quality sweep",
+   "severity": "low",
+   "status": "open"
+  },
+  {
+   "id": "F-22",
+   "found": "2026-11-13T17:30:16+05:30",
+   "by": "WP-21",
+   "title": "ai-prompts.spec.ts:213 (Topics & Prompts 390 px a11y) fails on develop",
+   "detail": "Fails at line 220 getByRole('treegrid', {name:'Topics'}): at 390 px the page renders mobile list rows (DataTableList / WP-20 topics-mobile-list) so no treegrid exists. Reproduced on a clean checkout of origin/develop (2 failed, light and dark). The spec passed at WP-10 merge, so the change came with the Topics phone list (WP-20 Task 3, WB-TPE-17). Owner: WP-20 (assigned). The release e2e gate is red until fixed.",
+   "owner": "WP-20 session",
+   "severity": "develop e2e red",
+   "status": "fixed 20a9bdac (ai-prompts.spec.ts 12/12 incl. axe and no sideways scroll at 390 px, light and dark)"
+  },
+  {
+   "id": "F-23",
+   "found": "2026-11-13T17:48:30+05:30",
+   "by": "WP-16",
+   "title": "WB-LAY-42: customize mode in the REAL prompt and topic drawers is a follow-up package",
+   "detail": "WP-16 delivers the generic parts (DrawerCustomizer, useDrawerCustomize, guardClose, drawer save bar, numbers-only table screen) verified on specimens. The wiring needs: (1) new card types for inspector.prompt and inspector.topic in lib/layouts/catalog.ts (both are empty drawerScreens today; keyword has 6 cards) plus catalog.json regeneration; (2) splitting PromptInspector (no Overview tab: default is Latest with the InspectorStrip above the tabs) and TopicInspector (Overview = rates, by engine, top prompts) into a DrawerCustomizer wrapper plus inner component with a data context for the cards; (3) guarding drawer-unmount paths (opening another inspector from the list, answer inspector, archive close). OWNER QUESTION: does Latest stand in for the Overview tab on prompts? Default taken: yes. SEQUENCE: after WP-16 and WP-20 merge (WP-20 Task 7 mounts its tabs in topic-inspector.tsx first), then this follow-up with leases on prompt-inspector.tsx, topic-inspector.tsx, catalog.ts, catalog.json.",
+   "owner": "next free session after WP-20 merges (suggest the WP-16 session)",
+   "severity": "owner requirement R-11/R-07 part (drawer customization)",
+   "status": "open"
+  },
+  {
+   "id": "F-24",
+   "found": "2026-11-13T18:23:31+05:30",
+   "by": "WP-21",
+   "title": "No methodology page exists: MetricInfo links go to /methodology which is not a route",
+   "detail": "MetricInfo (WP-07) requires a methodologyHref; the Help menu waits for a page too. WP-21 keeps one constant METHODOLOGY_HREF = '/methodology' in apps/web/src/lib/citations/methodology.ts (falls into the [workspace] segment until a page exists). Needs a small static methodology page (sections from docs/16-metrics-methodology.md) at /methodology or under Help, built before release; then WP-21 and every MetricInfo user points to it. Not in any work package today.",
+   "owner": "WP-72 docs or a small new package; owner to confirm the route",
+   "severity": "dead link before release",
+   "status": "open"
+  },
+  {
+   "id": "F-25",
+   "found": "2026-11-13T21:11:57+05:30",
+   "by": "WP-20",
+   "title": "WP-20 limits and unverified items",
+   "detail": "By engine table scrolls a little at 1024 px; panel bars use the neutral chart token (low non-text contrast, text carries the value); not verified: drawer header at exactly 440 px, a manual look in a real browser, In search double count of a keyword tracked on two devices, whether prompt topics and keyword topics share one vocabulary (F14); heat map links push without pushedFrom (one extra Back); phone list avg of N is sr-only; stale only on panel and trend charts. F-23 will wrap what is mounted in topic-inspector.tsx. e2e not re-run after the final rebase: the release gate should run e2e once.",
+   "owner": "quality sweep and owner",
+   "severity": "low to medium",
+   "status": "open"
+  },
+  {
+   "id": "F-26",
+   "found": "2026-11-13T21:30:33+05:30",
+   "by": "WP-32",
+   "title": "SEO share of voice is built nowhere (doc 09 section 7: CTR curve and volumes)",
+   "detail": "The seo members of overview/competitors are declared optional and never returned; BE-REPORTS-03 closes with that remainder named. Day and month granularity are not built (weeks only). previous sits beside the value instead of doc 19's MetricComparison (no delta/ci/version_boundaries yet; WP-58 and WP-38 add them additively).",
+   "owner": "owner decision (does the Overview/Competitors page need SEO share of voice) and later backend package",
+   "severity": "scope gap",
+   "status": "open"
+  },
+  {
+   "id": "F-27",
+   "found": "2026-11-13T21:55:23+05:30",
+   "by": "WP-21",
+   "title": "WP-21 limits and backend asks",
+   "detail": "METHODOLOGY_HREF dead link until F-24; New badge and Lost state never seen in a browser (mocks have none); filtered-empty and error states only in component tests; not checked against the dev API or the 390 sidebar drawer; view menu reads 'Default (edited)' on the Pages tab (tab, density, cols are view keys per D14: consider dropping them from CITATION_VIEW_KEYS). Backend asks: meta.previous_citation_units (F-18), meta.last_observed_at (Q4), page level cited_with (Q6), top domains on sources/prompts rows (Q16). Sidebar drawer at 390 not checked.",
+   "owner": "WP-22 and a later backend push",
+   "severity": "low to medium",
+   "status": "open"
+  },
+  {
+   "id": "F-28",
+   "found": "2026-11-13T23:30:29+05:30",
+   "by": "WP-31",
+   "title": "Mock keeps old added_at when a removed entity is re-added",
+   "detail": "apps/web mocks/handlers/project-entities.ts: the real API resets added_at on re-add, the mock keeps the old one. Small mock fix, any web session."
+  },
+  {
+   "id": "F-29",
+   "found": "2026-11-13T23:30:29+05:30",
+   "by": "WP-34",
+   "title": "infra/dev/wp-start missing on the shared checkout local develop",
+   "detail": "The main checkout local develop is behind origin, so wp-start does not exist there; new sessions fall back to git worktree add from origin/develop. Fast-forward the shared checkout when it is safe (not while a session uses it)."
+  }
+ ],
+ "migrations": [
+  {
+   "wp": "WP-11",
+   "name": "0021_layouts",
+   "status": "merged; dev DB NOT upgraded yet (needs alembic upgrade head)"
+  },
+  {
+   "wp": "WP-13",
+   "name": "0022_ai_prompt_value_sources",
+   "status": "merged; dev DB NOT upgraded yet"
+  },
+  {
+   "wp": "WP-26",
+   "name": "0024 ai.citations.quote nullable column",
+   "status": "queued; renumbered because WP-31 took 0023"
+  },
+  {
+   "wp": "WP-31",
+   "name": "0023_ai_project_engine_provider_params_grant",
+   "status": "merged on develop 412e7e57; dev DB NOT upgraded yet"
+  }
+ ],
+ "decisions_made": [
+  {
+   "id": "O1",
+   "by": "coordinator",
+   "date": "2026-11-13T06:49:17+05:30",
+   "title": "Flagged citations (unresolved redirects, engine-internal) excluded from shares by default with two toggles",
+   "reason": "doc 14 section 9 and doc 19 say so; today Gemini grounding links rank google.com as a source",
+   "effect": "Built as its own commit d13a793b; default is ONE constant FLAGGED_COUNTED_BY_DEFAULT = False in source_routes.py (flip back = that line plus default-pin tests). Numbers that move (toggles off): Gemini grounding-redirect rows (vertexaisearch.cloud.google.com/grounding-api-redirect) leave the counts, so the google.com third-party row on Gemini disappears and source_share denominators, citation_units, answers_citing, by_role, series, previous, engines[] units fall (shares rise); pages redirect rows leave; changes: google.com no longer new or lost because of redirects; diversity values for Gemini change; domain detail where flagged citations exist. NOT moving: citations list, fanout-queries, meta.answers, ads presence, prompts summary. engine_internal is never set by ingest today. Owner confirms in the morning.",
+   "status": "approved by coordinator, owner to confirm"
+  },
+  {
+   "id": "WP-20-defaults",
+   "by": "coordinator",
+   "date": "2026-11-13T14:46:05+05:30",
+   "title": "Nine owner choices taken with defaults in WP-20 plan section 7",
+   "effect": "default view stays the List; leader per engine = highest share of voice among tracked competitors; spread unsigned 1 decimal; engine comparison by the interim unpaired Newcombe test; pooled points marked in words; Add prompt and Run now in the drawer header; In search from tracked keywords by filter[term]; heat map ignores ?q; interim 7 day stale rule",
+   "status": "accepted by coordinator, owner to confirm"
+  },
+  {
+   "id": "WP-33-plan",
+   "by": "coordinator",
+   "date": "2026-11-13T21:07:25+05:30",
+   "title": "WP-33 plan choices accepted",
+   "effect": "page order header, notice, strip, filter bar, grid (preview and DS 24, not the spec's filter bar first); URL keys country/engine/topic/branded plus cmp as the Prompts page reads them; the shell reads the summary twice (current and previous window) and aggregates on the client until WP-32 lands (seam useOverviewPeriods + buildAggregates); no-engine state is a body empty state; the Competitive preset differs from spec 9.5 (adds ai.sample_coverage, widens ai.co_mentions) so no half row remains at 1280 px; owner to confirm",
+   "status": "accepted by coordinator, owner to confirm"
+  },
+  {
+   "id": "D-03",
+   "by": "coordinator",
+   "date": "2026-11-13T22:09:37+05:30",
+   "title": "Compare on by default on Overview and Topics & Prompts (cmp=off turns it off); the select offers vs previous period and No comparison only (same period last year and Custom not offered although the API supports them)",
+   "status": "accepted by coordinator, owner to confirm"
+  },
+  {
+   "id": "WP-19-defaults",
+   "by": "coordinator",
+   "date": "2026-11-13T22:09:37+05:30",
+   "title": "Q1 equal-weight average change coloured when detectable on pooled answers (labelled pooled answers); Q2 strip chips with prompts in one window use each side's own prompts with counts in the tooltip; Q3 chip is an enum field Show with option Detectable changes only",
+   "status": "accepted by coordinator, owner to confirm"
+  },
+  {
+   "id": "WP-26-decisions",
+   "by": "coordinator",
+   "date": "2026-11-13T22:22:48+05:30",
+   "title": "No markdown dependency (in-house subset renderer); D1 compare baseline newest earlier valid answer naming the own brand (404 when none); D4 Raw view fetches provider raw JSON on open with raw:read; D6 answer compare is a gained/lost/kept summary (2-column text view is WP-52); D8 WB-SRC-04 closes as a reusable QuotedPassage plus its use in the viewer (cited-URL inspector mounting is WP-22)",
+   "status": "accepted by coordinator, owner to confirm"
+  },
+  {
+   "id": "WP-30-valid",
+   "by": "coordinator",
+   "date": "2026-11-13T22:26:05+05:30",
+   "title": "AI coverage 'valid' = complete + partial (matches is_valid and every Overview rate); the published C3 is amended in T0 (partial moves out of invalid_by_status into its own field), change-logged",
+   "status": "accepted by coordinator"
+  }
+ ],
+ "policy": {
+  "set": "2026-11-13T22:13:18+05:30",
+  "by": "owner",
+  "working_sessions_max": 7,
+  "subagents_per_session_max": 2,
+  "rule": "Owner (22:20): only idraft sessions tonight, run the maximum, finish release A including Tier 2, then go further. 7 working sessions, up to 2 subagents each (the second is a read-only reviewer where possible). Heavy lock slots raised to 2 heavy and 3 medium (/tmp/idraft-health/slots); health-watch load thresholds 18 warn and 28 critical; swap counts only with low free memory. Full suites still only via infra/dev/heavy with --maxWorkers=3 under the gate (pause OFF, memory free at least 40 percent)."
+ },
+ "baselineDone": 279
+}

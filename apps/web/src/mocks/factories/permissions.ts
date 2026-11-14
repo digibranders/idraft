@@ -32,6 +32,8 @@ export const PERMISSION_HOLDERS: Readonly<Record<Permission, readonly Role[]>> =
   'audit:read': MANAGERS,
   'alerts:write': WRITERS,
   'views:write': ANALYSTS,
+  'layouts:manage': MANAGERS,
+  'notes:write': WRITERS,
   'imports:write': WRITERS,
   'api_keys:manage': MANAGERS,
   'ops:read': WRITERS,

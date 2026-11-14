@@ -334,6 +334,8 @@ describe('Costs', () => {
     expect(within(fynix).getByText('Within budget')).toBeInTheDocument();
 
     await user.click(screen.getByRole('tab', { name: 'Unit costs' }));
+    // The cost of an AI answer is the first table of the tab, above the price book
+    expect(await screen.findByRole('table', { name: 'Cost per AI answer' })).toBeInTheDocument();
     const prices = await screen.findByRole('table', { name: 'Unit costs' });
     expect(screen.getByText('Estimate')).toBeInTheDocument();
     const task = await within(prices).findAllByRole('row', { name: /keyword_overview.*task/ });
@@ -649,7 +651,8 @@ describe('Costs', () => {
     const costs = recordRequests('/costs');
     const budgets = recordRequests('/budgets/status');
     const prices = recordRequests('/price-book');
-    renderWithProviders(costsAs('viewer'));
+    const unitCosts = recordRequests('/unit-costs');
+    renderWithProviders(costsAs('viewer'), { searchParams: '?tab=units' });
     expect(await screen.findByRole('heading', { name: 'You do not have access to Costs' })).toBeInTheDocument();
     expect(
       screen.getByText('You do not have permission to view costs. Ask an admin of this workspace.'),
@@ -658,12 +661,32 @@ describe('Costs', () => {
     expect(screen.getByRole('link', { name: 'Back to Overview' })).toHaveAttribute('href', '/digibranders/fynix');
     expect(screen.getByRole('heading', { level: 1, name: 'Costs' })).toBeInTheDocument();
     expect(screen.queryByRole('group', { name: 'Month summary' })).toBeNull();
-    expect([...costs, ...budgets, ...prices]).toEqual([]);
+    expect([...costs, ...budgets, ...prices, ...unitCosts]).toEqual([]);
   });
 
   it('goes back to the workspace from the no-access state of the page outside any project', async () => {
     renderWithProviders(costsAs('viewer', projects, null));
     expect(await screen.findByRole('link', { name: 'Back to Overview' })).toHaveAttribute('href', '/digibranders');
+  });
+
+  it('the Budgets tab links to the budgets page only for a member who can manage budgets', async () => {
+    // Inside a project the link opens that project's settings page; outside one, the workspace's own
+    const inProject = renderWithProviders(costsAs('admin'), { searchParams: 'tab=budgets' });
+    expect(await screen.findByRole('link', { name: 'Manage budgets' })).toHaveAttribute(
+      'href',
+      '/digibranders/fynix/settings/budgets',
+    );
+    inProject.unmount();
+    const outside = renderWithProviders(costsAs('billing', projects, null), { searchParams: 'tab=budgets' });
+    expect(await screen.findByRole('link', { name: 'Manage budgets' })).toHaveAttribute(
+      'href',
+      '/digibranders/settings/budgets',
+    );
+    outside.unmount();
+    // An editor reads costs and budgets but cannot change them
+    renderWithProviders(costsAs('editor'), { searchParams: 'tab=budgets' });
+    await screen.findByRole('table', { name: 'Budgets' });
+    expect(screen.queryByRole('link', { name: 'Manage budgets' })).toBeNull();
   });
 });
 

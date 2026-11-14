@@ -304,7 +304,7 @@ describe('schedules', () => {
     expect(pageOf(await editor.call('GET', S), OFFSET_PAGE).total).toBe(2);
   });
 
-  describe('the AI prompt workload (the base plan: weekly, two a project)', () => {
+  describe('the AI prompt workload (the base plan: twice a week, as two weekly schedules a project)', () => {
     const ai = {
       name: 'AI answers',
       workload: 'ai_prompt',
@@ -313,7 +313,7 @@ describe('schedules', () => {
       selector: { all: true },
     };
 
-    it('runs weekly only, on a create and on a change', async () => {
+    it('takes only weekly schedules, on a create and on a change', async () => {
       const editor = mockBrowser('editor');
       expect(fieldCodes(await editor.call('POST', S, { ...ai, cadence: 'daily' }))).toEqual([
         'cadence:cadence_not_supported',

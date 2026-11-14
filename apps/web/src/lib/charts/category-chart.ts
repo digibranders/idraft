@@ -59,7 +59,7 @@ const dashOf = (role: SeriesRole): number[] | 'solid' =>
   role.kind === 'reference' ? [4, 4] : role.kind === 'other' ? [8, 4] : 'solid';
 
 /** A plain-text tooltip line per series: no collected string reaches the tooltip as HTML. */
-function escapeHtml(text: string): string {
+export function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, (character) => `&#${String(character.codePointAt(0) ?? 0)};`);
 }
 

@@ -12,7 +12,15 @@ from idraft.api.ai.summary import SummaryQuery, SummaryService
 from idraft.api.pagination import Commas
 from idraft.api.permissions import Permission
 from idraft.api.resources import Resources, get_resources
-from idraft.api.schemas.ai import PromptsSummaryResponse, SummaryInclude
+from idraft.api.schemas.ai import (
+    OPPORTUNITY_PATTERN,
+    Outcome,
+    PromptsSummaryResponse,
+    SummaryCompare,
+    SummaryGroupBy,
+    SummaryInclude,
+    SummaryRows,
+)
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.api.workspaces.dependencies import require_permission
 
@@ -44,9 +52,48 @@ Summaries = Annotated[SummaryService, Depends(get_summary_service)]
     "given the term or one under it; the topic rows then hold only those prompts, and under "
     "`filter[term]` they are the term and the topics below it, with no row for prompts without "
     "a topic. Each row says when its last counted answer and its last valid one came."
-    " `include=entities` adds, per engine, a Mentioned and a Share of voice cell for each "
-    "tracked entity (the own ones first, at most 20); across all the entities an answer names, "
-    "its shares add up to 1.",
+    " `include=series` adds a point for each week the window touches (weeks start on Monday in "
+    "the project's timezone), with Mentioned, Cited and Share of voice over the week's "
+    "answers. The first and last weeks may be partial (cut at the window bounds; the first "
+    "`week_start` can precede `window.from`). A point of a prompt row always holds the "
+    "trailing four weeks to its week, and one of a topic, total or country row does when fewer "
+    "than 10 of its prompts answered that week (`is_pooled`, `pool`, `prompts`): a pooled "
+    "point never reaches outside the window, so the first points hold fewer weeks, and the "
+    "points of a prompt row do not add up to its window cell. `include=entities` adds, per "
+    "engine, a "
+    "Mentioned and a Share of voice cell for each tracked entity (the own ones first, at most "
+    "20); across all the entities an answer names, its shares add up to 1. With `include=series` "
+    "too, each point also holds those cells over the very weeks the point holds (its own "
+    "week, or the weeks it pools), as `entities`, without `previous`. "
+    "`compare=previous_period` (as many days just before the window), `compare=previous_year` "
+    "(the same dates a year earlier; 29 February becomes the 28th) or `compare_from` with "
+    "`compare_to` (both or neither, at most 92 days, any position; they win over `compare`) add "
+    "`compare_window` and `previous_answers` (the valid answers in scope there), and `previous` "
+    "beside each engine's cells, and beside each entity's with `include=entities`: null when "
+    "none of the row's prompts has an answer of the engine in that window, cells with a "
+    "denominator of 0 when it has answers and none valid. `include=total` adds `total`: every "
+    "prompt in scope as one row, aggregated as a topic row is, with the `previous`, `series` and "
+    "`entities` blocks when asked. `rows=topics` leaves the prompt rows out and `rows=none` both "
+    "row lists; `total` does not depend on `rows`. `include=co_mentions` adds `co_mentions`: "
+    "per engine shown, the valid answers in scope and, for each pair of the tracked entities "
+    "(the own ones first, at most 20) named in the same valid answer, how many answers name "
+    "both; it does not depend on `rows`. `include=cells` adds `detail` to every engine of the "
+    "rows, `total` and `by_country`: Cited among the answers with citations, the own share of "
+    "the citation units, First mention (the own brand named before any other tracked entity, "
+    "of the answers that name it) and the fan-out presence and mean (null on an engine that "
+    "does not expose fan-out), over the window alone, with `metric_context.detail`. Blocks not "
+    "asked for are left out. "
+    "`filter[outcome]=O` keeps a prompt row when at least one of its valid answers in the window, "
+    "on the engines shown, had outcome O; `filter[opportunity]` keeps it by the same rule: "
+    "`named_not_cited` is outcome `mentioned_only`, `cited_not_named` is `cited_only`, "
+    "`nobody_named` is no tracked entity named, `lost_to:<entity_id>` is that competitor named "
+    "and the own brand not (an id that is not a competitor of the project keeps no row and is "
+    "not an error). With both, a row must pass each. They narrow `prompts` only: cells, topic "
+    "rows, `total`, `co_mentions` and `prompt_count` still count every prompt in scope. "
+    "`group_by=country` adds `by_country`: one entry per market of the prompts in scope (the "
+    "prompt's own, sorted by code), with the engines built as a topic row of those prompts and "
+    "the blocks the rows carry when asked; a prompt without a market is in no entry, and the "
+    "block does not depend on `rows`, the outcome or opportunity filters.",
 )
 async def prompts_summary(
     project_id: UUID,
@@ -76,9 +123,65 @@ async def prompts_summary(
     include: Annotated[
         list[SummaryInclude] | None,
         Commas,
-        Query(description="Blocks to add: `entities`."),
+        Query(description="Blocks to add: `series`, `entities`, `total`, `co_mentions`, `cells`."),
+    ] = None,
+    compare: Annotated[
+        SummaryCompare,
+        Query(
+            description="`previous_period`: as many days just before the window; "
+            "`previous_year`: the same dates a year earlier. Adds `compare_window`, "
+            "`previous_answers` and `previous` cells."
+        ),
+    ] = "none",
+    compare_from: Annotated[
+        date | None,
+        Query(
+            description="First day of a window to compare with, project-local; needs "
+            "`compare_to`, and wins over `compare`."
+        ),
+    ] = None,
+    compare_to: Annotated[
+        date | None,
+        Query(
+            description="Last day of the window to compare with, included; at most 92 days from "
+            "`compare_from`."
+        ),
+    ] = None,
+    rows: Annotated[
+        SummaryRows | None,
+        Query(
+            description="`topics` leaves the prompt rows out, `none` both row lists (with "
+            "`include=total`). Left out: every row. `total`, `co_mentions` and `by_country` do "
+            "not depend on it."
+        ),
+    ] = None,
+    outcome: Annotated[
+        Outcome | None,
+        Query(
+            alias="filter[outcome]",
+            description="Prompt rows with at least one valid answer of this outcome, on the "
+            "engines shown. Narrows `prompts` only.",
+        ),
+    ] = None,
+    opportunity: Annotated[
+        str | None,
+        Query(
+            alias="filter[opportunity]",
+            pattern=OPPORTUNITY_PATTERN,
+            description="Prompt rows with at least one valid answer that is `named_not_cited`, "
+            "`cited_not_named`, `nobody_named` or `lost_to:<entity_id>` (a competitor named, the "
+            "own brand not), on the engines shown. Narrows `prompts` only.",
+        ),
+    ] = None,
+    group_by: Annotated[
+        SummaryGroupBy | None,
+        Query(
+            description="`country` adds `by_country`. `language` is not built (the language half "
+            "of BE-METRICS-22 is not in contract C2): `422`, as any other value."
+        ),
     ] = None,
 ) -> PromptsSummaryResponse:
+    asked = frozenset(include or ())
     return PromptsSummaryResponse(
         data=await summaries.summary(
             access,
@@ -91,7 +194,14 @@ async def prompts_summary(
                 branded_only=branded_only,
                 country_iso=country_iso,
                 term_id=term_id,
-                include=frozenset(include or ()),
+                include=asked,
+                compare=compare,
+                compare_from=compare_from,
+                compare_to=compare_to,
+                rows=rows,
+                outcome=outcome,
+                opportunity=opportunity,
+                group_by=group_by,
             ),
         )
     )

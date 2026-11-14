@@ -44,6 +44,7 @@ DECLARED = {
     "core.project_entities",
     "core.taxonomy_vocabularies",
     "core.taxonomy_terms",
+    "core.layouts",
     "core.urls",
     "ops.providers",
     "ops.audit_logs",

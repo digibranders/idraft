@@ -5,8 +5,12 @@ import { PREVIEW_SECTION_SLUGS } from './section-slugs';
 import { axe } from '@/test/axe';
 import { renderWithProviders } from '@/test/render';
 
-// A whole section holds every variant of a dozen components, and axe walks all of it
-const SECTION_TIMEOUT_MS = 30_000;
+// The canvas stub of the test setup cannot draw: the Charts section mounts real charts, so the canvas is stood in for
+vi.mock('@/components/app/chart/echart', () => ({ EChart: () => <div data-testid="echart-canvas" /> }));
+
+// A whole section holds every variant of a dozen components, and axe walks all of it: the tables section took 37 s
+// on a loaded machine, so the limit is set well above a loaded run and still catches a section that hangs
+const SECTION_TIMEOUT_MS = 90_000;
 
 describe('the preview registry', () => {
   it('lists the sections, in order, each once', () => {
@@ -22,8 +26,15 @@ describe('the preview registry', () => {
       'filters',
       'inspector',
       'data-display',
+      'charts',
+      'chart-parts',
       'overlays',
       'feedback',
+      'metric-parts',
+      'chart-grids',
+      'domains-feeds',
+      'controls',
+      'layouts',
     ]);
     expect(new Set(PREVIEW_SECTIONS.map((section) => section.title)).size).toBe(PREVIEW_SECTIONS.length);
     // The end-to-end and visual tests visit the sections by this list
@@ -67,8 +78,10 @@ describe.each(PREVIEW_SECTIONS)('the $slug section', ({ title, render: Section }
           <Section />
         </>,
       );
-      // Every specimen group is a titled section
-      const groups = container.querySelectorAll('section');
+      // Every section is titled by an h2, except the sections of a StatisticsPanel, which are h3 by design
+      const groups = Array.from(container.querySelectorAll('section')).filter(
+        (group) => group.closest('[data-slot="statistics-panel"]') === null,
+      );
       expect(groups.length).toBeGreaterThan(0);
       for (const group of groups) expect(group.querySelector('h2')?.textContent).toBeTruthy();
       expect(await axe(container)).toHaveNoViolations();

@@ -23,8 +23,8 @@ import {
  * leads to, for the members who may open them.
  */
 const ACCOUNT = ['profile', 'security', 'preferences'] as const satisfies readonly WorkspaceSettingsSection[];
-const PROJECT = ['general', 'entities', 'domains', 'taxonomy', 'engines', 'schedules'] as const;
-const WORKSPACE = ['workspace', 'members'] as const satisfies readonly WorkspaceSettingsSection[];
+const PROJECT = ['general', 'entities', 'domains', 'taxonomy', 'engines', 'schedules', 'retention'] as const;
+const WORKSPACE = ['workspace', 'members', 'budgets'] as const satisfies readonly WorkspaceSettingsSection[];
 
 export type SettingsSection = (typeof ACCOUNT | typeof PROJECT | typeof WORKSPACE)[number];
 
