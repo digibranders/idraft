@@ -322,7 +322,7 @@ D1 to D5, D7 to D9, D12 and D13. Q1 (the average of engines is tested on pooled 
 
 ### Not done, not checked
 
-- The "interim test" tooltip of the chip (WB-TPF-07): `FilterField` and `FilterOption` take no tooltip. The message `prompts.compare.detectable.tip` is written and unused. By grep, `prompts.compare.change.header` and `prompts.compare.tip.average` are unused too.
+- The "interim test" tooltip of the chip (WB-TPF-07): `FilterField` and `FilterOption` take no tooltip. The message `prompts.compare.detectable.tip` is written and unused. The two other unused messages, `prompts.compare.change.header` and `prompts.compare.tip.average`, were removed in the final review fixes.
 - Not built on purpose (D14): Same period last year and Custom, the "Show previous values" chooser option, the dashed previous period series, the version boundary marker, the interval of a change in the tooltip, a change on the prompt inspector's Citation average.
 - A failed read after a toggle shows the summary banner with Try again and the Prompts rows stay; the held rows do not stay, because a changed query key drops the placeholder data. The planned test ("keeps the held rows") describes the other behaviour.
 - The sort value of the change columns follows the compare switch (n/a, sorted last, with comparison off).

@@ -358,6 +358,9 @@ describe('no source names a tone class', () => {
     'features/prompts/topic-inspector.tsx',
     'features/prompts/topic-drawer/prompt-row.tsx',
     'features/prompts/topic-drawer/engine-panel.tsx',
+    'features/prompts/topic-drawer/engine-filter.tsx',
+    'features/prompts/prompt-columns.tsx',
+    'features/prompts/prompts-screen.tsx',
   ];
   const sources = [
     ...FOLDERS.flatMap((folder) =>
