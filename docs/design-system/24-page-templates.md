@@ -92,6 +92,8 @@ Rules: at most 5 major sections (S1 to S5). Sections and side-by-side panels are
 
 **Header (decided 2026-11-02).** The wireframe stacks the title block, strip and filter bar for reading. Built, they are one 36 px toolbar row: title and meta, an inline `MetricStrip` ([23-application-patterns.md](23-application-patterns.md) section 2.8), the `FilterBar` with the view switch, and the actions. The table toolbar then starts about 60 px below the top bar and a 900 px screen shows 20 rows at 32 px instead of 14 ([04-spacing-density.md](04-spacing-density.md) section 3). Every other template follows the same rule: no separate filter row and no panel summary where one line carries it.
 
+**As built (compact header unified, WP-74, 2026-11-14):** `PageToolbar` (`components/app/page-toolbar/`) provides the shared one-row compact header pattern across Overview, Citations, Topics and Prompts, and future analytical pages. Page chrome above data collapses to a single slim 36 to 40 px row directly below the breadcrumb, using an accessible visually hidden `h1`, inline stat chips (`StatChip` or `MetricStrip size="inline"`), inline tabs, filter bar with active chips, status chips (`StatusChip`), and trailing actions. First table row or card starts within 140 px below the breadcrumb.
+
 ```text
 | Sidebar          | Top bar 52 px                                                                                     |
 +------------------+----------------------------------------------------------+----------------------------------------+
