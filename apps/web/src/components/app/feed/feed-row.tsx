@@ -132,43 +132,56 @@ function Sentence({ text, clamp = false }: { text: string; clamp?: boolean }): R
   );
 }
 
-/** The compact row's content, whether or not it is a link. */
+/**
+ * The compact row's content, whether or not it is a link. Below the row's own width of 672 px (a container query,
+ * so a half-width card counts, not the window) the change and the time sit under the sentence, which then has the
+ * whole line for its figures; from 672 px up they sit beside it. The time is as wide as its text, never a fixed column.
+ */
 function CompactBody({ item, timeZone, clock }: { item: FeedItem; timeZone: string; clock: Date }): ReactElement {
   return (
     <>
       <Glyph item={item} />
-      <Sentence text={item.text} clamp />
-      <ChangeSlot change={item.change} />
-      <time
-        dateTime={item.at}
-        title={formatDetailDateTime(item.at, timeZone)}
-        // 128 px: the longest text is a different year, "Dec 29, 2025, 18:32" (about 118 px)
-        className="w-32 shrink-0 text-right num type-meta whitespace-nowrap"
+      <div
+        data-slot="feed-body"
+        className="flex min-w-0 flex-1 flex-col gap-1 @2xl:flex-row @2xl:items-center @2xl:gap-3"
       >
-        {item.atLabel ?? formatRelative(item.at, timeZone, clock)}
-      </time>
+        <Sentence text={item.text} clamp />
+        <div data-slot="feed-meta" className="flex shrink-0 items-center gap-3">
+          <ChangeSlot change={item.change} />
+          <time
+            dateTime={item.at}
+            title={formatDetailDateTime(item.at, timeZone)}
+            className="shrink-0 num type-meta whitespace-nowrap"
+          >
+            {item.atLabel ?? formatRelative(item.at, timeZone, clock)}
+          </time>
+        </div>
+      </div>
     </>
   );
 }
 
+/** The compact row: the glyph by the first line when stacked, in the middle when beside the sentence. */
+const COMPACT_ROW = cn('flex min-h-9 items-start gap-3 px-4 py-2 @2xl:items-center');
+
 /**
- * One event of a feed (23-application-patterns.md section 9.3), an `<li>` for a list the caller draws. The time
- * slot has a fixed width so the rows line up whatever the sentence and the change are.
+ * One event of a feed (23-application-patterns.md section 9.3), an `<li>` for a list the caller draws. The full form's
+ * time slot has a fixed width so its rows line up whatever the sentence and the change are.
  */
 export function FeedRow({ item, form, timeZone, now }: FeedRowProps): ReactElement {
   const t = useTranslations('common.changeFeed');
   const clock = now ?? new Date();
   if (form === 'compact') {
     return (
-      <li className="border-t border-border-subtle">
+      <li className="@container border-t border-border-subtle">
         {item.href === undefined ? (
-          <div className={ROW}>
+          <div className={COMPACT_ROW}>
             <CompactBody item={item} timeZone={timeZone} clock={clock} />
           </div>
         ) : (
           <Link
             href={item.href}
-            className={cn(ROW, 'rounded-xs outline-none hover:bg-surface-hover focus-visible:focus-ring-inset')}
+            className={cn(COMPACT_ROW, 'rounded-xs outline-none hover:bg-surface-hover focus-visible:focus-ring-inset')}
           >
             <CompactBody item={item} timeZone={timeZone} clock={clock} />
           </Link>

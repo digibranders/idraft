@@ -60,7 +60,7 @@ describe('FeedRow compact', () => {
     const time = container.querySelector('time');
     expect(time).toHaveAttribute('datetime', AT);
     expect(time).toHaveTextContent(formatRelative(AT, 'UTC', NOW));
-    expect(time).toHaveClass('w-32', 'shrink-0', 'text-right', 'num');
+    expect(time).toHaveClass('shrink-0', 'num');
   });
 
   it('shows a ring on keyboard focus and a hover fill on the link', async () => {
@@ -144,16 +144,46 @@ describe('FeedRow compact', () => {
     expect(container.querySelector('li svg:not([data-slot="icon"])')).toBeNull();
   });
 
-  it('gives the time slot room for the longest string formatRelative returns (a different year)', () => {
+  it('keeps the longest string formatRelative returns (a different year) on one line, whatever its width', () => {
     const old = '2025-12-29T18:32:00Z';
     const text = formatRelative(old, 'UTC', NOW);
     expect(text).toBe('Dec 29, 2025, 18:32');
     const { container } = renderRow(feedItem({ at: old }));
     const time = container.querySelector('time');
     expect(time).toHaveTextContent(text);
-    // 128 px: "Dec 29, 2025, 18:32" is about 118 px, which the old 96 px slot clipped
-    expect(time).toHaveClass('w-32', 'shrink-0', 'whitespace-nowrap');
-    expect(time).not.toHaveClass('w-24');
+    expect(time).toHaveClass('shrink-0', 'whitespace-nowrap');
+  });
+
+  it('sizes the time to its content: no fixed 128 px column that "10h ago" or "28 days" would reserve', () => {
+    const { container } = renderRow(feedItem());
+    const time = container.querySelector('time') as HTMLElement;
+    expect(time).not.toHaveClass('w-32');
+    expect(time.className).not.toMatch(/(^| )w-/);
+    expect(time).toHaveClass('shrink-0', 'whitespace-nowrap');
+  });
+
+  it('stacks the change and the time under the sentence below the container breakpoint and puts them beside it above', () => {
+    const { container } = renderRow(feedItem({ change: { kind: 'metric', input: metric() } }));
+    // The row is the query container, so the card's width decides, not the window's
+    expect(container.querySelector('li')).toHaveClass('@container');
+    const body = container.querySelector('[data-slot="feed-body"]') as HTMLElement;
+    expect(body).toHaveClass('flex', 'min-w-0', 'flex-1', 'flex-col', '@2xl:flex-row', '@2xl:items-center');
+    // The sentence comes first, then one group holding the change and the time
+    const sentence = body.children[0] as HTMLElement;
+    const meta = body.children[1] as HTMLElement;
+    expect(sentence).toHaveAttribute('data-slot', 'feed-sentence');
+    expect(meta).toHaveAttribute('data-slot', 'feed-meta');
+    expect(meta).toHaveClass('flex', 'shrink-0', 'items-center');
+    expect(meta.querySelector('[data-slot="feed-change"]')).toBeInTheDocument();
+    expect(meta.querySelector('time')).toBeInTheDocument();
+    // The glyph sits by the first line when stacked and in the middle when beside
+    expect(container.querySelector('li > a')).toHaveClass('items-start', '@2xl:items-center');
+  });
+
+  it('stacks a row without an href the same way', () => {
+    const { container } = renderRow(feedItem({ href: undefined }));
+    expect(container.querySelector('li > div')).toHaveClass('items-start', '@2xl:items-center');
+    expect(container.querySelector('[data-slot="feed-body"]')).toHaveClass('flex-col', '@2xl:flex-row');
   });
 
   it('draws a row without an href as a plain div: no link, no hover fill, no focus ring, not focusable', async () => {
@@ -180,7 +210,7 @@ describe('FeedRow compact', () => {
     expect(time).not.toHaveTextContent(formatRelative(AT, 'UTC', NOW));
     expect(time).toHaveAttribute('datetime', AT);
     expect(time).toHaveAttribute('title', formatDetailDateTime(AT, 'UTC'));
-    expect(time).toHaveClass('w-32', 'shrink-0', 'text-right', 'num');
+    expect(time).toHaveClass('shrink-0', 'whitespace-nowrap', 'num');
   });
 
   it('draws atLabel in a row without an href too', () => {

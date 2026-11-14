@@ -923,13 +923,26 @@ function FeedRowCompactGroup(): ReactElement {
   return (
     <SpecimenGroup
       title="FeedRow compact"
-      note="The sentence wraps to two lines and then ends in an ellipsis, with the full text in its title. A row without an href is plain text: no link, no hover fill, no focus stop. An atLabel replaces the time text for a row that covers a whole window."
+      note="The sentence wraps to two lines and then ends in an ellipsis, with the full text in its title. A row without an href is plain text: no link, no hover fill, no focus stop. An atLabel replaces the time text for a row that covers a whole window. In a list narrower than 672 px the change and the time sit under the sentence."
     >
-      <ul className="max-w-3xl overflow-hidden rounded-lg border border-border bg-surface">
-        {COMPACT_ROWS.map((item) => (
-          <FeedRow key={item.id} item={item} form="compact" timeZone={TIME_ZONE} now={NOW} />
-        ))}
-      </ul>
+      <div className="flex flex-col gap-4">
+        <div className="flex max-w-3xl flex-col gap-2">
+          <p className="type-label">Wide list, beside the sentence</p>
+          <ul className="overflow-hidden rounded-lg border border-border bg-surface">
+            {COMPACT_ROWS.map((item) => (
+              <FeedRow key={item.id} item={item} form="compact" timeZone={TIME_ZONE} now={NOW} />
+            ))}
+          </ul>
+        </div>
+        <div className="flex max-w-md flex-col gap-2">
+          <p className="type-label">Narrow list, under the sentence</p>
+          <ul className="overflow-hidden rounded-lg border border-border bg-surface">
+            {COMPACT_ROWS.map((item) => (
+              <FeedRow key={item.id} item={item} form="compact" timeZone={TIME_ZONE} now={NOW} />
+            ))}
+          </ul>
+        </div>
+      </div>
     </SpecimenGroup>
   );
 }
