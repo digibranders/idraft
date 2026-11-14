@@ -16,7 +16,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 
 from idraft.api.ai.competitors import CompetitorService
-from idraft.api.ai.metrics_routes import COMPARE, SCOPE, Compared, EntityIds, ReadData
+from idraft.api.ai.metrics_routes import COMPARE, SCOPE, Compared, ReadData
 from idraft.api.pagination import Commas
 from idraft.api.resources import Resources, get_resources
 from idraft.api.schemas.ai_metrics import AiCompetitorsResponse, OverviewCompetitorsResponse
@@ -34,6 +34,15 @@ def get_competitor_service(
 Competitors = Annotated[CompetitorService, Depends(get_competitor_service)]
 
 CompetitorInclude = Literal["lost_prompts", "top_sources"]
+CompetitorEntityIds = Annotated[
+    list[UUID] | None,
+    Commas,
+    Query(
+        max_length=20,
+        description="Narrows the rows to these tracked entities. An id that is not tracked, or "
+        "was cut by the 20 entity cap, is left out, never a 404. At most 20.",
+    ),
+]
 
 
 @router.get(
@@ -61,7 +70,7 @@ async def competitors(
     access: ReadData,
     query: Compared,
     service: Competitors,
-    entity_ids: EntityIds = None,
+    entity_ids: CompetitorEntityIds = None,
     include: Annotated[
         list[CompetitorInclude] | None,
         Commas,

@@ -53,8 +53,10 @@ SCOPE = (
     "most 92, `422 window_too_large`), on the answers the prompts summary counts: valid, current "
     "ones of the active prompts. Branded prompts are left out unless `include_branded` is true "
     "(`branded_only` keeps them alone), `filter[country_iso]` keeps the prompts of one market and "
-    "`filter[term]` the prompts given a term or one below it. Every number is read from that "
-    "summary, so it is the same number as on the Topics & Prompts page. Engines are never pooled: "
+    "`filter[term]` the prompts given a term or one below it. Rates and shares are read from the "
+    "project summary, so they are the same numbers as on the Topics & Prompts page; citation "
+    "shares, lost prompts and top sources are read from the same answers as the Sources page. "
+    "Engines are never pooled: "
     "each engine has its own value, and the equal-weight average of the engines is a value of "
     "its own. "
 )
