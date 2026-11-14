@@ -114,12 +114,14 @@ describe('the AI visibility page of a project with engines on', () => {
       expect(cardIds()).toEqual(cards.map((card) => card.id));
     });
     // The pending cards keep the order of the layout
-    expect(
-      within(cardsRegion())
-        .getAllByRole('heading', { level: 2 })
-        .map((heading) => heading.textContent ?? '')
-        .filter((text) => pendingNames.includes(text)),
-    ).toEqual(pendingNames);
+    await waitFor(() => {
+      expect(
+        within(cardsRegion())
+          .getAllByRole('heading', { level: 2 })
+          .map((heading) => heading.textContent ?? '')
+          .filter((text) => pendingNames.includes(text)),
+      ).toEqual(pendingNames);
+    });
     const reason = 'This card is being built. You can keep it in your layout.';
     await waitFor(() => {
       expect(cardsRegion().querySelectorAll('[data-slot="pending-card"]')).toHaveLength(pending.length);
