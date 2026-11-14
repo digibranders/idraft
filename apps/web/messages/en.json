@@ -6485,6 +6485,30 @@
       }
     }
   },
+  "fanout": {
+    "engineNote": "{engines} {count, plural, one {does} other {do}} not expose fan-out.",
+    "engineNoteTip": "Their queries are not exposed. That is not the same as no query being issued.",
+    "truncatedAnswers": "{cut, plural, one {# of {answers, number} {engine} answers kept fewer queries than it issued.} other {# of {answers, number} {engine} answers kept fewer queries than they issued.}} Some queries are missing, so the counts may be low.",
+    "truncatedList": "The {shown, number} queries issued by the most answers are listed of {total, number}. Raise the minimum or narrow the scope.",
+    "newUnknown": {
+      "noPrevious": "No valid answer in the period before this window, so no query can be called new.",
+      "tooMany": "The period before this window has more than {limit, number} queries, so new queries cannot be told apart.",
+      "failed": "New queries could not be told, because the period before this window could not be read."
+    },
+    "stale": "No answer issued a query since {date}. The list may be out of date.",
+    "notExposedTitle": "Fan-out is not exposed by {engines}",
+    "notExposedReason": "{count, plural, one {This engine does not show the queries it issues} other {These engines do not show the queries they issue}}, so there is nothing to list. Choose an engine that does.",
+    "notExposedAction": "Show all engines",
+    "failedTitle": "The queries could not be loaded.",
+    "failedReason": "The server did not answer. Try again in a moment.",
+    "emptyNoAnswersTitle": "No {engine} answer in this window",
+    "emptyNoAnswersReason": "Choose a longer window or wait for the next run.",
+    "emptyNoneTitle": "No answer issued a query",
+    "emptyNoneReason": "{answers, plural, one {# {engine} answer was} other {# {engine} answers were}} collected in this window, and none issued a query.",
+    "emptyUnderMinTitle": "No query was issued by {min, plural, one {# answer} other {# or more answers}}",
+    "emptyUnderMinReason": "Queries issued by fewer answers are left out. Lower the minimum or choose a longer window.",
+    "showEvery": "Show every query"
+  },
   "competitors": {},
   "discover": {},
   "layouts": {
