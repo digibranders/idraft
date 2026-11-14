@@ -105,7 +105,8 @@ function CardBody({ item, CardBoundary }: CardBodyProps): ReactElement | null {
     );
   }
   return (
-    <div ref={ref} className="h-full">
+    // A column that stretches the card's own surface (its border), so a row ends every card at the same height
+    <div ref={ref} className="flex h-full flex-col *:flex-1">
       {CardBoundary === undefined ? content : <CardBoundary item={item}>{content}</CardBoundary>}
     </div>
   );

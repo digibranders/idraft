@@ -499,7 +499,8 @@ describe('LayoutGrid in customize mode', () => {
     await cardsShown();
     const fills = (): void => {
       const wrapper = screen.getByTestId('body-trend').parentElement;
-      expect(wrapper).toHaveClass('h-full');
+      // A column that stretches the card's own surface (its border): a block would leave the surface at its content
+      expect(wrapper).toHaveClass('h-full', 'flex', 'flex-col', '*:flex-1');
       expect(wrapper?.parentElement).toHaveClass('flex', 'flex-col', 'flex-1');
     };
     fills();
