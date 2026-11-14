@@ -53,11 +53,22 @@ const inspectorTitle = (): HTMLElement | null => {
 const INSPECTOR_POLL_MS = 50;
 const INSPECTOR_POLLS = 40;
 
+/** The one poll in flight: a new Show it replaces it, and leaving the page cancels it. */
+let inspectorPoll: number | undefined;
+
+function cancelInspectorFocus(): void {
+  if (inspectorPoll !== undefined) window.clearTimeout(inspectorPoll);
+  inspectorPoll = undefined;
+}
+
 /** shortcut: polls for 2 seconds; the inspector could tell a page when it is shown, which this has no way to hear. */
 function focusInspectorTitleWhenShown(polls = 0): void {
+  cancelInspectorFocus();
   const title = inspectorTitle();
   if (title !== null) title.focus({ preventScroll: true });
-  else if (polls < INSPECTOR_POLLS) window.setTimeout(() => focusInspectorTitleWhenShown(polls + 1), INSPECTOR_POLL_MS);
+  else if (polls < INSPECTOR_POLLS) {
+    inspectorPoll = window.setTimeout(() => focusInspectorTitleWhenShown(polls + 1), INSPECTOR_POLL_MS);
+  }
 }
 
 export interface UseAddFormInput {
@@ -122,6 +133,8 @@ export function useAddForm({ scope, open, onOpenChange, engines, existing, defau
   const inspector = useInspector();
   const canRun = useCan('runs:trigger');
   const afterAdd = useAfterAdd({ scope, open, engines });
+  // Leaving the page ends a poll for the inspector title that Show it started
+  useEffect(() => cancelInspectorFocus, []);
   const [alert, setAlert] = useState<string | null>(null);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [restoreOn, setRestoreOn] = useState(true);
@@ -384,7 +397,8 @@ export function useAddForm({ scope, open, onOpenChange, engines, existing, defau
     countries,
     alert,
     outcome,
-    pending: create.isPending,
+    // The whole submit: topics, create, restore and refresh. The dialog cannot be closed under it
+    pending: create.isPending || form.formState.isSubmitting,
     doneRef,
     restore: { checked: restoreOn, onCheckedChange: setRestoreOn },
     ask: { checked: askTicked, onCheckedChange: setAskOn },

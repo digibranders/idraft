@@ -355,6 +355,44 @@ describe('Add prompts: shell and fields', () => {
     expect(item?.term_ids).toHaveLength(1);
   });
 
+  it('keeps the dialog open while the topic is being made, so a close cannot leave the add running unseen', async () => {
+    const seen = record('/prompts/bulk-create');
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    server.use(
+      http.post(bulkCreate, () =>
+        HttpResponse.json({ data: { created: ['0192d1a8-e000-7a10-8e00-000000000100'], skipped: [], rejected: [] } }),
+      ),
+      http.post('*/terms', async () => {
+        await gate;
+        return undefined;
+      }),
+    );
+    const { user } = renderWithProviders(asEditor());
+    const dialog = await openDialog(user);
+    const field = within(dialog).getByRole('combobox', { name: /Topics/ });
+    await waitFor(() => expect(field).toBeEnabled());
+    await user.click(field);
+    await user.type(field, 'Startups');
+    await user.click(await screen.findByRole('option', { name: /Create topic/ }));
+    await user.keyboard('{Escape}');
+    await typeList(user, dialog, QUESTION);
+    await user.click(await within(dialog).findByRole('button', { name: 'Add 1 prompt' }));
+    // The topic is on its way and nothing has been created yet: a close is refused
+    await user.keyboard('{Escape}');
+    // The typed list asks to discard: even a confirmed discard cannot close the dialog under a running add
+    const confirm = screen.queryByRole('alertdialog');
+    if (confirm !== null) await user.click(within(confirm).getByRole('button', { name: /^Discard/ }));
+    expect(dialog).toBeInTheDocument();
+    expect(within(dialog).getByRole('textbox', { name: 'Prompts', hidden: true })).toBeInTheDocument();
+    expect(seen.writes.filter((path) => path.endsWith('bulk-create'))).toEqual([]);
+    release();
+    await screen.findByText('1 prompt added');
+    expect(seen.writes.filter((path) => path.endsWith('bulk-create'))).toHaveLength(1);
+  });
+
   it('says the topic was created and the prompts were not added when the add fails after it', async () => {
     server.use(http.post(bulkCreate, () => HttpResponse.error()));
     const { user } = renderWithProviders(asEditor());

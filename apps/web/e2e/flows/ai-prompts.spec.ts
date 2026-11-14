@@ -84,8 +84,10 @@ test.describe('AI prompt tracking', () => {
       .fill(
         'Which cleaning service is best in Boston?\nHow often should an office be cleaned?\nWhich cleaning service is best in Boston?',
       );
-    await expect(dialog.getByText('Line 3 repeats line 1 and is left out.')).toBeVisible();
-    await expect(dialog.getByText(/^Adds 2 prompts of your remaining \d+\.$/)).toBeVisible();
+    // The check list is closed while no line is refused; the plan block says what the add takes (WP-27)
+    await dialog.getByRole('button', { name: /Check the list/ }).click();
+    await expect(dialog.getByText('Repeats line 1 and is left out.')).toBeVisible();
+    await expect(dialog.getByText(/^Workspace prompts: \d+ of \d+ used, \d+ after this add\.$/)).toBeVisible();
     await expectAccessible(page);
     await dialog.getByRole('button', { name: 'Add 2 prompts' }).click();
     await expect(toastsOf(page).getByText('2 prompts added')).toBeVisible();

@@ -258,5 +258,6 @@ export function PlanBlock({
 /** The plan as one line in the footer of a phone, where the block itself is too tall to stay in view. */
 export function PlanSummary({ text }: { text: string | null }): ReactElement | null {
   if (text === null) return null;
-  return <p className="min-w-0 truncate type-meta text-foreground-secondary sm:hidden">{text}</p>;
+  // Up to three lines: beside the two buttons of a 390 px footer one line cut "3 prompts, about $0.06 a month, 27 of 150" to "3 prompts, about $0..."
+  return <p className="line-clamp-3 min-w-0 type-meta text-foreground-secondary sm:hidden">{text}</p>;
 }
