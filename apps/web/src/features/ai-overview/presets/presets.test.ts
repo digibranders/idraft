@@ -86,13 +86,18 @@ const PACKINGS: readonly Packing[] = [
     document: SEO_ANALYST_LAYOUT,
     wide: [
       [6, 6],
-      [8, 4],
+      [6, 6],
       [6, 6],
       [6, 6],
     ],
-    medium: [[6, 6], [12], [6, 6], [6, 6], [6]],
+    medium: [
+      [6, 6],
+      [6, 6],
+      [6, 6],
+      [6, 6],
+    ],
     acceptedWide: [],
-    acceptedMedium: [5],
+    acceptedMedium: [],
   },
   {
     name: 'Competitive',
@@ -105,10 +110,10 @@ const PACKINGS: readonly Packing[] = [
   {
     name: 'Topic owner',
     document: TOPIC_OWNER_LAYOUT,
-    wide: [[12], [6, 6], [8, 4], [12], [6, 6]],
-    medium: [[12], [6, 6], [12], [6], [12], [6, 6]],
+    wide: [[12], [6, 6], [6, 6], [12], [6, 6]],
+    medium: [[12], [6, 6], [6, 6], [12], [6, 6]],
     acceptedWide: [],
-    acceptedMedium: [4],
+    acceptedMedium: [],
   },
 ];
 
