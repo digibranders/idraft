@@ -1,13 +1,14 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 
 import { AddEmptyAlternatives, AddEmptyPrimary, AddEntry } from './add-entry';
 import { ADD_MENU_ENTRIES, addMenuItems, type AddMenuEntry } from './add-menu-entries';
 import { AddPromptsDialog } from '../add-prompts-dialog';
 import type { PromptScope } from '../prompt-queries';
 import type { PromptsProject } from '../prompts-screen';
+import { usePageShortcuts } from '@/components/app/shell/page-shortcuts';
 import type { ProjectEngine, Prompt } from '@/lib/api/types';
 import { useShortcut } from '@/lib/a11y/use-shortcut';
 import { useMembership } from '@/lib/permissions';
@@ -64,6 +65,12 @@ export function useAddPrompts({
   };
   // Shift+N is the import's (WP-28): `key` is the lower-case letter only
   useShortcut('n', () => openAdd(null), { kind: 'single-key', enabled: canAdd && !open });
+  // Only the sheet's line: the key is taken above, so it is listed once and only where it does something
+  const shortcutEntries = useMemo(
+    () => (canAdd ? [{ id: 'prompts-add', label: t('prompts.add.shortcut'), keys: ['n'] }] : []),
+    [canAdd, t],
+  );
+  usePageShortcuts(shortcutEntries);
 
   const alternatives = canAdd ? addMenuItems(menuEntries, { scope, project, t }, permissions) : [];
   return {

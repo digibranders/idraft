@@ -4462,6 +4462,7 @@
         "duplicate": "the project already tracks this prompt."
       },
       "done": "Done",
+      "shortcut": "Add prompts",
       "entry": {
         "groupLabel": "Add prompts options",
         "menuLabel": "More ways to add prompts"

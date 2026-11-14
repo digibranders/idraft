@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { AddMenuEntry } from './add-menu-entries';
 import { useAddPrompts } from './use-add-prompts';
+import { PageShortcutsProvider, usePageShortcutEntries } from '@/components/app/shell/page-shortcuts';
 import { EmptyState } from '@/components/app/status/empty-state';
 import type { MenuItemDef } from '@/components/ui/menu';
 import { enginesQuery, type PromptScope } from '../prompt-queries';
@@ -156,6 +157,38 @@ describe('useAddPrompts: N', () => {
     // A browser reports the upper-case letter for Shift+N
     await user.keyboard('{Shift>}N{/Shift}');
     expect(screen.queryByRole('dialog')).toBeNull();
+  });
+});
+
+/** What the keyboard shortcuts dialog would list for the page. */
+function Listing(): ReactElement {
+  const entries = usePageShortcutEntries();
+  return <p data-testid="listing">{entries.map((entry) => `${entry.keys.join('')}:${entry.label}`).join('|')}</p>;
+}
+
+const withListing = (ui: ReactElement): ReactElement => (
+  <PageShortcutsProvider>
+    {ui}
+    <Listing />
+  </PageShortcutsProvider>
+);
+
+describe('useAddPrompts: the shortcuts dialog', () => {
+  it('lists N once while the role can add, and not for a viewer or before the engines are known', async () => {
+    const editor = renderWithProviders(withListing(as('editor')));
+    await enginesLoaded();
+    await waitFor(() => expect(screen.getByTestId('listing')).toHaveTextContent('n:Add prompts'));
+    expect(screen.getByTestId('listing').textContent).toBe('n:Add prompts');
+    editor.unmount();
+
+    const viewer = renderWithProviders(withListing(as('viewer')));
+    await enginesLoaded();
+    expect(screen.getByTestId('listing')).toBeEmptyDOMElement();
+    viewer.unmount();
+
+    renderWithProviders(withListing(as('editor', { enginesKnown: false })));
+    await enginesLoaded();
+    expect(screen.getByTestId('listing')).toBeEmptyDOMElement();
   });
 });
 

@@ -96,7 +96,6 @@ export function useAfterAdd({ scope, open, engines }: UseAfterAddInput): AfterAd
 
   /** Brings the added prompts' archive about: exactly the ids the add created. */
   const archiveCreated = async (ids: readonly string[]): Promise<void> => {
-    if (ids.length === 0) return;
     try {
       const { data } = await bulkArchive(scope, ids, true);
       void refreshPrompts(queryClient, scope);

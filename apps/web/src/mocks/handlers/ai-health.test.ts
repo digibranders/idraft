@@ -8,6 +8,7 @@ import { EVENTUS_DEFINITION } from '../ai-prompt-definition';
 import { setAiSeeded } from '../ai-seed';
 import { MOCK_PROJECTS, MOCK_WORKSPACE, mockUser } from '../fixtures';
 import { MOCK_BUDGET_IDS, MOCK_BUDGETS, MOCK_RUNS } from '../operations-fixtures';
+import { AI_ANSWER_QUOTA } from '../prompts-state';
 import type { Schemas } from '@/lib/api/types';
 import { BUDGET_STATUS } from '@/test/api-shapes';
 import { TEST_API_ORIGIN } from '@/test/api-server';
@@ -607,7 +608,8 @@ describe('AI limits', () => {
     const { data } = LIMITS.parse(answer.body);
     expect(data.prompts.limit).toBe(150);
     expect(data.prompts.used).toBeGreaterThan(0);
-    expect(data.ai_observations_month.limit).toBe(2000);
+    // The one `ai/limits` handler is ./prompt-limits.ts, which keeps the workspace's plan quota (20,000 a month)
+    expect(data.ai_observations_month.limit).toBe(AI_ANSWER_QUOTA);
     expect(data.ai_observations_month.used).toBeGreaterThanOrEqual(0);
   });
 
@@ -622,8 +624,8 @@ describe('AI limits', () => {
 });
 
 describe('where the AI health handlers sit', () => {
-  it('registers the nine routes once, in the handler list', () => {
-    expect(aiHealthHandlers).toHaveLength(9);
+  it('registers the eight routes once, in the handler list', () => {
+    expect(aiHealthHandlers).toHaveLength(8);
     for (const handler of aiHealthHandlers)
       expect(handlers.filter((candidate) => candidate === handler)).toHaveLength(1);
   });

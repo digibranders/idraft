@@ -314,6 +314,83 @@ describe('Add prompts: after the add', () => {
     expect(promptIdsOf(writesTo(sent, '/runs')[0])).toEqual(CREATED);
   });
 
+  it('sends one run only when the first run of 150 is refused, and says that nothing was queued', async () => {
+    const many = Array.from({ length: 160 }, (_, index) => id(3000 + index));
+    server.use(
+      lintWith({ limit: 1000 }),
+      limitsWith(4),
+      created(many),
+      http.post(bulkRun, () => refused(429, 'manual_run_limit', { limit: 20 })),
+    );
+    const sent = recordWrites();
+    const { user } = renderWithProviders(asEditor());
+    const dialog = await openDialog(user);
+    await typeList(user, dialog, lines(160));
+    await user.click(await within(dialog).findByRole('checkbox', { name: /Ask them now as well/ }));
+    await user.click(await within(dialog).findByRole('button', { name: 'Add 160 prompts' }));
+    const confirm = await screen.findByRole('alertdialog', { name: 'Ask 160 prompts now?' });
+    await user.click(within(confirm).getByRole('button', { name: 'Ask 160 prompts' }));
+    expect(await screen.findAllByText('Not queued')).not.toHaveLength(0);
+    expect(screen.getAllByText(/All 20 manual runs of today \(UTC\) are used/)).not.toHaveLength(0);
+    // The second run of 10 is never tried, and no run started
+    expect(writesTo(sent, '/runs')).toHaveLength(1);
+    expect(promptIdsOf(writesTo(sent, '/runs')[0])).toEqual(many.slice(0, 150));
+    expect(screen.queryByText(/Run started/)).toBeNull();
+  });
+
+  it('stops at the first refusal after a run went through, and says how many prompts were not asked', async () => {
+    const many = Array.from({ length: 301 }, (_, index) => id(4000 + index));
+    let calls = 0;
+    server.use(
+      lintWith({ limit: 1000 }),
+      limitsWith(4),
+      created(many),
+      http.post(bulkRun, () => {
+        calls += 1;
+        return calls === 1 ? queued(150) : refused(429, 'manual_run_limit', { limit: 20 });
+      }),
+    );
+    const sent = recordWrites();
+    const { user } = renderWithProviders(asEditor());
+    const dialog = await openDialog(user);
+    await typeList(user, dialog, lines(301));
+    await user.click(await within(dialog).findByRole('checkbox', { name: /Ask them now as well/ }));
+    await user.click(await within(dialog).findByRole('button', { name: 'Add 301 prompts' }));
+    const confirm = await screen.findByRole('alertdialog', { name: 'Ask 301 prompts now?' });
+    await user.click(within(confirm).getByRole('button', { name: 'Ask 301 prompts' }));
+    // The first run went through, the second was refused, and the third is never tried
+    expect(await screen.findAllByText(/Run started: 150 prompts on 2 engines/)).not.toHaveLength(0);
+    expect(screen.getAllByText(/All 20 manual runs of today \(UTC\) are used/)).not.toHaveLength(0);
+    expect(screen.getAllByText(/151 prompts were not tried\./)).not.toHaveLength(0);
+    expect(writesTo(sent, '/runs')).toHaveLength(2);
+    expect(calls).toBe(2);
+  });
+
+  it('keeps the confirm for more than 100 prompts away from the result view until its Ask them now is pressed', async () => {
+    const many = Array.from({ length: 101 }, (_, index) => id(5000 + index));
+    server.use(
+      lintWith({ limit: 1000 }),
+      limitsWith(4),
+      created(many, { skipped: [{ index: 101, existing_id: EXISTING_ID }] }),
+      http.post(bulkRun, () => queued(101)),
+    );
+    const sent = recordWrites();
+    const { user } = renderWithProviders(asEditor());
+    const dialog = await openDialog(user);
+    await typeList(user, dialog, `${lines(101)}\nRacing one?`);
+    await user.click(await within(dialog).findByRole('checkbox', { name: /Ask them now as well/ }));
+    await user.click(await within(dialog).findByRole('button', { name: 'Add 102 prompts' }));
+    const result = await screen.findByRole('dialog', { name: 'Result of the add' });
+    // A question cannot open over the result view, and nothing is asked before it is answered
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(writesTo(sent, '/runs')).toHaveLength(0);
+    await user.click(within(result).getByRole('button', { name: 'Ask them now' }));
+    const confirm = await screen.findByRole('alertdialog', { name: 'Ask 101 prompts now?' });
+    await user.click(within(confirm).getByRole('button', { name: 'Ask 101 prompts' }));
+    await waitFor(() => expect(writesTo(sent, '/runs')).toHaveLength(1));
+    expect(promptIdsOf(writesTo(sent, '/runs')[0])).toEqual(many);
+  });
+
   it('offers Ask now in the result view, with the confirm, when the form did not ask', async () => {
     server.use(
       lintWith(),
