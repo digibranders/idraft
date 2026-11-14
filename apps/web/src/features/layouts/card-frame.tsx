@@ -37,6 +37,7 @@ export const CardFrame = forwardRef<HTMLDivElement, CardFrameProps & RefAttribut
     <div
       ref={ref}
       data-layout-card={item.id}
+      data-card-title={cardName(item)}
       className={cn(
         'relative flex min-w-0 flex-col',
         customizing && 'rounded-lg bg-surface-subtle p-1 outline-1 outline-border-strong outline-dashed',

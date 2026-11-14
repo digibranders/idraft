@@ -442,6 +442,11 @@ function FrameShell({
         <p id={summaryId} className="sr-only">
           {summary}
         </p>
+        {hasControls ? (
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-2 pb-2">
+            {controls}
+          </div>
+        ) : null}
         <div data-slot="chart-state" className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 min-w-0">
           <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-0.5">
             <Title className={inspector ? 'type-subsection-title' : 'type-section-title shrink-0'}>{title}</Title>
@@ -452,6 +457,7 @@ function FrameShell({
           </div>
           {empty.action ? <div className="shrink-0">{empty.action}</div> : null}
         </div>
+        {footnote ? <div className="sr-only">{footnote}</div> : null}
       </section>
     );
   }
@@ -502,11 +508,9 @@ function FrameShell({
       <p id={summaryId} className="sr-only">
         {summary}
       </p>
-      <div className="flex-1 min-h-0">
-        <FrameBody state={state} height={height} loadingHeight={loadingHeight}>
-          {children}
-        </FrameBody>
-      </div>
+      <FrameBody state={state} height={height} loadingHeight={loadingHeight}>
+        {children}
+      </FrameBody>
       {footnote === undefined || footnote === null ? null : (
         <div ref={footnoteRef} className="mt-auto type-meta">
           {footnote}
@@ -557,7 +561,7 @@ function FrameBody({
   }
   return (
     // The same wrapper for ready and refetching, so the chart stays mounted when a refetch starts
-    <div className="relative">
+    <div className="relative flex-1 min-h-0">
       {state.status === 'refetching' ? (
         <div aria-hidden="true" data-slot="chart-refetch-bar" className="absolute inset-x-0 top-0 h-0.5 bg-primary" />
       ) : null}
