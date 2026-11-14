@@ -224,6 +224,65 @@ const HTML_BASE = {
   table: <div data-testid="html-table">Rows</div>,
 };
 
+describe('ChartFrame loadingHeight', () => {
+  // The loading body is the box around the skeleton block
+  const reserved = (container: HTMLElement): HTMLElement | null =>
+    container.querySelector('[data-slot="skeleton"]')?.parentElement ?? null;
+
+  it('reserves the chart height while loading when loadingHeight is not given', () => {
+    const { container } = renderWithProviders(<ChartFrame {...HTML_BASE} status="loading" />);
+    expect(reserved(container)).toHaveStyle({ height: '180px' });
+  });
+
+  it('reserves loadingHeight instead of the chart height while loading, for an html and a category chart', () => {
+    const html = renderWithProviders(<ChartFrame {...HTML_BASE} loadingHeight={352} status="loading" />);
+    expect(reserved(html.container)).toHaveStyle({ height: '352px' });
+    html.unmount();
+    const category = renderWithProviders(<ChartFrame {...CATEGORY_BASE} loadingHeight={300} status="loading" />);
+    expect(reserved(category.container)).toHaveStyle({ height: '300px' });
+  });
+
+  it('never reserves less than the chart height while loading', () => {
+    const { container } = renderWithProviders(<ChartFrame {...HTML_BASE} loadingHeight={100} status="loading" />);
+    expect(reserved(container)).toHaveStyle({ height: '180px' });
+  });
+
+  it('leaves the empty and the error state at the chart height', () => {
+    const empty = renderWithProviders(
+      <ChartFrame
+        {...HTML_BASE}
+        loadingHeight={352}
+        status="empty"
+        empty={{ title: 'No answers yet', reason: 'The first run is on Thursday.' }}
+      />,
+    );
+    expect(empty.container.querySelector('[data-slot="chart-state"]')).toHaveStyle({ minHeight: '180px' });
+    empty.unmount();
+    const error = renderWithProviders(
+      <ChartFrame
+        {...HTML_BASE}
+        loadingHeight={352}
+        status="error"
+        error={{
+          title: 'Could not load',
+          reason: 'The read failed.',
+          errorId: null,
+          onRetry: vi.fn(),
+          retrying: false,
+          retryLabel: 'Try again',
+        }}
+      />,
+    );
+    expect(error.container.querySelector('[data-slot="chart-state"]')).toHaveStyle({ minHeight: '180px' });
+  });
+
+  it('does not reserve loadingHeight once the chart is ready', () => {
+    const { container } = renderWithProviders(<ChartFrame {...HTML_BASE} loadingHeight={352} status="ready" />);
+    expect(reserved(container)).toBeNull();
+    expect(screen.getByTestId('html-body').parentElement).toHaveStyle({ minHeight: '180px' });
+  });
+});
+
 describe('ChartFrame html kind', () => {
   it('draws the title, the legend and the body, and the table in place of the body on Table', async () => {
     const { user } = renderWithProviders(<ChartFrame {...HTML_BASE} status="ready" />);

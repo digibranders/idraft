@@ -96,6 +96,12 @@ interface ChartFrameCommon {
   controls?: ReactNode;
   /** Reserved for the skeleton, the empty and the error state; the canvas height of line and bar. */
   height: ChartHeight;
+  /**
+   * Loading only: the height in px the loading body reserves when the loaded body is taller than `height` (a list
+   * of rows), so the panel does not grow when the data arrives. Never less than `height`; left out, the loading body
+   * is `height` tall. The empty and error states and the ready chart ignore it.
+   */
+  loadingHeight?: number | undefined;
   /** What the chart shows, in one or two sentences, for people who cannot see it. */
   summary: string;
 }
@@ -389,7 +395,7 @@ function FrameShell({
   children,
 }: FrameShellProps): ReactElement {
   const t = useTranslations('chart');
-  const { title, variant, meta, notice, footnote, controls, height, summary } = common;
+  const { title, variant, meta, notice, footnote, controls, height, loadingHeight, summary } = common;
   const { status } = state;
   // "Updating" appears when a refetch has run for 400 ms (the table's rule)
   const [showUpdating, setShowUpdating] = useState(false);
@@ -450,7 +456,7 @@ function FrameShell({
       <p id={summaryId} className="sr-only">
         {summary}
       </p>
-      <FrameBody state={state} height={height}>
+      <FrameBody state={state} height={height} loadingHeight={loadingHeight}>
         {children}
       </FrameBody>
       {footnote === undefined || footnote === null ? null : (
@@ -466,15 +472,17 @@ function FrameShell({
 function FrameBody({
   state,
   height,
+  loadingHeight,
   children,
 }: {
   state: ChartFrameState;
   height: ChartHeight;
+  loadingHeight: number | undefined;
   children: ReactNode;
 }): ReactElement {
   if (state.status === 'loading') {
     return (
-      <div style={{ height }}>
+      <div style={{ height: Math.max(height, loadingHeight ?? 0) }}>
         <Skeleton shape="block" className="h-full w-full" />
       </div>
     );
