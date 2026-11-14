@@ -127,7 +127,27 @@ describe('answerRows', () => {
       engine: 'gemini_web',
       promptId: idOf(3),
       position: 1,
+      host: 'g2.com',
+      url: 'https://g2.com/products/crm',
+      quote: null,
     });
+  });
+
+  it('takes the quote, host and address of the listing the row uses: the first place the page is listed', () => {
+    const [only] = answerRows(
+      [
+        rowOf({ observation_id: '55', citation_index: 6, quote: 'Late quote', host: 'late.example' }),
+        rowOf({ observation_id: '55', citation_index: 2, quote: 'First quote', host: 'first.example' }),
+        rowOf({ observation_id: '55', citation_index: 9, quote: 'Last quote', host: 'last.example' }),
+      ],
+      10,
+    );
+    expect(only).toMatchObject({ position: 2, quote: 'First quote', host: 'first.example' });
+  });
+
+  it('keeps a missing quote as null', () => {
+    const [only] = answerRows([rowOf({ observation_id: '55' })], 10);
+    expect(only?.quote).toBeNull();
   });
 
   it('is empty for no rows', () => {

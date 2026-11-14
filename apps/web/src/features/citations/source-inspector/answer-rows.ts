@@ -59,6 +59,11 @@ export interface AnswerRow {
   promptId: string;
   /** Where the answer's source list first names the page, from 1. The list's length is not known from these rows. */
   position: number;
+  /** The host and address of that listing, for the quoted passage's source line. */
+  host: string;
+  url: string;
+  /** What the engine quoted from the page at that listing; `null` when it gave none. Provider text. */
+  quote: string | null;
 }
 
 /** At most `limit` answers, the newest first, each once at the first place it lists the page. */
@@ -66,16 +71,18 @@ export function answerRows(rows: readonly CitationRow[], limit: number): AnswerR
   const found = new Map<string, AnswerRow>();
   for (const row of rows) {
     const answer = found.get(row.observation_id);
-    if (answer === undefined) {
+    // The row is the first listing, so its quote is that listing's: the later listings of the same answer give theirs up
+    if (answer === undefined || row.citation_index < answer.position) {
       found.set(row.observation_id, {
         observationId: row.observation_id,
         observedAt: row.observed_at,
         engine: row.engine_code,
         promptId: row.prompt_id,
         position: row.citation_index,
+        host: row.host,
+        url: row.url,
+        quote: row.quote ?? null,
       });
-    } else if (row.citation_index < answer.position) {
-      answer.position = row.citation_index;
     }
   }
   return [...found.values()]

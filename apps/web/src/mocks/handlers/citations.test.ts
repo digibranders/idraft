@@ -149,6 +149,7 @@ const CITATION_ROW: z.ZodType<Schemas['CitationRow']> = z.strictObject({
   domain_role: ROLE,
   role_entity_id: z.string().nullable(),
   occurrences: z.number(),
+  quote: z.string().max(1000).nullable(),
 });
 const CITATION_PAGE: z.ZodType<Schemas['CitationPage']> = z.strictObject({
   data: z.array(CITATION_ROW),
@@ -478,6 +479,31 @@ describe('citation reads answer what the generated schema says', () => {
       cursor = page.page.next_cursor;
     } while (cursor !== null);
     expect(rows).toHaveLength(581);
+  });
+
+  it('gives a deterministic quote to a good share of the citation rows, null to the rest, and changes no total', async () => {
+    const readAll = async (): Promise<Schemas['CitationRow'][]> => {
+      const all: Schemas['CitationRow'][] = [];
+      let cursor: string | null = null;
+      do {
+        const path: string = `${FYNIX}/citations?limit=200${cursor === null ? '' : `&cursor=${cursor}`}`;
+        const page = await read(path, CITATION_PAGE);
+        all.push(...page.data);
+        cursor = page.page.next_cursor;
+      } while (cursor !== null);
+      return all;
+    };
+    const rows = await readAll();
+    expect(await readAll()).toEqual(rows);
+    // Totals as before: one row for each listed source, the units of the aggregates
+    expect(rows).toHaveLength(581);
+    expect((await read(`${FYNIX}/sources/domains`, DOMAIN_PAGE)).meta.citation_units).toBe(569);
+    const quoted = rows.filter((row) => row.quote !== null && row.quote !== undefined);
+    expect(quoted.length / rows.length).toBeGreaterThan(0.2);
+    expect(quoted.length).toBeLessThan(rows.length);
+    expect(quoted.every((row) => (row.quote ?? '').length > 0 && (row.quote ?? '').length <= 1000)).toBe(true);
+    // The engine that quotes nothing in these fixtures gives null, as the real API does for ChatGPT
+    expect(rows.filter((row) => row.engine_code === 'chatgpt_web').every((row) => row.quote === null)).toBe(true);
   });
 
   it('the mock lists no more than 3 engines and keeps their order', async () => {

@@ -10,6 +10,7 @@ import { answerRows, type AnswerRow } from './answer-rows';
 import type { SourceCitationsRead } from './source-reads';
 import { usePromptTexts } from '../domain-inspector/domain-reads';
 import { EngineBadge } from '@/components/app/engine/engine-badge';
+import { QuotedPassage } from '@/components/app/evidence/quoted-passage';
 import { InspectorSection, type InspectorSectionStatus } from '@/components/app/inspector/inspector-section';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { InlineError } from '@/components/app/status/inline-error';
@@ -103,10 +104,14 @@ export function SourceAnswersTab({
       header: t('answerDate'),
       wrap: true,
       cell: (row) => (
-        <span className="flex flex-col">
-          <time dateTime={row.observedAt}>{formatTableDateTime(row.observedAt, timeZone)}</time>
-          <span className="type-meta text-foreground-tertiary">{t('answerPosition', { index: row.position })}</span>
-        </span>
+        <div className="flex min-w-56 flex-col gap-2">
+          <span className="flex flex-col">
+            <time dateTime={row.observedAt}>{formatTableDateTime(row.observedAt, timeZone)}</time>
+            <span className="type-meta text-foreground-tertiary">{t('answerPosition', { index: row.position })}</span>
+          </span>
+          {/* A null or empty quote draws nothing (QuotedPassage returns null), so there is no gap and no empty box */}
+          <QuotedPassage items={[{ index: row.position, host: row.host, url: row.url, quote: row.quote }]} />
+        </div>
       ),
     },
     {

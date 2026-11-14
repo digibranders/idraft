@@ -911,6 +911,8 @@ export function citationRowsOf(
               domain_role: citation.domain_role,
               role_entity_id: citation.role_entity_id,
               occurrences: citation.occurrences,
+              // The answer fixtures already give Gemini's passages and null for the engines that quote none
+              quote: citation.quote ?? null,
             },
           ];
     }),

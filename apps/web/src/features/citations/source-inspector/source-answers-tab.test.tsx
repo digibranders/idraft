@@ -216,6 +216,54 @@ describe('the Answers tab of the source inspector', () => {
     expect(document.querySelector('b')).toBeNull();
   });
 
+  it('shows the passage the engine quoted from the page in the quoted passage list, with its host', async () => {
+    renderWithProviders(
+      <Tab citations={readOf('ready', pageOf([rowOf(1001, { quote: 'G2 compares the top CRM tools.' })]))} />,
+    );
+    const [first] = await bodyRows();
+    const list = within(first as HTMLElement).getByRole('list', {
+      name: 'Passages the engine quoted from its sources',
+    });
+    expect(list).toHaveTextContent('“G2 compares the top CRM tools.”');
+    expect(list).toHaveTextContent('g2.com');
+  });
+
+  it('uses the quote of the listing the row uses when an answer lists the page twice', async () => {
+    renderWithProviders(
+      <Tab
+        citations={readOf(
+          'ready',
+          pageOf([
+            rowOf(1001, { citation_index: 6, quote: 'Late listing' }),
+            rowOf(1001, { citation_index: 2, quote: 'First listing' }),
+          ]),
+        )}
+      />,
+    );
+    const [first] = await bodyRows();
+    expect(first).toHaveTextContent('“First listing”');
+    expect(first).not.toHaveTextContent('Late listing');
+  });
+
+  it.each([
+    ['null', null],
+    ['an empty string', ''],
+  ])('draws no section and no box for a quote that is %s', async (_name, quote) => {
+    renderWithProviders(<Tab citations={readOf('ready', pageOf([rowOf(1001, { quote })]))} />);
+    const [first] = await bodyRows();
+    expect(within(first as HTMLElement).queryByRole('list')).toBeNull();
+    expect((await table()).querySelector('blockquote, [data-slot="quoted-passage"]')).toBeNull();
+  });
+
+  it('shows a quote that is markup as text, never as an element', async () => {
+    renderWithProviders(
+      <Tab citations={readOf('ready', pageOf([rowOf(1001, { quote: '<img src=x onerror=alert(1)>' })]))} />,
+    );
+    const [first] = await bodyRows();
+    expect(first).toHaveTextContent('“<img src=x onerror=alert(1)>”');
+    expect(document.querySelector('img')).toBeNull();
+  });
+
   it('reads nothing of its own from the citations route: the rows are the inspector read', async () => {
     const asked = watchCitations();
     renderWithProviders(<Tab />);
