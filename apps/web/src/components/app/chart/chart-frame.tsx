@@ -447,6 +447,7 @@ function FrameShell({
           <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-0.5">
             <Title className={inspector ? 'type-subsection-title' : 'shrink-0 type-section-title'}>{title}</Title>
             <h3 className="sr-only">{empty.title}</h3>
+            {hasMeta ? <p className="max-w-full truncate type-meta text-foreground-secondary">{meta}</p> : null}
             <p className="max-w-full truncate type-meta text-foreground-secondary">{empty.reason || empty.title}</p>
           </div>
           {empty.action ? <div className="shrink-0">{empty.action}</div> : null}
