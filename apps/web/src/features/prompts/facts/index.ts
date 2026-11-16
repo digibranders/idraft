@@ -1,9 +1,3 @@
-export * from './types';
-export * from './position';
-export * from './sentiment';
-export * from './brands';
-export * from './links';
-export * from './volume';
-export * from './intent';
-export * from './recommended';
+// The pure facts live in `lib/prompt-facts` so the Overview can use them; this path keeps the Prompts imports as they were.
+export * from '@/lib/prompt-facts';
 export * from './use-prompt-facts';

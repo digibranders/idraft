@@ -3,18 +3,18 @@
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import { useCallback } from 'react';
 
-import type {
-  PromptsSummaryWithFacts,
-  PromptSummaryRowWithFacts,
-  TopicSummaryRowWithFacts,
-  TrackedEntity,
-} from './types';
 import type { DateRange } from '../prompt-model';
 import type { PromptScope, SummaryScope } from '../prompt-queries';
 import { apiQuery, type ApiQueryOptions } from '@/lib/api/query';
 import { compareParams } from '@/lib/compare/compare-model';
 import { publicEnv } from '@/lib/env/public';
 import type { paths } from '@/lib/api/schema';
+import type {
+  PromptsSummaryWithFacts,
+  PromptSummaryRowWithFacts,
+  TopicSummaryRowWithFacts,
+  TrackedEntity,
+} from '@/lib/prompt-facts';
 
 const SUMMARY = '/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/prompts-summary' as const;
 
