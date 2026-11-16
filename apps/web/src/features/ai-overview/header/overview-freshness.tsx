@@ -24,7 +24,8 @@ function useFreshness(): ReactNode {
   const freshness = useOverviewFreshness();
   const now = useNow();
   if (engines.status === 'error' || (engines.status === 'ready' && enabledEngines.length === 0)) return null;
-  if (engines.status === 'loading' || freshness.status === 'loading') return <Skeleton shape="text-13" widthPct={48} />;
+  if (engines.status === 'loading' || freshness.status === 'loading')
+    return <Skeleton shape="text-13" className="w-36" />;
   const newest = freshness.data;
   if (newest === undefined) return null;
   const staleDays = staleDaysOf(newest.lastValidAt, now);

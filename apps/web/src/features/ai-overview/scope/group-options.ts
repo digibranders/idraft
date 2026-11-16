@@ -23,10 +23,12 @@ export function groupChoices(tree: readonly NamedTerm[], allLabel: string): Grou
 }
 
 /**
- * The choice a topic id stands for. A topic the tree does not hold (a link's topic while the trees load, or one that
- * was deleted) has no name to show yet, so it reads as All groups on the button and is kept in the address.
+ * The choice a topic id stands for. A topic the tree does not hold (deleted, or in a link from another project) is
+ * named `unknownLabel`, never by its id: the id says nothing to a person, and choosing All groups is one click away.
+ * While the trees are still loading the caller shows a placeholder instead and does not ask.
  */
-export function chosenGroup(choices: readonly GroupChoice[], termId: string | null): GroupChoice {
-  const all = choices[0] ?? { termId: null, label: '' };
-  return choices.find((choice) => choice.termId === termId) ?? all;
+export function chosenGroup(choices: readonly GroupChoice[], termId: string | null, unknownLabel: string): GroupChoice {
+  const found = choices.find((choice) => choice.termId === termId);
+  if (found !== undefined) return found;
+  return termId === null ? (choices[0] ?? { termId: null, label: '' }) : { termId, label: unknownLabel };
 }

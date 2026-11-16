@@ -34,10 +34,12 @@ describe('groupChoices', () => {
 describe('chosenGroup', () => {
   const choices = groupChoices(TREE, 'All groups');
   it('finds the topic of an id', () => {
-    expect(chosenGroup(choices, 'paid').label).toBe('Paid search');
+    expect(chosenGroup(choices, 'paid', 'Unknown group').label).toBe('Paid search');
   });
-  it('reads no id, and an id the tree does not hold, as All groups', () => {
-    expect(chosenGroup(choices, null).label).toBe('All groups');
-    expect(chosenGroup(choices, 'gone').label).toBe('All groups');
+  it('reads no id as All groups', () => {
+    expect(chosenGroup(choices, null, 'Unknown group').label).toBe('All groups');
+  });
+  it('names an id the tree does not hold neutrally, never by the id', () => {
+    expect(chosenGroup(choices, 'gone', 'Unknown group')).toEqual({ termId: 'gone', label: 'Unknown group' });
   });
 });

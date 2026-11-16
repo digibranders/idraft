@@ -31,10 +31,10 @@ import { formatList } from '@/lib/format';
 const PAGE_CONTROLS = '(width >= 48rem)';
 
 /**
- * The scope controls of the page (WP-33 plan section 3.2, the approved preview's filter bar): the comparison, the
- * engines, then the filter bar with Topic and Branded ("Branded: Excluded" is a chip from the default), and "Reset
- * filters" while any of them is not its default. The window and the country are scope the top bar owns and Reset
- * leaves them alone. From 768 px the top bar holds the window and the country; below it everything is behind one
+ * The scope controls of the page (preview commit 98e7d226): Platform, Group and Compare, each with its name before
+ * the value, then Reset scope (always in its place, invisible while the scope is the default), then the filter bar
+ * with Branded ("Branded: Excluded" is a chip from the default). The window and the location are scope the top bar
+ * owns and Reset leaves them alone. From 768 px the top bar holds the window and the country; below it everything is behind one
  * Filters button. The controls only write the scope; the numbers and the cards read it back.
  */
 export function ScopeBar(): ReactElement {
@@ -117,6 +117,7 @@ export function ScopeBar(): ReactElement {
       />
       <GroupSelect
         tree={tree}
+        pending={pending}
         selected={scope.topic}
         onChange={(topicId) => setScope({ topic: topicId })}
         className="w-full sm:w-60"

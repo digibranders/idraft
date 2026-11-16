@@ -4,6 +4,7 @@ import { useTranslations } from 'next-intl';
 import { useMemo, type ReactElement } from 'react';
 
 import { EngineMark } from '@/components/app/engine/engine-logo';
+import { cn } from '@/lib/utils';
 import { Select, type SelectOption } from '@/components/ui/select';
 
 /** A platform the project has on: the API's code and its name. */
@@ -63,7 +64,8 @@ export function PlatformSelect({ platforms, selected, onChange, className }: Pla
       placeholder={t('allPlatforms')}
       options={options}
       aria-label={t('platformLabel', { platform: current?.label ?? t('allPlatforms') })}
-      className={className}
+      triggerPrefix={<>{t('platform')}:</>}
+      className={cn('hover:bg-surface-hover data-popup-open:bg-surface-selected', className)}
     />
   );
 }

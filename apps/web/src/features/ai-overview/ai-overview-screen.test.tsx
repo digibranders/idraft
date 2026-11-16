@@ -91,12 +91,13 @@ describe('the AI visibility page of a project with platforms on', () => {
 
   it('keeps the scope toolbar under the top bar while the page scrolls, with the strip below it', async () => {
     renderWithProviders(overviewAs('admin'));
-    const toolbar = (await screen.findByRole('heading', { level: 1, name: 'AI visibility' })).parentElement;
-    expect(toolbar).toHaveAttribute('data-slot', 'page-toolbar');
+    const toolbar = await screen.findByRole('region', { name: 'Scope and actions' });
     expect(toolbar).toHaveClass('sticky', 'top-topbar');
+    // The scope controls are a named group of their own inside it
+    expect(await within(toolbar).findByRole('region', { name: 'Scope' })).toBeInTheDocument();
     const strip = await screen.findByRole('group', { name: /^AI visibility numbers for / });
-    expect(toolbar?.contains(strip)).toBe(false);
-    expect(toolbar?.compareDocumentPosition(strip)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(toolbar.contains(strip)).toBe(false);
+    expect(toolbar.compareDocumentPosition(strip) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
   });
 
   it('puts the freshness at the foot of the page where the toolbar has no room, and once', async () => {
@@ -362,7 +363,7 @@ describe('the numbers strip of the AI visibility page', () => {
       expect(valuesOf(screen.getByRole('group', { name: STRIP }))[1]).toHaveTextContent('Not asked');
     });
     await user.keyboard('{Escape}');
-    await user.click(await screen.findByRole('button', { name: 'vs previous period' }));
+    await user.click(await screen.findByRole('button', { name: 'Compare: vs previous period' }));
     await user.click(await screen.findByRole('menuitemradio', { name: 'No comparison' }));
     await waitFor(() => {
       expect(urls.at(-1)).toBe('?engine=gemini_web&cmp=off');
