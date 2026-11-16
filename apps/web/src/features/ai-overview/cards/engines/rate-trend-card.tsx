@@ -17,7 +17,7 @@ import { ChartFrame, type ChartEmpty } from '@/components/app/chart/chart-frame'
 import { useRateTipWords } from '@/components/app/chart/use-rate-tip-words';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import type { CardProps } from '@/features/layouts';
-import type { EngineCode, PromptSummaryRow } from '@/lib/api/types';
+import type { EngineCode } from '@/lib/api/types';
 import type { CategorySeries, CategoryValue } from '@/lib/charts/category-chart';
 import { rateBandOption, type RateBandPoint } from '@/lib/charts/rate-band-chart';
 import type { ChartTokens } from '@/lib/design/read-tokens';
@@ -180,11 +180,11 @@ export default function RateTrendCard({ item, live }: CardProps): ReactElement {
     trend === null
       ? 0
       : trend.weeks.filter((_, index) => trend.platforms.some((entry) => (entry.points[index]?.n ?? 0) > 0)).length;
-  const prompts: readonly PromptSummaryRow[] = currentData?.prompts ?? [];
+  const prompts = currentData?.prompts;
   const windowValues = useMemo(
     () =>
       data.asked.flatMap((code) => {
-        const figure = visibilityOfPrompts(prompts, code);
+        const figure = visibilityOfPrompts(prompts ?? [], code);
         return figure.state === 'ok' && figure.value !== null
           ? [`${label(code)} ${formatPercent(figure.value, { decimals: 0 })}`]
           : [];

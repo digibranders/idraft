@@ -1,28 +1,23 @@
-import { expect, type Locator, type Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 
 import {
   RETRY,
-  addCard,
   applyTheme,
   awaitCardReady,
   cardById,
   cardGrid,
-  countDeltas,
   expectNoSidewaysScroll,
   installSummaryFault,
   openOverview,
   pageHeading,
-  saveLayout,
   setSummaryFault,
-  startCustomizing,
   tableButton,
 } from './ai-overview-competitors';
 import { EDITOR, THEMES, WIDTHS, type Theme } from './layouts';
 
 /**
- * What the e2e of the engines cards (WP-34, apps/web/e2e/flows/ai-overview-engines.spec.ts) shares: the twelve
- * titles of the family, the way through Customize to a saved layout that holds them, and one switch that holds the
- * prompts summary back so a test can measure the cards while they load. The page, the Customize helpers and the
+ * What the e2e of the engines cards (apps/web/e2e/flows/ai-overview-engines.spec.ts) shares: the two cards of the
+ * built-in layout, and one switch that holds the prompts summary back so a test can measure the cards while they load. The page, the Customize helpers and the
  * failing summary switch are WP-35's (./ai-overview-competitors.ts); `e2e/support.ts` is frozen.
  */
 export {
@@ -30,12 +25,10 @@ export {
   RETRY,
   THEMES,
   WIDTHS,
-  addCard,
   applyTheme,
   awaitCardReady,
   cardById,
   cardGrid,
-  countDeltas,
   expectNoSidewaysScroll,
   installSummaryFault,
   openOverview,
@@ -47,65 +40,19 @@ export type { Theme };
 
 /** The AI visibility screen of the Cleanstart mock project: every engine is off, so the page draws no grid. */
 export const CLEANSTART_PATH = '/digibranders/cleanstart/ai';
-/** What a card that no package has built yet says (`aiOverview.pending.title`). */
-export const NOT_BUILT = 'This card is not built yet';
 /** The title of a failed card (`aiOverview.engines.common.errorTitle`). */
 export const COULD_NOT_LOAD = /^Could not load /;
 
-/** The built-in layout's cards that belong to this family, by their ids (`SCREENS.ai_overview.builtin`). */
+/** The two cards of this family that the built-in layout holds, by their ids (`SCREENS.ai_overview.builtin`). */
 export const BUILTIN_FAMILY = {
-  changeSummary: 'change-summary',
   rateTrend: 'rate-trend',
   outcomeMix: 'outcome-mix',
 } as const;
 
-/** The headings of the three family cards the built-in layout holds. */
-export const BUILTIN_TITLES = ['What changed', 'Mention rate by platform', 'Named and cited, by platform'] as const;
+/** The headings of the two cards: the trend is titled by the Metric of the page, AI visibility until it is changed. */
+export const BUILTIN_TITLES = ['AI visibility rate over time', 'Answer outcomes'] as const;
 
-/**
- * The other nine cards of the family as the Add card dialog names them: the catalog titles
- * (`src/lib/layouts/catalog.ts`), which `addCard` clicks as `Add <title>`. Two of them differ from the heading the
- * card draws (the funnel says "..., by platform" in its heading), so a card is found by `ADDED_TITLES`, not by these.
- */
-export const ADDED_CATALOG_TITLES = [
-  'Mention rate trend',
-  'Prompt movers',
-  'This period vs the last',
-  'What moved the rate',
-  'AI by platform',
-  'From answer to citation',
-  'Answers behind the numbers',
-  'Platform agreement',
-  'By location',
-] as const;
-
-/** The same nine cards by the exact heading each draws (`aiOverview.engines.*.title`), in the order of the list above. */
-export const ADDED_TITLES = [
-  'Mention rate trend',
-  'Prompt movers',
-  'This period vs the last',
-  'What moved the rate',
-  'AI by platform',
-  'From answer to citation, by platform',
-  'Answers behind the numbers',
-  'Platform agreement',
-  'By location',
-] as const;
-
-/** All twelve headings of the family: the layout holds twelve cards at most, so these fill it. */
-export const FAMILY_TITLES = [...BUILTIN_TITLES, ...ADDED_TITLES] as const;
-
-/** The cards of the built-in layout that are not this family's: hidden to make room (the layout holds 12). */
-const OTHER_CARDS = [
-  'top-domains',
-  'topic-heatmap',
-  'share-of-voice-chatgpt',
-  'competitor-trend-chatgpt',
-  'key-changes',
-  'opportunities',
-] as const;
-
-/** A card by the exact text of its heading; several cards of the family share words, so a substring would not do. */
+/** A card by the exact text of its heading; several cards share words, so a substring would not do. */
 export const cardByHeading = (page: Page, title: string): Locator =>
   cardGrid(page)
     .locator(`[data-layout-card][data-card-title="${title}"]`)
@@ -117,39 +64,6 @@ export const cardByHeading = (page: Page, title: string): Locator =>
 
 /** Every card the grid holds, whichever its state. */
 export const allCards = (page: Page): Locator => cardGrid(page).locator('[data-layout-card]');
-
-/**
- * Hides the six cards of the built-in layout that are not this family's, one at a time. The Hide button is the
- * only one of a card's toolbar whose name starts with "Hide", and the card leaves the grid at once.
- */
-async function hideOtherCards(page: Page): Promise<void> {
-  for (const id of OTHER_CARDS) {
-    const before = await allCards(page).count();
-    await cardById(page, id)
-      .getByRole('button', { name: /^Hide / })
-      .click();
-    await expect(allCards(page)).toHaveCount(before - 1);
-  }
-}
-
-/**
- * Signed in as the editor: opens the screen, optionally hides the six other cards, adds the cards of `titles`
- * through the Add card slot and saves; `titles` are catalog titles (`ADDED_CATALOG_TITLES`), not card headings. The built-in layout has nine cards, so with the six hidden three are left and
- * nine more fit: twelve, the most a layout holds.
- */
-export async function saveEnginesLayout(
-  page: Page,
-  titles: readonly string[],
-  { hideOthers = true }: { hideOthers?: boolean } = {},
-): Promise<void> {
-  await openOverview(page);
-  await startCustomizing(page);
-  if (hideOthers) await hideOtherCards(page);
-  for (const title of titles) await addCard(page, title);
-  await saveLayout(page);
-  const kept = hideOthers ? BUILTIN_TITLES.length : OTHER_CARDS.length + BUILTIN_TITLES.length;
-  await expect(allCards(page)).toHaveCount(kept + titles.length);
-}
 
 /** Waits until every card of `titles` has stopped loading, whichever state it ended in. */
 export async function awaitTitlesReady(page: Page, titles: readonly string[]): Promise<void> {
