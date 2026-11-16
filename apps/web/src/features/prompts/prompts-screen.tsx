@@ -204,7 +204,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   // The market of the top bar: every country unless the address names one
   const country = parseCountry(view.country);
   // The period before: on unless the address says `cmp=off` (D-03). Scope like the country, so Clear filters leaves it
-  const { compare, setCompare } = useCompare();
+  const { compare, kind: compareKind, setCompare } = useCompare();
   // The range of every query of the page, from the picker's keys (`win`, `from`, `to`; `window` of older links).
   // `today` is a day of the project's zone, the one place the clock is read; it turns at that zone's midnight
   const today = useZoneDay(project.timeZone);
@@ -247,6 +247,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
       ...(country === null ? {} : { country }),
       include: factsRequested() ? SERIES_AND_FACTS : SERIES,
       compare,
+      compareKind,
     }),
     enabled: enabled.length > 0,
     placeholderData: keepPreviousData,

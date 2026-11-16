@@ -6,6 +6,7 @@ import { useMemo } from 'react';
 import { useRateWords } from '../rate-view';
 import { SENTENCE_BREAK } from '@/components/app/metric/delta';
 import type { RateChange, Side } from '@/lib/compare/change-model';
+import { useCompare } from './use-compare';
 import { formatPercent, formatPointsDelta } from '@/lib/format';
 import type { CellMetric } from '@/lib/rates/rate-model';
 import type { RateReading } from '@/lib/rates/strip-model';
@@ -59,10 +60,13 @@ export function useChangeWords(): ChangeWords {
   const shell = useTranslations('prompts.shell.columns');
   const delta = useTranslations('common.delta');
   const words = useRateWords();
+  // What the comparison is with, which the words about the compared window name
+  const { mode } = useCompare();
   return useMemo(() => {
     /** How far the rate moved, from and to: "Up 3.5 pts against the previous period, from 30% to 27%". */
     const move = (change: RateChange): string =>
       shell(change.points === 0 ? 'moveFlat' : change.points > 0 ? 'moveUp' : 'moveDown', {
+        kind: mode,
         points: formatPointsDelta(Math.abs(change.points), { decimals: 1 }).replace(/^\+/, ''),
         before: formatPercent(change.before.value, { decimals: 0 }),
         now: formatPercent(change.now.value, { decimals: 0 }),
@@ -104,7 +108,9 @@ export function useChangeWords(): ChangeWords {
           : label(change),
       );
       if (range !== null) {
-        sentences.push(kind === 'strip' ? t('strip.previousLabel', { range }) : t('windowTip', { range }));
+        sentences.push(
+          kind === 'strip' ? t('strip.previousLabel', { kind: mode, range }) : t('windowTip', { kind: mode, range }),
+        );
       }
       if (metric === 'share_of_voice') {
         sentences.push(t('change.shareNoTest'));
@@ -120,10 +126,10 @@ export function useChangeWords(): ChangeWords {
       return sentences.join(SENTENCE_BREAK);
     };
     const gaps: Record<ChangeGap, string> = {
-      noPrevious: t('change.noPrevious'),
+      noPrevious: t('change.noPrevious', { kind: mode }),
       tooFew: t('change.tooFew'),
       noEngineInBoth: t('change.noEngineInBoth'),
     };
     return { tip, label, gap: (reason) => gaps[reason] };
-  }, [t, shell, delta, words]);
+  }, [t, shell, delta, words, mode]);
 }

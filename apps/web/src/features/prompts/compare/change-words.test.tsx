@@ -43,6 +43,20 @@ describe('useChangeWords', () => {
     expect(tip).toContain('Provisional');
   });
 
+  it('names the same period last year, not the previous period, when the comparison is a year back', () => {
+    const { unmount } = renderWithProviders(
+      <Words change={engine(DETECTABLE)} options={{ kind: 'engine', range: RANGE, move: true }} />,
+      { searchParams: '?cmp=year' },
+    );
+    const tip = screen.getByTestId('tip').textContent ?? '';
+    expect(tip).toContain('Up 30.0 pts against the same period last year, from 20% to 50%');
+    expect(tip).toContain(`Same period last year: ${RANGE}`);
+    expect(tip).not.toContain('previous period');
+    unmount();
+    const strip = tipOf(engine(DETECTABLE), { kind: 'strip', range: RANGE });
+    expect(strip.tip).toContain(`Previous period: ${RANGE}`);
+  });
+
   it('says a change within normal variation is, and not that it is detectable', () => {
     const { tip } = tipOf(engine(WITHIN), { kind: 'engine', range: RANGE });
     expect(tip).toContain('Within normal variation');

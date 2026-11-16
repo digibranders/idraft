@@ -3,6 +3,7 @@
 import { useTranslations } from 'next-intl';
 import type { ReactElement, ReactNode } from 'react';
 
+import { useCompare } from './use-compare';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { Button } from '@/components/ui/button';
 
@@ -35,12 +36,13 @@ export function DetectableEmpty({
 }: DetectableEmptyProps): ReactElement {
   const t = useTranslations('prompts.compare.empty');
   const root = useTranslations('prompts');
+  const { mode } = useCompare();
   const reason = !compare
     ? t('offReason')
     : compared > 0
-      ? t('noneReason', { count: compared })
+      ? t('noneReason', { count: compared, kind: mode })
       : previousAnswers === 0
-        ? t('noPreviousReason')
+        ? t('noPreviousReason', { kind: mode })
         : t('tooFewReason');
   return (
     <EmptyState

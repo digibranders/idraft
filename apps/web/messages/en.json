@@ -4680,8 +4680,9 @@
     "compare": {
       "label": "Compare with",
       "previous": "vs previous period",
+      "year": "vs same period last year",
       "off": "No comparison",
-      "windowTip": "Previous period: {range}",
+      "windowTip": "{kind, select, year {Same period last year: {range}} other {Previous period: {range}}}",
       "offTip": "No change is read while comparison is off",
       "detectable": {
         "field": "Show",
@@ -4690,17 +4691,17 @@
       },
       "empty": {
         "noneTitle": "No detectable change in these rows",
-        "noneReason": "{count, plural, one {# row was} other {# rows were}} compared with the previous period and none changed by more than normal variation.",
+        "noneReason": "{count, plural, one {# row was} other {# rows were}} compared with {kind, select, year {the same period last year} other {the previous period}} and none changed by more than normal variation.",
         "offTitle": "No comparison to read changes from",
         "offReason": "Comparison is off, so no change can be detected. Turn it on or clear the filter.",
-        "noPreviousReason": "The previous period has no answers, so no change can be told.",
+        "noPreviousReason": "{kind, select, year {The same period last year has no answers, so no change can be told.} other {The previous period has no answers, so no change can be told.}}",
         "tooFewReason": "No row has enough answers in both periods to tell a change.",
         "turnOn": "Compare with previous period"
       },
       "change": {
         "engineHeader": "{engine} change",
         "off": "Comparison is off",
-        "noPrevious": "No answers in the previous period",
+        "noPrevious": "No answers in {kind, select, year {the same period last year} other {the previous period}}",
         "tooFew": "Too few answers in one of the periods for a rate",
         "shareNoTest": "No test exists for share of voice, so its change is not coloured",
         "untested": "This change is not tested because the platform rates and the pooled answers move in different directions, so it is not coloured",
@@ -4718,7 +4719,7 @@
         "detail": "{average}. {change}"
       },
       "strip": {
-        "previousLabel": "Previous period: {range}",
+        "previousLabel": "{kind, select, year {Same period last year: {range}} other {Previous period: {range}}}",
         "tip": "{tip} {change}"
       }
     },
@@ -4819,9 +4820,9 @@
       },
       "columns": {
         "mentionChangeTip": "The icon is the change against the comparison period: green or red only when it is a detectable change, grey when it is within normal variation. The figures are in the cell's tooltip",
-        "moveUp": "Up {points} against the previous period, from {before} to {now}",
-        "moveDown": "Down {points} against the previous period, from {before} to {now}",
-        "moveFlat": "No change against the previous period, at {now}",
+        "moveUp": "Up {points} against {kind, select, year {the same period last year} other {the previous period}}, from {before} to {now}",
+        "moveDown": "Down {points} against {kind, select, year {the same period last year} other {the previous period}}, from {before} to {now}",
+        "moveFlat": "No change against {kind, select, year {the same period last year} other {the previous period}}, at {now}",
         "weeklyRates": "Weekly rates: {rates}",
         "locationTip": "The location the prompt is asked for"
       }
