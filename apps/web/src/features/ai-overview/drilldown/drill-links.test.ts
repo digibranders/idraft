@@ -225,6 +225,21 @@ describe('engine numbers', () => {
   });
 });
 
+describe('a link that sorts by a platform rate names the columns that make the sort apply', () => {
+  it('writes cols with the tab columns and the platform rate, Location only while no location is chosen', () => {
+    const none = queryOf(drillHref('prompts', scopeOf(), { engine: 'chatgpt_web' }, PROJECT));
+    expect(none.get('sort')).toBe('-chatgpt_web_rate');
+    expect(none.get('cols')).toBe('topic,country,mention,citation,chatgpt_web_rate');
+    const located = queryOf(drillHref('prompts', scopeOf({ country: 'DE' }), { engine: 'chatgpt_web' }, PROJECT));
+    expect(located.get('cols')).toBe('topic,mention,citation,chatgpt_web_rate');
+  });
+
+  it('writes no cols for a link with no platform sort, or for the Topics tab', () => {
+    expect(queryOf(drillHref('prompts', scopeOf(), {}, PROJECT)).get('cols')).toBeNull();
+    expect(queryOf(drillHref('topic', scopeOf(), { engine: 'chatgpt_web' }, PROJECT)).get('cols')).toBeNull();
+  });
+});
+
 describe('the topic drawer', () => {
   it('is inspect=topic:<term> on the Prompts page, with the scope beside it', () => {
     const href = drillHref('topicDrawer', scopeOf({ country: 'DE' }), { term: TOPIC }, PROJECT);

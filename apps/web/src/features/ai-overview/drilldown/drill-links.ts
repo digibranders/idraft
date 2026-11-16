@@ -117,6 +117,18 @@ const promptTarget = (id: string | undefined): InspectorTarget | null =>
 const engineRateSort = (engineCode: string): string => `${engineCode}_rate`;
 
 /**
+ * The columns the Prompts tab shows when a link sorts by a platform's rate. That column waits in the column chooser by
+ * default, and the page applies a sort only to a column that is on screen, so the link names the columns it needs: the
+ * ones the tab opens with (Group, Location while the top bar has no location, Mention rate and Citation rate) and the
+ * platform's rate. The Prompt column is always there. Written out in `cols` as the page parses it (`parseColumns`).
+ */
+function promptColumnsFor(engineCode: string, country: string | null): string {
+  return ['topic', ...(country === null ? ['country'] : []), 'mention', 'citation', engineRateSort(engineCode)].join(
+    ',',
+  );
+}
+
+/**
  * The link for `kind` with the scope of the Overview carried, or `null` where there is no page to go to or the
  * page cannot show this scope. Nothing here throws: a window or a term that does not read is written as it is
  * and the page falls back to its own default.
@@ -171,7 +183,10 @@ export function drillHref(
   put('branded', branded);
   if (kind === 'prompts') {
     put('tab', 'prompts');
-    if (extra.engine !== undefined) put('sort', formatSort([{ id: engineRateSort(extra.engine), desc: true }]));
+    if (extra.engine !== undefined) {
+      put('sort', formatSort([{ id: engineRateSort(extra.engine), desc: true }]));
+      put('cols', promptColumnsFor(extra.engine, scope.country));
+    }
     if (extra.metric !== undefined && extra.metric !== 'mention') put('metric', extra.metric);
   }
   if (target !== null) put('inspect', formatInspectTarget(target));

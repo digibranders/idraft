@@ -349,6 +349,8 @@ test.describe('the AI visibility Overview', () => {
         topic,
         engine: 'chatgpt_web',
         sort: '-chatgpt_web_rate',
+        // The platform's rate column waits in the chooser, so the link names the columns that make its sort apply
+        cols: 'topic,country,mention,citation,chatgpt_web_rate',
       });
       // An engine that is off in the project has no page to lead to: its number is plain text
       expect((await numberOf(page, 'Mention rate AI Mode')).href).toBeNull();
