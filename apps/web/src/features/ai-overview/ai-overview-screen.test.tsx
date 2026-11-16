@@ -89,14 +89,14 @@ describe('the AI visibility page of a project with platforms on', () => {
     expect(screen.queryByText('Customizing')).not.toBeInTheDocument();
   });
 
-  it('keeps the scope toolbar under the top bar while the page scrolls, with the strip above it', async () => {
+  it('keeps the scope toolbar under the top bar while the page scrolls, with the strip below it', async () => {
     renderWithProviders(overviewAs('admin'));
     const toolbar = (await screen.findByRole('heading', { level: 1, name: 'AI visibility' })).parentElement;
     expect(toolbar).toHaveAttribute('data-slot', 'page-toolbar');
     expect(toolbar).toHaveClass('sticky', 'top-topbar');
     const strip = await screen.findByRole('group', { name: /^AI visibility numbers for / });
     expect(toolbar?.contains(strip)).toBe(false);
-    expect(strip.compareDocumentPosition(toolbar as Node) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+    expect(toolbar?.compareDocumentPosition(strip)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   });
 
   it('puts the freshness at the foot of the page where the toolbar has no room, and once', async () => {

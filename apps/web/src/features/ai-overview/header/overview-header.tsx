@@ -28,7 +28,7 @@ export interface OverviewHeaderProps {
 
 /**
  * The toolbar of the AI Overview page: one sticky row with the scope filters, the freshness text, the Customize toggle,
- * Export and More actions. The setup checklist and the numbers strip are above it and scroll away.
+ * Export and More actions. The setup checklist and the numbers strip follow it and scroll under it.
  */
 export function OverviewHeader({ stats, filters, noticeChip, setupSlot }: OverviewHeaderProps = {}): ReactElement {
   const t = useTranslations('aiOverview');
@@ -52,15 +52,6 @@ export function OverviewHeader({ stats, filters, noticeChip, setupSlot }: Overvi
 
   return (
     <>
-      {setupSlot}
-      {stats === undefined || stats === null ? null : (
-        <div
-          className="scrollbar-none flex h-control-sm max-w-full min-w-0 items-center overflow-x-auto"
-          style={{ contain: 'paint' }}
-        >
-          {stats}
-        </div>
-      )}
       <PageToolbar
         title={t('title')}
         filters={filters}
@@ -97,6 +88,15 @@ export function OverviewHeader({ stats, filters, noticeChip, setupSlot }: Overvi
           </>
         }
       />
+      {setupSlot}
+      {stats === undefined || stats === null ? null : (
+        <div
+          className="scrollbar-none flex h-control-sm max-w-full min-w-0 items-center overflow-x-auto"
+          style={{ contain: 'paint' }}
+        >
+          {stats}
+        </div>
+      )}
     </>
   );
 }
