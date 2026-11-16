@@ -28,7 +28,8 @@ export const state = {
   type: [],
   detectable: false,
   metric: 'mention',
-  compare: true,
+  // The default view shows no comparison: a change in points and the trend line appear when the person compares
+  compare: false,
   archived: new Set(),
   // The Prompts tab: its table search, sort, page, selection and columns
   search: '',

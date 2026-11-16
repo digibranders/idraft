@@ -8,7 +8,7 @@ import { formatSampleCount } from './vendor/format/number.js';
 import { MIN_OBSERVATIONS, pooledCounts } from './vendor/stats/index.js';
 import { NOT_CLASSIFIED, TYPE_LABEL, absenceOf, averageFor, changeFor, countsOf, engineOf, measures, rateFor, trendOf, updatedOf } from './prompts-data.js';
 import { NEUTRAL_BADGE, NEUTRAL_BADGE_LOOK, checkbox, el, insufficient, percent0, plural } from './prompts-parts.js';
-import { deltaNode, scopeCodes } from './prompts-state.js';
+import { deltaNode, scopeCodes, state } from './prompts-state.js';
 
 const { $, icon, engineLogo } = window.PreviewUI;
 
@@ -18,9 +18,10 @@ export const CELL = 'border-b border-border-subtle px-3';
 /**
  * MetricCell in Compact density, the default (12 section 6): the rate and its change beside it on one line, so the row
  * stays 32 px; the sample ("612 of 1,296 obs") and which engines an average covers are in the tooltip. Left aligned
- * like every table column. `value` null renders InsufficientData with `gap.text` and `gap.tip`.
+ * like every table column. `value` null renders InsufficientData with `gap.text` and `gap.tip`. The change and the
+ * `trend` (the weekly rates of the window) are comparison: they show only when the person chose to compare.
  */
-export function rateCell({ value, change, sample, tip, gap }) {
+export function rateCell({ value, change, trend, sample, tip, gap }) {
   const cell = el('td', CELL);
   if (value === null) {
     const pill = insufficient(gap.text);
@@ -28,12 +29,21 @@ export function rateCell({ value, change, sample, tip, gap }) {
     cell.append(pill);
     return cell;
   }
+  const spark = state.compare ? sparkCanvas(trend) : null;
   const line = el('span', 'inline-flex items-baseline gap-1 whitespace-nowrap');
-  line.append(el('span', 'num', percent0(value)));
+  // With a trend line the value and the change get a fixed room, so the lines of every row start at the same place
+  line.append(el('span', `num${spark ? ' min-w-7' : ''}`, percent0(value)));
   const delta = deltaNode(change, 1);
   if (delta) {
     delta.classList.add('type-meta');
+    if (spark) delta.classList.add('min-w-16');
     line.append(delta);
+  } else if (spark) {
+    line.append(el('span', 'min-w-16', ''));
+  }
+  if (spark) {
+    spark.classList.add('ml-1');
+    line.append(spark);
   }
   cell.append(line);
   cell.dataset.tip = tip ? `${sample}. ${tip}` : sample;
@@ -65,6 +75,7 @@ export function promptRateCell(prompt, metric, withChange) {
   return rateCell({
     value,
     change: withChange ? changeFor(prompt, scope, metric) : null,
+    trend: withChange ? trendOf(prompt, scope) : null,
     sample: `${formatSampleCount(pooled.k, pooled.n)} ${metric === 'sov' ? 'mentions' : 'obs'}`,
     tip: used === 1 ? `${names} only` : `Equal-weight average of ${names}`,
     gap: {
@@ -74,24 +85,17 @@ export function promptRateCell(prompt, metric, withChange) {
   });
 }
 
-/** A sparkline of weekly rates (0 to 1). Null points are gaps. An empty series renders "n/a". */
-export function sparkCell(points, className) {
-  const cell = el('td', `${className} ${CELL}`);
-  if (points.length === 0) {
-    cell.append(el('span', 'text-foreground-tertiary', 'n/a'));
-    return cell;
-  }
-  const canvas = el('canvas');
+/** A sparkline of weekly rates (0 to 1). Null points are gaps. Null when there is no point to draw. */
+function sparkCanvas(points) {
+  if (!points || points.every((point) => point === null)) return null;
+  const canvas = el('canvas', 'shrink-0 self-center');
   canvas.dataset.spark = points.map((point) => (point === null ? '' : Math.round(point * 100))).join(',');
   canvas.dataset.kind = 'rate';
   canvas.setAttribute('role', 'img');
   const latest = points.at(-1);
-  canvas.setAttribute('aria-label', `Mention rate over 8 weeks${latest === null ? '' : `, now ${percent0(latest)}`}`);
-  cell.append(canvas);
-  return cell;
+  canvas.setAttribute('aria-label', `Mention rate over ${points.length} weeks${latest === null ? '' : `, now ${percent0(latest)}`}`);
+  return canvas;
 }
-
-export const promptTrendCell = (prompt, className) => sparkCell(trendOf(prompt, scopeCodes()), className);
 
 export function updatedCell(updated, className, stale = false) {
   const cell = el('td', `${className} ${CELL} whitespace-nowrap text-foreground-tertiary`);
