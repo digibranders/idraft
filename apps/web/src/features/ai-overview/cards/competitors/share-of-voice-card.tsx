@@ -136,6 +136,7 @@ export default function ShareOfVoiceCard({ item, options, live }: CardProps): Re
   return (
     <ChartFrame
       kind="html"
+      keepHeaderWhenEmpty
       variant="panel"
       height={240}
       loadingHeight={LOADING_HEIGHT}

@@ -336,6 +336,7 @@ export default function RateTrendCard({ item, live }: CardProps): ReactElement {
   return (
     <ChartFrame
       kind="line"
+      keepHeaderWhenEmpty
       variant="panel"
       title={title}
       meta={meta}

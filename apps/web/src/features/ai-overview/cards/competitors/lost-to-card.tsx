@@ -124,6 +124,7 @@ export default function LostToCard({ item, options, live }: CardProps): ReactEle
   return (
     <ChartFrame
       kind="html"
+      keepHeaderWhenEmpty
       variant="panel"
       height={240}
       loadingHeight={LOADING_HEIGHT}

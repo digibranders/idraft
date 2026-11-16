@@ -112,6 +112,12 @@ interface ChartFrameCommon {
   loadingHeight?: number | undefined;
   /** What the chart shows, in one or two sentences, for people who cannot see it. */
   summary: string;
+  /**
+   * An empty state keeps the card's normal header (title, controls, info button) and says its reason in the body, at
+   * the height the card reserves, instead of the compact one-line state. For a card whose controls and place on the
+   * page must not change when it has nothing to draw (the AI visibility Overview). Default: the compact state.
+   */
+  keepHeaderWhenEmpty?: boolean | undefined;
 }
 
 type ChartFrameState =
@@ -415,7 +421,19 @@ function FrameShell({
   children,
 }: FrameShellProps): ReactElement {
   const t = useTranslations('chart');
-  const { title, variant, meta, notice, footnote, info, controls, height, loadingHeight, summary } = common;
+  const {
+    title,
+    variant,
+    meta,
+    notice,
+    footnote,
+    info,
+    controls,
+    height,
+    loadingHeight,
+    summary,
+    keepHeaderWhenEmpty,
+  } = common;
   const { status } = state;
   // "Updating" appears when a refetch has run for 400 ms (the table's rule)
   const [showUpdating, setShowUpdating] = useState(false);
@@ -439,7 +457,7 @@ function FrameShell({
   const inspector = variant === 'inspector';
   const Title = inspector ? 'h3' : 'h2';
 
-  if (status === 'empty') {
+  if (status === 'empty' && keepHeaderWhenEmpty !== true) {
     const { empty } = state;
     return (
       <section

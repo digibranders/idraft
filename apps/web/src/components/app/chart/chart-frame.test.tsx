@@ -351,6 +351,27 @@ describe('ChartFrame states', () => {
     expect(container.querySelector('section')).toHaveClass('py-3');
   });
 
+  it('keeps the normal header, its controls and its reserved height when empty if the card asks for it', () => {
+    const { container } = renderWithProviders(
+      <ChartFrame
+        {...HTML_BASE}
+        keepHeaderWhenEmpty
+        controls={<button type="button">Mention</button>}
+        status="empty"
+        empty={{ title: 'Not collected yet', reason: 'Weekly visibility is not collected yet.' }}
+      />,
+    );
+    expect(screen.getByRole('heading', { level: 2, name: 'Mention rate by engine' })).toBeInTheDocument();
+    // The controls stay in the header row, before the body, and the reason is in the body at the reserved height
+    const controls = screen.getByRole('button', { name: 'Mention' });
+    const body = container.querySelector('[data-slot="chart-state"]') as HTMLElement;
+    expect(controls.compareDocumentPosition(body) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(body).toHaveStyle({ minHeight: '180px' });
+    expect(within(body).getByText('Weekly visibility is not collected yet.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Table' })).toBeNull();
+    expect(container.querySelector('section')).not.toHaveClass('py-3');
+  });
+
   it('replaces the chart with the error and its retry, which shows it is running', async () => {
     const onRetry = vi.fn();
     const error = {

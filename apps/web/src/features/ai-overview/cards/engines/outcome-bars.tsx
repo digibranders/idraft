@@ -3,17 +3,12 @@
 import type { ReactElement, ReactNode } from 'react';
 
 import { Tooltip } from '@/components/ui/tooltip';
-import { cn } from '@/lib/utils';
 
-/** The fill of each outcome, by its token: the sequential tokens `seq-6`, `seq-4`, `seq-3` and the neutral one. */
+/** The tokens of the outcomes: the sequential tokens `seq-6`, `seq-4`, `seq-3` and the neutral one. */
 export type OutcomeToken = 'seq-6' | 'seq-4' | 'seq-3' | 'chart-bar-neutral';
 
-const FILL: Readonly<Record<OutcomeToken, string>> = {
-  'seq-6': cn('bg-seq-6'),
-  'seq-4': cn('bg-seq-4'),
-  'seq-3': cn('bg-seq-3'),
-  'chart-bar-neutral': cn('bg-chart-bar-neutral'),
-};
+/** The fill of each outcome as its custom property: the token is the only place the colour is named. */
+const fillOf = (token: OutcomeToken): { backgroundColor: string } => ({ backgroundColor: `var(--${token})` });
 
 export interface OutcomeSegment {
   id: string;
@@ -57,7 +52,7 @@ export function OutcomeBars({ segments, rows, caption }: OutcomeBarsProps): Reac
       <ul aria-label={caption} className="flex flex-wrap gap-x-4 gap-y-1">
         {segments.map((segment) => (
           <li key={segment.id} className="inline-flex items-center gap-1.5 type-meta">
-            <span aria-hidden="true" className={cn('size-2 shrink-0 rounded-2xs', FILL[segment.token])} />
+            <span aria-hidden="true" className="size-2 shrink-0 rounded-2xs" style={fillOf(segment.token)} />
             {segment.name}
           </li>
         ))}
@@ -86,8 +81,8 @@ export function OutcomeBars({ segments, rows, caption }: OutcomeBarsProps): Reac
                   <div
                     aria-hidden="true"
                     data-slot="outcome-segment"
-                    className={cn('h-full min-w-0', FILL[segment.token])}
-                    style={{ width: `${String(entry.share * 100)}%` }}
+                    className="h-full min-w-0"
+                    style={{ ...fillOf(segment.token), width: `${String(entry.share * 100)}%` }}
                   />
                 </Tooltip>
               );
@@ -96,7 +91,7 @@ export function OutcomeBars({ segments, rows, caption }: OutcomeBarsProps): Reac
           <div className="flex flex-wrap gap-x-3 gap-y-0.5 num type-table text-foreground-secondary">
             {segments.map((segment, index) => (
               <span key={segment.id} title={segment.name} className="inline-flex items-center gap-1">
-                <span aria-hidden="true" className={cn('size-1.5 rounded-full', FILL[segment.token])} />
+                <span aria-hidden="true" className="size-1.5 rounded-full" style={fillOf(segment.token)} />
                 {row.shares[index]?.shareText}
               </span>
             ))}

@@ -162,6 +162,7 @@ export default function OutcomeMixCard({ item, live }: CardProps): ReactElement 
   return (
     <ChartFrame
       kind="html"
+      keepHeaderWhenEmpty
       variant="panel"
       title={title}
       meta={single === null ? t('metaAll') : nameOf(single)}

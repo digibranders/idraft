@@ -313,6 +313,7 @@ export default function SovOverTimeCard({ item, live }: CardProps): ReactElement
   return (
     <ChartFrame
       kind="line"
+      keepHeaderWhenEmpty
       variant="panel"
       title={t('title')}
       meta={ready === null ? null : average ? t('metaAverage', { count: used }) : t('metaOne')}
