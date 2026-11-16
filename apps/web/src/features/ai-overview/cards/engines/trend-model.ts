@@ -272,7 +272,7 @@ export interface TrendWords {
   partial: string;
 }
 
-function tipOf(point: TrendPoint, metric: TrendMetric, words: TrendWords): string {
+export function tipOf(point: TrendPoint, metric: WeekMetric, words: TrendWords): string {
   const { value, k, n, prompts, band, thin, pooledWeeks } = point;
   const pooled = pooledWeeks ?? undefined;
   const text =

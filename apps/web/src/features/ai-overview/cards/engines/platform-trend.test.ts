@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { buildPlatformTrend, weekMetricOf } from './platform-trend';
 import { at, cell, engine, share, summaryOf, week } from '../competitors/model/summary-fixtures';
-import type { MetricCell, PromptsSummary, WeekCells } from '@/lib/api/types';
+import type { EngineCode, MetricCell, PromptsSummary, WeekCells } from '@/lib/api/types';
 
 const CURRENT = { from: '2026-10-19', to: '2026-11-15' };
 const PREVIOUS = { from: '2026-09-21', to: '2026-10-18' };
@@ -19,7 +19,7 @@ const summaryOfSeries = (series: Record<string, WeekCells[]>): PromptsSummary =>
 const input = (current: PromptsSummary, over: Partial<Parameters<typeof buildPlatformTrend>[0]> = {}) => ({
   current,
   previous: null,
-  codes: ['chatgpt_web', 'gemini_web'],
+  codes: ['chatgpt_web', 'gemini_web'] as EngineCode[],
   metric: 'mention' as const,
   range: CURRENT,
   previousRange: PREVIOUS,
