@@ -2,7 +2,7 @@ import type { Route } from 'next';
 import { describe, expect, it } from 'vitest';
 
 import type { EngineValue } from './engine-values';
-import { groupName, heatFileName, heatRows, showsAverage, type HeatLinks, type HeatWords } from './heatmap-model';
+import { heatFileName, heatRows, showsAverage, type HeatLinks, type HeatWords } from './heatmap-model';
 import { engineCells, topicRow } from './topic-card-test-kit';
 import { buildTopicNodes, topicDescendants } from './topic-nodes';
 import { term } from '@/features/prompts/topics-by-engine/cells-fixtures';
@@ -188,9 +188,7 @@ describe('the answers', () => {
 
 describe('names', () => {
   it('name a group by its path and the file by the measure', () => {
-    expect(groupName({ path: ['SEO', 'Technical SEO'] } as Parameters<typeof groupName>[0])).toBe(
-      'SEO / Technical SEO',
-    );
+    expect(model(TOPICS).rows[0]?.name).toBe('SEO / Technical SEO');
     expect(heatFileName('sov')).toBe('group-heat-map-sov');
   });
 });

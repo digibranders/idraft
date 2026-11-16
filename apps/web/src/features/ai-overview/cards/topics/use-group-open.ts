@@ -1,18 +1,41 @@
 'use client';
 
 import type { Route } from 'next';
-import { useSearchParams } from 'next/navigation';
 import { useCallback, useMemo, type MouseEvent } from 'react';
 
 import { rememberDrill } from './group-drill';
 import type { HeatLinks } from './heatmap-model';
 import { useOverview } from '../../overview-context';
-import { singlePlatform } from '../../scope/scope-model';
+import { DEFAULT_METRIC, singlePlatform, type OverviewScope } from '../../scope/scope-model';
+import { writeRangeParams } from '@/components/app/date-range/range-model';
+import { cmpParam } from '@/lib/compare/compare-model';
 import { projectPath, withQuery } from '@/lib/routes/paths';
 
 /** The keys of the Overview's address that a group and a platform are written to (`use-overview-scope.ts`). */
 const TOPIC_KEY = 'topic';
 const ENGINE_KEY = 'engine';
+
+/**
+ * The address of the Overview for `scope` with a group and a platform set: the keys `use-overview-scope.ts` writes,
+ * each left out at its default, so the link opens the page as it is now with only the group (and platform) changed.
+ */
+export function overviewQuery(scope: OverviewScope, group: string, platform: string | null): string {
+  const query = new URLSearchParams();
+  const put = (key: string, value: string | null): void => {
+    if (value !== null) query.set(key, value);
+  };
+  const { win, from, to } = writeRangeParams(scope.rangeValue);
+  put('win', win);
+  put('from', from);
+  put('to', to);
+  put('cmp', cmpParam(scope.compare));
+  put('country', scope.country);
+  put(ENGINE_KEY, platform);
+  put(TOPIC_KEY, group);
+  put('branded', scope.branded === 'excluded' ? null : scope.branded);
+  put('metric', scope.metric === DEFAULT_METRIC ? null : scope.metric);
+  return query.toString();
+}
 
 export interface GroupOpen {
   links: HeatLinks;
@@ -27,21 +50,14 @@ export interface GroupOpen {
  */
 export function useGroupOpen(): GroupOpen {
   const { workspaceSlug, project, scope, setScope } = useOverview();
-  const search = useSearchParams();
   const chosen = singlePlatform(scope);
   const base = projectPath(workspaceSlug, project.slug, '/ai');
-  const query = search.toString();
 
   const links = useMemo((): HeatLinks => {
-    const hrefOf = (group: string, platform: string | null): Route => {
-      const next = new URLSearchParams(query);
-      next.set(TOPIC_KEY, group);
-      if (platform === null) next.delete(ENGINE_KEY);
-      else next.set(ENGINE_KEY, platform);
-      return withQuery(base, next.toString());
-    };
+    const hrefOf = (group: string, platform: string | null): Route =>
+      withQuery(base, overviewQuery(scope, group, platform));
     return { row: (key) => hrefOf(key, chosen), cell: (key, code) => hrefOf(key, code) };
-  }, [base, query, chosen]);
+  }, [base, scope, chosen]);
 
   const onClickCapture = useCallback(
     (event: MouseEvent<HTMLElement>): void => {

@@ -20,13 +20,12 @@ import { TopicFootnote } from './topic-footnote';
 import { useGroupVersus } from './use-group-versus';
 import { useChosenGroupName } from './use-group-name';
 import { useAllGroupsSummary } from './use-topic-reads';
-import { useTopicWords } from './use-topic-words';
 import { useOverview } from '../../overview-context';
 import { BarList, type ComparisonRow } from '@/components/app/chart/bar-list';
 import { PlainTable, type PlainColumn } from '@/components/app/table/plain-table';
 import type { CardProps } from '@/features/layouts';
 import { safeText, type CsvCell, type CsvTable } from '@/lib/csv/csv-write';
-import { EMPTY_VALUE, formatList } from '@/lib/format';
+import { EMPTY_VALUE, formatList, formatPercent } from '@/lib/format';
 
 /**
  * The card of the `ai.topic_extremes` key: the strongest and weakest groups for All groups, and the chosen group
@@ -45,10 +44,13 @@ interface TableRow {
   value: string;
 }
 
+/** A rate as the cards of the groups print it: a whole percent; an unknown rate is n/a, never 0%. */
+const percent = (value: number | null): string =>
+  value === null ? EMPTY_VALUE : formatPercent(value, { decimals: 0 });
+
 /** Strongest and weakest groups (OV-GRP-13, `ai.topic_extremes`), by the average over the platforms. */
 function GroupExtremes({ item, live }: CardProps): ReactElement {
   const t = useTranslations('aiOverview.topics.groups');
-  const words = useTopicWords();
   const empties = useTopicEmpty();
   const { scope } = useOverview();
   const read = useAllGroupsSummary({ subscribed: live });
@@ -95,7 +97,7 @@ function GroupExtremes({ item, live }: CardProps): ReactElement {
     const taking = entry.row.values.filter((value) => value.state === 'ok');
     return t('extremes.tip', {
       group: groupName(entry.row.node),
-      percent: words.percent(entry.value),
+      percent: percent(entry.value),
       platforms: formatList(
         taking.map((value) => engines.find((engine) => engine.code === value.code)?.label ?? value.code),
       ),
@@ -111,7 +113,7 @@ function GroupExtremes({ item, live }: CardProps): ReactElement {
       value: {
         kind: 'value',
         value: entry.value,
-        valueText: words.percent(entry.value),
+        valueText: percent(entry.value),
         contextText: t('extremes.context', { count: entry.row.node.promptCount }),
       },
       accessibleText: tip,
