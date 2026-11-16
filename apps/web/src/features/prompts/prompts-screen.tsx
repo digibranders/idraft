@@ -165,6 +165,8 @@ const NO_ENTITIES: readonly SummaryEntity[] = [];
 const promptRowId = (row: PromptRow): string => row.prompt.prompt_id;
 const NO_PROMPTS: ReadonlySet<string> = new Set();
 const nothing = (): void => undefined;
+/** The Prompts table: no density menu, no row count and no sort note in its toolbar. */
+const PROMPTS_TOOLBAR_PARTS = { density: false, count: false, sortNote: false } as const;
 /** The Platform filter's id: the Platform select shows its choice when it is one platform, so its chip is not drawn. */
 const PLATFORM_FIELD: readonly string[] = ['engine'];
 /** The id of the More actions item that copies the link. */
@@ -498,17 +500,12 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   });
   const columnIds = useMemo(() => new Set(columns.map((column) => column.id)), [columns]);
   const visible = useMemo(() => parseColumns(view.cols, columnIds, ['prompt']), [view.cols, columnIds]);
-  // A sort names a column that is on screen: one the chooser (or the scope) leaves out is kept in the link but not
-  // applied, so the table never orders by a column the person cannot see; it applies again when the column is shown
+  // The sort of the address, as it is: a column the chooser (or the scope) leaves out keeps its place in the link, and
+  // the table sorts by the default order meanwhile (`sortFallback`), so it applies again when the column is shown
   const sort = useMemo((): readonly SortKey[] => {
-    const onScreen = new Set(
-      visible === null
-        ? columns.filter((column) => column.defaultVisible !== false).map((column) => column.id)
-        : visible,
-    );
-    const parsed = parseSort(view.sort, new Set([...sortFields].filter((id) => onScreen.has(id))));
+    const parsed = parseSort(view.sort, sortFields);
     return parsed.length === 0 ? DEFAULT_PROMPT_SORT : parsed;
-  }, [view.sort, sortFields, visible, columns]);
+  }, [view.sort, sortFields]);
   const density = parseDensity(view.density);
 
   // The inspector: a prompt opened from either tab, stepping in the order of the table on screen
@@ -930,6 +927,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
             fields={fields}
             values={values}
             onChange={setValues}
+            nowrap
             {...(platformChipHidden ? { hiddenChipFields: PLATFORM_FIELD } : {})}
           />
         }
@@ -1065,11 +1063,14 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
                 onSortChange={(next) =>
                   void setView({ sort: sameSort(next, DEFAULT_PROMPT_SORT) ? null : formatSort(next) })
                 }
+                sortFallback={DEFAULT_PROMPT_SORT}
                 defaultSort={DEFAULT_PROMPT_SORT}
                 // The view switch, as Rankings has its switch before the icons
                 toolbarEnd={viewSwitch}
-                density={density}
-                onDensityChange={(next: Density) => void setView({ density: next === DEFAULT_DENSITY ? null : next })}
+                // Rows are always compact: no density menu, no count and no sort note in the toolbar (the footer counts)
+                toolbarParts={PROMPTS_TOOLBAR_PARTS}
+                density="compact"
+                onDensityChange={nothing}
                 columnState={{
                   visible,
                   onChange: (next) => void setView({ cols: next === null ? null : formatColumns(next) }),

@@ -1070,6 +1070,34 @@ describe('Prompts: Mentioned and Cited per platform, filters and sort', () => {
       expect(writes.at(-1)).toContain('sort=-chatgpt_web_rate');
     });
 
+    it('has no density menu, no row count and no sort note in the Prompts toolbar, and draws compact rows', async () => {
+      serve();
+      renderOnPrompts(promptsAs('viewer'), { searchParams: `?tab=prompts&sort=-chatgpt_web_rate&${PLATFORM_COLUMNS}` });
+      const table = await grid();
+      await within(table).findByText('Question number 1?');
+      const toolbar = screen.getByRole('toolbar', { name: /Prompts table actions/ });
+      expect(within(toolbar).queryByRole('button', { name: 'Density' })).toBeNull();
+      expect(within(toolbar).queryByText(/Sorted by|prompts?$/)).toBeNull();
+      expect(within(toolbar).getByRole('button', { name: 'Columns' })).toBeInTheDocument();
+      expect(within(table).getAllByRole('row')[1]).toHaveClass('h-row-compact');
+    });
+
+    it('draws the platform mark before the header of a platform column and beside its name in the chooser', async () => {
+      serve();
+      const { user } = renderOnPrompts(promptsAs('viewer'), { searchParams: `?tab=prompts&${PLATFORM_COLUMNS}` });
+      const table = await grid();
+      const header = await within(table).findByRole('columnheader', { name: /^ChatGPT mention/ });
+      expect(header.querySelector('img')).not.toBeNull();
+      expect(
+        within(table)
+          .getByRole('columnheader', { name: /^Mention rate/ })
+          .querySelector('img'),
+      ).toBeNull();
+      await user.click(screen.getByRole('button', { name: 'Columns' }));
+      const item = await screen.findByRole('checkbox', { name: 'ChatGPT mention' });
+      expect(item.closest('label')?.querySelector('img')).not.toBeNull();
+    });
+
     it('shows the count, and says why a cell has none: no answer, or none valid', async () => {
       serve();
       renderOnPrompts(promptsAs('viewer'), { searchParams: `?${PLATFORM_COLUMNS}` });

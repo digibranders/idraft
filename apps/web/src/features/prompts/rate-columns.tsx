@@ -5,6 +5,7 @@ import { useMemo, type ReactElement } from 'react';
 
 import { ChangeInline, useChangeWords, useComparedWindow, useCompare, type ComparedWindow } from './compare';
 import { CELL_OF_METRIC, countText, engineSortId, SORT_ID, type RateMetric } from './prompt-model';
+import { PlatformMark } from './platform-mark';
 import { useRateWords } from './rate-view';
 import { TrendCell } from './trend-column';
 import { col } from '@/components/app/data-table/columns';
@@ -250,13 +251,14 @@ const TIP_KEY = { mention: 'mentionedTip', citation: 'citedTip', sov: 'shareOfVo
  * it ("75% 6 of 8"; for share of voice "50% 6 answers", never a count of answers that name the brand, which it
  * is not). The percent is the insufficient pill under `MIN_OBSERVATIONS` valid answers; a prompt without an answer
  * on the engine says so, and one whose answers were all invalid, or none naming a brand, shows "n/a" and why.
- * The column sorts by the value, high to low first.
+ * The column sorts by the value, high to low first. With `marks`, the header and the column chooser show the platform's
+ * mark before the name.
  */
 export function useEngineRateColumns<TRow>(
   engines: readonly ProjectEngine[],
   cellsOf: (row: TRow) => readonly EngineSummary[] | undefined,
   metric: RateMetric,
-  { defaultVisible }: { defaultVisible?: boolean } = {},
+  { defaultVisible, marks = false }: { defaultVisible?: boolean; marks?: boolean } = {},
 ): DataTableColumn<TRow>[] {
   const t = useTranslations('prompts.columns');
   const rate = useTranslations('prompts.rate');
@@ -284,6 +286,7 @@ export function useEngineRateColumns<TRow>(
           sortable: true,
           defaultVisible,
           known: () => null,
+          ...(marks ? { headerIcon: <PlatformMark code={code} /> } : {}),
         });
         return {
           ...base,
@@ -322,6 +325,6 @@ export function useEngineRateColumns<TRow>(
           },
         };
       }),
-    [engines, cellsOf, metric, defaultVisible, t, rate, words],
+    [engines, cellsOf, metric, defaultVisible, marks, t, rate, words],
   );
 }

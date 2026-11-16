@@ -24,8 +24,8 @@ export function PromptsControls({ platform, compare, filters, trailing }: Prompt
         <div className="min-w-0 md:w-44 md:shrink-0">{platform}</div>
         {compare}
       </div>
-      {/* The filters take the room that is left on one line and scroll inside themselves, so a narrow row never overlaps the status */}
-      <div className="-mx-1 scrollbar-none min-w-0 flex-1 overflow-x-auto px-1 py-1 md:-my-1">{filters}</div>
+      {/* The filters (a `nowrap` FilterBar) take the room that is left on one line and scroll inside themselves, so a narrow row never overlaps the status */}
+      <div className="min-w-0 flex-1">{filters}</div>
       <div className="ml-auto flex shrink-0 items-center gap-3">{trailing}</div>
     </div>
   );

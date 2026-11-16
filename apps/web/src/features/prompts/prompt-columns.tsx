@@ -6,6 +6,7 @@ import { useMemo } from 'react';
 import { useChangeWords, useComparedWindow, useCompare, type ComparedWindow } from './compare';
 import type { PromptFacts } from './facts';
 import { cellsOfPrompt, countText, engineSortId, SORT_ID, type RateMetric } from './prompt-model';
+import { PlatformMark } from './platform-mark';
 import { ENGINE_COLUMN_WIDTH, useEngineRateColumns, useRateColumns } from './rate-columns';
 import { PROMPT_COLUMN_ENTRIES, withColumnEntries } from './seams/columns';
 import { col, type UnknownValue } from '@/components/app/data-table/columns';
@@ -38,12 +39,18 @@ type EngineMetric = (typeof METRICS)[number];
  * loaded) show "n/a" and say so. Where some answers were not valid the cell says how many were. Each column
  * sorts by its rate, high to low first, an empty cell last: it is a `volumeTrend` column (a count with its own
  * cell), which sorts numbers and starts high to low. `cellsOf` must keep its identity between renders (a
- * module-level function). With `defaultVisible: false` they wait in the column chooser.
+ * module-level function). With `defaultVisible: false` they wait in the column chooser. With `marks`, the header and
+ * the chooser show the platform's mark before the name.
  */
 export function useEngineColumns<TRow>(
   engines: readonly ProjectEngine[],
   cellsOf: (row: TRow) => readonly EngineSummary[] | undefined,
-  { sortable, note, defaultVisible }: { sortable: boolean; note?: string; defaultVisible?: boolean },
+  {
+    sortable,
+    note,
+    defaultVisible,
+    marks = false,
+  }: { sortable: boolean; note?: string; defaultVisible?: boolean; marks?: boolean },
 ): DataTableColumn<TRow>[] {
   const t = useTranslations('prompts.columns');
   return useMemo(
@@ -70,6 +77,7 @@ export function useEngineColumns<TRow>(
               width: ENGINE_COLUMN_WIDTH,
               sortable,
               defaultVisible,
+              ...(marks ? { headerIcon: <PlatformMark code={code} /> } : {}),
               unknown: (row) => unknown(row, metric),
               known: (row) => <span className="num">{countText(cellOf(row, metric)) ?? EMPTY_VALUE}</span>,
               knownTip: (row) => {
@@ -96,7 +104,7 @@ export function useEngineColumns<TRow>(
               };
         });
       }),
-    [engines, cellsOf, sortable, note, defaultVisible, t],
+    [engines, cellsOf, sortable, note, defaultVisible, marks, t],
   );
 }
 
@@ -141,8 +149,11 @@ export function usePromptColumns(
   const contextWindow = useComparedWindow();
   const compared = comparedWindow ?? contextWindow;
   const { mention, citation } = useRateColumns(engines, cellsOfPrompt, { window: compared, trend: true });
-  const engineRateColumns = useEngineRateColumns(engines, cellsOfPrompt, metric, { defaultVisible: false });
-  const countColumns = useEngineColumns(engines, cellsOfPrompt, { sortable: true, defaultVisible: false });
+  const engineRateColumns = useEngineRateColumns(engines, cellsOfPrompt, metric, {
+    defaultVisible: false,
+    marks: true,
+  });
+  const countColumns = useEngineColumns(engines, cellsOfPrompt, { sortable: true, defaultVisible: false, marks: true });
   return useMemo(() => {
     const builtIn: DataTableColumn<PromptRow>[] = [
       col.keyword<PromptRow>(SORT_ID.prompt, (row) => row.prompt.current_version.text, {
