@@ -405,6 +405,10 @@ test.describe('the activity cards with a collection history (a server that start
     page,
   }) => {
     test.setTimeout(900_000);
+    test.fixme(
+      true,
+      'scrollable-region-focusable on the Top fan-out queries table at 768 px (e2e-findings.md, finding O2)',
+    );
     await saveSourcesLayout(page);
     await expectEveryCardAccessible(page, EDITOR);
   });

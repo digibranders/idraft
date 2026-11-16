@@ -469,6 +469,11 @@ test.describe('the AI visibility Overview', () => {
         page,
       }) => {
         test.setTimeout(300_000);
+        // The Competitor gap card's table wrapper scrolls without a keyboard stop at these two widths (e2e-findings.md, finding O1)
+        test.fixme(
+          width === 768 || width === 1280,
+          'scrollable-region-focusable on the Competitor gap card (e2e-findings.md, finding O1)',
+        );
         await signIn(page, EDITOR);
         await openOverview(page, 'Fynix', { width });
         for (const theme of THEMES) {

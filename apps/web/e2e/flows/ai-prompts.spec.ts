@@ -21,7 +21,7 @@ const namingTheBrand = (inspector: Locator): Locator =>
   inspector
     .getByRole('table', { name: 'Answers to this prompt' })
     .getByRole('row')
-    .filter({ hasText: /Mentioned (and cited|only)/ });
+    .filter({ hasText: /Mentioned: yes/ });
 
 const openAnswerButton = (row: Locator): Locator => row.getByRole('button', { name: /^Open the .* answer of / });
 
@@ -143,9 +143,7 @@ test.describe('AI prompt tracking', () => {
       inspector.getByRole('table', { name: 'Brands mentioned in the answers to this prompt' }),
     ).toBeVisible();
     await inspector.getByRole('tab', { name: 'Stats' }).click();
-    await expect(
-      inspector.getByText(/^The interval is the 95 percent Wilson interval over the valid answers/),
-    ).toBeVisible();
+    await expect(inspector.getByText(/^A rate is successes over valid answers in the period/)).toBeVisible();
     await openHistory(inspector);
 
     await openAnswerButton(namingTheBrand(inspector).first()).click();
