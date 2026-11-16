@@ -4924,70 +4924,6 @@
       "droppedTitle": "{count, plural, one {A filter from the link was left out} other {# filters from the link were left out}}",
       "droppedDescription": "{fields}: the link holds a value this project has nothing for."
     },
-    "numbers": {
-      "label": "AI visibility numbers for {window}, {branded}",
-      "brandedExcluded": "branded prompts excluded",
-      "brandedIncluded": "branded prompts included",
-      "brandedOnly": "branded prompts only",
-      "inTopics": "in {count, plural, one {# group} other {# groups}}",
-      "ofAnswers": "{count, number} of {total, number} answers",
-      "ofNaming": "of {total, number} answers naming a tracked brand",
-      "ofUnits": "{count, number} of {total, number} citation units",
-      "ofAllAnswers": "of {total, number} answers",
-      "ofAllAnswersInvalid": "of {total, number} answers, {invalid, number} not valid",
-      "invalid": "{count, number} not valid",
-      "fewAnswers": "{count, plural, one {# answer} other {# answers}}",
-      "fewUnits": "{count, plural, one {# citation unit} other {# citation units}}",
-      "tooFew": "Too few for a rate",
-      "noValid": "No valid answers",
-      "noBrand": "No brand named",
-      "noAnswersYet": "No answers at all",
-      "noUnits": "No citation units",
-      "notAsked": "Not asked",
-      "notExposed": "Not exposed",
-      "outsideFilter": "Not in the platform filter",
-      "engineOff": "Off in this project",
-      "loading": "Reading",
-      "couldNotRead": "Could not be read",
-      "brandedOnlyUnavailable": "Not available for branded prompts only",
-      "oneAtATime": "Read for one platform at a time",
-      "noEngine": "No platform is asked",
-      "notAvailable": "Not available here",
-      "tipWindow": "Window: {window} ({branded})",
-      "tipPrompts": "{count, plural, one {# prompt} other {# prompts}} in scope, each counted once across platforms",
-      "tipValid": "{count, number} of {total, number} answers were valid, {invalid, plural, one {# answer} other {# answers}} not valid",
-      "tipAnswers": "{count, number} of {total, number} valid answers, {prompts, plural, one {# prompt} other {# prompts}} each counted once, {invalid, plural, one {# answer} other {# answers}} not valid",
-      "tipNaming": "{total, number} valid answers name a tracked brand, {prompts, plural, one {# prompt} other {# prompts}} each counted once, {invalid, plural, one {# answer} other {# answers}} not valid",
-      "tipUnits": "{count, number} of {total, number} citation units come from your own pages",
-      "tipFanout": "{count, number} of {total, number} answers issued a fan-out query",
-      "tipFew": "{count, plural, one {# valid answer} other {# valid answers}}, too few for a rate (it needs {min, number}), {invalid, plural, one {# answer} other {# answers}} not valid",
-      "tipFewUnits": "{count, plural, one {# citation unit} other {# citation units}}, too few for a share (it needs {min, number})",
-      "tipFewNaming": "{count, plural, one {# answer} other {# answers}} naming a tracked brand, too few for a rate (it needs {min, number}), {invalid, plural, one {# answer} other {# answers}} not valid",
-      "tipNone": "No valid answers, {invalid, plural, one {# answer} other {# answers}} not valid",
-      "tipCompanions": "Cited {cited}, share of voice {shareOfVoice}",
-      "tipChange": "Change against {previous}: {change}",
-      "tipDetectable": "Larger than normal variation",
-      "tipWithin": "Within normal variation",
-      "tipNoClaim": "No claim is made about whether this change is real",
-      "tipNoChangeHere": "No change at this precision",
-      "interim": "Unpaired test on pooled counts",
-      "tipNoCompare": "No comparison for this number",
-      "tipNoPrevious": "No answers in the previous {days, plural, one {# day} other {# days}}",
-      "tipNoChange": "No change shown: a window has too few valid answers for a rate",
-      "tipPreviousFailed": "The previous window could not be read, so no change is shown",
-      "tipStale": "The last read failed. These are the last figures read",
-      "tipOff": "{engine} is off in this project, so it is not asked",
-      "tipOutside": "{engine} is not in the platform filter, so it is left out of these numbers",
-      "tipNotExposed": "{engine} does not show the searches it ran, so there is nothing to count",
-      "tipUnread": "This number could not be read. Try again in a moment",
-      "tipBrandedOnly": "This number cannot be asked for branded prompts alone",
-      "tipNotAvailable": "This page has no figure for this number",
-      "tipIdle": "This number is not read for the current choices",
-      "tipOneAtATime": "Fan-out presence is read for one platform at a time, and more than one platform that shows its fan-out is on",
-      "tipNoEngine": "No platform in the platform filter is on in this project, so nothing is asked",
-      "failedTitle": "The AI numbers could not be read",
-      "failedReason": "The server did not answer. Try again in a moment."
-    },
     "empty": {
       "noEngineTitle": "No AI platform is on",
       "noEngineReason": "Turn on ChatGPT, Gemini or Google AI Mode in the project settings to start asking your prompts.",
@@ -6520,6 +6456,96 @@
         "title": "No prompts in this scope",
         "reason": "No prompts of {group} are counted with these filters. Choose All groups, or add a prompt to this group in Prompts.",
         "clear": "Show all groups"
+      }
+    },
+    "headline": {
+      "label": "Headline numbers",
+      "keyNumbers": "Key numbers",
+      "hero": "AI visibility rate",
+      "notAvailable": "n/a",
+      "tooFew": "Too few answers",
+      "notCollected": "Not collected yet",
+      "noAccess": "No access",
+      "allGroups": "All groups {value}",
+      "emptyNoEnginesTitle": "No platform to show",
+      "emptyNoEnginesReason": "Choose a platform in the filter of this page, or turn one on in the project settings.",
+      "emptyNoPromptsTitle": "No prompts in this scope",
+      "emptyNoPromptsReason": "No prompt matches the filters of this page. Widen them to see answers.",
+      "tiles": {
+        "mention": "Mention rate",
+        "sov": "Share of voice",
+        "citation": "Citation rate",
+        "position": "Mention position",
+        "recommendation": "Recommendation rate",
+        "sentiment": "Sentiment",
+        "prompts": "Prompts",
+        "runs": "Runs"
+      },
+      "segments": {
+        "mentioned_and_cited": "Mentioned and cited",
+        "mentioned_only": "Mentioned only",
+        "cited_only": "Cited only",
+        "neither": "Neither"
+      },
+      "tips": {
+        "average": "Average of {used, plural, one {# platform} other {# platforms}}: {names}",
+        "counts": "{k, number} of {n, number} answers",
+        "naming": "{n, number} answers that name a tracked brand",
+        "prompts": "{count, plural, one {# prompt} other {# prompts}}, each counted once",
+        "tooFew": "Too few answers for a rate",
+        "tooFewCount": "{n, plural, one {# answer} other {# answers}}, too few for a rate",
+        "tooFewNaming": "{n, plural, one {# answer} other {# answers}} that name a tracked brand, too few for a rate",
+        "none": "No valid answers in this scope",
+        "notCollected": "This measure is not collected yet",
+        "noAccess": "Your role cannot read runs",
+        "segment": "{name}: {share}",
+        "segmentCounts": "{name}: {share}, {k, number} of {total, number} answers",
+        "promptsCore": "core prompts, not branded",
+        "promptsCoreAndBranded": "core and branded prompts",
+        "promptsBranded": "branded prompts",
+        "promptsIn": "{kind}, in {group}",
+        "promptsAnswered": "{where}. {count, number} with answers on {platform}",
+        "runs": "{count, plural, one {# run} other {# runs}} in this window, last {when}",
+        "runsNone": "No runs in this window"
+      },
+      "spark": "{name} over the last {count} weeks, latest {value}",
+      "info": {
+        "hero": {
+          "what": "How often AI answers mention your brand or cite your site.",
+          "how": "The share of valid answers that mention your brand, cite a page of your site, or both. It equals 100% minus the answers that do neither. Each prompt counts once. The bar splits the rate into the four outcomes. Each tile beside it has its own info button."
+        },
+        "mention": {
+          "what": "How often AI answers mention your brand.",
+          "how": "The share of valid answers whose text contains your brand name or one of its aliases. Each prompt counts once. A citation without the brand name in the text is not a mention."
+        },
+        "sov": {
+          "what": "Your share of all brand mentions.",
+          "how": "As on the Share of voice card: it depends on which competitors are tracked."
+        },
+        "citation": {
+          "what": "How often AI answers cite your site.",
+          "how": "The share of valid answers that cite at least one page of your domains. Several citations in one answer count once. A mention without a citation does not count."
+        },
+        "position": {
+          "what": "How early your brand is mentioned in an answer.",
+          "how": "The mean order among the tracked brands, over the answers that mention you. 1 means mentioned first, and lower is better. It is not a Google rank."
+        },
+        "recommendation": {
+          "what": "How often AI recommends your brand.",
+          "how": "The share of valid answers that recommend it. An answer that does not mention your brand counts as not recommending it. Answers whose recommendation could not be judged are left out."
+        },
+        "sentiment": {
+          "what": "How positive the tone is when AI mentions your brand.",
+          "how": "The share of judged mentions with a positive tone. The Sentiment card shows all four shares."
+        },
+        "prompts": {
+          "what": "How many prompts are tracked in this view.",
+          "how": "Each prompt is counted once, however many platforms answer it."
+        },
+        "runs": {
+          "what": "How many weekly runs are behind these numbers.",
+          "how": "Prompts are asked on their schedule, so a run may hold only some of them."
+        }
       }
     }
   },
