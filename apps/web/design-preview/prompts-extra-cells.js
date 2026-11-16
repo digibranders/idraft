@@ -443,7 +443,7 @@ export function screenshotCell(prompt, code, latest) {
  * `choose(codes)` receives the engine codes of the choice.
  */
 export function initEngineSelect({ before, choose }) {
-  const wrap = el('div', 'w-44 shrink-0');
+  const wrap = el('div', 'min-w-0 md:w-44 md:shrink-0');
   const trigger = el('button', 'flex h-control-sm w-full min-w-0 items-center gap-2 rounded-md border border-border bg-surface px-2 text-left type-body text-foreground hover:bg-surface-hover aria-expanded:bg-surface-hover focus-visible:focus-ring');
   trigger.type = 'button';
   trigger.setAttribute('aria-haspopup', 'listbox');
@@ -485,7 +485,10 @@ export function initEngineSelect({ before, choose }) {
     const selected = codes.length === ENGINES.length ? 'all' : codes.length === 1 ? codes[0] : 'custom';
     const current = options.find((option) => option.id === selected);
     const label = current?.label ?? `${codes.length} engines`;
-    trigger.replaceChildren(el('span', 'shrink-0 text-foreground-secondary', 'Engine:'), el('span', 'min-w-0 flex-1 truncate', label), icon('chevron-down', 'size-icon-sm shrink-0 text-foreground-muted'));
+    // A fixed 16 px slot for the mark: the engine's own, or the layers glyph for all of them or a set, so the label never moves
+    const mark = el('span', 'flex size-icon shrink-0 items-center justify-center');
+    mark.append(selected !== 'all' && selected !== 'custom' ? engineLogo(label) : icon('layers', 'size-icon-sm text-foreground-secondary'));
+    trigger.replaceChildren(mark, el('span', 'min-w-0 flex-1 truncate', label), icon('chevron-down', 'size-icon-sm shrink-0 text-foreground-muted'));
     trigger.setAttribute('aria-label', `Engine: ${label}`);
     buttons.forEach(({ button, option }) => button.setAttribute('aria-selected', String(option.id === selected)));
   };
