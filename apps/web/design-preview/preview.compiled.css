@@ -236,6 +236,9 @@
   .inset-y-0 {
     inset-block: 0px;
   }
+  .-top-0\.5 {
+    top: calc(var(--spacing) * -0.5);
+  }
   .top-0 {
     top: 0px;
   }
@@ -247,6 +250,9 @@
   }
   .top-1\/2 {
     top: calc(1 / 2 * 100%);
+  }
+  .top-13 {
+    top: calc(var(--spacing) * 13);
   }
   .top-18 {
     top: calc(var(--spacing) * 18);
@@ -274,6 +280,9 @@
   }
   .right-5 {
     right: calc(var(--spacing) * 5);
+  }
+  .-bottom-0\.5 {
+    bottom: calc(var(--spacing) * -0.5);
   }
   .-bottom-3 {
     bottom: calc(var(--spacing) * -3);
@@ -421,6 +430,9 @@
   }
   .-my-1\.5 {
     margin-block: calc(var(--spacing) * -1.5);
+  }
+  .-my-2\.5 {
+    margin-block: calc(var(--spacing) * -2.5);
   }
   .my-1 {
     margin-block: var(--spacing);
@@ -1046,6 +1058,9 @@
   .min-w-1 {
     min-width: var(--spacing);
   }
+  .min-w-5 {
+    min-width: calc(var(--spacing) * 5);
+  }
   .min-w-6 {
     min-width: calc(var(--spacing) * 6);
   }
@@ -1102,6 +1117,9 @@
   }
   .basis-60 {
     flex-basis: calc(var(--spacing) * 60);
+  }
+  .basis-64 {
+    flex-basis: calc(var(--spacing) * 64);
   }
   .basis-80 {
     flex-basis: calc(var(--spacing) * 80);
@@ -1226,6 +1244,9 @@
   }
   .items-start {
     align-items: flex-start;
+  }
+  .items-stretch {
+    align-items: stretch;
   }
   .justify-between {
     justify-content: space-between;
@@ -1781,6 +1802,9 @@
   .pr-2 {
     padding-right: calc(var(--spacing) * 2);
   }
+  .pr-2\.5 {
+    padding-right: calc(var(--spacing) * 2.5);
+  }
   .pr-3 {
     padding-right: calc(var(--spacing) * 3);
   }
@@ -1870,6 +1894,9 @@
   }
   .align-middle {
     vertical-align: middle;
+  }
+  .align-top {
+    vertical-align: top;
   }
   .type-mono {
     font-family: var(--font-mono-stack);
@@ -2310,6 +2337,9 @@
   .last\:border-r-0:last-child {
     border-right-style: var(--tw-border-style);
     border-right-width: 0px;
+  }
+  .last\:pr-0:last-child {
+    padding-right: 0px;
   }
   .first-of-type\:rounded-l-md:first-of-type {
     border-top-left-radius: var(--radius-md);
@@ -2934,6 +2964,19 @@
     }
     .\@2xl\:justify-self-end {
       justify-self: flex-end;
+    }
+  }
+  @container (width >= 48rem) {
+    .\@3xl\:grid-cols-\[minmax\(0\,1fr\)_20rem\] {
+      grid-template-columns: minmax(0,1fr) 20rem;
+    }
+    .\@3xl\:border-t-0 {
+      border-top-style: var(--tw-border-style);
+      border-top-width: 0px;
+    }
+    .\@3xl\:border-l {
+      border-left-style: var(--tw-border-style);
+      border-left-width: 1px;
     }
   }
   @container (width >= 64rem) {

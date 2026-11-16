@@ -5,12 +5,12 @@
  * `traffic.ai_referrals` and `ai.unlinked_mentions` (spec section 5).
  */
 import { gapCard, headlineRow, outcomeCard, sovCard, sovOverTimeCard, trendCard } from './aiov-cards-core.js';
-import { calendarCard, changesCard, domainsCard, fanoutCard, groupExtremesCard, groupHeatmapCard, groupPromptsCard, ownPagesCard, positionCard, referralCard, sentimentCard, sourceTypesCard, unlinkedCard } from './aiov-cards-more.js';
+import { calendarCard, changesCard, domainsCard, fanoutCard, groupExtremesCard, groupHeatmapCard, groupPromptsCard, groupVersusAllCard, ownPagesCard, positionCard, referralCard, sentimentCard, sourceTypesCard, unlinkedCard } from './aiov-cards-more.js';
 
 /** The group select decides what the group card shows: every group as a heat map, or the prompts of the one chosen. */
 const heatmapOrPrompts = (ctx) => (ctx.scope.group === 'all' ? groupHeatmapCard(ctx) : groupPromptsCard(ctx));
-/** The strongest and weakest groups only exist while all groups are in scope. */
-const extremes = (ctx) => (ctx.scope.group === 'all' ? groupExtremesCard(ctx) : null);
+/** The strongest and weakest groups need all groups; with one group chosen the card compares it with all groups. */
+const extremes = (ctx) => (ctx.scope.group === 'all' ? groupExtremesCard(ctx) : groupVersusAllCard(ctx));
 
 export const CARD_GROUPS = ['Overview', 'Competitors', 'Groups', 'Citations', 'Prompt tracking', 'Traffic', 'Activity'];
 
@@ -22,7 +22,7 @@ export const CARD_REGISTRY = [
   { key: 'ai.sov_over_time', title: 'Share of voice over time', description: 'The share of every tracked brand over the weekly runs, stacked to 100%.', group: 'Competitors', widths: ['half', 'two_thirds', 'full'], build: sovOverTimeCard },
   { key: 'ai.lost_to_competitor', title: 'Competitor gap', description: 'For each competitor, the prompts where they are named more often than you, and where you lead.', group: 'Competitors', widths: ['half', 'full'], build: gapCard },
   { key: 'ai.topic_heatmap', title: 'Groups by platform', description: 'A rate for every group on every platform. With one group chosen, its prompts.', group: 'Groups', widths: ['two_thirds', 'full'], build: heatmapOrPrompts },
-  { key: 'ai.topic_extremes', title: 'Top and bottom groups', description: 'The groups where the brand is strongest and weakest. All groups only.', group: 'Groups', widths: ['third', 'half'], build: extremes },
+  { key: 'ai.topic_extremes', title: 'Top and bottom groups', description: 'The groups where the brand is strongest and weakest. With one group chosen, how it compares with all groups.', group: 'Groups', widths: ['third', 'half'], build: extremes },
   { key: 'sources.top_domains', title: 'Top cited domains', description: 'The domains answers cite most, with your own highlighted.', group: 'Citations', widths: ['half', 'third'], build: domainsCard },
   { key: 'ai.citation_share_by_domain_type', title: 'Sources by type', description: 'Citation units by source type, as a treemap.', group: 'Citations', widths: ['half', 'third'], build: sourceTypesCard },
   { key: 'sources.own_pages', title: 'Your pages cited', description: 'The pages of your domain that answers cite.', group: 'Citations', widths: ['half', 'third'], build: ownPagesCard },

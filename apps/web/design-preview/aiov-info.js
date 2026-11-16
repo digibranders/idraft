@@ -44,6 +44,10 @@ export const CARD_INFO = {
     what: 'The groups where your brand does best and worst.',
     how: 'Groups are ranked by the chosen measure, averaged over the platforms, with each group’s prompt count. It needs at least 4 groups with a rate.',
   },
+  'ai.group_vs_all': {
+    what: 'How the chosen group compares with all groups, on each platform.',
+    how: 'The bar is the group’s rate for the chosen measure. The note beside it is the rate for all groups and the gap in points. A platform with fewer than 4 valid answers in the group shows no rate.',
+  },
   'sources.top_domains': {
     what: 'The websites AI answers cite most often.',
     how: 'A page is counted once for each answer that cites it. Each share is a part of all citations in scope.',

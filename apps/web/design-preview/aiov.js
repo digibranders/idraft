@@ -65,7 +65,9 @@ scopeBar.append(platformSelect.trigger, groupSelect.trigger, compareSelect.trigg
 
 // One compact toolbar, as in the app: the scope on the left, the status and the actions on the right. Nothing in it
 // changes size with the scope: the selects have a fixed width and the reset button keeps its place.
-const toolbar = el('section', 'flex flex-wrap items-center gap-x-4 gap-y-2');
+// It stays under the top bar while the page scrolls, so the scope can be changed from any card. The negative margins
+// and the padding cancel out: unstuck, it sits exactly where it would without them.
+const toolbar = el('section', 'sticky top-13 z-(--z-sticky) -mx-3 md:-mx-4 lg:-mx-5 -my-2.5 px-3 md:px-4 lg:px-5 py-2.5 bg-background flex flex-wrap items-center gap-x-4 gap-y-2');
 toolbar.setAttribute('aria-label', 'Scope and actions');
 const right = el('div', 'flex items-center gap-x-4 min-w-0 xl:ml-auto');
 right.append(status, actions);

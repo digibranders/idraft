@@ -2,7 +2,7 @@
  * Cards of the AI visibility Overview, second half: groups, citations, position and sentiment, traffic, fan-out,
  * key changes and the collection calendar. Same contract as aiov-cards-core.js.
  */
-import { formatInteger } from './vendor/format/number.js';
+import { MINUS, formatInteger } from './vendor/format/number.js';
 import {
   GA4_CONNECTED,
   GROUPS,
@@ -11,6 +11,7 @@ import {
   RUNS,
   RUN_CALENDAR,
   WEEK_LABELS,
+  buildModel,
   domainsFor,
   fanoutFor,
   gapFor,
@@ -60,6 +61,21 @@ function heatCell(cell, onClick, label) {
   return td;
 }
 
+// Opening a group from the heat map also sets the platform when a platform cell was clicked. The platform before the
+// click is kept, so the Back button of the group's card returns to where the person was.
+let drill = null;
+
+function openGroup(scope, group, platform = scope.platform) {
+  drill = { group, from: scope.platform, to: platform };
+  setScope({ group, platform });
+}
+
+function backToGroups(scope) {
+  const platform = drill && drill.group === scope.group && drill.to === scope.platform ? drill.from : scope.platform;
+  drill = null;
+  setScope({ group: 'all', platform });
+}
+
 export function groupHeatmapCard(ctx) {
   const { scope } = ctx;
   const measure = scope.metric;
@@ -86,11 +102,11 @@ export function groupHeatmapCard(ctx) {
     const link = el('button', 'type-body text-foreground hover:underline truncate max-w-48 text-left');
     link.type = 'button';
     link.textContent = topic.name;
-    link.addEventListener('click', () => setScope({ group: topic.id }));
+    link.addEventListener('click', () => openGroup(scope, topic.id));
     th.append(link);
     tr.append(th, el('td', 'px-2 text-right type-table num text-foreground-secondary', formatInteger(topic.prompts)));
-    HEAT_COLUMNS.forEach((code) => tr.append(heatCell(topic.cells[code], () => setScope({ group: topic.id, platform: code }), `${topic.name}, ${engineName(code)}`)));
-    tr.append(heatCell(topic.average, () => setScope({ group: topic.id }), `${topic.name}, average`));
+    HEAT_COLUMNS.forEach((code) => tr.append(heatCell(topic.cells[code], () => openGroup(scope, topic.id, code), `${topic.name}, ${engineName(code)}`)));
+    tr.append(heatCell(topic.average, () => openGroup(scope, topic.id), `${topic.name}, average`));
     return tr;
   };
   topics.forEach((topic) => body.append(topicRow(topic)));
@@ -122,6 +138,51 @@ export function groupExtremesCard(ctx) {
   return cardFrame({ key: 'ai.topic_extremes', title: 'Top and bottom groups', meta: MEASURES[measure].label.toLowerCase(), body: [strongest, weakest] });
 }
 
+/** The chosen group against all groups, one bar per platform and the average. */
+function versusList(ctx) {
+  const measure = ctx.scope.metric;
+  // Every platform, whatever the Platform select says: the card compares groups, not platforms
+  const own = buildModel({ ...ctx.scope, platform: 'all' });
+  const all = buildModel({ ...ctx.scope, platform: 'all', group: 'all' });
+  const rows = [...own.codes.map((code) => ({ label: engineName(code), a: own.cells[measure][code], b: all.cells[measure][code], token: ENGINE_TOKEN[code] })), { label: 'Average', a: own.average[measure], b: all.average[measure], token: 'chart-other' }].map((row) => {
+    const ok = row.a?.state === 'ok';
+    const gap = ok && row.b?.state === 'ok' ? Math.round((row.a.value - row.b.value) * 100) : null;
+    const against = row.b?.state === 'ok' ? `All groups ${pct0(row.b.value)}${gap === null || gap === 0 ? '' : ` (${gap > 0 ? '+' : MINUS}${Math.abs(gap)} pts)`}` : 'All groups: no rate';
+    return { label: row.label, value: ok ? row.a.value : null, all: row.b?.state === 'ok' ? row.b.value : null, token: row.token, note: ok ? against : 'Too few answers', tip: `${row.label}: ${ok ? pct0(row.a.value) : 'too few valid answers (fewer than 4)'}. ${against}.` };
+  });
+  // One scale for every row, so the bars and the ticks can be compared
+  const top = Math.max(0.01, ...rows.flatMap((row) => [row.value ?? 0, row.all ?? 0])) * 1.1;
+  const list = el('div', 'flex flex-col gap-3 pt-1');
+  rows.forEach((row) => {
+    const item = el('div', 'flex flex-col gap-1');
+    item.dataset.tip = row.tip;
+    const line = el('div', 'flex items-baseline justify-between gap-2');
+    line.append(el('span', 'type-body text-foreground-secondary truncate', row.label), el('span', `type-body-strong num ${row.value === null ? 'text-foreground-tertiary' : 'text-foreground'}`, row.value === null ? 'n/a' : pct0(row.value)));
+    // The bar is the group; the tick is all groups
+    const track = el('div', 'relative h-2');
+    track.setAttribute('aria-hidden', 'true');
+    if (row.value !== null) {
+      const bar = el('div', 'h-2 rounded-2xs');
+      bar.style.width = `${Math.max(1, (row.value / top) * 100)}%`;
+      bar.style.background = `var(--${row.token})`;
+      track.append(bar);
+    }
+    if (row.all !== null) {
+      const tick = el('div', 'absolute -top-0.5 -bottom-0.5 w-0.5 bg-foreground');
+      tick.style.left = `${(row.all / top) * 100}%`;
+      track.append(tick);
+    }
+    item.append(line, track, el('span', 'type-micro text-foreground-tertiary num', row.note));
+    list.append(item);
+  });
+  return list;
+}
+
+/** With one group selected, the strongest and weakest groups give way to this group against all groups, per platform. */
+export function groupVersusAllCard(ctx) {
+  return cardFrame({ key: 'ai.group_vs_all', title: `${groupName(ctx.scope.group)} vs all groups`, meta: MEASURES[ctx.scope.metric].label.toLowerCase(), body: versusList(ctx) });
+}
+
 /** With one group selected the comparison cards give way to that group's own prompts. */
 export function groupPromptsCard(ctx) {
   const rows = promptRows(ctx.model);
@@ -135,7 +196,7 @@ export function groupPromptsCard(ctx) {
   });
   head.append(headRow);
   const body = el('tbody');
-  rows.slice(0, 10).forEach((row) => {
+  rows.slice(0, 15).forEach((row) => {
     const tr = el('tr', 'h-row-compact border-t border-border-subtle');
     const text = el('th', 'pl-4 pr-3 text-left font-normal text-foreground max-w-0 w-1/2');
     text.scope = 'row';
@@ -146,14 +207,26 @@ export function groupPromptsCard(ctx) {
   table.append(head, body);
   const wrap = el('div', 'relative overflow-x-auto');
   wrap.append(table);
-  const link = el('a', 'type-body text-link hover:underline', `View all ${rows.length} prompts`);
+  // The group against all groups sits beside the prompts when the card is wide, below them otherwise
+  const side = el('div', 'p-4 border-t border-border-subtle @3xl:border-t-0 @3xl:border-l');
+  side.append(el('h3', 'type-label text-foreground-secondary mb-1', `${groupName(ctx.scope.group)} vs all groups`), versusList(ctx));
+  const layout = el('div', 'grid grid-cols-1 @3xl:grid-cols-[minmax(0,1fr)_20rem]');
+  layout.append(wrap, side);
+  const link = el('a', 'type-body text-link hover:underline whitespace-nowrap', `View all ${rows.length} prompts`);
   link.href = '#/prompts/explorer';
+  // The way out of a group: back to every group, on the platform the person came from
+  const back = el('button', 'h-control-sm pl-1.5 pr-2.5 rounded-md border border-border bg-surface flex items-center gap-1 whitespace-nowrap type-body text-foreground hover:bg-surface-hover');
+  back.type = 'button';
+  back.append(icon('chevron-left', 'size-icon-sm'), 'All groups');
+  back.setAttribute('aria-label', 'Back to all groups');
+  back.addEventListener('click', () => backToGroups(ctx.scope));
+  const onPlatform = ctx.scope.platform === 'all' ? '' : ` on ${engineName(ctx.scope.platform)}`;
   return cardFrame({
     key: 'ai.top_prompts',
     title: `Prompts in ${groupName(ctx.scope.group)}`,
-    meta: `${plural(rows.length, 'prompt')} with a rate, by mention rate`,
-    tools: [link],
-    body: wrap,
+    meta: `${plural(rows.length, 'prompt')} with a rate${onPlatform}, by mention rate`,
+    tools: [back, link],
+    body: layout,
     flush: true,
   });
 }
