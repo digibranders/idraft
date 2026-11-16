@@ -36,7 +36,7 @@ Slice 1:
 - Tier flow matrix with equity share per tier.
 - Worklists: under-linked T1 pages, orphans, editorial orphans, deep only through previous and next, broken and redirected links, links to non-indexable pages.
 
-Later slices (named so nothing is lost):
+Later slices (named so nothing is lost). On 2026-11-16 the owner asked for every row below to be built in the design preview too, so the whole feature can be reviewed in one place; section 7.10 describes those screens. The real app still ships in these slices.
 
 | Left out | Slice |
 |---|---|
@@ -190,7 +190,7 @@ A tier or rule change updates `core.project_pages`, then recomputes `crawl.tier_
 
 ### 7.1 Place in the app
 
-A new SEO sidebar item, "Internal links", with tabs Pages, Links, Journey and Tier flow. Worklists are saved views of the Pages and Links tabs, with counts in the page header. Exact routes follow the existing project routes and are settled in the plan.
+A new SEO sidebar item, "Internal links", with tabs Pages, Links, Journey and Tier flow (slice 1), then Changes and Opportunities (slices 2 and 3, section 7.10). Worklists are saved views of the Pages and Links tabs, with counts in the page header. Exact routes follow the existing project routes and are settled in the plan.
 
 The page header shows the crawl in scope ("Crawled 14 Nov, 2,148 pages") with a menu of earlier runs, plus Crawl now and Export.
 
@@ -321,6 +321,34 @@ Workspace settings section "Page tiers" as specified in section 5.1: a `DataTabl
 - **`TierBadge`:** an outline badge with a color square and the code.
 - **`LinkCanvas` and `LinkCard`:** spec, states (default, hover, focus, opened, stub, group, error target), keyboard model and preview entry.
 - **`StackedMiniBar`** for "Linked from tiers", if the existing bar parts do not cover it. The plan checks the inventory first.
+
+### 7.10 Slice 2 and 3 screens (built in the mock on 2026-11-16)
+
+These are specified by the mock in `apps/web/design-preview/il-*.js`; the real app builds them after slice 1.
+
+**Crawl picker.** Choosing an older crawl shows the site as it was then: links, pages, depth, equity, flags, worklists and the tier flow all follow it. An "Older crawl" badge and "Back to latest" show while it is not the latest. Tier changes apply to every crawl, because tiers belong to the URL. "Crawl now" appends a crawl and shows it.
+
+**Changes tab** (compares the crawl in view with the previous one).
+- Strip: links lost, links added, links lost to T1 and T2 pages, pages added.
+- Alert banner when links to important pages were lost: "3 links to T1 and T2 pages were lost since 7 Nov", the channel, and "Change alert rules". The tab carries a count badge while an alert is open.
+- Lost links table, T1 targets first, with a Priority cell (Lost to T1, Lost to T2, Lower priority); a menu switches between "Only T1 and T2 targets" and all.
+- New links table, and "Pages that moved most": editorial links in, equity share and depth, each against the previous crawl. Deeper is worse, so a depth increase is the negative tone.
+- Alert rules (crawl settings and project settings): on or off, important pages (T1 only, or T1 and T2), threshold (1 to 50 lost links), channel (in the app, email, Slack).
+- Worklist "Lost links to T1 and T2" in the Pages issues row.
+
+**Links tab.** "First seen" and "Lost on" columns and a Status menu (Active, Lost since last crawl, All).
+
+**Pages tab.** Columns: Change (editorial links in against the previous crawl, shown by default), Equity change, Tracked keywords, Average rank, AI citations (28 days, ChatGPT, Gemini and AI Mode in the tooltip), Anchors (distinct count and generic share), Anchor matches keyword. Worklists added: "Lost links to T1 and T2" and "T1 pages linking out to weak pages" (a T1 page with at least 3 editorial outlinks, over half of them to T4, Untiered, error or non-indexable pages). New flag: "Mostly generic anchors" (over half of the editorial anchors are words such as "click here", with at least 2 links).
+
+**Tier suggestions.** A chip in the issues row opens "Suggested tiers": pages in the top fifth by Search Console clicks, or ranking 1 to 5 for a keyword with 2,000 or more searches, that are T3 or lower, get T2; Untiered pages with 50 or more clicks get T3. Pages with a manual tier are never suggested. Each row has Accept and Dismiss, with "Accept all". Nothing changes until accepted.
+
+**Inspector additions.** "Changes since the last crawl", "Tracked keywords" (rank, places moved, volume; labelled as idraft rank tracking), "AI citations" (three engines, 28 days) and "Anchor text pointing here" (top anchors with a Generic badge, distinct count, generic share, and whether an anchor contains a tracked keyword).
+
+**Opportunities tab.** Pages that mention a topic of another page without an editorial link to it. Table: source page and tier, the mention in its sentence with the phrase highlighted, target page and tier, suggested anchor, source equity share, status. Actions: Accept (planned fix), Dismiss, Undo, copy instruction, bulk accept and dismiss. "Planned fixes" exports accepted rows (or open rows when none are accepted). Only pages reachable from the home page are sources, because a link from an unreachable page passes no equity. The mock's mentions are sample data; the real feature reads page text and tracked keywords.
+
+**Path finder** (a third Journey view). For a chosen page, the shortest route from the home page over any link and over editorial links only, as chains of step cards with the anchor used between steps, plus a sentence when menus make the page closer than editorial links do. "Open in canvas" returns to the canvas on that page.
+
+**Client summary.** Export menu entry "Client summary (HTML)": a standalone page with the tier table (pages, share of pages, equity share, average depth), the editorial tier flow, the open worklists with counts and the lost links to T1 and T2.
 
 ## 8. API
 

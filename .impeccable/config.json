@@ -10,7 +10,7 @@
           "apps/web/design-preview/il-journey.js"
         ],
         "createdAt": "2026-11-16T11:37:03.206Z",
-        "reason": "Spec 2026-11-16-internal-link-tracker-design.md section 7.5: the card's left edge encodes the page tier (data, not decoration); same encoding as the tier badge square"
+        "reason": "Same tier-colour left edge as the canvas cards (spec section 7.5): the edge encodes the page tier; the Path finder step cards reuse it so a tier reads the same everywhere"
       }
     ]
   }

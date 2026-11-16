@@ -5,9 +5,9 @@
  */
 import { icon } from './perf-ui.js';
 import { el } from './prompts-parts.js';
-import { PLACEMENT_LABEL, SCOPE_MENU, SCOPE_WORD, links, pageById, plural, refresh, scopeOf, state, statusBadge, tierBadge, tierCode, tierIdOf } from './il-model.js';
+import { PLACEMENT_LABEL, SCOPE_MENU, SCOPE_WORD, activeN, crawls, isActiveLink, links, pageById, plural, refresh, scopeOf, state, statusBadge, tierBadge, tierCode, tierIdOf } from './il-model.js';
 import { openInspector } from './il-drawer.js';
-import { applyRestore, menuSelect } from './il-pages.js';
+import { applyRestore, menuSelect, setRestore } from './il-pages.js';
 
 const CELL = 'border-b border-border-subtle px-3 align-middle';
 const COLUMNS = [
@@ -20,9 +20,19 @@ const COLUMNS = [
   { id: 'rel', label: 'Rel', width: 80 },
   { id: 'status', label: 'Target status', width: 200, sort: 'status' },
   { id: 'indexable', label: 'Target indexable', width: 130 },
+  { id: 'firstSeen', label: 'First seen', width: 110 },
+  { id: 'lostOn', label: 'Lost on', width: 110 },
 ];
+const STATUS_MENU = [['active', 'Active'], ['lost', 'Lost since last crawl'], ['all', 'All']];
 
 let typing = false;
+// Which links the table lists: the ones the crawl in view has, the ones it lost since the crawl before, or both
+let status = 'active';
+const shortDate = (n) => crawls.find((crawl) => crawl.n === n)?.short ?? 'n/a';
+const isLost = (link) => activeN() > 1 && link.lastSeen === activeN() - 1;
+const firstSeen = (link) => shortDate(link.since);
+// A lost link shows the crawl that first lacked it, which is the crawl in view at the latest, never a later one
+const lostOn = (link) => (isActiveLink(link) ? 'Still there' : shortDate(Math.min(link.lastSeen + 1, activeN())));
 const scopeName = (scope) => SCOPE_MENU.find(([key]) => key === scope)[1];
 
 const path = (id) => pageById(id).path;
@@ -31,6 +41,7 @@ function visibleLinks() {
   const { search, sort, placement, pair } = state.links;
   const query = search.trim().toLowerCase();
   const items = links.filter((link) => {
+    if (!(status === 'all' ? isActiveLink(link) || isLost(link) : status === 'lost' ? isLost(link) : isActiveLink(link))) return false;
     if (!pair && state.scope !== 'all' && scopeOf(link) !== state.scope) return false;
     if (placement && link.placement !== placement) return false;
     if (pair && (tierIdOf(pageById(link.from)) !== pair.from || tierIdOf(pageById(link.to)) !== pair.to || (pair.scope !== 'all' && scopeOf(link) !== pair.scope))) return false;
@@ -56,10 +67,10 @@ const targetStatus = (link) => {
 
 export function exportRows() {
   return [
-    ['Source', 'Source tier', 'Target', 'Target tier', 'Anchor', 'Placement', 'Rel', 'Target status', 'Target indexable'],
+    ['Source', 'Source tier', 'Target', 'Target tier', 'Anchor', 'Placement', 'Rel', 'Target status', 'Target indexable', 'First seen', 'Lost on'],
     ...visibleLinks().map((link) => {
       const target = pageById(link.to);
-      return [path(link.from), tierCode(tierIdOf(pageById(link.from))), path(link.to), tierCode(tierIdOf(target)), link.anchor, PLACEMENT_LABEL[link.placement], link.rel, target.status, target.indexable ? 'Yes' : `No: ${target.reason}`];
+      return [path(link.from), tierCode(tierIdOf(pageById(link.from))), path(link.to), tierCode(tierIdOf(target)), link.anchor, PLACEMENT_LABEL[link.placement], link.rel, target.status, target.indexable ? 'Yes' : `No: ${target.reason}`, firstSeen(link), lostOn(link)];
     }),
   ];
 }
@@ -76,6 +87,7 @@ function pageButton(id) {
 function linkRow(link) {
   const target = pageById(link.to);
   const row = el('tr', 'h-row bg-surface hover:bg-surface-hover');
+  row.dataset.page = link.id;
   const cells = {
     source: () => pageButton(link.from),
     sourceTier: () => tierBadge(tierIdOf(pageById(link.from))),
@@ -90,6 +102,8 @@ function linkRow(link) {
       if (!target.indexable) text.title = target.reason;
       return text;
     },
+    firstSeen: () => el('span', 'type-table text-foreground', firstSeen(link)),
+    lostOn: () => el('span', `type-table ${isActiveLink(link) ? 'text-foreground-tertiary' : 'text-negative-text'}`, lostOn(link)),
   };
   COLUMNS.forEach((column) => {
     const cell = el(column.id === 'source' ? 'th' : 'td', `${CELL} ${column.id === 'source' ? 'text-left font-normal' : ''}`);
@@ -163,6 +177,11 @@ export function render(host) {
       state.links.limit = 200;
       refresh();
     }, 'Link scope'),
+    menuSelect('Status', STATUS_MENU, status, (value) => {
+      status = value;
+      state.links.limit = 200;
+      refresh();
+    }, 'Link status'),
     menuSelect('Placement', placements, state.links.placement, (value) => {
       state.links.placement = value;
       state.links.limit = 200;
@@ -172,9 +191,13 @@ export function render(host) {
   if (state.links.pair) bar.append(pairChip());
   const scroller = el('div', 'overflow-x-auto');
   if (items.length === 0) {
-    scroller.append(emptyState('No links match', `Nothing matches ${scopeName(state.scope)} with this search and placement. Try Links: All links, Placement: All or another search.`, 'Clear filters', () => {
+    const reason = status === 'active'
+      ? `Nothing matches ${scopeName(state.scope)} with this search and placement. Try Links: All links, Placement: All or another search.`
+      : 'No links match this status, scope and placement.';
+    scroller.append(emptyState('No links match', reason, 'Clear filters', () => {
       Object.assign(state.links, { search: '', placement: '', pair: null, limit: 200 });
       state.scope = 'all';
+      status = 'active';
       refresh();
     }));
   } else {
@@ -215,6 +238,7 @@ export function render(host) {
       refresh();
     } else if (data.open) openInspector(data.open);
     else if (data.more !== undefined) {
+      setRestore(`more:${state.links.limit}`);
       state.links.limit += 200;
       refresh();
     } else if (data.clearPair !== undefined) {

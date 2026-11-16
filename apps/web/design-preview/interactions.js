@@ -1535,7 +1535,7 @@
 
   const VIEWS = { overview: 'Overview', ai: 'AI visibility', keywords: 'Keywords', pages: 'Pages', 'internal-links': 'Internal links', prompts: 'Prompts', settings: 'Settings' };
   // Pages with tabs keep the tab in the route: #/prompts (Topics), #/prompts/explorer
-  const PAGE_TABS = { pages: ['performance', 'landing'], 'internal-links': ['pages', 'links', 'journey', 'flow'], prompts: ['topics', 'explorer'] };
+  const PAGE_TABS = { pages: ['performance', 'landing'], 'internal-links': ['pages', 'links', 'journey', 'flow', 'changes', 'opportunities'], prompts: ['topics', 'explorer'] };
   let route = { view: 'keywords', section: null };
 
   function parseRoute(hash) {

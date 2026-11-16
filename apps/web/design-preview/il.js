@@ -7,11 +7,15 @@
  */
 import { BUTTON_SM, icon, popover, toast } from './perf-ui.js';
 import { el } from './prompts-parts.js';
-import { crawls, currentCrawl, depth, flags, isLive, pages, plural, refresh, setRenderer, state, tierIdOf, tierPosition, writeQuery } from './il-model.js';
+import {
+  WORKLISTS, activePages, alertTierText, alertsFor, crawls, currentCrawl, depth, flags, isLive, links, lostToTop, opportunityCounts, pages, pct, plural, refresh, setCrawl, setRenderer, state, tierCode, tierFlow, tierIdOf, tierLabel, tierPosition, worklistCount, writeQuery,
+} from './il-model.js';
 import * as pagesTab from './il-pages.js';
 import * as linksTab from './il-links.js';
 import * as journeyTab from './il-journey.js';
 import * as flowTab from './il-flow.js';
+import * as changesTab from './il-changes.js';
+import * as oppsTab from './il-opps.js';
 import { closeInspector, redrawInspector } from './il-drawer.js';
 import { openAddWebsite, openCrawlSettings, openImportTiers, openRules } from './il-dialogs.js';
 import { mountSettings } from './il-settings.js';
@@ -22,7 +26,11 @@ const TABS = [
   ['links', 'Links', 'link', linksTab],
   ['journey', 'Journey', 'workflow', journeyTab],
   ['flow', 'Tier flow', 'grid-3x3', flowTab],
+  ['changes', 'Changes', 'history', changesTab],
+  ['opportunities', 'Opportunities', 'sparkles', oppsTab],
 ];
+// An address with a tab we do not have (an old link, a typo) shows the first tab instead of failing
+const knownTab = (key) => (TABS.some(([tab]) => tab === key) ? key : 'pages');
 const REVIEW_STATES = [
   ['ready', 'Crawl ready'],
   ['running', 'Weekly crawl running'],
@@ -55,17 +63,35 @@ const pad = (panel) => {
 // -------------------------------------------------------------------------------------------------
 // Crawl actions (spec 6.2)
 
+/**
+ * The preview's new crawl finds the same links as the latest one: every link and page the latest crawl saw is seen
+ * again, so it stays active, and the crawl joins the front of the list.
+ */
+function addCrawl() {
+  const previous = crawls[0];
+  const n = previous.n + 1;
+  links.forEach((link) => {
+    if (link.lastSeen === previous.n) link.lastSeen = n;
+  });
+  pages.forEach((page) => {
+    if (page.lastSeen === previous.n) page.lastSeen = n;
+  });
+  const count = pages.filter((page) => page.since <= n && (page.lastSeen ?? Infinity) >= n).length;
+  crawls.unshift({ id: `c${n}`, n, when: 'Today, just now', short: 'Today', trigger: 'Crawl now', state: 'ready', pages: count, cost: 0.006 });
+  return crawls[0];
+}
+
 function crawlNow() {
   if (state.review === 'running' || state.review === 'first') return;
   state.review = 'running';
   refresh();
   toast({ title: 'Crawl started', description: 'eventussecurity.com is being crawled. The tables keep showing the last crawl until it finishes.', tone: 'info' });
   setTimeout(() => {
-    crawls.unshift({ id: `c${crawls.length + 1}`, when: 'Today, just now', short: 'Today', trigger: 'Crawl now', state: 'ready', pages: pages.length, cost: 0.006 });
-    state.crawl = crawls[0].id;
+    const crawl = addCrawl();
     state.review = 'ready';
-    refresh();
-    toast({ title: 'Crawl finished', description: `${plural(pages.length, 'page')} crawled. No links to T1 pages were lost.`, tone: 'success' });
+    setCrawl(crawl.id);
+    const lost = lostToTop(crawl.id).length;
+    toast({ title: `Crawl finished: ${plural(crawl.pages, 'page')} mapped.`, description: lost === 0 ? `No editorial links to ${alertTierText()} pages were lost.` : `${plural(lost, 'editorial link')} to ${alertTierText()} pages ${lost === 1 ? 'was' : 'were'} lost.`, tone: 'success' });
   }, 2600);
 }
 
@@ -74,9 +100,9 @@ function crawlMenu(trigger) {
     pad(panel);
     panel.append(el('p', 'px-2 pt-1 pb-2 type-label text-foreground-tertiary', 'Crawl shown'));
     crawls.forEach((crawl) => menuItem(panel, api, crawl.when, { detail: `${crawl.trigger}, ${plural(crawl.pages, 'page')}`, checked: crawl.id === state.crawl, run: () => {
-      state.crawl = crawl.id;
-      refresh();
-      if (crawl.id !== crawls[0].id) toast({ title: `Showing the crawl of ${crawl.short}`, description: 'In this preview every crawl holds the same links. Changes between crawls arrive in slice 2.', tone: 'info' });
+      if (crawl.id === state.crawl) return;
+      setCrawl(crawl.id);
+      if (crawl.id !== crawls[0].id) toast({ title: `Showing eventussecurity.com as crawled on ${crawl.short}.`, description: 'Tier changes still apply.', tone: 'info' });
     } }));
   }, { label: 'Crawl shown' });
 }
@@ -104,26 +130,69 @@ function reviewMenu(trigger) {
   }, { label: 'Preview state' });
 }
 
+function download(text, type, name) {
+  const link = el('a', '');
+  link.href = URL.createObjectURL(new window.Blob([text], { type }));
+  link.download = name;
+  link.click();
+}
+
 function exportCurrent() {
   const tab = TABS.find(([key]) => key === state.tab)[3];
   const rows = tab.exportRows?.();
   if (!rows) {
-    toast({ title: 'Nothing to export here', description: 'Export the Pages or Links tab, or the tier flow table.', tone: 'info' });
+    toast({ title: 'Nothing to export here', description: 'Export the Pages, Links, Tier flow, Changes or Opportunities tab.', tone: 'info' });
     return;
   }
-  const text = rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
-  const link = el('a', '');
-  link.href = URL.createObjectURL(new window.Blob([text], { type: 'text/csv' }));
-  link.download = `internal-links-${state.tab}.csv`;
-  link.click();
+  download(rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n'), 'text/csv', `internal-links-${state.tab}.csv`);
   toast({ title: 'Export ready', description: `${plural(rows.length - 1, 'row')} in internal-links-${state.tab}.csv.`, tone: 'success' });
+}
+
+const esc = (value) => String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const TH = 'border-bottom:1px solid #d4d4d8;padding:6px 10px;text-align:left;font-weight:600;background:#f4f4f5';
+const TD = 'border-bottom:1px solid #e4e4e7;padding:6px 10px';
+const htmlTable = (head, rows) => `<table style="border-collapse:collapse;width:100%;font-size:14px;margin:8px 0 24px"><thead><tr>${head.map((cell) => `<th style="${TH}">${esc(cell)}</th>`).join('')}</tr></thead><tbody>${rows.map((row) => `<tr>${row.map((cell) => `<td style="${TD}">${esc(cell)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+
+/** A self-contained report for a client: the tiers, the flow between them, the open worklists and the links lost to important pages. */
+function clientSummary() {
+  const crawl = currentCrawl();
+  const flow = tierFlow('editorial');
+  const total = activePages().length;
+  const tierRows = flow.strip.map((row) => [tierLabel(row.key), row.pages.toLocaleString('en-US'), pct(total ? row.pages / total : 0), pct(row.equity), row.depth === null ? 'n/a' : row.depth.toFixed(1)]);
+  const matrixRows = flow.keys.map((from) => [tierCode(from), ...flow.keys.map((to) => flow.matrix.get(from).get(to).toLocaleString('en-US'))]);
+  const open = WORKLISTS.map((list) => [list.label, worklistCount(list.key)]).filter(([, count]) => count > 0).map(([label, count]) => [label, count.toLocaleString('en-US')]);
+  const lost = lostToTop().map((link) => [pageOf(link.from), pageOf(link.to), link.anchor]);
+  const heading = (text) => `<h2 style="font-size:18px;margin:24px 0 4px">${esc(text)}</h2>`;
+  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Internal links summary for eventussecurity.com</title></head>
+<body style="font-family:system-ui,sans-serif;color:#18181b;max-width:880px;margin:32px auto;padding:0 16px;line-height:1.5">
+<h1 style="font-size:24px;margin:0 0 4px">Internal links summary for eventussecurity.com</h1>
+<p style="margin:0;color:#52525b">Crawl of ${esc(crawl.when)}, ${esc(plural(crawl.pages, 'page'))}.</p>
+${heading('Tiers')}${htmlTable(['Tier', 'Pages', 'Share of pages', 'Equity share', 'Average depth'], tierRows)}
+${heading('Links between tiers')}<p style="margin:0;color:#52525b">Editorial links, one per pair of pages. Rows link to columns.</p>${htmlTable(['From', ...flow.keys.map((key) => `To ${tierCode(key)}`)], matrixRows)}
+${heading('Open worklists')}${open.length ? htmlTable(['Worklist', 'Pages'], open) : '<p style="color:#52525b">No worklist has pages in this crawl.</p>'}
+${heading(`Lost editorial links to ${alertTierText()} pages`)}${lost.length ? htmlTable(['Source page', 'Target page', 'Anchor'], lost) : `<p style="color:#52525b">No editorial links to ${alertTierText()} pages were lost since the last crawl.</p>`}
+<p style="margin:32px 0 0;padding-top:12px;border-top:1px solid #d4d4d8;color:#52525b;font-size:13px">Equity share is internal PageRank computed from the crawl. Link counts use editorial links.</p>
+</body></html>`;
+  download(html, 'text/html', 'internal-links-summary.html');
+  toast({ title: 'Client summary ready', description: 'Saved as internal-links-summary.html.', tone: 'success' });
+}
+const pageOf = (id) => pages.find((page) => page.id === id).path;
+
+function exportMenu(trigger) {
+  popover(trigger, (panel, api) => {
+    pad(panel);
+    menuItem(panel, api, 'Export this tab (CSV)', { iconName: 'download', run: exportCurrent });
+    menuItem(panel, api, 'Client summary (HTML)', { iconName: 'file-text', run: clientSummary });
+  }, { label: 'Export' });
 }
 
 // -------------------------------------------------------------------------------------------------
 // The row above the panel
 
 function tabs() {
-  const group = el('div', 'inline-flex shrink-0');
+  // Six tabs are wider than a phone: the group scrolls inside itself instead of widening the page
+  // `relative` keeps the screen-reader-only badge text inside this scroller instead of widening the page
+  const group = el('div', 'relative inline-flex max-w-full overflow-x-auto');
   group.setAttribute('role', 'tablist');
   group.setAttribute('aria-label', 'Internal links views');
   TABS.forEach(([key, label, iconName], index) => {
@@ -133,6 +202,16 @@ function tabs() {
     node.setAttribute('role', 'tab');
     node.setAttribute('aria-selected', String(selected));
     node.append(icon(iconName, 'size-icon-sm shrink-0'), el('span', '', label));
+    const alerts = key === 'changes' ? alertsFor().length : 0;
+    const open = key === 'opportunities' ? opportunityCounts().open : 0;
+    // The badge is for sighted users; the hidden text gives the tab the name "Changes, 3 alerts"
+    const badge = (count, text, tone) => {
+      const visible = el('span', `inline-flex h-badge min-w-5 items-center justify-center rounded-sm px-1 type-label num ${tone}`, String(count));
+      visible.setAttribute('aria-hidden', 'true');
+      node.append(visible, el('span', 'sr-only', `, ${text}`));
+    };
+    if (alerts > 0) badge(alerts, plural(alerts, 'alert'), 'bg-negative-subtle text-negative-text');
+    else if (open > 0) badge(open, `${open.toLocaleString('en-US')} open`, 'bg-surface-subtle text-foreground-secondary');
     group.append(node);
   });
   return group;
@@ -146,26 +225,32 @@ function showUntiered() {
 }
 
 function strip() {
-  const live = pages.filter(isLive);
+  const live = activePages().filter(isLive);
   const t1 = live.filter((page) => tierPosition(tierIdOf(page)) === 1);
   const reached = t1.filter((page) => depth[page.id] !== undefined);
-  const tiered = pages.filter((page) => tierIdOf(page)).length;
+  const active = activePages();
+  const tiered = active.filter((page) => tierIdOf(page)).length;
+  const lostTop = lostToTop().length;
+  const goChanges = () => {
+    location.hash = '#/internal-links/changes';
+  };
   const items = [
-    ['Pages', pages.length.toLocaleString('en-US')],
-    ['Tiered', `${tiered.toLocaleString('en-US')} of ${pages.length.toLocaleString('en-US')}`, tiered < pages.length ? showUntiered : null],
+    ['Pages', active.length.toLocaleString('en-US')],
+    ['Tiered', `${tiered.toLocaleString('en-US')} of ${active.length.toLocaleString('en-US')}`, tiered < active.length ? showUntiered : null, 'Show the pages without a tier'],
     ['T1 pages', String(t1.length)],
     ['T1 average depth', reached.length ? (reached.reduce((sum, page) => sum + depth[page.id], 0) / reached.length).toFixed(1) : 'n/a'],
-    ['No editorial links in', String(pages.filter((page) => flags(page).some((flag) => flag.key === 'editorialOrphan' || flag.key === 'orphan')).length)],
+    ['No editorial links in', String(active.filter((page) => flags(page).some((flag) => flag.key === 'editorialOrphan' || flag.key === 'orphan')).length)],
+    ...(lostTop > 0 ? [[`Lost editorial links to ${alertTierText()}`, String(lostTop), goChanges, 'Show what changed since the last crawl', true]] : []),
   ];
   const wrap = el('div', 'hidden h-control-sm items-center gap-4 md:flex');
-  items.forEach(([label, value, run]) => {
+  items.forEach(([label, value, run, title, negative]) => {
     const item = el(run ? 'button' : 'span', 'flex items-baseline gap-1.5');
     if (run) {
       item.type = 'button';
-      item.title = 'Show the pages without a tier';
+      item.title = title;
       item.addEventListener('click', run);
     }
-    item.append(el('span', 'type-meta text-foreground-secondary', label), el('span', `type-body-strong num ${run ? 'text-link underline' : 'text-foreground'}`, value));
+    item.append(el('span', 'type-meta text-foreground-secondary', label), el('span', `type-body-strong num ${run ? `${negative ? 'text-negative-text' : 'text-link'} underline` : 'text-foreground'}`, value));
     wrap.append(item);
   });
   return wrap;
@@ -173,9 +258,9 @@ function strip() {
 
 function pageRow() {
   const row = el('div', 'flex flex-wrap items-center gap-x-4 gap-y-2');
-  const left = el('div', 'min-w-0 flex-1 basis-96 flex flex-wrap items-center gap-x-4 gap-y-2');
+  // Six tabs plus the actions need a row of their own; the summary strip sits on the next row
+  const left = el('div', 'min-w-0 flex flex-wrap items-center gap-x-4 gap-y-2');
   left.append(tabs());
-  if (state.review !== 'nowebsite' && state.review !== 'first') left.append(strip());
   const right = el('div', 'ml-auto flex flex-wrap items-center justify-end gap-x-3 gap-y-2');
   const review = el('button', 'h-control-sm px-2 rounded-md border border-dashed border-border-strong flex items-center gap-1.5 whitespace-nowrap type-body text-foreground-secondary hover:bg-surface-hover');
   review.type = 'button';
@@ -189,6 +274,9 @@ function pageRow() {
     crawlButton.setAttribute('aria-label', `Crawl shown: ${crawl.when}`);
     crawlButton.append(icon('radar', 'size-icon-sm text-foreground-tertiary'), el('span', 'num', `Crawled ${crawl.short}, ${plural(crawl.pages, 'page')}`), icon('chevron-down', 'size-icon-sm text-foreground-tertiary'));
     crawlMenu(crawlButton);
+    const older = crawl.id !== crawls[0].id;
+    const olderBadge = el('span', 'inline-flex h-badge items-center rounded-sm px-1.5 type-label whitespace-nowrap bg-warning-subtle text-warning-text', 'Older crawl');
+    const latest = smallButton('Back to latest', () => setCrawl(crawls[0].id));
     const more = el('button', 'size-control-sm rounded-md border border-border bg-surface flex items-center justify-center text-foreground-secondary hover:bg-surface-hover aria-expanded:bg-surface-selected');
     more.type = 'button';
     more.setAttribute('aria-label', 'More actions');
@@ -197,17 +285,20 @@ function pageRow() {
     const exportButton = el('button', BUTTON_SM);
     exportButton.type = 'button';
     exportButton.append(icon('download', 'size-icon-sm text-foreground-tertiary'), el('span', '', 'Export'));
-    exportButton.addEventListener('click', exportCurrent);
+    exportMenu(exportButton);
     const running = state.review === 'running';
     const now = el('button', `h-control-sm px-2 rounded-md bg-primary text-primary-foreground type-body-strong flex items-center gap-1.5 whitespace-nowrap hover:bg-primary-hover disabled:bg-surface-disabled disabled:text-foreground-disabled`);
     now.type = 'button';
     now.disabled = running;
     now.append(icon('refresh-cw', `size-icon-sm ${running ? 'animate-spin' : ''}`), el('span', '', running ? 'Crawling' : 'Crawl now'));
     now.addEventListener('click', crawlNow);
-    right.append(crawlButton, more, exportButton, now);
+    right.append(crawlButton, ...(older ? [olderBadge, latest] : []), more, exportButton, now);
   }
   row.append(left, right);
-  return row;
+  const wrap = el('div', 'flex flex-col gap-2');
+  wrap.append(row);
+  if (state.review !== 'nowebsite' && state.review !== 'first') wrap.append(strip());
+  return wrap;
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -323,7 +414,7 @@ setRenderer(render);
 mountSettings();
 window.addEventListener('preview-route', (event) => {
   if (event.detail.view !== 'internal-links') return;
-  state.tab = event.detail.section ?? 'pages';
+  state.tab = knownTab(event.detail.section);
   appChrome(true);
   render();
 });
@@ -335,7 +426,7 @@ window.addEventListener('preview-leave', (event) => {
   window.history.replaceState(null, '', location.pathname + location.hash);
 });
 if (location.hash.startsWith('#/internal-links')) {
-  state.tab = location.hash.split('/')[2] || 'pages';
+  state.tab = knownTab(location.hash.split('/')[2]);
   appChrome(true);
   render();
 }

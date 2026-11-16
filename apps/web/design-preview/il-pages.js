@@ -1,15 +1,18 @@
+/* global document */
 /**
  * Internal links, Pages tab (spec 7.2): one row per crawled page with its tier, status, depth, linking pages, the
  * tiers those pages sit in, outlinks, equity share, Search Console clicks and flags. It follows the Keywords table:
  * toolbar, sticky header and first columns, select column, bulk bar, sort buttons and a footer line. A row opens the
  * page inspector (il-drawer.js). Exports `render(host)`, `exportRows()` and `shownPageIds()`.
  */
-import { checkRow, downloadCsv, icon, popover, toast, BUTTON_SM } from './perf-ui.js';
+import { checkRow, downloadCsv, icon, popover, toast, BUTTON, BUTTON_PRIMARY, BUTTON_SM } from './perf-ui.js';
+import { openDialog } from './kw-dialog.js';
 import { el } from './prompts-parts.js';
 import {
-  WORKLISTS, SCOPE_MENU, addTag, allTags, depth, equity, flagBadge, flags, ins, links, number, outs, pageCsvRows, pages, pct, pageById, plural,
+  WORKLISTS, SCOPE_MENU, activePages, addTag, alertTierText, allTags, anchorStats, applyTierSuggestion, avgRank, citationsOf, depth, dismissTierSuggestion, equity,
+  flagBadge, flags, ins, keywordsOf, number, outs, pageCsvRows, pageDelta, pct, pageById, plural,
   refresh, resetToRule, SCOPES, setFocus, setTier, sourceText, state, statusBadge, statusOf, tierBadge, tierBg, tierCode,
-  tierIdOf, tierKeys, tierLabel, tierPosition, tiers, worklistCount,
+  tierIdOf, tierKeys, tierLabel, tierPosition, tierSuggestions, tiers, worklistCount,
 } from './il-model.js';
 import { openInspector } from './il-drawer.js';
 
@@ -28,6 +31,7 @@ const COLUMNS = [
   { id: 'outlinks', label: 'Outlinks', width: 96, sort: 'outlinks', tip: 'Unique pages this page links to, in the link scope chosen' },
   { id: 'equity', label: 'Equity share', width: 112, sort: 'equity', tip: 'Share of internal PageRank, counting every followed link' },
   { id: 'clicks', label: 'GSC clicks', width: 104, sort: 'clicks', tip: 'Google Search Console, last 28 days' },
+  { id: 'change', label: 'Change', width: 96, sort: 'change', optional: true, tip: 'Editorial links in, compared with the previous crawl' },
   { id: 'flags', label: 'Flags', width: 240, sort: 'flags' },
   { id: 'tags', label: 'Tags', width: 180, optional: true },
   { id: 'reason', label: 'Indexability reason', width: 240, optional: true },
@@ -37,7 +41,15 @@ const COLUMNS = [
   { id: 'redirects', label: 'Links to redirects', width: 130, optional: true },
   { id: 'topAnchor', label: 'Top anchor', width: 200, optional: true },
   { id: 'impressions', label: 'GSC impressions', width: 128, optional: true, tip: 'Google Search Console, last 28 days' },
+  { id: 'equityChange', label: 'Equity change', width: 120, sort: 'equityChange', optional: true, tip: 'Equity share, compared with the previous crawl' },
+  { id: 'keywords', label: 'Tracked keywords', width: 128, sort: 'keywords', optional: true, tip: 'Keywords tracked for this page in idraft rank tracking' },
+  { id: 'avgRank', label: 'Average rank', width: 120, sort: 'avgRank', optional: true, tip: 'Average position of the tracked keywords that rank, from idraft rank tracking' },
+  { id: 'citations', label: 'AI citations', width: 112, sort: 'citations', optional: true, tip: 'Answers from ChatGPT, Gemini and AI Mode that cited this page, last 28 days' },
+  { id: 'anchors', label: 'Anchors', width: 190, sort: 'anchors', optional: true, tip: 'Distinct anchor texts of the editorial links in, and how many of them are generic' },
+  { id: 'anchorMatch', label: 'Anchor matches keyword', width: 160, optional: true, tip: 'Whether an editorial anchor contains one of the tracked keywords' },
 ];
+// The new columns other than Change start hidden; the column chooser turns them on
+['equityChange', 'keywords', 'avgRank', 'citations', 'anchors', 'anchorMatch'].forEach((id) => state.hidden.add(id));
 
 const EMPTY_WORKLIST = {
   underlinked: ['No under-linked T1 pages', 'Every T1 page has at least 3 editorial linking pages, sits within 3 clicks of the home page and holds more than the lowest quarter of equity share.'],
@@ -46,6 +58,10 @@ const EMPTY_WORKLIST = {
   deepAuto: ['No pages deep only through previous and next', 'Every page can be reached without relying on previous and next links.'],
   brokenLinks: ['No broken or redirected links', 'No page links to a 4xx page or through a redirect.'],
   toNonIndexable: ['No links to non-indexable pages', 'Every internal link points to an indexable page.'],
+  get lostLinks() {
+    return [`No lost editorial links to ${alertTierText()}`, `No editorial links to ${alertTierText()} pages were lost since the last crawl.`];
+  },
+  weakOutlinks: ['No T1 pages linking out to weak pages', 'Every T1 page sends most of its links to pages that can rank.'],
 };
 
 let typing = false;
@@ -78,7 +94,7 @@ const FILTER_FIELDS = {
   indexable: { label: 'Indexable', values: () => [['yes', 'Yes'], ['no', 'No']], test: (page, value) => (value === 'yes') === page.indexable },
   flag: {
     label: 'Flag',
-    values: () => [...new Map(pages.flatMap((page) => flags(page)).map((flag) => [flag.key, flag.label]))],
+    values: () => [...new Map(activePages().flatMap((page) => flags(page)).map((flag) => [flag.key, flag.label]))],
     test: (page, value) => flags(page).some((flag) => flag.key === value),
   },
 };
@@ -102,12 +118,18 @@ const SORT = {
   equity: (page) => equity[page.id],
   clicks: (page) => page.clicks,
   flags: (page) => flags(page).length,
+  change: (page) => pageDelta(page.id).editorialIn ?? 0,
+  equityChange: (page) => pageDelta(page.id).equityPoints ?? 0,
+  keywords: (page) => keywordsOf(page.id).length,
+  avgRank: (page) => avgRank(page.id) ?? 1000,
+  citations: (page) => citationsOf(page.id).total,
+  anchors: (page) => anchorStats(page.id).distinct,
 };
 
 function visiblePages() {
   const list = state.worklist ? WORKLISTS.find((candidate) => candidate.key === state.worklist) : null;
   const query = state.search.trim().toLowerCase();
-  const items = pages
+  const items = activePages()
     .filter((page) => !list || list.test(page))
     .filter(matchesFilters)
     .filter((page) => !query || page.path.toLowerCase().includes(query) || page.title.toLowerCase().includes(query));
@@ -118,7 +140,19 @@ function visiblePages() {
 }
 
 export const shownPageIds = () => visiblePages().map((page) => page.id);
-export const exportRows = () => pageCsvRows(visiblePages(), state.scope);
+
+/** The shared export rows plus the columns only this table has. */
+function csvRows(list) {
+  const [header, ...rows] = pageCsvRows(list, state.scope);
+  return [
+    [...header, 'Equity share change (points)', 'Distinct anchors (editorial)', 'Generic anchor share', 'Anchor matches keyword'],
+    ...rows.map((row, index) => {
+      const anchors = anchorStats(list[index].id);
+      return [...row, pageDelta(list[index].id).equityPoints, anchors.distinct, anchors.total ? pct(anchors.genericShare) : '', anchors.matchesKeyword === null ? 'n/a' : anchors.matchesKeyword ? 'Yes' : 'No'];
+    }),
+  ];
+}
+export const exportRows = () => csvRows(visiblePages());
 
 // -------------------------------------------------------------------------------------------------
 // Cells
@@ -163,10 +197,8 @@ function flagList(page) {
 }
 
 function topAnchor(page) {
-  const counts = new Map();
-  links.filter((link) => link.to === page.id && link.placement === 'content').forEach((link) => counts.set(link.anchor, (counts.get(link.anchor) ?? 0) + 1));
-  const top = [...counts].sort((a, b) => b[1] - a[1])[0];
-  return top ? el('span', 'type-table text-foreground truncate', `"${top[0]}"`) : muted('n/a');
+  const text = anchorStats(page.id).top[0]?.text;
+  return text ? el('span', 'type-table text-foreground truncate', `"${text}"`) : muted('n/a');
 }
 
 function chips(page) {
@@ -174,6 +206,31 @@ function chips(page) {
   const wrap = el('span', 'flex flex-wrap gap-1 py-1');
   page.tags.forEach((tag) => wrap.append(el('span', 'inline-flex h-badge items-center rounded-sm border border-border px-1.5 type-label text-foreground-secondary', tag)));
   return wrap;
+}
+
+function deltaCell(value, suffix = '') {
+  if (value === null) return el('span', 'inline-flex h-badge items-center rounded-sm px-1.5 type-label whitespace-nowrap bg-surface-subtle text-foreground-secondary', 'New');
+  if (value === 0) return el('span', 'type-table num text-foreground-tertiary', `0${suffix}`);
+  return el('span', `type-table num ${value > 0 ? 'text-positive-text' : 'text-negative-text'}`, `${value > 0 ? '+' : '-'}${suffix ? Math.abs(value).toFixed(1) : Math.abs(value)}${suffix}`);
+}
+
+function citationsCell(page) {
+  const { chatgpt, gemini, aimode, total } = citationsOf(page.id);
+  const node = numeric(number(total));
+  node.title = `ChatGPT ${chatgpt}, Gemini ${gemini}, AI Mode ${aimode} (28 days)`;
+  return node;
+}
+
+function anchorsCell(page) {
+  const stats = anchorStats(page.id);
+  if (stats.total === 0) return muted('n/a');
+  const share = Math.round(stats.genericShare * 100);
+  return el('span', `type-table num truncate ${stats.genericShare > 0.5 ? 'text-warning-text' : 'text-foreground'}`, `${stats.distinct} distinct, ${share}% generic`);
+}
+
+function anchorMatchCell(page) {
+  const { matchesKeyword } = anchorStats(page.id);
+  return matchesKeyword === null ? muted('n/a') : el('span', 'type-table text-foreground', matchesKeyword ? 'Yes' : 'No');
 }
 
 function cellFor(column, page) {
@@ -200,6 +257,13 @@ function cellFor(column, page) {
     redirects: () => numeric(String(out.filter((link) => statusOf(link.to) === 301).length)),
     topAnchor: () => topAnchor(page),
     impressions: () => numeric(number(page.impressions)),
+    change: () => deltaCell(pageDelta(page.id).editorialIn),
+    equityChange: () => deltaCell(pageDelta(page.id).equityPoints, ' pts'),
+    keywords: () => numeric(String(keywordsOf(page.id).length)),
+    avgRank: () => (avgRank(page.id) === null ? muted('n/a') : numeric(avgRank(page.id).toFixed(1))),
+    citations: () => citationsCell(page),
+    anchors: () => anchorsCell(page),
+    anchorMatch: () => anchorMatchCell(page),
   };
   return td(builders[column.id]());
 }
@@ -501,7 +565,98 @@ function viewChips() {
   const counted = WORKLISTS.map((list) => [list, worklistCount(list.key)]);
   counted.filter(([list, count]) => count > 0 || list.key === state.worklist).forEach(([list, count]) => chip(list.key, list.label, count));
   if (counted.every(([, count]) => count === 0)) row.append(el('span', 'type-meta text-foreground-tertiary', 'No issues'));
+  const suggested = tierSuggestions().length;
+  if (suggested > 0) {
+    const node = el('button', CHIP_OFF);
+    node.type = 'button';
+    node.dataset.restore = 'chip:tiers';
+    node.append(icon('sparkles', 'size-icon-sm text-foreground-tertiary'), el('span', '', 'Tier suggestions'), el('span', 'num', number(suggested)));
+    node.addEventListener('click', openSuggestions);
+    row.append(node);
+  }
   return row;
+}
+
+/** The dialog behind the "Tier suggestions" chip: accept or dismiss one by one, or accept them all. */
+function openSuggestions() {
+  const frame = openDialog({
+    title: 'Suggested tiers',
+    description: 'idraft suggests a tier from Search Console clicks and tracked keyword rankings. Nothing changes until you accept.',
+    width: 'lg',
+    // Accepting every suggestion removes the Tier suggestions chip: focus the first view chip, or the search field
+    onClose: () => (document.querySelector('[data-restore="chip:tiers"]') ?? document.querySelector('[data-restore^="chip:"]') ?? document.querySelector('input[aria-label="Search pages"]'))?.focus(),
+  });
+  const th = (label, align = 'text-left') => {
+    const node = el('th', `border-b border-border bg-surface-subtle px-3 py-2 type-table-header text-foreground-tertiary font-normal ${align}`, label);
+    node.scope = 'col';
+    return node;
+  };
+  const cell = (...content) => {
+    const node = el('td', 'border-b border-border-subtle px-3 py-2 align-top');
+    node.append(...content);
+    return node;
+  };
+  const draw = () => {
+    const rows = tierSuggestions();
+    frame.body.replaceChildren();
+    frame.footer.replaceChildren();
+    if (rows.length === 0) {
+      frame.body.append(el('p', 'type-body text-foreground-secondary py-6 text-center', 'No suggestions: every page that looks important already has a tier.'));
+    } else {
+      const table = el('table', 'w-full border-collapse');
+      table.setAttribute('aria-label', 'Suggested tiers');
+      const head = el('tr');
+      head.append(th('Page'), th('Now'), th('Suggested'), th('Why'), th('Actions', 'text-right'));
+      const thead = el('thead');
+      thead.append(head);
+      const tbody = el('tbody');
+      rows.forEach((row) => {
+        const page = pageById(row.id);
+        const tr = el('tr');
+        const name = el('th', 'border-b border-border-subtle px-3 py-2 text-left align-top font-normal');
+        name.scope = 'row';
+        name.append(el('span', 'block type-table text-foreground', page.path), el('span', 'block type-label text-foreground-tertiary', page.title));
+        const accept = el('button', BUTTON_SM, 'Accept');
+        accept.type = 'button';
+        accept.setAttribute('aria-label', `Accept ${tierCode(row.to)} for ${page.path}`);
+        accept.addEventListener('click', () => {
+          applyTierSuggestion(row.id);
+          refresh();
+          toast({ title: 'Tier set', description: `${page.path} is now ${tierCode(row.to)}`, tone: 'success' });
+          draw();
+        });
+        const dismiss = el('button', BUTTON_SM, 'Dismiss');
+        dismiss.type = 'button';
+        dismiss.setAttribute('aria-label', `Dismiss the suggestion for ${page.path}`);
+        dismiss.addEventListener('click', () => {
+          dismissTierSuggestion(row.id);
+          refresh();
+          draw();
+        });
+        const actions = el('span', 'flex items-center justify-end gap-1');
+        actions.append(accept, dismiss);
+        tr.append(name, cell(tierBadge(row.from)), cell(tierBadge(row.to)), cell(el('span', 'type-body text-foreground-secondary', row.reasons.join('; '))), cell(actions));
+        tbody.append(tr);
+      });
+      table.append(thead, tbody);
+      frame.body.append(table);
+      const all = el('button', BUTTON_PRIMARY, 'Accept all');
+      all.type = 'button';
+      all.addEventListener('click', () => {
+        rows.forEach((row) => applyTierSuggestion(row.id));
+        refresh();
+        toast({ title: 'Tiers set', description: `${plural(rows.length, 'page')} got the suggested tier.`, tone: 'success' });
+        frame.close();
+      });
+      frame.footer.append(all);
+    }
+    const close = el('button', BUTTON, 'Close');
+    close.type = 'button';
+    close.addEventListener('click', frame.close);
+    frame.footer.append(close);
+    (frame.body.querySelector('table button') ?? close).focus();
+  };
+  draw();
 }
 
 function bulkBar(items) {
@@ -560,7 +715,7 @@ function bulkBar(items) {
     setFocus(ids[0]);
   });
   trigger('Export', 'download').addEventListener('click', () => {
-    downloadCsv('internal-links-pages-selected.csv', pageCsvRows(chosen, state.scope));
+    downloadCsv('internal-links-pages-selected.csv', csvRows(chosen));
   });
   const clear = el('button', 'ml-auto size-control-sm rounded-md flex items-center justify-center text-primary-text hover:bg-surface-hover');
   clear.type = 'button';
@@ -729,7 +884,7 @@ function onClick(event) {
     refresh();
   } else if (data.sort) {
     const same = state.sort.key === data.sort;
-    const smaller = ['page', 'tier', 'depth', 'status'].includes(data.sort);
+    const smaller = ['page', 'tier', 'depth', 'status', 'avgRank'].includes(data.sort);
     state.sort = { key: data.sort, dir: same ? (state.sort.dir === 'asc' ? 'desc' : 'asc') : smaller ? 'asc' : 'desc' };
     refresh();
   } else if (data.removeFilter) {

@@ -5,7 +5,7 @@
  * The table is the accessible version; no chart library.
  */
 import { el } from './prompts-parts.js';
-import { SCOPE_MENU, SCOPE_WORD, equity, ins, number, pages, pct, plural, refresh, state, statusOf, tierBadge, tierCode, tierFlow, tierIdOf, tierLabel, tiers } from './il-model.js';
+import { SCOPE_MENU, SCOPE_WORD, activePages, crawls, currentCrawl, equity, ins, number, pct, plural, refresh, state, tierBadge, tierCode, tierFlow, tierLabel, tiers } from './il-model.js';
 import { applyRestore, menuSelect } from './il-pages.js';
 
 const PANEL = 'rounded-lg border border-border bg-surface';
@@ -28,7 +28,7 @@ function summaryStrip(flow) {
     cell.append(
       badge,
       el('p', 'type-body-strong num text-foreground', `${pct(item.equity)} of equity`),
-      el('p', 'type-meta text-foreground-secondary', `from ${pct(item.pages / pages.length)} of pages, ${item.depth === null ? 'depth n/a' : `average depth ${item.depth.toFixed(1)}`}`),
+      el('p', 'type-meta text-foreground-secondary', `from ${pct(item.pages / Math.max(1, activePages().length))} of pages, ${item.depth === null ? 'depth n/a' : `average depth ${item.depth.toFixed(1)}`}`),
     );
     strip.append(cell);
   });
@@ -107,7 +107,7 @@ function heatmap(flow) {
 
 /** Pages that hold equity without passing it to a page that ranks: errors and non-indexable pages. Redirects pass it on. */
 function lostRows() {
-  return pages
+  return activePages()
     .filter((page) => page.status >= 400 || (page.status === 200 && !page.indexable))
     .map((page) => ({ page, share: equity[page.id], linking: ins(page.id, 'all').length }))
     .sort((a, b) => b.share - a.share);
@@ -169,7 +169,10 @@ export function render(host) {
   matrix.setAttribute('aria-label', 'Links between tiers');
   matrix.append(toolbar, heatmap(flow));
   host.replaceChildren(el('div', 'flex flex-col gap-4', ''));
-  host.firstChild.append(summaryStrip(flow), note, matrix, lostPanel());
+  host.firstChild.append(summaryStrip(flow));
+  // The crawl in view decides every number here; say so when it is not the newest
+  if (currentCrawl().id !== crawls[0].id) host.firstChild.append(el('p', 'type-meta text-foreground-tertiary', `Showing the crawl of ${currentCrawl().short}.`));
+  host.firstChild.append(note, matrix, lostPanel());
   applyRestore(host);
 }
 

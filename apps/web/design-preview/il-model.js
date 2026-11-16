@@ -3,10 +3,10 @@
  * tiers from manual choices and URL rules, click depth with and without auto-generated links, equity share
  * (PageRank, damping 0.85), flags, worklists and the tier flow. The tabs read from here and call refresh().
  */
-import { crawlSettings, crawls, links, pages, rules, tagNames, tiers } from './il-data.js';
+import { citations, crawlSettings, crawls, keywords, links, mentions, pages, rules, tagNames, tiers } from './il-data.js';
 import { el } from './prompts-parts.js';
 
-export { crawlSettings, crawls, links, pages, rules, tagNames, tiers };
+export { citations, crawlSettings, crawls, keywords, links, mentions, pages, rules, tagNames, tiers };
 
 // -------------------------------------------------------------------------------------------------
 // State of the page. Tabs keep their own parts under their key.
@@ -25,6 +25,9 @@ export const state = {
   open: null,
   // pair: { from: tierId|null, to: tierId|null, scope } set by a Tier flow cell; the Links tab shows it as a chip
   links: { search: '', sort: { key: 'source', dir: 'asc' }, placement: '', pair: null, limit: 200 },
+  // opportunityStatus: `${from}>${to}` to 'accepted' or 'dismissed' (absent = open); dismissedTierSuggestions: page ids
+  opportunityStatus: {},
+  dismissedTierSuggestions: new Set(),
   journey: { focus: 'soc', view: 'canvas', cards: 'editorial', opened: new Set(), more: new Map(), groups: new Set(), pinned: new Set(), treeDir: 'out', treeOpen: new Set() },
 };
 
@@ -151,62 +154,112 @@ export const SCOPE_WORD = { editorial: 'editorial', auto: 'auto-generated', temp
 export const PLACEMENT_LABEL = { content: 'Content', auto_generated: 'Auto-generated', navigation: 'Navigation', footer: 'Footer', breadcrumb: 'Breadcrumb', header: 'Header', sidebar: 'Sidebar' };
 const inScope = (link, scope) => scope === 'all' || scopeOf(link) === scope;
 
-/** Links out of a page, one per target page (the first by placement order: content, auto-generated, template). */
-export function outs(id, scope = 'all') {
-  const seen = new Set();
-  return links.filter((link) => link.from === id && link.to !== id && inScope(link, scope) && !seen.has(link.to) && seen.add(link.to));
+// Crawl in view (spec 6.2): a link or a page counts only when the crawl that is open saw it
+const pageActive = (page, n) => page.since <= n && (page.lastSeen ?? Infinity) >= n;
+export const activeN = () => currentCrawl().n;
+export const isActiveLink = (link, n = activeN()) => link.since <= n && link.lastSeen >= n;
+/** The pages the crawl in view found; `pages` stays the full list. */
+export function activePages() {
+  const n = activeN();
+  return pages.filter((page) => pageActive(page, n));
 }
-/** Links into a page, one per linking page. */
-export function ins(id, scope = 'all') {
+
+const outsAt = (id, scope, n) => {
   const seen = new Set();
-  return links.filter((link) => link.to === id && link.from !== id && inScope(link, scope) && !seen.has(link.from) && seen.add(link.from));
-}
+  return links.filter((link) => link.from === id && link.to !== id && isActiveLink(link, n) && inScope(link, scope) && !seen.has(link.to) && seen.add(link.to));
+};
+const insAt = (id, scope, n) => {
+  const seen = new Set();
+  return links.filter((link) => link.to === id && link.from !== id && isActiveLink(link, n) && inScope(link, scope) && !seen.has(link.from) && seen.add(link.from));
+};
+/** Links out of a page in the crawl in view, one per target page (the first by placement order: content, auto-generated, template). */
+export const outs = (id, scope = 'all') => outsAt(id, scope, activeN());
+/** Links into a page in the crawl in view, one per linking page. */
+export const ins = (id, scope = 'all') => insAt(id, scope, activeN());
 export const statusOf = (id) => pageById(id).status;
 
 // -------------------------------------------------------------------------------------------------
 // Crawl metrics (spec 6.4). They come from the crawl, so tier changes never move them.
 
-function bfs(skipAuto) {
-  const depth = { home: 0 };
+function bfs(n, skipAuto) {
+  const result = { home: 0 };
   const queue = ['home'];
   while (queue.length > 0) {
     const current = queue.shift();
     const page = pageById(current);
-    const next = page.redirect ? [page.redirect] : links.filter((link) => link.from === current && link.rel !== 'nofollow' && !(skipAuto && link.placement === 'auto_generated')).map((link) => link.to);
+    const next = page.redirect ? [page.redirect] : links.filter((link) => link.from === current && isActiveLink(link, n) && link.rel !== 'nofollow' && !(skipAuto && link.placement === 'auto_generated')).map((link) => link.to);
     next.forEach((to) => {
-      if (depth[to] === undefined) {
-        depth[to] = depth[current] + 1;
+      if (result[to] === undefined) {
+        result[to] = result[current] + 1;
         queue.push(to);
       }
     });
   }
-  return depth;
+  return result;
 }
-export const depth = bfs(false);
-export const depthWithoutAuto = bfs(true);
 
-/** Equity share: PageRank (d 0.85) over unique followed pairs. Redirects pass it on, nofollow drops it, errors keep it. */
-export const equity = (() => {
-  const ids = pages.map((page) => page.id);
-  const n = ids.length;
+/** Equity share: PageRank (d 0.85) over unique followed pairs. Redirects pass it on, nofollow drops it, errors keep it. A page the crawl did not find has 0. */
+function equityAt(n) {
+  const ids = pages.filter((page) => pageActive(page, n)).map((page) => page.id);
+  const count = ids.length;
   const out = Object.fromEntries(ids.map((id) => {
     const page = pageById(id);
     if (page.redirect) return [id, { follow: [page.redirect], degree: 1 }];
     if (page.status >= 400) return [id, { follow: [], degree: 0 }];
-    const unique = outs(id, 'all');
+    const unique = outsAt(id, 'all', n);
     return [id, { follow: unique.filter((link) => link.rel !== 'nofollow').map((link) => link.to), degree: unique.length }];
   }));
-  let rank = Object.fromEntries(ids.map((id) => [id, 1 / n]));
+  let rank = Object.fromEntries(ids.map((id) => [id, 1 / count]));
   for (let round = 0; round < 100; round += 1) {
-    const next = Object.fromEntries(ids.map((id) => [id, 0.15 / n]));
+    const next = Object.fromEntries(ids.map((id) => [id, 0.15 / count]));
     ids.forEach((id) => out[id].follow.forEach((to) => (next[to] += (0.85 * rank[id]) / out[id].degree)));
     const change = Math.max(...ids.map((id) => Math.abs(next[id] - rank[id])));
     rank = next;
     if (change < 1e-9) break;
   }
   const total = ids.reduce((sum, id) => sum + rank[id], 0);
-  return Object.fromEntries(ids.map((id) => [id, rank[id] / total]));
-})();
+  return Object.fromEntries(pages.map((page) => [page.id, ids.includes(page.id) ? rank[page.id] / total : 0]));
+}
+
+/** Pure: the three metrics of crawl number n, without touching the shared objects. */
+export const computeMetrics = (n) => ({ depth: bfs(n, false), depthWithoutAuto: bfs(n, true), equity: equityAt(n) });
+const metricsCache = new Map();
+/** { depth, depthWithoutAuto, equity } of any crawl number, kept after the first call (the crawls never change). */
+export function metricsFor(n) {
+  if (!metricsCache.has(n)) metricsCache.set(n, computeMetrics(n));
+  return metricsCache.get(n);
+}
+
+// The three shared objects keep their identity (other files import them); recompute() refills them for the crawl in view
+export const depth = {};
+export const depthWithoutAuto = {};
+export const equity = {};
+// 25th percentile of equity share among live, indexable pages of the crawl in view
+let lowQuarterEquity = 0;
+export function recompute() {
+  const metrics = metricsFor(activeN());
+  [[depth, metrics.depth], [depthWithoutAuto, metrics.depthWithoutAuto], [equity, metrics.equity]].forEach(([target, source]) => {
+    Object.keys(target).forEach((key) => delete target[key]);
+    Object.assign(target, source);
+  });
+  const shares = activePages().filter((page) => isLive(page) && page.indexable).map((page) => equity[page.id]).sort((a, b) => a - b);
+  lowQuarterEquity = shares[Math.floor((shares.length - 1) * 0.25)] ?? 0;
+}
+/** Opens another crawl: the whole site then shows as that crawl saw it. */
+export function setCrawl(id) {
+  if (!crawls.some((crawl) => crawl.id === id)) return;
+  state.crawl = id;
+  recompute();
+  const live = new Set(activePages().map((page) => page.id));
+  if (state.open && !live.has(state.open)) state.open = null;
+  const { journey } = state;
+  if (!live.has(journey.focus) || (journey.pathTarget && !live.has(journey.pathTarget))) {
+    journey.focus = 'home';
+    journey.pathTarget = null;
+    clearJourney();
+  }
+  refresh();
+}
 
 export const isLive = (page) => page.status === 200;
 
@@ -225,14 +278,10 @@ export function flags(page) {
   if (out.some((link) => statusOf(link.to) >= 400)) list.push({ key: 'broken', label: 'Broken outlink', tone: 'negative' });
   if (out.some((link) => statusOf(link.to) === 301)) list.push({ key: 'toRedirect', label: 'Links to a redirect', tone: 'warning' });
   if (isLive(page) && page.indexable && tierPosition(tierIdOf(page)) === 1 && editorial < 3) list.push({ key: 'fewLinks', label: 'Few editorial links', tone: 'warning' });
+  const anchors = anchorStats(page.id);
+  if (anchors.total >= 2 && anchors.genericShare > 0.5) list.push({ key: 'genericAnchors', label: 'Mostly generic anchors', tone: 'warning' });
   return list;
 }
-
-// 25th percentile of equity share among live, indexable pages
-const lowQuarterEquity = (() => {
-  const shares = pages.filter((page) => isLive(page) && page.indexable).map((page) => equity[page.id]).sort((a, b) => a - b);
-  return shares[Math.floor((shares.length - 1) * 0.25)] ?? 0;
-})();
 
 /** Saved views of the Pages tab (spec 7.2). */
 export const WORKLISTS = [
@@ -242,8 +291,18 @@ export const WORKLISTS = [
   { key: 'deepAuto', label: 'Deep only through previous and next', test: (page) => flags(page).some((flag) => flag.key === 'deepAuto') },
   { key: 'brokenLinks', label: 'Broken and redirected links', test: (page) => flags(page).some((flag) => flag.key === 'broken' || flag.key === 'toRedirect') },
   { key: 'toNonIndexable', label: 'Links to non-indexable pages', test: (page) => outs(page.id, 'all').some((link) => !pageById(link.to).indexable || statusOf(link.to) !== 200) },
+  { key: 'lostLinks', get label() { return `Lost links to ${alertTierText()}`; }, test: (page) => lostToTop().some((link) => link.to === page.id) },
+  { key: 'weakOutlinks', label: 'T1 pages linking out to weak pages', test: (page) => linksOutToWeakPages(page) },
 ];
-export const worklistCount = (key) => pages.filter(WORKLISTS.find((list) => list.key === key).test).length;
+export const worklistCount = (key) => activePages().filter(WORKLISTS.find((list) => list.key === key).test).length;
+
+// Weak targets: tier position 4, Untiered, or a page that is not a 200 or not indexable (spec slice 2)
+const isWeakTarget = (page) => [0, 4].includes(tierPosition(tierIdOf(page))) || page.status !== 200 || !page.indexable;
+function linksOutToWeakPages(page) {
+  if (!isLive(page) || tierPosition(tierIdOf(page)) !== 1) return false;
+  const out = outs(page.id, 'editorial');
+  return out.length >= 3 && out.filter((link) => isWeakTarget(pageById(link.to))).length / out.length > 0.5;
+}
 
 // -------------------------------------------------------------------------------------------------
 // Tier flow (spec 7.6): unique pairs from tier to tier in a scope, and each tier's share of equity
@@ -253,8 +312,9 @@ export function tierFlow(scope) {
   const keys = tierKeys();
   const matrix = new Map(keys.map((from) => [from, new Map(keys.map((to) => [to, 0]))]));
   const seen = new Set();
+  const live = activePages();
   links.forEach((link) => {
-    if (!inScope(link, scope) || link.from === link.to) return;
+    if (!isActiveLink(link) || !inScope(link, scope) || link.from === link.to) return;
     const pair = `${link.from}>${link.to}`;
     if (seen.has(pair)) return;
     seen.add(pair);
@@ -263,7 +323,7 @@ export function tierFlow(scope) {
     matrix.get(from).set(to, matrix.get(from).get(to) + 1);
   });
   const strip = keys.map((key) => {
-    const members = pages.filter((page) => tierIdOf(page) === key);
+    const members = live.filter((page) => tierIdOf(page) === key);
     const reached = members.filter((page) => depth[page.id] !== undefined);
     return {
       key,
@@ -296,8 +356,8 @@ export function statusBadge(page) {
 /** Rows for CSV export of the pages table. */
 export function pageCsvRows(list, scope) {
   return [
-    ['URL', 'Title', 'Tier', 'Tier source', 'Status', 'Depth', `Linking pages (${SCOPE_WORD[scope] ?? 'all'})`, 'Outlinks', 'Equity share', 'Flags', 'Tags'],
-    ...list.map((page) => [`https://eventussecurity.com${page.path}`, page.title, tierLabel(tierIdOf(page)), tierOf(page).source ?? '', page.status, depth[page.id] ?? '', ins(page.id, scope).length, outs(page.id, scope).length, pct(equity[page.id]), flags(page).map((flag) => flag.label).join('; '), page.tags.join('; ')]),
+    ['URL', 'Title', 'Tier', 'Tier source', 'Status', 'Depth', `Linking pages (${SCOPE_WORD[scope] ?? 'all'})`, 'Outlinks', 'Equity share', 'Flags', 'Tags', 'Tracked keywords', 'Average rank', 'AI citations (28 days)', 'Editorial links in change vs previous crawl'],
+    ...list.map((page) => [`https://eventussecurity.com${page.path}`, page.title, tierLabel(tierIdOf(page)), tierOf(page).source ?? '', page.status, depth[page.id] ?? '', ins(page.id, scope).length, outs(page.id, scope).length, pct(equity[page.id]), flags(page).map((flag) => flag.label).join('; '), page.tags.join('; '), keywordsOf(page.id).map((row) => row.keyword).join('; '), avgRank(page.id) ?? '', citationsOf(page.id).total, pageDelta(page.id).editorialIn ?? 'New']),
   ];
 }
 
@@ -306,9 +366,9 @@ export const currentCrawl = () => crawls.find((crawl) => crawl.id === state.craw
 /**
  * The shortest route from the home page over followed links (redirects followed), as
  * [{ id, link }] from home to the page; `link` is the link that reached that step (null for home).
- * Returns null when the page cannot be reached.
+ * Returns null when the page cannot be reached. With scope 'editorial' only body links are followed (redirects always are).
  */
-export function routeFromHome(id) {
+export function routeFromHome(id, scope = 'all') {
   const previous = new Map([['home', null]]);
   const queue = ['home'];
   while (queue.length > 0 && !previous.has(id)) {
@@ -316,7 +376,7 @@ export function routeFromHome(id) {
     const page = pageById(current);
     const next = page.redirect
       ? [{ from: current, to: page.redirect, anchor: '301 redirect', placement: 'content', rel: 'follow' }]
-      : outs(current, 'all').filter((link) => link.rel !== 'nofollow');
+      : outs(current, scope).filter((link) => link.rel !== 'nofollow');
     next.forEach((link) => {
       if (previous.has(link.to)) return;
       previous.set(link.to, link);
@@ -328,6 +388,190 @@ export function routeFromHome(id) {
   for (let step = id; step; step = previous.get(step)?.from ?? null) route.unshift({ id: step, link: previous.get(step) });
   return route;
 }
+/** The shortest route from home to a page over any link and over editorial links only (null when there is none). */
+export const findPaths = (toId) => ({ any: routeFromHome(toId, 'all'), editorial: routeFromHome(toId, 'editorial') });
+
+// -------------------------------------------------------------------------------------------------
+// Changes between crawls and alerts (spec slice 2)
+
+export const crawlOrder = (id) => crawls.find((crawl) => crawl.id === id)?.n;
+export const previousCrawl = (id) => crawls.find((crawl) => crawl.n === crawlOrder(id) - 1) ?? null;
+
+/** The highest tier position that counts as important for alerts and the "lost to top tiers" numbers. */
+export const alertMaxPosition = () => crawlSettings.alerts.maxPosition;
+/** "T1" or "T1 and T2" (the tiers the alert setting covers), for every label that describes those counts. */
+export const alertTierText = () => {
+  const max = alertMaxPosition();
+  return max <= 1 ? 'T1' : max === 2 ? 'T1 and T2' : `T1 to T${max}`;
+};
+
+// One representative link per source and target pair that a crawl had in a scope (the first by placement order)
+function pairLinks(n, scope) {
+  const pairs = new Map();
+  links.forEach((link) => {
+    const key = `${link.from}>${link.to}`;
+    if (link.from !== link.to && isActiveLink(link, n) && inScope(link, scope) && !pairs.has(key)) pairs.set(key, link);
+  });
+  return pairs;
+}
+
+/**
+ * What this crawl added and lost against the one before it (all empty for the oldest crawl), per source and target pair
+ * in the scope (editorial links by default). A pair is lost when the previous crawl had a link in that scope and this one
+ * has none. Rows are the link fields plus stillLinkedBy: the placement label of another link that still connects the
+ * pair in this crawl (for example "Navigation"), or null.
+ */
+export function linkChanges(crawlId = state.crawl, scope = 'editorial') {
+  const n = crawlOrder(crawlId);
+  if (!(n > 1)) return { added: [], lost: [], addedPages: [], lostPages: [] };
+  const [now, before] = [pairLinks(n, scope), pairLinks(n - 1, scope)];
+  const stillLinkedBy = (link) => {
+    const other = links.find((candidate) => candidate.from === link.from && candidate.to === link.to && isActiveLink(candidate, n));
+    return other ? PLACEMENT_LABEL[other.placement] : null;
+  };
+  return {
+    added: [...now].filter(([key]) => !before.has(key)).map(([, link]) => ({ ...link, stillLinkedBy: null })),
+    lost: [...before].filter(([key]) => !now.has(key)).map(([, link]) => ({ ...link, stillLinkedBy: stillLinkedBy(link) })),
+    addedPages: pages.filter((page) => page.since === n),
+    lostPages: pages.filter((page) => page.lastSeen === n - 1),
+  };
+}
+
+/** Lost editorial links whose target sits in tier position 1 to maxPosition (the alert setting by default). */
+export const lostToTop = (crawlId = state.crawl, maxPosition = alertMaxPosition()) =>
+  linkChanges(crawlId).lost.filter((link) => {
+    const position = tierPosition(tierIdOf(pageById(link.to)));
+    return position >= 1 && position <= maxPosition;
+  });
+
+/** The lost links that raise an alert under the project's alert settings (empty when alerts are off or below the threshold). */
+export function alertsFor(crawlId = state.crawl) {
+  const { lostTop, threshold } = crawlSettings.alerts;
+  if (!lostTop) return [];
+  const lost = lostToTop(crawlId);
+  return lost.length >= threshold ? lost : [];
+}
+
+const NO_DELTA = { editorialIn: null, equityPoints: null, depth: null };
+/**
+ * How a page moved against the previous crawl: editorial linking pages, equity share (points) and click depth.
+ * A page new in the crawl has no earlier numbers (all null). Depth is a number of levels, 'lost' when the earlier crawl
+ * reached the page and this one does not, 'found' for the reverse, null when neither reaches it.
+ */
+export function pageDelta(id, crawlId = state.crawl) {
+  const n = crawlOrder(crawlId);
+  if (!(n > 1)) return { editorialIn: 0, equityPoints: 0, depth: null };
+  if (pageById(id).since === n) return { ...NO_DELTA };
+  const [now, before] = [metricsFor(n), metricsFor(n - 1)];
+  const [was, is] = [before.depth[id], now.depth[id]];
+  return {
+    editorialIn: insAt(id, 'editorial', n).length - insAt(id, 'editorial', n - 1).length,
+    equityPoints: Math.round((now.equity[id] - before.equity[id]) * 1000) / 10 + 0, // + 0 turns -0 into 0
+    depth: was === undefined && is === undefined ? null : was === undefined ? 'found' : is === undefined ? 'lost' : is - was,
+  };
+}
+
+// -------------------------------------------------------------------------------------------------
+// Tracked keywords, AI citations and anchors (spec slices 2 and 3)
+
+export const keywordsOf = (pageId) => keywords.filter((row) => row.page === pageId);
+/** Mean position of the keywords that rank (one decimal), or null when the page has none that rank. */
+export function avgRank(pageId) {
+  const ranks = keywordsOf(pageId).flatMap((row) => (row.rank === null ? [] : [row.rank]));
+  return ranks.length ? Math.round((ranks.reduce((sum, rank) => sum + rank, 0) / ranks.length) * 10) / 10 : null;
+}
+/** The largest monthly search volume among the page's tracked keywords, or null without keywords. */
+export const topVolume = (pageId) => {
+  const rows = keywordsOf(pageId);
+  return rows.length ? Math.max(...rows.map((row) => row.volume)) : null;
+};
+export function citationsOf(pageId) {
+  const row = citations.find((item) => item.page === pageId);
+  const [chatgpt, gemini, aimode] = [row?.chatgpt ?? 0, row?.gemini ?? 0, row?.aimode ?? 0];
+  return { chatgpt, gemini, aimode, total: chatgpt + gemini + aimode };
+}
+
+const GENERIC_ANCHORS = new Set(['click here', 'read more', 'learn more', 'here', 'this', 'more', 'link', 'see more', 'find out more', 'details']);
+const cleanAnchor = (text) => text.trim().replace(/^["'“‘]+|["'”’]+$/g, '').trim();
+
+/**
+ * Anchor texts of the links into a page in a scope, in the crawl in view. Every link counts (not one per linking page);
+ * texts group without letter case. matchesKeyword: null without tracked keywords, else whether a descriptive anchor
+ * contains a keyword or is part of one.
+ */
+export function anchorStats(pageId, scope = 'editorial', limit = 5) {
+  const n = activeN();
+  const groups = new Map();
+  links.filter((link) => link.to === pageId && link.from !== pageId && isActiveLink(link, n) && inScope(link, scope)).forEach((link) => {
+    const text = cleanAnchor(link.anchor);
+    const key = text.toLowerCase();
+    const group = groups.get(key) ?? { text, count: 0, generic: GENERIC_ANCHORS.has(key) };
+    group.count += 1;
+    groups.set(key, group);
+  });
+  const rows = [...groups.values()].sort((a, b) => b.count - a.count || a.text.localeCompare(b.text));
+  const total = rows.reduce((sum, row) => sum + row.count, 0);
+  const genericCount = rows.filter((row) => row.generic).reduce((sum, row) => sum + row.count, 0);
+  const wanted = keywordsOf(pageId).map((row) => row.keyword.toLowerCase());
+  const matchesKeyword = wanted.length === 0 ? null : rows.some((row) => row.text && !row.generic && wanted.some((word) => word.includes(row.text.toLowerCase()) || row.text.toLowerCase().includes(word)));
+  return { total, distinct: rows.length, genericCount, genericShare: total ? genericCount / total : 0, top: rows.slice(0, limit), matchesKeyword };
+}
+
+// -------------------------------------------------------------------------------------------------
+// Link opportunities (spec slice 3): a page mentions what another page is about, but does not link to it
+
+/** Rows { key, from, to, phrase, context, anchor, sourceEquity, status: 'open'|'accepted'|'dismissed' }, T1 targets first, then the strongest source. */
+export function opportunities() {
+  const n = activeN();
+  const rows = mentions.flatMap(({ page, phrase, target, context }) => {
+    const [from, to] = [pageById(page), pageById(target)];
+    if (!isLive(from) || depth[page] === undefined || !pageActive(to, n) || outs(page, 'editorial').some((link) => link.to === target)) return [];
+    const key = `${page}>${target}`;
+    return [{ key, from: page, to: target, phrase, context, anchor: phrase, sourceEquity: equity[page], status: state.opportunityStatus[key] ?? 'open' }];
+  });
+  const position = (id) => tierPosition(tierIdOf(pageById(id))) || Infinity;
+  return rows.sort((a, b) => position(a.to) - position(b.to) || b.sourceEquity - a.sourceEquity);
+}
+/** Sets 'accepted' or 'dismissed'; null makes the opportunity open again. Callers refresh() afterwards. */
+export function setOpportunityStatus(key, status) {
+  if (status === null) delete state.opportunityStatus[key];
+  else state.opportunityStatus[key] = status;
+}
+export function opportunityCounts() {
+  const counts = { open: 0, accepted: 0, dismissed: 0 };
+  opportunities().forEach((row) => (counts[row.status] += 1));
+  return counts;
+}
+
+// -------------------------------------------------------------------------------------------------
+// Tier suggestions (spec slice 3): never for a page whose tier a person chose
+
+/** Rows { id, from: tier id|null, to: tier id, reasons: string[] }. */
+export function tierSuggestions() {
+  const candidates = activePages().filter((page) => isLive(page) && page.indexable);
+  const busiest = [...candidates].sort((a, b) => b.clicks - a.clicks).slice(0, Math.ceil(candidates.length / 5)).filter((page) => page.clicks > 0);
+  const second = tiers[1]?.id;
+  const third = tiers[2]?.id;
+  return candidates.flatMap((page) => {
+    if (page.manualTier || state.dismissedTierSuggestions.has(page.id)) return [];
+    const from = tierIdOf(page);
+    const position = tierPosition(from) || Infinity;
+    const reasons = [];
+    if (second && position >= 3 && busiest.includes(page)) reasons.push(`${number(page.clicks)} clicks in 28 days`);
+    const best = keywordsOf(page.id).filter((row) => row.rank !== null && row.rank <= 5 && row.volume >= 2000).sort((a, b) => a.rank - b.rank)[0];
+    if (second && position >= 3 && best) reasons.push(`ranks #${best.rank} for '${best.keyword}' (${number(best.volume)} searches)`);
+    if (reasons.length) return [{ id: page.id, from, to: second, reasons }];
+    if (third && from === null && page.clicks >= 50) return [{ id: page.id, from, to: third, reasons: [`${number(page.clicks)} clicks in 28 days`] }];
+    return [];
+  });
+}
+export const applyTierSuggestion = (id) => {
+  const row = tierSuggestions().find((item) => item.id === id);
+  if (row) setTier([id], row.to);
+};
+export const dismissTierSuggestion = (id) => {
+  state.dismissedTierSuggestions.add(id);
+};
 
 // Topics of the sample pages (the real feature reads them from page text and tracked keywords)
 const TOPICS = {
@@ -354,7 +598,7 @@ function rankSources(id, skipLinked) {
   const counts = new Map();
   editorial.forEach((link) => counts.set(link.anchor, (counts.get(link.anchor) ?? 0) + 1));
   const anchor = [...counts].sort((a, b) => b[1] - a[1])[0]?.[0] ?? target.title;
-  return pages
+  return activePages()
     .filter((page) => page.id !== id && isLive(page) && page.indexable && !already.has(page.id) && page.id !== 'thanks' && depth[page.id] !== undefined)
     .map((page) => {
       const shared = [...words(page.id)].filter((word) => targetWords.has(word));
@@ -486,3 +730,5 @@ try {
 } catch {
   // A malformed address (bad percent encoding) falls back to the default view
 }
+
+recompute();

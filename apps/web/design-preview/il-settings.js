@@ -5,8 +5,9 @@
  * Settings opens, so counts are fresh after tier changes. Every change applies at once.
  */
 import { BUTTON_SM, BUTTON_PRIMARY, button, checkRow, toast } from './perf-ui.js';
-import { BUTTON_DANGER, INPUT, confirmDialog, field, openDialog } from './kw-dialog.js';
+import { BUTTON_DANGER, INPUT, confirmDialog, field, fieldError, openDialog } from './kw-dialog.js';
 import { el } from './prompts-parts.js';
+import { ALERT_CHANNELS, ALERT_IMPORTANT, ALERT_THRESHOLD_ERROR, validThreshold } from './il-dialogs.js';
 import { crawlSettings, crawls, deleteTier, pagesInTier, plural, refresh, rules, state, tierBadge, tierCode, tierLabel, tiers } from './il-model.js';
 
 const MAX_TIERS = 8;
@@ -236,6 +237,56 @@ function renderInternalLinks() {
       saved();
     }),
   );
+  const alerts = crawlSettings.alerts;
+  const optionSelect = (options, value, apply) => {
+    const node = el('select', SELECT);
+    options.forEach(([optionValue, text]) => {
+      const option = el('option', '', text);
+      option.value = optionValue;
+      node.append(option);
+    });
+    node.value = value;
+    node.addEventListener('change', () => {
+      apply(node.value);
+      saved();
+    });
+    return node;
+  };
+  const importance = optionSelect(ALERT_IMPORTANT, String(alerts.maxPosition), (value) => {
+    alerts.maxPosition = Number(value);
+  });
+  const channel = optionSelect(ALERT_CHANNELS, alerts.channel, (value) => {
+    alerts.channel = value;
+  });
+  const threshold = el('input', INPUT);
+  threshold.type = 'number';
+  threshold.min = '1';
+  threshold.max = '50';
+  threshold.step = '1';
+  threshold.value = String(alerts.threshold);
+  const thresholdWrap = fieldWrap(threshold, 'Alert when at least N links are lost', 'From 1 to 50');
+  threshold.addEventListener('change', () => {
+    thresholdWrap.querySelector('[role="alert"]')?.remove();
+    const valid = validThreshold(threshold.value);
+    threshold.setAttribute('aria-invalid', String(!valid));
+    if (!valid) {
+      const message = fieldError(ALERT_THRESHOLD_ERROR);
+      message.id = 'set-il-threshold-error';
+      threshold.setAttribute('aria-describedby', message.id);
+      thresholdWrap.append(message);
+      return;
+    }
+    threshold.removeAttribute('aria-describedby');
+    alerts.threshold = Number(threshold.value);
+    saved();
+  });
+  const alertToggle = el('div', 'flex flex-col max-w-90');
+  alertToggle.append(checkRow('Alert me when links to important pages are lost', alerts.lostTop, (on) => {
+    alerts.lostTop = on;
+    saved();
+  }));
+  const alertSection = el('div', 'flex flex-col gap-4');
+  alertSection.append(el('h3', 'type-subsection-title', 'Alerts'), alertToggle, fieldWrap(importance, 'Important pages'), thresholdWrap, fieldWrap(channel, 'Send the alert'));
   const recent = el('div', 'flex flex-col gap-2');
   recent.append(
     el('h3', 'type-subsection-title', 'Recent crawls'),
@@ -260,6 +311,7 @@ function renderInternalLinks() {
     fieldWrap(schedule, 'Schedule', "Runs at night in the project's time zone"),
     toggles,
     fieldWrap(subdomains, 'Allowed subdomains', 'Comma separated, for example blog.eventussecurity.com. Leave empty to crawl only eventussecurity.com.'),
+    alertSection,
     recent,
     open,
   );

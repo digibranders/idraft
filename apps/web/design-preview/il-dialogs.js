@@ -11,6 +11,11 @@ import { crawlSettings, crawls, parseTierCsv, pages, plural, refresh, rulePrevie
 const SELECT = `${INPUT} pr-8`;
 const MATCH = [['exact', 'Path is'], ['prefix', 'Path starts with'], ['pattern', 'Path matches']];
 const SCHEDULE = [['weekly', 'Weekly'], ['biweekly', 'Every two weeks'], ['monthly', 'Monthly'], ['off', 'Off']];
+export const ALERT_IMPORTANT = [['1', 'T1 only'], ['2', 'T1 and T2']];
+export const ALERT_CHANNELS = [['app', 'In the app'], ['email', 'By email'], ['slack', 'In Slack']];
+export const ALERT_THRESHOLD_ERROR = 'Enter a whole number from 1 to 50.';
+/** True for a whole number from 1 to 50 (the text of a number input). */
+export const validThreshold = (text) => /^\d+$/.test(String(text).trim()) && Number(text) >= 1 && Number(text) <= 50;
 
 function select(options, value, label, onChange) {
   const node = el('select', SELECT);
@@ -242,7 +247,7 @@ export function openImportTiers() {
 
 export function openCrawlSettings() {
   const frame = openDialog({ title: 'Crawl settings', description: 'How often the website is crawled and what the crawl covers.', width: 'md' });
-  const draft = { ...crawlSettings };
+  const draft = { ...crawlSettings, alerts: { ...crawlSettings.alerts } };
   const schedule = select(SCHEDULE, draft.schedule, 'Schedule', (value) => {
     draft.schedule = value;
   });
@@ -253,6 +258,27 @@ export function openCrawlSettings() {
   subdomains.addEventListener('input', () => {
     draft.subdomains = subdomains.value;
   });
+  const importance = select(ALERT_IMPORTANT, String(draft.alerts.maxPosition), 'Important pages', (value) => {
+    draft.alerts.maxPosition = Number(value);
+  });
+  const channel = select(ALERT_CHANNELS, draft.alerts.channel, 'Send the alert', (value) => {
+    draft.alerts.channel = value;
+  });
+  const threshold = el('input', INPUT);
+  threshold.type = 'number';
+  threshold.min = '1';
+  threshold.max = '50';
+  threshold.step = '1';
+  threshold.value = String(draft.alerts.threshold);
+  threshold.addEventListener('input', () => {
+    if (validThreshold(threshold.value)) draft.alerts.threshold = Number(threshold.value);
+  });
+  const thresholdSlot = el('div');
+  const drawThreshold = (error) => {
+    threshold.setAttribute('aria-invalid', String(Boolean(error)));
+    thresholdSlot.replaceChildren(field('Alert when at least N links are lost', threshold, { hint: 'From 1 to 50', error }));
+  };
+  drawThreshold();
   const recent = el('table', 'w-full border-collapse');
   const head = el('tr');
   [['When', 'text-left'], ['Trigger', 'text-left'], ['Pages', 'text-right'], ['Cost', 'text-right']].forEach(([label, align]) => {
@@ -284,11 +310,23 @@ export function openCrawlSettings() {
     checkRow('Map internal links when a website is added', draft.mapOnAdd, (on) => {
       draft.mapOnAdd = on;
     }),
+    el('h3', 'type-subsection-title pt-2', 'Alerts'),
+    checkRow('Alert me when links to important pages are lost', draft.alerts.lostTop, (on) => {
+      draft.alerts.lostTop = on;
+    }),
+    field('Important pages', importance),
+    thresholdSlot,
+    field('Send the alert', channel),
     el('h3', 'type-subsection-title pt-2', 'Recent crawls'),
     panel,
   );
   frame.footer.append(
     button('Save settings', { className: PRIMARY_DISABLED, onClick: () => {
+      if (!validThreshold(threshold.value)) {
+        drawThreshold(ALERT_THRESHOLD_ERROR);
+        threshold.focus();
+        return;
+      }
       Object.assign(crawlSettings, { ...draft, subdomains: draft.subdomains.trim() });
       refresh();
       frame.close();

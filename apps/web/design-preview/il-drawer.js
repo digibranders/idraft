@@ -1,13 +1,13 @@
 /* global document, window */
 /**
  * Internal links, page inspector (spec 7.4): the right drawer of the Pages and Links tabs. It shows one page's tier
- * (editable) with its source and tags, the metric strip, who links in by tier and placement, the top anchors, the
- * capped lists of linking pages and outlinks, and the flags with what they mean. It steps through the pages of the
+ * (editable) with its source and tags, the metric strip, who links in by tier and placement, changes since the last
+ * crawl, tracked keywords, AI citations, the anchor texts, the capped lists of linking pages and outlinks, and the flags with what they mean. It steps through the pages of the
  * Pages table in its order and closes with Escape. Exports `openInspector`, `closeInspector`, `redrawInspector`.
  */
 import { BUTTON_SM, BUTTON_PRIMARY, copyText, downloadCsv, icon, iconButton, popover, selectField, toast } from './perf-ui.js';
 import { el } from './prompts-parts.js';
-import { PLACEMENT_LABEL, allTags, depth, equity, flagBadge, flags, ins, links, outs, pageById, pct, plural, refresh, resetToRule, routeFromHome, setFocus, setTier, sourceText, state, tierBg, tierCode, tierIdOf, tierKeys, tierLabel, tierOf, tiers, suggestedLinks, hasRelatedPages } from './il-model.js';
+import { PLACEMENT_LABEL, allTags, anchorStats, avgRank, citationsOf, crawlOrder, depth, equity, flagBadge, flags, ins, isActiveLink, keywordsOf, links, number, outs, pageById, pageDelta, pct, plural, refresh, resetToRule, routeFromHome, setFocus, setTier, sourceText, state, tierBg, tierCode, tierIdOf, tierKeys, tierLabel, tierOf, tiers, suggestedLinks, hasRelatedPages } from './il-model.js';
 import { newTagForm, shownPageIds } from './il-pages.js';
 
 const HOST_URL = 'https://eventussecurity.com';
@@ -23,6 +23,7 @@ const FLAG_TEXT = {
   broken: 'This page links to a page that returns an error.',
   toRedirect: 'This page links to a URL that redirects. Update the link to the final URL.',
   fewLinks: 'A T1 page with fewer than 3 editorial linking pages. Add links from related pages.',
+  genericAnchors: 'More than half of the editorial links use generic words such as click here, which tell search engines nothing about the page.',
 };
 const PLACEMENT_ORDER = ['content', 'auto_generated', 'navigation', 'footer', 'breadcrumb'];
 
@@ -51,6 +52,7 @@ function section(title, ...children) {
   return wrap;
 }
 
+const WARNING = 'bg-warning-subtle text-warning-text';
 const muted = (text) => el('p', 'type-body text-foreground-tertiary', text);
 
 // -------------------------------------------------------------------------------------------------
@@ -75,9 +77,11 @@ function tierSection(page) {
   const current = tierIdOf(page);
   const choose = selectField([...tiers.map((tier) => [tier.id, tierLabel(tier.id)]), ['none', 'Untiered']], current ?? 'none', (value) => {
     setTier([page.id], value === 'none' ? null : value);
+    restoreKey = 'tier-select';
     toast({ title: 'Tier set', description: `${page.path} is now ${value === 'none' ? 'untiered' : tierLabel(value)}.`, tone: 'success' });
     refresh();
   }, 'Tier', 'w-full h-control');
+  choose.dataset.restore = 'tier-select';
   const source = el('div', 'flex flex-wrap items-center gap-x-2');
   source.append(el('span', 'type-meta', sourceText(page)));
   if (tierOf(page).source === 'manual') {
@@ -213,10 +217,86 @@ function barList(rows, total) {
   return list;
 }
 
+/** A change against the previous crawl as text with a tone. `lowerIsBetter` turns the tone for click depth. */
+function change(value, unit, lowerIsBetter = false, isNew = false) {
+  if (isNew) return el('span', 'inline-flex h-badge items-center rounded-sm px-1.5 type-label whitespace-nowrap bg-surface-subtle text-foreground-secondary', 'New');
+  if (value === 'lost') return el('span', 'type-meta text-negative-text', 'No longer reachable');
+  if (value === 'found') return el('span', 'type-meta text-positive-text', 'Now reachable');
+  if (value === null) return el('span', 'type-meta text-foreground-tertiary', 'n/a');
+  if (value === 0) return el('span', 'type-meta text-foreground-tertiary', 'No change');
+  const good = lowerIsBetter ? value < 0 : value > 0;
+  return el('span', `type-meta num ${good ? 'text-positive-text' : 'text-negative-text'}`, `${value > 0 ? '+' : '-'}${unit === 'pts' ? Math.abs(value).toFixed(1) : Math.abs(value)} ${unit}`);
+}
+
+function changesSection(page) {
+  const title = 'Changes since the last crawl';
+  if (crawlOrder(state.crawl) <= 1) return section(title, muted('This is the oldest crawl, so there is nothing to compare it with.'));
+  const delta = pageDelta(page.id);
+  const isNew = page.since === crawlOrder(state.crawl);
+  const lines = [
+    ['Editorial links in', String(ins(page.id, 'editorial').length), change(delta.editorialIn, 'links', false, isNew)],
+    ['Equity share', pct(equity[page.id]), change(delta.equityPoints, 'pts', false, isNew)],
+    ['Click depth', depth[page.id] === undefined ? 'Not reachable' : String(depth[page.id]), change(delta.depth, 'clicks', true, isNew)],
+  ];
+  const list = el('ul', 'flex flex-col');
+  lines.forEach(([label, value, node]) => {
+    const row = el('li', 'flex items-center gap-2 py-1 border-b border-border-subtle type-body');
+    row.append(el('span', 'min-w-0 flex-1 truncate text-foreground-secondary', label), el('span', 'num text-foreground', value), node);
+    list.append(row);
+  });
+  return section(title, list);
+}
+
+function keywordsSection(page) {
+  const rows = keywordsOf(page.id);
+  if (rows.length === 0) return section('Tracked keywords', muted('No tracked keywords for this page. Add keywords in Keywords to see rankings here.'));
+  const table = el('table', 'w-full border-collapse');
+  table.setAttribute('aria-label', 'Tracked keywords');
+  const head = el('tr');
+  [['Keyword', 'text-left'], ['Rank', 'text-right'], ['Volume', 'text-right']].forEach(([label, align]) => {
+    const th = el('th', `border-b border-border py-1 pr-2 last:pr-0 type-table-header text-foreground-tertiary font-normal ${align}`, label);
+    th.scope = 'col';
+    head.append(th);
+  });
+  const thead = el('thead');
+  thead.append(head);
+  const body = el('tbody');
+  rows.forEach((row) => {
+    const tr = el('tr');
+    const name = el('th', 'border-b border-border-subtle py-1.5 pr-2 type-table text-foreground text-left font-normal', row.keyword);
+    name.scope = 'row';
+    const rank = el('td', 'border-b border-border-subtle py-1.5 pr-2 text-right');
+    if (row.rank === null) rank.append(el('span', 'type-table text-foreground-tertiary', 'Not in top 100'));
+    else {
+      rank.append(el('span', 'type-table num text-foreground', `#${row.rank}`));
+      if (row.change !== 0) rank.append(el('span', `ml-1.5 type-label ${row.change > 0 ? 'text-positive-text' : 'text-negative-text'}`, `${row.change > 0 ? 'up' : 'down'} ${Math.abs(row.change)}`));
+    }
+    body.append(tr);
+    tr.append(name, rank, el('td', 'border-b border-border-subtle py-1.5 type-table num text-foreground text-right', number(row.volume)));
+  });
+  table.append(thead, body);
+  const average = avgRank(page.id);
+  return section('Tracked keywords', table,
+    el('p', 'type-meta num', average === null ? 'No keyword ranks yet.' : `Average rank ${average.toFixed(1)}`),
+    el('p', 'type-meta text-foreground-tertiary', 'From idraft rank tracking'));
+}
+
+function citationsSection(page) {
+  const counts = citationsOf(page.id);
+  if (counts.total === 0) return section('AI citations', muted('No AI answers cited this page yet.'));
+  const grid = el('dl', 'grid grid-cols-3 rounded-md border border-border');
+  [['ChatGPT', counts.chatgpt], ['Gemini', counts.gemini], ['AI Mode', counts.aimode]].forEach(([label, value], index) => {
+    const item = el('div', `flex flex-col px-2 py-2 ${index < 2 ? 'border-r border-border' : ''}`);
+    item.append(el('dt', 'type-label text-foreground-tertiary', label), el('dd', 'type-body-strong num text-foreground', number(value)));
+    grid.append(item);
+  });
+  return section('AI citations', grid, el('p', 'type-meta text-foreground-tertiary', 'Answers that cited this page in the last 28 days'));
+}
+
 function linkingSection(page) {
   const editorial = ins(page.id, 'editorial');
   const byTier = tierKeys().map((key) => [tierCode(key), editorial.filter((link) => tierIdOf(pageById(link.from)) === key).length, tierBg(key)]);
-  const byPlacement = PLACEMENT_ORDER.map((key) => [PLACEMENT_LABEL[key], new Set(links.filter((link) => link.to === page.id && link.from !== page.id && link.placement === key).map((link) => link.from)).size, 'bg-primary']);
+  const byPlacement = PLACEMENT_ORDER.map((key) => [PLACEMENT_LABEL[key], new Set(links.filter((link) => isActiveLink(link) && link.to === page.id && link.from !== page.id && link.placement === key).map((link) => link.from)).size, 'bg-primary']);
   const maxPlacement = Math.max(1, ...byPlacement.map(([, count]) => count));
   return section('Linking pages by tier',
     editorial.length === 0 ? muted('No editorial links point here.') : barList(byTier, Math.max(1, ...byTier.map(([, count]) => count))),
@@ -225,16 +305,21 @@ function linkingSection(page) {
 }
 
 function anchorsSection(page) {
-  const counts = new Map();
-  links.filter((link) => link.to === page.id && link.placement === 'content').forEach((link) => counts.set(link.anchor, (counts.get(link.anchor) ?? 0) + 1));
-  const top = [...counts].sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const stats = anchorStats(page.id, 'editorial', 5);
+  if (stats.total === 0) return section('Anchor text pointing here', muted('No editorial links point here, so there are no anchors.'));
   const list = el('ul', 'flex flex-col');
-  top.forEach(([anchor, count]) => {
+  stats.top.forEach((anchor) => {
     const row = el('li', 'flex items-center gap-2 py-1 border-b border-border-subtle type-body');
-    row.append(el('span', 'min-w-0 flex-1 truncate', `"${anchor}"`), el('span', 'num text-foreground-secondary', String(count)));
+    row.append(el('span', 'min-w-0 flex-1 truncate', `"${anchor.text}"`));
+    if (anchor.generic) row.append(el('span', `inline-flex h-badge items-center rounded-sm px-1.5 type-label whitespace-nowrap ${WARNING}`, 'Generic'));
+    row.append(el('span', 'num text-foreground-secondary', String(anchor.count)));
     list.append(row);
   });
-  return section('Top anchors pointing here', top.length === 0 ? muted('No editorial links point here, so there are no anchors.') : list);
+  const share = Math.round(stats.genericShare * 100);
+  const children = [list, el('p', 'type-meta num', `${plural(stats.distinct, 'distinct anchor')}, ${share}% generic`)];
+  if (stats.matchesKeyword === false) children.push(el('p', 'type-meta text-warning-text', "None of the anchors contain this page's tracked keywords."));
+  if (stats.matchesKeyword === true) children.push(el('p', 'type-meta text-positive-text', 'An anchor matches a tracked keyword.'));
+  return section('Anchor text pointing here', ...children);
 }
 
 function viewAll(page) {
@@ -282,6 +367,9 @@ function body(page) {
     metricStrip(page),
     routeSection(page),
     suggestionsSection(page),
+    changesSection(page),
+    keywordsSection(page),
+    citationsSection(page),
     linkingSection(page),
     anchorsSection(page),
     pageList('Linking pages', ins(page.id, 'editorial'), (link) => link.from, page),
@@ -293,7 +381,9 @@ function body(page) {
 
 function step(delta) {
   const ids = shownPageIds();
-  const next = ids[ids.indexOf(state.open) + delta];
+  const index = ids.indexOf(state.open);
+  if (index === -1) return;
+  const next = ids[index + delta];
   if (next) openInspector(next);
 }
 

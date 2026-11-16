@@ -1,12 +1,12 @@
 /* global document, window, requestAnimationFrame, setTimeout */
 /**
- * Internal links, Journey tab (spec 7.5): the link journey as a canvas of cards and as a tree list. Both share
+ * Internal links, Journey tab (spec 7.5): the link journey as a canvas of cards, as a tree list and as a path finder. All share
  * state.journey. Which cards and rows exist is decided in il-journey-layout.js; this file draws them.
  */
 import { el } from './prompts-parts.js';
 import { BUTTON_SM, FIELD, icon, iconButton, popover, segmented, selectField, toast } from './perf-ui.js';
 import {
-  PLACEMENT_LABEL, SCOPE_WORD, depthWithoutAuto, equity, flags, ins, isLive, pageById, pages, pct, plural, refresh, routeFromHome, scopeOf,
+  PLACEMENT_LABEL, SCOPE_WORD, activePages, depthWithoutAuto, equity, findPaths, flags, ins, isLive, pageById, pct, plural, refresh, routeFromHome, scopeOf,
   setFocus, suggestedLinks, state, statusBadge, tierBadge, tierCode, tierEdge, tierIdOf, tierLabel, tierPosition,
 } from './il-model.js';
 import { openInspector } from './il-drawer.js';
@@ -630,13 +630,111 @@ function treeRow(row, scope) {
 }
 
 // -------------------------------------------------------------------------------------------------
+// Path finder: the shortest way from the home page to one page, over any link and over editorial links only
+
+const pathTarget = () => j().pathTarget ?? j().focus;
+const BLOCKS = [
+  { key: 'any', title: 'Over any link (menus and footer included)' },
+  { key: 'editorial', title: 'Over editorial links only' },
+];
+
+function stepCard(step, last) {
+  const page = pageById(step.id);
+  const node = el('button', `flex w-56 shrink-0 flex-col items-start gap-1 rounded-md border border-l-4 ${tierEdge(tierIdOf(page))} ${last ? 'border-primary-border ring-1 ring-primary-border' : 'border-border-strong'} bg-surface px-2.5 py-2 text-left hover:bg-surface-hover ${FOCUS_RING}`);
+  node.type = 'button';
+  node.dataset.open = step.id;
+  node.setAttribute('aria-label', `${page.path}, ${tierLabel(tierIdOf(page))}. Open details.`);
+  node.append(el('span', 'type-table text-foreground w-full truncate', page.path), el('span', 'type-label text-foreground-secondary w-full truncate', page.title), tierBadge(tierIdOf(page)));
+  return node;
+}
+
+function connector(link) {
+  const box = el('div', 'flex w-28 shrink-0 flex-col items-center justify-center gap-0.5 text-center');
+  const via = link.anchor === '301 redirect' ? 'via a 301 redirect' : `via "${link.anchor}"`;
+  const text = el('span', 'type-meta text-foreground-secondary max-w-full truncate', via);
+  text.title = `${via}, ${PLACEMENT_LABEL[link.placement]}`;
+  box.append(text, icon('chevron-right', 'size-icon text-foreground-tertiary'));
+  return box;
+}
+
+function pathBlock(block, route, id) {
+  const section = el('section', 'flex flex-col gap-3 px-4 py-4');
+  section.setAttribute('aria-label', block.title);
+  const head = el('div', 'flex flex-wrap items-center gap-x-3 gap-y-1');
+  head.append(el('h3', 'type-subsection-title text-foreground', block.title));
+  if (route) head.append(el('span', 'type-meta num text-foreground-secondary', route.length === 1 ? 'This is the home page' : plural(route.length - 1, 'click')));
+  const open = el('button', `${BUTTON_SM} ml-auto ${FOCUS_RING}`);
+  open.type = 'button';
+  open.dataset.canvas = id;
+  open.append(icon('workflow', 'size-icon-sm text-foreground-tertiary'), el('span', '', 'Open in canvas'));
+  head.append(open);
+  section.append(head);
+  if (!route) {
+    const none = el('div', 'flex flex-wrap items-center gap-2');
+    const reason = block.key === 'editorial' && findPaths(id).any
+      ? 'Not reachable through editorial links: only menus, footers or auto-generated blocks lead here.'
+      : 'Not reachable from the home page through followed links.';
+    none.append(el('span', 'inline-flex h-badge items-center rounded-sm bg-negative-subtle px-1.5 type-label text-negative-text whitespace-nowrap', 'No route'), el('p', 'type-body text-foreground-secondary', reason));
+    section.append(none);
+    return section;
+  }
+  const chain = el('ol', 'flex flex-wrap items-stretch gap-y-3');
+  route.forEach((step, index) => {
+    if (index > 0) {
+      const joint = el('li', 'flex');
+      joint.append(connector(step.link));
+      chain.append(joint);
+    }
+    const item = el('li', 'flex');
+    item.append(stepCard(step, index === route.length - 1));
+    chain.append(item);
+  });
+  section.append(chain);
+  return section;
+}
+
+function pathFinder() {
+  const id = pathTarget();
+  const routes = findPaths(id);
+  const wrap = el('div', 'flex flex-col');
+  const controls = el('div', 'flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border-subtle px-3 py-2');
+  const picker = pagePicker({ prefix: 'Find the way to', current: id, onPick: (next) => {
+    j().pathTarget = next;
+    restore = 'journey-path-target';
+    refresh();
+  }, ariaLabel: 'Find the way to', popoverLabel: 'Choose the target page' });
+  picker.dataset.restore = 'journey-path-target';
+  controls.append(picker, el('span', 'type-meta text-foreground-tertiary', 'from the home page'));
+  wrap.append(controls);
+  const blocks = el('div', 'flex flex-col divide-y divide-border-subtle');
+  BLOCKS.forEach((block) => blocks.append(pathBlock(block, routes[block.key], id)));
+  wrap.append(blocks);
+  if (routes.any && routes.editorial && id !== 'home') {
+    const gap = routes.editorial.length - routes.any.length;
+    wrap.append(el('p', 'border-t border-border-subtle px-4 py-3 type-body text-foreground-secondary', gap > 0 ? `Menus make this page ${plural(gap, 'click')} closer than editorial links do.` : 'Editorial links reach it in the same number of clicks.'));
+  }
+  wrap.addEventListener('click', (event) => {
+    const target = event.target.closest('button');
+    if (!target) return;
+    if (target.dataset.open) openInspector(target.dataset.open);
+    else if (target.dataset.canvas) {
+      j().view = 'canvas';
+      j().pathTarget = null;
+      if (j().focus === target.dataset.canvas) refresh();
+      else setFocus(target.dataset.canvas);
+    }
+  });
+  return wrap;
+}
+
+// -------------------------------------------------------------------------------------------------
 // Toolbar and footer
 
 function viewSwitch() {
   const group = el('div', 'inline-flex h-control-sm p-0.5 rounded-md border border-border bg-surface-subtle gap-0.5');
   group.setAttribute('role', 'group');
   group.setAttribute('aria-label', 'View');
-  [['canvas', 'Canvas', 'workflow'], ['tree', 'Tree list', 'list-tree']].forEach(([value, label, name]) => {
+  [['canvas', 'Canvas', 'workflow'], ['tree', 'Tree list', 'list-tree'], ['path', 'Path finder', 'route']].forEach(([value, label, name]) => {
     const on = j().view === value;
     const node = el('button', `px-2.5 rounded-sm flex items-center gap-1.5 whitespace-nowrap type-body ${FOCUS_RING} ${on ? 'bg-surface border border-border-strong type-body-strong text-foreground' : 'text-foreground-secondary hover:text-foreground'}`);
     node.type = 'button';
@@ -654,30 +752,33 @@ function viewSwitch() {
   return group;
 }
 
-function focusPicker() {
-  const page = pageById(j().focus);
+/** A button with a popover of every page (search, tier badge); `onPick(id)` runs after it closes. */
+function pagePicker({ prefix, current, onPick, ariaLabel, popoverLabel }) {
+  const page = pageById(current);
   const trigger = el('button', `${BUTTON_SM} max-w-80 ${FOCUS_RING}`);
   trigger.type = 'button';
-  trigger.setAttribute('aria-label', `Focus page: ${page.path}. Change it.`);
-  trigger.append(icon('crosshair', 'size-icon text-foreground-tertiary'), el('span', 'truncate type-table', page.path), icon('chevron-down', 'size-icon-sm text-foreground-tertiary'));
+  trigger.setAttribute('aria-label', `${ariaLabel}: ${page.path}. Change it.`);
+  if (prefix) trigger.append(el('span', 'type-body text-foreground-secondary whitespace-nowrap', prefix));
+  else trigger.append(icon('crosshair', 'size-icon text-foreground-tertiary'));
+  trigger.append(el('span', 'truncate type-table', page.path), icon('chevron-down', 'size-icon-sm text-foreground-tertiary'));
   popover(trigger, (panel, api) => {
     const search = el('input', `${FIELD} w-full`);
     search.type = 'search';
     search.placeholder = 'Search pages';
     search.setAttribute('aria-label', 'Search pages');
     const list = el('div', 'flex max-h-72 flex-col gap-0.5 overflow-auto');
-    const sorted = [...pages].sort((a, b) => (tierPosition(tierIdOf(a)) || 99) - (tierPosition(tierIdOf(b)) || 99) || a.path.localeCompare(b.path));
+    const sorted = activePages().sort((a, b) => (tierPosition(tierIdOf(a)) || 99) - (tierPosition(tierIdOf(b)) || 99) || a.path.localeCompare(b.path));
     const fill = () => {
       const query = search.value.trim().toLowerCase();
       const found = sorted.filter((candidate) => !query || candidate.path.toLowerCase().includes(query) || candidate.title.toLowerCase().includes(query));
       list.replaceChildren(...(found.length === 0 ? [el('p', 'px-2 py-3 type-body text-foreground-secondary', 'No crawled page matches. Check the spelling or search for part of the path.')] : found.map((candidate) => {
-        const item = el('button', `flex h-row-compact w-full items-center gap-2 rounded-sm px-2 text-left hover:bg-surface-hover ${FOCUS_RING} ${candidate.id === j().focus ? 'bg-surface-selected' : ''}`);
+        const item = el('button', `flex h-row-compact w-full items-center gap-2 rounded-sm px-2 text-left hover:bg-surface-hover ${FOCUS_RING} ${candidate.id === current ? 'bg-surface-selected' : ''}`);
         item.type = 'button';
-        if (candidate.id === j().focus) item.setAttribute('aria-current', 'true');
+        if (candidate.id === current) item.setAttribute('aria-current', 'true');
         item.append(el('span', 'type-table text-foreground truncate flex-1', candidate.path), tierBadge(tierIdOf(candidate)));
         item.addEventListener('click', () => {
           api.close();
-          setFocus(candidate.id);
+          onPick(candidate.id);
         });
         return item;
       })));
@@ -686,9 +787,11 @@ function focusPicker() {
     panel.append(search, list);
     fill();
     search.focus();
-  }, { label: 'Choose the focus page' });
+  }, { label: popoverLabel });
   return trigger;
 }
+
+const focusPicker = () => pagePicker({ current: j().focus, onPick: setFocus, ariaLabel: 'Focus page', popoverLabel: 'Choose the focus page' });
 
 function cardsSwitch() {
   const group = segmented([['editorial', 'Editorial'], ['all', 'All links']], j().cards, (value) => {
@@ -707,13 +810,18 @@ function cardsSwitch() {
 
 function toolbar() {
   const bar = el('div', 'flex flex-wrap items-center gap-3 border-b border-border-subtle px-3 py-2');
-  bar.append(viewSwitch(), focusPicker(), cardsSwitch());
+  bar.append(viewSwitch(), focusPicker());
+  if (j().view === 'path') return bar;
+  bar.append(cardsSwitch());
   if (j().view === 'tree') {
-    bar.append(selectField([['out', 'Links out'], ['in', 'Links in']], j().treeDir, (value) => {
+    const follow = selectField([['out', 'Links out'], ['in', 'Links in']], j().treeDir, (value) => {
       j().treeDir = value;
       j().treeOpen.clear();
+      restore = 'journey-follow';
       refresh();
-    }, 'Follow'));
+    }, 'Follow');
+    follow.dataset.restore = 'journey-follow';
+    bar.append(follow);
     return bar;
   }
   const right = el('div', 'ml-auto flex items-center gap-1.5');
@@ -768,6 +876,7 @@ export function render(host) {
   const panel = el('div', 'rounded-lg border border-border bg-surface overflow-hidden');
   panel.append(toolbar());
   if (j().view === 'canvas') panel.append(buildCanvas().scroller, legend());
+  else if (j().view === 'path') panel.append(pathFinder());
   else {
     const table = treeTable();
     panel.append(table.scroller);
