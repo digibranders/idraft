@@ -156,6 +156,32 @@ describe('the empty states of the AI visibility page', () => {
     expect(screen.queryByRole('group', { name: STRIP })).not.toBeInTheDocument();
   });
 
+  it('names the group, never by its id, and resets a platform too', async () => {
+    server.use(
+      http.get(SUMMARY, async ({ request }) => {
+        if (new URL(request.url).searchParams.get('rows') === 'none') return undefined;
+        const body = await defaultJson(request);
+        const data = body.data as Record<string, unknown>;
+        return HttpResponse.json({ ...body, data: { ...data, prompts: [], topics: [], total: undefined } });
+      }),
+    );
+    const topic = MOCK_TERM_IDS.seo;
+    const urls: string[] = [];
+    const { user } = renderWithProviders(overviewAs('admin'), {
+      searchParams: `?topic=${topic}&engine=gemini_web`,
+      onUrlUpdate: (event) => urls.push(event.queryString),
+    });
+    expect(await screen.findByRole('heading', { name: 'No prompts in this scope' })).toBeInTheDocument();
+    // Before the vocabulary arrives the group is named neutrally, after it by its name: never by the id
+    expect(screen.queryByText(new RegExp(topic))).not.toBeInTheDocument();
+    expect(await screen.findByText(/No prompts of SEO are counted/)).toBeInTheDocument();
+    const state = document.querySelector<HTMLElement>('[data-slot="empty-state"]');
+    await user.click(within(state as HTMLElement).getByRole('button', { name: 'Reset scope' }));
+    await waitFor(() => {
+      expect(urls.at(-1)).toBe('');
+    });
+  });
+
   it('a group with no prompts says so, keeps the scope bar, and Show all groups clears the group', async () => {
     server.use(
       http.get(SUMMARY, async ({ request }) => {
