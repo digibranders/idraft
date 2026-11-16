@@ -4480,7 +4480,7 @@
       "topicPicker": {
         "placeholder": "Choose or type a group",
         "loading": "Loading groups",
-        "hint": "A prompt counts under its group and the groups above it.",
+        "hint": "A prompt counts in each group you give it. A group inside another is named by its path.",
         "chips": "Chosen groups and tags",
         "remove": "Remove {value}",
         "tagLabel": "{vocabulary}: {path}",
