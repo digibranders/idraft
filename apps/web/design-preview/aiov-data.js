@@ -410,8 +410,10 @@ export function headToHead(model, index) {
     sourceShare: { own: share('northwind.com'), rival: share(COMPETITORS[index].domain) },
     perPlatform,
     series: {
-      own: weekly(own.mention * 0.96, own.mention, `h2h|${model.key}|own`, 0.012),
-      rival: weekly(rival.mention * 0.98, rival.mention, `h2h|${model.key}|${rival.name}`, 0.012),
+      // Your line is the page's own mention trend, so the same number tells the same story (R12). A competitor's
+      // earlier weeks need per-week entity counts, which are not collected yet: its line is drawn level around its rate.
+      own: seriesFor(model, 'mention', model.scope.platform),
+      rival: weekly(rival.mention, rival.mention, `h2h|${model.key}|${model.scope.platform}|${rival.name}`, 0.01),
     },
   };
 }
@@ -432,13 +434,17 @@ export function sourcesBehind(model, index) {
     const total = weighted.reduce((sum, row) => sum + row.weight, 0);
     return weighted.map((row) => ({ domain: row.domain, role: row.role, share: total === 0 ? 0 : row.weight / total })).sort((a, b) => b.share - a.share);
   };
+  // No citation in the scope: nothing to compare, and no overlap (not a 0 or a NaN, R6)
+  if (domains.rows.length === 0) return { theirs: [], yours: [], overlap: null, onlyTheirs: [] };
   const theirs = ranked(lift, 'they');
   const yours = ranked(liftOwn, 'you');
   const top = (list) => new Set(list.slice(0, 8).map((row) => row.domain));
   const a = top(theirs);
   const b = top(yours);
   const shared = [...a].filter((domain) => b.has(domain)).length;
-  return { theirs: theirs.slice(0, 8), yours: yours.slice(0, 8), overlap: shared / (a.size + b.size - shared), onlyTheirs: [...a].filter((domain) => !b.has(domain)) };
+  // Places to look for a citation are third-party pages: a competitor's own site is not one
+  const thirdParty = new Set(domains.rows.filter((row) => row.role === 'Third party').map((row) => row.domain));
+  return { theirs: theirs.slice(0, 8), yours: yours.slice(0, 8), overlap: shared / (a.size + b.size - shared), onlyTheirs: [...a].filter((domain) => !b.has(domain) && thirdParty.has(domain)) };
 }
 
 /** The prompts of the scope with their rates over the platforms in scope, for the group view. */
@@ -491,6 +497,7 @@ const DOMAINS = [
   { domain: 'pipedrive.com', role: 'Competitor', type: 'Competitor sites', weight: 4.6 },
   { domain: 'salesforce.com', role: 'Competitor', type: 'Competitor sites', weight: 4.1 },
   { domain: 'zoho.com', role: 'Competitor', type: 'Competitor sites', weight: 3 },
+  { domain: 'freshworks.com', role: 'Competitor', type: 'Competitor sites', weight: 2.2 },
   { domain: 'quora.com', role: 'Third party', type: 'Community', weight: 2.4 },
   { domain: 'youtube.com', role: 'Third party', type: 'Video', weight: 3.2 },
   { domain: 'wikipedia.org', role: 'Third party', type: 'Reference', weight: 2.1 },

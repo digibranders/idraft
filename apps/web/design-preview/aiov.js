@@ -11,7 +11,7 @@
 import { RUNS, buildModel, platformsIn } from './aiov-data.js';
 import { disposeCharts } from './aiov-charts.js';
 import { createSelect, groupOptions, platformOptions, readUrl, setScope, state, subscribe } from './aiov-controls.js';
-import { initCompetitorDrawer, openCompetitor } from './aiov-competitor.js';
+import { initCompetitorDrawer, openCompetitor, refreshCompetitorDrawer } from './aiov-competitor.js';
 import { createCustomizer } from './aiov-customize.js';
 import { cardFrame, el, emptyBody, engineName, plural } from './aiov-parts.js';
 import { cardDef } from './aiov-registry.js';
@@ -79,6 +79,8 @@ function safeBuild(def, ctx) {
 
 function render() {
   disposeCharts();
+  // The charts are gone, the drawer's trend with them: an open competitor drawer draws itself again
+  refreshCompetitorDrawer();
   const scope = { ...state };
   const model = buildModel(scope);
   // With one group selected, cards can show the project value beside it

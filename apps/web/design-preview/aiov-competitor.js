@@ -11,7 +11,7 @@ import { COMPETITORS } from './prompts-data.js';
 import { LEAD_MARGIN, WEEK_LABELS, buildModel, competitorId, groupOf, headToHead, leadsFor, sourcesBehind } from './aiov-data.js';
 import { chartHost, lineOption, mountChart } from './aiov-charts.js';
 import { segmented } from './aiov-cards-core.js';
-import { state, subscribe } from './aiov-controls.js';
+import { state } from './aiov-controls.js';
 import { NEUTRAL_BADGE, cardFrame, el, emptyBody, engineName, pct0, pct1, platformLabel } from './aiov-parts.js';
 
 const ui = window.PreviewUI;
@@ -39,7 +39,10 @@ const dot = (token) => {
   return mark;
 };
 
-const signedPoints = (diff) => (Math.abs(diff) < 0.0005 ? '0 pts' : `${diff > 0 ? '+' : '−'}${(Math.abs(diff) * 100).toFixed(1)} pts`);
+/** "612 of 1,800 answers", or nothing when a count is missing. */
+const countsOf = (total, part, noun) => (typeof total === 'number' && typeof part === 'number' ? `${formatInteger(part)} of ${formatInteger(total)} ${noun}` : undefined);
+
+const signedPoints =(diff) => (Math.abs(diff) < 0.0005 ? '0 pts' : `${diff > 0 ? '+' : '−'}${(Math.abs(diff) * 100).toFixed(1)} pts`);
 
 // -------------------------------------------------------------------------------------------------
 // Overview: you against the competitor
@@ -65,10 +68,14 @@ function overviewTable(rival, rows) {
     const name = el('th', 'pl-4 pr-2 text-left font-normal text-foreground whitespace-nowrap', row.label);
     name.scope = 'row';
     if (row.tip) name.dataset.tip = row.tip;
-    const value = (ratio, decimals) => (ratio === null ? el('td', 'px-3 text-right text-foreground-tertiary', 'n/a') : el('td', 'px-3 text-right num', decimals === 1 ? pct1(ratio) : pct0(ratio)));
+    const value = (ratio, decimals, tip) => {
+      const cell = ratio === null ? el('td', 'px-3 text-right text-foreground-tertiary', 'n/a') : el('td', 'px-3 text-right num', decimals === 1 ? pct1(ratio) : pct0(ratio));
+      if (tip) cell.dataset.tip = tip;
+      return cell;
+    };
     const gap = el('td', 'px-3 pr-4 text-right num text-foreground-secondary', row.own === null || row.rival === null ? 'n/a' : signedPoints(row.own - row.rival));
     gap.dataset.tip = 'Your value minus theirs, in points. Not tested for detectability';
-    tr.append(name, value(row.own, row.decimals), value(row.rival, row.decimals), gap);
+    tr.append(name, value(row.own, row.decimals, row.ownTip), value(row.rival, row.decimals, row.rivalTip), gap);
     body.append(tr);
   });
   table.append(head, body);
@@ -84,8 +91,9 @@ function fillOverview(model, index) {
     return;
   }
   const rows = [
-    { label: 'Mention rate', own: data.own.mention, rival: data.rival.mention, tip: 'Share of valid answers that name the brand. Each prompt counts once.' },
-    { label: 'Share of voice', own: data.own.sov, rival: data.rival.sov, tip: 'Share of tracked-brand mentions, within the tracked set.' },
+    // The counts behind each rate are in the tooltips (R1): pooled answers, while the rate is prompt-weighted
+    { label: 'Mention rate', own: data.own.mention, rival: data.rival.mention, tip: 'Share of valid answers that name the brand. Each prompt counts once.', ownTip: countsOf(model.average.mention.counts?.n, data.own.answers, 'answers'), rivalTip: countsOf(model.average.mention.counts?.n, data.rival.answers, 'answers') },
+    { label: 'Share of voice', own: data.own.sov, rival: data.rival.sov, tip: 'Share of tracked-brand mentions, within the tracked set.', ownTip: countsOf(data.own.answersOfTracked, data.own.answers, 'brand mentions'), rivalTip: countsOf(data.rival.answersOfTracked, data.rival.answers, 'brand mentions') },
     { label: 'Source share', own: data.sourceShare.own, rival: data.sourceShare.rival, decimals: 1, tip: 'Share of citation units that are pages of the brand’s own domain.' },
   ];
   const summary = cardFrame({
@@ -169,6 +177,10 @@ function fillPrompts(model, index) {
   const target = panel('comp-prompts');
   const ofKind = (kind) => rival.rows.filter((row) => row.lead === kind);
   const counts = { they: rival.lost, you: rival.ahead, close: rival.close };
+  // A narrowing that the scope no longer supports is dropped, so the list never goes empty behind a hidden control
+  if (groupOf(state.group).kind !== 'all') view.group = null;
+  if (view.group && !ofKind(view.lead).some((row) => row.topic === view.group)) view.group = null;
+  if (view.absent && (view.lead !== 'they' || !ofKind('they').some((row) => row.absent))) view.absent = false;
 
   const controls = el('div', 'flex flex-col gap-2');
   controls.append(
@@ -294,14 +306,18 @@ function fillSources(model, index) {
   const rival = COMPETITORS[index];
   const data = sourcesBehind(model, index);
   const target = panel('comp-sources');
+  if (data.theirs.length === 0) {
+    target.replaceChildren(cardFrame({ key: 'competitor.sources', title: 'Sources', body: emptyBody('No citations in this scope', 'No answer in this scope cited a page, so there is nothing to compare.') }));
+    return;
+  }
   const theirs = cardFrame({ key: 'competitor.sources.theirs', title: `When ${rival.name} is named`, meta: 'top domains cited', body: sourceList('theirs', data.theirs, rival.token), flush: true, footnote: 'Share of the citation units in answers that name the competitor. Their own domain is lifted because their pages are cited more when they are named.' });
   const yours = cardFrame({ key: 'competitor.sources.yours', title: 'When you are named', meta: 'top domains cited', body: sourceList('yours', data.yours, 'chart-1'), flush: true, footnote: 'The same for answers that name you.' });
   const only = el('div', 'px-4 pb-4 flex flex-col gap-3');
   only.append(el('p', 'type-body text-foreground-secondary', `The top 8 of the two lists share ${pct0(data.overlap)} of their domains (Jaccard overlap).`));
   const chips = el('div', 'flex flex-wrap gap-1.5');
-  if (data.onlyTheirs.length === 0) chips.append(el('span', 'type-meta', 'Every domain in their top 8 is also in yours.'));
+  if (data.onlyTheirs.length === 0) chips.append(el('span', 'type-meta', 'Every third-party domain in their top 8 is also in yours.'));
   data.onlyTheirs.forEach((domain) => chips.append(el('span', NEUTRAL_BADGE, domain)));
-  const gapTitle = el('p', 'type-label text-foreground-secondary', 'In their top 8 and not in yours');
+  const gapTitle = el('p', 'type-label text-foreground-secondary', 'Third-party domains in their top 8 and not in yours');
   only.append(gapTitle, chips);
   const gap = cardFrame({ key: 'competitor.sources.gap', title: 'Where they are cited and you are not', body: only, flush: true, footnote: 'These are the places to look for a citation: the engines already cite them next to this competitor. Source overlap is metric C7 of the metrics methodology.' });
   target.replaceChildren(gap, theirs, yours);
@@ -327,11 +343,21 @@ function fill(id) {
   fillSources(model, index);
 }
 
+const resetView = (lead = 'they') => Object.assign(view, { lead, absent: false, group: null });
+
 /** Opens the drawer on a competitor, optionally on its Prompts tab with one kind of lead chosen. */
 export function openCompetitor(id, opener, { lead } = {}) {
-  if (lead) Object.assign(view, { lead, absent: false, group: null, id });
+  // Every opening starts from its own view: the lead it was asked for, or "They lead" with nothing narrowed
+  resetView(lead ?? 'they');
+  view.id = id;
   ui.openInspector(id, opener, 'competitor');
   ui.selectInspectorTab(lead ? 'comp-prompts' : 'comp-overview');
+}
+
+/** Draws the open drawer again. The page calls it after every render, which clears the charts (the trend with them). */
+export function refreshCompetitorDrawer() {
+  const open = ui.inspectorState();
+  if (open.open && open.type === 'competitor') fill(open.id);
 }
 
 export function initCompetitorDrawer() {
@@ -350,15 +376,16 @@ export function initCompetitorDrawer() {
     if (!row || ui.inspectorState().type !== 'competitor') return;
     // The list the prompt sits in is the one on screen, so J and K step through the same prompts
     const idsOnScreen = [...inspector.querySelectorAll('[data-comp-prompt]')].map((button) => button.dataset.compPrompt);
-    window.PreviewPrompts?.openPrompt(row.dataset.compPrompt, row, idsOnScreen);
+    // No opener: the row lives in a panel this drawer is about to hide, so focus returns to the page card on close
+    window.PreviewPrompts?.openPrompt(row.dataset.compPrompt, undefined, idsOnScreen);
   });
   window.addEventListener('inspector-close', () => {
     disposeTrend?.();
     disposeTrend = null;
+    // Nothing of this drawer is kept: the next one opens on its own view
+    resetView();
+    view.id = null;
   });
-  // The scope of the page changed under an open drawer: it follows, so its numbers still match the cards
-  subscribe(() => {
-    const open = ui.inspectorState();
-    if (open.open && open.type === 'competitor') fill(open.id);
-  });
+  // The scope of the page changing, or the page drawing again, refills an open drawer through the page's render
+  // (aiov.js calls refreshCompetitorDrawer), so its numbers still match the cards.
 }
