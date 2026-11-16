@@ -315,7 +315,7 @@ function column(label, nodes) {
 function buildCanvas() {
   const scope = markerScope(j().cards);
   const scroller = el('div', 'overflow-auto bg-surface-subtle');
-  scroller.style.height = '560px';
+  scroller.style.height = '560px'; // until fitHeight() has measured the window
   scroller.setAttribute('role', 'group');
   scroller.setAttribute('aria-label', CANVAS_LABEL);
   const sizer = el('div', 'relative');
@@ -348,10 +348,20 @@ function buildCanvas() {
     return changed;
   }
 
+  // The canvas takes the rest of the window below its toolbar, so a tall window shows more of the journey and
+  // the page does not end in an empty band. The legend line under it (about 48 px) and the page's bottom
+  // padding stay in view. A small window keeps a usable minimum and the page scrolls.
+  ctx.fitHeight = () => {
+    if (!scroller.isConnected) return;
+    const room = window.innerHeight - scroller.getBoundingClientRect().top - 48 - 24;
+    scroller.style.height = `${Math.max(440, Math.round(room))}px`;
+  };
+
   function sizeAndFit() {
     inner.style.transform = `scale(${zoom})`;
     sizer.style.width = `${inner.offsetWidth * zoom}px`;
     sizer.style.height = `${inner.offsetHeight * zoom}px`;
+    requestAnimationFrame(ctx.fitHeight);
   }
 
   function rebuild(refocusKey) {
@@ -520,7 +530,10 @@ function buildCanvas() {
   return ctx;
 }
 
-window.addEventListener('resize', () => requestAnimationFrame(drawEdges));
+window.addEventListener('resize', () => requestAnimationFrame(() => {
+  active?.fitHeight?.();
+  drawEdges();
+}));
 
 // -------------------------------------------------------------------------------------------------
 // Tree list
@@ -528,8 +541,8 @@ window.addEventListener('resize', () => requestAnimationFrame(drawEdges));
 const CELL = 'px-3 align-middle';
 
 function treeTable() {
-  const scroller = el('div', 'overflow-auto');
-  scroller.style.maxHeight = '640px';
+  // No height cap: the tree list grows with the page, like the other tables
+  const scroller = el('div', 'overflow-x-auto');
   const table = el('table', 'w-full border-collapse');
   const head = el('tr', 'h-row-header');
   [['Page', ''], ['Tier', ''], ['Anchor text', ''], ['Link type', ''], ['Linking pages', 'text-right'], ['Equity share', 'text-right'], ['Status', '']].forEach(([name, align]) => {
