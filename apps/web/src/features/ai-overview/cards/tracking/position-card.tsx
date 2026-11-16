@@ -15,7 +15,7 @@ import { EngineLogo } from '@/components/app/engine/engine-logo';
 import { PlainTable, type PlainColumn } from '@/components/app/table/plain-table';
 import type { CardProps } from '@/features/layouts';
 import { safeText, type CsvTable } from '@/lib/csv/csv-write';
-import { formatDecimal, formatInteger, formatList, formatPercent } from '@/lib/format';
+import { formatDecimal, formatInteger, formatList } from '@/lib/format';
 import { orderDistribution, type OrderReading } from '@/lib/prompt-facts';
 
 const PARTS = ['first', 'second', 'third', 'later'] as const;
