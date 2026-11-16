@@ -3,8 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { CitationRead } from './citations-reads';
 import { TopDomains, TopPages } from './top-lists';
-import type { PromptCounts } from '../../inspector-reads';
-import type { MetricCell, PromptSummaryRow } from '@/lib/api/types';
+import type { MetricCell } from '@/lib/api/types';
 import type {
   DomainRole,
   SourceChangePage,
@@ -105,22 +104,6 @@ function read<TPage>(data: TPage | undefined, over: Partial<CitationRead<TPage>>
     ...over,
   };
 }
-
-const counts: PromptCounts = {
-  status: 'ready',
-  row: {
-    engines: [
-      { engine_code: 'chatgpt_web', cited: cell(2, 4) },
-      // No valid answer on Gemini in the window: its counts are n/a
-      { engine_code: 'gemini_web', cited: cell(0, 0) },
-    ],
-  } as unknown as PromptSummaryRow,
-  entities: [],
-  brandedIncluded: false,
-  errorId: null,
-  retry: () => undefined,
-  retrying: false,
-};
 
 const noLost = read<SourceChangePage>({
   data: [],

@@ -309,7 +309,6 @@ describe('the model change marker on the chart', () => {
 
 describe('the latest answers of the History tab', () => {
   const OUTCOMES = ['mentioned_and_cited', 'mentioned_only', 'cited_only', 'neither'] as const;
-  const WORDS = ['Mentioned and cited', 'Mentioned only', 'Cited only', 'Neither'];
   /** Twelve answers, newest first, one a day at 02:00 from Nov 12 back. */
   const newestFirst = Array.from({ length: 12 }, (_, at): ObservationSummary => {
     const base = answer(`o${String(at)}`, at % 2 === 0 ? 'chatgpt_web' : 'gemini_web', '');

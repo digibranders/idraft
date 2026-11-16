@@ -36,6 +36,16 @@ interface StatsLine {
 
 const openKey = ({ engineCode, metric }: OpenRate): string => `${engineCode}:${metric}`;
 
+type Words = (
+  key: 'mentionTitle' | 'mentionName' | 'mentionCaption' | 'citationTitle' | 'citationName' | 'citationCaption',
+) => string;
+
+/** The words of a rate: its title, its short name for a button and the caption of its table. */
+const rateWords = (drawer: Words, metric: StatsMetric): { title: string; name: string; caption: string } =>
+  metric === 'mention'
+    ? { title: drawer('mentionTitle'), name: drawer('mentionName'), caption: drawer('mentionCaption') }
+    : { title: drawer('citationTitle'), name: drawer('citationName'), caption: drawer('citationCaption') };
+
 export interface InspectorStatsProps {
   /** The enabled engines, in order: one row each. */
   engines: readonly ProjectEngine[];
@@ -74,7 +84,7 @@ export function InspectorStats({ engines, counts, noCountsReason, range }: Inspe
     return (
       <>
         {METRICS.map((metric) => (
-          <InspectorSection key={metric} title={drawer(`${metric}Title`)} icon={Percent} status="loading" />
+          <InspectorSection key={metric} title={rateWords(drawer, metric).title} icon={Percent} status="loading" />
         ))}
       </>
     );
@@ -169,7 +179,7 @@ export function InspectorStats({ engines, counts, noCountsReason, range }: Inspe
           <Button
             variant="link"
             size="sm"
-            aria-label={words('openStatisticsLabel', { metric: drawer(`${metric}Name`), engine: label })}
+            aria-label={words('openStatisticsLabel', { metric: rateWords(drawer, metric).name, engine: label })}
             ref={(node: HTMLButtonElement | null) => {
               if (node === null) openers.current.delete(openKey(rate));
               else openers.current.set(openKey(rate), node);
@@ -209,7 +219,7 @@ export function InspectorStats({ engines, counts, noCountsReason, range }: Inspe
       {METRICS.map((metric) => (
         <InspectorSection
           key={metric}
-          title={drawer(`${metric}Title`)}
+          title={rateWords(drawer, metric).title}
           icon={metric === 'mention' ? ChartColumn : Quote}
           action={<span className="type-meta">{drawer('intervalNote')}</span>}
           status="ready"
@@ -217,7 +227,7 @@ export function InspectorStats({ engines, counts, noCountsReason, range }: Inspe
           {/* The table runs to the edges of its card, as in the design: a bordered table inside a card is a nested card */}
           <div className="-mx-4 -mb-4 [&>div]:rounded-none [&>div]:border-x-0 [&>div]:border-b-0">
             <PlainTable<StatsLine>
-              caption={drawer(`${metric}Caption`)}
+              caption={rateWords(drawer, metric).caption}
               columns={columnsOf(metric)}
               rows={linesOf(metric)}
               rowKey={(line) => line.engine.engine.engine_code}

@@ -30,6 +30,9 @@ import { useErrorId } from '@/lib/api/use-error-id';
 import { formatDetailDateTime, formatTableDateTime } from '@/lib/format';
 import { displayDomain } from '@/lib/format/url';
 
+/** A time with its exact reading in a tooltip is a tab stop, so the keyboard reaches the tooltip (20 section 6.2 rule 6). */
+const TAB_STOP = { tabIndex: 0 } as const;
+
 /** The characters of an answer the card shows; the viewer has the rest. */
 const EXCERPT_LENGTH = 280;
 
@@ -173,7 +176,7 @@ function LatestCard({
         <p className="flex flex-wrap items-center gap-x-1.5 type-meta">
           <Tooltip content={exact} purpose="label">
             <time
-              tabIndex={0}
+              {...TAB_STOP}
               dateTime={shown.observed_at}
               aria-label={exact}
               className="rounded-xs num outline-none focus-visible:focus-ring"
