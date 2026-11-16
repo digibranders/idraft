@@ -93,9 +93,47 @@ export const averageBadge = (used) => {
 
 let cardSeed = 0;
 
+/** The shared popover an info button opens, for touch and keyboard people who have no hover. */
+let infoPanel = null;
+
 /**
- * A card of the dashboard: title row, optional meta and tools, a body, an optional footnote. Cards read the same
- * scope, so a card says what it covers in its meta line.
+ * An "i" button that explains a card or a number. Hover or keyboard focus shows the text in a tooltip; a click opens
+ * the same text in a small popover, which is how touch reaches it. The text is also in the button for screen readers.
+ */
+export function infoButton(title, text) {
+  const button = el('button', 'size-control-sm shrink-0 rounded-md flex items-center justify-center text-foreground-tertiary hover:bg-surface-hover hover:text-foreground aria-expanded:bg-surface-hover aria-expanded:text-foreground');
+  button.type = 'button';
+  button.dataset.tip = text;
+  button.setAttribute('aria-haspopup', 'dialog');
+  button.setAttribute('aria-expanded', 'false');
+  button.setAttribute('aria-label', `About ${title}`);
+  button.append(icon('info', 'size-icon-sm'), el('span', 'sr-only', text));
+  button.addEventListener('click', () => {
+    if (!infoPanel) {
+      infoPanel = el('div', 'hidden fixed z-(--z-dropdown) w-72 max-w-[calc(100vw-1rem)] rounded-lg border border-border bg-surface-elevated shadow-popover p-3 type-body text-foreground-secondary');
+      infoPanel.setAttribute('role', 'dialog');
+      document.body.append(infoPanel);
+    }
+    if (button.getAttribute('aria-expanded') === 'true') return ui.closePopup();
+    infoPanel.setAttribute('aria-label', title);
+    infoPanel.textContent = text;
+    // The tooltip would repeat the popover while it is open
+    delete button.dataset.tip;
+    ui.openPopup(infoPanel, button, {
+      align: 'end',
+      focus: button,
+      onClose: () => {
+        button.dataset.tip = text;
+      },
+    });
+  });
+  return button;
+}
+
+/**
+ * A card of the dashboard: title row, optional meta and tools, a body. `footnote` is what the card used to print
+ * under itself (how it is counted, what it leaves out); it now sits behind the card's info button. Cards read the
+ * same scope, so a card says what it covers in its meta line.
  */
 export function cardFrame({ key, title, meta, tools = [], body, footnote, flush = false }) {
   cardSeed += 1;
@@ -109,16 +147,16 @@ export function cardFrame({ key, title, meta, tools = [], body, footnote, flush 
   heading.id = id;
   head.append(heading);
   if (meta) head.append(el('span', 'type-meta', meta));
-  if (tools.length > 0) {
+  if (tools.length > 0 || footnote) {
     const holder = el('span', 'ml-auto flex items-center gap-2');
     holder.append(...tools);
+    if (footnote) holder.append(infoButton(title, footnote));
     head.append(holder);
   }
   section.append(head);
   const content = el('div', flush ? 'flex-1 min-h-0' : 'flex-1 min-h-0 px-4 pb-4');
   content.append(...(Array.isArray(body) ? body : [body]));
   section.append(content);
-  if (footnote) section.append(el('p', 'px-4 py-3 border-t border-border-subtle type-meta', footnote));
   return section;
 }
 

@@ -8,7 +8,7 @@ import { formatInteger } from './vendor/format/number.js';
 import { MEASURES, PLATFORMS, RUNS, WEEK_LABELS, aggregateFor, entitiesFor, gapFor, lastRunOf, platformOf, seriesFor, sovSeries } from './aiov-data.js';
 import { chartHost, lineOption, mountChart, shareAreaOption } from './aiov-charts.js';
 import { HEAT_METRICS, setScope } from './aiov-controls.js';
-import { barList, cardFrame, countsText, el, emptyBody, engineName, icon, insufficient, insufficientText, pct0, plural, platformLabel, sparkline, stackedRows, valueText } from './aiov-parts.js';
+import { barList, cardFrame, countsText, el, emptyBody, engineName, icon, infoButton, insufficient, insufficientText, pct0, plural, platformLabel, sparkline, stackedRows, valueText } from './aiov-parts.js';
 import { wilsonInterval } from './vendor/stats/index.js';
 
 const ENGINE_TOKEN = { chatgpt_web: 'chart-1', gemini_web: 'chart-2', google_ai_mode: 'chart-3', google_ai_overview: 'chart-4' };
@@ -151,7 +151,12 @@ export function headlineRow(ctx) {
   }
   const outcomes = outcomesFor(model);
   const shares = ctx.scope.platform === 'all' ? averageShares(outcomes) : outcomes[0]?.shares ?? null;
-  hero.append(title, top, splitBar(shares, ctx.scope.platform === 'all' ? null : outcomes[0]?.counts));
+  // The explanation sits behind an info button, as on every card; the tiles keep theirs on hover
+  const heading = el('div', 'flex items-center justify-between gap-2 -my-1');
+  const explanation = `${title.dataset.tip} The tiles beside it show the other key numbers; hover a tile name for its definition.`;
+  delete title.dataset.tip;
+  heading.append(title, infoButton(MEASURES.visibility.label, explanation));
+  hero.append(heading, top, splitBar(shares, ctx.scope.platform === 'all' ? null : outcomes[0]?.counts));
 
   // The tiles share hairlines: a grid with a 1 px gap on the border color
   const strip = el('section', 'xl:col-span-8 min-w-0 border border-border rounded-lg overflow-hidden bg-border grid grid-cols-2 md:grid-cols-4 gap-px');

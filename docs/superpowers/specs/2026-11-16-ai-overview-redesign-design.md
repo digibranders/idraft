@@ -75,6 +75,13 @@ Every block is a card of the layout catalog (new keys: `ai.visibility_split`,
 existing keys), so customize mode, presets and per-user and team layouts apply as specified in the existing doc
 section 9. Presets: Executive, Analyst, Competitive.
 
+### 5.0 Card information
+
+Every card has an "i" button at the end of its title row. Its text says how the card is counted and what it leaves
+out. Hover or keyboard focus shows it in a tooltip; a click opens it in a small popover, which is how touch reaches
+it. Nothing is printed under a card. The headline block has one button, on the AI Visibility hero; the key numbers
+keep their definitions on hover.
+
 ### 5.1 Customize mode (built in the preview)
 
 - **A layout is a list of cards** with a width each, at most 12 (the layout library's limit). The headline hero and

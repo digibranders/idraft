@@ -131,6 +131,8 @@ export function sanitize(input) {
     cards.push({ id: def.key, type: def.key, width: def.widths.includes(item.width) ? item.width : def.widths[0] });
     if (cards.length === LIMIT) break;
   }
+  // A document of cards that no longer exist says nothing: the next layout in line applies, as if it were not stored
+  if (cards.length === 0 && input.cards.length > 0) return null;
   return { schema: 1, cards };
 }
 

@@ -69,13 +69,17 @@ export function createCustomizer({ grid, onChange }) {
   function showMenu(trigger, entries, { label, role = 'menuitem', align = 'start' } = {}) {
     menu.setAttribute('aria-label', label ?? 'Menu');
     menu.replaceChildren(
-      ...entries.map((entry) => {
-        if (entry.heading) return el('div', 'h-7 px-2 flex items-center type-meta', entry.heading);
+      // An item that cannot be chosen is left out: the popup would put focus on it and the keys would skip past
+      ...entries.filter((entry) => !entry.disabled).map((entry) => {
+        if (entry.heading) {
+          const heading = el('div', 'h-7 px-2 flex items-center type-meta', entry.heading);
+          heading.setAttribute('role', 'presentation');
+          return heading;
+        }
         const item = el('button', ITEM);
         item.type = 'button';
         item.setAttribute('role', role);
         if (role !== 'menuitem') item.setAttribute('aria-checked', String(Boolean(entry.selected)));
-        item.disabled = Boolean(entry.disabled);
         const check = el('span', 'size-icon-sm shrink-0 text-primary-text invisible group-aria-checked:visible');
         check.setAttribute('aria-hidden', 'true');
         check.append(icon('check', 'size-icon-sm'));
@@ -107,8 +111,9 @@ export function createCustomizer({ grid, onChange }) {
       dialog.querySelector('[data-confirm-ok]').textContent = confirmLabel;
       const labelId = `aiov-confirm-${Date.now()}`;
       titleNode.id = labelId;
+      bodyNode.id = `${labelId}-body`;
       dialog.setAttribute('aria-labelledby', labelId);
-      dialog.removeAttribute('aria-describedby');
+      dialog.setAttribute('aria-describedby', `${labelId}-body`);
       document.body.append(dialog);
       const opener = document.activeElement;
       let settled = false;
@@ -205,7 +210,10 @@ export function createCustomizer({ grid, onChange }) {
   const positionText = (id) => `${nameOf(id)}, position ${state.draft.cards.findIndex((item) => item.id === id) + 1} of ${state.draft.cards.length}`;
 
   function move(id, to, focus = true) {
-    edit(moveCard(state.draft, id, to), '');
+    const next = moveCard(state.draft, id, to);
+    // At the start or the end there is nowhere to go: nothing changes and nothing is announced
+    if (sameLayout(next, state.draft)) return;
+    edit(next, '');
     announce(`Moved ${positionText(id)}`);
     if (focus) refocus(id, '[data-drag-handle]');
   }
@@ -264,6 +272,7 @@ export function createCustomizer({ grid, onChange }) {
       edit(hideCard(state.draft, item.id), `${def.title} hidden. ${plural(state.draft.cards.length - 1, 'card')} left`);
       const next = state.draft.cards[Math.min(index, state.draft.cards.length - 1)];
       if (next) refocus(next.id, '[data-drag-handle]');
+      else window.requestAnimationFrame(() => grid.querySelector('button')?.focus());
     });
     const more = el('button', TOOL);
     more.type = 'button';
@@ -296,8 +305,9 @@ export function createCustomizer({ grid, onChange }) {
       if (event.button !== 0) return;
       const frame = handle.closest('[data-card-id]');
       event.preventDefault();
-      handle.setPointerCapture(event.pointerId);
       frame.classList.add(...FRAME_GRABBED);
+      // Moving the frame in the grid re-inserts the handle, which makes the browser drop a pointer capture. So the
+      // move and the drop are heard on the window, which does not depend on the handle staying where it is.
       const onMove = (moveEvent) => {
         const under = document
           .elementsFromPoint(moveEvent.clientX, moveEvent.clientY)
@@ -311,18 +321,18 @@ export function createCustomizer({ grid, onChange }) {
         grid.insertBefore(frame, before ? under : under.nextSibling);
       };
       const onEnd = () => {
-        handle.removeEventListener('pointermove', onMove);
-        handle.removeEventListener('pointerup', onEnd);
-        handle.removeEventListener('pointercancel', onEnd);
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onEnd);
+        window.removeEventListener('pointercancel', onEnd);
         frame.classList.remove(...FRAME_GRABBED);
         const order = [...grid.children].map((node) => node.dataset.cardId).filter(Boolean);
         const byId = new Map(state.draft.cards.map((card) => [card.id, card]));
         const next = { ...state.draft, cards: order.map((id) => byId.get(id)).filter(Boolean) };
         if (next.cards.length === state.draft.cards.length) edit(next, `Moved ${nameOf(item.id)}`);
       };
-      handle.addEventListener('pointermove', onMove);
-      handle.addEventListener('pointerup', onEnd);
-      handle.addEventListener('pointercancel', onEnd);
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onEnd);
+      window.addEventListener('pointercancel', onEnd);
     });
   }
 
@@ -407,10 +417,13 @@ export function createCustomizer({ grid, onChange }) {
   }
 
   function exit() {
+    // The controls that held focus are about to be hidden: focus goes back to where the person started
+    const held = document.activeElement === document.body || grid.contains(document.activeElement) || bar.contains(document.activeElement) || menu.contains(document.activeElement);
     state.mode = 'view';
     state.draft = null;
     sync();
     onChange();
+    if (held && toggle.offsetParent !== null) toggle.focus();
   }
 
   /** Leaving with unsaved changes asks first (10 section 13.2). Resolves when the person has chosen. */
@@ -429,9 +442,11 @@ export function createCustomizer({ grid, onChange }) {
   }
 
   async function saveTeam() {
+    // The layout asked about is the one shown now; the question may stay open while something else changes the page
+    const draft = structuredClone(state.draft);
     const ok = await confirmAction({ title: 'Save as the team default?', body: 'Everyone in the workspace who has not saved a layout of their own will see this one.', confirmLabel: 'Save as team default' });
-    if (!ok) return;
-    writeStored('team', state.draft);
+    if (!ok || !customizing()) return;
+    writeStored('team', draft);
     writeStored('personal', null);
     ui.toast({ title: 'Team default saved', description: 'It is now the layout for everyone without their own.' });
     load();
@@ -443,9 +458,16 @@ export function createCustomizer({ grid, onChange }) {
     if (!ok) return;
     writeStored('team', null);
     ui.toast({ title: 'Team default removed', description: 'The built in Default applies again.' });
-    // What is saved may have been the team default: read it again, so the changes shown are against the new base
-    load();
-    updateBar();
+    // What is saved may have been the team default: read it again. With edits in hand they stay and are counted
+    // against the new base; with none, the mode simply ends on the layout that now applies.
+    if (!customizing()) return;
+    if (dirty()) {
+      load();
+      updateBar();
+    } else {
+      load();
+      exit();
+    }
   }
 
   toggle.addEventListener('click', () => (customizing() ? requestExit() : enter()));
@@ -472,12 +494,20 @@ export function createCustomizer({ grid, onChange }) {
 
   // Escape leaves customize mode when nothing else is open; a route change with unsaved edits asks first
   document.addEventListener('keydown', (event) => {
-    if (event.key !== 'Escape' || !customizing() || ui.popupOpen()) return;
+    if (event.key !== 'Escape' || !customizing() || ui.popupOpen() || ui.currentRoute().view !== 'ai') return;
     if (document.querySelector('[aria-modal="true"]:not([hidden])')) return;
     if (event.target.closest?.('input, textarea')) return;
     requestExit();
   });
   ui.addLeaveGuard((kind) => (kind === 'route' && dirty() ? { owner: 'aiov-layout', message: DISCARD_MESSAGE, onKeep: () => toggle.focus?.(), onDiscard: exit } : null));
+  // Leaving the page, or narrowing the window below the width that has the Customize button, ends a clean session of
+  // customizing (a dirty one is asked about by the leave guard above, and stays while the window is narrowed)
+  window.addEventListener('preview-leave', (event) => {
+    if (event.detail?.from === 'ai' && customizing() && !dirty()) exit();
+  });
+  window.matchMedia('(max-width: 767px)').addEventListener('change', (event) => {
+    if (event.matches && customizing() && !dirty()) exit();
+  });
   window.addEventListener('beforeunload', (event) => {
     if (dirty()) event.preventDefault();
   });
