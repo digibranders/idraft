@@ -135,17 +135,19 @@ const WIDE_COLUMNS: DataTableColumn<SampleRow>[] = [
 ];
 const DEMO_ROWS = SAMPLE.slice(0, 20);
 
-/** Platform marks in two headers, as the Prompts tables draw them; hidden from assistive technology by the table. */
+/** Platform marks in two headers, as the Prompts tables draw them. A mark takes about 22 px, so these columns ask for more width. */
 const MARKED_COLUMNS = [
   col.keyword<SampleRow>('keyword', (row) => row.keyword, { header: 'Keyword' }),
   col.volume<SampleRow>('search_volume', (row) => row.volume, {
     header: 'Volume',
     headerIcon: <Icon icon={Globe} size="sm" />,
+    width: 120,
     unknown: () => PENDING,
   }),
   col.count<SampleRow>('keyword_difficulty', (row) => row.difficulty, {
     header: 'KD',
     headerIcon: <Icon icon={Sparkles} size="sm" />,
+    width: 120,
     unknown: () => PENDING,
   }),
 ];

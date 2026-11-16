@@ -43,6 +43,7 @@ const COLUMNS = [
   col.count<Row>('difficulty', (row) => row.difficulty, { header: 'KD', priority: 3, headerTooltip: 'Difficulty' }),
 ];
 const DEFAULT_SORT: SortKey[] = [{ id: 'volume', desc: true }];
+const KEYWORD_FALLBACK: readonly SortKey[] = [{ id: 'keyword', desc: false }];
 
 const onOpen = vi.fn();
 const archive = vi.fn();
@@ -1505,7 +1506,11 @@ describe('DataTable tree mode', () => {
     toolbarEnd,
     rows = TREE_ROWS,
     tree = TREE,
+    visible = null,
+    sortFallback,
   }: {
+    visible?: readonly string[] | null;
+    sortFallback?: readonly SortKey[];
     sort?: readonly SortKey[];
     selection?: Partial<Selection>;
     toolbarEnd?: ReactElement;
@@ -1524,11 +1529,12 @@ describe('DataTable tree mode', () => {
           rows={rows}
           total={3}
           sort={sort}
+          sortFallback={sortFallback}
           onSortChange={vi.fn()}
           defaultSort={DEFAULT_SORT}
           density={density}
           onDensityChange={setDensity}
-          columnState={{ visible: null, onChange: vi.fn() }}
+          columnState={{ visible, onChange: vi.fn() }}
           search={search}
           onSearchChange={setSearch}
           searchPlaceholder="Search keywords"
@@ -1574,6 +1580,23 @@ describe('DataTable tree mode', () => {
     expect(child).toHaveAttribute('aria-setsize', '2');
     expect(child).not.toHaveAttribute('aria-expanded');
     expect(child).not.toHaveAttribute('data-group-row');
+  });
+
+  it('draws the sort fallback while the sorted column is hidden, and leaves the rows in the order given', () => {
+    renderWithProviders(
+      <TreeHarness
+        sort={[{ id: 'volume', desc: true }]}
+        sortFallback={KEYWORD_FALLBACK}
+        visible={['keyword', 'difficulty']}
+      />,
+    );
+    expect(screen.getByRole('columnheader', { name: /Keyword/ })).toHaveAttribute('aria-sort', 'ascending');
+    expect(bodyRows().map((row) => row.getAttribute('aria-level'))).toEqual(['1', '2', '2', '1']);
+    expect(
+      within(treeGrid())
+        .getAllByRole('rowheader')
+        .map((cell) => cell.textContent),
+    ).toEqual(['Group A', 'alpha one', 'alpha two', 'Group B']);
   });
 
   it('names the disclosure button of a group row by its state and name, and toggles the group from it', async () => {
@@ -3462,8 +3485,6 @@ describe('DataTable header icons', () => {
     expect(screen.queryByTestId('mark')).toBeNull();
   });
 });
-
-const KEYWORD_FALLBACK: readonly SortKey[] = [{ id: 'keyword', desc: false }];
 
 describe('DataTable sort fallback', () => {
   it('sorts by the fallback, with its indicator, while the sorted column is hidden, and returns with the column', async () => {

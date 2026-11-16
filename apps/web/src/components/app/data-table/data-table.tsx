@@ -21,6 +21,7 @@ import { BulkActionBar } from './bulk-action-bar';
 import { ColumnChooser } from './column-chooser';
 import { planHeader } from './column-groups';
 import { LONG_PRESS, ownsContextMenu } from './context-menu';
+import { effectiveSort } from './sort-fallback';
 import { RowContextMenu, rowMenuItems, type MenuPoint } from './row-menu';
 import { TableFooter } from './table-footer';
 import { DataTableToolbar } from './toolbar';
@@ -206,10 +207,11 @@ export function DataTable<TRow extends RowData>({
   });
   // A sort with a key on a column that is not shown is drawn nowhere, so with `sortFallback` the fallback sorts
   // (and shows its indicator) instead; `sortFallback` itself is the caller's, so its identity is stable
-  const sort =
-    sortFallback !== undefined && requestedSort.some((key) => !shown.some((column) => column.id === key.id))
-      ? sortFallback
-      : requestedSort;
+  const sort = effectiveSort(
+    requestedSort,
+    sortFallback,
+    shown.map((column) => column.id),
+  );
   // F2 does something only where a column shown has controls in its cells, so only then does the hint say so
   const hasControls = shown.some((column) => column.hasControls === true);
   const grid: GridColumn<TRow>[] = [
