@@ -25,7 +25,28 @@ export const TREND_METRICS: readonly TrendMetric[] = ['mention', 'citation', 'sh
 
 export const isTrendMetric = (value: string): value is TrendMetric => TREND_METRICS.some((metric) => metric === value);
 
+/**
+ * The metrics a week can carry: the three of the trend cards, and AI visibility (named or cited), which the API does
+ * not put on a week yet (backend request 1, `WeekCells.visibility`). A summary without it has no weekly visibility,
+ * and says so (`hasWeeklyVisibility`); the figure is never made up from the mention and citation cells.
+ */
+export type WeekMetric = TrendMetric | 'visibility';
+
+/** A week that may carry the weekly AI visibility cell of backend request 1. */
+type WeekWithVisibility = WeekCells & { visibility?: MetricCell | null | undefined };
+
 const CELL_OF = { mention: 'mentioned', citation: 'cited' } as const;
+
+const NO_ANSWERS: MetricCell = { value: null, numerator: 0, denominator: 0, n_observations: 0, pooled: null };
+
+/** Whether any week of any series of the summary carries the visibility cell: the API collects it weekly. */
+export function hasWeeklyVisibility(summary: PromptsSummary): boolean {
+  const weeks = [
+    ...(summary.total?.engines ?? []).flatMap((engine) => engine.series ?? []),
+    ...summary.prompts.flatMap((prompt) => prompt.engines.flatMap((engine) => engine.series ?? [])),
+  ];
+  return weeks.some((week) => (week as WeekWithVisibility).visibility != null);
+}
 
 export interface TrendPoint {
   /** The Monday the week starts on, a project day. */
@@ -105,7 +126,7 @@ const poolOf = (week: WeekCells): number | null => {
 };
 
 /** A point from its parts: the interval and the thin state come from the counts and from nothing else. */
-function pointOf(weekStart: string, parts: Parts, metric: TrendMetric, range: TrendInput['range']): TrendPoint {
+function pointOf(weekStart: string, parts: Parts, metric: WeekMetric, range: TrendInput['range']): TrendPoint {
   const state: RateState = rateState(parts.n);
   const hasBand = metric !== 'share_of_voice' && state === 'ok' && parts.k !== null;
   return {
@@ -118,7 +139,7 @@ function pointOf(weekStart: string, parts: Parts, metric: TrendMetric, range: Tr
 }
 
 /** The point of prompt rows in one week: each prompt's own pooled cell, added up, the value their mean (C-19). */
-function promptsPart(cells: readonly { week: WeekCells; cell: MetricCell }[], metric: TrendMetric): Parts {
+function promptsPart(cells: readonly { week: WeekCells; cell: MetricCell }[], metric: WeekMetric): Parts {
   if (cells.length === 0) return GAP;
   const pooledWeeks = cells.reduce<number | null>((most, { week }) => {
     const weeks = poolOf(week);
@@ -143,7 +164,7 @@ function promptsPart(cells: readonly { week: WeekCells; cell: MetricCell }[], me
 }
 
 /** The point of a total row: its cell is prompt weighted, so its counts are in `pooled`. */
-function totalPart(week: WeekCells, cell: MetricCell, metric: TrendMetric): Parts {
+function totalPart(week: WeekCells, cell: MetricCell, metric: WeekMetric): Parts {
   const pooledWeeks = poolOf(week);
   if (metric === 'share_of_voice') {
     return cell.denominator > 0 ? { value: cell.value, k: null, n: cell.denominator, prompts: null, pooledWeeks } : GAP;
@@ -154,8 +175,12 @@ function totalPart(week: WeekCells, cell: MetricCell, metric: TrendMetric): Part
   return { value: cell.value, k, n, prompts: cell.pooled === null ? week.prompts : cell.denominator, pooledWeeks };
 }
 
-const cellOf = (week: WeekCells, metric: TrendMetric): MetricCell =>
-  metric === 'share_of_voice' ? week.share_of_voice : week[CELL_OF[metric]];
+const cellOf = (week: WeekCells, metric: WeekMetric): MetricCell =>
+  metric === 'share_of_voice'
+    ? week.share_of_voice
+    : metric === 'visibility'
+      ? ((week as WeekWithVisibility).visibility ?? NO_ANSWERS)
+      : week[CELL_OF[metric]];
 
 const totalSeries = (summary: PromptsSummary, code: EngineCode): readonly WeekCells[] | null => {
   const engine: EngineSummary | undefined = summary.total?.engines.find((entry) => entry.engine_code === code);
@@ -179,7 +204,7 @@ const promptWeeks = (summary: PromptsSummary, code: EngineCode): string[] =>
 export function projectWeeks(
   summary: PromptsSummary,
   code: EngineCode,
-  metric: TrendMetric,
+  metric: WeekMetric,
   range: TrendInput['range'],
 ): TrendPoint[] {
   const total = totalSeries(summary, code);
@@ -212,7 +237,9 @@ function previousValues(
   });
 }
 
-const gapAt = (weekStart: string, range: TrendInput['range']): TrendPoint => pointOf(weekStart, GAP, 'mention', range);
+/** A week with no answer on an engine: a gap. */
+export const gapAt = (weekStart: string, range: TrendInput['range']): TrendPoint =>
+  pointOf(weekStart, GAP, 'mention', range);
 
 /** The weekly model of the engines asked: every engine has a point for every week of the chart. */
 export function buildTrend({ current, previous, asked, metric, range }: TrendInput): TrendModel {
