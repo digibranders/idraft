@@ -68,7 +68,7 @@ describe('the AI visibility page without access', () => {
     expect(screen.getByRole('heading', { name: 'You cannot see AI visibility for this project' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Customize' })).not.toBeInTheDocument();
     await new Promise((resolve) => setTimeout(resolve, 50));
-    expect(requests.filter((path) => /\/(platforms|ai\/|layouts)/.test(path))).toEqual([]);
+    expect(requests.filter((path) => /\/(engines|ai\/|layouts)/.test(path))).toEqual([]);
     server.events.removeListener('request:start', listener);
   });
 });
