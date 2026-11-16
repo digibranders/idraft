@@ -124,6 +124,9 @@ export interface PromptColumnOptions {
   facts: PromptFacts | undefined;
 }
 
+/** The preview's Location column: 120 px, which holds "United Arab Emirates" cut with its ellipsis. */
+const LOCATION_WIDTH = 120;
+
 const DEFAULT_OPTIONS: PromptColumnOptions = { showLocation: true, facts: undefined };
 
 /**
@@ -142,6 +145,7 @@ export function usePromptColumns(
   { showLocation, facts }: PromptColumnOptions = DEFAULT_OPTIONS,
 ): PromptColumns {
   const t = useTranslations('prompts');
+  const shell = useTranslations('prompts.shell.columns');
   const root = useTranslations();
   const locale = useLocale();
   const { compare } = useCompare();
@@ -197,8 +201,9 @@ export function usePromptColumns(
         ? [
             col.text<PromptRow>(SORT_ID.country, (row) => row.country, {
               header: t('columns.country'),
+              headerTooltip: shell('locationTip'),
               priority: 3,
-              width: 136,
+              width: LOCATION_WIDTH,
             }),
           ]
         : []),
@@ -229,6 +234,7 @@ export function usePromptColumns(
     };
   }, [
     t,
+    shell,
     root,
     locale,
     engines,

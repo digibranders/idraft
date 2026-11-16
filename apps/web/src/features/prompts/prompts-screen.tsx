@@ -48,6 +48,7 @@ import {
   NO_TOPIC,
   parseCountry,
   parseTab,
+  SORT_ID,
   PROMPTS_TABS,
   topicChoices,
   topicDescendants,
@@ -516,6 +517,12 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     const parsed = parseSort(view.sort, sortFields);
     return parsed.length === 0 ? DEFAULT_PROMPT_SORT : parsed;
   }, [view.sort, sortFields]);
+  // The Location column is not there while the top bar names a location, so the chooser cannot say whether it is on: its
+  // choice is kept in the address as it was (on by default), and applies again when the top bar is back on All locations
+  const keepLocationChoice = (next: readonly string[]): readonly string[] => {
+    const wasOn = view.cols === null || view.cols.split(',').includes(SORT_ID.country);
+    return country !== null && wasOn && !next.includes(SORT_ID.country) ? [...next, SORT_ID.country] : next;
+  };
   const density = parseDensity(view.density);
 
   // The inspector: a prompt opened from either tab, stepping in the order of the table on screen
@@ -1083,7 +1090,8 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
                 onDensityChange={nothing}
                 columnState={{
                   visible,
-                  onChange: (next) => void setView({ cols: next === null ? null : formatColumns(next) }),
+                  onChange: (next) =>
+                    void setView({ cols: next === null ? null : formatColumns(keepLocationChoice(next)) }),
                 }}
                 search={view.q}
                 onSearchChange={(next) => void setView({ q: next === '' ? null : next })}

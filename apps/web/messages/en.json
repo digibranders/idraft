@@ -4878,7 +4878,8 @@
         "moveUp": "Up {points} against the previous period, from {before} to {now}",
         "moveDown": "Down {points} against the previous period, from {before} to {now}",
         "moveFlat": "No change against the previous period, at {now}",
-        "weeklyRates": "Weekly rates: {rates}"
+        "weeklyRates": "Weekly rates: {rates}",
+        "locationTip": "The location the prompt is asked for"
       }
     }
   },

@@ -2288,6 +2288,32 @@ describe('Prompts: rate columns, Top platform, sorting and the metric switcher',
     expect(cellsOf(table, 'Question number 1?').at(-1)).toBe('75% 6 of 8');
   });
 
+  it('explains the Location column in its header tooltip', async () => {
+    serveRates();
+    const { user } = renderOnPrompts(promptsAs('viewer'));
+    const table = await grid();
+    await within(table).findByText('Question number 1?');
+    await user.hover(within(table).getByRole('columnheader', { name: /^Location/ }));
+    expect(await screen.findAllByText('The location the prompt is asked for')).not.toHaveLength(0);
+  });
+
+  it('keeps the Location choice in the address while the top bar names a location, so it returns with All locations', async () => {
+    serveRates();
+    const writes: string[] = [];
+    const { user } = renderOnPrompts(promptsAs('viewer'), {
+      searchParams: '?country=DE&cols=prompt,topic,country,mention',
+      onUrlUpdate: ({ queryString }) => writes.push(queryString),
+    });
+    const table = await grid();
+    await within(table).findByText('Question number 1?');
+    expect(within(table).queryByRole('columnheader', { name: /^Location/ })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Columns' }));
+    await user.click(await screen.findByRole('checkbox', { name: 'Citation rate' }));
+    await vi.waitFor(() => expect(writes.length).toBeGreaterThan(0));
+    const cols = new URLSearchParams(writes.at(-1)).get('cols')?.split(',') ?? [];
+    expect(cols).toEqual(expect.arrayContaining(['prompt', 'topic', 'mention', 'citation', 'country']));
+  });
+
   it('keeps a saved link that names the removed Trend column: the other columns it names still show', async () => {
     serveRates();
     renderOnPrompts(promptsAs('viewer'), { searchParams: '?cols=prompt,topic,mention,trend,citation' });
