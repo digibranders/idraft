@@ -27,6 +27,19 @@ to `done <commit>` or `differs <reason>` by the package that ports the row, and 
 6. **Wording.** Platform, Group, Location, Prompts (never Engine, Topic, Country, Topics and Prompts) in every visible
    string, in both the mock and the real app.
 
+## Owner decisions recorded against the registers (2026-11-16)
+
+- Overview empty cards: follow the mock. Every card keeps its place and smallest height in every scope and says why it
+  has nothing. The spec text about hiding cards and an "N cards not drawn" note is superseded; update the spec.
+- Platform order everywhere: ChatGPT, Gemini, AI Mode, AI Overview (real app order; AI Overview last, not available
+  until the API has it).
+- Terminology: the owner wants one researched, final glossary for the whole app (a separate research session,
+  `docs/glossary/`, several models consulted). Until it is approved, Platform, Group, Location, Prompts are the
+  provisional words, every visible word stays in `apps/web/messages/en.json`, and no mock wording change is made for
+  Engine, Topic or Country. After approval one application pass updates the real app, the mock and these registers.
+- Where the real app already behaves better than the mock (loading and error states, URL state for filters, keyboard
+  access to popovers), keep the real behaviour and mark the row `differs real is better`.
+
 ## Where the work is tracked
 
 - Plan: `docs/superpowers/plans/2026-11-16-real-app-port-overview-and-prompts.md` (waves, packages, the preview change
