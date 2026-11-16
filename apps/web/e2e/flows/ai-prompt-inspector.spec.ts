@@ -28,7 +28,7 @@ const tabRowOf = (inspector: Locator): Locator =>
   inspector.getByRole('tablist', { name: 'Prompt sections' }).locator('xpath=..');
 
 test.describe('The prompt inspector, completed', () => {
-  test('shows its freshness and topic, the cited domains, the events and the statistics of a prompt', async ({
+  test('shows its freshness and group, the cited domains, the events and the statistics of a prompt', async ({
     page,
   }) => {
     const inspector = await openFirstPrompt(page, 1280);

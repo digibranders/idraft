@@ -77,14 +77,14 @@ describe('the trend frame, through the rate trend card', () => {
       searchParams: WINDOW,
       onUrlUpdate,
     });
-    await screen.findByRole('heading', { name: 'Mention rate by engine' });
+    await screen.findByRole('heading', { name: 'Mention rate by platform' });
     await waitFor(() => {
       expect(built.options.has('chatgpt_web')).toBe(true);
     });
     const mention = JSON.stringify((built.options.get('chatgpt_web')?.series as { data: unknown[] }[])[0]?.data);
     await user.click(screen.getByRole('combobox', { name: 'Series' }));
     await user.click(await screen.findByRole('option', { name: 'Citation rate' }));
-    expect(await screen.findByRole('heading', { name: 'Citation rate by engine' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Citation rate by platform' })).toBeInTheDocument();
     await waitFor(() => {
       expect(JSON.stringify((built.options.get('chatgpt_web')?.series as { data: unknown[] }[])[0]?.data)).not.toBe(
         mention,
@@ -98,7 +98,7 @@ describe('the trend frame, through the rate trend card', () => {
 
   it('the legend toggles a panel and the last one cannot be hidden', async () => {
     const { user } = render();
-    const legend = await screen.findByRole('list', { name: 'Series in Mention rate by engine' });
+    const legend = await screen.findByRole('list', { name: 'Series in Mention rate by platform' });
     // Every entry, in order, through the real controls
     const entries = within(legend).getAllByRole('button');
     for (const entry of entries) await user.click(entry);

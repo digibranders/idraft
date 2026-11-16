@@ -546,11 +546,11 @@ describe('the History tab', () => {
   it('plots the trailing four weeks of each engine with a band, and says the numbers in the Table view', async () => {
     const { user } = renderOn('viewer', openedOn('history'));
     const inspector = await panel();
-    expect(await within(inspector).findByRole('img', { name: 'Mention rate by engine' })).toBeInTheDocument();
+    expect(await within(inspector).findByRole('img', { name: 'Mention rate by platform' })).toBeInTheDocument();
     // The frame's own table is the one text equivalent: there is no second, hidden one
-    expect(within(inspector).queryByRole('table', { name: 'Mention rate by engine' })).toBeNull();
+    expect(within(inspector).queryByRole('table', { name: 'Mention rate by platform' })).toBeNull();
     await user.click(within(inspector).getByRole('button', { name: 'Table' }));
-    const table = within(inspector).getByRole('table', { name: 'Mention rate by engine' });
+    const table = within(inspector).getByRole('table', { name: 'Mention rate by platform' });
     expect(
       within(table)
         .getAllByRole('columnheader')

@@ -40,7 +40,7 @@ function inProvider(role: Role, children: ReactElement, withoutPermissions: read
 describe('NoEngineState', () => {
   it('with projects:write the action goes to Settings > Engines', () => {
     renderWithProviders(inProvider('admin', <NoEngineState />));
-    expect(screen.getByRole('heading', { level: 2, name: 'No AI engine is on' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: 'No AI platform is on' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Turn on engines' })).toHaveAttribute(
       'href',
       '/digibranders/fynix/settings/engines',
@@ -49,16 +49,16 @@ describe('NoEngineState', () => {
 
   it('without it the sentence asks a workspace admin, with no link', () => {
     renderWithProviders(inProvider('viewer', <NoEngineState />, ['projects:write']));
-    expect(screen.getByText('Ask a workspace admin to turn on an engine')).toBeInTheDocument();
+    expect(screen.getByText('Ask a workspace admin to turn on a platform')).toBeInTheDocument();
     expect(screen.queryByRole('link')).not.toBeInTheDocument();
   });
 });
 
 describe('NoPromptsState', () => {
-  it('says no prompts are asked and opens Topics and prompts', () => {
+  it('says no prompts are asked and opens Prompts', () => {
     renderWithProviders(inProvider('admin', <NoPromptsState />));
     expect(screen.getByRole('heading', { level: 2, name: 'No prompts are asked yet' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Open Topics and prompts' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Open Prompts' })).toHaveAttribute(
       'href',
       '/digibranders/fynix/ai/prompts',
     );
@@ -79,6 +79,6 @@ describe('NoCountryPromptsState', () => {
     await waitFor(() => {
       expect(urls.at(-1)).toBe('?engine=gemini_web');
     });
-    expect(screen.getByRole('link', { name: 'Open Topics and prompts' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open Prompts' })).toBeInTheDocument();
   });
 });

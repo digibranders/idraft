@@ -341,7 +341,7 @@ describe('useNumberValues', () => {
   });
 });
 
-/** The Topics and Prompts strip over the prompts this page read, next to the numbers this page shows (R12). */
+/** The Prompts strip over the prompts this page read, next to the numbers this page shows (R12). */
 function Parity({ seen }: { seen: Seen }): ReactElement {
   const engines = useOverviewEngines();
   const summary = useOverviewSummary();
@@ -362,7 +362,7 @@ function Parity({ seen }: { seen: Seen }): ReactElement {
   );
 }
 
-describe('the numbers and the Topics and Prompts strip (R12)', () => {
+describe('the numbers and the Prompts strip (R12)', () => {
   it.each<{ world: OverviewWorld; seeded: boolean }>([
     { world: 'fynix', seeded: false },
     { world: 'eventus-security', seeded: true },
@@ -440,13 +440,13 @@ describe('numbers with nothing to read, or that cannot be read for the choice', 
     await waitFor(() => {
       expect(slot('mention-chatgpt', 'value')).toBe('Not asked');
     });
-    expect(slot('mention-chatgpt', 'context')).toBe('Not in the engine filter');
-    expect(slot('mention-gemini', 'context')).toBe('Not in the engine filter');
+    expect(slot('mention-chatgpt', 'context')).toBe('Not in the platform filter');
+    expect(slot('mention-gemini', 'context')).toBe('Not in the platform filter');
     expect(slot('mention-ai-mode', 'value')).toBe('Not asked');
     expect(slot('mention-ai-mode', 'context')).toBe('Off in this project');
     // The prompts are read with the summary, which is not asked of no engine: the reason is the true one
     expect(slot('prompts', 'value')).toBe('Not asked');
-    expect(slot('prompts', 'context')).toBe('No engine is asked');
+    expect(slot('prompts', 'context')).toBe('No platform is asked');
     for (const item of MENTION) expect(slot(item.id, 'tip')).not.toMatch(/no figure/i);
     expect(status()).toBe('ready');
   });
@@ -487,9 +487,9 @@ describe('numbers with nothing to read, or that cannot be read for the choice', 
     );
     renderWithProviders(tree(items, <Probe items={items} seen={{ values: [] }} />));
     await waitFor(() => {
-      expect(slot('fanout-chatgpt', 'context')).toBe('Read for one engine at a time');
+      expect(slot('fanout-chatgpt', 'context')).toBe('Read for one platform at a time');
     });
-    expect(slot('fanout-gemini', 'context')).toBe('Read for one engine at a time');
+    expect(slot('fanout-gemini', 'context')).toBe('Read for one platform at a time');
     expect(slot('fanout-chatgpt', 'value')).toBe('n/a');
     expect(slot('fanout-chatgpt', 'tip')).not.toMatch(/no figure/i);
   });

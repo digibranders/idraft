@@ -93,9 +93,9 @@ describe('the setup slot of the AI visibility page', () => {
     expect(precedes(slot, strip)).toBe(true);
   });
 
-  it('is not drawn where the empty state already says the same step: no engine on', async () => {
+  it('is not drawn where the empty state already says the same step: no platform on', async () => {
     renderWithProviders(overviewAs('admin', { world: 'cleanstart', setupSlot: <p>Setup slot</p> }));
-    expect(await screen.findByRole('heading', { name: 'No AI engine is on' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'No AI platform is on' })).toBeInTheDocument();
     expect(screen.queryByText('Setup slot')).not.toBeInTheDocument();
   });
 
@@ -109,15 +109,15 @@ describe('the setup slot of the AI visibility page', () => {
     );
     renderWithProviders(overviewAs('admin', { setupSlot: <p>Setup slot</p> }));
     expect(await screen.findByRole('heading', { name: 'No prompts are asked yet' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Open Topics and prompts' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open Prompts' })).toBeInTheDocument();
     expect(screen.queryByText('Setup slot')).not.toBeInTheDocument();
   });
 });
 
 describe('the empty states of the AI visibility page', () => {
-  it('Cleanstart shows the no engine state and no strip, scope bar or grid, and keeps Customize', async () => {
+  it('Cleanstart shows the no platform state and no strip, scope bar or grid, and keeps Customize', async () => {
     renderWithProviders(overviewAs('admin', { world: 'cleanstart' }));
-    expect(await screen.findByRole('heading', { name: 'No AI engine is on' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'No AI platform is on' })).toBeInTheDocument();
     expect(screen.queryByRole('group', { name: STRIP })).not.toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Scope' })).not.toBeInTheDocument();
     expect(screen.queryByRole('region', { name: CARDS })).not.toBeInTheDocument();
@@ -125,7 +125,7 @@ describe('the empty states of the AI visibility page', () => {
     expect(document.querySelectorAll('[data-slot="banner"]')).toHaveLength(0);
   });
 
-  it('a project with engines on and no prompts shows the no prompts state, with no strip and no scope bar', async () => {
+  it('a project with platforms on and no prompts shows the no prompts state, with no strip and no scope bar', async () => {
     server.use(
       http.get(ENGINES, async ({ request }) => {
         const body = await defaultJson(request);
@@ -139,7 +139,7 @@ describe('the empty states of the AI visibility page', () => {
     expect(screen.queryByRole('region', { name: 'Scope' })).not.toBeInTheDocument();
   });
 
-  it('a country with no prompts says so and keeps the scope bar, with Clear location', async () => {
+  it('a location with no prompts says so and keeps the scope bar, with Clear location', async () => {
     server.use(
       http.get(SUMMARY, async ({ request }) => {
         if (new URL(request.url).searchParams.get('rows') === 'none') return undefined;
@@ -208,7 +208,7 @@ describe('the notice region and the freshness of the AI visibility page', () => 
     expect(document.querySelectorAll('[data-slot="banner"]')).toHaveLength(0);
   });
 
-  it('names the engine with the larger share of answers not valid, once, with its counts', async () => {
+  it('names the platform with the larger share of answers not valid, once, with its counts', async () => {
     withManyInvalidAnswers();
     renderWithProviders(overviewAs('admin'));
     expect(
@@ -256,7 +256,7 @@ describe('the notice region and the freshness of the AI visibility page', () => 
     renderWithProviders(overviewAs('admin'));
     await screen.findByRole('group', { name: STRIP });
     await waitFor(() => {
-      expect(screen.getByText(/ prompts · 2 engines$/)).toBeInTheDocument();
+      expect(screen.getByText(/ prompts · 2 platforms$/)).toBeInTheDocument();
     });
     expect(screen.queryByText(/^AI updated /)).not.toBeInTheDocument();
     expect(screen.queryByText('No AI answers yet')).not.toBeInTheDocument();
@@ -264,7 +264,7 @@ describe('the notice region and the freshness of the AI visibility page', () => 
 });
 
 describe('the page while it loads and refetches', () => {
-  it('holds the shape of the finished page while the engines load: strip, scope bar and grid at their heights', async () => {
+  it('holds the shape of the finished page while the platforms load: strip, scope bar and grid at their heights', async () => {
     const release = gate();
     server.use(
       http.get(ENGINES, async ({ request }) => {
@@ -295,7 +295,7 @@ describe('the page while it loads and refetches', () => {
     );
     await user.click(await screen.findByRole('button', { name: 'vs previous period' }));
     await user.click(await screen.findByRole('menuitemradio', { name: 'No comparison' }));
-    await user.click(await screen.findByRole('button', { name: 'Engines: 2 of 2' }));
+    await user.click(await screen.findByRole('button', { name: 'Platforms: 2 of 2' }));
     await user.click(await screen.findByRole('checkbox', { name: 'ChatGPT' }));
     await user.keyboard('{Escape}');
     await waitFor(() => {

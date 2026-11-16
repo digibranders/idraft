@@ -102,7 +102,7 @@ function render({ summary = SUMMARY, options = {}, searchParams = '', world = 'f
   );
 }
 
-const TITLE = 'Mention rate by topic and engine';
+const TITLE = 'Mention rate by group and platform';
 const frame = async (title = TITLE): Promise<HTMLElement> => {
   const heading = await screen.findByRole('heading', { name: title });
   const section = heading.closest('section');
@@ -130,10 +130,10 @@ const link = async (name: RegExp): Promise<HTMLElement> => within(await grid()).
 const queryOf = (href: string | null): URLSearchParams => new URL(href ?? '', 'http://localhost').searchParams;
 
 describe('the grid', () => {
-  it('renders a row per top level topic and a column per asked engine, then avg of 2 from two engines', async () => {
+  it('renders a row per top level group and a column per asked platform, then avg of 2 from two platforms', async () => {
     render();
-    expect(await rowNames()).toEqual(['CRM', 'Security', 'Support', 'Prompts without a topic']);
-    expect(await headers()).toEqual(['Topic', 'Prompts', 'ChatGPT', 'Gemini', 'avg of 2']);
+    expect(await rowNames()).toEqual(['CRM', 'Security', 'Support', 'Prompts without a group']);
+    expect(await headers()).toEqual(['Group', 'Prompts', 'ChatGPT', 'Gemini', 'avg of 2']);
     // The prompts column is the count of each topic
     const crm = within(await grid())
       .getByRole('rowheader', { name: 'CRM' })
@@ -141,15 +141,15 @@ describe('the grid', () => {
     expect(within(crm as HTMLElement).getByText('17')).toBeInTheDocument();
   });
 
-  it('one asked engine has no average column', async () => {
+  it('one asked platform has no average column', async () => {
     render({ searchParams: 'engine=chatgpt_web' });
-    expect(await headers()).toEqual(['Topic', 'Prompts', 'ChatGPT']);
+    expect(await headers()).toEqual(['Group', 'Prompts', 'ChatGPT']);
     expect(screen.queryByRole('columnheader', { name: /avg of/ })).not.toBeInTheDocument();
   });
 
-  it('an engine outside the engine filter is not a column', async () => {
+  it('a platform outside the platform filter is not a column', async () => {
     render({ searchParams: 'engine=gemini_web' });
-    expect(await headers()).toEqual(['Topic', 'Prompts', 'Gemini']);
+    expect(await headers()).toEqual(['Group', 'Prompts', 'Gemini']);
     expect(screen.queryByRole('columnheader', { name: 'ChatGPT' })).not.toBeInTheDocument();
   });
 
@@ -167,7 +167,7 @@ describe('the grid', () => {
 
   it('a cell with no answers says n/a and never 0%', async () => {
     render();
-    const none = await cell(/^Prompts without a topic on ChatGPT/);
+    const none = await cell(/^Prompts without a group on ChatGPT/);
     expect(none).toHaveTextContent('n/a');
     expect(none.textContent).not.toContain('0%');
     expect(none).not.toHaveClass('bg-insufficient');
@@ -184,7 +184,7 @@ describe('the grid', () => {
       [/^Security on ChatGPT/, /80\.0%, 8 of 10 answers.*9 prompts/],
       [/^Security on Gemini/, /36\.0%, 18 of 50 answers.*9 prompts/],
       [/^Support on Gemini/, /40\.0%, 8 of 20 answers.*4 prompts/],
-      [/^Prompts without a topic on Gemini/, /40\.0%, 4 of 10 answers.*3 prompts/],
+      [/^Prompts without a group on Gemini/, /40\.0%, 4 of 10 answers.*3 prompts/],
     ];
     for (const [name, words] of expected) {
       expect((await link(name)).getAttribute('aria-label')).toMatch(words);
@@ -193,25 +193,25 @@ describe('the grid', () => {
 
   it('share of voice tip says answers that name a brand', async () => {
     render({ options: { metric: 'share_of_voice' } });
-    await frame('Share of voice by topic and engine');
+    await frame('Share of voice by group and platform');
     const crm = await link(/^CRM on ChatGPT/);
     expect(crm.getAttribute('aria-label')).toMatch(/80 valid answers name a tracked brand/);
     expect(crm.getAttribute('aria-label')).toMatch(/17 prompts/);
     expect(crm.getAttribute('aria-label')).not.toMatch(/ of 80 answers/);
   });
 
-  it('the average cell says how many engines took part and names them', async () => {
+  it('the average cell says how many platforms took part and names them', async () => {
     render();
     const crm = await cell(/^CRM, avg of 2/);
     expect(crm.getAttribute('aria-label')).toMatch(/64 of 136 answers/);
     expect(crm.getAttribute('aria-label')).toMatch(/Equal weight average of ChatGPT and Gemini/);
     expect(crm).toHaveTextContent('39%');
     // One engine has a rate: it is that engine only, never an average of two
-    const support = await cell(/^Support, 1 engine/);
+    const support = await cell(/^Support, 1 platform/);
     expect(support.getAttribute('aria-label')).toMatch(/Gemini only/);
   });
 
-  it('level all opens a topic in place and top shows no chevron', async () => {
+  it('level all opens a group in place and top shows no chevron', async () => {
     const top = render();
     await grid();
     expect(screen.queryByRole('button', { name: /^Expand/ })).not.toBeInTheDocument();
@@ -223,10 +223,10 @@ describe('the grid', () => {
     expect(screen.queryByRole('rowheader', { name: 'Pricing' })).not.toBeInTheDocument();
     await all.user.click(expand);
     expect(await screen.findByRole('rowheader', { name: 'Pricing' })).toBeInTheDocument();
-    expect(await rowNames()).toEqual(['CRM', 'Pricing', 'Security', 'Support', 'Prompts without a topic']);
+    expect(await rowNames()).toEqual(['CRM', 'Pricing', 'Security', 'Support', 'Prompts without a group']);
   });
 
-  it('a topic filter in the scope narrows the rows to that topic and the ones below', async () => {
+  it('a group filter in the scope narrows the rows to that group and the ones below', async () => {
     render({ searchParams: `topic=${CRM}`, options: { level: 'all' } });
     expect(await rowNames()).toEqual(['CRM']);
     await userOpens('Expand CRM');
@@ -244,13 +244,13 @@ async function userOpens(label: string): Promise<void> {
 }
 
 describe('the cut', () => {
-  it('rows cuts to N topics and Show all names the total and keeps metric and sort in the link', async () => {
+  it('rows cuts to N groups and Show all names the total and keeps metric and sort in the link', async () => {
     render({ options: { rows: '2', metric: 'share_of_voice', sort: 'rate' } });
-    await frame('Share of voice by topic and engine');
+    await frame('Share of voice by group and platform');
     // Security 58%, Support 40% (one engine), CRM 39%, then the prompts without a topic
     const names = await rowNames();
     expect(names).toHaveLength(2);
-    const all = await screen.findByRole('link', { name: 'Show all 4 topics' });
+    const all = await screen.findByRole('link', { name: 'Show all 4 groups' });
     const query = queryOf(all.getAttribute('href'));
     expect(query.get('view')).toBe('heatmap');
     expect(parseView(query.get('view'))).toBe('heatmap');
@@ -259,13 +259,13 @@ describe('the cut', () => {
     expect(parseTab(query.get('tab'))).toBe('topics');
   });
 
-  it('shows no Show all link when every topic is shown', async () => {
+  it('shows no Show all link when every group is shown', async () => {
     render();
     await grid();
     expect(screen.queryByRole('link', { name: /^Show all/ })).not.toBeInTheDocument();
   });
 
-  it('the Show all link is plain text away when the scope holds an engine that is off', async () => {
+  it('the Show all link is plain text away when the scope holds a platform that is off', async () => {
     render({ options: { rows: '2' }, searchParams: 'engine=chatgpt_web,google_ai_mode' });
     await grid();
     expect(screen.queryByRole('link', { name: /^Show all/ })).not.toBeInTheDocument();
@@ -273,13 +273,13 @@ describe('the cut', () => {
 });
 
 describe('the order', () => {
-  it('sort by prompts, rate and gap orders the rows and the no topic row stays last', async () => {
+  it('sort by prompts, rate and gap orders the rows and the no group row stays last', async () => {
     // Prompts: CRM 17, Security 9, Support 4. Average rate: Security 58%, Support 40%, CRM 39%, no topic 40% (last).
     // Gap: Security 44 points, CRM 17, Support has no gap, the no topic row stays last whatever its figures.
     const expected = {
-      prompts: ['CRM', 'Security', 'Support', 'Prompts without a topic'],
-      rate: ['Security', 'Support', 'CRM', 'Prompts without a topic'],
-      gap: ['Security', 'CRM', 'Support', 'Prompts without a topic'],
+      prompts: ['CRM', 'Security', 'Support', 'Prompts without a group'],
+      rate: ['Security', 'Support', 'CRM', 'Prompts without a group'],
+      gap: ['Security', 'CRM', 'Support', 'Prompts without a group'],
     };
     for (const [sort, names] of Object.entries(expected)) {
       const view = render({ options: { sort } });
@@ -290,7 +290,7 @@ describe('the order', () => {
 });
 
 describe('where a cell and a row lead', () => {
-  it('a cell links to the topic drawer Prompts tab with eng, and the topic name links to the drawer Overview', async () => {
+  it('a cell links to the group drawer Prompts tab with eng, and the group name links to the drawer Overview', async () => {
     render();
     const crm = await link(/^CRM on Gemini/);
     const query = queryOf(crm.getAttribute('href'));
@@ -305,9 +305,9 @@ describe('where a cell and a row lead', () => {
     expect(drawer.get('eng')).toBeNull();
   });
 
-  it('the prompts without a topic open the drawer of the no topic row', async () => {
+  it('the prompts without a group open the drawer of the no group row', async () => {
     render();
-    const query = queryOf((await link(/^Prompts without a topic on Gemini/)).getAttribute('href'));
+    const query = queryOf((await link(/^Prompts without a group on Gemini/)).getAttribute('href'));
     expect(parseInspectTarget(query.get('inspect'))).toEqual({ type: 'topic', id: '__none' });
   });
 
@@ -338,16 +338,16 @@ describe('where a cell and a row lead', () => {
 });
 
 describe('words', () => {
-  it('has the title, the meta line with the topics, engines, prompts and the window', async () => {
+  it('has the title, the meta line with the groups, platforms, prompts and the window', async () => {
     render();
     const section = await frame();
     await grid();
     expect(
-      within(section).getByText('4 topics, 2 engines, 4 prompts, Oct 16 to Nov 12, 2026, 28 days'),
+      within(section).getByText('4 groups, 2 platforms, 4 prompts, Oct 16 to Nov 12, 2026, 28 days'),
     ).toBeInTheDocument();
   });
 
-  it('the footnote names the bins, the prompt weighting, the average rule and that topics overlap', async () => {
+  it('the footnote names the bins, the prompt weighting, the average rule and that groups overlap', async () => {
     render();
     const section = await frame();
     await grid();
@@ -357,9 +357,9 @@ describe('words', () => {
       expect(text).toContain(messages.chart.heatmap.bins[bin]);
     }
     expect(text).toContain('Prompt weighted: each prompt counts once.');
-    expect(text).toMatch(/average column gives each engine that shows a rate the same weight/);
-    expect(text).toContain('Topics overlap: a prompt in two topics counts in both');
-    expect(text).toContain('1 prompt is in more than one topic.');
+    expect(text).toMatch(/average column gives each platform that shows a rate the same weight/);
+    expect(text).toContain('Groups overlap: a prompt in two groups counts in both');
+    expect(text).toContain('1 prompt is in more than one group.');
     expect(text).toContain('A rate under 4 valid answers shows its answer count and no percent.');
   });
 
@@ -369,7 +369,7 @@ describe('words', () => {
     const words = (await link(/^CRM on ChatGPT/)).getAttribute('aria-label') ?? '';
     await user.click(screen.getByRole('button', { name: 'Table' }));
     expect(await screen.findByText(words)).toBeInTheDocument();
-    expect(screen.getByText(/^Prompts without a topic on ChatGPT: No answers$/)).toBeInTheDocument();
+    expect(screen.getByText(/^Prompts without a group on ChatGPT: No answers$/)).toBeInTheDocument();
   });
 });
 
@@ -406,7 +406,7 @@ describe('the Export menu', () => {
     const rows = new Map((block?.rows ?? []).map((row) => [row[0], row]));
     expect(rows.get('CRM')?.slice(3, 6)).toEqual([47.06, 136, 'ok']);
     expect(rows.get('Support')?.slice(3, 6)).toEqual([null, 3, 'insufficient']);
-    expect(rows.get('Prompts without a topic')?.slice(3, 6)).toEqual([null, 0, 'no_answers']);
+    expect(rows.get('Prompts without a group')?.slice(3, 6)).toEqual([null, 0, 'no_answers']);
   });
 });
 
@@ -442,7 +442,7 @@ describe('states', () => {
     renderWithProviders(
       cardInOverview({ type: 'ai.topic_heatmap', Card: Card as ComponentType<CardProps>, width: 'two_thirds' }),
     );
-    const section = await frame('Mention rate by topic and engine');
+    const section = await frame('Mention rate by group and platform');
     expect(section).toHaveAttribute('aria-busy', 'true');
     expect(section.querySelector('[style*="height: 280px"] [data-slot="skeleton"]')).not.toBeNull();
     expect(screen.queryByRole('grid')).not.toBeInTheDocument();
@@ -450,23 +450,23 @@ describe('states', () => {
     await grid();
   });
 
-  it('no engine asked says so and offers Use all engines', async () => {
+  it('no platform asked says so and offers Use all platforms', async () => {
     render({ searchParams: 'engine=google_ai_mode' });
-    expect(await screen.findByText('No engine is part of this view')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Use all engines' })).toBeInTheDocument();
+    expect(await screen.findByText('No platform is part of this view')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Use all platforms' })).toBeInTheDocument();
     expect(screen.queryByRole('grid')).not.toBeInTheDocument();
   });
 
-  it('no topics teaches how to get some, with one action', async () => {
+  it('no groups teaches how to get some, with one action', async () => {
     render({ summary: summaryOf({ topics: [], prompts: [], engineCodes: ['chatgpt_web', 'gemini_web'] }) });
-    const state = (await screen.findByRole('heading', { name: 'No topics yet' })).closest('[data-slot="empty-state"]');
+    const state = (await screen.findByRole('heading', { name: 'No groups yet' })).closest('[data-slot="empty-state"]');
     const box = within(state as HTMLElement);
-    expect(box.getByText(/Group prompts into topics/)).toBeInTheDocument();
+    expect(box.getByText(/Group prompts into groups/)).toBeInTheDocument();
     expect([...box.queryAllByRole('link'), ...box.queryAllByRole('button')]).toHaveLength(1);
-    expect(box.getByRole('link', { name: 'Open Topics and prompts' })).toBeInTheDocument();
+    expect(box.getByRole('link', { name: 'Open Prompts' })).toBeInTheDocument();
   });
 
-  it('no valid answers names the engines and the days', async () => {
+  it('no valid answers names the platforms and the days', async () => {
     const silent = summaryOf({
       topics: [
         topicRow(CRM, 'CRM', 5, [
@@ -512,7 +512,7 @@ describe('states', () => {
     const { user } = renderWithProviders(
       cardInOverview({ type: 'ai.topic_heatmap', Card: Card as ComponentType<CardProps>, width: 'two_thirds' }),
     );
-    expect(await screen.findByText('Mention rate by topic and engine could not be read')).toBeInTheDocument();
+    expect(await screen.findByText('Mention rate by group and platform could not be read')).toBeInTheDocument();
     expect(screen.getByText(/req_heat_1/)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: messages.common.retry }));
     expect(await rowNames()).toContain('CRM');
@@ -562,7 +562,7 @@ describe('states', () => {
     expect(await rowNames()).toContain('CRM');
   });
 
-  it('partial names an engine without a valid answer in any row', async () => {
+  it('partial names a platform without a valid answer in any row', async () => {
     const onlyGemini = summaryOf({
       topics: [
         topicRow(CRM, 'CRM', 5, [
@@ -610,7 +610,7 @@ describe('states', () => {
     expect(screen.queryByRole('grid')).not.toBeInTheDocument();
     expect(screen.queryByRole('treegrid')).not.toBeInTheDocument();
     release.open();
-    expect(await rowNames()).toEqual(['CRM', 'Security', 'Support', 'Prompts without a topic']);
+    expect(await rowNames()).toEqual(['CRM', 'Security', 'Support', 'Prompts without a group']);
   });
 });
 
@@ -638,7 +638,7 @@ describe('the whole card', () => {
       }),
     );
     // The mock's Eventus asks ChatGPT and Gemini; the three engine case is in heatmap-model.test.ts
-    expect(await headers()).toEqual(['Topic', 'Prompts', 'ChatGPT', 'Gemini', 'avg of 2']);
+    expect(await headers()).toEqual(['Group', 'Prompts', 'ChatGPT', 'Gemini', 'avg of 2']);
     const cells = within(await grid()).getAllByRole('gridcell');
     expect(cells.length).toBeGreaterThan(10);
     for (const one of cells) {
@@ -648,7 +648,7 @@ describe('the whole card', () => {
     }
   });
 
-  it('Fynix smoke: the mock project draws a grid with its own topics', async () => {
+  it('Fynix smoke: the mock project draws a grid with its own groups', async () => {
     function Card(props: CardProps): ReactElement {
       return <TopicHeatmapCard {...props} />;
     }

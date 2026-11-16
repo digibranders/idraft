@@ -185,7 +185,7 @@ const renderCard = (overrides: Partial<CitationTabContext> = {}): ReturnType<typ
   renderWithProviders(<NoOwnPage context={context(overrides)} />);
 
 const CARD = 'Prompts with no own page cited';
-const LIST = 'Prompt and engine pairs';
+const LIST = 'Prompt and platform pairs';
 const card = (): Promise<HTMLElement> => screen.findByRole('region', { name: CARD });
 const tableOf = async (): Promise<HTMLElement> => within(await card()).findByRole('table');
 /** The table once its rows have loaded. */
@@ -217,7 +217,7 @@ describe('NoOwnPage', () => {
     expect(
       within(await card()).getByRole('heading', { level: 2, name: 'Prompts with no own page cited' }),
     ).toBeInTheDocument();
-    expect(within(await card()).getByText('2 prompt and engine pairs cite no page of yours.')).toBeInTheDocument();
+    expect(within(await card()).getByText('2 prompt and platform pairs cite no page of yours.')).toBeInTheDocument();
     const first = rowOf(table, 'Best CRM for startups');
     expect(within(first).getByText('ChatGPT')).toBeInTheDocument();
     expect(within(first).getByText('none of 4 answers cites an own page')).toBeInTheDocument();
@@ -350,7 +350,7 @@ describe('NoOwnPage', () => {
     );
     renderCard();
     await loaded();
-    expect(screen.getByText('10 or more prompt and engine pairs cite no page of yours.')).toBeInTheDocument();
+    expect(screen.getByText('10 or more prompt and platform pairs cite no page of yours.')).toBeInTheDocument();
     expect(screen.getByText('More pairs are not listed.')).toBeInTheDocument();
   });
 

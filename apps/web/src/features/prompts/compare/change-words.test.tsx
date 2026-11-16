@@ -58,7 +58,7 @@ describe('useChangeWords', () => {
     const change = averageChangeOf(cells, ['chatgpt_web', 'gemini_web'], 'mentioned');
     const { tip } = tipOf(change, { kind: 'average', range: RANGE, shown: 2 });
     // The engine count comes first, and the unpaired test is named once
-    expect(tip.startsWith('Average of 2 engines that have a rate in both periods, tested on pooled answers')).toBe(
+    expect(tip.startsWith('Average of 2 platforms that have a rate in both periods, tested on pooled answers')).toBe(
       true,
     );
     expect(tip).toContain('Previous 20%, 20 of 100 answers');
@@ -73,14 +73,16 @@ describe('useChangeWords', () => {
     ];
     const change = averageChangeOf(cells, ['chatgpt_web', 'gemini_web'], 'mentioned');
     const { tip } = tipOf(change, { kind: 'average', range: RANGE, shown: 3 });
-    expect(tip).toContain('Average of 2 of 3 engines, the ones with a rate in both periods, tested on pooled answers');
+    expect(tip).toContain(
+      'Average of 2 of 3 platforms, the ones with a rate in both periods, tested on pooled answers',
+    );
   });
 
   it('names the one engine a change is of when the average has more engines', () => {
     const cells = [engineOf('chatgpt_web', cell(30, 60), cell(12, 60))];
     const change = averageChangeOf(cells, ['chatgpt_web'], 'mentioned');
     const { tip } = tipOf(change, { kind: 'average', range: RANGE, shown: 2, engine: 'ChatGPT' });
-    expect(tip.startsWith('Change of ChatGPT only, the one engine with a rate in both periods')).toBe(true);
+    expect(tip.startsWith('Change of ChatGPT only, the one platform with a rate in both periods')).toBe(true);
     expect(tip).not.toContain('Average of');
     expect(tip).not.toContain('pooled answers');
   });

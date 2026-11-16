@@ -672,7 +672,7 @@ describe('the answer viewer: answers with no text, or not read yet', () => {
 
   it('says an empty answer is empty, and that it counts nowhere', async () => {
     renderOn('viewer', opened(empty.id));
-    expect(await screen.findByText('The engine gave no answer')).toBeInTheDocument();
+    expect(await screen.findByText('The platform gave no answer')).toBeInTheDocument();
     expect(screen.getByText('An empty answer is left out of every count.')).toBeInTheDocument();
   });
 
@@ -680,14 +680,14 @@ describe('the answer viewer: answers with no text, or not read yet', () => {
     renderOn('viewer', opened(refused.id));
     expect(await screen.findByText(refused.answer.answer_text ?? '')).toBeInTheDocument();
     expect(
-      screen.getByText('The engine declined to answer. The answer is left out of every count.'),
+      screen.getByText('The platform declined to answer. The answer is left out of every count.'),
     ).toBeInTheDocument();
   });
 
   it('says a refusal without a text declined, not that the engine gave nothing', async () => {
     serve(detail({ status: 'refused', answer_text: null }));
     renderOn('viewer', opened('2000001'));
-    expect(await screen.findByText('The engine declined to answer')).toBeInTheDocument();
+    expect(await screen.findByText('The platform declined to answer')).toBeInTheDocument();
   });
 
   it('says a cut off answer counts with what it holds', async () => {
@@ -1525,7 +1525,7 @@ describe('the answer viewer: sources, the ads note and the details, row by row',
     view.unmount();
     serve(detail({ status: 'empty', answer_text: null }));
     renderOn('viewer', opened('2000001'));
-    await screen.findByText('The engine gave no answer');
+    await screen.findByText('The platform gave no answer');
     expect(screen.queryByText(note)).toBeNull();
   });
 
@@ -1536,7 +1536,7 @@ describe('the answer viewer: sources, the ads note and the details, row by row',
     const details = within(panel).getByRole('heading', { name: 'Details' }).closest('section') as HTMLElement;
     const valueOf = async (label: string): Promise<string | null> =>
       (await within(details).findByText(label, { selector: 'dt' })).nextElementSibling?.textContent ?? null;
-    expect(await valueOf('Engine')).toBe('ChatGPT');
+    expect(await valueOf('Platform')).toBe('ChatGPT');
     expect(await valueOf('Answered')).toBe(formatDetailDateTime('2026-11-12T02:00:00Z', 'Europe/Berlin'));
     expect(await valueOf('Model')).toBe('gpt-6');
     expect(await valueOf('Outcome')).toMatch(/\S/);

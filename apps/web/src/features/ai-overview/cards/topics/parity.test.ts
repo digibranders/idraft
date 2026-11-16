@@ -100,7 +100,7 @@ describe('parity with the WP-20 topic tree', () => {
       filtering: false,
       search: null,
       locale: 'en',
-      noTopicName: 'No topic',
+      noTopicName: 'No group',
     });
     const nodes = buildTopicNodes({
       topics: summary.topics,
@@ -108,7 +108,7 @@ describe('parity with the WP-20 topic tree', () => {
       tree: TREE,
       descendants,
       kept: null,
-      noTopicName: 'No topic',
+      noTopicName: 'No group',
     });
     expect(heads.length).toBeGreaterThan(1);
     expect(heads.some((head) => head.children.length > 0)).toBe(true);
@@ -129,7 +129,7 @@ describe('parity with the WP-20 topic tree', () => {
       filtering: true,
       search: null,
       locale: 'en',
-      noTopicName: 'No topic',
+      noTopicName: 'No group',
     });
     const nodes = buildTopicNodes({
       topics: summary.topics,
@@ -137,7 +137,7 @@ describe('parity with the WP-20 topic tree', () => {
       tree: TREE,
       descendants,
       kept,
-      noTopicName: 'No topic',
+      noTopicName: 'No group',
     });
     expect(nodes.map(shapeOfNode)).toEqual(heads.map(shapeOfHead));
     expect(nodes.map((node) => node.key)).toEqual([parent.termId]);

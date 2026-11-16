@@ -113,11 +113,11 @@ describe('the Export menu of the AI visibility page', () => {
 
   it('disables Numbers (CSV) on a project with no engine on, and says why', async () => {
     const { user } = renderWithProviders(overviewAs('admin', { world: 'cleanstart' }));
-    await screen.findByRole('heading', { name: 'No AI engine is on' });
+    await screen.findByRole('heading', { name: 'No AI platform is on' });
     await user.click(await exportButton());
     const item = await screen.findByRole('menuitem', { name: 'Numbers (CSV)' });
     expect(item).toHaveAttribute('aria-disabled', 'true');
-    expect(item).toHaveAccessibleDescription('No AI engine is on');
+    expect(item).toHaveAccessibleDescription('No AI platform is on');
   });
 
   it('downloads one file of the strip and its two notes when no card has a table, and toasts the rows', async () => {

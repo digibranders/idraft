@@ -79,7 +79,7 @@ function tipAt(id: string, index: number): string {
 describe('the rate trend card', () => {
   it('shows ChatGPT and Gemini and no AI Mode (off in the project)', async () => {
     render();
-    expect(await screen.findByRole('heading', { name: 'Mention rate by engine' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Mention rate by platform' })).toBeInTheDocument();
     expect(await screen.findByRole('img', { name: 'ChatGPT' })).toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'Gemini' })).toBeInTheDocument();
     expect(screen.queryByRole('img', { name: 'AI Mode' })).not.toBeInTheDocument();
@@ -89,7 +89,7 @@ describe('the rate trend card', () => {
     const { user } = render();
     await screen.findByRole('img', { name: 'ChatGPT' });
     await user.click(screen.getByRole('button', { name: 'Table' }));
-    const table = await screen.findByRole('table', { name: 'Mention rate by engine' });
+    const table = await screen.findByRole('table', { name: 'Mention rate by platform' });
     expect(
       within(table)
         .getAllByRole('columnheader')
@@ -116,7 +116,7 @@ describe('the rate trend card', () => {
     const { user } = render();
     await screen.findByRole('img', { name: 'ChatGPT' });
     await user.click(screen.getByRole('button', { name: 'Table' }));
-    const table = await screen.findByRole('table', { name: 'Mention rate by engine' });
+    const table = await screen.findByRole('table', { name: 'Mention rate by platform' });
     expect(within(table).getAllByText(/pooled over \d weeks/).length).toBeGreaterThan(0);
   });
 
@@ -132,7 +132,7 @@ describe('the rate trend card', () => {
       }),
     );
     render();
-    const title = await screen.findByRole('heading', { name: 'Mention rate by engine' });
+    const title = await screen.findByRole('heading', { name: 'Mention rate by platform' });
     const section = title.closest('section');
     expect(section).toHaveAttribute('aria-busy', 'true');
     expect(section?.querySelector('div[style*="height: 140px"]')).not.toBeNull();
@@ -143,7 +143,7 @@ describe('the rate trend card', () => {
   it('shows Retry and the error id when the summary fails, and Retry reads again', async () => {
     server.use(http.get(SUMMARY, () => failing('req-trend')));
     const { user } = render();
-    expect(await screen.findByText('Could not load Mention rate by engine')).toBeInTheDocument();
+    expect(await screen.findByText('Could not load Mention rate by platform')).toBeInTheDocument();
     expect(screen.getByText('Error ID req-trend')).toBeInTheDocument();
     server.resetHandlers();
     await user.click(screen.getByRole('button', { name: 'Try again' }));
@@ -295,7 +295,7 @@ describe('the rate trend card', () => {
   it('names the window, the prompts and the branded choice in the meta line', async () => {
     render();
     await screen.findByRole('img', { name: 'ChatGPT' });
-    const title = screen.getByRole('heading', { name: 'Mention rate by engine' });
+    const title = screen.getByRole('heading', { name: 'Mention rate by platform' });
     const meta = title.closest('section')?.querySelector('p.type-meta')?.textContent ?? '';
     expect(meta).toContain('Oct 16 to Nov 12, 2026');
     expect(meta).toMatch(/\d+ prompts?, [\d,]+ valid answers/);
@@ -306,7 +306,7 @@ describe('the rate trend card', () => {
   it('writes the pooling and the interval into the footnote, and the comparison when it is drawn', async () => {
     render();
     await screen.findByRole('img', { name: 'ChatGPT' });
-    const title = screen.getByRole('heading', { name: 'Mention rate by engine' });
+    const title = screen.getByRole('heading', { name: 'Mention rate by platform' });
     const section = title.closest('section') as HTMLElement;
     expect(section).toHaveTextContent('Each point pools the answers of up to 4 weeks');
     expect(section).toHaveTextContent('Bands are 95% intervals');

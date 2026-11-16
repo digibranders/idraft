@@ -57,14 +57,14 @@ const PROMPTS: PromptSummaryRow[] = [
 const WORDS: PromptHeatWords = {
   rowHeader: 'Prompt',
   averageHead: (count) => `avg of ${String(count)}`,
-  avgLabel: (count) => (count === 1 ? '1 engine' : `avg of ${String(count)}`),
+  avgLabel: (count) => (count === 1 ? '1 platform' : `avg of ${String(count)}`),
   percent: (value) => (value === null ? 'n/a' : `${String(Math.round(value * 100))}%`),
   cellTip: (value) => `${value.state}:${String(value.successes)}/${String(value.answers)}`,
   lastValid: (iso) => (iso === null ? 'no valid answer yet' : `last valid ${iso.slice(0, 10)}`),
   rowName: (text, path) => (path === null ? text : `${text} (${path})`),
   cellSubject: (name, engine, value, last) => `${name} on ${engine}: ${value}. ${last}`,
   averageSubject: (name, average, value, last) => `${name}, ${average}: ${value}. ${last}`,
-  averageNone: (name, value, last) => `${name}, average of the engines: ${value}. ${last}`,
+  averageNone: (name, value, last) => `${name}, average of the platforms: ${value}. ${last}`,
   averageValue: (percent, counts, note) => `${percent}, ${counts}. ${note}`,
   averageNote: (engines) => `Equal weight average of ${engines}`,
   averageOnly: (engines) => `${engines} only`,
@@ -128,23 +128,23 @@ describe('the cut', () => {
 });
 
 describe('a row', () => {
-  it('a prompt in two topics is one row', () => {
+  it('a prompt in two groups is one row', () => {
     const two = [prompt('p', 'CRM and security', [SECURITY, PRICING], [5, 10], [5, 10])];
     expect(run({}, two).rows).toHaveLength(1);
   });
 
-  it('the topic path is the first topic the tree holds', () => {
+  it('the group path is the first group the tree holds', () => {
     const two = [
       prompt('p', 'CRM and security', ['unknown', PRICING, SECURITY], [5, 10], [5, 10]),
-      prompt('q', 'No topic at all', [], [5, 10], [5, 10]),
+      prompt('q', 'No group at all', [], [5, 10], [5, 10]),
     ];
     const rows = run({}, two).rows;
     expect(rows.map((row) => row.path)).toEqual(['CRM / Pricing', null]);
-    expect(rows.map((row) => row.name)).toEqual(['CRM and security (CRM / Pricing)', 'No topic at all']);
-    expect(rows.map((row) => row.text)).toEqual(['CRM and security', 'No topic at all']);
+    expect(rows.map((row) => row.name)).toEqual(['CRM and security (CRM / Pricing)', 'No group at all']);
+    expect(rows.map((row) => row.text)).toEqual(['CRM and security', 'No group at all']);
   });
 
-  it('the name of a row and the cell of each engine link to the prompt, the average cell leads nowhere', () => {
+  it('the name of a row and the cell of each platform link to the prompt, the average cell leads nowhere', () => {
     const [first] = run().rows;
     expect(first?.href).toBe('/prompt/low');
     expect(first?.cells.map((cell) => cell.href)).toEqual(['/prompt/low', '/prompt/low', undefined]);
@@ -158,7 +158,7 @@ describe('a row', () => {
 });
 
 describe('the columns', () => {
-  it('one column per asked engine, then the average from two engines', () => {
+  it('one column per asked platform, then the average from two platforms', () => {
     expect(run().columns).toEqual([
       { id: 'chatgpt_web', label: 'ChatGPT', engine: 'chatgpt_web' },
       { id: 'gemini_web', label: 'Gemini', engine: 'gemini_web' },
@@ -167,7 +167,7 @@ describe('the columns', () => {
     expect(run().rows.every((row) => row.cells.length === 3)).toBe(true);
   });
 
-  it('engines outside the filter are not columns and take no part in the order', () => {
+  it('platforms outside the filter are not columns and take no part in the order', () => {
     const only = [{ code: 'chatgpt_web', label: 'ChatGPT' }] as const;
     const model = run({ sort: 'least_named' }, PROMPTS, only);
     expect(model.columns.map((column) => column.id)).toEqual(['chatgpt_web']);
@@ -176,7 +176,7 @@ describe('the columns', () => {
     expect(ids(model.rows)).toEqual(['low', 'mid', 'high', 'none', 'thin']);
   });
 
-  it('an engine without a valid answer in any row is named, and a row of cells with no answer stays', () => {
+  it('a platform without a valid answer in any row is named, and a row of cells with no answer stays', () => {
     const three: readonly EngineInfo[] = [...ENGINES, { code: 'google_ai_mode', label: 'AI Mode' }];
     const model = run({}, PROMPTS, three);
     expect(model.unanswered).toEqual(['AI Mode']);
@@ -206,7 +206,7 @@ describe('a cell', () => {
     expect(cell.tip).toContain('none:null/0');
   });
 
-  it('the tip says the prompt, the engine, the value and the last valid answer', () => {
+  it('the tip says the prompt, the platform, the value and the last valid answer', () => {
     expect(cellOf('high', 0).tip).toBe('Best CRM on ChatGPT: ok:9/10. last valid 2026-11-11');
   });
 
@@ -215,7 +215,7 @@ describe('a cell', () => {
     expect(run({}, never).rows[0]?.cells[0]?.tip).toContain('no valid answer yet');
   });
 
-  it('the average is the equal weight of the engines with a rate and says how many', () => {
+  it('the average is the equal weight of the platforms with a rate and says how many', () => {
     const cell = cellOf('high', 2);
     expect(cell).toMatchObject({ state: 'ok', text: '85%' });
     expect(cell.tip).toBe(
@@ -223,23 +223,23 @@ describe('a cell', () => {
     );
   });
 
-  it('an average over one engine with a rate says that engine only', () => {
-    const one = [prompt('p', 'One engine', [], [8, 10], [1, 2])];
+  it('an average over one platform with a rate says that platform only', () => {
+    const one = [prompt('p', 'One platform', [], [8, 10], [1, 2])];
     const cell = run({}, one).rows[0]?.cells[2];
     expect(cell?.text).toBe('80%');
-    expect(cell?.tip).toContain('1 engine: 80%, ChatGPT 10. ChatGPT only');
+    expect(cell?.tip).toContain('1 platform: 80%, ChatGPT 10. ChatGPT only');
   });
 
-  it('an average with no engine that has a rate has no percent and no count of engines', () => {
+  it('an average with no platform that has a rate has no percent and no count of platforms', () => {
     expect(cellOf('none', 2)).toMatchObject({ state: 'none', text: '', value: null });
-    expect(cellOf('none', 2).tip).toContain('average of the engines: no answers');
+    expect(cellOf('none', 2).tip).toContain('average of the platforms: no answers');
     expect(cellOf('thin', 2)).toMatchObject({ state: 'insufficient', text: '', value: null });
-    expect(cellOf('thin', 2).tip).toContain('average of the engines: 3 answers');
+    expect(cellOf('thin', 2).tip).toContain('average of the platforms: 3 answers');
   });
 });
 
 describe('the table and the export', () => {
-  it('the CSV has the row name with its topic, the words of each cell and n/a where there is no answer', () => {
+  it('the CSV has the row name with its group, the words of each cell and n/a where there is no answer', () => {
     const model = run({ sort: 'most_named' });
     expect(model.csv.header).toEqual(['Prompt', 'ChatGPT', 'Gemini', 'avg of 2']);
     expect(model.csv.rows[0]?.[0]).toBe('Best CRM (CRM)');
@@ -291,7 +291,7 @@ describe('the table and the export', () => {
     expect(run({ rows: 2 }).exportTable.rows).toHaveLength(2);
   });
 
-  it('answered says whether any prompt has a valid answer on an engine', () => {
+  it('answered says whether any prompt has a valid answer on a platform', () => {
     expect(run().answered).toBe(true);
     expect(run({}, [prompt('n', 'Never', [], [0, 0], [0, 0])]).answered).toBe(false);
   });

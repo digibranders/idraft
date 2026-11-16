@@ -136,14 +136,14 @@ describe('SampleCoverageCard', () => {
   it('counts the prompts without a topic from the prompt rows', async () => {
     serve();
     renderCard();
-    const list = await screen.findByRole('list', { name: 'Prompts in scope, all engines' });
-    expect(spoken(list)[0]).toBe('Without a topic: 1 of 3 prompts');
+    const list = await screen.findByRole('list', { name: 'Prompts in scope, all platforms' });
+    expect(spoken(list)[0]).toBe('Without a group: 1 of 3 prompts');
   });
 
   it('asks for the second read once, with branded prompts included, and says how many the page leaves out', async () => {
     const seen = serve();
     renderCard();
-    const list = await screen.findByRole('list', { name: 'Prompts in scope, all engines' });
+    const list = await screen.findByRole('list', { name: 'Prompts in scope, all platforms' });
     await waitFor(() => {
       expect(spoken(list)[1]).toBe('Branded prompts left out: 1 prompt, not in the 3 prompts above');
     });
@@ -154,7 +154,7 @@ describe('SampleCoverageCard', () => {
   it('draws the branded row as words with no bar: its count is outside the prompts the bars are scaled to', async () => {
     serve();
     renderCard();
-    const list = await screen.findByRole('list', { name: 'Prompts in scope, all engines' });
+    const list = await screen.findByRole('list', { name: 'Prompts in scope, all platforms' });
     await waitFor(() => {
       expect(spoken(list)[1]).toContain('1 prompt');
     });
@@ -179,7 +179,7 @@ describe('SampleCoverageCard', () => {
       return <SampleCoverageCard {...props} />;
     }
     renderWithProviders(cardInOverview({ type: TYPE, Card: WithEqualRead }), { searchParams: WINDOW });
-    const list = await screen.findByRole('list', { name: 'Prompts in scope, all engines' });
+    const list = await screen.findByRole('list', { name: 'Prompts in scope, all platforms' });
     await waitFor(() => {
       expect(spoken(list)[1]).toBe('Branded prompts left out: 1 prompt, not in the 3 prompts above');
     });
@@ -231,7 +231,7 @@ describe('SampleCoverageCard', () => {
       const { user } = renderWithProviders(cardInOverview({ type: TYPE, Card: WithSwitch }), {
         searchParams: WINDOW,
       });
-      const list = await screen.findByRole('list', { name: 'Prompts in scope, all engines' });
+      const list = await screen.findByRole('list', { name: 'Prompts in scope, all platforms' });
       await waitFor(() => {
         expect(spoken(list)[1]).toBe('Branded prompts left out: 1 prompt, not in the 3 prompts above');
       });
@@ -254,7 +254,7 @@ describe('SampleCoverageCard', () => {
   it('does not ask for the second read when only branded prompts are in scope, and says so', async () => {
     const seen = serve();
     renderCard(`${WINDOW}&branded=only`);
-    const list = await screen.findByRole('list', { name: 'Prompts in scope, all engines' });
+    const list = await screen.findByRole('list', { name: 'Prompts in scope, all platforms' });
     await waitFor(() => {
       expect(spoken(list)[1]).toBe('Branded prompts: These figures are of branded prompts only');
     });
@@ -267,7 +267,7 @@ describe('SampleCoverageCard', () => {
   it('says n/a, never 0, when the second read fails, and the rest of the card stays', async () => {
     serve(PROMPTS, { withBranded: 'fail' });
     renderCard();
-    const list = await screen.findByRole('list', { name: 'Prompts in scope, all engines' });
+    const list = await screen.findByRole('list', { name: 'Prompts in scope, all platforms' });
     await waitFor(() => {
       expect(spoken(list)[1]).toBe('Branded prompts left out: n/a');
     });
@@ -278,7 +278,7 @@ describe('SampleCoverageCard', () => {
   it('reads nothing more when branded prompts are included, and says so', async () => {
     const seen = serve();
     renderCard(`${WINDOW}&branded=include`);
-    const list = await screen.findByRole('list', { name: 'Prompts in scope, all engines' });
+    const list = await screen.findByRole('list', { name: 'Prompts in scope, all platforms' });
     await waitFor(() => {
       expect(spoken(list)[1]).toBe('Branded prompts: Included in these figures');
     });
@@ -322,7 +322,7 @@ describe('SampleCoverageCard', () => {
     expect(name).toBe('answers-behind-the-numbers.csv');
     if (!(blob instanceof Blob)) throw new Error('No file was downloaded');
     const text = await blob.text();
-    expect(text).toContain('Engine,Measure,Prompts,Of prompts in scope');
+    expect(text).toContain('Platform,Measure,Prompts,Of prompts in scope');
     expect(text).toContain('ChatGPT,4 or more valid answers,2 prompts,of 3');
   });
 
@@ -409,9 +409,9 @@ describe('SampleCoverageCard', () => {
     expect(block?.id).toBe(CARD_ID);
     expect(block?.header).toEqual(['group', 'measure', 'prompts', 'of', 'status']);
     expect(block?.rows[0]).toEqual(['ChatGPT', '4 or more valid answers', 2, 3, 'ok']);
-    expect(block?.rows[6]).toEqual(['All engines', 'Without a topic', 1, 3, 'ok']);
+    expect(block?.rows[6]).toEqual(['All platforms', 'Without a group', 1, 3, 'ok']);
     // The second read failed: no count, never 0
-    expect(block?.rows[7]).toEqual(['All engines', 'Branded prompts left out', null, null, 'unknown']);
+    expect(block?.rows[7]).toEqual(['All platforms', 'Branded prompts left out', null, null, 'unknown']);
   });
 
   it('asks for neither of its two summary reads while it is not live (customize mode)', async () => {

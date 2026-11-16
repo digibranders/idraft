@@ -91,11 +91,11 @@ describe('EngineTrend: the weekly rate of the topic on each engine', () => {
     await screen.findByTestId('echart-canvas');
     expect(seriesOption('chatgpt_web')?.data).toEqual([0.375, 0.4]);
     expect(seriesOption('gemini_web')?.data).toEqual([0.25, 0.5]);
-    expect(screen.getByRole('heading', { name: 'Trend by engine' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Trend by platform' })).toBeInTheDocument();
     expect(screen.getByText('Mention, weekly')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Table' }));
-    const table = screen.getByRole('table', { name: 'Trend by engine' });
+    const table = screen.getByRole('table', { name: 'Trend by platform' });
     expect(
       within(table)
         .getAllByRole('columnheader')
@@ -126,7 +126,7 @@ describe('EngineTrend: the weekly rate of the topic on each engine', () => {
     renderTrend(rowWith(pooled));
     expect(
       await screen.findByText(
-        'A topic point with fewer than 10 prompts answering that week shows the last 4 weeks together, clipped to the window. A prompt point always shows 4 weeks.',
+        'A group point with fewer than 10 prompts answering that week shows the last 4 weeks together, clipped to the window. A prompt point always shows 4 weeks.',
       ),
     ).toBeInTheDocument();
   });
@@ -143,7 +143,7 @@ describe('EngineTrend: the weekly rate of the topic on each engine', () => {
     const { user } = renderTrend(rowWith(pooled));
     await screen.findByTestId('echart-canvas');
     await user.click(screen.getByRole('button', { name: 'Table' }));
-    const [, first, second] = within(screen.getByRole('table', { name: 'Trend by engine' })).getAllByRole('row');
+    const [, first, second] = within(screen.getByRole('table', { name: 'Trend by platform' })).getAllByRole('row');
     expect(second).toHaveTextContent('4 weeks to Oct 26');
     // A week that holds only itself says nothing of pooling
     expect(first?.textContent).not.toMatch(/weeks to/);
@@ -162,7 +162,7 @@ describe('EngineTrend: the weekly rate of the topic on each engine', () => {
     await screen.findByTestId('echart-canvas');
     expect(screen.queryByText(/shows the last 4 weeks together/)).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Table' }));
-    const grid = screen.getByRole('table', { name: 'Trend by engine' });
+    const grid = screen.getByRole('table', { name: 'Trend by platform' });
     expect(grid.textContent).not.toMatch(/weeks? to/);
   });
 
@@ -193,7 +193,7 @@ describe('EngineTrend: the weekly rate of the topic on each engine', () => {
     await screen.findByTestId('echart-canvas');
     expect(seriesOption('chatgpt_web')?.data).toEqual([0.375, null]);
     await user.click(screen.getByRole('button', { name: 'Table' }));
-    const [, , second] = within(screen.getByRole('table', { name: 'Trend by engine' })).getAllByRole('row');
+    const [, , second] = within(screen.getByRole('table', { name: 'Trend by platform' })).getAllByRole('row');
     // The table says "No data" for a point with no value, never 0
     expect(second).toHaveTextContent('No data');
     expect(second?.textContent).not.toMatch(/0%/);
@@ -205,7 +205,7 @@ describe('EngineTrend: the weekly rate of the topic on each engine', () => {
     await screen.findByTestId('echart-canvas');
     expect(seriesOption('gemini_web')?.data).toEqual([null, null]);
     await user.click(screen.getByRole('button', { name: 'Table' }));
-    const [, first] = within(screen.getByRole('table', { name: 'Trend by engine' })).getAllByRole('row');
+    const [, first] = within(screen.getByRole('table', { name: 'Trend by platform' })).getAllByRole('row');
     expect(first).toHaveTextContent('38%, 3 of 8 answers, 4 prompts');
     expect(first).toHaveTextContent('No data');
   });
@@ -213,7 +213,7 @@ describe('EngineTrend: the weekly rate of the topic on each engine', () => {
   it('says there are no weekly points yet when the series is absent', async () => {
     renderTrend(rowWith([engine('chatgpt_web'), engine('gemini_web')]));
     expect(await screen.findByText('No weekly points yet')).toBeInTheDocument();
-    expect(screen.getByText('This topic has no answer in the weeks of the window.')).toBeInTheDocument();
+    expect(screen.getByText('This group has no answer in the weeks of the window.')).toBeInTheDocument();
     expect(screen.queryByTestId('echart-canvas')).toBeNull();
   });
 
@@ -250,7 +250,7 @@ describe('EngineTrend: the weekly rate of the topic on each engine', () => {
     );
     void queryClient.invalidateQueries();
     await waitFor(() =>
-      expect(screen.getByRole('heading', { name: 'Trend by engine' }).closest('section')).toHaveAttribute(
+      expect(screen.getByRole('heading', { name: 'Trend by platform' }).closest('section')).toHaveAttribute(
         'aria-busy',
         'true',
       ),
@@ -258,7 +258,7 @@ describe('EngineTrend: the weekly rate of the topic on each engine', () => {
     expect(screen.getByTestId('echart-canvas')).toBeInTheDocument();
     release();
     await waitFor(() =>
-      expect(screen.getByRole('heading', { name: 'Trend by engine' }).closest('section')).not.toHaveAttribute(
+      expect(screen.getByRole('heading', { name: 'Trend by platform' }).closest('section')).not.toHaveAttribute(
         'aria-busy',
       ),
     );
@@ -303,7 +303,7 @@ describe('EngineTrend: the weekly rate of the topic on each engine', () => {
     const { user } = renderDrawerPart(<EngineTrend />, {
       summary: summaryOf([topicRow(DRAWER_TOPIC_ID, 'Technical SEO', 4)]),
     });
-    expect(screen.getByRole('heading', { name: 'Trend by engine' }).closest('section')).toHaveAttribute(
+    expect(screen.getByRole('heading', { name: 'Trend by platform' }).closest('section')).toHaveAttribute(
       'aria-busy',
       'true',
     );

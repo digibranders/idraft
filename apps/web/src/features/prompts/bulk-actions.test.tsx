@@ -110,7 +110,7 @@ function promptsAs(role: Role): ReactElement {
 const renderOn = (role: Role, searchParams: string): ProvidedRender =>
   renderWithProviders(promptsAs(role), { searchParams });
 const prompts = (): Promise<HTMLElement> => screen.findByRole('grid', { name: 'Prompts' });
-const topics = (): Promise<HTMLElement> => screen.findByRole('treegrid', { name: 'Topics' });
+const topics = (): Promise<HTMLElement> => screen.findByRole('treegrid', { name: 'Groups' });
 const bar = (): HTMLElement => screen.getByRole('group', { name: /^Bulk actions/ });
 /** A toast is also written for assistive technology, so its text is found more than once. */
 const said = async (text: string | RegExp): Promise<void> => {
@@ -186,7 +186,7 @@ describe('Export CSV', () => {
     const text = await (blob as Blob).text();
     const lines = text.trim().split('\r\n');
     expect(lines[0]).toContain(
-      'Prompt,Topic,Country,Branded,Mention rate (%),Mention answers,Citation rate (%),Citation answers',
+      'Prompt,Group,Location,Branded,Mention rate (%),Mention answers,Citation rate (%),Citation answers',
     );
     expect(lines).toHaveLength(3);
     expect(text).toContain(FIRST);
@@ -197,7 +197,7 @@ describe('Export CSV', () => {
 });
 
 describe('Run now for the chosen prompts', () => {
-  it('asks first, sends one request for every prompt on the engines that are on, and says what started', async () => {
+  it('asks first, sends one request for every prompt on the platforms that are on, and says what started', async () => {
     const bulk: { prompt_ids: string[]; engine_codes?: string[] }[] = [];
     const single: string[] = [];
     server.events.on('request:start', async ({ request }) => {
@@ -215,7 +215,7 @@ describe('Run now for the chosen prompts', () => {
     ).toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Run 2 prompts' }));
     // The title is one line of the toast, so the cost is the first words of its description
-    await said('Run started: 2 prompts on 2 engines');
+    await said('Run started: 2 prompts on 2 platforms');
     await said(/^About \$\d/);
     expect(bulk).toHaveLength(1);
     expect(bulk[0]?.prompt_ids).toHaveLength(2);
@@ -262,8 +262,8 @@ describe('Run now for the chosen prompts', () => {
     const { user } = renderOn('editor', '?tab=prompts');
     await tick(user, [FIRST, SECOND]);
     await confirmRun(user, 2);
-    await said('Run started: 1 prompt on 1 engine');
-    await said('About $0.01. 3 prompt and engine pairs were left out: 2 too long and 1 with no location.');
+    await said('Run started: 1 prompt on 1 platform');
+    await said('About $0.01. 3 prompt and platform pairs were left out: 2 too long and 1 with no location.');
     // Only the prompt that was asked leaves the choice; the other is kept to be tried again
     await waitFor(() => expect(within(bar()).getByText('1 selected')).toBeInTheDocument());
     // The confirm now knows how many runs of the day were used
@@ -284,7 +284,7 @@ describe('Run now for the chosen prompts', () => {
     const { user } = renderOn('editor', '?tab=prompts');
     await tick(user, [FIRST, SECOND]);
     await confirmRun(user, 2);
-    await said('Run started: 2 prompts on 2 engines');
+    await said('Run started: 2 prompts on 2 platforms');
     await tick(user, [FIRST, SECOND]);
     await user.click(within(bar()).getByRole('button', { name: 'Run now' }));
     let dialog = await screen.findByRole('alertdialog', { name: 'Run 2 prompts now?' });
@@ -328,7 +328,7 @@ describe('Run now for the chosen prompts', () => {
           ],
         }),
       'Nothing started',
-      /Nothing was started: none of the prompts can be asked on an enabled engine\. 2 prompt and engine pairs were left out: 1 too long and 1 with no location\./,
+      /Nothing was started: none of the prompts can be asked on an enabled platform\. 2 prompt and platform pairs were left out: 1 too long and 1 with no location\./,
     ],
     [
       'that nothing started when every prompt has an answer on its way',
@@ -337,7 +337,7 @@ describe('Run now for the chosen prompts', () => {
       /Nothing was started: every prompt has an answer on its way already\./,
     ],
     [
-      'the engine that is not turned on, by name',
+      'the platform that is not turned on, by name',
       () =>
         refused(422, 'validation_failed', {
           errors: [
@@ -345,7 +345,7 @@ describe('Run now for the chosen prompts', () => {
               location: 'body',
               path: 'engine_codes',
               code: 'engine_not_enabled',
-              message: 'gemini_web: The engine is not turned on for the project.',
+              message: 'gemini_web: The platform is not turned on for the project.',
             },
           ],
         }),
@@ -484,7 +484,7 @@ describe('Run now for more prompts than one run takes', () => {
       ),
     ).toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Run 183 prompts' }));
-    await said('Run started: 150 prompts on 2 engines');
+    await said('Run started: 150 prompts on 2 platforms');
     await said(
       /All 20 manual runs of today \(UTC\) are used, keyword refreshes included\. Try again tomorrow\. 33 prompts were not tried\.$/,
     );
@@ -497,7 +497,7 @@ describe('Run now for more prompts than one run takes', () => {
     [
       'nothing_to_run',
       () => refused(422, 'nothing_to_run', { skipped: [] }),
-      /The next run was not started: none of its prompts can be asked on an enabled engine\./,
+      /The next run was not started: none of its prompts can be asked on an enabled platform\./,
     ],
     [
       'check_pending',
@@ -528,7 +528,7 @@ describe('Run now for more prompts than one run takes', () => {
       const table = await prompts();
       await user.click(await within(table).findByRole('checkbox', { name: 'Select all 183 prompts loaded' }));
       await confirmRun(user, 183);
-      await said('Run started: 150 prompts on 2 engines');
+      await said('Run started: 150 prompts on 2 platforms');
       await said(text);
       expect(screen.queryByText(/Nothing was started/)).toBeNull();
       expect(calls).toBe(2);
@@ -717,12 +717,12 @@ describe('Archive for the chosen prompts', () => {
   });
 });
 
-describe('the bulk bar of the Topics tab', () => {
-  it('runs the prompts of a topic through the same confirm, with the run named', async () => {
+describe('the bulk bar of the Groups tab', () => {
+  it('runs the prompts of a group through the same confirm, with the run named', async () => {
     const { user } = renderOn('editor', '');
     const tree = await topics();
     await user.click(await within(tree).findByRole('checkbox', { name: 'Select SEO' }));
-    expect(within(bar()).getByText('1 topic selected, 12 prompts')).toBeInTheDocument();
+    expect(within(bar()).getByText('1 group selected, 12 prompts')).toBeInTheDocument();
     await user.click(within(bar()).getByRole('button', { name: 'Run now' }));
     const dialog = await screen.findByRole('alertdialog', { name: 'Run 12 prompts now?' });
     expect(within(dialog).getByText(/This is one manual run of 12 prompts\./)).toBeInTheDocument();

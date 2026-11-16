@@ -129,7 +129,7 @@ const tipOf = (columns: readonly DataTableColumn<Row>[], id: string, row: Row): 
 };
 
 describe('useByEngineColumns: the rate columns', () => {
-  it('shows one rate column per engine for the chosen metric with its percent and its count', () => {
+  it('shows one rate column per platform for the chosen metric with its percent and its count', () => {
     renderWithProviders(<Harness rows={[MIXED]} />);
     expect(cellIn('Technical SEO', 'chatgpt_web_rate')).toHaveTextContent('38%');
     expect(cellIn('Technical SEO', 'chatgpt_web_rate')).toHaveTextContent('3 of 8');
@@ -155,7 +155,7 @@ describe('useByEngineColumns: the rate columns', () => {
     expect(cellIn('No answers here', 'google_ai_mode_rate')).toHaveTextContent('No answers');
   });
 
-  it('sorts by an engine rate, a row without one last in both directions', () => {
+  it('sorts by a platform rate, a row without one last in both directions', () => {
     const columns = columnsOf({ rows: [] });
     const sorted = byId(columns, 'gemini_web_rate').sortValue;
     const thin = topic('t3', 'Thin', [engine('gemini_web', { mentioned: weighted(1, 3, 2) })]);
@@ -166,7 +166,7 @@ describe('useByEngineColumns: the rate columns', () => {
     expect(sorted?.(none)).toBeNull();
   });
 
-  it('a topic engine cell is a button that opens the drawer on Prompts with that engine', async () => {
+  it('a group platform cell is a button that opens the drawer on Prompts with that platform', async () => {
     const onDrill = vi.fn();
     const { user } = renderWithProviders(<Harness rows={[MIXED]} onDrill={onDrill} />);
     const button = within(cellIn('Technical SEO', 'gemini_web_rate')).getByRole('button', {
@@ -181,7 +181,7 @@ describe('useByEngineColumns: the rate columns', () => {
     expect(byId(columns, 'gemini_web_rate').cellLabel?.(MIXED)).toBe('75%, 6 of 8 answers');
   });
 
-  it('a prompt row engine cell is plain text', () => {
+  it('a prompt row platform cell is plain text', () => {
     const prompt: Row = { key: null, name: 'A prompt', cells: [engine('chatgpt_web', { mentioned: cell(3, 4) })] };
     renderWithProviders(<Harness rows={[prompt]} />);
     expect(cellIn('A prompt', 'chatgpt_web_rate')).toHaveTextContent('75%');
@@ -195,12 +195,12 @@ describe('useByEngineColumns: the rate columns', () => {
 });
 
 describe('useByEngineColumns: the gap column', () => {
-  it('sorts by the engine gap, a row under 2 engines with a rate last', () => {
+  it('sorts by the platform gap, a row under 2 platforms with a rate last', () => {
     const columns = columnsOf({ rows: [] });
     const gap = byId(columns, 'engine_gap');
     expect(gap.sortValue?.(MIXED)).toBeCloseTo(37.5, 9);
     expect(
-      gap.sortValue?.(topic('t6', 'One engine', [engine('chatgpt_web', { mentioned: weighted(3, 8, 2) })])),
+      gap.sortValue?.(topic('t6', 'One platform', [engine('chatgpt_web', { mentioned: weighted(3, 8, 2) })])),
     ).toBeNull();
   });
 
@@ -209,20 +209,20 @@ describe('useByEngineColumns: the gap column', () => {
     expect(cellIn('Technical SEO', 'engine_gap')).toHaveTextContent('37.5 pts');
   });
 
-  it('the gap cell says best and weakest with rates and counts and names the engines left out', () => {
+  it('the gap cell says best and weakest with rates and counts and names the platforms left out', () => {
     const columns = columnsOf({ rows: [] });
     const text = tipOf(columns, 'engine_gap', MIXED);
-    expect(text).toContain('Gemini 75% against ChatGPT 38%, over 2 engines.');
+    expect(text).toContain('Gemini 75% against ChatGPT 38%, over 2 platforms.');
     expect(text).toContain('ChatGPT 3 of 8');
     expect(text).toContain('Gemini 6 of 8');
     expect(text).toContain('Left out for too few answers: Google AI Mode.');
   });
 
-  it('the gap is n/a under 2 engines with a rate, and says why', () => {
-    const one = topic('t6', 'One engine', [engine('chatgpt_web', { mentioned: weighted(3, 8, 2) })]);
+  it('the gap is n/a under 2 platforms with a rate, and says why', () => {
+    const one = topic('t6', 'One platform', [engine('chatgpt_web', { mentioned: weighted(3, 8, 2) })]);
     renderWithProviders(<Harness rows={[one]} />);
-    expect(cellIn('One engine', 'engine_gap')).toHaveTextContent('n/a');
-    expect(tipOf(columnsOf({ rows: [] }), 'engine_gap', one)).toBe('A gap needs a rate on at least 2 engines.');
+    expect(cellIn('One platform', 'engine_gap')).toHaveTextContent('n/a');
+    expect(tipOf(columnsOf({ rows: [] }), 'engine_gap', one)).toBe('A gap needs a rate on at least 2 platforms.');
   });
 });
 
@@ -248,7 +248,7 @@ describe('useByEngineColumns: the columns of the chooser', () => {
     ]);
   });
 
-  it('draws a trend line per engine and says how many points are pooled with the C-18 sentence', () => {
+  it('draws a trend line per platform and says how many points are pooled with the C-18 sentence', () => {
     const POOL = pool(4, '2026-10-05', '2026-11-01');
     const weeks = [
       week('2026-10-19', { mentioned: weighted(2, 8, 2), prompts: 2 }),
@@ -264,11 +264,11 @@ describe('useByEngineColumns: the columns of the chooser', () => {
     const tip = tipOf(columnsOf({ rows: [] }), 'trend_chatgpt_web', row);
     expect(tip).toContain('2 of 3 weekly points show several weeks together.');
     expect(tip).toContain(
-      'A topic point with fewer than 10 prompts answering that week shows the last 4 weeks together',
+      'A group point with fewer than 10 prompts answering that week shows the last 4 weeks together',
     );
   });
 
-  it('draws no line for an engine without a series, and never a zero', () => {
+  it('draws no line for a platform without a series, and never a zero', () => {
     renderWithProviders(<Harness rows={[MIXED]} />);
     expect(within(cellIn('Technical SEO', 'trend_chatgpt_web')).queryByRole('img')).toBeNull();
   });
@@ -334,7 +334,7 @@ describe('useByEngineColumns: the columns of the chooser', () => {
     renderWithProviders(<Harness rows={[MIXED]} entities={named} />);
     expect(cellIn('Technical SEO', 'leader_chatgpt_web')).toHaveTextContent('None named');
     expect(tipOf(columnsOf({ rows: [], entities: named }), 'leader_chatgpt_web', MIXED)).toContain(
-      'No tracked competitor is named in the answers of this topic on ChatGPT.',
+      'No tracked competitor is named in the answers of this group on ChatGPT.',
     );
     const few = rowsOf(quiet(2));
     expect(tipOf(columnsOf({ rows: [], entities: few }), 'leader_chatgpt_web', MIXED)).toContain(

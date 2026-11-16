@@ -98,7 +98,7 @@ describe('the change columns of the Prompts tab', () => {
     expect(PROMPT_COLUMN_ENTRIES).toContain(compareColumns);
   });
 
-  it('builds one column per engine shown, hidden by default, last in the table, with its own unique ids', () => {
+  it('builds one column per platform shown, hidden by default, last in the table, with its own unique ids', () => {
     function Ids(): ReactElement {
       const columns = useAllColumns(BOTH, 'mention', WINDOW);
       const ids = columns.map((column) => column.id);
@@ -135,24 +135,24 @@ describe('the change columns of the Prompts tab', () => {
       );
     }
 
-    it('names the engine, and says in lower case which rate of the page it follows', () => {
+    it('names the platform, and says in lower case which rate of the page it follows', () => {
       renderWithProviders(<Headers metric="citation" />);
       expect(screen.getByTestId('change_chatgpt_web')).toHaveTextContent(/^ChatGPT change\|/);
       expect(screen.getByTestId('change_gemini_web')).toHaveTextContent(/^Gemini change\|/);
       expect(screen.getByTestId('change_gemini_web')).toHaveTextContent(
-        "Change in points of this engine's citation rate since the previous period. Coloured only when the change is detectable.",
+        "Change in points of this platform's citation rate since the previous period. Coloured only when the change is detectable.",
       );
     });
 
     it('names the mention rate for the Mention metric', () => {
       renderWithProviders(<Headers metric="mention" />);
-      expect(screen.getByTestId('change_chatgpt_web')).toHaveTextContent("this engine's mention rate since");
+      expect(screen.getByTestId('change_chatgpt_web')).toHaveTextContent("this platform's mention rate since");
     });
 
     it('says that no test exists for share of voice, and never says it is coloured', () => {
       renderWithProviders(<Headers metric="sov" />);
       const header = screen.getByTestId('change_gemini_web');
-      expect(header).toHaveTextContent("Change in points of this engine's share of voice since the previous period.");
+      expect(header).toHaveTextContent("Change in points of this platform's share of voice since the previous period.");
       expect(header).toHaveTextContent('No test exists for share of voice, so its change is never coloured.');
       expect(header.textContent).not.toMatch(/Coloured only when/);
     });
@@ -245,7 +245,7 @@ describe('the change columns of the Prompts tab', () => {
     expect(tipOf('change_chatgpt_web')).toHaveTextContent(/^Comparison is off$/);
   });
 
-  it('says No answers in the previous period for an engine that has none, never 0', () => {
+  it('says No answers in the previous period for a platform that has none, never 0', () => {
     render(rowOf([chat(DETECTABLE), gemini(cell(20, 40), null)]));
     expect(screen.getByTestId('change_gemini_web')).toHaveTextContent('n/a');
     expect(screen.getByTestId('change_gemini_web').textContent).not.toMatch(/0\.0|pts/);
@@ -304,7 +304,7 @@ describe('sorting a change column', () => {
     return <output data-testid="order">{rows.map((row) => row.prompt.prompt_id).join(' ')}</output>;
   }
 
-  it('orders by the points of its own engine, high first, and puts n/a last', () => {
+  it('orders by the points of its own platform, high first, and puts n/a last', () => {
     renderWithProviders(<Order desc />);
     expect(screen.getByTestId('order')).toHaveTextContent(
       'chat-down-gemini-up both-small-up chat-up-gemini-down no-previous unloaded',

@@ -254,7 +254,7 @@ async function topPrompt(change: Case): Promise<HTMLElement> {
 
 async function byEngineRow(change: Case): Promise<HTMLElement> {
   renderDrawer(change);
-  return sectionOf('By engine');
+  return sectionOf('By platform');
 }
 
 const SURFACES: readonly Surface[] = [

@@ -239,7 +239,7 @@ describe('a summary read without its prompt rows', () => {
   });
 });
 
-describe('the engines', () => {
+describe('the platforms', () => {
   it('keep the fixed order ChatGPT, Gemini, AI Mode, with the catalog labels, whatever order the project lists them', () => {
     const reversed = [...ENGINES].reverse();
     const result = buildAggregates(inputsOf(summaryOf([]), { engines: reversed }));
@@ -499,7 +499,7 @@ describe('the fan-out presence', () => {
   });
 });
 
-// R12: one denominator per number. The Overview and the Topics and Prompts strip read the same cells with the same
+// R12: one denominator per number. The Overview and the Prompts strip read the same cells with the same
 // functions, so for the same summary they show the same figure and the same counts.
 
 const SUMMARY = z.custom<PromptsSummary>(
@@ -538,7 +538,7 @@ function expectParity(summary: PromptsSummary, aggregates: ReturnType<typeof bui
   expect(aggregates.lastObservedAt).toBe(lastObservedAt(summary));
 }
 
-describe('R12: the mention rate equals the Topics and Prompts strip', () => {
+describe('R12: the mention rate equals the Prompts strip', () => {
   it('on the Fynix world: three engines, with their counts', async () => {
     const summary = await read('fynix', WINDOW);
     const aggregates = buildAggregates(inputsOf(summary, { engines: enabledEngines(world('fynix').engines) }));

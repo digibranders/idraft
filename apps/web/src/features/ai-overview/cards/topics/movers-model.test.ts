@@ -265,11 +265,11 @@ describe('moversModel', () => {
   it('leaves only', () => {
     const child = leaf('Child', { [CODE]: GAIN.now }, null, { level: 2, parentKey: 'Parent' });
     const parent = leaf('Parent', { [CODE]: GAIN.now }, null, { children: [child] });
-    const none = leaf('No topic', { [CODE]: GAIN.now }, null, { key: NO_TOPIC, termId: null });
+    const none = leaf('No group', { [CODE]: GAIN.now }, null, { key: NO_TOPIC, termId: null });
     const earlier = before(
       leaf('Child', { [CODE]: GAIN.before }),
       leaf('Parent', { [CODE]: GAIN.before }),
-      leaf('No topic', { [CODE]: GAIN.before }, null, { key: NO_TOPIC, termId: null }),
+      leaf('No group', { [CODE]: GAIN.before }, null, { key: NO_TOPIC, termId: null }),
     );
     const model = moversModel([parent, none], earlier, [CODE], 'mentioned', 'both', 5);
     expect(names(model.listed)).toEqual(['Child']);

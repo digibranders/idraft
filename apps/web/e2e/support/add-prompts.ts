@@ -23,22 +23,22 @@ export const NEW_LINES = [
 ] as const;
 /** A topic of the mock world that has prompts, and one that does not exist. */
 export const EXISTING_TOPIC = 'Content Marketing';
-export const NEW_TOPIC = 'Brand new topic';
+export const NEW_TOPIC = 'Brand new group';
 
 export const addButton = (page: Page): Locator => page.getByRole('button', { name: 'Add prompts', exact: true });
 export const addDialog = (page: Page): Locator => page.getByRole('dialog', { name: 'Add prompts' });
 export const promptsGrid = (page: Page): Locator => page.getByRole('grid', { name: 'Prompts' });
-export const topicsGrid = (page: Page): Locator => page.getByRole('treegrid', { name: 'Topics' });
+export const topicsGrid = (page: Page): Locator => page.getByRole('treegrid', { name: 'Groups' });
 /** The toasts are also spoken by a live region, so the words are looked for in the toasts themselves. */
 export const toastsOf = (page: Page): Locator => page.getByRole('region', { name: 'Notifications' });
-export const topicField = (dialog: Locator): Locator => dialog.getByRole('combobox', { name: 'Topics' });
+export const topicField = (dialog: Locator): Locator => dialog.getByRole('combobox', { name: 'Groups' });
 export const textField = (dialog: Locator): Locator => dialog.getByRole('textbox', { name: 'Prompts' });
 
 /** Opens the Prompts tab of Fynix, once the table and the entry that adds are there. */
 export async function openPromptsTab(page: Page, width: number, query = ''): Promise<void> {
   await page.setViewportSize({ width, height: 900 });
   await page.goto(`${FYNIX_PROMPTS}?tab=prompts${query}`);
-  await expect(page.getByRole('heading', { level: 1, name: 'Topics & Prompts' })).toBeAttached();
+  await expect(page.getByRole('heading', { level: 1, name: 'Prompts' })).toBeAttached();
   await expect(addButton(page)).toBeVisible();
 }
 
@@ -100,7 +100,7 @@ export const submitButton = (dialog: Locator): Locator => dialog.locator('button
 /** The topic list stays open after a row is chosen, so a person can choose more; Escape closes it and not the dialog. */
 export async function closeTopicList(dialog: Locator): Promise<void> {
   await topicField(dialog).press('Escape');
-  await expect(dialog.page().getByRole('listbox', { name: /^Topics/ })).toHaveCount(0);
+  await expect(dialog.page().getByRole('listbox', { name: /^Groups/ })).toHaveCount(0);
   await expect(dialog).toBeVisible();
 }
 
@@ -119,7 +119,7 @@ export async function chooseExistingTopic(dialog: Locator, name: string, { keepO
 /** Holds a topic that does not exist yet: the typed name is the first row, so Enter takes it. */
 export async function chooseNewTopic(dialog: Locator, name: string, { keepOpen = false } = {}): Promise<void> {
   await topicField(dialog).fill(name);
-  await expect(dialog.page().getByRole('option', { name: `Create topic “${name}”` })).toBeVisible();
+  await expect(dialog.page().getByRole('option', { name: `Create group “${name}”` })).toBeVisible();
   await topicField(dialog).press('Enter');
   await expect(dialog.getByRole('button', { name: `Remove ${name} (new)` })).toBeVisible();
   if (!keepOpen) await closeTopicList(dialog);

@@ -51,10 +51,10 @@ test.describe.configure({ timeout: 120_000 });
 /** The title of each card of the built-in layout, in order (what the card draws, or the pending card's catalog title). */
 const CARD_TITLES = [
   'What changed',
-  'Mention rate by engine',
-  'Named and cited, by engine',
+  'Mention rate by platform',
+  'Named and cited, by platform',
   'Top cited domains',
-  'Mention rate by topic and engine',
+  'Mention rate by group and platform',
   'Share of voice on ChatGPT',
   'Mention rate on ChatGPT',
   'Key changes',
@@ -124,10 +124,10 @@ test.describe('the AI visibility Overview', () => {
     await signIn(page, EDITOR);
     await openOverview(page, 'Fynix');
 
-    await test.step('the header names the page and the meta line gives freshness, prompts and engines', async () => {
+    await test.step('the header names the page and the meta line gives freshness, prompts and platforms', async () => {
       await expect(pageHeading(page)).toHaveText('AI visibility');
       await expect(metaLine(page)).toContainText(/^AI updated /);
-      await expect(metaLine(page)).toContainText(/ · [\d,]+ prompts? · \d+ engines?$/);
+      await expect(metaLine(page)).toContainText(/ · [\d,]+ prompts? · \d+ platforms?$/);
       await expect(page.getByRole('button', { name: 'Customize', exact: true })).toBeVisible();
       await expect(page.getByRole('button', { name: 'Export', exact: true })).toBeVisible();
     });
@@ -138,7 +138,7 @@ test.describe('the AI visibility Overview', () => {
       const [prompts, chatgpt, gemini, aiMode] = cells;
       expect(prompts?.value).toMatch(/^[\d,]+$/);
       expect(Number((prompts?.value ?? '0').replaceAll(',', ''))).toBeGreaterThan(0);
-      expect(prompts?.text).toMatch(/in \d+ topics?$/);
+      expect(prompts?.text).toMatch(/in \d+ groups?$/);
       // An engine that is on shows a rate with the answers it rests on, or the answers it has when they are too few
       for (const engine of [chatgpt, gemini]) {
         expect(engine?.text).toMatch(/\d[\d,]* of [\d,]+ answers$|Too few for a rate$/);
@@ -151,7 +151,7 @@ test.describe('the AI visibility Overview', () => {
     await test.step('there is no notice, and no state replaces the body', async () => {
       await expect(bannersOf(page)).toHaveCount(0);
       await expect(
-        page.getByRole('heading', { level: 2, name: /^(No AI engine is on|No prompts are asked yet)$/ }),
+        page.getByRole('heading', { level: 2, name: /^(No AI platform is on|No prompts are asked yet)$/ }),
       ).toHaveCount(0);
       await expect(stripError(page)).toHaveCount(0);
     });
@@ -177,7 +177,7 @@ test.describe('the AI visibility Overview', () => {
     });
   });
 
-  test('the window, compare, engines, country, topic and branded are in the URL and survive reload and Back', async ({
+  test('the window, compare, platforms, country, group and branded are in the URL and survive reload and Back', async ({
     page,
   }) => {
     await signIn(page, EDITOR);
@@ -198,13 +198,13 @@ test.describe('the AI visibility Overview', () => {
       await page.getByRole('menuitemradio', { name: 'No comparison' }).click();
       await expect.poll(() => paramsOf(page).get('cmp')).toBe('off');
 
-      await bar.getByRole('button', { name: /^Engines: 2 of 2/ }).click();
+      await bar.getByRole('button', { name: /^Platforms: 2 of 2/ }).click();
       await page.getByRole('checkbox', { name: /Gemini/ }).click();
       await expect.poll(() => paramsOf(page).get('engine')).toBe('chatgpt_web');
       await page.keyboard.press('Escape');
 
       await bar.getByRole('button', { name: 'Add a filter' }).click();
-      await page.getByRole('button', { name: 'Topic', exact: true }).click();
+      await page.getByRole('button', { name: 'Group', exact: true }).click();
       await page.getByRole('radio', { name: /Technical SEO$/ }).click();
       await expect.poll(() => paramsOf(page).get('topic')).toBe(MOCK_TERM_IDS.technicalSeo);
       await page.keyboard.press('Escape');
@@ -212,7 +212,7 @@ test.describe('the AI visibility Overview', () => {
       await bar.getByRole('button', { name: 'Remove filter Branded: Excluded' }).click();
       await expect.poll(() => paramsOf(page).get('branded')).toBe('included');
 
-      await top.getByRole('combobox', { name: 'Country: All countries' }).click();
+      await top.getByRole('combobox', { name: 'Location: All locations' }).click();
       await page.getByRole('option', { name: 'Germany', exact: true }).click();
       await expect.poll(() => paramsOf(page).get('country')).toBe('DE');
     });
@@ -231,13 +231,13 @@ test.describe('the AI visibility Overview', () => {
       await expect(scopeBar(page)).toBeVisible();
       await expect(top.getByRole('button', { name: /^Date range: Last 7 days/ })).toBeVisible();
       await expect(scopeBar(page).getByRole('button', { name: 'No comparison' })).toBeVisible();
-      await expect(scopeBar(page).getByRole('button', { name: /^Engines: 1 of 2/ })).toBeVisible();
+      await expect(scopeBar(page).getByRole('button', { name: /^Platforms: 1 of 2/ })).toBeVisible();
       await expect(
-        scopeBar(page).getByRole('button', { name: /^Topic: .*Technical SEO\. Edit filter$/ }),
+        scopeBar(page).getByRole('button', { name: /^Group: .*Technical SEO\. Edit filter$/ }),
       ).toBeVisible();
       await expect(scopeBar(page).getByRole('button', { name: /^Branded:/ })).toHaveCount(0);
       await expect(scopeBar(page).getByRole('button', { name: 'Reset filters' })).toBeVisible();
-      await expect(top.getByRole('combobox', { name: 'Country: Germany' })).toBeVisible();
+      await expect(top.getByRole('combobox', { name: 'Location: Germany' })).toBeVisible();
     };
 
     await test.step('a reload shows the same scope', async () => {
@@ -247,7 +247,10 @@ test.describe('the AI visibility Overview', () => {
 
     await test.step('Back from another page returns to the page with its scope', async () => {
       const returnTo = page.url();
-      await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Topics & Prompts' }).click();
+      await page
+        .getByRole('navigation', { name: 'Primary' })
+        .getByRole('link', { name: 'Prompts', exact: true })
+        .click();
       await expect(page).toHaveURL(/\/digibranders\/fynix\/ai\/prompts/);
       await page.goBack();
       await expect(page).toHaveURL(returnTo);
@@ -260,13 +263,13 @@ test.describe('the AI visibility Overview', () => {
     });
   });
 
-  test('a number links to Topics and Prompts with the scope carried', async ({ page }) => {
+  test('a number links to Prompts with the scope carried', async ({ page }) => {
     await signIn(page, EDITOR);
     const topic = MOCK_TERM_IDS.technicalSeo;
     await openOverview(page, 'Fynix', { search: `?win=7d&topic=${topic}` });
     const overview = page.url();
 
-    await test.step('the links name the destination and carry the window, the topic and the engine', async () => {
+    await test.step('the links name the destination and carry the window, the group and the platform', async () => {
       const prompts = await numberOf(page, 'Prompts');
       expect(prompts.href).toContain('/digibranders/fynix/ai/prompts?');
       expect(Object.fromEntries(hrefParams(prompts.href))).toEqual({ tab: 'prompts', win: '7d', topic });
@@ -285,14 +288,14 @@ test.describe('the AI visibility Overview', () => {
 
     await test.step('the Prompts number opens the Prompts tab with the same count', async () => {
       const count = (await numberOf(page, 'Prompts')).value;
-      await numbersGroup(page).getByRole('link', { name: 'Prompts', exact: true }).click();
+      await numbersGroup(page).getByRole('link', { name: 'Prompts' }).click();
       await expect(page).toHaveURL(/\/digibranders\/fynix\/ai\/prompts\?/);
       expect(Object.fromEntries(paramsOf(page))).toMatchObject({ tab: 'prompts', win: '7d', topic });
       await expect(page.getByRole('grid', { name: 'Prompts' })).toBeVisible();
       expect(await promptsChip(page, 'Prompts')).toBe(count);
     });
 
-    await test.step('an engine number opens the Prompts tab for that engine, sorted by its rate, with the same figure', async () => {
+    await test.step('a platform number opens the Prompts tab for that platform, sorted by its rate, with the same figure', async () => {
       await page.goBack();
       await expect(page).toHaveURL(overview);
       await waitForOverview(page);
@@ -315,13 +318,13 @@ test.describe('the AI visibility Overview', () => {
     ['editor', EDITOR],
     ['viewer', VIEWER],
   ] as const) {
-    test(`Cleanstart: no engine state with the right action by role (${role})`, async ({ page }) => {
+    test(`Cleanstart: no platform state with the right action by role (${role})`, async ({ page }) => {
       await signIn(page, email);
       await page.setViewportSize({ width: 1280, height: 1100 });
       await page.goto(overviewPath('Cleanstart'));
       await expect(pageHeading(page)).toBeVisible();
       const state = page.locator('[data-slot="empty-state"]');
-      await expect(state.getByRole('heading', { level: 2, name: 'No AI engine is on' })).toBeVisible();
+      await expect(state.getByRole('heading', { level: 2, name: 'No AI platform is on' })).toBeVisible();
       // Nothing is counted, so nothing is drawn as a number or a card
       await expect(numbersGroup(page)).toHaveCount(0);
       await expect(cardGrid(page)).toHaveCount(0);
@@ -334,7 +337,7 @@ test.describe('the AI visibility Overview', () => {
         await expect(page).toHaveURL(/\/digibranders\/cleanstart\/settings\/engines$/);
         await expect(page.getByRole('switch', { name: 'ChatGPT' })).toBeVisible();
       } else {
-        await expect(state).toContainText('Ask a workspace admin to turn on an engine');
+        await expect(state).toContainText('Ask a workspace admin to turn on a platform');
         await expect(action).toHaveCount(0);
         await expect(state.getByRole('link')).toHaveCount(0);
       }
@@ -345,7 +348,7 @@ test.describe('the AI visibility Overview', () => {
     await signIn(page, EDITOR);
     await page.setViewportSize({ width: 1280, height: 1100 });
 
-    await test.step('turning an engine on makes the AI schedules, and pausing them is what the page says', async () => {
+    await test.step('turning a platform on makes the AI schedules, and pausing them is what the page says', async () => {
       await page.goto('/digibranders/fynix/settings/engines');
       await turnEngineOn(page, 'Google AI Mode', 'Germany');
       await pauseAiSchedules(page);
@@ -369,7 +372,7 @@ test.describe('the AI visibility Overview', () => {
     });
   });
 
-  test('a project with an engine on and no prompts says so before it says the schedules are paused', async ({
+  test('a project with a platform on and no prompts says so before it says the schedules are paused', async ({
     page,
   }) => {
     await signIn(page, EDITOR);

@@ -72,32 +72,32 @@ export const PRESET_CARD_COUNT = 8;
 
 /** The cards the preset leaves out: the name in the Add card dialog and the title the card then carries. */
 export const EXTRA_CARDS = [
-  { menu: 'Topic trends, one engine', title: 'Mention rate by topic on ChatGPT' },
-  { menu: 'Prompts by engine', title: 'Prompts by engine' },
+  { menu: 'Topic trends, one engine', title: 'Mention rate by group on ChatGPT' },
+  { menu: 'Prompts by engine', title: 'Prompts by platform' },
   { menu: 'Prompts to look at', title: 'Prompts to look at' },
-  { menu: 'Cited as often as named?', title: 'Citation against mention by topic on ChatGPT' },
+  { menu: 'Cited as often as named?', title: 'Citation against mention by group on ChatGPT' },
 ] as const;
 /** The extra cards of `EXTRA_CARDS` that carry the topic footnote (the two prompt cards say nothing of overlap). */
 export const EXTRAS_WITH_FOOTNOTE = [EXTRA_CARDS[0], EXTRA_CARDS[3]] as const;
 
-export const HEATMAP_TITLE = 'Mention rate by topic and engine';
+export const HEATMAP_TITLE = 'Mention rate by group and platform';
 /** The first sentence of the footnote of every topic card, and the count that follows it. */
 export const OVERLAP_NOTE =
-  /Topics overlap: a prompt in two topics counts in both, so the rows do not add up to the total\./;
-export const OVERLAP_COUNT = /\d+ prompts? (?:is|are) in more than one topic\./;
+  /Groups overlap: a prompt in two groups counts in both, so the rows do not add up to the total\./;
+export const OVERLAP_COUNT = /\d+ prompts? (?:is|are) in more than one group\./;
 
 /** The topics of the Fynix mock, as the heat map lists them at the top level. */
-export const TOP_LEVEL_TOPICS = ['SEO', 'Content Marketing', 'Paid Search', 'Prompts without a topic'] as const;
+export const TOP_LEVEL_TOPICS = ['SEO', 'Content Marketing', 'Paid Search', 'Prompts without a group'] as const;
 
 export const customizeButton = (page: Page): Locator => page.getByRole('button', { name: 'Customize', exact: true });
 export const saveBar = (page: Page): Locator => page.locator('[data-slot="layout-save-bar"]');
-export const enginesButton = (page: Page): Locator => page.getByRole('button', { name: /^Engines: / });
+export const enginesButton = (page: Page): Locator => page.getByRole('button', { name: /^Platforms: / });
 
 /** Customizes the page: the Topic owner preset, and with `extras` the four cards it leaves out; then saves. */
 export async function saveTopicLayout(page: Page, { extras = false }: { extras?: boolean } = {}): Promise<void> {
   await openOverview(page);
   await startCustomizing(page);
-  await startFrom(page, 'Topic owner');
+  await startFrom(page, 'Group owner');
   if (extras) for (const { menu } of EXTRA_CARDS) await addCard(page, menu);
   await saveLayout(page);
   await expect(cardGrid(page).locator('[data-layout-card]')).toHaveCount(

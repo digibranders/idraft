@@ -6,8 +6,8 @@ import type { EngineSummary, MetricCell, ProjectEngine } from '@/lib/api/types';
 
 const LABELS: PromptExportLabels = {
   prompt: 'Prompt',
-  topic: 'Topic',
-  country: 'Country',
+  topic: 'Group',
+  country: 'Location',
   branded: 'Branded',
   yes: 'Yes',
   no: 'No',
@@ -66,8 +66,8 @@ describe('the CSV of prompts', () => {
     );
     expect(table.header).toEqual([
       'Prompt',
-      'Topic',
-      'Country',
+      'Group',
+      'Location',
       'Branded',
       'Mention rate (%)',
       'Mention answers',

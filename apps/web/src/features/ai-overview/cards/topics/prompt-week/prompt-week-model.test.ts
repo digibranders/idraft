@@ -246,7 +246,7 @@ describe('the topics to choose from', () => {
   const NODES = [
     node(CRM, 'CRM', 5, [child(PRICING, 'Pricing', 2, 'CRM')]),
     node(SECURITY, 'Security', 3),
-    node(null, 'Prompts without a topic', 9),
+    node(null, 'Prompts without a group', 9),
   ];
 
   it('are the real topics, each followed by its children, and never the prompts without a topic', () => {

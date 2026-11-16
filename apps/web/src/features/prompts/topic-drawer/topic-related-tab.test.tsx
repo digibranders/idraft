@@ -41,7 +41,7 @@ const SUMMARY = summaryOf([
 const renderTab = (options: Parameters<typeof renderDrawerPart>[1] = {}) =>
   renderDrawerPart(<RelatedTab />, { summary: SUMMARY, descendants: DESCENDANTS, ...options });
 const rows = (): HTMLElement[] =>
-  within(screen.getByRole('table', { name: 'Topics beside this one' }))
+  within(screen.getByRole('table', { name: 'Groups beside this one' }))
     .getAllByRole('row')
     .slice(1);
 
@@ -49,7 +49,7 @@ describe('RelatedTab: the topics beside this one', () => {
   it('lists sibling topics with prompts and mention and opens one on the Related tab', async () => {
     const writes: string[] = [];
     const { user } = renderTab({ onUrlUpdate: ({ queryString }) => writes.push(queryString) });
-    expect(screen.getByRole('heading', { name: 'Topics beside this one' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Groups beside this one' })).toBeInTheDocument();
     const [content, links] = rows();
     // Most prompts first: Content has 6, Links 2
     expect(content).toHaveTextContent('Content');
@@ -60,7 +60,7 @@ describe('RelatedTab: the topics beside this one', () => {
     expect(links).toHaveTextContent('25%');
     expect(rows()).toHaveLength(2);
 
-    await user.click(screen.getByRole('button', { name: 'Open the topic Content' }));
+    await user.click(screen.getByRole('button', { name: 'Open the group Content' }));
     const params = new URLSearchParams(writes.at(-1));
     expect(params.get('inspect')).toBe('topic:content');
     expect(params.get('itab')).toBe('related');
@@ -73,7 +73,7 @@ describe('RelatedTab: the topics beside this one', () => {
     // tooltip for sighted users and in the cell for everyone else
     expect(await screen.findAllByText('ChatGPT 4 of 8 and Gemini 4 of 8')).toHaveLength(2);
     expect(
-      screen.getByText('Equal weight average of ChatGPT and Gemini, each engine counting once'),
+      screen.getByText('Equal weight average of ChatGPT and Gemini, each platform counting once'),
     ).toBeInTheDocument();
   });
 
@@ -108,7 +108,7 @@ describe('RelatedTab: the topics beside this one', () => {
     ]);
     renderTab({ topicKey: 'me', summary, descendants: topicDescendants(tree, []) });
     expect(rows()).toHaveLength(10);
-    expect(screen.getByText('3 more topics are in the Topics table.')).toBeInTheDocument();
+    expect(screen.getByText('3 more groups are in the Groups table.')).toBeInTheDocument();
     // The ten with the most prompts: Sibling 12 (13 prompts) down to Sibling 03 (4 prompts)
     expect(rows()[0]).toHaveTextContent('Sibling 12');
     expect(rows()[9]).toHaveTextContent('Sibling 03');
@@ -116,7 +116,7 @@ describe('RelatedTab: the topics beside this one', () => {
 
   it('is a skeleton while the summary is on its way', () => {
     renderTab({ summary: undefined, counts: { ...READY_COUNTS, status: 'loading' } });
-    expect(screen.getByRole('heading', { name: 'Topics beside this one' }).closest('section')).toHaveAttribute(
+    expect(screen.getByRole('heading', { name: 'Groups beside this one' }).closest('section')).toHaveAttribute(
       'aria-busy',
       'true',
     );
@@ -124,11 +124,11 @@ describe('RelatedTab: the topics beside this one', () => {
 
   it('says why when the topic tree does not hold the topic, and is no endless skeleton', () => {
     renderTab({ descendants: new Map() });
-    const section = screen.getByRole('heading', { name: 'Topics beside this one' }).closest('section');
+    const section = screen.getByRole('heading', { name: 'Groups beside this one' }).closest('section');
     expect(section).not.toHaveAttribute('aria-busy');
-    expect(screen.getByText('No topic beside this one')).toBeInTheDocument();
+    expect(screen.getByText('No group beside this one')).toBeInTheDocument();
     expect(
-      screen.getByText('The topic tree does not list this topic, so the topics beside it cannot be told.'),
+      screen.getByText('The group tree does not list this group, so the groups beside it cannot be told.'),
     ).toBeInTheDocument();
     expect(screen.queryByRole('table')).toBeNull();
   });
@@ -150,8 +150,8 @@ describe('RelatedTab: the topics beside this one', () => {
       descendants: topicDescendants([term('seo', 'SEO'), term('content', 'Content', 'seo')], []),
       summary: summaryOf([rowOf('content', 'Content', 6)]),
     });
-    expect(screen.getByText('No topic beside this one')).toBeInTheDocument();
-    expect(screen.getByText('This topic has no sibling in the tree.')).toBeInTheDocument();
+    expect(screen.getByText('No group beside this one')).toBeInTheDocument();
+    expect(screen.getByText('This group has no sibling in the tree.')).toBeInTheDocument();
   });
 });
 
@@ -194,6 +194,6 @@ describe('topicRelatedTab: the tab entry', () => {
       summary: SUMMARY,
       descendants: DESCENDANTS,
     });
-    expect(screen.getByRole('table', { name: 'Topics beside this one' })).toBeInTheDocument();
+    expect(screen.getByRole('table', { name: 'Groups beside this one' })).toBeInTheDocument();
   });
 });

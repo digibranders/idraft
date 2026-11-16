@@ -35,7 +35,7 @@ describe('the navigation registry', () => {
     }
   });
 
-  it('lists only what is live: Keywords, AI Overview, Topics & Prompts, Citations, Integrations, Runs, Costs and Settings, for now', () => {
+  it('lists only what is live: Keywords, AI Overview, Prompts, Citations, Integrations, Runs, Costs and Settings, for now', () => {
     expect(keysOf(visibleNavigation(NAVIGATION, permissionsFor('owner')))).toEqual([
       'keywords',
       'aiOverview',

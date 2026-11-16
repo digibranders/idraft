@@ -231,7 +231,7 @@ describe('the top cited domains card', () => {
     renderCard();
     await barList();
     expect(
-      screen.getByText('Citations flagged as unresolved redirects or engine-internal links are left out.'),
+      screen.getByText('Citations flagged as unresolved redirects or platform-internal links are left out.'),
     ).toBeInTheDocument();
     expect(screen.getByText('Domains with fewer than 2 citation units are not listed.')).toBeInTheDocument();
   });
@@ -245,7 +245,7 @@ describe('the top cited domains card', () => {
     await user.hover(trigger);
     const tip = await screen.findByText(/1,912 citation units in 1,104 answers, 211 prompts/);
     expect(tip).toHaveTextContent('Previous period: 1,640 units');
-    expect(tip).toHaveTextContent(`By engine: ${formatList(['ChatGPT 1,200', 'Gemini 712'])}`);
+    expect(tip).toHaveTextContent(`By platform: ${formatList(['ChatGPT 1,200', 'Gemini 712'])}`);
   });
 
   it('shows the idle state, and asks nothing, when no engine is on for the project', async () => {
@@ -276,7 +276,7 @@ describe('the top cited domains card', () => {
       </PermissionProvider>,
       { searchParams: 'cmp=off' },
     );
-    expect(await screen.findByText('No engine is on for this project')).toBeInTheDocument();
+    expect(await screen.findByText('No platform is on for this project')).toBeInTheDocument();
     expect(screen.queryByRole('list', { name: CAPTION })).not.toBeInTheDocument();
     expect(screen.queryByText(/0%/)).not.toBeInTheDocument();
     expect(asked).not.toHaveBeenCalled();
@@ -525,7 +525,7 @@ describe('the top cited domains card', () => {
     await barList();
     const [block] = sink.read().blocks;
     expect(block?.id).toBe('card-under-test');
-    expect(block?.header).toEqual(['Domain', 'Share of citation units', 'Citation units', 'Role', 'Units by engine']);
+    expect(block?.header).toEqual(['Domain', 'Share of citation units', 'Citation units', 'Role', 'Units by platform']);
     expect(block?.rows).toHaveLength(4);
     expect(at(block?.rows ?? [], 0)).toEqual([
       'g2.com',
@@ -846,7 +846,7 @@ describe('the top cited domains card, By role view', () => {
     await openByRole();
     const [block] = sink.read().blocks;
     expect(block?.id).toBe('card-under-test');
-    expect(block?.header).toEqual(['Role', 'Domain', 'Share of citation units', 'Citation units', 'Units by engine']);
+    expect(block?.header).toEqual(['Role', 'Domain', 'Share of citation units', 'Citation units', 'Units by platform']);
     expect(block?.rows).toHaveLength(7);
     expect(at(block?.rows ?? [], 0)).toEqual([
       'Own',

@@ -334,7 +334,7 @@ describe('the new and lost sources card (CH-22, WB-OV-12)', () => {
       screen.getByText(/^New: 2 or more citation units in this window and none in the window before\. Lost:/),
     ).toBeInTheDocument();
     expect(
-      screen.getByText('Citations flagged as unresolved redirects or engine-internal links are left out.'),
+      screen.getByText('Citations flagged as unresolved redirects or platform-internal links are left out.'),
     ).toBeInTheDocument();
   });
 
@@ -427,7 +427,7 @@ describe('the new and lost sources card (CH-22, WB-OV-12)', () => {
       </PermissionProvider>,
       { searchParams: 'cmp=off' },
     );
-    expect(await screen.findByText('No engine is on for this project')).toBeInTheDocument();
+    expect(await screen.findByText('No platform is on for this project')).toBeInTheDocument();
     expect(screen.queryByRole('toolbar')).not.toBeInTheDocument();
     expect(asked).not.toHaveBeenCalled();
   });

@@ -78,7 +78,7 @@ const stubPhone = (): void => {
     removeEventListener: vi.fn(),
   }));
 };
-const treegrid = (): Promise<HTMLElement> => screen.findByRole('treegrid', { name: 'Topics' });
+const treegrid = (): Promise<HTMLElement> => screen.findByRole('treegrid', { name: 'Groups' });
 const headers = (table: HTMLElement): string[] =>
   within(table)
     .getAllByRole('columnheader')
@@ -97,13 +97,13 @@ function watchEntityReads(): { count: () => number } {
   return { count: () => reads };
 }
 
-describe('the Topics tab: the views', () => {
+describe('the Groups tab: the views', () => {
   it('opens on the List exactly as before', async () => {
     const reads = watchEntityReads();
     renderOn('');
     const table = await treegrid();
-    await within(table).findByRole('button', { name: 'Open the topic Paid Search' });
-    expect(headers(table).some((header) => header.startsWith('Engine gap'))).toBe(false);
+    await within(table).findByRole('button', { name: 'Open the group Paid Search' });
+    expect(headers(table).some((header) => header.startsWith('Platform gap'))).toBe(false);
     // The count columns of the List are in the chooser's reach, and the By engine columns are not there
     expect(headers(table)).toContain('ChatGPT mentioned');
     expect(
@@ -125,24 +125,24 @@ describe('the Topics tab: the views', () => {
     const table = await treegrid();
     await waitFor(() => expect(headers(table)).toContain('ChatGPT mention'));
     expect(headers(table)).toContain('Gemini mention');
-    expect(headers(table).some((header) => header.startsWith('Engine gap'))).toBe(true);
+    expect(headers(table).some((header) => header.startsWith('Platform gap'))).toBe(true);
     // The count columns wait in the chooser
     expect(headers(table)).not.toContain('ChatGPT mentioned');
-    expect(screen.getByRole('radio', { name: 'By engine' })).toBeChecked();
+    expect(screen.getByRole('radio', { name: 'By platform' })).toBeChecked();
   });
 
-  it('keeps Citation rate, Top engine and Trend in the chooser of By engine, and shows them in the List', async () => {
+  it('keeps Citation rate, Top platform and Trend in the chooser of By platform, and shows them in the List', async () => {
     const engines = renderOn('?view=engines');
     const table = await treegrid();
     await waitFor(() => expect(headers(table)).toContain('ChatGPT mention'));
     expect(headers(table)).toContain('Mention rate');
-    for (const header of ['Citation rate', 'Top engine', 'Trend']) expect(headers(table)).not.toContain(header);
+    for (const header of ['Citation rate', 'Top platform', 'Trend']) expect(headers(table)).not.toContain(header);
     engines.unmount();
 
     renderOn('');
     const list = await treegrid();
     await waitFor(() => expect(headers(list)).toContain('ChatGPT mentioned'));
-    for (const header of ['Mention rate', 'Citation rate', 'Top engine', 'Trend'])
+    for (const header of ['Mention rate', 'Citation rate', 'Top platform', 'Trend'])
       expect(headers(list)).toContain(header);
   });
 
@@ -157,7 +157,7 @@ describe('the Topics tab: the views', () => {
     const writes: string[] = [];
     const { user } = renderOn('?view=engines', { onUrlUpdate: ({ queryString }) => writes.push(queryString) });
     const table = await treegrid();
-    await user.click(await screen.findByRole('combobox', { name: 'Metric of the engine columns' }));
+    await user.click(await screen.findByRole('combobox', { name: 'Metric of the platform columns' }));
     await user.click(await screen.findByRole('option', { name: 'Share of voice' }));
     await waitFor(() => expect(headers(table)).toContain('ChatGPT SOV'));
     expect(query(writes.at(-1)).get('metric')).toBe('sov');
@@ -170,7 +170,7 @@ describe('the Topics tab: the views', () => {
       onUrlUpdate: ({ queryString }) => writes.push(queryString),
     });
     await treegrid();
-    await user.click(screen.getByRole('radio', { name: 'By engine' }));
+    await user.click(screen.getByRole('radio', { name: 'By platform' }));
     await waitFor(() => expect(query(writes.at(-1)).get('view')).toBe('engines'));
     expect(query(writes.at(-1)).get('density')).toBe('compact');
     expect(query(writes.at(-1)).get('q')).toBe('paid');
@@ -188,7 +188,7 @@ describe('the Topics tab: the views', () => {
     );
   });
 
-  it('puts a topic with no Gemini answer last in both directions, and its cell says so and not 0', async () => {
+  it('puts a group with no Gemini answer last in both directions, and its cell says so and not 0', async () => {
     const counted = (valid: number, mentioned: number): Counts => ({
       ...NO_COUNTS,
       n_valid: valid,
@@ -223,8 +223,8 @@ describe('the Topics tab: the views', () => {
     );
     const order = (table: HTMLElement): string[] =>
       within(table)
-        .getAllByRole('button', { name: /^Open the topic / })
-        .map((button) => (button.getAttribute('aria-label') ?? '').replace('Open the topic ', ''));
+        .getAllByRole('button', { name: /^Open the group / })
+        .map((button) => (button.getAttribute('aria-label') ?? '').replace('Open the group ', ''));
     for (const [sort, expected] of [
       ['gemini_web_rate', ['SEO', 'Content Marketing', 'Paid Search']],
       ['-gemini_web_rate', ['Content Marketing', 'SEO', 'Paid Search']],
@@ -233,7 +233,7 @@ describe('the Topics tab: the views', () => {
       const table = await treegrid();
       await waitFor(() => expect(order(table)).toEqual(expected));
       // The unknown cell reads as no answers, never as a rate of 0
-      const row = within(table).getByRole('button', { name: 'Open the topic Paid Search' }).closest('[role="row"]');
+      const row = within(table).getByRole('button', { name: 'Open the group Paid Search' }).closest('[role="row"]');
       if (row === null) throw new Error('The row of Paid Search is missing');
       const column = headers(table).findIndex((header) => header.startsWith('Gemini mention'));
       const cells = [...row.querySelectorAll('[role="gridcell"], [role="rowheader"]')].map((cell) => cell.textContent);
@@ -246,7 +246,7 @@ describe('the Topics tab: the views', () => {
   it('sorts by the engine gap from ?sort=-engine_gap', async () => {
     renderOn('?view=engines&sort=-engine_gap');
     const table = await treegrid();
-    expect(await within(table).findByRole('columnheader', { name: /^Engine gap/ })).toHaveAttribute(
+    expect(await within(table).findByRole('columnheader', { name: /^Platform gap/ })).toHaveAttribute(
       'aria-sort',
       'descending',
     );
@@ -266,7 +266,7 @@ describe('the Topics tab: the views', () => {
     expect(within(panel).getByRole('tab', { name: 'Prompts' })).toHaveAttribute('aria-selected', 'true');
   });
 
-  it('a topic opened onto its prompts shows each prompt with its value on every engine (child rows)', async () => {
+  it('a group opened onto its prompts shows each prompt with its value on every platform (child rows)', async () => {
     const { user } = renderOn('?view=engines');
     const table = await treegrid();
     await user.click(await within(table).findByRole('button', { name: 'Expand Paid Search, 2 prompts' }));
@@ -290,7 +290,7 @@ describe('the Topics tab: the views', () => {
     const { user } = renderOn('');
     await treegrid();
     expect(reads.count()).toBe(0);
-    await user.click(screen.getByRole('radio', { name: 'By engine' }));
+    await user.click(screen.getByRole('radio', { name: 'By platform' }));
     await waitFor(() => expect(reads.count()).toBe(1));
     // Coming back to the List asks nothing more
     await user.click(screen.getByRole('radio', { name: 'List' }));
@@ -310,11 +310,11 @@ describe('the Topics tab: the views', () => {
     );
     renderOn('?view=engines');
     const table = await treegrid();
-    await within(table).findByRole('button', { name: 'Open the topic Paid Search' });
+    await within(table).findByRole('button', { name: 'Open the group Paid Search' });
     expect(table).toHaveAttribute('aria-busy', 'true');
     release();
     await waitFor(() => expect(table).not.toHaveAttribute('aria-busy', 'true'));
-    expect(within(table).getByRole('button', { name: 'Open the topic Paid Search' })).toBeInTheDocument();
+    expect(within(table).getByRole('button', { name: 'Open the group Paid Search' })).toBeInTheDocument();
   });
 
   it('says competitors could not be loaded and keeps the other columns', async () => {
@@ -334,10 +334,10 @@ describe('the Topics tab: the views', () => {
     expect(headers(table)).toContain('ChatGPT mention');
   });
 
-  it('fills the topic order store in drawn order and empties it on unmount', async () => {
+  it('fills the group order store in drawn order and empties it on unmount', async () => {
     const { unmount } = renderOn('');
     const table = await treegrid();
-    await within(table).findByRole('button', { name: 'Open the topic Paid Search' });
+    await within(table).findByRole('button', { name: 'Open the group Paid Search' });
     await waitFor(() => expect(getTopicOrder(FYNIX_ID)).not.toBeNull());
     const order = getTopicOrder(FYNIX_ID) ?? [];
     expect(order).toEqual(expect.arrayContaining(Object.values(MOCK_TERM_IDS).slice(0, 6)));
@@ -349,8 +349,8 @@ describe('the Topics tab: the views', () => {
     expect(place(MOCK_TERM_IDS.blogStrategy)).toBe(place(MOCK_TERM_IDS.contentMarketing) + 1);
     // The top level rows are drawn in the order of the store
     const tops = within(table)
-      .getAllByRole('button', { name: /^Open the topic / })
-      .map((button) => button.getAttribute('aria-label')?.replace('Open the topic ', ''));
+      .getAllByRole('button', { name: /^Open the group / })
+      .map((button) => button.getAttribute('aria-label')?.replace('Open the group ', ''));
     const ids: Record<string, string> = {
       SEO: MOCK_TERM_IDS.seo,
       'Content Marketing': MOCK_TERM_IDS.contentMarketing,
@@ -363,23 +363,23 @@ describe('the Topics tab: the views', () => {
   });
 });
 
-describe('the Topics tab: the heat map, the export and the phone list', () => {
-  it('the view switch offers List, By engine and Heat map', async () => {
+describe('the Groups tab: the heat map, the export and the phone list', () => {
+  it('the view switch offers List, By platform and Heat map', async () => {
     renderOn('');
     await treegrid();
-    for (const name of ['List', 'By engine', 'Heat map']) {
+    for (const name of ['List', 'By platform', 'Heat map']) {
       expect(screen.getByRole('radio', { name })).toBeInTheDocument();
     }
   });
 
   it('shows the heat map for ?view=heatmap, with the page switch and the metric of ?metric=', async () => {
     renderOn('?view=heatmap&metric=citation');
-    const grid = await screen.findByRole('treegrid', { name: 'Citation by topic and engine' });
+    const grid = await screen.findByRole('treegrid', { name: 'Citation by group and platform' });
     expect(screen.getByRole('radio', { name: 'Heat map' })).toBeChecked();
     // The page's own switch stays, so the person can still reach the Prompts tab
     expect(screen.getByRole('radio', { name: 'Prompts' })).toBeInTheDocument();
     expect(await within(grid).findByRole('link', { name: /^Paid Search on ChatGPT/ })).toBeInTheDocument();
-    expect(screen.queryByRole('treegrid', { name: 'Topics' })).toBeNull();
+    expect(screen.queryByRole('treegrid', { name: 'Groups' })).toBeNull();
   });
 
   it('writes ?view=heatmap from the switch and ?sort from the order select, keeping the other keys', async () => {
@@ -387,7 +387,7 @@ describe('the Topics tab: the heat map, the export and the phone list', () => {
     const { user } = renderOn('?density=compact', { onUrlUpdate: ({ queryString }) => writes.push(queryString) });
     await treegrid();
     await user.click(screen.getByRole('radio', { name: 'Heat map' }));
-    await screen.findByRole('treegrid', { name: 'Mention by topic and engine' });
+    await screen.findByRole('treegrid', { name: 'Mention by group and platform' });
     expect(query(writes.at(-1)).get('view')).toBe('heatmap');
     expect(query(writes.at(-1)).get('density')).toBe('compact');
     await user.click(screen.getByRole('combobox', { name: 'Order rows by' }));
@@ -401,22 +401,22 @@ describe('the Topics tab: the heat map, the export and the phone list', () => {
 
   it('says search does not narrow the heat map', async () => {
     renderOn('?view=heatmap&q=paid');
-    const grid = await screen.findByRole('treegrid', { name: 'Mention by topic and engine' });
+    const grid = await screen.findByRole('treegrid', { name: 'Mention by group and platform' });
     expect(screen.getByText('Search does not narrow the heat map.')).toBeInTheDocument();
     await within(grid).findByRole('rowheader', { name: 'Paid Search' });
     // Not narrowed: a topic that does not match the search is there
     expect(within(grid).getByRole('rowheader', { name: 'SEO' })).toBeInTheDocument();
   });
 
-  it('fills the topic order store from the heat map', async () => {
+  it('fills the group order store from the heat map', async () => {
     renderOn('?view=heatmap');
-    const grid = await screen.findByRole('treegrid', { name: 'Mention by topic and engine' });
+    const grid = await screen.findByRole('treegrid', { name: 'Mention by group and platform' });
     await within(grid).findByRole('rowheader', { name: 'Paid Search' });
     await waitFor(() => expect(getTopicOrder(FYNIX_ID)).not.toBeNull());
     expect(getTopicOrder(FYNIX_ID)).toEqual(expect.arrayContaining([MOCK_TERM_IDS.seo, MOCK_TERM_IDS.paidSearch]));
   });
 
-  describe('Export by engine', () => {
+  describe('Export by platform', () => {
     const blobs: Blob[] = [];
     const names: string[] = [];
     beforeEach(() => {
@@ -437,14 +437,14 @@ describe('the Topics tab: the heat map, the export and the phone list', () => {
     it('downloads the file and toasts the count', async () => {
       const { user } = renderOn('?view=engines&metric=citation');
       const table = await treegrid();
-      await within(table).findByRole('button', { name: 'Open the topic Paid Search' });
-      await user.click(screen.getByRole('button', { name: 'Export by engine' }));
-      expect(await screen.findByText(/^\d+ topics exported$/)).toBeInTheDocument();
+      await within(table).findByRole('button', { name: 'Open the group Paid Search' });
+      await user.click(screen.getByRole('button', { name: 'Export by platform' }));
+      expect(await screen.findByText(/^\d+ groups exported$/)).toBeInTheDocument();
       expect(names).toEqual(['topics-by-engine-citation-2026-10-16-to-2026-11-12.csv']);
       const [blob] = blobs;
       if (blob === undefined) throw new Error('No file was made');
       const text = await blob.text();
-      expect(text).toContain('Topic,Parent topic,Prompts,ChatGPT Citation (%)');
+      expect(text).toContain('Group,Parent group,Prompts,ChatGPT Citation (%)');
       expect(text).toContain('Paid Search');
     });
 
@@ -484,7 +484,7 @@ describe('the Topics tab: the heat map, the export and the phone list', () => {
         .map((line) => line.split(',')[0] ?? '');
     };
 
-    it('writes the topics in the order of the API, the most prompts first, and not in the order of the rates', async () => {
+    it('writes the groups in the order of the API, the most prompts first, and not in the order of the rates', async () => {
       // The rates run the other way: SEO is best and holds the fewest prompts
       answerWith([
         [MOCK_TERM_IDS.seo, 'SEO', 1, 4],
@@ -493,9 +493,9 @@ describe('the Topics tab: the heat map, the export and the phone list', () => {
       ]);
       const { user } = renderOn('?view=engines');
       const table = await treegrid();
-      await within(table).findByRole('button', { name: 'Open the topic Content Marketing' });
-      await user.click(screen.getByRole('button', { name: 'Export by engine' }));
-      await screen.findByText(/^\d+ topics exported$/);
+      await within(table).findByRole('button', { name: 'Open the group Content Marketing' });
+      await user.click(screen.getByRole('button', { name: 'Export by platform' }));
+      await screen.findByText(/^\d+ groups exported$/);
       expect(await exportedNames()).toEqual(['Content Marketing', 'Paid Search', 'SEO']);
     });
 
@@ -506,13 +506,13 @@ describe('the Topics tab: the heat map, the export and the phone list', () => {
       ]);
       const { user } = renderOn('?view=engines&q=content');
       const table = await treegrid();
-      await within(table).findByRole('button', { name: 'Open the topic Content Marketing' });
-      await user.click(screen.getByRole('button', { name: 'Export by engine' }));
-      expect(await screen.findByText('1 topic exported')).toBeInTheDocument();
+      await within(table).findByRole('button', { name: 'Open the group Content Marketing' });
+      await user.click(screen.getByRole('button', { name: 'Export by platform' }));
+      expect(await screen.findByText('1 group exported')).toBeInTheDocument();
       expect(await exportedNames()).toEqual(['Content Marketing']);
     });
 
-    it('is off while the topics load, so there is no misleading "No topic to export"', async () => {
+    it('is off while the groups load, so there is no misleading "No group to export"', async () => {
       let release: () => void = () => undefined;
       const gate = new Promise<void>((resolve) => {
         release = resolve;
@@ -524,57 +524,57 @@ describe('the Topics tab: the heat map, the export and the phone list', () => {
         }),
       );
       renderOn('?view=engines');
-      expect(await screen.findByRole('button', { name: 'Export by engine' })).toBeDisabled();
+      expect(await screen.findByRole('button', { name: 'Export by platform' })).toBeDisabled();
       release();
       const table = await treegrid();
-      await within(table).findByRole('button', { name: 'Open the topic Paid Search' });
-      await waitFor(() => expect(screen.getByRole('button', { name: 'Export by engine' })).toBeEnabled());
+      await within(table).findByRole('button', { name: 'Open the group Paid Search' });
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Export by platform' })).toBeEnabled());
     });
 
-    it('is off when the topics could not be read', async () => {
+    it('is off when the groups could not be read', async () => {
       server.use(
         http.get(SUMMARY_PATH, () =>
           HttpResponse.json({ status: 500, code: 'internal_error', title: 'Failed' }, { status: 500 }),
         ),
       );
       renderOn('?view=engines');
-      expect(await screen.findByRole('button', { name: 'Export by engine' })).toBeDisabled();
-      expect(screen.queryByText('No topic to export')).toBeNull();
+      expect(await screen.findByRole('button', { name: 'Export by platform' })).toBeDisabled();
+      expect(screen.queryByText('No group to export')).toBeNull();
     });
 
-    it('is only in the By engine view', async () => {
+    it('is only in the By platform view', async () => {
       renderOn('');
       await treegrid();
-      expect(screen.queryByRole('button', { name: 'Export by engine' })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Export by platform' })).toBeNull();
     });
   });
 
   describe('on a phone', () => {
-    it('renders the phone list under 768 px with the best engine and the engine count', async () => {
+    it('renders the phone list under 768 px with the best platform and the platform count', async () => {
       stubPhone();
       renderOn('');
-      const list = await screen.findByRole('list', { name: /^Topics, \d+ results/ });
+      const list = await screen.findByRole('list', { name: /^Groups, \d+ results/ });
       const paid = await within(list).findByRole('button', { name: /^Paid Search/ });
-      expect(paid).toHaveTextContent(/Best on .+ \d+% \(.+ answers\), \d+ engines?/);
+      expect(paid).toHaveTextContent(/Best on .+ \d+% \(.+ answers\), \d+ platforms?/);
       expect(screen.queryByRole('treegrid')).toBeNull();
       expect(screen.getByRole('radio', { name: 'List' })).toBeChecked();
     });
 
-    it('is the same list for the By engine view and keeps the heat map as a grid', async () => {
+    it('is the same list for the By platform view and keeps the heat map as a grid', async () => {
       stubPhone();
       const engines = renderOn('?view=engines');
-      expect(await screen.findByRole('list', { name: /^Topics, \d+ results/ })).toBeInTheDocument();
+      expect(await screen.findByRole('list', { name: /^Groups, \d+ results/ })).toBeInTheDocument();
       engines.unmount();
       renderOn('?view=heatmap');
-      expect(await screen.findByRole('treegrid', { name: 'Mention by topic and engine' })).toBeInTheDocument();
-      expect(screen.queryByRole('list', { name: /^Topics/ })).toBeNull();
+      expect(await screen.findByRole('treegrid', { name: 'Mention by group and platform' })).toBeInTheDocument();
+      expect(screen.queryByRole('list', { name: /^Groups/ })).toBeNull();
     });
 
     it('opens the drawer on Overview from a row', async () => {
       stubPhone();
       const writes: string[] = [];
       const { user } = renderOn('', { onUrlUpdate: ({ queryString }) => writes.push(queryString) });
-      const list = await screen.findByRole('list', { name: /^Topics, \d+ results/ });
+      const list = await screen.findByRole('list', { name: /^Groups, \d+ results/ });
       await user.click(await within(list).findByRole('button', { name: /^Paid Search/ }));
       await waitFor(() => expect(query(writes.at(-1)).get('inspect')).toBe(`topic:${MOCK_TERM_IDS.paidSearch}`));
       expect(query(writes.at(-1)).get('itab')).toBeNull();

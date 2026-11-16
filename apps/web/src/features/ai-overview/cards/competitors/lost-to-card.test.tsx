@@ -152,7 +152,7 @@ describe('the lost to a competitor card', () => {
     serve(summary(PROMPTS));
     renderCard();
     expect(await screen.findByRole('heading', { name: TITLE })).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: /one engine/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /one platform/i })).not.toBeInTheDocument();
   });
 
   it('reads the prompt rows once with the comparison on, since it draws no comparison', async () => {

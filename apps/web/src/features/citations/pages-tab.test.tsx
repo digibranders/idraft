@@ -440,7 +440,7 @@ describe('PagesTab', () => {
   it('shows the share by engine under one heading, and First seen, Last seen and Cited with (domain)', async () => {
     renderTab();
     const table = await loaded();
-    expect(within(table).getByRole('columnheader', { name: 'Share by engine' })).toBeInTheDocument();
+    expect(within(table).getByRole('columnheader', { name: 'Share by platform' })).toBeInTheDocument();
     expect(within(table).getByRole('columnheader', { name: 'ChatGPT' })).toBeInTheDocument();
     expect(within(table).getByRole('columnheader', { name: 'First seen' })).toBeInTheDocument();
     expect(within(table).getByRole('columnheader', { name: 'Last seen' })).toBeInTheDocument();
@@ -609,7 +609,7 @@ describe('PagesTab', () => {
     servePages([], { meta: { ...META, answers: 0, answers_citing: 0, citation_units: 0, by_role: [] } });
     renderTab();
     expect(await screen.findByRole('heading', { name: 'No citations yet' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Open Topics and Prompts' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Open Prompts' })).toHaveAttribute(
       'href',
       '/digibranders/fynix/ai/prompts',
     );

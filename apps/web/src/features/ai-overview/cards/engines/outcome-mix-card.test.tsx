@@ -23,7 +23,7 @@ vi.mock('@/lib/csv/csv-write', async (importOriginal) => ({
 }));
 
 const TYPE = 'ai.outcome_mix';
-const TITLE = 'Named and cited, by engine';
+const TITLE = 'Named and cited, by platform';
 const WINDOW = 'from=2026-10-16&to=2026-11-12';
 const SUMMARY = '*/api/v1/workspaces/:w/projects/:p/ai/prompts-summary';
 
@@ -89,7 +89,7 @@ describe('OutcomeMixCard', () => {
       ]),
     ]);
     renderCard();
-    const list = await screen.findByRole('list', { name: 'Share of valid answers by outcome, one bar per engine' });
+    const list = await screen.findByRole('list', { name: 'Share of valid answers by outcome, one bar per platform' });
     const rows = within(list).getAllByRole('listitem');
     // Fynix has ChatGPT and Gemini on and AI Mode off
     expect(rows).toHaveLength(2);
@@ -138,7 +138,7 @@ describe('OutcomeMixCard', () => {
     ]);
     const { user } = renderCard();
     const frame = await section();
-    await within(frame).findByRole('table', { name: 'Share of valid answers by outcome, one bar per engine' });
+    await within(frame).findByRole('table', { name: 'Share of valid answers by outcome, one bar per platform' });
     // The legend is always drawn below the bars; the Table view shows the same table alone
     expect(within(frame).getAllByRole('table')).toHaveLength(1);
     await user.click(within(frame).getByRole('button', { name: 'Table' }));
@@ -195,7 +195,7 @@ describe('OutcomeMixCard', () => {
       ]),
     ]);
     renderCard();
-    const list = await screen.findByRole('list', { name: 'Share of valid answers by outcome, one bar per engine' });
+    const list = await screen.findByRole('list', { name: 'Share of valid answers by outcome, one bar per platform' });
     const [chatgpt, gemini] = within(list).getAllByRole('listitem');
     expect(chatgpt).toHaveTextContent('3 answers');
     expect(chatgpt?.querySelectorAll('[data-slot="share-segment"]')).toHaveLength(0);
@@ -250,7 +250,7 @@ describe('OutcomeMixCard', () => {
     server.resetHandlers();
     await user.click(screen.getByRole('button', { name: 'Try again' }));
     expect(
-      await screen.findByRole('list', { name: 'Share of valid answers by outcome, one bar per engine' }),
+      await screen.findByRole('list', { name: 'Share of valid answers by outcome, one bar per platform' }),
     ).toBeInTheDocument();
   });
 

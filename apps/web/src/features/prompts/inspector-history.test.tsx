@@ -207,7 +207,7 @@ const pooledCounts = (weeks: number): PromptCounts => ({
 
 describe('the words of the chart follow the pool', () => {
   const chartSummary = (): string =>
-    screen.getByRole('img', { name: 'Mention rate by engine' }).getAttribute('aria-describedby') ?? '';
+    screen.getByRole('img', { name: 'Mention rate by platform' }).getAttribute('aria-describedby') ?? '';
 
   it('says the most weeks the points pool, in the footnote, the summary and the table header', async () => {
     const { user } = renderHistory({ counts: pooledCounts(4) });
@@ -221,7 +221,9 @@ describe('the words of the chart follow the pool', () => {
       'Mention rate of this prompt on ChatGPT, Gemini, each point pooled over its week and the weeks before it, at most 4 weeks, from Oct 19 to Oct 26.',
     );
     await user.click(screen.getByRole('button', { name: 'Table' }));
-    const headers = within(screen.getByRole('table', { name: 'Mention rate by engine' })).getAllByRole('columnheader');
+    const headers = within(screen.getByRole('table', { name: 'Mention rate by platform' })).getAllByRole(
+      'columnheader',
+    );
     expect(headers.map((cell) => cell.textContent)).toEqual(['Weeks pooled to', 'ChatGPT', 'Gemini']);
   });
 
@@ -259,7 +261,7 @@ describe('the model change marker on the chart', () => {
     // The label sits above the plot: the grid has room for it
     expect(gridTop()).toBe(24);
     await user.click(screen.getByRole('button', { name: 'Table' }));
-    expect(screen.getByRole('table', { name: 'Mention rate by engine' })).toBeInTheDocument();
+    expect(screen.getByRole('table', { name: 'Mention rate by platform' })).toBeInTheDocument();
     expect(screen.getByText('Model change on ChatGPT, week of Oct 26: gpt-4o to gpt-5')).toBeInTheDocument();
   });
 
@@ -296,7 +298,7 @@ describe('the model change marker on the chart', () => {
 
   it('lets the legend hide an engine', async () => {
     const { user } = renderHistory({ counts: withSeries });
-    const legend = screen.getByRole('list', { name: 'Series in Mention rate by engine' });
+    const legend = screen.getByRole('list', { name: 'Series in Mention rate by platform' });
     const gemini = within(legend).getByRole('button', { name: 'Gemini' });
     expect(gemini).toHaveAttribute('aria-pressed', 'true');
     await user.click(gemini);

@@ -36,7 +36,7 @@ afterEach(() => {
 });
 
 const SUMMARY_PATH = mswPath('/api/v1/workspaces/:w/projects/:p/ai/prompts-summary');
-const TITLE = 'Topics gaining or losing';
+const TITLE = 'Groups gaining or losing';
 /** The window before Oct 16 to Nov 12 ends on this day. */
 const PREVIOUS_TO = '2026-10-15';
 
@@ -129,7 +129,7 @@ const frameOf = async (): Promise<HTMLElement> => {
   if (section === null) throw new Error('The card has no frame');
   return section;
 };
-const listOf = (): Promise<HTMLElement> => screen.findByRole('list', { name: /^Topics gaining or losing/ });
+const listOf = (): Promise<HTMLElement> => screen.findByRole('list', { name: /^Groups gaining or losing/ });
 const itemsOf = async (): Promise<HTMLElement[]> => within(await listOf()).getAllByRole('listitem');
 const labelsOf = async (): Promise<string[]> =>
   (await itemsOf()).map((item) => item.querySelector('[class*="truncate"]')?.textContent ?? '');
@@ -141,7 +141,7 @@ const failing = (): ReturnType<typeof HttpResponse.json> =>
   );
 
 describe('TopicMoversCard', () => {
-  it('lists the detectable moves first by absolute points, one row per topic and engine', async () => {
+  it('lists the detectable moves first by absolute points, one row per group and platform', async () => {
     renderCard({ searchParams: TWO_ENGINES });
     expect(await labelsOf()).toEqual(['Email, ChatGPT', 'SEO tools, ChatGPT']);
   });
@@ -163,8 +163,8 @@ describe('TopicMoversCard', () => {
   it('folds the others into counted lines', async () => {
     renderCard();
     await listOf();
-    expect(screen.getByText('1 topic moved within normal variation')).toBeInTheDocument();
-    expect(screen.getByText('2 topics could not be compared')).toBeInTheDocument();
+    expect(screen.getByText('1 group moved within normal variation')).toBeInTheDocument();
+    expect(screen.getByText('2 groups could not be compared')).toBeInTheDocument();
   });
 
   it('direction down keeps only the losses', async () => {
@@ -265,9 +265,9 @@ describe('TopicMoversCard', () => {
 
   it('nothing moved is an empty state with an action', async () => {
     renderCard({ options: { direction: 'up' }, summary: periods(BEFORE, BEFORE) });
-    const title = await screen.findByRole('heading', { name: 'No topic moved' });
+    const title = await screen.findByRole('heading', { name: 'No group moved' });
     const box = within(title.closest('[data-slot="empty-state"]') as HTMLElement);
-    expect(box.getByRole('link', { name: 'Open Topics and prompts' })).toBeInTheDocument();
+    expect(box.getByRole('link', { name: 'Open Prompts' })).toBeInTheDocument();
   });
 
   it('not paired shows refetching and no change', async () => {
@@ -287,7 +287,7 @@ describe('TopicMoversCard', () => {
     const frame = await frameOf();
     await new Promise((resolve) => setTimeout(resolve, 100));
     expect(frame).toHaveAttribute('aria-busy', 'true');
-    expect(screen.queryByRole('list', { name: /^Topics gaining or losing/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: /^Groups gaining or losing/ })).not.toBeInTheDocument();
     expect(frame).not.toHaveTextContent(/\d pts/);
     expect(screen.queryByRole('heading', { name: 'Comparison is off' })).not.toBeInTheDocument();
     release.open();
@@ -304,9 +304,9 @@ describe('TopicMoversCard', () => {
     renderCard();
     const frame = await frameOf();
     await listOf();
-    expect(within(frame).getByText(/Topics overlap/)).toBeInTheDocument();
+    expect(within(frame).getByText(/Groups overlap/)).toBeInTheDocument();
     await waitFor(() => {
-      expect(within(frame).getByText(/1 prompt is in more than one topic/)).toBeInTheDocument();
+      expect(within(frame).getByText(/1 prompt is in more than one group/)).toBeInTheDocument();
     });
   });
 
@@ -339,17 +339,17 @@ describe('TopicMoversCard', () => {
     await new Promise((resolve) => setTimeout(resolve, 100));
     expect(frame).toHaveAttribute('aria-busy', 'true');
     expect(frame.querySelector('[data-slot="skeleton"]')).not.toBeNull();
-    expect(screen.queryByRole('list', { name: /^Topics gaining or losing/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: /^Groups gaining or losing/ })).not.toBeInTheDocument();
     release.open();
     expect(await labelsOf()).toEqual(['Email, ChatGPT', 'SEO tools, ChatGPT']);
   });
 
-  it('no topics is an empty state with Open Topics and prompts', async () => {
+  it('no groups is an empty state with Open Prompts', async () => {
     renderCard({ summary: summaryOf({ topics: [], prompts: [], engineCodes: ['chatgpt_web'] }) });
-    expect(await screen.findByRole('heading', { name: 'No topics yet' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'No groups yet' })).toBeInTheDocument();
   });
 
-  it('no valid answers now names the engine and the days', async () => {
+  it('no valid answers now names the platform and the days', async () => {
     renderCard({
       summary: periods(summaryOf({ topics: [row('t1', 'SEO tools', { chatgpt_web: [0, 0] })] }), BEFORE),
     });
@@ -358,7 +358,7 @@ describe('TopicMoversCard', () => {
     ).toBeInTheDocument();
   });
 
-  it('partial names an engine with no valid answer in any topic', async () => {
+  it('partial names a platform with no valid answer in any group', async () => {
     renderCard({ searchParams: TWO_ENGINES, summary: periods(NOW, BEFORE) });
     await listOf();
     expect(screen.queryByText(/Partial data/)).not.toBeInTheDocument();
@@ -381,7 +381,7 @@ describe('TopicMoversCard', () => {
       within(grid)
         .getAllByRole('columnheader')
         .map((cell) => cell.textContent),
-    ).toEqual(['Topic and engine', 'Change', '95% interval']);
+    ).toEqual(['Group and platform', 'Change', '95% interval']);
     const gain = within(grid).getByRole('row', { name: /^SEO tools, ChatGPT/ });
     // The topic and engine is the row header; the cells are the change and its interval
     expect(within(gain).getByRole('rowheader')).toHaveTextContent('SEO tools, ChatGPT');
@@ -420,7 +420,7 @@ describe('TopicMoversCard states', () => {
     const frame = await frameOf();
     expect(frame).toHaveAttribute('aria-busy', 'true');
     expect(frame.querySelector('[style*="height: 240px"] [data-slot="skeleton"]')).not.toBeNull();
-    expect(screen.queryByRole('list', { name: /^Topics gaining or losing/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: /^Groups gaining or losing/ })).not.toBeInTheDocument();
     release.open();
     await listOf();
   });
@@ -437,7 +437,7 @@ describe('TopicMoversCard states', () => {
   it('a previous window that fails is an error, never a change from nothing', async () => {
     const { user } = renderCard({ summary: (url) => (isPrevious(url) ? failing() : NOW) });
     expect(await screen.findByText(`${TITLE} could not be read`)).toBeInTheDocument();
-    expect(screen.queryByRole('list', { name: /^Topics gaining or losing/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: /^Groups gaining or losing/ })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
     void user;
   });

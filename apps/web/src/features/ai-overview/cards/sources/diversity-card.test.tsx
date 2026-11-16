@@ -204,7 +204,7 @@ describe('the source diversity card (CH-26)', () => {
     serve();
     const { unmount } = await drawLines();
     expect(
-      screen.getByText('Equal-weight mean of the engines with units: 15.3 effective sources.'),
+      screen.getByText('Equal-weight mean of the platforms with units: 15.3 effective sources.'),
     ).toBeInTheDocument();
     unmount();
     // Both engines have effective sources, and the API sends no average: the card does not make one up
@@ -216,10 +216,10 @@ describe('the source diversity card (CH-26)', () => {
   it('says in the footnote that engines are not added and a week without a unit is a gap', async () => {
     serve();
     await drawLines();
-    expect(screen.getByText(/engines are never added together/)).toBeInTheDocument();
+    expect(screen.getByText(/platforms are never added together/)).toBeInTheDocument();
     expect(screen.getByText(/gap in the line, not 0/)).toBeInTheDocument();
     expect(
-      screen.getByText('Citations flagged as unresolved redirects or engine-internal links are left out.'),
+      screen.getByText('Citations flagged as unresolved redirects or platform-internal links are left out.'),
     ).toBeInTheDocument();
   });
 
@@ -281,7 +281,7 @@ describe('the source diversity card (CH-26)', () => {
     expect(block?.id).toBe('card-under-test');
     expect(block?.header).toEqual([
       'Week starting',
-      'Engine',
+      'Platform',
       'Citation units',
       'Distinct domains',
       'Effective sources',
@@ -313,7 +313,7 @@ describe('the source diversity card (CH-26)', () => {
       </PermissionProvider>,
       { searchParams: 'cmp=off' },
     );
-    expect(await screen.findByText('No engine is on for this project')).toBeInTheDocument();
+    expect(await screen.findByText('No platform is on for this project')).toBeInTheDocument();
     expect(screen.queryByTestId('echart-canvas')).not.toBeInTheDocument();
     expect(asked).not.toHaveBeenCalled();
   });

@@ -69,7 +69,7 @@ function promptsAs(role: Role): ReactElement {
 
 const renderOn = (role: Role, searchParams: string): ProvidedRender =>
   renderWithProviders(promptsAs(role), { searchParams });
-const treegrid = (): Promise<HTMLElement> => screen.findByRole('treegrid', { name: 'Topics' });
+const treegrid = (): Promise<HTMLElement> => screen.findByRole('treegrid', { name: 'Groups' });
 const drawer = (name: string): Promise<HTMLElement> => screen.findByRole('complementary', { name });
 const inspect = (target: string, tab?: string): string =>
   `?inspect=${encodeURIComponent(target)}${tab === undefined ? '' : `&itab=${tab}`}`;
@@ -83,7 +83,7 @@ describe('the topic drawer: opening', () => {
     const tree = await treegrid();
     await user.click(await within(tree).findByRole('button', { name: 'Expand Paid Search, 2 prompts' }));
     expect(screen.queryByRole('complementary')).toBeNull();
-    await user.click(within(tree).getByRole('button', { name: 'Open the topic Paid Search' }));
+    await user.click(within(tree).getByRole('button', { name: 'Open the group Paid Search' }));
     const panel = await drawer('Paid Search');
     expect(new URLSearchParams(writes.at(-1)).get('inspect')).toBe(`topic:${MOCK_TERM_IDS.paidSearch}`);
     expect(within(panel).getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
@@ -97,7 +97,7 @@ describe('the topic drawer: opening', () => {
   it('offers the prompts of an open parent in Show all, which opens the drawer on its Prompts tab with every one', async () => {
     const { user } = renderWithProviders(promptsAs('viewer'));
     const tree = await treegrid();
-    await user.click(await within(tree).findByRole('button', { name: 'Expand SEO, 2 topics' }));
+    await user.click(await within(tree).findByRole('button', { name: 'Expand SEO, 2 groups' }));
     // The two topics under SEO and the row that offers its prompts, all at level 2
     await waitFor(() => expect(tree.querySelectorAll('[role="row"][aria-level="2"]')).toHaveLength(3));
     // A topic of eight or fewer has nothing to show more of
@@ -122,7 +122,7 @@ describe('the topic drawer: opening', () => {
     renderOn('viewer', inspect('topic:99999999-0000-4000-8000-000000000001'));
     const panel = await screen.findByRole('complementary');
     expect(
-      await within(panel).findByText('This topic does not exist or you do not have access to it.'),
+      await within(panel).findByText('This group does not exist or you do not have access to it.'),
     ).toBeInTheDocument();
   });
 });
@@ -210,7 +210,7 @@ describe('the topic drawer: the numbers', () => {
     expect(within(rates).getAllByText('avg of 2').length).toBeGreaterThan(0);
     // No answer names a tracked brand, so there is no share of voice to average
     expect(within(rates).getByText('No valid answers')).toBeInTheDocument();
-    const byEngine = within(panel).getByRole('heading', { name: 'By engine' }).closest('section');
+    const byEngine = within(panel).getByRole('heading', { name: 'By platform' }).closest('section');
     if (byEngine === null) throw new Error('The By engine card is missing');
     // The panel's row of each engine says the rate and the answers behind it, not the sum of the prompts' rates over the
     // prompts (0.75 of 2); the rate is also in the table form beneath the panel
@@ -243,7 +243,7 @@ describe('the topic drawer: a prompt opened from a topic', () => {
     // J steps to the next prompt of the topic
     await user.keyboard('j');
     await waitFor(() => expect(within(screen.getByRole('complementary')).getByText('4 of 12')).toBeInTheDocument());
-    await user.click(within(screen.getByRole('complementary')).getByRole('button', { name: 'Open the topic SEO' }));
+    await user.click(within(screen.getByRole('complementary')).getByRole('button', { name: 'Open the group SEO' }));
     const back = await drawer('SEO');
     expect(within(back).getByRole('tab', { name: 'Prompts' })).toHaveAttribute('aria-selected', 'true');
   });
@@ -255,7 +255,7 @@ describe('the topic drawer: a prompt opened from a topic', () => {
     const prompt = await screen.findByRole('complementary', {
       name: 'Which SEO agency is best for a SaaS startup in Germany?',
     });
-    expect(within(prompt).queryByRole('button', { name: /^Open the topic/ })).toBeNull();
+    expect(within(prompt).queryByRole('button', { name: /^Open the group/ })).toBeNull();
   });
 
   it('keeps the topic for a prompt opened from an expanded topic row: the whole topic is its list, and the badge leads back', async () => {
@@ -268,7 +268,7 @@ describe('the topic drawer: a prompt opened from a topic', () => {
     await user.click(within(tree).getByText(title));
     const prompt = await screen.findByRole('complementary', { name: title });
     expect(within(prompt).getByText(/^\d+ of 2$/)).toBeInTheDocument();
-    await user.click(within(prompt).getByRole('button', { name: 'Open the topic Paid Search' }));
+    await user.click(within(prompt).getByRole('button', { name: 'Open the group Paid Search' }));
     const back = await drawer('Paid Search');
     expect(within(back).getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
   });
@@ -279,14 +279,14 @@ describe('the topic drawer: a prompt opened from a topic', () => {
     const [item] = await within(panel).findAllByRole('listitem');
     await user.click(within(item ?? panel).getByRole('button'));
     const opened = await screen.findByRole('complementary');
-    expect(within(opened).getByRole('button', { name: 'Open the topic SEO' })).toBeInTheDocument();
+    expect(within(opened).getByRole('button', { name: 'Open the group SEO' })).toBeInTheDocument();
     // A row of the Prompts tab is a flat list: no topic, and the prompts of all the project step
     await user.click(screen.getByRole('radio', { name: 'Prompts' }));
     const table = await screen.findByRole('grid', { name: 'Prompts' });
     const outside = 'What is the best way to manage paid search on a small budget?';
     await user.click(await within(table).findByText(outside));
     const next = await screen.findByRole('complementary', { name: outside });
-    expect(within(next).queryByRole('button', { name: /^Open the topic/ })).toBeNull();
+    expect(within(next).queryByRole('button', { name: /^Open the group/ })).toBeNull();
     expect(within(next).queryByText(/ of 12$/)).toBeNull();
   });
 
@@ -312,7 +312,7 @@ describe('the topic drawer: a modified click', () => {
     const { user } = renderWithProviders(promptsAs('viewer'));
     const tree = await treegrid();
     await user.keyboard('{Control>}');
-    await user.click(await within(tree).findByRole('button', { name: 'Open the topic Paid Search' }));
+    await user.click(await within(tree).findByRole('button', { name: 'Open the group Paid Search' }));
     await user.keyboard('{/Control}');
     expect(open).toHaveBeenCalledTimes(1);
     const [url] = open.mock.calls[0] ?? [];

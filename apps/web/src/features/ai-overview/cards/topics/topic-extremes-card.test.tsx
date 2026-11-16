@@ -42,7 +42,7 @@ afterEach(() => {
 });
 
 const SUMMARY_PATH = mswPath('/api/v1/workspaces/:w/projects/:p/ai/prompts-summary');
-const TITLE = 'Strongest and weakest topics';
+const TITLE = 'Strongest and weakest groups';
 
 const TERMS: TermSpec[] = ['t1', 't2', 't3', 't4', 't5', 't6'].map((id) => ({ id, name: id, parent: null }));
 type Pair = readonly [number, number];
@@ -132,7 +132,7 @@ const frameOf = async (): Promise<HTMLElement> => {
 };
 /** The list of one group of one engine, by the name the card gives it. */
 const listOf = (group: 'Strongest' | 'Weakest', engine: string): Promise<HTMLElement> =>
-  screen.findByRole('list', { name: new RegExp(`^${group} topics on ${engine}`) });
+  screen.findByRole('list', { name: new RegExp(`^${group} groups on ${engine}`) });
 const labelsOf = (list: HTMLElement): string[] =>
   within(list)
     .getAllByRole('listitem')
@@ -145,7 +145,7 @@ const failing = (): ReturnType<typeof HttpResponse.json> =>
   );
 
 describe('TopicExtremesCard', () => {
-  it('one section per asked engine', async () => {
+  it('one section per asked platform', async () => {
     render();
     await frameOf();
     expect(await screen.findByRole('heading', { level: 3, name: 'ChatGPT' })).toBeInTheDocument();
@@ -163,7 +163,7 @@ describe('TopicExtremesCard', () => {
     expect(container.querySelector('[class*="@lg:grid-cols-2"]')).not.toBeNull();
   });
 
-  it('rows 3 asks for three topics in each list', async () => {
+  it('rows 3 asks for three groups in each list', async () => {
     render({ options: { rows: '3' } });
     expect(labelsOf(await listOf('Strongest', 'ChatGPT'))).toEqual(['Email', 'SEO tools', 'CRM']);
     // Four topics are ranked on ChatGPT: the weakest list takes the one the strongest left
@@ -174,8 +174,8 @@ describe('TopicExtremesCard', () => {
     render();
     const frame = await frameOf();
     await listOf('Strongest', 'ChatGPT');
-    expect(within(frame).getByText(/ChatGPT: 2 topics have too few answers or prompts/)).toBeInTheDocument();
-    expect(within(frame).getByText(/Gemini: 3 topics have too few answers or prompts/)).toBeInTheDocument();
+    expect(within(frame).getByText(/ChatGPT: 2 groups have too few answers or prompts/)).toBeInTheDocument();
+    expect(within(frame).getByText(/Gemini: 3 groups have too few answers or prompts/)).toBeInTheDocument();
   });
 
   it('every bar has k of n answers and prompts', async () => {
@@ -190,7 +190,7 @@ describe('TopicExtremesCard', () => {
     }
   });
 
-  it('a row links to the topic drawer on that engine', async () => {
+  it('a row links to the group drawer on that platform', async () => {
     render();
     const list = await listOf('Strongest', 'Gemini');
     const link = within(list).getAllByRole('link')[0];
@@ -200,34 +200,34 @@ describe('TopicExtremesCard', () => {
     expect(url.searchParams.get('eng')).toBe('gemini_web');
   });
 
-  it('an engine with no eligible topic says why', async () => {
+  it('a platform with no eligible group says why', async () => {
     render({ searchParams: 'engine=chatgpt_web,google_ai_mode', threeEngines: true });
     expect(
-      await screen.findByText(/AI Mode has no topic with at least 4 valid answers and 3 prompts/),
+      await screen.findByText(/AI Mode has no group with at least 4 valid answers and 3 prompts/),
     ).toBeInTheDocument();
-    expect(screen.queryByRole('list', { name: /topics on AI Mode/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: /groups on AI Mode/ })).not.toBeInTheDocument();
     // ChatGPT still shows its lists
     expect(labelsOf(await listOf('Strongest', 'ChatGPT'))).toHaveLength(2);
   });
 
-  it('says so when no ranked topic is above 0%', async () => {
+  it('says so when no ranked group is above 0%', async () => {
     render({
       searchParams: 'engine=chatgpt_web',
       summary: summaryOf({ topics: [row('t1', 'SEO tools', 4, { chatgpt_web: [0, 10] })] }),
     });
-    expect(await screen.findByText('No ranked topic is above 0% on ChatGPT.')).toBeInTheDocument();
+    expect(await screen.findByText('No ranked group is above 0% on ChatGPT.')).toBeInTheDocument();
     expect(labelsOf(await listOf('Weakest', 'ChatGPT'))).toEqual(['SEO tools']);
-    expect(screen.queryByRole('list', { name: /^Strongest topics/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: /^Strongest groups/ })).not.toBeInTheDocument();
   });
 
-  it('says so when the strongest list took every ranked topic', async () => {
+  it('says so when the strongest list took every ranked group', async () => {
     render({
       searchParams: 'engine=chatgpt_web',
       summary: summaryOf({ topics: [row('t1', 'SEO tools', 4, { chatgpt_web: [5, 10] })] }),
     });
-    expect(await screen.findByText('Every ranked topic is already in the strongest list.')).toBeInTheDocument();
+    expect(await screen.findByText('Every ranked group is already in the strongest list.')).toBeInTheDocument();
     expect(labelsOf(await listOf('Strongest', 'ChatGPT'))).toEqual(['SEO tools']);
-    expect(screen.queryByRole('list', { name: /^Weakest topics/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: /^Weakest groups/ })).not.toBeInTheDocument();
   });
 
   it('holds the card as loading while the vocabulary tree is pending, then shows the lists', async () => {
@@ -247,7 +247,7 @@ describe('TopicExtremesCard', () => {
     await new Promise((resolve) => setTimeout(resolve, 100));
     expect(frame).toHaveAttribute('aria-busy', 'true');
     expect(frame.querySelector('[data-slot="skeleton"]')).not.toBeNull();
-    expect(screen.queryByRole('list', { name: /topics on ChatGPT/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: /groups on ChatGPT/ })).not.toBeInTheDocument();
     release.open();
     expect(labelsOf(await listOf('Strongest', 'ChatGPT'))).toHaveLength(2);
   });
@@ -256,11 +256,11 @@ describe('TopicExtremesCard', () => {
     render();
     const frame = await frameOf();
     await listOf('Strongest', 'ChatGPT');
-    expect(within(frame).getByText(/Topics overlap/)).toBeInTheDocument();
+    expect(within(frame).getByText(/Groups overlap/)).toBeInTheDocument();
     await waitFor(() => {
-      expect(within(frame).getByText(/1 prompt is in more than one topic/)).toBeInTheDocument();
+      expect(within(frame).getByText(/1 prompt is in more than one group/)).toBeInTheDocument();
     });
-    expect(within(frame).getByText(/Only the most specific topics are ranked/)).toBeInTheDocument();
+    expect(within(frame).getByText(/Only the most specific groups are ranked/)).toBeInTheDocument();
   });
 
   it('metric share of voice says answers that name a brand', async () => {
@@ -270,7 +270,7 @@ describe('TopicExtremesCard', () => {
     expect(within(list).getAllByRole('listitem')[0]).not.toHaveTextContent(/40 of 80 answers/);
   });
 
-  it('the Table form lists every ranked topic with its engine and counts', async () => {
+  it('the Table form lists every ranked group with its platform and counts', async () => {
     const { user } = render();
     await listOf('Strongest', 'ChatGPT');
     await user.click(screen.getByRole('button', { name: 'Table' }));
@@ -279,7 +279,7 @@ describe('TopicExtremesCard', () => {
       within(grid)
         .getAllByRole('columnheader')
         .map((cell) => cell.textContent),
-    ).toEqual(['Engine', 'Group', 'Topic', 'Value']);
+    ).toEqual(['Platform', 'Group', 'Group', 'Value']);
     expect(
       within(grid).getByRole('row', { name: /ChatGPT Strongest Email 50\.0%, 40 of 80 answers/ }),
     ).toBeInTheDocument();
@@ -322,7 +322,7 @@ describe('TopicExtremesCard states', () => {
     await listOf('Strongest', 'ChatGPT');
   });
 
-  it('no engine asked is an empty state with its action', async () => {
+  it('no platform asked is an empty state with its action', async () => {
     document.cookie = `${SESSION_COOKIE}=mock.active.${mockUser('admin').user_id}.${String(Date.now() + 600_000)}; Path=/; Secure`;
     renderWithProviders(
       <PermissionProvider membership={membershipFactory('admin')}>
@@ -343,18 +343,18 @@ describe('TopicExtremesCard states', () => {
         </Suspense>
       </PermissionProvider>,
     );
-    expect(await screen.findByText('No engine is part of this view')).toBeInTheDocument();
+    expect(await screen.findByText('No platform is part of this view')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Turn on engines' })).toBeInTheDocument();
   });
 
-  it('no topics is an empty state with Open Topics and prompts', async () => {
+  it('no groups is an empty state with Open Prompts', async () => {
     render({ summary: summaryOf({ topics: [], prompts: [], engineCodes: ['chatgpt_web'] }) });
-    const title = await screen.findByRole('heading', { name: 'No topics yet' });
+    const title = await screen.findByRole('heading', { name: 'No groups yet' });
     const box = within(title.closest('[data-slot="empty-state"]') as HTMLElement);
-    expect(box.getByRole('link', { name: 'Open Topics and prompts' })).toBeInTheDocument();
+    expect(box.getByRole('link', { name: 'Open Prompts' })).toBeInTheDocument();
   });
 
-  it('no valid answers names the engine and has one action', async () => {
+  it('no valid answers names the platform and has one action', async () => {
     render({
       searchParams: 'engine=chatgpt_web',
       summary: summaryOf({ topics: [row('t1', 'SEO tools', 4, { chatgpt_web: [0, 0] })] }),
@@ -390,7 +390,7 @@ describe('TopicExtremesCard states', () => {
     await waitFor(() => {
       expect(frame.querySelector('[data-slot="chart-refetch-bar"]')).not.toBeNull();
     });
-    expect(screen.getByRole('list', { name: /^Strongest topics on ChatGPT/ })).toBeInTheDocument();
+    expect(screen.getByRole('list', { name: /^Strongest groups on ChatGPT/ })).toBeInTheDocument();
     release.open();
   });
 
@@ -402,10 +402,10 @@ describe('TopicExtremesCard states', () => {
       void queryClient.invalidateQueries();
     });
     expect(await screen.findByText('These are the last figures read')).toBeInTheDocument();
-    expect(screen.getByRole('list', { name: /^Strongest topics on ChatGPT/ })).toBeInTheDocument();
+    expect(screen.getByRole('list', { name: /^Strongest groups on ChatGPT/ })).toBeInTheDocument();
   });
 
-  it('partial names an engine that has no valid answer in any topic', async () => {
+  it('partial names a platform that has no valid answer in any group', async () => {
     render({ searchParams: 'engine=chatgpt_web,google_ai_mode', threeEngines: true });
     await listOf('Strongest', 'ChatGPT');
     expect(screen.getByText('Partial data: AI Mode has no valid answer in this window')).toBeInTheDocument();

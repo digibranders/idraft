@@ -151,7 +151,7 @@ describe('ChangeSummaryCard', () => {
       within(table)
         .getAllByRole('columnheader')
         .map((header) => header.textContent),
-    ).toEqual(['Fact', 'Engine', 'Numbers', 'In the list']);
+    ).toEqual(['Fact', 'Platform', 'Numbers', 'In the list']);
     const rows = within(table).getAllByRole('row').slice(1);
     expect(rows).toHaveLength(5);
     const cells = (index: number): string[] =>
@@ -170,7 +170,7 @@ describe('ChangeSummaryCard', () => {
       'Lost 1 of 1, gained 1 of 1, 2 prompts compared, 0 left out for fewer than 4 valid answers',
       'No, cut by the Facts option',
     ]);
-    expect(cells(4)[0]).toBe('All engines');
+    expect(cells(4)[0]).toBe('All platforms');
     expect(cells(4)[2]).toBe('No, cut by the Facts option');
   });
 
@@ -197,7 +197,7 @@ describe('ChangeSummaryCard', () => {
     expect(name).toBe('what-changed.csv');
     if (!(blob instanceof Blob)) throw new Error('No file was downloaded');
     const text = await blob.text();
-    expect(text.split(/\r?\n/)[0]).toBe('Fact,Engine,Numbers,In the list');
+    expect(text.split(/\r?\n/)[0]).toBe('Fact,Platform,Numbers,In the list');
     for (const sentence of FIVE) expect(text).toContain(sentence);
   });
 
@@ -335,7 +335,7 @@ describe('ChangeSummaryCard', () => {
   it('is empty, and says to choose an engine, when the engine filter names an engine that is off', async () => {
     serve();
     renderCard(`${WINDOW}&engine=google_ai_mode`);
-    expect(await screen.findByText('No engine to show')).toBeInTheDocument();
+    expect(await screen.findByText('No platform to show')).toBeInTheDocument();
   });
 
   it('names the window, the prompts and the branded choice in its meta line', async () => {

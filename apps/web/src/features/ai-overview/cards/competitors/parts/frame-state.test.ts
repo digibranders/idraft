@@ -151,14 +151,14 @@ describe('mapReadToFrame', () => {
 
     it('sends a viewer to a workspace admin, with no link', () => {
       const state = map({ engine: off }, { canManageEngines: false });
-      expect(state.status === 'empty' && state.empty.reason).toContain('Ask a workspace admin to turn on an engine');
+      expect(state.status === 'empty' && state.empty.reason).toContain('Ask a workspace admin to turn on a platform');
       expect(state.status === 'empty' && state.empty.action).toBeUndefined();
     });
 
     it('says an engine outside the filter is outside the filter, whoever looks', () => {
       for (const canManageEngines of [true, false]) {
         const state = map({ engine: outside }, { canManageEngines });
-        expect(state.status === 'empty' && state.empty.reason).toContain('outside the engine filter');
+        expect(state.status === 'empty' && state.empty.reason).toContain('outside the platform filter');
         expect(state.status === 'empty' && state.empty.action).toBeUndefined();
       }
     });

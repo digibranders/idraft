@@ -37,7 +37,7 @@ afterEach(() => {
 });
 
 const SUMMARY_PATH = mswPath('/api/v1/workspaces/:w/projects/:p/ai/prompts-summary');
-const TITLE = 'Where engines disagree';
+const TITLE = 'Where platforms disagree';
 
 const TERMS: TermSpec[] = ['t1', 't2', 't3', 't4', 't5', 't6'].map((id) => ({ id, name: id, parent: null }));
 type Pair = readonly [number, number];
@@ -120,7 +120,7 @@ const frameOf = async (): Promise<HTMLElement> => {
   if (section === null) throw new Error('The card has no frame');
   return section;
 };
-const plotOf = (): Promise<HTMLElement> => screen.findByRole('list', { name: /^Engine range of topics/ });
+const plotOf = (): Promise<HTMLElement> => screen.findByRole('list', { name: /^Platform range of groups/ });
 const itemsOf = async (): Promise<HTMLElement[]> => within(await plotOf()).getAllByRole('listitem');
 const labelOf = (item: HTMLElement): string => item.querySelector('[data-slot="range-label"]')?.textContent ?? '';
 
@@ -136,7 +136,7 @@ describe('TopicEngineGapCard', () => {
     expect((await itemsOf()).map(labelOf)).toEqual(['Email', 'Support', 'CRM', 'SEO tools', 'Billing']);
   });
 
-  it('rows 5 and 10 cut the list to the topics with the largest spread', async () => {
+  it('rows 5 and 10 cut the list to the groups with the largest spread', async () => {
     render({ options: { rows: '2' } });
     expect((await itemsOf()).map(labelOf)).toEqual(['Email', 'Support']);
   });
@@ -151,7 +151,7 @@ describe('TopicEngineGapCard', () => {
     expect(items[0]).toHaveTextContent(/ChatGPT: 50\.0%, 40 of 80 answers.*Gemini: 8\.0%, 4 of 50 answers/);
   });
 
-  it('a topic with a thin engine says its answers and the verdict is too few answers', async () => {
+  it('a group with a thin platform says its answers and the verdict is too few answers', async () => {
     render({
       searchParams: '',
       threeEngines: true,
@@ -166,7 +166,7 @@ describe('TopicEngineGapCard', () => {
     expect(item.querySelectorAll('[data-slot="range-dot"]')).toHaveLength(2);
   });
 
-  it('an all-zero row reads no engine names you, and an equal row reads the same on every engine', async () => {
+  it('an all-zero row reads no platform names you, and an equal row reads the same on every platform', async () => {
     render({
       summary: summaryOf({
         topics: [
@@ -178,9 +178,9 @@ describe('TopicEngineGapCard', () => {
     const items = await itemsOf();
     const nobody = items.find((item) => labelOf(item) === 'Nobody') as HTMLElement;
     const same = items.find((item) => labelOf(item) === 'Same') as HTMLElement;
-    expect(nobody).toHaveTextContent(/Nobody: no engine names you\./);
+    expect(nobody).toHaveTextContent(/Nobody: no platform names you\./);
     expect(nobody).not.toHaveTextContent(/too few answers/);
-    expect(same).toHaveTextContent(/Same: the same on every engine\./);
+    expect(same).toHaveTextContent(/Same: the same on every platform\./);
     expect(same).not.toHaveTextContent(/too few answers/);
   });
 
@@ -201,7 +201,7 @@ describe('TopicEngineGapCard', () => {
     await new Promise((resolve) => setTimeout(resolve, 100));
     expect(frame).toHaveAttribute('aria-busy', 'true');
     expect(frame.querySelector('[data-slot="skeleton"]')).not.toBeNull();
-    expect(screen.queryByRole('list', { name: /^Engine range of topics/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: /^Platform range of groups/ })).not.toBeInTheDocument();
     release.open();
     expect(await itemsOf()).toHaveLength(5);
   });
@@ -211,7 +211,7 @@ describe('TopicEngineGapCard', () => {
     expect((await itemsOf())[0]).toHaveTextContent(/share of voice has no test for a difference/);
   });
 
-  it('one asked engine is an empty state "Needs two engines" with Use all engines', async () => {
+  it('one asked platform is an empty state "Needs two platforms" with Use all platforms', async () => {
     const updates: string[] = [];
     server.use(summaryHandler(SUMMARY), ...vocabularyHandlers(TERMS));
     function Card(props: CardProps): ReactElement {
@@ -223,29 +223,29 @@ describe('TopicEngineGapCard', () => {
         updates.push(queryString);
       },
     });
-    const title = await screen.findByRole('heading', { name: 'Needs two engines' });
+    const title = await screen.findByRole('heading', { name: 'Needs two platforms' });
     const box = within(title.closest('[data-slot="empty-state"]') as HTMLElement);
     expect([...box.queryAllByRole('button'), ...box.queryAllByRole('link')]).toHaveLength(1);
-    await user.click(box.getByRole('button', { name: 'Use all engines' }));
+    await user.click(box.getByRole('button', { name: 'Use all platforms' }));
     await waitFor(() => {
       expect(updates.length).toBeGreaterThan(0);
     });
     expect(updates.at(-1)).not.toContain('engine=');
   });
 
-  it('no topic with two engines is its own empty state', async () => {
+  it('no group with two platforms is its own empty state', async () => {
     render({ summary: summaryOf({ topics: [row('t1', 'SEO tools', 6, { chatgpt_web: [8, 10] })] }) });
-    const title = await screen.findByRole('heading', { name: 'No topic can be compared yet' });
+    const title = await screen.findByRole('heading', { name: 'No group can be compared yet' });
     const box = within(title.closest('[data-slot="empty-state"]') as HTMLElement);
-    expect(box.getByRole('link', { name: 'Open Topics and prompts' })).toBeInTheDocument();
+    expect(box.getByRole('link', { name: 'Open Prompts' })).toBeInTheDocument();
   });
 
-  it('no topics is an empty state with Open Topics and prompts', async () => {
+  it('no groups is an empty state with Open Prompts', async () => {
     render({ summary: summaryOf({ topics: [], prompts: [], engineCodes: ['chatgpt_web'] }) });
-    expect(await screen.findByRole('heading', { name: 'No topics yet' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'No groups yet' })).toBeInTheDocument();
   });
 
-  it('no valid answers names the engines and the days', async () => {
+  it('no valid answers names the platforms and the days', async () => {
     render({
       summary: summaryOf({ topics: [row('t1', 'SEO tools', 4, { chatgpt_web: [0, 0], gemini_web: [0, 0] })] }),
     });
@@ -258,11 +258,11 @@ describe('TopicEngineGapCard', () => {
     render();
     const frame = await frameOf();
     await plotOf();
-    expect(within(frame).getByText(/Topics overlap/)).toBeInTheDocument();
+    expect(within(frame).getByText(/Groups overlap/)).toBeInTheDocument();
     await waitFor(() => {
-      expect(within(frame).getByText(/1 prompt is in more than one topic/)).toBeInTheDocument();
+      expect(within(frame).getByText(/1 prompt is in more than one group/)).toBeInTheDocument();
     });
-    expect(within(frame).getByText(/Only the most specific topics are compared/)).toBeInTheDocument();
+    expect(within(frame).getByText(/Only the most specific groups are compared/)).toBeInTheDocument();
   });
 
   it('a row links to the drawer', async () => {
@@ -271,7 +271,7 @@ describe('TopicEngineGapCard', () => {
     expect(new URL(link.getAttribute('href') ?? '', 'http://localhost').searchParams.get('inspect')).toBe('topic:t2');
   });
 
-  it('the Table form has a column per engine with counts, the spread and the verdict', async () => {
+  it('the Table form has a column per platform with counts, the spread and the verdict', async () => {
     const { user } = render();
     await plotOf();
     await user.click(screen.getByRole('button', { name: 'Table' }));
@@ -280,7 +280,7 @@ describe('TopicEngineGapCard', () => {
       within(grid)
         .getAllByRole('columnheader')
         .map((cell) => cell.textContent),
-    ).toEqual(['Topic', 'ChatGPT', 'Gemini', 'Spread', 'Reading']);
+    ).toEqual(['Group', 'ChatGPT', 'Gemini', 'Spread', 'Reading']);
     const email = within(grid).getByRole('row', { name: /^Email/ });
     expect(
       within(email)
@@ -324,7 +324,7 @@ describe('TopicEngineGapCard states', () => {
     const frame = await frameOf();
     expect(frame).toHaveAttribute('aria-busy', 'true');
     expect(frame.querySelector('[style*="height: 240px"] [data-slot="skeleton"]')).not.toBeNull();
-    expect(screen.queryByRole('list', { name: /^Engine range of topics/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: /^Platform range of groups/ })).not.toBeInTheDocument();
     release.open();
     await plotOf();
   });
@@ -370,7 +370,7 @@ describe('TopicEngineGapCard states', () => {
     expect(await itemsOf()).toHaveLength(5);
   });
 
-  it('partial names an engine that has no valid answer in any topic', async () => {
+  it('partial names a platform that has no valid answer in any group', async () => {
     render({ searchParams: '', threeEngines: true });
     await plotOf();
     expect(screen.getByText('Partial data: AI Mode has no valid answer in this window')).toBeInTheDocument();

@@ -6,16 +6,16 @@ import type { TopicHead } from './topic-rows';
 
 const ENGINES = [projectEngine('chatgpt_web'), projectEngine('gemini_web')];
 const LABELS: ByEngineExportLabels = {
-  topic: 'Topic',
-  parent: 'Parent topic',
+  topic: 'Group',
+  parent: 'Parent group',
   prompts: 'Prompts',
   rate: (name) => `${name} mentioned (%)`,
   counted: (name) => `${name} answers that count`,
   answers: (name) => `${name} valid answers`,
   change: (name) => `${name} change (points)`,
-  gap: 'Engine gap (points)',
-  best: 'Best engine',
-  engines: 'Engines with a rate',
+  gap: 'Platform gap (points)',
+  best: 'Best platform',
+  engines: 'Platforms with a rate',
 };
 
 const SEO: TopicHead = head('seo', 'SEO', {
@@ -43,7 +43,7 @@ const row = (table: ReturnType<typeof buildByEngineExport>, name: string) => {
 describe('buildByEngineExport: the By engine view as a file', () => {
   it('writes one row per topic with a parent column, the topics under a parent after it', () => {
     const table = buildByEngineExport([SEO], ENGINES, 'mention', LABELS);
-    expect(table.header.slice(0, 3)).toEqual(['Topic', 'Parent topic', 'Prompts']);
+    expect(table.header.slice(0, 3)).toEqual(['Group', 'Parent group', 'Prompts']);
     expect(table.rows.map((entry) => [entry[0], entry[1], entry[2]])).toEqual([
       ['SEO', null, 6],
       ['Technical SEO', 'SEO', 2],
@@ -62,7 +62,7 @@ describe('buildByEngineExport: the By engine view as a file', () => {
     ]);
     expect(row(table, 'SEO').slice(3, 9)).toEqual([37.5, 3, 8, 75, 6, 8]);
     // The gap in points, the best engine and the engines that have a rate
-    expect(table.header.slice(9)).toEqual(['Engine gap (points)', 'Best engine', 'Engines with a rate']);
+    expect(table.header.slice(9)).toEqual(['Platform gap (points)', 'Best platform', 'Platforms with a rate']);
     expect(row(table, 'SEO').slice(9)).toEqual([37.5, 'Gemini', 2]);
   });
 

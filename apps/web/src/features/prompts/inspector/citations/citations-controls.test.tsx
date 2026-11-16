@@ -39,13 +39,13 @@ function renderControls(over: Partial<CitationsControlsProps> = {}): ProvidedRen
 describe('the engine choice', () => {
   it('lists All engines then the enabled engines in order', () => {
     renderControls();
-    const group = screen.getByRole('radiogroup', { name: 'Engine' });
+    const group = screen.getByRole('radiogroup', { name: 'Platform' });
     const radios = within(group).getAllByRole('radio');
-    ['All engines', 'ChatGPT', 'Gemini', 'Google AI Mode'].forEach((name, index) => {
+    ['All platforms', 'ChatGPT', 'Gemini', 'Google AI Mode'].forEach((name, index) => {
       expect(radios[index]).toHaveAccessibleName(name);
     });
     expect(radios).toHaveLength(4);
-    expect(within(group).getByRole('radio', { name: 'All engines' })).toBeChecked();
+    expect(within(group).getByRole('radio', { name: 'All platforms' })).toBeChecked();
   });
 
   it('hands the chosen engine code over', async () => {

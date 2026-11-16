@@ -120,7 +120,9 @@ describe('the topic drawer: the header', () => {
     renderOn('editor', inspect(PAID_SEARCH));
     const panel = await drawer('Paid Search');
     expect(await within(panel).findByText('2 prompts')).toBeInTheDocument();
-    expect(within(panel).getByRole('group', { name: 'Scope of the counts: 2 engines and Non-branded' })).toBeVisible();
+    expect(
+      within(panel).getByRole('group', { name: 'Scope of the counts: 2 platforms and Non-branded' }),
+    ).toBeVisible();
     expect(await within(panel).findByRole('button', { name: 'Add prompt' })).toBeInTheDocument();
     expect(await within(panel).findByRole('button', { name: 'Run now' })).toBeInTheDocument();
   });
@@ -160,11 +162,11 @@ describe('the topic drawer: the Overview', () => {
   it('shows the engine panel, the trend by engine, the trend against competitors and In search', async () => {
     renderOn('viewer', inspect(PAID_SEARCH));
     const panel = await drawer('Paid Search');
-    for (const name of ['By engine', 'Trend by engine', 'Visibility trend against competitors', 'In search']) {
+    for (const name of ['By platform', 'Trend by platform', 'Visibility trend against competitors', 'In search']) {
       expect(await within(panel).findByRole('heading', { name })).toBeInTheDocument();
     }
     // The old per-engine cards are gone: the panel is the one By engine section
-    expect(within(panel).getAllByRole('heading', { name: 'By engine' })).toHaveLength(1);
+    expect(within(panel).getAllByRole('heading', { name: 'By platform' })).toHaveLength(1);
   });
 
   describe('change since the previous period (WP-19)', () => {
@@ -188,7 +190,7 @@ describe('the topic drawer: the Overview', () => {
     };
     const engineRows = async (): Promise<HTMLElement> => {
       const panel = await drawer('Paid Search');
-      const section = (await within(panel).findByRole('heading', { name: 'By engine' })).closest('section');
+      const section = (await within(panel).findByRole('heading', { name: 'By platform' })).closest('section');
       if (section === null) throw new Error('The By engine section is missing');
       return section;
     };
@@ -238,10 +240,10 @@ describe('the topic drawer: the tabs', () => {
     tabs[0]?.focus();
     await user.keyboard('{ArrowRight}{ArrowRight}');
     expect(within(panel).getByRole('tab', { name: 'Competitors' })).toHaveAttribute('aria-selected', 'true');
-    expect(await within(panel).findByRole('heading', { name: 'Competitors by engine' })).toBeInTheDocument();
+    expect(await within(panel).findByRole('heading', { name: 'Competitors by platform' })).toBeInTheDocument();
     await user.keyboard('{ArrowRight}');
     expect(within(panel).getByRole('tab', { name: 'Related' })).toHaveAttribute('aria-selected', 'true');
-    expect(await within(panel).findByRole('heading', { name: 'Topics beside this one' })).toBeInTheDocument();
+    expect(await within(panel).findByRole('heading', { name: 'Groups beside this one' })).toBeInTheDocument();
   });
 });
 
@@ -255,7 +257,7 @@ describe('the topic drawer: an engine row leads to that engine', () => {
     await user.click(await within(panel).findByRole('link', { name: /^ChatGPT/ }));
     await waitFor(() => expect(new URLSearchParams(writes.at(-1)).get('eng')).toBe('chatgpt_web'));
     expect(await within(panel).findByRole('tab', { name: 'Prompts', selected: true })).toBeInTheDocument();
-    expect(await within(panel).findByText('Engine: ChatGPT')).toBeInTheDocument();
+    expect(await within(panel).findByText('Platform: ChatGPT')).toBeInTheDocument();
     await user.click(within(panel).getByRole('button', { name: 'Close' }));
     await waitFor(() => expect(screen.queryByRole('complementary', { name: 'SEO' })).toBeNull());
     const last = new URLSearchParams(writes.at(-1));
@@ -302,7 +304,7 @@ describe('the topic drawer: Add prompt and Run now', () => {
     // First the list is read, then the topic is known to hold nothing
     await waitFor(() => expect(run).toHaveAttribute('aria-disabled', 'true'));
     await user.hover(run);
-    expect((await screen.findAllByText('This topic holds no prompt to run.')).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText('This group holds no prompt to run.')).length).toBeGreaterThan(0);
   });
 });
 
@@ -311,7 +313,7 @@ describe('the topic drawer: topics without a row, and a topic without a topic', 
     renderOn('editor', inspect('99999999-0000-4000-8000-000000000001'));
     const panel = await screen.findByRole('complementary');
     expect(
-      await within(panel).findByText('This topic does not exist or you do not have access to it.'),
+      await within(panel).findByText('This group does not exist or you do not have access to it.'),
     ).toBeInTheDocument();
     // The engines are in, so the absence is the topic's and not the load's
     await waitFor(() => expect(within(panel).queryByRole('button', { name: 'Add prompt' })).toBeNull());
@@ -322,14 +324,14 @@ describe('the topic drawer: topics without a row, and a topic without a topic', 
   it('opens No topic without Add prompt or In search, and says its competitors are read per topic', async () => {
     server.use(http.get(SUMMARY_PATH, () => HttpResponse.json({ data: summaryOf([topicRow(null, null, 3)]) })));
     renderOn('editor', inspect('__none'));
-    const panel = await drawer('No topic');
+    const panel = await drawer('No group');
     expect(await within(panel).findByText('3 prompts')).toBeInTheDocument();
     expect(await within(panel).findByRole('button', { name: 'Run now' })).toBeInTheDocument();
     expect(within(panel).queryByRole('button', { name: 'Add prompt' })).toBeNull();
     expect(
       await within(panel).findByRole('heading', { name: 'Visibility trend against competitors' }),
     ).toBeInTheDocument();
-    expect(await within(panel).findByText('Read per topic')).toBeInTheDocument();
+    expect(await within(panel).findByText('Read per group')).toBeInTheDocument();
     expect(within(panel).queryByRole('heading', { name: 'In search' })).toBeNull();
   });
 
@@ -364,8 +366,8 @@ describe('the topic drawer: Close', () => {
   it('goes back to the page the drawer was opened from, also after a prompt was opened from the drawer', async () => {
     const back = vi.spyOn(window.history, 'back').mockImplementation(() => undefined);
     const { user } = renderOn('viewer', '');
-    const tree = await screen.findByRole('treegrid', { name: 'Topics' });
-    await user.click(await within(tree).findByRole('button', { name: 'Open the topic Paid Search' }));
+    const tree = await screen.findByRole('treegrid', { name: 'Groups' });
+    await user.click(await within(tree).findByRole('button', { name: 'Open the group Paid Search' }));
     const panel = await drawer('Paid Search');
     const top = (await within(panel).findByRole('heading', { name: 'Top prompts' })).closest('section');
     if (top === null) throw new Error('The Top prompts card is missing');
@@ -383,7 +385,7 @@ describe('the built rows of the topic drawer, confirmed through the real screen'
     const { user } = renderOn('viewer', inspect(PAID_SEARCH));
     const panel = await drawer('Paid Search');
     expect(within(panel).getByRole('heading', { level: 2, name: 'Paid Search' })).toBeInTheDocument();
-    expect(within(panel).getByText('Topic')).toBeInTheDocument();
+    expect(within(panel).getByText('Group')).toBeInTheDocument();
     expect(await within(panel).findByText('2 prompts')).toBeInTheDocument();
     // The Back button is the sheet's (a phone); a docked drawer leaves with Close, the same way out
     await user.click(within(panel).getByRole('button', { name: 'Close' }));
@@ -417,7 +419,7 @@ describe('the built rows of the topic drawer, confirmed through the real screen'
     );
     const { unmount } = renderOn('viewer', inspect(ghost));
     const panel = await drawer('Ghost topic');
-    expect((await within(panel).findAllByText('The prompts of this topic are not known yet')).length).toBeGreaterThan(
+    expect((await within(panel).findAllByText('The prompts of this group are not known yet')).length).toBeGreaterThan(
       0,
     );
     unmount();
@@ -429,7 +431,7 @@ describe('the built rows of the topic drawer, confirmed through the real screen'
     );
     renderOn('viewer', inspect(PAID_SEARCH));
     const failed = await screen.findByRole('complementary');
-    expect((await within(failed).findAllByText('The topics could not be loaded.')).length).toBeGreaterThan(0);
+    expect((await within(failed).findAllByText('The groups could not be loaded.')).length).toBeGreaterThan(0);
     expect(within(failed).getAllByRole('button', { name: 'Try again' }).length).toBeGreaterThan(0);
   });
 
@@ -442,7 +444,7 @@ describe('the built rows of the topic drawer, confirmed through the real screen'
     unmount();
 
     renderOn('viewer', '?view=engines');
-    const table = await screen.findByRole('treegrid', { name: 'Topics' });
+    const table = await screen.findByRole('treegrid', { name: 'Groups' });
     expect((await within(table).findAllByText(/avg of 2/)).length).toBeGreaterThan(0);
   });
 });

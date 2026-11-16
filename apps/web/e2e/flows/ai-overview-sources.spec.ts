@@ -199,9 +199,9 @@ test.describe('the source, fan-out, activity and operations cards, as an editor'
       await expect(spend).toContainText(/Workspace budget|Project budget/);
     });
 
-    await test.step('the engines card names each engine, its cost as an estimate, and adds nothing up', async () => {
+    await test.step('the platforms card names each platform, its cost as an estimate, and adds nothing up', async () => {
       const engines = cardByTitle(page, ADDED_CARDS.engines.title);
-      await expect(engines).toContainText(/\d of \d engines on/);
+      await expect(engines).toContainText(/\d of \d platforms on/);
       await expect(engines).toContainText(/never added up/);
     });
 
@@ -377,7 +377,7 @@ test.describe('the activity cards with a collection history (a server that start
     await openScreen(page, EVENTUS_PATH);
     test.skip(
       !(await hasAiEngines(page)),
-      'Eventus Security has no AI engine on in a server without the AI seed (the production test build): its runs and collection history exist only in the development server',
+      'Eventus Security has no AI platform on in a server without the AI seed (the production test build): its runs and collection history exist only in the development server',
     );
   });
 
@@ -400,13 +400,13 @@ test.describe('the activity cards with a collection history (a server that start
     await expect(page).toHaveURL(/\/ops\/runs/);
   });
 
-  test('the calendar and status cards switch engine by keyboard and the key changes feed names its groups', async ({
+  test('the calendar and status cards switch platform by keyboard and the key changes feed names its groups', async ({
     page,
   }) => {
     await saveSourcesLayout(page);
 
     for (const title of [ADDED_CARDS.calendar.title, ADDED_CARDS.status.title]) {
-      await test.step(`${title}: one engine at a time, switched with the keyboard`, async () => {
+      await test.step(`${title}: one platform at a time, switched with the keyboard`, async () => {
         const card = await awaitCard(page, title);
         const tabs = engineTabs(card);
         await expect(tabs).toBeVisible();

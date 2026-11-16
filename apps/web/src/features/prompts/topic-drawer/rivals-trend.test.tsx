@@ -159,7 +159,7 @@ describe('RivalsTrend: the own brand against the competitors named most', () => 
   it('defaults to the average of the engines and names how many took part', async () => {
     renderRivals(rowWith([CHATGPT, GEMINI]));
     await screen.findByTestId('echart-canvas');
-    expect(screen.getByRole('combobox', { name: 'Engine' })).toHaveTextContent('avg of 2 engines');
+    expect(screen.getByRole('combobox', { name: 'Platform' })).toHaveTextContent('avg of 2 platforms');
     // Gamma 50 and 70 percent average 60, Beta 80 and 20 average 50, Delta 30 and 30 average 30: Epsilon (30) is no better
     expect(lineIds()).toEqual(['own', 'gamma', 'beta', 'delta']);
     const gamma = valuesOf('gamma');
@@ -170,18 +170,18 @@ describe('RivalsTrend: the own brand against the competitors named most', () => 
   it('switches to one engine', async () => {
     const { user } = renderRivals(rowWith([CHATGPT, GEMINI]));
     await screen.findByTestId('echart-canvas');
-    await user.click(screen.getByRole('combobox', { name: 'Engine' }));
+    await user.click(screen.getByRole('combobox', { name: 'Platform' }));
     await user.click(await screen.findByRole('option', { name: 'Gemini' }));
     await waitFor(() => expect(lineIds()).toEqual(['own', 'gamma', 'eps', 'delta']));
     expect(valuesOf('gamma')).toEqual([0.6, 0.8]);
-    expect(screen.getByRole('combobox', { name: 'Engine' })).toHaveTextContent('Gemini');
+    expect(screen.getByRole('combobox', { name: 'Platform' })).toHaveTextContent('Gemini');
   });
 
   it('offers no average with one engine, and an engine without a series is not an option', async () => {
     renderRivals(rowWith([CHATGPT, engine('gemini_web', { mentioned: weighted(5, 10, 4) })]));
     await screen.findByTestId('echart-canvas');
     // ChatGPT alone is drawn, and there is nothing to choose between
-    expect(screen.queryByRole('combobox', { name: 'Engine' })).toBeNull();
+    expect(screen.queryByRole('combobox', { name: 'Platform' })).toBeNull();
     expect(lineIds()).toEqual(['own', 'beta', 'gamma', 'delta']);
   });
 
@@ -196,7 +196,7 @@ describe('RivalsTrend: the own brand against the competitors named most', () => 
     renderRivals(rowWith([CHATGPT, noEntities]));
     await screen.findByTestId('echart-canvas');
     // One engine takes part: there is no average to offer, and ChatGPT is drawn as it is
-    expect(screen.queryByRole('combobox', { name: 'Engine' })).toBeNull();
+    expect(screen.queryByRole('combobox', { name: 'Platform' })).toBeNull();
     expect(valuesOf('own')).toEqual([0.2, 0.6]);
   });
 
@@ -209,8 +209,8 @@ describe('RivalsTrend: the own brand against the competitors named most', () => 
     // An average of rates has no interval of its own: no line has a band
     expect(bandsOf()).toEqual([]);
     expect(screen.queryByText(/The band is the 95% interval/)).toBeNull();
-    expect(screen.getByText(/An average counts each engine once, so it has no band\./)).toBeInTheDocument();
-    await user.click(screen.getByRole('combobox', { name: 'Engine' }));
+    expect(screen.getByText(/An average counts each platform once, so it has no band\./)).toBeInTheDocument();
+    await user.click(screen.getByRole('combobox', { name: 'Platform' }));
     await user.click(await screen.findByRole('option', { name: 'ChatGPT' }));
     await waitFor(() => expect(bandsOf()).toEqual(['own', 'beta', 'gamma', 'delta']));
     expect(screen.getByText(/The band is the 95% interval/)).toBeInTheDocument();
@@ -226,14 +226,14 @@ describe('RivalsTrend: the own brand against the competitors named most', () => 
     );
     const { user } = renderRivals(rowWith([CHATGPT, quiet]));
     await screen.findByTestId('echart-canvas');
-    await user.click(screen.getByRole('combobox', { name: 'Engine' }));
+    await user.click(screen.getByRole('combobox', { name: 'Platform' }));
     await user.click(await screen.findByRole('option', { name: 'Gemini' }));
     expect(await screen.findByText('No competitor named')).toBeInTheDocument();
     // The control is still there, with the same choices
-    const select = screen.getByRole('combobox', { name: 'Engine' });
+    const select = screen.getByRole('combobox', { name: 'Platform' });
     expect(select).toHaveTextContent('Gemini');
     await user.click(select);
-    await user.click(await screen.findByRole('option', { name: 'avg of 2 engines' }));
+    await user.click(await screen.findByRole('option', { name: 'avg of 2 platforms' }));
     await waitFor(() => expect(lineIds()).toEqual(['own', 'beta', 'gamma', 'delta']));
     expect(screen.queryByText('No competitor named')).toBeNull();
   });
@@ -305,7 +305,7 @@ describe('RivalsTrend: the own brand against the competitors named most', () => 
     renderRivals(rowWith([quiet]));
     expect(await screen.findByText('No competitor named')).toBeInTheDocument();
     expect(
-      screen.getByText('No tracked competitor is named in the answers of this topic on the chosen engine.'),
+      screen.getByText('No tracked competitor is named in the answers of this group on the chosen platform.'),
     ).toBeInTheDocument();
     expect(screen.queryByTestId('echart-canvas')).toBeNull();
   });
@@ -327,8 +327,8 @@ describe('RivalsTrend: the own brand against the competitors named most', () => 
       topicKey: NO_TOPIC,
       summary: summaryOf([topicRow(null, null, 2, [CHATGPT])], TRACKED),
     });
-    expect(await screen.findByText('Read per topic')).toBeInTheDocument();
-    expect(screen.getByText('Prompts without a topic have no weekly read of competitors.')).toBeInTheDocument();
+    expect(await screen.findByText('Read per group')).toBeInTheDocument();
+    expect(screen.getByText('Prompts without a group have no weekly read of competitors.')).toBeInTheDocument();
     expect(asked).toHaveLength(0);
   });
 

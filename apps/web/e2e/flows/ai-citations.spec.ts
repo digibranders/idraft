@@ -259,13 +259,13 @@ test.describe('The Citations tab of the prompt inspector', () => {
     await expect(inspector.getByRole('tabpanel', { name: 'Citations' })).not.toContainText(/rank/i);
   });
 
-  test('the engine select splits the lists by engine and never writes rank', async ({ page }) => {
+  test('the platform select splits the lists by platform and never writes rank', async ({ page }) => {
     const inspector = await openInspectorCitations(page, 1280);
     const panel = inspector.getByRole('tabpanel', { name: 'Citations' });
     const domains = inspector.getByRole('table', { name: 'Most cited domains for this prompt' });
 
     // All engines: one column of units for each engine, never one pooled figure, and they add up to the Units
-    await expect(inspector.getByRole('radio', { name: 'All engines' })).toBeChecked();
+    await expect(inspector.getByRole('radio', { name: 'All platforms' })).toBeChecked();
     await expect(domains.getByRole('columnheader')).toHaveText(['Domain', 'Units', /^ChatGPT/, /^Gemini/]);
     const first = domains.getByRole('row').nth(1);
     const [unitsCell = '', chatgpt = '', gemini = ''] = await first.getByRole('cell').allInnerTexts();
@@ -277,7 +277,7 @@ test.describe('The Citations tab of the prompt inspector', () => {
     await inspector.getByRole('radio', { name: 'ChatGPT' }).click();
     await expect(inspector.getByRole('radio', { name: 'ChatGPT' })).toBeChecked();
     await expect(
-      inspector.getByText('Only ChatGPT is read. The last answer date above covers all engines.'),
+      inspector.getByText('Only ChatGPT is read. The last answer date above covers all platforms.'),
     ).toBeVisible();
     await expect(domains.getByRole('columnheader')).toHaveText(['Domain', 'Units']);
     await expect.poll(() => scopeUnits(inspector)).toBeLessThan(allUnits);
@@ -285,11 +285,11 @@ test.describe('The Citations tab of the prompt inspector', () => {
 
     await inspector.getByRole('radio', { name: 'Gemini' }).click();
     await expect(
-      inspector.getByText('Only Gemini is read. The last answer date above covers all engines.'),
+      inspector.getByText('Only Gemini is read. The last answer date above covers all platforms.'),
     ).toBeVisible();
     await expect(panel).not.toContainText(/rank/i);
 
-    await inspector.getByRole('radio', { name: 'All engines' }).click();
+    await inspector.getByRole('radio', { name: 'All platforms' }).click();
     await expect(domains.getByRole('columnheader')).toHaveText(['Domain', 'Units', /^ChatGPT/, /^Gemini/]);
     await expect.poll(() => scopeUnits(inspector)).toBe(allUnits);
   });

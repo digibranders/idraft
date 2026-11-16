@@ -76,7 +76,7 @@ test.describe('the application shell', () => {
     await expect(links).toHaveText([
       'Keywords',
       'Overview',
-      'Topics & Prompts',
+      'Prompts',
       'Citations',
       'Integrations',
       'Runs',

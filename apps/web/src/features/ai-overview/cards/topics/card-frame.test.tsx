@@ -91,13 +91,13 @@ describe('phaseOf', () => {
   });
 
   it('is empty when ready data is empty, also while it refetches', () => {
-    const empty = { title: 'No topics', reason: 'Group prompts.', action: 'Open' };
+    const empty = { title: 'No groups', reason: 'Group prompts.', action: 'Open' };
     expect(run({}, empty).phase).toEqual({ status: 'empty', empty });
     expect(run({ phase: 'refetching' }, empty).phase).toEqual({ status: 'empty', empty });
   });
 
   it('is empty when nothing is asked (idle) and loading when idle has no words of its own', () => {
-    const empty = { title: 'No engine', reason: 'None.', action: 'Open' };
+    const empty = { title: 'No platform', reason: 'None.', action: 'Open' };
     expect(run({ phase: 'idle' }, empty).phase).toEqual({ status: 'empty', empty });
     expect(run({ phase: 'idle' }).phase).toEqual({ status: 'loading' });
   });
@@ -235,8 +235,8 @@ describe('TopicCardFrame', () => {
 
   it('idle with the engine filter shows Use all engines and it clears the engine key', async () => {
     const { user, updates } = render({ over: { phase: 'idle' }, searchParams: 'engine=chatgpt_web' });
-    expect(await screen.findByText('No engine is part of this view')).toBeInTheDocument();
-    await user.click(await screen.findByRole('button', { name: 'Use all engines' }));
+    expect(await screen.findByText('No platform is part of this view')).toBeInTheDocument();
+    await user.click(await screen.findByRole('button', { name: 'Use all platforms' }));
     await waitFor(() => {
       expect(updates.length).toBeGreaterThan(0);
     });
@@ -254,7 +254,7 @@ describe('TopicCardFrame', () => {
     renderWithProviders(bare('cleanstart', 'viewer'));
     expect(await screen.findByText(/ask a workspace admin/i)).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Turn on engines' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Use all engines' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Use all platforms' })).not.toBeInTheDocument();
   });
 
   it('stale shows the last figures read notice and keeps the body', async () => {
@@ -294,12 +294,12 @@ describe('TopicCardFrame', () => {
     renderWithProviders(
       cardInOverview({ type: 'ai.topic_heatmap', Card: EmptyCard as ComponentType<CardProps>, width: 'two_thirds' }),
     );
-    const state = (await screen.findByRole('heading', { name: 'No topics yet' })).closest('[data-slot="empty-state"]');
+    const state = (await screen.findByRole('heading', { name: 'No groups yet' })).closest('[data-slot="empty-state"]');
     expect(state).not.toBeNull();
     const box = within(state as HTMLElement);
-    expect(box.getByText(/Group prompts into topics/)).toBeInTheDocument();
+    expect(box.getByText(/Group prompts into groups/)).toBeInTheDocument();
     expect([...box.queryAllByRole('link'), ...box.queryAllByRole('button')]).toHaveLength(1);
-    expect(box.getByRole('link', { name: 'Open Topics and prompts' })).toHaveAttribute(
+    expect(box.getByRole('link', { name: 'Open Prompts' })).toHaveAttribute(
       'href',
       expect.stringContaining('/ai/prompts'),
     );
@@ -321,7 +321,7 @@ describe('TopicCardFrame', () => {
         },
       },
     );
-    await user.click(await screen.findByRole('button', { name: 'Clear topic' }));
+    await user.click(await screen.findByRole('button', { name: 'Clear group' }));
     await waitFor(() => {
       expect(updates.length).toBeGreaterThan(0);
     });
@@ -340,7 +340,7 @@ describe('TopicCardFrame', () => {
     const title = await screen.findByRole('heading', { name: 'No valid answers in these 28 days on ChatGPT' });
     const box = within(title.closest('[data-slot="empty-state"]') as HTMLElement);
     expect([...box.queryAllByRole('link'), ...box.queryAllByRole('button')]).toHaveLength(1);
-    expect(box.getByRole('link', { name: 'Open Topics and prompts' })).toBeInTheDocument();
+    expect(box.getByRole('link', { name: 'Open Prompts' })).toBeInTheDocument();
   });
 
   it('the Table toggle shows the table form', async () => {

@@ -161,7 +161,7 @@ describe('the topic drawer: change on the three cards', () => {
     const { user } = renderDrawer();
     const stop = stopOf(await valueOf('Mentioned'));
     await user.hover(stop);
-    await waitFor(() => expect(tooltip()).toHaveTextContent('Average of 2 engines that have a rate in both periods'));
+    await waitFor(() => expect(tooltip()).toHaveTextContent('Average of 2 platforms that have a rate in both periods'));
     expect(tooltip()).toHaveTextContent('tested on pooled answers');
     expect(tooltip()).toHaveTextContent('Previous 23%, 32 of 140 answers');
     expect(tooltip()).toHaveTextContent('Previous period: Sep 18 to Oct 15');
@@ -178,7 +178,7 @@ describe('the topic drawer: change on the three cards', () => {
     expect(within(mentioned).getByText('+30.0 pts')).toBeInTheDocument();
     await user.hover(stopOf(mentioned));
     await waitFor(() =>
-      expect(tooltip()).toHaveTextContent('Change of ChatGPT only, the one engine with a rate in both periods'),
+      expect(tooltip()).toHaveTextContent('Change of ChatGPT only, the one platform with a rate in both periods'),
     );
     expect(tooltip()).toHaveTextContent('Previous 20%, 12 of 60 answers');
   });
@@ -200,7 +200,7 @@ describe('the topic drawer: change on the three cards', () => {
   it('does not say a share of voice change was tested on pooled answers, and says what its answers are', async () => {
     const { user } = renderDrawer();
     await user.hover(stopOf(await valueOf('Share of voice')));
-    await waitFor(() => expect(tooltip()).toHaveTextContent('Average of 2 engines that have a rate in both periods'));
+    await waitFor(() => expect(tooltip()).toHaveTextContent('Average of 2 platforms that have a rate in both periods'));
     expect(tooltip()?.textContent).not.toMatch(/pooled|tested/);
     // No count of answers that count exists for share of voice: the answers are those that name a brand
     expect(tooltip()).toHaveTextContent('Previous 40%, 140 answers naming a brand');
@@ -333,7 +333,7 @@ describe('the topic drawer: change on the prompts of one engine', () => {
 });
 
 describe('the topic drawer: change in the By engine rows', () => {
-  const engineRows = async (): Promise<HTMLElement> => sectionOf('By engine');
+  const engineRows = async (): Promise<HTMLElement> => sectionOf('By platform');
 
   it('shows the change of each engine row while comparison is on', async () => {
     renderDrawer();

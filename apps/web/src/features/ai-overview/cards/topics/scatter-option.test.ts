@@ -25,7 +25,7 @@ const TOKENS: ChartTokens = {
 };
 
 const WORDS: ScatterWords = {
-  series: 'Topics',
+  series: 'Groups',
   mention: 'Mention',
   citation: 'Citation',
   reference: 'Cited as often as named',

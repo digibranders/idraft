@@ -228,10 +228,10 @@ describe('Citations page', () => {
     expect(to(reads, '/ai/sources/domains')).toHaveLength(0);
   });
 
-  it('without an enabled engine says so and links to Engines', async () => {
+  it('without an enabled platform says so and links to Platforms', async () => {
     const reads = watch();
     renderWithProviders(citationsAs('editor', asProject(cleanstart)));
-    expect(await screen.findByRole('heading', { name: 'No engine is on' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'No platform is on' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Open Engines' })).toHaveAttribute(
       'href',
       '/digibranders/cleanstart/settings/engines',
@@ -532,7 +532,7 @@ describe('Citations page: the scope in the address', () => {
     const unlisted = render('?tab=pages');
     expect(await screen.findByText('Panel of Domains')).toBeInTheDocument();
     await unlisted.user.click(screen.getByRole('button', { name: 'Add a filter' }));
-    expect(await screen.findByRole('button', { name: 'Engine' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Platform' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Domain' })).toBeNull();
   });
 
@@ -556,7 +556,7 @@ describe('Citations page: the scope in the address', () => {
     expect(to(reads, '/ai/sources/pages').at(-1)?.searchParams.has('filter[registrable_domain]')).toBe(false);
   });
 
-  it('reads nothing before the engines resolve, keeps the engine in the address and then asks for it', async () => {
+  it('reads nothing before the platforms resolve, keeps the platform in the address and then asks for it', async () => {
     const held = gate();
     server.use(
       http.get(mswPath(ENGINES), async ({ request }) => {
@@ -583,7 +583,7 @@ describe('Citations page: the scope in the address', () => {
     expect(writes).toEqual([]);
   });
 
-  it('shows an inline error with Retry when the engines cannot be read, and reads nothing', async () => {
+  it('shows an inline error with Retry when the platforms cannot be read, and reads nothing', async () => {
     let calls = 0;
     server.use(
       http.get(mswPath(ENGINES), async ({ request }) => {
@@ -603,7 +603,7 @@ describe('Citations page: the scope in the address', () => {
     await waitFor(() => expect(to(reads, '/ai/sources/domains').length).toBeGreaterThan(0));
   });
 
-  it('leaves out an engine that is off, and follows the engines when they change', async () => {
+  it('leaves out a platform that is off, and follows the platforms when they change', async () => {
     const reads = watch();
     const { queryClient } = render('?engine=gemini_web');
     await waitFor(() => expect(to(reads, '/ai/sources/domains').length).toBeGreaterThan(0));
@@ -612,7 +612,7 @@ describe('Citations page: the scope in the address', () => {
       params: { path: { workspace_id: MOCK_WORKSPACE.workspace_id, project_id: fynix.project_id } },
     }).queryKey;
     const data = queryClient.getQueryData<ApiResponse<'get', typeof ENGINES>>(key);
-    if (data === undefined) throw new Error('The engines are not in the cache');
+    if (data === undefined) throw new Error('The platforms are not in the cache');
     const before = to(reads, '/ai/sources/domains').length;
     act(() => {
       queryClient.setQueryData(key, {
@@ -694,7 +694,7 @@ describe('Citations page: the New and lost tab', () => {
       await screen.findByRole('button', { name: 'Remove filter Unresolved redirects: Include unresolved redirects' }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: 'Remove filter Engine links: Include engine-internal links' }),
+      screen.getByRole('button', { name: 'Remove filter Platform links: Include platform-internal links' }),
     ).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Clear filters' }));
     await waitFor(() => expect(writes.at(-1)).not.toContain('redirects'));
@@ -758,8 +758,8 @@ describe('Citations page: the New and lost tab', () => {
   });
 });
 
-describe('Citations page: the country scope', () => {
-  const countryControl = (name = 'Country: All countries'): Promise<HTMLElement> =>
+describe('Citations page: the location scope', () => {
+  const countryControl = (name = 'Location: All locations'): Promise<HTMLElement> =>
     screen.findByRole('combobox', { name });
   const COUNTRY = 'filter[country_iso]';
   /** The routes every tab reads for the strip, and the one list route each tab reads besides. */
@@ -770,20 +770,20 @@ describe('Citations page: the country scope', () => {
     const country = await countryControl();
     const range = await screen.findByRole('button', { name: /^Date range: / });
     expect(range.compareDocumentPosition(country) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(screen.getAllByRole('combobox', { name: /^Country:/ })).toHaveLength(1);
+    expect(screen.getAllByRole('combobox', { name: /^Location:/ })).toHaveLength(1);
   });
 
-  it('lists all countries and the countries of the prompts', async () => {
+  it('lists all locations and the locations of the prompts', async () => {
     const { user } = render();
     await user.click(await countryControl());
     expect((await screen.findAllByRole('option')).map((option) => option.textContent)).toEqual([
-      'All countries',
+      'All locations',
       'Germany',
       'India',
     ]);
   });
 
-  it('choosing a country asks every read with filter[country_iso] and writes the key, and All countries removes it', async () => {
+  it('choosing a location asks every read with filter[country_iso] and writes the key, and All locations removes it', async () => {
     const reads = watch();
     const writes: string[] = [];
     const { user } = render('', { onUrlUpdate: ({ queryString }) => writes.push(queryString) });
@@ -795,13 +795,13 @@ describe('Citations page: the country scope', () => {
     for (const route of STRIP_ROUTES) {
       await waitFor(() => expect(to(reads, route).some((url) => url.searchParams.get(COUNTRY) === 'DE')).toBe(true));
     }
-    expect(await countryControl('Country: Germany')).toBeInTheDocument();
-    await user.click(await countryControl('Country: Germany'));
-    await user.click(await screen.findByRole('option', { name: 'All countries' }));
+    expect(await countryControl('Location: Germany')).toBeInTheDocument();
+    await user.click(await countryControl('Location: Germany'));
+    await user.click(await screen.findByRole('option', { name: 'All locations' }));
     await waitFor(() => expect(new URLSearchParams(writes.at(-1)).has('country')).toBe(false));
   });
 
-  it('keeps the old rows while the new country is read', async () => {
+  it('keeps the old rows while the new location is read', async () => {
     registry.real = true;
     const held = gate();
     server.use(
@@ -822,7 +822,7 @@ describe('Citations page: the country scope', () => {
     await waitFor(() => expect(table).not.toHaveAttribute('aria-busy', 'true'));
   });
 
-  it('Clear filters does not clear the country', async () => {
+  it('Clear filters does not clear the location', async () => {
     const writes: string[] = [];
     const { user } = render('?country=DE&redirects=include', {
       onUrlUpdate: ({ queryString }) => writes.push(queryString),
@@ -830,10 +830,10 @@ describe('Citations page: the country scope', () => {
     await user.click(await screen.findByRole('button', { name: 'Clear filters' }));
     await waitFor(() => expect(writes.at(-1)).not.toContain('redirects'));
     expect(new URLSearchParams(writes.at(-1)).get('country')).toBe('DE');
-    expect(await countryControl('Country: Germany')).toBeInTheDocument();
+    expect(await countryControl('Location: Germany')).toBeInTheDocument();
   });
 
-  it('the Clear filters of an empty table does not clear the country either', async () => {
+  it('the Clear filters of an empty table does not clear the location either', async () => {
     registry.real = true;
     const writes: string[] = [];
     // 1,000 is the most the minimum takes: no domain of the mock world reaches it
@@ -848,17 +848,17 @@ describe('Citations page: the country scope', () => {
     expect(new URLSearchParams(writes.at(-1)).get('country')).toBe('DE');
   });
 
-  it('the country is no filter chip and no saved view key', async () => {
+  it('the location is no filter chip and no saved view key', async () => {
     render('?country=DE');
-    await countryControl('Country: Germany');
+    await countryControl('Location: Germany');
     expect(screen.queryByRole('button', { name: /^Remove filter/ })).toBeNull();
     expect(screen.getByRole('button', { name: /^Saved view: Default(?!, edited)/ })).toBeInTheDocument();
   });
 
-  it('the note names the country while one is chosen, and is absent for all countries', async () => {
+  it('the note names the location while one is chosen, and is absent for all locations', async () => {
     const chosen = render('?country=DE');
     const note = await screen.findByText(
-      'Only the prompts set in Germany are read. Prompts with no country are left out.',
+      'Only the prompts set in Germany are read. Prompts with no location are left out.',
     );
     // One message, not two joined in the markup: one text node
     expect(note.childNodes).toHaveLength(1);
@@ -868,7 +868,7 @@ describe('Citations page: the country scope', () => {
     expect(screen.queryByText(/Only the prompts set in/)).toBeNull();
   });
 
-  it('the control is absent when no prompt has a country', async () => {
+  it('the control is absent when no prompt has a location', async () => {
     server.use(
       http.get(mswPath(`${P}/prompts`), async ({ request }) => {
         const real = await getResponse([...handlers], request);
@@ -883,8 +883,8 @@ describe('Citations page: the country scope', () => {
     const promptList = (): URL[] => reads.filter((url) => url.pathname.endsWith(`/${fynix.project_id}/prompts`));
     await waitFor(() => expect(promptList().length).toBeGreaterThan(0));
     await new Promise((resolve) => setTimeout(resolve, 60));
-    expect(screen.queryByRole('combobox', { name: /^Country:/ })).toBeNull();
-    expect(screen.queryByText(/^Country:/)).toBeNull();
+    expect(screen.queryByRole('combobox', { name: /^Location:/ })).toBeNull();
+    expect(screen.queryByText(/^Location:/)).toBeNull();
   });
 
   it('the Domains, Pages and New and lost tabs all carry it', async () => {

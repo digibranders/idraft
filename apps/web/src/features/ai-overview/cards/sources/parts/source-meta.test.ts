@@ -39,8 +39,8 @@ describe('footnoteLines', () => {
   it('says the units are pooled over the engines named, which flagged citations are left out and the minimum', () => {
     const lines = footnoteLines(sourcesMeta({ engines: ['chatgpt_web', 'gemini_web'] }), say, 2);
     expect(lines).toEqual([
-      `Citation units are pooled over ${formatList(['ChatGPT', 'Gemini'])}. The split by engine is in the tooltip of each row and in the Table view.`,
-      'Citations flagged as unresolved redirects or engine-internal links are left out.',
+      `Citation units are pooled over ${formatList(['ChatGPT', 'Gemini'])}. The split by platform is in the tooltip of each row and in the Table view.`,
+      'Citations flagged as unresolved redirects or platform-internal links are left out.',
       'Domains with fewer than 2 citation units are not listed.',
     ]);
   });

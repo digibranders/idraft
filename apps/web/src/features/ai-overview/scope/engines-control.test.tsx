@@ -21,15 +21,15 @@ function Wired({ engines = ON }: { engines?: readonly EngineChoice[] }): ReactEl
 
 const open = async (user: ReturnType<typeof renderWithProviders>['user'], name: string): Promise<HTMLElement> => {
   await user.click(await screen.findByRole('button', { name }));
-  return screen.findByRole('dialog', { name: 'Engines' });
+  return screen.findByRole('dialog', { name: 'Platforms' });
 };
 
 describe('EnginesControl', () => {
-  it('lists the enabled engines with logos, and shows the count on the trigger', async () => {
+  it('lists the enabled platforms with logos, and shows the count on the trigger', async () => {
     const { user } = renderWithProviders(<Wired />, { searchParams: '?engine=chatgpt_web,gemini_web' });
-    const trigger = await screen.findByRole('button', { name: 'Engines: 2 of 3' });
+    const trigger = await screen.findByRole('button', { name: 'Platforms: 2 of 3' });
     expect(within(trigger).getByText('2')).toBeInTheDocument();
-    const dialog = await open(user, 'Engines: 2 of 3');
+    const dialog = await open(user, 'Platforms: 2 of 3');
     expect(
       within(dialog)
         .getAllByRole('checkbox')
@@ -41,9 +41,9 @@ describe('EnginesControl', () => {
     expect(dialog.querySelectorAll('img[alt=""]').length).toBeGreaterThanOrEqual(2);
   });
 
-  it('shows every engine as chosen when the URL names none', async () => {
+  it('shows every platform as chosen when the URL names none', async () => {
     const { user } = renderWithProviders(<Wired />);
-    const dialog = await open(user, 'Engines: 3 of 3');
+    const dialog = await open(user, 'Platforms: 3 of 3');
     expect(
       within(dialog)
         .getAllByRole('checkbox')
@@ -51,17 +51,17 @@ describe('EnginesControl', () => {
     ).toBe(true);
   });
 
-  it('lists only the engines it is given, so an engine that is off is not there', async () => {
+  it('lists only the platforms it is given, so a platform that is off is not there', async () => {
     const { user } = renderWithProviders(<Wired engines={ON.slice(0, 2)} />);
-    const dialog = await open(user, 'Engines: 2 of 2');
+    const dialog = await open(user, 'Platforms: 2 of 2');
     expect(within(dialog).queryByRole('checkbox', { name: 'AI Mode' })).not.toBeInTheDocument();
     expect(within(dialog).getAllByRole('checkbox')).toHaveLength(2);
   });
 
-  it('writes the engines chosen, in the project order, and clears the key when all are chosen again', async () => {
+  it('writes the platforms chosen, in the project order, and clears the key when all are chosen again', async () => {
     const updates: string[] = [];
     const { user } = renderWithProviders(<Wired />, { onUrlUpdate: (event) => updates.push(event.queryString) });
-    const dialog = await open(user, 'Engines: 3 of 3');
+    const dialog = await open(user, 'Platforms: 3 of 3');
     await user.click(within(dialog).getByRole('checkbox', { name: 'Gemini' }));
     await waitFor(() => {
       expect(updates.at(-1)).toBe('?engine=chatgpt_web,google_ai_mode');
@@ -70,15 +70,15 @@ describe('EnginesControl', () => {
     await waitFor(() => {
       expect(updates.at(-1)).toBe('');
     });
-    expect(screen.getByRole('button', { name: 'Engines: 3 of 3' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Platforms: 3 of 3' })).toBeInTheDocument();
   });
 
-  it('cannot turn off the last engine and says why', async () => {
+  it('cannot turn off the last platform and says why', async () => {
     const { user } = renderWithProviders(<Wired />, { searchParams: '?engine=gemini_web' });
-    const dialog = await open(user, 'Engines: 1 of 3');
+    const dialog = await open(user, 'Platforms: 1 of 3');
     const last = within(dialog).getByRole('checkbox', { name: 'Gemini' });
     expect(last).toHaveAttribute('aria-disabled', 'true');
-    expect(last).toHaveAccessibleDescription('At least one engine stays on');
+    expect(last).toHaveAccessibleDescription('At least one platform stays on');
     await user.click(last);
     expect(last).toHaveAttribute('aria-checked', 'true');
     // The others can still be turned on
@@ -87,7 +87,7 @@ describe('EnginesControl', () => {
 
   it('returns focus to its trigger on Escape', async () => {
     const { user } = renderWithProviders(<Wired />);
-    const dialog = await open(user, 'Engines: 3 of 3');
+    const dialog = await open(user, 'Platforms: 3 of 3');
     await waitFor(() => {
       expect(dialog.contains(document.activeElement)).toBe(true);
     });
@@ -95,12 +95,12 @@ describe('EnginesControl', () => {
     await waitFor(() => {
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
-    expect(screen.getByRole('button', { name: 'Engines: 3 of 3' })).toHaveFocus();
+    expect(screen.getByRole('button', { name: 'Platforms: 3 of 3' })).toHaveFocus();
   });
 
   it('has no accessibility violations open', async () => {
     const { user, container } = renderWithProviders(<Wired />);
-    await open(user, 'Engines: 3 of 3');
+    await open(user, 'Platforms: 3 of 3');
     expect(await axe(container)).toHaveNoViolations();
   });
 });

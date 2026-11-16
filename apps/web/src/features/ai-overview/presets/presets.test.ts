@@ -29,7 +29,7 @@ const LABELS: Readonly<Record<PresetId, string>> = {
   executive: 'Executive summary',
   seo_analyst: 'SEO analyst',
   competitive: 'Competitive',
-  topic_owner: 'Topic owner',
+  topic_owner: 'Group owner',
 };
 
 const ENGINE_CODES: readonly string[] = ENGINES.map((engine) => engine.code);
@@ -108,7 +108,7 @@ const PACKINGS: readonly Packing[] = [
     acceptedMedium: [],
   },
   {
-    name: 'Topic owner',
+    name: 'Group owner',
     document: TOPIC_OWNER_LAYOUT,
     wide: [[12], [6, 6], [6, 6], [12], [6, 6]],
     medium: [[12], [6, 6], [6, 6], [12], [6, 6]],
@@ -129,7 +129,7 @@ describe('buildOverviewPresets', () => {
       'Executive summary',
       'SEO analyst',
       'Competitive',
-      'Topic owner',
+      'Group owner',
     ]);
     expect(presets.map((preset) => preset.document)).toEqual(PRESET_PACKINGS.map((packing) => packing.document));
   });

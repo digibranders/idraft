@@ -110,7 +110,7 @@ describe('EngineRangeTable', () => {
       <EngineRangeTable
         rows={[ROW]}
         caption="Engine range table"
-        labels={{ topic: 'Topic', spread: 'Spread', verdict: 'Reading' }}
+        labels={{ topic: 'Group', spread: 'Spread', verdict: 'Reading' }}
       />,
     );
 
@@ -120,7 +120,7 @@ describe('EngineRangeTable', () => {
     const headers = within(grid)
       .getAllByRole('columnheader')
       .map((cell) => cell.textContent);
-    expect(headers).toEqual(['Topic', 'ChatGPT', 'Gemini', 'Google AI Mode', 'Spread', 'Reading']);
+    expect(headers).toEqual(['Group', 'ChatGPT', 'Gemini', 'Google AI Mode', 'Spread', 'Reading']);
     // The first column names the row
     expect(within(grid).getByRole('rowheader')).toHaveTextContent('SEO tools');
     const cells = within(grid)

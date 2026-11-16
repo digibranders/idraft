@@ -33,7 +33,7 @@ function topic(name: string, members: readonly PromptSummaryRow[] | null, over: 
 }
 
 const noTopic = (members: readonly PromptSummaryRow[]): TopicNode =>
-  topic('No topic', members, { key: NO_TOPIC, termId: null });
+  topic('No group', members, { key: NO_TOPIC, termId: null });
 
 // P is 4 (p1, p2, p3, p5): p4 has no valid answer. Prompt rates .9, .5, 0, .75: R is .5375 as the mean of the
 // prompts, where all the answers together would give 13 of 20.

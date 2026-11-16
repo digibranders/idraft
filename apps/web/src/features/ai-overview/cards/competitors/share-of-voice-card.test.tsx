@@ -222,7 +222,7 @@ describe('the share of voice card', () => {
     serve(summary());
     renderCard('cmp=off&engine=gemini_web');
     expect(await screen.findByText('ChatGPT is not asked in this scope')).toBeInTheDocument();
-    expect(screen.getByText(/outside the engine filter/)).toBeInTheDocument();
+    expect(screen.getByText(/outside the platform filter/)).toBeInTheDocument();
   });
 
   it('tells assistive technology no figure for an engine that is not asked, and the figures for one that is', async () => {

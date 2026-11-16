@@ -222,7 +222,7 @@ describe('the Answers tab of the source inspector', () => {
     );
     const [first] = await bodyRows();
     const list = within(first as HTMLElement).getByRole('list', {
-      name: 'Passages the engine quoted from its sources',
+      name: 'Passages the platform quoted from its sources',
     });
     expect(list).toHaveTextContent('“G2 compares the top CRM tools.”');
     expect(list).toHaveTextContent('g2.com');
@@ -275,7 +275,7 @@ describe('the Answers tab of the source inspector', () => {
     renderWithProviders(<Tab citations={readOf('ready', pageOf([]))} />);
     expect(await screen.findByText('No answer cites this page')).toBeInTheDocument();
     expect(
-      screen.getByText('No answer read in this window cites it. Choose a longer window or another engine.'),
+      screen.getByText('No answer read in this window cites it. Choose a longer window or another platform.'),
     ).toBeInTheDocument();
     expect(screen.queryByRole('table')).toBeNull();
   });

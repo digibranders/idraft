@@ -261,7 +261,7 @@ describe('Budgets and usage', () => {
       'aria-valuetext',
       '412 of 2,000 AI answers this month',
     );
-    expect(screen.getByRole('link', { name: 'Open Topics & Prompts' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Open Prompts' })).toHaveAttribute(
       'href',
       '/digibranders/fynix/ai/prompts',
     );
@@ -304,7 +304,7 @@ describe('Budgets and usage', () => {
     expect(
       screen.getByText('These limits are read through a project, and there is none to read them through.'),
     ).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Open Topics & Prompts' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Open Prompts' })).toBeNull();
     none.unmount();
     expect(asked).toHaveLength(0);
     // A failed read is not a zero either, and offers to try again

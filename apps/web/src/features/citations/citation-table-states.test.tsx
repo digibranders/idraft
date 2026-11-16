@@ -72,10 +72,7 @@ describe('CitationEmptyState', () => {
   it('says there are no citations yet, with a way to the prompts, when no answer was read', () => {
     renderWithProviders(<CitationEmptyState meta={{ ...META, answers: 0 }} workspaceSlug="ws" projectSlug="proj" />);
     expect(screen.getByRole('heading', { name: 'No citations yet' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Open Topics and Prompts' })).toHaveAttribute(
-      'href',
-      '/ws/proj/ai/prompts',
-    );
+    expect(screen.getByRole('link', { name: 'Open Prompts' })).toHaveAttribute('href', '/ws/proj/ai/prompts');
   });
 
   it('says how many answers were read when none names a source', () => {
