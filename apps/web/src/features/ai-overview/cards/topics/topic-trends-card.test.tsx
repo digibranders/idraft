@@ -548,7 +548,8 @@ describe('TopicTrendsCard states', () => {
   });
 
   it('partial names a platform that has no valid answer in any group', async () => {
-    render({ searchParams: 'engine=chatgpt_web,google_ai_mode', threeEngines: true });
+    // All platforms: a link that names several platforms is All platforms, so the test names none
+    render({ searchParams: '', threeEngines: true });
     await charts();
     expect(screen.getByText('Partial data: AI Mode has no valid answer in this window')).toBeInTheDocument();
     expect(within(figureOf('CRM, AI Mode')).getAllByText('No weekly data').length).toBeGreaterThan(0);
