@@ -7,6 +7,7 @@
     { "id": "cluster", "pattern": "\\bclusters?\\b", "flags": "i", "use": "Group or Segment" },
     { "id": "source-cited", "pattern": "\\bsources?\\b", "flags": "i", "use": "cited domain, cited page or citation; Added from for keyword origin; \"Source: ...\" footnotes are allowed (see guard-exceptions.json)" },
     { "id": "named", "pattern": "\\bnamed\\b|\\bnaming\\b", "flags": "i", "use": "mentioned, mentioning" },
+    { "id": "name-verb", "pattern": "\\b(?:does not name|names|name) (?:the brand|a brand|a tracked brand|any brand|you|your brand)\\b", "flags": "i", "use": "mention, mentions" },
     { "id": "own-brand", "pattern": "\\bown (brand|domain|site|pages?)\\b|\\bowned (pages?|domains?|sites?)\\b", "flags": "i", "use": "your brand, your site, your pages" },
     { "id": "insufficient", "pattern": "\\binsufficient\\b", "flags": "i", "use": "Not enough data" },
     { "id": "window", "pattern": "\\bwindows?\\b", "flags": "i", "use": "Period (a schedule time slot is allowed, see guard-exceptions.json)" },
