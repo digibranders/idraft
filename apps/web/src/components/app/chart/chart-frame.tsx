@@ -421,6 +421,7 @@ function FrameShell({
   children,
 }: FrameShellProps): ReactElement {
   const t = useTranslations('chart');
+  const titleId = useId();
   const {
     title,
     variant,
@@ -497,7 +498,9 @@ function FrameShell({
       {/* The title keeps a readable measure: the legend and the views wrap to the next line before it narrows */}
       <div className="flex min-w-0 shrink grow basis-64 flex-col">
         <div className="flex items-center gap-2">
-          <Title className={inspector ? 'type-subsection-title' : 'type-section-title'}>{title}</Title>
+          <Title id={titleId} className={inspector ? 'type-subsection-title' : 'type-section-title'}>
+            {title}
+          </Title>
           {showUpdating ? (
             <span className="inline-flex items-center gap-1 type-meta">
               <Spinner size="sm" />
@@ -525,6 +528,8 @@ function FrameShell({
   return (
     <section
       ref={section}
+      // The card is a region named by its title, as the empty state already is
+      aria-labelledby={titleId}
       aria-busy={status === 'loading' || status === 'refetching' ? true : undefined}
       className={cn(
         'flex h-full flex-col gap-3',

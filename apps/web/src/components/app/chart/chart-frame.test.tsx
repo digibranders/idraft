@@ -139,6 +139,15 @@ describe('ChartFrame', () => {
     expect(within(region).getByRole('table', { name: 'Search volume by month' })).toBeInTheDocument();
   });
 
+  it('is a region named by its title, for a ready chart and for an html chart', async () => {
+    const line = renderWithProviders(frame());
+    const region = await screen.findByRole('region', { name: 'Search volume by month' });
+    expect(region).toContainElement(screen.getByRole('heading', { level: 2, name: 'Search volume by month' }));
+    line.unmount();
+    renderWithProviders(<ChartFrame {...HTML_BASE} status="ready" />);
+    expect(screen.getByRole('region', { name: HTML_BASE.title })).toBeInTheDocument();
+  });
+
   it('offers patterns for bars only', () => {
     const { rerender } = renderWithProviders(frame('line'));
     expect(screen.queryByRole('button', { name: 'Patterns' })).toBeNull();
