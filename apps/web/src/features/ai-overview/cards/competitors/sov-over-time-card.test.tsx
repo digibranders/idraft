@@ -96,3 +96,37 @@ describe('the share of voice over time card follows the page scope', () => {
     expect(await screen.findByText('A trend needs two weeks of answers')).toBeInTheDocument();
   });
 });
+
+describe('the share of voice over time card without its weekly cells', () => {
+  it('says Not collected yet, with its reason and no Retry, when the API sends no per-brand weekly cells', async () => {
+    // The totals are read, but no platform carries a weekly series (backend request 10)
+    const bare = (code: string): EngineSummary =>
+      engine(code, {
+        mentioned: cell(6, 10),
+        share: share(6, 10),
+        entities: [entityCells(own(), share(6, 10), share(6, 10)), entityCells(HUBSPOT, share(4, 10), share(4, 10))],
+      });
+    serve(bare('chatgpt_web'), bare('gemini_web'));
+    renderCard('cmp=off');
+    expect(await screen.findByRole('heading', { level: 2, name: 'Share of voice over time' })).toBeInTheDocument();
+    expect(await screen.findByText('Not collected yet')).toBeInTheDocument();
+    expect(screen.getByText(/weekly share of voice of each tracked brand is not collected yet/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Could not load/)).not.toBeInTheDocument();
+  });
+
+  it('still shows the error with Try again when the read itself fails', async () => {
+    server.use(
+      http.get(SUMMARY, () =>
+        HttpResponse.json(
+          { type: 'about:blank', title: 'Internal error', status: 500, code: 'internal_error', request_id: 'req-sov' },
+          { status: 500, headers: { 'content-type': 'application/problem+json' } },
+        ),
+      ),
+    );
+    renderCard('cmp=off');
+    expect(await screen.findByText('Could not load share of voice over time')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
+    expect(screen.queryByText('Not collected yet')).not.toBeInTheDocument();
+  });
+});

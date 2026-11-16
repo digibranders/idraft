@@ -5975,6 +5975,10 @@
         "info": {
           "what": "How the split of brand mentions between you and your competitors changes week by week.",
           "how": "Each week adds up to 100% of the tracked brands' shares of voice."
+        },
+        "notCollected": {
+          "title": "Not collected yet",
+          "reason": "The weekly share of voice of each tracked brand is not collected yet, so no layer is drawn."
         }
       }
     },

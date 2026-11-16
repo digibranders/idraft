@@ -12,7 +12,7 @@ import { trimIdleShares } from './model/trim-weeks';
 import type { FoldedPoint, TrackedEntity, TrackedSet, WeeklyPoint } from './model/types';
 import { foldOthers } from './model/weekly-series';
 import { useCardPlatforms } from './parts/card-engine';
-import { frameSummary, useFrameState, type DataSituation, type FrameState, type ReadFacts } from './parts/frame-state';
+import { frameSummary, useFrameState, type DataSituation, type FrameState } from './parts/frame-state';
 import { TrackedFootnote } from './parts/tracked-footnote';
 import { loadingBodyHeight } from './skeletons';
 import { useCardExport } from '../engines/use-card-seams';
@@ -261,8 +261,6 @@ export default function SovOverTimeCard({ item, live }: CardProps): ReactElement
     return t('summary', { date: formatChartDate(latest.weekStart), value: formatShare(value) });
   }, [points, ownId, t]);
 
-  const readFacts: ReadFacts =
-    model === 'unread' ? { status: 'error', errorId: read.errorId, stale: false, refetch: read.refetch } : read;
   const situation: DataSituation =
     set !== null && !set.entities.some((entity) => entity.role === 'competitor')
       ? { kind: 'no_competitor' }
@@ -271,7 +269,7 @@ export default function SovOverTimeCard({ item, live }: CardProps): ReactElement
         : { kind: 'ready' };
   const base = useFrameState({
     subject: t('subject'),
-    read: readFacts,
+    read,
     previous: null,
     previousEmpty: false,
     engine: null,
@@ -281,11 +279,14 @@ export default function SovOverTimeCard({ item, live }: CardProps): ReactElement
   const frame: FrameState =
     platforms.codes.length === 0
       ? { status: 'empty', empty: unavailable }
-      : active && ready !== null && ready.weeksWithAnswers >= 2 && ready.weeksDrawn === 0
-        ? { status: 'empty', empty: { title: t('emptyTitle'), reason: t('emptyReason') } }
-        : active && ready !== null && ready.weeksWithAnswers < 2
-          ? { status: 'empty', empty: { title: t('needsWeeksTitle'), reason: t('needsWeeksReason') } }
-          : base;
+      : active && model === 'unread'
+        ? // A good read with no per-brand weekly cells (backend request 10) is not an error: say so, keep the place
+          { status: 'empty', empty: { title: t('notCollected.title'), reason: t('notCollected.reason') } }
+        : active && ready !== null && ready.weeksWithAnswers >= 2 && ready.weeksDrawn === 0
+          ? { status: 'empty', empty: { title: t('emptyTitle'), reason: t('emptyReason') } }
+          : active && ready !== null && ready.weeksWithAnswers < 2
+            ? { status: 'empty', empty: { title: t('needsWeeksTitle'), reason: t('needsWeeksReason') } }
+            : base;
 
   useCardExport(item.id, () => {
     if (ready === null || (frame.status !== 'ready' && frame.status !== 'refetching')) return null;
