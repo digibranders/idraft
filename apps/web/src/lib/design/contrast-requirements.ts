@@ -82,5 +82,14 @@ export const TIER_TOKENS = [
   'tier-none',
 ] as const;
 
-/** The surfaces tier marks sit on: cards and badges on `surface`, the canvas on `surface-subtle`. */
-export const TIER_SURFACES = ['surface', 'surface-subtle'] as const;
+/**
+ * The surfaces tier marks sit on: cards and badges on `surface`, the canvas on `surface-subtle`, a hovered card on
+ * `surface-hover`, a card that is selected on `surface-selected` and a card that is opened on `primary-subtle`.
+ */
+export const TIER_SURFACES = [
+  'surface',
+  'surface-subtle',
+  'surface-hover',
+  'surface-selected',
+  'primary-subtle',
+] as const;
