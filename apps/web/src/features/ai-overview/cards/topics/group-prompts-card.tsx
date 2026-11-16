@@ -202,9 +202,12 @@ export function GroupPromptsCard({ live }: CardProps): ReactElement {
       }
       controls={back}
       body={
-        <div className="@container flex flex-col @3xl:flex-row">
-          <div className="min-w-0 flex-1">{table}</div>
-          {side}
+        // A container query reaches the children of the container, so the container is the outer element
+        <div className="@container">
+          <div className="flex flex-col @3xl:flex-row">
+            <div className="min-w-0 flex-1">{table}</div>
+            {side}
+          </div>
         </div>
       }
       table={table}
