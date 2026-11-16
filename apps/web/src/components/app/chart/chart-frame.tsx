@@ -447,7 +447,7 @@ function FrameShell({
         aria-label={title}
         data-slot="empty-state"
         className={cn(
-          'flex min-w-0 flex-col justify-center transition-colors',
+          'flex h-full min-w-0 flex-col justify-center transition-colors',
           inspector ? 'py-1' : 'rounded-lg border border-border bg-surface px-4 py-3',
         )}
       >

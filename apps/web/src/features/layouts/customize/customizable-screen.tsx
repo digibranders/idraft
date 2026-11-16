@@ -59,12 +59,17 @@ const renderUnavailable: NonNullable<LayoutGridProps['renderUnavailable']> = (it
  * an unavailable card is a placeholder, every card has its own error boundary, and an empty page offers the
  * Customize button.
  */
-export function CustomizableGrid({ label, columns }: Pick<LayoutGridProps, 'label' | 'columns'>): ReactElement {
+export function CustomizableGrid({
+  label,
+  columns,
+  cardClassName,
+}: Pick<LayoutGridProps, 'label' | 'columns' | 'cardClassName'>): ReactElement {
   const { openCatalog } = useCustomize();
   return (
     <LayoutGrid
       label={label}
       columns={columns}
+      cardClassName={cardClassName}
       onAddCard={openCatalog}
       renderUnavailable={renderUnavailable}
       CardBoundary={CardBoundary}

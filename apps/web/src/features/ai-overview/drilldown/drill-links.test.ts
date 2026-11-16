@@ -96,7 +96,12 @@ describe('drillHref carries the scope', () => {
     ['citations', null],
   ])('%s: a comparison that is on writes cmp=%s, so the page opens as the Overview does', (kind, expected) => {
     const scope = scopeOf({ ...NARROWED, country: null, compare: true });
-    const href = drillHref(kind, scope, { term: OTHER_TOPIC, promptId: '7c1d2e3f-4a5b-4c6d-8e7f-0a1b2c3d4e5f' }, PROJECT);
+    const href = drillHref(
+      kind,
+      scope,
+      { term: OTHER_TOPIC, promptId: '7c1d2e3f-4a5b-4c6d-8e7f-0a1b2c3d4e5f' },
+      PROJECT,
+    );
     expect(queryOf(href).get('cmp')).toBe(expected);
   });
 

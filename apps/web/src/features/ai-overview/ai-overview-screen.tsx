@@ -6,6 +6,7 @@ import { useMemo, type ReactElement, type ReactNode } from 'react';
 
 import { AI_OVERVIEW_CARDS } from './cards/registry';
 import { ExportProvider } from './export/export-registry';
+import { cardMinHeight } from './states/card-min-height';
 import { OverviewFreshness } from './header/overview-freshness';
 import { OverviewHeader } from './header/overview-header';
 import { OverviewNotices } from './notices/overview-notices';
@@ -32,6 +33,7 @@ import {
   type LayoutPreset,
 } from '@/features/layouts';
 import { useCan, useMembership } from '@/lib/permissions';
+import type { CardItem } from '@/lib/layouts';
 import { projectPath } from '@/lib/routes/paths';
 
 export interface AiOverviewScreenProps {
@@ -52,6 +54,9 @@ export interface AiOverviewScreenProps {
  * the header and 12 px between the blocks.
  */
 const OVERVIEW_PAGE_CLASS = 'flex flex-col gap-3 px-3 pt-3 pb-8 md:px-4 lg:px-5';
+
+/** Every card keeps its smallest height in every scope (preview commit 98e7d226), so the cards below do not jump. */
+const minHeightOf = (item: CardItem): string => cardMinHeight(item.type);
 
 /**
  * The page's body in each of its states. The engines decide what the page can say, so until they are read it holds
@@ -153,7 +158,7 @@ function OverviewBody({ setupSlot }: { setupSlot: ReactNode }): ReactElement {
       ) : null}
       {scopeEmpty === null ? (
         <div aria-busy={refetching || undefined}>
-          <CustomizableGrid label={t('cards')} />
+          <CustomizableGrid label={t('cards')} cardClassName={minHeightOf} />
         </div>
       ) : scopeEmpty.kind === 'noCountryPrompts' ? (
         <NoCountryPromptsState country={scopeEmpty.country} />

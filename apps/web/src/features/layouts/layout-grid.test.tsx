@@ -242,6 +242,18 @@ describe('LayoutGrid in view mode', () => {
     }
   });
 
+  it('puts the classes the screen asks for on every cell in view mode, and none in customize mode', async () => {
+    serve();
+    const { user } = mount({ grid: { cardClassName: (item) => `min-h-for-${item.id}` } });
+    await cardsShown();
+    for (const card of BUILTIN_CARDS) expect(frameOf(card.id)).toHaveClass(`min-h-for-${card.id}`);
+    await user.click(screen.getByRole('button', { name: 'Customize' }));
+    await waitFor(() => {
+      expect(frames()).toHaveLength(BUILTIN_CARDS.length);
+    });
+    for (const card of BUILTIN_CARDS) expect(frameOf(card.id).className).not.toContain('min-h-for-');
+  });
+
   it('is one column with no spans for columns="one"', async () => {
     serve();
     mount({ grid: { columns: 'one' } });

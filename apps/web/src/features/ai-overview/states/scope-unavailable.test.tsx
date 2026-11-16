@@ -22,21 +22,22 @@ describe('ScopeUnavailableCard', () => {
     render('?engine=gemini_web');
     expect(await screen.findByText('Not available for this scope')).toBeInTheDocument();
     expect(
-      await screen.findByText(/is not measured on Gemini\. Choose All platforms or another platform\.$/),
+      (await screen.findAllByText(/is not measured on Gemini\. Choose All platforms or another platform\.$/))[0],
     ).toBeInTheDocument();
-    expect(document.querySelector('[data-slot="scope-unavailable-card"]')).toHaveClass('md:min-h-[306px]');
+    // The card is a named section of its own frame, which fills its cell
+    expect(screen.getByRole('region', { name: 'Share of voice' })).toHaveClass('h-full');
   });
 
   it('says the card compares groups when no platform is chosen', async () => {
     render('');
-    expect(await screen.findByText(/compares groups, so it needs All groups\.$/)).toBeInTheDocument();
+    expect((await screen.findAllByText(/compares groups, so it needs All groups\.$/))[0]).toBeInTheDocument();
   });
 });
 
 describe('cardMinHeight', () => {
   it('has a class for the cards the preview sizes and none for the rest', () => {
-    expect(cardMinHeight('ai.topic_heatmap')).toBe('md:min-h-[585px]');
-    expect(cardMinHeight('traffic.ai_referrals')).toBe('md:min-h-[520px] xl:min-h-[346px]');
+    expect(cardMinHeight('ai.topic_heatmap')).toBe('md:min-h-146.25');
+    expect(cardMinHeight('traffic.ai_referrals')).toBe('md:min-h-130 xl:min-h-86.5');
     expect(cardMinHeight('ai.top_prompts')).toBe('');
     expect(cardMinHeight('toString')).toBe('');
   });
