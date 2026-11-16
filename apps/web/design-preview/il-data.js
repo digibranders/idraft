@@ -177,10 +177,10 @@ const pagesIn = (n) => pages.filter((page) => page.since <= n).length;
 
 /** Crawl runs, newest first (spec 6.2); `n` is the order, 1 the oldest. The first came from adding the website. */
 export const crawls = [
-  { id: 'c4', n: 4, when: '14 Nov 2026, 02:10', short: '14 Nov', trigger: 'Weekly', state: 'ready', pages: pagesIn(4), cost: 0.006 },
-  { id: 'c3', n: 3, when: '7 Nov 2026, 02:12', short: '7 Nov', trigger: 'Weekly', state: 'ready', pages: pagesIn(3), cost: 0.006 },
-  { id: 'c2', n: 2, when: '31 Oct 2026, 16:40', short: '31 Oct', trigger: 'Crawl now', state: 'ready', pages: pagesIn(2), cost: 0.006 },
-  { id: 'c1', n: 1, when: '30 Oct 2026, 11:05', short: '30 Oct', trigger: 'Website added', state: 'ready', pages: pagesIn(1), cost: 0.006 },
+  { id: 'c4', n: 4, when: '14 Nov 2026, 02:10', short: '14 Nov', trigger: 'Schedule', state: 'ready', pages: pagesIn(4), cost: 0.006 },
+  { id: 'c3', n: 3, when: '7 Nov 2026, 02:12', short: '7 Nov', trigger: 'Schedule', state: 'ready', pages: pagesIn(3), cost: 0.006 },
+  { id: 'c2', n: 2, when: '31 Oct 2026, 16:40', short: '31 Oct', trigger: 'Manual', state: 'ready', pages: pagesIn(2), cost: 0.006 },
+  { id: 'c1', n: 1, when: '30 Oct 2026, 11:05', short: '30 Oct', trigger: 'Manual', state: 'ready', pages: pagesIn(1), cost: 0.006 },
 ];
 
 /** Project settings of the crawl (spec 7.8). alerts.channel is 'app', 'email' or 'slack'. */

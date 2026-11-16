@@ -5,7 +5,7 @@
  * The table is the accessible version; no chart library.
  */
 import { el } from './prompts-parts.js';
-import { SCOPE_MENU, SCOPE_WORD, activePages, crawls, currentCrawl, equity, ins, number, pct, plural, refresh, state, tierBadge, tierCode, tierFlow, tierLabel, tiers } from './il-model.js';
+import { SCOPE_MENU, SCOPE_WORD, activePages, crawls, currentCrawl, ins, number, pct, plural, refresh, state, tierBadge, tierCode, tierFlow, tierLabel, tiers } from './il-model.js';
 import { applyRestore, menuSelect } from './il-pages.js';
 
 const PANEL = 'rounded-lg border border-border bg-surface';
@@ -27,8 +27,8 @@ function summaryStrip(flow) {
     badge.classList.add('self-start');
     cell.append(
       badge,
-      el('p', 'type-body-strong num text-foreground', `${pct(item.equity)} of equity`),
-      el('p', 'type-meta text-foreground-secondary', `from ${pct(item.pages / Math.max(1, activePages().length))} of pages, ${item.depth === null ? 'depth n/a' : `average depth ${item.depth.toFixed(1)}`}`),
+      el('p', 'type-body-strong num text-foreground', plural(item.pages, 'page')),
+      el('p', 'type-meta num text-foreground-secondary', `${pct(item.pages / Math.max(1, activePages().length))} of pages, ${item.depth === null ? 'depth n/a' : `average depth ${item.depth.toFixed(1)}`}`),
     );
     strip.append(cell);
   });
@@ -37,15 +37,13 @@ function summaryStrip(flow) {
 
 function sentence(flow) {
   const top = tiers[0];
-  if (!top) return 'No tiers are set up yet. Add tiers in Workspace settings to see how equity flows between them.';
-  const topShare = flow.strip.find((item) => item.key === top.id)?.equity ?? 0;
-  const text = `${tierCode(top.id)} pages hold ${pct(topShare)} of internal equity.`;
+  if (!top) return 'No tiers are set up yet. Add tiers in Workspace settings to see how links flow between them.';
   // The tier (other than the top one) that sends the most links to the top tier in this scope
   const senders = flow.keys.filter((key) => key !== top.id).map((key) => ({ key, count: flow.matrix.get(key).get(top.id) }));
   const best = senders.reduce((a, b) => (b.count > (a?.count ?? -1) ? b : a), null);
-  if (!best) return text;
+  if (!best || best.count === 0) return `No pages in other tiers link to ${tierCode(top.id)} pages.`;
   const from = best.key ? `${tierLabel(best.key).replace(/^T\d+ /, '')} (${tierCode(best.key)})` : 'Untiered pages';
-  return `${text} ${from} send ${plural(best.count, `${scopeWord(state.scope)} link`)} to ${tierCode(top.id)}.`;
+  return `${from} send ${plural(best.count, `${scopeWord(state.scope)} link`)} to ${tierCode(top.id)}.`;
 }
 
 function openPair(from, to) {
@@ -105,12 +103,12 @@ function heatmap(flow) {
   return wrap;
 }
 
-/** Pages that hold equity without passing it to a page that ranks: errors and non-indexable pages. Redirects pass it on. */
+/** Errors and non-indexable pages, most linked first: links to them do not help a page that can rank. */
 function lostRows() {
   return activePages()
     .filter((page) => page.status >= 400 || (page.status === 200 && !page.indexable))
-    .map((page) => ({ page, share: equity[page.id], linking: ins(page.id, 'all').length }))
-    .sort((a, b) => b.share - a.share);
+    .map((page) => ({ page, linking: ins(page.id, 'all').length }))
+    .sort((a, b) => b.linking - a.linking);
 }
 
 const KIND = (page) => (page.status >= 400 ? `Error (${page.status})` : page.reason || 'Not indexable');
@@ -119,9 +117,9 @@ function lostPanel() {
   const panel = el('section', PANEL);
   panel.setAttribute('aria-labelledby', 'il-flow-lost-title');
   const head = el('div', 'px-4 pt-3 pb-2 flex flex-col gap-1');
-  const title = el('h2', 'type-subsection-title', 'Equity held by errors and non-indexable pages');
+  const title = el('h2', 'type-subsection-title', 'Links to errors and non-indexable pages');
   title.id = 'il-flow-lost-title';
-  head.append(title, el('p', 'type-meta text-foreground-secondary', 'Links to these pages do not help a page that can rank. Counts include every kind of link. Redirects pass equity to their target but cost a hop.'));
+  head.append(title, el('p', 'type-meta text-foreground-secondary', 'Links to these pages do not help a page that can rank. Redirects pass visitors to their target but cost a hop.'));
   panel.append(head);
   const rows = lostRows();
   if (rows.length === 0) {
@@ -130,11 +128,11 @@ function lostPanel() {
   }
   const table = el('table', 'w-full border-collapse');
   const headRow = el('tr');
-  [['Page', 'text-left'], ['Why', 'text-left'], ['Equity', 'text-right'], ['Pages linking to it', 'text-right']].forEach(([label, align]) => headRow.append(headCell(label, align)));
+  [['Page', 'text-left'], ['Why', 'text-left'], ['Pages linking to it', 'text-right']].forEach(([label, align]) => headRow.append(headCell(label, align)));
   const thead = el('thead');
   thead.append(headRow);
   const body = el('tbody');
-  rows.forEach(({ page, share, linking }) => {
+  rows.forEach(({ page, linking }) => {
     const row = el('tr');
     const th = el('th', `border-b border-border-subtle ${CELL_PAD} text-left font-normal`);
     th.scope = 'row';
@@ -142,7 +140,6 @@ function lostPanel() {
     row.append(
       th,
       el('td', `border-b border-border-subtle ${CELL_PAD} type-table text-foreground-secondary`, KIND(page)),
-      el('td', `border-b border-border-subtle ${CELL_PAD} text-right type-table num text-foreground`, pct(share)),
       el('td', `border-b border-border-subtle ${CELL_PAD} text-right type-table num text-foreground`, number(linking)),
     );
     body.append(row);

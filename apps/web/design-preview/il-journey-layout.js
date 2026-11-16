@@ -20,7 +20,7 @@ export function linksOf(id, dir, scope) {
   return dir === 'out' ? outs(id, scope) : ins(id, scope);
 }
 
-/** Children sort by tier position (Untiered last), then equity share. */
+/** Children sort by tier position (Untiered last), then by how well linked the page is (internal tie-break). */
 export const childSorter = (dir) => (a, b) => {
   const position = (link) => tierPosition(tierIdOf(pageById(other(link, dir)))) || 99;
   return position(a) - position(b) || equity[other(b, dir)] - equity[other(a, dir)];

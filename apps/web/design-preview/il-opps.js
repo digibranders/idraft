@@ -6,7 +6,7 @@
 import { BUTTON_SM, copyText, downloadCsv, icon, iconButton, toast } from './perf-ui.js';
 import { el } from './prompts-parts.js';
 import {
-  number, opportunities, opportunityCounts, pageById, pct, plural, refresh, setOpportunityStatus, tierBadge, tierCode, tierIdOf, tierPosition, tiers,
+  number, opportunities, opportunityCounts, pageById, plural, refresh, setOpportunityStatus, tierBadge, tierCode, tierIdOf, tierPosition, tiers,
 } from './il-model.js';
 import { openInspector } from './il-drawer.js';
 import { applyRestore as applyMenuRestore, menuSelect } from './il-pages.js';
@@ -21,7 +21,6 @@ const COLUMNS = [
   { id: 'target', label: 'Target page', width: 240 },
   { id: 'targetTier', label: 'Target tier', width: 96 },
   { id: 'anchor', label: 'Suggested anchor', width: 200 },
-  { id: 'equity', label: 'Source equity share', width: 120, align: 'text-right' },
   { id: 'status', label: 'Status', width: 100 },
   { id: 'actions', label: 'Actions', width: 230 },
 ];
@@ -139,7 +138,6 @@ function oppRow(row) {
     [pageCell(row.to)],
     [tierBadge(tierIdOf(pageById(row.to)))],
     [el('span', 'block truncate type-table text-foreground', `"${row.anchor}"`)],
-    [el('span', 'type-table num text-foreground', pct(row.sourceEquity))],
     [badge],
     [actionsCell(row)],
   ];
@@ -353,7 +351,7 @@ export function render(host) {
     scroller.append(table);
   }
   const foot = el('div', 'px-4 py-2 border-t border-border-subtle type-meta');
-  foot.textContent = 'Opportunities come from pages that mention a topic of another page without linking to it. In this preview the mentions are sample data; the real feature reads page text and tracked keywords.';
+  foot.textContent = 'Opportunities come from pages that mention a subject of another page without linking to it. In this preview the mentions are sample data; the real feature reads page text and tracked keywords.';
   panel.append(scroller, foot);
   panel.addEventListener('click', onClick);
   panel.addEventListener('change', onChange);

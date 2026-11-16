@@ -77,7 +77,7 @@ function addCrawl() {
     if (page.lastSeen === previous.n) page.lastSeen = n;
   });
   const count = pages.filter((page) => page.since <= n && (page.lastSeen ?? Infinity) >= n).length;
-  crawls.unshift({ id: `c${n}`, n, when: 'Today, just now', short: 'Today', trigger: 'Crawl now', state: 'ready', pages: count, cost: 0.006 });
+  crawls.unshift({ id: `c${n}`, n, when: 'Today, just now', short: 'Today', trigger: 'Manual', state: 'ready', pages: count, cost: 0.006 });
   return crawls[0];
 }
 
@@ -158,7 +158,7 @@ function clientSummary() {
   const crawl = currentCrawl();
   const flow = tierFlow('editorial');
   const total = activePages().length;
-  const tierRows = flow.strip.map((row) => [tierLabel(row.key), row.pages.toLocaleString('en-US'), pct(total ? row.pages / total : 0), pct(row.equity), row.depth === null ? 'n/a' : row.depth.toFixed(1)]);
+  const tierRows = flow.strip.map((row) => [tierLabel(row.key), row.pages.toLocaleString('en-US'), pct(total ? row.pages / total : 0), row.depth === null ? 'n/a' : row.depth.toFixed(1)]);
   const matrixRows = flow.keys.map((from) => [tierCode(from), ...flow.keys.map((to) => flow.matrix.get(from).get(to).toLocaleString('en-US'))]);
   const open = WORKLISTS.map((list) => [list.label, worklistCount(list.key)]).filter(([, count]) => count > 0).map(([label, count]) => [label, count.toLocaleString('en-US')]);
   const lost = lostToTop().map((link) => [pageOf(link.from), pageOf(link.to), link.anchor]);
@@ -167,11 +167,11 @@ function clientSummary() {
 <body style="font-family:system-ui,sans-serif;color:#18181b;max-width:880px;margin:32px auto;padding:0 16px;line-height:1.5">
 <h1 style="font-size:24px;margin:0 0 4px">Internal links summary for eventussecurity.com</h1>
 <p style="margin:0;color:#52525b">Crawl of ${esc(crawl.when)}, ${esc(plural(crawl.pages, 'page'))}.</p>
-${heading('Tiers')}${htmlTable(['Tier', 'Pages', 'Share of pages', 'Equity share', 'Average depth'], tierRows)}
+${heading('Tiers')}${htmlTable(['Tier', 'Pages', 'Share of pages', 'Average depth'], tierRows)}
 ${heading('Links between tiers')}<p style="margin:0;color:#52525b">Editorial links, one per pair of pages. Rows link to columns.</p>${htmlTable(['From', ...flow.keys.map((key) => `To ${tierCode(key)}`)], matrixRows)}
 ${heading('Open worklists')}${open.length ? htmlTable(['Worklist', 'Pages'], open) : '<p style="color:#52525b">No worklist has pages in this crawl.</p>'}
 ${heading(`Lost editorial links to ${alertTierText()} pages`)}${lost.length ? htmlTable(['Source page', 'Target page', 'Anchor'], lost) : `<p style="color:#52525b">No editorial links to ${alertTierText()} pages were lost since the last crawl.</p>`}
-<p style="margin:32px 0 0;padding-top:12px;border-top:1px solid #d4d4d8;color:#52525b;font-size:13px">Equity share is internal PageRank computed from the crawl. Link counts use editorial links.</p>
+<p style="margin:32px 0 0;padding-top:12px;border-top:1px solid #d4d4d8;color:#52525b;font-size:13px">Link counts use editorial links.</p>
 </body></html>`;
   download(html, 'text/html', 'internal-links-summary.html');
   toast({ title: 'Client summary ready', description: 'Saved as internal-links-summary.html.', tone: 'success' });

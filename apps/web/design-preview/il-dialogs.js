@@ -281,7 +281,7 @@ export function openCrawlSettings() {
   drawThreshold();
   const recent = el('table', 'w-full border-collapse');
   const head = el('tr');
-  [['When', 'text-left'], ['Trigger', 'text-left'], ['Pages', 'text-right'], ['Cost', 'text-right']].forEach(([label, align]) => {
+  [['When', 'text-left'], ['Started by', 'text-left'], ['Pages', 'text-right'], ['Cost', 'text-right']].forEach(([label, align]) => {
     const th = el('th', `border-b border-border bg-surface-subtle px-3 py-2 type-table-header text-foreground-tertiary font-normal ${align}`, label);
     th.scope = 'col';
     head.append(th);

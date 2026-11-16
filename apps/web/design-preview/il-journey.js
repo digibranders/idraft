@@ -6,7 +6,7 @@
 import { el } from './prompts-parts.js';
 import { BUTTON_SM, FIELD, icon, iconButton, popover, segmented, selectField, toast } from './perf-ui.js';
 import {
-  PLACEMENT_LABEL, SCOPE_WORD, activePages, depthWithoutAuto, equity, findPaths, flags, ins, isLive, pageById, pct, plural, refresh, routeFromHome, scopeOf,
+  PLACEMENT_LABEL, SCOPE_WORD, activePages, depthWithoutAuto, findPaths, flags, ins, isLive, pageById, plural, refresh, routeFromHome, scopeOf,
   setFocus, suggestedLinks, state, statusBadge, tierBadge, tierCode, tierEdge, tierIdOf, tierLabel, tierPosition,
 } from './il-model.js';
 import { openInspector } from './il-drawer.js';
@@ -68,7 +68,6 @@ function cardTip(node, item) {
     ['Without previous and next', depthWithoutAuto[item.id] === undefined ? 'Not reachable' : String(depthWithoutAuto[item.id])],
     ['Linking pages, editorial', String(ins(item.id, 'editorial').length)],
     ['Linking pages, all', String(ins(item.id, 'all').length)],
-    ['Equity share', isLive(page) ? pct(equity[item.id]) : 'n/a'],
   ];
   if (edge) rows.push(['This link', `${PLACEMENT_LABEL[edge.placement]}, ${edge.rel}`]);
   showTip(node, rows, page.path, page.title);
@@ -91,7 +90,6 @@ function metaLine(item, scope, backs, both) {
   const reserve = backs.length === 0 ? '' : 'pr-10';
   const line = el('span', `flex flex-wrap items-center gap-x-1.5 gap-y-0.5 type-meta text-foreground-tertiary ${reserve}`);
   line.append(el('span', 'text-foreground-secondary', tierCode(tierIdOf(page))), el('span', 'num', `${plural(ins(item.id, scope).length, 'linking page')}`));
-  if (isLive(page)) line.append(el('span', 'num', pct(equity[item.id])));
   if (page.status !== 200) line.append(statusBadge(page));
   if (both) line.append(el('span', BOTH_BADGE, 'Both ways'));
   return line;
@@ -298,7 +296,7 @@ function focusNote(scope) {
   const lines = [];
   if (isLive(page)) lines.push(`${plural(editorial, 'editorial link')} in.`);
   if (page.status >= 400) lines.push('Not found: this page has no links out.');
-  else if (page.redirect) lines.push('Redirect: it passes visitors and equity to its target.');
+  else if (page.redirect) lines.push('Redirect: it passes visitors to its target.');
   if (flags(page).some((flag) => flag.key === 'orphan')) lines.push('Orphan: no page links here.');
   else if (flags(page).some((flag) => flag.key === 'editorialOrphan')) lines.push(`Editorial orphan: no editorial links in.${scope === 'editorial' ? ' Choose All links to see the menu and automatic links that reach it.' : ''}`);
   else if (linksOf(id, 'out', 'all').length === 0 && page.status < 400) lines.push('This page has no links out.');
@@ -545,7 +543,7 @@ function treeTable() {
   const scroller = el('div', 'overflow-x-auto');
   const table = el('table', 'w-full border-collapse');
   const head = el('tr', 'h-row-header');
-  [['Page', ''], ['Tier', ''], ['Anchor text', ''], ['Link type', ''], ['Linking pages', 'text-right'], ['Equity share', 'text-right'], ['Status', '']].forEach(([name, align]) => {
+  [['Page', ''], ['Tier', ''], ['Anchor text', ''], ['Link type', ''], ['Linking pages', 'text-right'], ['Status', '']].forEach(([name, align]) => {
     const th = el('th', `sticky top-0 z-(--z-table-header) border-b border-border bg-surface-subtle ${CELL} type-table-header text-foreground-secondary text-left font-normal ${align}`, name);
     th.scope = 'col';
     head.append(th);
@@ -563,7 +561,7 @@ function treeTable() {
     if (rows.length === 1) {
       const empty = el('tr');
       const cell = el('td', 'px-3 py-6 type-body text-foreground-secondary', j().treeDir === 'out' ? 'This page has no links out in this scope. Choose All links to include menu and automatic links.' : 'No page links here in this scope. Choose All links to include menu and automatic links.');
-      cell.colSpan = 7;
+      cell.colSpan = 6;
       empty.append(cell);
       body.append(empty);
     }
@@ -633,11 +631,10 @@ function treeRow(row, scope) {
     el('td', `${CELL} type-table ${muted ? 'text-foreground-tertiary' : 'text-foreground-secondary'}`, row.edge ? `"${row.edge.anchor}"` : 'Focus page'),
     el('td', `${CELL} type-table text-foreground-secondary`, row.edge ? PLACEMENT_LABEL[row.edge.placement] : ''),
     el('td', `${CELL} type-table num text-right text-foreground-secondary`, muted ? '' : String(ins(row.id, scope).length)),
-    el('td', `${CELL} type-table num text-right text-foreground-secondary`, muted ? '' : isLive(page) ? pct(equity[row.id]) : 'n/a'),
     el('td', CELL),
   ];
   cells[1].append(tierBadge(tierIdOf(page)));
-  if (!muted) cells[6].append(statusBadge(page));
+  if (!muted) cells[5].append(statusBadge(page));
   tr.append(...cells);
   return tr;
 }
@@ -905,11 +902,11 @@ export function exportRows() {
   const scope = markerScope(j().cards);
   const rows = treeRows({ focus: j().focus, dir: j().treeDir, scope, treeOpen: j().treeOpen });
   return [
-    ['Level', 'Page', 'Tier', 'Anchor text', 'Link type', 'Linking pages', 'Equity share', 'Status'],
+    ['Level', 'Page', 'Tier', 'Anchor text', 'Link type', 'Linking pages', 'Status'],
     ...rows.map((row) => {
       const page = pageById(row.id);
       const muted = row.kind !== 'page';
-      return [row.level, muted ? row.text : page.path, tierCode(tierIdOf(page)), row.edge ? row.edge.anchor : '', row.edge ? PLACEMENT_LABEL[row.edge.placement] : '', muted ? '' : ins(row.id, scope).length, muted ? '' : isLive(page) ? pct(equity[row.id]) : 'n/a', muted ? '' : page.status];
+      return [row.level, muted ? row.text : page.path, tierCode(tierIdOf(page)), row.edge ? row.edge.anchor : '', row.edge ? PLACEMENT_LABEL[row.edge.placement] : '', muted ? '' : ins(row.id, scope).length, muted ? '' : page.status];
     }),
   ];
 }

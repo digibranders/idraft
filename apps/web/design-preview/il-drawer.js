@@ -7,7 +7,7 @@
  */
 import { BUTTON_SM, BUTTON_PRIMARY, copyText, downloadCsv, icon, iconButton, popover, selectField, toast } from './perf-ui.js';
 import { el } from './prompts-parts.js';
-import { PLACEMENT_LABEL, allTags, anchorStats, avgRank, citationsOf, crawlOrder, depth, equity, flagBadge, flags, ins, isActiveLink, keywordsOf, links, number, outs, pageById, pageDelta, pct, plural, refresh, resetToRule, routeFromHome, setFocus, setTier, sourceText, state, tierBg, tierCode, tierIdOf, tierKeys, tierLabel, tierOf, tiers, suggestedLinks, hasRelatedPages } from './il-model.js';
+import { PLACEMENT_LABEL, allTags, anchorStats, avgRank, citationsOf, crawlOrder, depth, flagBadge, flags, ins, isActiveLink, keywordsOf, links, number, outs, pageById, pageDelta, plural, refresh, resetToRule, routeFromHome, setFocus, setTier, sourceText, state, tierBg, tierCode, tierIdOf, tierKeys, tierLabel, tierOf, tiers, suggestedLinks, hasRelatedPages } from './il-model.js';
 import { newTagForm, shownPageIds } from './il-pages.js';
 
 const HOST_URL = 'https://eventussecurity.com';
@@ -128,10 +128,9 @@ function metricStrip(page) {
   const items = [
     ['Depth', depth[page.id] === undefined ? 'Not reachable' : String(depth[page.id]), null],
     ['Links in', String(editorial), `editorial, ${all} in all`],
-    ['Equity', pct(equity[page.id]), null],
     ['Links out', String(outs(page.id, 'editorial').length), `editorial, ${outs(page.id, 'all').length} in all`],
   ];
-  const row = el('dl', 'grid grid-cols-4 rounded-md border border-border');
+  const row = el('dl', 'grid grid-cols-3 rounded-md border border-border');
   items.forEach(([label, value, note], index) => {
     const item = el('div', `flex min-w-0 flex-col px-2 py-2 ${index < items.length - 1 ? 'border-r border-border' : ''}`);
     item.append(el('dt', 'type-label text-foreground-tertiary', label), el('dd', 'type-body-strong num text-foreground break-words', value));
@@ -199,7 +198,7 @@ function suggestionsSection(page) {
     ['Source page', 'Target page', 'Anchor', 'Reasons'],
     ...all.map((item) => [`${HOST_URL}${pageById(item.id).path}`, target, item.anchor, item.reasons.join('; ')]),
   ]));
-  return section('Suggested links', list, exportButton, el('p', 'type-meta text-foreground-tertiary', 'Suggestions match topics and tags. Reading page text arrives with link opportunities.'));
+  return section('Suggested links', list, exportButton, el('p', 'type-meta text-foreground-tertiary', 'Suggestions match subjects and tags. Reading page text arrives with link opportunities.'));
 }
 
 function barList(rows, total) {
@@ -225,7 +224,7 @@ function change(value, unit, lowerIsBetter = false, isNew = false) {
   if (value === null) return el('span', 'type-meta text-foreground-tertiary', 'n/a');
   if (value === 0) return el('span', 'type-meta text-foreground-tertiary', 'No change');
   const good = lowerIsBetter ? value < 0 : value > 0;
-  return el('span', `type-meta num ${good ? 'text-positive-text' : 'text-negative-text'}`, `${value > 0 ? '+' : '-'}${unit === 'pts' ? Math.abs(value).toFixed(1) : Math.abs(value)} ${unit}`);
+  return el('span', `type-meta num ${good ? 'text-positive-text' : 'text-negative-text'}`, `${value > 0 ? '+' : '-'}${Math.abs(value)} ${unit}`);
 }
 
 function changesSection(page) {
@@ -235,7 +234,6 @@ function changesSection(page) {
   const isNew = page.since === crawlOrder(state.crawl);
   const lines = [
     ['Editorial links in', String(ins(page.id, 'editorial').length), change(delta.editorialIn, 'links', false, isNew)],
-    ['Equity share', pct(equity[page.id]), change(delta.equityPoints, 'pts', false, isNew)],
     ['Click depth', depth[page.id] === undefined ? 'Not reachable' : String(depth[page.id]), change(delta.depth, 'clicks', true, isNew)],
   ];
   const list = el('ul', 'flex flex-col');
@@ -249,7 +247,7 @@ function changesSection(page) {
 
 function keywordsSection(page) {
   const rows = keywordsOf(page.id);
-  if (rows.length === 0) return section('Tracked keywords', muted('No tracked keywords for this page. Add keywords in Keywords to see rankings here.'));
+  if (rows.length === 0) return section('Tracked keywords', muted('No tracked keywords for this page. Add keywords in Keywords to see ranks here.'));
   const table = el('table', 'w-full border-collapse');
   table.setAttribute('aria-label', 'Tracked keywords');
   const head = el('tr');
@@ -285,7 +283,7 @@ function citationsSection(page) {
   const counts = citationsOf(page.id);
   if (counts.total === 0) return section('AI citations', muted('No AI answers cited this page yet.'));
   const grid = el('dl', 'grid grid-cols-3 rounded-md border border-border');
-  [['ChatGPT', counts.chatgpt], ['Gemini', counts.gemini], ['AI Mode', counts.aimode]].forEach(([label, value], index) => {
+  [['ChatGPT', counts.chatgpt], ['Gemini', counts.gemini], ['Google AI Mode', counts.aimode]].forEach(([label, value], index) => {
     const item = el('div', `flex flex-col px-2 py-2 ${index < 2 ? 'border-r border-border' : ''}`);
     item.append(el('dt', 'type-label text-foreground-tertiary', label), el('dd', 'type-body-strong num text-foreground', number(value)));
     grid.append(item);

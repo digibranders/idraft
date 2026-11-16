@@ -1,7 +1,7 @@
 /* global document */
 /**
  * Internal links, Pages tab (spec 7.2): one row per crawled page with its tier, status, depth, linking pages, the
- * tiers those pages sit in, outlinks, equity share, Search Console clicks and flags. It follows the Keywords table:
+ * tiers those pages sit in, outlinks, Search Console clicks and flags. It follows the Keywords table:
  * toolbar, sticky header and first columns, select column, bulk bar, sort buttons and a footer line. A row opens the
  * page inspector (il-drawer.js). Exports `render(host)`, `exportRows()` and `shownPageIds()`.
  */
@@ -9,7 +9,7 @@ import { checkRow, downloadCsv, icon, popover, toast, BUTTON, BUTTON_PRIMARY, BU
 import { openDialog } from './kw-dialog.js';
 import { el } from './prompts-parts.js';
 import {
-  WORKLISTS, SCOPE_MENU, activePages, addTag, alertTierText, allTags, anchorStats, applyTierSuggestion, avgRank, citationsOf, depth, dismissTierSuggestion, equity,
+  WORKLISTS, SCOPE_MENU, activePages, addTag, alertTierText, allTags, anchorStats, applyTierSuggestion, avgRank, citationsOf, depth, dismissTierSuggestion,
   flagBadge, flags, ins, keywordsOf, number, outs, pageCsvRows, pageDelta, pct, pageById, plural,
   refresh, resetToRule, SCOPES, setFocus, setTier, sourceText, state, statusBadge, statusOf, tierBadge, tierBg, tierCode,
   tierIdOf, tierKeys, tierLabel, tierPosition, tierSuggestions, tiers, worklistCount,
@@ -29,7 +29,6 @@ const COLUMNS = [
   { id: 'linking', label: 'Linking pages', width: 120, sort: 'linking', tip: 'Unique pages that link here, in the link scope chosen' },
   { id: 'fromTiers', label: 'Linked from tiers', width: 128, tip: 'Linking pages by tier, in the link scope chosen' },
   { id: 'outlinks', label: 'Outlinks', width: 96, sort: 'outlinks', tip: 'Unique pages this page links to, in the link scope chosen' },
-  { id: 'equity', label: 'Equity share', width: 112, sort: 'equity', tip: 'Share of internal PageRank, counting every followed link' },
   { id: 'clicks', label: 'GSC clicks', width: 104, sort: 'clicks', tip: 'Google Search Console, last 28 days' },
   { id: 'change', label: 'Change', width: 96, sort: 'change', optional: true, tip: 'Editorial links in, compared with the previous crawl' },
   { id: 'flags', label: 'Flags', width: 240, sort: 'flags' },
@@ -41,18 +40,17 @@ const COLUMNS = [
   { id: 'redirects', label: 'Links to redirects', width: 130, optional: true },
   { id: 'topAnchor', label: 'Top anchor', width: 200, optional: true },
   { id: 'impressions', label: 'GSC impressions', width: 128, optional: true, tip: 'Google Search Console, last 28 days' },
-  { id: 'equityChange', label: 'Equity change', width: 120, sort: 'equityChange', optional: true, tip: 'Equity share, compared with the previous crawl' },
   { id: 'keywords', label: 'Tracked keywords', width: 128, sort: 'keywords', optional: true, tip: 'Keywords tracked for this page in idraft rank tracking' },
-  { id: 'avgRank', label: 'Average rank', width: 120, sort: 'avgRank', optional: true, tip: 'Average position of the tracked keywords that rank, from idraft rank tracking' },
+  { id: 'avgRank', label: 'Average rank', width: 120, sort: 'avgRank', optional: true, tip: 'Average rank of the tracked keywords that rank, from idraft rank tracking' },
   { id: 'citations', label: 'AI citations', width: 112, sort: 'citations', optional: true, tip: 'Answers from ChatGPT, Gemini and AI Mode that cited this page, last 28 days' },
   { id: 'anchors', label: 'Anchors', width: 190, sort: 'anchors', optional: true, tip: 'Distinct anchor texts of the editorial links in, and how many of them are generic' },
   { id: 'anchorMatch', label: 'Anchor matches keyword', width: 160, optional: true, tip: 'Whether an editorial anchor contains one of the tracked keywords' },
 ];
 // The new columns other than Change start hidden; the column chooser turns them on
-['equityChange', 'keywords', 'avgRank', 'citations', 'anchors', 'anchorMatch'].forEach((id) => state.hidden.add(id));
+['keywords', 'avgRank', 'citations', 'anchors', 'anchorMatch'].forEach((id) => state.hidden.add(id));
 
 const EMPTY_WORKLIST = {
-  underlinked: ['No under-linked T1 pages', 'Every T1 page has at least 3 editorial linking pages, sits within 3 clicks of the home page and holds more than the lowest quarter of equity share.'],
+  underlinked: ['No under-linked T1 pages', 'Every T1 page has at least 3 editorial linking pages and sits within 3 clicks of the home page.'],
   orphans: ['No orphans', 'Every page has at least one internal link pointing to it.'],
   editorialOrphans: ['No editorial orphans', 'Every page is linked from at least one editorial link, not only from menus or related blocks.'],
   deepAuto: ['No pages deep only through previous and next', 'Every page can be reached without relying on previous and next links.'],
@@ -115,11 +113,9 @@ const SORT = {
   depth: (page) => depth[page.id] ?? 1000,
   linking: (page) => ins(page.id, state.scope).length,
   outlinks: (page) => outs(page.id, state.scope).length,
-  equity: (page) => equity[page.id],
   clicks: (page) => page.clicks,
   flags: (page) => flags(page).length,
   change: (page) => pageDelta(page.id).editorialIn ?? 0,
-  equityChange: (page) => pageDelta(page.id).equityPoints ?? 0,
   keywords: (page) => keywordsOf(page.id).length,
   avgRank: (page) => avgRank(page.id) ?? 1000,
   citations: (page) => citationsOf(page.id).total,
@@ -136,7 +132,7 @@ function visiblePages() {
   const { key, dir } = state.sort;
   const read = SORT[key] ?? SORT.tier;
   const sign = dir === 'asc' ? 1 : -1;
-  return items.sort((a, b) => (read(a) > read(b) ? sign : read(a) < read(b) ? -sign : equity[b.id] - equity[a.id]));
+  return items.sort((a, b) => (read(a) > read(b) ? sign : read(a) < read(b) ? -sign : ins(b.id, 'editorial').length - ins(a.id, 'editorial').length));
 }
 
 export const shownPageIds = () => visiblePages().map((page) => page.id);
@@ -145,10 +141,10 @@ export const shownPageIds = () => visiblePages().map((page) => page.id);
 function csvRows(list) {
   const [header, ...rows] = pageCsvRows(list, state.scope);
   return [
-    [...header, 'Equity share change (points)', 'Distinct anchors (editorial)', 'Generic anchor share', 'Anchor matches keyword'],
+    [...header, 'Distinct anchors (editorial)', 'Generic anchor share', 'Anchor matches keyword'],
     ...rows.map((row, index) => {
       const anchors = anchorStats(list[index].id);
-      return [...row, pageDelta(list[index].id).equityPoints, anchors.distinct, anchors.total ? pct(anchors.genericShare) : '', anchors.matchesKeyword === null ? 'n/a' : anchors.matchesKeyword ? 'Yes' : 'No'];
+      return [...row, anchors.distinct, anchors.total ? pct(anchors.genericShare) : '', anchors.matchesKeyword === null ? 'n/a' : anchors.matchesKeyword ? 'Yes' : 'No'];
     }),
   ];
 }
@@ -246,7 +242,6 @@ function cellFor(column, page) {
     linking: () => numeric(String(ins(page.id, state.scope).length)),
     fromTiers: () => fromTiers(page),
     outlinks: () => numeric(String(outs(page.id, state.scope).length)),
-    equity: () => numeric(pct(equity[page.id])),
     clicks: () => numeric(number(page.clicks)),
     flags: () => flagList(page),
     tags: () => chips(page),
@@ -258,7 +253,6 @@ function cellFor(column, page) {
     topAnchor: () => topAnchor(page),
     impressions: () => numeric(number(page.impressions)),
     change: () => deltaCell(pageDelta(page.id).editorialIn),
-    equityChange: () => deltaCell(pageDelta(page.id).equityPoints, ' pts'),
     keywords: () => numeric(String(keywordsOf(page.id).length)),
     avgRank: () => (avgRank(page.id) === null ? muted('n/a') : numeric(avgRank(page.id).toFixed(1))),
     citations: () => citationsCell(page),
@@ -581,7 +575,7 @@ function viewChips() {
 function openSuggestions() {
   const frame = openDialog({
     title: 'Suggested tiers',
-    description: 'idraft suggests a tier from Search Console clicks and tracked keyword rankings. Nothing changes until you accept.',
+    description: 'idraft suggests a tier from Search Console clicks and tracked keyword ranks. Nothing changes until you accept.',
     width: 'lg',
     // Accepting every suggestion removes the Tier suggestions chip: focus the first view chip, or the search field
     onClose: () => (document.querySelector('[data-restore="chip:tiers"]') ?? document.querySelector('[data-restore^="chip:"]') ?? document.querySelector('input[aria-label="Search pages"]'))?.focus(),
@@ -836,7 +830,7 @@ export function render(host) {
   }
   const foot = el('div', 'px-4 py-2 border-t border-border-subtle type-meta');
   const countText = items.length > limit ? `Showing ${number(limit)} of ${plural(items.length, 'page')}` : plural(items.length, 'page');
-  foot.textContent = `${countText}. Link counts use ${state.scope === 'all' ? 'every link' : `${SCOPES.find(([key]) => key === state.scope)[1].toLowerCase()}`}; depth and equity use every link.`;
+  foot.textContent = `${countText}. Link counts use ${state.scope === 'all' ? 'every link' : `${SCOPES.find(([key]) => key === state.scope)[1].toLowerCase()}`}; depth uses every link.`;
   panel.append(scroller, foot);
   panel.addEventListener('click', onClick);
   panel.addEventListener('input', onInput);

@@ -23,7 +23,7 @@ const COLUMNS = [
   { id: 'firstSeen', label: 'First seen', width: 110 },
   { id: 'lostOn', label: 'Lost on', width: 110 },
 ];
-const STATUS_MENU = [['active', 'Active'], ['lost', 'Lost since last crawl'], ['all', 'All']];
+const STATUS_MENU = [['active', 'Current'], ['lost', 'Lost since last crawl'], ['all', 'All']];
 
 let typing = false;
 // Which links the table lists: the ones the crawl in view has, the ones it lost since the crawl before, or both

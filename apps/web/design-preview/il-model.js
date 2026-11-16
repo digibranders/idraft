@@ -234,16 +234,12 @@ export function metricsFor(n) {
 export const depth = {};
 export const depthWithoutAuto = {};
 export const equity = {};
-// 25th percentile of equity share among live, indexable pages of the crawl in view
-let lowQuarterEquity = 0;
 export function recompute() {
   const metrics = metricsFor(activeN());
   [[depth, metrics.depth], [depthWithoutAuto, metrics.depthWithoutAuto], [equity, metrics.equity]].forEach(([target, source]) => {
     Object.keys(target).forEach((key) => delete target[key]);
     Object.assign(target, source);
   });
-  const shares = activePages().filter((page) => isLive(page) && page.indexable).map((page) => equity[page.id]).sort((a, b) => a - b);
-  lowQuarterEquity = shares[Math.floor((shares.length - 1) * 0.25)] ?? 0;
 }
 /** Opens another crawl: the whole site then shows as that crawl saw it. */
 export function setCrawl(id) {
@@ -285,7 +281,7 @@ export function flags(page) {
 
 /** Saved views of the Pages tab (spec 7.2). */
 export const WORKLISTS = [
-  { key: 'underlinked', label: 'Under-linked T1 pages', test: (page) => isLive(page) && page.indexable && tierPosition(tierIdOf(page)) === 1 && (ins(page.id, 'editorial').length < 3 || (depth[page.id] ?? 99) > 3 || equity[page.id] <= lowQuarterEquity) },
+  { key: 'underlinked', label: 'Under-linked T1 pages', test: (page) => isLive(page) && page.indexable && tierPosition(tierIdOf(page)) === 1 && (ins(page.id, 'editorial').length < 3 || (depth[page.id] ?? 99) > 3) },
   { key: 'orphans', label: 'Orphans', test: (page) => flags(page).some((flag) => flag.key === 'orphan') },
   { key: 'editorialOrphans', label: 'Editorial orphans', test: (page) => flags(page).some((flag) => flag.key === 'editorialOrphan') },
   { key: 'deepAuto', label: 'Deep only through previous and next', test: (page) => flags(page).some((flag) => flag.key === 'deepAuto') },
@@ -356,8 +352,8 @@ export function statusBadge(page) {
 /** Rows for CSV export of the pages table. */
 export function pageCsvRows(list, scope) {
   return [
-    ['URL', 'Title', 'Tier', 'Tier source', 'Status', 'Depth', `Linking pages (${SCOPE_WORD[scope] ?? 'all'})`, 'Outlinks', 'Equity share', 'Flags', 'Tags', 'Tracked keywords', 'Average rank', 'AI citations (28 days)', 'Editorial links in change vs previous crawl'],
-    ...list.map((page) => [`https://eventussecurity.com${page.path}`, page.title, tierLabel(tierIdOf(page)), tierOf(page).source ?? '', page.status, depth[page.id] ?? '', ins(page.id, scope).length, outs(page.id, scope).length, pct(equity[page.id]), flags(page).map((flag) => flag.label).join('; '), page.tags.join('; '), keywordsOf(page.id).map((row) => row.keyword).join('; '), avgRank(page.id) ?? '', citationsOf(page.id).total, pageDelta(page.id).editorialIn ?? 'New']),
+    ['URL', 'Title', 'Tier', 'Tier source', 'Status', 'Depth', `Linking pages (${SCOPE_WORD[scope] ?? 'all'})`, 'Outlinks', 'Flags', 'Tags', 'Tracked keywords', 'Average rank', 'AI citations (28 days)', 'Editorial links in change vs previous crawl'],
+    ...list.map((page) => [`https://eventussecurity.com${page.path}`, page.title, tierLabel(tierIdOf(page)), tierOf(page).source ?? '', page.status, depth[page.id] ?? '', ins(page.id, scope).length, outs(page.id, scope).length, flags(page).map((flag) => flag.label).join('; '), page.tags.join('; '), keywordsOf(page.id).map((row) => row.keyword).join('; '), avgRank(page.id) ?? '', citationsOf(page.id).total, pageDelta(page.id).editorialIn ?? 'New']),
   ];
 }
 
@@ -604,9 +600,9 @@ function rankSources(id, skipLinked) {
       const shared = [...words(page.id)].filter((word) => targetWords.has(word));
       const tags = page.tags.filter((tag) => target.tags.includes(tag));
       const reasons = [];
-      if (shared.length) reasons.push(`Same topic: ${shared.slice(0, 2).join(', ')}`);
+      if (shared.length) reasons.push(`Same subject: ${shared.slice(0, 2).join(', ')}`);
       if (tags.length) reasons.push(`Same tag: ${tags.join(', ')}`);
-      if (equity[page.id] >= 0.02) reasons.push(`Strong page: ${pct(equity[page.id])} of equity`);
+      if (equity[page.id] >= 0.02) reasons.push('Well linked page');
       const score = (shared.length * 2 + tags.length * 1.5) * (1 + equity[page.id] * 20);
       return { id: page.id, score, reasons, anchor };
     })

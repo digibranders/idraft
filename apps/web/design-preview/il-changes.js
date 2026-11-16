@@ -6,7 +6,7 @@
 import { BUTTON_SM, icon } from './perf-ui.js';
 import { el } from './prompts-parts.js';
 import {
-  PLACEMENT_LABEL, activePages, alertMaxPosition, alertTierText, alertsFor, crawlSettings, currentCrawl, depth, equity, flagBadge, ins, isLive, linkChanges, lostToTop, pageById, pageDelta, pct, plural, previousCrawl, refresh, tierBadge, tierCode, tierIdOf, tierPosition,
+  PLACEMENT_LABEL, activePages, alertMaxPosition, alertTierText, alertsFor, crawlSettings, currentCrawl, depth, flagBadge, ins, isLive, linkChanges, lostToTop, pageById, pageDelta, plural, previousCrawl, refresh, tierBadge, tierCode, tierIdOf, tierPosition,
 } from './il-model.js';
 import { openInspector } from './il-drawer.js';
 import { openCrawlSettings } from './il-dialogs.js';
@@ -198,27 +198,29 @@ const withDelta = (value, change) => {
   return cell;
 };
 
+/** Size of a click depth change; a page that became reachable or unreachable carries text, not a number. */
+const depthMove = (change) => (typeof change.depth === 'number' ? Math.abs(change.depth) : 0);
+
 function movedPanel(crawlId) {
   const rows = activePages()
     .filter(isLive)
     .map((page) => ({ page, change: pageDelta(page.id, crawlId) }))
-    .filter(({ change }) => change.editorialIn !== null && (change.editorialIn !== 0 || change.equityPoints !== 0 || (change.depth ?? 0) !== 0))
-    .sort((a, b) => Math.abs(b.change.equityPoints) - Math.abs(a.change.equityPoints) || b.change.editorialIn - a.change.editorialIn)
+    .filter(({ change }) => change.editorialIn !== null && (change.editorialIn !== 0 || (change.depth ?? 0) !== 0))
+    .sort((a, b) => Math.abs(b.change.editorialIn) - Math.abs(a.change.editorialIn) || depthMove(b.change) - depthMove(a.change))
     .slice(0, 8);
   const panel = el('section', PANEL);
   panel.setAttribute('aria-labelledby', 'il-changes-moved-title');
-  panel.append(panelHead('il-changes-moved-title', 'Pages that moved most', 'The eight live pages whose equity share changed most since the last crawl. Pages new in this crawl are left out. Equity share is internal PageRank.'));
+  panel.append(panelHead('il-changes-moved-title', 'Pages that moved most', `The eight live pages whose editorial links in or click depth changed most since ${previousCrawl(crawlId)?.short ?? 'the last crawl'}.`));
   if (rows.length === 0) {
-    panel.append(emptyText('No page moved: editorial links, equity share and click depth are the same as in the last crawl.'));
+    panel.append(emptyText('No page moved: editorial links in and click depth are the same as in the last crawl.'));
     return panel;
   }
   panel.append(table('Pages that moved most', [
-    { label: 'Page', width: 260 }, { label: 'Tier', width: 88 }, { label: 'Editorial links in', width: 150, right: true }, { label: 'Equity share', width: 150, right: true }, { label: 'Depth', width: 190, right: true },
+    { label: 'Page', width: 260 }, { label: 'Tier', width: 88 }, { label: 'Editorial links in', width: 150, right: true }, { label: 'Depth', width: 190, right: true },
   ], rows.map(({ page, change }) => [
     pageButton(page.id),
     tierBadge(tierIdOf(page)),
     withDelta(String(ins(page.id, 'editorial').length), delta(change.editorialIn, '')),
-    withDelta(pct(equity[page.id]), delta(change.equityPoints, ' pts')),
     withDelta(depth[page.id] === undefined ? 'n/a' : String(depth[page.id]), delta(change.depth, '', false)),
   ])));
   return panel;

@@ -291,7 +291,7 @@ function renderInternalLinks() {
   recent.append(
     el('h3', 'type-subsection-title', 'Recent crawls'),
     table(
-      [['When'], ['Trigger'], ['Pages', 'text-right'], ['Cost', 'text-right']],
+      [['When'], ['Started by'], ['Pages', 'text-right'], ['Cost', 'text-right']],
       crawls.map((crawl) => {
         const row = el('tr');
         row.append(
