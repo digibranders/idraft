@@ -9,9 +9,6 @@ import type { ProjectEngine } from '@/lib/api/types';
 // Entries of later packages (MASTER-PLAN 3.4). A package uncomments its own import line and its own slot line and
 // edits nothing else in this file; the "WP-NN" line above each stays as it is.
 
-// WP-19 compare-deltas
-import { compareColumns } from '../columns/compare-columns';
-
 // P-metrics (Intent, Search volume, Avg position; Recommendation rate, Share of voice, Sentiment): one entry, which
 // puts the first three after COLUMN_AFTER.identity and the rest after COLUMN_AFTER.rates, so it may be two entries.
 // import { metricColumns } from '../columns/metric-columns';
@@ -85,8 +82,8 @@ export interface PromptColumnEntry {
 }
 
 export const PROMPT_COLUMN_ENTRIES: readonly PromptColumnEntry[] = [
-  // WP-19 compare-deltas (WB-PRM-12)
-  compareColumns,
+  // WP-19 compare-deltas (WB-PRM-12): the per-platform change columns are gone, the change is the trend icon of the
+  // Mention rate cell (the preview has no such columns)
   // P-metrics, then P-popovers: their order here is the order of their columns after the same anchor
   // metricColumns,
   // popoverColumns,

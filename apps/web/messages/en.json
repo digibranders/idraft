@@ -4874,7 +4874,11 @@
         "countsFailedTip": "The counts could not be read"
       },
       "columns": {
-        "mentionTrendTip": "The change is against the comparison period, and the line is the rate of each week of the window (a week with no valid answer is a gap)"
+        "mentionChangeTip": "The icon is the change against the comparison period: green or red only when it is a detectable change, grey when it is within normal variation. The figures are in the cell's tooltip",
+        "moveUp": "Up {points} against the previous period, from {before} to {now}",
+        "moveDown": "Down {points} against the previous period, from {before} to {now}",
+        "moveFlat": "No change against the previous period, at {now}",
+        "weeklyRates": "Weekly rates: {rates}"
       }
     }
   },

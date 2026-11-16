@@ -128,8 +128,8 @@ const DEFAULT_OPTIONS: PromptColumnOptions = { showLocation: true, facts: undefi
 
 /**
  * The columns of the Prompts tab, in the mock's order: Prompt, Group, Location (only while the top bar says All
- * locations), Mention rate and Citation rate (the average of the platforms shown; the Mention rate cell draws the
- * weekly line while the person compares), then each platform's mention rate and its Mentioned and Cited counts, which
+ * locations), Mention rate and Citation rate (the average of the platforms shown; the Mention rate cell has the trend
+ * icon of its change while the person compares), then each platform's mention rate and its Mentioned and Cited counts, which
  * wait in the column chooser. Intent, Search volume, Avg position, Recommendation rate, Share of voice, Sentiment,
  * Cited links, Brands and Screenshot are built by later packages and plug in through `seams/columns.ts`, which
  * gives them the facts, the platform scope and the comparison.
@@ -148,7 +148,7 @@ export function usePromptColumns(
   const changeWords = useChangeWords();
   const contextWindow = useComparedWindow();
   const compared = comparedWindow ?? contextWindow;
-  const { mention, citation } = useRateColumns(engines, cellsOfPrompt, { window: compared, trend: true });
+  const { mention, citation } = useRateColumns(engines, cellsOfPrompt, { window: compared });
   const engineRateColumns = useEngineRateColumns(engines, cellsOfPrompt, metric, {
     defaultVisible: false,
     marks: true,

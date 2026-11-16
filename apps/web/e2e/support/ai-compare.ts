@@ -43,11 +43,14 @@ export interface DrawnChange {
   color: string;
 }
 
-/** The changes drawn inside `region`, in page order: a number of points, drawn aria-hidden beside its spoken form. */
+/**
+ * The changes drawn inside `region`, in page order: a number of points, drawn aria-hidden beside its spoken form, or
+ * the trend icon of a table cell (`data-slot="trend-icon"`, no points of its own, its spoken form inside it).
+ */
 export async function changesIn(region: Locator): Promise<DrawnChange[]> {
   return region.evaluateAll((roots) =>
-    roots.flatMap((root) =>
-      [...root.querySelectorAll<HTMLElement>('span[aria-hidden="true"]')]
+    roots.flatMap((root) => [
+      ...[...root.querySelectorAll<HTMLElement>('span[aria-hidden="true"]')]
         // A number then "pts" ("Prompts", a word, is not one)
         .filter((element) => /\d pts$/.test(element.textContent ?? ''))
         .map((element) => ({
@@ -56,7 +59,13 @@ export async function changesIn(region: Locator): Promise<DrawnChange[]> {
           tone: [...element.classList].find((name) => name.startsWith('text-')) ?? '',
           color: getComputedStyle(element).color,
         })),
-    ),
+      ...[...root.querySelectorAll<HTMLElement>('[data-slot="trend-icon"]')].map((element) => ({
+        text: element.dataset['direction'] ?? '',
+        spoken: element.querySelector('.sr-only')?.textContent ?? '',
+        tone: [...element.classList].find((name) => name.startsWith('text-')) ?? '',
+        color: getComputedStyle(element).color,
+      })),
+    ]),
   );
 }
 

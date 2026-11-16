@@ -1,6 +1,6 @@
-import { screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import type { ReactElement } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import { DETECTABLE, WITHIN, cell, engineOf, projectEngine, topicCell } from './compare/change-test-data';
 import { ComparedWindowProvider, type ComparedWindow } from './compare/compared-window';
@@ -9,12 +9,12 @@ import type { EngineSummary, MetricCell, ProjectEngine, WeekCells } from '@/lib/
 import { axe } from '@/test/axe';
 import { renderWithProviders, type ProvidedRender } from '@/test/render';
 
-// The props the cell gives the sparkline are what is read here: its drawing is the sparkline's own
-vi.mock('@/components/app/sparkline/sparkline-cell', () => ({
-  SparklineCell: (props: { label: string; values: readonly (number | null)[] }) => (
-    <span role="img" aria-label={props.label} data-values={props.values.join(',')} />
-  ),
-}));
+/** The trend icon of the cell: its direction in `data-direction`, its tone in its class. */
+const icon = (): HTMLElement => {
+  const found = document.querySelector<HTMLElement>('[data-slot="trend-icon"]');
+  if (found === null) throw new Error('The cell has no trend icon');
+  return found;
+};
 
 interface Row {
   cells: readonly EngineSummary[] | undefined;
@@ -32,14 +32,12 @@ function Cell({
   row,
   engines = BOTH,
   column = 'mention',
-  trend = false,
 }: {
   row: Row;
   engines?: ProjectEngine[];
   column?: 'mention' | 'citation';
-  trend?: boolean;
 }): ReactElement {
-  const columns = useRateColumns<Row>(engines, rowCells, { trend });
+  const columns = useRateColumns<Row>(engines, rowCells);
   const shown = columns[column];
   const tip = shown.cellTip?.(row);
   return (
@@ -74,7 +72,11 @@ describe('the Mention rate cell change', () => {
     expect(screen.getByTestId('cell')).toHaveTextContent('75%');
     // The percent alone: the platforms the average is over are in the tooltip
     expect(screen.getByTestId('cell')).not.toHaveTextContent('avg of');
-    expect(screen.getByText('+30.0 pts')).toHaveClass('text-positive-text');
+    expect(icon()).toHaveClass('text-positive-text');
+    expect(icon()).toHaveAttribute('data-direction', 'up');
+    // The points are not in the cell: they are in its tooltip
+    expect(screen.getByTestId('cell')).not.toHaveTextContent('+30.0 pts');
+    expect(screen.getByTestId('tip')).toHaveTextContent('Up 30.0 pts against the previous period, from 20% to 50%');
   });
 
   it('names the one platform the change is of when the others have no rate in the previous period', () => {
@@ -89,7 +91,7 @@ describe('the Mention rate cell change', () => {
 
   it('pools the answers of two platforms, says so, and tests them together', () => {
     render({ cells: [chat(DETECTABLE), gemini(cell(20, 40), cell(8, 40))] });
-    expect(screen.getByText('+30.0 pts')).toBeInTheDocument();
+    expect(icon()).toHaveAttribute('data-direction', 'up');
     expect(screen.getByTestId('tip')).toHaveTextContent(
       'Average of 2 platforms that have a rate in both periods, tested on pooled answers',
     );
@@ -103,8 +105,9 @@ describe('the Mention rate cell change', () => {
 
   it('uses the platform own test when one platform is in scope', () => {
     render({ cells: [chat(WITHIN), gemini(cell(20, 20), cell(1, 20))] }, ON, CHAT_ONLY);
-    const delta = screen.getByText('+6.7 pts');
-    expect(delta).toHaveClass('text-foreground-secondary');
+    expect(icon()).toHaveClass('text-foreground-secondary');
+    expect(icon()).not.toHaveClass('text-positive-text');
+    expect(screen.getByTestId('tip')).toHaveTextContent('Up 6.7 pts against the previous period');
     expect(screen.getByTestId('tip')).toHaveTextContent('Within normal variation');
     expect(screen.getByTestId('tip')).not.toHaveTextContent('Average of');
     expect(screen.getByTestId('tip')).not.toHaveTextContent('Change of ChatGPT only');
@@ -118,8 +121,8 @@ describe('the Mention rate cell change', () => {
       { ...topicCell(60, 100, 4), value: 0.5 },
     );
     render({ cells: [topic] }, ON, CHAT_ONLY);
-    const delta = screen.getByText('+5.0 pts');
-    expect(delta).toHaveClass('text-foreground-secondary');
+    expect(icon()).toHaveClass('text-foreground-secondary');
+    expect(screen.getByTestId('tip')).toHaveTextContent('Up 5.0 pts against the previous period');
     expect(screen.getByTestId('cell').textContent).not.toMatch(/detectable|within normal variation/);
     expect(screen.getByTestId('tip').textContent).not.toMatch(/Detectable|Within normal variation|Interim/);
     expect(screen.getByTestId('tip')).toHaveTextContent('This change is not tested because');
@@ -170,11 +173,23 @@ describe('the Mention rate cell change', () => {
     expect(screen.getByTestId('cell').firstElementChild).toHaveClass('whitespace-nowrap');
   });
 
-  it('keeps the gap between rate and change at 4 px, so the widest case fits the 152 px cell', () => {
+  it('says the direction and the verdict in words to a screen reader, as the tooltip does', () => {
     render({ cells: [chat(DETECTABLE), gemini(cell(20, 40), cell(8, 40))] });
-    const line = screen.getByTestId('cell').firstElementChild;
-    expect(line).toHaveClass('gap-1');
-    expect(line).not.toHaveClass('gap-1.5');
+    expect(icon()).toHaveTextContent('up 30.0 pts, detectable, interim test');
+    expect(screen.getByTestId('tip')).toHaveTextContent('Up 30.0 pts');
+    expect(screen.getByTestId('tip')).toHaveTextContent('Detectable change');
+  });
+
+  it('draws the icon of a fall pointing down, and a dash for a change that rounds to nothing', () => {
+    render({ cells: [chat([cell(12, 60), cell(30, 60)])] }, ON, CHAT_ONLY);
+    expect(icon()).toHaveAttribute('data-direction', 'down');
+    expect(icon()).toHaveClass('text-negative-text');
+    expect(screen.getByTestId('tip')).toHaveTextContent('Down 30.0 pts');
+    cleanup();
+    render({ cells: [chat([cell(30, 60), cell(30, 60)])] }, ON, CHAT_ONLY);
+    expect(icon()).toHaveAttribute('data-direction', 'flat');
+    expect(icon()).toHaveClass('text-foreground-secondary');
+    expect(screen.getByTestId('tip')).toHaveTextContent('No change against the previous period, at 50%');
   });
 
   it('has no accessibility violation with a change', async () => {
@@ -198,7 +213,7 @@ describe('the Citation rate cell', () => {
   });
 });
 
-describe('the weekly line of the Mention rate cell', () => {
+describe('the weekly rates in the tooltip of the Mention rate cell', () => {
   const week = (weekStart: string, value: number): WeekCells => ({
     week_start: weekStart,
     prompts: 1,
@@ -215,25 +230,24 @@ describe('the weekly line of the Mention rate cell', () => {
       },
     ],
   };
-  const renderTrend = (searchParams: string, trend: boolean): ProvidedRender =>
+  const renderSeries = (searchParams: string): ProvidedRender =>
     renderWithProviders(
       <ComparedWindowProvider value={WINDOW}>
-        <Cell row={WITH_SERIES} engines={CHAT_ONLY} trend={trend} />
+        <Cell row={WITH_SERIES} engines={CHAT_ONLY} />
       </ComparedWindowProvider>,
       { searchParams },
     );
 
-  it('draws the line after the percent and the change while comparing, and asks for a wider column', () => {
-    renderTrend(ON, true);
+  it('names the rate of each week in the tooltip, and draws no line in the cell', () => {
+    renderSeries(ON);
     expect(screen.getByTestId('cell')).toHaveTextContent('50%');
-    expect(screen.getByRole('img', { name: /^Mention rate by week: / })).toHaveAttribute('data-values', '0.25,0.5');
-    expect(screen.getByTestId('cell')).toHaveTextContent('+30.0 pts');
+    expect(screen.queryByRole('img')).toBeNull();
+    expect(screen.getByTestId('tip')).toHaveTextContent('Weekly rates: 25%, 50%');
   });
 
-  it('draws no line without comparison, and none where the column was not asked for it', () => {
-    renderTrend('', true);
-    expect(screen.queryByRole('img')).toBeNull();
-    renderTrend(ON, false);
-    expect(screen.queryByRole('img')).toBeNull();
+  it('draws no icon and names no week without comparison', () => {
+    renderSeries('');
+    expect(document.querySelector('[data-slot="trend-icon"]')).toBeNull();
+    expect(screen.getByTestId('tip').textContent).not.toMatch(/Weekly rates/);
   });
 });

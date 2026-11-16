@@ -3,22 +3,23 @@
 import { useLocale, useTranslations } from 'next-intl';
 import { useMemo, type ReactElement } from 'react';
 
-import { ChangeInline, useChangeWords, useComparedWindow, useCompare, type ComparedWindow } from './compare';
+import { useChangeWords, useComparedWindow, useCompare, type ComparedWindow } from './compare';
 import { CELL_OF_METRIC, countText, engineSortId, SORT_ID, type RateMetric } from './prompt-model';
 import { PlatformMark } from './platform-mark';
 import { useRateWords } from './rate-view';
-import { TrendCell } from './trend-column';
+import { TrendIcon } from './trend-icon';
+import { trendPoints } from './trend-model';
 import { col } from '@/components/app/data-table/columns';
 import type { CellTip, DataTableColumn } from '@/components/app/data-table/types';
 import { EngineLogo } from '@/components/app/engine/engine-logo';
 import { InsufficientPill } from '@/components/app/metric/insufficient-pill';
 import type { EngineSummary, ProjectEngine } from '@/lib/api/types';
 import { averageChangeOf, engineChangeOf, type RateChange } from '@/lib/compare/change-model';
-import { EMPTY_VALUE, formatDateRange, formatList } from '@/lib/format';
+import { EMPTY_VALUE, formatDateRange, formatList, formatPercent, formatPointsDelta } from '@/lib/format';
+import { SENTENCE_BREAK } from '@/components/app/metric/delta';
 import { averageRate, cellFigure, engineRatesOf, hasRate, topEngine, type AverageRate } from '@/lib/rates/rate-model';
 import type { RateReading } from '@/lib/rates/strip-model';
 import { MIN_OBSERVATIONS } from '@/lib/stats';
-import { cn } from '@/lib/utils';
 
 /**
  * The rate columns of Topics & Prompts (parity spec G21 to G24, G40 and G41): Mention rate and Citation rate,
@@ -31,9 +32,6 @@ import { cn } from '@/lib/utils';
 
 /** "Google AI Mode mention" in capitals with its sort arrow needs about 176 px. */
 export const ENGINE_COLUMN_WIDTH = 176;
-
-/** The Mention rate column while it holds the weekly line: 64 px of line beside the percent and its change (the type's widest). */
-const MENTION_LINED_WIDTH = 200;
 
 /** What a cell says in place of a rate, and what its tooltip says about why. */
 interface Gap {
@@ -56,15 +54,15 @@ export interface RateColumns<TRow> {
 /**
  * Mention rate, Citation rate and Top engine over the engines shown. The two rates are the equal weight
  * average of the engines that have one: the cell shows the percent alone, and the tooltip names the engines it
- * is over with the count behind each. With `trend`, the Mention rate cell draws the weekly line after its change
- * while the person compares, and is wider for it. Top engine names the engine with the highest mention rate, ties
+ * is over with the count behind each. While the person compares, the Mention rate cell has the trend icon of its
+ * change (up, down or a dash), and the figures of the change are in its tooltip. Top engine names the engine with the highest mention rate, ties
  * by the order of the engines shown, and lists every engine's rate in its tooltip: a pointer, not a ranking
  * (ADR-DS-022 decision 5), which sorts by the engine's name.
  */
 export function useRateColumns<TRow>(
   engines: readonly ProjectEngine[],
   cellsOf: (row: TRow) => readonly EngineSummary[] | undefined,
-  { note, window, trend = false }: { note?: string; window?: ComparedWindow | undefined; trend?: boolean } = {},
+  { note, window }: { note?: string; window?: ComparedWindow | undefined } = {},
 ): RateColumns<TRow> {
   const t = useTranslations('prompts.columns');
   const shell = useTranslations('prompts.shell.columns');
@@ -104,19 +102,44 @@ export function useRateColumns<TRow>(
           ? { label: EMPTY_VALUE, tip: t('noAnswersTip') }
           : { label: EMPTY_VALUE, tip: t('noValidTip', { count: average.observations }) };
 
+    /** What the icon stands for, in the tooltip: the move in points from and to, the test, the sample and the weekly rates. */
+    const trendWords = (change: RateChange, row: TRow): string => {
+      const took = codes.filter((code) => engineChangeOf(cellsOf(row), code, 'mentioned') !== null);
+      const [only] = took;
+      const points = formatPointsDelta(Math.abs(change.points), { decimals: 1 }).replace(/^\+/, '');
+      const move = shell(change.points === 0 ? 'moveFlat' : change.points > 0 ? 'moveUp' : 'moveDown', {
+        points,
+        before: formatPercent(change.before.value, { decimals: 0 }),
+        now: formatPercent(change.now.value, { decimals: 0 }),
+      });
+      const weekly = trendPoints(codes, cellsOf(row));
+      const weeks =
+        weekly === null || weekly.every((point) => point.value === null)
+          ? null
+          : shell('weeklyRates', {
+              rates: weekly
+                .map((point) => (point.value === null ? EMPTY_VALUE : formatPercent(point.value, { decimals: 0 })))
+                .join(', '),
+            });
+      const detail = changeWords.tip(change, {
+        kind: 'average',
+        range,
+        shown: codes.length,
+        ...(took.length === 1 && only !== undefined ? { engine: labelOf(only) } : {}),
+      });
+      return [move, detail, weeks].filter((part): part is string => part !== null).join(SENTENCE_BREAK);
+    };
+
     const rateColumn = (
       id: string,
       metric: 'mentioned' | 'cited',
       header: string,
       tip: string,
     ): DataTableColumn<TRow> => {
-      // The weekly line and the change beside the percent take room the other rates do not
-      const lined = trend && compare && metric === 'mentioned';
       const base = col.volumeTrend<TRow>(id, (row) => averageOf(row, metric).value, {
         header,
-        headerTooltip: withNote(lined ? `${tip}. ${shell('mentionTrendTip')}` : tip),
+        headerTooltip: withNote(metric === 'mentioned' && compare ? `${tip}. ${shell('mentionChangeTip')}` : tip),
         priority: metric === 'mentioned' ? 1 : 2,
-        ...(lined ? { width: MENTION_LINED_WIDTH } : {}),
         sortable: true,
         // The cell is drawn below, for it has the insufficient state too
         known: () => null,
@@ -127,16 +150,11 @@ export function useRateColumns<TRow>(
           const average = averageOf(row, metric);
           if (average.state === 'insufficient') return <InsufficientPill answers={average.answers} tip={false} />;
           if (average.state === 'none') return <Missing label={gapOf(row, average).label} />;
-          // With the line, the percent and the change keep a room of their own so the lines of every row start at the same place
+          // The percent keeps a room of its own so the icons of every row start at the same place
           return (
-            <span className="inline-flex items-center gap-1 whitespace-nowrap">
-              <span className={cn('num', lined && 'min-w-7')}>{words.text(average)}</span>
-              {metric === 'mentioned' && compare ? (
-                <span className={cn('inline-flex', lined && 'min-w-16')}>
-                  <ChangeInline change={changeOf(row)} size="sm" />
-                </span>
-              ) : null}
-              {lined ? <TrendCell cells={cellsOf(row)} codes={codes} /> : null}
+            <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+              <span className="min-w-7 num">{words.text(average)}</span>
+              {metric === 'mentioned' && compare ? <TrendIcon change={changeOf(row)} /> : null}
             </span>
           );
         },
@@ -163,10 +181,8 @@ export function useRateColumns<TRow>(
               : rate('avgTip', { engines: engineNames });
           // Every change shows what it rests on: the previous figure with its answers, the window and the test, or why none
           const change = metric === 'mentioned' && compare ? changeOf(row) : null;
-          // The one engine a change of several is of, so the tip names it. A row without a change says why only when the
-          // response was compared: the read held right after turning comparison on is not, and says nothing yet
-          const took = codes.filter((code) => engineChangeOf(cellsOf(row), code, 'mentioned') !== null);
-          const [only] = took;
+          // A row without a change says why only when the response was compared: the read held right after turning
+          // comparison on is not, and says nothing yet
           const changeText =
             metric !== 'mentioned' || !compare
               ? null
@@ -174,12 +190,7 @@ export function useRateColumns<TRow>(
                 ? comparedWindow === null
                   ? null
                   : gapOfChange(row)
-                : changeWords.tip(change, {
-                    kind: 'average',
-                    range,
-                    shown: average.engines,
-                    ...(took.length === 1 && only !== undefined ? { engine: labelOf(only) } : {}),
-                  });
+                : trendWords(change, row);
           return {
             content: formatList(
               counting.map(({ name, count }) => t('engineCount', { engine: name, count })),
@@ -240,7 +251,7 @@ export function useRateColumns<TRow>(
       citation: rateColumn(SORT_ID.citation, 'cited', t('citationRate'), t('citationRateTip')),
       topEngine: topColumn,
     };
-  }, [engines, cellsOf, note, trend, t, shell, rate, tc, words, changeWords, compare, comparedWindow, locale]);
+  }, [engines, cellsOf, note, t, shell, rate, tc, words, changeWords, compare, comparedWindow, locale]);
 }
 
 const HEADER_KEY = { mention: 'engineMention', citation: 'engineCitation', sov: 'engineShareOfVoice' } as const;

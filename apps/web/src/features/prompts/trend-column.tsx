@@ -56,11 +56,11 @@ function tipOf(t: Translate, points: readonly TrendPoint[]): CellTip {
 }
 
 /**
- * One row's sparkline, a column's cell (Groups) or the end of the Mention rate cell of the Prompts tab while it
- * compares. Its weeks are worked out again only when the row's cells change, so the canvas is drawn again only when
- * the data does, not each time the table draws the row (choosing it, hovering it).
+ * One row's sparkline, the cell of the Groups table's Trend column. Its weeks are worked out again only when the
+ * row's cells change, so the canvas is drawn again only when the data does, not each time the table draws the row
+ * (choosing it, hovering it).
  */
-export function TrendCell({
+function TrendCell({
   cells,
   codes,
 }: {
