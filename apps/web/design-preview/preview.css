@@ -12,6 +12,13 @@
 @source "./prompts-topics.js";
 @source "./prompts-topic-inspector.js";
 @source "./perf.js";
+@source "./aiov.js";
+@source "./aiov-cards-core.js";
+@source "./aiov-cards-more.js";
+@source "./aiov-charts.js";
+@source "./aiov-controls.js";
+@source "./aiov-data.js";
+@source "./aiov-parts.js";
 @source "./perf-add.js";
 @source "./perf-calc.js";
 @source "./perf-chart.js";
