@@ -341,7 +341,7 @@ export default function RateTrendCard({ item, live }: CardProps): ReactElement {
       variant="panel"
       title={title}
       meta={meta}
-      info={{ what: t('info.what'), how: t('info.how') }}
+      info={{ what: t('info.what'), how: t('info.how', { days: scope.range.days }) }}
       footnote={footnote}
       controls={controls}
       height={280}

@@ -15,6 +15,7 @@ import { roleOf } from '../cards/competitors/chart-parts';
 import { colorSlots } from '../cards/competitors/model/tracked-set';
 import type { TrackedEntity } from '../cards/competitors/model/types';
 import type { Read } from '../data/read-state';
+import { useOverview } from '../overview-context';
 import type { PromptsSummary } from '@/lib/api/types';
 import { ChartFrame } from '@/components/app/chart/chart-frame';
 import { EngineLogo } from '@/components/app/engine/engine-logo';
@@ -250,6 +251,7 @@ function TrendCard({
   const t = useTranslations('aiOverview.competitorDrawer');
   const status = useTranslations('status.error');
   const common = useTranslations('common');
+  const { scope } = useOverview();
   const errorId = weekly.errorId;
   const slot = read.set === null ? undefined : colorSlots(read.set).get(competitor.entityId);
   const weeks = useMemo(() => (trend?.status === 'read' ? trend.weeks : []), [trend]);
@@ -271,7 +273,7 @@ function TrendCard({
     variant: 'inspector' as const,
     title: t('trend.title'),
     meta: t('trend.meta'),
-    info: { what: t('trend.info.what'), how: t('trend.info.how') },
+    info: { what: t('trend.info.what'), how: t('trend.info.how', { days: scope.range.days }) },
     height: 180 as const,
     summary: t('trend.label', { name: competitor.name, count: weeks.length }),
     categories,

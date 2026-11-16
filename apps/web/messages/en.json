@@ -5568,14 +5568,14 @@
         "summary": "{metric} by week. {list}.",
         "summaryPlatform": "{platform} {value}",
         "summaryNone": "No platform has a rate in this scope.",
-        "footnoteBoundary": "The dotted line marks where the current period starts: the weeks before it are the previous period.",
+        "footnoteBoundary": "The dashed line marks where the current period starts: the weeks before it are the previous period.",
         "fileName": "trend-over-time",
         "exportPeriod": "Period",
         "exportPrevious": "previous",
         "exportCurrent": "current",
         "info": {
           "what": "How the chosen rate changes from week to week.",
-          "how": "One point for each weekly run, one line for each platform, with their average dashed. For a single platform the shaded band is the 95% range the true rate likely sits in. With Compare on, a dotted vertical line separates the previous period from the current period."
+          "how": "One point for each weekly run, one line for each platform, with their average dashed. For a single platform the shaded band is the 95% range the true rate likely sits in. With Compare on, a dashed vertical line separates the previous {days, plural, one {# day} other {# days}} from the current {days, plural, one {# day} other {# days}}."
         }
       },
       "outcomeSplit": {
@@ -7059,7 +7059,7 @@
         "pointTip": "{value}, {count, plural, one {# answer} other {# answers}}",
         "info": {
           "what": "How your mention rate and theirs change week by week.",
-          "how": "One point for each weekly run. With Compare on, the weeks of the previous period come first, as on the trend of the page."
+          "how": "One point for each weekly run. With Compare on, the weeks are the previous {days, plural, one {# day} other {# days}} and then the current {days, plural, one {# day} other {# days}}, as on the trend of the page."
         }
       },
       "platforms": {
