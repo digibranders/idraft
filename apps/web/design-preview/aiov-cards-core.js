@@ -1,30 +1,14 @@
 /**
- * Cards of the AI visibility Overview, first half: the headline row, the trend, the outcome split, the metric
- * matrix and the competitor cards. Each builder takes the page context `{ model, scope, compare }` and returns a
- * card (or null when the card cannot exist for the scope). Card keys are those of the layout catalog
- * (src/lib/layouts/catalog.ts); `ai.visibility_split` and `ai.metric_matrix` are new.
+ * Cards of the AI visibility Overview, first half: the headline row, the trend, the outcome split and the
+ * competitor cards. Each builder takes the page context `{ model, scope, compare }` and returns a card (or null when
+ * the card cannot exist for the scope). Card keys are those of the layout catalog (src/lib/layouts/catalog.ts);
+ * `ai.visibility_split` is new.
  */
 import { formatInteger } from './vendor/format/number.js';
-import {
-  MEASURES,
-  PLATFORMS,
-  PLATFORM_CODES,
-  RUNS,
-  WEEK_LABELS,
-  aggregateFor,
-  buildModel,
-  domainsFor,
-  entitiesFor,
-  gapFor,
-  lastRunOf,
-  platformOf,
-  seriesFor,
-  sovSeries,
-  trafficFor,
-} from './aiov-data.js';
+import { MEASURES, PLATFORMS, RUNS, WEEK_LABELS, aggregateFor, entitiesFor, gapFor, lastRunOf, platformOf, seriesFor, sovSeries } from './aiov-data.js';
 import { chartHost, lineOption, mountChart, shareAreaOption } from './aiov-charts.js';
 import { HEAT_METRICS, setScope } from './aiov-controls.js';
-import { NEUTRAL_BADGE, barList, cardFrame, countsText, deltaNode, el, emptyBody, engineName, icon, insufficient, insufficientText, pct0, plural, platformLabel, sampleBadge, sparkline, stackedRows, valueText } from './aiov-parts.js';
+import { barList, cardFrame, countsText, el, emptyBody, engineName, icon, insufficient, insufficientText, pct0, plural, platformLabel, sparkline, stackedRows, valueText } from './aiov-parts.js';
 import { wilsonInterval } from './vendor/stats/index.js';
 
 const ENGINE_TOKEN = { chatgpt_web: 'chart-1', gemini_web: 'chart-2', google_ai_mode: 'chart-3', google_ai_overview: 'chart-4' };
@@ -318,162 +302,6 @@ export function outcomeCard(ctx) {
     meta: ctx.scope.platform === 'all' ? 'by platform' : engineName(ctx.scope.platform),
     body,
     footnote: 'The four shares add up to 100% of valid answers. Named only means the brand is named and none of its pages is cited.',
-  });
-}
-
-// -------------------------------------------------------------------------------------------------
-// Metric matrix: the senior's sheet, every metric by platform
-
-const MATRIX_COLUMNS = ['all', 'chatgpt_web', 'gemini_web', 'google_ai_overview', 'google_ai_mode'];
-
-function matrixCell(content, { selected = false, align = 'right' } = {}) {
-  const td = el('td', `px-3 py-1.5 align-top whitespace-nowrap ${align === 'right' ? 'text-right' : 'text-left'} ${selected ? 'bg-primary-subtle' : ''}`);
-  td.append(...(Array.isArray(content) ? content : [content]));
-  return td;
-}
-
-function measureCell(cell, ctx, { text } = {}) {
-  const stack = el('div', 'flex flex-col items-end');
-  if (!cell || cell.state === 'unavailable') {
-    const node = el('span', 'type-table text-foreground-tertiary', 'n/a');
-    node.dataset.tip = cell?.reason ?? 'Not available on this platform';
-    stack.append(node);
-    return stack;
-  }
-  if (cell.state === 'insufficient' || cell.state === 'none') {
-    stack.append(insufficient(cell.state === 'none' ? 'No data' : insufficientText(cell)));
-    return stack;
-  }
-  // Every number carries its counts (R1): an average says which platforms it averages, a platform its answers
-  stack.dataset.tip = cell.code === 'all' ? `Average of ${cell.used} platforms: ${cell.platforms.map((code) => engineName(code)).join(', ')}` : countsText(cell);
-  const top = el('div', 'flex items-baseline justify-end gap-2');
-  top.append(el('span', 'type-table-strong num text-foreground', text ?? valueText(cell)));
-  const delta = deltaNode(cell, ctx.compare);
-  if (delta) {
-    delta.classList.add('type-micro');
-    top.append(delta);
-  }
-  stack.append(top);
-  return stack;
-}
-
-export function matrixCard(ctx) {
-  const { model, scope } = ctx;
-  const columns = MATRIX_COLUMNS;
-  // The matrix compares platforms, so it reads every platform in the group and branded scope, not only the selected one
-  const allModel = buildModel({ ...scope, platform: 'all' });
-  const platformModels = Object.fromEntries(PLATFORM_CODES.map((code) => [code, buildModel({ ...scope, platform: code })]));
-  const modelOf = (code) => (code === 'all' ? allModel : platformModels[code]);
-  const traffic = trafficFor(allModel);
-  const trafficOf = (code) => traffic.sources.find((source) => source.code === code);
-  const topDomain = (code) => {
-    const domains = domainsFor(modelOf(code));
-    return domains.rows[0] ? { domain: domains.rows[0].domain, share: domains.rows[0].share } : null;
-  };
-
-  const rows = [
-    {
-      label: MEASURES.prompts.label,
-      cell: (code) => {
-        const count = code === 'all' ? model.prompts.length : aggregateFor(platformModels[code], code).prompts;
-        return { measure: 'prompts', state: 'ok', value: count, counts: null, text: formatInteger(count) };
-      },
-      text: (cell) => cell.text,
-    },
-    { label: MEASURES.visibility.label, measure: 'visibility' },
-    { label: MEASURES.mention.label, measure: 'mention' },
-    { label: MEASURES.position.label, measure: 'position' },
-    { label: MEASURES.recommendation.label, measure: 'recommendation' },
-    { label: MEASURES.rank.label, measure: 'rank' },
-    { label: MEASURES.sov.label, measure: 'sov' },
-    { label: MEASURES.citation.label, measure: 'citation' },
-    { label: MEASURES.sentiment.label, measure: 'sentiment', suffix: 'positive' },
-    { label: MEASURES.unlinked.label, measure: 'unlinked' },
-    {
-      label: MEASURES.referral.label,
-      cell: (code) => {
-        if (code === 'google_ai_mode' || code === 'google_ai_overview') return { measure: 'referral', state: 'unavailable', reason: 'Google AI sessions cannot be separated from Google organic in GA4' };
-        const sessions = code === 'all' ? traffic.total : trafficOf(code)?.sessions ?? 0;
-        return { measure: 'referral', state: 'ok', value: sessions, text: formatInteger(sessions) };
-      },
-      text: (cell) => cell.text,
-      sub: (cell, code) => (code === 'all' && cell.state === 'ok' ? '2 of 4 platforms' : null),
-      sample: true,
-    },
-    {
-      label: MEASURES.domain.label,
-      cell: (code) => {
-        const top = topDomain(code);
-        return top ? { measure: 'domain', state: 'ok', value: top.share, text: top.domain, share: top.share } : { measure: 'domain', state: 'none' };
-      },
-      text: (cell) => cell.text,
-      sub: (cell) => `${(cell.share * 100).toFixed(1)}% of citations`,
-      noAverageLabel: true,
-    },
-  ];
-
-  const table = el('table', 'w-full type-table');
-  table.dataset.matrix = '';
-  const caption = el('caption', 'sr-only', 'Every metric by platform. All platforms is the equal-weight average of the platforms that have the metric.');
-  const head = el('thead');
-  const headRow = el('tr', 'bg-surface-subtle border-t border-border-subtle h-row-header');
-  headRow.append(el('th', 'pl-4 pr-3 text-left type-label', 'Metric'));
-  columns.forEach((code) => {
-    const th = el('th', `px-3 text-right type-label whitespace-nowrap ${scope.platform === code ? 'bg-primary-subtle text-primary-text' : ''}`);
-    th.scope = 'col';
-    if (scope.platform === code) th.setAttribute('aria-current', 'true');
-    const wrap = el('span', 'inline-flex items-center gap-2 justify-end');
-    if (code === 'all') wrap.append('All platforms', el('span', NEUTRAL_BADGE, 'avg'));
-    else wrap.append(platformLabel(code));
-    th.append(wrap);
-    headRow.append(th);
-  });
-  head.append(headRow);
-  const body = el('tbody');
-  rows.forEach((row) => {
-    const tr = el('tr', 'border-t border-border-subtle hover:bg-surface-hover');
-    const label = el('th', 'pl-4 pr-3 py-1.5 text-left font-normal text-foreground whitespace-nowrap align-top');
-    label.scope = 'row';
-    const wrap = el('span', 'inline-flex items-center gap-2');
-    wrap.append(row.label);
-    if (row.sample || MEASURES[row.measure ?? '']?.sample) wrap.append(sampleBadge());
-    label.append(wrap);
-    tr.append(label);
-    columns.forEach((code) => {
-      const resolved = row.cell ? row.cell(code) : code === 'all' ? allModel.average[row.measure] : platformModels[code].cells[row.measure][code];
-      const text = row.text ? row.text(resolved) : row.suffix && resolved.state === 'ok' ? `${pct0(resolved.value)} ${row.suffix}` : undefined;
-      const content = measureCell(resolved, ctx, { text });
-      const sub = row.sub && resolved.state === 'ok' ? row.sub(resolved, code) : null;
-      if (sub) content.append(el('span', 'type-micro text-foreground-tertiary', sub));
-      if (resolved?.state === 'ok' && code === 'all' && resolved.used && !row.noAverageLabel && !row.cell) content.append(el('span', 'type-micro text-foreground-tertiary', `avg of ${resolved.used}`));
-      tr.append(matrixCell(content, { selected: scope.platform === code }));
-    });
-    body.append(tr);
-  });
-  // The run rows of the sheet: how many runs are behind a column, and when the last one finished
-  const runRow = (label, valueOf) => {
-    const tr = el('tr', 'border-t border-border-subtle bg-surface-subtle');
-    const th = el('th', 'pl-4 pr-3 py-1.5 text-left font-normal text-foreground-secondary whitespace-nowrap');
-    th.scope = 'row';
-    th.append(label);
-    tr.append(th, ...columns.map((code) => matrixCell(el('span', 'type-table num text-foreground-secondary', valueOf(code)), { selected: scope.platform === code })));
-    return tr;
-  };
-  body.append(
-    runRow('Runs in window', () => `${RUNS.inWindow} of ${RUNS.inWindow}`),
-    runRow('Last run', (code) => (code === 'all' ? RUNS.last : lastRunOf(code))),
-  );
-  table.append(caption, head, body);
-  const wrap = el('div', 'overflow-x-auto');
-  wrap.append(table);
-  return cardFrame({
-    key: 'ai.metric_matrix',
-    title: 'Metrics by platform',
-    meta: scope.group === 'all' ? 'all groups' : `group: ${scope.group.split(':')[1]}`,
-    tools: [],
-    body: wrap,
-    flush: true,
-    footnote: 'Rates are prompt-weighted, each prompt counting once; the counts in the tooltips are the pooled answers behind them. All platforms is the equal-weight average of the platforms that have the metric. Recommendation, sentiment and referral traffic use sample data until their collectors ship. AI Overview is read from rank checks and counts only checks that showed one.',
   });
 }
 

@@ -1,10 +1,10 @@
 /**
  * The cards of the AI visibility Overview as the layout sees them: key, title, what it shows, the widths it can take
  * and the builder that draws it. Keys are those of the layout catalog (src/lib/layouts/catalog.ts); the redesign adds
- * `ai.visibility_split`, `ai.metric_matrix`, `ai.position_distribution`, `ai.sentiment_by_engine`,
+ * `ai.visibility_split`, `ai.position_distribution`, `ai.sentiment_by_engine`,
  * `traffic.ai_referrals` and `ai.unlinked_mentions` (spec section 5).
  */
-import { gapCard, headlineRow, matrixCard, outcomeCard, sovCard, sovOverTimeCard, trendCard } from './aiov-cards-core.js';
+import { gapCard, headlineRow, outcomeCard, sovCard, sovOverTimeCard, trendCard } from './aiov-cards-core.js';
 import { calendarCard, changesCard, domainsCard, fanoutCard, groupExtremesCard, groupHeatmapCard, groupPromptsCard, ownPagesCard, positionCard, referralCard, sentimentCard, sourceTypesCard, unlinkedCard } from './aiov-cards-more.js';
 
 /** The group select decides what the group card shows: every group as a heat map, or the prompts of the one chosen. */
@@ -12,13 +12,12 @@ const heatmapOrPrompts = (ctx) => (ctx.scope.group === 'all' ? groupHeatmapCard(
 /** The strongest and weakest groups only exist while all groups are in scope. */
 const extremes = (ctx) => (ctx.scope.group === 'all' ? groupExtremesCard(ctx) : null);
 
-export const CARD_GROUPS = ['Overview', 'Platforms', 'Competitors', 'Groups', 'Citations', 'Prompt tracking', 'Traffic', 'Activity'];
+export const CARD_GROUPS = ['Overview', 'Competitors', 'Groups', 'Citations', 'Prompt tracking', 'Traffic', 'Activity'];
 
 export const CARD_REGISTRY = [
   { key: 'ai.visibility_split', title: 'Headline numbers', description: 'AI Visibility with its four outcomes, and the key numbers beside it.', group: 'Overview', widths: ['full'], build: headlineRow },
   { key: 'ai.rate_trend_by_engine', title: 'Trend over time', description: 'Visibility, mention, citation or share of voice over the weekly runs.', group: 'Overview', widths: ['two_thirds', 'full', 'half'], build: trendCard },
   { key: 'ai.outcome_mix', title: 'What answers do with the brand', description: 'Named and linked, named only, cited only and neither, per platform.', group: 'Overview', widths: ['third', 'half'], build: outcomeCard },
-  { key: 'ai.metric_matrix', title: 'Metrics by platform', description: 'Every metric by platform, with change, runs and last run date.', group: 'Platforms', widths: ['full'], build: matrixCard },
   { key: 'ai.share_of_voice', title: 'Share of voice', description: 'Your share of tracked-brand mentions beside each competitor.', group: 'Competitors', widths: ['half', 'third'], build: sovCard },
   { key: 'ai.sov_over_time', title: 'Share of voice over time', description: 'The share of every tracked brand over the weekly runs, stacked to 100%.', group: 'Competitors', widths: ['half', 'two_thirds', 'full'], build: sovOverTimeCard },
   { key: 'ai.lost_to_competitor', title: 'Competitor gap', description: 'The mention gap to each competitor and the prompts where they lead.', group: 'Competitors', widths: ['half', 'full'], build: gapCard },

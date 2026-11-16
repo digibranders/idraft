@@ -22,7 +22,7 @@ Analysis and Fan-out queries. The page must also have charts, not only tables.
 | D3 | **Platform is a single select** (All platforms, ChatGPT, Gemini, AI Overview, AI Mode). AI Overview is read from rank checks of linked keywords and counts only checks that showed one; the card says "when an AI Overview appears". | AI Overview is not asked (doc 16 section 1 rule 5). |
 | D4 | **Group is a single select** (All groups, or one group). Every prompt has exactly one required primary group, so group values add up to the project total. Keywords share the same groups, which allows SEO against AI per group. The taxonomy keeps its two levels (parent and topic). | One primary group removes the "a prompt counts in two topics" caveat of doc 16 section 4. |
 | D5 | **No pie or donut charts.** Shares use 100% stacked bars, treemaps, bar lists and heatmaps. | DS 15, and they read more accurately. |
-| D6 | The page has 9 headline tiles (the plain visibility hero and 8 KPI tiles) and a **metric matrix** with all 12 metrics by platform, with change, runs and last run date. | The matrix is the senior's sheet. |
+| D6 | The page has a headline block (the plain visibility hero and the key numbers). The metric matrix of all 12 metrics by platform was built and then removed from the page by the owner (2026-11-16); the 12 metrics stay available through the headline, the cards and their tooltips. | The owner wanted a lighter page. |
 | D7 | Metrics that the backend does not collect yet (recommendation, recommendation position, sentiment, referral traffic) show an honest "not collected yet" state in the mock with labelled sample values, never a blank or a zero. | Unknown is never zero (R6). |
 
 ## 3. The 12 metrics
@@ -60,7 +60,7 @@ separated from Google organic in GA4). Fan-out queries come from ChatGPT only. A
    position, recommendation, sentiment, prompts, runs and last run).
 2. Visibility trend (two thirds, a line per platform with the average dashed, or one platform against the previous
    period) and the outcome split per platform (one third, 100% stacked bars).
-3. Metric matrix (full width).
+3. (The metric matrix was removed.)
 4. Competitor analysis: share of voice bar list and share of voice over time (stacked area).
 5. Competitor gap analysis: the gap in mention rate to each competitor and the prompts lost to each.
 6. Groups: group by platform heatmap (two thirds) and strongest and weakest groups (one third). With one group
@@ -70,7 +70,7 @@ separated from Google organic in GA4). Fan-out queries come from ChatGPT only. A
 9. Traffic analysis: referral sessions by source and landing pages (sample until GA4 is connected).
 10. Fan-out queries (ChatGPT only), key changes, collection runs calendar.
 
-Every block is a card of the layout catalog (new keys: `ai.visibility_split`, `ai.metric_matrix`,
+Every block is a card of the layout catalog (new keys: `ai.visibility_split`,
 `ai.position_distribution`, `ai.sentiment_by_engine`, `traffic.ai_referrals`, `ai.unlinked_mentions`; the rest reuse
 existing keys), so customize mode, presets and per-user and team layouts apply as specified in the existing doc
 section 9. Presets: Executive, Analyst, Competitive.
@@ -79,7 +79,7 @@ section 9. Presets: Executive, Analyst, Competitive.
 
 - **A layout is a list of cards** with a width each, at most 12 (the layout library's limit). The headline hero and
   tiles are one card, `ai.visibility_split`, so the numbers zone of the library is not used on this page yet.
-- **The default shows 12 of the 19 cards**, one for each section of the senior's sheet. The other cards are in the
+- **The default shows 11 of the 18 cards**, one for each section of the senior's sheet. The other cards are in the
   card catalog. Presets: Default, Executive, Analyst, Competitive; each fills complete rows of 12 columns at 1280 px.
 - **Controls:** Customize toggle, a toolbar on every card (drag handle with arrow keys, width, hide, move menu), an
   Add card slot that opens the catalog, Start from (presets), and a save bar with Reset, Cancel, Save layout and a
