@@ -16,11 +16,11 @@ const { $, icon, engineLogo } = window.PreviewUI;
 export const CELL = 'border-b border-border-subtle px-3';
 
 /**
- * MetricCell in Compact density, the default (12 section 6): the rate, "avg of N" where it is an average, and the
- * change beside it on one line, so the row stays 32 px; the sample ("612 of 1,296 obs") is in the tooltip. Left aligned
+ * MetricCell in Compact density, the default (12 section 6): the rate and its change beside it on one line, so the row
+ * stays 32 px; the sample ("612 of 1,296 obs") and which engines an average covers are in the tooltip. Left aligned
  * like every table column. `value` null renders InsufficientData with `gap.text` and `gap.tip`.
  */
-export function rateCell({ value, change, sample, tip, gap, average = '' }) {
+export function rateCell({ value, change, sample, tip, gap }) {
   const cell = el('td', CELL);
   if (value === null) {
     const pill = insufficient(gap.text);
@@ -30,7 +30,6 @@ export function rateCell({ value, change, sample, tip, gap, average = '' }) {
   }
   const line = el('span', 'inline-flex items-baseline gap-1 whitespace-nowrap');
   line.append(el('span', 'num', percent0(value)));
-  if (average) line.append(' ', el('span', 'type-label text-foreground-tertiary', average));
   const delta = deltaNode(change, 1);
   if (delta) {
     delta.classList.add('type-meta');
@@ -65,7 +64,6 @@ export function promptRateCell(prompt, metric, withChange) {
   if (unclassified) absent = { text: 'n/a', tip: `${scope.map((code) => engineOf(code).name).join(', ')}: ${NOT_CLASSIFIED}` };
   return rateCell({
     value,
-    average: used > 1 ? `avg of ${used}` : '',
     change: withChange ? changeFor(prompt, scope, metric) : null,
     sample: `${formatSampleCount(pooled.k, pooled.n)} ${metric === 'sov' ? 'mentions' : 'obs'}`,
     tip: used === 1 ? `${names} only` : `Equal-weight average of ${names}`,

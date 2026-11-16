@@ -159,7 +159,7 @@ export function promptsByMention(topic) {
 // -------------------------------------------------------------------------------------------------
 // Columns of the three views
 
-const WIDTH = { select: 40, topic: 260, prompts: 96, country: 120, volume: 132, position: 120, mention: 184, citation: 136, recommendation: 196, sov: 140, sentiment: 224, brands: 248, engine: 140, trend: 96, count: 152, e: 176, gap: 120, actions: 40 };
+const WIDTH = { select: 40, topic: 260, prompts: 96, country: 120, volume: 132, position: 120, mention: 168, citation: 136, recommendation: 196, sov: 140, sentiment: 168, brands: 248, engine: 140, trend: 96, count: 152, e: 176, gap: 120, actions: 40 };
 
 /** The columns of the view in force, in table order. `locked` columns cannot be turned off. */
 function columnsOf() {
@@ -295,7 +295,6 @@ function topicRateCell(topic, metric) {
   const observed = topic.prompts.reduce((sum, prompt) => sum + scopeCodes().reduce((total, code) => total + prompt.engines[code].n, 0), 0);
   return rateCell({
     value: average.value,
-    average: average.used > 1 ? `avg of ${average.used}` : '',
     change: metric === 'mention' ? topic.mentionChange : null,
     sample: `${formatSampleCount(average.pooled.k, average.pooled.n)} obs`,
     tip: average.used === 1 ? `${engines} only` : `Equal-weight average of ${engines}, each prompt counting once`,

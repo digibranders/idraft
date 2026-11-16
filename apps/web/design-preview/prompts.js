@@ -60,7 +60,7 @@ const PAGE_SIZE = Number.MAX_SAFE_INTEGER;
  * view is that engine's own value. Cited links and the answer screenshot belong to one engine's answers, so they are
  * there only while one engine is in view. The per-engine columns and counts are off until they are chosen.
  */
-const WIDTH = { select: 40, prompt: 300, topic: 160, country: 120, intent: 128, volume: 132, position: 120, mention: 184, citation: 136, recommendation: 196, sov: 140, sentiment: 224, trend: 96, links: 320, brands: 248, shot: 120, e: 176, count: 152, actions: 40 };
+const WIDTH = { select: 40, prompt: 300, topic: 160, country: 120, intent: 128, volume: 132, position: 120, mention: 168, citation: 136, recommendation: 196, sov: 140, sentiment: 168, trend: 96, links: 320, brands: 248, shot: 120, e: 176, count: 152, actions: 40 };
 const columnsOf = () => {
   const single = scopeEngines().length === 1;
   return [

@@ -71,7 +71,6 @@ export function positionCell({ value, used, names, lists, mentions, answers }, a
   const cell = el('td', CELL);
   const line = el('span', 'inline-flex items-baseline gap-1 whitespace-nowrap');
   line.append(el('span', 'num', formatDecimal(value, 1)));
-  if (used > 1) line.append(el('span', 'type-label text-foreground-tertiary', `avg of ${used}`));
   cell.append(line);
   cell.dataset.tip = `${used > 1 ? `Equal-weight average of ${names.join(', ')}, each from its own ordered answers. ` : `${names[0]}: `}${plural(lists, 'ordered answer')} of ${plural(mentions, 'mention')}. 1 means named first, so lower is better.`;
   return cell;
@@ -105,7 +104,7 @@ export function sentimentCell(sentiment, absent = 'Not observed in this window')
     part.style.background = `var(--${token})`;
     bar.append(part);
   });
-  line.append(el('span', 'num', percent0(shares.positive)), el('span', 'type-label text-foreground-tertiary', used > 1 ? `positive, avg of ${used}` : 'positive'), bar);
+  line.append(el('span', 'num', percent0(shares.positive)), el('span', 'type-label text-foreground-tertiary', 'positive'), bar);
   cell.append(line);
   const parts = SENTIMENT.map(({ key, label }) => `${label} ${percent0(shares[key])}`).join(', ');
   cell.dataset.tip = `${parts}. ${used > 1 ? `Equal-weight average of ${names.join(', ')}, each from its own classified mentions` : `${names[0]}: ${plural(sentiment.mentions, 'classified mention')}`}. Four shares, never one score. Sample values until sentiment is collected.`;
