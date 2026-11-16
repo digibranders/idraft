@@ -8,12 +8,16 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
-/** The tokens of the four outcomes (preview `OUTCOME_SEGMENTS`): a category, so never `chart-1`, which is the own brand's. */
+/**
+ * The tokens of the four outcomes, the ones the outcome split card uses for the same four, so a segment has one colour
+ * on the whole page. Never `chart-1` (the own brand's), and not the sequential steps, which only bin a rate
+ * (`heat-bins.test.ts`): the preview draws these with `seq-6`, `seq-4`, `seq-3` (register OV-HEAD-06, differs).
+ */
 const FILL: Readonly<Record<Segment, string>> = {
-  mentioned_and_cited: 'bg-seq-6',
-  mentioned_only: 'bg-seq-4',
-  cited_only: 'bg-seq-3',
-  neither: 'bg-chart-bar-neutral',
+  mentioned_and_cited: 'bg-chart-3',
+  mentioned_only: 'bg-chart-4',
+  cited_only: 'bg-chart-5',
+  neither: 'bg-chart-other',
 };
 
 const SPARK_WIDTH = 100;
