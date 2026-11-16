@@ -35,6 +35,7 @@ import {
   useCompare,
 } from './compare';
 import { PlatformSelect, withoutFullPlatformSet } from './engine-select';
+import { factsRequested, indexFacts, type PromptFacts } from './facts';
 import { asRecordActions, type PromptAction } from './prompt-action';
 import { usePromptColumns, type PromptRow } from './prompt-columns';
 import { PromptInspector, type PromptCounts } from './prompt-inspector';
@@ -67,7 +68,6 @@ import { enginesQuery, observationQuery, summaryQuery, usePromptList, type Promp
 import { PromptsControls } from './prompts-controls';
 import { PromptsCountryControl } from './prompts-scope';
 import { PromptsStrip } from './prompts-strip';
-import { usePageFacts } from './use-page-facts';
 import { PROMPT_ACTION_ENTRIES, withActionEntries } from './seams/actions';
 import { PROMPTS_TOOLBAR_ENTRIES, promptsToolbarItems } from './seams/toolbar';
 import { UpdatedRunLink, useUpdatedRunHref } from './updated-run-link';
@@ -159,8 +159,13 @@ const VIEW_STATE = {
   density: parseAsString,
 };
 
-/** The weekly series, asked of the summary: the Trend column, the line in the Mention rate cell and the History tab read it. Module level, so the query's key stays the same. */
+/**
+ * The blocks asked of the summary: the weekly series (the Trend column of Groups, the tooltip of the Mention rate cell
+ * and the History tab read it), and, where the API knows them (`factsRequested`), the tracked entities and the facts of
+ * the Prompts columns, in the same one read. Module level, so the query's key stays the same.
+ */
 const SERIES: readonly ['series'] = ['series'];
+const SERIES_AND_FACTS: readonly ['series', 'entities', 'facts'] = ['series', 'entities', 'facts'];
 const NO_ENTITIES: readonly SummaryEntity[] = [];
 
 const promptRowId = (row: PromptRow): string => row.prompt.prompt_id;
@@ -359,7 +364,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   const summary = useQuery({
     ...summaryQuery(scope, range, includeBranded, {
       ...(country === null ? {} : { country }),
-      include: SERIES,
+      include: factsRequested() ? SERIES_AND_FACTS : SERIES,
       compare,
     }),
     enabled: enabled.length > 0,
@@ -499,15 +504,17 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     [summary.data, topicsUnknown, stripPrompts, descendants, topicIds, kept],
   );
 
-  // The facts of the columns that later packages build, from the one summary read (never a request for a row)
-  const facts = usePageFacts(scope, range, includeBranded, enabled.length > 0, {
-    ...(country === null ? {} : { country }),
-    compare,
-  });
+  // The facts of the columns that later packages build, from the one summary read (never a request for a row); absent
+  // while the API does not send them, which those columns say as not collected yet
+  const facts = useMemo(
+    (): PromptFacts | undefined =>
+      summaryData === undefined || !factsRequested() ? undefined : indexFacts(summaryData, true),
+    [summaryData],
+  );
   const { columns, sortFields, searchText, rowName } = usePromptColumns(shown, 'mention', comparedWindow(summaryData), {
     // The location of the top bar already says which, so a Location column repeats it on every row
     showLocation: country === null,
-    facts: facts.data,
+    facts,
   });
   const columnIds = useMemo(() => new Set(columns.map((column) => column.id)), [columns]);
   const visible = useMemo(() => parseColumns(view.cols, columnIds, ['prompt']), [view.cols, columnIds]);

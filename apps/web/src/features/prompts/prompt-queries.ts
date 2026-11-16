@@ -17,6 +17,7 @@ import { projectKey, queryKey, type QueryKey } from '@/lib/api/keys';
 import { ApiProblem } from '@/lib/api/problem';
 import { apiMutation, apiQuery, type ApiQueryOptions, type ApiResponse } from '@/lib/api/query';
 import type { EngineCode, Prompt } from '@/lib/api/types';
+import type { paths } from '@/lib/api/schema';
 import { compareParams } from '@/lib/compare/compare-model';
 
 /**
@@ -39,6 +40,7 @@ const OBSERVATIONS = `${P}/ai/observations` as const;
 const OBSERVATION = `${OBSERVATIONS}/{observation_id}` as const;
 const RAW = `${OBSERVATION}/raw` as const;
 const SUMMARY = `${P}/ai/prompts-summary` as const;
+type SummaryInclude = NonNullable<NonNullable<paths[typeof SUMMARY]['get']['parameters']['query']>['include']>[number];
 const ENTITIES = `${P}/entities` as const;
 
 type PromptPage = ApiResponse<'get', typeof PROMPTS>;
@@ -172,9 +174,11 @@ export interface SummaryScope {
   brandedOnly?: boolean;
   /**
    * Blocks to add. `series` gives each engine a point for each week the window touches (Monday start, in the
-   * project's zone, at most 14); `entities` gives each engine a Mentioned and a Share of voice cell per tracked entity.
+   * project's zone, at most 14); `entities` gives each engine a Mentioned and a Share of voice cell per tracked entity;
+   * `facts` adds the per-platform facts of the Prompts columns (position, sentiment, brands, links, volume), which
+   * the generated client does not know yet, so only a mocked read asks for it (`factsRequested`).
    */
-  include?: readonly ('series' | 'entities')[];
+  include?: readonly ('series' | 'entities' | 'facts')[];
   /** Ask for the previous period (`compare=previous_period`): each engine of each row then carries `previous`. */
   compare?: boolean;
 }
@@ -196,7 +200,7 @@ export const summaryQuery = (
         ...(country === undefined ? {} : { 'filter[country_iso]': country }),
         ...(term === undefined ? {} : { 'filter[term]': term }),
         ...(brandedOnly === true ? { branded_only: true } : {}),
-        ...(include === undefined || include.length === 0 ? {} : { include: [...include] }),
+        ...(include === undefined || include.length === 0 ? {} : { include: [...include] as SummaryInclude[] }),
         ...compareParams(compare === true),
       },
     },
