@@ -9,11 +9,9 @@ matches wins; a manual tier beats every rule, which the caller decides before as
 
 from __future__ import annotations
 
-import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import StrEnum
-from functools import cache
 from typing import Final
 from uuid import UUID
 
@@ -67,10 +65,25 @@ def _trimmed(path: str) -> str:
     return path.rstrip("/") or "/"
 
 
-@cache
-def _pattern(value: str) -> re.Pattern[str]:
-    # Literal except `*`; at most STARS_MAX stars and VALUE_MAX characters keep it cheap.
-    return re.compile(".*".join(re.escape(part) for part in value.split("*")), re.DOTALL)
+def _glob_matches(value: str, path: str) -> bool:
+    """`*` is any run of characters, the rest literal. Linear in the path for each part: the
+    first part must start the path, the last must end it, the middle ones are found in order
+    (a regex with several `.*` can take exponential time on a path that does not match)."""
+    if "*" not in value:
+        return path == value
+    first, *middle, last = value.split("*")
+    if len(path) < len(first) + len(last) or not path.startswith(first):
+        return False
+    end = len(path) - len(last)
+    if not path.endswith(last):
+        return False
+    cursor = len(first)
+    for part in middle:
+        found = path.find(part, cursor, end)
+        if found < 0:
+            return False
+        cursor = found + len(part)
+    return True
 
 
 def rule_matches(rule: TierRule, path: str) -> bool:
@@ -78,7 +91,7 @@ def rule_matches(rule: TierRule, path: str) -> bool:
         return _trimmed(path) == _trimmed(rule.value)
     if rule.match_type is MatchType.PREFIX:
         return path.startswith(rule.value)
-    return _pattern(rule.value).fullmatch(path) is not None
+    return _glob_matches(rule.value, path)
 
 
 def first_match(rules: Sequence[TierRule], path: str) -> TierRule | None:

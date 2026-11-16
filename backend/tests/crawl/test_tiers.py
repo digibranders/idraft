@@ -1,5 +1,6 @@
 """Tier codes and tier rules: exact, prefix, pattern; the first match wins (spec 5.2)."""
 
+import time
 import uuid
 
 import pytest
@@ -61,6 +62,30 @@ def test_the_defaults_are_four_named_tiers() -> None:
 )
 def test_rules_match_paths(match_type: MatchType, value: str, path: str, matches: bool) -> None:
     assert rule_matches(_rule(1, match_type, value), path) is matches
+
+
+def test_a_pattern_with_many_stars_is_linear_on_a_path_that_cannot_match() -> None:
+    rule = _rule(1, MatchType.PATTERN, "/" + "*a" * 9 + "*b")
+    started = time.perf_counter()
+    assert rule_matches(rule, "/" + "a" * 5000) is False
+    assert time.perf_counter() - started < 0.5
+
+
+@pytest.mark.parametrize(
+    ("value", "path", "matches"),
+    [
+        ("/a*a", "/a", False),  # the two a's may not overlap
+        ("/a*b*c", "/a-c-b-c", True),
+        ("/a*b*c", "/a-c-b", False),
+        ("/*", "/", True),
+        ("/*/x", "/y/x", True),
+        ("/x*", "/x", True),
+    ],
+)
+def test_pattern_parts_are_found_in_order_without_overlap(
+    value: str, path: str, matches: bool
+) -> None:
+    assert rule_matches(_rule(1, MatchType.PATTERN, value), path) is matches
 
 
 def test_the_first_rule_by_position_wins_whatever_the_list_order() -> None:
