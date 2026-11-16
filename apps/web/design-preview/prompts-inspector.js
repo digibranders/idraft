@@ -6,7 +6,7 @@
  */
 import { formatInteger, formatInterval, formatSampleCount } from './vendor/format/number.js';
 import { rateState, wilsonInterval } from './vendor/stats/index.js';
-import { COMPETITORS, ENGINES, NOT_CLASSIFIED, OWN, absenceOf, absenceSentence, linkedKeywordOf, relatedKeywordsOf, PROMPT_BY_ID, TYPE_LABEL, WEEKS, answerFor, averageFor, countsOf, engineOf, observationsOf, measures, rollingCounts, seeded, topicPath, updatedOf } from './prompts-data.js';
+import { COMPETITORS, ENGINES, NOT_CLASSIFIED, OWN, absenceOf, absenceSentence, linkedKeywordOf, relatedKeywordsOf, PROMPT_BY_ID, TYPE_LABEL, WEEKS, answerFor, averageFor, countsOf, engineOf, observationsOf, measures, rollingCounts, seeded, updatedOf } from './prompts-data.js';
 import { NEUTRAL_BADGE, el, insufficient, keywordRow, percent0, plural } from './prompts-parts.js';
 
 const ui = window.PreviewUI;
@@ -436,7 +436,7 @@ function fillPrompt(id) {
   $('#inspector-title').textContent = `“${prompt.text}”`;
   const panel = ui.badge(prompt.panel);
   if (prompt.locked) panel.prepend(icon('lock', 'size-icon-xs mr-1'));
-  const topic = el('button', `${NEUTRAL_BADGE} hover:bg-surface-hover disabled:hover:bg-neutral-subtle`, topicPath(prompt.topic));
+  const topic = el('button', `${NEUTRAL_BADGE} hover:bg-surface-hover disabled:hover:bg-neutral-subtle`, prompt.topic);
   topic.type = 'button';
   topic.dataset.promptTopic = prompt.topic;
   topic.disabled = !explorer.hasTopic(prompt.topic);

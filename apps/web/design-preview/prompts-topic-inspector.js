@@ -25,29 +25,31 @@ const hash = (text) => [...text].reduce((sum, char) => (sum * 31 + char.charCode
 // -------------------------------------------------------------------------------------------------
 // Overview
 
-function metricCard(label, value, change, note) {
-  const card = el('div', 'rounded-lg border border-border bg-surface p-3 min-w-0');
-  const dd = el('dd', 'mt-1 flex flex-col min-w-0');
-  dd.append(el('span', `type-metric-sm num truncate${value === null ? ' text-foreground-tertiary' : ''}`, value === null ? 'n/a' : percent0(value)));
-  // The change and the note each get a line: side by side they do not fit a third of the drawer
-  const delta = deltaNode(change, 1);
-  if (delta) {
-    delta.classList.add('mt-0.5', 'type-body-strong');
-    dd.append(delta);
+/** One line of the Rates card: the rate's name on the left, the rate, what it averages over and its change on the right. */
+function rateLine(label, value, change, note) {
+  const row = el('div', 'flex items-baseline justify-between gap-3 min-w-0');
+  const dd = el('dd', 'flex items-baseline gap-1 whitespace-nowrap');
+  if (value === null) dd.append(el('span', 'text-foreground-tertiary', 'n/a'));
+  else {
+    dd.append(el('span', 'num type-body-strong', percent0(value)), ' ', el('span', 'type-label text-foreground-tertiary', note));
+    const delta = deltaNode(change, 1);
+    if (delta) {
+      delta.classList.add('type-meta');
+      dd.append(delta);
+    }
   }
-  dd.append(el('span', 'mt-0.5 type-meta num truncate', note));
-  card.append(el('dt', 'type-label truncate', label), dd);
-  return card;
+  row.append(el('dt', 'type-meta text-foreground-tertiary', label), dd);
+  return row;
 }
 
 function fillNumbers(topic) {
   const scope = scopeCodes();
-  const note = scope.length > 1 ? `avg of ${scope.length}` : scopeEngines()[0].name;
+  const note = scope.length > 1 ? `avg of ${scope.length}` : '';
   const sov = groupAverage(topic.prompts, scope, 'sov');
   $('[data-topic-kv]', inspector).replaceChildren(
-    metricCard('Mention rate', topic.mention.value, topic.mentionChange, note),
-    metricCard('Citation rate', topic.citation.value, groupChange(topic.prompts, scope, 'citation'), note),
-    metricCard('Share of voice', sov.value, null, note),
+    rateLine('Mentioned', topic.mention.value, topic.mentionChange, note),
+    rateLine('Cited', topic.citation.value, groupChange(topic.prompts, scope, 'citation'), note),
+    rateLine('Share of voice', sov.value, null, note),
   );
 }
 
@@ -232,9 +234,10 @@ function fillCompetitors(topic) {
 }
 
 function fillRelated(topic) {
-  const related = host.topics().filter((other) => other.parent === topic.parent && other.id !== topic.id);
-  $('[data-topic-related-note]', inspector).textContent = `also under ${topic.parent}`;
-  const none = el('td', 'px-4 type-meta', `No other topic under ${topic.parent} is in this scope.`);
+  // Topics are one level, so the related ones are the other topics of the scope, the largest first
+  const related = host.topics().filter((other) => other.id !== topic.id).sort((a, b) => b.prompts.length - a.prompts.length).slice(0, 5);
+  $('[data-topic-related-note]', inspector).textContent = 'other topics in this scope';
+  const none = el('td', 'px-4 type-meta', 'No other topic is in this scope.');
   none.colSpan = 3;
   $('[data-topic-related]', inspector).replaceChildren(
     ...(related.length === 0
@@ -266,7 +269,7 @@ function fillTopic(id) {
   const topic = topicOf(id);
   openTopicId = id;
   $('#inspector-title').textContent = topic.name;
-  $('[data-inspector-badges]', inspector).replaceChildren(ui.badge(topic.parent), ui.badge(plural(topic.prompts.length, 'prompt')), ui.badge(scopeText()));
+  $('[data-inspector-badges]', inspector).replaceChildren(ui.badge(plural(topic.prompts.length, 'prompt')), ui.badge(scopeText()));
   context(topic);
   fillOverview(topic);
   fillPrompts(topic);

@@ -1,3 +1,4 @@
+/* global document */
 /**
  * What the Topics tab, the Prompts tab and both inspectors share: the filters in force, and the pieces of a
  * cell that depend on them (which engines are in scope, whether changes are shown).
@@ -13,6 +14,8 @@ export const VIEWS = {
   branded: { label: 'Branded prompts', panel: [], branded: 'only' },
   discovery: { label: 'Discovery panel', panel: ['Discovery'], branded: 'exclude' },
 };
+/** The metric names of the select and of the engine columns. */
+export const METRIC_LABEL = { mention: 'Mention', citation: 'Citation', sov: 'Share of voice' };
 export const BRANDED_LABEL = { exclude: 'Excluded', include: 'Included', only: 'Only' };
 
 export const state = {
@@ -41,6 +44,12 @@ export const state = {
   topicColumns: new Set(),
   expanded: new Set(),
 };
+
+/**
+ * Whether the location of the top bar is "All locations". The Location column of the tables shows only then: with one
+ * location chosen the top bar already says which, so the column would repeat it on every row.
+ */
+export const isAllLocations = () => document.querySelector('[data-location-label]')?.textContent.trim() === 'All locations';
 
 export const scopeEngines = () => ENGINES.filter((engine) => state.engines.includes(engine.code));
 export const scopeCodes = () => scopeEngines().map((engine) => engine.code);

@@ -257,7 +257,7 @@ function fillPrompts(model, index) {
   shown.forEach((row) => list.append(promptRow(row, rival)));
   const footer = el('div', 'px-4 py-3 border-t border-border-subtle flex flex-wrap items-center gap-x-3 gap-y-1');
   footer.append(el('span', 'type-meta num', rows.length === 0 ? '' : `Showing ${shown.length} of ${formatInteger(rows.length)}`));
-  const all = el('button', 'ml-auto type-body text-link hover:underline whitespace-nowrap', 'View all in Topics & Prompts');
+  const all = el('button', 'ml-auto type-body text-link hover:underline whitespace-nowrap', 'View all in Prompts');
   all.type = 'button';
   all.dataset.previewNote = `The prompt list filtered to ${KIND_LABEL[view.lead].toLowerCase()} against ${rival.name} (opp=lost_to:${rival.id})`;
   footer.append(all);

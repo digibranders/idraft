@@ -8,6 +8,7 @@ import { CELL_OF_METRIC, countText, engineSortId, SORT_ID, type RateMetric } fro
 import { useRateWords } from './rate-view';
 import { col } from '@/components/app/data-table/columns';
 import type { CellTip, DataTableColumn } from '@/components/app/data-table/types';
+import { EngineLogo } from '@/components/app/engine/engine-logo';
 import { InsufficientPill } from '@/components/app/metric/insufficient-pill';
 import type { EngineSummary, ProjectEngine } from '@/lib/api/types';
 import { averageChangeOf, engineChangeOf, type RateChange } from '@/lib/compare/change-model';
@@ -186,6 +187,9 @@ export function useRateColumns<TRow>(
       header: t('topEngine'),
       headerTooltip: t('topEngineTip'),
       priority: 2,
+      // The mark and the name of a bold parent row ("ChatGPT") need about 112 px; the plain 104 px minimum cut it
+      width: 140,
+      minWidth: 120,
       unknown: (row) => ({
         label: EMPTY_VALUE,
         tooltip: cellsOf(row) === undefined ? t('notLoadedTip') : t('noTopEngineTip'),
@@ -193,6 +197,18 @@ export function useRateColumns<TRow>(
     });
     const topColumn: DataTableColumn<TRow> = {
       ...topBase,
+      // The vendor's mark before the name (07-icons.md section 5: engine columns carry it); no engine, the base cell
+      cell: (row) => {
+        const best = topEngine(engineRatesOf(codes, cellsOf(row) ?? []));
+        // A block of its own, so the mark's line box does not lift the name above the cells beside it
+        return best === null ? (
+          topBase.cell(row)
+        ) : (
+          <span className="flex min-w-0">
+            <EngineLogo engine={best.code} name={labelOf(best.code)} truncate />
+          </span>
+        );
+      },
       cellTip: (row) => {
         if (topOf(row) === null) return topBase.cellTip?.(row);
         const cells = cellsOf(row) ?? [];

@@ -1,4 +1,4 @@
-/* global document */
+/* global document, window */
 /**
  * Small pieces the Prompts page and the prompt inspector both render with.
  */
@@ -18,6 +18,20 @@ const plural = (count, noun) => `${formatInteger(count)} ${noun}${count === 1 ? 
 /** A neutral badge (14 section 2) without its display, for badges that are shown only from some width. */
 const NEUTRAL_BADGE_LOOK = 'h-badge items-center px-2 rounded-sm border border-neutral-border bg-neutral-subtle text-neutral-text type-micro whitespace-nowrap';
 const NEUTRAL_BADGE = `inline-flex ${NEUTRAL_BADGE_LOOK}`;
+
+/**
+ * The table checkbox of the app (Checkbox in components/ui): a 16 px box in a 24 px target. The input stays a real
+ * checkbox, so its `change` event and `checked` and `indeterminate` properties work as before.
+ */
+function checkbox(label) {
+  const { icon } = window.PreviewUI;
+  const wrap = el('label', 'relative inline-flex size-6 shrink-0 cursor-pointer items-center justify-center');
+  const input = el('input', 'peer size-4 cursor-pointer appearance-none rounded-sm border border-border-strong bg-surface checked:border-primary checked:bg-primary indeterminate:border-primary indeterminate:bg-primary focus-visible:focus-ring');
+  input.type = 'checkbox';
+  input.setAttribute('aria-label', label);
+  wrap.append(input, icon('check', 'pointer-events-none absolute hidden size-icon-xs text-primary-foreground peer-checked:block'), icon('minus', 'pointer-events-none absolute hidden size-icon-xs text-primary-foreground peer-indeterminate:block'));
+  return { wrap, input };
+}
 
 /** InsufficientData (12 section 7.3): hatched, with the observation count where the column is narrow. */
 function insufficient(text) {
@@ -50,4 +64,4 @@ function keywordRow({ keyword, rank, overview, cited, linked = false }) {
   return row;
 }
 
-export { NEUTRAL_BADGE, NEUTRAL_BADGE_LOOK, el, insufficient, intervalText, keywordRow, percent0, plural };
+export { NEUTRAL_BADGE, NEUTRAL_BADGE_LOOK, checkbox, el, insufficient, intervalText, keywordRow, percent0, plural };

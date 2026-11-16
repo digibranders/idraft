@@ -9,6 +9,8 @@
 @source "./prompts-data.js";
 @source "./prompts-state.js";
 @source "./prompts-cells.js";
+@source "./prompts-extra.js";
+@source "./prompts-extra-cells.js";
 @source "./prompts-topics.js";
 @source "./prompts-topic-inspector.js";
 @source "./perf.js";
