@@ -7,7 +7,9 @@
  */
 import { formatDecimal, formatInteger, formatSampleCount } from './vendor/format/number.js';
 import { MIN_OBSERVATIONS } from './vendor/stats/index.js';
-import { countsOf, groupAverage, groupChange, groupRate, groupTrend, groupUpdated, rateFor, seoOf, topicsOf } from './prompts-data.js';
+import { ENGINES, NOT_CLASSIFIED, countsOf, engineOf, groupAverage, groupChange, groupRate, groupTrend, groupUpdated, measures, rateFor, seoOf, topicsOf } from './prompts-data.js';
+import { brandsOf, groupVolume, positionOf, sentimentOf } from './prompts-extra.js';
+import { brandsCell, positionCell, sentimentCell, textCell, volumeCell } from './prompts-extra-cells.js';
 import { CELL, focusSearchOnSlash, plainHeaderCell, rateCell, rowMenuCell, sortHeaderCell, sparkCell, topEngineCell, wireColumnChooser } from './prompts-cells.js';
 import { checkbox, el, percent0, plural } from './prompts-parts.js';
 import { METRIC_LABEL, scopeCodes, scopeEngines, scopePrompts, scopeText, state } from './prompts-state.js';
@@ -37,8 +39,11 @@ let menuTopicId = null;
 /** What the topic menu was opened from: focus returns there when the menu starts a dialog. */
 let menuAnchor = null;
 
+/** Off until chosen: the engine pointer and the counts of each engine. Everything else of the list is on. */
+const defaultOff = () => new Set(['engine', ...ENGINES.flatMap((engine) => [`m:${engine.code}`, `c:${engine.code}`])]);
+
 state.topicView = 'list';
-state.topicHidden = new Set();
+state.topicHidden = defaultOff();
 state.density = 'compact';
 
 // -------------------------------------------------------------------------------------------------
@@ -51,6 +56,12 @@ function summarize(topic) {
     mention: groupAverage(topic.prompts, scope, 'mention'),
     mentionChange: groupChange(topic.prompts, scope, 'mention'),
     citation: groupAverage(topic.prompts, scope, 'citation'),
+    recommendation: groupAverage(topic.prompts, scope, 'recommendation'),
+    sov: groupAverage(topic.prompts, scope, 'sov'),
+    volume: groupVolume(topic.prompts),
+    position: positionOf(topic.prompts, scope),
+    sentiment: sentimentOf(topic.prompts, scope),
+    brands: brandsOf(topic.prompts, scope),
     engineRates: scopeEngines().map((engine) => ({ engine, rate: groupRate(topic.prompts, engine.code, 'mention').rate })),
     trend: groupTrend(topic.prompts, scope),
     updated: groupUpdated(topic.prompts),
@@ -75,6 +86,11 @@ const SORTS = {
   prompts: (topic) => topic.prompts.length,
   mention: (topic) => topic.mention.value,
   citation: (topic) => topic.citation.value,
+  recommendation: (topic) => topic.recommendation.value,
+  sov: (topic) => topic.sov.value,
+  volume: (topic) => topic.volume.value,
+  position: (topic) => topic.position.value,
+  sentiment: (topic) => (topic.sentiment.state === 'ok' ? topic.sentiment.positive / topic.sentiment.mentions : null),
   engine: (topic) => topic.engineRates.filter((entry) => entry.rate !== null).sort((a, b) => b.rate - a.rate)[0]?.engine.name.toLowerCase() ?? null,
   gap: (topic) => {
     const rates = topic.engineRates.map((entry) => entry.rate).filter((rate) => rate !== null);
@@ -141,7 +157,7 @@ export function promptsByMention(topic) {
 // -------------------------------------------------------------------------------------------------
 // Columns of the three views
 
-const WIDTH = { select: 40, topic: 260, prompts: 88, mention: 152, citation: 152, engine: 140, trend: 88, count: 152, e: 176, gap: 120, actions: 40 };
+const WIDTH = { select: 40, topic: 260, prompts: 88, country: 120, volume: 112, position: 112, mention: 152, citation: 152, recommendation: 184, sov: 152, sentiment: 184, brands: 220, engine: 140, trend: 88, count: 152, e: 176, gap: 120, actions: 40 };
 
 /** The columns of the view in force, in table order. `locked` columns cannot be turned off. */
 function columnsOf() {
@@ -158,10 +174,17 @@ function columnsOf() {
   return [
     { key: 'topic', label: 'Topic', width: WIDTH.topic, locked: true },
     { key: 'prompts', label: 'Prompts', width: WIDTH.prompts },
+    { key: 'country', label: 'Location', width: WIDTH.country },
+    { key: 'volume', label: 'Search volume', width: WIDTH.volume },
+    { key: 'position', label: 'Avg position', width: WIDTH.position },
     { key: 'mention', label: 'Mention rate', width: WIDTH.mention },
     { key: 'citation', label: 'Citation rate', width: WIDTH.citation },
-    { key: 'engine', label: 'Top engine', width: WIDTH.engine },
+    { key: 'recommendation', label: 'Recommendation rate', width: WIDTH.recommendation },
+    { key: 'sov', label: 'Share of voice', width: WIDTH.sov },
+    { key: 'sentiment', label: 'Sentiment', width: WIDTH.sentiment },
     { key: 'trend', label: 'Trend', width: WIDTH.trend },
+    { key: 'brands', label: 'Brands', width: WIDTH.brands },
+    { key: 'engine', label: 'Top engine', width: WIDTH.engine },
     ...engines.flatMap((engine) => [
       { key: `m:${engine.code}`, label: `${engine.name} mentioned`, width: WIDTH.count },
       { key: `c:${engine.code}`, label: `${engine.name} cited`, width: WIDTH.count },
@@ -177,6 +200,13 @@ const HEAD_TIP = {
   citation: 'The share of valid answers that cite your domain, averaged over the engines shown',
   engine: 'The engine with the highest mention rate. A pointer, not a ranking.',
   trend: 'The mention rate for each week of the window, averaged over the engines shown. A week with no valid answer is a gap in the line.',
+  country: 'The location the prompts are asked for',
+  volume: 'Monthly searches of the keywords the prompts are linked to, each keyword counted once. Sample values.',
+  position: 'Where your brand sits in an ordered answer, 1 being first. Lower is better. Only ordered lists have a position.',
+  recommendation: 'The share of valid answers that recommend your brand, on the engines that classify recommendations',
+  sov: 'Your mentions as a share of every brand mention in the answers',
+  sentiment: 'The tone of the answers that name your brand, as four shares. Sample values.',
+  brands: 'The brands the answers name, most named first. Opens the list.',
   gap: 'The distance in points between the engine with the highest rate and the one with the lowest',
 };
 const sortHeader = (column) => sortHeaderCell({ key: column.key, label: column.label, sort: state.topicSort, attr: 'topicSort', tip: HEAD_TIP[column.key] });
@@ -203,7 +233,7 @@ function renderHead() {
       th.style.left = `${WIDTH.select}px`;
       return th;
     }
-    return ['trend', 'engine'].includes(column.key) ? plainHeaderCell(column.label, '', HEAD_TIP[column.key]) : sortHeader(column);
+    return ['trend', 'engine', 'country', 'brands'].includes(column.key) ? plainHeaderCell(column.label, '', HEAD_TIP[column.key]) : sortHeader(column);
   });
   const actions = el('th', 'sticky top-0 z-(--z-table-header) border-b border-border bg-surface-subtle');
   actions.append(el('span', 'sr-only', 'Row actions'));
@@ -227,6 +257,13 @@ function selectCell(topic, surface) {
 
 function topicRateCell(topic, metric) {
   const average = topic[metric];
+  const scope = scopeCodes();
+  if (scope.every((code) => !measures(code, metric))) {
+    const cell = el('td', CELL);
+    cell.append(el('span', 'text-foreground-tertiary', 'n/a'));
+    cell.dataset.tip = `${scope.map((code) => engineOf(code).name).join(', ')}: ${NOT_CLASSIFIED}`;
+    return cell;
+  }
   // The engines that took part: one without enough observations in this topic is left out of the average
   const engines = scopeEngines()
     .filter((engine) => groupRate(topic.prompts, engine.code, metric).rate !== null)
@@ -284,6 +321,13 @@ function dataCells(topic) {
   const make = {
     mention: () => topicRateCell(topic, 'mention'),
     citation: () => topicRateCell(topic, 'citation'),
+    recommendation: () => topicRateCell(topic, 'recommendation'),
+    sov: () => topicRateCell(topic, 'sov'),
+    country: () => textCell('United States', 'Every prompt is asked for the project location, the one the top bar shows'),
+    volume: () => volumeCell(topic.volume),
+    position: () => positionCell(topic.position),
+    sentiment: () => sentimentCell(topic.sentiment),
+    brands: () => brandsCell(topic.brands, topic.name),
     engine: () => topEngineCell(topic.engineRates),
     trend: () => sparkCell(topic.trend, ''),
     gap: () => gapCell(topic),
@@ -522,8 +566,8 @@ export function initTopics(page) {
   head.addEventListener('click', (event) => {
     const key = event.target.closest('[data-topic-sort]')?.dataset.topicSort;
     if (!key) return;
-    // Names start A to Z; numbers and dates start with the largest. A second click reverses.
-    const first = key === 'topic' ? 'asc' : 'desc';
+    // Names start A to Z, and so does the position (1 is best); numbers and dates start with the largest. A second click reverses.
+    const first = key === 'topic' || key === 'position' ? 'asc' : 'desc';
     state.topicSort = { key, dir: state.topicSort.key === key ? (state.topicSort.dir === 'asc' ? 'desc' : 'asc') : first };
     renderTopics();
     $(`[data-topic-sort="${key}"]`, head)?.focus();
@@ -621,7 +665,7 @@ export function initTopics(page) {
       renderTopics();
     },
     reset: () => {
-      state.topicHidden = new Set();
+      state.topicHidden = defaultOff();
       renderTopics();
     },
   });

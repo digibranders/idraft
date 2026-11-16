@@ -6,7 +6,7 @@
  */
 import { formatSampleCount } from './vendor/format/number.js';
 import { MIN_OBSERVATIONS, pooledCounts } from './vendor/stats/index.js';
-import { TYPE_LABEL, absenceOf, averageFor, changeFor, countsOf, engineOf, rateFor, trendOf, updatedOf } from './prompts-data.js';
+import { NOT_CLASSIFIED, TYPE_LABEL, absenceOf, averageFor, changeFor, countsOf, engineOf, measures, rateFor, trendOf, updatedOf } from './prompts-data.js';
 import { NEUTRAL_BADGE, NEUTRAL_BADGE_LOOK, checkbox, el, insufficient, percent0, plural } from './prompts-parts.js';
 import { deltaNode, scopeCodes } from './prompts-state.js';
 
@@ -59,7 +59,10 @@ export function promptRateCell(prompt, metric, withChange) {
   const names = usable.map((code) => engineOf(code).name).join(', ');
   // With one engine in scope the reason is that engine's own: AI Overview says whether a keyword is linked
   const only = scope.length === 1 ? absenceOf(prompt, scope[0]) : null;
-  const absent = only ? { text: only.text, tip: `${engineOf(scope[0]).name}: ${only.reason}` } : { text: 'n/a', tip: 'Not observed in this window' };
+  let absent = only ? { text: only.text, tip: `${engineOf(scope[0]).name}: ${only.reason}` } : { text: 'n/a', tip: 'Not observed in this window' };
+  // A metric that none of the engines in view classifies is not a missing observation: say so
+  const unclassified = scope.every((code) => !measures(code, metric));
+  if (unclassified) absent = { text: 'n/a', tip: `${scope.map((code) => engineOf(code).name).join(', ')}: ${NOT_CLASSIFIED}` };
   return rateCell({
     value,
     average: used > 1 ? `avg of ${used}` : '',
@@ -67,8 +70,8 @@ export function promptRateCell(prompt, metric, withChange) {
     sample: `${formatSampleCount(pooled.k, pooled.n)} ${metric === 'sov' ? 'mentions' : 'obs'}`,
     tip: used === 1 ? `${names} only` : `Equal-weight average of ${names}`,
     gap: {
-      text: observed === 0 ? absent.text : 'Insufficient',
-      tip: observed === 0 ? absent.tip : `${plural(observed, 'observation')} in scope. A rate needs at least ${MIN_OBSERVATIONS} on an engine.`,
+      text: observed === 0 || unclassified ? absent.text : 'Insufficient',
+      tip: observed === 0 || unclassified ? absent.tip : `${plural(observed, 'observation')} in scope. A rate needs at least ${MIN_OBSERVATIONS} on an engine.`,
     },
   });
 }

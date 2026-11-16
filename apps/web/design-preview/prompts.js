@@ -33,6 +33,8 @@ import {
   seeded,
   topicPath,
 } from './prompts-data.js';
+import { brandsOf, citedLinksOf, intentOf, latestAnswerOf, positionOf, sentimentOf, volumeOf } from './prompts-extra.js';
+import { brandsCell, citedLinksCell, initEngineSelect, intentCell, positionCell, screenshotCell, sentimentCell, textCell, volumeCell } from './prompts-extra-cells.js';
 import { initPromptInspector, refreshPromptInspector } from './prompts-inspector.js';
 import { initTopicInspector, refreshTopicInspector } from './prompts-topic-inspector.js';
 import { initTopics, promptsByMention, renderTopics, topicOrder, topicsInScope } from './prompts-topics.js';
@@ -52,23 +54,38 @@ const view = $('[data-view="prompts"]');
 /** The table lists every prompt in view and scrolls inside its panel, as the app's does: no pages. */
 const PAGE_SIZE = Number.MAX_SAFE_INTEGER;
 
-/** The columns of the Prompts tab, in table order: the engines' columns of the chosen metric, then their counts. */
-const WIDTH = { select: 40, prompt: 200, topic: 140, country: 120, mention: 152, citation: 152, trend: 88, e: 176, count: 152, actions: 40 };
-const columnsOf = () => [
-  { key: 'prompt', label: 'Prompt', width: WIDTH.prompt, locked: true },
-  { key: 'topic', label: 'Topic', width: WIDTH.topic },
-  { key: 'country', label: 'Country', width: WIDTH.country },
-  { key: 'mention', label: 'Mention rate', width: WIDTH.mention },
-  { key: 'citation', label: 'Citation rate', width: WIDTH.citation },
-  { key: 'trend', label: 'Trend', width: WIDTH.trend },
-  ...scopeEngines().map((engine) => ({ key: `e:${engine.code}`, label: `${engine.name} ${METRIC_LABEL[state.metric].toLowerCase()}`, width: WIDTH.e })),
-  ...scopeEngines().flatMap((engine) => [
-    { key: `m:${engine.code}`, label: `${engine.name} mentioned`, width: WIDTH.count },
-    { key: `c:${engine.code}`, label: `${engine.name} cited`, width: WIDTH.count },
-  ]),
-];
-/** The counts of each engine are off until they are chosen; everything else is on. */
-const defaultOff = () => new Set(ENGINES.flatMap((engine) => [`m:${engine.code}`, `c:${engine.code}`]));
+/**
+ * The columns of the Prompts tab, in table order. The rates are the average of the engines in view, so one engine in
+ * view is that engine's own value. Cited links and the answer screenshot belong to one engine's answers, so they are
+ * there only while one engine is in view. The per-engine columns and counts are off until they are chosen.
+ */
+const WIDTH = { select: 40, prompt: 240, topic: 140, country: 120, intent: 128, volume: 112, position: 112, mention: 152, citation: 152, recommendation: 184, sov: 152, sentiment: 184, trend: 88, links: 240, brands: 220, shot: 112, e: 176, count: 152, actions: 40 };
+const columnsOf = () => {
+  const single = scopeEngines().length === 1;
+  return [
+    { key: 'prompt', label: 'Prompt', width: WIDTH.prompt, locked: true },
+    { key: 'topic', label: 'Topic', width: WIDTH.topic },
+    { key: 'country', label: 'Location', width: WIDTH.country },
+    { key: 'intent', label: 'Intent', width: WIDTH.intent },
+    { key: 'volume', label: 'Search volume', width: WIDTH.volume },
+    { key: 'position', label: 'Avg position', width: WIDTH.position },
+    { key: 'mention', label: 'Mention rate', width: WIDTH.mention },
+    { key: 'citation', label: 'Citation rate', width: WIDTH.citation },
+    { key: 'recommendation', label: 'Recommendation rate', width: WIDTH.recommendation },
+    { key: 'sov', label: 'Share of voice', width: WIDTH.sov },
+    { key: 'sentiment', label: 'Sentiment', width: WIDTH.sentiment },
+    { key: 'trend', label: 'Trend', width: WIDTH.trend },
+    ...(single ? [{ key: 'links', label: 'Cited links', width: WIDTH.links }] : []),
+    { key: 'brands', label: 'Brands', width: WIDTH.brands },
+    ...(single ? [{ key: 'shot', label: 'Screenshot', width: WIDTH.shot }] : []),
+    ...scopeEngines().map((engine) => ({ key: `e:${engine.code}`, label: `${engine.name} ${METRIC_LABEL[state.metric].toLowerCase()}`, width: WIDTH.e })),
+    ...scopeEngines().flatMap((engine) => [
+      { key: `m:${engine.code}`, label: `${engine.name} mentioned`, width: WIDTH.count },
+      { key: `c:${engine.code}`, label: `${engine.name} cited`, width: WIDTH.count },
+    ]),
+  ];
+};
+const defaultOff = () => new Set(ENGINES.flatMap((engine) => [`e:${engine.code}`, `m:${engine.code}`, `c:${engine.code}`]));
 state.promptHidden = defaultOff();
 const shownColumns = () => columnsOf().filter((column) => column.locked || !state.promptHidden.has(column.key));
 const rowClass = () => (state.density === 'compact' ? 'h-row-compact' : 'h-row');
@@ -82,6 +99,13 @@ function sortValue(prompt, key) {
   if (key === 'prompt') return prompt.text.toLowerCase();
   if (key === 'topic') return prompt.topic.toLowerCase();
   if (key === 'country') return COUNTRY;
+  if (key === 'intent') return intentOf(prompt).toLowerCase();
+  if (key === 'volume') return volumeOf(prompt).value;
+  if (key === 'position') return positionOf([prompt], scope).value;
+  if (key === 'sentiment') {
+    const sentiment = sentimentOf([prompt], scope);
+    return sentiment.state === 'ok' ? sentiment.positive / sentiment.mentions : null;
+  }
   if (key.startsWith('e:')) return rateFor(prompt, key.slice(2), state.metric);
   if (key.startsWith('m:') || key.startsWith('c:')) {
     const counts = countsOf(prompt, key.slice(2), key.startsWith('c:') ? 'citation' : 'mention');
@@ -183,6 +207,18 @@ function engineCell(prompt, engine) {
   return cell;
 }
 
+/** The cell of a column that is not a rate or a count of an engine. */
+function extraCell(prompt, key) {
+  const scope = scopeCodes();
+  if (key === 'intent') return intentCell(prompt);
+  if (key === 'volume') return volumeCell(volumeOf(prompt));
+  if (key === 'position') return positionCell(positionOf([prompt], scope));
+  if (key === 'sentiment') return sentimentCell(sentimentOf([prompt], scope));
+  if (key === 'brands') return brandsCell(brandsOf([prompt], scope), 'This prompt');
+  if (key === 'links') return citedLinksCell(citedLinksOf(prompt, scope[0]), 'This prompt');
+  return screenshotCell(prompt, scope[0], latestAnswerOf(prompt, scope[0]));
+}
+
 function rowFor(prompt) {
   const row = el('tr', `group ${rowClass()} cursor-pointer bg-surface hover:bg-surface-hover aria-selected:bg-surface-selected`);
   row.dataset.id = prompt.id;
@@ -194,10 +230,11 @@ function rowFor(prompt) {
     .filter((column) => column.key !== 'prompt')
     .map((column) => {
       if (column.key === 'topic') return topicCell(prompt);
-      if (column.key === 'country') return el('td', CELL, COUNTRY);
+      if (column.key === 'country') return textCell(COUNTRY, 'Every prompt is asked for the project location, the one the top bar shows');
       if (column.key === 'mention') return promptRateCell(prompt, 'mention', true);
-      if (column.key === 'citation') return promptRateCell(prompt, 'citation', false);
+      if (['citation', 'recommendation', 'sov'].includes(column.key)) return promptRateCell(prompt, column.key, false);
       if (column.key === 'trend') return promptTrendCell(prompt, '');
+      if (['intent', 'volume', 'position', 'sentiment', 'brands', 'links', 'shot'].includes(column.key)) return extraCell(prompt, column.key);
       if (column.key.startsWith('e:')) return engineCell(prompt, engineOf(column.key.slice(2)));
       return countCell(prompt, column.key.slice(2), column.key.startsWith('c:') ? 'citation' : 'mention');
     });
@@ -216,7 +253,19 @@ const HEAD_TIP = {
   mention: 'The share of valid answers that name your brand, averaged over the engines shown',
   citation: 'The share of valid answers that cite your domain, averaged over the engines shown',
   trend: 'The mention rate for each week of the window, averaged over the engines shown. A week with no valid answer is a gap in the line.',
+  country: 'The location the prompt is asked for',
+  intent: 'What the asker wants: to learn, to choose, to buy or to find a brand',
+  volume: 'Monthly searches of the keyword the prompt is linked to. Sample values.',
+  position: 'Where your brand sits in an ordered answer, 1 being first. Lower is better. Only ordered lists have a position.',
+  recommendation: 'The share of valid answers that recommend your brand, on the engines that classify recommendations',
+  sov: 'Your mentions as a share of every brand mention in the answers',
+  sentiment: 'The tone of the answers that name your brand, as four shares. Sample values.',
+  links: 'The links the engine cited in its answers, most cited first',
+  brands: 'The brands the answers name, most named first. Opens the list.',
+  shot: 'The latest answer of the engine, as the page showed it',
 };
+/** Columns that open something or show a picture: they have no order. */
+const PLAIN_COLUMNS = ['trend', 'links', 'brands', 'shot'];
 
 function renderHead() {
   const shown = shownColumns();
@@ -234,7 +283,7 @@ function renderHead() {
   all.input.dataset.promptAll = '';
   select.append(all.wrap);
   const cells = shown.map((column) => {
-    if (column.key === 'trend') return plainHeaderCell(column.label, '', HEAD_TIP[column.key]);
+    if (PLAIN_COLUMNS.includes(column.key)) return plainHeaderCell(column.label, '', HEAD_TIP[column.key]);
     const th = sortHeader(column);
     if (column.key === 'prompt') {
       th.classList.add('z-(--z-sticky)');
@@ -325,7 +374,19 @@ function renderRows() {
   ui.syncActiveRow();
 }
 
-const SORT_LABEL = { mention: 'Mention rate', citation: 'Citation rate', prompt: 'Prompt', topic: 'Topic', country: 'Country' };
+const SORT_LABEL = {
+  mention: 'Mention rate',
+  citation: 'Citation rate',
+  recommendation: 'Recommendation rate',
+  sov: 'Share of voice',
+  prompt: 'Prompt',
+  topic: 'Topic',
+  country: 'Location',
+  intent: 'Intent',
+  volume: 'Search volume',
+  position: 'Avg position',
+  sentiment: 'Sentiment',
+};
 
 /** "Sorted by Mention rate descending", beside the count, as the app's toolbar says it. */
 function sortNote() {
@@ -367,6 +428,7 @@ function renderSelection() {
 
 function render() {
   compute();
+  refreshEngineSelect();
   renderTopics();
   renderHead();
   renderStrip();
@@ -425,7 +487,8 @@ function renderChips() {
   const samePanel = state.panel.length === preset.panel.length && state.panel.every((name) => preset.panel.includes(name));
   if (!samePanel) nodes.push(chip(chipLabel('panel'), 'panel', () => (state.panel = [...preset.panel])));
   if (state.branded !== preset.branded) nodes.push(chip(chipLabel('branded'), 'branded', () => (state.branded = preset.branded)));
-  if (state.engines.length < ENGINES.length) nodes.push(chip(chipLabel('engines'), 'engines', () => (state.engines = ENGINES.map((engine) => engine.code))));
+  // One engine is the Engine select's own choice, so it needs no chip; a set of two or more is a filter
+  if (state.engines.length > 1 && state.engines.length < ENGINES.length) nodes.push(chip(chipLabel('engines'), 'engines', () => (state.engines = ENGINES.map((engine) => engine.code))));
   if (state.topic.length > 0) nodes.push(chip(chipLabel('topic'), 'topic', () => (state.topic = [])));
   if (state.type.length > 0) nodes.push(chip(chipLabel('type'), 'type', () => (state.type = [])));
   if (state.detectable) nodes.push(chip('Detectable changes only', null, () => (state.detectable = false)));
@@ -560,6 +623,15 @@ $('[data-prompt-empty-reset]', view).addEventListener('click', () => {
   resetFilters();
 });
 
+// Engine: one engine or all of them, beside the filters. One engine adds the columns that belong to one engine's answers.
+const refreshEngineSelect = initEngineSelect({
+  before: $('[role="group"][aria-label="Filters"]', view),
+  choose: (codes) => {
+    state.engines = codes;
+    applyFilters();
+  },
+});
+
 // Compare: the shared menu sets the label; "No comparison" takes the deltas away
 $('#ed-compare').addEventListener('click', (event) => {
   const option = event.target.closest('[role="menuitemradio"]');
@@ -615,8 +687,8 @@ function setSort(key, dir) {
 }
 
 function sortBy(key, dir) {
-  // Text starts A to Z; rates and dates start with the largest first. A second click reverses.
-  const first = key === 'prompt' ? 'asc' : 'desc';
+  // Text starts A to Z, and so does the position (1 is best); rates and dates start with the largest first. A second click reverses.
+  const first = ['prompt', 'topic', 'country', 'intent', 'position'].includes(key) ? 'asc' : 'desc';
   setSort(key, dir ?? (state.sort.key === key ? (state.sort.dir === 'asc' ? 'desc' : 'asc') : first));
   state.page = 1;
   render();
