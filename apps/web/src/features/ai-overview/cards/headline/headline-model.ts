@@ -2,6 +2,14 @@ import { OUTCOME_PARTS, outcomeFigures, type OutcomePart } from '../engines/outc
 import { projectWeeks, type TrendMetric } from '../engines/trend-model';
 import type { EngineCode, PromptsSummary, PromptSummaryRow, Run } from '@/lib/api/types';
 import { formatIsoDate } from '@/lib/format';
+import {
+  positionOf,
+  POSITION_MIN_LISTS,
+  recommendedOf,
+  SENTIMENT_MIN,
+  sentimentOf,
+  type FactsRow,
+} from '@/lib/prompt-facts';
 import { engineRates, type RateFigure } from '@/lib/rates/strip-model';
 import { averageVisibility, platformVisibility, visibilityOfPrompts } from '@/lib/rates/visibility-model';
 import { equalWeightAverage, MIN_OBSERVATIONS } from '@/lib/stats';
@@ -16,8 +24,11 @@ import { equalWeightAverage, MIN_OBSERVATIONS } from '@/lib/stats';
  * Unknown is never zero (R6): a measure the API does not carry yet is `notCollected`.
  */
 
-/** What the counts of a figure are of: answers for a rate, answers that name a tracked brand for share of voice. */
-export type CountNoun = 'answers' | 'namingAnswers';
+/**
+ * What the counts of a figure are of: answers for a rate, answers that name a tracked brand for share of voice, answers
+ * that give the brand a place for the mention position, judged mentions for sentiment.
+ */
+export type CountNoun = 'answers' | 'namingAnswers' | 'orderedAnswers' | 'judgedMentions';
 
 /** What stands behind a figure, for its tooltip. */
 export type Basis =
@@ -34,6 +45,8 @@ export type Reading =
   | { state: 'none' }
   /** The API does not carry the measure yet. */
   | { state: 'notCollected' }
+  /** The platforms in scope do not classify the measure (recommendation, sentiment). */
+  | { state: 'notClassified' }
   /** The member may not read what the figure is made of. */
   | { state: 'noAccess' };
 
@@ -164,6 +177,66 @@ export function readTile(prompts: readonly PromptSummaryRow[], { asked, single }
 
 /** The tile of a measure the API does not carry yet. */
 export const notCollected = (): Reading => NOT_COLLECTED;
+
+/** The tiles read from the facts of the prompt rows (position counts, recommendation, sentiment counts). */
+export type FactTile = 'position' | 'recommendation' | 'sentiment';
+
+/** The platforms a facts tile is over: the one chosen, else every platform asked. */
+const factScope = ({ asked, single }: Platforms): string[] => (single === null ? [...asked] : [single]);
+
+/**
+ * A tile from the same facts as its card (R12): the mean position (1 is first, lower is better), the recommendation
+ * rate, the positive share of the judged mentions. The platforms are never pooled: All platforms is the equal-weight
+ * average of those with a figure. Without facts in the rows (production until the backend sends them) the figure is
+ * `notCollected`, never a sample.
+ */
+export function readFactTile(prompts: readonly FactsRow[], platforms: Platforms, tile: FactTile): Reading {
+  const scope = factScope(platforms);
+  const single = platforms.single !== null;
+  if (tile === 'position') {
+    const position = positionOf(prompts, scope);
+    if (position.state === 'ok') {
+      const basis: Basis = single
+        ? { kind: 'counts', k: null, n: position.ordered_answers, noun: 'orderedAnswers', prompts: 0 }
+        : { kind: 'average', codes: position.codes };
+      return { state: 'ok', value: position.value, basis };
+    }
+    if (position.reason === 'not_collected') return NOT_COLLECTED;
+    if (position.reason === 'unobserved') return { state: 'none' };
+    return { state: 'insufficient', n: position.ordered_answers, noun: 'orderedAnswers' };
+  }
+  if (tile === 'recommendation') {
+    const recommended = recommendedOf(prompts, scope);
+    if (recommended.state === 'ok') {
+      const basis: Basis = single
+        ? { kind: 'counts', k: null, n: recommended.answers, noun: 'answers', prompts: 0 }
+        : { kind: 'average', codes: recommended.codes };
+      return { state: 'ok', value: recommended.value, basis };
+    }
+    if (recommended.reason === 'not_collected') return NOT_COLLECTED;
+    if (recommended.reason === 'not_classified') return { state: 'notClassified' };
+    return { state: 'insufficient', n: recommended.answers, noun: 'answers' };
+  }
+  const sentiment = sentimentOf(prompts, scope);
+  if (sentiment.state === 'ok' && sentiment.shares !== null) {
+    const basis: Basis = single
+      ? { kind: 'counts', k: null, n: sentiment.mentions, noun: 'judgedMentions', prompts: 0 }
+      : { kind: 'average', codes: sentiment.codes };
+    return { state: 'ok', value: sentiment.shares.positive, basis };
+  }
+  if (sentiment.state === 'not_collected') return NOT_COLLECTED;
+  if (sentiment.state === 'none') return { state: 'notClassified' };
+  if (sentiment.state === 'unobserved') return { state: 'none' };
+  return { state: 'insufficient', n: sentiment.mentions, noun: 'judgedMentions' };
+}
+
+/** The floor each count noun is held to, for the "not enough data" words. */
+export const FLOOR_OF: Readonly<Record<CountNoun, number>> = {
+  answers: MIN_OBSERVATIONS,
+  namingAnswers: MIN_OBSERVATIONS,
+  orderedAnswers: POSITION_MIN_LISTS,
+  judgedMentions: SENTIMENT_MIN,
+};
 
 const SPARK_WEEKS = 8;
 const TREND_OF = { mention: 'mention', sov: 'share_of_voice', citation: 'citation' } as const satisfies Record<

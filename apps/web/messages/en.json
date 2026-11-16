@@ -6993,6 +6993,17 @@
           "what": "How many weekly runs are behind these numbers.",
           "how": "Prompts are asked on their schedule, so a run may hold only some of them."
         }
+      },
+      "facts": {
+        "notClassified": "Not classified",
+        "tips": {
+          "notClassified": "The platforms in this scope do not classify this measure",
+          "orderedAnswers": "{n, plural, one {# answer} other {# answers}} that give your brand a place",
+          "judgedMentions": "{n, plural, one {# judged mention} other {# judged mentions}}",
+          "answers": "{n, plural, one {# valid answer} other {# valid answers}}",
+          "tooFewOrdered": "Not enough data: a position needs at least {min, number} answers that give your brand a place",
+          "tooFewJudged": "Not enough data: {n, plural, one {# judged mention} other {# judged mentions}}, a share needs at least {min, number}"
+        }
       }
     },
     "competitorDrawer": {

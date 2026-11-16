@@ -1,5 +1,4 @@
-import { isNamedCount, type Reading } from './headline-model';
-import { MIN_OBSERVATIONS } from '@/lib/stats';
+import { FLOOR_OF, isNamedCount, type Reading } from './headline-model';
 
 /** The words of `aiOverview.headline`, as `useTranslations('aiOverview.headline')` gives them. */
 export type Say = (key: string, values?: Record<string, string | number>) => string;
@@ -33,7 +32,20 @@ function basisTip(reading: Extract<Reading, { state: 'ok' }>, { say, nameOf, lis
     return say('tips.average', { used: basis.codes.length, names: list(basis.codes.map(nameOf)) });
   }
   if (basis.noun === 'namingAnswers') return say('tips.naming', { n: basis.n });
-  return basis.k === null ? '' : say('tips.counts', { k: basis.k, n: basis.n });
+  if (basis.noun === 'orderedAnswers' || basis.noun === 'judgedMentions') {
+    return say(`facts.tips.${basis.noun}`, { n: basis.n });
+  }
+  if (basis.k === null) return say('facts.tips.answers', { n: basis.n });
+  return say('tips.counts', { k: basis.k, n: basis.n });
+}
+
+/** The words of a count that fell short of its floor, by what is counted. */
+function tooFewTip(reading: Extract<Reading, { state: 'insufficient' }>, { say }: Words): string {
+  const min = FLOOR_OF[reading.noun];
+  if (reading.noun === 'orderedAnswers') return say('facts.tips.tooFewOrdered', { min });
+  if (reading.noun === 'judgedMentions') return say('facts.tips.tooFewJudged', { n: reading.n, min });
+  const key = reading.noun === 'namingAnswers' ? 'tips.tooFewNaming' : 'tips.tooFewCount';
+  return isNamedCount(reading.n) ? say(key, { n: reading.n, min }) : say('tips.tooFew', { min });
 }
 
 export function describeReading(reading: Reading, words: Words): Described {
@@ -46,17 +58,15 @@ export function describeReading(reading: Reading, words: Words): Described {
         note: null,
         known: true,
       };
-    case 'insufficient': {
-      const key = reading.noun === 'namingAnswers' ? 'tips.tooFewNaming' : 'tips.tooFewCount';
+    case 'insufficient':
+      return { value: say('notAvailable'), tip: tooFewTip(reading, words), note: say('tooFew'), known: false };
+    case 'notClassified':
       return {
         value: say('notAvailable'),
-        tip: isNamedCount(reading.n)
-          ? say(key, { n: reading.n, min: MIN_OBSERVATIONS })
-          : say('tips.tooFew', { min: MIN_OBSERVATIONS }),
-        note: say('tooFew'),
+        tip: say('facts.tips.notClassified'),
+        note: say('facts.notClassified'),
         known: false,
       };
-    }
     case 'none':
       return { value: say('notAvailable'), tip: say('tips.none'), note: say('tooFew'), known: false };
     case 'notCollected':

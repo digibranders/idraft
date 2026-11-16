@@ -10,12 +10,13 @@ import { useFrameState } from '../engines/use-frame-state';
 import { HeadlineSkeleton } from './headline-skeleton';
 import {
   buildHero,
-  notCollected,
+  readFactTile,
   readTile,
   runsInWindow,
   sparkOf,
   SEGMENTS,
   type CellTile,
+  type FactTile,
   type Hero,
   type Platforms,
   type Reading,
@@ -35,7 +36,7 @@ import { ChartFrame } from '@/components/app/chart/chart-frame';
 import { Tooltip } from '@/components/ui/tooltip';
 import type { CardProps } from '@/features/layouts';
 import type { CsvCell } from '@/lib/csv/csv-write';
-import { formatInteger, formatList, formatPercent, formatTableDateTime } from '@/lib/format';
+import { formatDecimal, formatInteger, formatList, formatPercent, formatTableDateTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
 /** The tiles in the order of the card (OV-HEAD-08). */
@@ -44,8 +45,12 @@ type TileKey = (typeof TILES)[number];
 
 const CELL_TILES: readonly CellTile[] = ['mention', 'sov', 'citation'];
 const isCellTile = (key: TileKey): key is CellTile => key === 'mention' || key === 'sov' || key === 'citation';
-/** Measures the API carries no figure for yet: the tile says so (OV-NOPORT-04), and never draws a sample. */
-const isNotCollected = (key: TileKey): boolean => key === 'position' || key === 'recommendation' || key === 'sentiment';
+/**
+ * Position, recommendation and sentiment are read from the facts of the prompt rows, as their cards are (R12). Where
+ * the API sends no facts the tile says "Not collected yet" (OV-NOPORT-04), and never draws a sample.
+ */
+const isFactTile = (key: TileKey): key is FactTile =>
+  key === 'position' || key === 'recommendation' || key === 'sentiment';
 
 const EXPORT_HEADER = ['measure', 'value_percent', 'k', 'n', 'status'] as const;
 const RUNS_LIMIT = 200;
@@ -72,6 +77,7 @@ interface Model {
   hero: Hero;
   baselineHero: Reading | null;
   tiles: Readonly<Record<CellTile, TileModel>>;
+  facts: Readonly<Record<FactTile, Reading>>;
 }
 
 /** The figure of a reading for a file: a percent number, or nothing for a figure that is not there (never a 0). */
@@ -93,7 +99,7 @@ export default function HeadlineCard({ item, live }: CardProps): ReactElement {
   const common = useTranslations('aiOverview.engines.common');
   const shell = useTranslations('aiOverview.shell');
   const { workspaceId, project, scope, enabledEngines } = useOverview();
-  const data = useCardData({ previous: 'none', include: ['series'], subscribed: live });
+  const data = useCardData({ previous: 'none', include: ['facts', 'series'], subscribed: live });
   const infoOf = useInfoOf();
   const unavailable = useScopeUnavailable(t('label'));
   const { tree } = useTopicTree();
@@ -128,6 +134,11 @@ export default function HeadlineCard({ item, live }: CardProps): ReactElement {
       hero: buildHero(summary.prompts, platforms, promptCount),
       baselineHero: baselinePrompts === undefined ? null : buildHero(baselinePrompts, platforms, null).reading,
       tiles: { mention: tileOf('mention'), sov: tileOf('sov'), citation: tileOf('citation') },
+      facts: {
+        position: readFactTile(summary.prompts, platforms, 'position'),
+        recommendation: readFactTile(summary.prompts, platforms, 'recommendation'),
+        sentiment: readFactTile(summary.prompts, platforms, 'sentiment'),
+      },
     };
   }, [summary, data.aggregates?.rowsRead, baselinePrompts, platforms, promptCount]);
 
@@ -237,8 +248,12 @@ export default function HeadlineCard({ item, live }: CardProps): ReactElement {
       const spark = entry.spark === null ? null : <Sparkline points={entry.spark} height={22} />;
       return { face: describeReading(entry.reading, words), baseline: entry.baseline, spark, loading: false };
     }
-    if (isNotCollected(key))
-      return { face: describeReading(notCollected(), words), baseline: null, spark: null, loading: false };
+    if (isFactTile(key)) {
+      // A mean position has one decimal and no unit (OV-HEAD-11); the rates are whole percents
+      const factWords =
+        key === 'position' ? { ...words, formatValue: (value: number) => formatDecimal(value, 1) } : words;
+      return { face: describeReading(model.facts[key], factWords), baseline: null, spark: null, loading: false };
+    }
     if (key === 'runs') return { ...runsFace, baseline: null, spark: null };
     return { face: promptsFace(), baseline: null, spark: null, loading: false };
   };
