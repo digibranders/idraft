@@ -6839,6 +6839,24 @@
         "infoWhat": "The domains AI answers cite most often.",
         "infoHow": "A page is counted once for each answer that cites it. Each share is a part of all citations in scope."
       },
+      "domainTypes": {
+        "title": "Citations by domain type",
+        "subject": "citations by domain type",
+        "meta": "area is share of citation units",
+        "caption": "Citation units by domain type",
+        "ariaLabel": "Citation units by domain type: {list}",
+        "tip": "{units, number} of {total, plural, one {# citation unit} other {# citation units}} ({share})",
+        "emptyTitle": "No citations yet",
+        "emptyReason": "No answers cited a page in this scope.",
+        "summary": "Citation units by domain type: {list}.",
+        "footnote": "The areas partition the citation units of the platforms in scope, which are pooled by the API. A domain type with no unit has no area. Types are who owns the domain; finer types such as review sites and publishers are not classified yet.",
+        "infoWhat": "What kinds of domains AI answers cite.",
+        "infoHow": "The areas add up to all citations in scope, grouped by who owns the domain: your site, competitors and other sites. Finer types such as review sites, publishers and community sites are not classified yet.",
+        "typeHeader": "Domain type",
+        "unitsHeader": "Citation units",
+        "shareHeader": "Share of citation units",
+        "fileName": "citations-by-domain-type"
+      },
       "unlinked": {
         "title": "Mentioned, not cited",
         "meta": "prompts that mention you without citing you",

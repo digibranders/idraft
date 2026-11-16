@@ -7,8 +7,9 @@ import { renderWithProviders } from '@/test/render';
 const FRAME_HEIGHTS = {
   'sources.top_domains': 280,
   'sources.own_pages': 280,
-  'ai.citation_share_by_domain_type': 180,
+  'ai.citation_share_by_domain_type': 240,
   'ai.fanout_top': 240,
+  'ai.unlinked_mentions': 280,
   'sources.new_lost': 280,
   'sources.diversity': 240,
 } as const;
