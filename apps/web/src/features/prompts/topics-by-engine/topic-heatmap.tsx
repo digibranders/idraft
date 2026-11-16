@@ -2,6 +2,7 @@
 
 import { usePathname, useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
+import { Search } from 'lucide-react';
 import { useEffect, useMemo, type ReactElement, type ReactNode } from 'react';
 
 import { drillHref, topicHref } from './drill';
@@ -13,6 +14,8 @@ import { heatmapCsv, type HeatCsvRow } from '@/components/app/chart/heat-bins';
 import { HeatmapGrid, type HeatCell, type HeatColumn, type HeatRow } from '@/components/app/chart/heatmap-grid';
 import { useRateTipWords } from '@/components/app/chart/use-rate-tip-words';
 import type { TableStatus } from '@/components/app/data-table/types';
+import { Input } from '@/components/ui/input';
+import { InputGroup } from '@/components/ui/input-group';
 import { Select } from '@/components/ui/select';
 import { CELL_OF_METRIC, type RateMetric } from '@/features/prompts/prompt-model';
 import type { ProjectEngine } from '@/lib/api/types';
@@ -33,6 +36,9 @@ export interface TopicHeatmapProps {
   density: Density;
   /** `empty`, `filtered-empty` and `error` are drawn from the nodes below, as the table draws them. */
   status: TableStatus;
+  /** The table's search, which narrows the groups here too. */
+  search: string;
+  onSearchChange: (search: string) => void;
   /** The view switches, at the end of the row above the frame. */
   toolbarEnd: ReactNode;
   errorState: ReactNode;
@@ -41,6 +47,8 @@ export interface TopicHeatmapProps {
   /** The topics in the order drawn, a parent and then the topics below it: what the topic drawer steps through. */
   onTopicOrderChange?: ((keys: readonly string[]) => void) | undefined;
 }
+
+const SEARCH_MAX_LENGTH = 200;
 
 const ORDER_KEY = {
   prompts: 'orderPrompts',
@@ -111,6 +119,8 @@ export function TopicHeatmap({
   onOrderChange,
   density,
   status,
+  search: searchText,
+  onSearchChange,
   toolbarEnd,
   errorState,
   emptyState,
@@ -120,6 +130,7 @@ export function TopicHeatmap({
   const t = useTranslations('prompts.topicDrawer.heat');
   const prompts = useTranslations('prompts');
   const groups = useTranslations('prompts.groupsTab');
+  const tableWords = useTranslations('dataTable');
   const locale = useLocale();
   const pathname = usePathname();
   const search = useSearchParams().toString();
@@ -265,6 +276,20 @@ export function TopicHeatmap({
   );
   const toolbar = (
     <div className="flex flex-wrap items-center gap-2">
+      {/* The search narrows the groups of the heat map as it does the table's (PR-TVIEW-05) */}
+      <InputGroup leadingIcon={Search} size="sm" className="w-64 max-w-full min-w-0">
+        <Input
+          size="sm"
+          // The group draws the border and the focus ring, so the field inside draws neither
+          variant="bare"
+          type="search"
+          value={searchText}
+          onValueChange={(next) => onSearchChange(next)}
+          placeholder={prompts('topics.search')}
+          maxLength={SEARCH_MAX_LENGTH}
+          aria-label={tableWords('search')}
+        />
+      </InputGroup>
       <div className="w-32 min-w-0 sm:w-44">
         <Select<HeatOrder>
           aria-label={t('orderLabel')}

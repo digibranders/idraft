@@ -167,6 +167,8 @@ export function TopicsView({ scope, range, includeBranded, country, ...table }: 
         onOrderChange={(next) => table.onSortTextChange(heatOrderText(next))}
         density="compact"
         status={statusOf(search.trim() !== '')}
+        search={search}
+        onSearchChange={table.onSearchChange}
         toolbarEnd={switches}
         errorState={table.errorState}
         emptyState={table.emptyState}

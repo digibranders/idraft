@@ -44,6 +44,8 @@ const props = (over: Partial<TopicHeatmapProps> = {}): TopicHeatmapProps => ({
   onOrderChange: () => undefined,
   density: 'default',
   status: 'ready',
+  search: '',
+  onSearchChange: () => undefined,
   toolbarEnd: <span>view control</span>,
   errorState: <p>The topics failed</p>,
   emptyState: <p>No prompts yet</p>,
@@ -197,6 +199,13 @@ describe('TopicHeatmap: the groups by platform as a heat map (CH-04)', () => {
     renderWithProviders(<TopicHeatmap {...props()} />);
     await screen.findByRole('grid');
     expect(screen.getByText('view control')).toBeInTheDocument();
+  });
+
+  it('has the table search in its toolbar and writes what is typed (the groups are narrowed by the caller)', async () => {
+    const onSearchChange = vi.fn();
+    const { user } = renderWithProviders(<TopicHeatmap {...props({ onSearchChange })} />);
+    await user.type(await screen.findByRole('searchbox'), 'p');
+    expect(onSearchChange).toHaveBeenLastCalledWith('p');
   });
 
   it('says the same in words in the Table form', async () => {
