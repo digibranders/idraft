@@ -39,6 +39,8 @@ describe('widths', () => {
     expect(defaultInspectorWidth('citation')).toBe(440);
     // The topic drawer is as wide as the prompt drawer it leads to (ADR-DS-022 decision 7)
     expect(defaultInspectorWidth('topic')).toBe(440);
+    // The competitor drawer of the Overview is 440 px (OV-DRW-02)
+    expect(defaultInspectorWidth('competitor')).toBe(440);
   });
 
   it('opens a topic from the address', () => {

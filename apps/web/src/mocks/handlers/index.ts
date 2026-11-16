@@ -52,6 +52,8 @@ import { aiOverviewHandlers } from './ai-overview';
 import { noteHandlers } from './notes';
 // WP-39 competitors
 import { competitorHandlers } from './competitors';
+// The competitor drawer of the AI visibility Overview: citation share of each entity, and the sources overlap fixture
+import { aiCompetitorHandlers } from './ai-competitors';
 // WP-41 prompt-versions
 import { promptVersionHandlers } from './prompt-versions';
 // WP-43 panels
@@ -153,6 +155,7 @@ export const handlers: readonly HttpHandler[] = [
   ...noteHandlers,
   // WP-39 competitors
   ...competitorHandlers,
+  ...aiCompetitorHandlers,
   // WP-41 prompt-versions
   ...promptVersionHandlers,
   // WP-43 panels

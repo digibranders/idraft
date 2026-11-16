@@ -1,0 +1,39 @@
+import { describe, expect, it } from 'vitest';
+
+import { promptHref } from './prompt-href';
+import type { OverviewScope } from '../scope/scope-model';
+import { parseInspectTarget } from '@/lib/inspector/placement';
+
+function scopeOf(patch: Partial<OverviewScope> = {}): OverviewScope {
+  return {
+    range: { from: '2026-10-16', to: '2026-11-12', days: 28 },
+    rangeValue: { kind: 'preset', preset: '28d' },
+    compare: true,
+    previous: { from: '2026-09-18', to: '2026-10-15' },
+    country: null,
+    engines: null,
+    topic: null,
+    branded: 'excluded',
+    metric: 'visibility',
+    ...patch,
+  };
+}
+
+const PROJECT = { workspace: 'acme', project: 'fynix' };
+const inspectOf = (href: string): string | null => new URL(href, 'http://localhost').searchParams.get('inspect');
+
+describe('promptHref', () => {
+  it('opens the prompt inspector over the Prompts page, carrying the scope of the Overview', () => {
+    const scope = scopeOf({ engines: ['gemini_web'] });
+    const href = promptHref(scope, PROJECT, 'p1');
+    expect(href).toMatch(/^\/acme\/fynix\/ai\/prompts\?/);
+    expect(new URL(href, 'http://localhost').searchParams.get('engine')).toBe('gemini_web');
+    expect(parseInspectTarget(inspectOf(href))).toEqual({ type: 'prompt', id: 'p1' });
+  });
+
+  it("opens it with the page's own scope when the Prompts page cannot express the Branded choice", () => {
+    const scope: OverviewScope = scopeOf({ branded: 'only' });
+    const href = promptHref(scope, PROJECT, 'p1');
+    expect(href).toBe('/acme/fynix/ai/prompts?inspect=prompt%3Ap1');
+  });
+});

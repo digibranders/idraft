@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { useMemo, type ReactElement, type ReactNode } from 'react';
 
 import { AI_OVERVIEW_CARDS } from './cards/registry';
+import { CompetitorDrawerHost } from './competitor-drawer';
 import { ExportProvider } from './export/export-registry';
 import { cardMinHeight } from './states/card-min-height';
 import { OverviewFreshness } from './header/overview-freshness';
@@ -186,7 +187,9 @@ function CustomizableOverview({
     >
       <CardInfoProvider>
         <SeveralPlatformsNotice />
-        <OverviewBody setupSlot={setupSlot} />
+        <CompetitorDrawerHost>
+          <OverviewBody setupSlot={setupSlot} />
+        </CompetitorDrawerHost>
       </CardInfoProvider>
     </CustomizableScreen>
   );
