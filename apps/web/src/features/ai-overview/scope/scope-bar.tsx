@@ -1,42 +1,41 @@
 'use client';
 
+import { Undo2 } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useCallback, useMemo, useRef, type ReactElement } from 'react';
 
 import { useOverview } from '../overview-context';
-import { brandedField, brandedFromValues, brandedValues } from './branded-field';
+import { BrandedFilter, PAGE_CONTROLS } from './branded-filter';
 import { CompareSelect } from './compare-select';
 import { CountryControl } from './country-control';
-import { EnginesControl, type EngineChoice } from './engines-control';
 import { FiltersSheet, SheetRow } from './filters-sheet';
-import { changedFilterCount, RESET_PATCH } from './scope-model';
+import { GroupSelect } from './group-select';
+import { PlatformSelect, type PlatformChoice } from './platform-select';
+import { canResetScope, changedFilterCount, RESET_PATCH } from './scope-model';
 import { topicField } from './topic-options';
 import { MAX_DAYS } from './use-overview-scope';
 import { useTopicTree } from './use-topic-tree';
 import { DateRangePicker } from '@/components/app/date-range/date-range-picker';
 import { byEngineOrder } from '@/components/app/engine/order';
-import { FilterBar } from '@/components/app/filters/filter-bar';
-import type { FilterField, FilterValues } from '@/components/app/filters/types';
+import type { FilterField } from '@/components/app/filters/types';
 import { useUrlFilters } from '@/components/app/filters/use-url-filters';
 import { TopBarPortal } from '@/components/app/shell/top-bar-slot';
-import { Button } from '@/components/ui/button';
+import { IconButton } from '@/components/ui/icon-button';
 import { toast } from '@/components/ui/toast';
 import { useMediaQuery } from '@/lib/dom/use-media-query';
 import { useZoneDay } from '@/lib/dom/use-zone-day';
 import { formatList } from '@/lib/format';
 
-/** 768 px, the width from which the scope controls are on the page and the window and country are in the top bar. */
-const PAGE_CONTROLS = '(width >= 48rem)';
-
 /**
- * The scope controls of the page (WP-33 plan section 3.2, the approved preview's filter bar): the comparison, the
- * engines, then the filter bar with Topic and Branded ("Branded: Excluded" is a chip from the default), and "Reset
- * filters" while any of them is not its default. The window and the country are scope the top bar owns and Reset
- * leaves them alone. From 768 px the top bar holds the window and the country; below it everything is behind one
+ * The scope controls of the page (preview commit 98e7d226): Platform, Group and Compare, each with its name before
+ * the value, then Reset scope (always in its place, invisible while the scope is the default), then the filter bar
+ * with Branded ("Branded: Excluded" is a chip from the default). The window and the location are scope the top bar
+ * owns and Reset leaves them alone. From 768 px the top bar holds the window and the country; below it everything is behind one
  * Filters button. The controls only write the scope; the numbers and the cards read it back.
  */
 export function ScopeBar(): ReactElement {
   const t = useTranslations('aiOverview.scope');
+  const tShell = useTranslations('aiOverview.shell');
   const locale = useLocale();
   const { project, scope, setScope, engines } = useOverview();
   const onPage = useMediaQuery(PAGE_CONTROLS);
@@ -45,7 +44,7 @@ export function ScopeBar(): ReactElement {
   const barRef = useRef<HTMLDivElement>(null);
 
   const choices = useMemo(
-    (): EngineChoice[] =>
+    (): PlatformChoice[] =>
       byEngineOrder(
         (engines.data ?? []).filter((engine) => engine.is_enabled),
         (engine) => engine.engine.engine_code,
@@ -54,16 +53,6 @@ export function ScopeBar(): ReactElement {
   );
   const below = useCallback((label: string): string => t('topicIncludesBelow', { topic: label }), [t]);
   const topic = useMemo(() => topicField({ tree, pending, label: t('topic'), below }), [tree, pending, t, below]);
-  const branded = useMemo(
-    () =>
-      brandedField({
-        label: t('branded'),
-        excluded: t('brandedExcluded'),
-        only: t('brandedOnly'),
-        included: t('brandedIncluded'),
-      }),
-    [t],
-  );
   // The URL's own words about what it could not read: Topic and Engines of a link are checked against what the
   // project has once both are known, and the person is told once of what was left out (the Prompts page's rule).
   // The bar draws only Topic and Branded; the engines are the control before it.
@@ -73,13 +62,13 @@ export function ScopeBar(): ReactElement {
       {
         id: 'engine',
         kind: 'enum',
-        label: t('engines'),
+        label: tShell('platform'),
         multi: true,
         optionsLoading: engines.data === undefined,
         options: choices.map((choice) => ({ value: choice.code, label: choice.label })),
       },
     ],
-    [topic, t, engines.data, choices],
+    [topic, tShell, engines.data, choices],
   );
   useUrlFilters(linked, {
     onDropped: (dropped) =>
@@ -95,14 +84,6 @@ export function ScopeBar(): ReactElement {
       }),
   });
 
-  const fields = useMemo((): FilterField[] => [topic, branded], [topic, branded]);
-  const values = useMemo(
-    (): FilterValues => ({
-      ...(scope.topic === null ? {} : { topic: { kind: 'enum', values: [scope.topic] } }),
-      ...brandedValues(scope.branded),
-    }),
-    [scope.topic, scope.branded],
-  );
   const changed = changedFilterCount(scope);
   const reset = (): void => {
     setScope(RESET_PATCH);
@@ -111,29 +92,30 @@ export function ScopeBar(): ReactElement {
   };
 
   const controls = (
-    <div ref={barRef} className="flex flex-wrap items-start gap-2">
+    <div ref={barRef} className="flex flex-wrap items-center gap-2">
+      <PlatformSelect
+        platforms={choices}
+        selected={scope.engines?.[0] ?? null}
+        onChange={(code) => setScope({ engines: code === null ? null : [code] })}
+        className="w-full sm:w-60"
+      />
+      <GroupSelect
+        tree={tree}
+        pending={pending}
+        selected={scope.topic}
+        onChange={(topicId) => setScope({ topic: topicId })}
+        className="w-full sm:w-60"
+      />
       <CompareSelect scope={scope} onCompareChange={(compare) => setScope({ compare })} />
-      <EnginesControl engines={choices} selected={scope.engines} onChange={(next) => setScope({ engines: next })} />
-      <div className="min-w-0">
-        <FilterBar
-          fields={fields}
-          values={values}
-          hideClear
-          onChange={(next) =>
-            setScope({
-              topic: next.topic?.kind === 'enum' ? (next.topic.values[0] ?? null) : null,
-              branded: brandedFromValues(next),
-            })
-          }
-        />
-      </div>
-      {changed === 0 ? null : (
-        <div className="flex h-control shrink-0 items-center">
-          <Button variant="link" onClick={reset}>
-            {t('reset')}
-          </Button>
-        </div>
-      )}
+      {/* Always in its place, invisible (and out of the tab order) while the scope is the default, so it never moves the row */}
+      <IconButton
+        icon={Undo2}
+        label={tShell('resetScope')}
+        variant="ghost"
+        size="icon"
+        onClick={reset}
+        className={canResetScope(scope) ? undefined : 'invisible'}
+      />
     </div>
   );
 
@@ -156,6 +138,7 @@ export function ScopeBar(): ReactElement {
             <CountryControl />
           </SheetRow>
           {controls}
+          <BrandedFilter />
         </FiltersSheet>
       </section>
     );

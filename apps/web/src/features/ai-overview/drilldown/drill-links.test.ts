@@ -80,11 +80,29 @@ describe('drillHref carries the scope', () => {
     expect(query.get('from')).toBe('2026-10-01');
     expect(query.get('to')).toBe('2026-10-20');
     expect(query.get('win')).toBeNull();
-    expect(query.get('cmp')).toBe('off');
+    // Citations compares by default and turns off with cmp=off; the Prompts page compares only for cmp=previous
+    expect(query.get('cmp')).toBe(kind === 'citations' ? 'off' : null);
     expect(query.get('country')).toBe(kind === 'citations' ? null : 'DE');
     expect(query.get('engine')).toBe('chatgpt_web,gemini_web');
     expect(query.get('topic')).toBe(TOPIC);
     expect(query.get('branded')).toBe('include');
+  });
+
+  it.each<[DrillKind, string | null]>([
+    ['prompts', 'previous'],
+    ['topic', 'previous'],
+    ['topicDrawer', 'previous'],
+    ['prompt', 'previous'],
+    ['citations', null],
+  ])('%s: a comparison that is on writes cmp=%s, so the page opens as the Overview does', (kind, expected) => {
+    const scope = scopeOf({ ...NARROWED, country: null, compare: true });
+    const href = drillHref(
+      kind,
+      scope,
+      { term: OTHER_TOPIC, promptId: '7c1d2e3f-4a5b-4c6d-8e7f-0a1b2c3d4e5f' },
+      PROJECT,
+    );
+    expect(queryOf(href).get('cmp')).toBe(expected);
   });
 
   it('writes a preset window as win, and nothing for the default 28 days', () => {
@@ -94,10 +112,10 @@ describe('drillHref carries the scope', () => {
     expect(queryOf(drillHref('prompts', scopeOf(), {}, PROJECT)).get('win')).toBeNull();
   });
 
-  it('branded excluded and compare on write nothing: the default scope has no query beyond the tab', () => {
-    expect(drillHref('topic', scopeOf(), {}, PROJECT)).toBe('/acme/eventus/ai/prompts');
+  it('branded excluded and compare on: the Prompts page needs cmp=previous to compare, Citations needs nothing', () => {
+    expect(drillHref('topic', scopeOf(), {}, PROJECT)).toBe('/acme/eventus/ai/prompts?cmp=previous');
     expect(drillHref('citations', scopeOf(), {}, PROJECT)).toBe('/acme/eventus/ai/citations');
-    expect(queryOf(drillHref('prompts', scopeOf(), {}, PROJECT)).toString()).toBe('tab=prompts');
+    expect(queryOf(drillHref('prompts', scopeOf(), {}, PROJECT)).toString()).toBe('cmp=previous&tab=prompts');
   });
 
   it('encodes a slug and writes the engine of the scope in the order given', () => {
@@ -207,6 +225,21 @@ describe('engine numbers', () => {
   });
 });
 
+describe('a link that sorts by a platform rate names the columns that make the sort apply', () => {
+  it('writes cols with the tab columns and the platform rate, Location only while no location is chosen', () => {
+    const none = queryOf(drillHref('prompts', scopeOf(), { engine: 'chatgpt_web' }, PROJECT));
+    expect(none.get('sort')).toBe('-chatgpt_web_rate');
+    expect(none.get('cols')).toBe('topic,country,mention,citation,chatgpt_web_rate');
+    const located = queryOf(drillHref('prompts', scopeOf({ country: 'DE' }), { engine: 'chatgpt_web' }, PROJECT));
+    expect(located.get('cols')).toBe('topic,mention,citation,chatgpt_web_rate');
+  });
+
+  it('writes no cols for a link with no platform sort, or for the Topics tab', () => {
+    expect(queryOf(drillHref('prompts', scopeOf(), {}, PROJECT)).get('cols')).toBeNull();
+    expect(queryOf(drillHref('topic', scopeOf(), { engine: 'chatgpt_web' }, PROJECT)).get('cols')).toBeNull();
+  });
+});
+
 describe('the topic drawer', () => {
   it('is inspect=topic:<term> on the Prompts page, with the scope beside it', () => {
     const href = drillHref('topicDrawer', scopeOf({ country: 'DE' }), { term: TOPIC }, PROJECT);
@@ -236,7 +269,7 @@ describe('a prompt', () => {
     expect(query.get('tab')).toBeNull();
     expect(query.get('from')).toBe('2026-10-01');
     expect(query.get('to')).toBe('2026-10-20');
-    expect(query.get('cmp')).toBe('off');
+    expect(query.get('cmp')).toBeNull();
     expect(query.get('country')).toBe('DE');
     expect(query.get('engine')).toBe('chatgpt_web,gemini_web');
     expect(query.get('topic')).toBe(TOPIC);

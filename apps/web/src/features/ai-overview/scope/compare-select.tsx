@@ -23,6 +23,7 @@ export interface CompareSelectProps {
  */
 export function CompareSelect({ scope, onCompareChange }: CompareSelectProps): ReactElement {
   const t = useTranslations('aiOverview.scope');
+  const tShell = useTranslations('aiOverview.shell');
   // Whether there is a window to compare with, whatever the choice is now: the choice must stay possible once off
   const available = comparisonWindow({ ...scope, compare: true });
   const compared = scope.compare && available !== null;
@@ -59,9 +60,14 @@ export function CompareSelect({ scope, onCompareChange }: CompareSelectProps): R
         </p>
       }
       trigger={
-        <Button variant="secondary" className="type-body">
-          {compared ? t('comparePrevious') : t('compareOff')}
-          <Icon icon={ChevronDown} size="sm" className="text-foreground-tertiary" />
+        <Button
+          variant="secondary"
+          aria-label={tShell('compareLabel', { value: compared ? t('comparePrevious') : t('compareOff') })}
+          className="w-full justify-start type-body sm:w-60"
+        >
+          <span className="shrink-0 text-foreground-secondary">{tShell('compare')}:</span>
+          <span className="min-w-0 flex-1 truncate text-left">{compared ? t('comparePrevious') : t('compareOff')}</span>
+          <Icon icon={ChevronDown} size="sm" className="shrink-0 text-foreground-muted" />
         </Button>
       }
     />

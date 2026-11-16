@@ -201,7 +201,8 @@ describe('TopicExtremesCard', () => {
   });
 
   it('a platform with no eligible group says why', async () => {
-    render({ searchParams: 'engine=chatgpt_web,google_ai_mode', threeEngines: true });
+    // All platforms: a link that names several platforms is All platforms, so the test names none
+    render({ searchParams: '', threeEngines: true });
     expect(
       await screen.findByText(/AI Mode has no group with at least 4 valid answers and 3 prompts/),
     ).toBeInTheDocument();
@@ -406,7 +407,8 @@ describe('TopicExtremesCard states', () => {
   });
 
   it('partial names a platform that has no valid answer in any group', async () => {
-    render({ searchParams: 'engine=chatgpt_web,google_ai_mode', threeEngines: true });
+    // All platforms: a link that names several platforms is All platforms, so the test names none
+    render({ searchParams: '', threeEngines: true });
     await listOf('Strongest', 'ChatGPT');
     expect(screen.getByText('Partial data: AI Mode has no valid answer in this window')).toBeInTheDocument();
   });

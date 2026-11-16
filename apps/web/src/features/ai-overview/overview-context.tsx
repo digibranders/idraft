@@ -22,8 +22,9 @@ import {
   type SourcesReadOptions,
   type SummaryReadOptions,
 } from './data/use-overview-reads';
-import { normalizeEngines, type OverviewScope, type ScopePatch } from './scope/scope-model';
+import { normalizeEngines, onePlatform, type OverviewScope, type ScopePatch } from './scope/scope-model';
 import { useOverviewScope } from './scope/use-overview-scope';
+import { usePlatformLinkFallback } from './scope/use-platform-link-fallback';
 import type { RangeProblem } from '@/components/app/date-range/range-model';
 import type { EngineCode, PromptsSummary } from '@/lib/api/types';
 import { useZoneDay } from '@/lib/dom/use-zone-day';
@@ -58,6 +59,8 @@ export interface OverviewContextValue {
   canManageEngines: boolean;
   /** Whether the member may be sent to the runs of the project. */
   canViewRuns: boolean;
+  /** The link named several platforms and the page shows All platforms instead; it is said once. */
+  platformLinkReplaced: boolean;
 }
 
 const OverviewContext = createContext<OverviewContextValue | null>(null);
@@ -79,12 +82,18 @@ export function OverviewProvider({
   const { scope: urlScope, dropped, setScope } = useOverviewScope({ project });
   const ref = useMemo(() => ({ workspaceId, projectId: project.id }), [workspaceId, project.id]);
   const engines = readEngines(ref);
-  // Every engine that is on, chosen in any order, is no filter: the numbers and the scope bar see `null`, as the
-  // address with no engine key says, so the same scope is never two scopes
+  // The page has one Platform select: a link that names several platforms that are on is All platforms, and so is every
+  // platform that is on, in any order. The numbers and the scope bar see `null`, as the address with no engine key
+  // says, so the same scope is never two scopes
   const scope = useMemo((): OverviewScope => {
-    const normalized = normalizeEngines(urlScope.engines, engines.enabled);
+    const normalized = normalizeEngines(onePlatform(urlScope.engines, engines.enabled), engines.enabled);
     return normalized === urlScope.engines ? urlScope : { ...urlScope, engines: normalized };
   }, [urlScope, engines.enabled]);
+  const platformLinkReplaced = usePlatformLinkFallback({
+    linked: urlScope.engines,
+    enabled: engines.enabled,
+    setScope,
+  });
   const canManageEngines = useCan('projects:write');
   const canTriggerRuns = useCan('runs:trigger');
   const canReadData = useCan('data:read');
@@ -100,6 +109,7 @@ export function OverviewProvider({
       enabledEngines: engines.enabled,
       canManageEngines,
       canViewRuns: canTriggerRuns || canReadData,
+      platformLinkReplaced,
     }),
     [
       workspaceId,
@@ -112,6 +122,7 @@ export function OverviewProvider({
       canManageEngines,
       canTriggerRuns,
       canReadData,
+      platformLinkReplaced,
     ],
   );
   return <OverviewContext.Provider value={value}>{children}</OverviewContext.Provider>;

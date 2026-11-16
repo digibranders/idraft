@@ -37,6 +37,25 @@ const THEME_KEY = 'idraft.theme';
 /** The ids of the cards of the built-in layout of the screen, in order (`lib/layouts/catalog.ts`, inventory 9.5 Default). */
 export const BUILTIN_CARD_IDS: readonly string[] = (SCREENS.ai_overview.builtin.cards ?? []).map((card) => card.id);
 
+/**
+ * What each card of the Default layout is called. A card that is not built yet shows its catalog title on the pending
+ * card; a card that is built draws the title its package chose, which the later packages are still setting, so for
+ * those the heading is only required to be there (`null`). Change an entry to a title when its package lands.
+ */
+export const BUILTIN_CARD_TITLES: Readonly<Record<string, string | null>> = {
+  'visibility-split': 'Headline numbers',
+  'rate-trend': null,
+  'outcome-mix': null,
+  'share-of-voice': null,
+  'lost-to-competitor': null,
+  'topic-heatmap': null,
+  'top-domains': 'Top cited domains',
+  'position-distribution': 'Mention position',
+  'sentiment-by-engine': 'Brand sentiment',
+  'ai-referrals': 'AI referral traffic',
+  'fanout-top': null,
+};
+
 /** What the numbers of the built-in layout are called in the strip, in order. */
 export const BUILTIN_NUMBER_LABELS = [
   'Prompts',
@@ -55,9 +74,32 @@ export const scopeBar = (page: Page): Locator => page.getByRole('region', { name
 export const cardGrid = (page: Page): Locator => page.getByRole('region', { name: 'AI visibility cards', exact: true });
 export const cardById = (page: Page, id: string): Locator => cardGrid(page).locator(`[data-layout-card="${id}"]`);
 export const bannersOf = (page: Page): Locator => page.getByRole('main').locator('[data-slot="banner"]');
-/** The meta line under the title: "AI updated Nov 13, 02:10 · 24 prompts · 2 engines". */
+/**
+ * The freshness text: "AI updated Nov 13, 02:10". It does not change with the scope, so it names no prompt or platform
+ * count. It is in the toolbar from 1440 px and at the foot of the page below that; only one of the two is drawn.
+ */
 export const metaLine = (page: Page): Locator =>
   page.locator('[data-slot="overview-meta"], [data-slot="page-header"] p.type-meta');
+/** The Platform select of the scope bar, named by what it holds: "Platform: ChatGPT". */
+export const platformSelect = (page: Page, shown = 'All platforms'): Locator =>
+  scopeBar(page).getByRole('combobox', { name: `Platform: ${shown}`, exact: true });
+/** The Group select of the scope bar, named by what it holds: "Group: SEO / Technical SEO". */
+export const groupSelect = (page: Page, shown: string | RegExp = 'All groups'): Locator =>
+  scopeBar(page).getByRole('combobox', {
+    name: typeof shown === 'string' ? `Group: ${shown}` : shown,
+    exact: typeof shown === 'string',
+  });
+/**
+ * The icon button that puts the scope back: always in the bar, `visibility: hidden` while the scope is the default. A
+ * role query skips a hidden element, so it is found by its name in the DOM; use `expectResetHidden` for its state.
+ */
+export const resetScope = (page: Page): Locator => scopeBar(page).locator('button[aria-label="Reset scope"]');
+
+/** The Reset button is there and takes its room, but is not drawn: the scope is the default. */
+export async function expectResetHidden(page: Page): Promise<void> {
+  await expect(resetScope(page)).toHaveCount(1);
+  await expect(resetScope(page)).toHaveCSS('visibility', 'hidden');
+}
 /** The strip error row of the numbers zone, with its own Retry. */
 export const stripError = (page: Page): Locator =>
   page.locator('[data-slot="inline-error"]').filter({ hasText: 'The AI numbers could not be read' });

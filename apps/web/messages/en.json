@@ -1818,7 +1818,7 @@
     },
     "info": {
       "about": "About {title}",
-      "how": "How it is counted:"
+      "how": "How it’s counted:"
     }
   },
   "inspector": {
@@ -4903,9 +4903,6 @@
       "compareWindow": "{current} against {previous}",
       "compareWindowOff": "{current}, with no comparison",
       "compareUnavailable": "No days before this window",
-      "engines": "Platforms",
-      "enginesCount": "{count, number} of {total, number}",
-      "enginesMin": "At least one platform stays on",
       "topic": "Group",
       "topicIncludesBelow": "{topic} (includes subgroups)",
       "branded": "Branded",
@@ -4918,7 +4915,6 @@
       "countryEmpty": "No locations match “{query}”",
       "clear": "Clear",
       "open": "Show locations",
-      "reset": "Reset filters",
       "filters": "Filters",
       "filtersActive": "Filters, {count, number} active",
       "filtersClose": "Close filters",
@@ -5445,7 +5441,7 @@
         "previousEmpty": "No comparison: the previous period has no answers",
         "engineOffTitle": "{engine} is not asked in this scope",
         "engineOffReason": "{engine} is turned off for this project.",
-        "engineOutsideReason": "{engine} is outside the platform filter of this page. Add it to the filter to see it.",
+        "engineOutsideReason": "{engine} is outside the platform filter of this page. Choose All platforms to see it.",
         "askAdmin": "Ask a workspace admin to turn on a platform.",
         "toEngines": "Turn on platforms",
         "tooFewTitle": "Too few answers name a tracked brand ({count})",
@@ -6492,6 +6488,38 @@
         "infoEffectiveDefinition": "How many equally cited domains would give the same spread of citations: the more evenly citations are spread over domains, the higher it is.",
         "infoEffectiveFormula": "The square of the total citation units, divided by the sum of each domain's citation units squared (the inverse of the Herfindahl index of the source shares). Both inputs, units and domains of each week, are in the Table view.",
         "announceView": "Showing {view, select, distinct {distinct domains} other {effective sources}}"
+      }
+    },
+    "shell": {
+      "platform": "Platform",
+      "platformLabel": "Platform: {platform}",
+      "allPlatforms": "All platforms",
+      "platformAiOverview": "AI Overview",
+      "platformUnavailable": "Not available",
+      "group": "Group",
+      "groupLabel": "Group: {group}",
+      "groupUnknown": "Unknown group",
+      "groupLoading": "Loading",
+      "compare": "Compare",
+      "compareLabel": "Compare: {value}",
+      "toolbar": "Scope and actions",
+      "allGroups": "All groups",
+      "groupSearch": "Search groups",
+      "groupEmpty": "No groups match “{query}”",
+      "groupClear": "Clear search",
+      "groupOpen": "Show groups",
+      "resetScope": "Reset scope",
+      "severalPlatformsTitle": "The link named several platforms",
+      "severalPlatformsDescription": "The page shows one platform at a time, so it shows all platforms.",
+      "unavailable": {
+        "title": "Not available for this scope",
+        "platform": "{card} is not measured on {platform}. Choose All platforms or another platform.",
+        "group": "{card} compares groups, so it needs All groups."
+      },
+      "emptyGroup": {
+        "title": "No prompts in this scope",
+        "reason": "No prompts of {group} are counted with these filters. Choose All groups, or add a prompt to this group in Prompts.",
+        "clear": "Show all groups"
       }
     }
   },

@@ -45,6 +45,11 @@ export interface LayoutGridProps {
   CardBoundary?: ComponentType<{ item: CardItem; children: ReactNode }> | undefined;
   /** View mode with no card to show: the one action that changes it (WP-16's Customize). */
   emptyAction?: ReactNode | undefined;
+  /**
+   * Classes the screen puts on the cell of a card in view mode and while loading, such as a smallest height so the
+   * cards keep their place in every scope. Customize mode does not use it: its frames are as tall as their content.
+   */
+  cardClassName?: ((item: CardItem) => string) | undefined;
 }
 
 /**
@@ -147,6 +152,7 @@ export function LayoutGrid({
   renderUnavailable,
   CardBoundary,
   emptyAction,
+  cardClassName,
 }: LayoutGridProps): ReactElement {
   const t = useTranslations('layouts.core');
   const screen = useLayoutScreen();
@@ -168,6 +174,7 @@ export function LayoutGrid({
   const customizing = mode === 'customize';
   const containerClass = columns === 'one' ? 'flex flex-col gap-4' : 'grid grid-cols-12 gap-4';
   const cellClass = (item: CardItem): string => (columns === 'one' ? '' : SPAN_CLASS[item.width ?? 'full']);
+  const viewCellClass = (item: CardItem): string => cn(cellClass(item), cardClassName?.(item));
   const cards = document.cards ?? [];
   /**
    * What goes in the frame's notice (outside the inert body): why a card cannot show, or in customize mode the
@@ -191,7 +198,7 @@ export function LayoutGrid({
         {shownCards.map((item) => {
           const Skeleton = registeredCard(registry, item.type)?.Skeleton ?? CardSkeleton;
           return (
-            <div key={item.id} className={cellClass(item)}>
+            <div key={item.id} className={viewCellClass(item)}>
               <Skeleton />
             </div>
           );
@@ -236,7 +243,7 @@ export function LayoutGrid({
     body = (
       <div className={containerClass}>
         {displayedCards.map((item) => (
-          <CardFrame key={item.id} item={item} className={cellClass(item)} notice={noticeOf(item)}>
+          <CardFrame key={item.id} item={item} className={viewCellClass(item)} notice={noticeOf(item)}>
             {bodyOf(item)}
           </CardFrame>
         ))}

@@ -74,19 +74,48 @@ describe('the AI visibility page without access', () => {
 });
 
 describe('the AI visibility page of a project with platforms on', () => {
-  it('has the title, the meta line from the answers, Customize, Export and More actions in the header', async () => {
+  it('has the title, the freshness of the answers, Customize, Export and More actions in the header', async () => {
     renderWithProviders(overviewAs('admin'));
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     expect(screen.getByRole('heading', { level: 1, name: 'AI visibility' })).toBeInTheDocument();
     await waitFor(() => {
-      // The freshness is its own element (a time in a button), so the line is read in two parts
       expect(screen.getByText(/^AI updated .+$/)).toBeInTheDocument();
-      expect(screen.getByText(/^· \d+ prompts · 2 platforms$/)).toBeInTheDocument();
     });
+    // Nothing in the toolbar changes with the scope, so it names no prompt or platform count
+    expect(screen.queryByText(/ prompts · \d+ platforms$/)).not.toBeInTheDocument();
     expect(customize()).toHaveClass('hidden', 'md:inline-flex');
     expect(screen.getByRole('button', { name: 'More actions' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Export' })).toBeInTheDocument();
     expect(screen.queryByText('Customizing')).not.toBeInTheDocument();
+  });
+
+  it('keeps the scope toolbar under the top bar from 1920 px, with the strip below it', async () => {
+    renderWithProviders(overviewAs('admin'));
+    const toolbar = await screen.findByRole('region', { name: 'Scope and actions' });
+    expect(toolbar).toHaveClass('min-[120rem]:sticky', 'min-[120rem]:top-topbar');
+    // The scope controls are a named group of their own inside it
+    expect(await within(toolbar).findByRole('region', { name: 'Scope' })).toBeInTheDocument();
+    const strip = await screen.findByRole('group', { name: /^AI visibility numbers for / });
+    expect(toolbar.contains(strip)).toBe(false);
+    expect(toolbar.compareDocumentPosition(strip) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+  });
+
+  it('puts the freshness in the toolbar from 1440 px, and only there', async () => {
+    stubViewport(90);
+    const { container } = renderWithProviders(overviewAs('admin'));
+    const toolbar = await screen.findByRole('region', { name: 'Scope and actions' });
+    expect(await within(toolbar).findByText(/^AI updated .+$/)).toBeInTheDocument();
+    expect(screen.getAllByText(/^AI updated .+$/)).toHaveLength(1);
+    expect(container.querySelector('p[data-slot="overview-meta"]')).toBeNull();
+  });
+
+  it('puts the freshness at the foot of the page where the toolbar has no room, and once', async () => {
+    stubViewport(80);
+    const { container } = renderWithProviders(overviewAs('admin'));
+    const text = await screen.findByText(/^AI updated .+$/);
+    expect(screen.getAllByText(/^AI updated .+$/)).toHaveLength(1);
+    expect(text.closest('p[data-slot="overview-meta"]')).not.toBeNull();
+    expect(container.querySelector('span[data-slot="overview-meta"]')).toBeNull();
   });
 
   it('copies the link from the More actions menu', async () => {
@@ -334,8 +363,8 @@ describe('the numbers strip of the AI visibility page', () => {
       expect(strip).not.toHaveAttribute('aria-busy');
     });
     expect(valuesOf(strip)[1]).not.toHaveTextContent('Not asked');
-    await user.click(await screen.findByRole('button', { name: 'Platforms: 2 of 2' }));
-    await user.click(await screen.findByRole('checkbox', { name: 'ChatGPT' }));
+    await user.click(await screen.findByRole('combobox', { name: 'Platform: All platforms' }));
+    await user.click(await screen.findByRole('option', { name: 'Gemini' }));
     await waitFor(() => {
       expect(urls.at(-1)).toBe('?engine=gemini_web');
     });
@@ -343,7 +372,7 @@ describe('the numbers strip of the AI visibility page', () => {
       expect(valuesOf(screen.getByRole('group', { name: STRIP }))[1]).toHaveTextContent('Not asked');
     });
     await user.keyboard('{Escape}');
-    await user.click(await screen.findByRole('button', { name: 'vs previous period' }));
+    await user.click(await screen.findByRole('button', { name: 'Compare: vs previous period' }));
     await user.click(await screen.findByRole('menuitemradio', { name: 'No comparison' }));
     await waitFor(() => {
       expect(urls.at(-1)).toBe('?engine=gemini_web&cmp=off');

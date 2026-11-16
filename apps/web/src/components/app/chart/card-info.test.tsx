@@ -117,15 +117,15 @@ describe('card info mode', () => {
       const dialog = await screen.findByRole('dialog', { name: 'About Topic heat map' });
       const [what, how] = within(dialog).getAllByText(/./, { selector: 'p' });
       expect(what).toHaveTextContent(INFO.what);
-      expect(how).toHaveTextContent(`How it is counted: ${INFO.how}`);
-      expect(within(how as HTMLElement).getByText('How it is counted:').tagName).toBe('STRONG');
+      expect(how).toHaveTextContent(`How it’s counted: ${INFO.how}`);
+      expect(within(how as HTMLElement).getByText('How it’s counted:').tagName).toBe('STRONG');
       expect(within(dialog).queryByText(NOTE)).toBeNull();
     });
 
     it('reads both paragraphs in the tooltip', async () => {
       const { user } = renderWithProviders(<CardInfoProvider>{withInfo()}</CardInfoProvider>);
       await user.hover(infoButton());
-      await waitFor(() => expect(tip()).toHaveTextContent(`${INFO.what} How it is counted: ${INFO.how}`));
+      await waitFor(() => expect(tip()).toHaveTextContent(`${INFO.what} How it’s counted: ${INFO.how}`));
       expect(tip()).not.toHaveTextContent(NOTE);
     });
 

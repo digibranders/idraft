@@ -21,11 +21,27 @@ export interface EngineLogoProps {
  * An engine without a mark, or `hidden`, shows the name alone.
  */
 export function EngineLogo({ engine, name, hidden = false, truncate = false }: EngineLogoProps): ReactElement {
-  const mark = hidden ? null : engineMark(engine);
   const label = truncate ? <Truncate text={name} /> : name;
-  if (mark === null) return <span className="inline-flex min-w-0 items-center">{label}</span>;
+  const mark = hidden ? null : <EngineMark engine={engine} />;
+  if (mark === null || engineMark(engine) === null)
+    return <span className="inline-flex min-w-0 items-center">{label}</span>;
   return (
     <span className="inline-flex min-w-0 items-center gap-2">
+      {mark}
+      {label}
+    </span>
+  );
+}
+
+/**
+ * The vendor's 16 px mark alone, for a place that names the engine by other means (an option of a select, whose label
+ * is the name). Decorative (`alt=""`); an engine without a mark draws nothing.
+ */
+export function EngineMark({ engine }: { engine: string }): ReactElement | null {
+  const mark = engineMark(engine);
+  if (mark === null) return null;
+  return (
+    <>
       {/* A fixed box, so a row never shifts while the mark loads. A 16 px static SVG has nothing for next/image to optimize */}
       {/* eslint-disable-next-line @next/next/no-img-element -- see above */}
       <img
@@ -35,7 +51,6 @@ export function EngineLogo({ engine, name, hidden = false, truncate = false }: E
         height={16}
         className={cn('size-icon shrink-0', mark.followsText && 'dark:invert')}
       />
-      {label}
-    </span>
+    </>
   );
 }

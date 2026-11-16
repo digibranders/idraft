@@ -27,7 +27,6 @@ import {
   changeEngine,
   customizeButton,
   dashesIn,
-  enginesButton,
   expectNoSidewaysScroll,
   focusTitleOf,
   heatCell,
@@ -46,6 +45,8 @@ import {
   setThinCells,
   startCustomizing,
   tabTo,
+  groupSelect,
+  platformSelect,
 } from '../support/ai-overview-topics';
 
 /**
@@ -184,7 +185,7 @@ test.describe('the group and prompt cards', () => {
     await saveTopicLayout(page);
     const card = cardById(page, TOPIC_OWNER_CARDS.contribution);
     await expect(card).toContainText('to the mention rate on ChatGPT');
-    await expect(enginesButton(page)).toHaveAccessibleName('Platforms: 2 of 2');
+    await expect(platformSelect(page)).toBeVisible();
 
     await startCustomizing(page);
     await changeEngine(page, TOPIC_OWNER_CARDS.contribution, 'What each group adds: ChatGPT', 'Gemini');
@@ -194,7 +195,7 @@ test.describe('the group and prompt cards', () => {
 
     // The page still asks both engines: no key in the address, the same count on the control, both columns in the heat map
     expect(new URL(page.url()).searchParams.has('engine')).toBe(false);
-    await expect(enginesButton(page)).toHaveAccessibleName('Platforms: 2 of 2');
+    await expect(platformSelect(page)).toBeVisible();
     await awaitCardReady(heatmapCard(page));
     expect(await columnNames(heatmapCard(page))).toEqual(BOTH_ENGINE_COLUMNS);
   });
@@ -207,11 +208,10 @@ test.describe('the group and prompt cards', () => {
     const named = (id: string): Locator => cardById(page, id);
 
     await test.step('one platform: every card leaves the other out', async () => {
-      await enginesButton(page).click();
-      await page.getByRole('checkbox', { name: /ChatGPT/ }).click();
-      await page.keyboard.press('Escape');
+      await platformSelect(page).click();
+      await page.getByRole('option', { name: 'Gemini', exact: true }).click();
       expect((await queryOf(page, 'engine')).get('engine')).toBe(GEMINI);
-      await expect(enginesButton(page)).toHaveAccessibleName('Platforms: 1 of 2');
+      await expect(platformSelect(page, 'Gemini')).toBeVisible();
 
       await expect(heatmapGrid(heatmap).getByRole('columnheader', { name: /ChatGPT/ })).toHaveCount(0);
       await expect(heatmapGrid(heatmap).getByRole('columnheader', { name: /avg of/ })).toHaveCount(0);
@@ -227,10 +227,8 @@ test.describe('the group and prompt cards', () => {
     });
 
     await test.step('one group: every card leaves the others out', async () => {
-      await page.getByRole('button', { name: 'Add a filter' }).click();
-      await page.getByRole('button', { name: 'Group', exact: true }).click();
-      await page.getByRole('radio', { name: THIN_TOPIC, exact: true }).click();
-      await page.keyboard.press('Escape');
+      await groupSelect(page).click();
+      await page.getByRole('option', { name: THIN_TOPIC, exact: true }).click();
       expect((await queryOf(page, 'topic')).get('topic')).toBe(PAID_SEARCH);
 
       await expect(heatmapGrid(heatmap).getByRole('rowheader')).toHaveCount(1);

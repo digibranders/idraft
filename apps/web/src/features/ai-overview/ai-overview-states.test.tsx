@@ -2,6 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import { getResponse, http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { MOCK_TERM_IDS } from '@/mocks/entity-fixtures';
 import { handlers } from '@/mocks/handlers';
 import { mswPath } from '@/mocks/respond';
 import { overviewAs } from '@/test/ai-overview-harness';
@@ -154,6 +155,99 @@ describe('the empty states of the AI visibility page', () => {
     expect(screen.getByRole('region', { name: 'Scope' })).toBeInTheDocument();
     expect(screen.queryByRole('group', { name: STRIP })).not.toBeInTheDocument();
   });
+
+  it('names the group, never by its id, and resets a platform too', async () => {
+    server.use(
+      http.get(SUMMARY, async ({ request }) => {
+        if (new URL(request.url).searchParams.get('rows') === 'none') return undefined;
+        const body = await defaultJson(request);
+        const data = body.data as Record<string, unknown>;
+        return HttpResponse.json({ ...body, data: { ...data, prompts: [], topics: [], total: undefined } });
+      }),
+    );
+    const topic = MOCK_TERM_IDS.seo;
+    const urls: string[] = [];
+    const { user } = renderWithProviders(overviewAs('admin'), {
+      searchParams: `?topic=${topic}&engine=gemini_web`,
+      onUrlUpdate: (event) => urls.push(event.queryString),
+    });
+    expect(await screen.findByRole('heading', { name: 'No prompts in this scope' })).toBeInTheDocument();
+    // Before the vocabulary arrives the group is named neutrally, after it by its name: never by the id
+    expect(screen.queryByText(new RegExp(topic))).not.toBeInTheDocument();
+    expect(await screen.findByText(/No prompts of SEO are counted/)).toBeInTheDocument();
+    const state = document.querySelector<HTMLElement>('[data-slot="empty-state"]');
+    await user.click(within(state as HTMLElement).getByRole('button', { name: 'Reset scope' }));
+    await waitFor(() => {
+      expect(urls.at(-1)).toBe('');
+    });
+  });
+
+  it('a group with no prompts says so, keeps the scope bar, and Show all groups clears the group', async () => {
+    server.use(
+      http.get(SUMMARY, async ({ request }) => {
+        if (new URL(request.url).searchParams.get('rows') === 'none') return undefined;
+        const body = await defaultJson(request);
+        const data = body.data as Record<string, unknown>;
+        return HttpResponse.json({ ...body, data: { ...data, prompts: [], topics: [], total: undefined } });
+      }),
+    );
+    const urls: string[] = [];
+    const { user } = renderWithProviders(overviewAs('admin'), {
+      searchParams: `?topic=${MOCK_TERM_IDS.seo}`,
+      onUrlUpdate: (event) => urls.push(event.queryString),
+    });
+    expect(await screen.findByRole('heading', { name: 'No prompts in this scope' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Scope' })).toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: STRIP })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Show all groups' }));
+    await waitFor(() => {
+      expect(new URLSearchParams(urls.at(-1)).has('topic')).toBe(false);
+    });
+  });
+});
+
+describe('a link from before the Platform select', () => {
+  /** Fynix with the third platform on too, so a link can name two of three. */
+  function threePlatformsOn(): void {
+    server.use(
+      http.get(ENGINES, async ({ request }) => {
+        const body = await defaultJson(request);
+        const list = body.data as Record<string, unknown>[];
+        return HttpResponse.json({ ...body, data: list.map((engine) => ({ ...engine, is_enabled: true })) });
+      }),
+    );
+  }
+
+  it('that names two of three platforms shows All platforms, writes the key away and says so once', async () => {
+    threePlatformsOn();
+    const urls: string[] = [];
+    renderWithProviders(overviewAs('admin'), {
+      searchParams: '?engine=chatgpt_web,gemini_web&win=7d',
+      onUrlUpdate: (event) => urls.push(event.queryString),
+    });
+    expect(await screen.findByText('The link named several platforms')).toBeInTheDocument();
+    expect(screen.getByText('The page shows one platform at a time, so it shows all platforms.')).toBeInTheDocument();
+    expect(await screen.findByRole('combobox', { name: 'Platform: All platforms' })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(urls.at(-1)).toBe('?win=7d');
+    });
+    // Strict mode runs effects twice and the key is gone after the first: one toast
+    expect(screen.getAllByText('The link named several platforms')).toHaveLength(1);
+  });
+
+  it('that names every platform that is on is All platforms without a word', async () => {
+    threePlatformsOn();
+    const urls: string[] = [];
+    renderWithProviders(overviewAs('admin'), {
+      searchParams: '?engine=gemini_web,chatgpt_web,google_ai_mode',
+      onUrlUpdate: (event) => urls.push(event.queryString),
+    });
+    expect(await screen.findByRole('combobox', { name: 'Platform: All platforms' })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(urls.at(-1)).toBe('');
+    });
+    expect(screen.queryByText('The link named several platforms')).not.toBeInTheDocument();
+  });
 });
 
 describe('the notice region and the freshness of the AI visibility page', () => {
@@ -256,8 +350,15 @@ describe('the notice region and the freshness of the AI visibility page', () => 
     renderWithProviders(overviewAs('admin'));
     await screen.findByRole('group', { name: STRIP });
     await waitFor(() => {
-      expect(screen.getByText(/ prompts · 2 platforms$/)).toBeInTheDocument();
+      expect(screen.getByRole('group', { name: STRIP })).not.toHaveAttribute('aria-busy');
     });
+    // The freshness is a skeleton while it is read and nothing once it has failed: wait for that, then look
+    await waitFor(
+      () => {
+        expect(document.querySelector('[data-slot="overview-meta"]')).toBeNull();
+      },
+      { timeout: 5000 },
+    );
     expect(screen.queryByText(/^AI updated /)).not.toBeInTheDocument();
     expect(screen.queryByText('No AI answers yet')).not.toBeInTheDocument();
   });
@@ -293,11 +394,10 @@ describe('the page while it loads and refetches', () => {
         return getResponse([...handlers], new Request(request.url, { headers: request.headers }));
       }),
     );
-    await user.click(await screen.findByRole('button', { name: 'vs previous period' }));
+    await user.click(await screen.findByRole('button', { name: 'Compare: vs previous period' }));
     await user.click(await screen.findByRole('menuitemradio', { name: 'No comparison' }));
-    await user.click(await screen.findByRole('button', { name: 'Platforms: 2 of 2' }));
-    await user.click(await screen.findByRole('checkbox', { name: 'ChatGPT' }));
-    await user.keyboard('{Escape}');
+    await user.click(await screen.findByRole('combobox', { name: 'Platform: All platforms' }));
+    await user.click(await screen.findByRole('option', { name: 'Gemini' }));
     await waitFor(() => {
       expect(container.querySelector('[data-slot="refetch-bar"]')).not.toBeNull();
     });

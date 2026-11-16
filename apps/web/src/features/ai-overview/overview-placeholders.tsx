@@ -28,12 +28,20 @@ export function StripPlaceholder(): ReactElement {
   );
 }
 
-/** The row of the scope controls, one control high. */
+/**
+ * The row of the scope controls at its finished size: the Platform, Group and Compare selects at their fixed width
+ * and the place of the Reset button, so nothing moves when the controls arrive.
+ */
 export function ScopeBarPlaceholder(): ReactElement {
   return (
-    <div aria-hidden="true" data-slot="scope-bar-placeholder" className="flex h-control-sm items-center gap-2">
-      <span className="h-control-sm w-36 animate-skeleton-pulse rounded-md border border-border bg-surface" />
-      <span className="h-control-sm w-28 animate-skeleton-pulse rounded-md border border-border bg-surface" />
+    <div aria-hidden="true" data-slot="scope-bar-placeholder" className="flex flex-wrap items-center gap-2">
+      {[0, 1, 2].map((select) => (
+        <span
+          key={select}
+          className="h-control w-full animate-skeleton-pulse rounded-md border border-border bg-surface sm:w-60"
+        />
+      ))}
+      <span className="size-control shrink-0" />
     </div>
   );
 }

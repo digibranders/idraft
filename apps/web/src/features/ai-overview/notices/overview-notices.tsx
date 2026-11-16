@@ -13,7 +13,7 @@ import { formatBusinessDate, formatTableDateTime } from '@/lib/format';
 import { runsPath } from '@/lib/routes/paths';
 
 export interface OverviewNoticesProps {
-  /** The notice that applies; the states that replace the body (no engine, no prompts, no country) draw no banner. */
+  /** The notice that applies; the states that replace the body (no platform, no prompts, no location, no group) draw no banner. */
   notice: Notice | null;
   /** The reads behind the notice have answered: a banner that is there now was there when the page loaded. */
   settled: boolean;
@@ -87,6 +87,7 @@ export function OverviewNotices({ notice, settled }: OverviewNoticesProps): Reac
       case 'noEngine':
       case 'noPrompts':
       case 'noCountryPrompts':
+      case 'noGroupPrompts':
         break;
     }
   }
