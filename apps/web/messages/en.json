@@ -6542,9 +6542,9 @@
         "headerBlocked": "Budget-blocked runs"
       },
       "calendar": {
-        "title": "Answer collection calendar",
-        "subject": "answer collection calendar",
-        "fileName": "answer-collection-calendar",
+        "title": "Run calendar",
+        "subject": "run calendar",
+        "fileName": "run-calendar",
         "caption": "Collection calendar for {engine}: valid answers over scheduled answers, by weekday and week",
         "summary": "Calendar of {engine}: {runDays, plural, one {{shown} run day} other {{shown} run days}}, {valid} of {answers} answers collected are valid.",
         "weekOf": "Week of {date}",
@@ -6560,7 +6560,11 @@
         "keyLabel": "Key to the calendar",
         "keyUnknown": "Schedule unknown",
         "keyFailures": "Refused and error answers, with their count",
-        "keyBlocked": "Run blocked by the budget"
+        "keyBlocked": "Run blocked by the budget",
+        "info": {
+          "what": "When each weekly run happened and how it went.",
+          "how": "Each cell is one day, filled by the valid answers over the scheduled ones, so a weekly run shows on its day. A partial run keeps the answers that completed; failed answers count as collection problems, not as a miss for your brand."
+        }
       },
       "status": {
         "title": "Answer status by platform and day",

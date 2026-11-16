@@ -26,7 +26,7 @@ vi.mock('next/navigation', async () => (await import('@/test/next-navigation')).
 
 const DAILY = `${PROJECT}/ai/collection/daily`;
 const TYPE = 'ops.answer_calendar';
-const TITLE = 'Answer collection calendar';
+const TITLE = 'Run calendar';
 const FRIDAY = 'Fri Nov 6: 742 of 750 answers valid, 6 refused, 2 errors';
 
 beforeEach(() => {
@@ -358,7 +358,7 @@ describe('the answer collection calendar card (CH-20)', () => {
   it('shows an error with its request id and a retry that asks again', async () => {
     server.use(http.get(DAILY, () => failing('req-daily')));
     const { user } = render();
-    expect(await screen.findByText('Could not load answer collection calendar')).toBeInTheDocument();
+    expect(await screen.findByText('Could not load run calendar')).toBeInTheDocument();
     expect(screen.getByText(/req-daily/)).toBeInTheDocument();
     serve();
     await user.click(screen.getByRole('button', { name: 'Try again' }));

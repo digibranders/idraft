@@ -23,7 +23,7 @@ vi.mock('@/components/app/chart/echart', async () => (await import('@/test/weekl
 
 const DAILY = `${PROJECT}/ai/collection/daily`;
 const CARDS: readonly (readonly [string, ComponentType<CardProps>, string, readonly string[]])[] = [
-  ['ops.answer_calendar', AnswerCalendarCard, 'Answer collection calendar', ['h-0 @max-md:h-5', 'h-0 @max-md:h-6']],
+  ['ops.answer_calendar', AnswerCalendarCard, 'Run calendar', ['h-0 @max-md:h-5', 'h-0 @max-md:h-6']],
   ['ops.answer_status', AnswerStatusCard, 'Answer status by platform and day', ['h-0 @max-md:h-5']],
 ];
 

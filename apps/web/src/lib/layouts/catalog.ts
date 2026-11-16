@@ -613,7 +613,7 @@ const AI_OVERVIEW_CARDS: ReadonlyArray<CardTypeDefinition> = [
   ),
   aiCard(
     'ops.answer_calendar',
-    'Answers collected',
+    'Run calendar',
     'How many answers were collected on each day of the period.',
     'activity',
     ['full', 'half'],
