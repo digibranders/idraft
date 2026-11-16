@@ -1033,6 +1033,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
             values={values}
             onChange={setValues}
             nowrap
+            compact
             {...(platformChipHidden ? { hiddenChipFields: PLATFORM_FIELD } : {})}
           />
         }
@@ -1203,6 +1204,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
                 activeRowId={selectedPrompt}
                 onRowOrderChange={setOrder}
                 compactToolbar
+                compactChooser
                 selection={{
                   selectedIds: chosen,
                   onChange: setChosen,

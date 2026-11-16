@@ -159,6 +159,8 @@ export function usePromptColumns(
 ): PromptColumns {
   const t = useTranslations('prompts');
   const shell = useTranslations('prompts.shell.columns');
+  // The labels of the Add dialog's Type field: the type badge of the Prompt cell says the same words
+  const typeWords = useTranslations('prompts.add.details.types');
   const root = useTranslations();
   const locale = useLocale();
   const { compare } = useCompare();
@@ -178,7 +180,16 @@ export function usePromptColumns(
         // The preview's 300 px, which the table never narrows (it scrolls instead; the person may drag it)
         width: PROMPT_WIDTH,
         minWidth: PROMPT_WIDTH,
-        trailing: (row) => (row.prompt.is_branded ? <Badge>{t('branded')}</Badge> : null),
+        // Branded, then the type: the type shows only while the cell is wide enough for it (the preview's 24 rem)
+        containerQuery: true,
+        trailing: (row) => (
+          <span className="flex items-center gap-1.5">
+            {row.prompt.is_branded ? <Badge>{t('branded')}</Badge> : null}
+            <Badge className="hidden @sm:inline-flex">
+              {typeWords(row.prompt.prompt_type === 'how_to' ? 'howTo' : row.prompt.prompt_type)}
+            </Badge>
+          </span>
+        ),
       }),
       {
         // The topic as a badge, the first one when a prompt has several; where it sits in the tree is the cell's tooltip,
@@ -253,6 +264,7 @@ export function usePromptColumns(
     };
   }, [
     t,
+    typeWords,
     shell,
     root,
     locale,

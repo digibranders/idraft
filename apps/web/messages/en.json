@@ -4004,7 +4004,7 @@
       "archiveConfirmTitle": "Archive {count, plural, one {# prompt} other {# prompts}}?",
       "archiveConfirmDescription": "They are no longer asked and leave the tables. Their answers stay, and Undo brings them back.",
       "archiveConfirmLabel": "Archive {count, plural, one {# prompt} other {# prompts}}",
-      "archived": "{count, plural, one {# prompt archived} other {# prompts archived}}",
+      "archived": "{count, plural, one {Prompt archived} other {# prompts archived}}",
       "archivePartialTitle": "Archived {done, number} of {total, number} prompts",
       "archiveFailedTitle": "Not archived",
       "archiveLeft": "{count, plural, one {# prompt was} other {# prompts were}} not changed: gone or archived already.",
@@ -4012,7 +4012,8 @@
       "restorePartialTitle": "Restored {done, number} of {total, number} prompts",
       "restoreFailedTitle": "Not brought back",
       "restoreQuota": "The workspace has {used, number} of {limit, number} active prompts, so {requested, plural, one {# prompt does} other {# prompts do}} not fit. None was brought back. Archive other prompts first.",
-      "tryAgain": "Try again in a moment."
+      "tryAgain": "Try again in a moment.",
+      "archivedHint": "History is kept. No answers are collected from the next run."
     },
     "topics": {
       "caption": "Groups",
@@ -4529,6 +4530,7 @@
       "runNow": "Run now",
       "runQueued": "Run queued",
       "runQueuedHint": "Answers arrive within minutes. A run the AI budget blocks waits in Runs.",
+      "runQueuedAnswers": "{count, plural, one {# answer} other {# answers}} on {engines}.",
       "runFailedTitle": "Not queued",
       "runPending": "An answer is already on its way on {engines}. Try again once it has arrived.",
       "runLimit": "All {limit, number} manual runs of today (UTC) are used, keyword refreshes included. Try again tomorrow.",

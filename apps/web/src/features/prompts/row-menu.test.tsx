@@ -125,7 +125,7 @@ describe('the row menu of a prompt', () => {
     const table = await prompts();
     await openMenu(user, table, FIRST);
     await user.click(screen.getByRole('menuitem', { name: 'Archive' }));
-    expect((await screen.findAllByText('1 prompt archived')).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText('Prompt archived')).length).toBeGreaterThan(0);
     await user.click((await screen.findAllByRole('button', { name: 'Undo' }))[0] as HTMLElement);
     expect((await screen.findAllByText('1 prompt restored')).length).toBeGreaterThan(0);
   });

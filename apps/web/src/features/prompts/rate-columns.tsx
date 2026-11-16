@@ -331,6 +331,8 @@ export function useEngineRateColumns<TRow>(
           header: t(HEADER_KEY[metric], { engine: engine.engine.label }),
           headerTooltip: t(TIP_KEY[metric]),
           width: ENGINE_COLUMN_WIDTH,
+          // The preview's fixed width: a tight table scrolls, it does not squeeze the column toward the type's 152 px
+          minWidth: ENGINE_COLUMN_WIDTH,
           sortable: true,
           defaultVisible,
           known: () => null,

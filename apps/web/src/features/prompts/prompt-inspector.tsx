@@ -224,7 +224,21 @@ export function PromptInspector({
       toast({ type: 'error', title: t('runFailedTitle'), description: runProblem(error) });
       return;
     }
-    toast({ type: 'success', title: t('runQueued'), description: t('runQueuedHint') });
+    toast({
+      type: 'success',
+      title: t('runQueued'),
+      // What was asked and where, as the preview says it, then when the answers come
+      description: [
+        t('runQueuedAnswers', {
+          count: runnable.length,
+          engines: formatList(
+            runnable.map((e) => e.engine.label),
+            locale,
+          ),
+        }),
+        t('runQueuedHint'),
+      ].join(' '),
+    });
     // The run is in Runs at once, planned; the prompt's lists and its answers are read again too
     void queryClient.invalidateQueries({ queryKey: [...projectKey(scope.workspaceId, scope.projectId), 'runs'] });
     void refreshPrompts(queryClient, scope);

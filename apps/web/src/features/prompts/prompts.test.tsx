@@ -733,6 +733,16 @@ describe('Prompts: Mentioned and Cited per platform, filters and sort', () => {
     server.events.removeAllListeners();
   });
 
+  it('puts the type of a prompt in its Prompt cell, shown only from the cell width of the preview (24 rem)', async () => {
+    renderOnPrompts(promptsAs('viewer'), { searchParams: '?tab=prompts' });
+    const table = await grid();
+    await within(table).findByText(FIRST_TEXT);
+    const badge = within(table).getAllByText(/^(Question|Comparison|Recommendation|How to|Definition|Local)$/)[0];
+    if (badge === undefined) throw new Error('No prompt shows its type');
+    expect(badge).toHaveClass('hidden', '@sm:inline-flex');
+    expect(badge.closest('.\\@container')).not.toBeNull();
+  });
+
   it('offers Included and Only in the Branded filter', async () => {
     const { user } = renderOnPrompts(promptsAs('viewer'), { searchParams: '?tab=prompts' });
     await within(await grid()).findByText(FIRST_TEXT);

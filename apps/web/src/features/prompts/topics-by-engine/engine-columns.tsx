@@ -136,6 +136,8 @@ export function useByEngineColumns<TRow>({
       headerTooltip: view('gapTip'),
       priority: 3,
       width: GAP_WIDTH,
+      // The preview's 120 px: the type's own minimum is 152
+      minWidth: GAP_WIDTH,
       sortable: true,
       unknown: (row) => ({
         label: EMPTY_VALUE,

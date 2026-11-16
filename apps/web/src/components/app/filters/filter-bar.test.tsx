@@ -37,13 +37,22 @@ const FIELDS: FilterField[] = [
 
 let latest: FilterValues = {};
 
-function Harness({ initial = {}, nowrap }: { initial?: FilterValues; nowrap?: boolean }): ReactElement {
+function Harness({
+  initial = {},
+  nowrap,
+  compact,
+}: {
+  initial?: FilterValues;
+  nowrap?: boolean;
+  compact?: boolean;
+}): ReactElement {
   const [values, setValues] = useState<FilterValues>(initial);
   return (
     <FilterBar
       fields={FIELDS}
       values={values}
       nowrap={nowrap}
+      compact={compact}
       onChange={(next) => {
         latest = next;
         setValues(next);
@@ -74,6 +83,17 @@ describe('FilterBar', () => {
     expect(bar).not.toHaveClass('flex-wrap');
     expect(within(bar).getByRole('button', { name: 'Keyword contains: crm. Edit filter' })).toBeInTheDocument();
     expect(within(bar).getByRole('button', { name: 'Add a filter' })).toBeInTheDocument();
+  });
+
+  it('draws the 36 px chip and "+ Filter" by default, and the 32 px ones with compact', () => {
+    const initial: FilterValues = { kw: { kind: 'text', operator: 'contains', text: 'crm' } };
+    const plain = renderWithProviders(<Harness initial={initial} />);
+    expect(plain.container.querySelector('[data-filter-chip]')).toHaveClass('h-control');
+    expect(screen.getByRole('button', { name: 'Add a filter' })).not.toHaveClass('h-control-sm');
+    plain.unmount();
+    const compact = renderWithProviders(<Harness initial={initial} compact />);
+    expect(compact.container.querySelector('[data-filter-chip]')).toHaveClass('h-control-sm');
+    expect(screen.getByRole('button', { name: 'Add a filter' })).toHaveClass('h-control-sm');
   });
 
   it('names each chip and its remove button from the field and value', async () => {
