@@ -127,7 +127,7 @@ describe('the prompt inspector: what it shows', () => {
     // The citation rate is the average of the engines that show one: 4 of 6 and 0 of 8
     expect(within(strip).getByText('Citation rate')).toBeInTheDocument();
     expect(within(strip).getByText('33%')).toBeInTheDocument();
-    expect(within(strip).getByText('avg of 2')).toBeInTheDocument();
+    expect(within(strip).getByText('average of 2')).toBeInTheDocument();
     expect(await axe(container)).toHaveNoViolations();
   });
 

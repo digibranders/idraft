@@ -206,7 +206,7 @@ describe('the topic drawer: the numbers', () => {
     if (rates === null) throw new Error('The Rates card is missing');
     // The mean of 37.5% and 100%, over the two engines that have a rate
     expect(within(rates).getByText('69%')).toBeInTheDocument();
-    expect(within(rates).getAllByText('avg of 2').length).toBeGreaterThan(0);
+    expect(within(rates).getAllByText('average of 2').length).toBeGreaterThan(0);
     // No answer names a tracked brand, so there is no share of voice to average
     expect(within(rates).getByText('No valid answers')).toBeInTheDocument();
     const byEngine = within(panel).getByRole('heading', { name: 'By platform' }).closest('section');

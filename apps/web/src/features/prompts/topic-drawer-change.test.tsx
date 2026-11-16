@@ -144,10 +144,10 @@ const itemOf = (section: HTMLElement, id: string): HTMLElement => {
 };
 
 describe('the topic drawer: change on the three cards', () => {
-  it('shows the change of the average beside "avg of 2", coloured only when it is detectable', async () => {
+  it('shows the change of the average beside "average of 2", coloured only when it is detectable', async () => {
     renderDrawer();
     const mentioned = await valueOf('Mentioned');
-    expect(mentioned).toHaveTextContent('avg of 2');
+    expect(mentioned).toHaveTextContent('average of 2');
     expect(within(mentioned).getByText('+27.5 pts')).toHaveClass('text-positive-text');
     expect(mentioned).toHaveTextContent('up 27.5 pts, detectable, provisional');
     const cited = await valueOf('Cited');
@@ -174,7 +174,7 @@ describe('the topic drawer: change on the three cards', () => {
     const { user } = renderDrawer({ engines: TOPIC_ENGINES(false) });
     const mentioned = await valueOf('Mentioned');
     // The average shown is over both engines, the change is ChatGPT's alone
-    expect(mentioned).toHaveTextContent('avg of 2');
+    expect(mentioned).toHaveTextContent('average of 2');
     expect(within(mentioned).getByText('+30.0 pts')).toBeInTheDocument();
     await user.hover(stopOf(mentioned));
     await waitFor(() =>
@@ -228,7 +228,7 @@ describe('the topic drawer: change on the three cards', () => {
   it('draws no change and no tab stop without comparison', async () => {
     renderDrawer({ searchParams: '' });
     const mentioned = await valueOf('Mentioned');
-    expect(mentioned).toHaveTextContent('avg of 2');
+    expect(mentioned).toHaveTextContent('average of 2');
     expect(mentioned.textContent).not.toMatch(/\d pts/);
     expect(mentioned.querySelector('[tabindex="0"]')).toBeNull();
   });

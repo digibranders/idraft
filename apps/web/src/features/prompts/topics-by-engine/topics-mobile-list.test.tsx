@@ -71,9 +71,9 @@ describe('TopicsMobileList: the Groups tab on a phone (WB-TPE-17)', () => {
     const list = await screen.findByRole('list', { name: /^Groups, 3 results/ });
     const [seo, ads, tech] = within(list).getAllByRole('button');
     // SEO has a rate on 2 engines, Paid Search on 1, Technical SEO on none
-    expect(seo).toHaveTextContent('Mention rate, avg of 2');
+    expect(seo).toHaveTextContent('Mention rate, average of 2');
     expect(ads).toHaveTextContent('Mention rate, 1 platform');
-    expect(tech).not.toHaveTextContent('avg of 0');
+    expect(tech).not.toHaveTextContent('average of 0');
     expect(tech).toHaveTextContent('Mention rate, no platform has a rate');
   });
 

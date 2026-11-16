@@ -159,7 +159,7 @@ describe('RivalsTrend: the own brand against the competitors named most', () => 
   it('defaults to the average of the engines and names how many took part', async () => {
     renderRivals(rowWith([CHATGPT, GEMINI]));
     await screen.findByTestId('echart-canvas');
-    expect(screen.getByRole('combobox', { name: 'Platform' })).toHaveTextContent('avg of 2 platforms');
+    expect(screen.getByRole('combobox', { name: 'Platform' })).toHaveTextContent('average of 2 platforms');
     // Gamma 50 and 70 percent average 60, Beta 80 and 20 average 50, Delta 30 and 30 average 30: Epsilon (30) is no better
     expect(lineIds()).toEqual(['own', 'gamma', 'beta', 'delta']);
     const gamma = valuesOf('gamma');
@@ -233,7 +233,7 @@ describe('RivalsTrend: the own brand against the competitors named most', () => 
     const select = screen.getByRole('combobox', { name: 'Platform' });
     expect(select).toHaveTextContent('Gemini');
     await user.click(select);
-    await user.click(await screen.findByRole('option', { name: 'avg of 2 platforms' }));
+    await user.click(await screen.findByRole('option', { name: 'average of 2 platforms' }));
     await waitFor(() => expect(lineIds()).toEqual(['own', 'beta', 'gamma', 'delta']));
     expect(screen.queryByText('No competitor mentioned')).toBeNull();
   });

@@ -92,7 +92,7 @@ describe('TopicHeatmap: the groups by platform as a heat map (CH-04)', () => {
     const { unmount } = renderWithProviders(<TopicHeatmap {...props()} />);
     const grid = await screen.findByRole('grid');
     expect(within(grid).getByRole('columnheader', { name: 'Average of 2' })).toBeInTheDocument();
-    const average = within(grid).getByRole('gridcell', { name: /^SEO, avg of 2: 56%/ });
+    const average = within(grid).getByRole('gridcell', { name: /^SEO, average of 2: 56%/ });
     expect(average).toHaveTextContent('56%');
     expect(average.getAttribute('aria-label')).toContain(
       'Equal weight average of ChatGPT and Gemini, each platform and each prompt counting once.',
@@ -105,7 +105,7 @@ describe('TopicHeatmap: the groups by platform as a heat map (CH-04)', () => {
     expect(within(single).queryByRole('columnheader', { name: /^Average of/ })).toBeNull();
   });
 
-  it('never says avg of 0: a row with one platform says one platform, a row with none says there is no average', async () => {
+  it('never says average of 0: a row with one platform says one platform, a row with none says there is no average', async () => {
     const heads = [
       head('lone', 'Lone', { engines: [engine('chatgpt_web', { mentioned: weighted(3, 8, 2) })] }),
       head('thin', 'Thin', { engines: [engine('chatgpt_web', { mentioned: weighted(2, 3, 2) })] }),
@@ -124,7 +124,7 @@ describe('TopicHeatmap: the groups by platform as a heat map (CH-04)', () => {
     expect(
       within(grid).getByRole('gridcell', { name: /^Empty, average of the platforms: No answers/ }),
     ).toHaveTextContent('n/a');
-    expect(within(grid).queryByLabelText(/avg of 0/)).toBeNull();
+    expect(within(grid).queryByLabelText(/average of 0/)).toBeNull();
   });
 
   it('a cell links to the drawer on Prompts with that platform and keeps the filters', async () => {
