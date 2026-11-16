@@ -137,9 +137,9 @@ describe('the AI visibility page of a project with platforms on', () => {
     renderWithProviders(overviewAs('admin'));
     const layout = SCREENS.ai_overview.builtin.cards ?? [];
     expect(layout).toHaveLength(11);
-    // The referral card needs the GA4 integration, which no project offers yet, so the page leaves it out
+    // The referral card says GA4 is not connected itself, so the page keeps it in its place with the others
     const cards = layout.filter((card) => cardType(card.type)?.integration === null);
-    expect(cards).toHaveLength(10);
+    expect(cards).toHaveLength(11);
     // A card that a family registers replaces its placeholder: only the others are pending
     const built = new Set(FAMILIES.flatMap((family) => Object.keys(family)));
     const pending = cards.filter((card) => !built.has(card.type));
@@ -305,7 +305,7 @@ describe('the headline of the AI visibility page', () => {
     renderWithProviders(overviewAs('admin'));
     expect(await screen.findByText('Could not load Headline numbers')).toBeInTheDocument();
     await waitFor(() => {
-      expect(cardIds()).toHaveLength(10);
+      expect(cardIds()).toHaveLength(11);
     });
   });
 
