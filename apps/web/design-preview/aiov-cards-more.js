@@ -114,7 +114,7 @@ export function groupHeatmapCard(ctx) {
     });
   });
   table.append(head, body);
-  const wrap = el('div', 'overflow-x-auto');
+  const wrap = el('div', 'relative overflow-x-auto');
   wrap.append(table);
   return cardFrame({
     key: 'ai.topic_heatmap',
@@ -164,7 +164,7 @@ export function groupPromptsCard(ctx) {
     body.append(tr);
   });
   table.append(head, body);
-  const wrap = el('div', 'overflow-x-auto');
+  const wrap = el('div', 'relative overflow-x-auto');
   wrap.append(table);
   const link = el('a', 'type-body text-link hover:underline', `View all ${rows.length} prompts`);
   link.href = '#/prompts/explorer';
@@ -382,7 +382,7 @@ export function fanoutCard(ctx) {
     body.append(tr);
   });
   table.append(head, body);
-  const wrap = el('div', 'overflow-x-auto');
+  const wrap = el('div', 'relative overflow-x-auto');
   wrap.append(table);
   return cardFrame({
     key: 'ai.fanout_top',
@@ -472,7 +472,7 @@ export function calendarCard() {
     body.append(tr);
   });
   table.append(head, body);
-  const wrap = el('div', 'overflow-x-auto');
+  const wrap = el('div', 'relative overflow-x-auto');
   wrap.append(table);
   return cardFrame({
     key: 'ops.answer_calendar',

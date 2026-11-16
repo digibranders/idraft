@@ -61,7 +61,8 @@ function tileNode({ label, info, cell, ctx, series, plain, measure }) {
   const node = el('div', 'bg-surface px-3.5 py-3 flex flex-col justify-between gap-1 min-w-0');
   // The label and its info button share one row; the label gives way (it truncates), the button never leaves the tile
   const head = el('div', 'flex items-center justify-between gap-1 min-w-0');
-  head.append(el('span', 'type-label text-foreground-secondary truncate min-w-0', label));
+  // A long label wraps to a second line instead of being cut, so the button always has its room
+  head.append(el('span', 'type-label text-foreground-secondary min-w-0 line-clamp-2', label));
   if (info) {
     const button = infoButton(label, info);
     button.classList.add('-my-1.5', '-mr-1.5');
@@ -172,8 +173,8 @@ export function headlineRow(ctx) {
     mention: () => tileNode({ label: MEASURES.mention.label, info: MEASURES.mention.info, cell: cell('mention'), ctx, measure: 'mention', series: seriesFor(model, 'mention', ctx.scope.platform) }),
     sov: () => tileNode({ label: MEASURES.sov.label, info: MEASURES.sov.info, cell: cell('sov'), ctx, measure: 'sov', series: seriesFor(model, 'sov', ctx.scope.platform) }),
     citation: () => tileNode({ label: MEASURES.citation.label, info: MEASURES.citation.info, cell: cell('citation'), ctx, measure: 'citation', series: seriesFor(model, 'citation', ctx.scope.platform) }),
-    position: () => tileNode({ label: MEASURES.position.label, info: MEASURES.position.info, cell: cell('position'), ctx, measure: 'position', series: seriesFor(model, 'position', ctx.scope.platform) }),
-    recommendation: () => tileNode({ label: MEASURES.recommendation.label, info: MEASURES.recommendation.info, cell: cell('recommendation'), ctx, measure: 'recommendation', series: seriesFor(model, 'recommendation', ctx.scope.platform) }),
+    position: () => tileNode({ label: 'Mention position', info: MEASURES.position.info, cell: cell('position'), ctx, measure: 'position', series: seriesFor(model, 'position', ctx.scope.platform) }),
+    recommendation: () => tileNode({ label: 'Recommendation', info: MEASURES.recommendation.info, cell: cell('recommendation'), ctx, measure: 'recommendation', series: seriesFor(model, 'recommendation', ctx.scope.platform) }),
     sentiment: () => {
       const sentiment = cell('sentiment');
       const node = tileNode({ label: 'Sentiment', info: MEASURES.sentiment.info, cell: sentiment, ctx, measure: 'sentiment', series: seriesFor(model, 'sentiment', ctx.scope.platform) });
@@ -183,7 +184,7 @@ export function headlineRow(ctx) {
       const kind = { exclude: 'core prompts, not branded', include: 'core and branded prompts', only: 'branded prompts' }[ctx.scope.branded];
       const where = ctx.scope.group === 'all' ? kind : `${kind}, in ${ctx.scope.group.split(':')[1]}`;
       const withAnswers = ctx.scope.platform === 'all' ? null : aggregateFor(model, ctx.scope.platform).prompts;
-      return tileNode({ label: MEASURES.prompts.label, info: MEASURES.prompts.info, ctx, plain: { value: formatInteger(model.prompts.length), detail: withAnswers === null ? where : `${where}. ${withAnswers} with answers on ${engineName(ctx.scope.platform)}`, note: null } });
+      return tileNode({ label: 'Prompts', info: MEASURES.prompts.info, ctx, plain: { value: formatInteger(model.prompts.length), detail: withAnswers === null ? where : `${where}. ${withAnswers} with answers on ${engineName(ctx.scope.platform)}`, note: null } });
     },
     runs: () => tileNode({ label: 'Runs', info: 'Weekly collection runs behind these numbers. Prompts are asked on the schedule of their panel.', ctx, plain: { value: String(RUNS.inWindow), detail: `Run ${RUNS.number}, last ${ctx.scope.platform === 'all' ? RUNS.last : lastRunOf(ctx.scope.platform)}`, note: null } }),
   };
@@ -198,12 +199,13 @@ export function headlineRow(ctx) {
 const METRIC_TABS = HEAT_METRICS.map((key) => ({ key, label: MEASURES[key].short }));
 
 export function segmented(items, current, onPick, label) {
-  const group = el('div', 'inline-flex rounded-md border border-border bg-surface p-0.5');
+  // On a phone the four options can be wider than the card: the control then scrolls inside itself, not the card
+  const group = el('div', 'inline-flex max-w-full overflow-x-auto rounded-md border border-border bg-surface p-0.5');
   group.setAttribute('role', 'group');
   group.setAttribute('aria-label', label);
   items.forEach((item) => {
     const pressed = item.key === current;
-    const button = el('button', `h-control-sm px-2.5 rounded-sm type-body whitespace-nowrap ${pressed ? 'bg-primary-subtle text-primary-text type-body-strong' : 'text-foreground-secondary hover:bg-surface-hover hover:text-foreground'}`, item.label);
+    const button = el('button', `h-control-sm px-2 shrink-0 rounded-sm type-body whitespace-nowrap ${pressed ? 'bg-primary-subtle text-primary-text type-body-strong' : 'text-foreground-secondary hover:bg-surface-hover hover:text-foreground'}`, item.label);
     button.type = 'button';
     button.setAttribute('aria-pressed', String(pressed));
     button.addEventListener('click', () => onPick(item.key));
