@@ -60,9 +60,9 @@ Columns: **ID**, **Label** (singular / plural), **Definition** (one sentence, st
 
 | ID | Label | Definition | Is not | Banned | Where used | Translation | Status |
 |---|---|---|---|---|---|---|---|
-| C1 | Group / Groups | A named set of keywords or of prompts that numbers are rolled up by. A group row opens onto the items inside it. Same word on both sides. | Not a tag. Not a kind of paid job. Not a domain type. | Topic, Category, Cluster, Theme, Collection, List, Folder, Term, Segment | Keywords, Prompts, Overview select and cards, schedules, reports | Gruppe, groupe, grupo. "Topic" and "Cluster" stay English in German and confuse clients | D1 |
+| C1 | Group / Groups | A named set of keywords or of prompts that numbers are rolled up by. A group row opens onto the items inside it. Same word on both sides. | Not a tag. Not a kind of paid job. Not a domain type. | Topic, Category, Cluster, Theme, Collection, List, Folder, Term, Segment | Keywords, Prompts, Overview select and cards, schedules, reports | Gruppe, groupe, grupo. "Topic" and "Cluster" stay English in German and confuse clients | Decided (D1) |
 | C2 | Subgroup / Subgroups | A group inside another group, written as a path "Services / Audits". | Not a second kind of object. | Child group, Nested group, Subtopic, Level | Group manager, "Add subgroup", "includes subgroups" | Untergruppe, sous-groupe | Firm |
-| C3 | Primary group | The one group a prompt must have, so that group numbers add up to the total. Shown only in the add and edit prompt dialogs and the info texts that say the groups add up. | Not the only group a keyword may have. | Main topic, Default group | Add and edit prompt dialogs | Safe | D1 |
+| C3 | Primary group | The one group a prompt must have, so that group numbers add up to the total. Shown only in the add and edit prompt dialogs and the info texts that say the groups add up. | Not the only group a keyword may have. | Main topic, Default group | Add and edit prompt dialogs | Safe | Decided (D1) |
 | C4 | Group row (design name, not shown to users) | A table row for a group that opens to show the prompts or keywords inside it. Users see only "Groups", the toggle "By group" and "All prompts" or "All keywords". | | Accordion, Topic drawer, Parent row | Specs and design docs | Not translated | Firm |
 | C5 | Tag / Tags | A free label on a keyword or prompt. An item can have many. Tags do not form a tree and are never used for totals. | Not a group. No subtags. | Label (for this), Keyword label | Keyword rows, filters, bulk edit | Loanword in German and Dutch; French étiquette | Firm |
 | C6 | Tag set / Tag sets (settings page "Tags") | A named list of tags that belong together, for example Products, Services, Campaigns, Personas. Replaces "vocabulary" and "taxonomy". | Not a group. | Vocabulary, Taxonomy, Dimension, Facet, Classification | Settings page, tag pickers (shown as "Persona: Enterprise") | Safe | D8 |
@@ -375,3 +375,4 @@ sentences move to the Sample data badge. The same text is used for the card, its
 | Date | Term | Old | New | Reason |
 |---|---|---|---|---|
 | 2026-11-16 | all | | first proposal | Created by the glossary research session |
+| 2026-11-16 | Group (C1, C3) | Group or Topic open | Group decided | Owner chose Group for keywords and prompts (D1) |

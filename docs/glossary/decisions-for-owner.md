@@ -23,7 +23,7 @@ at commit `6ffe86e2`.
 
 These change how users read the product. They are listed first, in order of impact.
 
-1. **D1 Group or Topic**, and one word for both keywords and prompts.
+1. **D1 Group or Topic**, and one word for both keywords and prompts. **Decided: Group.**
 2. **D3 Location or Country.**
 3. **D4 What happens to "Source"**, and the Citations and Sources pages.
 4. **D5 Rank or Position**, and what the AI order of a mention is called.
@@ -82,6 +82,11 @@ Two things the word does not fix, so read before choosing:
 
 Recommendation: **A**. The strongest argument for B is the market, and the cost of B is large for a gain that only
 users who come from another tool feel. Revisit if onboarding interviews show users hunting for "Topics".
+
+**DECIDED 2026-11-16 by the owner: Group (option A).** Group is the one word for keywords and prompts, with Subgroup,
+and Tag stays separate. The real app needs no rename for it; the design preview Prompts mock changes from Topic to
+Group (`application-plan.md` section 5). Open dependency, not a word: whether the backend unifies keyword groups and
+prompt groups into one list (spec D4).
 
 ### D3. Location or Country
 
