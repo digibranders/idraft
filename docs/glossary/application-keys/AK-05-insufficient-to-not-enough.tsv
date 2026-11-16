@@ -1,0 +1,35 @@
+key	current text
+common.statistics.noIntervalInsufficient	No interval: too few valid answers
+runs.coverage.thin	{planned, number} planned, too few for a rate
+prompts.rate.insufficientInline	too few answers ({count, number})
+prompts.strip.tipInsufficient	{basis}, too few for a rate
+prompts.topicDrawer.byEngineView.gapDetailLeftOut	{counts}. Left out for too few answers: {engines}.
+prompts.topicDrawer.compare.leftOut	Left out for too few answers: {engines}.
+prompts.topicDrawer.trend.cellThin	{basis}, {prompts, plural, one {# prompt} other {# prompts}}, too few answers for a rate
+prompts.inspector.history.cellThin	{value}, {basis}, too few for an interval
+aiOverview.numbers.tipFew	{count, plural, one {# valid answer} other {# valid answers}}, too few for a rate (it needs {min, number}), {invalid, plural, one {# answer} other {# answers}} not valid
+aiOverview.numbers.tipFewUnits	{count, plural, one {# citation unit} other {# citation units}}, too few for a share (it needs {min, number})
+aiOverview.numbers.tipFewNaming	{count, plural, one {# answer} other {# answers}} naming a tracked brand, too few for a rate (it needs {min, number}), {invalid, plural, one {# answer} other {# answers}} not valid
+aiOverview.numbers.tipNoChange	No change shown: a window has too few valid answers for a rate
+aiOverview.engines.trend.summaryThin	{engine}: {count, plural, one {# answer} other {# answers}}, too few for a rate.
+aiOverview.engines.comparison.rowThin	{engine}: too few answers to compare, {nBefore, number} before and {nNow, number} now
+aiOverview.engines.comparison.summaryThin	{engine} has too few answers to compare
+aiOverview.engines.waterfall.detailTooFew	{count, plural, one {# prompt} other {# prompts}} with too few answers
+aiOverview.engines.waterfall.summary	{engine} {metric} went from {start} to {end}: {rose} from prompts that rose, {fell} from prompts that fell, {tooFew} from prompts with too few answers and {setChanged} from the change of the prompt set.
+aiOverview.engines.outcomeMix.summaryThin	{engine}: too few valid answers to give a share, {count, plural, one {# answer} other {# answers}}.
+aiOverview.engines.agreement.leftOutLabel	Left out, too few answers
+aiOverview.engines.agreement.summaryLeftOut	{count, plural, one {# prompt was} other {# prompts were}} left out for too few valid answers.
+aiOverview.engines.country.rowThin	{engine}: {count, plural, one {# answer} other {# answers}}, too few for a rate
+aiOverview.competitors.trend.summaryUnknown	Mention rate by week on {engine}. This window has too few answers for a comparison.
+aiOverview.competitors.sovRank.cellNone	No rank: too few answers
+aiOverview.topics.extremes.notRanked	{engine}: {count, plural, one {# group has} other {# groups have}} too few answers or prompts.
+aiOverview.topics.gap.verdict.tooFew	too few answers to tell
+aiOverview.topics.gap.scope	Only the most specific groups are compared, and a group needs a rate on at least two platforms. The line runs from the lowest to the highest platform. A platform with too few answers has no dot and its answers are written beside the group. The reading is an unpaired test on the pooled answers of the platforms that differ most.
+aiOverview.topics.trends.band	The shaded band is the 95 percent interval of the answers behind a week. A hollow point has too few answers for a band. A week with no valid answer is a gap, never 0.
+aiOverview.topics.multiples.band	The shaded band is the 95 percent interval of the answers behind a week. A hollow point has too few answers for a band. A week with no valid answer is a gap, never 0.
+aiOverview.topics.topPrompts.tooFew	{count, plural, one {# prompt has} other {# prompts have}} too few answers to rank.
+aiOverview.topics.scatter.excluded	{count, plural, one {# group has} other {# groups have}} too few answers on mention or citation and {count, plural, one {is} other {are}} not plotted. The Table form lists {count, plural, one {it} other {them}} with the answers.
+aiOverview.sources.topDomains.rowTextThin	{name}, {role}: too few answers for a share, {count, plural, one {# answer} other {# answers}}
+aiOverview.sources.roleShare.summaryThin	{engine}: {answers, plural, one {# citing answer} other {# citing answers}}, {units, plural, one {# unit} other {# units}}, too few for a share.
+aiOverview.sources.roleShare.footnoteThin	A platform is marked too few when fewer than {min, number} answers cite on it. The answer count shown is an upper bound, because one answer can cite several roles.
+aiOverview.sources.fanout.rowTextThin	{text}, too few answers for a share, {count, plural, one {# answer} other {# answers}}

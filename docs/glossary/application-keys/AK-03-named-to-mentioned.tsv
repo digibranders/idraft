@@ -1,0 +1,78 @@
+key	current text
+evidence.facts.order	Order among the brands named
+evidence.compare.title	Change since the last answer that named the brand
+evidence.compare.brandsTitle	Brands named
+entitySettings.empty.own	No own brand yet. The brand named when the project was created is its own brand.
+taxonomySettings.termDialog.moveDuplicate	A term named {name} is already there.
+integrations.chooser.linked	Already linked to another project.
+integrations.chooser.overlap	Overlaps {property}, which is linked to a project. The two are never added together.
+integrations.chooser.taken	That property, or this project, is already linked. The list was reloaded.
+integrations.disconnect.descriptionShared	idraft revokes its access at Google and deletes the saved sign-in. {count, plural, one {# property} other {# properties}} linked to projects use this connection, for Search Console and GA4, and stop syncing. The numbers already stored are kept.
+prompts.topicDrawer.byEngineView.leaderNone	None named
+prompts.topicDrawer.byEngineView.leaderNoneTip	No tracked competitor is named in the answers of this group on {engine}.
+prompts.topicDrawer.byEngineView.leaderTip	{name}: {share} share of voice on {engine}, {answers, plural, one {# answer} other {# answers}} naming a brand. Own brand {own}.
+prompts.topicDrawer.panel.shareContext	{answers, plural, one {# answer} other {# answers}} naming a brand, {prompts, plural, one {# prompt} other {# prompts}}
+prompts.topicDrawer.rivals.metaNone	Mention rate of the own brand and the competitors named most
+prompts.topicDrawer.rivals.noneTitle	No competitor named
+prompts.topicDrawer.rivals.noneReason	No tracked competitor is named in the answers of this group on the chosen platform.
+prompts.topicDrawer.rivals.summary	Mention rate of the own brand and of the competitors named most, week by week.
+prompts.inspector.competitors.caption	Brands named in the answers to this prompt
+prompts.inspector.competitors.explain	A mention is a tracked brand named in an answer. The counts are over the valid answers of this window.
+prompts.inspector.competitors.emptyTitle	No competitor was named in the answers of this window
+prompts.answer.noMentions	No tracked brand is named
+prompts.compare.tip.previousShare	Previous {rate}, {count, plural, one {# answer} other {# answers}} naming a brand
+aiOverview.numbers.ofNaming	of {total, number} answers naming a tracked brand
+aiOverview.numbers.noBrand	No brand named
+aiOverview.numbers.tipFewNaming	{count, plural, one {# answer} other {# answers}} naming a tracked brand, too few for a rate (it needs {min, number}), {invalid, plural, one {# answer} other {# answers}} not valid
+aiOverview.engines.changeSummary.rulesGained	Prompts that named you before and no longer do, and the reverse, are counted over prompts with 4 or more valid answers on that platform in both windows. A prompt names you when at least one of its valid answers does. The others, including prompts with no answers on that platform in one window, are counted in the Table view.
+aiOverview.engines.byEngine.noBrandNamed	No brand named
+aiOverview.engines.funnel.shareCited	{percent}, {counts} answers naming you
+aiOverview.engines.funnel.summaryEngine	{engine}: {answers, number} answers, {valid, number} valid, {named, number} naming you, {cited, number} naming and citing you.
+aiOverview.engines.agreement.stepHeader	Platforms naming you
+aiOverview.engines.agreement.footnote	A platform names you on a prompt when it has {min, number} or more valid answers on it and at least one of them names you. A prompt with fewer than {min, number} valid answers on any of these platforms is left out and counted, never read as unnamed. One answer that names you is enough for a prompt to count as named, so this is not the prompt weighted rate of the strip. Platforms are never pooled: each is counted on its own.
+aiOverview.engines.country.noBrandNamed	No brand named
+aiOverview.competitors.shareOfVoice.meta	{window} · of {count, plural, one {# answer} other {# answers}} naming a tracked brand · {branded, select, excluded {branded prompts left out} only {branded prompts only} other {branded prompts included}}
+aiOverview.competitors.shareOfVoice.named	named in {k} of {n, plural, one {# answer} other {# answers}}
+aiOverview.competitors.shareOfVoice.rowTip	{value} of {count, plural, one {# answer} other {# answers}} naming a tracked brand
+aiOverview.competitors.lostTo.summary	Prompts where a competitor is named and you are not, on {engine}, of {total, plural, one {# prompt} other {# prompts}} with {min} or more valid answers: {list}.
+aiOverview.competitors.lostTo.rowTip	{name} is named and you are not named in any answer of the prompt. Only prompts with {min} or more valid answers count.
+aiOverview.competitors.lostTo.noneReason	In each of the {total, plural, one {# prompt} other {# prompts}} with {min} or more valid answers, you are named or no competitor is.
+aiOverview.competitors.opportunities.citedNotNamed	Cited, not named
+aiOverview.competitors.opportunities.nobodyNamed	No tracked brand named
+aiOverview.competitors.opportunities.tipLostTo	Prompts where {name} is named and you are not named in any answer. Only prompts with {min} or more valid answers on a platform count.
+aiOverview.competitors.trend.exportNaming	Answers naming the brand
+aiOverview.competitors.sovOverTime.exportAnswers	Answers naming a tracked brand
+aiOverview.competitors.sovOverTime.cell	{value}, of {answers, plural, one {# answer} other {# answers}} naming a tracked brand
+aiOverview.competitors.sovOverTime.summary	Share of voice by week on {engine}. In the week of {date} you hold {value} of {answers, plural, one {# answer} other {# answers}} naming a tracked brand.
+aiOverview.competitors.sovOverTime.summaryNone	Share of voice by week on {engine}. No week of this window has enough answers naming a tracked brand.
+aiOverview.competitors.sovRank.exportAnswers	Answers naming a tracked brand
+aiOverview.competitors.sovRank.footerAnswers	{answers, plural, one {# answer} other {# answers}} naming a tracked brand
+aiOverview.competitors.sovRank.footerPooled	{answers, plural, one {# answer} other {# answers}} naming a tracked brand, {weeks, plural, one {# week} other {# weeks}} together
+aiOverview.competitors.sovRank.footnoteTrailing	Rank 1 is the highest share of voice, and equal shares share the lower rank. Each week is ranked on the answers of the last 4 weeks together, so one small week does not reorder the brands. A week with fewer than {min, number} answers naming a tracked brand has no rank.
+aiOverview.competitors.sovRank.footnoteAsRead	Rank 1 is the highest share of voice, and equal shares share the lower rank. Each week is ranked on the points as the server pooled them. A week with fewer than {min, number} answers naming a tracked brand has no rank.
+aiOverview.competitors.sovRank.summaryNone	Share of voice rank on {engine}. No week of this window has enough answers naming a tracked brand.
+aiOverview.competitors.coMentions.title	Who we are named with on {engine}
+aiOverview.competitors.coMentions.summary	Brands named in the same answer as you on {engine}, of {count, plural, one {# valid answer} other {# valid answers}}: {list}.
+aiOverview.competitors.coMentions.summaryNone	Too few valid answers on {engine} to read which brands are named together.
+aiOverview.competitors.coMentions.pairTip	{value}: {first} and {second} named together in {k} of {n, plural, one {# answer} other {# answers}}
+aiOverview.competitors.coMentions.diagonalTip	{value}: {name} named in {k} of {n, plural, one {# answer} other {# answers}}
+aiOverview.competitors.coMentions.omitted	{count, plural, one {# tracked brand is} other {# tracked brands are}} not drawn: the grid keeps you and the brands named most often.
+aiOverview.competitors.coMentions.infoDefinition	How often two tracked brands are named in the same answer of one platform.
+aiOverview.competitors.table.namedIn	named in <count></count>
+aiOverview.competitors.table.ofNaming	of <count></count> naming a tracked brand
+aiOverview.competitors.table.named	named in {k} of {n, plural, one {# answer} other {# answers}}
+aiOverview.competitors.table.ofNamingPlain	of {n, plural, one {# answer} other {# answers}} naming a tracked brand
+aiOverview.competitors.table.noteShare	Each cell is one platform: the share of its answers naming a tracked brand that go to this brand. Platforms are not pooled. A change in share of voice is never coloured.
+aiOverview.topics.disagreement.noneTitle	No prompt is named by one platform and missed by another
+aiOverview.topics.promptWeek.footnoteColumns	Columns are weeks, oldest first, each named by its Monday. Cell colour by rate: {bins}. A week without a valid answer is n/a.
+aiOverview.topics.scatter.summary	Citation rate against mention rate on {engine}: {count, plural, one {# group} other {# groups}}, one point each, sized by prompts. A point on the dashed diagonal is cited as often as it is named.
+aiOverview.topics.scatter.reference	Cited as often as named
+aiOverview.topics.scatter.scope	The dashed line marks groups cited as often as they are named: above it a group is cited more often than named, below it named more often than cited. Both axes run from 0 to {ceiling}, and the gap is mention minus citation in points. Only the most specific groups are shown, and a point is sized by its prompts.
+aiOverview.sources.common.noOwnPagesReason	Answers cited other sources, and none of them is a page of yours. The prompts where your brand is named are the first place to look.
+citations.table.citedWithCell	{name}, named in {count, plural, one {# answer} other {# answers}} that cite it
+citations.table.citedWithNone	None named
+citations.table.citedWithPageTip	The entity named most often beside the domain of this page. It is a figure of the domain, not of the page.
+citations.table.citedWithPageCell	{name}, named in {count, plural, one {# answer} other {# answers}} that cite this domain, not only this page
+citations.inspectors.domain.coLead	The tracked entities named most often in the answers that cite this domain.
+citations.inspectors.domain.coCell	named in {count, plural, one {# answer} other {# answers}}
+citations.inspectors.domain.coNone	None named

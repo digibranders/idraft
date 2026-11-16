@@ -1,0 +1,19 @@
+key	current text
+chart.heatmap.none	n/a
+runs.coverage.none	n/a
+rankings.rank.unavailable	n/a
+rankings.aio.unknown	n/a
+rankings.competitor.notTracked	n/a
+rankings.strip.unavailable	n/a
+keywordDetail.strip.unavailable	n/a
+aiOverview.topics.promptWeek.footnoteColumns	Columns are weeks, oldest first, each named by its Monday. Cell colour by rate: {bins}. A week without a valid answer is n/a.
+aiOverview.activity.engines.partial	Schedules could not be read, so days and next runs show n/a
+citations.noOwn.promptUnknown	Prompt {id}, text n/a
+citations.mobile.shareUnknown	Share n/a
+citations.inspectors.domain.categoryNone	Category n/a
+citations.inspectors.domain.coNameUnknown	Name n/a
+citations.inspectors.domain.promptUnknown	Prompt {id}, text n/a
+citations.inspectors.domain.enginesUnknown	n/a
+citations.inspectors.domain.enginesPartial	The platforms of the prompts could not be loaded, so they read n/a.
+citations.inspectors.source.categoryNone	Category n/a
+citations.inspectors.source.promptUnknown	Prompt {id}, text n/a

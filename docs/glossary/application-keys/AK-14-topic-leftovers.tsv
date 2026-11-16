@@ -1,0 +1,6 @@
+key	current text
+taxonomySettings.description	The vocabularies keywords and prompts are filed under: topics, products, markets and more. Workspace vocabularies are shared by every project.
+taxonomySettings.kinds.topic	Topics
+rankings.import.topicVocabulary	Vocabulary for topics
+rankings.import.fields.topic	Topic
+rankings.import.reasons.topicInvalid	A topic path is at most 10 names of 1 to 100 characters joined by /.

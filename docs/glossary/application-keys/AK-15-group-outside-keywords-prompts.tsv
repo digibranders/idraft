@@ -1,0 +1,19 @@
+key	current text
+projectSettings.schedules.selector.groups	Groups: {names}
+projectSettings.schedules.dialog.selectorModes.groups	Groups and terms
+projectSettings.schedules.dialog.selectorModeHints.groups	Only keywords in the groups or terms you choose. With both, a keyword needs both.
+projectSettings.schedules.dialog.groups	Groups
+projectSettings.schedules.dialog.groupsPlaceholder	Choose groups
+projectSettings.schedules.dialog.groupsEmpty	No group matches “{query}”
+projectSettings.schedules.dialog.groupsChips	Chosen groups
+projectSettings.schedules.dialog.removedGroup	Removed group
+projectSettings.schedules.dialog.groupsOrTermsRequired	Choose at least one group or term.
+projectSettings.schedules.dialog.reading	Reading the groups and terms
+projectSettings.schedules.dialog.readFailed	The groups and terms could not be loaded, so they cannot be chosen yet.
+projectSettings.schedules.errors.groupUnknown	A chosen group no longer exists. Remove it and try again.
+budgets.table.scopeAndGroup	Scope and group
+budgets.dialog.group	Group
+budgets.dialog.fixedReason	The scope and the group cannot change. Delete this budget and add another.
+budgets.dialog.limitHint	Per month, with up to two decimal places. 0 blocks every run in the group.
+budgets.dialog.pauseHint	New runs in this group are blocked until the limit is raised or the month ends.
+budgets.dialog.errors.duplicate	A budget for this scope and group already exists. Edit it instead.

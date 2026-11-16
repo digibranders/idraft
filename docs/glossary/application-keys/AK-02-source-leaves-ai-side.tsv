@@ -1,0 +1,82 @@
+key	current text
+evidence.quotedPassage.label	Passages the platform quoted from its sources
+entitySettings.domains.description	Pages on these sites count as this entity's in rankings and cited sources.
+domainSettings.description	The sites that count as each entity's in rankings and cited sources. Change them in <link>Entities and aliases</link>.
+costs.sources	Cost sources: provider reported {provider}, from tokens {tokens}, price book estimate {estimate}
+integrations.tabs.label	Data sources
+prompts.inspector.latest.sourcesLabel	Top sources of this answer
+prompts.answer.adsNote	Ads in the answer are left out of the mentions and the sources.
+prompts.answer.noSources	No source cited
+prompts.answer.noSourcesReason	The answer lists no source.
+prompts.citationsTab.domains.notCitedLead	Your domain is not cited in any of the {answers, plural, one {# answer} other {# answers}} read. These sources are cited instead.
+prompts.citationsTab.domains.emptyReason	The answers read cite no source. Each prompt is asked twice a week; choose a longer window to see earlier answers.
+prompts.citationsTab.lost.failed	Lost sources could not be loaded.
+prompts.citationsTab.answers.noSources	No source in this answer
+aiOverview.engines.changeSummary.rulesSources	New domains are written only when the sources read answered and the previous window has answers.
+aiOverview.activity.keyChanges.partNewSources	new sources
+aiOverview.sources.common.brandedOnlyReason	Leave branded prompts out or include them to see the sources.
+aiOverview.sources.common.noCitationsTitle	No answer cited a source in this window
+aiOverview.sources.common.noCitationsReason	{answers, plural, one {# answer was} other {# answers were}} collected in this window, and none cited a source.
+aiOverview.sources.common.noOwnPagesReason	Answers cited other sources, and none of them is a page of yours. The prompts where your brand is named are the first place to look.
+aiOverview.sources.common.noWeeklyUnitsTitle	No source was cited in any week of this window
+aiOverview.sources.topDomains.citing	Answers that cite a source:
+aiOverview.sources.roleShare.title	Citation share by source role and platform
+aiOverview.sources.roleShare.subject	citation share by source role
+aiOverview.sources.roleShare.fileName	citation-share-by-source-role
+aiOverview.sources.roleShare.caption	Citation units by source role, by platform
+aiOverview.sources.roleShare.summaryIntro	Citation units by source role, one bar for each platform.
+aiOverview.sources.roleShare.footnoteRoles	Roles only: categories such as media or review sites arrive with source intelligence.
+aiOverview.sources.fanout.tipAssociation	An association, not a link: which search found which source is not stored.
+aiOverview.sources.newLost.title	New and lost sources
+aiOverview.sources.newLost.subject	new and lost sources
+aiOverview.sources.newLost.fileName	new-and-lost-sources
+aiOverview.sources.newLost.unknownNoAnswers	No answers in the window before: new sources cannot be told
+aiOverview.sources.newLost.unknownUnread	The window before could not be read: new sources cannot be told
+aiOverview.sources.newLost.summary	New and lost sources. {newCount, plural, one {# domain is} other {# domains are}} new and {lostCount, plural, one {# domain is} other {# domains are}} lost in this window.
+aiOverview.sources.newLost.summaryNone	New and lost sources.
+aiOverview.sources.newLost.summaryUnknown	New and lost sources. New domains cannot be told for this window. {lostCount, plural, one {# domain is} other {# domains are}} lost.
+aiOverview.sources.newLost.infoName	New sources
+aiOverview.sources.diversity.subject	source diversity over time
+aiOverview.sources.diversity.fileName	source-diversity-over-time
+aiOverview.sources.diversity.viewEffective	Effective sources
+aiOverview.sources.diversity.valueEffective	{value} effective sources
+aiOverview.sources.diversity.cellEffective	{value} effective sources, {units, plural, one {# citation unit} other {# citation units}} in {domains, plural, one {# domain} other {# domains}}
+aiOverview.sources.diversity.footnoteAverage	Equal-weight mean of the platforms with units: {value} effective sources.
+aiOverview.sources.diversity.effectiveHeader	Effective sources
+aiOverview.sources.diversity.infoEffectiveName	Effective sources
+aiOverview.sources.diversity.infoEffectiveFormula	The square of the total citation units, divided by the sum of each domain's citation units squared (the inverse of the Herfindahl index of the source shares). Both inputs, units and domains of each week, are in the Table view.
+citations.filters.emptyReason	Change or clear a filter to see sources again.
+citations.views.competitors	Competitor sources
+citations.views.thirdParty	Third party sources
+citations.strip.effective	Effective sources
+citations.strip.effectiveInfoName	Effective sources
+citations.strip.effectiveInfoDefinition	How many sources the citations spread over. 1 means one domain takes every citation.
+citations.strip.new	New sources
+citations.strip.lost	Lost sources
+citations.empty.noCitingTitle	The answers cite no source
+citations.empty.noCitingReason	{answers, plural, one {# answer was} other {# answers were}} read in this window and none names a source.
+citations.newLost.caption.new	New sources
+citations.newLost.caption.lost	Lost sources
+citations.newLost.noun.new.one	source
+citations.newLost.noun.new.other	sources
+citations.newLost.noun.lost.one	source
+citations.newLost.noun.lost.other	sources
+citations.newLost.ruleName	New and lost sources
+citations.newLost.ruleDefinition	A source is new when it starts to be cited and lost when it stops.
+citations.newLost.lostCost	Lost sources read {days, number} days of answers, three windows of {window, number} days, so this list can take a moment.
+citations.newLost.emptyNewTitle	No new source
+citations.newLost.emptyNewReason	No source reached {min, number} units in this window without being cited in the {days, number} days before it. Lower the minimum or choose another window.
+citations.newLost.emptyLostTitle	No lost source
+citations.newLost.emptyLostReason	A source is lost after it was cited in one window and not at all in the 2 windows after it, so a lost source needs {days, number} days of answers behind this window.
+citations.newLost.countFailed	The count of {kind, select, new {new} other {lost}} sources could not be loaded.
+citations.newLost.truncated	The {limit, number} sources with the most units are listed of {total, number}. Raise the minimum or narrow the filters.
+citations.newLost.truncatedFooter	{limit, number} of {total, number} sources. Raise the minimum to see more
+citations.mobile.newCaption	New sources
+citations.mobile.lostCaption	Lost sources
+citations.inspectors.source.noun	source
+citations.inspectors.source.loadFailed	This source could not be loaded.
+citations.inspectors.source.trendGapNote	A gap is a week in which no platform cited any source.
+citations.inspectors.source.trendEmptyReason	No answer in this window cites any source.
+citations.inspectors.source.answerPosition	Listed as source {index} in the answer
+citations.inspectors.source.openEvidenceName	Open the evidence of the answer of {date}, source {index}
+fanout.citedAssociation	These domains were cited in answers that issued this query. The data does not say which query found which source.

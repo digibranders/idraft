@@ -1,0 +1,163 @@
+key	current text
+common.statistics.noBoundaries	No version change in this window
+projectSettings.schedules.when.daily	Every day at {time}, {hours, number} hour window
+projectSettings.schedules.when.weekly	Every {weekday} at {time}, {hours, number} hour window
+projectSettings.schedules.when.monthly	On the {day, selectordinal, one {#st} two {#nd} few {#rd} other {#th}} of every month at {time}, {hours, number} hour window
+projectSettings.schedules.dialog.windowHint	The collection starts at some point inside the window.
+runReasons.missedWindow	The scheduled window passed before the run could be planned, so nothing was collected for it
+keywordDetail.noChecks.stale	No check falls in this window, and the last good one is older. Choose a longer window.
+keywordDetail.noChecks.archived	This keyword is archived and no longer checked. No check falls in this window.
+keywordDetail.noChecks.window	No check falls in this window. Choose a longer window.
+keywordDetail.history.statsAllFailed	Every check in this window failed.
+keywordDetail.history.statsUnranked	Not ranked in any of the {checks, plural, one {1 check} other {# checks}} in this window
+keywordDetail.strip.aioNoChecks	No readable checks in this window
+prompts.columns.mentionedTip	Answers that name your brand, of the valid answers in the window
+prompts.columns.citedTip	Answers that cite your domain, of the valid answers in the window
+prompts.columns.noAnswersTip	No answer in this window yet. Each prompt is asked twice a week.
+prompts.columns.noValidTip	{count, plural, one {# answer} other {# answers}} in this window, none of them valid
+prompts.columns.trendHeaderTip	The mention rate for each week of the window, averaged over the platforms shown. A week with no valid answer is a gap in the line.
+prompts.columns.trendLabelNone	Mention rate by week: no answers in this window
+prompts.columns.trendNone	No week of this window has a mention rate.
+prompts.columns.noBrandTip	No valid answer in this window names a brand
+prompts.topicDrawer.byEngineView.trendLabelNone	{metric} on {engine} by week: no answers in this window
+prompts.topicDrawer.pooling.sentence	A group point with fewer than 10 prompts answering that week shows the last 4 weeks together, clipped to the window. A prompt point always shows 4 weeks.
+prompts.topicDrawer.trend.noSeriesReason	This group has no answer in the weeks of the window.
+prompts.topicDrawer.rivals.footnote	Each competitor keeps the colour chosen for it in the entities. A competitor with no mention in the window is not shown.
+prompts.inspector.noCounts	No counts for this window
+prompts.inspector.answersEmpty	No answers in this window
+prompts.inspector.answersEmptyReason	Each prompt is asked twice a week. Choose a longer window to see earlier answers.
+prompts.inspector.history.latestNote	The latest {count, number} answers of this window.
+prompts.inspector.competitors.explain	A mention is a tracked brand named in an answer. The counts are over the valid answers of this window.
+prompts.inspector.competitors.emptyTitle	No competitor was named in the answers of this window
+prompts.inspector.stats.method	The interval is the 95 percent Wilson interval over the valid answers of this window.
+prompts.inspector.stats.intervalMethod	The 95 percent Wilson interval over the valid answers of this window, for this platform only.
+prompts.citationsTab.banner.noAnswers	No answers in this window, so there is nothing to count.
+prompts.citationsTab.domains.engineNone	No valid answer on {engine} in this window.
+prompts.citationsTab.domains.emptyTitle	No citations in this window
+prompts.citationsTab.domains.emptyReason	The answers read cite no source. Each prompt is asked twice a week; choose a longer window to see earlier answers.
+prompts.citationsTab.pages.emptyTitle	No cited pages in this window
+prompts.citationsTab.pages.emptyReason	No answer read names a page. Choose a longer window or another platform.
+aiOverview.scope.compareUnavailable	No days before this window
+aiOverview.scope.window	Date window
+aiOverview.numbers.tipNoChange	No change shown: a window has too few valid answers for a rate
+aiOverview.numbers.tipPreviousFailed	The previous window could not be read, so no change is shown
+aiOverview.engines.changeSummary.rulesGained	Prompts that named you before and no longer do, and the reverse, are counted over prompts with 4 or more valid answers on that platform in both windows. A prompt names you when at least one of its valid answers does. The others, including prompts with no answers on that platform in one window, are counted in the Table view.
+aiOverview.engines.changeSummary.rulesSources	New domains are written only when the sources read answered and the previous window has answers.
+aiOverview.engines.common.partialPrevious	Partial data: the previous window could not be read
+aiOverview.engines.trend.partialWeek	partial week, part of it is outside the window
+aiOverview.engines.trend.summaryChange	, {points} against the previous window, {test, select, detectable {a detectable change} within {within normal variation} other {not tested}}
+aiOverview.engines.trend.footnotePrevious	The dashed line is the previous window, week for week.
+aiOverview.engines.trend.footnoteEntities	The tracked brands changed in this window, so share of voice is not over the same brands throughout.
+aiOverview.engines.byEngine.emptyReasonNone	No answers were collected in this window.
+aiOverview.engines.movers.footnote	Each prompt is read on its own answers on one platform, in this window and in the one before. The two windows are unpaired: a change is tested on the pooled counts of each window and coloured only when it is larger than normal variation.
+aiOverview.engines.movers.leftOut	{count, plural, one {# prompt is} other {# prompts are}} left out: fewer than 4 valid answers in one of the windows.
+aiOverview.engines.comparison.noAnswersWords	No answers in one of the windows
+aiOverview.engines.comparison.footnote	Previous period: {period}. Each rate is the mean of the rates of each prompt, with the valid answers it rests on. The interval is of the change in the pooled answers of the two windows, and the test is unpaired. The dot is the change of the prompt weighted rates, so it can sit outside the interval of the pooled answers. Share of voice has no interval yet.
+aiOverview.engines.comparison.summaryNone	{engine} has no answers in one of the windows
+aiOverview.engines.waterfall.footnote	The bars add up to the change in the {metric} of {engine}: the rate before, the prompts that rose, those that fell, those with fewer than 4 valid answers in a window, the prompts added to or left out of the set, and the rate now. Each prompt counts once. Colour shows only when the change is larger than normal variation (an unpaired test on pooled counts).
+aiOverview.engines.waterfall.emptyUnknownReason	The rate needs at least 4 valid answers in each window.
+aiOverview.engines.outcomeMix.emptyNoAnswersReason	No answers were collected in this window.
+aiOverview.engines.funnel.noAnswers	No answers in this window
+aiOverview.engines.funnel.emptyNoAnswersReason	No answers were collected in this window.
+aiOverview.engines.coverage.emptyNoAnswersReason	No answers were collected in this window.
+aiOverview.competitors.common.tooFewReason	A share needs at least {min} answers that name a tracked brand in this window.
+aiOverview.competitors.common.footnoteAdded	Added in this window: {list}.
+aiOverview.competitors.common.footnoteChanged	The tracked set changed in this window, so earlier weeks may cover other brands.
+aiOverview.competitors.trend.footnoteDrawn	{shown, plural, one {# competitor} other {# competitors}} of {total, number} drawn: the ones with the highest mention rate in this window.
+aiOverview.competitors.trend.footnotePooled	A week with fewer than 10 prompts answering shows the last 4 weeks together, clipped to the window.
+aiOverview.competitors.trend.summaryOwn	You {own} ({ownCount}) in this window.
+aiOverview.competitors.trend.summaryUnknown	Mention rate by week on {engine}. This window has too few answers for a comparison.
+aiOverview.competitors.trend.needsWeeksReason	At least two weeks of this window need valid answers on {engine}. Widen the date range or wait for the next run.
+aiOverview.competitors.sovOverTime.footnotePooled	A week with fewer than 10 prompts answering shows the last 4 weeks together, clipped to the window.
+aiOverview.competitors.sovOverTime.summaryNone	Share of voice by week on {engine}. No week of this window has enough answers naming a tracked brand.
+aiOverview.competitors.sovOverTime.needsWeeksReason	At least two weeks of this window need valid answers on {engine}. Widen the date range or wait for the next run.
+aiOverview.competitors.sovRank.summaryNone	Share of voice rank on {engine}. No week of this window has enough answers naming a tracked brand.
+aiOverview.competitors.sovRank.needsWeeksReason	At least two weeks of this window need ranked answers on {engine}. Widen the date range or wait for the next run.
+aiOverview.topics.common.pooled	A group weekly point with fewer than {below, number} prompts answering that week shows the last 4 weeks together (clipped to the window); a prompt point always shows 4 weeks.
+aiOverview.topics.common.partialNotice	Partial data: {engines} {count, plural, one {has} other {have}} no valid answer in this window
+aiOverview.topics.movers.summary	{metric} change of the most specific groups on {engines} against the previous window. Only changes larger than normal variation are drawn.
+aiOverview.topics.movers.somePrompts	{both, number} of {now, plural, one {# prompt} other {# prompts}} in both windows
+aiOverview.topics.movers.scope	Only the most specific groups are listed, one row per group and platform. Each change is {test}: the answers of the two windows are compared as two samples, and a bar is coloured only when the change is larger than normal variation. A group's prompts can differ between windows, so a row says how many prompts are in both.
+aiOverview.topics.movers.compareOffReason	Turn the comparison on to see which groups gained or lost against the previous window.
+aiOverview.topics.movers.noPreviousReason	There is nothing to compare with in the window before this one.
+aiOverview.topics.movers.noneReason	No group has a change to show for this metric and direction in these windows.
+aiOverview.topics.contribution.summaryChange	How many points each top level group added to the change of the mention rate on {engine}, over the prompts that have a valid answer in both windows.
+aiOverview.topics.contribution.changeBasis	Over the {count, plural, one {# prompt} other {# prompts}} in both windows with a valid answer on {engine}, the mention rate moved {points} points.
+aiOverview.topics.contribution.remainder	A further {points} points of the {total} point change come from prompts added or left between the windows; no group is given them.
+aiOverview.topics.contribution.insufficientChange	The change on {engine} cannot be split: a window has fewer than {min, number} valid answers.
+aiOverview.topics.contribution.noCommon	No prompt has a valid answer on {engine} in both windows, so the change cannot be split by group.
+aiOverview.topics.contribution.compareOffReason	Turn the comparison on to see what each group added to the change against the previous window.
+aiOverview.topics.contribution.noPreviousReason	There is nothing to compare with in the window before this one.
+aiOverview.topics.topPrompts.changeNote	Average change over {engines}, the platforms with a rate in both windows.
+aiOverview.topics.topPrompts.notCompared	{count, plural, one {# prompt was} other {# prompts were}} not compared: it is new, or no platform shows a rate in both windows.
+aiOverview.topics.topPrompts.footnoteChange	Each change is the average over the platforms with a rate in both windows, so the same platforms stand on both sides. The test uses {test}.
+aiOverview.topics.topPrompts.compareOffReason	Turn the comparison on to see which prompts changed most against the previous window.
+aiOverview.topics.topPrompts.noChangeReason	A prompt needs a rate on the same platform in both windows, and to be in both windows, to show a change.
+aiOverview.activity.daily.noDaysTitle	No collection in this window
+aiOverview.activity.daily.noDaysReason	No answers were scheduled or collected on these days. Choose a longer window.
+aiOverview.activity.daily.noEngineDaysTitle	{engine} was not asked in this window
+aiOverview.activity.daily.noEngineDaysReason	Choose another platform above, or a longer window.
+aiOverview.activity.keyChanges.holdOff	Changes are not compared for this window: the comparison with the window before is off. Collection notices are still listed.
+aiOverview.activity.keyChanges.holdNoPrevious	Changes are not compared for this window: the window before has no valid answers. Collection notices are still listed.
+aiOverview.activity.keyChanges.emptyHoldTitle	Changes are not compared for this window
+aiOverview.activity.keyChanges.emptyOffReason	The comparison with the window before is off.
+aiOverview.activity.keyChanges.emptyNoPreviousReason	The window before has no valid answers.
+aiOverview.activity.keyChanges.partComparison	changes since the window before
+aiOverview.sources.common.noCitationsTitle	No answer cited a source in this window
+aiOverview.sources.common.noCitationsReason	{answers, plural, one {# answer was} other {# answers were}} collected in this window, and none cited a source.
+aiOverview.sources.common.noOwnPagesTitle	No answer cited your pages in this window
+aiOverview.sources.common.noneIssuedTitle	No answer ran a search in this window
+aiOverview.sources.common.noneIssuedReason	{answers, plural, one {# answer was} other {# answers were}} collected in this window, and none ran a search.
+aiOverview.sources.common.noWeeklyUnitsTitle	No source was cited in any week of this window
+aiOverview.sources.newLost.toolbar	Domains new or lost in this window
+aiOverview.sources.newLost.unknownNoAnswers	No answers in the window before: new sources cannot be told
+aiOverview.sources.newLost.unknownUnread	The window before could not be read: new sources cannot be told
+aiOverview.sources.newLost.captionNew	New domains by citation units in this window
+aiOverview.sources.newLost.captionLost	Lost domains by citation units in the window they were last cited
+aiOverview.sources.newLost.emptyNewTitle	No domain is new in this window
+aiOverview.sources.newLost.emptyNewReason	A domain is new when it has {min, plural, one {# citation unit} other {# or more citation units}} in this window and none in the window before.
+aiOverview.sources.newLost.emptyLostTitle	No domain is lost in this window
+aiOverview.sources.newLost.emptyLostReason	A domain is lost when it had {min, plural, one {# citation unit} other {# or more citation units}} in an earlier window and none in this window or the one before it, so a lost domain needs 2 windows after its last citation.
+aiOverview.sources.newLost.footnoteRule	New: {min, plural, one {# citation unit} other {# or more citation units}} in this window and none in the window before. Lost: the same in an earlier window and none in the 2 windows after it.
+aiOverview.sources.newLost.summary	New and lost sources. {newCount, plural, one {# domain is} other {# domains are}} new and {lostCount, plural, one {# domain is} other {# domains are}} lost in this window.
+aiOverview.sources.newLost.summaryUnknown	New and lost sources. New domains cannot be told for this window. {lostCount, plural, one {# domain is} other {# domains are}} lost.
+aiOverview.sources.newLost.infoDefinition	The registrable domains that answers cite in this window and did not cite in the window before.
+aiOverview.sources.newLost.infoFormula	The domains with the minimum of citation units in this window and no citation unit in the window before. Without answers in the window before, no domain can be told new.
+aiOverview.sources.newLost.infoSample	{answers, plural, one {# answer} other {# answers}} in the window before
+citations.metaNone	No citation in this window
+citations.strip.distinctTip	{count, number} {count, plural, one {registrable domain is} other {registrable domains are}} cited in this window.
+citations.strip.effectiveNone	No platform has a citation in this window, so there is nothing to average.
+citations.strip.noUnits	No citation unit in this window, so there is no share.
+citations.strip.lostContext	after 2 windows
+citations.table.engineNone	{engine} has no citation in this window.
+citations.empty.noCitingReason	{answers, plural, one {# answer was} other {# answers were}} read in this window and none names a source.
+citations.newLost.ruleNew	New: at least {min, number} citation units in this window and none in the {days, number} days before it.
+citations.newLost.ruleLost	Lost after 0 units in 2 following windows, having had at least {min, number} units before them.
+citations.newLost.lostCost	Lost sources read {days, number} days of answers, three windows of {window, number} days, so this list can take a moment.
+citations.newLost.emptyNewReason	No source reached {min, number} units in this window without being cited in the {days, number} days before it. Lower the minimum or choose another window.
+citations.newLost.emptyLostReason	A source is lost after it was cited in one window and not at all in the 2 windows after it, so a lost source needs {days, number} days of answers behind this window.
+citations.mobile.lostContext	{role}, quiet for 2 windows
+citations.inspectors.domain.notCitedTitle	Not cited in this window
+citations.inspectors.domain.notCitedReason	No answer read in this window cites {domain}. Choose a longer window or another platform.
+citations.inspectors.domain.engineNone	{engine} has no citation in this window.
+citations.inspectors.domain.engineNoAnswers	{engine} has no answer in this window.
+citations.inspectors.domain.trendEmptyReason	The platforms have no citation in this window.
+citations.inspectors.domain.pagesEmptyReason	No page of this domain is cited in this window.
+citations.inspectors.domain.promptsEmptyReason	No answer read in this window cites it.
+citations.inspectors.source.notCitedTitle	Not cited in this window
+citations.inspectors.source.notCitedReason	No answer read in this window cites this page. Choose a longer window or another platform.
+citations.inspectors.source.trendEmptyReason	No answer in this window cites any source.
+citations.inspectors.source.engineNone	{engine} does not cite this page in this window.
+citations.inspectors.source.promptsEmptyReason	No answer read in this window cites it.
+citations.inspectors.source.answersEmptyReason	No answer read in this window cites it. Choose a longer window or another platform.
+fanout.newUnknown.noPrevious	No valid answer in the period before this window, so no query can be called new.
+fanout.newUnknown.tooMany	The period before this window has more than {limit, number} queries, so new queries cannot be told apart.
+fanout.newUnknown.failed	New queries could not be told, because the period before this window could not be read.
+fanout.emptyNoAnswersTitle	No {engine} answer in this window
+fanout.emptyNoAnswersReason	Choose a longer window or wait for the next run.
+fanout.emptyNoneReason	{answers, plural, one {# {engine} answer was} other {# {engine} answers were}} collected in this window, and none issued a query.
+fanout.emptyUnderMinReason	Queries issued by fewer answers are left out. Lower the minimum or choose a longer window.
+fanout.timesUsedTip	{count, plural, one {# answer} other {# answers}} issued this query, of {total, plural, one {# valid answer} other {# valid answers}} on {engine} in this window.
+fanout.newBadge	New in window
+fanout.newTip	First seen {date}. Not issued in the {days, number} days before this window.
+fanout.strip.noAnswers	No valid {engine} answer in this window.
