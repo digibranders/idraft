@@ -2739,10 +2739,17 @@ describe('Prompts: the Platform select and the controls row', () => {
     expect(await platform()).toHaveTextContent('All platforms');
   });
 
-  it('keeps the chip while the filter names more than one platform, and the select reads All platforms when that is every platform', async () => {
-    renderOnPrompts(promptsAs('viewer'), { searchParams: '?engine=chatgpt_web,gemini_web' });
-    expect(await screen.findByRole('button', { name: /^Platform:/ })).toBeInTheDocument();
-    expect(await platform()).toHaveTextContent('All platforms');
+  it('takes a Platform filter that names every platform that is on for All platforms: no chip, no Clear filters, and the address drops it', async () => {
+    const writes: string[] = [];
+    renderOnPrompts(promptsAs('viewer'), {
+      searchParams: '?engine=chatgpt_web,gemini_web',
+      onUrlUpdate: ({ queryString }) => writes.push(queryString),
+    });
+    await vi.waitFor(async () => expect(await platform()).toHaveTextContent('All platforms'));
+    await vi.waitFor(() => expect(writes.length).toBeGreaterThan(0));
+    expect(lastEngine(writes)).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Platform:/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Clear filters' })).toBeNull();
   });
 
   it('puts the status, the update time, More actions and Add prompts at the right edge of the row', async () => {

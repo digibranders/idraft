@@ -17,7 +17,7 @@ import {
 import { useLocale, useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { parseAsString, useQueryStates } from 'nuqs';
-import { Fragment, useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { useJustAdded } from './add/just-added-store';
 import { useAddPrompts } from './add/use-add-prompts';
@@ -34,7 +34,7 @@ import {
   narrowSummary,
   useCompare,
 } from './compare';
-import { PlatformSelect } from './engine-select';
+import { PlatformSelect, withoutFullPlatformSet } from './engine-select';
 import { asRecordActions, type PromptAction } from './prompt-action';
 import { usePromptColumns, type PromptRow } from './prompt-columns';
 import { PromptInspector, type PromptCounts } from './prompt-inspector';
@@ -280,7 +280,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     ];
   }, [t, optionsPending, topicsUnknown, topicTree, topicTerms, enabled, engines.data]);
   // A filter of a shared link that does not read is left out, and the person is told (13 section 5)
-  const [values, setValues] = useUrlFilters(fields, {
+  const [urlValues, setUrlValues] = useUrlFilters(fields, {
     onDropped: (dropped) =>
       toast({
         type: 'info',
@@ -293,6 +293,16 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
         }),
       }),
   });
+  // A Platform filter that names every platform that is on is All platforms: it has no chip, and the address drops it
+  const enabledCodes = useMemo(() => enabled.map((engine) => engine.engine.engine_code), [enabled]);
+  const values = useMemo(() => withoutFullPlatformSet(urlValues, enabledCodes), [urlValues, enabledCodes]);
+  const setValues = useCallback(
+    (next: FilterValues): void => void setUrlValues(withoutFullPlatformSet(next, enabledCodes)),
+    [setUrlValues, enabledCodes],
+  );
+  useEffect(() => {
+    if (values !== urlValues) void setUrlValues(values);
+  }, [values, urlValues, setUrlValues]);
   // The country is scope, not a filter: the bar's chips and Clear filters leave it, an empty state names it and leaves it
   // together with the filters
   const nameOfCountry = useCallback((iso: string): string => countryName.get(iso) ?? iso, [countryName]);

@@ -3,7 +3,8 @@ import { useState, type ReactElement } from 'react';
 import { describe, expect, it } from 'vitest';
 
 import { projectEngine } from './compare/change-test-data';
-import { PlatformSelect, platformChoice } from './engine-select';
+import { PlatformSelect, platformChoice, withoutFullPlatformSet } from './engine-select';
+import type { FilterValues } from '@/components/app/filters/types';
 import { axe } from '@/test/axe';
 import { renderWithProviders } from '@/test/render';
 
@@ -32,6 +33,27 @@ describe('platformChoice', () => {
   it('counts a platform that is off for nothing', () => {
     expect(platformChoice(['perplexity_web'], ON)).toBe('all');
     expect(platformChoice(['perplexity_web', 'gemini_web'], ON)).toBe('gemini_web');
+  });
+});
+
+describe('withoutFullPlatformSet', () => {
+  const ON = ['chatgpt_web', 'gemini_web', 'google_ai_mode'];
+  const filter = (codes: readonly string[]): FilterValues => ({
+    engine: { kind: 'enum', values: codes },
+    branded: { kind: 'enum', values: ['include'] },
+  });
+
+  it('drops the Platform filter when it names every platform that is on, and keeps the other filters', () => {
+    expect(withoutFullPlatformSet(filter(ON), ON)).toEqual({ branded: { kind: 'enum', values: ['include'] } });
+    expect(withoutFullPlatformSet(filter([...ON, 'perplexity_web']), ON)).not.toHaveProperty('engine');
+  });
+
+  it('keeps a set of two of three, one platform, and a filter while no platform is known', () => {
+    const two = filter(['chatgpt_web', 'gemini_web']);
+    expect(withoutFullPlatformSet(two, ON)).toBe(two);
+    const one = filter(['gemini_web']);
+    expect(withoutFullPlatformSet(one, ON)).toBe(one);
+    expect(withoutFullPlatformSet(two, [])).toBe(two);
   });
 });
 
