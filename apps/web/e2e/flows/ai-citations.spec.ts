@@ -247,8 +247,8 @@ test.describe('The Citations tab of the prompt inspector', () => {
     await expect(
       domains.getByRole('row', { name: new RegExp(`^${OWN.replaceAll('.', '\\.')} Your site `) }),
     ).toBeVisible();
-    // Every share names the units it is a share of
-    await expect(domains.getByRole('row', { name: /of \d+ units?/ }).first()).toBeVisible();
+    // Every count names the valid answers it is a count of, and no row counts citation units
+    await expect(domains.getByRole('row', { name: /\d+ of \d+ answers?/ }).first()).toBeVisible();
 
     const pages = inspector.getByRole('table', { name: 'Most cited pages for this prompt' });
     await expect(pages.getByRole('link', { name: /^Open fynix\.digital\/seo-audit in a new tab$/ })).toBeVisible();
@@ -266,23 +266,21 @@ test.describe('The Citations tab of the prompt inspector', () => {
     const panel = inspector.getByRole('tabpanel', { name: 'Citations' });
     const domains = inspector.getByRole('table', { name: 'Most cited domains for this prompt' });
 
-    // All engines: one column of units for each engine, never one pooled figure, and they add up to the Units
+    // All platforms: the answers that cite a domain, counted once over all of them, with no rate and no column per platform
     await expect(inspector.getByRole('radio', { name: 'All platforms' })).toBeChecked();
-    await expect(domains.getByRole('columnheader')).toHaveText(['Domain', 'Units', /^ChatGPT/, /^Gemini/]);
-    const first = domains.getByRole('row').nth(1);
-    const [unitsCell = '', chatgpt = '', gemini = ''] = await first.getByRole('cell').allInnerTexts();
-    expect(Number(/^\d+/.exec(unitsCell)?.[0])).toBe(Number(chatgpt) + Number(gemini));
+    await expect(domains.getByRole('columnheader')).toHaveText(['Domain', 'Citations']);
+    await expect(domains.getByRole('row').nth(1)).not.toContainText('%');
     await expect(panel).not.toContainText(/rank/i);
-    const allUnits = await scopeUnits(inspector);
+    await expect(inspector.getByText(/^Counted in \d+ valid answers?, over all platforms\./)).toBeVisible();
 
-    // One engine: its own lists, read over its own answers, and the page says which engine is read
+    // One platform: its own lists, read over its own answers, and the page says which platform is read
     await inspector.getByRole('radio', { name: 'ChatGPT' }).click();
     await expect(inspector.getByRole('radio', { name: 'ChatGPT' })).toBeChecked();
     await expect(
       inspector.getByText('Only ChatGPT is read. The last answer date above covers all platforms.'),
     ).toBeVisible();
-    await expect(domains.getByRole('columnheader')).toHaveText(['Domain', 'Units']);
-    await expect.poll(() => scopeUnits(inspector)).toBeLessThan(allUnits);
+    await expect(domains.getByRole('columnheader')).toHaveText(['Domain', 'Citations']);
+    await expect(inspector.getByText(/^Counted in \d+ valid answers?\. A domain or page counts once/)).toBeVisible();
     await expect(panel).not.toContainText(/rank/i);
 
     await inspector.getByRole('radio', { name: 'Gemini' }).click();
@@ -292,8 +290,8 @@ test.describe('The Citations tab of the prompt inspector', () => {
     await expect(panel).not.toContainText(/rank/i);
 
     await inspector.getByRole('radio', { name: 'All platforms' }).click();
-    await expect(domains.getByRole('columnheader')).toHaveText(['Domain', 'Units', /^ChatGPT/, /^Gemini/]);
-    await expect.poll(() => scopeUnits(inspector)).toBe(allUnits);
+    await expect(domains.getByRole('columnheader')).toHaveText(['Domain', 'Citations']);
+    await expect(inspector.getByText(/^Counted in \d+ valid answers?, over all platforms\./)).toBeVisible();
   });
 
   test('the count of other domains opens a list of at most 5 domains', async ({ page }) => {
