@@ -34,7 +34,7 @@ export function textCell(text, tip) {
 export function intentCell(prompt) {
   const intent = intentOf(prompt);
   const cell = el('td', CELL);
-  cell.append(el('span', NEUTRAL_BADGE, intent));
+  cell.append(el('span', 'block truncate text-foreground', intent));
   cell.dataset.tip = INTENT_TIP[intent];
   return cell;
 }
