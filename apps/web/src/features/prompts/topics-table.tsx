@@ -579,7 +579,14 @@ export function TopicsTable({
             {viewSwitch}
           </>
         }
-        columnState={{ visible, onChange: setVisible }}
+        columnState={{
+          visible,
+          // Hiding the sorted column drops its sort from the address too, so the link says what the table does
+          onChange: (next) => {
+            setVisible(next);
+            if (next !== null && sort.some((key) => !next.includes(key.id))) onSortTextChange(null);
+          },
+        }}
         search={search}
         onSearchChange={onSearchChange}
         searchPlaceholder={t('topics.search')}

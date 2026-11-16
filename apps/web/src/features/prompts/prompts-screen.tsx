@@ -1152,8 +1152,15 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
                 onDensityChange={nothing}
                 columnState={{
                   visible,
-                  onChange: (next) =>
-                    void setView({ cols: next === null ? null : formatColumns(keepLocationChoice(next)) }),
+                  // Hiding the sorted column drops its sort from the address too, so the link says what the table does
+                  onChange: (next) => {
+                    const kept = next === null ? null : keepLocationChoice(next);
+                    const sortHidden = kept !== null && sort.some((key) => !kept.includes(key.id));
+                    void setView({
+                      cols: kept === null ? null : formatColumns(kept),
+                      ...(sortHidden ? { sort: null } : {}),
+                    });
+                  },
                 }}
                 search={view.q}
                 onSearchChange={(next) => void setView({ q: next === '' ? null : next })}
