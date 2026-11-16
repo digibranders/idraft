@@ -722,11 +722,8 @@ describe('the metric of the engine columns and the sort ids', () => {
     expect(engineSortId('gemini_web', 'cited')).toBe('gemini_web_cited');
   });
 
-  it('sorts both tables by Mention rate high to low first, a tie by name', () => {
+  it('sorts both tables by Mention rate high to low first, by that one key, so one arrow shows on the header', () => {
     expect(DEFAULT_TOPIC_SORT).toEqual([{ id: SORT_ID.mention, desc: true }]);
-    expect(DEFAULT_PROMPT_SORT).toEqual([
-      { id: SORT_ID.mention, desc: true },
-      { id: SORT_ID.prompt, desc: false },
-    ]);
+    expect(DEFAULT_PROMPT_SORT).toEqual([{ id: SORT_ID.mention, desc: true }]);
   });
 });

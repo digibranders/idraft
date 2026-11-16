@@ -52,8 +52,8 @@ describe('CompareSelect', () => {
     const { user } = render();
     await user.click(screen.getByRole('combobox', { name: 'Compare with' }));
     expect((await screen.findAllByRole('option')).map((option) => option.textContent)).toEqual([
-      'No comparison',
       'vs previous period',
+      'No comparison',
     ]);
   });
 
@@ -96,7 +96,7 @@ describe('CompareSelect', () => {
     await waitFor(() =>
       expect(document.querySelector('[data-slot="select-popup"]')?.contains(document.activeElement)).toBe(true),
     );
-    await user.keyboard('{ArrowDown}');
+    await user.keyboard('{ArrowUp}');
     await user.keyboard('{Enter}');
     await waitFor(() => expect(writes.at(-1)?.queryString).toContain('cmp=previous'));
   });

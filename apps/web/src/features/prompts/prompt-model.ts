@@ -75,8 +75,8 @@ export const cellsOfPrompt = (row: PromptRow): readonly EngineSummary[] | undefi
  * - Topics tab: `prompts` (how many prompts the topic holds), `mention`, `citation`, `top_engine` (by the
  *   engine's name, A to Z first), and `<engine_code>_mentioned` and `<engine_code>_cited`. The sort orders the
  *   topics; the prompts under an open topic keep their order, most mentioned first.
- * A tie goes to the name on the Topics tab, and on the Prompts tab under the default sort (the prompt is its second
- * key); under a sort the person chose, rows that tie keep the table's order (DataTable breaks a tie by row id).
+ * A tie goes to the name on the Topics tab; on the Prompts tab rows that tie keep the table's order (DataTable breaks a
+ * tie by row id).
  * An id the open tab has no sort for is ignored, so one `sort` serves both tabs.
  */
 export const SORT_ID = {
@@ -104,11 +104,11 @@ export const engineSortId = (engineCode: string, shown: 'rate' | 'mentioned' | '
 
 /** Both tables open on the highest Mention rate, the rows without one last (parity spec G23, G40). */
 export const DEFAULT_TOPIC_SORT: readonly SortKey[] = [{ id: SORT_ID.mention, desc: true }];
-/** The Prompts tab breaks a tie by the text of the prompt, A to Z. */
-export const DEFAULT_PROMPT_SORT: readonly SortKey[] = [
-  { id: SORT_ID.mention, desc: true },
-  { id: SORT_ID.prompt, desc: false },
-];
+/**
+ * The Prompts tab opens on the highest Mention rate alone, so one arrow shows on its header (the preview's). A tie keeps
+ * the table's own order (the DataTable breaks it by row id).
+ */
+export const DEFAULT_PROMPT_SORT: readonly SortKey[] = [{ id: SORT_ID.mention, desc: true }];
 
 /** The tabs of slice 1 (ADR-DS-022): Panels and Versions wait for slice 4. */
 export const PROMPTS_TABS = ['topics', 'prompts'] as const;
