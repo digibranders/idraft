@@ -132,7 +132,7 @@ describe('the scope bar', () => {
     // The Prompts tile of the headline names the choice again
     await waitFor(() => {
       const box = screen.getByText('Prompts', { selector: 'span.type-label' }).closest('div.bg-surface');
-      expect(box?.querySelector('.type-metric')).toHaveAccessibleDescription(/core and branded prompts/);
+      expect(box?.querySelector('.type-metric')).toHaveTextContent(/core and branded prompts/);
     });
   });
 
@@ -168,7 +168,7 @@ describe('the scope bar', () => {
     // Once the vocabulary has loaded the group is named, and the Prompts tile of the headline counts the group's prompts
     await waitFor(() => {
       const box = screen.getByText('Prompts', { selector: 'span.type-label' }).closest('div.bg-surface');
-      expect(box?.querySelector('.type-metric')).toHaveAccessibleDescription(/in SEO$/);
+      expect(box?.querySelector('.type-metric')).toHaveTextContent(/in SEO$/);
     });
   });
 

@@ -289,12 +289,14 @@ export default function HeadlineCard({ item, live }: CardProps): ReactElement {
             {heroTip === '' ? (
               <span className="num type-metric text-foreground-tertiary">{heroFace.value}</span>
             ) : (
-              <Tooltip content={heroTip}>
+              <Tooltip content={heroTip} purpose="label">
                 <span
                   {...TAB_STOP}
                   className={cn('num type-metric', heroFace.known ? 'text-foreground' : 'text-foreground-tertiary')}
                 >
                   {heroFace.value}
+                  {/* The counts are read with the value, as the preview does (OV-HEAD-03), not only on hover */}
+                  <span className="sr-only">, {heroTip}</span>
                 </span>
               </Tooltip>
             )}

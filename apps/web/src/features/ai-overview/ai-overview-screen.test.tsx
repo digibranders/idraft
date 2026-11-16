@@ -287,7 +287,7 @@ describe('the headline of the AI visibility page', () => {
     });
     await waitFor(() => {
       const figure = screen.getByRole('region', { name: HERO }).querySelector('.type-metric');
-      expect(figure).toHaveAccessibleDescription(/^[\d,]+ of [\d,]+ answers\./);
+      expect(figure).toHaveTextContent(/^\d+%, [\d,]+ of [\d,]+ answers\./);
     });
     await user.keyboard('{Escape}');
     await user.click(await screen.findByRole('button', { name: 'Compare with: vs previous period' }));

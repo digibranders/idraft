@@ -3,16 +3,16 @@ import { projectWeeks, type WeekMetric } from '../engines/trend-model';
 import type { EngineCode, PromptsSummary, PromptSummaryRow, Run } from '@/lib/api/types';
 import { formatIsoDate } from '@/lib/format';
 import {
-  positionOf,
-  POSITION_MIN_LISTS,
+  orderDistribution,
   recommendedOf,
+  SENTIMENT_KEYS,
   SENTIMENT_MIN,
   sentimentOf,
   type FactsRow,
 } from '@/lib/prompt-facts';
 import { engineRates, type RateFigure } from '@/lib/rates/strip-model';
 import { averageVisibility, platformVisibility, visibilityOfPrompts } from '@/lib/rates/visibility-model';
-import { equalWeightAverage, MIN_OBSERVATIONS } from '@/lib/stats';
+import { equalWeightAverage, MIN_OBSERVATIONS, wholePercents } from '@/lib/stats';
 
 /**
  * The numbers of the headline card (`ai.visibility_split`, parity register OV-HEAD): the AI visibility hero with its
@@ -194,16 +194,22 @@ export function readFactTile(prompts: readonly FactsRow[], platforms: Platforms,
   const scope = factScope(platforms);
   const single = platforms.single !== null;
   if (tile === 'position') {
-    const position = positionOf(prompts, scope);
-    if (position.state === 'ok') {
+    // The Mention position card's own reading, so the tile and the card never differ (R12)
+    const orders = scope.map((code) => ({ code, order: orderDistribution(prompts, code) }));
+    const rated = orders.flatMap(({ code, order }) => (order.state === 'ok' ? [{ code, order }] : []));
+    const average = equalWeightAverage(rated.map(({ order }) => order.mean));
+    if (average.value !== null) {
       const basis: Basis = single
-        ? { kind: 'counts', k: null, n: position.ordered_answers, noun: 'orderedAnswers', prompts: 0 }
-        : { kind: 'average', codes: position.codes };
-      return { state: 'ok', value: position.value, basis };
+        ? { kind: 'counts', k: null, n: rated[0]?.order.ordered ?? 0, noun: 'orderedAnswers', prompts: 0 }
+        : { kind: 'average', codes: rated.map(({ code }) => code) };
+      return { state: 'ok', value: average.value, basis };
     }
-    if (position.reason === 'not_collected') return NOT_COLLECTED;
-    if (position.reason === 'unobserved') return { state: 'none' };
-    return { state: 'insufficient', n: position.ordered_answers, noun: 'orderedAnswers' };
+    if (orders.every(({ order }) => order.state === 'not_collected')) return NOT_COLLECTED;
+    return {
+      state: 'insufficient',
+      n: Math.max(0, ...orders.map(({ order }) => order.ordered)),
+      noun: 'orderedAnswers',
+    };
   }
   if (tile === 'recommendation') {
     const recommended = recommendedOf(prompts, scope);
@@ -222,7 +228,11 @@ export function readFactTile(prompts: readonly FactsRow[], platforms: Platforms,
     const basis: Basis = single
       ? { kind: 'counts', k: null, n: sentiment.mentions, noun: 'judgedMentions', prompts: 0 }
       : { kind: 'average', codes: sentiment.codes };
-    return { state: 'ok', value: sentiment.shares.positive, basis };
+    // One platform: the whole percent the Sentiment card prints for Positive (largest remainder over the four shares)
+    const positive = single
+      ? (wholePercents(SENTIMENT_KEYS.map((key) => sentiment.shares?.[key] ?? 0))[0] ?? 0) / 100
+      : sentiment.shares.positive;
+    return { state: 'ok', value: positive, basis };
   }
   if (sentiment.state === 'not_collected') return NOT_COLLECTED;
   if (sentiment.state === 'none') return { state: 'notClassified' };
@@ -234,7 +244,7 @@ export function readFactTile(prompts: readonly FactsRow[], platforms: Platforms,
 export const FLOOR_OF: Readonly<Record<CountNoun, number>> = {
   answers: MIN_OBSERVATIONS,
   namingAnswers: MIN_OBSERVATIONS,
-  orderedAnswers: POSITION_MIN_LISTS,
+  orderedAnswers: MIN_OBSERVATIONS,
   judgedMentions: SENTIMENT_MIN,
 };
 

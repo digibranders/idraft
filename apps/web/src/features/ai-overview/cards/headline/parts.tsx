@@ -136,6 +136,8 @@ export function Tile({ label, info, value, known, tip, note, spark, loading = fa
       {...(tip === null ? {} : { tabIndex: 0 })}
     >
       {value}
+      {/* The counts or the reason are read with the value, as the preview does (OV-HEAD-12), not only on hover */}
+      {tip === null ? null : <span className="sr-only">, {tip}</span>}
     </span>
   );
   return (
@@ -147,7 +149,13 @@ export function Tile({ label, info, value, known, tip, note, spark, loading = fa
         </span>
       </div>
       <div className="flex min-w-0 items-center justify-between gap-3">
-        {tip === null || loading ? figure : <Tooltip content={tip}>{figure}</Tooltip>}
+        {tip === null || loading ? (
+          figure
+        ) : (
+          <Tooltip content={tip} purpose="label">
+            {figure}
+          </Tooltip>
+        )}
         {spark === null ? null : <div className="w-14 shrink-0">{spark}</div>}
       </div>
       <span className="block min-h-4 truncate type-micro text-foreground-tertiary">{note}</span>

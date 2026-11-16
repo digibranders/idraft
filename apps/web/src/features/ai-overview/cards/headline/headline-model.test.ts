@@ -131,6 +131,33 @@ describe('the weekly points of a tile', () => {
     expect(points).toHaveLength(8);
   });
 
+  it('the hero line is the weekly visibility, and is not drawn while the API sends none', () => {
+    const withVisibility = (start: string, k: number, n: number): ReturnType<typeof week> => ({
+      ...week(start, { mentioned: [0, n], prompts: 1 }),
+      visibility: factCell(k, n),
+    });
+    const weeks = [
+      withVisibility('2026-10-19', 2, 10),
+      withVisibility('2026-10-26', 4, 10),
+      withVisibility('2026-11-02', 6, 10),
+    ];
+    const summary = summaryOf([promptRow('p1', [engineCells('chatgpt_web', { mentioned: [5, 10], series: weeks })])]);
+    expect(sparkOf(summary, ONE, 'visibility')).toEqual([0.2, 0.4, 0.6]);
+    // The same weeks without the visibility cell: nothing is made up from the mention cells
+    const plain = summaryOf([
+      promptRow('p1', [
+        engineCells('chatgpt_web', {
+          mentioned: [5, 10],
+          series: series([
+            ['2026-10-19', 2, 10],
+            ['2026-10-26', 4, 10],
+          ]),
+        }),
+      ]),
+    ]);
+    expect(sparkOf(plain, ONE, 'visibility')).toBeNull();
+  });
+
   it('is not drawn from fewer than two points', () => {
     const only = engineCells('chatgpt_web', { mentioned: [5, 10], series: series([['2026-10-05', 5, 10]]) });
     expect(sparkOf(summaryOf([promptRow('p1', [only])]), ONE, 'mention')).toBeNull();
@@ -167,12 +194,17 @@ describe('the runs behind the numbers', () => {
 });
 
 describe('the tiles read from the facts', () => {
-  const place = (rankSum: number, ordered: number): PositionCounts => ({
-    rank_sum: rankSum,
-    ordered_answers: ordered,
-    mentions: ordered,
-    answers: 10,
-  });
+  /** The counts of answers by place, the ones the Mention position card reads (`by_order`), and the sum of the places. */
+  const place = (rankSum: number, counts: readonly [number, number, number, number]): PositionCounts => {
+    const ordered = counts.reduce((total, count) => total + count, 0);
+    return {
+      rank_sum: rankSum,
+      ordered_answers: ordered,
+      mentions: ordered,
+      answers: 10,
+      by_order: { counts, rank_sum: rankSum },
+    };
+  };
   const tone = (positive: number, neutral: number, negative: number, mixed: number): SentimentCounts => ({
     positive,
     neutral,
@@ -183,8 +215,16 @@ describe('the tiles read from the facts', () => {
   it('are the figures their cards show: one platform with its counts, All platforms the platform average', () => {
     const rows = [
       rowOf(
-        engine('chatgpt_web', { position: place(9, 5), sentiment: tone(6, 2, 1, 1), recommended: factCell(4, 10) }),
-        engine('gemini_web', { position: place(20, 5), sentiment: tone(2, 6, 1, 1), recommended: factCell(2, 10) }),
+        engine('chatgpt_web', {
+          position: place(9, [1, 4, 0, 0]),
+          sentiment: tone(6, 2, 1, 1),
+          recommended: factCell(4, 10),
+        }),
+        engine('gemini_web', {
+          position: place(20, [0, 0, 0, 5]),
+          sentiment: tone(2, 6, 1, 1),
+          recommended: factCell(2, 10),
+        }),
       ),
     ];
     const one = ok(readFactTile(rows, ONE, 'position'));
@@ -207,7 +247,7 @@ describe('the tiles read from the facts', () => {
   });
 
   it('say too few when a floor is not met, and not classified when the platform does not classify', () => {
-    const few = [rowOf(engine('chatgpt_web', { position: place(1, 1), sentiment: tone(1, 1, 0, 0) }))];
+    const few = [rowOf(engine('chatgpt_web', { position: place(1, [1, 0, 0, 0]), sentiment: tone(1, 1, 0, 0) }))];
     expect(readFactTile(few, ONE, 'position')).toEqual({ state: 'insufficient', n: 1, noun: 'orderedAnswers' });
     expect(readFactTile(few, ONE, 'sentiment')).toEqual({ state: 'insufficient', n: 2, noun: 'judgedMentions' });
     const unclassified = [rowOf(engine('gemini_web', { sentiment: null, recommended: null }))];
