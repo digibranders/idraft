@@ -3948,8 +3948,7 @@
       "country": "Location",
       "engine": "Platform",
       "branded": "Branded prompts",
-      "brandedInclude": "Included",
-      "topicWithPath": "{name} ({path})"
+      "brandedInclude": "Included"
     },
     "tabs": {
       "label": "Groups and prompts",
@@ -3964,7 +3963,6 @@
       "copied": "Prompt copied"
     },
     "bulk": {
-      "topicsSelected": "{topics, plural, one {# group} other {# groups}} selected, {prompts, plural, one {# prompt} other {# prompts}}",
       "run": "Run now",
       "runNothing": "None of the selected prompts fits an enabled platform.",
       "runConfirmTitle": "Run {count, plural, one {# prompt} other {# prompts}} now?",
@@ -4030,17 +4028,12 @@
       "refreshFailed": "The group counts could not be refreshed. The last counts loaded are shown.",
       "expand": "Expand {name}, {count, plural, one {# prompt} other {# prompts}}",
       "collapse": "Collapse {name}, {count, plural, one {# prompt} other {# prompts}}",
-      "expandTopics": "Expand {name}, {count, plural, one {# group} other {# groups}}",
-      "collapseTopics": "Collapse {name}, {count, plural, one {# group} other {# groups}}",
       "expandAll": "Expand all",
       "collapseAll": "Collapse all",
-      "rollupNote": "A parent row counts every prompt under it, so rows do not add up to the parent.",
       "footerPrompts": "{count, plural, one {# prompt} other {# prompts}}",
       "openTopic": "Open the group {name}",
-      "childTopics": "{count, plural, one {# group} other {# groups}}",
       "promptCount": "{count, plural, one {# prompt} other {# prompts}}",
-      "showAll": "{count, plural, one {Show the prompt} other {Show all {count, number} prompts}}",
-      "showAllFor": "{count, plural, one {Show the prompt of {name}} other {Show all {count, number} prompts of {name}}}"
+      "showAll": "{count, plural, one {Show the prompt} other {Show all {count, number} prompts}}"
     },
     "topicDrawer": {
       "type": "Group",
@@ -4079,28 +4072,13 @@
         "gapValue": "{points} pts",
         "gapSome": "{best} {bestRate} against {worst} {worstRate}, over {count, number} platforms.",
         "gapNone": "A gap needs a rate on at least 2 platforms.",
-        "leaderHeader": "Leader on {engine}",
-        "leaderCell": "{name} {share}",
-        "leaderNone": "None mentioned",
-        "leaderNoneTip": "No tracked competitor is mentioned in the answers of this group on {engine}.",
-        "leaderFewTip": "Too few answers that mention a tracked brand on {engine}: {count, number} of the {min, number} it needs.",
-        "leaderLoadingTip": "Competitors are loading.",
-        "leaderTip": "{name}: {share} share of voice on {engine}, {answers, plural, one {# answer} other {# answers}} mentioning a brand. Your brand {own}.",
-        "leaderTied": "Tied on share of voice with {others}. The higher mention rate comes first, then the order of the brands.",
-        "leaderNote": "Leader: the tracked competitor with the highest share of voice in the answers of the group on the platform.",
-        "trendHeader": "Trend on {engine}",
-        "trendPooled": "{pooled, number} of {total, number} weekly points show several weeks together. {sentence}",
-        "trendLabel": "{metric} on {engine} by week: {rates}",
-        "trendLabelNone": "{metric} on {engine} by week: no answers in this period",
         "gapDetailLeftOut": "{counts}. Left out for too few answers: {engines}.",
         "cellName": "{value}, {basis}",
         "drillLabel": "Open the prompts of {topic} on {engine}",
-        "entitiesFailed": "Competitors could not be loaded. The other columns are shown.",
         "exportButton": "Export by platform",
         "exported": "{count, plural, one {# group exported} other {# groups exported}}",
         "exportNone": "No group to export",
         "exportTopic": "Group",
-        "exportParent": "Parent group",
         "exportPrompts": "Prompts",
         "exportRate": "{engine} {metric} (%)",
         "exportCounted": "{engine} answers that count",
@@ -4119,14 +4097,12 @@
         "meta": "{topics, plural, one {# group} other {# groups}}, {engines, plural, one {# platform} other {# platforms}}",
         "rowHeader": "Group",
         "promptsHeader": "Prompts",
-        "average": "average of {count, number}",
         "averageTip": "Equal weight average of {engines}, each platform and each prompt counting once.",
         "orderLabel": "Order rows by",
         "orderPrompts": "Prompts",
         "orderRate": "Average rate",
         "orderGap": "Platform gap",
         "footnote": "Group rows overlap: a prompt in two groups counts in both. Each cell is prompt weighted. A cell over fewer than {min, number} answers shows its answers, not a rate.",
-        "searchIgnored": "Search does not narrow the heat map.",
         "summary": "{metric} of {topics, plural, one {# group} other {# groups}} on {engines, plural, one {# platform} other {# platforms}}. Each cell links to the prompts behind it.",
         "cellLink": "{topic} on {engine}: {value}",
         "cellShare": "{value}, {answers}",
@@ -4230,14 +4206,9 @@
         "failedTitle": "Competitors could not be loaded"
       },
       "related": {
-        "title": "Groups beside this one",
         "topic": "Group",
         "prompts": "Prompts",
         "mention": "Mention",
-        "more": "{count, plural, one {# more group is} other {# more groups are}} in the Groups table.",
-        "emptyTitle": "No group beside this one",
-        "emptyReason": "This group has no sibling in the tree.",
-        "notInTreeReason": "The group tree does not list this group, so the groups beside it cannot be told.",
         "open": "Open the group {name}"
       },
       "promptsTab": {
@@ -4480,7 +4451,7 @@
       "topicPicker": {
         "placeholder": "Choose or type a group",
         "loading": "Loading groups",
-        "hint": "A prompt counts in each group you give it. A group inside another is named by its path.",
+        "hint": "A prompt counts in each group you give it. A group inside another shows its path.",
         "chips": "Chosen groups and tags",
         "remove": "Remove {value}",
         "tagLabel": "{vocabulary}: {path}",
@@ -4702,7 +4673,6 @@
       "sources": "Citations",
       "noSources": "No citation",
       "noSourcesReason": "The answer cites no page.",
-      "sourcesCaption": "Citations in this answer",
       "sourceRoles": {
         "own": "Your site",
         "competitor": "Competitor",
@@ -4749,7 +4719,6 @@
       },
       "change": {
         "engineHeader": "{engine} change",
-        "engineHeaderTip": "Change in points of this platform's {metric, select, mention {mention rate} citation {citation rate} other {share of voice}} since the previous period. {metric, select, sov {No test exists for share of voice, so its change is never coloured.} other {Coloured only when the change is detectable.}}",
         "off": "Comparison is off",
         "noPrevious": "No answers in the previous period",
         "tooFew": "Too few answers in one of the periods for a rate",

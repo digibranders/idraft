@@ -4,7 +4,7 @@ import { useState, type ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { brandsColumn } from './brands-column';
-import { chatgptRow, PROJECT, platformName, TRACKED } from '../lists/lists-fixtures';
+import { chatgptRow, PROJECT, platformName, TRACKED } from '@/test/prompt-lists-fixtures';
 import type { FactsRow } from '../facts';
 import { col } from '@/components/app/data-table/columns';
 import { DataTable } from '@/components/app/data-table/data-table';

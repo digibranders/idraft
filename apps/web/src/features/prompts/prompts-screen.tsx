@@ -134,10 +134,10 @@ export interface PromptsScreenProps {
 }
 
 /**
- * The URL's keys besides the filters': the tab (Topics has none), the country of the top bar and the tables'
+ * The URL's keys besides the filters': the tab (Groups has none), the country of the top bar and the tables'
  * state. They all stay when the tab changes, and so do the date range's own keys (`useDateRangeParams`). Each table
  * reads the sort ids it has and ignores the others (`SORT_ID` in prompt-model.ts); the columns are the Prompts
- * table's. `metric` is the Topics views' (the Prompts table's platform columns always show the mention rate).
+ * table's. `metric` is the Groups views' (the Prompts table's platform columns always show the mention rate).
  */
 const VIEW_STATE = {
   tab: parseAsString,
@@ -170,13 +170,12 @@ const COPY_LINK = 'copy-link';
 const OPEN_RUN = 'open-run';
 
 /**
- * AI > Topics & Prompts (spec 2026-11-11 section 4.6, ADR-DS-022): the project's prompts over a window of
- * days (28 by default) and a country, both in the top bar as project-wide scope, with Mentioned and Cited per
- * enabled engine. The country narrows both tabs and the counts. The filter bar narrows by topic and engine;
- * branded prompts are left out of the table and the
- * counts until the Branded filter includes them (16-metrics-methodology.md rule 4). A project
- * without an engine on is sent to Settings > Engines; until the first answers arrive the page says when they
- * come, so an empty table is not read as a failure.
+ * AI visibility > Prompts (spec 2026-11-11 section 4.6, ADR-DS-022): the project's prompts over a window of
+ * days (28 by default) and a location, both in the top bar as project-wide scope, with the rates per enabled
+ * platform. The location narrows both tabs and the counts. The filter bar narrows by group and platform; branded
+ * prompts are left out of the table and the counts until the Branded filter includes them
+ * (16-metrics-methodology.md rule 4). A project without a platform on is sent to Settings > Platforms; until the
+ * first answers arrive the page says when they come, so an empty table is not read as a failure.
  */
 export function PromptsScreen(props: PromptsScreenProps): ReactNode {
   const t = useTranslations('prompts');
@@ -617,7 +616,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     window.open(url, '_blank', 'noopener');
   };
   /**
-   * A prompt opened from a row: of the Prompts tab (flat, no `topicKey`) or under a topic of the Topics tab, whose
+   * A prompt opened from a row: of the Prompts tab (flat, no `topicKey`) or under a group of the Groups tab, whose
    * prompts are then the list J and K step through, as when it is opened from the drawer (decision 8).
    */
   const openPromptRow = (promptId: string, intent: 'inspector' | 'new-tab' = 'inspector', topicKey?: string): void => {
@@ -660,7 +659,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   // A topic's prompts come from the summary, and an action reads them from the list: until the list is whole (or when
   // it failed) some of them are not in it, so the actions that read them wait
   const listReason = optionsPending ? t('bulk.listLoading') : null;
-  /** The "More" menu of a row of the Topics tab: a topic's, or the prompt listed under a topic's. */
+  /** The "More" menu of a row of the Groups tab: a group's, or the prompt listed under a group's. */
   const topicMenu = (target: TopicMenuTarget): readonly PromptAction[] => {
     if (target.kind === 'prompt') {
       return actions.forPrompt(target.promptId, () => openPromptRow(target.promptId, 'inspector', target.topicKey));
@@ -1077,8 +1076,6 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
             <TopicsView
               scope={scope}
               range={range}
-              includeBranded={includeBranded}
-              country={country}
               summary={summaryData}
               detectable={detectableGroups}
               engines={shown}

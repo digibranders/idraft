@@ -1,5 +1,5 @@
-import type { FactsRow, TrackedEntity } from '../facts';
-import { cellOf, engine, entityCells, rowOf } from '../facts/test-helpers';
+import type { FactsRow, TrackedEntity } from '@/features/prompts/facts';
+import { cellOf, engine, entityCells, rowOf } from '@/lib/prompt-facts/test-helpers';
 
 /** What the tests of the list columns share: a project with its own brand and one competitor, and the answers of one prompt. */
 export const PROJECT = { workspaceId: 'workspace-1', projectId: 'project-1' } as const;

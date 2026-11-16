@@ -3,7 +3,7 @@ import { http, HttpResponse } from 'msw';
 import { describe, expect, it, vi } from 'vitest';
 
 import { BrandsCell } from './brands-cell';
-import { chatgptRow, PROJECT, platformName, TRACKED } from './lists-fixtures';
+import { chatgptRow, PROJECT, platformName, TRACKED } from '@/test/prompt-lists-fixtures';
 import { brandsOf, type FactsRow, type TrackedEntity } from '../facts';
 import { cellOf, engine, entityCells, rowOf } from '../facts/test-helpers';
 import { aiKey } from '../prompt-queries';
