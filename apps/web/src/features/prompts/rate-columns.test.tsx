@@ -175,7 +175,7 @@ describe('the Mention rate cell change', () => {
 
   it('says the direction and the verdict in words to a screen reader, as the tooltip does', () => {
     render({ cells: [chat(DETECTABLE), gemini(cell(20, 40), cell(8, 40))] });
-    expect(icon()).toHaveTextContent('up 30.0 pts, detectable, interim test');
+    expect(icon()).toHaveTextContent('up 30.0 pts, detectable, provisional');
     expect(screen.getByTestId('tip')).toHaveTextContent('Up 30.0 pts');
     expect(screen.getByTestId('tip')).toHaveTextContent('Detectable change');
   });
