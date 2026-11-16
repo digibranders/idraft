@@ -343,14 +343,14 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     [setValues, values],
   );
 
-  // The table stays on the last counts while a new window, or the Branded filter, is read. The weekly series of the
-  // line in the Mention rate cell comes with them in the one read, which the strip and the drawers use too, while the
-  // person compares: a failed series cannot be told from a failed summary, and a summary without series (an older API)
+  // The table stays on the last counts while a new window, or the Branded filter, is read. The weekly series comes
+  // with them in the one read, which the strip and the drawers use too: for the Trend column of the Groups tab, and
+  // for the line in the Mention rate cell of the Prompts tab while the person compares. A failed series cannot be told from a failed summary, and a summary without series (an older API)
   // leaves the line out
   const summary = useQuery({
     ...summaryQuery(scope, range, includeBranded, {
       ...(country === null ? {} : { country }),
-      include: compare ? SERIES : NO_INCLUDE,
+      include: compare || tab === 'topics' ? SERIES : NO_INCLUDE,
       compare,
     }),
     enabled: enabled.length > 0,

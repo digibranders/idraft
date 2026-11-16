@@ -1,13 +1,20 @@
 import { screen } from '@testing-library/react';
 import type { ReactElement } from 'react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { DETECTABLE, WITHIN, cell, engineOf, projectEngine, topicCell } from './compare/change-test-data';
 import { ComparedWindowProvider, type ComparedWindow } from './compare/compared-window';
 import { useRateColumns } from './rate-columns';
-import type { EngineSummary, MetricCell, ProjectEngine } from '@/lib/api/types';
+import type { EngineSummary, MetricCell, ProjectEngine, WeekCells } from '@/lib/api/types';
 import { axe } from '@/test/axe';
 import { renderWithProviders, type ProvidedRender } from '@/test/render';
+
+// The props the cell gives the sparkline are what is read here: its drawing is the sparkline's own
+vi.mock('@/components/app/sparkline/sparkline-cell', () => ({
+  SparklineCell: (props: { label: string; values: readonly (number | null)[] }) => (
+    <span role="img" aria-label={props.label} data-values={props.values.join(',')} />
+  ),
+}));
 
 interface Row {
   cells: readonly EngineSummary[] | undefined;
@@ -25,12 +32,14 @@ function Cell({
   row,
   engines = BOTH,
   column = 'mention',
+  trend = false,
 }: {
   row: Row;
   engines?: ProjectEngine[];
   column?: 'mention' | 'citation';
+  trend?: boolean;
 }): ReactElement {
-  const columns = useRateColumns<Row>(engines, rowCells);
+  const columns = useRateColumns<Row>(engines, rowCells, { trend });
   const shown = columns[column];
   const tip = shown.cellTip?.(row);
   return (
@@ -186,5 +195,45 @@ describe('the Citation rate cell', () => {
     render({ cells: [engine] }, ON, CHAT_ONLY, WINDOW, 'citation');
     expect(screen.getByTestId('cell').textContent).not.toMatch(/pts/);
     expect(screen.getByTestId('tip').textContent).not.toMatch(/Previous/);
+  });
+});
+
+describe('the weekly line of the Mention rate cell', () => {
+  const week = (weekStart: string, value: number): WeekCells => ({
+    week_start: weekStart,
+    prompts: 1,
+    is_pooled: false,
+    mentioned: cell(Math.round(value * 8), 8),
+    cited: cell(0, 8),
+    share_of_voice: cell(0, 8),
+  });
+  const WITH_SERIES: Row = {
+    cells: [
+      {
+        ...engineOf('chatgpt_web', cell(30, 60), cell(12, 60)),
+        series: [week('2026-10-12', 0.25), week('2026-10-19', 0.5)],
+      },
+    ],
+  };
+  const renderTrend = (searchParams: string, trend: boolean): ProvidedRender =>
+    renderWithProviders(
+      <ComparedWindowProvider value={WINDOW}>
+        <Cell row={WITH_SERIES} engines={CHAT_ONLY} trend={trend} />
+      </ComparedWindowProvider>,
+      { searchParams },
+    );
+
+  it('draws the line after the percent and the change while comparing, and asks for a wider column', () => {
+    renderTrend(ON, true);
+    expect(screen.getByTestId('cell')).toHaveTextContent('50%');
+    expect(screen.getByRole('img', { name: /^Mention rate by week: / })).toHaveAttribute('data-values', '0.25,0.5');
+    expect(screen.getByTestId('cell')).toHaveTextContent('+30.0 pts');
+  });
+
+  it('draws no line without comparison, and none where the column was not asked for it', () => {
+    renderTrend('', true);
+    expect(screen.queryByRole('img')).toBeNull();
+    renderTrend(ON, false);
+    expect(screen.queryByRole('img')).toBeNull();
   });
 });

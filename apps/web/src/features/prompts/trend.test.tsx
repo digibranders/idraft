@@ -192,7 +192,7 @@ describe('the Trend column of the tables', () => {
 
   it('does not draw the sparklines again when a row is chosen: only a change of the data draws them', async () => {
     const getContext = vi.spyOn(HTMLCanvasElement.prototype, 'getContext');
-    const { user } = renderOn('?tab=prompts');
+    const { user } = renderOn('?tab=prompts&cmp=previous');
     const grid = await screen.findByRole('grid', { name: 'Prompts' });
     await waitFor(() =>
       expect(within(grid).getAllByRole('img', { name: /^Mention rate by week: / }).length).toBeGreaterThan(0),
@@ -206,13 +206,29 @@ describe('the Trend column of the tables', () => {
     expect(getContext.mock.calls.length).toBe(drawn);
   });
 
-  it('is on the Prompts tab after Citation rate, with a sparkline for each prompt', async () => {
-    renderOn('?tab=prompts');
+  it('is not a column of the Prompts tab: the line sits in the Mention rate cell, only while comparing', async () => {
+    const summaries: string[] = [];
+    server.events.on('request:start', ({ request }) => {
+      if (new URL(request.url).pathname.endsWith('/ai/prompts-summary')) summaries.push(request.url);
+    });
+    const off = renderOn('?tab=prompts');
+    const plain = await screen.findByRole('grid', { name: 'Prompts' });
+    const headers = (await within(plain).findAllByRole('columnheader')).map((header) => header.textContent);
+    expect(headers).not.toContain('Trend');
+    await waitFor(() => expect(summaries.length).toBeGreaterThan(0));
+    // No comparison: no line, and the weeks are not asked for
+    expect(within(plain).queryAllByRole('img', { name: /^Mention rate by week: / })).toHaveLength(0);
+    expect(summaries.some((url) => /[?&]include=series(&|$)/.test(url))).toBe(false);
+    off.unmount();
+
+    renderOn('?tab=prompts&cmp=previous');
     const grid = await screen.findByRole('grid', { name: 'Prompts' });
-    const headers = (await within(grid).findAllByRole('columnheader')).map((header) => header.textContent);
-    expect(headers.indexOf('Trend')).toBe(headers.findIndex((text) => text?.startsWith('Citation rate')) + 1);
     await waitFor(() =>
       expect(within(grid).getAllByRole('img', { name: /^Mention rate by week: / }).length).toBeGreaterThan(0),
     );
+    const line = within(grid).getAllByRole('img', { name: /^Mention rate by week: / })[0];
+    // The line is inside a Mention rate cell, after its percent
+    expect(line?.closest('[role="gridcell"]')).toHaveTextContent('%');
+    expect(headers).not.toContain('Trend');
   });
 });

@@ -32,7 +32,9 @@ function Strip({ counts }: { counts: PromptCounts }): ReactElement {
   );
 }
 
-const render = (counts: PromptCounts, searchParams = ''): ProvidedRender =>
+/** The page opens without a comparison: a change shows only when the address asks for it. */
+const ON = '?cmp=previous';
+const render = (counts: PromptCounts, searchParams = ON): ProvidedRender =>
   renderWithProviders(<Strip counts={counts} />, { searchParams });
 
 /** The value cell of an item: with a tooltip it is the tab stop that holds it. */
@@ -128,7 +130,7 @@ describe('the prompt inspector strip: change per engine', () => {
   });
 
   it('is as before without comparison: no change, no tooltip', () => {
-    render(countsOf(detectable()), '?cmp=off');
+    render(countsOf(detectable()), '');
     const chatgpt = itemOf('ChatGPT mention');
     expect(chatgpt.textContent).not.toMatch(/pts/);
     expect(chatgpt).not.toHaveAttribute('tabindex');

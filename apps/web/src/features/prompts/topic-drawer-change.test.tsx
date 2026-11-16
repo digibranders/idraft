@@ -92,7 +92,7 @@ interface Options {
 function renderDrawer({
   engines = TOPIC_ENGINES(),
   prompts = PROMPTS,
-  searchParams = '',
+  searchParams = '?cmp=previous',
   tab = 'overview',
   onTabChange = () => undefined,
 }: Options = {}): ProvidedRender {
@@ -226,7 +226,7 @@ describe('the topic drawer: change on the three cards', () => {
   });
 
   it('draws no change and no tab stop without comparison', async () => {
-    renderDrawer({ searchParams: '?cmp=off' });
+    renderDrawer({ searchParams: '' });
     const mentioned = await valueOf('Mentioned');
     expect(mentioned).toHaveTextContent('avg of 2');
     expect(mentioned.textContent).not.toMatch(/\d pts/);
@@ -300,7 +300,7 @@ describe('the topic drawer: change on the prompts', () => {
   });
 
   it('draws no prompt change without comparison', async () => {
-    renderDrawer({ searchParams: '?cmp=off' });
+    renderDrawer({ searchParams: '' });
     const top = await sectionOf('Top prompts');
     expect(top.textContent).not.toMatch(/\d pts/);
     // Only the prompt's own buttons are tab stops: the meta line has none
@@ -310,7 +310,7 @@ describe('the topic drawer: change on the prompts', () => {
 
 describe('the topic drawer: change on the prompts of one engine', () => {
   it('shows the engine change of each prompt with the previous value in its tooltip', async () => {
-    const { user } = renderDrawer({ tab: 'prompts', searchParams: '?eng=chatgpt_web' });
+    const { user } = renderDrawer({ tab: 'prompts', searchParams: '?eng=chatgpt_web&cmp=previous' });
     const list = await sectionOf('Prompts');
     const rose = itemOf(list, 'rose');
     expect(within(rose).getByText('+30.0 pts')).toHaveClass('text-positive-text');
@@ -325,7 +325,7 @@ describe('the topic drawer: change on the prompts of one engine', () => {
   });
 
   it('shows no change without comparison', async () => {
-    renderDrawer({ tab: 'prompts', searchParams: '?eng=chatgpt_web&cmp=off' });
+    renderDrawer({ tab: 'prompts', searchParams: '?eng=chatgpt_web' });
     const list = await sectionOf('Prompts');
     expect(itemOf(list, 'rose')).toBeInTheDocument();
     expect(list.textContent).not.toMatch(/\d pts/);
@@ -341,7 +341,7 @@ describe('the topic drawer: change in the By engine rows', () => {
   });
 
   it('shows no change once comparison is off, though the held rows still carry their previous cells', async () => {
-    renderDrawer({ searchParams: '?cmp=off' });
+    renderDrawer({ searchParams: '' });
     const rows = await engineRows();
     expect(within(rows).getAllByRole('link').length).toBeGreaterThan(0);
     expect(rows.textContent).not.toMatch(/\d pts/);

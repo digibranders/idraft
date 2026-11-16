@@ -160,7 +160,9 @@ describe('the row menu of a group', () => {
     expect(within(table).queryByText(FIRST)).toBeNull();
     const filters = screen.getByRole('group', { name: 'Filters' });
     expect(within(filters).getByRole('button', { name: /^Group: Content Marketing/ })).toBeInTheDocument();
-    expect(within(filters).getByRole('button', { name: /^Platform: / })).toBeInTheDocument();
+    // One platform is the Platform select's, which keeps it; it has no chip
+    expect(within(filters).queryByRole('button', { name: /^Platform: / })).toBeNull();
+    expect(screen.getByRole('combobox', { name: 'Platform' })).toHaveTextContent('Gemini');
   });
 
   it('opens Add prompts with the group already chosen', async () => {
