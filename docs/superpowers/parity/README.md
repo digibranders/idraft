@@ -45,5 +45,10 @@ to `done <commit>` or `differs <reason>` by the package that ports the row, and 
 
 - Plan: `docs/superpowers/plans/2026-11-16-real-app-port-overview-and-prompts.md` (waves, packages, the preview change
   ledger).
+- Shared code of the two screens (features cannot import each other): the pure Prompts facts (position, sentiment,
+  brands, cited links, volume, intent) in `apps/web/src/lib/prompt-facts/` (the read hook stays in
+  `features/prompts/facts/`, whose `index.ts` re-exports the lib), and the change icon `DeltaIcon` in
+  `apps/web/src/components/app/metric/delta-icon.tsx`. The Overview opens a prompt through `drillHref('prompt', ...)`
+  (`features/ai-overview/drilldown/drill-links.ts`) and the `inspect` key of `lib/inspector/placement.ts`.
 - Backend requests for fields the real app does not have yet:
   `docs/ai-visibility/backend-requests-prompts-page.md` and `docs/ai-visibility/backend-requests-overview.md`.
