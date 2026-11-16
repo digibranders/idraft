@@ -15,6 +15,7 @@ import {
   type ComparisonRow,
   type DistributionRow,
 } from '@/components/app/chart/bar-list';
+import { CardInfoProvider } from '@/components/app/chart/card-info';
 import { ChartFrame, type HtmlFrameProps } from '@/components/app/chart/chart-frame';
 import {
   IntervalBar,
@@ -173,6 +174,42 @@ function ShareOfVoiceSpecimen({ density }: DensityProps): ReactElement {
         table={<BarListTable {...bars} />}
         menu={{ fileName: 'share-of-voice', link: menuLink('sov'), csv: barListCsv(bars, thin) }}
       />
+    </div>
+  );
+}
+
+/* ---------- 1b. CardInfoProvider and CardInfoButton ---------- */
+
+/** The same frame inside CardInfoProvider: the footnote is not printed, an "i" button at the end of the title row holds it. */
+function CardInfoSpecimen({ density }: DensityProps): ReactElement {
+  const words = useRateTipWords();
+  const thin = useThinWords();
+  const bars: BarListProps = {
+    mode: 'comparison',
+    caption: 'Share of voice with the footnote in an info button',
+    labelHeader: 'Brand',
+    valueHeader: 'Share of voice',
+    contextHeader: 'Answers',
+    rows: sovRows(words).slice(0, 3),
+    density,
+  };
+  return (
+    <div id="card-info">
+      <CardInfoProvider>
+        <ChartFrame
+          kind="html"
+          variant="panel"
+          title="Share of voice, footnote behind the info button"
+          meta="ChatGPT, last 28 days, 1,412 answers naming a tracked brand"
+          footnote="Tracked set: your brand and 5 competitors. Excludes branded prompts."
+          height={140}
+          summary="HubSpot is named in 466 of 1,412 answers that name a tracked brand, idraft.ai in 312 and Zapier in 198."
+          status="ready"
+          body={<BarList {...bars} />}
+          table={<BarListTable {...bars} />}
+          menu={{ fileName: 'share-of-voice-info', link: menuLink('card-info'), csv: barListCsv(bars, thin) }}
+        />
+      </CardInfoProvider>
     </div>
   );
 }
@@ -1114,6 +1151,12 @@ export function ChartPartsSection(): ReactNode {
         note="CH-02, WB-OV-08, WB-TI-18. Your row in the brand colour and every other bar neutral, one scale from 0, the count beside every percent. Rows are links: Tab moves down the list. The tracked set is named in the footnote (R9)."
       >
         <ShareOfVoiceSpecimen density={density} />
+      </SpecimenGroup>
+      <SpecimenGroup
+        title="CardInfoProvider and CardInfoButton"
+        note="Inside CardInfoProvider a chart frame does not print its footnote: an i button at the end of the title row holds it. Hover or keyboard focus shows it in a tooltip, a click opens it in a popover (touch). The footnote stays in the page, hidden, for screen readers and the PNG export. Outside the provider the footnote is printed, as in the specimen above."
+      >
+        <CardInfoSpecimen density={density} />
       </SpecimenGroup>
       <SpecimenGroup
         title="BarList, role badges and changes"
