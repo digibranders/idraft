@@ -4,11 +4,12 @@
  * the text of a prompt with its marks, the engine that does best. Values come from prompts-data.js; what is
  * in scope and whether changes show comes from prompts-state.js.
  */
-import { formatSampleCount } from './vendor/format/number.js';
+import { formatMetricDelta } from './vendor/format/delta.js';
+import { formatPointsDelta, formatSampleCount } from './vendor/format/number.js';
 import { MIN_OBSERVATIONS, pooledCounts } from './vendor/stats/index.js';
 import { NOT_CLASSIFIED, TYPE_LABEL, absenceOf, averageFor, changeFor, countsOf, engineOf, measures, rateFor, trendOf, updatedOf } from './prompts-data.js';
 import { NEUTRAL_BADGE, NEUTRAL_BADGE_LOOK, checkbox, el, insufficient, percent0, plural } from './prompts-parts.js';
-import { deltaNode, scopeCodes, state } from './prompts-state.js';
+import { TONE_CLASS, scopeCodes, state } from './prompts-state.js';
 
 const { $, icon, engineLogo } = window.PreviewUI;
 
@@ -16,10 +17,32 @@ const { $, icon, engineLogo } = window.PreviewUI;
 export const CELL = 'border-b border-border-subtle px-3';
 
 /**
- * MetricCell in Compact density, the default (12 section 6): the rate and its change beside it on one line, so the row
- * stays 32 px; the sample ("612 of 1,296 obs") and which engines an average covers are in the tooltip. Left aligned
- * like every table column. `value` null renders InsufficientData with `gap.text` and `gap.tip`. The change and the
- * `trend` (the weekly rates of the window) are comparison: they show only when the person chose to compare.
+ * The change of a rate as a ticker arrow, as price tables show it: a triangle up or down, and a dot when the change
+ * rounds to nothing. The triangle always says the direction. It takes the green or red of a good or bad change only
+ * when the change is detectable (17 section 6.3); within normal variation it stays grey, so a wobble does not look like
+ * news. The hover carries the figures: the rate now and before, the change in points, whether it is detectable, the
+ * sample and the weekly rates. Null when there is nothing to compare, or when the person chose "No comparison".
+ */
+function trendArrow({ value, change, trend, sample }) {
+  if (!change || !state.compare) return null;
+  const display = formatMetricDelta({ value: change.value, unit: 'points', polarity: 'higher_is_better', isDetectable: change.detectable });
+  const flat = Math.abs(change.value) < 0.0005;
+  const words = flat ? 'No change' : change.value > 0 ? 'Up' : 'Down';
+  // "Up 20.8 pts", not "Up +20.8 pts": the word already says the sign
+  const points = formatPointsDelta(Math.abs(change.value), { decimals: 1 }).replace(/^\+/, '');
+  const weekly = trend?.some((point) => point !== null) ? ` Weekly rates: ${trend.map((point) => (point === null ? 'n/a' : percent0(point))).join(', ')}.` : '';
+  const verdict = change.detectable ? 'Detectable: its 95% interval excludes zero.' : 'Within normal variation, so it is not colored.';
+  const arrow = el('span', `inline-block w-3.5 shrink-0 text-center type-meta ${TONE_CLASS[display.tone]}`, flat ? '•' : change.value > 0 ? '▲' : '▼');
+  arrow.dataset.tip = `${words}${flat ? '' : ` ${points}`} against the previous period, from ${percent0(value - change.value)} to ${percent0(value)}. ${verdict} ${sample}.${weekly}`;
+  arrow.append(el('span', 'sr-only', `${words}${flat ? '' : ` ${points}`}${change.detectable ? ', detectable change' : ', within normal variation'}`));
+  return arrow;
+}
+
+/**
+ * MetricCell in Compact density, the default (12 section 6): the rate and its trend arrow on one line, so the row stays
+ * 32 px; the sample ("612 of 1,296 obs") and which engines an average covers are in the tooltip. Left aligned like
+ * every table column. `value` null renders InsufficientData with `gap.text` and `gap.tip`. The arrow is comparison: it
+ * shows only when the person chose to compare. The `trend` (the weekly rates of the window) is in its hover.
  */
 export function rateCell({ value, change, trend, sample, tip, gap }) {
   const cell = el('td', CELL);
@@ -29,22 +52,10 @@ export function rateCell({ value, change, trend, sample, tip, gap }) {
     cell.append(pill);
     return cell;
   }
-  const spark = state.compare ? sparkCanvas(trend) : null;
-  const line = el('span', 'inline-flex items-baseline gap-1 whitespace-nowrap');
-  // With a trend line the value and the change get a fixed room, so the lines of every row start at the same place
-  line.append(el('span', `num${spark ? ' min-w-7' : ''}`, percent0(value)));
-  const delta = deltaNode(change, 1);
-  if (delta) {
-    delta.classList.add('type-meta');
-    if (spark) delta.classList.add('min-w-16');
-    line.append(delta);
-  } else if (spark) {
-    line.append(el('span', 'min-w-16', ''));
-  }
-  if (spark) {
-    spark.classList.add('ml-1');
-    line.append(spark);
-  }
+  const line = el('span', 'inline-flex items-baseline gap-1.5 whitespace-nowrap');
+  line.append(el('span', 'num min-w-7', percent0(value)));
+  const arrow = trendArrow({ value, change, trend, sample });
+  if (arrow) line.append(arrow);
   cell.append(line);
   cell.dataset.tip = tip ? `${sample}. ${tip}` : sample;
   return cell;
@@ -83,18 +94,6 @@ export function promptRateCell(prompt, metric, withChange) {
       tip: observed === 0 || unclassified ? absent.tip : `${plural(observed, 'observation')} in scope. A rate needs at least ${MIN_OBSERVATIONS} on an engine.`,
     },
   });
-}
-
-/** A sparkline of weekly rates (0 to 1). Null points are gaps. Null when there is no point to draw. */
-function sparkCanvas(points) {
-  if (!points || points.every((point) => point === null)) return null;
-  const canvas = el('canvas', 'shrink-0 self-center');
-  canvas.dataset.spark = points.map((point) => (point === null ? '' : Math.round(point * 100))).join(',');
-  canvas.dataset.kind = 'rate';
-  canvas.setAttribute('role', 'img');
-  const latest = points.at(-1);
-  canvas.setAttribute('aria-label', `Mention rate over ${points.length} weeks${latest === null ? '' : `, now ${percent0(latest)}`}`);
-  return canvas;
 }
 
 export function updatedCell(updated, className, stale = false) {
