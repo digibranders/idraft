@@ -6839,6 +6839,11 @@
         "infoWhat": "The domains AI answers cite most often.",
         "infoHow": "A page is counted once for each answer that cites it. Each share is a part of all citations in scope."
       },
+      "keyChanges": {
+        "meta": "last {days, number} days",
+        "infoWhat": "The changes in the last {days, number} days that deserve your attention.",
+        "infoHow": "Only detectable changes are listed, together with collection events."
+      },
       "fanout": {
         "title": "Top fan-out queries",
         "meta": "{engines} only · {withFanout, number} of {answers, number} answers ran a search",

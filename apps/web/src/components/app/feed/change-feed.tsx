@@ -14,6 +14,7 @@ import {
   type ChangeFeedItem,
 } from './feed-model';
 import { FeedRow } from './feed-row';
+import { CardInfoButton, type CardInfo } from '@/components/app/chart/card-info';
 import type { ChartError, ChartNotice } from '@/components/app/chart/chart-frame';
 import { Banner } from '@/components/app/status/banner';
 import { EmptyState } from '@/components/app/status/empty-state';
@@ -43,6 +44,10 @@ export interface ChangeFeedProps {
   viewAllHref?: Route | undefined;
   /** Stale or partial data, in the title row's meta line; the rows stay. */
   notice?: ChartNotice | undefined;
+  /** A line after the title that says what the feed covers: "last 28 days". */
+  meta?: string | undefined;
+  /** What the feed shows and how it is counted: an "i" button at the end of the title row, as on a chart card. */
+  info?: CardInfo | undefined;
   /** Held days: one neutral banner above the groups, not one line per event. */
   holdText?: string | undefined;
   /** The empty state's one action (for example "Open alert rules"). */
@@ -101,6 +106,8 @@ export function ChangeFeed({
   windowText,
   viewAllHref,
   notice,
+  meta,
+  info,
   holdText,
   emptyAction,
   filter,
@@ -133,9 +140,12 @@ export function ChangeFeed({
       ) : null}
       <div className="flex min-h-12 items-center gap-3 px-4 py-3">
         <div className="flex min-w-0 flex-1 flex-col">
-          <Title id={titleId} className="type-section-title">
-            {title}
-          </Title>
+          <div className="flex flex-wrap items-baseline gap-x-3">
+            <Title id={titleId} className="type-section-title">
+              {title}
+            </Title>
+            {meta === undefined ? null : <p className="type-meta">{meta}</p>}
+          </div>
           {notice === undefined ? null : (
             <p className="inline-flex items-center gap-1 type-meta text-warning-text">
               <Icon icon={notice.kind === 'stale' ? Clock : CircleDashed} size="sm" />
@@ -148,6 +158,7 @@ export function ChangeFeed({
             {t('viewAll', { count: formatInteger(total) })}
           </TextLink>
         ) : null}
+        {info === undefined ? null : <CardInfoButton title={title} info={info} />}
       </div>
       {filter === undefined || filter === null ? null : <div className="px-4 pb-3">{filter}</div>}
       {holdText === undefined ? null : (
