@@ -27,11 +27,13 @@ import { useZoneDay } from '@/lib/dom/use-zone-day';
 import { formatList } from '@/lib/format';
 
 /**
- * The scope controls of the page (preview commit 98e7d226): Platform, Group and Compare, each with its name before
- * the value, then Reset scope (always in its place, invisible while the scope is the default), then the filter bar
- * with Branded ("Branded: Excluded" is a chip from the default). The window and the location are scope the top bar
- * owns and Reset leaves them alone. From 768 px the top bar holds the window and the country; below it everything is behind one
- * Filters button. The controls only write the scope; the numbers and the cards read it back.
+ * The scope controls of the page: Platform, Group and Compare, each with its name before the value, then Reset scope
+ * (always in its place, invisible while the scope is the default), then the Branded filter ("Branded: Excluded" is a
+ * chip from the default; "+ Filter" shows only while the chip is removed). The served preview has no Branded control:
+ * the real app keeps it, with the `branded` URL key, by the owner's decision (OV-SCOPE-10, OV-SCOPE-11 differ). The
+ * window and the location are scope the top bar owns and Reset leaves them alone. From 768 px the top bar holds the
+ * window and the country; below it everything is behind one Filters button. The controls only write the scope; the
+ * numbers and the cards read it back.
  */
 export function ScopeBar(): ReactElement {
   const t = useTranslations('aiOverview.scope');

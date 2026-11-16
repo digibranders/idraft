@@ -37,6 +37,7 @@ export function BrandedFilter(): ReactElement {
         fields={fields}
         values={values}
         hideClear
+        hideAddWhenFull
         onChange={(next) => setScope({ branded: brandedFromValues(next) })}
       />
     </div>

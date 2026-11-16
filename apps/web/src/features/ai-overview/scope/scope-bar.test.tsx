@@ -51,14 +51,14 @@ describe('the scope bar', () => {
     const compare = screen.getByRole('button', { name: 'Compare with: vs previous period' });
     const reset = screen.getByRole('button', { name: 'Reset scope' });
     const branded = await chip('Branded: Excluded. Edit filter');
-    const add = screen.getByRole('button', { name: 'Add a filter' });
     const follows = (a: HTMLElement, b: HTMLElement): boolean =>
       (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
     expect(follows(platform, group)).toBe(true);
     expect(follows(group, compare)).toBe(true);
     expect(follows(compare, reset)).toBe(true);
     expect(follows(reset, branded)).toBe(true);
-    expect(follows(branded, add)).toBe(true);
+    // With the chip on there is nothing to add: no "+ Filter", disabled or not
+    expect(screen.queryByRole('button', { name: 'Add a filter' })).not.toBeInTheDocument();
     // Reset keeps its place while the scope is the default, invisible and out of the tab order
     expect(reset).toHaveClass('invisible');
     expect(screen.queryByRole('button', { name: 'Clear filters' })).not.toBeInTheDocument();
@@ -307,7 +307,7 @@ describe('the scope bar below 768 px', () => {
     expect(within(sheet).getByRole('combobox', { name: 'Platform: Gemini' })).toBeInTheDocument();
     expect(within(sheet).getByRole('combobox', { name: 'Group: All groups' })).toBeInTheDocument();
     expect(within(sheet).getByRole('button', { name: 'Branded: Excluded. Edit filter' })).toBeInTheDocument();
-    expect(within(sheet).getByRole('button', { name: 'Add a filter' })).toBeInTheDocument();
+    expect(within(sheet).queryByRole('button', { name: 'Add a filter' })).not.toBeInTheDocument();
     expect(await within(sheet).findByRole('combobox', { name: 'Location: All locations' })).toBeInTheDocument();
     expect(within(sheet).getByRole('button', { name: /7 days/ })).toBeInTheDocument();
     await user.click(within(sheet).getByRole('button', { name: 'Reset scope' }));

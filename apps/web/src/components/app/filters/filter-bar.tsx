@@ -50,6 +50,11 @@ export interface FilterBarProps {
    * (scrollbar hidden) instead of wrapping to more rows, so the bar never changes height. Off: the group wraps.
    */
   nowrap?: boolean | undefined;
+  /**
+   * Leaves "+ Filter" out while every field has its chip, for a screen with one or two fields (the AI Overview's
+   * Branded): a button that can do nothing is not drawn, and is not a tab stop. Focus goes to the chip just added.
+   */
+  hideAddWhenFull?: boolean | undefined;
 }
 
 /**
@@ -66,6 +71,7 @@ export function FilterBar({
   hideClear = false,
   hiddenChipFields,
   nowrap = false,
+  hideAddWhenFull = false,
 }: FilterBarProps): ReactElement {
   const t = useTranslations('filters');
   const groupRef = useRef<HTMLDivElement>(null);
@@ -136,7 +142,16 @@ export function FilterBar({
             />
           );
         })}
-        <AddFilter fields={available} onAdd={(id, value) => set(id, value)} />
+        {hideAddWhenFull && available.length === 0 ? null : (
+          <AddFilter
+            fields={available}
+            onAdd={(id, value) => {
+              // The last field's chip takes the focus the button would have had
+              if (hideAddWhenFull && available.length === 1) pendingFocus.current = id;
+              set(id, value);
+            }}
+          />
+        )}
         {active.length === 0 || hideClear ? null : (
           <Button variant="link" size="sm" onClick={clearAll}>
             {t('clearAll')}

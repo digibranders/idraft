@@ -95,10 +95,10 @@ describe('the AI visibility page of a project with platforms on', () => {
     expect(screen.queryByText('Customizing')).not.toBeInTheDocument();
   });
 
-  it('keeps the scope toolbar under the top bar from 1920 px, with the headline below it', async () => {
+  it('keeps the scope toolbar under the top bar at every width, with the headline below it', async () => {
     renderWithProviders(overviewAs('admin'));
     const toolbar = await screen.findByRole('region', { name: 'Scope and actions' });
-    expect(toolbar).toHaveClass('min-[120rem]:sticky', 'min-[120rem]:top-topbar');
+    expect(toolbar).toHaveClass('sticky', 'top-topbar');
     // The scope controls are a named group of their own inside it
     expect(await within(toolbar).findByRole('region', { name: 'Scope' })).toBeInTheDocument();
     const headline = await screen.findByRole('group', { name: 'Headline numbers' });
