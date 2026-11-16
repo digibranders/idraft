@@ -136,6 +136,108 @@ async def set_website(pg: PostgresServer, project_id: uuid.UUID, host: str = "ex
     )
 
 
+READ_PAGES = [
+    ("/", 200),
+    ("/pricing", 200),
+    ("/blog", 200),
+    ("/blog/a", 200),
+    ("/blog/b", 200),
+    ("/old", 301),
+    ("/gone", 404),
+]
+READ_LINKS = [
+    SeedLink("/", "/pricing", "navigation", "Pricing"),
+    SeedLink("/", "/blog", "navigation", "Blog"),
+    SeedLink("/blog", "/blog/a", "content", "Post A"),
+    SeedLink("/blog", "/blog/b", "content", "Post B"),
+    SeedLink("/blog/a", "/pricing", "content", "See plans"),
+    SeedLink("/pricing", "/blog/a", "content", "Read the guide"),
+    SeedLink("/blog/a", "/blog/b", "auto_generated", "Next"),
+    SeedLink("/blog/b", "/blog/a", "auto_generated", "Previous"),
+    SeedLink("/blog/b", "/old", "content", "Old"),
+    SeedLink("/blog/b", "/gone", "content", "Gone"),
+]
+
+# The counts ingest writes (Task 11), for a seeded crawl.
+_INCOMING_SQL = """
+UPDATE seo.crawl_pages p SET
+    linking_pages_editorial = c.e, linking_pages_auto = c.a, linking_pages_template = c.t,
+    linking_pages_all = c.n
+FROM (SELECT target_url_id AS url_id,
+             count(DISTINCT source_url_id) FILTER (WHERE scope = 'editorial') AS e,
+             count(DISTINCT source_url_id) FILTER (WHERE scope = 'auto_generated') AS a,
+             count(DISTINCT source_url_id) FILTER (WHERE scope = 'template') AS t,
+             count(DISTINCT source_url_id) AS n
+      FROM seo.crawl_links WHERE run_id = $1 GROUP BY target_url_id) c
+WHERE p.run_id = $1 AND p.url_id = c.url_id
+"""
+_OUTGOING_SQL = """
+UPDATE seo.crawl_pages p SET
+    outlinks_editorial = c.e, outlinks_auto = c.a, outlinks_template = c.t, outlinks_all = c.n
+FROM (SELECT source_url_id AS url_id,
+             count(DISTINCT target_url_id) FILTER (WHERE scope = 'editorial') AS e,
+             count(DISTINCT target_url_id) FILTER (WHERE scope = 'auto_generated') AS a,
+             count(DISTINCT target_url_id) FILTER (WHERE scope = 'template') AS t,
+             count(DISTINCT target_url_id) AS n
+      FROM seo.crawl_links WHERE run_id = $1 GROUP BY source_url_id) c
+WHERE p.run_id = $1 AND p.url_id = c.url_id
+"""
+
+
+async def set_counts(pg: PostgresServer, run_id: uuid.UUID) -> None:
+    """The per-page link counts of a seeded crawl, as ingest would write them."""
+    for statement in (_INCOMING_SQL, _OUTGOING_SQL):
+        await execute(pg, statement, run_id)
+
+
+async def read_site(
+    pg: PostgresServer, workspace: Workspace, project_id: uuid.UUID
+) -> tuple[uuid.UUID, dict[str, int], list[uuid.UUID]]:
+    """A finished crawl with counts and metrics set as ingest would, and tiers: /pricing is a
+    manual T1, /blog/a a manual T3."""
+    tiers = await seed_tiers(pg, workspace)
+    run_id, ids = await seed_crawl(pg, workspace, project_id, READ_PAGES, READ_LINKS)
+    await execute(
+        pg,
+        "UPDATE seo.crawl_pages SET redirect_url_id = $2 WHERE run_id = $1 AND url_id = $3",
+        run_id,
+        ids["/pricing"],
+        ids["/old"],
+    )
+    await set_counts(pg, run_id)
+    depth = {"/": 0, "/pricing": 1, "/blog": 1, "/blog/a": 2, "/blog/b": 2, "/old": 3, "/gone": 3}
+    share = {
+        "/": 0.2,
+        "/pricing": 0.3,
+        "/blog": 0.1,
+        "/blog/a": 0.2,
+        "/blog/b": 0.1,
+        "/old": 0.05,
+        "/gone": 0.05,
+    }
+    for path, url in ids.items():
+        await execute(
+            pg,
+            "UPDATE seo.crawl_pages SET click_depth = $3, equity_share = $4 "
+            "WHERE run_id = $1 AND url_id = $2",
+            run_id,
+            url,
+            depth[path],
+            share[path],
+        )
+    for path, tier in (("/pricing", tiers[0]), ("/blog/a", tiers[2])):
+        await execute(
+            pg,
+            "INSERT INTO core.project_pages (project_id, url_id, workspace_id, tier_id, "
+            "tier_source) VALUES ($1, $2, $3, $4, 'manual')",
+            project_id,
+            ids[path],
+            workspace.id,
+            tier,
+        )
+    return run_id, ids, tiers
+
+
 async def audit_rows(
     pg: PostgresServer, workspace: Workspace, action: str
 ) -> list[dict[str, object]]:

@@ -24,6 +24,8 @@ from idraft.api.main import create_app
 from idraft.api.openapi import placeholder_settings
 from idraft.api.resources import Resources
 from idraft.api.stubs import is_not_built
+from idraft.collectors.crawl_store import recompute_tier_flow
+from idraft.db.engine import workspace_transaction
 from idraft.storage.raw import compress, digest
 from idraft.vault.envelope import EnvelopeCipher
 from idraft.vault.store import REFRESH_TOKEN
@@ -38,6 +40,13 @@ from tests.api.auth.support import (
     make_user,
     make_workspace,
     open_session,
+)
+from tests.api.internal_links.support import (
+    SeedLink,
+    seed_crawl,
+    seed_tiers,
+    set_counts,
+    set_website,
 )
 from tests.api.keywords.support import LOCATION, ensure_locations
 from tests.api.test_route_access import PATH_PARAMETER
@@ -290,6 +299,33 @@ BODIES: dict[tuple[str, str], dict[str, Any]] = {
     # WP-68 llm-advanced
     # WP-69 first-party-signals
     # WP-70 geo-readiness
+    # Internal links tracker (plan 02): tiers, rules, tiers and tags on pages. The tier is the
+    # spare one nothing uses, so deleting it succeeds.
+    ("POST", _W + "/page-tiers"): {"name": "Planted tier"},
+    ("PATCH", _W + "/page-tiers/{tier_id}"): {"name": "Taken over"},
+    ("PUT", _W + "/projects/{project_id}/pages/tiers"): {
+        "url_ids": ["{url_id}"],
+        "tier_id": "{tier_id}",
+    },
+    ("POST", _W + "/projects/{project_id}/pages/tiers/reset"): {"url_ids": ["{url_id}"]},
+    ("POST", _W + "/projects/{project_id}/pages/tiers/import"): {
+        "csv": "url,tier\n{page_url},T1\n",
+    },
+    ("PUT", _W + "/projects/{project_id}/pages/tags"): {
+        "url_ids": ["{url_id}"],
+        "add": ["{tag_term_id}"],
+        "remove": [],
+    },
+    ("POST", _W + "/projects/{project_id}/tier-rules"): {
+        "match_type": "prefix",
+        "value": "/planted",
+        "tier_id": "{tier_id}",
+    },
+    ("PATCH", _W + "/projects/{project_id}/tier-rules/{rule_id}"): {"value": "/taken-over"},
+    ("POST", _W + "/projects/{project_id}/tier-rules/preview"): {
+        "match_type": "prefix",
+        "value": "/planted",
+    },
 }
 # Routes that a member limited to some projects is refused even inside their own project: they
 # change the workspace's credentials, which belong to no one project (docs/24 section 3.2).
@@ -411,6 +447,12 @@ QUERIES: dict[tuple[str, str], dict[str, str]] = {
     # WP-68 llm-advanced
     # WP-69 first-party-signals
     # WP-70 geo-readiness
+    # Internal links tracker (plan 02): the journey step needs the focus page.
+    ("GET", _W + "/projects/{project_id}/internal-links/neighbors"): {
+        "url_id": "{url_id}",
+        "direction": "out",
+        "scope": "all",
+    },
 }
 # Lists under a workspace's path that hold the platform's data, the same for every workspace:
 # they have no tenant data of their own to show.
@@ -487,8 +529,11 @@ class Tenant:
 
     def secrets(self) -> list[str]:
         """Everything that identifies this tenant and must never reach another."""
+        # A `core.urls` id belongs to the dictionary every workspace shares and is a small number
+        # that counts and depths equal by chance; the tenant's own page paths and URL (in the
+        # ids) are what would show it.
         return [
-            *self.ids().values(),
+            *(value for name, value in self.ids().items() if name != "url_id"),
             str(self.owner.id),
             self.workspace.slug,
             self.owner.email,
@@ -939,6 +984,80 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str, fake: Fa
 
     # WP-70 geo-readiness
 
+    # Internal links tracker (plan 02): the workspace's tiers and a spare one nothing uses, a
+    # finished crawl of the project's site with two linked pages of the tenant's own (their
+    # paths carry the label, so a response that shows them shows the tenant), a rule, a page with
+    # a manual tier and a tag, and the tier flow of the crawl.
+    tiers = await seed_tiers(pg, workspace)
+    spare_tier = await fetchrow(
+        pg,
+        "INSERT INTO core.page_tier_levels (workspace_id, position, name, description) "
+        "VALUES ($1, 5, 'Spare', '') RETURNING id",
+        workspace.id,
+    )
+    await set_website(pg, project_id)
+    home, pricing = f"/{label}-home", f"/{label}-pricing"
+    crawl_run, crawl_ids = await seed_crawl(
+        pg,
+        workspace,
+        project_id,
+        [(home, 200), (pricing, 200)],
+        [
+            SeedLink(home, pricing, "content", f"{label} anchor"),
+            SeedLink(home, pricing, "navigation", f"{label} menu"),
+        ],
+    )
+    await set_counts(pg, crawl_run)
+    rule = await fetchrow(
+        pg,
+        "INSERT INTO core.tier_rules (workspace_id, project_id, position, match_type, value, "
+        "tier_id, created_by) VALUES ($1, $2, 1, 'prefix', $3, $4, $5) RETURNING id",
+        workspace.id,
+        project_id,
+        f"/{label}-pri",
+        tiers[0],
+        owner.id,
+    )
+    await execute(
+        pg,
+        "INSERT INTO core.project_pages (project_id, url_id, workspace_id, tier_id, tier_source, "
+        "set_by) VALUES ($1, $2, $3, $4, 'manual', $5)",
+        project_id,
+        crawl_ids[pricing],
+        workspace.id,
+        tiers[1],
+        owner.id,
+    )
+    tag_vocabulary = await fetchrow(
+        pg,
+        "INSERT INTO core.taxonomy_vocabularies (workspace_id, kind, name) "
+        "VALUES ($1, 'tag', 'Page tags') RETURNING id",
+        workspace.id,
+    )
+    tag_term = await fetchrow(
+        pg,
+        "INSERT INTO core.taxonomy_terms (workspace_id, vocabulary_id, name, slug, path) "
+        "VALUES ($1, $2, 'Launch', 'launch', 'launch') RETURNING id",
+        workspace.id,
+        tag_vocabulary["id"],
+    )
+    await execute(
+        pg,
+        "INSERT INTO core.page_terms (project_id, url_id, term_id, workspace_id) "
+        "VALUES ($1, $2, $3, $4)",
+        project_id,
+        crawl_ids[pricing],
+        tag_term["id"],
+        workspace.id,
+    )
+    async with workspace_transaction(resources.sessions, workspace.id) as flow_db:
+        await recompute_tier_flow(flow_db, workspace_id=workspace.id, run_id=crawl_run)
+    more_ids["tier_id"] = str(spare_tier["id"])
+    more_ids["rule_id"] = str(rule["id"])
+    more_ids["tag_term_id"] = str(tag_term["id"])
+    more_ids["url_id"] = str(crawl_ids[pricing])
+    more_ids["page_url"] = f"https://example.com{pricing}"
+
     # Fresh, so that a route wanting a recent credential is not refused for that instead.
     token, _ = await open_session(resources, owner, fresh=True)
     return Tenant(
@@ -986,7 +1105,7 @@ def _nowhere(ids: dict[str, str]) -> dict[str, str]:
     snapshot or an AI observation a number no sequence has reached."""
     return {
         name: "9223372036854775000"
-        if name in ("serp_snapshot_id", "observation_id")
+        if name in ("serp_snapshot_id", "observation_id", "url_id")
         else str(uuid.uuid4())
         for name in ids
     }
@@ -1019,10 +1138,11 @@ async def _call(
     body = None if method in _READ else BODIES.get((method, path), {})
     if body is not None:
         body = {key: _fill_value(value, ids) for key, value in body.items()}
+    query = QUERIES.get((method, path))
     return await api.request(
         method,
         _fill(path, ids),
-        params=QUERIES.get((method, path)),
+        params=None if query is None else {key: _fill(value, ids) for key, value in query.items()},
         json=body,
         headers=headers,
     )
@@ -1158,6 +1278,16 @@ _TENANT_ROWS = {
     "ai.citations": "workspace_id",
     "ai.entity_mentions": "workspace_id",
     "ai.observation_facts": "workspace_id",
+    # Internal links tracker (plan 02)
+    "core.page_tier_levels": "workspace_id",
+    "core.tier_rules": "workspace_id",
+    "core.project_pages": "workspace_id",
+    "core.page_terms": "workspace_id",
+    "seo.crawl_runs": "workspace_id",
+    "seo.crawl_pages": "workspace_id",
+    "seo.crawl_links": "workspace_id",
+    "seo.crawl_tier_flow": "workspace_id",
+    "seo.crawl_tier_stats": "workspace_id",
     # AI visibility packages, one line each (docs/ai-visibility/MASTER-PLAN.md section 3.6): add
     # your entries under your own line, nowhere else in this table.
     # WP-03 contract-pack

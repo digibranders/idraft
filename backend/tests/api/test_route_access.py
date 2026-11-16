@@ -502,6 +502,25 @@ EXPECTED: dict[tuple[str, str], str] = {
     ("POST", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tier-rules/preview"): (
         "data:read"
     ),
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"): (
+        "data:read"
+    ),
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}",
+    ): "data:read",
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/edges"): (
+        "data:read"
+    ),
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/neighbors"): (
+        "data:read"
+    ),
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/tier-flow"): (
+        "data:read"
+    ),
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/worklists"): (
+        "data:read"
+    ),
     ("PATCH", "/api/v1/workspaces/{workspace_id}/budgets/{budget_id}"): "budgets:manage",
     ("DELETE", "/api/v1/workspaces/{workspace_id}/budgets/{budget_id}"): "budgets:manage",
     ("GET", "/api/v1/workspaces/{workspace_id}/costs/forecast"): "costs:read",
@@ -596,6 +615,10 @@ PATH_PARAMETERS = {
     # Inside one project, after `{project_id}`: the service finds the rule within that project,
     # so a rule of another project or workspace is a 404.
     "rule_id",
+    # Inside one project, after `{project_id}`: a `core.urls` id is a shared dictionary key, not
+    # a tenant row, and the service reads the page within the crawl of that project, so a URL
+    # the crawl does not hold is a 404.
+    "url_id",
     # A vocabulary may belong to a project, but its routes check that project's scope in the
     # service: a vocabulary id is not a project id, and a workspace-wide one has none.
     "vocabulary_id",

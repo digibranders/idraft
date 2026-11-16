@@ -15,7 +15,8 @@ from pydantic import (
     model_validator,
 )
 
-from idraft.api.schemas.common import Body, Patch, printable, refuse_null
+from idraft.api.pagination import CursorPageInfo
+from idraft.api.schemas.common import Body, Patch, UserRef, printable, refuse_null
 
 TierName = Annotated[
     str,
@@ -232,3 +233,233 @@ class TagChangeResult(BaseModel):
 
 class TagChangeResponse(BaseModel):
     data: TagChangeResult
+
+
+LinkScopeName = Literal["editorial", "auto_generated", "template", "all"]
+EdgeScopeName = Literal["editorial", "auto_generated", "template"]
+PlacementName = Literal[
+    "content", "auto_generated", "navigation", "header", "footer", "sidebar", "breadcrumb"
+]
+RowFlag = Literal[
+    "orphan",
+    "editorial_orphan",
+    "deep_only_through_auto",
+    "placement_unknown",
+    "broken",
+    "redirect",
+    "non_indexable",
+]
+PageSort = Literal[
+    "path",
+    "-path",
+    "click_depth",
+    "-click_depth",
+    "linking_pages",
+    "-linking_pages",
+    "outlinks",
+    "-outlinks",
+    "equity_share",
+    "-equity_share",
+    "status_code",
+    "-status_code",
+]
+EdgeWorklist = Literal["broken_and_redirected", "links_to_non_indexable"]
+UrlIdText = Annotated[str, Field(description="A `core.urls` id: a 64-bit integer as a string.")]
+
+
+class PageTagRef(BaseModel):
+    term_id: UUID
+    name: str
+
+
+class TierCount(BaseModel):
+    tier: TierRef | None = Field(description="null is Untiered.")
+    pages: int
+
+
+class PageRow(BaseModel):
+    url_id: UrlIdText
+    url: str
+    path: str
+    title: str | None
+    status_code: int | None
+    resource_type: Literal["html", "redirect", "broken", "other"]
+    redirect_url: str | None
+    is_indexable: bool
+    non_indexable_reason: str | None
+    canonical_url: str | None
+    in_sitemap: bool
+    click_depth: int | None
+    depth_without_auto: int | None
+    equity_share: float | None
+    linking_pages: int = Field(description="Unique pages linking here, in the scope in view.")
+    linking_pages_all: int
+    outlinks: int = Field(description="Unique pages linked from here, in the scope in view.")
+    outlinks_all: int
+    linked_from_tiers: list[TierCount]
+    outlinks_to_t1: int
+    broken_outlinks: int
+    redirect_outlinks: int
+    non_indexable_outlinks: int
+    top_anchor: str | None
+    tier: TierRef | None
+    tier_source: Literal["manual", "rule"] | None
+    tier_rule_id: UUID | None
+    tier_set_by: UserRef | None
+    tier_set_at: datetime | None
+    tags: list[PageTagRef]
+    flags: list[RowFlag]
+
+
+class ListMeta(BaseModel):
+    run_id: UUID
+    scope: LinkScopeName
+    total: int
+
+
+class PageRowPage(BaseModel):
+    data: list[PageRow]
+    page: CursorPageInfo
+    meta: ListMeta
+
+
+class Neighbor(BaseModel):
+    url_id: UrlIdText
+    url: str
+    path: str
+    title: str | None
+    status_code: int | None = Field(description="null when the page was not crawled.")
+    redirect_url_id: UrlIdText | None
+    tier: TierRef | None
+    click_depth: int | None
+    linking_pages: int
+    linking_pages_all: int
+    equity_share: float | None
+    anchor: str | None
+    placement: PlacementName | None
+    scope: EdgeScopeName | None
+    is_followed: bool
+    rel: list[str]
+    occurrences: int
+    links: int = Field(description="Link rows between the two pages in the scope in view.")
+    has_children: bool
+    reciprocal: bool = Field(description="The two pages link both ways in the scope in view.")
+
+
+class ScopeCount(BaseModel):
+    scope: EdgeScopeName
+    pages: int
+
+
+class NeighborFocus(BaseModel):
+    url_id: UrlIdText
+    status_code: int | None
+    redirect_url_id: UrlIdText | None
+
+
+class NeighborMeta(BaseModel):
+    run_id: UUID
+    url_id: UrlIdText
+    direction: Literal["in", "out"]
+    scope: LinkScopeName
+    total: int
+    other_scopes: list[ScopeCount]
+    focus: NeighborFocus
+
+
+class NeighborList(BaseModel):
+    data: list[Neighbor]
+    meta: NeighborMeta
+
+
+class PlacementCount(BaseModel):
+    placement: PlacementName
+    pages: int
+
+
+class AnchorCount(BaseModel):
+    anchor: str
+    links: int
+
+
+class PageDetail(BaseModel):
+    page: PageRow
+    linking_by_tier: list[TierCount]
+    linking_by_placement: list[PlacementCount]
+    top_anchors: list[AnchorCount]
+    linking_pages: list[Neighbor]
+    outlinks: list[Neighbor]
+    linking_pages_total: int
+    outlinks_total: int
+
+
+class PageDetailResponse(BaseModel):
+    data: PageDetail
+
+
+class EdgePage(BaseModel):
+    url_id: UrlIdText
+    url: str
+    path: str
+    tier: TierRef | None
+    status_code: int | None
+    redirect_url: str | None
+    is_indexable: bool | None
+
+
+class EdgeRow(BaseModel):
+    link_id: UrlIdText
+    source: EdgePage
+    target: EdgePage
+    anchor: str
+    kind: Literal["text", "image"]
+    placement: PlacementName
+    scope: EdgeScopeName
+    rel: list[str]
+    is_followed: bool
+    occurrences: int
+
+
+class EdgeRowPage(BaseModel):
+    data: list[EdgeRow]
+    page: CursorPageInfo
+    meta: ListMeta
+
+
+class TierFlowCell(BaseModel):
+    from_tier: TierRef | None
+    to_tier: TierRef | None
+    links: int
+
+
+class TierStat(BaseModel):
+    tier: TierRef | None
+    pages: int
+    equity_share: float
+    average_depth: float | None
+
+
+class TierFlow(BaseModel):
+    run_id: UUID
+    scope: LinkScopeName
+    stale: bool = Field(description="A tier change is being applied; read again in a minute.")
+    cells: list[TierFlowCell]
+    tiers: list[TierStat]
+
+
+class TierFlowResponse(BaseModel):
+    data: TierFlow
+
+
+class Worklists(BaseModel):
+    run_id: UUID
+    under_linked_t1: int
+    orphans: int
+    editorial_orphans: int
+    deep_only_through_auto: int
+    broken_and_redirected: int = Field(description="Links of every scope.")
+    links_to_non_indexable: int = Field(description="Links of every scope.")
+
+
+class WorklistsResponse(BaseModel):
+    data: Worklists

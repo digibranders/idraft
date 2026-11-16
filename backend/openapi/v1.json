@@ -2129,6 +2129,24 @@
         "title": "AnalyticsPropertyList",
         "type": "object"
       },
+      "AnchorCount": {
+        "properties": {
+          "anchor": {
+            "title": "Anchor",
+            "type": "string"
+          },
+          "links": {
+            "title": "Links",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "anchor",
+          "links"
+        ],
+        "title": "AnchorCount",
+        "type": "object"
+      },
       "Annotation": {
         "description": "A boundary drawn on every time chart (overview-and-charts N9).",
         "properties": {
@@ -4412,6 +4430,179 @@
           }
         },
         "title": "Done",
+        "type": "object"
+      },
+      "EdgePage": {
+        "properties": {
+          "is_indexable": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Indexable"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "redirect_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Redirect Url"
+          },
+          "status_code": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status Code"
+          },
+          "tier": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TierRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "url_id": {
+            "description": "A `core.urls` id: a 64-bit integer as a string.",
+            "title": "Url Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url_id",
+          "url",
+          "path",
+          "tier",
+          "status_code",
+          "redirect_url",
+          "is_indexable"
+        ],
+        "title": "EdgePage",
+        "type": "object"
+      },
+      "EdgeRow": {
+        "properties": {
+          "anchor": {
+            "title": "Anchor",
+            "type": "string"
+          },
+          "is_followed": {
+            "title": "Is Followed",
+            "type": "boolean"
+          },
+          "kind": {
+            "enum": [
+              "text",
+              "image"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "link_id": {
+            "description": "A `core.urls` id: a 64-bit integer as a string.",
+            "title": "Link Id",
+            "type": "string"
+          },
+          "occurrences": {
+            "title": "Occurrences",
+            "type": "integer"
+          },
+          "placement": {
+            "enum": [
+              "content",
+              "auto_generated",
+              "navigation",
+              "header",
+              "footer",
+              "sidebar",
+              "breadcrumb"
+            ],
+            "title": "Placement",
+            "type": "string"
+          },
+          "rel": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Rel",
+            "type": "array"
+          },
+          "scope": {
+            "enum": [
+              "editorial",
+              "auto_generated",
+              "template"
+            ],
+            "title": "Scope",
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/EdgePage"
+          },
+          "target": {
+            "$ref": "#/components/schemas/EdgePage"
+          }
+        },
+        "required": [
+          "link_id",
+          "source",
+          "target",
+          "anchor",
+          "kind",
+          "placement",
+          "scope",
+          "rel",
+          "is_followed",
+          "occurrences"
+        ],
+        "title": "EdgeRow",
+        "type": "object"
+      },
+      "EdgeRowPage": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/EdgeRow"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ListMeta"
+          },
+          "page": {
+            "$ref": "#/components/schemas/CursorPageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page",
+          "meta"
+        ],
+        "title": "EdgeRowPage",
         "type": "object"
       },
       "EmailRequest": {
@@ -8688,6 +8879,36 @@
         "title": "LintWarning",
         "type": "object"
       },
+      "ListMeta": {
+        "properties": {
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "scope": {
+            "enum": [
+              "editorial",
+              "auto_generated",
+              "template",
+              "all"
+            ],
+            "title": "Scope",
+            "type": "string"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "run_id",
+          "scope",
+          "total"
+        ],
+        "title": "ListMeta",
+        "type": "object"
+      },
       "Location": {
         "properties": {
           "country_iso": {
@@ -9719,6 +9940,314 @@
           "search_volume"
         ],
         "title": "MonthlySearches",
+        "type": "object"
+      },
+      "Neighbor": {
+        "properties": {
+          "anchor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anchor"
+          },
+          "click_depth": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Click Depth"
+          },
+          "equity_share": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Equity Share"
+          },
+          "has_children": {
+            "title": "Has Children",
+            "type": "boolean"
+          },
+          "is_followed": {
+            "title": "Is Followed",
+            "type": "boolean"
+          },
+          "linking_pages": {
+            "title": "Linking Pages",
+            "type": "integer"
+          },
+          "linking_pages_all": {
+            "title": "Linking Pages All",
+            "type": "integer"
+          },
+          "links": {
+            "description": "Link rows between the two pages in the scope in view.",
+            "title": "Links",
+            "type": "integer"
+          },
+          "occurrences": {
+            "title": "Occurrences",
+            "type": "integer"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "placement": {
+            "anyOf": [
+              {
+                "enum": [
+                  "content",
+                  "auto_generated",
+                  "navigation",
+                  "header",
+                  "footer",
+                  "sidebar",
+                  "breadcrumb"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Placement"
+          },
+          "reciprocal": {
+            "description": "The two pages link both ways in the scope in view.",
+            "title": "Reciprocal",
+            "type": "boolean"
+          },
+          "redirect_url_id": {
+            "anyOf": [
+              {
+                "description": "A `core.urls` id: a 64-bit integer as a string.",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Redirect Url Id"
+          },
+          "rel": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Rel",
+            "type": "array"
+          },
+          "scope": {
+            "anyOf": [
+              {
+                "enum": [
+                  "editorial",
+                  "auto_generated",
+                  "template"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope"
+          },
+          "status_code": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "null when the page was not crawled.",
+            "title": "Status Code"
+          },
+          "tier": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TierRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "url_id": {
+            "description": "A `core.urls` id: a 64-bit integer as a string.",
+            "title": "Url Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url_id",
+          "url",
+          "path",
+          "title",
+          "status_code",
+          "redirect_url_id",
+          "tier",
+          "click_depth",
+          "linking_pages",
+          "linking_pages_all",
+          "equity_share",
+          "anchor",
+          "placement",
+          "scope",
+          "is_followed",
+          "rel",
+          "occurrences",
+          "links",
+          "has_children",
+          "reciprocal"
+        ],
+        "title": "Neighbor",
+        "type": "object"
+      },
+      "NeighborFocus": {
+        "properties": {
+          "redirect_url_id": {
+            "anyOf": [
+              {
+                "description": "A `core.urls` id: a 64-bit integer as a string.",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Redirect Url Id"
+          },
+          "status_code": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status Code"
+          },
+          "url_id": {
+            "description": "A `core.urls` id: a 64-bit integer as a string.",
+            "title": "Url Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url_id",
+          "status_code",
+          "redirect_url_id"
+        ],
+        "title": "NeighborFocus",
+        "type": "object"
+      },
+      "NeighborList": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/Neighbor"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/NeighborMeta"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "NeighborList",
+        "type": "object"
+      },
+      "NeighborMeta": {
+        "properties": {
+          "direction": {
+            "enum": [
+              "in",
+              "out"
+            ],
+            "title": "Direction",
+            "type": "string"
+          },
+          "focus": {
+            "$ref": "#/components/schemas/NeighborFocus"
+          },
+          "other_scopes": {
+            "items": {
+              "$ref": "#/components/schemas/ScopeCount"
+            },
+            "title": "Other Scopes",
+            "type": "array"
+          },
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "scope": {
+            "enum": [
+              "editorial",
+              "auto_generated",
+              "template",
+              "all"
+            ],
+            "title": "Scope",
+            "type": "string"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "url_id": {
+            "description": "A `core.urls` id: a 64-bit integer as a string.",
+            "title": "Url Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "url_id",
+          "direction",
+          "scope",
+          "total",
+          "other_scopes",
+          "focus"
+        ],
+        "title": "NeighborMeta",
         "type": "object"
       },
       "Note": {
@@ -10858,6 +11387,80 @@
         "title": "OwnPage",
         "type": "object"
       },
+      "PageDetail": {
+        "properties": {
+          "linking_by_placement": {
+            "items": {
+              "$ref": "#/components/schemas/PlacementCount"
+            },
+            "title": "Linking By Placement",
+            "type": "array"
+          },
+          "linking_by_tier": {
+            "items": {
+              "$ref": "#/components/schemas/TierCount"
+            },
+            "title": "Linking By Tier",
+            "type": "array"
+          },
+          "linking_pages": {
+            "items": {
+              "$ref": "#/components/schemas/Neighbor"
+            },
+            "title": "Linking Pages",
+            "type": "array"
+          },
+          "linking_pages_total": {
+            "title": "Linking Pages Total",
+            "type": "integer"
+          },
+          "outlinks": {
+            "items": {
+              "$ref": "#/components/schemas/Neighbor"
+            },
+            "title": "Outlinks",
+            "type": "array"
+          },
+          "outlinks_total": {
+            "title": "Outlinks Total",
+            "type": "integer"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageRow"
+          },
+          "top_anchors": {
+            "items": {
+              "$ref": "#/components/schemas/AnchorCount"
+            },
+            "title": "Top Anchors",
+            "type": "array"
+          }
+        },
+        "required": [
+          "page",
+          "linking_by_tier",
+          "linking_by_placement",
+          "top_anchors",
+          "linking_pages",
+          "outlinks",
+          "linking_pages_total",
+          "outlinks_total"
+        ],
+        "title": "PageDetail",
+        "type": "object"
+      },
+      "PageDetailResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PageDetail"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "PageDetailResponse",
+        "type": "object"
+      },
       "PageFilter": {
         "additionalProperties": false,
         "description": "The Pages list's filters as a bulk body (`run` is always the latest crawl).",
@@ -10990,6 +11593,322 @@
         "title": "PageFilter",
         "type": "object"
       },
+      "PageRow": {
+        "properties": {
+          "broken_outlinks": {
+            "title": "Broken Outlinks",
+            "type": "integer"
+          },
+          "canonical_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Canonical Url"
+          },
+          "click_depth": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Click Depth"
+          },
+          "depth_without_auto": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Depth Without Auto"
+          },
+          "equity_share": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Equity Share"
+          },
+          "flags": {
+            "items": {
+              "enum": [
+                "orphan",
+                "editorial_orphan",
+                "deep_only_through_auto",
+                "placement_unknown",
+                "broken",
+                "redirect",
+                "non_indexable"
+              ],
+              "type": "string"
+            },
+            "title": "Flags",
+            "type": "array"
+          },
+          "in_sitemap": {
+            "title": "In Sitemap",
+            "type": "boolean"
+          },
+          "is_indexable": {
+            "title": "Is Indexable",
+            "type": "boolean"
+          },
+          "linked_from_tiers": {
+            "items": {
+              "$ref": "#/components/schemas/TierCount"
+            },
+            "title": "Linked From Tiers",
+            "type": "array"
+          },
+          "linking_pages": {
+            "description": "Unique pages linking here, in the scope in view.",
+            "title": "Linking Pages",
+            "type": "integer"
+          },
+          "linking_pages_all": {
+            "title": "Linking Pages All",
+            "type": "integer"
+          },
+          "non_indexable_outlinks": {
+            "title": "Non Indexable Outlinks",
+            "type": "integer"
+          },
+          "non_indexable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Non Indexable Reason"
+          },
+          "outlinks": {
+            "description": "Unique pages linked from here, in the scope in view.",
+            "title": "Outlinks",
+            "type": "integer"
+          },
+          "outlinks_all": {
+            "title": "Outlinks All",
+            "type": "integer"
+          },
+          "outlinks_to_t1": {
+            "title": "Outlinks To T1",
+            "type": "integer"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "redirect_outlinks": {
+            "title": "Redirect Outlinks",
+            "type": "integer"
+          },
+          "redirect_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Redirect Url"
+          },
+          "resource_type": {
+            "enum": [
+              "html",
+              "redirect",
+              "broken",
+              "other"
+            ],
+            "title": "Resource Type",
+            "type": "string"
+          },
+          "status_code": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status Code"
+          },
+          "tags": {
+            "items": {
+              "$ref": "#/components/schemas/PageTagRef"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "tier": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TierRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tier_rule_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tier Rule Id"
+          },
+          "tier_set_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tier Set At"
+          },
+          "tier_set_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tier_source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "manual",
+                  "rule"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tier Source"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "top_anchor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Top Anchor"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "url_id": {
+            "description": "A `core.urls` id: a 64-bit integer as a string.",
+            "title": "Url Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url_id",
+          "url",
+          "path",
+          "title",
+          "status_code",
+          "resource_type",
+          "redirect_url",
+          "is_indexable",
+          "non_indexable_reason",
+          "canonical_url",
+          "in_sitemap",
+          "click_depth",
+          "depth_without_auto",
+          "equity_share",
+          "linking_pages",
+          "linking_pages_all",
+          "outlinks",
+          "outlinks_all",
+          "linked_from_tiers",
+          "outlinks_to_t1",
+          "broken_outlinks",
+          "redirect_outlinks",
+          "non_indexable_outlinks",
+          "top_anchor",
+          "tier",
+          "tier_source",
+          "tier_rule_id",
+          "tier_set_by",
+          "tier_set_at",
+          "tags",
+          "flags"
+        ],
+        "title": "PageRow",
+        "type": "object"
+      },
+      "PageRowPage": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/PageRow"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ListMeta"
+          },
+          "page": {
+            "$ref": "#/components/schemas/CursorPageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page",
+          "meta"
+        ],
+        "title": "PageRowPage",
+        "type": "object"
+      },
       "PageSelection": {
         "additionalProperties": false,
         "description": "Exactly one of `url_ids` and `filter`.",
@@ -11081,6 +12000,25 @@
           "remove"
         ],
         "title": "PageTagChange",
+        "type": "object"
+      },
+      "PageTagRef": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "term_id": {
+            "format": "uuid",
+            "title": "Term Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "term_id",
+          "name"
+        ],
+        "title": "PageTagRef",
         "type": "object"
       },
       "PageTier": {
@@ -11301,6 +12239,33 @@
           "new_password"
         ],
         "title": "PasswordResetConfirmRequest",
+        "type": "object"
+      },
+      "PlacementCount": {
+        "properties": {
+          "pages": {
+            "title": "Pages",
+            "type": "integer"
+          },
+          "placement": {
+            "enum": [
+              "content",
+              "auto_generated",
+              "navigation",
+              "header",
+              "footer",
+              "sidebar",
+              "breadcrumb"
+            ],
+            "title": "Placement",
+            "type": "string"
+          }
+        },
+        "required": [
+          "placement",
+          "pages"
+        ],
+        "title": "PlacementCount",
         "type": "object"
       },
       "PointPool": {
@@ -15897,6 +16862,29 @@
         "title": "ScheduleUpdate",
         "type": "object"
       },
+      "ScopeCount": {
+        "properties": {
+          "pages": {
+            "title": "Pages",
+            "type": "integer"
+          },
+          "scope": {
+            "enum": [
+              "editorial",
+              "auto_generated",
+              "template"
+            ],
+            "title": "Scope",
+            "type": "string"
+          }
+        },
+        "required": [
+          "scope",
+          "pages"
+        ],
+        "title": "ScopeCount",
+        "type": "object"
+      },
       "Seasonality": {
         "properties": {
           "index_by_month": {
@@ -18751,6 +19739,125 @@
         "title": "TermUpdate",
         "type": "object"
       },
+      "TierCount": {
+        "properties": {
+          "pages": {
+            "title": "Pages",
+            "type": "integer"
+          },
+          "tier": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TierRef"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "null is Untiered."
+          }
+        },
+        "required": [
+          "tier",
+          "pages"
+        ],
+        "title": "TierCount",
+        "type": "object"
+      },
+      "TierFlow": {
+        "properties": {
+          "cells": {
+            "items": {
+              "$ref": "#/components/schemas/TierFlowCell"
+            },
+            "title": "Cells",
+            "type": "array"
+          },
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "scope": {
+            "enum": [
+              "editorial",
+              "auto_generated",
+              "template",
+              "all"
+            ],
+            "title": "Scope",
+            "type": "string"
+          },
+          "stale": {
+            "description": "A tier change is being applied; read again in a minute.",
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "tiers": {
+            "items": {
+              "$ref": "#/components/schemas/TierStat"
+            },
+            "title": "Tiers",
+            "type": "array"
+          }
+        },
+        "required": [
+          "run_id",
+          "scope",
+          "stale",
+          "cells",
+          "tiers"
+        ],
+        "title": "TierFlow",
+        "type": "object"
+      },
+      "TierFlowCell": {
+        "properties": {
+          "from_tier": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TierRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "links": {
+            "title": "Links",
+            "type": "integer"
+          },
+          "to_tier": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TierRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "from_tier",
+          "to_tier",
+          "links"
+        ],
+        "title": "TierFlowCell",
+        "type": "object"
+      },
+      "TierFlowResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TierFlow"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "TierFlowResponse",
+        "type": "object"
+      },
       "TierImportRequest": {
         "additionalProperties": false,
         "properties": {
@@ -19073,6 +20180,47 @@
           "created_at"
         ],
         "title": "TierRuleView",
+        "type": "object"
+      },
+      "TierStat": {
+        "properties": {
+          "average_depth": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Depth"
+          },
+          "equity_share": {
+            "title": "Equity Share",
+            "type": "number"
+          },
+          "pages": {
+            "title": "Pages",
+            "type": "integer"
+          },
+          "tier": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TierRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "tier",
+          "pages",
+          "equity_share",
+          "average_depth"
+        ],
+        "title": "TierStat",
         "type": "object"
       },
       "TopicSummaryRow": {
@@ -21864,6 +23012,64 @@
           "share_of_voice"
         ],
         "title": "WeekCells",
+        "type": "object"
+      },
+      "Worklists": {
+        "properties": {
+          "broken_and_redirected": {
+            "description": "Links of every scope.",
+            "title": "Broken And Redirected",
+            "type": "integer"
+          },
+          "deep_only_through_auto": {
+            "title": "Deep Only Through Auto",
+            "type": "integer"
+          },
+          "editorial_orphans": {
+            "title": "Editorial Orphans",
+            "type": "integer"
+          },
+          "links_to_non_indexable": {
+            "description": "Links of every scope.",
+            "title": "Links To Non Indexable",
+            "type": "integer"
+          },
+          "orphans": {
+            "title": "Orphans",
+            "type": "integer"
+          },
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "under_linked_t1": {
+            "title": "Under Linked T1",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "run_id",
+          "under_linked_t1",
+          "orphans",
+          "editorial_orphans",
+          "deep_only_through_auto",
+          "broken_and_redirected",
+          "links_to_non_indexable"
+        ],
+        "title": "Worklists",
+        "type": "object"
+      },
+      "WorklistsResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Worklists"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "WorklistsResponse",
         "type": "object"
       },
       "Workspace": {
@@ -31863,6 +33069,1092 @@
         "summary": "Stop using a property for the project",
         "tags": [
           "integrations"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/edges": {
+      "get": {
+        "description": "Template links first, then auto-generated, then editorial, so template fixes come first; then by target path.",
+        "operationId": "list_edges_api_v1_workspaces__workspace_id__projects__project_id__internal_links_edges_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`latest` or a crawl id.",
+            "in": "query",
+            "name": "run",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "const": "latest",
+                  "type": "string"
+                },
+                {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              ],
+              "default": "latest",
+              "description": "`latest` or a crawl id.",
+              "title": "Run"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scope",
+            "required": false,
+            "schema": {
+              "default": "editorial",
+              "enum": [
+                "editorial",
+                "auto_generated",
+                "template",
+                "all"
+              ],
+              "title": "Scope",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[source_tier]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "anyOf": [
+                      {
+                        "format": "uuid",
+                        "type": "string"
+                      },
+                      {
+                        "const": "none",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "maxLength": 9,
+              "title": "Filter[Source Tier]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[target_tier]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "anyOf": [
+                      {
+                        "format": "uuid",
+                        "type": "string"
+                      },
+                      {
+                        "const": "none",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "maxLength": 9,
+              "title": "Filter[Target Tier]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[tag]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "format": "uuid",
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "maxLength": 50,
+              "title": "Filter[Tag]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[placement]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "content",
+                      "auto_generated",
+                      "navigation",
+                      "header",
+                      "footer",
+                      "sidebar",
+                      "breadcrumb"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "maxLength": 7,
+              "title": "Filter[Placement]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[target_status]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "2xx",
+                      "3xx",
+                      "4xx",
+                      "5xx"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "maxLength": 4,
+              "title": "Filter[Target Status]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[source]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "maximum": 9223372036854775807,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Source]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[target]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "maximum": 9223372036854775807,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Target]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[worklist]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "broken_and_redirected",
+                    "links_to_non_indexable"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Worklist]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q_source",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q Source"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q_target",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q Target"
+            }
+          },
+          {
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "default": "json",
+              "enum": [
+                "json",
+                "csv"
+              ],
+              "title": "Format",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`page.next_cursor` of the previous page.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`page.next_cursor` of the previous page.",
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EdgeRowPage"
+                }
+              },
+              "text/csv": {}
+            },
+            "description": "With `format=csv`: the rows as CSV."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Link edges of a crawl",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/neighbors": {
+      "get": {
+        "description": "The pages on one side of `url_id` in the scope in view, 8 at a time (`offset` for more), sorted by tier then equity share, with the link between, `has_children` and `reciprocal`; `meta.other_scopes` counts the pages of the other scopes for the group cards. A redirect's one child, links out, is its target. The canvas decides new pages, back links and pages seen elsewhere itself.",
+        "operationId": "neighbors_api_v1_workspaces__workspace_id__projects__project_id__internal_links_neighbors_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "url_id",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0,
+              "maximum": 9223372036854775807,
+              "title": "Url Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "direction",
+            "required": true,
+            "schema": {
+              "enum": [
+                "in",
+                "out"
+              ],
+              "title": "Direction",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`latest` or a crawl id.",
+            "in": "query",
+            "name": "run",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "const": "latest",
+                  "type": "string"
+                },
+                {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              ],
+              "default": "latest",
+              "description": "`latest` or a crawl id.",
+              "title": "Run"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scope",
+            "required": false,
+            "schema": {
+              "default": "editorial",
+              "enum": [
+                "editorial",
+                "auto_generated",
+                "template",
+                "all"
+              ],
+              "title": "Scope",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 8,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "maximum": 10000,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NeighborList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "One journey step, links out or links in",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages": {
+      "get": {
+        "operationId": "list_pages_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`latest` or a crawl id.",
+            "in": "query",
+            "name": "run",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "const": "latest",
+                  "type": "string"
+                },
+                {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              ],
+              "default": "latest",
+              "description": "`latest` or a crawl id.",
+              "title": "Run"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scope",
+            "required": false,
+            "schema": {
+              "default": "editorial",
+              "enum": [
+                "editorial",
+                "auto_generated",
+                "template",
+                "all"
+              ],
+              "title": "Scope",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[tier]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "anyOf": [
+                      {
+                        "format": "uuid",
+                        "type": "string"
+                      },
+                      {
+                        "const": "none",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "maxLength": 9,
+              "title": "Filter[Tier]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[tag]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "format": "uuid",
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "maxLength": 50,
+              "title": "Filter[Tag]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[status]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "2xx",
+                      "3xx",
+                      "4xx",
+                      "5xx"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "maxLength": 4,
+              "title": "Filter[Status]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[indexable]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Indexable]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[flags]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "orphan",
+                      "editorial_orphan",
+                      "deep_only_through_auto",
+                      "placement_unknown",
+                      "has_broken_outlinks"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "maxLength": 5,
+              "title": "Filter[Flags]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[worklist]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "under_linked_t1",
+                    "orphans",
+                    "editorial_orphans",
+                    "deep_only_through_auto"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Worklist]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "default": "-equity_share",
+              "enum": [
+                "path",
+                "-path",
+                "click_depth",
+                "-click_depth",
+                "linking_pages",
+                "-linking_pages",
+                "outlinks",
+                "-outlinks",
+                "equity_share",
+                "-equity_share",
+                "status_code",
+                "-status_code"
+              ],
+              "title": "Sort",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "default": "json",
+              "enum": [
+                "json",
+                "csv"
+              ],
+              "title": "Format",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`page.next_cursor` of the previous page.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`page.next_cursor` of the previous page.",
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageRowPage"
+                }
+              },
+              "text/csv": {}
+            },
+            "description": "With `format=csv`: the rows as CSV."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Pages of a crawl, with link counts in the scope in view",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}": {
+      "get": {
+        "operationId": "get_page_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "url_id",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0,
+              "maximum": 9223372036854775807,
+              "title": "Url Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`latest` or a crawl id.",
+            "in": "query",
+            "name": "run",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "const": "latest",
+                  "type": "string"
+                },
+                {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              ],
+              "default": "latest",
+              "description": "`latest` or a crawl id.",
+              "title": "Run"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scope",
+            "required": false,
+            "schema": {
+              "default": "editorial",
+              "enum": [
+                "editorial",
+                "auto_generated",
+                "template",
+                "all"
+              ],
+              "title": "Scope",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "One page: the inspector",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/tier-flow": {
+      "get": {
+        "operationId": "tier_flow_api_v1_workspaces__workspace_id__projects__project_id__internal_links_tier_flow_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`latest` or a crawl id.",
+            "in": "query",
+            "name": "run",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "const": "latest",
+                  "type": "string"
+                },
+                {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              ],
+              "default": "latest",
+              "description": "`latest` or a crawl id.",
+              "title": "Run"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scope",
+            "required": false,
+            "schema": {
+              "default": "editorial",
+              "enum": [
+                "editorial",
+                "auto_generated",
+                "template",
+                "all"
+              ],
+              "title": "Scope",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TierFlowResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Links from tier to tier, and each tier's share",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/worklists": {
+      "get": {
+        "operationId": "worklists_api_v1_workspaces__workspace_id__projects__project_id__internal_links_worklists_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`latest` or a crawl id.",
+            "in": "query",
+            "name": "run",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "const": "latest",
+                  "type": "string"
+                },
+                {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              ],
+              "default": "latest",
+              "description": "`latest` or a crawl id.",
+              "title": "Run"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorklistsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Counts of the saved worklists",
+        "tags": [
+          "internal-links"
         ]
       }
     },
