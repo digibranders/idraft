@@ -10,7 +10,14 @@ import {
 } from './selection-model';
 
 describe('what drops the selection', () => {
-  const base = { projectId: 'p1', tab: 'prompts', country: null, topicIds: [] as string[], includeBranded: false };
+  const base = {
+    projectId: 'p1',
+    tab: 'prompts',
+    country: null,
+    topicIds: [] as string[],
+    includeBranded: false,
+    brandedOnly: false,
+  };
 
   it('keeps the choice for the same rows, whatever order the topic filter names its topics in', () => {
     expect(selectionKeyOf({ ...base, topicIds: ['a', 'b'] })).toBe(selectionKeyOf({ ...base, topicIds: ['b', 'a'] }));
@@ -23,6 +30,7 @@ describe('what drops the selection', () => {
     ['the location', { country: 'DE' }],
     ['the topic filter', { topicIds: ['a'] }],
     ['the Branded filter', { includeBranded: true }],
+    ['the Branded filter from Included to Only', { includeBranded: true, brandedOnly: true }],
   ])('drops the choice when %s changes', (_name, change) => {
     expect(selectionKeyOf({ ...base, ...change })).not.toBe(selectionKeyOf(base));
   });

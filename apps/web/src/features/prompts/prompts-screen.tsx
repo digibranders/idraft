@@ -237,7 +237,9 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   // Branded prompts are in the counts only when the filter includes them; read from the address, as the filter reads it,
   // because the group choices below come from the summary, which this decides (the filter field is built from them)
   const [brandedParam] = useQueryState('branded', parseAsString);
-  const includeBranded = brandedParam === 'include';
+  // `only` keeps the branded prompts alone: they are counted too, so it includes them, and the API's `branded_only` wins
+  const brandedOnly = brandedParam === 'only';
+  const includeBranded = brandedParam === 'include' || brandedOnly;
   // The table stays on the last counts while a new window, or the Branded filter, is read. The weekly series comes
   // with them in the one read, which the strip and the drawers use too, whatever the comparison: the Trend column of
   // the Groups tab, the line in the Mention rate cell while comparing and the prompt's History tab read it. A failed
@@ -245,6 +247,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   const summary = useQuery({
     ...summaryQuery(scope, range, includeBranded, {
       ...(country === null ? {} : { country }),
+      brandedOnly,
       include: factsRequested() ? SERIES_AND_FACTS : SERIES,
       compare,
       compareKind,
@@ -295,7 +298,10 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
         kind: 'enum',
         label: t('filters.branded'),
         multi: false,
-        options: [{ value: 'include', label: t('filters.brandedInclude') }],
+        options: [
+          { value: 'include', label: t('filters.brandedInclude') },
+          { value: 'only', label: t('filters.brandedOnly') },
+        ],
       },
       detectableField({ field: t('compare.detectable.field'), option: t('compare.detectable.option') }),
     ];
@@ -403,6 +409,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
       .filter(
         (prompt) =>
           (includeBranded || !prompt.is_branded) &&
+          (!brandedOnly || prompt.is_branded) &&
           (topicIds.length === 0 || matchesTopics(prompt, kept)) &&
           (country === null || prompt.country_iso === country) &&
           (detectableIds === null || detectableIds.has(prompt.prompt_id)),
@@ -431,6 +438,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   }, [
     list.rows,
     includeBranded,
+    brandedOnly,
     topicIds,
     kept,
     country,
@@ -458,7 +466,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   // The prompts chosen, by id: kept through sorting, searching and opening topics, and dropped for good when the rows
   // asked for change (the project, the tab, the topic filter, the country, the Branded filter), as Rankings drops its
   // choice when its filters change. Prompts that left the rows (archived, or off a new page) are not chosen any more
-  const selectionKey = selectionKeyOf({ projectId: project.id, tab, country, topicIds, includeBranded });
+  const selectionKey = selectionKeyOf({ projectId: project.id, tab, country, topicIds, includeBranded, brandedOnly });
   const [selection, setSelection] = useState<{ key: string; ids: ReadonlySet<string> }>({
     key: selectionKey,
     ids: NO_PROMPTS,
@@ -790,9 +798,16 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   // group and the new scope no longer holds it, the drawer closes once the counts of the new scope are in, instead of
   // saying it has no counts or that the group does not exist. A drawer that came with the link is not judged until the
   // scope changes, so a shared link to a prompt outside the filters still opens it
-  const scopeKey = [project.id, country, range.from, range.to, includeBranded, topicIds.join(','), detectableOnly].join(
-    '|',
-  );
+  const scopeKey = [
+    project.id,
+    country,
+    range.from,
+    range.to,
+    includeBranded,
+    brandedOnly,
+    topicIds.join(','),
+    detectableOnly,
+  ].join('|');
   const judgedScope = useRef(scopeKey);
   const judgeDrawer = useRef(false);
   useEffect(() => {
@@ -1219,6 +1234,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
         ? 'loading'
         : 'ready',
     brandedIncluded: includeBranded,
+    brandedOnly,
     entities: summary.data?.data.entities ?? NO_ENTITIES,
     row: openPrompt === null ? undefined : summaryById.get(openPrompt),
     errorId: summaryErrorId,
@@ -1308,6 +1324,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
           scope,
           range,
           includeBranded,
+          brandedOnly,
           country,
           workspaceSlug,
           projectSlug: project.slug,

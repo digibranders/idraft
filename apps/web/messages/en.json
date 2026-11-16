@@ -3946,7 +3946,8 @@
       "country": "Location",
       "engine": "Platform",
       "branded": "Branded prompts",
-      "brandedInclude": "Included"
+      "brandedInclude": "Included",
+      "brandedOnly": "Only"
     },
     "tabs": {
       "label": "Groups and prompts",
@@ -4121,7 +4122,8 @@
         "scopeEngines": "{count, plural, one {# platform} other {# platforms}}",
         "scopeBranded": "Branded included",
         "scopeNonBranded": "Non-branded",
-        "scopeLabel": "Scope of the counts: {scope}"
+        "scopeLabel": "Scope of the counts: {scope}",
+        "scopeBrandedOnly": "Branded only"
       },
       "panel": {
         "caption": "{metric} by platform",

@@ -82,7 +82,12 @@ export function InspectorCompetitors({
   const common = useTranslations('common');
   const [kind, setKind] = useState<RateKind>('mention');
   const entities = useQuery(projectEntitiesQuery(scope));
-  const facts = usePromptFacts(scope, range, counts.brandedIncluded);
+  const facts = usePromptFacts(
+    scope,
+    range,
+    counts.brandedIncluded,
+    counts.brandedOnly === true ? { brandedOnly: true } : {},
+  );
   const colors = new Map((entities.data?.data ?? []).map((entry) => [entry.entity.entity_id, entry.color_index]));
   // The list keeps the answers of an engine that was turned off: they are no part of any column
   const codes: string[] = engines.map((entry) => entry.engine.engine_code);

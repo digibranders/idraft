@@ -32,8 +32,11 @@ export function EngineTrend(): ReactElement {
   const common = useTranslations('common');
   const { metric } = useDrawerMetric();
   const key = CELL_OF_METRIC[metric];
-  const { scope, range, includeBranded, country } = extras;
-  const read = useMemo(() => ({ scope, range, includeBranded, country }), [scope, range, includeBranded, country]);
+  const { scope, range, includeBranded, brandedOnly, country } = extras;
+  const read = useMemo(
+    () => ({ scope, range, includeBranded, brandedOnly, country }),
+    [scope, range, includeBranded, brandedOnly, country],
+  );
   const trend = useTopicTrend(read, topicKey, true, summary);
   const errorId = useErrorId(trend.error);
   const metricLabel = prompts(`metric.${metric}`);

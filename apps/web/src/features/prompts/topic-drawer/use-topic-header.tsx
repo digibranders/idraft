@@ -71,12 +71,23 @@ export function useTopicHeader({
     typeNoun: t('noun'),
   });
 
-  const parts = scopeParts({ engines, country: extras.country, includeBranded: extras.includeBranded });
+  const parts = scopeParts({
+    engines,
+    country: extras.country,
+    includeBranded: extras.includeBranded,
+    brandedOnly: extras.brandedOnly,
+  });
   const scope = formatList(
     [
       typeof parts.engines === 'number' ? t('header.scopeEngines', { count: parts.engines }) : parts.engines,
       ...(parts.country === null ? [] : [extras.countryName(parts.country)]),
-      t(parts.branded ? 'header.scopeBranded' : 'header.scopeNonBranded'),
+      t(
+        parts.brandedOnly
+          ? 'header.scopeBrandedOnly'
+          : parts.branded
+            ? 'header.scopeBranded'
+            : 'header.scopeNonBranded',
+      ),
     ],
     locale,
   );

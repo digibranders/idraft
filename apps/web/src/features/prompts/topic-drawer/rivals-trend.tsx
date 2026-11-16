@@ -67,8 +67,11 @@ export function RivalsTrend(): ReactElement {
   const trendWords = useTranslations('prompts.topicDrawer.trend');
   const prompts = useTranslations('prompts');
   const common = useTranslations('common');
-  const { scope, range, includeBranded, country } = extras;
-  const read = useMemo(() => ({ scope, range, includeBranded, country }), [scope, range, includeBranded, country]);
+  const { scope, range, includeBranded, brandedOnly, country } = extras;
+  const read = useMemo(
+    () => ({ scope, range, includeBranded, brandedOnly, country }),
+    [scope, range, includeBranded, brandedOnly, country],
+  );
   const untopiced = topicKey === NO_TOPIC;
   const trend = useTopicTrend(read, topicKey, true, summary);
   const errorId = useErrorId(trend.error);
