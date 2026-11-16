@@ -136,6 +136,16 @@ function sentimentCounts(promptId: string, code: string, mentions: number): Sent
   return { positive, neutral: mentions - positive - negative - mixed, negative, mixed };
 }
 
+/** The orders of the ordered answers as counts of first, second, third, and fourth or later. */
+function orderCounts(orders: readonly number[]): [number, number, number, number] {
+  const counts: [number, number, number, number] = [0, 0, 0, 0];
+  for (const order of orders) {
+    const slot = Math.min(Math.max(order, 1), 4) - 1;
+    counts[slot] = (counts[slot] ?? 0) + 1;
+  }
+  return counts;
+}
+
 export function enginePieceOf(promptId: string, code: string, answers: readonly FactsAnswer[]): EnginePiece {
   const valid = answers.filter((answer) => answer.facts.is_valid);
   const named = valid.filter((answer) => answer.facts.own_mentioned);
@@ -170,6 +180,7 @@ export function enginePieceOf(promptId: string, code: string, answers: readonly 
       ordered_answers: ordered.length,
       mentions: named.length,
       answers: valid.length,
+      by_order: orderCounts(ordered.map((answer) => answer.facts.own_mention_order ?? 0)),
     },
     sentiment: classified ? sentimentCounts(promptId, code, named.length) : null,
     recommendedK: classified
@@ -244,6 +255,12 @@ export function topicEngineFacts(code: string, pieces: readonly EnginePiece[]): 
       ordered_answers: sum((counts) => counts.ordered_answers),
       mentions: sum((counts) => counts.mentions),
       answers: sum((counts) => counts.answers),
+      by_order: [
+        sum((counts) => counts.by_order?.[0] ?? 0),
+        sum((counts) => counts.by_order?.[1] ?? 0),
+        sum((counts) => counts.by_order?.[2] ?? 0),
+        sum((counts) => counts.by_order?.[3] ?? 0),
+      ],
     },
     sentiment: classified
       ? {

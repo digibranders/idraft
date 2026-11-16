@@ -601,7 +601,7 @@ const AI_OVERVIEW_CARDS: ReadonlyArray<CardTypeDefinition> = [
     'Visits from AI platforms and the pages they land on. Needs GA4.',
     'traffic',
     ['full', 'two_thirds'],
-    { addedOn: REDESIGN_RELEASE, integration: 'ga4' },
+    { addedOn: REDESIGN_RELEASE },
   ),
   aiCard(
     'ai.opportunities',

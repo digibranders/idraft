@@ -44,6 +44,12 @@ export interface PositionCounts {
   ordered_answers: number;
   mentions: number;
   answers: number;
+  /**
+   * How many of the ordered answers name the brand first, second, third, and fourth or later (backend request 2 of
+   * `docs/ai-visibility/backend-requests-overview.md`). Optional: absent means the backend has not built it, and the
+   * Overview position card then says so; a distribution is never made up from the mean. They add up to `ordered_answers`.
+   */
+  by_order?: readonly [number, number, number, number];
 }
 
 /** Counts of the classified mentions of the own brand by tone, on one engine. They add up to its classified mentions. */

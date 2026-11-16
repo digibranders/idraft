@@ -7,8 +7,8 @@ import type { DateRange } from '../prompt-model';
 import type { PromptScope, SummaryScope } from '../prompt-queries';
 import { apiQuery, type ApiQueryOptions } from '@/lib/api/query';
 import { compareParams } from '@/lib/compare/compare-model';
-import { publicEnv } from '@/lib/env/public';
 import type { paths } from '@/lib/api/schema';
+import { FACTS_INCLUDE as FACTS_INCLUDE_NAME, factsRequested } from '@/lib/prompt-facts/request';
 import type {
   PromptsSummaryWithFacts,
   PromptSummaryRowWithFacts,
@@ -20,18 +20,9 @@ const SUMMARY = '/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/prom
 
 type SummaryInclude = NonNullable<NonNullable<paths[typeof SUMMARY]['get']['parameters']['query']>['include']>[number];
 
-/**
- * BACKEND REQUEST SHAPE: the `include` value that asks the prompt summary for the facts of
- * `docs/ai-visibility/backend-requests-prompts-page.md`. The generated client does not know it yet, so the one cast
- * lives here; drop it when `pnpm gen:api` brings the value.
- */
-const FACTS_INCLUDE = 'facts' as SummaryInclude;
+const FACTS_INCLUDE = FACTS_INCLUDE_NAME as SummaryInclude;
 
-/**
- * Whether to send `include=facts`. The API in production refuses a value it does not know (`422`), so it is sent only
- * where the mocks answer it, until the backend ships the include. Flip this when it does.
- */
-export const factsRequested = (): boolean => publicEnv.NEXT_PUBLIC_API_MOCKING === 'all';
+export { factsRequested };
 
 export interface PromptFactsOptions extends Omit<SummaryScope, 'include'> {
   /** Send `include=facts`; defaults to `factsRequested()`. Without it the read is the plain summary with entities. */
