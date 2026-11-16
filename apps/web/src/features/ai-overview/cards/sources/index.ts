@@ -23,6 +23,10 @@ export const SOURCE_CARDS: Readonly<Record<string, CardRegistration>> = {
     load: () => import('./fanout-top-card'),
     skeleton: SOURCE_SKELETONS['ai.fanout_top'],
   },
+  'ai.unlinked_mentions': {
+    load: () => import('./unlinked-card'),
+    skeleton: SOURCE_SKELETONS['ai.unlinked_mentions'],
+  },
   'sources.new_lost': {
     load: () => import('./new-lost-card'),
     skeleton: SOURCE_SKELETONS['sources.new_lost'],

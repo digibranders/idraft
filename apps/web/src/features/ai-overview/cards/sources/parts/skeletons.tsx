@@ -13,6 +13,7 @@ export const SOURCE_SKELETON_HEIGHTS: Readonly<Record<string, ChartHeight>> = {
   'sources.own_pages': 280,
   'ai.citation_share_by_domain_type': 180,
   'ai.fanout_top': 240,
+  'ai.unlinked_mentions': 280,
   'sources.new_lost': 280,
   'sources.diversity': 240,
 };
