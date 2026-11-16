@@ -52,12 +52,7 @@ export function DrawerCard({
       title={title}
       icon={icon}
       status={sectionStatus}
-      action={
-        <span className="flex items-center gap-1">
-          {meta === null || meta === undefined ? null : <span className="type-meta">{meta}</span>}
-          <CardInfoButton title={title} info={info} />
-        </span>
-      }
+      action={<CardInfoButton title={title} info={info} />}
       error={
         state.status === 'error' ? (
           <InlineError
@@ -85,6 +80,7 @@ export function DrawerCard({
         ) : undefined
       }
     >
+      {meta === null || meta === undefined ? null : <p className="-mt-1 pb-2 type-meta">{meta}</p>}
       {flush ? <div className="-mx-4 -mb-4 overflow-x-auto">{children}</div> : children}
     </InspectorSection>
   );
