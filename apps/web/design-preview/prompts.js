@@ -1,6 +1,6 @@
 /* global document, window, navigator */
 /**
- * The "Topics & Prompts" page of the static preview (24 section 9.5, ADR-DS-022): the Prompts tab, the Panels
+ * The "Prompts" page (once "Topics & Prompts") of the static preview (24 section 9.5, ADR-DS-022): the Prompts tab, the Panels
  * and Versions tabs, the Add prompts dialog, the filters both scoped tabs share, and the routing between tabs.
  *
  * Everything on screen is computed from the generated counts of prompts-data.js with the tested code of
