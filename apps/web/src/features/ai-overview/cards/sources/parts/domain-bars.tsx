@@ -55,7 +55,7 @@ export function DomainBars({ rows, caption, alwaysBars = false }: DomainBarsProp
             );
             return (
               <tr key={row.id} className="h-10">
-                <th scope="row" className="pr-3 text-left font-normal">
+                <th scope="row" className={cn('pr-3 text-left font-normal', alwaysBars && 'w-1/2 max-w-0')}>
                   {tip(
                     <span className="inline-flex max-w-full min-w-0 items-center gap-2">
                       {row.href === undefined ? (
