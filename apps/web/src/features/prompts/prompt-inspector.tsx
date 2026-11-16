@@ -355,7 +355,16 @@ export function PromptInspector({
     {
       id: 'competitors',
       label: (translate) => translate('prompts.inspector.tabCompetitors'),
-      render: () => <InspectorCompetitors scope={scope} counts={counts} engines={engines} answers={promptAnswers} />,
+      render: () => (
+        <InspectorCompetitors
+          scope={scope}
+          promptId={promptId}
+          counts={counts}
+          range={range}
+          engines={engines}
+          answers={promptAnswers}
+        />
+      ),
     },
     {
       id: 'stats',

@@ -592,26 +592,47 @@ describe('the History tab', () => {
 });
 
 describe('the Competitors tab', () => {
-  it('counts the brands named in the answers of this prompt, the own brand first, on one engine or on all', async () => {
+  it('counts the brands named in the answers of this prompt for each platform on its own, the own brand first', async () => {
     serveTwoAnswers();
     const { user } = renderOn('viewer', openedOn('competitors'));
     const inspector = await panel();
     const table = await within(inspector).findByRole('table', {
       name: 'Brands mentioned in the answers to this prompt',
     });
+    expect(
+      within(table)
+        .getAllByRole('columnheader')
+        .map((header) => header.textContent),
+    ).toEqual(['Brand', 'ChatGPT', 'Gemini']);
     const rows = within(table).getAllByRole('row').slice(1);
     expect(rows[0]).toHaveTextContent('Fynix');
     expect(rows[0]).toHaveTextContent('Your brand');
-    expect(rows[0]).toHaveTextContent('2 of 2 answers');
-    expect(rows[0]).toHaveTextContent('100%');
     expect(rows[1]).toHaveTextContent('Rankforge');
-    expect(rows[1]).toHaveTextContent('2 of 2 answers');
-    // The switch narrows the counts to one engine
-    await user.click(within(inspector).getByRole('radio', { name: 'Gemini' }));
-    expect(within(table).getAllByRole('row')[1]).toHaveTextContent('1 of 1 answer');
+    // One answer on each platform: the count is shown, and no rate under four answers, and no pooled column
+    for (const row of rows.slice(0, 2)) {
+      expect(within(row).getAllByText('1 of 1 answer')).toHaveLength(2);
+      expect(row).not.toHaveTextContent('%');
+    }
+    expect(within(inspector).queryByRole('radio', { name: 'All' })).toBeNull();
     expect(
       within(inspector).getByText(/A mention is a tracked brand whose name appears in an answer/),
     ).toBeInTheDocument();
+    // Recommendation: nothing is collected for it yet, and the tab says so instead of a number
+    await user.click(within(inspector).getByRole('radio', { name: 'Recommendation' }));
+    expect(within(table).getAllByRole('row')[1]).toHaveTextContent('Not collected yet');
+    expect(within(table).getAllByRole('row')[2]).toHaveTextContent('Not collected yet');
+    expect(within(table).getAllByRole('row')[1]).not.toHaveTextContent(/\d/);
+  });
+
+  it('says the keyword is not collected yet when the facts do not carry it, with no rank', async () => {
+    serveTwoAnswers();
+    renderOn('viewer', openedOn('competitors'));
+    const inspector = await panel();
+    expect(await within(inspector).findByRole('heading', { name: 'Related keywords' })).toBeInTheDocument();
+    expect(
+      await within(inspector).findByText(/^Not collected yet\. The keyword linked to this prompt/),
+    ).toBeInTheDocument();
+    expect(within(inspector).queryByText('Linked')).toBeNull();
   });
 
   it('says no competitor was named when the answers name none', async () => {
@@ -629,7 +650,7 @@ describe('the Competitors tab', () => {
     expect(within(table).getByText('Fynix')).toBeInTheDocument();
   });
 
-  it('counts only the engines that are on in All, and falls back to All when the engine chosen is turned off', async () => {
+  it('has a column only for the platforms that are on, though the list holds an answer of one that is off', async () => {
     serveTwoAnswers();
     const gemini = promptsOf(fynix.project_id).engines.find((engine) => engine.engine_code === 'gemini_web');
     if (gemini === undefined) throw new Error('The Gemini fixture is missing');
@@ -639,10 +660,13 @@ describe('the Competitors tab', () => {
     const table = await within(inspector).findByRole('table', {
       name: 'Brands mentioned in the answers to this prompt',
     });
-    // The list holds a Gemini answer too: it is no part of All
+    // The list holds a Gemini answer too: it is no column
+    expect(
+      within(table)
+        .getAllByRole('columnheader')
+        .map((header) => header.textContent),
+    ).toEqual(['Brand', 'ChatGPT']);
     expect(within(table).getAllByRole('row')[1]).toHaveTextContent('1 of 1 answer');
-    expect(within(inspector).queryByRole('radio', { name: 'Gemini' })).toBeNull();
-    expect(within(inspector).getByRole('radio', { name: 'All' })).toBeChecked();
   });
 });
 

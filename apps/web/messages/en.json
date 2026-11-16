@@ -5039,6 +5039,29 @@
       "tabPromptsCount": "Prompts ({count, number})"
     },
     "drawer": {
+      "competitors": {
+        "title": "Brands",
+        "rateLabel": "Rate",
+        "mention": "Mention",
+        "recommendation": "Recommendation",
+        "explainRecommendation": "A recommendation is an answer that tells the reader to choose the brand. Only your own brand is counted so far.",
+        "notCollected": "Not collected yet",
+        "notClassified": "{platform}: not classified for this platform",
+        "noAnswers": "No valid answers on {platform}",
+        "relatedTitle": "Related keywords",
+        "relatedCaption": "The keyword this prompt is linked to",
+        "keyword": "Keyword",
+        "rank": "Rank",
+        "rankBeyond": ">20",
+        "overview": "Google AI Overview",
+        "linked": "Linked",
+        "linkedTip": "The Google AI Overview of this prompt is taken from the rank checks of this keyword",
+        "noLinked": "No keyword is linked, so this prompt has no Google AI Overview.",
+        "keywordsNotCollected": "Not collected yet. The keyword linked to this prompt appears here once it is collected.",
+        "citedAt": "Cited #{place, number}",
+        "notCited": "Not cited",
+        "noOverview": "No Google AI Overview"
+      },
       "stats": {
         "mentionTitle": "Mention rate",
         "citationTitle": "Citation rate",
