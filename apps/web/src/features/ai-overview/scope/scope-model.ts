@@ -119,15 +119,14 @@ export function namesSeveralPlatforms(scope: Pick<OverviewScope, 'engines'>): bo
 }
 
 /**
- * The engines the page works with: one platform, or `null` for All platforms. A link that names several (from before
- * the Platform select) is All platforms, and so is one platform the project has not turned on. `enabled` empty means
- * they are not known yet: one named platform is kept as it is.
+ * The engines the page works with: a link that names several platforms that are all on (from before the Platform
+ * select) is All platforms, `null`. Anything else is kept as it is: one platform, even one the project has off (the
+ * cards say that no platform is asked), or a list that names a platform that is off, which the filter bar drops from
+ * the address and says so. `enabled` empty means the platforms are not known yet; every read waits for them.
  */
 export function onePlatform(engines: readonly string[] | null, enabled: readonly string[]): readonly string[] | null {
-  const [only] = engines ?? [];
-  if (engines === null || engines.length !== 1 || only === undefined) return null;
-  if (enabled.length === 0) return engines;
-  return enabled.length > 1 && enabled.includes(only) ? engines : null;
+  if (engines === null || engines.length < 2 || enabled.length === 0) return engines;
+  return engines.every((code) => enabled.includes(code)) ? null : engines;
 }
 
 /** The summary's branded parameters for a choice. `branded_only` counts branded prompts alone. */
@@ -149,16 +148,20 @@ export function normalizeEngines(
   return enabled.every((code) => engines.includes(code)) ? null : engines;
 }
 
-/** What "Reset filters" puts back: the comparison, the engines, the topic and the branded choice; never the window or the country. */
+/**
+ * What "Reset scope" puts back: the comparison, the platform, the group, the branded choice and the measure the trend
+ * and the heat map draw; never the window or the location.
+ */
 export const RESET_PATCH = {
   compare: true,
   engines: null,
   topic: null,
   branded: 'excluded',
+  metric: DEFAULT_METRIC,
 } as const satisfies ScopePatch;
 
 /**
- * How many of the scope's filters are not their default (comparison on, every engine, no topic, branded excluded):
+ * How many of the scope's filters are not their default (comparison on, every platform, no group, branded excluded):
  * the count on the Filters button and the reason for "Reset filters". The window and the country are scope the
  * top bar owns, and a default window does not count (19 section 4.1).
  */
@@ -166,6 +169,10 @@ export function changedFilterCount(scope: OverviewScope): number {
   return [!scope.compare, scope.engines !== null, scope.topic !== null, scope.branded !== 'excluded'].filter(Boolean)
     .length;
 }
+
+/** Whether "Reset scope" has anything to put back: a filter, or the measure the trend and the heat map draw. */
+export const canResetScope = (scope: OverviewScope): boolean =>
+  changedFilterCount(scope) > 0 || scope.metric !== DEFAULT_METRIC;
 
 /**
  * A string that is equal for equal scopes, for query keys. The order of the engines does not matter to a

@@ -27,8 +27,8 @@ export interface OverviewHeaderProps {
 }
 
 /**
- * The toolbar of the AI Overview page: unified compact row with inline stats, scope filters, freshness meta,
- * Customize toggle, Export and More actions.
+ * The toolbar of the AI Overview page: one sticky row with the scope filters, the freshness text, the Customize toggle,
+ * Export and More actions. The setup checklist and the numbers strip are above it and scroll away.
  */
 export function OverviewHeader({ stats, filters, noticeChip, setupSlot }: OverviewHeaderProps = {}): ReactElement {
   const t = useTranslations('aiOverview');
@@ -51,40 +51,52 @@ export function OverviewHeader({ stats, filters, noticeChip, setupSlot }: Overvi
   };
 
   return (
-    <PageToolbar
-      title={t('title')}
-      before={setupSlot}
-      stats={stats}
-      filters={filters}
-      status={
-        <>
-          {noticeChip}
-          <OverviewFreshness place="toolbar" />
-          {mode === 'customize' ? <CustomizingBadge /> : null}
-        </>
-      }
-      actions={
-        <>
-          {engines.status === 'loading' ? (
-            <span
-              aria-hidden="true"
-              className="hidden h-control-sm w-28 animate-skeleton-pulse rounded-md bg-surface-subtle md:block"
+    <>
+      {setupSlot}
+      {stats === undefined || stats === null ? null : (
+        <div
+          className="scrollbar-none flex h-control-sm max-w-full min-w-0 items-center overflow-x-auto"
+          style={{ contain: 'paint' }}
+        >
+          {stats}
+        </div>
+      )}
+      <PageToolbar
+        title={t('title')}
+        filters={filters}
+        // Sticky under the top bar so the scope can be changed from any card. The negative margins and the equal
+        // padding make it sit where it would without them while it is not stuck (preview commit 1363ff90)
+        className="sticky top-topbar z-(--z-sticky) -mx-3 -my-2 bg-background px-3 py-2 md:-mx-4 md:px-4 lg:-mx-5 lg:px-5"
+        status={
+          <>
+            {noticeChip}
+            <OverviewFreshness place="toolbar" />
+            {mode === 'customize' ? <CustomizingBadge /> : null}
+          </>
+        }
+        actions={
+          <>
+            {engines.status === 'loading' ? (
+              <span
+                aria-hidden="true"
+                className="hidden h-control-sm w-28 animate-skeleton-pulse rounded-md bg-surface-subtle md:block"
+              />
+            ) : (
+              <CustomizeButton />
+            )}
+            <CustomizeShortcut />
+            <ExportMenu />
+            <Menu
+              align="end"
+              trigger={<IconButton icon={MoreHorizontal} variant="secondary" label={t('moreActions')} />}
+              items={[
+                { id: COPY_LINK, label: t('copyLink'), icon: Link2, onSelect: copyLink },
+                { id: SHOW_SETUP, label: t('showSetupSteps'), icon: ListChecks, onSelect: handleShowSetup },
+              ]}
             />
-          ) : (
-            <CustomizeButton />
-          )}
-          <CustomizeShortcut />
-          <ExportMenu />
-          <Menu
-            align="end"
-            trigger={<IconButton icon={MoreHorizontal} variant="secondary" label={t('moreActions')} />}
-            items={[
-              { id: COPY_LINK, label: t('copyLink'), icon: Link2, onSelect: copyLink },
-              { id: SHOW_SETUP, label: t('showSetupSteps'), icon: ListChecks, onSelect: handleShowSetup },
-            ]}
-          />
-        </>
-      }
-    />
+          </>
+        }
+      />
+    </>
   );
 }

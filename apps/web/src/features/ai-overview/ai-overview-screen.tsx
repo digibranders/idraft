@@ -16,6 +16,7 @@ import { OverviewProvider, useOverview, useOverviewPeriods, type OverviewProject
 import { GridPlaceholder, ScopeBarPlaceholder, StripPlaceholder } from './overview-placeholders';
 import { buildOverviewPresets } from './presets/presets';
 import { ScopeBar } from './scope/scope-bar';
+import { SeveralPlatformsNotice } from './scope/several-platforms-notice';
 import { EnginesError } from './states/engines-error';
 import { NoEngineState } from './states/no-engine-state';
 import { NoCountryPromptsState, NoGroupPromptsState, NoPromptsState } from './states/no-prompts-state';
@@ -202,6 +203,7 @@ function CustomizableOverview({
     >
       <CardInfoProvider>
         <OpenCompetitorContext value={openCompetitor}>
+          <SeveralPlatformsNotice />
           <OverviewBody setupSlot={setupSlot} />
         </OpenCompetitorContext>
       </CardInfoProvider>

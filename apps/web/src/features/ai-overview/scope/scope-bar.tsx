@@ -11,7 +11,7 @@ import { CountryControl } from './country-control';
 import { FiltersSheet, SheetRow } from './filters-sheet';
 import { GroupSelect } from './group-select';
 import { PlatformSelect, type PlatformChoice } from './platform-select';
-import { changedFilterCount, RESET_PATCH } from './scope-model';
+import { canResetScope, changedFilterCount, RESET_PATCH } from './scope-model';
 import { topicField } from './topic-options';
 import { MAX_DAYS } from './use-overview-scope';
 import { useTopicTree } from './use-topic-tree';
@@ -129,7 +129,7 @@ export function ScopeBar(): ReactElement {
         variant="ghost"
         size="icon"
         onClick={reset}
-        className={changed === 0 ? 'invisible' : undefined}
+        className={canResetScope(scope) ? undefined : 'invisible'}
       />
       <div className="min-w-0">
         <FilterBar

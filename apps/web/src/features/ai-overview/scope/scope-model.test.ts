@@ -4,6 +4,7 @@ import { parseCompare } from '@/lib/compare/compare-model';
 
 import {
   brandedParams,
+  canResetScope,
   changedFilterCount,
   namesSeveralPlatforms,
   normalizeEngines,
@@ -126,19 +127,20 @@ describe('singlePlatform and the fallback of a link that names several', () => {
 });
 
 describe('onePlatform', () => {
-  it('keeps one platform that is on, and reads anything else as All platforms', () => {
-    expect(onePlatform(['gemini_web'], KNOWN)).toEqual(['gemini_web']);
-    expect(onePlatform(null, KNOWN)).toBeNull();
+  it('reads several platforms that are all on as All platforms', () => {
     expect(onePlatform(['chatgpt_web', 'gemini_web'], KNOWN)).toBeNull();
-    expect(onePlatform(['google_ai_overview'], KNOWN)).toBeNull();
+    expect(onePlatform(['gemini_web', 'chatgpt_web', 'google_ai_mode'], KNOWN)).toBeNull();
   });
 
-  it('keeps the one named platform while the platforms that are on are not known yet', () => {
-    expect(onePlatform(['gemini_web'], [])).toEqual(['gemini_web']);
+  it('keeps one platform, even one that is off, and a list that names a platform that is off', () => {
+    expect(onePlatform(['gemini_web'], KNOWN)).toEqual(['gemini_web']);
+    expect(onePlatform(['google_ai_overview'], KNOWN)).toEqual(['google_ai_overview']);
+    expect(onePlatform(['chatgpt_web', 'google_ai_overview'], KNOWN)).toEqual(['chatgpt_web', 'google_ai_overview']);
+    expect(onePlatform(null, KNOWN)).toBeNull();
   });
 
-  it('is All platforms for a project with one platform on, as that platform is all of them', () => {
-    expect(onePlatform(['gemini_web'], ['gemini_web'])).toBeNull();
+  it('keeps the link as it is while the platforms that are on are not known yet', () => {
+    expect(onePlatform(['chatgpt_web', 'gemini_web'], [])).toEqual(['chatgpt_web', 'gemini_web']);
   });
 });
 
@@ -256,8 +258,23 @@ describe('changedFilterCount', () => {
   });
 
   it('has a reset patch that leaves the window and the country out and brings the count to zero', () => {
-    expect(Object.keys(RESET_PATCH).sort()).toEqual(['branded', 'compare', 'engines', 'topic']);
-    const reset = scopeOf({ compare: false, engines: ['gemini_web'], topic: TOPIC, branded: 'only', country: 'DE' });
-    expect(changedFilterCount({ ...reset, ...RESET_PATCH } as OverviewScope)).toBe(0);
+    expect(Object.keys(RESET_PATCH).sort()).toEqual(['branded', 'compare', 'engines', 'metric', 'topic']);
+    const reset = scopeOf({
+      compare: false,
+      engines: ['gemini_web'],
+      topic: TOPIC,
+      branded: 'only',
+      country: 'DE',
+      metric: 'sov',
+    });
+    const back = { ...reset, ...RESET_PATCH } as OverviewScope;
+    expect(changedFilterCount(back)).toBe(0);
+    expect(canResetScope(back)).toBe(false);
+  });
+
+  it('can reset for a measure that is not the default, though it is not counted as a filter', () => {
+    expect(canResetScope(scopeOf())).toBe(false);
+    expect(canResetScope(scopeOf({ metric: 'mention' }))).toBe(true);
+    expect(canResetScope(scopeOf({ topic: TOPIC }))).toBe(true);
   });
 });
