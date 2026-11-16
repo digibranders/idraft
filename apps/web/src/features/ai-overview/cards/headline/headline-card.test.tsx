@@ -166,9 +166,11 @@ describe('HeadlineCard', () => {
     serve([promptRow('p1', [cells('chatgpt_web', [1, 0, 1, 0])])]);
     renderCard('&engine=chatgpt_web');
     const tile = await tileOf('Mention rate');
-    expect(within(tile).getByText('n/a')).toHaveAccessibleDescription('2 answers, too few for a rate');
-    expect(within(tile).getByText('Too few answers')).toBeInTheDocument();
-    expect(within(await hero()).getByText('Too few answers')).toBeInTheDocument();
+    expect(within(tile).getByText('n/a')).toHaveAccessibleDescription(
+      'Not enough data: 2 valid answers, a rate needs at least 4',
+    );
+    expect(within(tile).getByText('Not enough data')).toBeInTheDocument();
+    expect(within(await hero()).getByText('Not enough data')).toBeInTheDocument();
     expect(within(await hero()).queryByText('0%')).toBeNull();
   });
 

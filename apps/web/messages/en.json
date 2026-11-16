@@ -6463,7 +6463,7 @@
       "keyNumbers": "Key numbers",
       "hero": "AI visibility rate",
       "notAvailable": "n/a",
-      "tooFew": "Too few answers",
+      "tooFew": "Not enough data",
       "notCollected": "Not collected yet",
       "noAccess": "No access",
       "allGroups": "All groups {value}",
@@ -6471,6 +6471,11 @@
       "emptyNoEnginesReason": "Choose a platform in the filter of this page, or turn one on in the project settings.",
       "emptyNoPromptsTitle": "No prompts in this scope",
       "emptyNoPromptsReason": "No prompt matches the filters of this page. Widen them to see answers.",
+      "platforms": {
+        "chatgpt_web": "ChatGPT",
+        "gemini_web": "Gemini",
+        "google_ai_mode": "Google AI Mode"
+      },
       "tiles": {
         "mention": "Mention rate",
         "sov": "Share of voice",
@@ -6492,9 +6497,9 @@
         "counts": "{k, number} of {n, number} answers",
         "naming": "{n, number} answers that name a tracked brand",
         "prompts": "{count, plural, one {# prompt} other {# prompts}}, each counted once",
-        "tooFew": "Too few answers for a rate",
-        "tooFewCount": "{n, plural, one {# answer} other {# answers}}, too few for a rate",
-        "tooFewNaming": "{n, plural, one {# answer} other {# answers}} that name a tracked brand, too few for a rate",
+        "tooFew": "Not enough data: a rate needs at least {min, number} valid answers",
+        "tooFewCount": "Not enough data: {n, plural, one {# valid answer} other {# valid answers}}, a rate needs at least {min, number}",
+        "tooFewNaming": "Not enough data: {n, plural, one {# answer} other {# answers}} that name a tracked brand, a rate needs at least {min, number}",
         "none": "No valid answers in this scope",
         "notCollected": "This measure is not collected yet",
         "noAccess": "Your role cannot read runs",

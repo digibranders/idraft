@@ -4,7 +4,6 @@ import { useTranslations } from 'next-intl';
 import { useMemo, type ReactElement } from 'react';
 
 import { useAiRuns } from '../activity/data/activity-reads';
-import { engineLabel } from '../engines/engine-role';
 import { useCardData } from '../engines/use-card-data';
 import { useCardExport } from '../engines/use-card-seams';
 import { useFrameState } from '../engines/use-frame-state';
@@ -50,6 +49,8 @@ const isNotCollected = (key: TileKey): boolean => key === 'position' || key === 
 
 const EXPORT_HEADER = ['measure', 'value_percent', 'k', 'n', 'status'] as const;
 const RUNS_LIMIT = 200;
+/** The platforms the product names, by API code: the words are in the catalog (`aiOverview.headline.platforms`). */
+const PLATFORM_NAMES = { chatgpt_web: true, gemini_web: true, google_ai_mode: true } as const;
 /** A figure with its counts in a tooltip is a tab stop that opens it (DS 20 section 6.2 rule 6). */
 const TAB_STOP = { tabIndex: 0 } as const;
 const percent = (ratio: number): string => formatPercent(ratio, { decimals: 0 });
@@ -127,7 +128,8 @@ export default function HeadlineCard({ item, live }: CardProps): ReactElement {
     () => ({
       // The words are looked up by key, as the number words of the other cards are
       say: t as Say,
-      nameOf: (code) => engineLabel(code) ?? common('unknownEngine'),
+      nameOf: (code) =>
+        code in PLATFORM_NAMES ? t(`platforms.${code as keyof typeof PLATFORM_NAMES}`) : common('unknownEngine'),
       list: formatList,
       formatValue: percent,
     }),

@@ -1,4 +1,5 @@
 import { isNamedCount, type Reading } from './headline-model';
+import { MIN_OBSERVATIONS } from '@/lib/stats';
 
 /** The words of `aiOverview.headline`, as `useTranslations('aiOverview.headline')` gives them. */
 export type Say = (key: string, values?: Record<string, string | number>) => string;
@@ -49,7 +50,9 @@ export function describeReading(reading: Reading, words: Words): Described {
       const key = reading.noun === 'namingAnswers' ? 'tips.tooFewNaming' : 'tips.tooFewCount';
       return {
         value: say('notAvailable'),
-        tip: isNamedCount(reading.n) ? say(key, { n: reading.n }) : say('tips.tooFew'),
+        tip: isNamedCount(reading.n)
+          ? say(key, { n: reading.n, min: MIN_OBSERVATIONS })
+          : say('tips.tooFew', { min: MIN_OBSERVATIONS }),
         note: say('tooFew'),
         known: false,
       };
