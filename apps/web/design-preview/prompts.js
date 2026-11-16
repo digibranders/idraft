@@ -38,7 +38,7 @@ import { brandsCell, citedLinksCell, closeStaleList, initEngineSelect, onCompeti
 import { initPromptInspector, refreshPromptInspector } from './prompts-inspector.js';
 import { initTopicInspector, refreshTopicInspector } from './prompts-topic-inspector.js';
 import { initTopics, promptsByMention, renderTopics, topicOrder, topicsInScope } from './prompts-topics.js';
-import { CELL, IDENTITY_RESIZE, focusSearchOnSlash, identityHandle, plainHeaderCell, promptLine, promptRateCell, promptTrendCell, rowMenuCell, sortHeaderCell, wireColumnChooser } from './prompts-cells.js';
+import { CELL, IDENTITY_RESIZE, focusSearchOnSlash, identityHandle, plainHeaderCell, promptLine, promptRateCell, rowMenuCell, sortHeaderCell, wireColumnChooser } from './prompts-cells.js';
 import { NEUTRAL_BADGE, checkbox, el, insufficient, intervalText, percent0, plural } from './prompts-parts.js';
 import { BRANDED_LABEL, METRIC_LABEL, VIEWS, deltaNode, inScope, isAllLocations, scopeCodes, scopeEngines, scopePrompts, scopeText, state } from './prompts-state.js';
 
@@ -59,7 +59,9 @@ const PAGE_SIZE = Number.MAX_SAFE_INTEGER;
  * view is that engine's own value. Cited links and the answer screenshot belong to one engine's answers, so they are
  * there only while one engine is in view. The per-engine columns and counts are off until they are chosen.
  */
-const WIDTH = { select: 40, prompt: 300, topic: 160, country: 120, intent: 128, volume: 132, position: 120, mention: 168, citation: 136, recommendation: 196, sov: 140, sentiment: 168, trend: 96, links: 320, brands: 248, shot: 120, e: 176, count: 152, actions: 40 };
+const WIDTH = { select: 40, prompt: 300, topic: 160, country: 120, intent: 128, volume: 132, position: 120, mention: 168, citation: 136, recommendation: 196, sov: 140, sentiment: 168, links: 344, brands: 272, shot: 120, e: 176, count: 152, actions: 40 };
+// The Mention rate column also holds the trend line (64 px) when the person compares, so it is wider then
+const MENTION_COMPARE_WIDTH = 204;
 const columnsOf = () => {
   const single = scopeEngines().length === 1;
   return [
@@ -69,12 +71,11 @@ const columnsOf = () => {
     { key: 'intent', label: 'Intent', width: WIDTH.intent },
     { key: 'volume', label: 'Search volume', width: WIDTH.volume },
     { key: 'position', label: 'Avg position', width: WIDTH.position },
-    { key: 'mention', label: 'Mention rate', width: WIDTH.mention },
+    { key: 'mention', label: 'Mention rate', width: state.compare ? MENTION_COMPARE_WIDTH : WIDTH.mention },
     { key: 'citation', label: 'Citation rate', width: WIDTH.citation },
     { key: 'recommendation', label: 'Recommendation rate', width: WIDTH.recommendation },
     { key: 'sov', label: 'Share of voice', width: WIDTH.sov },
     { key: 'sentiment', label: 'Sentiment', width: WIDTH.sentiment },
-    { key: 'trend', label: 'Trend', width: WIDTH.trend },
     ...(single ? [{ key: 'links', label: 'Cited links', width: WIDTH.links }] : []),
     { key: 'brands', label: 'Brands', width: WIDTH.brands },
     ...(single ? [{ key: 'shot', label: 'Screenshot', width: WIDTH.shot }] : []),
@@ -238,7 +239,6 @@ function rowFor(prompt) {
       if (column.key === 'country') return textCell(COUNTRY, 'Every prompt is asked for the project location, the one the top bar shows');
       if (column.key === 'mention') return promptRateCell(prompt, 'mention', true);
       if (['citation', 'recommendation', 'sov'].includes(column.key)) return promptRateCell(prompt, column.key, false);
-      if (column.key === 'trend') return promptTrendCell(prompt, '');
       if (['intent', 'volume', 'position', 'sentiment', 'brands', 'links', 'shot'].includes(column.key)) return extraCell(prompt, column.key);
       if (column.key.startsWith('e:')) return engineCell(prompt, engineOf(column.key.slice(2)));
       return countCell(prompt, column.key.slice(2), column.key.startsWith('c:') ? 'citation' : 'mention');
@@ -255,9 +255,11 @@ const cols = $('[data-prompt-cols]', view);
 const promptTable = $('[data-prompt-table]', view);
 const sortHeader = (column) => sortHeaderCell({ key: column.key, label: column.label, sort: state.sort, attr: 'promptSort', tip: HEAD_TIP[column.key] });
 const HEAD_TIP = {
-  mention: 'The share of valid answers that name your brand, averaged over the engines shown',
+  get mention() {
+    const base = 'The share of valid answers that name your brand, averaged over the engines shown';
+    return state.compare ? `${base}. The change is against the comparison period, and the line is the rate of each week of the window (a week with no valid answer is a gap).` : base;
+  },
   citation: 'The share of valid answers that cite your domain, averaged over the engines shown',
-  trend: 'The mention rate for each week of the window, averaged over the engines shown. A week with no valid answer is a gap in the line.',
   country: 'The location the prompt is asked for',
   intent: 'What the asker wants: to learn, to choose, to buy or to find a brand',
   volume: 'Monthly searches of the keyword the prompt is linked to. Sample values.',
@@ -270,7 +272,7 @@ const HEAD_TIP = {
   shot: 'The latest answer of the engine, as the page showed it',
 };
 /** Columns that open something or show a picture: they have no order. */
-const PLAIN_COLUMNS = ['trend', 'links', 'brands', 'shot'];
+const PLAIN_COLUMNS = ['links', 'brands', 'shot'];
 
 /** Sets the width of every column and of the table. Dragging the Prompt column calls this, so it never draws the header again. */
 function applyWidths() {

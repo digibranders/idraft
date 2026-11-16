@@ -11,7 +11,7 @@ import { MIN_OBSERVATIONS } from './vendor/stats/index.js';
 import { ENGINES, NOT_CLASSIFIED, absenceSentence, countsOf, engineOf, groupAverage, groupChange, groupRate, groupTrend, groupUpdated, measures, rateFor, seoOf, topicsOf } from './prompts-data.js';
 import { brandsOf, groupVolume, positionOf, sentimentOf, volumeOf } from './prompts-extra.js';
 import { brandsCell, closeStaleList, positionCell, sentimentCell, textCell, volumeCell } from './prompts-extra-cells.js';
-import { CELL, IDENTITY_RESIZE, focusSearchOnSlash, identityHandle, plainHeaderCell, promptLine, promptRateCell, promptTrendCell, rateCell, rowMenuCell, sortHeaderCell, sparkCell, topEngineCell, wireColumnChooser } from './prompts-cells.js';
+import { CELL, IDENTITY_RESIZE, focusSearchOnSlash, identityHandle, plainHeaderCell, promptLine, promptRateCell, rateCell, rowMenuCell, sortHeaderCell, topEngineCell, wireColumnChooser } from './prompts-cells.js';
 import { checkbox, el, percent0, plural } from './prompts-parts.js';
 import { METRIC_LABEL, isAllLocations, scopeCodes, scopeEngines, scopePrompts, scopeText, state } from './prompts-state.js';
 
@@ -153,7 +153,10 @@ export function promptsByMention(topic) {
 // -------------------------------------------------------------------------------------------------
 // Columns of the three views
 
-const WIDTH = { select: 40, topic: 260, country: 120, volume: 132, position: 120, mention: 168, citation: 136, recommendation: 196, sov: 140, sentiment: 168, brands: 248, engine: 140, trend: 96, count: 152, e: 176, gap: 120, actions: 40 };
+const WIDTH = { select: 40, topic: 260, country: 120, volume: 132, position: 120, mention: 168, citation: 136, recommendation: 196, sov: 140, sentiment: 168, brands: 272, engine: 140, count: 152, e: 176, gap: 120, actions: 40 };
+
+/** The Mention rate column also holds the trend line (64 px) when the person compares, so it is wider then. */
+const mentionWidth = () => (state.compare ? 204 : WIDTH.mention);
 
 /** The columns of the view in force, in table order. `locked` columns cannot be turned off. */
 function columnsOf() {
@@ -161,7 +164,7 @@ function columnsOf() {
   if (state.topicView === 'engines') {
     return [
       { key: 'topic', label: 'Topic', width: WIDTH.topic, locked: true },
-      { key: 'mention', label: 'Mention rate', width: WIDTH.mention },
+      { key: 'mention', label: 'Mention rate', width: mentionWidth() },
       ...engines.map((engine) => ({ key: `e:${engine.code}`, label: `${engine.name} ${METRIC_LABEL[state.metric].toLowerCase()}`, width: WIDTH.e })),
       { key: 'gap', label: 'Engine gap', width: WIDTH.gap },
     ];
@@ -171,12 +174,11 @@ function columnsOf() {
     ...(isAllLocations() ? [{ key: 'country', label: 'Location', width: WIDTH.country }] : []),
     { key: 'volume', label: 'Search volume', width: WIDTH.volume },
     { key: 'position', label: 'Avg position', width: WIDTH.position },
-    { key: 'mention', label: 'Mention rate', width: WIDTH.mention },
+    { key: 'mention', label: 'Mention rate', width: mentionWidth() },
     { key: 'citation', label: 'Citation rate', width: WIDTH.citation },
     { key: 'recommendation', label: 'Recommendation rate', width: WIDTH.recommendation },
     { key: 'sov', label: 'Share of voice', width: WIDTH.sov },
     { key: 'sentiment', label: 'Sentiment', width: WIDTH.sentiment },
-    { key: 'trend', label: 'Trend', width: WIDTH.trend },
     { key: 'brands', label: 'Brands', width: WIDTH.brands },
     { key: 'engine', label: 'Top engine', width: WIDTH.engine },
     ...engines.flatMap((engine) => [
@@ -189,10 +191,12 @@ const shownColumns = () => columnsOf().filter((column) => column.locked || !stat
 const rowClass = () => (state.density === 'compact' ? 'h-row-compact' : 'h-row');
 
 const HEAD_TIP = {
-  mention: 'The share of valid answers that name your brand, averaged over the engines shown',
+  get mention() {
+    const base = 'The share of valid answers that name your brand, averaged over the engines shown';
+    return state.compare ? `${base}. The change is against the comparison period, and the line is the rate of each week of the window (a week with no valid answer is a gap).` : base;
+  },
   citation: 'The share of valid answers that cite your domain, averaged over the engines shown',
   engine: 'The engine with the highest mention rate. A pointer, not a ranking.',
-  trend: 'The mention rate for each week of the window, averaged over the engines shown. A week with no valid answer is a gap in the line.',
   country: 'The location the prompts are asked for',
   volume: 'Monthly searches of the keywords the prompts are linked to, each keyword counted once. Sample values.',
   position: 'Where your brand sits in an ordered answer, 1 being first. Lower is better. Only ordered lists have a position.',
@@ -247,7 +251,7 @@ function renderHead() {
       th.append(identityHandle({ current: identityWidth, set: setIdentityWidth, max: identityMax }));
       return th;
     }
-    return ['trend', 'engine', 'country', 'brands'].includes(column.key) ? plainHeaderCell(column.label, '', HEAD_TIP[column.key]) : sortHeader(column);
+    return ['engine', 'country', 'brands'].includes(column.key) ? plainHeaderCell(column.label, '', HEAD_TIP[column.key]) : sortHeader(column);
   });
   const actions = el('th', 'sticky top-0 z-(--z-table-header) border-b border-border bg-surface-subtle');
   actions.append(el('span', 'sr-only', 'Row actions'));
@@ -287,6 +291,7 @@ function topicRateCell(topic, metric) {
   return rateCell({
     value: average.value,
     change: metric === 'mention' ? topic.mentionChange : null,
+    trend: metric === 'mention' ? topic.trend : null,
     sample: `${formatSampleCount(average.pooled.k, average.pooled.n)} obs`,
     tip: average.used === 1 ? `${engines} only` : `Equal-weight average of ${engines}, each prompt counting once`,
     gap: { text: observed === 0 ? 'n/a' : 'Insufficient', tip: observed === 0 ? 'Not observed in this window' : `${plural(observed, 'observation')} in this topic. A rate needs at least ${MIN_OBSERVATIONS} on an engine.` },
@@ -342,7 +347,6 @@ function dataCells(topic) {
     sentiment: () => sentimentCell(topic.sentiment),
     brands: () => brandsCell(topic.brands, topic.name),
     engine: () => topEngineCell(topic.engineRates),
-    trend: () => sparkCell(topic.trend, ''),
     gap: () => gapCell(topic),
   };
   return shownColumns()
@@ -415,7 +419,6 @@ function promptDataCells(prompt) {
       if (key === 'mention') return promptRateCell(prompt, 'mention', true);
       if (['citation', 'recommendation', 'sov'].includes(key)) return promptRateCell(prompt, key, false);
       if (key === 'sentiment') return sentimentCell(sentimentOf([prompt], scope), absent);
-      if (key === 'trend') return promptTrendCell(prompt, '');
       if (key === 'brands') return brandsCell(brandsOf([prompt], scope), 'This prompt');
       if (key === 'engine') return topEngineCell(scopeEngines().map((engine) => ({ engine, rate: rateFor(prompt, engine.code, 'mention') })));
       return promptCountCell(prompt, key.slice(2), key.startsWith('c:') ? 'citation' : 'mention');

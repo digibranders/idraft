@@ -64,7 +64,8 @@ export function positionCell({ value, used, names, lists, mentions, answers }, a
         : unknown('n/a', `Your brand was not named in any of ${plural(answers, 'answer')}, so it has no position`);
     }
     const cell = el('td', CELL);
-    cell.append(insufficient(plural(lists, 'list')));
+    // The number alone: the tooltip says it counts ordered answers, and a bare count reads cleaner in a column of positions
+    cell.append(insufficient(String(lists)));
     cell.dataset.tip = `Only answers that are an ordered list have a position, and an engine needs at least ${POSITION_MIN_LISTS}. ${plural(mentions, 'mention')}, ${plural(lists, 'ordered answer')}.`;
     return cell;
   }
@@ -193,6 +194,26 @@ function opener(trigger, build) {
 
 const LINK_BUTTON = 'flex min-w-0 max-w-full items-center gap-1.5 rounded-sm text-left type-body text-foreground hover:underline focus-visible:focus-ring';
 
+/**
+ * A mark before a list that answers "is my brand in it?" at a glance: a green check when it is, a quiet dash when it
+ * is not. The meaning is also in its label and tooltip, so color is not the only carrier.
+ */
+function presenceMark(present, yes, no) {
+  const mark = el('span', `flex size-icon shrink-0 items-center justify-center ${present ? 'text-positive-text' : 'text-foreground-tertiary'}`);
+  mark.setAttribute('role', 'img');
+  mark.setAttribute('aria-label', present ? yes : no);
+  mark.dataset.tip = present ? yes : no;
+  mark.append(icon(present ? 'circle-check' : 'minus', 'size-icon-sm'));
+  return mark;
+}
+
+/** The list opener and its mark side by side, the mark never shrinking. */
+function markedList(mark, button) {
+  const wrap = el('div', 'flex min-w-0 items-center gap-2');
+  wrap.append(mark, button);
+  return wrap;
+}
+
 /** Which engines a list rests on, as a sentence. */
 const scopeSentence = (names, answers) => `${names.length === 1 ? `${names[0]} only` : `Equal-weight average of ${names.join(', ')}`} · ${plural(answers, 'answer')}`;
 
@@ -216,7 +237,9 @@ export function brandsCell(brands, label) {
     ownRow: brands.own ? brandRow(brands.own, brands) : null,
     note: 'The share of answers that name each brand. A brand marked Not a competitor is in the answers but not in your competitor list: add it to include it in share of voice and the competitor gap.',
   }));
-  cell.append(button);
+  // The own brand is in the list, or pinned under it when it ranks lower
+  const named = [...brands.shown, brands.own].some((row) => row?.own && row.rate > 0);
+  cell.append(markedList(presenceMark(named, 'Your brand is named in these answers', 'Your brand is not named in these answers'), button));
   return cell;
 }
 
@@ -320,7 +343,7 @@ export function citedLinksCell({ links, answers }, label, absent = 'Not observed
     }),
     note: 'How many of the answers cite each link, most cited first.',
   }));
-  cell.append(button);
+  cell.append(markedList(presenceMark(links.some((link) => link.own), 'Your site is cited in these answers', 'Your site is not cited in these answers'), button));
   return cell;
 }
 
