@@ -7,7 +7,7 @@ type Competitors = Schemas['AiCompetitorsResponse'];
  * Citation share of you and one competitor over the platforms of the page scope (OV-DRW-10): the share of the platform's
  * citation units that are pages of the brand's own domain, from `GET ai/competitors` (`citation_share` of each entity
  * and engine). One platform is its own value; All platforms is the equal-weight average of the platforms where both
- * brands have a share (R3). A platform with fewer than 4 citation units, or a value the API withholds, has none, and
+ * brands have a share (R3). A platform with fewer than 4 valid answers, or a value the API withholds, has none, and
  * "none" is never 0 (R6).
  */
 export interface CitationShare {
@@ -17,8 +17,9 @@ export interface CitationShare {
 
 const NONE: CitationShare = { own: null, rival: null };
 
+/** `n_observations` of this key is the engine's valid answers (the schema says so), which is what R2 counts. */
 const valueOf = (cell: Competitors['data'][number]['by_engine'][number] | undefined): number | null =>
-  cell === undefined || cell.citation_share.value === null || (cell.citation_share.denominator ?? 0) < MIN_OBSERVATIONS
+  cell === undefined || cell.citation_share.value === null || cell.citation_share.n_observations < MIN_OBSERVATIONS
     ? null
     : cell.citation_share.value;
 

@@ -127,6 +127,23 @@ describe('opening the competitor drawer', () => {
   });
 });
 
+describe('a drawer opened from a link while the summary cannot be read', () => {
+  it('says the competitor could not be loaded and offers a retry, instead of "not found"', async () => {
+    server.use(
+      http.get('*/api/v1/workspaces/:w/projects/:p/ai/prompts-summary', () =>
+        HttpResponse.json(
+          { type: 'about:blank', title: 'Server error', status: 500, code: 'internal_error' },
+          { status: 500 },
+        ),
+      ),
+    );
+    render(`cmp=off&inspect=competitor:${MOCK_ENTITY_IDS.brightwave}`);
+    expect(await screen.findByText('Could not load this competitor', undefined, TIMEOUT)).toBeInTheDocument();
+    expect(screen.queryByText('Could not open this competitor')).toBeNull();
+    expect(screen.getAllByRole('button', { name: 'Try again' }).length).toBeGreaterThan(0);
+  });
+});
+
 describe('the Prompts tab', () => {
   it('lists the prompts of the lead being read, each a link that opens the prompt inspector, and switches the lead', async () => {
     const { user } = render();

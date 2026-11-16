@@ -5,8 +5,13 @@ import type { Schemas } from '@/lib/api/types';
 
 type Response = Schemas['AiCompetitorsResponse'];
 
-const value = (share: number | null, units: number): Schemas['AiMetricValue'] =>
-  ({ value: share, numerator: share === null ? null : share * units, denominator: units }) as Schemas['AiMetricValue'];
+const value = (share: number | null, answers: number): Schemas['AiMetricValue'] =>
+  ({
+    value: share,
+    numerator: share === null ? null : share * answers,
+    denominator: 1000,
+    n_observations: answers,
+  }) as Schemas['AiMetricValue'];
 
 function row(id: string, byEngine: Record<string, [number | null, number]>): Response['data'][number] {
   return {
@@ -31,7 +36,7 @@ describe('citationShareOf', () => {
     expect(result).toEqual({ own: 0.2, rival: 0.1 });
   });
 
-  it('averages the platforms where both brands have a share, and leaves out a thin one', () => {
+  it('averages the platforms where both brands have a share, and leaves out one with under 4 valid answers', () => {
     const result = citationShareOf(
       response(
         row('own', { chatgpt_web: [0.2, 100], gemini_web: [0.4, 100], google_ai_mode: [0.9, 2] }),

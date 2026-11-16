@@ -73,3 +73,15 @@ export function weeklyMentionTrend(
   const last = weeks.findLastIndex((week) => week.own.value !== null || week.rival.value !== null);
   return { status: 'read', weeks: first === -1 ? [] : weeks.slice(first, last + 1) };
 }
+
+/**
+ * The weeks of the window before, then those of the current window, as the page's own trend draws them. A week in both
+ * (one that straddles the two windows) is the current window's. The current window decides what the trend is: the
+ * previous one only adds weeks to a trend that has some, and is ignored when it could not be read.
+ */
+export function joinTrends(previous: TrendRead | null, current: TrendRead): TrendRead {
+  if (previous === null || previous.status !== 'read' || current.status !== 'read') return current;
+  const kept = new Map<string, TrendWeek>();
+  for (const week of [...previous.weeks, ...current.weeks]) kept.set(week.weekStart, week);
+  return { status: 'read', weeks: [...kept.values()].sort((a, b) => a.weekStart.localeCompare(b.weekStart)) };
+}

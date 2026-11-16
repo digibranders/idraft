@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { compareInScope, gapOf, platformRows } from './comparison';
+import { compareInScope, platformRows } from './comparison';
 import {
   cell,
   competitor,
@@ -94,13 +94,5 @@ describe('platformRows', () => {
       { code: 'chatgpt_web', own: 0.5, rival: 0.25 },
       { code: 'gemini_web', own: null, rival: null },
     ]);
-  });
-});
-
-describe('gapOf', () => {
-  it('is your value minus theirs, and unknown when either is', () => {
-    expect(gapOf(0.5, 0.25)).toBe(0.25);
-    expect(gapOf(null, 0.25)).toBeNull();
-    expect(gapOf(0, null)).toBeNull();
   });
 });

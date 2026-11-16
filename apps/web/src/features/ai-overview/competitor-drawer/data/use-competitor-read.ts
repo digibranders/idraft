@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 
 import { askedEngines } from '../../data/overview-queries';
 import { useOverviewSummary as readSummary } from '../../data/use-overview-reads';
-import { useOverview, useOverviewSummary } from '../../overview-context';
+import { useOverview, useOverviewPeriods } from '../../overview-context';
 import { SHAPE_OPTIONS, useTrackedSet } from '../../cards/competitors/data/use-competitor-reads';
 import { leadsOf, type CompetitorLead, type LeadRead } from '../../cards/competitors/model/lead-rule';
 import type { TrackedEntity, TrackedSet } from '../../cards/competitors/model/types';
@@ -82,9 +82,17 @@ export function competitorOf(set: TrackedSet | null, id: string): TrackedEntity 
   return set?.entities.find((entity) => entity.role === 'competitor' && entity.entityId === id);
 }
 
-/** The weekly read of the scope (entity cells per week), for the trend. */
-export function useWeeklyRead(subscribed: boolean): Read<PromptsSummary> {
-  return useOverviewSummary({ ...SHAPE_OPTIONS.weekly, subscribed });
+/**
+ * The weekly read of the scope (entity cells per week) for the trend, and with Compare on the window before it, whose
+ * weeks come first as on the page's own trend. The previous window counts only while it is of the same scope.
+ */
+export function useWeeklyReads(subscribed: boolean): {
+  current: Read<PromptsSummary>;
+  previous: PromptsSummary | null;
+} {
+  const periods = useOverviewPeriods({ ...SHAPE_OPTIONS.weekly, subscribed });
+  const previous = periods.paired && periods.previous?.data !== undefined ? periods.previous.data : null;
+  return { current: periods.current, previous };
 }
 
 /** The platforms the project has on, whatever the page's Platform says: the By platform card lists them all. */

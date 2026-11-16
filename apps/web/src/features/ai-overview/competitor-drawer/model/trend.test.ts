@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { weeklyMentionTrend } from './trend';
+import { joinTrends, weeklyMentionTrend, type TrendRead, type TrendWeek } from './trend';
 import {
   competitor,
   engine,
@@ -108,5 +108,34 @@ describe('weeklyMentionTrend', () => {
     expect(weeklyMentionTrend(summary, ['chatgpt_web'], trackedSetOf(summary, null), id(2), false)).toEqual({
       status: 'unread',
     });
+  });
+});
+
+describe('joinTrends', () => {
+  const point = { value: 0.5, successes: 4, answers: 8 };
+  const weekOn = (weekStart: string, value: number): TrendWeek => ({
+    weekStart,
+    own: { ...point, value },
+    rival: point,
+  });
+  const read = (...weeks: TrendWeek[]): TrendRead => ({ status: 'read', weeks });
+
+  it('puts the weeks of the previous window first, and a week in both is the current one', () => {
+    const joined = joinTrends(
+      read(weekOn('2026-10-12', 0.1), weekOn('2026-10-19', 0.2)),
+      read(weekOn('2026-10-19', 0.9), weekOn('2026-10-26', 0.3)),
+    );
+    expect(joined.status === 'read' ? joined.weeks.map((week) => [week.weekStart, week.own.value]) : null).toEqual([
+      ['2026-10-12', 0.1],
+      ['2026-10-19', 0.9],
+      ['2026-10-26', 0.3],
+    ]);
+  });
+
+  it('is the current window alone when the previous one is not read, or the current one has no rival to draw', () => {
+    const current = read(weekOn('2026-10-26', 0.3));
+    expect(joinTrends(null, current)).toBe(current);
+    expect(joinTrends({ status: 'unread' }, current)).toBe(current);
+    expect(joinTrends(current, { status: 'not_collected' })).toEqual({ status: 'not_collected' });
   });
 });

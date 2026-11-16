@@ -133,7 +133,3 @@ export function platformRows(
     return [{ code, own: valueOf(own), rival: valueOf(rival) }];
   });
 }
-
-/** Your value minus theirs, 0 to 1 scale; `null` when either is missing. */
-export const gapOf = (own: number | null, rival: number | null): number | null =>
-  own === null || rival === null ? null : own - rival;

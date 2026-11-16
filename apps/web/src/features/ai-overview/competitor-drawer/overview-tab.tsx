@@ -6,17 +6,19 @@ import { useMemo, type ReactElement } from 'react';
 
 import { useCitationShare } from './data/use-citation-share';
 import { useScopeParts } from './data/use-scope-parts';
-import { useEveryPlatformRead, useWeeklyRead, type CompetitorRead } from './data/use-competitor-read';
+import { useEveryPlatformRead, useWeeklyReads, type CompetitorRead } from './data/use-competitor-read';
 import { DrawerCard, type DrawerCardState } from './drawer-card';
 import { GapCell } from './gap-cell';
 import { compareInScope, platformRows, type Figure, type PlatformRow } from './model/comparison';
-import { weeklyMentionTrend, type TrendRead } from './model/trend';
+import { joinTrends, weeklyMentionTrend, type TrendRead } from './model/trend';
 import { roleOf } from '../cards/competitors/chart-parts';
 import { colorSlots } from '../cards/competitors/model/tracked-set';
 import type { TrackedEntity } from '../cards/competitors/model/types';
 import type { Read } from '../data/read-state';
+import type { PromptsSummary } from '@/lib/api/types';
 import { ChartFrame } from '@/components/app/chart/chart-frame';
 import { EngineLogo } from '@/components/app/engine/engine-logo';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip } from '@/components/ui/tooltip';
 import { engineLabel } from '@/lib/layouts';
 import { formatChartDate, formatPercent } from '@/lib/format';
@@ -48,14 +50,38 @@ function ValueCell({
   value,
   tip,
   decimals = 0,
+  state = 'read',
 }: {
   value: number | null;
   tip: string | null;
   decimals?: 0 | 1;
+  /** `pending` while the read is under way, `failed` when it could not be read: neither is a rate, and neither is 0. */
+  state?: 'read' | 'pending' | 'failed';
 }): ReactElement {
   const t = useTranslations('aiOverview.competitorDrawer');
+  if (state === 'pending') {
+    return (
+      <td className="px-3 text-right" aria-busy="true">
+        <Skeleton shape="text-13" widthPct={56} className="ml-auto" />
+        <span className="sr-only">{t('summary.citationPending')}</span>
+      </td>
+    );
+  }
   if (value === null) {
-    return <td className="px-3 text-right text-foreground-tertiary">{t('na')}</td>;
+    return (
+      <td className="px-3 text-right text-foreground-tertiary">
+        {state === 'failed' ? (
+          <Tooltip content={t('summary.citationFailed')}>
+            <span {...TAB_STOP} className="rounded-xs outline-none focus-visible:focus-ring">
+              {t('na')}
+              <span className="sr-only">{`, ${t('summary.citationFailed')}`}</span>
+            </span>
+          </Tooltip>
+        ) : (
+          t('na')
+        )}
+      </td>
+    );
   }
   const text = formatPercent(value, { decimals });
   return (
@@ -92,15 +118,14 @@ function SummaryCard({
         : compareInScope(read.summary, read.platforms.codes, read.set, competitor.entityId, read.platforms.average),
     [read.summary, read.set, read.platforms, competitor.entityId],
   );
-  const ready = read.status === 'ready' || read.status === 'refetching';
+  const base = cardState(read.status, read.errorId, read.retry);
+  // Nothing is compared without a mention rate for both: a brand with under 4 answers is not 0 (R6)
   const state: DrawerCardState =
-    cardState(read.status, read.errorId, read.retry).status !== 'ready'
-      ? cardState(read.status, read.errorId, read.retry)
-      : ready &&
-          comparison !== null &&
-          (comparison.mention.own.value === null || comparison.mention.rival.value === null)
+    base.status !== 'ready'
+      ? base
+      : comparison === null || comparison.mention.own.value === null || comparison.mention.rival.value === null
         ? { status: 'empty', title: t('summary.emptyTitle'), reason: t('summary.emptyReason') }
-        : { status: 'ready' };
+        : base;
 
   const valueTip = (figure: Figure, kind: 'mention' | 'share', platforms: number): string | null => {
     if (read.platforms.average) return t('summary.valueAverage', { count: platforms });
@@ -122,6 +147,7 @@ function SummaryCard({
             ownTip: valueTip(comparison.mention.own, 'mention', comparison.mention.platforms),
             rivalTip: valueTip(comparison.mention.rival, 'mention', comparison.mention.platforms),
             decimals: 0 as const,
+            state: 'read' as const,
           },
           {
             id: 'share',
@@ -132,6 +158,7 @@ function SummaryCard({
             ownTip: valueTip(comparison.share.own, 'share', comparison.share.platforms),
             rivalTip: valueTip(comparison.share.rival, 'share', comparison.share.platforms),
             decimals: 0 as const,
+            state: 'read' as const,
           },
           {
             id: 'citation',
@@ -142,6 +169,12 @@ function SummaryCard({
             ownTip: null,
             rivalTip: null,
             decimals: 1 as const,
+            state:
+              citation.status === 'loading'
+                ? ('pending' as const)
+                : citation.status === 'error'
+                  ? ('failed' as const)
+                  : ('read' as const),
           },
         ];
   const parts = useScopeParts();
@@ -189,8 +222,8 @@ function SummaryCard({
                   </span>
                 </Tooltip>
               </th>
-              <ValueCell value={row.own.value} tip={row.ownTip} decimals={row.decimals} />
-              <ValueCell value={row.rival.value} tip={row.rivalTip} decimals={row.decimals} />
+              <ValueCell value={row.own.value} tip={row.ownTip} decimals={row.decimals} state={row.state} />
+              <ValueCell value={row.rival.value} tip={row.rivalTip} decimals={row.decimals} state={row.state} />
               <td className="px-3 pr-4 text-right">
                 <GapCell own={row.own.value} rival={row.rival.value} name={competitor.name} decimals={row.decimals} />
               </td>
@@ -240,7 +273,7 @@ function TrendCard({
     meta: t('trend.meta'),
     info: { what: t('trend.info.what'), how: t('trend.info.how') },
     height: 180 as const,
-    summary: t('trend.summary', { name: competitor.name }),
+    summary: t('trend.label', { name: competitor.name, count: weeks.length }),
     categories,
     categoryHeader: t('trend.weekColumn'),
     series,
@@ -306,12 +339,11 @@ function PlatformsCard({
   read: Read<unknown>;
 }): ReactElement {
   const t = useTranslations('aiOverview.competitorDrawer');
+  const base = cardState(read.status, read.errorId, read.refetch);
   const state: DrawerCardState =
-    cardState(read.status, read.errorId, read.refetch).status !== 'ready'
-      ? cardState(read.status, read.errorId, read.refetch)
-      : rows.length === 0
-        ? { status: 'empty', title: t('notCollectedTitle'), reason: t('platforms.empty') }
-        : { status: 'ready' };
+    base.status === 'ready' && rows.length === 0
+      ? { status: 'empty', title: t('platforms.emptyTitle'), reason: t('platforms.empty') }
+      : base;
   return (
     <DrawerCard
       title={t('platforms.title')}
@@ -346,21 +378,20 @@ function PlatformsCard({
 export function OverviewTab({ read, competitor }: { read: CompetitorRead; competitor: TrackedEntity }): ReactElement {
   const ownId = read.set?.entities.find((entity) => entity.role === 'own')?.entityId;
   const citation = useCitationShare(ownId, competitor.entityId, true);
-  const weekly = useWeeklyRead(true);
+  const { current: weekly, previous: weeklyBefore } = useWeeklyReads(true);
   const every = useEveryPlatformRead(true);
-  const trend = useMemo(
-    () =>
-      weekly.data === undefined || read.set === null
-        ? null
-        : weeklyMentionTrend(weekly.data, read.platforms.codes, read.set, competitor.entityId, read.platforms.average),
-    [weekly.data, read.set, read.platforms, competitor.entityId],
-  );
+  const { set, platforms } = read;
+  const trend = useMemo((): TrendRead | null => {
+    if (weekly.data === undefined || set === null) return null;
+    const trendOf = (summary: PromptsSummary): TrendRead =>
+      weeklyMentionTrend(summary, platforms.codes, set, competitor.entityId, platforms.average);
+    return joinTrends(weeklyBefore === null ? null : trendOf(weeklyBefore), trendOf(weekly.data));
+  }, [weekly.data, weeklyBefore, set, platforms, competitor.entityId]);
+  const everyData = every.read.data;
   const rows = useMemo(
     () =>
-      every.read.data === undefined || read.set === null
-        ? []
-        : platformRows(every.read.data, every.codes, read.set, competitor.entityId),
-    [every.read.data, every.codes, read.set, competitor.entityId],
+      everyData === undefined || set === null ? [] : platformRows(everyData, every.codes, set, competitor.entityId),
+    [everyData, every.codes, set, competitor.entityId],
   );
   return (
     <>

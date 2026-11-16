@@ -6858,6 +6858,8 @@
         "mentionTip": "Share of valid answers that mention the brand. Each prompt counts once.",
         "shareTip": "Share of tracked-brand mentions, within the tracked set.",
         "citationTip": "Share of citation units that are pages of the brand’s domain.",
+        "citationPending": "Reading the citation share",
+        "citationFailed": "Could not load the citation share",
         "valueMention": "{k, number} of {n, number} {n, plural, one {answer} other {answers}}",
         "valueShare": "{n, number} {n, plural, one {answer} other {answers}} that mention a tracked brand",
         "valueAverage": "average of {count, plural, one {# platform} other {# platforms}}",
@@ -6866,7 +6868,6 @@
         "gapLevel": "You are level with {name}: {own} against {rival}. Not tested for detectability.",
         "emptyTitle": "No rate yet",
         "emptyReason": "Too few answers in this scope to compare.",
-        "citationNotCollected": "Not collected yet",
         "info": {
           "what": "You and this competitor side by side on each measure.",
           "how": "The gap is your value minus theirs. Rates count each prompt once. Share of voice depends on which competitors are tracked."
@@ -6876,23 +6877,22 @@
         "title": "Mention rate over time",
         "meta": "weekly runs",
         "label": "Mention rate of you and {name} over the last {count, plural, one {weekly run} other {# weekly runs}}",
-        "week": "Week of {date}",
         "weekColumn": "Week",
-        "summary": "Mention rate of you and {name}, week by week.",
         "notCollectedReason": "The weekly read has no figures for {name} yet, so no line is drawn for it.",
         "emptyTitle": "Not enough data",
         "emptyReason": "No week in this scope has 4 valid answers.",
         "pointTip": "{value}, {count, plural, one {# answer} other {# answers}}",
         "info": {
           "what": "How your mention rate and theirs change week by week.",
-          "how": "One point for each weekly run. The 8 weeks are the previous 28 days and the current 28 days."
+          "how": "One point for each weekly run. With Compare on, the weeks of the previous period come first, as on the trend of the page."
         }
       },
       "platforms": {
         "title": "By platform",
         "meta": "mention rate, you · them · gap",
         "caption": "Mention rate of you and {name} on each platform",
-        "empty": "No platform is on for this project.",
+        "emptyTitle": "No platform to show",
+        "empty": "No platform is on for this project, or none has an answer in this scope.",
         "info": {
           "what": "You and this competitor on each platform.",
           "how": "A platform with fewer than 4 valid answers shows n/a. Google AI Overview is read from rank checks and counts only the checks that showed one."
