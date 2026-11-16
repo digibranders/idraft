@@ -107,8 +107,12 @@ export default function UnlinkedMentionsCard({ item, live }: CardProps): ReactEl
               <div aria-hidden="true" className="h-1.5 flex-1 overflow-hidden rounded-full bg-neutral-subtle">
                 <div
                   data-slot="unlinked-bar"
-                  className="h-full rounded-full bg-seq-4"
-                  style={{ width: `${String((row.unlinked / row.answers) * 100)}%` }}
+                  className="h-full rounded-full"
+                  style={{
+                    // The sequential step by its custom property: the heat bins own the seq class names
+                    backgroundColor: 'var(--seq-4)',
+                    width: `${String((row.unlinked / row.answers) * 100)}%`,
+                  }}
                 />
               </div>
               <span className="num type-table whitespace-nowrap text-foreground-secondary">
