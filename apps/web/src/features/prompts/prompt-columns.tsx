@@ -3,6 +3,7 @@
 import { useLocale, useTranslations } from 'next-intl';
 import { useMemo } from 'react';
 
+import { metricColumns } from './columns/metric-columns';
 import { useChangeWords, useComparedWindow, useCompare, type ComparedWindow } from './compare';
 import type { PromptFacts } from './facts';
 import { cellsOfPrompt, countText, engineSortId, SORT_ID, type RateMetric } from './prompt-model';
@@ -214,7 +215,7 @@ export function usePromptColumns(
     ];
     // Before the sort fields are read, so a sortable column of an entry is a valid `?sort=` id
     const scope = engines.map((engine) => engine.engine.engine_code);
-    const columns = withColumnEntries(builtIn, PROMPT_COLUMN_ENTRIES, {
+    const columns = withColumnEntries(builtIn, [...metricColumns, ...PROMPT_COLUMN_ENTRIES], {
       engines,
       scope,
       single: scope.length === 1 ? (scope[0] ?? null) : null,
