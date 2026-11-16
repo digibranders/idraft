@@ -56,6 +56,9 @@ FAMILY_LIMITS: Final = {
     "labs_live": Limit(per_minute=60, burst=10),
     # Live SERP calls (check now): one search a call, so a hundred keywords are a hundred calls.
     "serp_live": Limit(per_minute=120, burst=20),
+    # On-Page: a crawl's summary every minute, then its pages and one raw HTML call per page
+    # (internal links plan 02); kept well under the account's limit for the other calls.
+    "on_page": Limit(per_minute=600, burst=50),
 }
 # How long a call waits for its turn before it is given up without being made.
 TURN_WAIT: Final = timedelta(seconds=30)
