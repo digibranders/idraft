@@ -101,6 +101,10 @@ async def list_levels(db: AsyncSession, workspace_id: UUID) -> list[TierLevel]:
 
 
 async def _locked(db: AsyncSession, workspace_id: UUID) -> list[TierLevel]:
+    # A row lock on no rows locks nothing, so a workspace with no tier needs a lock of its own.
+    await db.execute(
+        select(func.pg_advisory_xact_lock(func.hashtextextended(str(workspace_id), 0)))
+    )
     await db.execute(
         select(_levels.c.id).where(_levels.c.workspace_id == workspace_id).with_for_update()
     )

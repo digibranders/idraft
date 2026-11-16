@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 import httpx
 import pytest
 
@@ -78,6 +80,24 @@ async def test_owners_and_admins_add_up_to_eight(
 
     assert problem(refused) == (422, "tier_limit")
     assert len(await audit_rows(migrated, workspace, "page_tier.created")) == 4
+
+
+async def test_parallel_adds_to_a_workspace_with_no_tier_take_one_position_each(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    owner = await member(resources, migrated, workspace, "owner")
+
+    answers = await asyncio.gather(
+        *(
+            api.post(tiers_url(workspace), json={"name": f"Tier {n}"}, headers=owner.headers)
+            for n in range(4)
+        )
+    )
+
+    assert [answer.status_code for answer in answers] == [201] * 4
+    listed = await api.get(tiers_url(workspace), headers=owner.headers)
+    assert [tier["position"] for tier in listed.json()["data"]] == [1, 2, 3, 4]
 
 
 @pytest.mark.parametrize("role", ["editor", "analyst", "viewer"])
