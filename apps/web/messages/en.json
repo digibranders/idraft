@@ -5008,10 +5008,9 @@
       "export": "Open the Export menu"
     },
     "presets": {
-      "executive": "Executive summary",
-      "seoAnalyst": "SEO analyst",
-      "competitive": "Competitive",
-      "topicOwner": "Group owner"
+      "executive": "Executive",
+      "analyst": "Analyst",
+      "competitive": "Competitive"
     },
     "engines": {
       "changeSummary": {
@@ -6997,7 +6996,8 @@
           "seo": "SEO",
           "ai": "AI",
           "cross": "Cross-channel",
-          "activity": "Activity"
+          "activity": "Activity",
+          "traffic": "Traffic"
         },
         "add": "Add",
         "addAnother": "Add another",

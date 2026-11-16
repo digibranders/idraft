@@ -64,6 +64,8 @@ Every metric has one registry key (`metric`). Keys for A1 to A14 and C1, C3 are 
 | AI surface presence (share of keyword checks with an AI Overview or AI Mode answer, section 1 rule 5) | `ai.surface_presence_rate` |
 | Prompts in scope (the prompts counted once, with a valid answer or not; branded prompts only when asked; a count, no denominator) | `ai.prompts_in_scope` |
 | Valid answers (the valid, current answers in scope; `n_observations` counts every answer, so the difference is the answers that are not valid; a count, no denominator) | `ai.valid_answers` |
+| AI Visibility (A4 family: the valid answers that name or cite the own brand, which is 100% minus "neither"; the numerator is the sum of the three outcomes that are not "neither", over the same valid answers; prompt weighted like A1; a plain rate with its counts, never a score; the equal-weight average of the engines is shown next to the engines, section 1 rule 2) | `ai.visibility_rate` |
+| Mean mention order (A12 family: the mean of the own brand's mention order among the tracked entities an answer names, 1 = named first, over the valid answers that name the own brand; a mean of whole numbers, not a rate; an answer that does not name the brand takes no part; the equal-weight average of the engines is shown next to the engines) | `ai.mention_order_mean` |
 | Mention-count share (exports and explicit request only, section 5) | `ai.mention_count_share` |
 | V4 mention volatility, V5 citation volatility, V6 within-run instability | `ai.flip_rate`, `ai.citation_jaccard_distance`, `ai.within_run_disagreement` |
 | F1, F2, F3, F5 fan-out metrics (F4 is a ranked list, not a value) | `ai.fanout_presence_rate`, `ai.fanout_mean_queries`, `ai.fanout_keyword_coverage`, `ai.fanout_own_top10_share` |

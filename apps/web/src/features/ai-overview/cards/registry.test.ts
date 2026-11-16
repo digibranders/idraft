@@ -4,8 +4,11 @@ import { AI_OVERVIEW_CARDS, cardEntries } from './registry';
 import { ACTIVITY_CARDS } from './activity';
 import { COMPETITOR_CARDS } from './competitors';
 import { ENGINE_CARDS } from './engines';
+import { HEADLINE_CARDS } from './headline';
 import { SOURCE_CARDS } from './sources';
 import { TOPIC_CARDS } from './topics';
+import { TRACKING_CARDS } from './tracking';
+import { TRAFFIC_CARDS } from './traffic';
 import type { CardRegistration } from '@/features/layouts';
 import { CARD_TYPES } from '@/lib/layouts';
 
@@ -41,7 +44,16 @@ describe('the card registry of the AI visibility Overview', () => {
   });
 
   it('has family maps whose keys are active card types of the screen and whose values can load', () => {
-    for (const family of [ENGINE_CARDS, COMPETITOR_CARDS, TOPIC_CARDS, SOURCE_CARDS, ACTIVITY_CARDS]) {
+    for (const family of [
+      HEADLINE_CARDS,
+      ENGINE_CARDS,
+      COMPETITOR_CARDS,
+      TOPIC_CARDS,
+      SOURCE_CARDS,
+      TRACKING_CARDS,
+      TRAFFIC_CARDS,
+      ACTIVITY_CARDS,
+    ]) {
       for (const [key, registration] of Object.entries(family)) {
         expect(ACTIVE_TYPES).toContain(key);
         expect(registration.load).toBeTypeOf('function');

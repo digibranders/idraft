@@ -327,8 +327,9 @@ describe('cardAvailability', () => {
   const all = { channels: ['seo', 'ai'] as const, permissions: [] as string[], integrations: [] as string[] };
 
   it('is available when every requirement is met', () => {
-    // ops.ai_spend is the one type with a permission requirement (costs:read)
-    const everything = { ...all, permissions: ['costs:read'] };
+    // ops.ai_spend is the one type with a permission requirement (costs:read), traffic.ai_referrals the one with an
+    // integration requirement (ga4)
+    const everything = { ...all, permissions: ['costs:read'], integrations: ['ga4'] };
     for (const type of CARD_TYPES) expect(cardAvailability(type, everything).state).toBe('available');
   });
 

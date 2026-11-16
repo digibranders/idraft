@@ -1,50 +1,32 @@
 /**
- * The presets of the AI visibility screen (WP-33 T6; inventory 9.5, final variants). The row tables below are
- * written out by hand from 9.5 and checked against `packRows`, so a preset that leaves a row part empty fails here.
+ * The presets of the AI visibility screen (the redesign of 2026-11-16; `design-preview/aiov-layout.js`). The row
+ * tables below are written out by hand from the preview and checked against `packRows`, so a preset that leaves a row
+ * part empty at 1280 px fails here.
  */
 import { describe, expect, it } from 'vitest';
 import {
-  ENGINES,
   LIMITS,
   SCREENS,
   cardType,
-  numberType,
   packRows,
   sanitizeLayout,
   type Breakpoint,
   type LayoutDocument,
 } from '@/lib/layouts';
 import {
+  ANALYST_LAYOUT,
   COMPETITIVE_LAYOUT,
   EXECUTIVE_LAYOUT,
   OVERVIEW_PRESET_LAYOUTS,
   PRESET_IDS,
-  SEO_ANALYST_LAYOUT,
-  TOPIC_OWNER_LAYOUT,
   buildOverviewPresets,
   type PresetId,
 } from './presets';
 
 const LABELS: Readonly<Record<PresetId, string>> = {
-  executive: 'Executive summary',
-  seo_analyst: 'SEO analyst',
+  executive: 'Executive',
+  analyst: 'Analyst',
   competitive: 'Competitive',
-  topic_owner: 'Group owner',
-};
-
-const ENGINE_CODES: readonly string[] = ENGINES.map((engine) => engine.code);
-
-const NUMBER_ID_PREFIX: Readonly<Record<string, string>> = {
-  'ai.prompts_in_scope': 'prompts',
-  'ai.mention_rate': 'mention',
-  'ai.citation_rate': 'citation',
-  'ai.share_of_voice': 'sov',
-  'ai.citation_share': 'citation-share',
-};
-const ENGINE_ID_SUFFIX: Readonly<Record<string, string>> = {
-  chatgpt_web: 'chatgpt',
-  gemini_web: 'gemini',
-  google_ai_mode: 'ai-mode',
 };
 
 const spansOf = (document: LayoutDocument, breakpoint: Breakpoint): number[][] =>
@@ -59,8 +41,7 @@ interface Packing {
   document: LayoutDocument;
   wide: number[][];
   medium: number[][];
-  /** The part empty rows 9.5 accepts, by 1 based row number. */
-  acceptedWide: number[];
+  /** The part empty rows at 768 to 1279 px, by 1 based row number: a third takes half of the row there. The preview accepts them. */
   acceptedMedium: number[];
 }
 
@@ -68,52 +49,30 @@ const PACKINGS: readonly Packing[] = [
   {
     name: 'Default',
     document: SCREENS.ai_overview.builtin,
-    wide: [[12], [8, 4], [4, 8], [6, 6], [6, 6]],
-    medium: [[12], [12], [6, 6], [12], [6, 6], [6, 6]],
-    acceptedWide: [],
-    acceptedMedium: [],
+    wide: [[12], [8, 4], [6, 6], [12], [4, 4, 4], [8, 4]],
+    medium: [[12], [12], [6, 6], [6], [12], [6, 6], [6], [12], [6]],
+    acceptedMedium: [4, 7, 9],
   },
   {
-    name: 'Executive summary',
+    name: 'Executive',
     document: EXECUTIVE_LAYOUT,
-    wide: [[12], [12], [6, 6], [6, 6]],
-    medium: [[12], [12], [6, 6], [6, 6]],
-    acceptedWide: [],
-    acceptedMedium: [],
+    wide: [[12], [8, 4], [6, 6], [8, 4], [6, 6], [12]],
+    medium: [[12], [12], [6, 6], [6], [12], [6, 6], [6], [12]],
+    acceptedMedium: [4, 7],
   },
   {
-    name: 'SEO analyst',
-    document: SEO_ANALYST_LAYOUT,
-    wide: [
-      [6, 6],
-      [6, 6],
-      [6, 6],
-      [6, 6],
-    ],
-    medium: [
-      [6, 6],
-      [6, 6],
-      [6, 6],
-      [6, 6],
-    ],
-    acceptedWide: [],
-    acceptedMedium: [],
+    name: 'Analyst',
+    document: ANALYST_LAYOUT,
+    wide: [[12], [8, 4], [6, 6], [6, 6], [12], [6, 6], [12]],
+    medium: [[12], [12], [6, 6], [6, 6], [6], [12], [6, 6], [12]],
+    acceptedMedium: [5],
   },
   {
     name: 'Competitive',
     document: COMPETITIVE_LAYOUT,
-    wide: [[6, 6], [12], [6, 6], [8, 4], [4, 8]],
-    medium: [[6, 6], [12], [6, 6], [12], [6, 6], [12]],
-    acceptedWide: [],
-    acceptedMedium: [],
-  },
-  {
-    name: 'Group owner',
-    document: TOPIC_OWNER_LAYOUT,
-    wide: [[12], [6, 6], [6, 6], [12], [6, 6]],
-    medium: [[12], [6, 6], [6, 6], [12], [6, 6]],
-    acceptedWide: [],
-    acceptedMedium: [],
+    wide: [[12], [8, 4], [6, 6], [12], [6, 6], [6, 6]],
+    medium: [[12], [12], [6, 6], [6], [12], [6, 6], [6, 6]],
+    acceptedMedium: [4],
   },
 ];
 
@@ -122,15 +81,10 @@ const PRESET_PACKINGS = PACKINGS.filter((packing) => packing.name !== 'Default')
 describe('buildOverviewPresets', () => {
   const presets = buildOverviewPresets(LABELS);
 
-  it('lists the four presets in the order of the Start from menu, with the labels it was given', () => {
-    expect(PRESET_IDS).toEqual(['executive', 'seo_analyst', 'competitive', 'topic_owner']);
+  it('lists the three presets in the order of the Start from menu, with the labels it was given', () => {
+    expect(PRESET_IDS).toEqual(['executive', 'analyst', 'competitive']);
     expect(presets.map((preset) => preset.id)).toEqual([...PRESET_IDS]);
-    expect(presets.map((preset) => preset.label)).toEqual([
-      'Executive summary',
-      'SEO analyst',
-      'Competitive',
-      'Group owner',
-    ]);
+    expect(presets.map((preset) => preset.label)).toEqual(['Executive', 'Analyst', 'Competitive']);
     expect(presets.map((preset) => preset.document)).toEqual(PRESET_PACKINGS.map((packing) => packing.document));
   });
 
@@ -150,11 +104,10 @@ describe.each(PRESET_PACKINGS.map((packing) => [packing.name, packing.document] 
     expect(sanitizeLayout(document, 'ai_overview')).toEqual({ document, changed: false });
   });
 
-  it('has at most 12 cards and 6 numbers', () => {
-    expect(document.cards?.length).toBeGreaterThan(0);
+  it('has the headline first, at most 12 cards and no numbers', () => {
+    expect(document.cards?.[0]?.type).toBe('ai.visibility_split');
     expect(document.cards?.length).toBeLessThanOrEqual(LIMITS.cards);
-    expect(document.numbers?.length).toBeGreaterThan(0);
-    expect(document.numbers?.length).toBeLessThanOrEqual(LIMITS.numbers);
+    expect(document.numbers).toEqual([]);
   });
 
   it('uses only card types that exist and list ai_overview in their screens', () => {
@@ -166,24 +119,6 @@ describe.each(PRESET_PACKINGS.map((packing) => [packing.name, packing.document] 
     }
   });
 
-  it('names an engine the API accepts on every AI number, and none on Prompts', () => {
-    for (const number of document.numbers ?? []) {
-      const type = numberType(number.metric);
-      expect(type, number.metric).toBeDefined();
-      expect(type?.screens, number.metric).toContain('ai_overview');
-      if (type?.perEngine) expect(ENGINE_CODES, number.id).toContain(number.engine);
-      else expect(number.engine).toBeUndefined();
-    }
-  });
-
-  it('ids its numbers the way the built-in layout does: prompts, mention-chatgpt, sov-ai-mode', () => {
-    for (const number of document.numbers ?? []) {
-      const prefix = NUMBER_ID_PREFIX[number.metric];
-      const suffix = number.engine === undefined ? '' : `-${ENGINE_ID_SUFFIX[number.engine]}`;
-      expect(number.id).toBe(`${prefix}${suffix}`);
-    }
-  });
-
   it('has unique card ids', () => {
     const ids = (document.cards ?? []).map((card) => card.id);
     expect(new Set(ids).size).toBe(ids.length);
@@ -191,28 +126,21 @@ describe.each(PRESET_PACKINGS.map((packing) => [packing.name, packing.document] 
 });
 
 describe('the built-in layout of ai_overview', () => {
-  it('is the Default of 9.5: four numbers and nine cards in order', () => {
-    const { numbers, cards } = SCREENS.ai_overview.builtin;
-    expect(numbers?.map((number) => number.id)).toEqual([
-      'prompts',
-      'mention-chatgpt',
-      'mention-gemini',
-      'mention-ai-mode',
+  it('is the Default of the preview: eleven cards in order', () => {
+    const { cards } = SCREENS.ai_overview.builtin;
+    expect(cards?.map((card) => card.type)).toEqual([
+      'ai.visibility_split',
+      'ai.rate_trend_by_engine',
+      'ai.outcome_mix',
+      'ai.share_of_voice',
+      'ai.lost_to_competitor',
+      'ai.topic_heatmap',
+      'sources.top_domains',
+      'ai.position_distribution',
+      'ai.sentiment_by_engine',
+      'traffic.ai_referrals',
+      'ai.fanout_top',
     ]);
-    expect(cards?.map((card) => [card.type, card.width])).toEqual([
-      ['ai.change_summary', 'full'],
-      ['ai.rate_trend_by_engine', 'two_thirds'],
-      ['ai.outcome_mix', 'third'],
-      ['sources.top_domains', 'third'],
-      ['ai.topic_heatmap', 'two_thirds'],
-      ['ai.share_of_voice', 'half'],
-      ['ai.competitor_trend', 'half'],
-      ['activity.key_changes', 'half'],
-      ['ai.opportunities', 'half'],
-    ]);
-    expect(cards?.[1]?.options).toEqual({ metric: 'mention' });
-    expect(cards?.[5]?.options).toEqual({ engine: 'chatgpt_web', rows: '10' });
-    expect(cards?.[6]?.options).toEqual({ engine: 'chatgpt_web', competitors: '3' });
   });
 
   it('is not one of the presets', () => {
@@ -221,7 +149,7 @@ describe('the built-in layout of ai_overview', () => {
   });
 });
 
-describe('the presets of 9.5, as rows', () => {
+describe('the presets, as rows', () => {
   it.each(PACKINGS.map((packing) => [packing.name, packing] as const))(
     '%s packs as the table says',
     (_name, packing) => {
@@ -231,52 +159,32 @@ describe('the presets of 9.5, as rows', () => {
   );
 
   it.each(PACKINGS.map((packing) => [packing.name, packing] as const))(
-    '%s leaves no row part empty at wide or medium except the accepted ones',
+    '%s fills every row at 1280 px, and at 768 to 1279 px leaves only the accepted rows part empty',
     (_name, packing) => {
-      expect(partEmptyRows(packing.document, 'wide')).toEqual(packing.acceptedWide);
+      expect(partEmptyRows(packing.document, 'wide')).toEqual([]);
       expect(partEmptyRows(packing.document, 'medium')).toEqual(packing.acceptedMedium);
     },
   );
-
-  it('adds ai.sample_coverage and widens ai.co_mentions to two thirds in Competitive, so no half row is left alone', () => {
-    const cards = COMPETITIVE_LAYOUT.cards ?? [];
-    expect(cards.map((card) => [card.type, card.width])).toEqual([
-      ['ai.share_of_voice', 'half'],
-      ['ai.share_of_voice', 'half'],
-      ['ai.competitor_trend', 'full'],
-      ['ai.lost_to_competitor', 'half'],
-      ['ai.competitor_table', 'half'],
-      ['ai.sov_over_time', 'two_thirds'],
-      ['sources.top_domains', 'third'],
-      ['ai.sample_coverage', 'third'],
-      ['ai.co_mentions', 'two_thirds'],
-    ]);
-  });
 });
 
-describe('the options of 9.5', () => {
-  const optionsOf = (document: LayoutDocument, index: number): Record<string, string> | undefined =>
-    document.cards?.[index]?.options;
+describe('the options of the presets', () => {
+  const optionsOf = (document: LayoutDocument, type: string): Record<string, string> | undefined =>
+    document.cards?.find((card) => card.type === type)?.options;
 
-  it('Executive summary: 3 facts, 5 share of voice rows, 3 strongest and weakest topics', () => {
-    expect(optionsOf(EXECUTIVE_LAYOUT, 0)).toEqual({ facts: '3' });
-    expect(optionsOf(EXECUTIVE_LAYOUT, 2)).toEqual({ engine: 'chatgpt_web', rows: '5' });
-    expect(optionsOf(EXECUTIVE_LAYOUT, 3)).toEqual({ metric: 'mention', rows: '3' });
+  it('open the trend and the heat map on AI Visibility', () => {
+    for (const document of Object.values(OVERVIEW_PRESET_LAYOUTS)) {
+      expect(optionsOf(document, 'ai.rate_trend_by_engine')).toEqual({ metric: 'visibility' });
+    }
+    expect(optionsOf(EXECUTIVE_LAYOUT, 'ai.topic_heatmap')).toEqual({
+      metric: 'visibility',
+      rows: '10',
+      level: 'top',
+      sort: 'prompts',
+    });
   });
 
-  it('SEO analyst: 10 own pages, third party domains, 8 opportunities', () => {
-    expect(optionsOf(SEO_ANALYST_LAYOUT, 0)).toEqual({ rows: '10' });
-    expect(optionsOf(SEO_ANALYST_LAYOUT, 1)).toEqual({ role: 'third_party', rows: '10' });
-    expect(optionsOf(SEO_ANALYST_LAYOUT, 6)).toEqual({ rows: '8' });
-  });
-
-  it('Competitive: competitor domains, Gemini share of voice', () => {
-    expect(optionsOf(COMPETITIVE_LAYOUT, 1)).toEqual({ engine: 'gemini_web', rows: '10' });
-    expect(optionsOf(COMPETITIVE_LAYOUT, 6)).toEqual({ role: 'competitor', rows: '8' });
-  });
-
-  it('Topic owner: the heat-map shows all levels and 20 rows, trends show 6 topics', () => {
-    expect(optionsOf(TOPIC_OWNER_LAYOUT, 0)).toEqual({ metric: 'mention', rows: '20', level: 'all', sort: 'prompts' });
-    expect(optionsOf(TOPIC_OWNER_LAYOUT, 5)).toEqual({ metric: 'mention', topics: '6' });
+  it('keep the competitor cards free of an engine', () => {
+    for (const document of Object.values(OVERVIEW_PRESET_LAYOUTS))
+      for (const card of document.cards ?? []) expect(card.options?.engine, card.type).toBeUndefined();
   });
 });

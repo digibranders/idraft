@@ -15,7 +15,7 @@ import {
 } from '@/lib/layouts';
 
 /** The order the catalog shows its groups in. */
-export const GROUP_ORDER: readonly CardGroup[] = ['seo', 'ai', 'cross', 'activity'];
+export const GROUP_ORDER: readonly CardGroup[] = ['seo', 'ai', 'cross', 'activity', 'traffic'];
 
 /**
  * What the button of an entry is: `add` and `addAnother` act; `added` (the type takes no more instances),

@@ -80,7 +80,7 @@ const figure = (
  * them pooled: fewer than `MIN_OBSERVATIONS` and the rate is not shown. `reason` says why a rate is missing, as
  * the tables do: no answer at all, or none valid.
  */
-function weightedFigure(cells: readonly MetricCell[]): RateFigure {
+export function weightedFigure(cells: readonly MetricCell[]): RateFigure {
   const counts = cells.map((cell) => ({ k: cell.numerator, n: cell.denominator }));
   const { k, n } = pooledCounts(counts);
   const state = rateState(n);
