@@ -4881,6 +4881,77 @@
         "weeklyRates": "Weekly rates: {rates}",
         "locationTip": "The location the prompt is asked for"
       }
+    },
+    "lists": {
+      "thisPrompt": "This prompt",
+      "noAnswersTip": "No answers in this period",
+      "notCollectedTip": "Not collected yet",
+      "headers": {
+        "brandsTip": "The brands the answers mention, most mentioned first. Opens the list.",
+        "linksTip": "The pages the platform cited in its answers, most cited first",
+        "screenshotTip": "The latest answer of the platform, as the page showed it"
+      },
+      "columns": {
+        "brands": "Brands",
+        "links": "Cited pages",
+        "screenshot": "Screenshot"
+      },
+      "answers": "{count, plural, one {# answer} other {# answers}}",
+      "popover": {
+        "close": "Close"
+      },
+      "brands": {
+        "title": "Brands mentioned in answers",
+        "subtitle": "{label} · {platforms} · {answers}",
+        "onlyPlatform": "{platform} only",
+        "averagePlatforms": "Equal-weight average of {platforms}",
+        "openLabel": "Brands mentioned in the answers for {label}: {count, plural, one {# brand} other {# brands}}. Open the list",
+        "note": "The share of answers that mention each brand. A brand marked Not a competitor is in the answers but not in your competitor list: add it to include it in share of voice and the competitor gap.",
+        "tooFewTip": "Too few answers to list the brands they mention",
+        "ownPresent": "Your brand is mentioned in these answers",
+        "ownAbsent": "Your brand is not mentioned in these answers",
+        "you": "You",
+        "notCompetitor": "Not a competitor",
+        "notCompetitorTip": "The answers mention it, but it is not in your competitor list, so share of voice and the competitor gap leave it out",
+        "add": "Add",
+        "addLabel": "Add {name} to your competitors",
+        "addTip": "Track it: it counts in share of voice and the competitor gap from the next run",
+        "addLimitTip": "You track {count, number} brands, the most the project can follow. Remove one in Brands settings to add another.",
+        "adding": "Adding",
+        "added": "Added",
+        "addedTitle": "{name} added to your competitors",
+        "addedBody": "It counts in share of voice and the competitor gap from the next run.",
+        "undo": "Undo",
+        "addFailedTitle": "{name} could not be added to your competitors",
+        "undoFailedTitle": "{name} could not be taken off your competitors",
+        "tryAgain": "Try again in a moment.",
+        "meanTip": "Mean over {count, plural, one {# prompt} other {# prompts}}, each prompt counting once",
+        "averagedTip": ", averaged over the platforms",
+        "platformCountTip": "{platform} {k} of {n} answers",
+        "unknownRateTip": "Your brand has no rate in these answers yet",
+        "pinnedNotRanked": "Not ranked"
+      },
+      "links": {
+        "title": "Pages cited in answers",
+        "subtitle": "{label} · {answers}",
+        "openLabel": "Pages cited in the answers for {label}: {count, plural, one {# page} other {# pages}}. Open the list",
+        "note": "How many of the answers cite each page, most cited first.",
+        "ownPresent": "Your site is cited in these answers",
+        "ownAbsent": "Your site is not cited in these answers",
+        "yourSite": "Your site",
+        "none": "None",
+        "noneTip": "None of {count, plural, one {# answer} other {# answers}} cited a page"
+      },
+      "shot": {
+        "title": "Answer screenshot",
+        "subtitle": "{platform} · {when}",
+        "openLabel": "Open the latest {platform} answer screenshot for {prompt}",
+        "noAnswer": "No answer",
+        "noAnswerTip": "No answer in this period yet",
+        "notCollectedTip": "No screenshot of the latest answer has been collected yet",
+        "imageAlt": "The latest {platform} answer to the prompt, as the page showed it",
+        "close": "Close"
+      }
     }
   },
   "aiOverview": {

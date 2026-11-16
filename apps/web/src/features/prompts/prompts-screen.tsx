@@ -515,6 +515,8 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     // The location of the top bar already says which, so a Location column repeats it on every row
     showLocation: country === null,
     facts,
+    project: scope,
+    timeZone: project.timeZone,
   });
   const columnIds = useMemo(() => new Set(columns.map((column) => column.id)), [columns]);
   const visible = useMemo(() => parseColumns(view.cols, columnIds, ['prompt']), [view.cols, columnIds]);

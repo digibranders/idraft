@@ -2,6 +2,7 @@ import type { ChangeWords, ComparedWindow } from '../compare';
 import type { PromptFacts } from '../facts';
 import type { PromptRow } from '../prompt-columns';
 import { SORT_ID, type RateMetric } from '../prompt-model';
+import type { PromptScope } from '../prompt-queries';
 import { placeAfter, type Translate } from './shared';
 import type { DataTableColumn } from '@/components/app/data-table/types';
 import type { ProjectEngine } from '@/lib/api/types';
@@ -17,7 +18,7 @@ import type { ProjectEngine } from '@/lib/api/types';
 
 // P-popovers (Cited links, Brands, Screenshot): after COLUMN_AFTER.rates, registered after P-metrics so they follow it.
 // Cited links and Screenshot return nothing unless `context.single` names a platform.
-// import { popoverColumns } from '../columns/popover-columns';
+import { popoverColumns } from '../columns/popover-columns';
 // Preview note for it: Brands and Cited links start with a green check (the own brand is named, or the own site is
 // cited) or a grey dash.
 
@@ -65,6 +66,10 @@ export interface PromptColumnContext {
   compare: boolean;
   /** The window the summary was compared with; `null` for a read that was not compared. */
   comparedWindow: ComparedWindow;
+  /** The workspace and project of the table, for the cells that write (Add as competitor) or read on their own. */
+  project: PromptScope;
+  /** The project's time zone, in which the day of an answer is told. */
+  timeZone: string;
   /** The words of a change, from the one translator the screen holds: a pure `cellTip` cannot call the hook. */
   changeWords: ChangeWords;
 }
@@ -86,7 +91,7 @@ export const PROMPT_COLUMN_ENTRIES: readonly PromptColumnEntry[] = [
   // Mention rate cell (the preview has no such columns)
   // P-metrics, then P-popovers: their order here is the order of their columns after the same anchor
   // metricColumns,
-  // popoverColumns,
+  popoverColumns,
   // WP-23 competitor-views (WB-PRM-13)
   // topCompetitorColumn,
   // WP-24 fanout-views (WB-PRM-18)
