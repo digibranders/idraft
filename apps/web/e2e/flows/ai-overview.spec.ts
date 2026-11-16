@@ -4,6 +4,7 @@ import { MOCK_TERM_IDS } from '../../src/mocks/entity-fixtures';
 import { signIn } from '../support';
 import {
   BUILTIN_CARD_IDS,
+  BUILTIN_CARD_TITLES,
   BUILTIN_NUMBER_LABELS,
   DENSITIES,
   EDITOR,
@@ -17,6 +18,7 @@ import {
   cardById,
   cardGrid,
   expectNoSeriousViolations,
+  groupSelect,
   installSummaryControl,
   layoutSettled,
   metaLine,
@@ -27,7 +29,9 @@ import {
   overviewLink,
   overviewPath,
   pageHeading,
+  platformSelect,
   promptsChip,
+  resetScope,
   scopeBar,
   setSummaryMode,
   stripError,
@@ -36,7 +40,7 @@ import {
 
 /**
  * The AI visibility Overview shell (WP-33, plan tasks T12 and T13), part 1: the sidebar entry, the header, the four
- * numbers and the nine cards of the built-in layout, the scope in the address, the links of the numbers, the project
+ * numbers and the eleven cards of the Default layout, the scope in the address, the links of the numbers, the project
  * with no engine by role, the notice that paused schedules make, the loading and failed states of the strip, and
  * the axe checks at four widths in both themes and both densities. The AI cards are the card packages' (WP-34 to
  * 37), so a card is asserted by its title and by a finished, non-error state, never by its contents.
@@ -47,19 +51,6 @@ import {
  * engines stay as they were turned).
  */
 test.describe.configure({ timeout: 120_000 });
-
-/** The title of each card of the built-in layout, in order (what the card draws, or the pending card's catalog title). */
-const CARD_TITLES = [
-  'What changed',
-  'Mention rate by platform',
-  'Named and cited, by platform',
-  'Top cited domains',
-  'Mention rate by group and platform',
-  'Share of voice on ChatGPT',
-  'Mention rate on ChatGPT',
-  'Key changes',
-  'AI opportunities',
-] as const;
 
 const PROMPTS_PATH = '/digibranders/fynix/ai/prompts';
 const PAUSED = 'Scheduled AI runs are paused for this project';
@@ -122,16 +113,17 @@ test.describe('the AI visibility Overview', () => {
     await expect(overviewLink(page)).toHaveAttribute('aria-current', 'page');
   });
 
-  test('Fynix: header, meta line, the four numbers with counts, notice region empty, nine cards in the built-in order', async ({
+  test('Fynix: header, freshness, the four numbers with counts, notice region empty, eleven cards in the Default order', async ({
     page,
   }) => {
     await signIn(page, EDITOR);
     await openOverview(page, 'Fynix');
 
-    await test.step('the header names the page and the meta line gives freshness, prompts and platforms', async () => {
+    await test.step('the header names the page and the freshness line does not change with the scope', async () => {
       await expect(pageHeading(page)).toHaveText('AI visibility');
+      await expect(metaLine(page)).toHaveCount(1);
       await expect(metaLine(page)).toContainText(/^AI updated /);
-      await expect(metaLine(page)).toContainText(/ · [\d,]+ prompts? · \d+ platforms?$/);
+      await expect(metaLine(page)).not.toContainText('prompts');
       await expect(page.getByRole('button', { name: 'Customize', exact: true })).toBeVisible();
       await expect(page.getByRole('button', { name: 'Export', exact: true })).toBeVisible();
     });
@@ -160,9 +152,9 @@ test.describe('the AI visibility Overview', () => {
       await expect(stripError(page)).toHaveCount(0);
     });
 
-    await test.step('the nine cards are in the order of the built-in layout, each with its title and a finished state', async () => {
+    await test.step('the eleven cards are in the order of the Default layout, each with its title and a finished state', async () => {
       const grid = cardGrid(page);
-      await expect(grid.locator('[data-layout-card]')).toHaveCount(CARD_TITLES.length);
+      await expect(grid.locator('[data-layout-card]')).toHaveCount(BUILTIN_CARD_IDS.length);
       expect(
         await grid
           .locator('[data-layout-card]')
@@ -170,10 +162,12 @@ test.describe('the AI visibility Overview', () => {
             nodes.map((node) => (node instanceof HTMLElement ? (node.dataset.layoutCard ?? '') : '')),
           ),
       ).toEqual([...BUILTIN_CARD_IDS]);
-      for (const [index, id] of BUILTIN_CARD_IDS.entries()) {
+      for (const id of BUILTIN_CARD_IDS) {
         const card = cardById(page, id);
         await awaitCardSettled(card);
-        await expect(card.getByRole('heading', { level: 2 }).first()).toHaveText(CARD_TITLES[index] ?? '');
+        const title = BUILTIN_CARD_TITLES[id];
+        if (title !== null && title !== undefined)
+          await expect(card.getByRole('heading', { level: 2 }).first()).toHaveText(title);
         // A card that is built shows its data and one that is not shows the pending card: neither is a failed read
         await expect(card.locator('[data-slot="inline-error"]')).toHaveCount(0);
         await expect(card.getByRole('alert')).toHaveCount(0);
@@ -202,16 +196,13 @@ test.describe('the AI visibility Overview', () => {
       await page.getByRole('menuitemradio', { name: 'No comparison' }).click();
       await expect.poll(() => paramsOf(page).get('cmp')).toBe('off');
 
-      await bar.getByRole('button', { name: /^Platforms: 2 of 2/ }).click();
-      await page.getByRole('checkbox', { name: /Gemini/ }).click();
-      await expect.poll(() => paramsOf(page).get('engine')).toBe('chatgpt_web');
-      await page.keyboard.press('Escape');
+      await platformSelect(page).click();
+      await page.getByRole('option', { name: 'Gemini', exact: true }).click();
+      await expect.poll(() => paramsOf(page).get('engine')).toBe('gemini_web');
 
-      await bar.getByRole('button', { name: 'Add a filter' }).click();
-      await page.getByRole('button', { name: 'Group', exact: true }).click();
-      await page.getByRole('radio', { name: /Technical SEO$/ }).click();
+      await groupSelect(page).click();
+      await page.getByRole('option', { name: /Technical SEO$/ }).click();
       await expect.poll(() => paramsOf(page).get('topic')).toBe(MOCK_TERM_IDS.technicalSeo);
-      await page.keyboard.press('Escape');
 
       await bar.getByRole('button', { name: 'Remove filter Branded: Excluded' }).click();
       await expect.poll(() => paramsOf(page).get('branded')).toBe('included');
@@ -224,7 +215,7 @@ test.describe('the AI visibility Overview', () => {
     const expected = {
       win: '7d',
       cmp: 'off',
-      engine: 'chatgpt_web',
+      engine: 'gemini_web',
       topic: MOCK_TERM_IDS.technicalSeo,
       branded: 'included',
       country: 'DE',
@@ -235,12 +226,10 @@ test.describe('the AI visibility Overview', () => {
       await expect(scopeBar(page)).toBeVisible();
       await expect(top.getByRole('button', { name: /^Date range: Last 7 days/ })).toBeVisible();
       await expect(scopeBar(page).getByRole('button', { name: 'No comparison' })).toBeVisible();
-      await expect(scopeBar(page).getByRole('button', { name: /^Platforms: 1 of 2/ })).toBeVisible();
-      await expect(
-        scopeBar(page).getByRole('button', { name: /^Group: .*Technical SEO\. Edit filter$/ }),
-      ).toBeVisible();
+      await expect(platformSelect(page, 'Gemini')).toBeVisible();
+      await expect(groupSelect(page, /^Group: .*Technical SEO$/)).toBeVisible();
       await expect(scopeBar(page).getByRole('button', { name: /^Branded:/ })).toHaveCount(0);
-      await expect(scopeBar(page).getByRole('button', { name: 'Reset filters' })).toBeVisible();
+      await expect(resetScope(page)).toBeVisible();
       await expect(top.getByRole('combobox', { name: 'Location: Germany' })).toBeVisible();
     };
 
@@ -261,10 +250,59 @@ test.describe('the AI visibility Overview', () => {
       await expectScopeShown();
     });
 
-    await test.step('Reset filters puts the filters back and leaves the window and the country', async () => {
-      await scopeBar(page).getByRole('button', { name: 'Reset filters' }).click();
+    await test.step('Reset scope puts the filters back and leaves the window and the country', async () => {
+      await resetScope(page).click();
       await expect.poll(() => Object.fromEntries(paramsOf(page))).toEqual({ win: '7d', country: 'DE' });
+      // It keeps its place, invisible, so the row does not move
+      await expect(resetScope(page)).toBeHidden();
+      await expect(resetScope(page)).toHaveCount(1);
     });
+  });
+
+  test('the toolbar is one row of fixed-width selects: a longer choice moves nothing', async ({ page }) => {
+    await signIn(page, EDITOR);
+    await openOverview(page, 'Fynix', { width: 1440 });
+    const box = async (locator: Locator): Promise<{ x: number; y: number; width: number }> => {
+      const found = await locator.boundingBox();
+      if (found === null) throw new Error('The control is not drawn');
+      return { x: found.x, y: found.y, width: found.width };
+    };
+    const measure = async (
+      platform: string,
+      group: string | RegExp,
+    ): Promise<Array<{ x: number; y: number; width: number }>> => [
+      await box(platformSelect(page, platform)),
+      await box(groupSelect(page, group)),
+      await box(scopeBar(page).getByRole('button', { name: /^(vs previous period|No comparison)$/ })),
+      await box(resetScope(page)),
+    ];
+    const before = await measure('All platforms', 'All groups');
+    // All four share one row
+    expect(new Set(before.map((control) => Math.round(control.y))).size).toBe(1);
+    await platformSelect(page).click();
+    await page.getByRole('option', { name: 'Gemini', exact: true }).click();
+    await groupSelect(page).click();
+    await page.getByRole('option', { name: /Technical SEO$/ }).click();
+    const after = await measure('Gemini', /^Group: .*Technical SEO$/);
+    expect(after).toEqual(before);
+  });
+
+  test('a link that names every platform that is on reads as All platforms and the address is tidied', async ({
+    page,
+  }) => {
+    await signIn(page, EDITOR);
+    await openOverview(page, 'Fynix', { search: '?engine=gemini_web,chatgpt_web' });
+    await expect(platformSelect(page)).toBeVisible();
+    await expect.poll(() => paramsOf(page).has('engine')).toBe(false);
+    await expect(resetScope(page)).toBeHidden();
+  });
+
+  test('Platform lists AI Overview as not available', async ({ page }) => {
+    await signIn(page, EDITOR);
+    await openOverview(page, 'Fynix');
+    await platformSelect(page).click();
+    await expect(page.getByRole('option', { name: /^AI Overview/ })).toHaveAttribute('aria-disabled', 'true');
+    await expect(page.getByRole('option', { name: /^AI Overview/ })).toContainText('Not available');
   });
 
   test('a number links to Prompts with the scope carried', async ({ page }) => {
