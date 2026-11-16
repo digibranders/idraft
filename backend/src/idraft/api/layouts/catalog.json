@@ -1,13 +1,13 @@
 {
   "generated_by": "apps/web: pnpm gen:layout-catalog",
-  "source_sha256": "ee6c5b4faf8ed641b2134be0e5efdbad81528f593cd8210c096d19dd4f8773af",
+  "source_sha256": "d4a572ce5885c1310b23e952b7d5a2be6ec6f0654ac17b5aca1a5494f904ea65",
   "limits": {
     "cards": 12,
     "numbers": 6
   },
   "screens": {
     "ai_overview": {
-      "numbers": true,
+      "numbers": false,
       "cards": true,
       "widths": true
     },

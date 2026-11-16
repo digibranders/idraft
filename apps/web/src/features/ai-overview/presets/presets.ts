@@ -1,8 +1,8 @@
 /**
  * The presets of the AI visibility screen, as the design preview has them (`design-preview/aiov-layout.js`, spec
  * 2026-11-16-ai-overview-redesign-design.md section 5.1). The Default is the built-in layout
- * (`SCREENS.ai_overview.builtin`), so it is not an entry here. The headline card replaces the numbers strip, so no
- * preset has numbers (the zone is still on, so the list is empty, not absent). Every option is written out, because sanitizing fills the defaults in and `definePresets`
+ * (`SCREENS.ai_overview.builtin`), so it is not an entry here. The headline card replaced the numbers strip, so no
+ * preset has numbers. Every option is written out, because sanitizing fills the defaults in and `definePresets`
  * rejects a document it would change. Each preset fills complete rows of 12 columns at 1280 px.
  */
 import { definePresets, type LayoutPreset } from '@/features/layouts';
@@ -18,7 +18,6 @@ const TOP_DOMAINS = { role: 'all', rows: '8' } as const;
 /** The headline, the trend, who leads, where, and what changed. */
 export const EXECUTIVE_LAYOUT: LayoutDocument = {
   schema: 1,
-  numbers: [],
   cards: [
     { id: 'visibility-split', type: 'ai.visibility_split', width: 'full' },
     { id: 'rate-trend', type: 'ai.rate_trend_by_engine', width: 'two_thirds', options: { ...TREND } },
@@ -36,7 +35,6 @@ export const EXECUTIVE_LAYOUT: LayoutDocument = {
 /** Position, sentiment, unlinked mentions, your cited pages and collection health. */
 export const ANALYST_LAYOUT: LayoutDocument = {
   schema: 1,
-  numbers: [],
   cards: [
     { id: 'visibility-split', type: 'ai.visibility_split', width: 'full' },
     { id: 'rate-trend', type: 'ai.rate_trend_by_engine', width: 'two_thirds', options: { ...TREND } },
@@ -55,7 +53,6 @@ export const ANALYST_LAYOUT: LayoutDocument = {
 /** Share of voice, the gap to each competitor and the sources behind it. */
 export const COMPETITIVE_LAYOUT: LayoutDocument = {
   schema: 1,
-  numbers: [],
   cards: [
     { id: 'visibility-split', type: 'ai.visibility_split', width: 'full' },
     { id: 'rate-trend', type: 'ai.rate_trend_by_engine', width: 'two_thirds', options: { ...TREND } },

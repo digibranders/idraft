@@ -5,8 +5,8 @@ import { signIn } from '../support';
 import {
   BUILTIN_CARD_IDS,
   BUILTIN_CARD_TITLES,
-  BUILTIN_NUMBER_LABELS,
   DENSITIES,
+  HEADLINE_TILE_LABELS,
   EDITOR,
   THEMES,
   VIEWER,
@@ -20,11 +20,14 @@ import {
   expectNoSeriousViolations,
   expectResetHidden,
   groupSelect,
+  headlineError,
+  headlineGroup,
+  heroOf,
+  heroValue,
   installSummaryControl,
   layoutSettled,
   metaLine,
   numberOf,
-  numbersGroup,
   numbersOf,
   openOverview,
   overviewLink,
@@ -35,14 +38,13 @@ import {
   resetScope,
   scopeBar,
   setSummaryMode,
-  stripError,
   waitForOverview,
 } from '../support/ai-overview';
 
 /**
- * The AI visibility Overview shell (WP-33, plan tasks T12 and T13), part 1: the sidebar entry, the header, the four
- * numbers and the eleven cards of the Default layout, the scope in the address, the links of the numbers, the project
- * with no engine by role, the notice that paused schedules make, the loading and failed states of the strip, and
+ * The AI visibility Overview shell (WP-33, plan tasks T12 and T13), part 1: the sidebar entry, the header, the
+ * headline and the eleven cards of the Default layout, the scope in the address, the headline against the Prompts strip, the project
+ * with no engine by role, the notice that paused schedules make, the loading and failed states of the headline, and
  * the axe checks at four widths in both themes and both densities. The AI cards are the card packages' (WP-34 to
  * 37), so a card is asserted by its title and by a finished, non-error state, never by its contents.
  *
@@ -58,10 +60,6 @@ const PAUSED = 'Scheduled AI runs are paused for this project';
 const AI_SCHEDULES = ['AI answers, Monday', 'AI answers, Thursday'] as const;
 
 const paramsOf = (page: Page): URLSearchParams => new URL(page.url()).searchParams;
-const hrefParams = (href: string | null): URLSearchParams => {
-  if (href === null) throw new Error('The number is plain text, it has no link');
-  return new URL(href, 'http://app.test').searchParams;
-};
 
 /**
  * Turns an engine on in Settings > Platforms. `country` is the one the row shows once the countries have loaded, which
@@ -114,7 +112,7 @@ test.describe('the AI visibility Overview', () => {
     await expect(overviewLink(page)).toHaveAttribute('aria-current', 'page');
   });
 
-  test('Fynix: header, freshness, the four numbers with counts, notice region empty, eleven cards in the Default order', async ({
+  test('Fynix: header, freshness, the headline with its eight tiles, notice region empty, eleven cards in the Default order', async ({
     page,
   }) => {
     await signIn(page, EDITOR);
@@ -129,20 +127,22 @@ test.describe('the AI visibility Overview', () => {
       await expect(page.getByRole('button', { name: 'Export', exact: true })).toBeVisible();
     });
 
-    await test.step('the four numbers are the built-in ones and each says what it counts', async () => {
+    await test.step('the headline has the hero and the eight tiles, each saying what it is or why it has no figure', async () => {
+      await expect(heroOf(page)).toBeVisible();
       const cells = await numbersOf(page);
-      expect(cells.map((cell) => cell.label)).toEqual([...BUILTIN_NUMBER_LABELS]);
-      const [prompts, chatgpt, gemini, aiMode] = cells;
-      expect(prompts?.value).toMatch(/^[\d,]+$/);
-      expect(Number((prompts?.value ?? '0').replaceAll(',', ''))).toBeGreaterThan(0);
-      expect(prompts?.text).toMatch(/in \d+ groups?$/);
-      // An engine that is on shows a rate with the answers it rests on, or the answers it has when they are too few
-      for (const engine of [chatgpt, gemini]) {
-        expect(engine?.text).toMatch(/\d[\d,]* of [\d,]+ answers$|Too few for a rate$/);
+      expect(cells.map((cell) => cell.label)).toEqual([...HEADLINE_TILE_LABELS]);
+      const byLabel = Object.fromEntries(cells.map((cell) => [cell.label, cell]));
+      expect(byLabel.Prompts?.value).toMatch(/^[\d,]+$/);
+      expect(Number((byLabel.Prompts?.value ?? '0').replaceAll(',', ''))).toBeGreaterThan(0);
+      // The measures the API does not carry yet say so: never a sample figure and never a zero
+      for (const label of ['Mention position', 'Recommendation rate', 'Sentiment']) {
+        expect(byLabel[label]).toMatchObject({ value: 'n/a', note: 'Not collected yet' });
       }
-      // Fynix has Google AI Mode off: the number says so and does not read as a zero
-      expect(aiMode?.text).toContain('Not asked');
-      expect(aiMode?.text).toContain('Off in this project');
+      // The rates are a percent, or n/a with the reason under them
+      for (const label of ['Mention rate', 'Share of voice', 'Citation rate']) {
+        expect(byLabel[label]?.value).toMatch(/^\d+%$|^n\/a$/);
+      }
+      expect(await heroValue(page)).toMatch(/^\d+%$|^n\/a$/);
     });
 
     await test.step('there is no notice, and no state replaces the body', async () => {
@@ -150,7 +150,7 @@ test.describe('the AI visibility Overview', () => {
       await expect(
         page.getByRole('heading', { level: 2, name: /^(No AI platform is on|No prompts are asked yet)$/ }),
       ).toHaveCount(0);
-      await expect(stripError(page)).toHaveCount(0);
+      await expect(headlineError(page)).toHaveCount(0);
     });
 
     await test.step('the eleven cards are in the order of the Default layout, each with its title and a finished state', async () => {
@@ -325,63 +325,14 @@ test.describe('the AI visibility Overview', () => {
     await expect(page.getByRole('option', { name: /^Google AI Overview/ })).toContainText('Not available');
   });
 
-  test('a number links to Prompts with the scope carried', async ({ page }) => {
+  test('the headline and the Prompts strip show one AI visibility figure for a platform (R12)', async ({ page }) => {
     await signIn(page, EDITOR);
-    const topic = MOCK_TERM_IDS.technicalSeo;
-    await openOverview(page, 'Fynix', { search: `?win=7d&topic=${topic}` });
-    const overview = page.url();
-
-    await test.step('the links name the destination and carry the window, the group and the platform', async () => {
-      const prompts = await numberOf(page, 'Prompts');
-      expect(prompts.href).toContain('/digibranders/fynix/ai/prompts?');
-      expect(Object.fromEntries(hrefParams(prompts.href))).toEqual({
-        tab: 'prompts',
-        win: '7d',
-        cmp: 'previous',
-        topic,
-      });
-
-      const chatgpt = await numberOf(page, 'Mention rate ChatGPT');
-      expect(Object.fromEntries(hrefParams(chatgpt.href))).toEqual({
-        tab: 'prompts',
-        win: '7d',
-        cmp: 'previous',
-        topic,
-        engine: 'chatgpt_web',
-        sort: '-chatgpt_web_rate',
-        // The platform's rate column waits in the chooser, so the link names the columns that make its sort apply
-        cols: 'topic,country,mention,citation,chatgpt_web_rate',
-      });
-      // An engine that is off in the project has no page to lead to: its number is plain text
-      expect((await numberOf(page, 'Mention rate AI Mode')).href).toBeNull();
-    });
-
-    await test.step('the Prompts number opens the Prompts tab with the same count', async () => {
-      const count = (await numberOf(page, 'Prompts')).value;
-      await numbersGroup(page).getByRole('link', { name: 'Prompts', exact: true }).click();
-      await expect(page).toHaveURL(/\/digibranders\/fynix\/ai\/prompts\?/);
-      expect(Object.fromEntries(paramsOf(page))).toMatchObject({ tab: 'prompts', win: '7d', cmp: 'previous', topic });
-      await expect(page.getByRole('grid', { name: 'Prompts' })).toBeVisible();
-      expect(await promptsChip(page, 'Prompts')).toBe(count);
-    });
-
-    await test.step('a platform number opens the Prompts tab for that platform, sorted by its rate, with the same figure', async () => {
-      await page.goBack();
-      await expect(page).toHaveURL(overview);
-      await waitForOverview(page);
-      const figure = (await numberOf(page, 'Mention rate ChatGPT')).value;
-      await numbersGroup(page).locator('dt a').filter({ hasText: 'ChatGPT' }).click();
-      await expect(page).toHaveURL(/\/digibranders\/fynix\/ai\/prompts\?/);
-      expect(Object.fromEntries(paramsOf(page))).toMatchObject({
-        tab: 'prompts',
-        win: '7d',
-        topic,
-        engine: 'chatgpt_web',
-        sort: '-chatgpt_web_rate',
-      });
-      await expect(page.getByRole('grid', { name: 'Prompts' })).toBeVisible();
-      expect(await promptsChip(page, 'ChatGPT')).toBe(figure);
-    });
+    await openOverview(page, 'Fynix', { search: '?win=7d&engine=chatgpt_web' });
+    const figure = await heroValue(page);
+    expect(figure).toMatch(/^\d+%$/);
+    await page.goto('/digibranders/fynix/ai/prompts?tab=prompts&win=7d');
+    await expect(page.getByRole('grid', { name: 'Prompts' })).toBeVisible();
+    expect(await promptsChip(page, 'ChatGPT')).toBe(figure);
   });
 
   for (const [role, email] of [
@@ -396,7 +347,7 @@ test.describe('the AI visibility Overview', () => {
       const state = page.locator('[data-slot="empty-state"]');
       await expect(state.getByRole('heading', { level: 2, name: 'No AI platform is on' })).toBeVisible();
       // Nothing is counted, so nothing is drawn as a number or a card
-      await expect(numbersGroup(page)).toHaveCount(0);
+      await expect(headlineGroup(page)).toHaveCount(0);
       await expect(cardGrid(page)).toHaveCount(0);
       await expect(bannersOf(page)).toHaveCount(0);
       const action = state.getByRole('link', { name: 'Turn on platforms' });
@@ -428,13 +379,13 @@ test.describe('the AI visibility Overview', () => {
       await expect(page.getByRole('link', { name: 'Schedules paused' })).toBeVisible();
     });
 
-    await test.step('a country with no prompt is the body state, and the paused banner leaves with the strip and the grid', async () => {
+    await test.step('a country with no prompt is the body state, and the paused banner leaves with the grid', async () => {
       await page.goto(overviewPath('Fynix', '?country=US'));
       await expect(page.locator('[data-slot="empty-state"]').getByRole('heading', { level: 2 })).toContainText(
         /^No prompts ask in /,
       );
       await expect(page.getByRole('link', { name: 'Schedules paused' })).toHaveCount(0);
-      await expect(numbersGroup(page)).toHaveCount(0);
+      await expect(headlineGroup(page)).toHaveCount(0);
       await expect(cardGrid(page)).toHaveCount(0);
       await page.getByRole('button', { name: 'Clear location' }).click();
       await waitForOverview(page);
@@ -457,10 +408,10 @@ test.describe('the AI visibility Overview', () => {
     await expect(state.getByRole('heading', { level: 2, name: 'No prompts are asked yet' })).toBeVisible();
     await expect(bannersOf(page)).toHaveCount(0);
     await expect(page.getByText(PAUSED)).toHaveCount(0);
-    await expect(numbersGroup(page)).toHaveCount(0);
+    await expect(headlineGroup(page)).toHaveCount(0);
   });
 
-  test.describe('the numbers while they load and when they fail', () => {
+  test.describe('the headline while it loads and when it fails', () => {
     const spinners = (page: Page): Locator => page.locator('[data-slot="spinner"], svg.animate-spin');
 
     test('loading shows skeletons and no spinner', async ({ page }) => {
@@ -468,36 +419,34 @@ test.describe('the AI visibility Overview', () => {
       await installSummaryControl(page, 'hold');
       await page.setViewportSize({ width: 1280, height: 1100 });
       await page.goto(overviewPath('Fynix'));
-      const strip = numbersGroup(page);
-      await expect(strip).toBeVisible();
-      await expect(strip).toHaveAttribute('aria-busy', 'true');
-      // The labels are known, so they stay; the values are bars, one for each number
-      expect((await numbersOf(page)).map((cell) => cell.label)).toEqual([...BUILTIN_NUMBER_LABELS]);
-      await expect(strip.locator('[data-slot="skeleton"]')).toHaveCount(BUILTIN_NUMBER_LABELS.length);
-      await expect(stripError(page)).toHaveCount(0);
+      const card = cardById(page, 'visibility-split');
+      // The hero and the eight tiles hold their places as bars
+      await expect(card.locator('[data-slot="skeleton"]').first()).toBeVisible();
+      await expect(headlineError(page)).toHaveCount(0);
       await expect(spinners(page)).toHaveCount(0);
 
       await setSummaryMode(page, 'ok');
       await waitForOverview(page);
-      await expect(strip.locator('[data-slot="skeleton"]')).toHaveCount(0);
+      await expect(card.locator('[data-slot="skeleton"]')).toHaveCount(0);
       expect((await numberOf(page, 'Prompts')).value).toMatch(/^[\d,]+$/);
     });
 
-    test('a failed summary shows the strip error row and Retry brings the numbers back', async ({ page }) => {
+    test('a failed summary shows the error state of the headline and Retry brings the numbers back', async ({
+      page,
+    }) => {
       await signIn(page, EDITOR);
       await installSummaryControl(page, 'fail');
       await page.setViewportSize({ width: 1280, height: 1100 });
       await page.goto(overviewPath('Fynix'));
       await expect(pageHeading(page)).toBeVisible();
-      const row = stripError(page);
+      const row = headlineError(page);
       await expect(row).toBeVisible();
-      await expect(row).toContainText('Try again in a moment');
       await expect(row).toContainText('Error ID e2e-failed');
-      // The strip's numbers are not drawn as zeros: the row stands in for them, and the cards keep their own states
-      await expect(numbersGroup(page)).toHaveCount(0);
+      // The figures are not drawn as zeros: the state stands in for them, and the other cards keep their own states
+      await expect(headlineGroup(page)).toHaveCount(0);
       await expect(cardGrid(page)).toBeVisible();
 
-      // Retry asks again: while the failure lasts the row stays, and once it is over the numbers come
+      // Retry asks again: while the failure lasts the state stays, and once it is over the numbers come
       await row.getByRole('button', { name: 'Try again' }).click();
       await expect(row).toBeVisible();
       await setSummaryMode(page, 'ok');

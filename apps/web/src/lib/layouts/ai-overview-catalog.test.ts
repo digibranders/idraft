@@ -427,13 +427,9 @@ describe('the built-in layout of ai_overview', () => {
   const { builtin } = SCREENS.ai_overview;
 
   it('is the Default of the redesign: eleven cards in order, every option written out', () => {
-    // The strip's four numbers stay until the screen stops drawing it (see the note on SCREENS.ai_overview)
-    expect(builtin.numbers?.map((number) => number.id)).toEqual([
-      'prompts',
-      'mention-chatgpt',
-      'mention-gemini',
-      'mention-ai-mode',
-    ]);
+    // The headline card replaced the numbers strip: the screen has no numbers zone and the Default no numbers
+    expect(SCREENS.ai_overview.zones.numbers).toBe(false);
+    expect(builtin.numbers).toBeUndefined();
     expect(builtin.cards?.map((card) => [card.type, card.width])).toEqual([
       ['ai.visibility_split', 'full'],
       ['ai.rate_trend_by_engine', 'two_thirds'],
@@ -465,6 +461,22 @@ describe('the built-in layout of ai_overview', () => {
   it('keeps the project Overview built-in layout as it was', () => {
     expect(SCREENS.overview.builtin.cards).toHaveLength(8);
     expect(SCREENS.overview.builtin.numbers).toHaveLength(6);
+  });
+});
+
+describe('a layout stored before the numbers strip was retired', () => {
+  it('is read with its numbers ignored, and its cards kept', () => {
+    const stored = {
+      schema: 1,
+      numbers: [
+        { id: 'prompts', metric: 'ai.prompts_in_scope' },
+        { id: 'mention-chatgpt', metric: 'ai.mention_rate', engine: 'chatgpt_web' },
+      ],
+      cards: [{ id: 'visibility-split', type: 'ai.visibility_split', width: 'full' }],
+    };
+    const { document } = sanitizeLayout(stored, 'ai_overview');
+    expect(document.numbers).toBeUndefined();
+    expect(document.cards?.map((card) => card.type)).toEqual(['ai.visibility_split']);
   });
 });
 

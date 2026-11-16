@@ -129,8 +129,11 @@ describe('the scope bar', () => {
       expect(lastUrl(urls)).toBe('branded=included');
     });
     expect(screen.queryByRole('button', { name: /^Branded:/ })).not.toBeInTheDocument();
-    // The strip names the choice again
-    expect(await screen.findByRole('group', { name: /branded prompts included$/ })).toBeInTheDocument();
+    // The Prompts tile of the headline names the choice again
+    await waitFor(() => {
+      const box = screen.getByText('Prompts', { selector: 'span.type-label' }).closest('div.bg-surface');
+      expect(box?.querySelector('.type-metric')).toHaveAccessibleDescription(/core and branded prompts/);
+    });
   });
 
   it('brings Branded back from + Filter, which offers nothing else', async () => {
@@ -162,9 +165,10 @@ describe('the scope bar', () => {
   it('keeps a group of the link while the vocabulary loads, and counts the groups below it once it has', async () => {
     renderWithProviders(overviewAs('admin'), { searchParams: `?topic=${SEO}` });
     expect(await screen.findByRole('combobox', { name: 'Group: SEO' })).toBeInTheDocument();
-    // SEO, Technical SEO and Local SEO: the count of the Prompts number is of the chosen subtree
+    // Once the vocabulary has loaded the group is named, and the Prompts tile of the headline counts the group's prompts
     await waitFor(() => {
-      expect(screen.getAllByRole('definition')[0]).toHaveAccessibleDescription(/in 3 groups/);
+      const box = screen.getByText('Prompts', { selector: 'span.type-label' }).closest('div.bg-surface');
+      expect(box?.querySelector('.type-metric')).toHaveAccessibleDescription(/in SEO$/);
     });
   });
 

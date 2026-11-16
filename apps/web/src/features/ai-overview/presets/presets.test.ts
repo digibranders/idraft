@@ -107,7 +107,7 @@ describe.each(PRESET_PACKINGS.map((packing) => [packing.name, packing.document] 
   it('has the headline first, at most 12 cards and no numbers', () => {
     expect(document.cards?.[0]?.type).toBe('ai.visibility_split');
     expect(document.cards?.length).toBeLessThanOrEqual(LIMITS.cards);
-    expect(document.numbers).toEqual([]);
+    expect(document.numbers).toBeUndefined();
   });
 
   it('uses only card types that exist and list ai_overview in their screens', () => {

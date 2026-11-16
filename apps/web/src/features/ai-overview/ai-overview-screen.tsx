@@ -11,9 +11,8 @@ import { OverviewFreshness } from './header/overview-freshness';
 import { OverviewHeader } from './header/overview-header';
 import { OverviewNotices } from './notices/overview-notices';
 import { useOverviewNotice } from './notices/use-overview-notice';
-import { NumbersZone } from './numbers/numbers-zone';
 import { OverviewProvider, useOverview, useOverviewPeriods, type OverviewProject } from './overview-context';
-import { GridPlaceholder, ScopeBarPlaceholder, StripPlaceholder } from './overview-placeholders';
+import { GridPlaceholder, ScopeBarPlaceholder } from './overview-placeholders';
 import { buildOverviewPresets } from './presets/presets';
 import { ScopeBar } from './scope/scope-bar';
 import { SeveralPlatformsNotice } from './scope/several-platforms-notice';
@@ -72,12 +71,12 @@ function OverviewBody({ setupSlot }: { setupSlot: ReactNode }): ReactElement {
   const { notice, settled } = useOverviewNotice();
   const periods = useOverviewPeriods();
   const customizing = mode === 'customize';
-  // Values of the last scope stay on screen while this one is read: the strip and the grid say so, and the bar shows
+  // Values of the last scope stay on screen while this one is read: the grid says so, and the bar shows
   const refetching = periods.current.status === 'refetching' || periods.previous?.status === 'refetching';
   const empty = customizing ? null : notice?.kind;
 
   // The setup checklist is left out where an empty state already says the same step and gives its action (turn on
-  // an engine, add prompts). While the engines load it holds its place, so the strip does not move when it arrives
+  // an engine, add prompts). While the engines load it holds its place, so the page does not move when it arrives
   const showSetup = notice?.kind !== 'noEngine' && notice?.kind !== 'noPrompts';
 
   const pausedChip =
@@ -93,11 +92,7 @@ function OverviewBody({ setupSlot }: { setupSlot: ReactNode }): ReactElement {
   if (engines.status === 'loading') {
     return (
       <div className={OVERVIEW_PAGE_CLASS}>
-        <OverviewHeader
-          stats={<StripPlaceholder />}
-          filters={<ScopeBarPlaceholder />}
-          setupSlot={showSetup ? setupSlot : null}
-        />
+        <OverviewHeader filters={<ScopeBarPlaceholder />} setupSlot={showSetup ? setupSlot : null} />
         <GridPlaceholder />
       </div>
     );
@@ -130,7 +125,7 @@ function OverviewBody({ setupSlot }: { setupSlot: ReactNode }): ReactElement {
     );
   }
 
-  // A location or a group with no prompt leaves the strip and the grid out; the scope bar stays, in the same place in
+  // A location or a group with no prompt leaves the grid out; the scope bar stays, in the same place in
   // the tree whatever the body, so a control the person is using is not remounted when the answer comes
   const scopeEmpty =
     !customizing && (notice?.kind === 'noCountryPrompts' || notice?.kind === 'noGroupPrompts') ? notice : null;
@@ -144,18 +139,8 @@ function OverviewBody({ setupSlot }: { setupSlot: ReactNode }): ReactElement {
 
   return (
     <div className={OVERVIEW_PAGE_CLASS}>
-      <OverviewHeader
-        stats={scopeEmpty === null && !customizing ? <NumbersZone size="inline" /> : null}
-        filters={scopeFilters}
-        noticeChip={pausedChip}
-        setupSlot={showSetup ? setupSlot : null}
-      />
+      <OverviewHeader filters={scopeFilters} noticeChip={pausedChip} setupSlot={showSetup ? setupSlot : null} />
       {notice?.kind !== 'paused' ? <OverviewNotices notice={notice} settled={settled} /> : null}
-      {customizing ? (
-        <div className="my-2">
-          <NumbersZone size="md" />
-        </div>
-      ) : null}
       {scopeEmpty === null ? (
         <div aria-busy={refetching || undefined}>
           <CustomizableGrid label={t('cards')} cardClassName={minHeightOf} />
