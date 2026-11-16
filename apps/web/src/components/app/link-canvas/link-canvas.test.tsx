@@ -241,8 +241,9 @@ describe('LinkCanvas, behaviour found in review', () => {
         : { status: 'ready', items: [], total: 0, otherScopes: [] };
     const { props, user } = canvas({ layout: buildJourney(base, failing) });
     const group = screen.getByRole('group', { name: /^Link journey canvas/ });
-    expect(within(group).getByRole('alert')).toHaveTextContent('These links could not be loaded.');
-    // The app's assertive live region speaks it too
+    expect(within(group).getByText('These links could not be loaded.')).toBeInTheDocument();
+    // Spoken once, by the app's assertive live region (components make no live region of their own, 20 section 10.1)
+    expect(within(group).queryByRole('alert')).toBeNull();
     await waitFor(() => {
       expect(document.getElementById('live-region-assertive')).toHaveTextContent('These links could not be loaded.');
     });

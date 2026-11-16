@@ -448,9 +448,7 @@ export function LinkCanvas<N extends JourneyNeighbor>({
             key={item.key}
             className="flex flex-col items-start gap-1 rounded-md border border-border-subtle bg-surface p-2"
           >
-            <p role="alert" className="type-meta text-foreground-secondary">
-              {t('failed')}
-            </p>
+            <p className="type-meta text-foreground-secondary">{t('failed')}</p>
             <Button
               variant="secondary"
               size="sm"
