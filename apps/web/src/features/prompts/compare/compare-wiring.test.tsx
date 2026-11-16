@@ -237,20 +237,20 @@ const chooseDetectable = async (user: ProvidedRender['user']): Promise<void> => 
 };
 
 describe('Prompts: compare, the read and the address', () => {
-  it('asks the summary for the previous period by default', async () => {
+  it('asks the summary for the previous period for cmp=previous', async () => {
     const asked: URL[] = [];
     serve(asked);
-    render('?tab=prompts');
+    render('?tab=prompts&cmp=previous');
     await grid();
     await waitFor(() => expect(asked.length).toBeGreaterThan(0));
     expect(asked.every((url) => url.searchParams.get('compare') === 'previous_period')).toBe(true);
     expect(screen.getByRole('combobox', { name: 'Compare with' })).toHaveTextContent('vs previous period');
   });
 
-  it('asks without compare for cmp=off and the select says No comparison', async () => {
+  it('asks without compare by default, with no comparison, and the select says No comparison', async () => {
     const asked: URL[] = [];
     serve(asked);
-    render('?tab=prompts&cmp=off');
+    render('?tab=prompts');
     await grid();
     await waitFor(() => expect(asked.length).toBeGreaterThan(0));
     expect(asked.some((url) => url.searchParams.has('compare'))).toBe(false);
@@ -259,7 +259,7 @@ describe('Prompts: compare, the read and the address', () => {
 
   it('names the previous window the response was compared with', async () => {
     serve();
-    render('?tab=prompts');
+    render('?tab=prompts&cmp=previous');
     await grid();
     const trigger = screen.getByRole('combobox', { name: 'Compare with' });
     await waitFor(() => expect(trigger).toHaveAccessibleDescription('Previous period: Sep 18 to Oct 15, 2026'));
@@ -271,8 +271,10 @@ describe('Prompts: compare, the read and the address', () => {
     const chipOf = async (): Promise<HTMLElement> => {
       const strip = await screen.findByRole('group', { name: 'Summary of the prompts in view' });
       await waitFor(() => expect(strip).not.toHaveAttribute('aria-busy'));
-      const chip = within(strip).getByText('ChatGPT', { selector: 'dt' }).parentElement;
-      if (chip === null) throw new Error('The ChatGPT chip is missing');
+      const chip = within(strip)
+        .getAllByRole('term')
+        .find((term) => term.textContent === 'ChatGPT')?.parentElement;
+      if (chip === null || chip === undefined) throw new Error('The ChatGPT chip is missing');
       return within(chip).getByRole('definition');
     };
     // The Topics tab, whose table builds its columns under the page's provider of the compared window
@@ -282,12 +284,12 @@ describe('Prompts: compare, the read and the address', () => {
       if (!(row instanceof HTMLElement)) throw new Error('The first row is missing');
       const mention = within(row)
         .getAllByRole('gridcell')
-        .find((node) => node.textContent?.includes('1 platform'));
+        .find((node) => node.textContent?.includes('%'));
       if (mention === undefined) throw new Error('The Mention rate cell is missing');
       return mention;
     };
 
-    const on = render('');
+    const on = render('?cmp=previous');
     await waitFor(() =>
       expect(screen.getByRole('combobox', { name: 'Compare with' })).toHaveAccessibleDescription(
         'Previous period: Sep 18 to Oct 15, 2026',
@@ -300,7 +302,7 @@ describe('Prompts: compare, the read and the address', () => {
     );
     on.unmount();
 
-    const off = render('?cmp=off');
+    const off = render('');
     await off.user.hover(await chipOf());
     await waitFor(() => expect(tooltip()).toHaveTextContent('Mentioned'));
     expect(tooltip()?.textContent).not.toMatch(/Previous period/);
@@ -316,30 +318,41 @@ describe('Prompts: compare, the read and the address', () => {
       if (!(row instanceof HTMLElement)) throw new Error('The first prompt row is missing');
       const mention = within(row)
         .getAllByRole('gridcell')
-        .find((node) => node.textContent?.includes('1 platform'));
+        .find((node) => node.textContent?.includes('%'));
       if (mention === undefined) throw new Error('The Mention rate cell is missing');
       return mention;
     };
 
-    const on = render('?tab=prompts');
+    const on = render('?tab=prompts&cmp=previous');
     await waitFor(async () =>
       expect(await mentionOf()).toHaveAccessibleDescription(/Previous period: Sep 18 to Oct 15, 2026/),
     );
     on.unmount();
 
-    render('?tab=prompts&cmp=off');
+    render('?tab=prompts');
     expect(await mentionOf()).not.toHaveAccessibleDescription(/Previous period/);
   });
 
-  it('writes cmp=off for No comparison with history replace, and reads again without compare', async () => {
+  it('writes cmp=previous for the previous period with history replace, and reads again with compare', async () => {
     const asked: URL[] = [];
     serve(asked);
     const { user, writes } = render('?tab=prompts');
     await grid();
     await user.click(screen.getByRole('combobox', { name: 'Compare with' }));
-    await user.click(await screen.findByRole('option', { name: 'No comparison' }));
-    await waitFor(() => expect(writes.at(-1)?.queryString).toContain('cmp=off'));
+    await user.click(await screen.findByRole('option', { name: 'vs previous period' }));
+    await waitFor(() => expect(writes.at(-1)?.queryString).toContain('cmp=previous'));
     expect(writes.at(-1)?.history).toBe('replace');
+    await waitFor(() => expect(asked.some((url) => url.searchParams.get('compare') === 'previous_period')).toBe(true));
+  });
+
+  it('reads again without compare when the comparison is turned off, and drops the key', async () => {
+    const asked: URL[] = [];
+    serve(asked);
+    const { user, writes } = render('?tab=prompts&cmp=previous');
+    await grid();
+    await user.click(screen.getByRole('combobox', { name: 'Compare with' }));
+    await user.click(await screen.findByRole('option', { name: 'No comparison' }));
+    await waitFor(() => expect(writes.at(-1)?.queryString).not.toContain('cmp'));
     await waitFor(() => expect(asked.some((url) => !url.searchParams.has('compare'))).toBe(true));
   });
 
@@ -351,7 +364,7 @@ describe('Prompts: compare, the read and the address', () => {
         return HttpResponse.json({});
       }),
     );
-    const { queryClient } = render('', CLEANSTART);
+    const { queryClient } = render('?cmp=previous', CLEANSTART);
     expect(await screen.findByRole('heading', { name: 'No AI platform is on' })).toBeInTheDocument();
     await waitFor(() => expect(queryClient.isFetching()).toBe(0));
     expect(asked).toEqual([]);
@@ -367,7 +380,7 @@ describe('Prompts: compare, the read and the address', () => {
         return HttpResponse.json(summaryAnswer(url.searchParams.get('compare') === 'previous_period'));
       }),
     );
-    const { user } = render('?tab=prompts');
+    const { user } = render('?tab=prompts&cmp=previous');
     const table = await grid();
     await within(table).findByText('Question number 1?');
     failing = true;
@@ -387,7 +400,7 @@ describe('Prompts: compare, the read and the address', () => {
 describe('Prompts: the change column of an engine', () => {
   it('waits in the column chooser, off by default, and shows its change once chosen', async () => {
     serve();
-    const { user } = render('?tab=prompts');
+    const { user } = render('?tab=prompts&cmp=previous');
     const table = await grid();
     expect(within(table).queryByRole('columnheader', { name: /ChatGPT change/ })).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Columns' }));
@@ -403,16 +416,16 @@ describe('Prompts: the change column of an engine', () => {
 
   it('gives its tip to the focused cell of the table and adds no tab stop inside it', async () => {
     serve();
-    render('?tab=prompts&cols=prompt,mention,change_chatgpt_web');
+    render('?tab=prompts&cols=prompt,mention,change_chatgpt_web&cmp=previous');
     const table = await grid();
     expect(await within(table).findByRole('columnheader', { name: /ChatGPT change/ })).toBeInTheDocument();
     const row = (await within(table).findByText('Question number 1?')).closest('[role="row"]');
     if (!(row instanceof HTMLElement)) throw new Error('The first prompt row is missing');
-    // The Mention rate cell says "1 engine"; the change column is the other cell with this prompt's 30 points
+    // The Mention rate cell holds the rate beside the 30 points; the change column is the cell with the points alone
     const changeCell = (): HTMLElement | undefined =>
       within(row)
         .getAllByRole('gridcell')
-        .find((node) => node.textContent?.includes('30.0 pts') && !node.textContent.includes('engine'));
+        .find((node) => node.textContent?.includes('30.0 pts') && !node.textContent.includes('%'));
     await waitFor(() => expect(changeCell()).toBeDefined());
     const cell = changeCell();
     if (cell === undefined) throw new Error('The change cell is missing');
@@ -421,16 +434,16 @@ describe('Prompts: the change column of an engine', () => {
     expect(cell.querySelectorAll('[tabindex]')).toHaveLength(0);
   });
 
-  it('can be shown from the address, and says Comparison is off with cmp=off', async () => {
+  it('can be shown from the address, and says Comparison is off without cmp=previous', async () => {
     serve();
-    const on = render('?tab=prompts&cols=prompt,mention,change_chatgpt_web');
+    const on = render('?tab=prompts&cols=prompt,mention,change_chatgpt_web&cmp=previous');
     const table = await grid();
     // The engines load after the table: the column appears with them
     expect(await within(table).findByRole('columnheader', { name: /ChatGPT change/ })).toBeInTheDocument();
     await waitFor(() => expect(within(table).getAllByText('+30.0 pts').length).toBeGreaterThan(0));
     on.unmount();
 
-    render('?tab=prompts&cmp=off&cols=prompt,mention,change_chatgpt_web');
+    render('?tab=prompts&cols=prompt,mention,change_chatgpt_web');
     const off = await grid();
     expect(await within(off).findByRole('columnheader', { name: /ChatGPT change/ })).toBeInTheDocument();
     await waitFor(() => expect(within(off).getAllByText('n/a').length).toBeGreaterThan(0));
@@ -441,7 +454,7 @@ describe('Prompts: the change column of an engine', () => {
 describe('Prompts: the Detectable changes only chip', () => {
   it('is in the address as detectable=only and narrows the Prompts rows and the strip', async () => {
     serve();
-    const { user, writes } = render('?tab=prompts');
+    const { user, writes } = render('?tab=prompts&cmp=previous');
     const table = await grid();
     await waitFor(() => expect(promptTexts(table)).toHaveLength(3));
     expect(await stripPromptCount()).toBe('3');
@@ -455,7 +468,7 @@ describe('Prompts: the Detectable changes only chip', () => {
 
   it('narrows the Topics rows to the topics whose change is detectable', async () => {
     serve();
-    render('?detectable=only');
+    render('?detectable=only&cmp=previous');
     const tree = await treegrid();
     expect(await within(tree).findByText('Detectable topic')).toBeInTheDocument();
     await waitFor(() => expect(within(tree).queryByText('Quiet topic')).toBeNull());
@@ -464,18 +477,18 @@ describe('Prompts: the Detectable changes only chip', () => {
 
   it('narrows the Heat map too', async () => {
     serve();
-    render('?detectable=only&view=heatmap');
+    render('?detectable=only&view=heatmap&cmp=previous');
     expect(await screen.findByText('Detectable topic')).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByText('Quiet topic')).toBeNull());
   });
 
   it('leaves no row with comparison off, says why, and Compare with previous period brings the rows back', async () => {
     serve();
-    const { user, writes } = render('?tab=prompts&detectable=only&cmp=off');
+    const { user, writes } = render('?tab=prompts&detectable=only');
     expect(await screen.findByRole('heading', { name: 'No comparison to read changes from' })).toBeInTheDocument();
     expect(screen.queryByText('Question number 1?')).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Compare with previous period' }));
-    await waitFor(() => expect(writes.at(-1)?.queryString).not.toContain('cmp'));
+    await waitFor(() => expect(writes.at(-1)?.queryString).toContain('cmp=previous'));
     expect(await screen.findByText('Question number 1?')).toBeInTheDocument();
     expect(screen.queryByText('Question number 2?')).toBeNull();
   });
@@ -489,7 +502,7 @@ describe('Prompts: the Detectable changes only chip', () => {
         HttpResponse.json(summaryAnswer(new URL(request.url).searchParams.get('compare') === 'previous_period', [1])),
       ),
     );
-    render('?tab=prompts&detectable=only');
+    render('?tab=prompts&detectable=only&cmp=previous');
     expect(await screen.findByRole('heading', { name: 'No detectable change in these rows' })).toBeInTheDocument();
     expect(
       screen.getByText('1 row was compared with the previous period and none changed by more than normal variation.'),
@@ -507,7 +520,7 @@ describe('Prompts: the Detectable changes only chip', () => {
         return HttpResponse.json(compared ? { data: { ...answer.data, previous_answers: 0 } } : answer);
       }),
     );
-    render('?tab=prompts&detectable=only');
+    render('?tab=prompts&detectable=only&cmp=previous');
     expect(await screen.findByRole('heading', { name: 'No detectable change in these rows' })).toBeInTheDocument();
     expect(screen.getByText('The previous period has no answers, so no change can be told.')).toBeInTheDocument();
   });
@@ -521,7 +534,7 @@ describe('Prompts: the Detectable changes only chip', () => {
         HttpResponse.json(summaryAnswer(new URL(request.url).searchParams.get('compare') === 'previous_period', [2])),
       ),
     );
-    render('?tab=prompts&detectable=only');
+    render('?tab=prompts&detectable=only&cmp=previous');
     expect(await screen.findByRole('heading', { name: 'No detectable change in these rows' })).toBeInTheDocument();
     expect(screen.getByText('No row has enough answers in both periods to tell a change.')).toBeInTheDocument();
     expect(screen.queryByText(/previous period has no answers/)).toBeNull();
@@ -537,7 +550,7 @@ describe('Prompts: the Detectable changes only chip', () => {
       ),
       http.get(SUMMARY_PATH, () => HttpResponse.json({ code: 'boom' }, { status: 500 })),
     );
-    render('?tab=prompts&detectable=only');
+    render('?tab=prompts&detectable=only&cmp=previous');
     expect(
       await screen.findByText('The answer counts could not be loaded. The prompts are listed without them.'),
     ).toBeInTheDocument();
@@ -560,7 +573,7 @@ describe('Prompts: the Detectable changes only chip', () => {
         return HttpResponse.json(summaryAnswer(compared));
       }),
     );
-    const { user } = render('?tab=prompts&detectable=only&cmp=off');
+    const { user } = render('?tab=prompts&detectable=only');
     expect(await screen.findByRole('heading', { name: 'No comparison to read changes from' })).toBeInTheDocument();
     held = true;
     await user.click(screen.getByRole('button', { name: 'Compare with previous period' }));
@@ -575,17 +588,17 @@ describe('Prompts: the Detectable changes only chip', () => {
 
   it('says No prompts match, not that no change was detected, for a search that finds nothing', async () => {
     serve();
-    render('?tab=prompts&detectable=only&q=zzzznothing');
+    render('?tab=prompts&detectable=only&q=zzzznothing&cmp=previous');
     expect(await screen.findByRole('heading', { name: 'No prompts match' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'No detectable change in these rows' })).toBeNull();
   });
 
   it('keeps the compare choice when Clear filters clears the chip', async () => {
     serve();
-    const { user, writes } = render('?tab=prompts&detectable=only&cmp=off');
+    const { user, writes } = render('?tab=prompts&detectable=only&cmp=previous');
     await user.click(await screen.findByRole('button', { name: 'Clear filters' }));
     await waitFor(() => expect(writes.some((write) => !write.queryString.includes('detectable'))).toBe(true));
-    expect(writes.at(-1)?.queryString).toContain('cmp=off');
+    expect(writes.at(-1)?.queryString).toContain('cmp=previous');
     expect(await screen.findByText('Question number 1?')).toBeInTheDocument();
     expect(screen.getByText('Question number 2?')).toBeInTheDocument();
   });

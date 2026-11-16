@@ -15,6 +15,8 @@ import { axe } from '@/test/axe';
 import { renderWithProviders, type ProvidedRender } from '@/test/render';
 
 const WINDOW = { from: '2026-09-18', to: '2026-10-15' };
+/** The page opens without a comparison: it is on only when the address says so. */
+const ON = '?cmp=previous';
 const CHAT_ENGINE = projectEngine('chatgpt_web');
 const BOTH: ProjectEngine[] = [CHAT_ENGINE, projectEngine('gemini_web')];
 const CHAT_ONLY: ProjectEngine[] = [CHAT_ENGINE];
@@ -78,7 +80,7 @@ function Cells({
 
 const render = (
   row: PromptRow,
-  searchParams = '',
+  searchParams = ON,
   options: { engines?: ProjectEngine[]; metric?: RateMetric; window?: ComparedWindow } = {},
 ): ProvidedRender =>
   renderWithProviders(
@@ -217,18 +219,18 @@ describe('the change columns of the Prompts tab', () => {
       previous: base.previous == null ? null : { ...base.previous, cited: cell(6, 60) },
     };
     const row = rowOf([engine]);
-    const mention = render(row, '', { engines: CHAT_ONLY, metric: 'mention' });
+    const mention = render(row, ON, { engines: CHAT_ONLY, metric: 'mention' });
     expect(screen.getByTestId('change_chatgpt_web')).toHaveTextContent('+30.0 pts');
     mention.unmount();
-    const citation = render(row, '', { engines: CHAT_ONLY, metric: 'citation' });
+    const citation = render(row, ON, { engines: CHAT_ONLY, metric: 'citation' });
     expect(screen.getByTestId('change_chatgpt_web')).toHaveTextContent('+70.0 pts');
     citation.unmount();
-    render(row, '', { engines: CHAT_ONLY, metric: 'sov' });
+    render(row, ON, { engines: CHAT_ONLY, metric: 'sov' });
     expect(screen.getByTestId('change_chatgpt_web')).toHaveTextContent('+50.0 pts');
   });
 
   it('keeps share of voice neutral and says that no test exists for it', () => {
-    render(rowOf([engineOf('chatgpt_web', cell(30, 60), cell(12, 60), [cell(48, 60), cell(12, 60)])]), '', {
+    render(rowOf([engineOf('chatgpt_web', cell(30, 60), cell(12, 60), [cell(48, 60), cell(12, 60)])]), ON, {
       engines: CHAT_ONLY,
       metric: 'sov',
     });
@@ -239,7 +241,7 @@ describe('the change columns of the Prompts tab', () => {
   });
 
   it('is n/a with Comparison is off while comparison is off, and draws no change', () => {
-    render(rowOf([chat(DETECTABLE), gemini(WITHIN[0], WITHIN[1])]), '?cmp=off');
+    render(rowOf([chat(DETECTABLE), gemini(WITHIN[0], WITHIN[1])]), '');
     expect(screen.getByTestId('change_chatgpt_web')).toHaveTextContent('n/a');
     expect(screen.getByTestId('change_chatgpt_web').textContent).not.toMatch(/pts/);
     expect(tipOf('change_chatgpt_web')).toHaveTextContent(/^Comparison is off$/);
@@ -259,7 +261,7 @@ describe('the change columns of the Prompts tab', () => {
   });
 
   it('says nothing about the previous period while the held read was not compared', () => {
-    render(rowOf([chat(DETECTABLE), gemini(cell(20, 40), null)]), '', { window: null });
+    render(rowOf([chat(DETECTABLE), gemini(cell(20, 40), null)]), ON, { window: null });
     expect(screen.getByTestId('change_gemini_web')).toHaveTextContent('n/a');
     expect(screen.getByTestId('change_gemini_web').textContent).not.toMatch(/previous/i);
     expect(tipOf('change_gemini_web').textContent).toBe('');
@@ -277,7 +279,7 @@ describe('the change columns of the Prompts tab', () => {
     const on = render(row);
     expect(await axe(on.container)).toHaveNoViolations();
     on.unmount();
-    const off = render(row, '?cmp=off');
+    const off = render(row, '');
     expect(await axe(off.container)).toHaveNoViolations();
   });
 });
@@ -305,14 +307,14 @@ describe('sorting a change column', () => {
   }
 
   it('orders by the points of its own platform, high first, and puts n/a last', () => {
-    renderWithProviders(<Order desc />);
+    renderWithProviders(<Order desc />, { searchParams: ON });
     expect(screen.getByTestId('order')).toHaveTextContent(
       'chat-down-gemini-up both-small-up chat-up-gemini-down no-previous unloaded',
     );
   });
 
   it('orders low first and still puts n/a last', () => {
-    renderWithProviders(<Order desc={false} />);
+    renderWithProviders(<Order desc={false} />, { searchParams: ON });
     expect(screen.getByTestId('order')).toHaveTextContent(
       'chat-up-gemini-down both-small-up chat-down-gemini-up no-previous unloaded',
     );
@@ -328,10 +330,10 @@ describe('sorting a change column', () => {
         </output>
       );
     }
-    const off = renderWithProviders(<Values />, { searchParams: '?cmp=off' });
+    const off = renderWithProviders(<Values />, { searchParams: '' });
     expect(screen.getByTestId('values')).toHaveTextContent('null null');
     off.unmount();
-    renderWithProviders(<Values />);
+    renderWithProviders(<Values />, { searchParams: ON });
     expect(screen.getByTestId('values')).toHaveTextContent(/^0\.3\d* -0\.3\d*$/);
   });
 });

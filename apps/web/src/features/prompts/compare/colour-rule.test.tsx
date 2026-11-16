@@ -17,7 +17,7 @@ import { promptRow, topicRow } from '../topics-by-engine/cells-fixtures';
 import type { DataTableColumn } from '@/components/app/data-table/types';
 import type { EngineSummary, MetricCell } from '@/lib/api/types';
 import type { StripPrompt } from '@/lib/rates/strip-model';
-import { renderWithProviders } from '@/test/render';
+import { renderWithProviders, type ProvidedRender } from '@/test/render';
 import { DRAWER_TOPIC_ID, READY_COUNTS, drawerExtras, summaryOf } from '@/test/topic-drawer-harness';
 
 /**
@@ -39,6 +39,9 @@ vi.mock('next/navigation', () => ({
 }));
 
 const WINDOW = { from: '2026-09-18', to: '2026-10-15' };
+
+/** Every surface is drawn with the comparison on: the page opens without one, and a change shows only then. */
+const renderOn = (ui: ReactElement): ProvidedRender => renderWithProviders(ui, { searchParams: '?cmp=previous' });
 const CHAT = projectEngine('chatgpt_web');
 
 type Pair = readonly [MetricCell, MetricCell];
@@ -129,13 +132,13 @@ const chatCells = (change: Case): EngineSummary[] => [engineOf('chatgpt_web', ch
 
 /** The strip chip of ChatGPT: its value is the tab stop that holds the tooltip. */
 function stripChip(change: Case): HTMLElement {
-  renderWithProviders(
+  renderOn(
     <ComparedWindowProvider value={WINDOW}>
       <PromptsStrip prompts={change.prompts} engines={[CHAT]} topics={1} status="ready" countsFailed={false} />
     </ComparedWindowProvider>,
   );
-  const chip = screen.getByText('ChatGPT', { selector: 'dt' }).parentElement;
-  if (chip === null) throw new Error('The ChatGPT chip is missing');
+  const chip = screen.getAllByRole('term').find((term) => term.textContent === 'ChatGPT')?.parentElement;
+  if (chip === null || chip === undefined) throw new Error('The ChatGPT chip is missing');
   return within(chip).getByRole('definition');
 }
 
@@ -150,7 +153,7 @@ function MentionCell({ row }: { row: CellsRow }): ReactElement {
 }
 
 function mentionCell(change: Case): HTMLElement {
-  renderWithProviders(
+  renderOn(
     <ComparedWindowProvider value={WINDOW}>
       <MentionCell row={{ cells: chatCells(change) }} />
     </ComparedWindowProvider>,
@@ -179,7 +182,7 @@ function ChangeColumnCell({ row }: { row: PromptRow }): ReactElement {
 }
 
 function changeColumnCell(change: Case): HTMLElement {
-  renderWithProviders(<ChangeColumnCell row={promptTableRow(chatCells(change))} />);
+  renderOn(<ChangeColumnCell row={promptTableRow(chatCells(change))} />);
   return screen.getByTestId('change-cell');
 }
 
@@ -193,7 +196,7 @@ function inspectorItem(change: Case): HTMLElement {
     retry: () => undefined,
     retrying: false,
   };
-  renderWithProviders(
+  renderOn(
     <ComparedWindowProvider value={WINDOW}>
       <InspectorStrip engines={[CHAT]} counts={counts} noCountsReason="No counts" />
     </ComparedWindowProvider>,
@@ -210,7 +213,7 @@ function renderDrawer(change: Case): void {
     ...summaryOf([topicRow(DRAWER_TOPIC_ID, 'Paid Search', 1, chatCells(change))]),
     prompts: [prompt],
   };
-  renderWithProviders(
+  renderOn(
     <ComparedWindowProvider value={WINDOW}>
       <TopicInspector
         topicKey={DRAWER_TOPIC_ID}

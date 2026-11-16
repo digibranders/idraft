@@ -35,35 +35,41 @@ const render = (searchParams: string): ReturnType<typeof renderWithProviders> & 
 };
 
 describe('useCompare', () => {
-  it('reads no cmp key as on', () => {
+  it('reads no cmp key as off: the table opens without a comparison', () => {
     render('');
+    expect(screen.getByLabelText('compare')).toHaveTextContent('off');
+  });
+
+  it('reads cmp=previous as on', () => {
+    render('?cmp=previous');
     expect(screen.getByLabelText('compare')).toHaveTextContent('on');
   });
 
-  it('reads cmp=off as off', () => {
+  it('reads a link of the old default, cmp=off, as off', () => {
     render('?cmp=off');
     expect(screen.getByLabelText('compare')).toHaveTextContent('off');
   });
 
-  it('writes cmp=off with history replace when set to off', async () => {
-    const { user, writes } = render('');
-    await user.click(screen.getByRole('button', { name: 'turn off' }));
-    await waitFor(() => expect(writes.at(-1)?.queryString).toContain('cmp=off'));
+  it('writes cmp=previous with history replace when set to on', async () => {
+    const { user, writes } = render('?tab=prompts');
+    await user.click(screen.getByRole('button', { name: 'turn on' }));
+    await waitFor(() => expect(writes.at(-1)?.queryString).toContain('cmp=previous'));
+    expect(writes.at(-1)?.queryString).toContain('tab=prompts');
     expect(writes.at(-1)?.history).toBe('replace');
+    expect(screen.getByLabelText('compare')).toHaveTextContent('on');
+  });
+
+  it('removes the key when set to off, because a default writes nothing', async () => {
+    const { user, writes } = render('?cmp=previous&tab=prompts');
+    await user.click(screen.getByRole('button', { name: 'turn off' }));
+    await waitFor(() => expect(writes.at(-1)?.queryString).not.toContain('cmp'));
+    expect(writes.at(-1)?.queryString).toContain('tab=prompts');
     expect(screen.getByLabelText('compare')).toHaveTextContent('off');
   });
 
-  it('removes the key when set to on, because a default writes nothing', async () => {
-    const { user, writes } = render('?cmp=off&tab=prompts');
-    await user.click(screen.getByRole('button', { name: 'turn on' }));
-    await waitFor(() => expect(writes.at(-1)?.queryString).not.toContain('cmp'));
-    expect(writes.at(-1)?.queryString).toContain('tab=prompts');
-    expect(screen.getByLabelText('compare')).toHaveTextContent('on');
-  });
-
-  it('reads an unknown value as on and leaves the address as it is', () => {
+  it('reads an unknown value as off and leaves the address as it is', () => {
     const { writes } = render('?cmp=previous_year');
-    expect(screen.getByLabelText('compare')).toHaveTextContent('on');
+    expect(screen.getByLabelText('compare')).toHaveTextContent('off');
     expect(writes).toEqual([]);
   });
 });

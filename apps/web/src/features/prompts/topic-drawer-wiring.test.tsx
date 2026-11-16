@@ -106,7 +106,14 @@ function promptsAs(role: Role): ReactElement {
   );
 }
 
-const renderOn = (role: Role, searchParams: string, options: ProvidedRenderOptions = {}): ProvidedRender => {
+/** The page opens without a comparison: these tests read the changes of the drawer, so they ask for it unless `cmp=off`. */
+const withCompare = (search: string): string =>
+  search.includes('cmp=off')
+    ? search.replace('&cmp=off', '')
+    : `${search}${search.includes('?') ? '&' : '?'}cmp=previous`;
+
+const renderOn = (role: Role, search: string, options: ProvidedRenderOptions = {}): ProvidedRender => {
+  const searchParams = withCompare(search);
   address.search = searchParams;
   return renderWithProviders(promptsAs(role), { ...options, searchParams });
 };
@@ -435,7 +442,7 @@ describe('the built rows of the topic drawer, confirmed through the real screen'
     expect(within(failed).getAllByRole('button', { name: 'Try again' }).length).toBeGreaterThan(0);
   });
 
-  it('WB-TPE-18 says "avg of 2" on the drawer rate card and in the average column of the By engine view', async () => {
+  it('WB-TPE-18 says "avg of 2" on the drawer rate card, and the average column of the By engine view shows the percent alone', async () => {
     const { unmount } = renderOn('viewer', inspect(PAID_SEARCH));
     const panel = await drawer('Paid Search');
     const rates = (await within(panel).findByRole('heading', { name: 'Rates' })).closest('section');
@@ -445,6 +452,7 @@ describe('the built rows of the topic drawer, confirmed through the real screen'
 
     renderOn('viewer', '?view=engines');
     const table = await screen.findByRole('treegrid', { name: 'Groups' });
-    expect((await within(table).findAllByText(/avg of 2/)).length).toBeGreaterThan(0);
+    expect((await within(table).findAllByText(/^\d+%$/)).length).toBeGreaterThan(0);
+    expect(within(table).queryByText(/avg of/)).toBeNull();
   });
 });

@@ -6,6 +6,7 @@ import { useMemo, type ReactElement } from 'react';
 import { ChangeInline, useChangeWords, useComparedWindow, useCompare, type ComparedWindow } from './compare';
 import { CELL_OF_METRIC, countText, engineSortId, SORT_ID, type RateMetric } from './prompt-model';
 import { useRateWords } from './rate-view';
+import { TrendCell } from './trend-column';
 import { col } from '@/components/app/data-table/columns';
 import type { CellTip, DataTableColumn } from '@/components/app/data-table/types';
 import { EngineLogo } from '@/components/app/engine/engine-logo';
@@ -16,6 +17,7 @@ import { EMPTY_VALUE, formatDateRange, formatList } from '@/lib/format';
 import { averageRate, cellFigure, engineRatesOf, hasRate, topEngine, type AverageRate } from '@/lib/rates/rate-model';
 import type { RateReading } from '@/lib/rates/strip-model';
 import { MIN_OBSERVATIONS } from '@/lib/stats';
+import { cn } from '@/lib/utils';
 
 /**
  * The rate columns of Topics & Prompts (parity spec G21 to G24, G40 and G41): Mention rate and Citation rate,
@@ -28,6 +30,9 @@ import { MIN_OBSERVATIONS } from '@/lib/stats';
 
 /** "Google AI Mode mention" in capitals with its sort arrow needs about 176 px. */
 export const ENGINE_COLUMN_WIDTH = 176;
+
+/** The Mention rate column while it holds the weekly line: 64 px of line beside the percent and its change (the type's widest). */
+const MENTION_LINED_WIDTH = 200;
 
 /** What a cell says in place of a rate, and what its tooltip says about why. */
 interface Gap {
@@ -49,17 +54,19 @@ export interface RateColumns<TRow> {
 
 /**
  * Mention rate, Citation rate and Top engine over the engines shown. The two rates are the equal weight
- * average of the engines that have one, "avg of N" beside the percent (or "1 engine"), with the count behind it
- * and the engines it is over in the tooltip. Top engine names the engine with the highest mention rate, ties
+ * average of the engines that have one: the cell shows the percent alone, and the tooltip names the engines it
+ * is over with the count behind each. With `trend`, the Mention rate cell draws the weekly line after its change
+ * while the person compares, and is wider for it. Top engine names the engine with the highest mention rate, ties
  * by the order of the engines shown, and lists every engine's rate in its tooltip: a pointer, not a ranking
  * (ADR-DS-022 decision 5), which sorts by the engine's name.
  */
 export function useRateColumns<TRow>(
   engines: readonly ProjectEngine[],
   cellsOf: (row: TRow) => readonly EngineSummary[] | undefined,
-  { note, window }: { note?: string; window?: ComparedWindow | undefined } = {},
+  { note, window, trend = false }: { note?: string; window?: ComparedWindow | undefined; trend?: boolean } = {},
 ): RateColumns<TRow> {
   const t = useTranslations('prompts.columns');
+  const shell = useTranslations('prompts.shell.columns');
   const rate = useTranslations('prompts.rate');
   const tc = useTranslations('prompts.compare');
   const words = useRateWords();
@@ -102,10 +109,13 @@ export function useRateColumns<TRow>(
       header: string,
       tip: string,
     ): DataTableColumn<TRow> => {
+      // The weekly line and the change beside the percent take room the other rates do not
+      const lined = trend && compare && metric === 'mentioned';
       const base = col.volumeTrend<TRow>(id, (row) => averageOf(row, metric).value, {
         header,
-        headerTooltip: withNote(tip),
+        headerTooltip: withNote(lined ? `${tip}. ${shell('mentionTrendTip')}` : tip),
         priority: metric === 'mentioned' ? 1 : 2,
+        ...(lined ? { width: MENTION_LINED_WIDTH } : {}),
         sortable: true,
         // The cell is drawn below, for it has the insufficient state too
         known: () => null,
@@ -116,15 +126,16 @@ export function useRateColumns<TRow>(
           const average = averageOf(row, metric);
           if (average.state === 'insufficient') return <InsufficientPill answers={average.answers} tip={false} />;
           if (average.state === 'none') return <Missing label={gapOf(row, average).label} />;
+          // With the line, the percent and the change keep a room of their own so the lines of every row start at the same place
           return (
-            // The widest case, "100% avg of 2 +13.4 pts", is 139 px wide with a 4 px gap (measured in Chrome): it fits
-            // the 152 px column the table gives it, whatever width the column asks for, with its 12 px of padding
-            <span className="inline-flex items-baseline gap-1 whitespace-nowrap">
-              <span className="num">{words.text(average)}</span>{' '}
-              <span className="type-label text-foreground-tertiary">
-                {rate('avgLabel', { count: average.engines })}
-              </span>
-              {metric === 'mentioned' && compare ? <ChangeInline change={changeOf(row)} size="sm" /> : null}
+            <span className="inline-flex items-center gap-1 whitespace-nowrap">
+              <span className={cn('num', lined && 'min-w-7')}>{words.text(average)}</span>
+              {metric === 'mentioned' && compare ? (
+                <span className={cn('inline-flex', lined && 'min-w-16')}>
+                  <ChangeInline change={changeOf(row)} size="sm" />
+                </span>
+              ) : null}
+              {lined ? <TrendCell cells={cellsOf(row)} codes={codes} /> : null}
             </span>
           );
         },
@@ -228,7 +239,7 @@ export function useRateColumns<TRow>(
       citation: rateColumn(SORT_ID.citation, 'cited', t('citationRate'), t('citationRateTip')),
       topEngine: topColumn,
     };
-  }, [engines, cellsOf, note, t, rate, tc, words, changeWords, compare, comparedWindow, locale]);
+  }, [engines, cellsOf, note, trend, t, shell, rate, tc, words, changeWords, compare, comparedWindow, locale]);
 }
 
 const HEADER_KEY = { mention: 'engineMention', citation: 'engineCitation', sov: 'engineShareOfVoice' } as const;
@@ -245,6 +256,7 @@ export function useEngineRateColumns<TRow>(
   engines: readonly ProjectEngine[],
   cellsOf: (row: TRow) => readonly EngineSummary[] | undefined,
   metric: RateMetric,
+  { defaultVisible }: { defaultVisible?: boolean } = {},
 ): DataTableColumn<TRow>[] {
   const t = useTranslations('prompts.columns');
   const rate = useTranslations('prompts.rate');
@@ -270,6 +282,7 @@ export function useEngineRateColumns<TRow>(
           headerTooltip: t(TIP_KEY[metric]),
           width: ENGINE_COLUMN_WIDTH,
           sortable: true,
+          defaultVisible,
           known: () => null,
         });
         return {
@@ -309,6 +322,6 @@ export function useEngineRateColumns<TRow>(
           },
         };
       }),
-    [engines, cellsOf, metric, t, rate, words],
+    [engines, cellsOf, metric, defaultVisible, t, rate, words],
   );
 }

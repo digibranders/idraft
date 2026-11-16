@@ -47,8 +47,10 @@ const render = (
   search = '',
   options: Parameters<typeof renderDrawerPart>[1] = {},
 ) => {
-  address.search = search;
-  return renderDrawerPart(<EnginePanel />, { summary: summaryWith(engines), searchParams: search, ...options });
+  // The page opens without a comparison: the change in points shows only when the address asks for it
+  const searchParams = search === '' ? '?cmp=previous' : search;
+  address.search = searchParams;
+  return renderDrawerPart(<EnginePanel />, { summary: summaryWith(engines), searchParams, ...options });
 };
 
 describe('EnginePanel: the By engine section of the drawer', () => {
