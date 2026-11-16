@@ -91,7 +91,7 @@ Rules: sentence case; capitals only for product names and for SEO and AI. A bann
 
 | Use | Never |
 |---|---|
-| Brand (settings page "Brands and aliases"; Type values: Company, Product, Person, Other) | Entity, Organization |
+| Brand (settings page "Brands and aliases"; Type values: Brand, Product, Company, Person, Other) | Entity, Organization |
 | Your brand, Your site, Your pages (sentences, empty states, info texts); tables, legends, exports and reports show the real brand name | Own brand, Own domain, Owned pages, Client brand |
 | Competitor; Watched brand; Alias | Rival, Watched entity, Variant |
 | Tracked, Not tracked, Paused, Archived | Monitored, Active, Disabled, Hidden |
@@ -127,7 +127,7 @@ two labels above. Never: AIO, AIV, SV, GEO, AEO, SGE.
 | D9 | Empty states | Not enough data, Not collected yet, n/a in cells |
 | D10 | Detectable change | Kept; "Provisional" replaces "interim test" |
 | D11 | Overview | Kept with the area prefix; Google AI Overview in full |
-| D12 | Brand or Entity | Brand, Alias, Watched brand; Type values Company, Product, Person, Other |
+| D12 | Brand or Entity | Brand, Alias, Watched brand; Type values Brand, Product, Company (was Organization), Person, Other |
 | D13 | Fan-out | Fan-out query |
 | D14 | SERP | Kept in two labels |
 | D15 | Small words | Schedule, Job type, Started by |

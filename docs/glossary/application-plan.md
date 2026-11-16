@@ -7,6 +7,15 @@ Baseline measured: branch `port/real-app` at commit `6ffe86e2` (real app), branc
 uncommitted Prompts files in the main checkout (design preview), and the parity registers on `port/real-app`
 (`docs/superpowers/parity/`). Re-run the counts of `research/00-term-inventory.md` before starting; both branches move.
 
+## Status of the application (2026-11-16)
+
+Applied on branch `glossary/apply-real-app` (real app, strings, tests, registers, guard) and in the main checkout on
+`develop` (design preview, uncommitted where the file already carried other work). Corrected string counts after
+regenerating the key lists case-insensitively: AK-01 38, AK-02 109, AK-03 89, AK-04 59, AK-05 53, AK-06 18, AK-07 167,
+AK-08 64, AK-09 92, AK-10 20, AK-11 1, AK-12 21, AK-13 15, AK-14 5, AK-15 18; 776 distinct strings in all, 651 edited. The
+guard is a test (`src/lib/glossary/glossary-words.test.ts`) that reads `banned-words.json` and `guard-exceptions.json`
+in this folder, not a lint script as section 8 first proposed.
+
 ## 0. What changes if the owner takes the recommendations
 
 The four provisional words of the real app (**Platform, Group, Location, Prompts**) are all confirmed by the
