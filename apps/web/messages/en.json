@@ -1818,7 +1818,7 @@
     },
     "info": {
       "about": "About {title}",
-      "how": "How it is counted:"
+      "how": "How it’s counted:"
     }
   },
   "inspector": {
@@ -4875,9 +4875,6 @@
       "compareWindow": "{current} against {previous}",
       "compareWindowOff": "{current}, with no comparison",
       "compareUnavailable": "No days before this window",
-      "engines": "Platforms",
-      "enginesCount": "{count, number} of {total, number}",
-      "enginesMin": "At least one platform stays on",
       "topic": "Group",
       "topicIncludesBelow": "{topic} (includes subgroups)",
       "branded": "Branded",
@@ -4890,7 +4887,6 @@
       "countryEmpty": "No locations match “{query}”",
       "clear": "Clear",
       "open": "Show locations",
-      "reset": "Reset filters",
       "filters": "Filters",
       "filtersActive": "Filters, {count, number} active",
       "filtersClose": "Close filters",
@@ -5417,7 +5413,7 @@
         "previousEmpty": "No comparison: the previous period has no answers",
         "engineOffTitle": "{engine} is not asked in this scope",
         "engineOffReason": "{engine} is turned off for this project.",
-        "engineOutsideReason": "{engine} is outside the platform filter of this page. Add it to the filter to see it.",
+        "engineOutsideReason": "{engine} is outside the platform filter of this page. Choose All platforms to see it.",
         "askAdmin": "Ask a workspace admin to turn on a platform.",
         "toEngines": "Turn on platforms",
         "tooFewTitle": "Too few answers name a tracked brand ({count})",

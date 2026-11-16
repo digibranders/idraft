@@ -3,9 +3,8 @@
 import { useTranslations } from 'next-intl';
 import { useMemo, type ReactElement } from 'react';
 
-import { engineMark } from '@/components/app/engine/marks';
+import { EngineMark } from '@/components/app/engine/engine-logo';
 import { Select, type SelectOption } from '@/components/ui/select';
-import { cn } from '@/lib/utils';
 
 /** A platform the project has on: the API's code and its name. */
 export interface PlatformChoice {
@@ -28,25 +27,6 @@ export interface PlatformSelectProps {
   className?: string | undefined;
 }
 
-/** The vendor's mark, which names nothing by itself (the option's label does). */
-function Mark({ code }: { code: string }): ReactElement | null {
-  const mark = engineMark(code);
-  if (mark === null) return null;
-  return (
-    <>
-      {/* A fixed 16 px box, so a row never shifts while the mark loads; a static SVG has nothing for next/image to optimize */}
-      {/* eslint-disable-next-line @next/next/no-img-element -- see above */}
-      <img
-        src={mark.src}
-        alt=""
-        width={16}
-        height={16}
-        className={cn('size-icon', mark.followsText && 'dark:invert')}
-      />
-    </>
-  );
-}
-
 /**
  * The Platform of the page: All platforms or one platform, each with its mark. AI Overview is listed as not
  * available, because the API collects three platforms. A single choice, so a card never has to average over an
@@ -60,7 +40,7 @@ export function PlatformSelect({ platforms, selected, onChange, className }: Pla
       ...platforms.map((platform) => ({
         value: platform.code,
         label: platform.label,
-        icon: <Mark code={platform.code} />,
+        icon: <EngineMark engine={platform.code} />,
       })),
     ];
     if (!platforms.some((platform) => platform.code === AI_OVERVIEW)) {
@@ -69,7 +49,7 @@ export function PlatformSelect({ platforms, selected, onChange, className }: Pla
         label: t('platformAiOverview'),
         description: t('platformUnavailable'),
         disabled: true,
-        icon: <Mark code={AI_OVERVIEW} />,
+        icon: <EngineMark engine={AI_OVERVIEW} />,
       });
     }
     return list;

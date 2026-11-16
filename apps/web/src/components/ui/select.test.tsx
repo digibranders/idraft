@@ -194,6 +194,32 @@ describe('Select', () => {
     expect(within(await screen.findByRole('option', { name: 'AI visibility' })).queryByTestId('rank-logo')).toBeNull();
   });
 
+  it('shows a prefix before the value in the trigger', () => {
+    renderWithProviders(
+      <Select
+        value="ai"
+        placeholder="Pick"
+        triggerPrefix="Workload:"
+        options={[{ value: 'ai', label: 'AI visibility' }]}
+        onValueChange={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole('combobox')).toHaveTextContent('Workload:AI visibility');
+    expect(screen.getByText('Workload:')).toHaveClass('text-foreground-secondary');
+  });
+
+  it('shows no prefix unless one is given', () => {
+    renderWithProviders(
+      <Select
+        value="ai"
+        placeholder="Pick"
+        options={[{ value: 'ai', label: 'AI visibility' }]}
+        onValueChange={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole('combobox')).toHaveTextContent(/^AI visibility$/);
+  });
+
   it('shows no icon in the trigger when the chosen option has none', () => {
     renderWithProviders(
       <Select

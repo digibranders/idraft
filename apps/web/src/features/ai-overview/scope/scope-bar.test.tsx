@@ -181,7 +181,7 @@ describe('the scope bar', () => {
   it('drops a platform of the link that is off in the project, and says so once', async () => {
     const { urls } = await page('?engine=chatgpt_web,google_ai_mode');
     expect(await screen.findByText('A filter from the link was left out')).toBeInTheDocument();
-    expect(screen.getByText('Platforms: the link holds a value this project has nothing for.')).toBeInTheDocument();
+    expect(screen.getByText('Platform: the link holds a value this project has nothing for.')).toBeInTheDocument();
     await waitFor(() => {
       expect(urls.at(-1)).toBe('?engine=chatgpt_web');
     });

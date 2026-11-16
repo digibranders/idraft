@@ -76,13 +76,13 @@ export function ScopeBar(): ReactElement {
       {
         id: 'engine',
         kind: 'enum',
-        label: t('engines'),
+        label: tShell('platform'),
         multi: true,
         optionsLoading: engines.data === undefined,
         options: choices.map((choice) => ({ value: choice.code, label: choice.label })),
       },
     ],
-    [topic, t, engines.data, choices],
+    [topic, tShell, engines.data, choices],
   );
   useUrlFilters(linked, {
     onDropped: (dropped) =>

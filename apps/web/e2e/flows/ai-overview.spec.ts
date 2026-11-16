@@ -314,12 +314,18 @@ test.describe('the AI visibility Overview', () => {
     await test.step('the links name the destination and carry the window, the group and the platform', async () => {
       const prompts = await numberOf(page, 'Prompts');
       expect(prompts.href).toContain('/digibranders/fynix/ai/prompts?');
-      expect(Object.fromEntries(hrefParams(prompts.href))).toEqual({ tab: 'prompts', win: '7d', topic });
+      expect(Object.fromEntries(hrefParams(prompts.href))).toEqual({
+        tab: 'prompts',
+        win: '7d',
+        cmp: 'previous',
+        topic,
+      });
 
       const chatgpt = await numberOf(page, 'Mention rate ChatGPT');
       expect(Object.fromEntries(hrefParams(chatgpt.href))).toEqual({
         tab: 'prompts',
         win: '7d',
+        cmp: 'previous',
         topic,
         engine: 'chatgpt_web',
         sort: '-chatgpt_web_rate',
@@ -332,7 +338,7 @@ test.describe('the AI visibility Overview', () => {
       const count = (await numberOf(page, 'Prompts')).value;
       await numbersGroup(page).getByRole('link', { name: 'Prompts', exact: true }).click();
       await expect(page).toHaveURL(/\/digibranders\/fynix\/ai\/prompts\?/);
-      expect(Object.fromEntries(paramsOf(page))).toMatchObject({ tab: 'prompts', win: '7d', topic });
+      expect(Object.fromEntries(paramsOf(page))).toMatchObject({ tab: 'prompts', win: '7d', cmp: 'previous', topic });
       await expect(page.getByRole('grid', { name: 'Prompts' })).toBeVisible();
       expect(await promptsChip(page, 'Prompts')).toBe(count);
     });
