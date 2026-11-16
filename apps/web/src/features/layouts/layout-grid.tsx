@@ -50,6 +50,12 @@ export interface LayoutGridProps {
    * cards keep their place in every scope. Customize mode does not use it: its frames are as tall as their content.
    */
   cardClassName?: ((item: CardItem) => string) | undefined;
+  /**
+   * Every card keeps its place whatever it reports. By default the cards of the built-in layout that report an empty
+   * state move behind the others in view mode; a screen whose cards say why they are empty in place (the AI visibility
+   * Overview) turns that off.
+   */
+  keepCardOrder?: boolean | undefined;
 }
 
 /**
@@ -153,6 +159,7 @@ export function LayoutGrid({
   CardBoundary,
   emptyAction,
   cardClassName,
+  keepCardOrder = false,
 }: LayoutGridProps): ReactElement {
   const t = useTranslations('layouts.core');
   const screen = useLayoutScreen();
@@ -239,7 +246,9 @@ export function LayoutGrid({
   } else {
     const isCustomized = screen.resolved.source !== 'builtin';
     const displayedCards =
-      !customizing && !isCustomized ? adaptCardsByReadiness(shownCards, (id) => readiness.isNotReady(id)) : shownCards;
+      !customizing && !isCustomized && !keepCardOrder
+        ? adaptCardsByReadiness(shownCards, (id) => readiness.isNotReady(id))
+        : shownCards;
     body = (
       <div className={containerClass}>
         {displayedCards.map((item) => (

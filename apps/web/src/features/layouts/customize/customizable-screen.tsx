@@ -63,13 +63,15 @@ export function CustomizableGrid({
   label,
   columns,
   cardClassName,
-}: Pick<LayoutGridProps, 'label' | 'columns' | 'cardClassName'>): ReactElement {
+  keepCardOrder,
+}: Pick<LayoutGridProps, 'label' | 'columns' | 'cardClassName' | 'keepCardOrder'>): ReactElement {
   const { openCatalog } = useCustomize();
   return (
     <LayoutGrid
       label={label}
       columns={columns}
       cardClassName={cardClassName}
+      keepCardOrder={keepCardOrder}
       onAddCard={openCatalog}
       renderUnavailable={renderUnavailable}
       CardBoundary={CardBoundary}
