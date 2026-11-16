@@ -17,6 +17,9 @@
 @source "./aiov-cards-more.js";
 @source "./aiov-charts.js";
 @source "./aiov-controls.js";
+@source "./aiov-customize.js";
+@source "./aiov-layout.js";
+@source "./aiov-registry.js";
 @source "./aiov-data.js";
 @source "./aiov-parts.js";
 @source "./perf-add.js";

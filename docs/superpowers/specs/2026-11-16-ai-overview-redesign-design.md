@@ -75,6 +75,23 @@ Every block is a card of the layout catalog (new keys: `ai.visibility_split`, `a
 existing keys), so customize mode, presets and per-user and team layouts apply as specified in the existing doc
 section 9. Presets: Executive, Analyst, Competitive.
 
+### 5.1 Customize mode (built in the preview)
+
+- **A layout is a list of cards** with a width each, at most 12 (the layout library's limit). The headline hero and
+  tiles are one card, `ai.visibility_split`, so the numbers zone of the library is not used on this page yet.
+- **The default shows 12 of the 19 cards**, one for each section of the senior's sheet. The other cards are in the
+  card catalog. Presets: Default, Executive, Analyst, Competitive; each fills complete rows of 12 columns at 1280 px.
+- **Controls:** Customize toggle, a toolbar on every card (drag handle with arrow keys, width, hide, move menu), an
+  Add card slot that opens the catalog, Start from (presets), and a save bar with Reset, Cancel, Save layout and a
+  menu for Save as team default and Remove team default (both ask first, because other people see the change).
+- **Resolution:** the person's own layout, else the team default, else the built in Default. Reset goes back to the
+  team default when there is one. Leaving with unsaved changes asks first, by route change, Escape or Cancel.
+- **Scope and layout are separate:** a card that cannot be drawn for the platform or group stays in the layout. It is
+  hidden outside customize mode (a note names it) and shows a placeholder while customizing.
+- **Not built yet:** per-card options (for example the trend's metric lives in the page scope), a free resize grip,
+  undo and redo, and the layouts API. The preview stores layouts in browser storage under the key convention of the
+  project Overview (`preview-layout:<kind>:ai_overview`).
+
 ## 6. Statistical rules that bind every card
 
 R1 counts with every rate, R2 no rate below 4 valid answers (hatched cell, "3 answers"), R5 changes in points and coloured

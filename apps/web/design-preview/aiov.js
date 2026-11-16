@@ -4,67 +4,38 @@
  * Spec: docs/superpowers/specs/2026-11-16-ai-overview-redesign-design.md.
  *
  * This module is the page: the header, the scope controls (Platform, Group, compare, branded) and the card grid. The
- * numbers come from aiov-data.js, the cards from aiov-cards-core.js and aiov-cards-more.js. Every control writes the
- * address and the whole page draws again from one scope, so every number has one denominator (inventory R12).
+ * numbers come from aiov-data.js, the cards from aiov-registry.js, the layout (which cards, in what order, at what
+ * width) from aiov-layout.js, and customize mode from aiov-customize.js. Every control writes the address and the
+ * whole page draws again from one scope, so every number has one denominator (inventory R12).
  */
 import { BRANDED_LABEL, RUNS, buildModel, platformsIn } from './aiov-data.js';
-import { calendarCard, changesCard, domainsCard, fanoutCard, groupExtremesCard, groupHeatmapCard, groupPromptsCard, ownPagesCard, positionCard, referralCard, sentimentCard, sourceTypesCard, unlinkedCard } from './aiov-cards-more.js';
-import { gapCard, headlineRow, matrixCard, outcomeCard, sovCard, sovOverTimeCard, trendCard } from './aiov-cards-core.js';
 import { disposeCharts } from './aiov-charts.js';
 import { createSelect, groupOptions, platformOptions, readUrl, setScope, state, subscribe } from './aiov-controls.js';
+import { createCustomizer } from './aiov-customize.js';
 import { cardFrame, el, emptyBody, engineName, plural } from './aiov-parts.js';
+import { cardDef } from './aiov-registry.js';
 
 const ui = window.PreviewUI;
 const view = ui.$('[data-view="ai"]');
 
-const WIDTH = {
-  third: 'md:col-span-6 xl:col-span-4',
-  half: 'md:col-span-6',
-  two_thirds: 'md:col-span-12 xl:col-span-8',
-  full: 'md:col-span-12',
-};
-
-/**
- * The default layout: rows of cards. `build` returns a card, or null when the card cannot exist for the scope. When a
- * row loses a card, the one left takes the whole row. Group scope swaps the heat map row for the group's prompts.
- */
-const ROWS = [
-  [{ key: 'trend', title: 'Trend', build: trendCard, width: 'two_thirds' }, { key: 'outcome', title: 'Outcome split', build: outcomeCard, width: 'third' }],
-  [{ key: 'matrix', title: 'Metrics by platform', build: matrixCard, width: 'full' }],
-  [{ key: 'sov', title: 'Share of voice', build: sovCard, width: 'half' }, { key: 'sovTime', title: 'Share of voice over time', build: sovOverTimeCard, width: 'half' }],
-  [{ key: 'gap', title: 'Competitor gap', build: gapCard, width: 'full' }],
-  'groups',
-  [{ key: 'domains', title: 'Top cited domains', build: domainsCard, width: 'half' }, { key: 'sourceTypes', title: 'Sources by type', build: sourceTypesCard, width: 'half' }],
-  [{ key: 'ownPages', title: 'Your pages cited', build: ownPagesCard, width: 'half' }, { key: 'unlinked', title: 'Unlinked mentions', build: unlinkedCard, width: 'half' }],
-  [{ key: 'position', title: 'Mention position', build: positionCard, width: 'half' }, { key: 'sentiment', title: 'Brand sentiment', build: sentimentCard, width: 'half' }],
-  [{ key: 'referral', title: 'AI referral traffic', build: referralCard, width: 'full' }],
-  [{ key: 'fanout', title: 'Fan-out queries', build: fanoutCard, width: 'half' }, { key: 'changes', title: 'Key changes', build: changesCard, width: 'half' }],
-  [{ key: 'calendar', title: 'Collection runs', build: calendarCard, width: 'full' }],
-];
-const GROUP_ROWS = {
-  all: [{ key: 'heatmap', title: 'Groups by platform', build: groupHeatmapCard, width: 'two_thirds' }, { key: 'extremes', title: 'Strongest and weakest groups', build: groupExtremesCard, width: 'third' }],
-  one: [{ key: 'groupPrompts', title: 'Prompts in this group', build: groupPromptsCard, width: 'full' }],
-};
-
 // -------------------------------------------------------------------------------------------------
 // Static parts: header, scope bar, the grid
 
-const header = el('section', 'flex flex-wrap items-start gap-x-4 gap-y-3');
-const heading = el('div', 'flex min-w-0 flex-col gap-1 basis-full md:basis-auto md:flex-1');
-const title = el('h1', 'type-page-title', 'AI visibility');
-const meta = el('p', 'type-meta');
-heading.append(title, meta);
-const actions = el('div', 'flex items-center gap-3 md:ml-auto');
-const ACTION = 'h-control px-3 rounded-md border border-border bg-surface flex items-center gap-2 whitespace-nowrap type-body-strong text-foreground hover:bg-surface-hover';
-for (const name of ['Customize', 'Export']) {
-  const button = el('button', `${ACTION} ${name === 'Customize' ? 'hidden md:flex' : ''}`, name);
-  button.type = 'button';
-  button.dataset.previewNote = name === 'Customize' ? 'Customizing this page' : 'Exporting the Overview';
-  actions.append(button);
-}
-header.append(heading, actions);
+const grid = el('div', 'grid grid-cols-1 md:grid-cols-12 gap-4');
+const custom = createCustomizer({ grid, onChange: () => render() });
 
-const scopeBar = el('section', 'grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center');
+// As in the app, the page name is in the top bar; the heading stays for screen readers only (11 section 3)
+const title = el('h1', 'sr-only', 'AI visibility');
+const meta = el('span', 'type-meta');
+const status = el('div', 'flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0');
+status.append(meta, custom.badge);
+const actions = el('div', 'flex items-center gap-2');
+const exportButton = el('button', 'h-control px-3 rounded-md border border-border bg-surface flex items-center gap-2 whitespace-nowrap type-body-strong text-foreground hover:bg-surface-hover', 'Export');
+exportButton.type = 'button';
+exportButton.dataset.previewNote = 'Exporting the Overview';
+actions.append(custom.presetsButton, custom.toggle, exportButton);
+
+const scopeBar = el('div', 'grid grid-cols-2 gap-2 w-full sm:w-auto sm:flex sm:flex-wrap sm:items-center');
 scopeBar.setAttribute('aria-label', 'Scope');
 const platformSelect = createSelect({ name: 'Platform', options: platformOptions, get: () => state.platform, set: (id) => setScope({ platform: id }), width: 'min-w-52' });
 const groupSelect = createSelect({ name: 'Group', options: groupOptions, get: () => state.group, set: (id) => setScope({ group: id }), searchable: true, width: 'min-w-60' });
@@ -85,25 +56,30 @@ const brandedSelect = createSelect({
   set: (id) => setScope({ branded: id }),
   width: 'min-w-40',
 });
-const reset = el('button', 'h-control px-3 rounded-md type-body text-foreground-secondary hover:bg-surface-hover hover:text-foreground whitespace-nowrap', 'Reset');
+const reset = el('button', 'h-control px-3 rounded-md type-body text-foreground-secondary hover:bg-surface-hover hover:text-foreground whitespace-nowrap', 'Reset scope');
 reset.type = 'button';
 reset.addEventListener('click', () => setScope({ platform: 'all', group: 'all', branded: 'exclude', compare: true, metric: 'visibility' }));
 scopeBar.append(platformSelect.trigger, groupSelect.trigger, compareSelect.trigger, brandedSelect.trigger, reset);
 
-const grid = el('div', 'grid grid-cols-1 md:grid-cols-12 gap-4');
 const note = el('p', 'type-meta');
 note.setAttribute('role', 'status');
-view.replaceChildren(header, scopeBar, grid, note);
+// One compact toolbar, as in the app: the scope on the left, the status and the actions on the right
+const toolbar = el('section', 'flex flex-wrap items-center gap-x-4 gap-y-2');
+toolbar.setAttribute('aria-label', 'Scope and actions');
+const right = el('div', 'flex flex-wrap items-center gap-x-4 gap-y-2 min-w-0 xl:ml-auto');
+right.append(status, actions);
+toolbar.append(title, scopeBar, right);
+view.replaceChildren(toolbar, grid, note, custom.bar, custom.live);
 
 // -------------------------------------------------------------------------------------------------
 // Drawing
 
-function safeBuild(entry, ctx) {
+function safeBuild(def, ctx) {
   try {
-    return entry.build(ctx);
+    return def.build(ctx);
   } catch (error) {
-    console.error(`AI Overview card "${entry.key}" failed`, error);
-    return cardFrame({ key: `error.${entry.key}`, title: entry.title, body: emptyBody('This card could not be drawn', 'Reload the preview. The error is in the console.') });
+    console.error(`AI Overview card "${def.key}" failed`, error);
+    return cardFrame({ key: `error.${def.key}`, title: def.title, body: emptyBody('This card could not be drawn', 'Reload the preview. The error is in the console.') });
   }
 }
 
@@ -117,6 +93,7 @@ function render() {
   meta.textContent = `Updated ${RUNS.last} · run ${RUNS.number} · ${plural(model.prompts.length, 'prompt')} · ${scope.platform === 'all' ? `${names} platforms` : engineName(scope.platform)}${scope.group === 'all' ? '' : ` · ${scope.group.split(':')[1]}`}`;
   [platformSelect, groupSelect, compareSelect, brandedSelect].forEach((select) => select.refresh());
   reset.hidden = state.platform === 'all' && state.group === 'all' && state.branded === 'exclude' && state.compare && state.metric === 'visibility';
+  custom.updateBar();
 
   grid.replaceChildren();
   if (model.prompts.length === 0) {
@@ -127,27 +104,28 @@ function render() {
     return;
   }
 
-  const head = headlineRow(ctx);
-  head.className += ' md:col-span-12';
-  grid.append(head);
   const hidden = [];
-  ROWS.forEach((row) => {
-    const entries = row === 'groups' ? (scope.group === 'all' ? GROUP_ROWS.all : GROUP_ROWS.one) : row;
-    const built = entries.map((entry) => ({ entry, node: safeBuild(entry, ctx) }));
-    built.filter(({ node }) => node === null).forEach(({ entry }) => hidden.push(entry.title));
-    const shown = built.filter(({ node }) => node !== null);
-    shown.forEach(({ entry, node }) => {
-      node.className += ` ${WIDTH[shown.length === 1 ? 'full' : entry.width]}`;
-      grid.append(node);
-    });
+  const items = custom.current().cards;
+  items.forEach((item) => {
+    const def = cardDef(item.type);
+    const frame = custom.frameFor(item, safeBuild(def, ctx), { unavailableText: `${def.title} has nothing to show on ${engineName(scope.platform)}${scope.group === 'all' ? '' : ' in this group'}. It stays in your layout.` });
+    if (frame) grid.append(frame);
+    else hidden.push(def.title);
   });
-  note.textContent = hidden.length === 0 ? '' : `${plural(hidden.length, 'card')} not available for ${engineName(scope.platform)}: ${hidden.join(', ')}.`;
+  if (custom.customizing()) grid.append(custom.addSlot());
+  else if (items.length === 0) {
+    const empty = cardFrame({ key: 'empty', title: 'This page has no cards', body: emptyBody('Nothing on the page', 'Choose Customize, then Start from a preset or Add card.') });
+    empty.className += ' md:col-span-12';
+    grid.append(empty);
+  }
+  note.textContent = hidden.length === 0 ? '' : `${plural(hidden.length, 'card')} not drawn for ${engineName(scope.platform)}${scope.group === 'all' ? '' : ' in this group'}: ${hidden.join(', ')}.`;
 }
 
 subscribe(render);
 window.addEventListener('preview-route', (event) => {
   if (event.detail.view !== 'ai') return;
   readUrl();
+  custom.sync();
   render();
 });
 if (location.hash.startsWith('#/ai')) {
