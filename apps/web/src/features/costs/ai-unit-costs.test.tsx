@@ -139,7 +139,7 @@ describe('Unit costs tab, cost per AI answer', () => {
         .slice(1)
         .map((row) => cells(row)[0]),
     ).toEqual(['ChatGPT', 'Gemini', 'Google AI Mode']);
-    for (const name of ['Engine', 'Cost per answer and answers counted', 'Provider price']) {
+    for (const name of ['Platform', 'Cost per answer and answers counted', 'Provider price']) {
       expect(within(table).getByRole('columnheader', { name })).toBeInTheDocument();
     }
     expect(within(table).queryByRole('columnheader', { name: 'Answers counted' })).toBeNull();
