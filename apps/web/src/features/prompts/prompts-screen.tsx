@@ -35,7 +35,6 @@ import {
   useCompare,
 } from './compare';
 import { PlatformSelect } from './engine-select';
-import { usePromptFacts } from './facts';
 import { asRecordActions, type PromptAction } from './prompt-action';
 import { usePromptColumns, type PromptRow } from './prompt-columns';
 import { PromptInspector, type PromptCounts } from './prompt-inspector';
@@ -67,6 +66,7 @@ import { enginesQuery, observationQuery, summaryQuery, usePromptList, type Promp
 import { PromptsControls } from './prompts-controls';
 import { PromptsCountryControl } from './prompts-scope';
 import { PromptsStrip } from './prompts-strip';
+import { usePageFacts } from './use-page-facts';
 import { PROMPT_ACTION_ENTRIES, withActionEntries } from './seams/actions';
 import { PROMPTS_TOOLBAR_ENTRIES, promptsToolbarItems } from './seams/toolbar';
 import { UpdatedRunLink, useUpdatedRunHref } from './updated-run-link';
@@ -491,7 +491,10 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   );
 
   // The facts of the columns that later packages build, from the one summary read (never a request for a row)
-  const facts = usePromptFacts(scope, range, includeBranded, { ...(country === null ? {} : { country }), compare });
+  const facts = usePageFacts(scope, range, includeBranded, enabled.length > 0, {
+    ...(country === null ? {} : { country }),
+    compare,
+  });
   const { columns, sortFields, searchText, rowName } = usePromptColumns(shown, 'mention', comparedWindow(summaryData), {
     // The location of the top bar already says which, so a Location column repeats it on every row
     showLocation: country === null,

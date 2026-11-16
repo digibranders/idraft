@@ -15,10 +15,14 @@ import { compareColumns } from '../columns/compare-columns';
 // P-metrics (Intent, Search volume, Avg position; Recommendation rate, Share of voice, Sentiment): one entry, which
 // puts the first three after COLUMN_AFTER.identity and the rest after COLUMN_AFTER.rates, so it may be two entries.
 // import { metricColumns } from '../columns/metric-columns';
+// Preview notes for it: Intent is plain text (block, truncated, text-foreground), no badge background; Avg position
+// shows the bare list count; the rates show the percent alone, with no "avg of N".
 
 // P-popovers (Cited links, Brands, Screenshot): after COLUMN_AFTER.rates, registered after P-metrics so they follow it.
 // Cited links and Screenshot return nothing unless `context.single` names a platform.
 // import { popoverColumns } from '../columns/popover-columns';
+// Preview note for it: Brands and Cited links start with a green check (the own brand is named, or the own site is
+// cited) or a grey dash.
 
 // WP-23 competitor-views
 // import { topCompetitorColumn } from '../columns/top-competitor-column';

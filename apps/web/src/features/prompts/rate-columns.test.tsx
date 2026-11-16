@@ -17,6 +17,8 @@ const rowCells = (row: Row): readonly EngineSummary[] | undefined => row.cells;
 const BOTH: ProjectEngine[] = [projectEngine('chatgpt_web'), projectEngine('gemini_web')];
 const CHAT_ONLY: ProjectEngine[] = [projectEngine('chatgpt_web')];
 const WINDOW = { from: '2026-09-18', to: '2026-10-15' };
+/** The page opens without a comparison: it is on only when the address says so. */
+const ON = '?cmp=previous';
 
 /** The Mention (or Citation) rate cell of a row and its tooltip, as the table draws them. */
 function Cell({
@@ -41,7 +43,7 @@ function Cell({
 
 const render = (
   row: Row,
-  searchParams = '',
+  searchParams = ON,
   engines?: ProjectEngine[],
   window: ComparedWindow = WINDOW,
   column?: 'mention' | 'citation',
@@ -61,7 +63,8 @@ describe('the Mention rate cell change', () => {
     // Gemini has no previous period: it is in the shown average but in neither side of the change
     render({ cells: [chat(DETECTABLE), gemini(cell(20, 20), null)] });
     expect(screen.getByTestId('cell')).toHaveTextContent('75%');
-    expect(screen.getByTestId('cell')).toHaveTextContent('avg of 2');
+    // The percent alone: the platforms the average is over are in the tooltip
+    expect(screen.getByTestId('cell')).not.toHaveTextContent('avg of');
     expect(screen.getByText('+30.0 pts')).toHaveClass('text-positive-text');
   });
 
@@ -90,7 +93,7 @@ describe('the Mention rate cell change', () => {
   });
 
   it('uses the platform own test when one platform is in scope', () => {
-    render({ cells: [chat(WITHIN), gemini(cell(20, 20), cell(1, 20))] }, '', CHAT_ONLY);
+    render({ cells: [chat(WITHIN), gemini(cell(20, 20), cell(1, 20))] }, ON, CHAT_ONLY);
     const delta = screen.getByText('+6.7 pts');
     expect(delta).toHaveClass('text-foreground-secondary');
     expect(screen.getByTestId('tip')).toHaveTextContent('Within normal variation');
@@ -105,7 +108,7 @@ describe('the Mention rate cell change', () => {
       { ...topicCell(30, 100, 5), value: 0.55 },
       { ...topicCell(60, 100, 4), value: 0.5 },
     );
-    render({ cells: [topic] }, '', CHAT_ONLY);
+    render({ cells: [topic] }, ON, CHAT_ONLY);
     const delta = screen.getByText('+5.0 pts');
     expect(delta).toHaveClass('text-foreground-secondary');
     expect(screen.getByTestId('cell').textContent).not.toMatch(/detectable|within normal variation/);
@@ -114,13 +117,13 @@ describe('the Mention rate cell change', () => {
   });
 
   it('is unchanged with comparison off: the same text and tooltip, no change', () => {
-    render({ cells: [chat(DETECTABLE), gemini(cell(20, 40), cell(8, 40))] }, '?cmp=off');
+    render({ cells: [chat(DETECTABLE), gemini(cell(20, 40), cell(8, 40))] }, '');
     expect(screen.getByTestId('cell').textContent).not.toMatch(/pts/);
     expect(screen.getByTestId('tip').textContent).not.toMatch(/Previous|Average of|Detectable/);
   });
 
   it('names no window in the tooltip while comparison is off, even when the page holds one', () => {
-    render({ cells: [chat(DETECTABLE), gemini(cell(20, 40), cell(8, 40))] }, '?cmp=off', undefined, WINDOW);
+    render({ cells: [chat(DETECTABLE), gemini(cell(20, 40), cell(8, 40))] }, '', undefined, WINDOW);
     expect(screen.getByTestId('tip').textContent).not.toMatch(/Previous period|Sep 18|Oct 15/);
   });
 
@@ -132,7 +135,7 @@ describe('the Mention rate cell change', () => {
 
   it('does not claim the previous period has no answers while the held read was not compared', () => {
     // Right after comparison is turned on the page still holds the read without `compare_window`
-    render({ cells: [engineOf('chatgpt_web', cell(30, 60), null), gemini(cell(20, 40), null)] }, '', undefined, null);
+    render({ cells: [engineOf('chatgpt_web', cell(30, 60), null), gemini(cell(20, 40), null)] }, ON, undefined, null);
     expect(screen.getByTestId('cell').textContent).not.toMatch(/pts/);
     expect(screen.getByTestId('tip').textContent).not.toMatch(/previous period/i);
   });
@@ -146,19 +149,19 @@ describe('the Mention rate cell change', () => {
   it('agrees for a group row and a prompt row with the same counts', () => {
     const prompt = chat(DETECTABLE);
     const topic = engineOf('chatgpt_web', topicCell(30, 60, 5), topicCell(12, 60, 4));
-    const first = render({ cells: [prompt] }, '', CHAT_ONLY);
+    const first = render({ cells: [prompt] }, ON, CHAT_ONLY);
     const prompts = screen.getByTestId('cell').textContent;
     first.unmount();
-    render({ cells: [topic] }, '', CHAT_ONLY);
+    render({ cells: [topic] }, ON, CHAT_ONLY);
     expect(screen.getByTestId('cell').textContent).toBe(prompts);
   });
 
-  it('keeps the rate, the platform count and the change on one line', () => {
+  it('keeps the rate and the change on one line', () => {
     render({ cells: [chat(DETECTABLE), gemini(cell(20, 40), cell(8, 40))] });
     expect(screen.getByTestId('cell').firstElementChild).toHaveClass('whitespace-nowrap');
   });
 
-  it('keeps the gap between rate, count and change at 4 px so the widest case fits a 152 px cell', () => {
+  it('keeps the gap between rate and change at 4 px, so the widest case fits the 152 px cell', () => {
     render({ cells: [chat(DETECTABLE), gemini(cell(20, 40), cell(8, 40))] });
     const line = screen.getByTestId('cell').firstElementChild;
     expect(line).toHaveClass('gap-1');
@@ -180,7 +183,7 @@ describe('the Citation rate cell', () => {
       cited: cell(30, 60),
       previous: base.previous == null ? null : { ...base.previous, cited: cell(12, 60) },
     };
-    render({ cells: [engine] }, '', CHAT_ONLY, WINDOW, 'citation');
+    render({ cells: [engine] }, ON, CHAT_ONLY, WINDOW, 'citation');
     expect(screen.getByTestId('cell').textContent).not.toMatch(/pts/);
     expect(screen.getByTestId('tip').textContent).not.toMatch(/Previous/);
   });

@@ -27,13 +27,31 @@ export const topicCell = (k: number, n: number, prompts: number): MetricCell => 
 });
 
 const EMPTY = cell(0, 0);
-const OUTCOMES = { cited_only: EMPTY, mentioned_and_cited: EMPTY, mentioned_only: EMPTY, neither: EMPTY };
+
+/**
+ * The four outcomes of an engine whose valid answers named the brand `mentioned` times and never cited it: its AI
+ * visibility (named or cited) is then its mention rate, so a test that sets the mention counts reads the same number
+ * in the strip, which shows visibility.
+ */
+const outcomesOf = (mentioned: MetricCell): EngineCells['outcomes'] => {
+  const none = (): MetricCell => ({
+    ...cell(0, mentioned.denominator),
+    n_observations: mentioned.n_observations,
+    pooled: mentioned.pooled == null ? null : { successes: 0, trials: mentioned.pooled.trials },
+  });
+  return {
+    cited_only: none(),
+    mentioned_and_cited: none(),
+    mentioned_only: mentioned,
+    neither: { ...none(), numerator: mentioned.denominator - mentioned.numerator },
+  };
+};
 
 export const cellsOf = (mentioned: MetricCell, shareOfVoice: MetricCell = EMPTY): EngineCells => ({
   mentioned,
   cited: EMPTY,
   share_of_voice: shareOfVoice,
-  outcomes: OUTCOMES,
+  outcomes: outcomesOf(mentioned),
 });
 
 /** An engine's cells; `shares` are its share of voice cells now and before (empty where not given). */
