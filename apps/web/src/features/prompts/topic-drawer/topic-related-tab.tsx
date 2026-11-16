@@ -1,6 +1,6 @@
 'use client';
 
-import { Network } from 'lucide-react';
+import { Network, Search } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useMemo, type ReactElement } from 'react';
 
@@ -29,6 +29,7 @@ import { EMPTY_VALUE, formatInteger, formatList } from '@/lib/format';
 export function RelatedTab(): ReactElement {
   const { topicKey, summary, counts, descendants, engines, extras } = useTopicDrawer();
   const t = useTranslations('prompts.topicDrawer.related');
+  const keywords = useTranslations('prompts.topicDrawer.relatedKeywords');
   const groupsText = useTranslations('prompts.groupsTab');
   const prompts = useTranslations('prompts');
   const common = useTranslations('common');
@@ -117,42 +118,58 @@ export function RelatedTab(): ReactElement {
           ? 'empty'
           : 'ready';
   return (
-    <InspectorSection
-      title={groupsText('relatedTitle')}
-      icon={Network}
-      status={status}
-      error={
-        <InlineError
-          title={prompts('summaryLoadFailed')}
-          reason={prompts('loadFailedReason')}
-          errorId={counts.errorId}
-          onRetry={counts.retry}
-          retrying={counts.retrying}
-          retryLabel={common('retry')}
-        />
-      }
-      empty={
-        <EmptyState
-          variant="inline"
-          title={groupsText('relatedEmptyTitle')}
-          reason={groupsText('relatedEmptyReason')}
-          headingLevel={3}
-        />
-      }
-    >
-      <div className="flex flex-col gap-3">
-        <p className="type-meta text-foreground-tertiary">{groupsText('relatedNote')}</p>
-        <PlainTable<Sibling>
-          caption={groupsText('relatedTitle')}
-          columns={columns}
-          rows={siblings ?? []}
-          rowKey={(sibling) => sibling.key}
-          status="ready"
-          errorState={null}
-          emptyText={groupsText('relatedEmptyTitle')}
-        />
-      </div>
-    </InspectorSection>
+    <>
+      <InspectorSection
+        title={groupsText('relatedTitle')}
+        icon={Network}
+        status={status}
+        error={
+          <InlineError
+            title={prompts('summaryLoadFailed')}
+            reason={prompts('loadFailedReason')}
+            errorId={counts.errorId}
+            onRetry={counts.retry}
+            retrying={counts.retrying}
+            retryLabel={common('retry')}
+          />
+        }
+        empty={
+          <EmptyState
+            variant="inline"
+            title={groupsText('relatedEmptyTitle')}
+            reason={groupsText('relatedEmptyReason')}
+            headingLevel={3}
+          />
+        }
+      >
+        <div className="flex flex-col gap-3">
+          <p className="type-meta text-foreground-tertiary">{groupsText('relatedNote')}</p>
+          <PlainTable<Sibling>
+            caption={groupsText('relatedTitle')}
+            columns={columns}
+            rows={siblings ?? []}
+            rowKey={(sibling) => sibling.key}
+            status="ready"
+            errorState={null}
+            emptyText={groupsText('relatedEmptyTitle')}
+          />
+        </div>
+      </InspectorSection>
+      {/* The API has no tracked keywords per group yet (docs/ai-visibility/backend-requests-prompts-page.md, request 1) */}
+      <InspectorSection
+        title={keywords('title')}
+        icon={Search}
+        status="empty"
+        empty={
+          <EmptyState
+            variant="inline"
+            title={keywords('emptyTitle')}
+            reason={keywords('emptyReason')}
+            headingLevel={3}
+          />
+        }
+      />
+    </>
   );
 }
 

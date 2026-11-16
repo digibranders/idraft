@@ -221,9 +221,9 @@ async function drawerCard(change: Case): Promise<HTMLElement> {
 
 async function topPrompt(change: Case): Promise<HTMLElement> {
   renderDrawer(change);
-  const item = within(await sectionOf('Top prompts'))
+  const item = within(await sectionOf('Top prompts in this group'))
     .getByText('Prompt p')
-    .closest('li');
+    .closest('tr');
   if (item === null) throw new Error('The top prompt is missing');
   return item;
 }

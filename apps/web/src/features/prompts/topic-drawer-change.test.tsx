@@ -149,6 +149,12 @@ const sectionOf = async (name: string): Promise<HTMLElement> => {
   if (section === null) throw new Error(`The ${name} section is missing`);
   return section;
 };
+/** The row of a prompt in a table of the drawer: its text is the button of the first cell. */
+const rowOf = (section: HTMLElement, id: string): HTMLElement => {
+  const row = within(section).getByText(`Prompt ${id}`).closest('tr');
+  if (row === null) throw new Error(`The prompt ${id} is missing`);
+  return row;
+};
 const itemOf = (section: HTMLElement, id: string): HTMLElement => {
   const item = within(section).getByText(`Prompt ${id}`).closest('li');
   if (item === null) throw new Error(`The prompt ${id} is missing`);
@@ -255,18 +261,24 @@ describe('the topic drawer: change on the three cards', () => {
 });
 
 describe('the topic drawer: change on the prompts', () => {
-  it('shows each top prompt Mention change after its counts, and leaves out one whose previous has under 4 answers', async () => {
+  it('shows each top prompt Mention change in its Change column, and n/a for one whose previous has under 4 answers', async () => {
     renderDrawer();
-    const top = await sectionOf('Top prompts');
-    const rose = itemOf(top, 'rose');
+    const top = await sectionOf('Top prompts in this group');
+    const rose = rowOf(top, 'rose');
     expect(iconOf(rose)).toHaveClass('text-positive-text');
-    expect(rose.textContent?.indexOf('Gemini mentioned')).toBeLessThan(rose.textContent?.indexOf('up 27.5 pts') ?? -1);
-    expect(itemOf(top, 'few').textContent).not.toMatch(/\d pts/);
+    // Prompt, Mention, Citation, Change: the icon is in the last cell, after the rates
+    const cells = within(rose).getAllByRole('cell');
+    expect(cells[0]).toHaveTextContent(/^50%/);
+    expect(cells[1]).toHaveTextContent('n/a');
+    expect(cells[2]).toContainElement(iconOf(rose));
+    const few = rowOf(top, 'few');
+    expect(few.textContent).not.toMatch(/\d pts/);
+    expect(within(few).getAllByRole('cell').at(-1)).toHaveTextContent('n/a');
   });
 
   it('makes no claim for a prompt whose engines and pooled answers move apart, and says why', async () => {
     const { user } = renderDrawer();
-    const apart = itemOf(await sectionOf('Top prompts'), 'apart');
+    const apart = rowOf(await sectionOf('Top prompts in this group'), 'apart');
     const delta = iconOf(apart);
     expect(delta).toHaveClass('text-foreground-secondary');
     expect(apart.textContent).not.toMatch(/detectable|provisional/);
@@ -276,8 +288,8 @@ describe('the topic drawer: change on the prompts', () => {
 
   it('holds the previous value in the tooltip of a prompt change', async () => {
     const { user } = renderDrawer();
-    const rose = itemOf(await sectionOf('Top prompts'), 'rose');
-    // The prompt's own button is a tab stop too: the change's is the one around its text
+    const rose = rowOf(await sectionOf('Top prompts in this group'), 'rose');
+    // The prompt's own button is a tab stop too: the change's is the one around its icon
     await user.hover(stopAround(rose));
     await waitFor(() =>
       expect(tooltip()).toHaveTextContent('Up 27.5 pts against the previous period, from 23% to 50%'),
@@ -293,33 +305,32 @@ describe('the topic drawer: change on the prompts', () => {
     expect(itemOf(list, 'few').textContent).not.toMatch(/\d pts/);
   });
 
-  it('puts the change at the end of the meta line in one unit with no separator dot that a wrap could strand', async () => {
-    renderDrawer();
-    const rose = itemOf(await sectionOf('Top prompts'), 'rose');
-    const meta = rose.querySelector('p');
-    const unit = meta?.lastElementChild;
-    if (unit === null || unit === undefined) throw new Error('The meta line is empty');
-    expect(unit).toContainElement(iconOf(rose));
-    expect(unit).toHaveClass('whitespace-nowrap');
-    // The element before the change is the last engine's count, not a dot
-    expect(unit.previousElementSibling).not.toHaveAttribute('aria-hidden');
-    expect(unit.previousElementSibling).toHaveTextContent('Gemini mentioned');
+  it('holds the count of each platform behind the Mention of a top prompt, in a tab stop', async () => {
+    const { user } = renderDrawer();
+    const rose = rowOf(await sectionOf('Top prompts in this group'), 'rose');
+    const stop = within(rose).getAllByRole('cell')[0]?.querySelector<HTMLElement>('[tabindex="0"]');
+    if (stop === null || stop === undefined) throw new Error('The Mention has no tab stop');
+    await user.hover(stop);
+    await waitFor(() =>
+      expect(tooltip()).toHaveTextContent('ChatGPT mentioned 30 of 60 and Gemini mentioned 40 of 80'),
+    );
   });
 
-  it('keeps Show all opening the Prompts tab', async () => {
+  it('keeps View all opening the Prompts tab', async () => {
     const many = Array.from({ length: 6 }, (_, index) => promptOf(`n${String(index)}`, PROMPTS[0]?.engines ?? []));
     const onTabChange = vi.fn();
     const { user } = renderDrawer({ prompts: many, onTabChange });
-    await user.click(await screen.findByRole('button', { name: 'Show all 6 prompts' }));
+    await user.click(await screen.findByRole('button', { name: 'View all' }));
     expect(onTabChange).toHaveBeenCalledWith('prompts');
   });
 
-  it('draws no prompt change without comparison', async () => {
+  it('draws no prompt change without comparison, and its Change column says n/a', async () => {
     renderDrawer({ searchParams: '' });
-    const top = await sectionOf('Top prompts');
+    const top = await sectionOf('Top prompts in this group');
     expect(top.textContent).not.toMatch(/\d pts/);
-    // Only the prompt's own buttons are tab stops: the meta line has none
-    expect(top.querySelector('p [tabindex="0"]')).toBeNull();
+    const rose = rowOf(top, 'rose');
+    expect(within(rose).getAllByRole('cell').at(-1)).toHaveTextContent('n/a');
+    expect(within(rose).getAllByRole('cell').at(-1)?.querySelector('[tabindex="0"]')).toBeNull();
   });
 });
 

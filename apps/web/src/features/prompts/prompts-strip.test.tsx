@@ -213,7 +213,7 @@ describe('PromptsStrip slots', () => {
     const { user } = render(twice(DETECTABLE));
     await user.click(screen.getByRole('button', { name: 'About AI visibility rate' }));
     const popover = await screen.findByRole('dialog', { name: 'About AI visibility rate' });
-    expect(popover).toHaveTextContent("how often that platform's answers mention or cite your brand");
+    expect(popover).toHaveTextContent('how often that platform’s answers mention or cite your brand');
     expect(popover).toHaveTextContent('Each prompt counts once');
   });
 });

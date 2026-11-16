@@ -4050,7 +4050,7 @@
       "acrossEngines": "{count, plural, one {1 platform} other {average of #}}",
       "noRate": "No valid answers",
       "byEngine": "By platform",
-      "topPrompts": "Top prompts",
+      "topPrompts": "Top prompts in this group",
       "prompts": "Prompts",
       "engineMentioned": "{engine} mentioned {count}",
       "emptyTitle": "No prompts to list",
@@ -4218,6 +4218,18 @@
         "hidden": "{count, plural, one {# prompt is hidden: it has} other {# prompts are hidden: they have}} no answer on {engine}.",
         "emptyTitle": "No prompt has an answer on {engine}",
         "emptyReason": "Show every platform to list the prompts of this group."
+      },
+      "topPromptsTable": {
+        "prompt": "Prompt",
+        "mention": "Mention",
+        "citation": "Citation",
+        "change": "Change",
+        "viewAll": "View all"
+      },
+      "relatedKeywords": {
+        "title": "Related keywords",
+        "emptyTitle": "Not collected yet",
+        "emptyReason": "The keywords tracked for this group appear here once they are collected."
       }
     },
     "droppedFilters": {
@@ -4810,7 +4822,7 @@
       },
       "strip": {
         "infoTitle": "AI visibility rate",
-        "infoWhat": "The percentage for each platform is its AI visibility rate: how often that platform's answers mention or cite your brand.",
+        "infoWhat": "The percentage for each platform is its AI visibility rate: how often that platform’s answers mention or cite your brand.",
         "infoHow": "The share of valid answers that mention your brand, cite your site, or both. Each prompt counts once. Hover a figure for the counts behind it, with the mention, citation and share of voice figures.",
         "visibilityTip": "AI visibility rate (mentioned or cited): {detail}",
         "tip": "{platform}. {visibility}. {mentioned}. {cited}. {prompts}. {shareOfVoice}.",

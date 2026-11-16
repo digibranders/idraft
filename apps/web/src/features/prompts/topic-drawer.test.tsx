@@ -88,7 +88,7 @@ describe('the topic drawer: opening', () => {
     expect(new URLSearchParams(writes.at(-1)).get('inspect')).toBe(`topic:${MOCK_TERM_IDS.paidSearch}`);
     expect(within(panel).getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
     expect(within(panel).getByText('2 prompts')).toBeInTheDocument();
-    expect(await within(panel).findByRole('heading', { name: 'Top prompts' })).toBeInTheDocument();
+    expect(await within(panel).findByRole('heading', { name: 'Top prompts in this group' })).toBeInTheDocument();
     // A drawer to read: nothing in it changes a prompt, for any member
     expect(within(panel).queryByRole('button', { name: /Run now|Archive/ })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Add prompts' })).toBeNull();

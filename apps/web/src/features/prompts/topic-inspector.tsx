@@ -22,6 +22,7 @@ import { TrendIcon } from './trend-icon';
 import { TopicDrawerProvider, type TopicDrawerExtras } from './topic-drawer/drawer-context';
 import { EngineFilteredPrompts } from './topic-drawer/engine-filter';
 import { TopicEngineSections } from './topic-drawer/engine-sections';
+import { TopPromptsTable } from './topic-drawer/top-prompts-table';
 import { PromptRow } from './topic-drawer/prompt-row';
 import { useTopicHeader } from './topic-drawer/use-topic-header';
 import { Inspector } from '@/components/app/inspector/inspector';
@@ -289,15 +290,15 @@ function TopicInspectorBody({
           error={failed}
           empty={noPrompts}
           action={
-            prompts !== null && prompts.length > TOPIC_TOP_PROMPTS ? (
-              <Button variant="link" size="sm" onClick={() => onTabChange(TOPIC_TAB.prompts)}>
-                {words('topics.showAll', { count: prompts.length })}
+            prompts !== null && prompts.length > 0 ? (
+              <Button variant="secondary" size="sm" onClick={() => onTabChange(TOPIC_TAB.prompts)}>
+                {t('topPromptsTable.viewAll')}
               </Button>
             ) : undefined
           }
         >
           {prompts === null ? null : (
-            <PromptList prompts={prompts.slice(0, TOPIC_TOP_PROMPTS)} engines={engines} onOpen={onOpenPrompt} />
+            <TopPromptsTable prompts={prompts.slice(0, TOPIC_TOP_PROMPTS)} engines={engines} onOpen={onOpenPrompt} />
           )}
         </InspectorSection>
       </>
