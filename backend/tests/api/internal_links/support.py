@@ -96,9 +96,9 @@ async def seed_crawl(
         await execute(
             pg,
             "INSERT INTO seo.crawl_pages (run_id, url_id, workspace_id, project_id, crawled_url, "
-            "status_code, resource_type, links_state) VALUES ($1, $2, $3, $4, $6, $5, "
-            "CASE WHEN $5 BETWEEN 300 AND 399 THEN 'redirect' WHEN $5 >= 400 THEN 'broken' "
-            "ELSE 'html' END, 'from_html')",
+            "status_code, resource_type, links_state) VALUES ($1, $2, $3, $4, $6, $5::smallint, "
+            "CASE WHEN $5::smallint BETWEEN 300 AND 399 THEN 'redirect' "
+            "WHEN $5::smallint >= 400 THEN 'broken' ELSE 'html' END, 'from_html')",
             run_id,
             ids[path],
             workspace.id,
@@ -123,6 +123,17 @@ async def seed_crawl(
             link.followed,
         )
     return run_id, ids
+
+
+async def set_website(pg: PostgresServer, project_id: uuid.UUID, host: str = "example.com") -> None:
+    await url_id(pg, f"https://{host}/")
+    await execute(
+        pg,
+        "UPDATE core.projects SET primary_domain_id = "
+        "(SELECT id FROM core.domains WHERE host = $1) WHERE id = $2",
+        host,
+        project_id,
+    )
 
 
 async def audit_rows(

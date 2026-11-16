@@ -2761,6 +2761,37 @@
         "title": "BulkRejected",
         "type": "object"
       },
+      "BulkResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/BulkResult"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "BulkResponse",
+        "type": "object"
+      },
+      "BulkResult": {
+        "properties": {
+          "changed": {
+            "title": "Changed",
+            "type": "integer"
+          },
+          "matched": {
+            "description": "Pages of the latest crawl the selection named.",
+            "title": "Matched",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "matched",
+          "changed"
+        ],
+        "title": "BulkResult",
+        "type": "object"
+      },
       "BulkSkipped": {
         "properties": {
           "existing_id": {
@@ -6812,6 +6843,54 @@
         "title": "ImportField",
         "type": "string"
       },
+      "ImportPending": {
+        "properties": {
+          "line": {
+            "title": "Line",
+            "type": "integer"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "line",
+          "url"
+        ],
+        "title": "ImportPending",
+        "type": "object"
+      },
+      "ImportProblem": {
+        "properties": {
+          "code": {
+            "enum": [
+              "invalid_url",
+              "other_site",
+              "unknown_tier",
+              "missing_column",
+              "too_many_rows"
+            ],
+            "title": "Code",
+            "type": "string"
+          },
+          "line": {
+            "title": "Line",
+            "type": "integer"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "line",
+          "code",
+          "message"
+        ],
+        "title": "ImportProblem",
+        "type": "object"
+      },
       "ImportQuota": {
         "properties": {
           "limit": {
@@ -10779,6 +10858,231 @@
         "title": "OwnPage",
         "type": "object"
       },
+      "PageFilter": {
+        "additionalProperties": false,
+        "description": "The Pages list's filters as a bulk body (`run` is always the latest crawl).",
+        "properties": {
+          "flags": {
+            "anyOf": [
+              {
+                "items": {
+                  "enum": [
+                    "orphan",
+                    "editorial_orphan",
+                    "deep_only_through_auto",
+                    "placement_unknown",
+                    "has_broken_outlinks"
+                  ],
+                  "type": "string"
+                },
+                "maxItems": 5,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Flags"
+          },
+          "indexable": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Indexable"
+          },
+          "q": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Q"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "items": {
+                  "enum": [
+                    "2xx",
+                    "3xx",
+                    "4xx",
+                    "5xx"
+                  ],
+                  "type": "string"
+                },
+                "maxItems": 4,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "tag_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "maxItems": 50,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tag Ids"
+          },
+          "tier_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    {
+                      "const": "none",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "maxItems": 9,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tier Ids"
+          },
+          "worklist": {
+            "anyOf": [
+              {
+                "enum": [
+                  "under_linked_t1",
+                  "orphans",
+                  "editorial_orphans",
+                  "deep_only_through_auto"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Worklist"
+          }
+        },
+        "title": "PageFilter",
+        "type": "object"
+      },
+      "PageSelection": {
+        "additionalProperties": false,
+        "description": "Exactly one of `url_ids` and `filter`.",
+        "properties": {
+          "filter": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageFilter"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "url_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "exclusiveMinimum": 0.0,
+                  "maximum": 9.223372036854776e+18,
+                  "type": "integer"
+                },
+                "maxItems": 5000,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url Ids"
+          }
+        },
+        "title": "PageSelection",
+        "type": "object"
+      },
+      "PageTagChange": {
+        "additionalProperties": false,
+        "properties": {
+          "add": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Add",
+            "type": "array"
+          },
+          "filter": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageFilter"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "remove": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Remove",
+            "type": "array"
+          },
+          "url_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "exclusiveMinimum": 0.0,
+                  "maximum": 9.223372036854776e+18,
+                  "type": "integer"
+                },
+                "maxItems": 5000,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url Ids"
+          }
+        },
+        "required": [
+          "add",
+          "remove"
+        ],
+        "title": "PageTagChange",
+        "type": "object"
+      },
       "PageTier": {
         "properties": {
           "code": {
@@ -10903,6 +11207,57 @@
           "data"
         ],
         "title": "PageTierResponse",
+        "type": "object"
+      },
+      "PageTierSet": {
+        "additionalProperties": false,
+        "properties": {
+          "filter": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageFilter"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tier_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "null sets the pages to Untiered by hand.",
+            "title": "Tier Id"
+          },
+          "url_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "exclusiveMinimum": 0.0,
+                  "maximum": 9.223372036854776e+18,
+                  "type": "integer"
+                },
+                "maxItems": 5000,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url Ids"
+          }
+        },
+        "required": [
+          "tier_id"
+        ],
+        "title": "PageTierSet",
         "type": "object"
       },
       "PasswordChangeRequest": {
@@ -17840,6 +18195,41 @@
         "title": "SummaryTotal",
         "type": "object"
       },
+      "TagChangeResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TagChangeResult"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "TagChangeResponse",
+        "type": "object"
+      },
+      "TagChangeResult": {
+        "properties": {
+          "added": {
+            "title": "Added",
+            "type": "integer"
+          },
+          "matched": {
+            "title": "Matched",
+            "type": "integer"
+          },
+          "removed": {
+            "title": "Removed",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "matched",
+          "added",
+          "removed"
+        ],
+        "title": "TagChangeResult",
+        "type": "object"
+      },
       "Term": {
         "properties": {
           "created_at": {
@@ -18359,6 +18749,330 @@
           }
         },
         "title": "TermUpdate",
+        "type": "object"
+      },
+      "TierImportRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "csv": {
+            "description": "Columns `url` and `tier` (a code such as T1, a name, or `none`).",
+            "maxLength": 900000,
+            "minLength": 1,
+            "title": "Csv",
+            "type": "string"
+          }
+        },
+        "required": [
+          "csv"
+        ],
+        "title": "TierImportRequest",
+        "type": "object"
+      },
+      "TierImportResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TierImportResult"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "TierImportResponse",
+        "type": "object"
+      },
+      "TierImportResult": {
+        "properties": {
+          "accepted": {
+            "title": "Accepted",
+            "type": "integer"
+          },
+          "applied": {
+            "description": "False while `errors` is not empty: nothing was changed.",
+            "title": "Applied",
+            "type": "boolean"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ImportProblem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "pending": {
+            "description": "Valid rows whose URL the latest crawl did not find; they apply when a crawl finds it.",
+            "items": {
+              "$ref": "#/components/schemas/ImportPending"
+            },
+            "title": "Pending",
+            "type": "array"
+          }
+        },
+        "required": [
+          "accepted",
+          "pending",
+          "errors",
+          "applied"
+        ],
+        "title": "TierImportResult",
+        "type": "object"
+      },
+      "TierRef": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "tier_id": {
+            "format": "uuid",
+            "title": "Tier Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tier_id",
+          "code",
+          "name"
+        ],
+        "title": "TierRef",
+        "type": "object"
+      },
+      "TierRuleCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "match_type": {
+            "enum": [
+              "exact",
+              "prefix",
+              "pattern"
+            ],
+            "title": "Match Type",
+            "type": "string"
+          },
+          "position": {
+            "anyOf": [
+              {
+                "maximum": 500.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Left out, the rule goes last.",
+            "title": "Position"
+          },
+          "tier_id": {
+            "format": "uuid",
+            "title": "Tier Id",
+            "type": "string"
+          },
+          "value": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "match_type",
+          "value",
+          "tier_id"
+        ],
+        "title": "TierRuleCreate",
+        "type": "object"
+      },
+      "TierRuleList": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/TierRuleView"
+            },
+            "title": "Data",
+            "type": "array"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "TierRuleList",
+        "type": "object"
+      },
+      "TierRulePatch": {
+        "additionalProperties": false,
+        "properties": {
+          "match_type": {
+            "enum": [
+              "exact",
+              "prefix",
+              "pattern"
+            ],
+            "title": "Match Type",
+            "type": "string"
+          },
+          "position": {
+            "maximum": 500.0,
+            "minimum": 1.0,
+            "title": "Position",
+            "type": "integer"
+          },
+          "tier_id": {
+            "format": "uuid",
+            "title": "Tier Id",
+            "type": "string"
+          },
+          "value": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "title": "TierRulePatch",
+        "type": "object"
+      },
+      "TierRulePreview": {
+        "properties": {
+          "matching_pages": {
+            "description": "Pages of the latest crawl whose path matches.",
+            "title": "Matching Pages",
+            "type": "integer"
+          },
+          "would_apply": {
+            "description": "Of those, the pages with no manual tier that no earlier rule claims.",
+            "title": "Would Apply",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "matching_pages",
+          "would_apply"
+        ],
+        "title": "TierRulePreview",
+        "type": "object"
+      },
+      "TierRulePreviewRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "match_type": {
+            "enum": [
+              "exact",
+              "prefix",
+              "pattern"
+            ],
+            "title": "Match Type",
+            "type": "string"
+          },
+          "position": {
+            "anyOf": [
+              {
+                "maximum": 500.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Position"
+          },
+          "rule_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The rule being edited, if any.",
+            "title": "Rule Id"
+          },
+          "value": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "match_type",
+          "value"
+        ],
+        "title": "TierRulePreviewRequest",
+        "type": "object"
+      },
+      "TierRulePreviewResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TierRulePreview"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "TierRulePreviewResponse",
+        "type": "object"
+      },
+      "TierRuleResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TierRuleView"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "TierRuleResponse",
+        "type": "object"
+      },
+      "TierRuleView": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "match_type": {
+            "enum": [
+              "exact",
+              "prefix",
+              "pattern"
+            ],
+            "title": "Match Type",
+            "type": "string"
+          },
+          "position": {
+            "title": "Position",
+            "type": "integer"
+          },
+          "rule_id": {
+            "format": "uuid",
+            "title": "Rule Id",
+            "type": "string"
+          },
+          "tier": {
+            "$ref": "#/components/schemas/TierRef"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "rule_id",
+          "position",
+          "match_type",
+          "value",
+          "tier",
+          "created_at"
+        ],
+        "title": "TierRuleView",
         "type": "object"
       },
       "TopicSummaryRow": {
@@ -33005,6 +33719,261 @@
         ]
       }
     },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/pages/tags": {
+      "put": {
+        "description": "Terms of the project's or the workspace's `tag` vocabularies; any other term is `422 validation_failed` with `not_a_tag`. Adding a tag a page has, or removing one it has not, changes nothing.",
+        "operationId": "change_page_tags_api_v1_workspaces__workspace_id__projects__project_id__pages_tags_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PageTagChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TagChangeResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Add and remove tags on pages of the latest crawl",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/pages/tiers": {
+      "put": {
+        "description": "`url_ids` (up to 5,000) or `filter` (the Pages filters; `422 too_many_subjects` over 20,000). `tier_id: null` sets Untiered by hand, which beats every rule; `POST .../pages/tiers/reset` gives the pages back to their rules. An id the crawl does not hold is left out of `matched`. `404 no_crawl` before the first finished crawl.",
+        "operationId": "set_page_tiers_api_v1_workspaces__workspace_id__projects__project_id__pages_tiers_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PageTierSet"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Set or clear a tier on pages of the latest crawl",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/pages/tiers/import": {
+      "post": {
+        "description": "`tier` is a code (T1), a name, `T1 Money pages`, or `none`. A URL the latest crawl did not find is stored and listed in `pending`; it applies when a crawl finds it. While any row has an error (`errors`, by line) nothing is changed and `applied` is false.",
+        "operationId": "import_page_tiers_api_v1_workspaces__workspace_id__projects__project_id__pages_tiers_import_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TierImportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TierImportResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Set tiers from a CSV of url and tier",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/pages/tiers/reset": {
+      "post": {
+        "operationId": "reset_page_tiers_api_v1_workspaces__workspace_id__projects__project_id__pages_tiers_reset_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PageSelection"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Give pages back to their rule tier",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/prompts": {
       "get": {
         "description": "Newest first, or by `sort`. `filter[is_active]` is true when left out; archived prompts are listed with false, and both with `any`. `filter[term]` takes the term or one under it, `filter[q]` matches the text as a substring without case, and `filter[intent_in]`, `filter[prompt_type_in]`, `filter[funnel_stage_in]` and `filter[importance_in]` take a comma list. `filter[is_branded]` lists branded or unbranded prompts; left out, both are listed (a list is not a rate). A cursor is bound to its filters and its sort (`400 invalid_cursor` otherwise).",
@@ -35545,6 +36514,312 @@
         "summary": "Add, remove or replace terms of tracked keywords or prompts",
         "tags": [
           "taxonomy"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tier-rules": {
+      "get": {
+        "operationId": "list_tier_rules_api_v1_workspaces__workspace_id__projects__project_id__tier_rules_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TierRuleList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The project's tier rules, first rule first",
+        "tags": [
+          "internal-links"
+        ]
+      },
+      "post": {
+        "description": "`exact` (the path, a trailing slash aside), `prefix` (the path starts with it) or `pattern` (`*` is any run of characters). Left without `position` it goes last; with one, the rules from there move down. The rules apply to every page at once.",
+        "operationId": "create_tier_rule_api_v1_workspaces__workspace_id__projects__project_id__tier_rules_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TierRuleCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TierRuleResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Add a tier rule",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tier-rules/preview": {
+      "post": {
+        "description": "Counts on the latest crawl, as if the rule stood at `position` (last when left out) among the others; `rule_id` is the rule being edited, left out of the others.",
+        "operationId": "preview_tier_rule_api_v1_workspaces__workspace_id__projects__project_id__tier_rules_preview_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TierRulePreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TierRulePreviewResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "How many pages a rule would match and decide",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tier-rules/{rule_id}": {
+      "delete": {
+        "operationId": "delete_tier_rule_api_v1_workspaces__workspace_id__projects__project_id__tier_rules__rule_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "rule_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Rule Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Delete a tier rule",
+        "tags": [
+          "internal-links"
+        ]
+      },
+      "patch": {
+        "operationId": "update_tier_rule_api_v1_workspaces__workspace_id__projects__project_id__tier_rules__rule_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "rule_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Rule Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TierRulePatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TierRuleResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Change or move a tier rule",
+        "tags": [
+          "internal-links"
         ]
       }
     },

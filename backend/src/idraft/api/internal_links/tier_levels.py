@@ -18,11 +18,13 @@ from sqlalchemy import delete, func, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from idraft.api import audit
+from idraft.api.internal_links.page_tiers import close_rule_positions
 from idraft.api.internal_links.problems import TierInUseError, TierLimitError
 from idraft.api.problems import NotFoundError
 from idraft.api.request_info import RequestInfo
 from idraft.api.schemas.internal_links import PageTierCreate, PageTierPatch
 from idraft.api.workspaces.access import WorkspaceAccess
+from idraft.collectors.crawl_store import apply_rules, tiers_changed
 from idraft.crawl.tiers import DEFAULT_TIERS, MAX_TIERS, tier_code
 from idraft.db.engine import workspace_transaction
 from idraft.db.tables import page_tier_levels, project_pages, tier_rules
@@ -208,6 +210,22 @@ class TierLevelService:
                 raise _query_error("move_to", "move_to_self", "Move to another tier or `none`.")
             target = _one(levels, move_to).tier_id if isinstance(move_to, UUID) else None
             workspace = access.workspace_id
+            touched: set[UUID] = set(
+                (
+                    await db.execute(
+                        select(tier_rules.c.project_id)
+                        .where(
+                            tier_rules.c.workspace_id == workspace, tier_rules.c.tier_id == tier_id
+                        )
+                        .union(
+                            select(project_pages.c.project_id).where(
+                                project_pages.c.workspace_id == workspace,
+                                project_pages.c.tier_id == tier_id,
+                            )
+                        )
+                    )
+                ).scalars()
+            )
             await db.execute(
                 update(project_pages)
                 .where(
@@ -244,6 +262,10 @@ class TierLevelService:
                 .where(_levels.c.workspace_id == workspace, _levels.c.position > gone.position)
                 .values(position=_levels.c.position - 1, updated_at=func.now())
             )
+            for project_id in sorted(touched):
+                await close_rule_positions(db, workspace, project_id)
+                await apply_rules(db, workspace_id=workspace, project_id=project_id)
+                await tiers_changed(db, workspace_id=workspace, project_id=project_id)
             await audit.record(
                 db,
                 workspace_id=workspace,

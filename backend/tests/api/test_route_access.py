@@ -477,6 +477,31 @@ EXPECTED: dict[tuple[str, str], str] = {
     ("POST", "/api/v1/workspaces/{workspace_id}/page-tiers"): "workspace:update",
     ("PATCH", "/api/v1/workspaces/{workspace_id}/page-tiers/{tier_id}"): "workspace:update",
     ("DELETE", "/api/v1/workspaces/{workspace_id}/page-tiers/{tier_id}"): "workspace:update",
+    ("PUT", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/pages/tiers"): (
+        "projects:write"
+    ),
+    ("POST", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/pages/tiers/reset"): (
+        "projects:write"
+    ),
+    ("POST", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/pages/tiers/import"): (
+        "projects:write"
+    ),
+    ("PUT", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/pages/tags"): (
+        "projects:write"
+    ),
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tier-rules"): "data:read",
+    ("POST", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tier-rules"): (
+        "projects:write"
+    ),
+    ("PATCH", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tier-rules/{rule_id}"): (
+        "projects:write"
+    ),
+    ("DELETE", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tier-rules/{rule_id}"): (
+        "projects:write"
+    ),
+    ("POST", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tier-rules/preview"): (
+        "data:read"
+    ),
     ("PATCH", "/api/v1/workspaces/{workspace_id}/budgets/{budget_id}"): "budgets:manage",
     ("DELETE", "/api/v1/workspaces/{workspace_id}/budgets/{budget_id}"): "budgets:manage",
     ("GET", "/api/v1/workspaces/{workspace_id}/costs/forecast"): "costs:read",
@@ -568,6 +593,9 @@ PATH_PARAMETERS = {
     "entity_domain_id",
     # A page tier belongs to the workspace and is shared by its projects.
     "tier_id",
+    # Inside one project, after `{project_id}`: the service finds the rule within that project,
+    # so a rule of another project or workspace is a 404.
+    "rule_id",
     # A vocabulary may belong to a project, but its routes check that project's scope in the
     # service: a vocabulary id is not a project id, and a workspace-wide one has none.
     "vocabulary_id",

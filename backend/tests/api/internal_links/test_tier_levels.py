@@ -3,15 +3,23 @@
 from __future__ import annotations
 
 import asyncio
+import uuid
 
 import httpx
 import pytest
 
 from idraft.api.resources import Resources
-from tests.api.auth.support import execute, fetchrow, make_workspace
-from tests.api.entities.support import member, problem
-from tests.api.internal_links.support import audit_rows, seed_tiers, tiers_url, url_id
-from tests.api.keywords.support import keyword_project
+from tests.api.auth.support import Workspace, execute, fetch, fetchrow, make_workspace
+from tests.api.entities.support import Caller, member, problem
+from tests.api.internal_links.support import (
+    SeedLink,
+    audit_rows,
+    seed_crawl,
+    seed_tiers,
+    tiers_url,
+    url_id,
+)
+from tests.api.keywords.support import keyword_project, project_url
 from tests.conftest import PostgresServer
 
 
@@ -260,3 +268,100 @@ async def test_another_workspace_cannot_see_or_change_these_tiers(
 
     assert read.status_code == 404
     assert changed.status_code == 404
+
+
+async def _two_rules(
+    api: httpx.AsyncClient,
+    workspace: Workspace,
+    project: uuid.UUID,
+    owner: Caller,
+    first: uuid.UUID,
+    second: uuid.UUID,
+) -> None:
+    url = project_url(workspace, project, "tier-rules")
+    for value, tier in (("/a/", first), ("/b/", second)):
+        created = await api.post(
+            url,
+            json={"match_type": "prefix", "value": value, "tier_id": str(tier)},
+            headers=owner.headers,
+        )
+        assert created.status_code == 201, created.text
+
+
+async def test_deleting_a_tier_moves_rule_pages_and_recomputes_the_tier_flow(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    owner = await member(resources, migrated, workspace, "owner")
+    project = await keyword_project(migrated, workspace)
+    t1, t2, t3, _ = await seed_tiers(migrated, workspace)
+    run, ids = await seed_crawl(
+        migrated,
+        workspace,
+        project,
+        [("/a/x", 200), ("/b/p", 200)],
+        [SeedLink("/b/p", "/a/x", "content")],
+    )
+    await _two_rules(api, workspace, project, owner, t3, t2)
+
+    moved = await api.delete(
+        tiers_url(workspace, t3), params={"move_to": str(t1)}, headers=owner.headers
+    )
+
+    assert moved.status_code == 204, moved.text
+    page = await fetchrow(
+        migrated,
+        "SELECT tier_id, tier_source FROM core.project_pages WHERE project_id = $1 AND url_id = $2",
+        project,
+        ids["/a/x"],
+    )
+    assert (page["tier_id"], page["tier_source"]) == (t1, "rule")
+    cells = await fetch(
+        migrated,
+        "SELECT from_tier_id, to_tier_id, links FROM seo.crawl_tier_flow "
+        "WHERE run_id = $1 AND scope = 'editorial'",
+        run,
+    )
+    assert [(c["from_tier_id"], c["to_tier_id"], c["links"]) for c in cells] == [(t2, t1, 1)]
+    stats = await fetch(
+        migrated, "SELECT tier_id, pages FROM seo.crawl_tier_stats WHERE run_id = $1", run
+    )
+    assert {row["tier_id"]: row["pages"] for row in stats} == {t1: 1, t2: 1}
+
+
+async def test_deleting_a_tier_to_untiered_drops_its_rules_and_the_flow_follows(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    owner = await member(resources, migrated, workspace, "owner")
+    project = await keyword_project(migrated, workspace)
+    _, t2, t3, _ = await seed_tiers(migrated, workspace)
+    run, ids = await seed_crawl(
+        migrated,
+        workspace,
+        project,
+        [("/a/x", 200), ("/b/p", 200)],
+        [SeedLink("/b/p", "/a/x", "content")],
+    )
+    await _two_rules(api, workspace, project, owner, t2, t3)
+
+    deleted = await api.delete(
+        tiers_url(workspace, t2), params={"move_to": "none"}, headers=owner.headers
+    )
+
+    assert deleted.status_code == 204, deleted.text
+    rules = await fetch(
+        migrated, "SELECT position, value FROM core.tier_rules WHERE project_id = $1", project
+    )
+    assert [(row["position"], row["value"]) for row in rules] == [(1, "/b/")]
+    pages = await fetch(
+        migrated, "SELECT url_id, tier_id FROM core.project_pages WHERE project_id = $1", project
+    )
+    assert {row["url_id"]: row["tier_id"] for row in pages} == {ids["/b/p"]: t3}
+    cells = await fetch(
+        migrated,
+        "SELECT from_tier_id, to_tier_id, links FROM seo.crawl_tier_flow "
+        "WHERE run_id = $1 AND scope = 'editorial'",
+        run,
+    )
+    assert [(c["from_tier_id"], c["to_tier_id"], c["links"]) for c in cells] == [(t3, None, 1)]
