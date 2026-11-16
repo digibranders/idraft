@@ -11,7 +11,11 @@ function engineOf(code: string, numerators: readonly number[], answers: number) 
   const cells = THREE.map((entity, index) =>
     entityCells(entity, weighted(numerators[index] ?? 0, 100, [0.3]), share(numerators[index] ?? 0, answers)),
   );
-  return engine(code, { share: share(numerators[0] ?? 0, answers), mentioned: weighted(30, 100, [0.3]), entities: cells });
+  return engine(code, {
+    share: share(numerators[0] ?? 0, answers),
+    mentioned: weighted(30, 100, [0.3]),
+    entities: cells,
+  });
 }
 
 const set = (summary: ReturnType<typeof summaryOf>) => trackedSetOf(summary, null);

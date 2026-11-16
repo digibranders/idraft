@@ -4,6 +4,9 @@ import { useMemo } from 'react';
 
 import { askedEngines } from '../../../data/overview-queries';
 import { useOverview } from '../../../overview-context';
+import { singlePlatform } from '../../../scope/scope-model';
+import { inCatalogOrder } from '../../engines/engine-role';
+import type { EngineCode } from '@/lib/api/types';
 import { engineLabel } from '@/lib/layouts';
 
 /**
@@ -36,4 +39,31 @@ export function useCardEngine(options: Readonly<Record<string, string>>): CardEn
     const asked = askedEngines({ scope, enabledEngines }).some((engine) => engine === code);
     return { code, label: engineLabel(code), availability: asked ? 'asked' : enabled ? 'outside' : 'off' };
   }, [code, scope, enabledEngines]);
+}
+
+/** What the three competitor cards read of the page scope: the platforms asked, and whether it is All platforms. */
+export interface CardPlatforms {
+  /** The platforms that are on and inside the scope, in catalog order; empty when the chosen one is off. */
+  codes: readonly EngineCode[];
+  /** All platforms: the equal-weight average of the platforms, labelled "avg of N". One platform is its own figures. */
+  average: boolean;
+  /** The one platform chosen, or `null` for All platforms. */
+  single: string | null;
+}
+
+/**
+ * The platforms of a card that follows the page scope (`ai.share_of_voice`, `ai.sov_over_time`,
+ * `ai.lost_to_competitor`): no engine option and no in-card picker. A leftover `engine` option of an older saved
+ * layout is not read.
+ */
+export function useCardPlatforms(): CardPlatforms {
+  const { scope, enabledEngines } = useOverview();
+  return useMemo((): CardPlatforms => {
+    const single = singlePlatform(scope);
+    return {
+      codes: inCatalogOrder(askedEngines({ scope, enabledEngines })),
+      average: single === null,
+      single,
+    };
+  }, [scope, enabledEngines]);
 }

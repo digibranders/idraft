@@ -1,5 +1,12 @@
 import { entityTotals } from './entity-totals';
-import { UNREAD, type EngineEntityTotals, type MentionFigure, type TrackedEntity, type TrackedSet, type Unread } from './types';
+import {
+  UNREAD,
+  type EngineEntityTotals,
+  type MentionFigure,
+  type TrackedEntity,
+  type TrackedSet,
+  type Unread,
+} from './types';
 import type { PromptsSummary } from '@/lib/api/types';
 import type { RateState } from '@/lib/stats';
 

@@ -80,8 +80,7 @@ export function leadsOf(summary: PromptsSummary, codes: readonly string[], set: 
     }
     for (const lead of result) {
       const sides = comparable.map((entry) => {
-        const rival =
-          entry.entities?.find((cell) => cell.entity_id === lead.entity.entityId)?.mentioned.numerator ?? 0;
+        const rival = entry.entities?.find((cell) => cell.entity_id === lead.entity.entityId)?.mentioned.numerator ?? 0;
         return { own: entry.mentioned.numerator, rival };
       });
       const leads = sides.map((side) => leadOn(side.own, side.rival));
