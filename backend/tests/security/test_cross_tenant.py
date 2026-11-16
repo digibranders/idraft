@@ -1057,6 +1057,7 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str, fake: Fa
     more_ids["tag_term_id"] = str(tag_term["id"])
     more_ids["url_id"] = str(crawl_ids[pricing])
     more_ids["page_url"] = f"https://example.com{pricing}"
+    more_ids["home_url"] = f"https://example.com{home}"
 
     # Fresh, so that a route wanting a recent credential is not refused for that instead.
     token, _ = await open_session(resources, owner, fresh=True)
@@ -1501,6 +1502,52 @@ async def test_a_list_holds_nothing_of_another_workspace(
     # The list is not empty for a trivial reason: it shows A's own data (a stub shows none).
     if (method, path) not in NOT_BUILT and path not in PLATFORM_LISTS | COUNT_ROUTES:
         assert any(own in response.text for own in [*a.ids().values(), str(a.owner.id)])
+
+
+# (path under a project, query, whether the answer names the tenant's own pages)
+INTERNAL_LINK_READS = [
+    ("/internal-links/pages", {}, True),
+    ("/internal-links/pages/{url_id}", {}, True),
+    ("/internal-links/edges", {"scope": "all"}, True),
+    ("/internal-links/neighbors", {"direction": "in", "scope": "all", "url_id": "{url_id}"}, True),
+    # The seeded page has no link out, so there is nothing of its own to name.
+    (
+        "/internal-links/neighbors",
+        {"direction": "out", "scope": "all", "url_id": "{url_id}"},
+        False,
+    ),
+    ("/internal-links/tier-flow", {"scope": "all"}, False),
+    ("/internal-links/worklists", {}, False),
+]
+
+
+@pytest.mark.parametrize(("suffix", "params", "names_pages"), INTERNAL_LINK_READS)
+async def test_the_pages_and_links_of_a_project_hold_nothing_of_another_workspace(
+    api: httpx.AsyncClient,
+    tenants: tuple[Tenant, Tenant],
+    suffix: str,
+    params: dict[str, str],
+    names_pages: bool,
+) -> None:
+    """The internal link reads sit under a project, so no list route covers them: A's own answer
+    is scanned for B's page URL and path (`core.urls` is a dictionary both share, so B's url id
+    is left out of `secrets()`)."""
+    a, b = tenants
+
+    response = await api.get(
+        _fill(_W + "/projects/{project_id}" + suffix, a.ids()),
+        params={name: _fill(value, a.ids()) for name, value in params.items()},
+        headers=a.headers,
+    )
+
+    assert response.status_code == 200, response.text
+    # A bare number (an id of a snapshot or an observation) equals a count or a url id of these
+    # answers by chance; the identifying strings are what a leak would show.
+    for secret in (secret for secret in b.secrets() if not secret.isdigit()):
+        assert not _leaks(response.json(), secret), f"{suffix} shows {secret} of another workspace"
+    if names_pages:
+        own_site = a.ids()["page_url"].removeprefix("https://example.com").split("-")[0]
+        assert f"{own_site}-" in response.text
 
 
 async def test_the_same_holds_once_the_session_is_cached_and_for_a_member_of_both(
