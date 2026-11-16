@@ -74,7 +74,7 @@ describe('enginePieceOf', () => {
       ordered_answers: 1,
       mentions: 2,
       answers: 3,
-      by_order: [0, 1, 0, 0],
+      by_order: { counts: [0, 1, 0, 0], rank_sum: 2 },
     });
     expect(piece.observations).toBe(4);
     expect(piece.latest?.observation_id).toBe('3');
@@ -109,7 +109,7 @@ describe('enginePieceOf', () => {
       ordered_answers: 0,
       mentions: 0,
       answers: 0,
-      by_order: [0, 0, 0, 0],
+      by_order: { counts: [0, 0, 0, 0], rank_sum: 0 },
     });
   });
 });
@@ -129,7 +129,7 @@ describe('topicEngineFacts', () => {
       ordered_answers: 2,
       mentions: 2,
       answers: 3,
-      by_order: [1, 0, 1, 0],
+      by_order: { counts: [1, 0, 1, 0], rank_sum: 4 },
     });
     expect(topic.latest?.observation_id).toBe('2');
     expect(topic.recommended?.pooled?.trials).toBe(3);

@@ -40,40 +40,51 @@ export function DomainBars({ rows, caption }: DomainBarsProps): ReactElement {
     <div className="@container">
       <table aria-label={caption} className="w-full">
         <tbody>
-          {rows.map((row) => (
-            <Tooltip key={row.id} content={row.label} detail={row.tip} purpose="description">
-              <tr className="h-10">
+          {rows.map((row) => {
+            // The tooltip is on the content of each cell: a table row cannot hold the hidden description it adds
+            const tip = (node: ReactElement<{ 'aria-describedby'?: string }>): ReactElement => (
+              <Tooltip content={row.label} detail={row.tip} purpose="label">
+                {node}
+              </Tooltip>
+            );
+            return (
+              <tr key={row.id} className="h-10">
                 <th scope="row" className="pr-3 text-left font-normal">
-                  <span className="inline-flex max-w-full min-w-0 items-center gap-2">
-                    {row.href === undefined ? (
-                      <span
-                        className={cn('min-w-0 truncate text-foreground', row.own ? 'type-body-strong' : 'type-body')}
-                      >
-                        {row.label}
-                      </span>
-                    ) : (
-                      <Link
-                        href={row.href}
-                        className={cn(
-                          'min-w-0 truncate rounded-sm text-foreground outline-none hover:underline focus-visible:focus-ring',
-                          row.own ? 'type-body-strong' : 'type-body',
-                        )}
-                      >
-                        {row.label}
-                      </Link>
-                    )}
-                    {row.badge}
-                  </span>
+                  {tip(
+                    <span className="inline-flex max-w-full min-w-0 items-center gap-2">
+                      {row.href === undefined ? (
+                        <span
+                          className={cn('min-w-0 truncate text-foreground', row.own ? 'type-body-strong' : 'type-body')}
+                        >
+                          {row.label}
+                        </span>
+                      ) : (
+                        <Link
+                          href={row.href}
+                          className={cn(
+                            'min-w-0 truncate rounded-sm text-foreground outline-none hover:underline focus-visible:focus-ring',
+                            row.own ? 'type-body-strong' : 'type-body',
+                          )}
+                        >
+                          {row.label}
+                        </Link>
+                      )}
+                      {row.badge}
+                    </span>,
+                  )}
                 </th>
                 <td className="hidden w-full pr-3 @xs:table-cell">
-                  <div
-                    aria-hidden="true"
-                    data-slot="domain-bar"
-                    className={cn('h-5 rounded-2xs', row.own ? 'bg-chart-1' : 'bg-chart-bar-neutral')}
-                    style={{
-                      width: row.value === null ? '0%' : `${String(Math.max(1, Math.round((row.value / top) * 100)))}%`,
-                    }}
-                  />
+                  {tip(
+                    <div
+                      aria-hidden="true"
+                      data-slot="domain-bar"
+                      className={cn('h-5 rounded-2xs', row.own ? 'bg-chart-1' : 'bg-chart-bar-neutral')}
+                      style={{
+                        width:
+                          row.value === null ? '0%' : `${String(Math.max(1, Math.round((row.value / top) * 100)))}%`,
+                      }}
+                    />,
+                  )}
                 </td>
                 <td
                   className={cn(
@@ -81,11 +92,11 @@ export function DomainBars({ rows, caption }: DomainBarsProps): ReactElement {
                     row.value === null && 'text-foreground-tertiary',
                   )}
                 >
-                  {row.valueText}
+                  {tip(<span>{row.valueText}</span>)}
                 </td>
               </tr>
-            </Tooltip>
-          ))}
+            );
+          })}
         </tbody>
       </table>
     </div>

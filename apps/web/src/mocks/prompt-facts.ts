@@ -4,6 +4,7 @@ import type {
   EngineSummaryWithFacts,
   LatestAnswer,
   LinkedKeywordVolume,
+  OrderCounts,
   OtherBrand,
   PositionCounts,
   PromptIntent,
@@ -136,14 +137,14 @@ function sentimentCounts(promptId: string, code: string, mentions: number): Sent
   return { positive, neutral: mentions - positive - negative - mixed, negative, mixed };
 }
 
-/** The orders of the ordered answers as counts of first, second, third, and fourth or later. */
-function orderCounts(orders: readonly number[]): [number, number, number, number] {
+/** The places of the answers that name the brand with one: counts of first, second, third, fourth or later, and their sum. */
+function orderCounts(orders: readonly number[]): OrderCounts {
   const counts: [number, number, number, number] = [0, 0, 0, 0];
   for (const order of orders) {
     const slot = Math.min(Math.max(order, 1), 4) - 1;
     counts[slot] = (counts[slot] ?? 0) + 1;
   }
-  return counts;
+  return { counts, rank_sum: orders.reduce((total, order) => total + order, 0) };
 }
 
 export function enginePieceOf(promptId: string, code: string, answers: readonly FactsAnswer[]): EnginePiece {
@@ -180,7 +181,7 @@ export function enginePieceOf(promptId: string, code: string, answers: readonly 
       ordered_answers: ordered.length,
       mentions: named.length,
       answers: valid.length,
-      by_order: orderCounts(ordered.map((answer) => answer.facts.own_mention_order ?? 0)),
+      by_order: orderCounts(named.flatMap((answer) => answer.facts.own_mention_order ?? [])),
     },
     sentiment: classified ? sentimentCounts(promptId, code, named.length) : null,
     recommendedK: classified
@@ -255,12 +256,15 @@ export function topicEngineFacts(code: string, pieces: readonly EnginePiece[]): 
       ordered_answers: sum((counts) => counts.ordered_answers),
       mentions: sum((counts) => counts.mentions),
       answers: sum((counts) => counts.answers),
-      by_order: [
-        sum((counts) => counts.by_order?.[0] ?? 0),
-        sum((counts) => counts.by_order?.[1] ?? 0),
-        sum((counts) => counts.by_order?.[2] ?? 0),
-        sum((counts) => counts.by_order?.[3] ?? 0),
-      ],
+      by_order: {
+        counts: [
+          sum((counts) => counts.by_order?.counts[0] ?? 0),
+          sum((counts) => counts.by_order?.counts[1] ?? 0),
+          sum((counts) => counts.by_order?.counts[2] ?? 0),
+          sum((counts) => counts.by_order?.counts[3] ?? 0),
+        ],
+        rank_sum: sum((counts) => counts.by_order?.rank_sum ?? 0),
+      },
     },
     sentiment: classified
       ? {

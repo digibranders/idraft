@@ -3,7 +3,7 @@ import type { FactsRow } from './types';
 import { MIN_OBSERVATIONS } from '@/lib/stats';
 
 /** First, second, third, and fourth or later. */
-export type OrderCounts = readonly [number, number, number, number];
+export type OrderCountList = readonly [number, number, number, number];
 
 /**
  * `not_collected`: the backend sends no order counts for the platform, so no distribution can be drawn (a mean never
@@ -12,8 +12,8 @@ export type OrderCounts = readonly [number, number, number, number];
  */
 export type OrderReading =
   | { state: 'not_collected'; ordered: 0; counts: null; shares: null; mean: null }
-  | { state: 'too_few'; ordered: number; counts: OrderCounts; shares: null; mean: null }
-  | { state: 'ok'; ordered: number; counts: OrderCounts; shares: OrderCounts; mean: number };
+  | { state: 'too_few'; ordered: number; counts: OrderCountList; shares: null; mean: null }
+  | { state: 'ok'; ordered: number; counts: OrderCountList; shares: OrderCountList; mean: number };
 
 const NOT_COLLECTED: OrderReading = { state: 'not_collected', ordered: 0, counts: null, shares: null, mean: null };
 
@@ -25,14 +25,21 @@ const NOT_COLLECTED: OrderReading = { state: 'not_collected', ordered: 0, counts
 export function orderDistribution(rows: readonly FactsRow[], code: string): OrderReading {
   const parts = rows.flatMap((row) => {
     const position = engineOf(row, code)?.position;
-    return position?.by_order === undefined ? [] : [{ counts: position.by_order, rankSum: position.rank_sum }];
+    return position?.by_order === undefined
+      ? []
+      : [{ counts: position.by_order.counts, rankSum: position.by_order.rank_sum }];
   });
   if (parts.length === 0) return NOT_COLLECTED;
   const sum = (index: 0 | 1 | 2 | 3): number => parts.reduce((total, part) => total + part.counts[index], 0);
-  const counts: OrderCounts = [sum(0), sum(1), sum(2), sum(3)];
+  const counts: OrderCountList = [sum(0), sum(1), sum(2), sum(3)];
   const ordered = counts.reduce((total, count) => total + count, 0);
   if (ordered < MIN_OBSERVATIONS) return { state: 'too_few', ordered, counts, shares: null, mean: null };
   const rankSum = parts.reduce((total, part) => total + part.rankSum, 0);
-  const shares: OrderCounts = [counts[0] / ordered, counts[1] / ordered, counts[2] / ordered, counts[3] / ordered];
+  const shares: OrderCountList = [counts[0] / ordered, counts[1] / ordered, counts[2] / ordered, counts[3] / ordered];
   return { state: 'ok', ordered, counts, shares, mean: rankSum / ordered };
+}
+
+/** The valid answers on one platform that name the own brand, over the rows; 0 when the rows carry no position. */
+export function namedAnswers(rows: readonly FactsRow[], code: string): number {
+  return rows.reduce((total, row) => total + (engineOf(row, code)?.position?.mentions ?? 0), 0);
 }
