@@ -2,7 +2,7 @@
 
 import { Select as SelectPrimitive } from '@base-ui/react/select';
 import { Check, ChevronDown } from 'lucide-react';
-import type { ReactElement } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 
 import { Icon } from './icon';
 import { inputVariants, type InputSize } from './input-variants';
@@ -17,6 +17,8 @@ export interface SelectOption<TValue extends string> {
   /** Options with the same group name are listed together under it. */
   group?: string | undefined;
   disabled?: boolean | undefined;
+  /** A decorative mark (a logo) shown before the label in the trigger and the list. It is hidden from assistive tech. */
+  icon?: ReactNode | undefined;
 }
 
 export interface SelectProps<TValue extends string> extends Omit<
@@ -65,6 +67,11 @@ function Option<TValue extends string>({ option }: { option: SelectOption<TValue
           <Icon icon={Check} size="sm" />
         </SelectPrimitive.ItemIndicator>
       </span>
+      {option.icon === undefined ? null : (
+        <span aria-hidden="true" className="flex h-5 shrink-0 items-center">
+          {option.icon}
+        </span>
+      )}
       <span className="flex min-w-0 flex-col">
         <SelectPrimitive.ItemText>{option.label}</SelectPrimitive.ItemText>
         {option.description === undefined ? null : <span className="type-meta">{option.description}</span>}
@@ -90,6 +97,7 @@ export function Select<TValue extends string>({
   className,
   ...props
 }: SelectProps<TValue>): ReactElement {
+  const selectedIcon = options.find((option) => option.value === value)?.icon;
   return (
     <SelectPrimitive.Root<TValue>
       items={options}
@@ -111,10 +119,17 @@ export function Select<TValue extends string>({
           className,
         )}
       >
-        <SelectPrimitive.Value
-          placeholder={placeholder}
-          className="min-w-0 truncate data-placeholder:text-foreground-tertiary"
-        />
+        <span className="flex min-w-0 items-center gap-2">
+          {selectedIcon === undefined ? null : (
+            <span aria-hidden="true" className="flex shrink-0 items-center">
+              {selectedIcon}
+            </span>
+          )}
+          <SelectPrimitive.Value
+            placeholder={placeholder}
+            className="min-w-0 truncate data-placeholder:text-foreground-tertiary"
+          />
+        </span>
         <SelectPrimitive.Icon className="flex shrink-0 text-foreground-muted">
           <Icon icon={ChevronDown} size="sm" />
         </SelectPrimitive.Icon>

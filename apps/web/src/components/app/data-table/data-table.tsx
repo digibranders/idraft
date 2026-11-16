@@ -1198,6 +1198,19 @@ export function DataTable<TRow extends RowData>({
               onToggle={(id, visible) => columnState.onChange(toggleColumn(meta, columnState.visible, id, visible))}
               onMove={(id, direction) => columnState.onChange(moveColumn(meta, columnState.visible, id, direction))}
               onReset={() => columnState.onChange(null)}
+              width={
+                identityColumn?.kind === 'data'
+                  ? {
+                      column: labelOf(identityColumn.column.id),
+                      atMin: identityNow <= IDENTITY_RESIZE.min,
+                      atMax: identityNow >= identityMax,
+                      isDefault: identityWidth === null,
+                      onNarrower: () => resizeIdentity(identityNow - IDENTITY_RESIZE.menuStep),
+                      onWider: () => resizeIdentity(identityNow + IDENTITY_RESIZE.menuStep),
+                      onReset: () => setIdentityWidth(null),
+                    }
+                  : undefined
+              }
             />
           )}
         />

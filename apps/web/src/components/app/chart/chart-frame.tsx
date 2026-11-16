@@ -14,6 +14,7 @@ import {
   type RefObject,
 } from 'react';
 
+import { CardInfoButton, useCardInfo } from './card-info';
 import { useCardReadiness, useCurrentCardId } from './card-readiness';
 import { ChartLegend, type LegendItem } from './chart-legend';
 import { ChartMenu, type ChartMenuAction } from './chart-menu';
@@ -420,6 +421,8 @@ function FrameShell({
       setShowUpdating(false);
     };
   }, [status]);
+  const info = useCardInfo() && footnote !== undefined && footnote !== null && footnote !== false;
+  const infoButton = info ? <CardInfoButton title={title} footnote={footnote} footnoteRef={footnoteRef} /> : null;
   const hasControls = controls !== undefined && controls !== null;
   const hasMeta = meta !== null && meta !== undefined;
   const showViews = status === 'ready' || status === 'refetching';
@@ -446,13 +449,18 @@ function FrameShell({
         <div data-slot="chart-state" className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2">
           <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-0.5">
             <Title className={inspector ? 'type-subsection-title' : 'shrink-0 type-section-title'}>{title}</Title>
+            {infoButton}
             <h3 className="sr-only">{empty.title}</h3>
             {hasMeta ? <p className="max-w-full truncate type-meta text-foreground-secondary">{meta}</p> : null}
             <p className="max-w-full truncate type-meta text-foreground-secondary">{empty.reason || empty.title}</p>
           </div>
           {empty.action ? <div className="shrink-0">{empty.action}</div> : null}
         </div>
-        {footnote ? <div className="sr-only">{footnote}</div> : null}
+        {footnote ? (
+          <div ref={footnoteRef} className="sr-only">
+            {footnote}
+          </div>
+        ) : null}
       </section>
     );
   }
@@ -463,6 +471,8 @@ function FrameShell({
       aria-busy={status === 'loading' || status === 'refetching' ? true : undefined}
       className={cn(
         'flex h-full flex-col gap-3',
+        // The hidden footnote is positioned, so it stays inside its own card
+        info && 'relative',
         inspector ? 'py-1' : 'rounded-lg border border-border bg-surface p-4',
       )}
     >
@@ -471,6 +481,7 @@ function FrameShell({
         <div className="flex min-w-0 shrink grow basis-64 flex-col">
           <div className="flex items-center gap-2">
             <Title className={inspector ? 'type-subsection-title' : 'type-section-title'}>{title}</Title>
+            {infoButton}
             {showUpdating ? (
               <span className="inline-flex items-center gap-1 type-meta">
                 <Spinner size="sm" />
@@ -507,7 +518,8 @@ function FrameShell({
         {children}
       </FrameBody>
       {footnote === undefined || footnote === null ? null : (
-        <div ref={footnoteRef} className="mt-auto type-meta">
+        // Info mode keeps the text in the document, for the PNG and for screen readers, and prints none of it
+        <div ref={footnoteRef} className={info ? 'sr-only' : 'mt-auto type-meta'}>
           {footnote}
         </div>
       )}

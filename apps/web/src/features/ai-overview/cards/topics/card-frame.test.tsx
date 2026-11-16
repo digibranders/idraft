@@ -7,6 +7,7 @@ import type { TopicData } from './model-types';
 import { topicData } from './topic-card-test-kit';
 import messages from '../../../../../messages/en.json';
 import { ExportProvider, useExportBlocks, type ExportRead } from '../../export/export-registry';
+import { CardInfoProvider } from '@/components/app/chart/card-info';
 import { OverviewProvider, useOverview, type OverviewScope } from '@/features/ai-overview';
 import type { CardProps } from '@/features/layouts';
 import type { Role } from '@/lib/api/types';
@@ -129,12 +130,15 @@ interface Setup {
   world?: OverviewWorld;
   role?: Role;
   searchParams?: string;
+  /** Keeps the footnote behind the "i" button, as the redesigned Overview does. */
+  info?: boolean;
 }
 
-function render({ over = {}, props, world = 'fynix', role = 'admin', searchParams = '' }: Setup = {}) {
+function render({ over = {}, props, world = 'fynix', role = 'admin', searchParams = '', info = false }: Setup = {}) {
   function Card(): ReactElement {
     const { scope } = useOverview();
-    return <TopicCardFrame {...baseProps(topicData(scope, over))} {...props?.(scope)} />;
+    const frame = <TopicCardFrame {...baseProps(topicData(scope, over))} {...props?.(scope)} />;
+    return info ? <CardInfoProvider>{frame}</CardInfoProvider> : frame;
   }
   const updates: string[] = [];
   const view = renderWithProviders(
@@ -356,6 +360,17 @@ describe('TopicCardFrame', () => {
     render();
     const title = await heading();
     expect(within(title.closest('section') as HTMLElement).getByText('Footnote text')).toBeInTheDocument();
+  });
+
+  it('in info mode prints no footnote, and its "i" button opens it in a popover', async () => {
+    const { user } = render({ info: true });
+    const title = await heading();
+    const frame = title.closest('section') as HTMLElement;
+    // The text stays in the frame, hidden visually, for the PNG and for screen readers
+    expect(within(frame).getByText('Footnote text').closest('.sr-only')).not.toBeNull();
+    await user.click(within(frame).getByRole('button', { name: 'About Topic heat map' }));
+    const dialog = await screen.findByRole('dialog', { name: 'About Topic heat map' });
+    expect(within(dialog).getByText('Footnote text')).toBeInTheDocument();
   });
 
   it('puts the footer link under the body, and none without one', async () => {
