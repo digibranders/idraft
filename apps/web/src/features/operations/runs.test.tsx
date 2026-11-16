@@ -688,7 +688,7 @@ describe('Runs', () => {
     const names = within(panel)
       .getAllByRole('heading', { level: 3 })
       .map((heading) => heading.textContent);
-    expect(names).toEqual(['Summary', 'Tasks by status', 'Answers by engine', 'Missing answers']);
+    expect(names).toEqual(['Summary', 'Tasks by status', 'Answers by platform', 'Missing answers']);
     // Its long body scrolls, so it is a named region a keyboard can focus
     expect(within(panel).getByRole('region', { name: 'Run details' })).toHaveAttribute('tabindex', '0');
   });
