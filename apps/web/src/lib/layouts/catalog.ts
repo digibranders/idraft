@@ -931,20 +931,13 @@ export const SCREENS: Readonly<Record<ScreenKey, ScreenDefinition>> = {
   ai_overview: {
     key: 'ai_overview',
     title: 'AI visibility',
-    // The headline card (`ai.visibility_split`) replaces the numbers strip. The zone stays on, and the built-in layout
-    // keeps its four numbers, until the screen stops drawing the strip: that package sets `numbers: false` here, drops
-    // `numbers` below and from the presets, and runs `pnpm gen:layout-catalog`.
-    zones: { numbers: true, cards: true, widths: true },
+    // The headline card (`ai.visibility_split`) replaced the numbers strip: the screen has no numbers zone, and a stored
+    // layout that still holds numbers is read with them ignored (`sanitizeLayout`).
+    zones: { numbers: false, cards: true, widths: true },
     // The Default preset of the redesign (spec 2026-11-16-ai-overview-redesign-design.md section 5). Every option is
     // written out, because sanitizing fills the defaults in.
     builtin: {
       schema: 1,
-      numbers: [
-        { id: 'prompts', metric: 'ai.prompts_in_scope' },
-        { id: 'mention-chatgpt', metric: 'ai.mention_rate', engine: 'chatgpt_web' },
-        { id: 'mention-gemini', metric: 'ai.mention_rate', engine: 'gemini_web' },
-        { id: 'mention-ai-mode', metric: 'ai.mention_rate', engine: 'google_ai_mode' },
-      ],
       cards: [
         { id: 'visibility-split', type: 'ai.visibility_split', width: 'full' },
         { id: 'rate-trend', type: 'ai.rate_trend_by_engine', width: 'two_thirds', options: { metric: 'visibility' } },

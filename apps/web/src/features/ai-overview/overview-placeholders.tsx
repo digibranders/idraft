@@ -5,28 +5,13 @@ import type { ReactElement } from 'react';
 
 import { PendingSkeleton } from './cards/pending-skeleton';
 import { SPAN_CLASS } from '@/features/layouts';
-import { Skeleton } from '@/components/ui/skeleton';
 import { SCREENS } from '@/lib/layouts';
 
 /**
  * What stands where the page's parts are not built yet or have not loaded, each at its final height so nothing
- * moves when the part arrives (DS 17): the number strip (T8), the scope bar (T7) and, while the engines load, the
+ * moves when the part arrives (DS 17): the scope bar (T7) and, while the engines load, the
  * grid of the built-in layout. They are skeletons: they pulse and are hidden from assistive technology.
  */
-
-/** Inline metric chips skeleton for the page toolbar. */
-export function StripPlaceholder(): ReactElement {
-  return (
-    <div aria-hidden="true" data-slot="strip-placeholder" className="flex items-center gap-4">
-      {[0, 1, 2, 3].map((cell) => (
-        <div key={cell} className={cell < 2 ? 'flex items-center gap-1.5' : 'hidden items-center gap-1.5 md:flex'}>
-          <Skeleton shape="text-12" widthPct={48} />
-          <Skeleton shape="text-14" widthPct={64} />
-        </div>
-      ))}
-    </div>
-  );
-}
 
 /**
  * The row of the scope controls at its finished size: the Platform, Group and Compare selects at their fixed width

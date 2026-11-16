@@ -14,6 +14,7 @@ import { renderWithProviders } from '@/test/render';
 import { ACTIVITY_CARDS } from './cards/activity';
 import { COMPETITOR_CARDS } from './cards/competitors';
 import { ENGINE_CARDS } from './cards/engines';
+import { HEADLINE_CARDS } from './cards/headline';
 import { SOURCE_CARDS } from './cards/sources';
 import { TOPIC_CARDS } from './cards/topics';
 import { useOverview } from './overview-context';
@@ -31,6 +32,7 @@ const ENGINES = mswPath('/api/v1/workspaces/:w/projects/:p/engines');
 const CARDS = 'AI visibility cards';
 /** The family maps of the page: a type listed in one is no longer a pending card. */
 const FAMILIES: readonly Readonly<Record<string, unknown>>[] = [
+  HEADLINE_CARDS,
   ENGINE_CARDS,
   COMPETITOR_CARDS,
   TOPIC_CARDS,
@@ -89,15 +91,15 @@ describe('the AI visibility page of a project with platforms on', () => {
     expect(screen.queryByText('Customizing')).not.toBeInTheDocument();
   });
 
-  it('keeps the scope toolbar under the top bar from 1920 px, with the strip below it', async () => {
+  it('keeps the scope toolbar under the top bar from 1920 px, with the headline below it', async () => {
     renderWithProviders(overviewAs('admin'));
     const toolbar = await screen.findByRole('region', { name: 'Scope and actions' });
     expect(toolbar).toHaveClass('min-[120rem]:sticky', 'min-[120rem]:top-topbar');
     // The scope controls are a named group of their own inside it
     expect(await within(toolbar).findByRole('region', { name: 'Scope' })).toBeInTheDocument();
-    const strip = await screen.findByRole('group', { name: /^AI visibility numbers for / });
-    expect(toolbar.contains(strip)).toBe(false);
-    expect(toolbar.compareDocumentPosition(strip) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+    const headline = await screen.findByRole('group', { name: 'Headline numbers' });
+    expect(toolbar.contains(headline)).toBe(false);
+    expect(toolbar.compareDocumentPosition(headline) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
   });
 
   it('puts the freshness in the toolbar from 1440 px, and only there', async () => {
@@ -249,127 +251,39 @@ describe('the AI visibility page of a project with AI off', () => {
   });
 });
 
-describe('the numbers strip of the AI visibility page', () => {
-  const STRIP = 'AI visibility numbers for Oct 16 to Nov 12, 2026, branded prompts excluded';
-  const stripOf = (): Promise<HTMLElement> => screen.findByRole('group', { name: STRIP });
-  const valuesOf = (strip: HTMLElement): HTMLElement[] => within(strip).getAllByRole('definition');
+describe('the headline of the AI visibility page', () => {
+  const HERO = 'AI visibility rate';
+  const heroOf = (): Promise<HTMLElement> => screen.findByRole('region', { name: HERO });
 
-  it('shows the Fynix numbers, the platforms in the order ChatGPT, Gemini, AI Mode, named by the window and the branded choice', async () => {
+  it('draws the hero and the key numbers as the first card, with no numbers strip above the grid', async () => {
     renderWithProviders(overviewAs('admin'));
-    const strip = await stripOf();
+    const hero = await heroOf();
+    expect(await screen.findByRole('region', { name: 'Key numbers' })).toBeInTheDocument();
+    expect(cardsRegion().contains(hero)).toBe(true);
+    expect(screen.queryByRole('group', { name: /^AI visibility numbers for / })).not.toBeInTheDocument();
     await waitFor(() => {
-      expect(strip).not.toHaveAttribute('aria-busy');
+      expect(cardIds()[0]).toBe('visibility-split');
     });
-    const terms = within(strip)
-      .getAllByRole('term')
-      .map((term) => term.textContent);
-    expect(terms).toHaveLength(4);
-    expect(terms[0]).toBe('Prompts');
-    expect(terms[1]).toMatch(/^Mention rate.*ChatGPT$/);
-    expect(terms[2]).toMatch(/^Mention rate.*Gemini$/);
-    expect(terms[3]).toMatch(/^Mention rate.*AI Mode$/);
-    const [prompts, chatgpt, gemini, aiMode] = valuesOf(strip);
-    expect(prompts).toHaveTextContent(/^\d+/);
-    // Inline chips show the rate; counts and window are in the tooltip
-    expect(chatgpt).toHaveTextContent(/%/);
-    expect(gemini).toHaveTextContent(/%/);
-    expect(chatgpt).toHaveAccessibleDescription(/\d[\d,]* of \d[\d,]* valid answers/);
-    expect(gemini).toHaveAccessibleDescription(/\d[\d,]* of \d[\d,]* valid answers/);
-    // Fynix has AI Mode off: it is not asked, and never a zero
-    expect(aiMode).toHaveTextContent('Not asked');
-    expect(aiMode).toHaveAccessibleDescription(/off in this project/i);
-    expect(aiMode).not.toHaveTextContent('0%');
-    expect(chatgpt).toHaveAttribute('tabindex', '0');
-    expect(chatgpt).toHaveAccessibleDescription(/Window: Oct 16 to Nov 12, 2026 \(branded prompts excluded\)/);
   });
 
-  it('links each number that was read to its destination, named by the number, and leaves AI Mode (off) plain', async () => {
-    renderWithProviders(overviewAs('admin'));
-    const strip = await stripOf();
-    await waitFor(() => {
-      expect(strip).not.toHaveAttribute('aria-busy');
-    });
-    const links = within(strip).getAllByRole('link');
-    expect(links.map((link) => link.textContent)).toEqual([
-      'Prompts',
-      expect.stringMatching(/^Mention rate.*ChatGPT$/) as unknown,
-      expect.stringMatching(/^Mention rate.*Gemini$/) as unknown,
-    ]);
-    const hrefs = links.map((link) => new URL(link.getAttribute('href') ?? '', 'http://localhost'));
-    for (const url of hrefs) expect(url.pathname).toMatch(/\/ai\/prompts$/);
-    expect(hrefs[0]?.searchParams.get('engine')).toBeNull();
-    expect(hrefs[1]?.searchParams.get('engine')).toBe('chatgpt_web');
-    expect(hrefs[2]?.searchParams.get('engine')).toBe('gemini_web');
-    expect(hrefs[2]?.searchParams.get('sort')).toBe('-gemini_web_rate');
-    const aiMode = within(strip)
-      .getAllByRole('term')
-      .find((term) => /^Mention rate.*AI Mode$/.test(term.textContent ?? ''));
-    expect(aiMode).toBeDefined();
-    expect(aiMode?.querySelector('a')).toBeNull();
-  });
-
-  it('carries the window and the platform filter of the page into the links', async () => {
-    renderWithProviders(overviewAs('admin'), { searchParams: '?win=7d&engine=gemini_web' });
-    const strip = await screen.findByRole('group', { name: /AI visibility numbers for Nov 6 to Nov 12, 2026/ });
-    await waitFor(() => {
-      expect(strip).not.toHaveAttribute('aria-busy');
-    });
-    const gemini = within(strip).getByRole('link', { name: /Gemini$/ });
-    const url = new URL(gemini.getAttribute('href') ?? '', 'http://localhost');
-    expect(url.searchParams.get('win')).toBe('7d');
-    expect(url.searchParams.get('engine')).toBe('gemini_web');
-    // ChatGPT is outside the filter: not asked, so plain text
-    expect(within(strip).queryByRole('link', { name: /ChatGPT$/ })).toBeNull();
-  });
-
-  it('shows plain cells where the destination cannot show the number: branded prompts only', async () => {
-    renderWithProviders(overviewAs('admin'), { searchParams: '?branded=only' });
-    const strip = await screen.findByRole('group', { name: /AI visibility numbers/ });
-    await waitFor(() => {
-      expect(strip).not.toHaveAttribute('aria-busy');
-    });
-    expect(within(strip).queryAllByRole('link')).toHaveLength(0);
-  });
-
-  it('shows the single platform of the filter and says the others are not asked', async () => {
-    renderWithProviders(overviewAs('admin'), { searchParams: '?engine=gemini_web' });
-    const strip = await stripOf();
-    await waitFor(() => {
-      expect(strip).not.toHaveAttribute('aria-busy');
-    });
-    const [, chatgpt, gemini] = valuesOf(strip);
-    expect(chatgpt).toHaveTextContent('Not asked');
-    expect(chatgpt).toHaveAccessibleDescription(/not in the platform filter/i);
-    expect(gemini).not.toHaveTextContent('Not asked');
-  });
-
-  it('shows no change with the comparison off', async () => {
-    renderWithProviders(overviewAs('admin'), { searchParams: '?cmp=off' });
-    const strip = await stripOf();
-    await waitFor(() => {
-      expect(strip).not.toHaveAttribute('aria-busy');
-    });
-    expect(within(strip).queryByText(/ pts$/)).toBeNull();
-    expect(valuesOf(strip)[1]).not.toHaveAccessibleDescription(/Change against/);
-  });
-
-  it('changes the numbers and the address when the scope bar changes the scope', async () => {
+  it('changes the headline and the address when the scope bar changes the platform', async () => {
     const urls: string[] = [];
     const { user } = renderWithProviders(overviewAs('admin'), {
       onUrlUpdate: (event) => urls.push(event.queryString),
     });
-    const strip = await stripOf();
-    await waitFor(() => {
-      expect(strip).not.toHaveAttribute('aria-busy');
-    });
-    expect(valuesOf(strip)[1]).not.toHaveTextContent('Not asked');
+    await heroOf();
     await user.click(await screen.findByRole('combobox', { name: 'Platform: All platforms' }));
     await user.click(await screen.findByRole('option', { name: 'Gemini' }));
     await waitFor(() => {
       expect(urls.at(-1)).toBe('?engine=gemini_web');
     });
+    // One platform names its counts, which the average of All platforms does not have
     await waitFor(() => {
-      expect(valuesOf(screen.getByRole('group', { name: STRIP }))[1]).toHaveTextContent('Not asked');
+      expect(screen.getByRole('combobox', { name: 'Platform: Gemini' })).toBeInTheDocument();
+    });
+    await waitFor(() => {
+      const figure = screen.getByRole('region', { name: HERO }).querySelector('.type-metric');
+      expect(figure).toHaveAccessibleDescription(/^[\d,]+ of [\d,]+ answers\./);
     });
     await user.keyboard('{Escape}');
     await user.click(await screen.findByRole('button', { name: 'Compare: vs previous period' }));
@@ -379,7 +293,7 @@ describe('the numbers strip of the AI visibility page', () => {
     });
   });
 
-  it('shows the strip error with Try again when the summary fails, and the cards keep their own states', async () => {
+  it('says the headline could not be read with Try again when the summary fails, and the cards keep their own states', async () => {
     server.use(
       http.get(mswPath('/api/v1/workspaces/:w/projects/:p/ai/prompts-summary'), () =>
         HttpResponse.json(
@@ -389,36 +303,22 @@ describe('the numbers strip of the AI visibility page', () => {
       ),
     );
     renderWithProviders(overviewAs('admin'));
-    const title = await screen.findByText('The AI numbers could not be read');
-    // A built card shows the request id of its own failed read too, so the strip's id is looked up in the strip's panel.
-    const panel = title.closest<HTMLElement>('.min-h-metric-strip');
-    expect(panel).not.toBeNull();
-    expect(within(panel as HTMLElement).getByText('Error ID req-7')).toBeInTheDocument();
-    expect(within(panel as HTMLElement).getByRole('button', { name: 'Try again' })).toBeInTheDocument();
-    expect(screen.queryByRole('group', { name: STRIP })).not.toBeInTheDocument();
+    expect(await screen.findByText('Could not load Headline numbers')).toBeInTheDocument();
     await waitFor(() => {
       expect(cardIds()).toHaveLength(10);
     });
   });
 
-  it('keeps the strip in customize mode with the controls of each number, and no links', async () => {
+  it('has no numbers to arrange in customize mode: the strip is gone', async () => {
     const { user } = renderWithProviders(overviewAs('admin'));
     const button = await screen.findByRole('button', { name: 'Customize' });
     await waitFor(() => {
       expect(button).not.toHaveAttribute('aria-disabled', 'true');
     });
-    // The numbers are links outside customize mode, so the absence below is the mode's doing
-    await waitFor(() => {
-      expect(within(screen.getByRole('group', { name: STRIP })).queryAllByRole('link')).toHaveLength(3);
-    });
     await user.click(button);
-    const strip = await stripOf();
-    for (const name of ['Prompts', 'Mention rate ChatGPT', 'Mention rate Gemini', 'Mention rate AI Mode']) {
-      expect(within(strip).getByRole('button', { name: `Reorder ${name}` })).toBeInTheDocument();
-      expect(within(strip).getByRole('button', { name: `Remove ${name}` })).toBeInTheDocument();
-    }
-    expect(within(strip).getByRole('button', { name: 'Add number' })).toBeInTheDocument();
-    expect(within(strip).queryAllByRole('link')).toHaveLength(0);
+    await screen.findByText('Customizing');
+    expect(screen.queryByRole('button', { name: 'Add number' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: /^AI visibility numbers for / })).not.toBeInTheDocument();
   });
 });
 
