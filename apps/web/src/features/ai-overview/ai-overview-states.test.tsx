@@ -394,7 +394,7 @@ describe('the page while it loads and refetches', () => {
         return getResponse([...handlers], new Request(request.url, { headers: request.headers }));
       }),
     );
-    await user.click(await screen.findByRole('button', { name: 'Compare: vs previous period' }));
+    await user.click(await screen.findByRole('button', { name: 'Compare with: vs previous period' }));
     await user.click(await screen.findByRole('menuitemradio', { name: 'No comparison' }));
     await user.click(await screen.findByRole('combobox', { name: 'Platform: All platforms' }));
     await user.click(await screen.findByRole('option', { name: 'Gemini' }));

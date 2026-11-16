@@ -48,7 +48,7 @@ describe('the scope bar', () => {
     await page();
     const platform = screen.getByRole('combobox', { name: 'Platform: All platforms' });
     const group = screen.getByRole('combobox', { name: 'Group: All groups' });
-    const compare = screen.getByRole('button', { name: 'Compare: vs previous period' });
+    const compare = screen.getByRole('button', { name: 'Compare with: vs previous period' });
     const reset = screen.getByRole('button', { name: 'Reset scope' });
     const branded = await chip('Branded: Excluded. Edit filter');
     const add = screen.getByRole('button', { name: 'Add a filter' });
@@ -69,7 +69,7 @@ describe('the scope bar', () => {
     for (const name of ['Platform: All platforms', 'Group: All groups']) {
       expect(screen.getByRole('combobox', { name })).toHaveClass('w-full', 'sm:w-60');
     }
-    const compare = screen.getByRole('button', { name: 'Compare: vs previous period' });
+    const compare = screen.getByRole('button', { name: 'Compare with: vs previous period' });
     expect(compare).toHaveClass('type-body', 'w-full', 'sm:w-60');
     expect(compare).not.toHaveClass('type-body-strong');
   });
@@ -299,7 +299,7 @@ describe('the scope bar below 768 px', () => {
     expect(within(screen.getByRole('banner')).queryByRole('combobox')).not.toBeInTheDocument();
     await user.click(button);
     const sheet = await screen.findByRole('dialog', { name: 'Filters' });
-    expect(within(sheet).getByRole('button', { name: 'Compare: No comparison' })).toBeInTheDocument();
+    expect(within(sheet).getByRole('button', { name: 'Compare with: No comparison' })).toBeInTheDocument();
     expect(within(sheet).getByRole('combobox', { name: 'Platform: Gemini' })).toBeInTheDocument();
     expect(within(sheet).getByRole('combobox', { name: 'Group: All groups' })).toBeInTheDocument();
     expect(within(sheet).getByRole('button', { name: 'Branded: Excluded. Edit filter' })).toBeInTheDocument();
@@ -330,7 +330,7 @@ describe('the scope bar below 768 px', () => {
     });
     await user.click(await screen.findByRole('button', { name: 'Filters' }));
     const sheet = await screen.findByRole('dialog', { name: 'Filters' });
-    await user.click(within(sheet).getByRole('button', { name: 'Compare: vs previous period' }));
+    await user.click(within(sheet).getByRole('button', { name: 'Compare with: vs previous period' }));
     await user.click(await screen.findByRole('menuitemradio', { name: 'No comparison' }));
     await waitFor(() => {
       expect(lastUrl(urls)).toBe('cmp=off');

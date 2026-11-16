@@ -193,7 +193,7 @@ test.describe('the AI visibility Overview', () => {
         .click();
       await expect.poll(() => paramsOf(page).get('win')).toBe('7d');
 
-      await bar.getByRole('button', { name: 'Compare: vs previous period' }).click();
+      await bar.getByRole('button', { name: 'Compare with: vs previous period' }).click();
       await page.getByRole('menuitemradio', { name: 'No comparison' }).click();
       await expect.poll(() => paramsOf(page).get('cmp')).toBe('off');
 
@@ -226,7 +226,7 @@ test.describe('the AI visibility Overview', () => {
       expect(Object.fromEntries(paramsOf(page))).toEqual(expected);
       await expect(scopeBar(page)).toBeVisible();
       await expect(top.getByRole('button', { name: /^Date range: Last 7 days/ })).toBeVisible();
-      await expect(scopeBar(page).getByRole('button', { name: 'Compare: No comparison' })).toBeVisible();
+      await expect(scopeBar(page).getByRole('button', { name: 'Compare with: No comparison' })).toBeVisible();
       await expect(platformSelect(page, 'Gemini')).toBeVisible();
       await expect(groupSelect(page, /^Group: .*Technical SEO$/)).toBeVisible();
       await expect(scopeBar(page).getByRole('button', { name: /^Branded:/ })).toHaveCount(0);
@@ -273,7 +273,7 @@ test.describe('the AI visibility Overview', () => {
     ): Promise<Array<{ x: number; y: number; width: number }>> => [
       await box(platformSelect(page, platform)),
       await box(groupSelect(page, group)),
-      await box(scopeBar(page).getByRole('button', { name: /^Compare: (vs previous period|No comparison)$/ })),
+      await box(scopeBar(page).getByRole('button', { name: /^Compare with: (vs previous period|No comparison)$/ })),
       await box(resetScope(page)),
     ];
     const before = await measure('All platforms', 'All groups');

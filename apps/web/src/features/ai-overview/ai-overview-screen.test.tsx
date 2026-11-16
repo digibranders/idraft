@@ -372,7 +372,7 @@ describe('the numbers strip of the AI visibility page', () => {
       expect(valuesOf(screen.getByRole('group', { name: STRIP }))[1]).toHaveTextContent('Not asked');
     });
     await user.keyboard('{Escape}');
-    await user.click(await screen.findByRole('button', { name: 'Compare: vs previous period' }));
+    await user.click(await screen.findByRole('button', { name: 'Compare with: vs previous period' }));
     await user.click(await screen.findByRole('menuitemradio', { name: 'No comparison' }));
     await waitFor(() => {
       expect(urls.at(-1)).toBe('?engine=gemini_web&cmp=off');
