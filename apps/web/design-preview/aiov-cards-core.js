@@ -90,7 +90,8 @@ function tileNode({ label, info, cell, ctx, series, plain, measure }) {
   const base = measure && ctx.baseline ? ctx.baseline.shown(measure) : null;
   const baseText = base && base.state === 'ok' && cell.state === 'ok' ? `All groups ${valueText(base)}` : null;
   const line = [note, baseText].filter(Boolean).join(' · ');
-  if (line) node.append(el('span', 'type-micro text-foreground-tertiary truncate num', line));
+  // The line is kept (empty) when there is nothing to say, so a tile has the same height in every scope
+  node.append(el('span', 'block min-h-4 type-micro text-foreground-tertiary truncate num', line));
   return node;
 }
 
@@ -146,8 +147,9 @@ export function headlineRow(ctx) {
   number.dataset.tip = detail;
   number.append(el('span', 'sr-only', `, ${detail}`));
   value.append(number);
+  // The project value of a chosen group has a line of its own, kept (empty) for all groups, so the card never changes height
   const projectValue = ctx.baseline?.shown('visibility');
-  if (projectValue?.state === 'ok') value.append(el('span', 'ml-2 type-micro text-foreground-tertiary num', `All groups ${valueText(projectValue)}`));
+  value.append(el('span', 'block min-h-4 type-micro text-foreground-tertiary num', projectValue?.state === 'ok' ? `All groups ${valueText(projectValue)}` : ''));
   top.append(value);
   const spark = seriesFor(model, 'visibility', ctx.scope.platform);
   if (spark.some((point) => point !== null)) {

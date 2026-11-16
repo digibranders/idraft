@@ -168,7 +168,7 @@ export function cardFrame({ key, title, meta, tools = [], body, flush = false })
     head.append(holder);
   }
   section.append(head);
-  const content = el('div', flush ? 'flex-1 min-h-0' : 'flex-1 min-h-0 px-4 pb-4');
+  const content = el('div', flush ? 'flex-1 min-h-0 flex flex-col' : 'flex-1 min-h-0 px-4 pb-4 flex flex-col');
   content.append(...(Array.isArray(body) ? body : [body]));
   section.append(content);
   return section;
@@ -176,7 +176,8 @@ export function cardFrame({ key, title, meta, tools = [], body, flush = false })
 
 /** A card that cannot be drawn for this scope: says why, and what to do. */
 export function emptyBody(title, text) {
-  const box = el('div', 'min-h-24 py-6 flex flex-col items-center justify-center gap-1 text-center');
+  // `my-auto` centres the message in a card that is taller than it, so a card without data keeps its size
+  const box = el('div', 'min-h-24 py-6 my-auto flex flex-col items-center justify-center gap-1 text-center');
   box.append(el('p', 'type-body-strong text-foreground', title), el('p', 'type-meta max-w-md', text));
   return box;
 }
