@@ -162,6 +162,7 @@ export function DataTable<TRow extends RowData>({
   groupRowOpens = false,
   toolbarEnd,
   compactToolbar = false,
+  compactChooser = false,
   identityCap = false,
   columnGroups = false,
   pinActions = false,
@@ -1046,7 +1047,10 @@ export function DataTable<TRow extends RowData>({
   const bodyMessage = (content: ReactNode): ReactElement => (
     <tr role="row" aria-rowindex={headerRows + 1}>
       <td role="gridcell" colSpan={grid.length} className="p-0">
-        {content}
+        {/* A table wider than its panel scrolls: the message keeps the panel's width, so it is centred in what is seen */}
+        <div className="sticky left-0" style={{ width: regionSize.width }}>
+          {content}
+        </div>
       </td>
     </tr>
   );
@@ -1209,6 +1213,7 @@ export function DataTable<TRow extends RowData>({
           columns={(trigger) => (
             <ColumnChooser
               trigger={trigger}
+              compact={compactChooser}
               columns={chooserColumns}
               onToggle={(id, visible) => columnState.onChange(toggleColumn(meta, columnState.visible, id, visible))}
               onMove={(id, direction) => columnState.onChange(moveColumn(meta, columnState.visible, id, direction))}
