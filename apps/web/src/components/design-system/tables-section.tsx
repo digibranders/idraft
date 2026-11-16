@@ -1,14 +1,22 @@
 'use client';
 
-import { Archive, FolderInput, Tags } from 'lucide-react';
+import { Archive, FolderInput, Globe, Sparkles, Tags } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 
 import { SpecimenGroup } from './specimen';
 import { col } from '@/components/app/data-table/columns';
 import { DataTable } from '@/components/app/data-table/data-table';
-import type { DataTableColumn, PageSize, RecordAction, RowTree, TableStatus } from '@/components/app/data-table/types';
+import type {
+  DataTableColumn,
+  PageSize,
+  RecordAction,
+  RowTree,
+  TableStatus,
+  ToolbarParts,
+} from '@/components/app/data-table/types';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { InlineError } from '@/components/app/status/inline-error';
+import { Icon } from '@/components/ui/icon';
 import { formatInteger } from '@/lib/format';
 import { DEFAULT_DENSITY, type Density, type SortKey } from '@/lib/tables/table-state';
 
@@ -127,6 +135,25 @@ const WIDE_COLUMNS: DataTableColumn<SampleRow>[] = [
 ];
 const DEMO_ROWS = SAMPLE.slice(0, 20);
 
+/** Platform marks in two headers, as the Prompts tables draw them. A mark takes about 22 px, so these columns ask for more width. */
+const MARKED_COLUMNS = [
+  col.keyword<SampleRow>('keyword', (row) => row.keyword, { header: 'Keyword' }),
+  col.volume<SampleRow>('search_volume', (row) => row.volume, {
+    header: 'Volume',
+    headerIcon: <Icon icon={Globe} size="sm" />,
+    width: 120,
+    unknown: () => PENDING,
+  }),
+  col.count<SampleRow>('keyword_difficulty', (row) => row.difficulty, {
+    header: 'KD',
+    headerIcon: <Icon icon={Sparkles} size="sm" />,
+    width: 120,
+    unknown: () => PENDING,
+  }),
+];
+const NO_DENSITY: ToolbarParts = { density: false, count: false, sortNote: false };
+const FALLBACK_SORT: readonly SortKey[] = [{ id: 'keyword', desc: false }];
+
 /** One table with its own state, as a screen would hold it. */
 function SampleTable({
   caption,
@@ -136,7 +163,11 @@ function SampleTable({
   columns = COLUMNS,
   columnGroups = false,
   pinActions = false,
+  toolbarParts,
+  sortFallback,
 }: {
+  toolbarParts?: ToolbarParts;
+  sortFallback?: readonly SortKey[];
   caption: string;
   rows: readonly SampleRow[];
   status: TableStatus;
@@ -163,6 +194,8 @@ function SampleTable({
         columns={columns}
         columnGroups={columnGroups}
         pinActions={pinActions}
+        toolbarParts={toolbarParts}
+        sortFallback={sortFallback}
         getRowId={rowId}
         rows={shown}
         total={rows.length}
@@ -436,6 +469,19 @@ export function TablesSection(): ReactNode {
           status="ready"
           columns={WIDE_COLUMNS}
           pinActions
+        />
+      </SpecimenGroup>
+      <SpecimenGroup
+        title="DataTable extension: toolbar parts, header marks and sort fallback"
+        note="toolbarParts leaves out the density menu (rows stay compact), the toolbar count (the footer keeps it) and the sorted-by note. headerIcon draws a mark before the header label and beside the name in Columns. sortFallback sorts by Keyword while Volume, the sorted column, is hidden in Columns."
+      >
+        <SampleTable
+          caption="Keywords, toolbar parts"
+          rows={DEMO_ROWS}
+          status="ready"
+          columns={MARKED_COLUMNS}
+          toolbarParts={NO_DENSITY}
+          sortFallback={FALLBACK_SORT}
         />
       </SpecimenGroup>
     </>

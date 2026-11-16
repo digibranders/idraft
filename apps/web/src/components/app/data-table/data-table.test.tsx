@@ -13,6 +13,7 @@ import type {
   Selection,
   ServerPaging,
   TableStatus,
+  ToolbarParts,
 } from './types';
 import { CopyButton } from '@/components/app/cells/copy-button';
 import { InspectorOverlayContext } from '@/components/app/inspector/inspector-layout';
@@ -42,6 +43,7 @@ const COLUMNS = [
   col.count<Row>('difficulty', (row) => row.difficulty, { header: 'KD', priority: 3, headerTooltip: 'Difficulty' }),
 ];
 const DEFAULT_SORT: SortKey[] = [{ id: 'volume', desc: true }];
+const KEYWORD_FALLBACK: readonly SortKey[] = [{ id: 'keyword', desc: false }];
 
 const onOpen = vi.fn();
 const archive = vi.fn();
@@ -80,8 +82,14 @@ function Harness({
   pinActions = false,
   columnGroups = false,
   startDensity,
+  toolbarParts,
+  sortFallback,
+  startVisible = null,
   search: searchFromOutside,
 }: {
+  toolbarParts?: ToolbarParts;
+  sortFallback?: readonly SortKey[];
+  startVisible?: readonly string[] | null;
   /** A search the page sets from outside (a link, the browser's Back), over what was typed in the table. */
   search?: string;
   pinActions?: boolean;
@@ -101,7 +109,7 @@ function Harness({
 }): ReactElement {
   const [sort, setSort] = useState<readonly SortKey[]>(DEFAULT_SORT);
   const [density, setDensity] = useState<Density>(startDensity ?? parseDensity(null));
-  const [visible, setVisible] = useState<readonly string[] | null>(null);
+  const [visible, setVisible] = useState<readonly string[] | null>(startVisible);
   const [typed, setSearch] = useState('');
   const search = searchFromOutside ?? typed;
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
@@ -124,6 +132,8 @@ function Harness({
         defaultSort={DEFAULT_SORT}
         density={density}
         onDensityChange={setDensity}
+        toolbarParts={toolbarParts}
+        sortFallback={sortFallback}
         columnState={{ visible, onChange: setVisible }}
         search={search}
         onSearchChange={setSearch}
@@ -1496,7 +1506,13 @@ describe('DataTable tree mode', () => {
     toolbarEnd,
     rows = TREE_ROWS,
     tree = TREE,
+    visible = null,
+    sortFallback,
+    groupRowOpens,
   }: {
+    groupRowOpens?: boolean;
+    visible?: readonly string[] | null;
+    sortFallback?: readonly SortKey[];
     sort?: readonly SortKey[];
     selection?: Partial<Selection>;
     toolbarEnd?: ReactElement;
@@ -1515,11 +1531,12 @@ describe('DataTable tree mode', () => {
           rows={rows}
           total={3}
           sort={sort}
+          sortFallback={sortFallback}
           onSortChange={vi.fn()}
           defaultSort={DEFAULT_SORT}
           density={density}
           onDensityChange={setDensity}
-          columnState={{ visible: null, onChange: vi.fn() }}
+          columnState={{ visible, onChange: vi.fn() }}
           search={search}
           onSearchChange={setSearch}
           searchPlaceholder="Search keywords"
@@ -1528,6 +1545,7 @@ describe('DataTable tree mode', () => {
           onRowOpen={onOpen}
           rowTree={(row) => tree[row.id]}
           onToggleGroup={toggle}
+          groupRowOpens={groupRowOpens}
           toolbarEnd={toolbarEnd}
           status="ready"
           errorState={<p>The keywords did not load.</p>}
@@ -1565,6 +1583,40 @@ describe('DataTable tree mode', () => {
     expect(child).toHaveAttribute('aria-setsize', '2');
     expect(child).not.toHaveAttribute('aria-expanded');
     expect(child).not.toHaveAttribute('data-group-row');
+  });
+
+  it('with groupRowOpens a click and Enter on a group row open it, and only the chevron and Right Arrow toggle it', async () => {
+    const { user } = renderWithProviders(<TreeHarness groupRowOpens />);
+    await user.click(screen.getByText('Group A'));
+    expect(onOpen).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: 'g1' }), 'inspector');
+    expect(toggle).not.toHaveBeenCalled();
+    onOpen.mockClear();
+    act(() => cellAt(0, 1).focus());
+    await user.keyboard('{Enter}');
+    expect(onOpen).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: 'g1' }), 'inspector');
+    expect(toggle).not.toHaveBeenCalled();
+    await user.keyboard('{ArrowLeft}');
+    expect(toggle).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: 'g1' }));
+    toggle.mockClear();
+    await user.click(screen.getByRole('button', { name: /^(Expand|Collapse) Group A/ }));
+    expect(toggle).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: 'g1' }));
+  });
+
+  it('draws the sort fallback while the sorted column is hidden, and leaves the rows in the order given', () => {
+    renderWithProviders(
+      <TreeHarness
+        sort={[{ id: 'volume', desc: true }]}
+        sortFallback={KEYWORD_FALLBACK}
+        visible={['keyword', 'difficulty']}
+      />,
+    );
+    expect(screen.getByRole('columnheader', { name: /Keyword/ })).toHaveAttribute('aria-sort', 'ascending');
+    expect(bodyRows().map((row) => row.getAttribute('aria-level'))).toEqual(['1', '2', '2', '1']);
+    expect(
+      within(treeGrid())
+        .getAllByRole('rowheader')
+        .map((cell) => cell.textContent),
+    ).toEqual(['Group A', 'alpha one', 'alpha two', 'Group B']);
   });
 
   it('names the disclosure button of a group row by its state and name, and toggles the group from it', async () => {
@@ -3378,5 +3430,97 @@ describe('DataTable row context menu', () => {
     leftToBrowser(cellOf('keyword 001', 1));
     await screen.findByRole('menu');
     expect(await axe(document.body)).toHaveNoViolations();
+  });
+});
+
+describe('DataTable toolbar opt-outs', () => {
+  it('draws every toolbar part when toolbarParts is absent or says nothing', () => {
+    renderWithProviders(<Harness rows={rowsOf(5)} toolbarParts={{}} />);
+    expect(screen.getByRole('button', { name: 'Density' })).toBeInTheDocument();
+    expect(screen.getAllByText('5 keywords')).toHaveLength(2);
+  });
+
+  it('leaves out the density menu and keeps the rows compact, even from a stored default density', () => {
+    renderWithProviders(<Harness rows={rowsOf(3)} startDensity="default" toolbarParts={{ density: false }} />);
+    expect(screen.queryByRole('button', { name: 'Density' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Columns' })).toBeInTheDocument();
+    for (const row of within(grid()).getAllByRole('row').slice(1)) expect(row).toHaveClass('h-row-compact');
+  });
+
+  it('leaves out the count in the toolbar but keeps it in the footer', () => {
+    renderWithProviders(<Harness rows={rowsOf(5)} toolbarParts={{ count: false }} />);
+    expect(screen.getAllByText('5 keywords')).toHaveLength(1);
+    const footer = screen.getByText('5 keywords');
+    expect(footer.closest('[role="toolbar"]')).toBeNull();
+    expect(footer.parentElement).toHaveClass('border-t');
+  });
+
+  it('keeps the sorted-by note for two keys readable but never draws it when sortNote is false', async () => {
+    const { user } = renderWithProviders(<Harness rows={rowsOf(5)} toolbarParts={{ sortNote: false }} />);
+    await user.click(within(grid()).getByRole('button', { name: 'Keyword' }));
+    await user.keyboard('{Shift>}');
+    await user.click(within(grid()).getByRole('button', { name: 'KD' }));
+    await user.keyboard('{/Shift}');
+    const note = screen
+      .getAllByText(/^Sorted by/)
+      .find((element) => element.closest('[data-slot="live-region"]') === null && element.tagName === 'P');
+    expect(note).toHaveClass('sr-only');
+    expect(note).not.toHaveClass('xl:not-sr-only');
+  });
+});
+
+describe('DataTable header icons', () => {
+  const MARK = <svg data-testid="mark" />;
+  const WITH_ICON = [
+    col.keyword<Row>('keyword', (row) => row.keyword, { header: 'Keyword' }),
+    col.volume<Row>('volume', (row) => row.volume, { header: 'Volume', headerIcon: MARK }),
+    col.count<Row>('difficulty', (row) => row.difficulty, { header: 'KD', sortable: false, headerIcon: MARK }),
+  ];
+
+  it('draws the mark before the label, hidden from assistive technology, with the name still the text', () => {
+    renderWithProviders(<Harness rows={rowsOf(3)} columns={WITH_ICON} />);
+    const volume = screen.getByRole('columnheader', { name: /Volume/ });
+    const mark = within(volume).getByTestId('mark');
+    expect(mark.parentElement).toHaveAttribute('aria-hidden', 'true');
+    expect(within(volume).getByRole('button', { name: 'Volume' })).toBeInTheDocument();
+    expect(volume).toHaveAttribute('aria-sort', 'descending');
+    // A column that does not sort carries the mark as well
+    expect(within(screen.getByRole('columnheader', { name: 'KD' })).getByTestId('mark')).toBeInTheDocument();
+  });
+
+  it('draws the mark beside the name in the column chooser without changing the checkbox name', async () => {
+    const { user } = renderWithProviders(<Harness rows={rowsOf(3)} columns={WITH_ICON} />);
+    await user.click(screen.getByRole('button', { name: 'Columns' }));
+    const box = screen.getByRole('checkbox', { name: 'Volume' });
+    const label = box.closest('label');
+    if (label === null) throw new Error('no label');
+    expect(within(label).getByTestId('mark').parentElement).toHaveAttribute('aria-hidden', 'true');
+    expect(
+      within(screen.getByRole('checkbox', { name: 'Keyword' }).closest('label') ?? label).queryByTestId('mark'),
+    ).toBeNull();
+  });
+
+  it('draws nothing extra for a column without a mark', () => {
+    renderWithProviders(<Harness rows={rowsOf(3)} />);
+    expect(screen.queryByTestId('mark')).toBeNull();
+  });
+});
+
+describe('DataTable sort fallback', () => {
+  it('sorts by the fallback, with its indicator, while the sorted column is hidden, and returns with the column', async () => {
+    const { user } = renderWithProviders(
+      <Harness rows={rowsOf(5)} sortFallback={KEYWORD_FALLBACK} startVisible={['keyword', 'difficulty']} />,
+    );
+    expect(bodyKeywords()[0]).toBe('keyword 000');
+    expect(screen.getByRole('columnheader', { name: /Keyword/ })).toHaveAttribute('aria-sort', 'ascending');
+    await user.click(screen.getByRole('button', { name: 'Columns' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Volume' }));
+    expect(bodyKeywords()[0]).toBe('keyword 004');
+    expect(screen.getByRole('columnheader', { name: /Volume/ })).toHaveAttribute('aria-sort', 'descending');
+  });
+
+  it('keeps sorting by a hidden column as before when no fallback is given', () => {
+    renderWithProviders(<Harness rows={rowsOf(5)} startVisible={['keyword', 'difficulty']} />);
+    expect(bodyKeywords()[0]).toBe('keyword 004');
   });
 });

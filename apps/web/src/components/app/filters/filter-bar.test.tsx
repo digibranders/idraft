@@ -37,12 +37,13 @@ const FIELDS: FilterField[] = [
 
 let latest: FilterValues = {};
 
-function Harness({ initial = {} }: { initial?: FilterValues }): ReactElement {
+function Harness({ initial = {}, nowrap }: { initial?: FilterValues; nowrap?: boolean }): ReactElement {
   const [values, setValues] = useState<FilterValues>(initial);
   return (
     <FilterBar
       fields={FIELDS}
       values={values}
+      nowrap={nowrap}
       onChange={(next) => {
         latest = next;
         setValues(next);
@@ -59,6 +60,20 @@ describe('FilterBar', () => {
   });
   afterEach(() => {
     Reflect.deleteProperty(Element.prototype, 'getAnimations');
+  });
+
+  it('wraps its chips by default and scrolls them on one line inside its room with nowrap', () => {
+    const initial: FilterValues = { kw: { kind: 'text', operator: 'contains', text: 'crm' } };
+    const wrapping = renderWithProviders(<Harness initial={initial} />);
+    expect(within(wrapping.container).getByRole('group', { name: 'Filters' })).toHaveClass('flex-wrap');
+    expect(within(wrapping.container).getByRole('group', { name: 'Filters' })).not.toHaveClass('overflow-x-auto');
+    wrapping.unmount();
+    const single = renderWithProviders(<Harness initial={initial} nowrap />);
+    const bar = within(single.container).getByRole('group', { name: 'Filters' });
+    expect(bar).toHaveClass('overflow-x-auto', 'scrollbar-none');
+    expect(bar).not.toHaveClass('flex-wrap');
+    expect(within(bar).getByRole('button', { name: 'Keyword contains: crm. Edit filter' })).toBeInTheDocument();
+    expect(within(bar).getByRole('button', { name: 'Add a filter' })).toBeInTheDocument();
   });
 
   it('names each chip and its remove button from the field and value', async () => {

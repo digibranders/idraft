@@ -21,6 +21,7 @@ import { BulkActionBar } from './bulk-action-bar';
 import { ColumnChooser } from './column-chooser';
 import { planHeader } from './column-groups';
 import { LONG_PRESS, ownsContextMenu } from './context-menu';
+import { effectiveSort } from './sort-fallback';
 import { RowContextMenu, rowMenuItems, type MenuPoint } from './row-menu';
 import { TableFooter } from './table-footer';
 import { DataTableToolbar } from './toolbar';
@@ -143,11 +144,13 @@ export function DataTable<TRow extends RowData>({
   total,
   server,
   loadProgress,
-  sort,
+  sort: requestedSort,
+  sortFallback,
   onSortChange,
   defaultSort,
-  density,
+  density: chosenDensity,
   onDensityChange,
+  toolbarParts,
   columnState,
   search,
   onSearchChange,
@@ -156,6 +159,7 @@ export function DataTable<TRow extends RowData>({
   selection,
   rowTree,
   onToggleGroup,
+  groupRowOpens = false,
   toolbarEnd,
   compactToolbar = false,
   identityCap = false,
@@ -176,6 +180,8 @@ export function DataTable<TRow extends RowData>({
   footerNote,
 }: DataTableProps<TRow>): ReactNode {
   const t = useTranslations('dataTable');
+  // Without the density menu nobody can undo a stored "default", so the rows are compact, as the opt-out promises
+  const density: Density = toolbarParts?.density === false ? 'compact' : chosenDensity;
   const captionId = useId();
   const hintId = useId();
   const gridId = useId();
@@ -200,6 +206,13 @@ export function DataTable<TRow extends RowData>({
     const column = byId.get(id);
     return column === undefined ? [] : [column];
   });
+  // A sort with a key on a column that is not shown is drawn nowhere, so with `sortFallback` the fallback sorts
+  // (and shows its indicator) instead; `sortFallback` itself is the caller's, so its identity is stable
+  const sort = effectiveSort(
+    requestedSort,
+    sortFallback,
+    shown.map((column) => column.id),
+  );
   // F2 does something only where a column shown has controls in its cells, so only then does the hint say so
   const hasControls = shown.some((column) => column.hasControls === true);
   const grid: GridColumn<TRow>[] = [
@@ -844,7 +857,7 @@ export function DataTable<TRow extends RowData>({
         if (actionsOf(rowActions, row).length > 0) setMenu({ kind: 'row', id: getRowId(row) });
       } else if (column?.kind === 'select' && selection !== undefined) {
         if (hasCheckbox(treeAt(current.row))) toggleRow(getRowId(row), false);
-      } else if (isGroup(treeAt(current.row))) onToggleGroup?.(row);
+      } else if (isGroup(treeAt(current.row)) && !groupRowOpens) onToggleGroup?.(row);
       else openRow(row, event);
     }
   };
@@ -893,6 +906,7 @@ export function DataTable<TRow extends RowData>({
     return [...chosen, ...rest].map((id) => ({
       id,
       label: labelOf(id),
+      icon: byId.get(id)?.headerIcon,
       visible: chosen.includes(id),
       locked: byId.get(id)?.identity === true,
     }));
@@ -1189,6 +1203,7 @@ export function DataTable<TRow extends RowData>({
           updating={showUpdating}
           density={density}
           onDensityChange={onDensityChange}
+          parts={toolbarParts}
           compact={compactToolbar}
           end={toolbarEnd}
           columns={(trigger) => (
@@ -1357,7 +1372,7 @@ export function DataTable<TRow extends RowData>({
                                 return;
                               }
                               if (!isRowClick(event)) return;
-                              if (groupTree === undefined) openRow(row, event);
+                              if (groupTree === undefined || groupRowOpens) openRow(row, event);
                               else onToggleGroup?.(row);
                             }}
                             onAuxClick={(event: MouseEvent<HTMLTableRowElement>) => {
@@ -1557,9 +1572,21 @@ function HeaderContent<TRow>({
   items,
   optionsLabel,
 }: HeaderContentProps<TRow>): ReactElement {
-  const label = (
+  const text = (
     <span className={cn('truncate type-table-header', sortKey !== null && 'text-foreground')}>{column.header}</span>
   );
+  // The mark is decoration: the header's text stays the column's name
+  const label =
+    column.headerIcon === undefined ? (
+      text
+    ) : (
+      <span className="flex min-w-0 items-center gap-1.5">
+        <span aria-hidden="true" className="flex shrink-0 items-center">
+          {column.headerIcon}
+        </span>
+        {text}
+      </span>
+    );
   const sortable = column.sortValue !== undefined;
   return (
     // The flex container occupies the available cell width inside <th>, so right-0 places the

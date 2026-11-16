@@ -2,7 +2,7 @@
 
 import { ArrowDown, ArrowUp } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import type { ReactElement } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -13,6 +13,8 @@ import { announce } from '@/lib/a11y/announcer';
 export interface ColumnChooserColumn {
   id: string;
   label: string;
+  /** A mark drawn before the name (a platform's logo); hidden from assistive technology, the name stays `label`. */
+  icon?: ReactNode;
   visible: boolean;
   /** The identity column: always shown, not movable. */
   locked: boolean;
@@ -82,7 +84,18 @@ export function ColumnChooser({
             <li key={column.id} className="group flex h-control-sm items-center gap-1">
               <Checkbox
                 checked={column.visible}
-                label={column.label}
+                label={
+                  column.icon === undefined ? (
+                    column.label
+                  ) : (
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <span aria-hidden="true" className="flex shrink-0 items-center">
+                        {column.icon}
+                      </span>
+                      <span className="truncate">{column.label}</span>
+                    </span>
+                  )
+                }
                 disabled={column.locked}
                 onCheckedChange={(checked) => onToggle(column.id, checked)}
                 className="min-w-0 flex-1"
