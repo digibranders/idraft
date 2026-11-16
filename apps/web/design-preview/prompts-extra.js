@@ -159,6 +159,15 @@ const OTHER_BRANDS = ['Copper', 'Insightly', 'Monday CRM', 'Close', 'Nutshell', 
 /** How many brands or links a list popover shows. */
 export const LIST_SIZE = 10;
 
+/**
+ * Brands a person added to the competitor list from a brands list. The entity palette has six colors (the own brand
+ * and five competitors), so a brand added beyond them takes the neutral "other" color, as every chart does.
+ */
+const addedBrands = new Set();
+export const addCompetitor = (name) => addedBrands.add(name);
+export const removeCompetitor = (name) => addedBrands.delete(name);
+export const isAddedCompetitor = (name) => addedBrands.has(name);
+
 /** One count per brand for one prompt on one engine, for the answers observed. */
 function entityCounts(prompt, code) {
   const engine = prompt.engines[code];
@@ -166,7 +175,7 @@ function entityCounts(prompt, code) {
   return [
     { name: OWN, own: true, tracked: true, swatch: 'bg-chart-1', k: engine.mention },
     ...COMPETITORS.map((competitor, c) => ({ name: competitor.name, own: false, tracked: true, swatch: competitor.swatch, k: engine.competitors[c] })),
-    ...OTHER_BRANDS.map((name, i) => ({ name, own: false, tracked: false, swatch: null, k: clamp(Math.round(engine.n * (0.11 - i * 0.009) * (0.4 + random() * 1.2)), 0, engine.n) })),
+    ...OTHER_BRANDS.map((name, i) => ({ name, own: false, tracked: addedBrands.has(name), swatch: addedBrands.has(name) ? 'other' : null, k: clamp(Math.round(engine.n * (0.11 - i * 0.009) * (0.4 + random() * 1.2)), 0, engine.n) })),
   ];
 }
 

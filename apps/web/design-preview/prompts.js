@@ -35,7 +35,7 @@ import {
   topicPath,
 } from './prompts-data.js';
 import { brandsOf, citedLinksOf, intentOf, latestAnswerOf, positionOf, sentimentOf, volumeOf } from './prompts-extra.js';
-import { brandsCell, citedLinksCell, closeStaleList, initEngineSelect, intentCell, positionCell, screenshotCell, sentimentCell, textCell, volumeCell } from './prompts-extra-cells.js';
+import { brandsCell, citedLinksCell, closeStaleList, initEngineSelect, onCompetitorsChange, intentCell, positionCell, screenshotCell, sentimentCell, textCell, volumeCell } from './prompts-extra-cells.js';
 import { initPromptInspector, refreshPromptInspector } from './prompts-inspector.js';
 import { initTopicInspector, refreshTopicInspector } from './prompts-topic-inspector.js';
 import { initTopics, promptsByMention, renderTopics, topicOrder, topicsInScope } from './prompts-topics.js';
@@ -634,6 +634,9 @@ const refreshEngineSelect = initEngineSelect({
     applyFilters();
   },
 });
+
+// A brand added to the competitor list from a brands list shows in every list once that list has closed
+onCompetitorsChange(render);
 
 // Compare: the shared menu sets the label; "No comparison" takes the deltas away
 $('#ed-compare').addEventListener('click', (event) => {

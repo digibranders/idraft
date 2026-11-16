@@ -7,13 +7,13 @@
 import { formatDecimal, formatInteger, formatSampleCount } from './vendor/format/number.js';
 import { ENGINES, engineOf } from './prompts-data.js';
 import { MIN_OBSERVATIONS } from './vendor/stats/index.js';
-import { INTENT_TIP, LIST_SIZE, POSITION_MIN_LISTS, SENTIMENT_MIN, intentOf } from './prompts-extra.js';
+import { INTENT_TIP, LIST_SIZE, POSITION_MIN_LISTS, SENTIMENT_MIN, addCompetitor, intentOf, isAddedCompetitor, removeCompetitor } from './prompts-extra.js';
 import { CELL } from './prompts-cells.js';
 import { NEUTRAL_BADGE, el, insufficient, percent0, plural } from './prompts-parts.js';
 import { state } from './prompts-state.js';
 
 const ui = window.PreviewUI;
-const { $, icon, openPopup, closePopup, engineLogo } = ui;
+const { $, icon, openPopup, closePopup, engineLogo, toast } = ui;
 
 // -------------------------------------------------------------------------------------------------
 // Plain cells
@@ -119,7 +119,7 @@ let panel = null;
 function listPanel() {
   if (panel) return panel;
   // Ten rows, a header and a note fit without scrolling, so the list needs no keyboard scrolling of its own
-  panel = el('div', 'hidden fixed z-(--z-dropdown) w-88 max-w-[calc(100vw-1.5rem)] max-h-112 overflow-y-auto rounded-lg border border-border bg-surface-elevated shadow-popover');
+  panel = el('div', 'hidden fixed z-(--z-dropdown) w-104 max-w-[calc(100vw-1.5rem)] max-h-[min(34rem,calc(100dvh-2rem))] overflow-y-auto rounded-lg border border-border bg-surface-elevated shadow-popover');
   panel.setAttribute('role', 'dialog');
   panel.tabIndex = -1;
   // The list has nothing to tab to: Tab leaves it and closes it, back on the cell that opened it
@@ -170,7 +170,16 @@ function openList(trigger, { title, subtitle, rows, ownRow, note }) {
   body.push(el('p', 'border-t border-border-subtle px-3 py-2 type-meta', note));
   node.replaceChildren(...body);
   listTrigger = trigger;
-  openPopup(node, trigger, { align: 'start', focus: node, onClose: () => (listTrigger = null) });
+  openPopup(node, trigger, {
+    align: 'start',
+    focus: node,
+    onClose: () => {
+      listTrigger = null;
+      if (!dirty) return;
+      dirty = false;
+      competitorsChanged?.();
+    },
+  });
 }
 
 function opener(trigger, build) {
@@ -206,10 +215,37 @@ export function brandsCell(brands, label) {
     subtitle: `${label} · ${scopeSentence(brands.names, brands.answers)}`,
     rows: brands.shown.map((row) => brandRow(row, brands)),
     ownRow: brands.own ? brandRow(brands.own, brands) : null,
-    note: 'The share of answers that name each brand. A brand marked Not tracked is not in your competitor set yet.',
+    note: 'The share of answers that name each brand. A brand marked Not a competitor is in the answers but not in your competitor list: add it to include it in share of voice and the competitor gap.',
   }));
   cell.append(button);
   return cell;
+}
+
+/** `callback` draws the tables again: it runs when a list that changed the competitor list has closed. */
+let competitorsChanged = null;
+export function onCompetitorsChange(callback) {
+  competitorsChanged = callback;
+}
+/** Set while the open list has changed the competitor list, so the tables are drawn again once it closes. */
+let dirty = false;
+
+/** Adds a brand to the competitor list or takes it off again, and redraws its row in the list that is open. */
+function setTracked(row, brands, tracked, holder) {
+  if (tracked) addCompetitor(row.name);
+  else removeCompetitor(row.name);
+  row.tracked = tracked;
+  row.swatch = tracked ? 'other' : null;
+  if (listTrigger === null) {
+    // The list is closed (Undo came later): only the tables are left to draw
+    competitorsChanged?.();
+    return;
+  }
+  dirty = true;
+  // brandRow points the holder at the new row, so the one on screen is taken first
+  const current = holder.node;
+  const next = brandRow(row, brands, holder);
+  current.replaceWith(next);
+  (next.querySelector('button') ?? panel).focus({ preventScroll: true });
 }
 
 /**
@@ -217,17 +253,40 @@ export function brandsCell(brands, label) {
  * engines, so counts of answers match it only for one prompt: then one engine shows its count beside the rate and several
  * list each engine's count in the tooltip. For a group the tooltip says what the rate is a mean of (one denominator, R12).
  */
-function brandRow(row, brands) {
+function brandRow(row, brands, holder = { node: null }) {
   const single = brands.names.length === 1 && brands.prompts === 1;
   const main = el('span', 'flex min-w-0 items-center gap-2');
-  if (row.swatch) main.append(el('span', `size-2.5 shrink-0 rounded-xs ${row.swatch}`));
+  if (row.swatch) {
+    const swatch = el('span', `size-2.5 shrink-0 rounded-xs ${row.swatch === 'other' ? '' : row.swatch}`);
+    // Past the six entity colors a brand takes the neutral "other" color, as the charts do
+    if (row.swatch === 'other') swatch.style.background = 'var(--chart-other)';
+    main.append(swatch);
+  }
   main.append(el('span', 'truncate type-body text-foreground', row.name));
+  const value = el('span', 'flex items-center gap-2 whitespace-nowrap');
   if (row.own) main.append(el('span', `${NEUTRAL_BADGE} shrink-0`, 'You'));
-  else if (!row.tracked) main.append(el('span', 'shrink-0 type-meta', 'Not tracked'));
-  const value = el('span', 'flex items-baseline gap-2 whitespace-nowrap');
+  else if (!row.tracked) {
+    const tag = el('span', 'shrink-0 type-meta', 'Not a competitor');
+    tag.dataset.tip = 'The answers name it, but it is not in your competitor list, so share of voice and the competitor gap leave it out';
+    main.append(tag);
+    const add = el('button', 'h-6 shrink-0 rounded-sm border border-border bg-surface px-2 type-label text-foreground hover:bg-surface-hover focus-visible:focus-ring', 'Add');
+    add.type = 'button';
+    add.setAttribute('aria-label', `Add ${row.name} to your competitors`);
+    add.dataset.tip = 'Track it: it counts in share of voice and the competitor gap from the next run';
+    add.addEventListener('click', () => {
+      setTracked(row, brands, true, holder);
+      toast({
+        title: `${row.name} added to your competitors`,
+        description: 'It counts in share of voice and the competitor gap from the next run.',
+        action: { label: 'Undo', run: () => setTracked(row, brands, false, holder) },
+      });
+    });
+    value.append(add);
+  } else if (isAddedCompetitor(row.name)) main.append(el('span', 'shrink-0 type-meta', 'Added'));
   value.append(el('span', 'num type-body-strong text-foreground', percent0(row.rate)));
   if (single) value.append(el('span', 'type-meta num', formatSampleCount(row.k, row.n)));
   const item = listRow({ place: row.place, main, value, own: row.own });
+  holder.node = item;
   if (brands.prompts > 1) item.dataset.tip = `Mean over ${plural(brands.prompts, 'prompt')}, each prompt counting once${brands.names.length > 1 ? ', averaged over the engines' : ''}`;
   else if (!single) item.dataset.tip = [...row.counts.entries()].map(([name, counts]) => `${name} ${formatSampleCount(counts.k, counts.n)} answers`).join(', ');
   return item;
