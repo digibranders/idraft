@@ -289,6 +289,55 @@ describe('DataTable house style (owner decisions of 2026-10-29)', () => {
       expect(keywordWidth()).toBe(before);
     });
 
+    describe('in the column chooser', () => {
+      const widthRow = async (user: ReturnType<typeof renderWithProviders>['user']): Promise<HTMLElement> => {
+        await user.click(screen.getByRole('button', { name: 'Columns' }));
+        return screen.findByRole('group', { name: 'Keyword column width' });
+      };
+
+      it('names the column, and sets Narrower, Wider and Reset width', async () => {
+        const { user } = renderWithProviders(<Harness rows={rowsOf(3)} />);
+        const before = keywordWidth();
+        const row = await widthRow(user);
+        const reset = within(row).getByRole('button', { name: 'Reset width' });
+        expect(reset).toHaveAttribute('aria-disabled', 'true');
+        await user.click(within(row).getByRole('button', { name: 'Narrower' }));
+        expect(keywordWidth()).toBe(before - 40);
+        expect(reset).not.toHaveAttribute('aria-disabled', 'true');
+        await user.click(within(row).getByRole('button', { name: 'Wider' }));
+        await user.click(within(row).getByRole('button', { name: 'Wider' }));
+        expect(keywordWidth()).toBe(before + 40);
+        await user.click(reset);
+        expect(keywordWidth()).toBe(before);
+        expect(reset).toHaveAttribute('aria-disabled', 'true');
+      });
+
+      it('disables Narrower at the minimum and Wider at the maximum', async () => {
+        const { user } = renderWithProviders(<Harness rows={rowsOf(3)} />);
+        const row = await widthRow(user);
+        const narrower = within(row).getByRole('button', { name: 'Narrower' });
+        const wider = within(row).getByRole('button', { name: 'Wider' });
+        for (let i = 0; i < 30; i += 1) await user.click(narrower);
+        expect(keywordWidth()).toBe(120);
+        expect(narrower).toHaveAttribute('aria-disabled', 'true');
+        expect(wider).not.toHaveAttribute('aria-disabled', 'true');
+        for (let i = 0; i < 60; i += 1) await user.click(wider);
+        expect(keywordWidth()).toBe(RegionObserver.width - 160);
+        expect(wider).toHaveAttribute('aria-disabled', 'true');
+      });
+
+      it('is reachable and operable from the keyboard', async () => {
+        const { user } = renderWithProviders(<Harness rows={rowsOf(3)} />);
+        const before = keywordWidth();
+        const row = await widthRow(user);
+        const wider = within(row).getByRole('button', { name: 'Wider' });
+        act(() => wider.focus());
+        await user.keyboard('{Enter}');
+        expect(keywordWidth()).toBe(before + 40);
+        expect(wider).toHaveFocus();
+      });
+    });
+
     it('has no labelled control in the header, so the column keeps its plain name', () => {
       renderWithProviders(<Harness rows={rowsOf(3)} />);
       expect(within(keywordHeader()).queryAllByRole('separator')).toHaveLength(0);

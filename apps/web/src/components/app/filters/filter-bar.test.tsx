@@ -1,6 +1,6 @@
 import { act, screen, waitFor, within } from '@testing-library/react';
 import { useState, type ReactElement } from 'react';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { FilterBar } from './filter-bar';
 import type { FilterField, FilterValues } from './types';
@@ -240,5 +240,37 @@ describe('FilterBar', () => {
     expect(screen.getByRole('button', { name: 'Add a filter' })).toHaveFocus();
     await user.click(screen.getByRole('button', { name: 'Clear filters' }));
     expect(latest).toEqual({ other });
+  });
+
+  describe('hiddenChipFields', () => {
+    const device = { kind: 'enum', values: ['desktop'] } as const;
+    const kw = { kind: 'text', operator: 'equals', text: 'crm' } as const;
+
+    it('draws no chip for a hidden field, keeps its value, and does not offer it in + Filter', async () => {
+      const { user } = renderWithProviders(
+        <FilterBar fields={FIELDS} values={{ device }} onChange={() => undefined} hiddenChipFields={['device']} />,
+      );
+      expect(screen.queryByRole('button', { name: /Device/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Clear filters' })).not.toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Add a filter' }));
+      const list = await screen.findByRole('list');
+      expect(within(list).queryByRole('button', { name: 'Device' })).not.toBeInTheDocument();
+      expect(within(list).getByRole('button', { name: 'Keyword' })).toBeInTheDocument();
+    });
+
+    it('still draws the other chips, and Clear filters leaves the hidden value in place', async () => {
+      const onChange = vi.fn();
+      const { user } = renderWithProviders(
+        <FilterBar fields={FIELDS} values={{ device, kw }} onChange={onChange} hiddenChipFields={['device']} />,
+      );
+      expect(screen.getByRole('button', { name: 'Keyword equals: crm. Edit filter' })).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Clear filters' }));
+      expect(onChange).toHaveBeenCalledWith({ device });
+    });
+
+    it('draws every chip when the prop is not given', () => {
+      renderWithProviders(<FilterBar fields={FIELDS} values={{ device }} onChange={() => undefined} />);
+      expect(screen.getByRole('button', { name: 'Device: Desktop. Edit filter' })).toBeInTheDocument();
+    });
   });
 });

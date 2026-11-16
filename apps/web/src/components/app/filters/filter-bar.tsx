@@ -39,6 +39,11 @@ export interface FilterBarProps {
    * has no empty bar to clear to: it draws its own reset.
    */
   hideClear?: boolean | undefined;
+  /**
+   * Fields whose value is applied but whose chip is not drawn, because the screen shows that choice in its own
+   * control (the Prompts platform select). They are not offered in "+ Filter" and "Clear filters" leaves them alone.
+   */
+  hiddenChipFields?: readonly string[] | undefined;
 }
 
 /**
@@ -53,6 +58,7 @@ export function FilterBar({
   resultCount,
   trailing,
   hideClear = false,
+  hiddenChipFields,
 }: FilterBarProps): ReactElement {
   const t = useTranslations('filters');
   const groupRef = useRef<HTMLDivElement>(null);
@@ -66,8 +72,9 @@ export function FilterBar({
   }, [countKey, resultCount]);
   // The chip, or "+ Filter", to focus once a removal has rendered.
   const pendingFocus = useRef<string | null>(null);
-  const active = fields.filter((field) => values[field.id] !== undefined);
-  const available = fields.filter((field) => values[field.id] === undefined);
+  const chipFields = hiddenChipFields === undefined ? fields : fields.filter((f) => !hiddenChipFields.includes(f.id));
+  const active = chipFields.filter((field) => values[field.id] !== undefined);
+  const available = chipFields.filter((field) => values[field.id] === undefined);
 
   useEffect(() => {
     const target = pendingFocus.current;
@@ -95,7 +102,7 @@ export function FilterBar({
   };
   const clearAll = (): void => {
     pendingFocus.current = ADD_TARGET;
-    onChange(without(new Set(fields.map((field) => field.id))));
+    onChange(without(new Set(chipFields.map((field) => field.id))));
   };
 
   return (

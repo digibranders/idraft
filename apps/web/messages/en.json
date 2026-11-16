@@ -1734,7 +1734,10 @@
     "previous": "Previous page",
     "next": "Next page",
     "pageSize": "Rows per page",
-    "pageSizeValue": "{size} per page"
+    "pageSizeValue": "{size} per page",
+    "chooser": {
+      "columnWidth": "{column} column width"
+    }
   },
   "chart": {
     "views": "{title} view",
@@ -1812,6 +1815,9 @@
     "multiples": {
       "latest": "{category}: {text}",
       "keepOne": "{name} stays shown: at least one chart must be visible"
+    },
+    "info": {
+      "about": "About {title}"
     }
   },
   "inspector": {

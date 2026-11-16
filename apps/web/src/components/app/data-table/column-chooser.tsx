@@ -18,6 +18,19 @@ export interface ColumnChooserColumn {
   locked: boolean;
 }
 
+/** The width of the identity column, which a person can set from here as well as by dragging its edge. */
+export interface ColumnChooserWidth {
+  /** The identity column's name, for "{column} column width". */
+  column: string;
+  atMin: boolean;
+  atMax: boolean;
+  /** No width of the person's own is set. */
+  isDefault: boolean;
+  onNarrower: () => void;
+  onWider: () => void;
+  onReset: () => void;
+}
+
 export interface ColumnChooserProps {
   trigger: ReactElement;
   /** Every column in the chosen order, the hidden ones after it. */
@@ -25,14 +38,23 @@ export interface ColumnChooserProps {
   onToggle: (id: string, visible: boolean) => void;
   onMove: (id: string, direction: -1 | 1) => void;
   onReset: () => void;
+  /** Adds the Narrower, Wider and Reset row for the identity column; a table without one passes nothing. */
+  width?: ColumnChooserWidth | undefined;
 }
 
 /**
  * Shows, hides and reorders a table's columns (12-tables.md section 10): a checkbox per column, Move up and
  * Move down on the shown ones (the keyboard path for reordering), and Reset to default. The identity column
- * cannot be hidden or moved.
+ * cannot be hidden or moved; its width is set from the row under the list.
  */
-export function ColumnChooser({ trigger, columns, onToggle, onMove, onReset }: ColumnChooserProps): ReactElement {
+export function ColumnChooser({
+  trigger,
+  columns,
+  onToggle,
+  onMove,
+  onReset,
+  width,
+}: ColumnChooserProps): ReactElement {
   const t = useTranslations('dataTable');
   const shown = columns.filter((column) => column.visible);
   const firstMovable = shown.findIndex((column) => !column.locked);
@@ -89,6 +111,32 @@ export function ColumnChooser({ trigger, columns, onToggle, onMove, onReset }: C
           );
         })}
       </ul>
+      {width === undefined ? null : (
+        <div
+          role="group"
+          aria-label={t('chooser.columnWidth', { column: width.column })}
+          className="mt-1 flex items-center gap-1 border-t border-border-subtle px-2 pt-2"
+        >
+          <span aria-hidden="true" className="min-w-0 flex-1 truncate type-meta">
+            {t('chooser.columnWidth', { column: width.column })}
+          </span>
+          <Button variant="secondary" size="sm" disabled={width.atMin} focusableWhenDisabled onClick={width.onNarrower}>
+            {t('narrower')}
+          </Button>
+          <Button variant="secondary" size="sm" disabled={width.atMax} focusableWhenDisabled onClick={width.onWider}>
+            {t('wider')}
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={width.isDefault}
+            focusableWhenDisabled
+            onClick={width.onReset}
+          >
+            {t('resetWidth')}
+          </Button>
+        </div>
+      )}
     </Popover>
   );
 }
