@@ -304,7 +304,7 @@ export function TopicsTable({
       },
       {
         header: t('columns.country'),
-        headerTooltip: root('prompts.shell.columns.locationTip'),
+        headerTooltip: t('groupHeaderTips.location'),
         priority: 3,
         width: 120,
         minWidth: 120,
@@ -326,7 +326,7 @@ export function TopicsTable({
       },
     };
     const metricColumns = [
-      volumeColumn<TopicRow>(root, volumeOf),
+      volumeColumn<TopicRow>(root, volumeOf, t('groupHeaderTips.volume')),
       positionColumn<TopicRow>(shared, { facts: factsOf, link: linkOf }),
       rateColumns.mention,
       rateColumns.citation,

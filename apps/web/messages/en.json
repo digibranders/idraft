@@ -5046,6 +5046,10 @@
       "relatedEmptyReason": "Groups beside this one appear once the scope holds more than one group.",
       "openGroupTip": "Open the group",
       "tabPromptsCount": "Prompts ({count, number})"
+    },
+    "groupHeaderTips": {
+      "location": "The location the prompts are asked for",
+      "volume": "Monthly searches of the keywords the prompts are linked to, each keyword counted once"
     }
   },
   "aiOverview": {

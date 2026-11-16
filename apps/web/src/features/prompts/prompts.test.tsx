@@ -2362,6 +2362,21 @@ describe('Prompts: rate columns, Top platform, sorting and the metric switcher',
     expect(await screen.findAllByText('The location the prompt is asked for')).not.toHaveLength(0);
   });
 
+  it('words the Location and Search volume headers of the Groups tab for the prompts and keywords of a group', async () => {
+    serveRates();
+    const { user } = renderWithProviders(promptsAs('viewer'));
+    const tree = await screen.findByRole('treegrid', { name: 'Groups' });
+    await within(tree).findAllByRole('rowheader');
+    await user.hover(within(tree).getByRole('columnheader', { name: /^Location/ }));
+    expect(await screen.findAllByText('The location the prompts are asked for')).not.toHaveLength(0);
+    await user.hover(within(tree).getByRole('columnheader', { name: /^Search volume/ }));
+    expect(
+      await screen.findAllByText(
+        'Monthly searches of the keywords the prompts are linked to, each keyword counted once',
+      ),
+    ).not.toHaveLength(0);
+  });
+
   it('keeps the Location choice in the address while the top bar names a location, so it returns with All locations', async () => {
     serveRates();
     const writes: string[] = [];
