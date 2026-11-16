@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { LinkCanvas, type CanvasFocus, type LinkCanvasProps } from './link-canvas';
@@ -183,5 +183,115 @@ describe('LinkCanvas (spec 7.5)', () => {
     document.documentElement.classList.toggle('dark', theme === 'dark');
     const { container } = canvas({}, { open: new Set([cardKey('out', ['2']), cardKey('out', ['2', '4'])]) });
     expect(await axe(container)).toHaveNoViolations();
+  });
+});
+
+describe('LinkCanvas, behaviour found in review', () => {
+  const more = (count: number): ListLookup<JourneyNeighbor> => {
+    const items = Array.from({ length: count }, (_, index) => node(String(100 + index), `/p${String(index)}`, 'T3'));
+    return ({ urlId, direction }) =>
+      urlId === '1' && direction === 'out'
+        ? { status: 'ready', items, total: items.length, otherScopes: [] }
+        : { status: 'ready', items: [], total: 0, otherScopes: [] };
+  };
+
+  it('keeps one card in the Tab order, the one that had focus last, with its tools', async () => {
+    const { user } = canvas();
+    const focusCard = screen.getByRole('button', { name: /focus page$/ });
+    const pricing = screen.getByRole('button', { name: /^\/pricing, T1/ });
+    expect(focusCard).toHaveAttribute('tabindex', '0');
+    expect(pricing).toHaveAttribute('tabindex', '-1');
+    expect(screen.getByRole('button', { name: 'Details of /pricing' })).toHaveAttribute('tabindex', '-1');
+    await user.click(pricing);
+    expect(pricing).toHaveAttribute('tabindex', '0');
+    expect(focusCard).toHaveAttribute('tabindex', '-1');
+    expect(screen.getByRole('button', { name: 'Details of /pricing' })).toHaveAttribute('tabindex', '0');
+  });
+
+  it('opens with Space, and leaves Alt and Command with an arrow to the browser', async () => {
+    const { props, user } = canvas();
+    const pricing = screen.getByRole('button', { name: /^\/pricing, T1/ });
+    pricing.focus();
+    await user.keyboard('{Alt>}{ArrowDown}{/Alt}');
+    expect(pricing).toHaveFocus();
+    await user.keyboard('{Meta>}{ArrowLeft}{/Meta}');
+    expect(pricing).toHaveFocus();
+    await user.keyboard(' ');
+    expect(props.onToggleCard).toHaveBeenCalledTimes(1);
+  });
+
+  it('gives a screen reader the status and Both ways through the description of the card', () => {
+    const lists: Record<string, readonly JourneyNeighbor[]> = {
+      ...LISTS,
+      '1|out|editorial': [node('2', '/pricing', 'T1', { reciprocal: true, status_code: 301 })],
+    };
+    const layout = buildJourney(base, ({ urlId, direction, scope }) => {
+      const items = lists[`${urlId}|${direction}|${scope}`] ?? [];
+      return { status: 'ready', items, total: items.length, otherScopes: [] };
+    });
+    canvas({ layout });
+    const card = screen.getByRole('button', { name: /^\/pricing, T1/ });
+    expect(card).toHaveAccessibleDescription(/Status 301\..*Links both ways\./);
+  });
+
+  it('says a failed list in words, speaks it, and retries from the button', async () => {
+    const failing: ListLookup<JourneyNeighbor> = ({ urlId, direction }) =>
+      urlId === '1' && direction === 'out'
+        ? { status: 'error', items: [], total: 0, otherScopes: [] }
+        : { status: 'ready', items: [], total: 0, otherScopes: [] };
+    const { props, user } = canvas({ layout: buildJourney(base, failing) });
+    const group = screen.getByRole('group', { name: /^Link journey canvas/ });
+    expect(within(group).getByRole('alert')).toHaveTextContent('These links could not be loaded.');
+    // The app's assertive live region speaks it too
+    await waitFor(() => {
+      expect(document.getElementById('live-region-assertive')).toHaveTextContent('These links could not be loaded.');
+    });
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(props.onRetry).toHaveBeenCalledWith({ urlId: '1', direction: 'out', scope: 'editorial', pages: 1 });
+  });
+
+  it('labels a loading list for a screen reader and marks it busy', () => {
+    const loading: ListLookup<JourneyNeighbor> = ({ urlId, direction }) =>
+      urlId === '1' && direction === 'out'
+        ? { status: 'loading', items: [], total: 0, otherScopes: [] }
+        : { status: 'ready', items: [], total: 0, otherScopes: [] };
+    canvas({ layout: buildJourney(base, loading) });
+    expect(screen.getByText('Loading links').closest('[aria-busy="true"]')).not.toBeNull();
+  });
+
+  it('returns focus to the card above when "+N more" goes with the last pages', async () => {
+    const { props, user, rerender } = canvas({ layout: buildJourney(base, more(20)) });
+    await user.click(screen.getByRole('button', { name: 'Show 12 more pages' }));
+    expect(props.onMore).toHaveBeenCalledTimes(1);
+    rerender(<LinkCanvas {...props} layout={buildJourney({ ...base, more: new Map([['m:o|f', 2]]) }, more(20))} />);
+    expect(screen.queryByRole('button', { name: /more pages/ })).toBeNull();
+    expect(screen.getByRole('button', { name: /focus page$/ })).toHaveFocus();
+  });
+
+  it('does not pull focus back to an old card when only the zoom changes', async () => {
+    const { props, user, rerender } = canvas();
+    await user.click(screen.getByRole('button', { name: /^\/blog, T3/ }));
+    screen.getByRole('button', { name: /^\/pricing, T1/ }).focus();
+    rerender(<LinkCanvas {...props} zoom={0.6} />);
+    expect(screen.getByRole('button', { name: /^\/pricing, T1/ })).toHaveFocus();
+  });
+
+  it('writes a back link without an anchor as a plain row, never as an empty quote', () => {
+    const pricing = cardKey('out', ['2']);
+    const deep = cardKey('out', ['2', '4']);
+    const plain = (id: string, path: string) => node(id, path, 'T3', { anchor: null, scope: null });
+    const lists: Record<string, readonly JourneyNeighbor[]> = {
+      ...LISTS,
+      '4|out|editorial': [plain('1', '/'), plain('2', '/pricing')],
+    };
+    const layout = buildJourney({ ...base, open: new Set([pricing, deep]) }, ({ urlId, direction, scope }) => {
+      const items = lists[`${urlId}|${direction}|${scope}`] ?? [];
+      return { status: 'ready', items, total: items.length, otherScopes: [] };
+    });
+    canvas({ layout });
+    const marker = screen.getByRole('button', { name: 'Links back to 2 earlier pages' });
+    expect(marker).toHaveAccessibleDescription(/T3 \/\. T3 \/pricing\./);
+    expect(marker).not.toHaveAccessibleDescription(/“”/);
+    expect(marker).not.toHaveAccessibleDescription(/And \d+ more/);
   });
 });

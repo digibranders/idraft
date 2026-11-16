@@ -21,6 +21,7 @@ import { LinkCard, type LinkCardPageProps } from './link-card';
 import { ZOOMS, type Zoom } from './zoom-controls';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { announce } from '@/lib/a11y/announcer';
 import { SingleKeysContext } from '@/lib/a11y/use-shortcut';
 import { edgeLook, elbowPath, returnArrowPath, type Box, type EdgeLook } from '@/lib/internal-links/journey-geometry';
 import {
@@ -79,6 +80,8 @@ const MIN_HEIGHT = 440;
 /** The legend line and the page's bottom padding stay in view under the canvas. */
 const BELOW = 72;
 const FLASH_MS = 1500;
+/** The back links a card's marker tooltip lists. */
+const BACK_ROWS = 3;
 
 interface DrawnEdge {
   id: string;
@@ -93,7 +96,48 @@ const STROKE: Readonly<Record<EdgeLook['tone'], string>> = {
   broken: 'stroke-negative-text',
 };
 
-const reducedMotion = (): boolean => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+/** The operating system's setting and the app's own (`data-motion` on the root, 21-motion.md): both stop script scrolls. */
+const reducedMotion = (): boolean =>
+  (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false) ||
+  document.documentElement.dataset.motion === 'reduced';
+
+/** How long an activated card may wait for the rebuild its activation causes (the host may answer after a request). */
+const RESTORE_MS = 2000;
+
+interface PendingRestore<N extends JourneyNeighbor> {
+  /** The keys that can take focus back, the activated node first. */
+  keys: readonly string[];
+  /** The layout the activation happened on: focus returns once it is replaced. */
+  layout: JourneyLayout<N>;
+}
+
+/** Remembers what should take focus after the next rebuild, and forgets it when no rebuild comes. */
+function hold<N extends JourneyNeighbor>(
+  ref: { current: PendingRestore<N> | null },
+  keys: readonly string[],
+  layout: JourneyLayout<N>,
+): void {
+  const entry = { keys, layout };
+  ref.current = entry;
+  window.setTimeout(() => {
+    if (ref.current === entry) ref.current = null;
+  }, RESTORE_MS);
+}
+
+interface DrawnEdges {
+  lines: DrawnEdge[];
+  arrows: DrawnEdge[];
+  width: number;
+  height: number;
+}
+
+const sameEdges = (a: DrawnEdges, b: DrawnEdges): boolean =>
+  a.width === b.width &&
+  a.height === b.height &&
+  a.lines.length === b.lines.length &&
+  a.arrows.length === b.arrows.length &&
+  a.lines.every((line, index) => line.id === b.lines[index]?.id && line.d === b.lines[index].d) &&
+  a.arrows.every((arrow, index) => arrow.id === b.arrows[index]?.id && arrow.d === b.arrows[index].d);
 
 function statusBadge(status: number | null, notCrawled: string): LinkCardPageProps['status'] {
   if (status === null) return { text: notCrawled, tone: 'neutral' };
@@ -127,15 +171,14 @@ export function LinkCanvas<N extends JourneyNeighbor>({
   const markerId = useId();
   const scroller = useRef<HTMLDivElement>(null);
   const inner = useRef<HTMLDivElement>(null);
-  const restoreKey = useRef<string | null>(null);
+  // The card that was activated, the keys that can take focus back (itself, then what it hung under), the layout it
+  // was activated on and when: focus returns once the layout is rebuilt, and not for a zoom or a hover
+  const restore = useRef<PendingRestore<N> | null>(null);
   const [hoverKey, setHoverKey] = useState<string | null>(null);
   const [flashKey, setFlashKey] = useState<string | null>(null);
-  const [edges, setEdges] = useState<{ lines: DrawnEdge[]; arrows: DrawnEdge[]; width: number; height: number }>({
-    lines: [],
-    arrows: [],
-    width: 0,
-    height: 0,
-  });
+  // One tab stop for the whole canvas: the card that last had focus (the focus page at first)
+  const [activeKey, setActiveKey] = useState(FOCUS_KEY);
+  const [edges, setEdges] = useState<DrawnEdges>({ lines: [], arrows: [], width: 0, height: 0 });
   const [height, setHeight] = useState(MIN_HEIGHT + 120);
 
   const tierText = useCallback((tier: TierNameLike | null): string => tier?.code ?? t('untiered'), [t]);
@@ -145,17 +188,31 @@ export function LinkCanvas<N extends JourneyNeighbor>({
   );
 
   // Every keyed item, the paths by url id (for the column heads), and the cards whose back links show
-  const { byKey, pathOf } = useMemo(() => {
+  const { byKey, pathOf, stops, hasFailed } = useMemo(() => {
     const keyed = new Map<string, Extract<JourneyItem<N>, { kind: 'card' | 'stub' | 'group' }>>();
     const paths = new Map<string, string>([[focus.urlId, focus.path]]);
+    // Every node that can hold the one tab stop: the focus card, cards, stubs, groups and "+N more"
+    const nodeKeys = new Set<string>([FOCUS_KEY]);
+    let failed = false;
     for (const column of [...layout.out, ...layout.in]) {
       for (const item of column.items) {
         if (item.kind === 'card' || item.kind === 'stub' || item.kind === 'group') keyed.set(item.key, item);
         if (item.kind === 'card' || item.kind === 'stub') paths.set(item.urlId, item.node.path);
+        if (item.kind === 'card' || item.kind === 'stub' || item.kind === 'group' || item.kind === 'more') {
+          nodeKeys.add(item.key);
+        }
+        if (item.kind === 'failed') failed = true;
       }
     }
-    return { byKey: keyed, pathOf: paths };
+    return { byKey: keyed, pathOf: paths, stops: nodeKeys, hasFailed: failed };
   }, [layout, focus.urlId, focus.path]);
+  // The tab stop stays where focus last was; when that node is gone it falls back to the focus page
+  const tabKey = stops.has(activeKey) ? activeKey : FOCUS_KEY;
+
+  // A failed list is spoken once through the app's live region, not by a region of the canvas (20 section 10.1)
+  useEffect(() => {
+    if (hasFailed) announce(t('failed'), { politeness: 'assertive', key: 'link-canvas-failed' });
+  }, [hasFailed, t]);
   const shownBacks = useMemo(() => {
     const keys = new Set(pinned);
     if (hoverKey !== null) keys.add(hoverKey);
@@ -222,20 +279,31 @@ export function LinkCanvas<N extends JourneyNeighbor>({
       }
     }
     // The size of the columns (offset size, in unscaled pixels), not the scroll size: the SVG layer must not hold the area open
-    setEdges({ lines, arrows, width: root.offsetWidth, height: root.offsetHeight });
+    const next = { lines, arrows, width: root.offsetWidth, height: root.offsetHeight };
+    // A hover or a pin that changes nothing on screen must not render the canvas again
+    setEdges((current) => (sameEdges(current, next) ? current : next));
   }, [byKey, shownBacks, zoom, focus.statusCode]);
 
   useLayoutEffect(() => {
     draw();
-    // Focus survives a rebuild: the card that was activated takes it back
-    const key = restoreKey.current;
-    if (key !== null) {
-      restoreKey.current = null;
-      for (const element of inner.current?.querySelectorAll<HTMLElement>('[data-node]') ?? []) {
-        if (element.dataset.key === key) element.focus({ preventScroll: true });
+  }, [draw]);
+
+  // Focus survives a rebuild: the card that was activated takes it back, or the card it hung under when it is gone
+  // (a "+N more" that showed the last pages, a card that closed with its parent)
+  useLayoutEffect(() => {
+    const pending = restore.current;
+    if (pending === null) return;
+    if (pending.layout === layout) return;
+    restore.current = null;
+    const nodes = [...(inner.current?.querySelectorAll<HTMLElement>('[data-node]') ?? [])];
+    for (const key of pending.keys) {
+      const target = nodes.find((element) => element.dataset.key === key);
+      if (target !== undefined) {
+        target.focus({ preventScroll: true });
+        return;
       }
     }
-  }, [draw]);
+  }, [layout]);
 
   useEffect(() => {
     const root = inner.current;
@@ -280,6 +348,8 @@ export function LinkCanvas<N extends JourneyNeighbor>({
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>): void => {
+    // Alt and Command with an arrow are the browser's history keys, Control and Command with F are find: not ours
+    if (event.altKey || event.ctrlKey || event.metaKey) return;
     const current = event.currentTarget;
     const nodes = nodesOf();
     const column = Number(current.dataset.col);
@@ -308,13 +378,7 @@ export function LinkCanvas<N extends JourneyNeighbor>({
       if (next === undefined) return;
       event.preventDefault();
       next.focus();
-    } else if (
-      (event.key === 'f' || event.key === 'F') &&
-      singleKeys &&
-      !event.metaKey &&
-      !event.ctrlKey &&
-      !event.altKey
-    ) {
+    } else if ((event.key === 'f' || event.key === 'F') && singleKeys && !event.nativeEvent.isComposing) {
       event.preventDefault();
       const urlId = current.dataset.url;
       if (urlId !== undefined && urlId !== focus.urlId && current.dataset.kind === 'card') onRefocus(urlId);
@@ -338,12 +402,13 @@ export function LinkCanvas<N extends JourneyNeighbor>({
     setFlashKey(original.dataset.key ?? null);
   };
 
-  const opening = (open: boolean, run: () => void, key: string): void => {
+  /** `under` is the card the activated one hangs under: where focus goes when the activated one is gone afterwards. */
+  const opening = (open: boolean, run: () => void, key: string, under: string): void => {
     if (!open && isFull(layout)) {
       onFull();
       return;
     }
-    restoreKey.current = key;
+    hold(restore, [key, under, FOCUS_KEY], layout);
     run();
   };
 
@@ -370,9 +435,11 @@ export function LinkCanvas<N extends JourneyNeighbor>({
           </p>
         );
       case 'loading':
+        // The text is for screen readers (17 section 3); the live announcement of a failure comes from `announce`
         return (
-          <div key={item.key} role="status" aria-label={t('loading')}>
+          <div key={item.key} aria-busy="true">
             <Skeleton shape="block" height="row" />
+            <span className="sr-only">{t('loading')}</span>
           </div>
         );
       case 'failed':
@@ -381,8 +448,18 @@ export function LinkCanvas<N extends JourneyNeighbor>({
             key={item.key}
             className="flex flex-col items-start gap-1 rounded-md border border-border-subtle bg-surface p-2"
           >
-            <p className="type-meta text-foreground-secondary">{t('failed')}</p>
-            <Button variant="secondary" size="sm" onClick={() => onRetry(item.request)}>
+            <p role="alert" className="type-meta text-foreground-secondary">
+              {t('failed')}
+            </p>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                // The retry button goes while the list loads: focus returns to the card the list hangs under
+                hold(restore, [item.parentKey, FOCUS_KEY], layout);
+                onRetry(item.request);
+              }}
+            >
               {t('retry')}
             </Button>
           </div>
@@ -397,9 +474,10 @@ export function LinkCanvas<N extends JourneyNeighbor>({
             data-key={item.key}
             data-kind="more"
             data-col={String(column)}
+            tabIndex={item.key === tabKey ? 0 : -1}
             aria-label={t('moreName', { count: item.count })}
             onKeyDown={onKeyDown}
-            onClick={() => opening(false, () => onMore(item.key), item.key)}
+            onClick={() => opening(false, () => onMore(item.key), item.key, item.parentKey)}
           >
             {t('more', { count: item.count })}
           </Button>
@@ -427,7 +505,8 @@ export function LinkCanvas<N extends JourneyNeighbor>({
             label={label}
             meta={meta}
             open={item.open}
-            onActivate={() => opening(item.open, () => onToggleGroup(item.key), item.key)}
+            tabStop={item.key === tabKey}
+            onActivate={() => opening(item.open, () => onToggleGroup(item.key), item.key, item.parentKey)}
             onKeyDown={onKeyDown}
           />
         );
@@ -448,6 +527,7 @@ export function LinkCanvas<N extends JourneyNeighbor>({
             line={linkedAs(item.node)}
             tier={item.node.tier}
             note={t('stubLine', { at })}
+            tabStop={item.key === tabKey}
             onActivate={() => findOriginal(item.urlId)}
             onKeyDown={onKeyDown}
           />
@@ -500,14 +580,20 @@ export function LinkCanvas<N extends JourneyNeighbor>({
             anchor: node.anchor,
             placement: placementWord(node),
           });
-    const backRows = item.backs.map((back) =>
-      t('backRow', {
-        tier: tierText(back.node.tier),
-        path: back.node.path,
-        anchor: back.node.anchor ?? '',
-        scope: back.node.scope === null ? '' : t(`scope.${SCOPE_KEY[back.node.scope]}`),
-      }),
-    );
+    // A tooltip is at most three lines (16 section 6.1): three back links, then how many more
+    const backRows = item.backs.slice(0, BACK_ROWS).map((back) => {
+      const row = { tier: tierText(back.node.tier), path: back.node.path };
+      const { anchor, scope } = back.node;
+      if (anchor === null) {
+        return scope === null
+          ? t('backRowPlain', row)
+          : t('backRowPlainScope', { ...row, scope: t(`scope.${SCOPE_KEY[scope]}`) });
+      }
+      return scope === null
+        ? t('backRowAnchor', { ...row, anchor })
+        : t('backRowAnchorScope', { ...row, anchor, scope: t(`scope.${SCOPE_KEY[scope]}`) });
+    });
+    if (item.backs.length > BACK_ROWS) backRows.push(t('backMore', { count: item.backs.length - BACK_ROWS }));
     return (
       <LinkCard
         key={item.key}
@@ -558,8 +644,9 @@ export function LinkCanvas<N extends JourneyNeighbor>({
                 onShow: (shown) => setHoverKey(shown ? item.key : null),
               }
         }
+        tabStop={item.key === tabKey}
         onActivate={() => {
-          if (item.canOpen) opening(item.open, () => onToggleCard(item.key), item.key);
+          if (item.canOpen) opening(item.open, () => onToggleCard(item.key), item.key, item.parentKey);
         }}
         onKeyDown={onKeyDown}
       />
@@ -594,8 +681,13 @@ export function LinkCanvas<N extends JourneyNeighbor>({
         <div style={{ width: edges.width * zoom, height: edges.height * zoom }} className="relative">
           <div
             ref={inner}
+            role="presentation"
             className="relative flex w-max items-start p-4"
             style={{ columnGap: COLUMN_GAP, transform: `scale(${String(zoom)})`, transformOrigin: '0 0' }}
+            onFocus={(event) => {
+              const key = event.target.closest<HTMLElement>('[data-node]')?.dataset.key;
+              if (key !== undefined) setActiveKey(key);
+            }}
           >
             <svg
               aria-hidden="true"
@@ -677,6 +769,7 @@ export function LinkCanvas<N extends JourneyNeighbor>({
                     onDetails: () => onDetails(focus.urlId),
                   }}
                   back={null}
+                  tabStop={FOCUS_KEY === tabKey}
                   onActivate={() => undefined}
                   onKeyDown={onKeyDown}
                 />

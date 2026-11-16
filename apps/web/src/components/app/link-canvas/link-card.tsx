@@ -22,6 +22,8 @@ export interface CanvasNodeData {
   name: string;
   /** Dashed outline: a back link's target while its arrows show, or the original a stub found. */
   highlighted: boolean;
+  /** The one node of the canvas in the Tab order (the others are reached with the arrow keys); its tools and marker follow it. */
+  tabStop: boolean;
   onActivate: () => void;
   onKeyDown: (event: KeyboardEvent<HTMLButtonElement>) => void;
 }
@@ -95,6 +97,7 @@ export function LinkCard(props: LinkCardProps): ReactElement {
       <button
         type="button"
         {...dataOf(props)}
+        tabIndex={props.tabStop ? 0 : -1}
         aria-label={props.name}
         aria-expanded={props.open}
         onClick={props.onActivate}
@@ -118,6 +121,7 @@ export function LinkCard(props: LinkCardProps): ReactElement {
       <button
         type="button"
         {...dataOf(props)}
+        tabIndex={props.tabStop ? 0 : -1}
         aria-label={props.name}
         onClick={props.onActivate}
         onKeyDown={props.onKeyDown}
@@ -141,6 +145,7 @@ export function LinkCard(props: LinkCardProps): ReactElement {
         <button
           type="button"
           {...dataOf(props)}
+          tabIndex={props.tabStop ? 0 : -1}
           aria-label={props.name}
           aria-expanded={props.open === null ? undefined : props.open}
           onClick={props.onActivate}
@@ -178,13 +183,15 @@ export function LinkCard(props: LinkCardProps): ReactElement {
           </span>
         </button>
       </Tooltip>
-      <div className="absolute top-1 right-1 flex gap-0.5 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100">
+      {/* Invisible tools take no pointer: a tap on the corner of a card must not hit them on a device with no hover */}
+      <div className="pointer-events-none absolute top-1 right-1 flex gap-0.5 opacity-0 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100">
         {tools.focusLabel === null ? null : (
           <IconButton
             icon={Crosshair}
             size="icon-xs"
             variant="secondary"
             label={tools.focusLabel}
+            tabIndex={props.tabStop ? 0 : -1}
             onClick={tools.onFocusPage}
           />
         )}
@@ -193,6 +200,7 @@ export function LinkCard(props: LinkCardProps): ReactElement {
           size="icon-xs"
           variant="secondary"
           label={tools.detailsLabel}
+          tabIndex={props.tabStop ? 0 : -1}
           onClick={tools.onDetails}
         />
       </div>
@@ -200,6 +208,7 @@ export function LinkCard(props: LinkCardProps): ReactElement {
         <Tooltip content={back.tip.content} detail={back.tip.detail}>
           <button
             type="button"
+            tabIndex={props.tabStop ? 0 : -1}
             aria-label={back.label}
             aria-pressed={back.pressed}
             onClick={back.onToggle}
