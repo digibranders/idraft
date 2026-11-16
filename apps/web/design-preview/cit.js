@@ -9,13 +9,12 @@
  *
  * Numbers come from cit-data.js. Every control writes the address, so a link reopens the same view.
  */
-import { formatMetricDelta } from './vendor/format/delta.js';
-import { formatInteger, formatPercent, formatPointsDelta, formatRelativeChange, formatSignedInteger } from './vendor/format/number.js';
+import { formatInteger, formatPercent, formatRelativeChange, formatSignedInteger } from './vendor/format/number.js';
 import { DEFAULT_COMPETITORS, MAX_COMPETITORS, OWN_DOMAIN, RUN_CHOICES, RUN_DAYS, TRACKED, gapRows, headline, pageRows, trackedOf } from './cit-data.js';
 import { GROUPS, PLATFORMS, RUNS, groupOf } from './aiov-data.js';
 import { createSelect, groupOptions, platformOptions } from './aiov-controls.js';
 import { NEUTRAL_BADGE, el, engineName, icon, infoButton, plural, sparkline } from './aiov-parts.js';
-import { checkbox } from './prompts-parts.js';
+import { checkbox, trendIcon } from './prompts-parts.js';
 import { initCitationInspector, openGapPrompt, openCitedPage, refreshCitationInspector } from './cit-inspector.js';
 
 const ui = window.PreviewUI;
@@ -84,13 +83,9 @@ const BADGE = 'h-badge inline-flex items-center gap-1 px-2 rounded-sm type-micro
 // The pinned first column keeps the row's ground when the row is hovered or open in the drawer
 const PIN = 'sticky left-0 z-(--z-pinned-cell) bg-surface group-hover:bg-surface-hover group-data-[active=true]:bg-surface-selected';
 
-/** A change in points, colored only when detectable (the house rule: tones come from formatMetricDelta). */
-function pointsDelta(change) {
-  if (!change) return null;
-  const display = formatMetricDelta({ value: change.value, unit: 'points', polarity: 'higher_is_better', isDetectable: change.detectable });
-  const node = el('span', `num ${TONE[display.tone]}`, formatPointsDelta(change.value));
-  node.dataset.tip = change.detectable ? 'Detectable change: its 95% interval excludes zero' : 'Within normal variation';
-  return node;
+/** A change in points as a trend icon: green up, red down, a grey dash when flat. */
+function pointsDelta(change, value) {
+  return change ? trendIcon(change, { value }) : null;
 }
 
 /** A change of a count. Counts are not tested for detectability, so it stays neutral. Nothing when unchanged. */
@@ -250,8 +245,8 @@ function renderStrip(data) {
   const growth = data.citations.previous > 0 ? (data.citations.value - data.citations.previous) / data.citations.previous : null;
   strip.replaceChildren(
     stripItem({ key: 'citations', label: 'Total citations', value: formatInteger(data.citations.value), context: `in ${plural(data.answers, 'answer')}`, tip: `Citations of ${OWN_DOMAIN} pages in ${plural(data.answers, 'answer')} to ${plural(data.prompts, 'prompt')}.` }),
-    stripItem({ key: 'frequency', label: 'Citation frequency', value: data.frequency.value === null ? 'n/a' : pct1(data.frequency.value), delta: pointsDelta(data.frequency.change), context: data.frequency.value === null ? 'no answers' : rateContext(data.frequency, 'answers'), tip: data.frequency.value === null ? undefined : rateTip(data.frequency, 'answers cite you') }),
-    stripItem({ key: 'coverage', label: 'Prompt coverage', value: data.coverage.value === null ? 'n/a' : pct1(data.coverage.value), delta: pointsDelta(data.coverage.change), context: data.coverage.value === null ? 'no answers' : rateContext(data.coverage, 'prompts'), tip: data.coverage.value === null ? undefined : rateTip(data.coverage, 'prompts cite you') }),
+    stripItem({ key: 'frequency', label: 'Citation frequency', value: data.frequency.value === null ? 'n/a' : pct1(data.frequency.value), delta: pointsDelta(data.frequency.change, data.frequency.value ?? undefined), context: data.frequency.value === null ? 'no answers' : rateContext(data.frequency, 'answers'), tip: data.frequency.value === null ? undefined : rateTip(data.frequency, 'answers cite you') }),
+    stripItem({ key: 'coverage', label: 'Prompt coverage', value: data.coverage.value === null ? 'n/a' : pct1(data.coverage.value), delta: pointsDelta(data.coverage.change, data.coverage.value ?? undefined), context: data.coverage.value === null ? 'no answers' : rateContext(data.coverage, 'prompts'), tip: data.coverage.value === null ? undefined : rateTip(data.coverage, 'prompts cite you') }),
     stripItem({ key: 'urls', label: 'Unique cited URLs', value: formatInteger(data.urls.value), delta: countDelta(data.urls.value, data.urls.previous), context: `pages of ${OWN_DOMAIN}` }),
     stripItem({ key: 'domains', label: 'Unique cited domains', value: formatInteger(data.domains.value), delta: countDelta(data.domains.value, data.domains.previous), context: 'in answers to your prompts' }),
     stripItem({ key: 'growth', label: 'Citation growth', value: growth === null ? 'n/a' : formatRelativeChange(growth), context: `${formatSignedInteger(data.citations.value - data.citations.previous)} vs ${previousText().replace(/ \(.*\)$/, '')}`, tip: `${formatInteger(data.citations.value)} citations now, ${formatInteger(data.citations.previous)} in ${previousText()}.` }),

@@ -32,7 +32,7 @@ function rateLine(label, value, change, note) {
   if (value === null) dd.append(el('span', 'text-foreground-tertiary', 'n/a'));
   else {
     dd.append(el('span', 'num type-body-strong', percent0(value)), ' ', el('span', 'type-label text-foreground-tertiary', note));
-    const delta = deltaNode(change, 1);
+    const delta = deltaNode(change);
     if (delta) {
       delta.classList.add('type-meta');
       dd.append(delta);

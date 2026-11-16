@@ -356,7 +356,7 @@ function scopeRate(code, metric) {
   if (metric !== 'sov') {
     const previous = usable.map((prompt) => countsFor(prompt, 'previous'));
     const change = { value: rate - promptWeightedRate(previous), detectable: isDetectableChange(pooled, pooledCounts(previous)) };
-    delta = deltaNode(change, 1);
+    delta = deltaNode(change, { value: rate, sample: `${formatSampleCount(pooled.k, pooled.n)} ${engine.unit}` });
   }
   return { value: percent0(rate), delta, context: `${formatSampleCount(pooled.k, pooled.n)} ${metric === 'sov' ? 'entity mentions' : engine.unit}` };
 }

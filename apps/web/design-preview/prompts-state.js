@@ -3,10 +3,8 @@
  * What the Topics tab, the Prompts tab and both inspectors share: the filters in force, and the pieces of a
  * cell that depend on them (which engines are in scope, whether changes are shown).
  */
-import { formatMetricDelta } from './vendor/format/delta.js';
-import { formatPointsDelta } from './vendor/format/number.js';
 import { ENGINES, PROMPTS, changeFor } from './prompts-data.js';
-import { el } from './prompts-parts.js';
+import { trendIcon } from './prompts-parts.js';
 
 /** A saved view is a set of filters (24 section 9.5). "Branded prompts" is branded only, in every panel. */
 export const VIEWS = {
@@ -76,18 +74,11 @@ export function scopeText() {
   return `${panel}, ${branded}`;
 }
 
-export const TONE_CLASS = { positive: 'text-positive-text', negative: 'text-negative-text', neutral: 'text-foreground-secondary' };
-
 /**
- * A change in points, colored only when it is detectable (17 section 6.3). Null when there is nothing to
- * compare, or when the person chose "No comparison".
+ * A change in points as a trend icon: green up, red down, a grey dash when flat; `detail` is what its hover adds (see
+ * trendIcon). Null when there is nothing to compare, or when the person chose "No comparison".
  */
-export function deltaNode(change, decimals = 0) {
+export function deltaNode(change, detail) {
   if (!change || !state.compare) return null;
-  const display = formatMetricDelta({ value: change.value, unit: 'points', polarity: 'higher_is_better', isDetectable: change.detectable });
-  const node = el('span', `num shrink-0 whitespace-nowrap ${TONE_CLASS[display.tone]}`, formatPointsDelta(change.value, { decimals }));
-  node.dataset.tip = change.detectable ? 'Detectable change: its 95% interval excludes zero' : 'Within normal variation';
-  // Color and the tooltip are not enough: the same is said in text for people who get neither
-  node.append(el('span', 'sr-only', change.detectable ? ', detectable change' : ', within normal variation'));
-  return node;
+  return trendIcon(change, detail);
 }

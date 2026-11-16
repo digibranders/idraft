@@ -2,7 +2,7 @@
 /**
  * Small pieces the Prompts page and the prompt inspector both render with.
  */
-import { formatInteger, formatInterval, formatPercent } from './vendor/format/number.js';
+import { formatInteger, formatInterval, formatPercent, formatPointsDelta } from './vendor/format/number.js';
 import { wilsonInterval } from './vendor/stats/index.js';
 
 function el(tag, className, text) {
@@ -14,6 +14,34 @@ function el(tag, className, text) {
 
 const percent0 = (ratio) => formatPercent(ratio, { decimals: 0 });
 const plural = (count, noun) => `${formatInteger(count)} ${noun}${count === 1 ? '' : 's'}`;
+
+const TREND_TONE = { positive: 'text-positive-text', negative: 'text-negative-text', neutral: 'text-foreground-secondary' };
+
+/**
+ * The change of a rate as a trend icon, as price tables show it: a green line trending up, a red line trending down, and
+ * a grey dash when the change rounds to nothing. Every rate here is better when higher, so up is always green. The
+ * hover carries the figures: the change in points and whether it is detectable (a verdict, not a condition of the
+ * color), and, when given in `detail`, the rate now (`value`), the sample and the weekly rates (`trend`). `change` is
+ * { value, detectable } in ratio points.
+ */
+function trendIcon(change, { value, sample, trend } = {}) {
+  const flat = Math.abs(change.value) < 0.0005;
+  const tone = flat ? 'neutral' : change.value > 0 ? 'positive' : 'negative';
+  const words = flat ? 'No change' : change.value > 0 ? 'Up' : 'Down';
+  // "Up 20.8 pts", not "Up +20.8 pts": the word already says the sign
+  const points = flat ? '' : ` ${formatPointsDelta(Math.abs(change.value), { decimals: 1 }).replace(/^\+/, '')}`;
+  // A small change can round to the same whole percent on both sides: then one decimal tells them apart
+  const decimals = value !== undefined && percent0(value - change.value) === percent0(value) ? 1 : 0;
+  const range = value === undefined ? '' : `, from ${formatPercent(value - change.value, { decimals })} to ${formatPercent(value, { decimals })}`;
+  const verdict = change.detectable ? 'Detectable: its 95% interval excludes zero.' : 'Within normal variation.';
+  const weekly = trend?.some((point) => point !== null) ? ` Weekly rates: ${trend.map((point) => (point === null ? 'n/a' : percent0(point))).join(', ')}.` : '';
+  const node = el('span', `inline-flex shrink-0 self-center ${TREND_TONE[tone]}`);
+  node.append(window.PreviewUI.icon(flat ? 'minus' : change.value > 0 ? 'trending-up' : 'trending-down', 'size-icon-sm'));
+  node.dataset.tip = `${words}${points} against the previous period${range}. ${verdict}${sample ? ` ${sample}.` : ''}${weekly}`;
+  // Shape, color and the tooltip are not enough: the same is said in text for people who get none of them
+  node.append(el('span', 'sr-only', `${words}${points}${change.detectable ? ', detectable change' : ', within normal variation'}`));
+  return node;
+}
 
 /** A neutral badge (14 section 2) without its display, for badges that are shown only from some width. */
 const NEUTRAL_BADGE_LOOK = 'h-badge items-center px-2 rounded-sm border border-neutral-border bg-neutral-subtle text-neutral-text type-micro whitespace-nowrap';
@@ -64,4 +92,4 @@ function keywordRow({ keyword, rank, overview, cited, linked = false }) {
   return row;
 }
 
-export { NEUTRAL_BADGE, NEUTRAL_BADGE_LOOK, checkbox, el, insufficient, intervalText, keywordRow, percent0, plural };
+export { NEUTRAL_BADGE, NEUTRAL_BADGE_LOOK, checkbox, el, insufficient, intervalText, keywordRow, percent0, plural, trendIcon };

@@ -4,40 +4,16 @@
  * the text of a prompt with its marks, the engine that does best. Values come from prompts-data.js; what is
  * in scope and whether changes show comes from prompts-state.js.
  */
-import { formatMetricDelta } from './vendor/format/delta.js';
-import { formatPointsDelta, formatSampleCount } from './vendor/format/number.js';
+import { formatSampleCount } from './vendor/format/number.js';
 import { MIN_OBSERVATIONS, pooledCounts } from './vendor/stats/index.js';
 import { NOT_CLASSIFIED, TYPE_LABEL, absenceOf, averageFor, changeFor, countsOf, engineOf, measures, rateFor, trendOf, updatedOf } from './prompts-data.js';
 import { NEUTRAL_BADGE, NEUTRAL_BADGE_LOOK, checkbox, el, insufficient, percent0, plural } from './prompts-parts.js';
-import { TONE_CLASS, scopeCodes, state } from './prompts-state.js';
+import { deltaNode, scopeCodes } from './prompts-state.js';
 
 const { $, icon, engineLogo } = window.PreviewUI;
 
 /** What every body cell of the tables shares: the hairline under it and the 12 px gutters. */
 export const CELL = 'border-b border-border-subtle px-3';
-
-/**
- * The change of a rate as a trend icon, as price tables show it: a line trending up or down, and a dash when the change
- * rounds to nothing. The icon always says the direction. It takes the green or red of a good or bad change only
- * when the change is detectable (17 section 6.3); within normal variation it stays grey, so a wobble does not look like
- * news. The hover carries the figures: the rate now and before, the change in points, whether it is detectable, the
- * sample and the weekly rates. Null when there is nothing to compare, or when the person chose "No comparison".
- */
-function trendArrow({ value, change, trend, sample }) {
-  if (!change || !state.compare) return null;
-  const display = formatMetricDelta({ value: change.value, unit: 'points', polarity: 'higher_is_better', isDetectable: change.detectable });
-  const flat = Math.abs(change.value) < 0.0005;
-  const words = flat ? 'No change' : change.value > 0 ? 'Up' : 'Down';
-  // "Up 20.8 pts", not "Up +20.8 pts": the word already says the sign
-  const points = formatPointsDelta(Math.abs(change.value), { decimals: 1 }).replace(/^\+/, '');
-  const weekly = trend?.some((point) => point !== null) ? ` Weekly rates: ${trend.map((point) => (point === null ? 'n/a' : percent0(point))).join(', ')}.` : '';
-  const verdict = change.detectable ? 'Detectable: its 95% interval excludes zero.' : 'Within normal variation, so it is not colored.';
-  const arrow = el('span', `inline-flex shrink-0 self-center ${TONE_CLASS[display.tone]}`);
-  arrow.append(icon(flat ? 'minus' : change.value > 0 ? 'trending-up' : 'trending-down', 'size-icon-sm'));
-  arrow.dataset.tip = `${words}${flat ? '' : ` ${points}`} against the previous period, from ${percent0(value - change.value)} to ${percent0(value)}. ${verdict} ${sample}.${weekly}`;
-  arrow.append(el('span', 'sr-only', `${words}${flat ? '' : ` ${points}`}${change.detectable ? ', detectable change' : ', within normal variation'}`));
-  return arrow;
-}
 
 /**
  * MetricCell in Compact density, the default (12 section 6): the rate and its trend arrow on one line, so the row stays
@@ -55,7 +31,7 @@ export function rateCell({ value, change, trend, sample, tip, gap }) {
   }
   const line = el('span', 'inline-flex items-baseline gap-1.5 whitespace-nowrap');
   line.append(el('span', 'num min-w-7', percent0(value)));
-  const arrow = trendArrow({ value, change, trend, sample });
+  const arrow = deltaNode(change, { value, sample, trend });
   if (arrow) line.append(arrow);
   cell.append(line);
   cell.dataset.tip = tip ? `${sample}. ${tip}` : sample;
