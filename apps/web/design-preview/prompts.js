@@ -1168,14 +1168,7 @@ function showInPrompts(topics) {
   goToPrompts();
 }
 
-/** A density chosen in either table's menu applies to both. */
-function renderDensity() {
-  renderTopics();
-  renderRows();
-  $$('#menu-topic-density [data-density]').forEach((item) => item.setAttribute('aria-checked', String(item.dataset.density === state.density)));
-}
-
-initTopics({ openPrompt, openTopic, openPromptMenu, runNow, exportRows, resetFilters, showInPrompts, renderDensity, addPrompt: (topic, opener) => openAdd(opener, topic) });
+initTopics({ openPrompt, openTopic, openPromptMenu, runNow, exportRows, resetFilters, showInPrompts, addPrompt: (topic, opener) => openAdd(opener, topic) });
 initTopicInspector({ topics: topicsInScope, order: topicOrder, promptsOf: promptsByMention, openPrompt, openTopic, addPrompt: (topic, opener) => openAdd(opener, topic) });
 
 // -------------------------------------------------------------------------------------------------

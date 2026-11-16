@@ -533,7 +533,6 @@ function renderChrome() {
   expand.hidden = state.topicView !== 'list';
   $('[data-topic-engines-only]', view).hidden = state.topicView !== 'engines';
   $$topicView().forEach((button) => button.setAttribute('aria-checked', String(button.dataset.topicView === state.topicView)));
-  $$topicDensity().forEach((item) => item.setAttribute('aria-checked', String(item.dataset.density === state.density)));
 
   const visible = new Set(shownTopics.map((topic) => topic.id));
   const selected = [...state.topicSelected].filter((id) => visible.has(id));
@@ -549,7 +548,6 @@ function renderChrome() {
 }
 
 const $$topicView = () => [...view.querySelectorAll('[data-topic-view]')];
-const $$topicDensity = () => [...document.querySelectorAll('#menu-topic-density [data-density]')];
 
 export function renderTopics() {
   compute();
@@ -657,13 +655,6 @@ export function initTopics(page) {
     // A column of one view is not a column of the other: the sort falls back to the Mention rate
     state.topicSort = { key: 'mention', dir: 'desc' };
     renderTopics();
-  });
-  document.querySelector('#menu-topic-density').addEventListener('click', (event) => {
-    const next = event.target.closest('[data-density]')?.dataset.density;
-    if (!next) return;
-    state.density = next;
-    closePopup();
-    host.renderDensity();
   });
   $('[data-topic-empty-reset]', view).addEventListener('click', () => {
     state.topicSearch = '';
