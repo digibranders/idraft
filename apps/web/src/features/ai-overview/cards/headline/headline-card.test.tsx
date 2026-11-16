@@ -52,6 +52,14 @@ const renderCard = (search = ''): ReturnType<typeof renderWithProviders> =>
   });
 
 const hero = (): Promise<HTMLElement> => screen.findByRole('region', { name: 'AI visibility rate' });
+/** The big figure of the hero, once it holds `text`: a percent also stands in the legend, so it is found by its place. */
+const heroFigure = async (text: string): Promise<HTMLElement> => {
+  const section = await hero();
+  await waitFor(() => {
+    expect(section.querySelector('.type-metric')).toHaveTextContent(text);
+  });
+  return section.querySelector<HTMLElement>('.type-metric') ?? section;
+};
 const tiles = (): Promise<HTMLElement> => screen.findByRole('region', { name: 'Key numbers' });
 /** The tile of a label: its box in the strip. */
 const tileOf = async (label: string): Promise<HTMLElement> => {
@@ -92,7 +100,7 @@ describe('HeadlineCard', () => {
   it('All platforms: the hero is the equal-weight average and the tooltip names the platforms, never a pooled ratio', async () => {
     serve();
     renderCard();
-    const value = await within(await hero()).findByText('53%');
+    const value = await heroFigure('53%');
     // (50% + 56.25%) / 2; the pooled 41 of 66 answers would be 62%
     expect(value).toHaveAccessibleDescription(
       /^Average of 2 platforms: ChatGPT and Gemini\. 2 prompts, each counted once$/,
@@ -107,7 +115,7 @@ describe('HeadlineCard', () => {
   it('one platform: its own figure with the counts, and the four outcomes with their counts', async () => {
     serve();
     renderCard('&engine=chatgpt_web');
-    const value = await within(await hero()).findByText('50%');
+    const value = await heroFigure('50%');
     expect(value).toHaveAccessibleDescription('25 of 50 answers. 2 prompts, each counted once');
     const bar = within(await hero()).getByRole('img');
     expect(bar).toHaveAccessibleName(/^Mentioned and cited \d+%, Mentioned only \d+%, Cited only \d+%, Neither \d+%$/);
@@ -135,7 +143,7 @@ describe('HeadlineCard', () => {
     );
     renderCard(`&topic=${TOPIC}`);
     // The group holds the first prompt only: ChatGPT 50%, Gemini 37.5%, average 44%
-    await within(await hero()).findByText('44%');
+    await heroFigure('44%');
     expect(await within(await hero()).findByText('All groups 53%')).toBeInTheDocument();
     expect(await within(await tileOf('Mention rate')).findByText(/All groups 38%/)).toBeInTheDocument();
   });
@@ -143,7 +151,7 @@ describe('HeadlineCard', () => {
   it('with no group no project value is read or drawn', async () => {
     serve();
     renderCard();
-    await within(await hero()).findByText('53%');
+    await heroFigure('53%');
     expect(within(await hero()).queryByText(/All groups/)).toBeNull();
   });
 
@@ -151,7 +159,7 @@ describe('HeadlineCard', () => {
     serve();
     renderCard('&engine=google_ai_mode');
     expect(await screen.findByText('Not available for this scope')).toBeInTheDocument();
-    expect(screen.getByText(/Headline numbers is not measured on AI Mode/)).toBeInTheDocument();
+    expect(screen.getAllByText(/Headline numbers is not measured on Google AI Mode/).length).toBeGreaterThan(0);
   });
 
   it('a platform under 4 valid answers has no rate, says how many it has, and is not a 0', async () => {
@@ -185,14 +193,14 @@ describe('HeadlineCard', () => {
   it('shows no change chip: the headline has none', async () => {
     serve();
     renderCard('&cmp=previous');
-    await within(await hero()).findByText('53%');
+    await heroFigure('53%');
     expect(screen.queryByText(/ pts$/)).toBeNull();
   });
 
   it('has no accessibility violation', async () => {
     serve();
     const { container } = renderCard();
-    await within(await hero()).findByText('53%');
+    await heroFigure('53%');
     await waitFor(async () => {
       expect(await axe(container)).toHaveNoViolations();
     });
