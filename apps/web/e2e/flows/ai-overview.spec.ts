@@ -288,7 +288,7 @@ test.describe('the AI visibility Overview', () => {
 
     await test.step('the Prompts number opens the Prompts tab with the same count', async () => {
       const count = (await numberOf(page, 'Prompts')).value;
-      await numbersGroup(page).getByRole('link', { name: 'Prompts' }).click();
+      await numbersGroup(page).getByRole('link', { name: 'Prompts', exact: true }).click();
       await expect(page).toHaveURL(/\/digibranders\/fynix\/ai\/prompts\?/);
       expect(Object.fromEntries(paramsOf(page))).toMatchObject({ tab: 'prompts', win: '7d', topic });
       await expect(page.getByRole('grid', { name: 'Prompts' })).toBeVisible();
