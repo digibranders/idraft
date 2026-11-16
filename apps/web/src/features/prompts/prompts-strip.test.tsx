@@ -150,7 +150,9 @@ describe('PromptsStrip slots', () => {
     const chip = chipOf('ChatGPT');
     expect(chip).toHaveTextContent('50%');
     await user.hover(chip);
-    await waitFor(() => expect(tooltip()).toHaveTextContent('AI visibility rate (mentioned or cited): 30 of 60 answers'));
+    await waitFor(() =>
+      expect(tooltip()).toHaveTextContent('AI visibility rate (mentioned or cited): 30 of 60 answers'),
+    );
     expect(tooltip()).toHaveTextContent('Mentioned: 30 of 60 answers');
   });
 
@@ -197,8 +199,8 @@ describe('PromptsStrip slots', () => {
 
   it('has an info button that says what the percentages are and how they are counted', async () => {
     const { user } = render(twice(DETECTABLE));
-    await user.click(screen.getByRole('button', { name: 'About AI visibility' }));
-    const popover = await screen.findByRole('dialog', { name: 'About AI visibility' });
+    await user.click(screen.getByRole('button', { name: 'About AI visibility rate' }));
+    const popover = await screen.findByRole('dialog', { name: 'About AI visibility rate' });
     expect(popover).toHaveTextContent("how often that platform's answers mention or cite your brand");
     expect(popover).toHaveTextContent('Each prompt counts once');
   });
