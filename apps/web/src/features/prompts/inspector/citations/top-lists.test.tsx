@@ -177,7 +177,7 @@ describe('Top domains', () => {
     expect(rows).toHaveLength(5);
     const [first, second, third] = rows as [HTMLElement, HTMLElement, HTMLElement];
     expect(first).toHaveTextContent('fynix.digital');
-    expect(first).toHaveTextContent('Own');
+    expect(first).toHaveTextContent('Your site');
     expect(first).toHaveTextContent('12');
     expect(first).toHaveTextContent('25.0% of 48 units');
     expect(second).toHaveTextContent('g2.com');
@@ -192,7 +192,7 @@ describe('Top domains', () => {
     const rows = bodyRows(screen.getByRole('table', { name: 'Most cited domains for this prompt' }));
     const [own, , competitor] = rows as [HTMLElement, HTMLElement, HTMLElement];
     for (const [row, domain, role] of [
-      [own, 'fynix.digital', 'Own'],
+      [own, 'fynix.digital', 'Your site'],
       [competitor, 'rival.io', 'Competitor'],
     ] as const) {
       const line = within(row).getByText(domain).closest('[data-slot="domain-line"]');
@@ -262,7 +262,7 @@ describe('Top domains', () => {
     expect(within(cells[2] as HTMLElement).getByText('n/a')).toBeInTheDocument();
     expect(cells[2]).not.toHaveTextContent(/^0/);
     // The reason is the cell's description, one for each row
-    expect(screen.getAllByText('No valid answer on Gemini in this window.').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('No valid answer on Gemini in this period.').length).toBeGreaterThan(0);
   });
 
   it('says Cited instead when no own domain is cited', () => {
@@ -281,7 +281,7 @@ describe('Top domains', () => {
       ),
     });
     expect(
-      screen.getByText('Your domain is not cited in any of the 8 answers read. These sources are cited instead.'),
+      screen.getByText('Your site is not cited in any of the 8 answers read. These domains are cited instead.'),
     ).toBeInTheDocument();
   });
 
@@ -310,15 +310,15 @@ describe('Top domains', () => {
   it('says why when no domain is cited and how to change it', () => {
     renderDomains({ domains: read(pageOf<SourceDomainRow>([])) });
     const section = sectionOf('Top domains');
-    expect(within(section).getByText('No citations in this window')).toBeInTheDocument();
-    expect(within(section).getByText(/choose a longer window/)).toBeInTheDocument();
+    expect(within(section).getByText('No citations in this period')).toBeInTheDocument();
+    expect(within(section).getByText(/choose a longer period/)).toBeInTheDocument();
   });
 
   it('uses the answers pair for a window with no answer at all', () => {
     renderDomains({
       domains: read(pageOf<SourceDomainRow>([], metaOf({ answers: 0, answers_citing: 0, citation_units: 0 }))),
     });
-    expect(within(sectionOf('Top domains')).getByText('No answers in this window')).toBeInTheDocument();
+    expect(within(sectionOf('Top domains')).getByText('No answers in this period')).toBeInTheDocument();
   });
 
   it('keeps the rows while a new choice is read', () => {
@@ -391,7 +391,7 @@ describe('the Lost line', () => {
     const retry = vi.fn();
     const { user } = renderDomains({ lost: read<SourceChangePage>(undefined, { status: 'error', retry }) });
     const section = sectionOf('Top domains');
-    expect(within(section).getByText('Lost sources could not be loaded.')).toBeInTheDocument();
+    expect(within(section).getByText('Lost domains could not be loaded.')).toBeInTheDocument();
     expect(within(section).getByRole('table')).toBeInTheDocument();
     await user.click(within(section).getByRole('button', { name: 'Try again' }));
     expect(retry).toHaveBeenCalledOnce();
@@ -465,7 +465,7 @@ describe('Top pages', () => {
 
   it('says why when no page is cited', () => {
     renderPages(read(pageOf<SourcePageRow>([])));
-    expect(within(sectionOf('Top pages')).getByText('No cited pages in this window')).toBeInTheDocument();
+    expect(within(sectionOf('Top pages')).getByText('No cited pages in this period')).toBeInTheDocument();
   });
 
   it('shows an inline error with Retry for the pages and no table', async () => {

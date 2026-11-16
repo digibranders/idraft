@@ -77,7 +77,7 @@ describe('list lines: Domains', () => {
     const lines = domainLines(domainOf(), COMPARED, words);
     expect(lines.identity).toBe('g2.com');
     expect(lines.value).toBe('10.4%');
-    expect(lines.valueLabel).toBe('Source share');
+    expect(lines.valueLabel).toBe('Citation share');
     expect(lines.context).toBe('Third party, 1,912 of 18,420 units');
   });
 
@@ -122,7 +122,7 @@ describe('list lines: Domains', () => {
 
   it('names the Own role in words, and the other two', () => {
     const roleOf = (role: DomainRole): string => domainLines(domainOf({ domain_role: role }), COMPARED, words).context;
-    expect(roleOf('own')).toMatch(/^Own, /);
+    expect(roleOf('own')).toMatch(/^Your site, /);
     expect(roleOf('competitor')).toMatch(/^Competitor, /);
     expect(roleOf('third_party')).toMatch(/^Third party, /);
   });
@@ -173,12 +173,12 @@ describe('list lines: New and lost', () => {
     const lines = changeLines('lost', changeOf({ current_units: 0, previous_units: 31, first_seen_at: null }), words);
     expect(lines.valueLabel).toBe('Units before it went quiet');
     expect(lines.value).toBe('31');
-    expect(lines.context).toBe('Third party, quiet for 2 windows');
+    expect(lines.context).toBe('Third party, quiet for 2 periods');
     expect(lines.delta).toBeNull();
   });
 
   it('names the Own role in words', () => {
-    expect(changeLines('new', changeOf({ domain_role: 'own' }), words).context).toMatch(/^Own, first cited /);
+    expect(changeLines('new', changeOf({ domain_role: 'own' }), words).context).toMatch(/^Your site, first cited /);
     expect(changeLines('lost', changeOf({ domain_role: 'competitor' }), words).context).toMatch(/^Competitor, quiet/);
   });
 });

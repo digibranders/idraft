@@ -149,12 +149,12 @@ describe('the topic drawer: change on the three cards', () => {
     const mentioned = await valueOf('Mentioned');
     expect(mentioned).toHaveTextContent('avg of 2');
     expect(within(mentioned).getByText('+27.5 pts')).toHaveClass('text-positive-text');
-    expect(mentioned).toHaveTextContent('up 27.5 pts, detectable, interim test');
+    expect(mentioned).toHaveTextContent('up 27.5 pts, detectable, provisional');
     const cited = await valueOf('Cited');
     const delta = within(cited).getByText('+6.5 pts');
     expect(delta).toHaveClass('text-foreground-secondary');
     expect(delta).not.toHaveClass('text-positive-text');
-    expect(cited).toHaveTextContent('within normal variation, interim test');
+    expect(cited).toHaveTextContent('within normal variation, provisional');
   });
 
   it('holds the previous average, the engine count, the window and the verdict in a tooltip that is a tab stop', async () => {
@@ -166,7 +166,7 @@ describe('the topic drawer: change on the three cards', () => {
     expect(tooltip()).toHaveTextContent('Previous 23%, 32 of 140 answers');
     expect(tooltip()).toHaveTextContent('Previous period: Sep 18 to Oct 15');
     expect(tooltip()).toHaveTextContent('Detectable change');
-    expect(tooltip()).toHaveTextContent('Interim test');
+    expect(tooltip()).toHaveTextContent('Provisional');
     expect(tooltip()?.textContent).not.toMatch(/\.$/);
   });
 
@@ -189,12 +189,12 @@ describe('the topic drawer: change on the three cards', () => {
     const delta = within(share).getByText('+10.0 pts');
     expect(delta).toHaveClass('text-foreground-secondary');
     expect(delta).not.toHaveClass('text-positive-text');
-    expect(share.textContent).not.toMatch(/detectable|within normal variation|interim test/);
+    expect(share.textContent).not.toMatch(/detectable|within normal variation|provisional/);
     await user.hover(stopOf(share));
     await waitFor(() =>
       expect(tooltip()).toHaveTextContent('No test exists for share of voice, so its change is not coloured'),
     );
-    expect(tooltip()?.textContent).not.toMatch(/Detectable change|Within normal variation|Interim test/);
+    expect(tooltip()?.textContent).not.toMatch(/Detectable change|Within normal variation|Provisional/);
   });
 
   it('does not say a share of voice change was tested on pooled answers, and says what its answers are', async () => {
@@ -203,7 +203,7 @@ describe('the topic drawer: change on the three cards', () => {
     await waitFor(() => expect(tooltip()).toHaveTextContent('Average of 2 platforms that have a rate in both periods'));
     expect(tooltip()?.textContent).not.toMatch(/pooled|tested/);
     // No count of answers that count exists for share of voice: the answers are those that name a brand
-    expect(tooltip()).toHaveTextContent('Previous 40%, 140 answers naming a brand');
+    expect(tooltip()).toHaveTextContent('Previous 40%, 140 answers mentioning a brand');
     expect(tooltip()).toHaveTextContent('No test exists for share of voice');
   });
 
@@ -255,7 +255,7 @@ describe('the topic drawer: change on the prompts', () => {
     const apart = itemOf(await sectionOf('Top prompts'), 'apart');
     const delta = within(apart).getByText('+20.0 pts');
     expect(delta).toHaveClass('text-foreground-secondary');
-    expect(apart.textContent).not.toMatch(/detectable|interim test/);
+    expect(apart.textContent).not.toMatch(/detectable|provisional/);
     await user.hover(within(apart).getByText('+20.0 pts').closest('[tabindex="0"]') ?? apart);
     await waitFor(() => expect(tooltip()).toHaveTextContent('This change is not tested because'));
   });
@@ -337,7 +337,7 @@ describe('the topic drawer: change in the By engine rows', () => {
 
   it('shows the change of each engine row while comparison is on', async () => {
     renderDrawer();
-    expect(await engineRows()).toHaveTextContent('up 30.0 pts, detectable, interim test');
+    expect(await engineRows()).toHaveTextContent('up 30.0 pts, detectable, provisional');
   });
 
   it('shows no change once comparison is off, though the held rows still carry their previous cells', async () => {
@@ -345,6 +345,6 @@ describe('the topic drawer: change in the By engine rows', () => {
     const rows = await engineRows();
     expect(within(rows).getAllByRole('link').length).toBeGreaterThan(0);
     expect(rows.textContent).not.toMatch(/\d pts/);
-    expect(rows.textContent).not.toMatch(/interim test/);
+    expect(rows.textContent).not.toMatch(/provisional/);
   });
 });

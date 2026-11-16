@@ -37,7 +37,7 @@ export async function stripCount(page: Page, term: string): Promise<number> {
 
 /** The table (from 768 px) or the list (below) of one kind of the New and lost tab. */
 export const changeCollection = (page: Page, kind: ChangeKind): Locator => {
-  const caption = kind === 'new' ? 'New sources' : 'Lost sources';
+  const caption = kind === 'new' ? 'New domains' : 'Lost domains';
   return isNarrow(page)
     ? page.getByRole('list', { name: new RegExp(`^${caption}, \\d+ results?$`) })
     : page.getByRole('grid', { name: caption });
@@ -154,7 +154,7 @@ const inspectorWith = (page: Page, tablist: string): Locator => {
   return page.getByRole('complementary').filter({ has }).or(page.getByRole('dialog').filter({ has }));
 };
 export const domainInspectorOf = (page: Page): Locator => inspectorWith(page, 'Domain views');
-export const sourceInspectorOf = (page: Page): Locator => inspectorWith(page, 'Source views');
+export const sourceInspectorOf = (page: Page): Locator => inspectorWith(page, 'Page tabs');
 
 /** The record the address names, `domain:example.com` or `source:12`; `null` when none is open. */
 export const inspectParam = (page: Page): string | null => new URL(page.url()).searchParams.get('inspect');
@@ -171,7 +171,7 @@ export async function awaitDomainInspector(page: Page, domain: string): Promise<
 export async function awaitSourceInspector(page: Page): Promise<Locator> {
   const inspector = sourceInspectorOf(page);
   await expect(inspector.getByRole('tab', { name: 'Overview' })).toBeVisible();
-  await expect(inspector.getByRole('group', { name: 'Source summary' })).not.toHaveAttribute('aria-busy', 'true');
+  await expect(inspector.getByRole('group', { name: 'Page summary' })).not.toHaveAttribute('aria-busy', 'true');
   return inspector;
 }
 

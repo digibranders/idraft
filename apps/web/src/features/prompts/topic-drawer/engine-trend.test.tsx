@@ -126,7 +126,7 @@ describe('EngineTrend: the weekly rate of the topic on each engine', () => {
     renderTrend(rowWith(pooled));
     expect(
       await screen.findByText(
-        'A group point with fewer than 10 prompts answering that week shows the last 4 weeks together, clipped to the window. A prompt point always shows 4 weeks.',
+        'A group point with fewer than 10 prompts answering that week shows the last 4 weeks together, clipped to the period. A prompt point always shows 4 weeks.',
       ),
     ).toBeInTheDocument();
   });
@@ -213,7 +213,7 @@ describe('EngineTrend: the weekly rate of the topic on each engine', () => {
   it('says there are no weekly points yet when the series is absent', async () => {
     renderTrend(rowWith([engine('chatgpt_web'), engine('gemini_web')]));
     expect(await screen.findByText('No weekly points yet')).toBeInTheDocument();
-    expect(screen.getByText('This group has no answer in the weeks of the window.')).toBeInTheDocument();
+    expect(screen.getByText('This group has no answer in the weeks of the period.')).toBeInTheDocument();
     expect(screen.queryByTestId('echart-canvas')).toBeNull();
   });
 

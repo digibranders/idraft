@@ -158,7 +158,7 @@ describe('the fan-out card', () => {
     const list = await barList();
     expect(
       within(list).getByText(
-        'best crm for startups, 14.6% of answers, issued in 14 of 96 answers, 3 prompts, own domain cited',
+        'best crm for startups, 14.6% of answers, issued in 14 of 96 answers, 3 prompts, your site cited',
       ),
     ).toBeInTheDocument();
     expect(
@@ -185,8 +185,8 @@ describe('the fan-out card', () => {
     renderCard();
     const list = await barList();
     const items = within(list).getAllByRole('listitem');
-    expect(within(at(items, 0)).getByText('Own domain cited')).toBeInTheDocument();
-    for (const index of [1, 2, 3, 4]) expect(within(at(items, index)).queryByText('Own domain cited')).toBeNull();
+    expect(within(at(items, 0)).getByText('Your site cited')).toBeInTheDocument();
+    for (const index of [1, 2, 3, 4]) expect(within(at(items, index)).queryByText('Your site cited')).toBeNull();
     // The words carry it: no bar is drawn in the colour of your brand
     for (const item of items) {
       expect(item.querySelector('[data-slot="bar-list-bar"]')?.className ?? '').not.toContain('bg-chart-1');
@@ -203,7 +203,7 @@ describe('the fan-out card', () => {
     expect(screen.getByText('80 of 96 answers ran at least one search.')).toBeInTheDocument();
     expect(
       screen.getByText(
-        `Fan-out is not exposed by ${formatList(['Gemini', 'AI Mode'])}, so nothing is counted for them.`,
+        `Fan-out is not exposed by ${formatList(['Gemini', 'Google AI Mode'])}, so nothing is counted for them.`,
       ),
     ).toBeInTheDocument();
     expect(
@@ -232,7 +232,7 @@ describe('the fan-out card', () => {
     expect(tip).toHaveTextContent('On ChatGPT');
     expect(tip).toHaveTextContent('3 prompts');
     expect(tip).toHaveTextContent(
-      `Sources in these answers: ${formatList(['g2.com 31 units', 'fynix.com 9 units', 'capterra.com 8 units', 'hubspot.com 6 units', 'forbes.com 4 units'])}`,
+      `Cited domains in these answers: ${formatList(['g2.com 31 units', 'fynix.com 9 units', 'capterra.com 8 units', 'hubspot.com 6 units', 'forbes.com 4 units'])}`,
     );
   });
 
@@ -260,7 +260,7 @@ describe('the fan-out card', () => {
     );
     renderCard();
     expect(
-      await screen.findByText(`Fan-out is not exposed by ${formatList(['Gemini', 'AI Mode'])}`),
+      await screen.findByText(`Fan-out is not exposed by ${formatList(['Gemini', 'Google AI Mode'])}`),
     ).toBeInTheDocument();
     expect(screen.queryByText(/0%/)).not.toBeInTheDocument();
     expect(screen.queryByText('No valid answers in these 28 days')).not.toBeInTheDocument();
@@ -305,7 +305,7 @@ describe('the fan-out card', () => {
     const seen = recordRequests();
     serve(page());
     renderCard('cmp=off&branded=only');
-    expect(await screen.findByText('Sources cannot be read for branded prompts alone')).toBeInTheDocument();
+    expect(await screen.findByText('Cited domains cannot be read for branded prompts alone')).toBeInTheDocument();
     expect(fanoutReads(seen)).toHaveLength(0);
   });
 
@@ -318,8 +318,8 @@ describe('the fan-out card', () => {
   it('says no answer ran a search, with the answers collected, and no zero', async () => {
     serve(fanoutPage([], fanoutMeta({ answers: 40, withFanout: 0 })));
     renderCard();
-    expect(await screen.findByText('No answer ran a search in this window')).toBeInTheDocument();
-    expect(screen.getByText('40 answers were collected in this window, and none ran a search.')).toBeInTheDocument();
+    expect(await screen.findByText('No answer ran a search in this period')).toBeInTheDocument();
+    expect(screen.getByText('40 answers were collected in this period, and none ran a search.')).toBeInTheDocument();
     expect(screen.queryByText(/0%/)).not.toBeInTheDocument();
   });
 
@@ -478,8 +478,8 @@ describe('the fan-out card', () => {
       'Answers that ran it',
       'Prompts',
       'Platform',
-      'Own domain cited',
-      'Sources cited with it',
+      'Your site cited',
+      'Domains cited with it',
     ]);
     expect(block?.rows).toHaveLength(5);
     expect(at(block?.rows ?? [], 0)).toEqual([
@@ -488,7 +488,7 @@ describe('the fan-out card', () => {
       'issued in 14 of 96 answers',
       3,
       'ChatGPT',
-      'Own domain cited',
+      'Your site cited',
       formatList([
         'g2.com 31 units',
         'fynix.com 9 units',

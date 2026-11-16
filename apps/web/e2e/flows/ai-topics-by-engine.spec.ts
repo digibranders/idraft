@@ -268,14 +268,14 @@ test.describe('The group drawer', () => {
     ).toBeVisible();
     await expect(
       drawer.getByText(
-        /^(Best on .* a gap of [\d.]+ pts\.|Every platform with a rate is at |Fewer than 2 platforms have a rate|No platform names the brand|Left out for too few answers)/,
+        /^(Best on .* a gap of [\d.]+ pts\.|Every platform with a rate is at |Fewer than 2 platforms have a rate|No platform mentions the brand|Left out for too few answers)/,
       ),
     ).toBeVisible();
     await expect(drawer.getByText('Each prompt counts once, whatever the number of its answers.')).toBeVisible();
 
     // The metric of the panel is its own control: it names the panel, and moves the Prompts of an engine too
-    await chooseOption(page, drawer, 'Metric of the platform panel', 'Citation');
-    await expect(drawer.getByRole('combobox', { name: 'Metric of the platform panel' })).toHaveText(/Citation/);
+    await chooseOption(page, drawer, 'Metric of the platform table', 'Citation');
+    await expect(drawer.getByRole('combobox', { name: 'Metric of the platform table' })).toHaveText(/Citation/);
 
     const trend = drawer.getByRole('group', { name: 'Trend by platform view' });
     await trend.scrollIntoViewIfNeeded();
@@ -300,9 +300,9 @@ test.describe('The group drawer', () => {
 
     await drawer.getByRole('tab', { name: 'Competitors' }).click();
     const competitors = drawer.getByRole('table', { name: 'Competitors by platform' });
-    await expect(competitors.getByRole('columnheader', { name: 'Entity' })).toBeVisible();
+    await expect(competitors.getByRole('columnheader', { name: 'Brand' })).toBeVisible();
     await expect(competitors.getByRole('row').nth(1)).toContainText('Fynix');
-    await expect(competitors.getByText('own brand')).toBeVisible();
+    await expect(competitors.getByText('your brand')).toBeVisible();
 
     await drawer.getByRole('tab', { name: 'Related' }).click();
     const related = drawer.getByRole('table', { name: 'Groups beside this one' });

@@ -121,7 +121,7 @@ function renderLatest(): ProvidedRender {
   return renderWithProviders(ui);
 }
 
-const sourcesList = (): Promise<HTMLElement> => screen.findByRole('list', { name: 'Top sources of this answer' });
+const sourcesList = (): Promise<HTMLElement> => screen.findByRole('list', { name: 'Top cited domains of this answer' });
 const chipTexts = (list: HTMLElement): (string | null)[] =>
   within(list)
     .getAllByRole('listitem')
@@ -168,7 +168,7 @@ describe('the cited sources of a Latest card', () => {
     serveCitations([]);
     renderLatest();
     expect(await screen.findByText('gpt-5')).toBeInTheDocument();
-    expect(screen.queryByRole('list', { name: 'Top sources of this answer' })).toBeNull();
+    expect(screen.queryByRole('list', { name: 'Top cited domains of this answer' })).toBeNull();
   });
 
   it('draws the chips in the neutral chip style, with no role colour', async () => {

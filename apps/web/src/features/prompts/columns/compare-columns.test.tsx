@@ -164,12 +164,12 @@ describe('the change columns of the Prompts tab', () => {
     render(rowOf([chat(DETECTABLE), gemini(WITHIN[0], WITHIN[1])]));
     expect(within(screen.getByTestId('change_chatgpt_web')).getByText('+30.0 pts')).toHaveClass('text-positive-text');
     expect(screen.getByTestId('change_chatgpt_web')).toHaveTextContent('detectable');
-    expect(screen.getByTestId('change_chatgpt_web')).toHaveTextContent('interim test');
+    expect(screen.getByTestId('change_chatgpt_web')).toHaveTextContent('provisional');
     expect(within(screen.getByTestId('change_gemini_web')).getByText('+6.7 pts')).toHaveClass(
       'text-foreground-secondary',
     );
     expect(screen.getByTestId('change_gemini_web')).toHaveTextContent('within normal variation');
-    expect(screen.getByTestId('change_gemini_web')).toHaveTextContent('interim test');
+    expect(screen.getByTestId('change_gemini_web')).toHaveTextContent('provisional');
   });
 
   it('colours a fall by the test, not by its sign', () => {
@@ -189,7 +189,7 @@ describe('the change columns of the Prompts tab', () => {
     expect(tip).toHaveTextContent(/Previous 20%, 12 of 60 answers/);
     expect(tip).toHaveTextContent(/Previous period: Sep 18 to Oct 15/);
     expect(tip).toHaveTextContent(/Detectable change/);
-    expect(tip).toHaveTextContent(/Interim test: unpaired/);
+    expect(tip).toHaveTextContent(/Provisional: unpaired/);
     expect(tipOf('change_gemini_web')).toHaveTextContent(/Within normal variation/);
   });
 

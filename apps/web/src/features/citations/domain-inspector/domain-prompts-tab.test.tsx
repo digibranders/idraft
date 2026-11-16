@@ -252,7 +252,7 @@ describe('the Prompts tab of the domain inspector', () => {
   it('says so, with the reason, when no prompt cites the domain', async () => {
     renderWithProviders(<Tab prompts={[]} />);
     expect(await screen.findByText('No prompt cites this domain')).toBeInTheDocument();
-    expect(screen.getByText('No answer read in this window cites it.')).toBeInTheDocument();
+    expect(screen.getByText('No answer read in this period cites it.')).toBeInTheDocument();
     expect(screen.queryByRole('table')).toBeNull();
   });
 

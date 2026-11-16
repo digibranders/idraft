@@ -220,7 +220,7 @@ describe('the Prompts tab of the source inspector', () => {
   it('says so, with the reason, when no prompt cites the page', async () => {
     renderWithProviders(<Tab citations={readOf('ready', pageOf([]))} />);
     expect(await screen.findByText('No prompt cites this page')).toBeInTheDocument();
-    expect(screen.getByText('No answer read in this window cites it.')).toBeInTheDocument();
+    expect(screen.getByText('No answer read in this period cites it.')).toBeInTheDocument();
     expect(screen.queryByRole('table')).toBeNull();
   });
 
@@ -235,7 +235,7 @@ describe('the Prompts tab of the source inspector', () => {
   it('shows an error with Retry that asks again when the citations read failed', async () => {
     const citations = readOf('error', undefined);
     const { user } = renderWithProviders(<Tab citations={citations} />);
-    expect(screen.getByText('This source could not be loaded.')).toBeInTheDocument();
+    expect(screen.getByText('This cited page could not be loaded.')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Try again' }));
     expect(citations.retry).toHaveBeenCalledTimes(1);
   });

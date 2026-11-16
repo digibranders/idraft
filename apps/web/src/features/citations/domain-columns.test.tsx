@@ -228,7 +228,7 @@ describe('useDomainColumns', () => {
     expect(category.defaultVisible).toBe(false);
     const { container } = renderCell('category', domainRow());
     expect(container).toHaveTextContent('n/a');
-    expect(category.cellTip?.(domainRow())?.content).toBe('Categories arrive with the Sources work.');
+    expect(category.cellTip?.(domainRow())?.content).toBe('Domain types arrive with the Citation opportunities work.');
   });
 
   it('shows a category when the API sends one', () => {
@@ -285,7 +285,7 @@ describe('useDomainColumns', () => {
     expect(none.container).toHaveTextContent('n/a');
     expect(none.container).not.toHaveTextContent('0.0%');
     expect(columnOf('engine-google_ai_mode').cellTip?.(domainRow())?.content).toBe(
-      'AI Mode has no citation in this window.',
+      'AI Mode has no citation in this period.',
     );
   });
 
@@ -307,18 +307,18 @@ describe('useDomainColumns', () => {
       columnOf('citedWith').cellTip?.(
         domainRow(domainOf({ cited_with: { entity_id: 'ent-hubspot', observations: 12 } })),
       )?.content,
-    ).toBe('HubSpot, named in 12 answers that cite it');
+    ).toBe('HubSpot, mentioned in 12 answers that cite it');
     named.unmount();
     const none = renderCell('citedWith', domainRow());
-    expect(none.container).toHaveTextContent('None named');
+    expect(none.container).toHaveTextContent('None mentioned');
   });
 
   it('Cited with is n/a, with its reason, while the entity is not known', () => {
     const row = domainRow(domainOf({ cited_with: { entity_id: 'ent-missing', observations: 3 } }));
     const { container } = renderCell('citedWith', row, { entities: undefined });
     expect(container).toHaveTextContent('n/a');
-    expect(container).not.toHaveTextContent('None named');
-    expect(columnOf('citedWith').cellTip?.(row)?.content).toBe('The name of this entity is not loaded yet.');
+    expect(container).not.toHaveTextContent('None mentioned');
+    expect(columnOf('citedWith').cellTip?.(row)?.content).toBe('The name of this brand is not loaded yet.');
   });
 
   it('the New badge shows only with previous 0 and answers in the previous period', () => {
@@ -465,7 +465,7 @@ describe('useDomainColumns', () => {
 
   it('shows the Role badge on a domain row only', () => {
     const own = renderCell('role', domainRow(domainOf({ domain_role: 'own' })));
-    expect(own.container).toHaveTextContent('Own');
+    expect(own.container).toHaveTextContent('Your site');
     own.unmount();
     const competitor = renderCell('role', domainRow(domainOf({ domain_role: 'competitor' })));
     expect(competitor.container).toHaveTextContent('Competitor');

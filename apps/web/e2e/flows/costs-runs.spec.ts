@@ -91,7 +91,7 @@ test.describe('costs and runs', () => {
     // By provider is the first tab
     await expect(page.getByRole('row', { name: /dataforseo/ })).toBeVisible();
     await page.getByRole('tab', { name: 'Budgets' }).click();
-    await expect(page.getByRole('row', { name: /Workspace.*All workloads/ })).toBeVisible();
+    await expect(page.getByRole('row', { name: /Workspace.*All job types/ })).toBeVisible();
     await expectAccessible(page);
   });
 

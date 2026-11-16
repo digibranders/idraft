@@ -114,7 +114,7 @@ describe('the Pages tab of the domain inspector', () => {
   it('says so, with the reason, when no page of the domain is cited', () => {
     renderWithProviders(<Tab topPages={[]} />);
     expect(screen.getByText('No cited pages')).toBeInTheDocument();
-    expect(screen.getByText('No page of this domain is cited in this window.')).toBeInTheDocument();
+    expect(screen.getByText('No page of this domain is cited in this period.')).toBeInTheDocument();
     expect(screen.queryByRole('table')).toBeNull();
     expect(screen.queryByRole('link', { name: 'View all pages' })).toBeNull();
   });

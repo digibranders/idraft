@@ -56,12 +56,12 @@ describe('the prompt inspector strip: change per engine', () => {
     render(countsOf(detectable()));
     const chatgpt = itemOf('ChatGPT mention');
     expect(within(chatgpt).getByText('+30.0 pts')).toHaveClass('text-positive-text');
-    expect(chatgpt).toHaveTextContent('up 30.0 pts, detectable, interim test');
+    expect(chatgpt).toHaveTextContent('up 30.0 pts, detectable, provisional');
     const gemini = itemOf('Gemini mention');
     const delta = within(gemini).getByText('+6.7 pts');
     expect(delta).toHaveClass('text-foreground-secondary');
     expect(delta).not.toHaveClass('text-positive-text');
-    expect(gemini).toHaveTextContent('within normal variation, interim test');
+    expect(gemini).toHaveTextContent('within normal variation, provisional');
   });
 
   it('holds the previous value with its answers, the window and the verdict in the tooltip, a tab stop', async () => {
@@ -72,7 +72,7 @@ describe('the prompt inspector strip: change per engine', () => {
     await waitFor(() => expect(tooltip()).toHaveTextContent('Previous 20%, 12 of 60 answers'));
     expect(tooltip()).toHaveTextContent('Previous period: Sep 18 to Oct 15');
     expect(tooltip()).toHaveTextContent('Detectable change');
-    expect(tooltip()).toHaveTextContent('Interim test');
+    expect(tooltip()).toHaveTextContent('Provisional');
     // The same style as the other tips: a colon before the window, and no full stop at the end
     expect(tooltip()?.textContent).not.toMatch(/\.$/);
   });
@@ -93,7 +93,7 @@ describe('the prompt inspector strip: change per engine', () => {
     );
     const { user } = render(countsOf([weighted]));
     const item = itemOf('ChatGPT mention');
-    expect(item.textContent).not.toMatch(/detectable|within normal variation|interim test/);
+    expect(item.textContent).not.toMatch(/detectable|within normal variation|provisional/);
     await user.hover(item);
     await waitFor(() => expect(tooltip()).toHaveTextContent('This change is not tested because'));
   });

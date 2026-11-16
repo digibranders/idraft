@@ -53,7 +53,7 @@ const table = async (name: string): Promise<HTMLElement> => {
 describe('Entities and aliases', () => {
   it('lists the own brand, the competitors with their count, and the watched entities', async () => {
     const { container } = renderWithProviders(as('editor', <EntitiesScreen {...SCOPE} />));
-    const own = await table('Own brand');
+    const own = await table('Your brand');
     expect(within(own).getByRole('link', { name: 'Fynix' })).toHaveAttribute(
       'href',
       expect.stringMatching(/\/digibranders\/fynix\/settings\/entities\/[0-9a-f-]{36}$/),
@@ -152,7 +152,7 @@ describe('Entities and aliases', () => {
 
   it('offers no removal of the primary own brand', async () => {
     const { user } = renderWithProviders(as('editor', <EntitiesScreen {...SCOPE} />));
-    await table('Own brand');
+    await table('Your brand');
     await user.click(screen.getByRole('button', { name: 'Actions for Fynix' }));
     expect(await screen.findByRole('menuitem', { name: 'Change tracking' })).toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: 'Remove from project' })).toBeNull();
@@ -190,7 +190,7 @@ describe('Entities and aliases', () => {
   it('shows a member without entities:write the lists read-only', async () => {
     renderWithProviders(as('analyst', <EntitiesScreen {...SCOPE} />));
     await table('Competitors');
-    expect(screen.getByText('Owners, admins and editors can change the entities of a project.')).toBeInTheDocument();
+    expect(screen.getByText('Owners, admins and editors can change the brands of a project.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Add competitor' })).toBeNull();
     expect(screen.queryByRole('button', { name: /^Actions for/ })).toBeNull();
   });
@@ -244,7 +244,7 @@ describe('Entities, the Added column', () => {
   it('shows the date each role was added for the own brand, the competitors and the watched entities', async () => {
     vi.setSystemTime(new Date('2026-11-13T12:00:00Z'));
     const { container } = renderWithProviders(as('editor', <EntitiesScreen {...SCOPE} />));
-    const own = await table('Own brand');
+    const own = await table('Your brand');
     const competitors = await table('Competitors');
     const watched = await table('Watched');
     for (const [found, name] of [
@@ -319,7 +319,7 @@ describe('Entities, the Added column', () => {
     await table('Competitors');
     expect(
       screen.getAllByText(
-        'Share of voice counts a competitor from the date it was added. Adding or removing one changes share of voice for all entities from that day.',
+        'Share of voice counts a competitor from the date it was added. Adding or removing one changes share of voice for all brands from that day.',
       ),
     ).toHaveLength(1);
   });
@@ -340,7 +340,7 @@ describe('Domains', () => {
     const watched = await table('Watched');
     expect(within(watched).getByText('medium.com/seo-weekly')).toBeInTheDocument();
     expect(within(watched).getByText('Pages under a path')).toBeInTheDocument();
-    expect(within(await table('Own brand')).getByRole('link', { name: 'Fynix' })).toBeInTheDocument();
+    expect(within(await table('Your brand')).getByRole('link', { name: 'Fynix' })).toBeInTheDocument();
     expect(await axe(container)).toHaveNoViolations();
   });
 });

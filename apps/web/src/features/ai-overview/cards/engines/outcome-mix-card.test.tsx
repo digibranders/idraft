@@ -23,7 +23,7 @@ vi.mock('@/lib/csv/csv-write', async (importOriginal) => ({
 }));
 
 const TYPE = 'ai.outcome_mix';
-const TITLE = 'Named and cited, by platform';
+const TITLE = 'Mentioned and cited, by platform';
 const WINDOW = 'from=2026-10-16&to=2026-11-12';
 const SUMMARY = '*/api/v1/workspaces/:w/projects/:p/ai/prompts-summary';
 
@@ -144,7 +144,7 @@ describe('OutcomeMixCard', () => {
     await user.click(within(frame).getByRole('button', { name: 'Table' }));
     const table = within(frame).getByRole('table');
     expect(within(table).getByRole('columnheader', { name: 'ChatGPT' })).toBeInTheDocument();
-    expect(within(table).getByText('Named only')).toBeInTheDocument();
+    expect(within(table).getByText('Mentioned only')).toBeInTheDocument();
     // 90 of 432 answers, with its count beside it
     expect(table).toHaveTextContent('20.8%, 90 of 432 answers');
 
@@ -319,8 +319,8 @@ describe('OutcomeMixCard', () => {
     // Four outcomes for each of the two engines
     expect(block?.rows).toHaveLength(8);
     // ChatGPT has 3 valid answers: no share, no count, and the status says why; never 0
-    expect(block?.rows[0]).toEqual(['ChatGPT', 'Named and cited', null, null, 3, null, 'insufficient']);
-    expect(block?.rows[4]).toEqual(['Gemini', 'Named and cited', 25, 5, 20, 1, 'ok']);
+    expect(block?.rows[0]).toEqual(['ChatGPT', 'Mentioned and cited', null, null, 3, null, 'insufficient']);
+    expect(block?.rows[4]).toEqual(['Gemini', 'Mentioned and cited', 25, 5, 20, 1, 'ok']);
   });
 
   it('exports an engine with no valid answer as empty cells, never 0, with the status none', async () => {
@@ -348,7 +348,7 @@ describe('OutcomeMixCard', () => {
       expect(read().blocks).toHaveLength(1);
     });
     const rows = read().blocks[0]?.rows ?? [];
-    expect(rows[0]).toEqual(['ChatGPT', 'Named and cited', 25, 5, 20, 1, 'ok']);
+    expect(rows[0]).toEqual(['ChatGPT', 'Mentioned and cited', 25, 5, 20, 1, 'ok']);
     for (const row of rows.slice(4)) expect(row.slice(2)).toEqual([null, null, null, null, 'none']);
   });
 

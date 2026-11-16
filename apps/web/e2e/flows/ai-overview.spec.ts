@@ -105,7 +105,7 @@ test.describe('the AI visibility Overview', () => {
     const link = overviewLink(page);
     await expect(link).toHaveAttribute('href', '/digibranders/fynix/ai');
     await expect(
-      page.getByRole('navigation', { name: 'Primary' }).getByText('AI Visibility', { exact: true }),
+      page.getByRole('navigation', { name: 'Primary' }).getByText('AI visibility', { exact: true }),
     ).toBeVisible();
     await expect(link).not.toHaveAttribute('aria-current', 'page');
     await link.click();

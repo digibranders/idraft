@@ -551,8 +551,8 @@ describe('TopicTrendsCard states', () => {
     // All platforms: a link that names several platforms is All platforms, so the test names none
     render({ searchParams: '', threeEngines: true });
     await charts();
-    expect(screen.getByText('Partial data: AI Mode has no valid answer in this window')).toBeInTheDocument();
-    expect(within(figureOf('CRM, AI Mode')).getAllByText('No weekly data').length).toBeGreaterThan(0);
+    expect(screen.getByText('Partial data: Google AI Mode has no valid answer in this period')).toBeInTheDocument();
+    expect(within(figureOf('CRM, Google AI Mode')).getAllByText('No weekly data').length).toBeGreaterThan(0);
   });
 });
 

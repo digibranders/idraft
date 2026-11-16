@@ -169,7 +169,7 @@ describe('CardOptionsPopover', () => {
     expect(chatgpt).toHaveAccessibleDescription('Already on this page');
     expect(within(popover).getByRole('radio', { name: 'Gemini' })).toBeChecked();
     expect(within(popover).getByRole('radio', { name: 'Gemini' })).not.toHaveAttribute('aria-disabled', 'true');
-    expect(within(popover).getByRole('radio', { name: 'AI Mode' })).not.toHaveAttribute('aria-disabled', 'true');
+    expect(within(popover).getByRole('radio', { name: 'Google AI Mode' })).not.toHaveAttribute('aria-disabled', 'true');
   });
 
   it('does not change the card when a taken engine is clicked', async () => {
@@ -190,17 +190,17 @@ describe('CardOptionsPopover', () => {
     expect(within(popover).getByRole('radio', { name: 'ChatGPT' })).toBeChecked();
   });
 
-  it('renames the card when the engine changes: AI Mode', async () => {
+  it('renames the card when the engine changes: Google AI Mode', async () => {
     const view = await customize();
     const popover = await openOptions(view, 'trend-gemini', 'Mention rate trend: Gemini');
-    await view.user.click(within(popover).getByRole('radio', { name: 'AI Mode' }));
+    await view.user.click(within(popover).getByRole('radio', { name: 'Google AI Mode' }));
     await waitFor(() => {
-      expect(polite()).toBe('Mention rate trend: AI Mode: Platform AI Mode');
+      expect(polite()).toBe('Mention rate trend: Google AI Mode: Platform Google AI Mode');
     });
-    expect(screen.getByRole('group', { name: 'Mention rate trend: AI Mode card' })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Mention rate trend: Google AI Mode card' })).toBeInTheDocument();
     // The engine it left is free again
     expect(within(popover).getByRole('radio', { name: 'Gemini' })).not.toHaveAttribute('aria-disabled', 'true');
-    expect(within(popover).getByRole('radio', { name: 'AI Mode' })).toBeChecked();
+    expect(within(popover).getByRole('radio', { name: 'Google AI Mode' })).toBeChecked();
   });
 
   it('keeps focus on the radio an arrow key chose, so the next arrow key works', async () => {

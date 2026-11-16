@@ -83,7 +83,7 @@ describe('useCardEngine', () => {
     await waitFor(() => {
       expect(screen.getByTestId('availability')).toHaveTextContent('off');
     });
-    expect(screen.getByTestId('empty')).toHaveTextContent('AI Mode is not asked in this scope');
+    expect(screen.getByTestId('empty')).toHaveTextContent('Google AI Mode is not asked in this scope');
     expect(screen.getByTestId('empty')).toHaveTextContent('turned off for this project');
   });
 

@@ -205,7 +205,7 @@ describe('the lost to a competitor card', () => {
     renderCard();
     expect(await screen.findByText('No prompt is lost to a competitor on ChatGPT')).toBeInTheDocument();
     expect(
-      screen.getByText('In each of the 4 prompts with 4 or more valid answers, you are named or no competitor is.'),
+      screen.getByText('In each of the 4 prompts with 4 or more valid answers, you are mentioned or no competitor is.'),
     ).toBeInTheDocument();
     expect(screen.queryByRole('list', { name: TITLE })).not.toBeInTheDocument();
   });
@@ -221,7 +221,7 @@ describe('the lost to a competitor card', () => {
     renderCard();
     await barList();
     expect(chartSummaryText(screen.getByRole('heading', { level: 2, name: TITLE }))).toMatch(
-      /^Prompts where a competitor is named and you are not, on ChatGPT, of 5 prompts with 4 or more valid answers: HubSpot 3 prompts/,
+      /^Prompts where a competitor is mentioned and you are not, on ChatGPT, of 5 prompts with 4 or more valid answers: HubSpot 3 prompts/,
     );
   });
 
@@ -252,7 +252,7 @@ describe('the lost to a competitor card', () => {
     await user.hover(at(within(list).getAllByRole('listitem'), 0).firstElementChild as HTMLElement);
     expect(
       await screen.findByText(
-        'HubSpot is named and you are not named in any answer of the prompt. Only prompts with 4 or more valid answers count.',
+        'HubSpot is mentioned and you are not mentioned in any answer of the prompt. Only prompts with 4 or more valid answers count.',
       ),
     ).toBeInTheDocument();
   });

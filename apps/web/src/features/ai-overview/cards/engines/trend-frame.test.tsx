@@ -66,9 +66,9 @@ const seriesIds = (id: string): string[] =>
 describe('the trend frame, through the rate trend card', () => {
   it('draws one panel per asked engine in catalog order', async () => {
     render();
-    const panels = await screen.findAllByRole('img', { name: /^(ChatGPT|Gemini|AI Mode)$/ });
+    const panels = await screen.findAllByRole('img', { name: /^(ChatGPT|Gemini|Google AI Mode)$/ });
     expect(panels.map((panel) => panel.getAttribute('aria-label'))).toEqual(['ChatGPT', 'Gemini']);
-    expect(screen.queryByRole('img', { name: 'AI Mode' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: 'Google AI Mode' })).not.toBeInTheDocument();
   });
 
   it('the Series menu switches the metric of every panel and changes nothing saved', async () => {

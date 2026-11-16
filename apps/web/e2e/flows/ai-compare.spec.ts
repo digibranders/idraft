@@ -173,7 +173,7 @@ test.describe('Compare with the previous period', () => {
     expect(drawn.length).toBeGreaterThanOrEqual(5);
     for (const change of drawn) {
       expect(change.tone, change.spoken).toBe(NEUTRAL);
-      expect(change.spoken).toMatch(/, within normal variation, interim test$/);
+      expect(change.spoken).toMatch(/, within normal variation, provisional$/);
     }
     expect(await colouredIn(stripOf(page))).toEqual([]);
     expect(await colouredIn(topicsGrid(page))).toEqual([]);
@@ -185,7 +185,7 @@ test.describe('Compare with the previous period', () => {
       .first()
       .hover();
     await expect(openTip(page)).toContainText('Within normal variation');
-    await expect(openTip(page)).toContainText('Interim test');
+    await expect(openTip(page)).toContainText('Provisional');
     await expect(openTip(page)).toContainText(/Previous \d+%/);
     await page.mouse.move(0, 0);
     await topicsGrid(page)
@@ -212,7 +212,7 @@ test.describe('Compare with the previous period', () => {
     expect(await colouredIn(row)).toEqual(coloured);
     const [change] = coloured;
     expect(change?.tone).toBe(POSITIVE);
-    expect(change?.spoken).toMatch(/^up .* pts, detectable, interim test$/);
+    expect(change?.spoken).toMatch(/^up .* pts, detectable, provisional$/);
     const neutral = (await changesIn(topicsGrid(page))).find((one) => one.tone === NEUTRAL);
     expect(neutral).toBeDefined();
     expect(change?.color).not.toBe(neutral?.color);
@@ -222,7 +222,7 @@ test.describe('Compare with the previous period', () => {
       .first()
       .hover();
     await expect(openTip(page)).toContainText('Detectable change');
-    await expect(openTip(page)).toContainText('Interim test');
+    await expect(openTip(page)).toContainText('Provisional');
     await expect(openTip(page)).toContainText('Average of 2 platforms that have a rate in both periods');
     await page.mouse.move(0, 0);
 
@@ -251,7 +251,7 @@ test.describe('Compare with the previous period', () => {
     const share = await changesIn(valueOf(drawer, 'Share of voice'));
     expect(share).toHaveLength(1);
     expect(share[0]?.tone).toBe(NEUTRAL);
-    expect(share[0]?.spoken).not.toMatch(/detectable|within normal variation|interim test/);
+    expect(share[0]?.spoken).not.toMatch(/detectable|within normal variation|provisional/);
     // The two top prompts moved by more than normal variation
     expect(await colouredIn(sectionOf(drawer, 'Top prompts'))).toHaveLength(2);
   });
@@ -263,7 +263,7 @@ test.describe('Compare with the previous period', () => {
     await expect(inspector.getByRole('tablist', { name: 'Prompt sections' })).toBeVisible();
     for (const item of ['ChatGPT mention', 'Gemini mention']) {
       await expect(valueOf(inspector, item)).toContainText(/\d pts/);
-      await expect(valueOf(inspector, item)).toContainText('within normal variation, interim test');
+      await expect(valueOf(inspector, item)).toContainText('within normal variation, provisional');
     }
     // The Citation rate is an average over engines and keeps no change
     expect(await changesIn(valueOf(inspector, 'Citation rate'))).toEqual([]);

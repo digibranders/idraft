@@ -207,7 +207,7 @@ describe('the topic drawer: the Overview', () => {
       rising();
       renderOn('viewer', inspect(PAID_SEARCH));
       const section = await engineRows();
-      await waitFor(() => expect(section).toHaveTextContent('up 30.0 pts, detectable, interim test'));
+      await waitFor(() => expect(section).toHaveTextContent('up 30.0 pts, detectable, provisional'));
       expect(asked).toContain('previous_period');
     });
 
@@ -216,7 +216,7 @@ describe('the topic drawer: the Overview', () => {
       rising();
       const { user } = renderOn('viewer', inspect(PAID_SEARCH));
       const section = await engineRows();
-      await waitFor(() => expect(section).toHaveTextContent('up 30.0 pts, detectable, interim test'));
+      await waitFor(() => expect(section).toHaveTextContent('up 30.0 pts, detectable, provisional'));
       // The read that follows the toggle never answers: the rows on screen are the held ones, with their previous cells
       server.use(http.get(SUMMARY_PATH, () => delay('infinite')));
       await user.click(screen.getByRole('combobox', { name: 'Compare with' }));

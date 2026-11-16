@@ -50,10 +50,10 @@ export const BUILTIN_NUMBERS = [
 export const BUILTIN_NUMBER_LABELS = [
   'SEO visibility',
   'Top 10',
-  'AIO citation rate',
+  'Google AI Overview citation rate',
   'Mention rate ChatGPT',
   'Mention rate Gemini',
-  'Mention rate AI Mode',
+  'Mention rate Google AI Mode',
 ] as const;
 /** The cards the project Cleanstart can show: it tracks no AI engine, so the four AI cards have no data there. */
 export const CARDS_WITHOUT_AI = ['trend', 'rank-distribution', 'key-changes', 'competitors'] as const;

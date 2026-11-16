@@ -40,14 +40,14 @@ describe('useChangeWords', () => {
     expect(tip).toContain('Previous 20%, 12 of 60 answers');
     expect(tip).toContain(`Previous period: ${RANGE}`);
     expect(tip).toContain('Detectable change');
-    expect(tip).toContain('Interim test');
+    expect(tip).toContain('Provisional');
   });
 
   it('says a change within normal variation is, and not that it is detectable', () => {
     const { tip } = tipOf(engine(WITHIN), { kind: 'engine', range: RANGE });
     expect(tip).toContain('Within normal variation');
     expect(tip).not.toContain('Detectable change');
-    expect(tip).toContain('Interim test');
+    expect(tip).toContain('Provisional');
   });
 
   it('says how many engines an average is over and that the test is on pooled answers', () => {
@@ -105,7 +105,7 @@ describe('useChangeWords', () => {
     expect(tip).toContain('This change is not tested because');
     expect(tip).not.toContain('Detectable change');
     expect(tip).not.toContain('Within normal variation');
-    expect(tip).not.toContain('Interim test');
+    expect(tip).not.toContain('Provisional');
   });
 
   it('says over how many prompts a topic rate and a chip figure of the period before are', () => {
@@ -133,7 +133,7 @@ describe('useChangeWords', () => {
     expect(tip.endsWith('.')).toBe(false);
     expect(tip).not.toContain('Detectable change');
     expect(tip).not.toContain('Within normal variation');
-    expect(tip).not.toContain('Interim test');
+    expect(tip).not.toContain('Provisional');
   });
 
   it('gives no tip and no label for no change', () => {

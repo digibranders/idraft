@@ -308,7 +308,7 @@ describe('the what moved the rate card', () => {
   it('says the engine is not shown when the option names an engine that is off', async () => {
     serve(NOW, BEFORE);
     renderCard({ engine: 'google_ai_mode' });
-    expect(await screen.findByText('AI Mode is not shown on this page')).toBeInTheDocument();
+    expect(await screen.findByText('Google AI Mode is not shown on this page')).toBeInTheDocument();
   });
 
   it('shows its own error with Retry when the window before cannot be read, and Retry reads again', async () => {

@@ -209,8 +209,8 @@ test.describe('the source, fan-out, activity and operations cards, as an editor'
       // Fynix has no AI run and no schedule; the next step of the Eventus flow reads the same cards with a history
       if (await hasAiEngines(page)) {
         await expect(cardByTitle(page, ADDED_CARDS.collection.title)).toContainText('No AI run has finished yet');
-        await expect(cardByTitle(page, ADDED_CARDS.calendar.title)).toContainText('No collection in this window');
-        await expect(cardByTitle(page, ADDED_CARDS.status.title)).toContainText('No collection in this window');
+        await expect(cardByTitle(page, ADDED_CARDS.calendar.title)).toContainText('No collection in this period');
+        await expect(cardByTitle(page, ADDED_CARDS.status.title)).toContainText('No collection in this period');
       }
     });
   });
@@ -268,7 +268,7 @@ test.describe('the source, fan-out, activity and operations cards, as an editor'
       await page.keyboard.press('ArrowRight');
       await expect(byRole).toBeChecked();
       await expect(page.locator(POLITE)).toHaveText('View changed to By role');
-      for (const role of ['Own', 'Competitor', 'Third party']) {
+      for (const role of ['Your site', 'Competitor', 'Third party']) {
         await expect(card.getByText(new RegExp(`^${role}$`)).first()).toBeVisible();
       }
       await expect(card).toContainText(/of citation units, [\d,]+ of [\d,]+ units/);
@@ -343,7 +343,7 @@ test.describe('the source, fan-out, activity and operations cards, as an editor'
     const feed = cardById(page, BUILTIN_IDS.keyChanges);
     await feed.scrollIntoViewIfNeeded();
     await expect(feed).toContainText(/Changes\s*\d+ changes?/);
-    await expect(feed.getByRole('link', { name: /^New sources: \d+ domains?/ })).toHaveAttribute(
+    await expect(feed.getByRole('link', { name: /^New cited domains?: \d+ domains?/ })).toHaveAttribute(
       'href',
       /\/ai\/citations\?.*tab=new-lost/,
     );
@@ -352,7 +352,7 @@ test.describe('the source, fan-out, activity and operations cards, as an editor'
     await openScreen(page, FYNIX_PATH, 1280, '?branded=only');
     const limited = cardById(page, BUILTIN_IDS.keyChanges);
     await limited.scrollIntoViewIfNeeded();
-    await expect(limited).toContainText('Not checked: new sources');
+    await expect(limited).toContainText('Not checked: new cited domains');
     await expect(limited.locator('a[href*="/citations"]')).toHaveCount(0);
   });
 

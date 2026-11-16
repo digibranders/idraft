@@ -129,7 +129,7 @@ describe('the share of voice over time card (CH-19)', () => {
     }
     const placeholder = drawnSeries().find((entry) => entry.id === 'too-few');
     expect(placeholder?.data).toEqual([null, 1, null, null]);
-    expect(tooltipText(1)).toContain('Too few answers name a tracked brand that week: 3 answers, fewer than 4');
+    expect(tooltipText(1)).toContain('Too few answers mention a tracked brand that week: 3 answers, fewer than 4');
     expect(tooltipText(1)).not.toContain('%');
   });
 
@@ -155,7 +155,7 @@ describe('the share of voice over time card (CH-19)', () => {
     await drawColumns();
     const words = tooltipText(0);
     expect(words).toContain('Week of Oct 19');
-    expect(words).toContain('Of 100 answers naming a tracked brand that week');
+    expect(words).toContain('Of 100 answers that mention a tracked brand that week');
     expect(words).toContain('Fynix|40%');
     expect(words.indexOf('Fynix')).toBeLessThan(words.indexOf('HubSpot'));
     expect(words.indexOf('HubSpot')).toBeLessThan(words.indexOf('Zoho'));
@@ -172,7 +172,7 @@ describe('the share of voice over time card (CH-19)', () => {
     serveWorld(weeklySummary({ versions: [1, 2] }), entityRows(NAMES, { HubSpot: '2026-10-28T09:00:00Z' }));
     const { unmount } = await drawColumns();
     expect(screen.getByTestId('tracked-footnote')).toHaveTextContent('Tracked brands: you and 2 competitors.');
-    expect(screen.getByTestId('tracked-footnote')).toHaveTextContent('Added in this window: HubSpot on Oct 28.');
+    expect(screen.getByTestId('tracked-footnote')).toHaveTextContent('Added in this period: HubSpot on Oct 28.');
     const boundary = drawnSeries().find((entry) => entry.id === 'boundaries');
     expect(boundary?.markLine?.data.map((entry) => entry.xAxis)).toEqual(['Oct 26']);
     unmount();
@@ -210,7 +210,7 @@ describe('the share of voice over time card (CH-19)', () => {
         .map((cell) => cell.textContent),
     ).toEqual(['Week', 'Fynix', 'HubSpot', 'Zoho']);
     expect(within(table).getByRole('row', { name: /Oct 19/ })).toHaveTextContent(
-      '40%, of 100 answers naming a tracked brand',
+      '40%, of 100 answers mentioning a tracked brand',
     );
     // An empty column has no value: the frame's table says "No data" for it, never 0
     const thin = within(table).getByRole('row', { name: /Oct 26/ });
@@ -223,7 +223,7 @@ describe('the share of voice over time card (CH-19)', () => {
     const { user } = await drawColumns();
     const [block] = await readExport(user);
     expect(block?.id).toBe('card-under-test');
-    expect(block?.header).toEqual(['Week', 'Brand', 'Share of voice', 'Answers naming a tracked brand', 'Status']);
+    expect(block?.header).toEqual(['Week', 'Brand', 'Share of voice', 'Answers mentioning a tracked brand', 'Status']);
     expect(block?.rows).toContainEqual(['2026-10-19', 'Fynix', 40, 100, 'ok']);
     expect(block?.rows).toContainEqual(['2026-10-26', 'Fynix', null, 3, 'insufficient']);
   });
@@ -257,7 +257,7 @@ describe('the share of voice over time card states', () => {
     ];
     serveWorld(weeklySummary({ weeks: thin }), entityRows());
     renderCard(TYPE, SovOverTimeCard, OPTIONS);
-    expect(await screen.findByText('Too few answers name a tracked brand (2)')).toBeInTheDocument();
+    expect(await screen.findByText('Too few answers mention a tracked brand (2)')).toBeInTheDocument();
   });
 
   it('says no competitor is tracked when only you are', async () => {
@@ -269,7 +269,7 @@ describe('the share of voice over time card states', () => {
   it('tells assistive technology no figure for an engine that is not asked, and the figures for one that is', async () => {
     const { unmount } = renderCard(TYPE, SovOverTimeCard, { engine: 'google_ai_mode' });
     const off = chartSummaryText(
-      await screen.findByRole('heading', { level: 2, name: 'Share of voice over time on AI Mode' }),
+      await screen.findByRole('heading', { level: 2, name: 'Share of voice over time on Google AI Mode' }),
     );
     expect(off).toBe('');
     expect(off).not.toMatch(/\d|too few|no week/i);
@@ -283,7 +283,7 @@ describe('the share of voice over time card states', () => {
 
   it('says the engine is not asked when the project has it off', async () => {
     renderCard(TYPE, SovOverTimeCard, { engine: 'google_ai_mode' });
-    expect(await screen.findByText('AI Mode is not asked in this scope')).toBeInTheDocument();
+    expect(await screen.findByText('Google AI Mode is not asked in this scope')).toBeInTheDocument();
   });
 
   it('shows Try again when the read failed', async () => {

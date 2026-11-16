@@ -75,9 +75,9 @@ describe('the entities named when the domain is cited', () => {
     ]);
     expect(items[0]).toHaveTextContent('120 of 640 answers');
     expect(items[1]).toHaveTextContent('45 of 640 answers');
-    expect(screen.getByRole('heading', { level: 3, name: 'Named when cited' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 3, name: 'Mentioned when cited' })).toBeInTheDocument();
     expect(
-      screen.getByText('The tracked entities named most often in the answers that cite this domain.'),
+      screen.getByText('The tracked brands mentioned most often in the answers that cite this domain.'),
     ).toBeInTheDocument();
   });
 
@@ -97,7 +97,7 @@ describe('the entities named when the domain is cited', () => {
     const unknown = await screen.findByText('Name n/a');
     expect(screen.getByRole('listitem')).toHaveTextContent('7 of 640 answers');
     await user.hover(unknown);
-    await waitFor(() => expect(tooltip()).toHaveTextContent('The name of this entity is not loaded yet.'));
+    await waitFor(() => expect(tooltip()).toHaveTextContent('The name of this brand is not loaded yet.'));
   });
 
   it('says n/a for the names when the entities read fails, and still shows the counts', async () => {
@@ -118,30 +118,30 @@ describe('the entities named when the domain is cited', () => {
   it('gives the count alone when the answers that cite the domain are not known', async () => {
     renderWithProviders(<Section answers={null} />);
     const first = (await screen.findAllByRole('listitem'))[0];
-    expect(first).toHaveTextContent('named in 120 answers');
+    expect(first).toHaveTextContent('mentioned in 120 answers');
     expect(first).not.toHaveTextContent(' of ');
   });
 
   it('says none named in words when no entity is named', async () => {
     renderWithProviders(<Section data={dataOf([])} />);
-    expect(await screen.findByText('None named')).toBeInTheDocument();
-    expect(screen.getByText('No answer that cites this domain names a tracked entity.')).toBeInTheDocument();
+    expect(await screen.findByText('None mentioned')).toBeInTheDocument();
+    expect(screen.getByText('No answer that cites this domain mentions a tracked brand.')).toBeInTheDocument();
     expect(screen.queryByRole('listitem')).toBeNull();
   });
 
   it('shows a skeleton while the domain has not been read', () => {
     renderWithProviders(<Section data={null} />);
-    expect(screen.getByRole('heading', { level: 3, name: 'Named when cited' }).closest('section')).toHaveAttribute(
+    expect(screen.getByRole('heading', { level: 3, name: 'Mentioned when cited' }).closest('section')).toHaveAttribute(
       'aria-busy',
       'true',
     );
-    expect(screen.queryByText('None named')).toBeNull();
+    expect(screen.queryByText('None mentioned')).toBeNull();
   });
 
   it('shows a skeleton while the entities load, not names that are not known yet', async () => {
     server.use(http.get(ENTITIES, () => new Promise<never>(() => undefined)));
     renderWithProviders(<Section />);
-    expect(screen.getByRole('heading', { level: 3, name: 'Named when cited' }).closest('section')).toHaveAttribute(
+    expect(screen.getByRole('heading', { level: 3, name: 'Mentioned when cited' }).closest('section')).toHaveAttribute(
       'aria-busy',
       'true',
     );

@@ -217,7 +217,7 @@ describe('Citations page', () => {
       }),
     );
     render();
-    expect(await screen.findByText('No citation in this window')).toBeInTheDocument();
+    expect(await screen.findByText('No citation in this period')).toBeInTheDocument();
   });
 
   it('a viewer without data:read sees the no access state', async () => {
@@ -318,18 +318,18 @@ describe('Citations page', () => {
     expect(diversity.requests).toHaveLength(2);
     expect(added.requests).toHaveLength(2);
     expect(cell('Distinct domains')).not.toHaveTextContent('n/a');
-    expect(cell('New sources')).not.toHaveTextContent('n/a');
+    expect(cell('New domains')).not.toHaveTextContent('n/a');
   });
 
   it.each([
-    ['New', 'new', 'Lost sources'],
-    ['Lost', 'lost', 'New sources'],
+    ['New', 'new', 'Lost domains'],
+    ['Lost', 'lost', 'New domains'],
   ])('a failed %s read shows the partial banner, is n/a and leaves the other count', async (_name, kind, other) => {
     const failing = breakReads(/\/ai\/sources\/changes$/, (url) => url.searchParams.get('kind') === kind);
     const { user } = render();
     expect(await screen.findByText('Some figures could not be loaded.')).toBeInTheDocument();
     await waitFor(() => expect(cell(other)).toHaveTextContent(/\d/));
-    expect(cell(kind === 'new' ? 'New sources' : 'Lost sources')).toHaveTextContent('n/a');
+    expect(cell(kind === 'new' ? 'New domains' : 'Lost domains')).toHaveTextContent('n/a');
     failing.broken.on = false;
     await user.click(bannerRetry());
     await waitFor(() => expect(screen.queryByText('Some figures could not be loaded.')).toBeNull());
@@ -357,7 +357,7 @@ describe('Citations page', () => {
 
   it('the strip counts a new and a lost source', async () => {
     render();
-    for (const name of ['New sources', 'Lost sources']) {
+    for (const name of ['New domains', 'Lost domains']) {
       await waitFor(() => expect(cell(name)).toHaveTextContent(/^\D+1\D/));
       expect(cell(name)).not.toHaveTextContent('n/a');
       expect(cell(name)).not.toHaveTextContent('The previous period has no answers');
@@ -379,11 +379,11 @@ describe('Citations page', () => {
     expect(cell('Citation units')).toHaveTextContent(/[\d,]{3,}/);
   });
 
-  it('choosing a Role keeps the Own citation share, and no strip read takes the role filter', async () => {
+  it('choosing a Role keeps Your citation share, and no strip read takes the role filter', async () => {
     const reads = watch();
     render('?role=competitor');
-    await waitFor(() => expect(cell('Own citation share')).toHaveTextContent(/\d+(\.\d)?%/));
-    expect(cell('Own citation share')).toHaveTextContent(/of [\d,]+ (?:citation )?units/);
+    await waitFor(() => expect(cell('Your citation share')).toHaveTextContent(/\d+(\.\d)?%/));
+    expect(cell('Your citation share')).toHaveTextContent(/of [\d,]+ (?:citation )?units/);
     const strips = [
       ...to(reads, '/ai/sources/domains'),
       ...to(reads, '/ai/sources/diversity'),
@@ -439,15 +439,15 @@ describe('Citations page', () => {
     const writes: string[] = [];
     const { user } = render('', { onUrlUpdate: ({ queryString }) => writes.push(queryString) });
     await user.click(await screen.findByRole('button', { name: /^Saved view: Default/ }));
-    await user.click(await screen.findByRole('menuitemradio', { name: 'Competitor sources' }));
+    await user.click(await screen.findByRole('menuitemradio', { name: 'Competitor domains' }));
     await waitFor(() => expect(writes.at(-1)).toContain('role=competitor'));
     expect(writes.at(-1)).toContain('view=competitor-sources');
     // An edit away from the view, then Reset to it
     await user.click(screen.getByRole('combobox', { name: 'Compare with' }));
     await user.click(await screen.findByRole('option', { name: 'No comparison' }));
     await waitFor(() => expect(writes.at(-1)).toContain('cmp=off'));
-    await user.click(await screen.findByRole('button', { name: /^Saved view: Competitor sources, edited/ }));
-    await user.click(await screen.findByRole('menuitem', { name: 'Reset to Competitor sources' }));
+    await user.click(await screen.findByRole('button', { name: /^Saved view: Competitor domains, edited/ }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Reset to Competitor domains' }));
     await waitFor(() => expect(writes.at(-1)).not.toContain('cmp=off'));
     expect(writes.at(-1)).toContain('role=competitor');
   });
@@ -671,7 +671,7 @@ describe('Citations page: the New and lost tab', () => {
     await user.click(await screen.findByRole('tab', { name: 'New and lost' }));
     await waitFor(() => expect(writes.at(-1)?.queryString).toContain('tab=new-lost'));
     expect(writes.at(-1)?.history).toBe('push');
-    expect(await screen.findByRole('grid', { name: 'New sources' })).toBeInTheDocument();
+    expect(await screen.findByRole('grid', { name: 'New domains' })).toBeInTheDocument();
   });
 
   it('Export is not offered on New and lost', async () => {
@@ -680,7 +680,7 @@ describe('Citations page: the New and lost tab', () => {
     expect(await screen.findByRole('button', { name: 'Export CSV' })).toBeInTheDocument();
     domains.unmount();
     render('?tab=new-lost');
-    await screen.findByRole('grid', { name: 'New sources' });
+    await screen.findByRole('grid', { name: 'New domains' });
     expect(screen.queryByRole('button', { name: 'Export CSV' })).toBeNull();
   });
 
@@ -713,7 +713,7 @@ describe('Citations page: the New and lost tab', () => {
     registry.real = true;
     const reads = watch();
     render('?tab=new-lost&redirects=include&internal=include');
-    await screen.findByRole('grid', { name: 'New sources' });
+    await screen.findByRole('grid', { name: 'New domains' });
     await waitFor(() => expect(to(reads, '/ai/citations').length).toBeGreaterThan(0));
     for (const route of ['/ai/sources/domains', '/ai/sources/diversity', '/ai/sources/changes']) {
       expect(to(reads, route).length).toBeGreaterThan(0);
@@ -732,23 +732,23 @@ describe('Citations page: the New and lost tab', () => {
   it("the strip's counts equal the segment counts", async () => {
     registry.real = true;
     render('?tab=new-lost');
-    const table = await screen.findByRole('grid', { name: 'New sources' });
+    const table = await screen.findByRole('grid', { name: 'New domains' });
     await waitFor(() => expect(within(table).queryAllByRole('rowheader').length).toBeGreaterThan(0));
     // The table's own caption says "New sources" too, so the strip's cell is looked up inside the strip
     const stripGroup = await strip();
     const stripCount = (name: string): string =>
       within(stripGroup).getByText(name).closest('div')?.textContent?.match(/\d+/)?.[0] ?? '';
-    await waitFor(() => expect(stripCount('New sources')).not.toBe(''));
-    await waitFor(() => expect(stripCount('Lost sources')).not.toBe(''));
-    expect(screen.getByRole('radio', { name: `New ${stripCount('New sources')}` })).toBeInTheDocument();
-    expect(screen.getByRole('radio', { name: `Lost ${stripCount('Lost sources')}` })).toBeInTheDocument();
+    await waitFor(() => expect(stripCount('New domains')).not.toBe(''));
+    await waitFor(() => expect(stripCount('Lost domains')).not.toBe(''));
+    expect(screen.getByRole('radio', { name: `New ${stripCount('New domains')}` })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: `Lost ${stripCount('Lost domains')}` })).toBeInTheDocument();
   });
 
   it('asks each of New and Lost once for the strip and the tab together', async () => {
     registry.real = true;
     const reads = watch();
     render('?tab=new-lost');
-    await screen.findByRole('grid', { name: 'New sources' });
+    await screen.findByRole('grid', { name: 'New domains' });
     await waitFor(() => expect(to(reads, '/ai/sources/changes')).toHaveLength(2));
     expect(
       to(reads, '/ai/sources/changes')
@@ -950,7 +950,7 @@ describe('Citations page: the domain inspector', () => {
   it('opens a domain that is not in the table, which has no position', async () => {
     render('?inspect=domain:nobody.example');
     const inspector = await inspected('nobody.example');
-    expect(await within(inspector).findByText('Not cited in this window')).toBeInTheDocument();
+    expect(await within(inspector).findByText('Not cited in this period')).toBeInTheDocument();
     expect(within(inspector).queryByText(/^\d+ of \d+$/)).toBeNull();
     expect(within(inspector).queryByRole('button', { name: /^(Next|Previous) domain$/ })).toBeNull();
   });
@@ -1089,7 +1089,7 @@ describe('Citations page: the source inspector', () => {
     await user.click(units);
     await waitFor(() => expect(lastWrite(writes).get('inspect')).toBe(`source:${first}`));
     expect(lastWrite(writes).get('tab')).toBe('pages');
-    expect(await screen.findByRole('group', { name: 'Source summary' })).toBeInTheDocument();
+    expect(await screen.findByRole('group', { name: 'Page summary' })).toBeInTheDocument();
   });
 
   it('makes the path of a page a link to its inspector, and a click on it does not open the row twice', async () => {
@@ -1113,7 +1113,7 @@ describe('Citations page: the source inspector', () => {
     if (first === undefined) throw new Error('The table has no pages');
     const reads = watch();
     const { container } = render(`?inspect=source:${first}&engine=gemini_web&win=7d&role=own`);
-    expect(await screen.findByRole('group', { name: 'Source summary' })).toBeInTheDocument();
+    expect(await screen.findByRole('group', { name: 'Page summary' })).toBeInTheDocument();
     await waitFor(() => expect(to(reads, '/ai/citations').length).toBeGreaterThan(0));
     const read = to(reads, '/ai/citations')[0];
     expect(read?.searchParams.get('filter[url_id]')).toBe(first);
@@ -1130,7 +1130,7 @@ describe('Citations page: the source inspector', () => {
     const { user } = render(`?tab=pages&inspect=source:${first}&itab=overview`, {
       onUrlUpdate: ({ queryString }) => writes.push(queryString),
     });
-    await screen.findByRole('group', { name: 'Source summary' });
+    await screen.findByRole('group', { name: 'Page summary' });
     const table = await pagesGrid();
     const [row] = within(table).getAllByRole('rowheader');
     if (row === undefined) throw new Error('The table has no row');
@@ -1149,7 +1149,7 @@ describe('Citations page: the source inspector', () => {
     render(`?tab=pages&inspect=source:${first}`);
     const inspector = await screen.findByRole('complementary');
     expect(await within(inspector).findByText(/^1 of \d+$/)).toBeInTheDocument();
-    expect(within(inspector).getByRole('button', { name: 'First source in this list' })).toHaveAttribute(
+    expect(within(inspector).getByRole('button', { name: 'First page in this list' })).toHaveAttribute(
       'aria-disabled',
       'true',
     );
@@ -1162,7 +1162,7 @@ describe('Citations page: the source inspector', () => {
     const { user } = render(`?tab=pages&inspect=source:${first}&itab=overview`, {
       onUrlUpdate: ({ queryString }) => writes.push(queryString),
     });
-    await screen.findByRole('group', { name: 'Source summary' });
+    await screen.findByRole('group', { name: 'Page summary' });
     await user.keyboard('{Escape}');
     await waitFor(() => expect(lastWrite(writes).has('inspect')).toBe(false));
     expect(lastWrite(writes).has('itab')).toBe(false);

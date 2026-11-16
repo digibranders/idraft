@@ -244,7 +244,7 @@ describe('the platforms', () => {
     const reversed = [...ENGINES].reverse();
     const result = buildAggregates(inputsOf(summaryOf([]), { engines: reversed }));
     expect(result.engines.map((entry) => entry.engineCode)).toEqual(ALL);
-    expect(result.engines.map((entry) => entry.label)).toEqual(['ChatGPT', 'Gemini', 'AI Mode']);
+    expect(result.engines.map((entry) => entry.label)).toEqual(['ChatGPT', 'Gemini', 'Google AI Mode']);
   });
 
   it('are not asked outside the engine filter, and have no figures', () => {

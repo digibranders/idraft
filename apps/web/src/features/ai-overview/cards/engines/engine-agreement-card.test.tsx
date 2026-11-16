@@ -23,7 +23,7 @@ vi.mock('@/lib/csv/csv-write', async (importOriginal) => ({
 
 const TYPE = 'ai.engine_agreement';
 const TITLE = 'Platform agreement';
-const LIST = 'Prompts by how many platforms name you';
+const LIST = 'Prompts by how many platforms mention you';
 const WINDOW = 'from=2026-10-16&to=2026-11-12';
 const SUMMARY = '*/api/v1/workspaces/:w/projects/:p/ai/prompts-summary';
 
@@ -90,9 +90,9 @@ describe('EngineAgreementCard', () => {
     renderCard();
     const list = await screen.findByRole('list', { name: LIST });
     expect(spoken(list)).toEqual([
-      'Named by 0 of 2 platforms: 1 of 4 prompts',
-      'Named by 1 of 2 platforms: 2 of 4 prompts',
-      'Named by 2 of 2 platforms: 1 of 4 prompts',
+      'Mentioned by 0 of 2 platforms: 1 of 4 prompts',
+      'Mentioned by 1 of 2 platforms: 2 of 4 prompts',
+      'Mentioned by 2 of 2 platforms: 1 of 4 prompts',
       'Left out, too few answers: 1 prompt, not in the 4 compared',
     ]);
   });
@@ -143,7 +143,7 @@ describe('EngineAgreementCard', () => {
       expect(frame).toHaveTextContent(/5 prompts.*branded prompts left out/);
     });
     expect(frame).toHaveTextContent(/fewer than 4 valid answers on any of these platforms is left out and counted/);
-    expect(frame).toHaveTextContent(/One answer that names you is enough for a prompt to count as named/);
+    expect(frame).toHaveTextContent(/One answer that mentions you is enough for a prompt to count as mentioned/);
   });
 
   it('says why a page with one platform has no agreement to show', async () => {
@@ -175,7 +175,7 @@ describe('EngineAgreementCard', () => {
     await user.click(within(frame).getByRole('button', { name: 'Table' }));
     const table = within(frame).getByRole('table', { name: LIST });
     expect(within(table).getAllByRole('row')).toHaveLength(1 + 4);
-    expect(table).toHaveTextContent('Named by 2 of 2 platforms');
+    expect(table).toHaveTextContent('Mentioned by 2 of 2 platforms');
     expect(table).toHaveTextContent('1 prompt');
     await user.click(within(frame).getByRole('button', { name: /More actions/ }));
     await user.click(await screen.findByRole('menuitem', { name: 'Download CSV' }));
@@ -183,8 +183,8 @@ describe('EngineAgreementCard', () => {
     expect(name).toBe('engine-agreement.csv');
     if (!(blob instanceof Blob)) throw new Error('No file was downloaded');
     const text = await blob.text();
-    expect(text).toContain('Platforms naming you,Prompts,Of compared prompts');
-    expect(text).toContain('Named by 1 of 2 platforms,2 prompts,of 4');
+    expect(text).toContain('Platforms mentioning you,Prompts,Of compared prompts');
+    expect(text).toContain('Mentioned by 1 of 2 platforms,2 prompts,of 4');
   });
 
   it('keeps its height while loading', async () => {
@@ -256,7 +256,7 @@ describe('EngineAgreementCard', () => {
     const [block] = read().blocks;
     expect(block?.id).toBe(CARD_ID);
     expect(block?.header).toEqual(['measure', 'engines_naming', 'of_engines', 'prompts', 'of_prompts', 'status']);
-    expect(block?.rows[0]).toEqual(['Named by 0 of 2 platforms', 0, 2, 1, 4, 'ok']);
+    expect(block?.rows[0]).toEqual(['Mentioned by 0 of 2 platforms', 0, 2, 1, 4, 'ok']);
     expect(block?.rows[3]).toEqual(['Left out, too few answers', null, 2, 1, 5, 'left_out']);
   });
 

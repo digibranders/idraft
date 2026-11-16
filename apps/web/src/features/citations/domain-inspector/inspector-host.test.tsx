@@ -199,8 +199,8 @@ describe('the host for a source', () => {
   it('opens the source inspector for a source in the address', async () => {
     renderWithProviders(<Host tab="overview" target={{ type: 'source', id: '103' }} />);
     const inspector = await screen.findByRole('complementary', { name: 'Page three' });
-    expect(within(inspector).getByText('Source')).toBeInTheDocument();
-    expect(await within(inspector).findByRole('group', { name: 'Source summary' })).toBeInTheDocument();
+    expect(within(inspector).getByText('Page')).toBeInTheDocument();
+    expect(await within(inspector).findByRole('group', { name: 'Page summary' })).toBeInTheDocument();
   });
 
   it('links to the domain inspector beside the list as it is, on a tab of its own', async () => {
@@ -219,9 +219,9 @@ describe('the host for a source', () => {
 
   it('says a source id that is no number is not there', async () => {
     renderWithProviders(<Host tab="overview" target={{ type: 'source', id: 'g2.com' }} />);
-    const inspector = await screen.findByRole('complementary', { name: 'Source g2.com' });
+    const inspector = await screen.findByRole('complementary', { name: 'Page g2.com' });
     expect(
-      await within(inspector).findByText('This source does not exist or you do not have access to it.'),
+      await within(inspector).findByText('This page does not exist or you do not have access to it.'),
     ).toBeInTheDocument();
   });
 

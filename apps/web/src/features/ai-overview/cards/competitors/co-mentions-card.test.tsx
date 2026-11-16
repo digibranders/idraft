@@ -47,8 +47,8 @@ vi.mock('../engines/use-card-seams', async (importActual) => {
 
 const SUMMARY = '*/api/v1/workspaces/:w/projects/:p/ai/prompts-summary';
 const ENTITIES = '*/api/v1/workspaces/:w/projects/:p/entities';
-const HEADING = 'Who we are named with on ChatGPT';
-const GRID = 'Answers that name two brands together on ChatGPT';
+const HEADING = 'Who we are mentioned with on ChatGPT';
+const GRID = 'Answers that mention two brands together on ChatGPT';
 
 beforeEach(() => {
   vi.setSystemTime(new Date('2026-11-12T12:00:00Z'));
@@ -202,17 +202,19 @@ describe('the co-mentions card', () => {
     expect(at(at(cells, 0), 3).className).toContain(sequentialBin(0).fill);
   });
 
-  it('says in a cell tooltip that the two brands are named together in k of n answers', async () => {
+  it('says in a cell tooltip that the two brands are mentioned together in k of n answers', async () => {
     const answers = 1800;
     serve(pairsRead(FOUR, [pair(1, 2, 212), pair(1, 3, 8), pair(2, 3, 5)], answers));
     renderCard();
     const table = await grid();
     // The pair is in two cells of the symmetric matrix, and both say it the same way round
     expect(
-      within(table).getAllByRole('gridcell', { name: '12%: HubSpot and you named together in 212 of 1,800 answers' }),
+      within(table).getAllByRole('gridcell', {
+        name: '12%: HubSpot and you mentioned together in 212 of 1,800 answers',
+      }),
     ).toHaveLength(2);
     expect(
-      within(table).getByRole('gridcell', { name: '0.3%: Zoho and HubSpot named together in 5 of 1,800 answers' }),
+      within(table).getByRole('gridcell', { name: '0.3%: Zoho and HubSpot mentioned together in 5 of 1,800 answers' }),
     ).toHaveTextContent('0.3%');
   });
 
@@ -220,10 +222,12 @@ describe('the co-mentions card', () => {
     serve(pairsRead());
     renderCard();
     const table = await grid();
-    expect(within(table).getByRole('gridcell', { name: '50%: HubSpot named in 50 of 100 answers' })).toHaveTextContent(
-      '50%',
-    );
-    expect(within(table).getByRole('gridcell', { name: '30%: Fynix named in 30 of 100 answers' })).toBeInTheDocument();
+    expect(
+      within(table).getByRole('gridcell', { name: '50%: HubSpot mentioned in 50 of 100 answers' }),
+    ).toHaveTextContent('50%');
+    expect(
+      within(table).getByRole('gridcell', { name: '30%: Fynix mentioned in 30 of 100 answers' }),
+    ).toBeInTheDocument();
   });
 
   it('says below 0.1% for 1 of 2001 answers, in the cell and its tooltip, and never 0.0%', async () => {
@@ -231,7 +235,7 @@ describe('the co-mentions card', () => {
     renderCard();
     const table = await grid();
     const tiny = within(table).getAllByRole('gridcell', {
-      name: '<0.1%: HubSpot and you named together in 1 of 2,001 answers',
+      name: '<0.1%: HubSpot and you mentioned together in 1 of 2,001 answers',
     });
     expect(tiny).toHaveLength(2);
     for (const one of tiny) expect(one).toHaveTextContent('<0.1%');
@@ -247,7 +251,7 @@ describe('the co-mentions card', () => {
     serve(pairsRead(brands));
     renderCard();
     const table = await grid();
-    const diagonal = within(table).getByRole('gridcell', { name: '30%: Fynix named in 30 of 100 answers' });
+    const diagonal = within(table).getByRole('gridcell', { name: '30%: Fynix mentioned in 30 of 100 answers' });
     expect(diagonal).toHaveTextContent('30%');
     expect(diagonal.textContent).not.toMatch(/50%/);
   });
@@ -257,7 +261,7 @@ describe('the co-mentions card', () => {
     renderCard();
     const table = await grid();
     const zeros = within(table).getAllByRole('gridcell', {
-      name: '0%: Asana and you named together in 0 of 100 answers',
+      name: '0%: Asana and you mentioned together in 0 of 100 answers',
     });
     expect(zeros).toHaveLength(2);
     for (const zero of zeros) expect(zero).toHaveTextContent('0%');
@@ -361,18 +365,18 @@ describe('the co-mentions card', () => {
     const hubspot = within(table)
       .getAllByRole('row')
       .find((row) => within(row).queryByRole('rowheader', { name: 'HubSpot' }) !== null);
-    expect(hubspot).toHaveTextContent('20%: HubSpot and you named together in 20 of 100 answers');
-    expect(hubspot).toHaveTextContent('50%: HubSpot named in 50 of 100 answers');
+    expect(hubspot).toHaveTextContent('20%: HubSpot and you mentioned together in 20 of 100 answers');
+    expect(hubspot).toHaveTextContent('50%: HubSpot mentioned in 50 of 100 answers');
 
     const [block] = sink.read().blocks;
     expect(block?.id).toBe('card-under-test');
     expect(block?.header).toEqual(['Brand', 'Fynix', 'HubSpot', 'Zoho', 'Asana']);
     expect(block?.rows).toContainEqual([
       'HubSpot',
-      '20%: HubSpot and you named together in 20 of 100 answers',
-      '50%: HubSpot named in 50 of 100 answers',
-      '5%: HubSpot and Zoho named together in 5 of 100 answers',
-      '0%: HubSpot and Asana named together in 0 of 100 answers',
+      '20%: HubSpot and you mentioned together in 20 of 100 answers',
+      '50%: HubSpot mentioned in 50 of 100 answers',
+      '5%: HubSpot and Zoho mentioned together in 5 of 100 answers',
+      '0%: HubSpot and Asana mentioned together in 0 of 100 answers',
     ]);
   });
 
@@ -396,11 +400,11 @@ describe('the co-mentions card', () => {
     expect(table.contains(document.activeElement)).toBe(true);
     expect(document.activeElement).toBe(stops[0]);
     await user.keyboard('{ArrowRight}');
-    expect(document.activeElement).toHaveAccessibleName('30%: Fynix named in 30 of 100 answers');
+    expect(document.activeElement).toHaveAccessibleName('30%: Fynix mentioned in 30 of 100 answers');
     await user.keyboard('{ArrowRight}{ArrowDown}');
-    expect(document.activeElement).toHaveAccessibleName('50%: HubSpot named in 50 of 100 answers');
+    expect(document.activeElement).toHaveAccessibleName('50%: HubSpot mentioned in 50 of 100 answers');
     await user.keyboard('{ArrowLeft}');
-    expect(document.activeElement).toHaveAccessibleName('20%: HubSpot and you named together in 20 of 100 answers');
+    expect(document.activeElement).toHaveAccessibleName('20%: HubSpot and you mentioned together in 20 of 100 answers');
   });
 
   it('links a brand row through the drill seam, and leaves plain text where there is no page', async () => {
@@ -458,7 +462,7 @@ describe('the co-mentions card', () => {
     renderCard();
     await grid();
     expect(chartSummaryText(screen.getByRole('heading', { level: 2, name: HEADING }))).toMatch(
-      /^Brands named in the same answer as you on ChatGPT, of \d+ valid answers: /,
+      /^Brands mentioned in the same answer as you on ChatGPT, of \d+ valid answers: /,
     );
   });
 
@@ -546,7 +550,7 @@ describe('the co-mentions card tracked set', () => {
     await grid();
     const note = await screen.findByTestId('tracked-footnote');
     await waitFor(() => {
-      expect(note).toHaveTextContent('Added in this window: HubSpot on Oct 21.');
+      expect(note).toHaveTextContent('Added in this period: HubSpot on Oct 21.');
     });
   });
 });

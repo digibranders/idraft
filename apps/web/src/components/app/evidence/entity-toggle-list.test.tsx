@@ -12,9 +12,9 @@ const ITEMS: readonly EntityToggleItem[] = [
 ];
 
 describe('EntityToggleList', () => {
-  it('is a group named Entities, with a checkbox for each entity that says whether its marks show', async () => {
+  it('is a group named Brands, with a checkbox for each entity that says whether its marks show', async () => {
     const { container } = renderWithProviders(<EntityToggleList items={ITEMS} onToggle={vi.fn()} />);
-    const group = screen.getByRole('group', { name: 'Entities' });
+    const group = screen.getByRole('group', { name: 'Brands' });
     const boxes = within(group).getAllByRole('checkbox');
     expect(boxes.map((box) => box.getAttribute('aria-checked'))).toEqual(['true', 'true', 'false']);
     expect(within(group).getByRole('checkbox', { name: 'Fynix' })).toBeInTheDocument();
@@ -73,6 +73,6 @@ describe('EntityToggleList', () => {
   it('renders nothing for an answer with no marked entity', () => {
     renderWithProviders(<EntityToggleList items={[]} onToggle={vi.fn()} />);
     expect(screen.queryByRole('group')).toBeNull();
-    expect(screen.queryByText('Entities')).toBeNull();
+    expect(screen.queryByText('Brands')).toBeNull();
   });
 });

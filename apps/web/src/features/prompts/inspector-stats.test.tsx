@@ -141,7 +141,7 @@ describe('the statistics of a rate, opened from the Stats tab', () => {
     const { user, container } = both();
     await user.click(screen.getByRole('button', { name: 'Open statistics for Citation on Gemini' }));
     const panel = container.querySelector<HTMLElement>('[data-slot="statistics-panel"]');
-    expect(panel).toHaveTextContent('Insufficient data');
+    expect(panel).toHaveTextContent('Not enough data');
     expect(panel).not.toHaveTextContent('%');
   });
 

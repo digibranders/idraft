@@ -24,8 +24,10 @@ to `done <commit>` or `differs <reason>` by the package that ports the row, and 
    header commit (`git log <header commit>..develop -- apps/web/design-preview`) and ports or records each one.
 5. **Sample values never ship.** Rows under "Mock shortcuts that must NOT be ported" stay out of the real app; the real
    app shows "not collected yet" or n/a until the backend provides the value.
-6. **Wording.** Platform, Group, Location, Prompts (never Engine, Topic, Country, Topics and Prompts) in every visible
-   string, in both the mock and the real app.
+6. **Wording.** Every visible word follows `docs/glossary/final-list.md` (Platform, Group, Location, Prompts, and the rest
+   of the list; never Engine, Topic, Country as a field label, Topics and Prompts), in both the mock and the real app.
+   A word changes in `docs/glossary/terms.md` first. The test `src/lib/glossary/glossary-words.test.ts` fails when a
+   banned word appears in `messages/en.json` or in the layout catalog.
 
 ## Owner decisions recorded against the registers (2026-11-16)
 
@@ -33,10 +35,9 @@ to `done <commit>` or `differs <reason>` by the package that ports the row, and 
   has nothing. The spec text about hiding cards and an "N cards not drawn" note is superseded; update the spec.
 - Platform order everywhere: ChatGPT, Gemini, AI Mode, AI Overview (real app order; AI Overview last, not available
   until the API has it).
-- Terminology: the owner wants one researched, final glossary for the whole app (a separate research session,
-  `docs/glossary/`, several models consulted). Until it is approved, Platform, Group, Location, Prompts are the
-  provisional words, every visible word stays in `apps/web/messages/en.json`, and no mock wording change is made for
-  Engine, Topic or Country. After approval one application pass updates the real app, the mock and these registers.
+- Terminology: decided 2026-11-16 in `docs/glossary/` (Group by the owner, the rest by taking the research session's
+  recommendations; D17, D18 and D20 stay open). The application pass has run: the real app (`en.json`, the layout
+  catalog, the tests), the mock (`apps/web/design-preview`) and these registers use the glossary words.
 - Where the real app already behaves better than the mock (loading and error states, URL state for filters, keyboard
   access to popovers), keep the real behaviour and mark the row `differs real is better`.
 

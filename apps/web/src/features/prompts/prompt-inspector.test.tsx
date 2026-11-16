@@ -221,7 +221,7 @@ describe('the prompt inspector: what it shows', () => {
     const answers = await within(inspector).findByRole('table', { name: 'Answers to this prompt' });
     // Eight runs in the 28 days (Monday and Thursday, 16 October to 12 November) on two engines: ten are listed
     expect(within(answers).getAllByRole('row')).toHaveLength(11);
-    expect(within(inspector).getByText('The latest 10 answers of this window.')).toBeInTheDocument();
+    expect(within(inspector).getByText('The latest 10 answers of this period.')).toBeInTheDocument();
     expect(within(answers).getAllByText('Complete').length).toBeGreaterThan(0);
     expect(within(answers).getAllByText(/^Mentioned|^Cited|^Neither|^Not counted/).length).toBe(10);
     expect(await axe(container)).toHaveNoViolations();
@@ -251,7 +251,7 @@ describe('the prompt inspector: what it shows', () => {
     );
     renderOn('viewer', openedOn('history'));
     const inspector = await panel();
-    expect(await within(inspector).findByText('No answers in this window')).toBeInTheDocument();
+    expect(await within(inspector).findByText('No answers in this period')).toBeInTheDocument();
   });
 
   it('says on the Latest tab that a platform has no valid answer yet when the window has none', async () => {
@@ -286,7 +286,7 @@ describe('the prompt inspector: what it shows', () => {
     if (branded === undefined) throw new Error('The branded fixture prompt is missing');
     renderOn('viewer', `?tab=prompts&${inspectOf(branded.prompt_id)}`);
     const inspector = await panel(branded.text);
-    expect(await within(inspector).findByText('No counts for this window')).toBeInTheDocument();
+    expect(await within(inspector).findByText('No counts for this period')).toBeInTheDocument();
     expect(
       within(inspector).getByText('Branded prompts stay out of the counts until the Branded filter includes them.'),
     ).toBeInTheDocument();
@@ -559,7 +559,7 @@ describe('the prompt inspector: the address and the answers', () => {
 
   it('does not say so when the list is whole', async () => {
     renderOn('viewer', openedOn('competitors'));
-    await within(await panel()).findByRole('table', { name: 'Brands named in the answers to this prompt' });
+    await within(await panel()).findByRole('table', { name: 'Brands mentioned in the answers to this prompt' });
     expect(screen.queryByText(/Based on the latest/)).toBeNull();
   });
 });
@@ -581,10 +581,10 @@ describe('the prompt inspector: the counts', () => {
     renderOn('viewer', opened);
     const inspector = await within(await panel()).findByText('English', undefined, { timeout: 10_000 });
     expect(inspector).toBeInTheDocument();
-    expect(screen.queryByText('No counts for this window')).toBeNull();
+    expect(screen.queryByText('No counts for this period')).toBeNull();
     release();
     expect(await screen.findByText('3 of 6 answers', undefined, { timeout: 15_000 })).toBeInTheDocument();
-    expect(screen.queryByText('No counts for this window')).toBeNull();
+    expect(screen.queryByText('No counts for this period')).toBeNull();
   }, 30_000);
 
   it('says an archived prompt is not in the counts', async () => {
@@ -613,7 +613,7 @@ describe('the prompt inspector: the counts', () => {
     );
     renderOn('viewer', `?tab=prompts&branded=include&${inspectOf(branded.prompt_id)}`);
     const inspector = await panel(branded.text);
-    expect(await within(inspector).findByText('No counts for this window')).toBeInTheDocument();
+    expect(await within(inspector).findByText('No counts for this period')).toBeInTheDocument();
     expect(within(inspector).queryByText(/stay out of the counts/)).toBeNull();
   });
 });

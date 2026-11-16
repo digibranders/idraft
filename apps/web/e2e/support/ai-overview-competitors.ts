@@ -52,7 +52,7 @@ export const familyCards = (page: Page): ReadonlyArray<{ name: string; card: Loc
   { name: 'Prompts lost to a competitor on ChatGPT', card: cardById(page, PRESET_FAMILY.lostTo) },
   { name: 'Mention rate by platform', card: cardById(page, PRESET_FAMILY.table) },
   { name: 'Share of voice over time, ChatGPT', card: cardById(page, PRESET_FAMILY.overTime) },
-  { name: 'Who we are named with on ChatGPT', card: cardById(page, PRESET_FAMILY.coMentions) },
+  { name: 'Who we are mentioned with on ChatGPT', card: cardById(page, PRESET_FAMILY.coMentions) },
   { name: 'Share of voice rank', card: cardTitled(page, /^Share of voice rank on /) },
   { name: 'AI opportunities', card: cardTitled(page, 'AI opportunities') },
 ];

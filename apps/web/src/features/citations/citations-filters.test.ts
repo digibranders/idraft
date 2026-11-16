@@ -54,12 +54,12 @@ describe('citationFilterFields', () => {
 
   it('role options carry their units from meta.by_role and no count while unknown', () => {
     expect(options(citationFilterFields(input()), 'role')).toEqual([
-      { value: 'own', label: 'Own', count: 1676 },
+      { value: 'own', label: 'Your site', count: 1676 },
       { value: 'competitor', label: 'Competitor', count: 5000 },
       { value: 'third_party', label: 'Third party', count: 11744 },
     ]);
     expect(options(citationFilterFields(input({ roleUnits: null })), 'role')).toEqual([
-      { value: 'own', label: 'Own', count: null },
+      { value: 'own', label: 'Your site', count: null },
       { value: 'competitor', label: 'Competitor', count: null },
       { value: 'third_party', label: 'Third party', count: null },
     ]);

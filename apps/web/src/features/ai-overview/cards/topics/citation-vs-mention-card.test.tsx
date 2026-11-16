@@ -274,7 +274,7 @@ describe('CitationVsMentionCard', () => {
     await canvasOf();
     const summary = screen.getByText(/Citation rate against mention rate on ChatGPT/);
     expect(summary).toHaveTextContent(
-      'Citation rate against mention rate on ChatGPT: 3 groups, one point each, sized by prompts. A point on the dashed diagonal is cited as often as it is named. Named most often without being cited: SEO tools and Email.',
+      'Citation rate against mention rate on ChatGPT: 3 groups, one point each, sized by prompts. A point on the dashed diagonal is cited as often as it is mentioned. Mentioned most often without being cited: SEO tools and Email.',
     );
   });
 
@@ -283,7 +283,7 @@ describe('CitationVsMentionCard', () => {
     const frame = await frameOf();
     await canvasOf();
     expect(
-      within(frame).getByText(/The dashed line marks groups cited as often as they are named/),
+      within(frame).getByText(/The dashed line marks groups cited as often as they are mentioned/),
     ).toBeInTheDocument();
     expect(within(frame).getByText(/Groups overlap/)).toBeInTheDocument();
     await waitFor(() => {
@@ -327,7 +327,7 @@ describe('CitationVsMentionCard', () => {
 
   it('a platform that is not on in the project is an empty state with an action or a sentence', async () => {
     render({ options: { engine: 'google_ai_mode' }, searchParams: '' });
-    const title = await screen.findByRole('heading', { name: 'AI Mode is not part of this view' });
+    const title = await screen.findByRole('heading', { name: 'Google AI Mode is not part of this view' });
     expect(title.closest('[data-slot="empty-state"]')).not.toBeNull();
     expect(screen.queryByTestId('scatter-canvas')).not.toBeInTheDocument();
   });

@@ -124,7 +124,14 @@ const ownPoints = (history: RankHistory): RankHistory['series'] =>
 describe('The metric strip', () => {
   it('is a group named for the keyword with six cells in the order of the page', async () => {
     const { strip } = await renderStrip();
-    expect(labels(strip)).toEqual(['Rank', 'Best rank', 'Average rank', 'Days in top 10', 'Volume', 'AI Overview']);
+    expect(labels(strip)).toEqual([
+      'Rank',
+      'Best rank',
+      'Average rank',
+      'Days in top 10',
+      'Volume',
+      'Google AI Overview',
+    ]);
   });
 
   it('shows the rank of the keyword with its change and when it was checked', async () => {
@@ -217,7 +224,7 @@ describe('The metric strip', () => {
     ] as const)('reads %s like the table cell', async (_name, aio, text) => {
       server.use(withAio(aio));
       const { strip } = await renderStrip();
-      expect(cell(strip, 'AI Overview')).toHaveTextContent(text);
+      expect(cell(strip, 'Google AI Overview')).toHaveTextContent(text);
     });
 
     it('counts the checks of the window that could be read', async () => {
@@ -230,7 +237,7 @@ describe('The metric strip', () => {
       );
       const present = readable.filter((item) => item.ai_overview_state !== 'absent');
       expect(readable.length).toBeGreaterThan(0);
-      expect(cell(strip, 'AI Overview')).toHaveTextContent(
+      expect(cell(strip, 'Google AI Overview')).toHaveTextContent(
         `${String(present.length)} of ${String(readable.length)} checks`,
       );
     });
@@ -238,7 +245,7 @@ describe('The metric strip', () => {
     it('says so when no check of the window could be read', async () => {
       server.use(answerAioWith(() => []));
       const { strip } = await renderStrip();
-      expect(await within(strip).findByText('No readable checks in this window')).toBeInTheDocument();
+      expect(await within(strip).findByText('No readable checks in this period')).toBeInTheDocument();
     });
   });
 
@@ -262,7 +269,7 @@ describe('The metric strip', () => {
   it('says a keyword that was never checked has not been, and shows n/a, not zeros, elsewhere', async () => {
     const { strip } = await renderStrip(DETAIL_KEYWORDS.pending);
     await waitFor(() => expect(cell(strip, 'Rank')).toHaveTextContent('Not checked yet'));
-    for (const label of ['Best rank', 'Average rank', 'Days in top 10', 'AI Overview']) {
+    for (const label of ['Best rank', 'Average rank', 'Days in top 10', 'Google AI Overview']) {
       expect(cell(strip, label).textContent, label).toBe('n/a');
     }
   });
@@ -338,7 +345,7 @@ describe('The metric strip', () => {
       server.use(http.get(mswPath(AIO), ({ request }) => problem(request, 'provider_paused')));
       const { strip } = await renderStrip();
       await banner();
-      const aio = cell(strip, 'AI Overview');
+      const aio = cell(strip, 'Google AI Overview');
       expect(aio.textContent).toMatch(/Cited|Present|No AIO/);
       expect(aio).toHaveTextContent('n/a');
       expect(cell(strip, 'Average rank').textContent).toMatch(/^\d/);

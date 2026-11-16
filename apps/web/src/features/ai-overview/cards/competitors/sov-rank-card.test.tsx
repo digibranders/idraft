@@ -166,17 +166,17 @@ describe('the share of voice rank card (CH-29)', () => {
     expect(words).toContain('Week of Nov 2');
     expect(words).toContain('HubSpot|Rank 1, 45%');
     expect(words).toContain('Fynix|Rank 2, 30%');
-    expect(words).toContain('120 answers naming a tracked brand');
+    expect(words).toContain('120 answers mentioning a tracked brand');
     expect(words.indexOf('HubSpot')).toBeLessThan(words.indexOf('Fynix'));
-    expect(tooltipText(1)).toContain('Too few answers name a tracked brand (3): this week has no rank');
+    expect(tooltipText(1)).toContain('Too few answers mention a tracked brand (3): this week has no rank');
     expect(tooltipText(1)).not.toMatch(/Rank \d/);
   });
 
   it('says in the footer how many weeks a pooled point holds, and nothing of weeks on a plain point', async () => {
     serveWorld(weeklySummary({ weeks: POOLED_WEEKS }), entityRows());
     await drawRanks();
-    expect(tooltipText(2)).toContain('120 answers naming a tracked brand, 4 weeks together');
-    expect(tooltipText(3)).toContain('100 answers naming a tracked brand');
+    expect(tooltipText(2)).toContain('120 answers mentioning a tracked brand, 4 weeks together');
+    expect(tooltipText(3)).toContain('100 answers mentioning a tracked brand');
     expect(tooltipText(3)).not.toContain('together');
   });
 
@@ -232,7 +232,7 @@ describe('the share of voice rank card (CH-29)', () => {
     const { user } = await drawRanks();
     const [block] = await readExport(user);
     expect(block?.id).toBe('card-under-test');
-    expect(block?.header).toEqual(['Week', 'Brand', 'Rank', 'Share of voice', 'Answers naming a tracked brand']);
+    expect(block?.header).toEqual(['Week', 'Brand', 'Rank', 'Share of voice', 'Answers mentioning a tracked brand']);
     expect(block?.rows).toContainEqual(['2026-10-19', 'Fynix', 1, 40, 100]);
     expect(block?.rows).toContainEqual(['2026-10-26', 'Fynix', null, null, 3]);
   });
@@ -261,7 +261,7 @@ describe('the share of voice rank card states', () => {
   it('tells assistive technology no figure for an engine that is not asked, and the figures for one that is', async () => {
     const { unmount } = renderCard(TYPE, SovRankCard, { engine: 'google_ai_mode' });
     const off = chartSummaryText(
-      await screen.findByRole('heading', { level: 2, name: 'Share of voice rank on AI Mode' }),
+      await screen.findByRole('heading', { level: 2, name: 'Share of voice rank on Google AI Mode' }),
     );
     expect(off).toBe('');
     expect(off).not.toMatch(/\d|too few|no week/i);
@@ -275,7 +275,7 @@ describe('the share of voice rank card states', () => {
 
   it('says the engine is not asked when the project has it off', async () => {
     renderCard(TYPE, SovRankCard, { engine: 'google_ai_mode' });
-    expect(await screen.findByText('AI Mode is not asked in this scope')).toBeInTheDocument();
+    expect(await screen.findByText('Google AI Mode is not asked in this scope')).toBeInTheDocument();
   });
 
   it('shows Try again when the read failed', async () => {

@@ -314,10 +314,10 @@ describe('colour only when the change is detectable (WB-DATA-02)', () => {
     expect(drawn.spoken.startsWith(expected.sign === '+' ? 'up ' : 'down ')).toBe(true);
 
     if (expected.says === 'detectable') {
-      expect(drawn.spoken).toMatch(/, detectable, interim test$/);
+      expect(drawn.spoken).toMatch(/, detectable, provisional$/);
       expect(drawn.spoken).not.toMatch(/within normal variation/);
     } else if (expected.says === 'within') {
-      expect(drawn.spoken).toMatch(/, within normal variation, interim test$/);
+      expect(drawn.spoken).toMatch(/, within normal variation, provisional$/);
       expect(drawn.spoken).not.toMatch(/detectable/);
     } else {
       // No test was made: nothing is said about variation, and no test is claimed

@@ -432,7 +432,7 @@ describe('moving a card with the keyboard', () => {
     await pickUp(view, 'trend');
     await view.user.keyboard('{ArrowLeft}');
     await waitFor(() => {
-      expect(polite()).toBe('Visibility and mention rate is already first');
+      expect(polite()).toBe('SEO visibility and mention rate is already first');
     });
     await view.user.keyboard(' ');
     await waitFor(() => {
@@ -853,7 +853,7 @@ describe('moving a card with the pointer', () => {
     await waitFor(() => {
       expect(orderOf()).toEqual(['a', 'b', 'e', 'c', 'd']);
     });
-    expect(polite()).toBe('Visibility and mention rate dropped at position 3 of 5');
+    expect(polite()).toBe('SEO visibility and mention rate dropped at position 3 of 5');
   });
 
   it('cancels a drag with Escape and says the card is put back', async () => {

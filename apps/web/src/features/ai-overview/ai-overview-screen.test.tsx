@@ -280,7 +280,7 @@ describe('the numbers strip of the AI visibility page', () => {
     expect(aiMode).toHaveAccessibleDescription(/off in this project/i);
     expect(aiMode).not.toHaveTextContent('0%');
     expect(chatgpt).toHaveAttribute('tabindex', '0');
-    expect(chatgpt).toHaveAccessibleDescription(/Window: Oct 16 to Nov 12, 2026 \(branded prompts excluded\)/);
+    expect(chatgpt).toHaveAccessibleDescription(/Period: Oct 16 to Nov 12, 2026 \(branded prompts excluded\)/);
   });
 
   it('links each number that was read to its destination, named by the number, and leaves AI Mode (off) plain', async () => {
@@ -413,7 +413,7 @@ describe('the numbers strip of the AI visibility page', () => {
     });
     await user.click(button);
     const strip = await stripOf();
-    for (const name of ['Prompts', 'Mention rate ChatGPT', 'Mention rate Gemini', 'Mention rate AI Mode']) {
+    for (const name of ['Prompts', 'Mention rate ChatGPT', 'Mention rate Gemini', 'Mention rate Google AI Mode']) {
       expect(within(strip).getByRole('button', { name: `Reorder ${name}` })).toBeInTheDocument();
       expect(within(strip).getByRole('button', { name: `Remove ${name}` })).toBeInTheDocument();
     }

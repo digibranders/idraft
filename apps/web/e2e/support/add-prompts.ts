@@ -52,9 +52,9 @@ export async function openAddDialog(page: Page): Promise<Locator> {
 
 /** Chooses a country in the dialog, as a person does: the control opens a list of the countries the engines ask in. */
 export async function chooseCountry(dialog: Locator, name: string): Promise<void> {
-  await dialog.getByRole('combobox', { name: 'Country' }).click();
+  await dialog.getByRole('combobox', { name: 'Location' }).click();
   await dialog.page().getByRole('option', { name, exact: true }).click();
-  await expect(dialog.getByRole('combobox', { name: 'Country' })).toContainText(name);
+  await expect(dialog.getByRole('combobox', { name: 'Location' })).toContainText(name);
 }
 
 /** Pastes the lines into the field and waits until the check has read them: the check list says nothing is wrong. */

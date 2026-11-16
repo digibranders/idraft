@@ -484,7 +484,7 @@ describe('states', () => {
   it('partial names a platform without a valid answer in any prompt', async () => {
     const onlyGemini = summaryOf({ prompts: [prompt('p', 'Only Gemini', [], [0, 0], [9, 10])] });
     render({ summary: onlyGemini });
-    expect(await screen.findByText('Partial data: ChatGPT has no valid answer in this window')).toBeInTheDocument();
+    expect(await screen.findByText('Partial data: ChatGPT has no valid answer in this period')).toBeInTheDocument();
     expect(await rowNames()).toEqual(['Only Gemini']);
   });
 

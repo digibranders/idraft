@@ -113,7 +113,7 @@ describe('AnswerFunnelCard', () => {
     // Collection loss is said on the valid step, never read as a miss
     expect(chatgpt).toHaveTextContent('98.0%, 1,800 of 1,836 answers, 36 not valid');
     expect(chatgpt).toHaveTextContent('34.0%, 612 of 1,800 valid answers');
-    expect(chatgpt).toHaveTextContent('44.1%, 270 of 612 answers naming you');
+    expect(chatgpt).toHaveTextContent('44.1%, 270 of 612 answers mentioning you');
   });
 
   it('the Table view equals the accessible text of the steps', async () => {
@@ -258,7 +258,7 @@ describe('AnswerFunnelCard', () => {
     const text = await blob.text();
     expect(text).toContain('ChatGPT,Valid answers,0,');
     // The step that follows has no count: an empty cell, not 0
-    expect(text).toContain('ChatGPT,Naming you,,');
+    expect(text).toContain('ChatGPT,Mentioning you,,');
   });
 
   it('registers its Table view as an export block under the item id', async () => {
@@ -284,7 +284,7 @@ describe('AnswerFunnelCard', () => {
     expect(block?.id).toBe(CARD_ID);
     expect(block?.header).toEqual(['engine', 'step', 'count', 'of', 'share_percent', 'status']);
     expect(block?.rows).toHaveLength(8);
-    expect(block?.rows[2]).toEqual(['ChatGPT', 'Naming you', 612, 1800, 34, 'ok']);
+    expect(block?.rows[2]).toEqual(['ChatGPT', 'Mentioning you', 612, 1800, 34, 'ok']);
     expect(block?.rows[0]).toEqual(['ChatGPT', 'Answers', 1836, null, null, 'ok']);
   });
 

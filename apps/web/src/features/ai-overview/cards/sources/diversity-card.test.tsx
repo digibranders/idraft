@@ -24,7 +24,7 @@ vi.mock('next/navigation', async () => (await import('@/test/next-navigation')).
 vi.mock('@/components/app/chart/echart', async () => (await import('@/test/weekly-card-kit')).echartStandIn);
 
 const TYPE = 'sources.diversity';
-const TITLE = 'Source diversity over time';
+const TITLE = 'Domain diversity over time';
 const DIVERSITY = '*/api/v1/workspaces/:w/projects/:p/ai/sources/diversity';
 const WEEKS = ['2026-10-19', '2026-10-26', '2026-11-02', '2026-11-09'] as const;
 
@@ -130,7 +130,7 @@ describe('the source diversity card (CH-26)', () => {
     serve();
     const { user } = await drawLines();
     expect(lineOf('chatgpt_web').data).toEqual([41, 38, 40, 36]);
-    await user.click(screen.getByRole('radio', { name: 'Effective sources' }));
+    await user.click(screen.getByRole('radio', { name: 'Effective domains' }));
     expect(lineOf('chatgpt_web').data).toEqual([18.6, 17, 16.2, 15]);
     expect(lineOf('gemini_web').data).toEqual([12.5, null, 10, 9]);
   });
@@ -139,7 +139,7 @@ describe('the source diversity card (CH-26)', () => {
     serve();
     const { user } = await drawLines();
     expect(lineOf('gemini_web').data).toEqual([30, null, 25, 22]);
-    await user.click(screen.getByRole('radio', { name: 'Effective sources' }));
+    await user.click(screen.getByRole('radio', { name: 'Effective domains' }));
     expect(lineOf('gemini_web').data[1]).toBeNull();
     expect(lineOf('gemini_web').connectNulls).toBe(false);
     expect(tooltipText(1)).toContain('Gemini|No citation unit this week');
@@ -157,8 +157,8 @@ describe('the source diversity card (CH-26)', () => {
     const { user } = await drawLines();
     expect(tooltipText(0)).toContain('Week of Oct 19');
     expect(tooltipText(0)).toContain('ChatGPT|41 domains, 200 citation units');
-    await user.click(screen.getByRole('radio', { name: 'Effective sources' }));
-    expect(tooltipText(0)).toContain('ChatGPT|18.6 effective sources, 200 citation units in 41 domains');
+    await user.click(screen.getByRole('radio', { name: 'Effective domains' }));
+    expect(tooltipText(0)).toContain('ChatGPT|18.6 effective domains, 200 citation units in 41 domains');
   });
 
   it('starts the axis at 0 and writes its ticks as plain numbers', async () => {
@@ -166,7 +166,7 @@ describe('the source diversity card (CH-26)', () => {
     const { user } = await drawLines();
     expect(yAxisOf()).toMatchObject({ min: 0 });
     expect(axisText(40)).toBe('40');
-    await user.click(screen.getByRole('radio', { name: 'Effective sources' }));
+    await user.click(screen.getByRole('radio', { name: 'Effective domains' }));
     expect(axisText(10)).toBe('10.0');
   });
 
@@ -180,11 +180,11 @@ describe('the source diversity card (CH-26)', () => {
     expect(rows[1]).toHaveTextContent('Oct 19');
     expect(rows[1]).toHaveTextContent('41 domains, 200 citation units');
     await user.click(screen.getByRole('button', { name: 'Table' }));
-    await user.click(screen.getByRole('radio', { name: 'Effective sources' }));
+    await user.click(screen.getByRole('radio', { name: 'Effective domains' }));
     await user.click(screen.getByRole('button', { name: 'Table' }));
     const effective = await screen.findByRole('table', { name: TITLE });
     expect(within(effective).getAllByRole('row')[1]).toHaveTextContent(
-      '18.6 effective sources, 200 citation units in 41 domains',
+      '18.6 effective domains, 200 citation units in 41 domains',
     );
   });
 
@@ -194,8 +194,8 @@ describe('the source diversity card (CH-26)', () => {
     await user.click(screen.getByRole('button', { name: 'About Distinct domains' }));
     expect(await screen.findByText(/registrable domains with at least one citation unit/)).toBeInTheDocument();
     await user.keyboard('{Escape}');
-    await user.click(screen.getByRole('radio', { name: 'Effective sources' }));
-    await user.click(screen.getByRole('button', { name: 'About Effective sources' }));
+    await user.click(screen.getByRole('radio', { name: 'Effective domains' }));
+    await user.click(screen.getByRole('button', { name: 'About Effective domains' }));
     expect(await screen.findByText(/square of the total citation units, divided by the sum/)).toBeInTheDocument();
     expect(screen.getByText(/inverse of the Herfindahl index/)).toBeInTheDocument();
   });
@@ -204,7 +204,7 @@ describe('the source diversity card (CH-26)', () => {
     serve();
     const { unmount } = await drawLines();
     expect(
-      screen.getByText('Equal-weight mean of the platforms with units: 15.3 effective sources.'),
+      screen.getByText('Equal-weight mean of the platforms with units: 15.3 effective domains.'),
     ).toBeInTheDocument();
     unmount();
     // Both engines have effective sources, and the API sends no average: the card does not make one up
@@ -238,9 +238,9 @@ describe('the source diversity card (CH-26)', () => {
     const { user } = await drawLines();
     expect(spokenSummary()).toContain('ChatGPT: 41 domains in the week of Oct 19, 36 domains in the week of Nov 9.');
     expect(spokenSummary()).toContain('Gemini: 30 domains in the week of Oct 19, 22 domains in the week of Nov 9.');
-    await user.click(screen.getByRole('radio', { name: 'Effective sources' }));
+    await user.click(screen.getByRole('radio', { name: 'Effective domains' }));
     expect(spokenSummary()).toContain(
-      'ChatGPT: 18.6 effective sources in the week of Oct 19, 15.0 effective sources in the week of Nov 9.',
+      'ChatGPT: 18.6 effective domains in the week of Oct 19, 15.0 effective domains in the week of Nov 9.',
     );
   });
 
@@ -267,9 +267,9 @@ describe('the source diversity card (CH-26)', () => {
     expect(distinct).toBeChecked();
     distinct.focus();
     await user.keyboard('{ArrowRight}');
-    expect(screen.getByRole('radio', { name: 'Effective sources' })).toBeChecked();
+    expect(screen.getByRole('radio', { name: 'Effective domains' })).toBeChecked();
     await waitFor(() => {
-      expect(document.getElementById('live-region-polite')).toHaveTextContent('Showing effective sources');
+      expect(document.getElementById('live-region-polite')).toHaveTextContent('Showing effective domains');
     });
     expect(lineOf('chatgpt_web').data).toEqual([18.6, 17, 16.2, 15]);
   });
@@ -284,7 +284,7 @@ describe('the source diversity card (CH-26)', () => {
       'Platform',
       'Citation units',
       'Distinct domains',
-      'Effective sources',
+      'Effective domains',
     ]);
     expect(block?.rows).toHaveLength(8);
     expect(block?.rows[0]).toEqual(['2026-10-19', 'ChatGPT', 200, 41, 18.6]);
@@ -327,7 +327,7 @@ describe('the source diversity card (CH-26)', () => {
       }),
     );
     renderCard(TYPE, DiversityCard, {}, { searchParams: 'cmp=off&branded=only' });
-    expect(await screen.findByText('Sources cannot be read for branded prompts alone')).toBeInTheDocument();
+    expect(await screen.findByText('Cited domains cannot be read for branded prompts alone')).toBeInTheDocument();
     expect(asked).not.toHaveBeenCalled();
   });
 
@@ -339,7 +339,7 @@ describe('the source diversity card (CH-26)', () => {
       ]),
     );
     renderCard(TYPE, DiversityCard, {});
-    expect(await screen.findByText('No source was cited in any week of this window')).toBeInTheDocument();
+    expect(await screen.findByText('No domain was cited in any week of this period')).toBeInTheDocument();
     expect(screen.queryByTestId('echart-canvas')).not.toBeInTheDocument();
   });
 
@@ -356,7 +356,7 @@ describe('the source diversity card (CH-26)', () => {
   it('shows Retry and an error id for a failed read, and Retry reads again', async () => {
     server.use(http.get(DIVERSITY, () => failing('req-div')));
     const rendered = renderCard(TYPE, DiversityCard, {});
-    expect(await screen.findByText('Could not load source diversity over time')).toBeInTheDocument();
+    expect(await screen.findByText('Could not load domain diversity over time')).toBeInTheDocument();
     expect(screen.getByText('Error ID req-div')).toBeInTheDocument();
     serve();
     await rendered.user.click(screen.getByRole('button', { name: 'Try again' }));

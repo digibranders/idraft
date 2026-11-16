@@ -69,7 +69,7 @@ describe('NewUnknownNote', () => {
   it('says there was no valid answer in the period before, with no action', () => {
     renderWithProviders(<NewUnknownNote reason="noPrevious" limit={200} onRetry={noop} retrying={false} />);
     expect(
-      screen.getByText('No valid answer in the period before this window, so no query can be called new.'),
+      screen.getByText('No valid answer in the period before this one, so no fan-out query can be called new.'),
     ).toBeInTheDocument();
     expect(screen.queryByRole('button')).toBeNull();
   });
@@ -77,7 +77,9 @@ describe('NewUnknownNote', () => {
   it('says the period before has more queries than can be compared, with no action', () => {
     renderWithProviders(<NewUnknownNote reason="tooMany" limit={200} onRetry={noop} retrying={false} />);
     expect(
-      screen.getByText('The period before this window has more than 200 queries, so new queries cannot be told apart.'),
+      screen.getByText(
+        'The period before this one has more than 200 fan-out queries, so new fan-out queries cannot be told apart.',
+      ),
     ).toBeInTheDocument();
     expect(screen.queryByRole('button')).toBeNull();
   });
@@ -88,7 +90,7 @@ describe('NewUnknownNote', () => {
       <NewUnknownNote reason="failed" limit={200} onRetry={onRetry} retrying={false} />,
     );
     expect(
-      screen.getByText('New queries could not be told, because the period before this window could not be read.'),
+      screen.getByText('New fan-out queries could not be told, because the period before this one could not be read.'),
     ).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Try again' }));
     expect(onRetry).toHaveBeenCalledOnce();

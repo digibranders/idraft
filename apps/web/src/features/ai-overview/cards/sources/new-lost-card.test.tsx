@@ -42,9 +42,9 @@ const P = '*/api/v1/workspaces/:w/projects/:p/ai/sources';
 const CHANGES = `${P}/changes`;
 const DOMAINS = `${P}/domains`;
 const DIVERSITY = `${P}/diversity`;
-const HEADING = 'New and lost sources';
-const CAPTION_NEW = 'New domains by citation units in this window';
-const CAPTION_LOST = 'Lost domains by citation units in the window they were last cited';
+const HEADING = 'New and lost domains';
+const CAPTION_NEW = 'New domains by citation units in this period';
+const CAPTION_LOST = 'Lost domains by citation units in the period they were last cited';
 
 const listeners: ((info: { request: Request }) => void)[] = [];
 function recordRequests(): URL[] {
@@ -134,7 +134,7 @@ function renderCard(
 }
 
 const toolbar = (): Promise<HTMLElement> =>
-  screen.findByRole('toolbar', { name: 'Domains new or lost in this window' });
+  screen.findByRole('toolbar', { name: 'Domains new or lost in this period' });
 const newList = (): Promise<HTMLElement> => screen.findByRole('list', { name: CAPTION_NEW });
 const lostList = (): Promise<HTMLElement> => screen.findByRole('list', { name: CAPTION_LOST });
 const labelsOf = (list: HTMLElement): (string | null | undefined)[] =>
@@ -205,7 +205,7 @@ describe('the new and lost sources card (CH-22, WB-OV-12)', () => {
     expect(at(items, 0).querySelector('[data-slot="bar-list-value"]')).toHaveTextContent('14 units');
     expect(at(items, 0).querySelector('[data-slot="bar-list-context"]')).toHaveTextContent('14 now, 0 before');
     expect(within(at(items, 0)).getByText('Third party')).toBeInTheDocument();
-    expect(within(at(items, 1)).getByText('Own')).toBeInTheDocument();
+    expect(within(at(items, 1)).getByText('Your site')).toBeInTheDocument();
     expect(within(at(items, 2)).getByText('Competitor')).toBeInTheDocument();
     const fills = items.map((item) => item.querySelector('[data-slot="bar-list-bar"]')?.className ?? '');
     expect(at(fills, 1)).toContain('bg-chart-1');
@@ -271,7 +271,7 @@ describe('the new and lost sources card (CH-22, WB-OV-12)', () => {
     serve({ before: 0, newer: changePage('new', [changeRow({ domain: 'a.com', now: 5 })], { total: 80 }) });
     renderCard();
     // The sentence is the headline and, as its reason, the tooltip of the disabled New tab
-    const sentences = await screen.findAllByText('No answers in the window before: new sources cannot be told');
+    const sentences = await screen.findAllByText('No answers in the period before: new domains cannot be told');
     expect(sentences.some((node) => node.tagName === 'P')).toBe(true);
     const tabs = await toolbar();
     const unknown = within(tabs).getByRole('button', { name: 'New, n/a' });
@@ -295,7 +295,7 @@ describe('the new and lost sources card (CH-22, WB-OV-12)', () => {
       http.get(DIVERSITY, () => HttpResponse.json(diversityRead([diversityEngine('chatgpt_web')]))),
     );
     renderCard();
-    const sentences = await screen.findAllByText('The window before could not be read: new sources cannot be told');
+    const sentences = await screen.findAllByText('The period before could not be read: new domains cannot be told');
     expect(sentences.some((node) => node.tagName === 'P')).toBe(true);
     expect(await screen.findByText('No comparison: the previous period could not be read')).toBeInTheDocument();
     expect(screen.queryByText(/37/)).not.toBeInTheDocument();
@@ -305,10 +305,10 @@ describe('the new and lost sources card (CH-22, WB-OV-12)', () => {
     serve({ newer: changePage('new', [], { total: 0 }) });
     renderCard();
     expect(await screen.findByText('0 new domains')).toBeInTheDocument();
-    expect(screen.getByText('No domain is new in this window')).toBeInTheDocument();
+    expect(screen.getByText('No domain is new in this period')).toBeInTheDocument();
     expect(
       screen.getByText(
-        'A domain is new when it has 2 or more citation units in this window and none in the window before.',
+        'A domain is new when it has 2 or more citation units in this period and none in the period before.',
       ),
     ).toBeInTheDocument();
   });
@@ -318,8 +318,8 @@ describe('the new and lost sources card (CH-22, WB-OV-12)', () => {
     const { user } = renderCard();
     const tabs = await toolbar();
     await user.click(within(tabs).getByRole('button', { name: 'Lost, 0' }));
-    expect(await screen.findByText('No domain is lost in this window')).toBeInTheDocument();
-    expect(screen.getByText(/a lost domain needs 2 windows after its last citation/)).toBeInTheDocument();
+    expect(await screen.findByText('No domain is lost in this period')).toBeInTheDocument();
+    expect(screen.getByText(/a lost domain needs 2 periods after its last citation/)).toBeInTheDocument();
   });
 
   it('names the window, the engines the units are pooled over, the rule and the flagged citations', async () => {
@@ -331,7 +331,7 @@ describe('the new and lost sources card (CH-22, WB-OV-12)', () => {
     ).toBeInTheDocument();
     expect(screen.getByText(/Citation units are pooled over ChatGPT and Gemini/)).toBeInTheDocument();
     expect(
-      screen.getByText(/^New: 2 or more citation units in this window and none in the window before\. Lost:/),
+      screen.getByText(/^New: 2 or more citation units in this period and none in the period before\. Lost:/),
     ).toBeInTheDocument();
     expect(
       screen.getByText('Citations flagged as unresolved redirects or platform-internal links are left out.'),
@@ -402,7 +402,7 @@ describe('the new and lost sources card (CH-22, WB-OV-12)', () => {
   it('has nothing to export while the card loads or has failed', async () => {
     server.use(http.get(CHANGES, () => failing('req-x')));
     renderCard();
-    await screen.findByText('Could not load new and lost sources');
+    await screen.findByText('Could not load new and lost domains');
     expect(sink.read().blocks).toEqual([]);
   });
 
@@ -441,14 +441,14 @@ describe('the new and lost sources card (CH-22, WB-OV-12)', () => {
       }),
     );
     renderCard('cmp=off&branded=only');
-    expect(await screen.findByText('Sources cannot be read for branded prompts alone')).toBeInTheDocument();
+    expect(await screen.findByText('Cited domains cannot be read for branded prompts alone')).toBeInTheDocument();
     expect(asked).not.toHaveBeenCalled();
   });
 
   it('shows Retry and an error id for a failed read, and Retry reads again', async () => {
     server.use(http.get(CHANGES, () => failing('req-1')));
     const { user } = renderCard();
-    expect(await screen.findByText('Could not load new and lost sources')).toBeInTheDocument();
+    expect(await screen.findByText('Could not load new and lost domains')).toBeInTheDocument();
     expect(screen.getByText('Error ID req-1')).toBeInTheDocument();
     serve();
     await user.click(screen.getByRole('button', { name: 'Try again' }));

@@ -63,11 +63,11 @@ const SENTENCES: readonly (readonly [fact: Fact, sentence: string])[] = [
   ],
   [
     { id: 'n4', kind: 'noPrevious', params: { reason: 'tooFew', days: 28 }, link: null },
-    'There are too few answers in one of the two windows to compare mention rates.',
+    'There are too few answers in one of the two periods to compare mention rates.',
   ],
   [
     { id: 'n5', kind: 'noPrevious', params: { reason: 'noClaim', days: 28 }, link: null },
-    'The mention rates of the two windows give no clear direction of change, so nothing is said about it.',
+    'The mention rates of the two periods give no clear direction of change, so nothing is said about it.',
   ],
   [
     {
@@ -84,7 +84,7 @@ const SENTENCES: readonly (readonly [fact: Fact, sentence: string])[] = [
       },
       link: null,
     },
-    'On AI Mode, 12 of 90 prompts that named you before no longer do, and 7 of 40 prompts that did not name you before now do.',
+    'On Google AI Mode, 12 of 90 prompts that mentioned you before no longer do, and 7 of 40 prompts that did not mention you before now do.',
   ],
   [
     {
@@ -93,7 +93,7 @@ const SENTENCES: readonly (readonly [fact: Fact, sentence: string])[] = [
       params: { engine: 'chatgpt_web', lost: 1, namedBefore: 1, gained: 0, notNamedBefore: 1, compared: 2, leftOut: 0 },
       link: null,
     },
-    'On ChatGPT, 1 of 1 prompt that named you before no longer does, and 0 of 1 prompt that did not name you before now does.',
+    'On ChatGPT, 1 of 1 prompt that mentioned you before no longer does, and 0 of 1 prompt that did not mention you before now does.',
   ],
   [
     { id: 's', kind: 'newSources', params: { count: 37, minSupport: 2, days: 28 }, link: null },
@@ -173,7 +173,7 @@ describe('HowThisIsWritten', () => {
     expect(within(dialog).getAllByRole('listitem')).toHaveLength(5);
     expect(dialog).toHaveTextContent('No sentence names a cause or judges a change, and platforms are never pooled.');
     expect(dialog).toHaveTextContent('Answers that were not valid come first');
-    expect(dialog).toHaveTextContent('A prompt names you when at least one of its valid answers does.');
+    expect(dialog).toHaveTextContent('A prompt mentions you when at least one of its valid answers does.');
     await user.keyboard('{Escape}');
     await waitFor(() => {
       expect(screen.queryByRole('dialog')).toBeNull();

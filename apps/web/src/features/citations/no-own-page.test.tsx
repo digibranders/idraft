@@ -184,7 +184,7 @@ const context = (overrides: Partial<CitationTabContext> = {}): CitationTabContex
 const renderCard = (overrides: Partial<CitationTabContext> = {}): ReturnType<typeof renderWithProviders> =>
   renderWithProviders(<NoOwnPage context={context(overrides)} />);
 
-const CARD = 'Prompts with no own page cited';
+const CARD = 'Prompts with none of your pages cited';
 const LIST = 'Prompt and platform pairs';
 const card = (): Promise<HTMLElement> => screen.findByRole('region', { name: CARD });
 const tableOf = async (): Promise<HTMLElement> => within(await card()).findByRole('table');
@@ -215,15 +215,15 @@ describe('NoOwnPage', () => {
     renderCard();
     const table = await loaded();
     expect(
-      within(await card()).getByRole('heading', { level: 2, name: 'Prompts with no own page cited' }),
+      within(await card()).getByRole('heading', { level: 2, name: 'Prompts with none of your pages cited' }),
     ).toBeInTheDocument();
     expect(within(await card()).getByText('2 prompt and platform pairs cite no page of yours.')).toBeInTheDocument();
     const first = rowOf(table, 'Best CRM for startups');
     expect(within(first).getByText('ChatGPT')).toBeInTheDocument();
-    expect(within(first).getByText('none of 4 answers cites an own page')).toBeInTheDocument();
+    expect(within(first).getByText('none of 4 answers cites one of your pages')).toBeInTheDocument();
     const second = rowOf(table, 'How to pick a CRM');
     expect(within(second).getByText('Gemini')).toBeInTheDocument();
-    expect(within(second).getByText('none of 1 answer cites an own page')).toBeInTheDocument();
+    expect(within(second).getByText('none of 1 answer cites one of your pages')).toBeInTheDocument();
   });
 
   it('asks for the first 10 pairs that cite no own page, in the scope of the page', async () => {
@@ -332,7 +332,7 @@ describe('NoOwnPage', () => {
   it('says every prompt has an own page when none is listed', async () => {
     serve([]);
     renderCard();
-    expect(await screen.findByText('Every prompt has an own page cited')).toBeInTheDocument();
+    expect(await screen.findByText('Every prompt has one of your pages cited')).toBeInTheDocument();
     expect(screen.queryByRole('table')).toBeNull();
   });
 
@@ -379,7 +379,7 @@ describe('NoOwnPage', () => {
     serve([]);
     const held = gate();
     const view = renderCard();
-    expect(await screen.findByText('Every prompt has an own page cited')).toBeInTheDocument();
+    expect(await screen.findByText('Every prompt has one of your pages cited')).toBeInTheDocument();
     server.use(
       http.get(PAIRS, async () => {
         await held.opened;
@@ -388,7 +388,7 @@ describe('NoOwnPage', () => {
     );
     // Another engine: a new read, whose answer is held; the empty list of the old scope stands in for it
     view.rerender(<NoOwnPage context={context({ filters: { ...FILTERS, engines: ['gemini_web'] } })} />);
-    await waitFor(() => expect(screen.queryByText('Every prompt has an own page cited')).toBeNull());
+    await waitFor(() => expect(screen.queryByText('Every prompt has one of your pages cited')).toBeNull());
     expect(await card()).toHaveAttribute('aria-busy', 'true');
     act(() => held.open());
     const table = await loaded();

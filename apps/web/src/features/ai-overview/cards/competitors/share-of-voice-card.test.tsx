@@ -82,7 +82,7 @@ function totalOf(entities: readonly SummaryEntity[], numerators: readonly number
 
 const THREE = [own(), competitor(2, 'HubSpot'), competitor(3, 'Zoho')];
 
-/** You 25, HubSpot 50, Zoho 25 of 100 answers naming a tracked brand. */
+/** You 25, HubSpot 50, Zoho 25 of 100 answers mentioning a tracked brand. */
 function summary(
   over: { versions?: number[]; total?: EngineSummary[]; entities?: SummaryEntity[] } = {},
 ): PromptsSummary {
@@ -172,10 +172,10 @@ describe('the share of voice card', () => {
     serve(summary());
     renderCard();
     const list = await barList();
-    expect(within(list).getByText('HubSpot: 50% share of voice, named in 65 of 120 answers')).toBeInTheDocument();
-    expect(within(list).getByText('Fynix: 25% share of voice, named in 30 of 120 answers')).toBeInTheDocument();
+    expect(within(list).getByText('HubSpot: 50% share of voice, mentioned in 65 of 120 answers')).toBeInTheDocument();
+    expect(within(list).getByText('Fynix: 25% share of voice, mentioned in 30 of 120 answers')).toBeInTheDocument();
     expect(
-      screen.getByText('Oct 16 to Nov 12, 2026 · of 100 answers naming a tracked brand · branded prompts left out'),
+      screen.getByText('Oct 16 to Nov 12, 2026 · of 100 answers mentioning a tracked brand · branded prompts left out'),
     ).toBeInTheDocument();
   });
 
@@ -191,7 +191,7 @@ describe('the share of voice card', () => {
     const note = await screen.findByTestId('tracked-footnote');
     expect(note).toHaveTextContent('Tracked brands: you and 2 competitors.');
     await waitFor(() => {
-      expect(note).toHaveTextContent('Added in this window: HubSpot on Oct 21.');
+      expect(note).toHaveTextContent('Added in this period: HubSpot on Oct 21.');
     });
   });
 
@@ -200,13 +200,13 @@ describe('the share of voice card', () => {
     serveEntities([]);
     renderCard();
     await barList();
-    expect(await screen.findByTestId('tracked-footnote')).toHaveTextContent('The tracked set changed in this window');
+    expect(await screen.findByTestId('tracked-footnote')).toHaveTextContent('The tracked set changed in this period');
   });
 
   it('shows the too few sentence with the count when fewer than 4 answers name a tracked brand', async () => {
     serve(summary({ total: [totalOf(THREE, [1, 1, 1], 3)] }));
     renderCard();
-    expect(await screen.findByText('Too few answers name a tracked brand (3)')).toBeInTheDocument();
+    expect(await screen.findByText('Too few answers mention a tracked brand (3)')).toBeInTheDocument();
     expect(screen.queryByRole('list', { name: TITLE })).not.toBeInTheDocument();
   });
 
@@ -235,7 +235,7 @@ describe('the share of voice card', () => {
     renderCard();
     await barList();
     expect(chartSummaryText(screen.getByRole('heading', { level: 2, name: HEADING }))).toMatch(
-      /^Share of voice on ChatGPT, of 100 answers that name a tracked brand: HubSpot 50%/,
+      /^Share of voice on ChatGPT, of 100 answers that mention a tracked brand: HubSpot 50%/,
     );
   });
 
@@ -262,7 +262,7 @@ describe('the share of voice card', () => {
     renderCard('cmp=off', { role: 'viewer' });
     expect(await screen.findByText('No competitor is tracked')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Add competitors' })).not.toBeInTheDocument();
-    expect(screen.getByText(/Ask a member who can edit entities/)).toBeInTheDocument();
+    expect(screen.getByText(/Ask a member who can edit brands/)).toBeInTheDocument();
   });
 
   it('never colours a share change, and shows none when the previous window has no answers', async () => {
@@ -325,7 +325,7 @@ describe('the share of voice card', () => {
 
   it('sums the shares and the answers over the prompt rows when the read has no total block', async () => {
     const pair = [own(), competitor(2, 'HubSpot')];
-    /** One prompt: `own` and `rival` of its `answers` naming a tracked brand, the answers also valid answers. */
+    /** One prompt: `own` and `rival` of its `answers` mentioning a tracked brand, the answers also valid answers. */
     const rowOf = (n: number, mine: number, rival: number, answers: number) =>
       promptRow(n, [
         engine('chatgpt_web', {
@@ -341,10 +341,10 @@ describe('the share of voice card', () => {
     serve(summaryOf({ entities: pair, prompts: [rowOf(1, 5, 5, 10), rowOf(2, 9, 81, 90)] }));
     renderCard();
     const list = await barList();
-    expect(within(list).getByText('Fynix: 14% share of voice, named in 14 of 100 answers')).toBeInTheDocument();
-    expect(within(list).getByText('HubSpot: 86% share of voice, named in 86 of 100 answers')).toBeInTheDocument();
+    expect(within(list).getByText('Fynix: 14% share of voice, mentioned in 14 of 100 answers')).toBeInTheDocument();
+    expect(within(list).getByText('HubSpot: 86% share of voice, mentioned in 86 of 100 answers')).toBeInTheDocument();
     expect(
-      screen.getByText('Oct 16 to Nov 12, 2026 · of 100 answers naming a tracked brand · branded prompts left out'),
+      screen.getByText('Oct 16 to Nov 12, 2026 · of 100 answers mentioning a tracked brand · branded prompts left out'),
     ).toBeInTheDocument();
   });
 
@@ -407,8 +407,8 @@ describe('the share of voice card', () => {
     const table = await screen.findByRole('table', { name: TITLE });
     const rows = within(table).getAllByRole('row');
     expect(rows).toHaveLength(4);
-    expect(at(rows, 1)).toHaveTextContent('HubSpot50%named in 65 of 120 answers');
-    expect(at(rows, 2)).toHaveTextContent('Fynix25%named in 30 of 120 answers');
+    expect(at(rows, 1)).toHaveTextContent('HubSpot50%mentioned in 65 of 120 answers');
+    expect(at(rows, 2)).toHaveTextContent('Fynix25%mentioned in 30 of 120 answers');
   });
 
   it('shows Retry for a failed read, and Retry reads again', async () => {
@@ -471,7 +471,7 @@ describe('the share of voice card', () => {
     const list = await barList();
     const text = formatPercent(strip.value, { decimals: 0 });
     expect(text).toBe('25%');
-    expect(within(list).getByText(`Fynix: ${text} share of voice, named in 30 of 120 answers`)).toBeInTheDocument();
+    expect(within(list).getByText(`Fynix: ${text} share of voice, mentioned in 30 of 120 answers`)).toBeInTheDocument();
   });
 
   it('registers every row for the export under the layout item id, with a status', async () => {
@@ -480,11 +480,11 @@ describe('the share of voice card', () => {
     await barList();
     const [block] = sink.read().blocks;
     expect(block?.id).toBe('card-under-test');
-    expect(block?.header).toEqual(['Brand', 'Share of voice', 'Named in', 'Status']);
+    expect(block?.header).toEqual(['Brand', 'Share of voice', 'Mentioned in', 'Status']);
     expect(block?.rows).toEqual([
-      ['HubSpot', '50%', 'named in 65 of 120 answers', 'Read'],
-      ['Fynix', '25%', 'named in 30 of 120 answers', 'Read'],
-      ['Zoho', '25%', 'named in 30 of 120 answers', 'Read'],
+      ['HubSpot', '50%', 'mentioned in 65 of 120 answers', 'Read'],
+      ['Fynix', '25%', 'mentioned in 30 of 120 answers', 'Read'],
+      ['Zoho', '25%', 'mentioned in 30 of 120 answers', 'Read'],
     ]);
   });
 
@@ -500,6 +500,6 @@ describe('the share of voice card', () => {
     const list = await barList();
     const items = within(list).getAllByRole('listitem');
     expect(items.length).toBeGreaterThan(1);
-    for (const item of items) expect(item).toHaveTextContent(/%.*named in [\d,]+ of [\d,]+ answers/);
+    for (const item of items) expect(item).toHaveTextContent(/%.*mentioned in [\d,]+ of [\d,]+ answers/);
   });
 });

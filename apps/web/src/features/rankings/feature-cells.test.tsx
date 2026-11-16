@@ -75,9 +75,9 @@ describe('AioStatusView', () => {
     const display: AioDisplay = { kind: 'cited', position: 2 };
     renderWithProviders(<AioStatusView display={display} />);
 
-    const badge = screen.getByRole('img', { name: 'AI Overview present, cited at position 2' });
+    const badge = screen.getByRole('img', { name: 'Google AI Overview present, cited, listed as citation 2' });
     expect(badge).toBeInTheDocument();
-    expect(badge).toHaveAccessibleName('AI Overview present, cited at position 2');
+    expect(badge).toHaveAccessibleName('Google AI Overview present, cited, listed as citation 2');
     expect(badge).toHaveClass('bg-positive-subtle', 'text-positive-text');
     // The position alone: no check icon and no word "Cited"
     expect(badge).toHaveTextContent(/^#2$/);
@@ -86,7 +86,7 @@ describe('AioStatusView', () => {
 
   it('renders a cited status with no position as the check alone', () => {
     renderWithProviders(<AioStatusView display={{ kind: 'cited', position: null }} />);
-    const badge = screen.getByRole('img', { name: 'AI Overview present, cited' });
+    const badge = screen.getByRole('img', { name: 'Google AI Overview present, cited' });
     expect(badge).toHaveTextContent(/^$/);
     expect(badge.querySelector('svg')).not.toBeNull();
   });
@@ -95,7 +95,7 @@ describe('AioStatusView', () => {
     const display: AioDisplay = { kind: 'notCited' };
     const { container } = renderWithProviders(<AioStatusView display={display} />);
 
-    const img = screen.getByRole('img', { name: 'AI Overview present, not cited' });
+    const img = screen.getByRole('img', { name: 'Google AI Overview present, not cited' });
     expect(img).toHaveClass('text-primary-text', 'size-icon');
     expect(container.textContent).toBe('');
   });
@@ -105,7 +105,7 @@ describe('AioStatusView', () => {
     renderWithProviders(<AioStatusView display={display} />);
 
     expect(screen.getByText('No AIO')).toHaveClass('text-foreground-tertiary');
-    expect(screen.getByText('Not applicable, no AI Overview')).toHaveClass('sr-only');
+    expect(screen.getByText('Not applicable, no Google AI Overview')).toHaveClass('sr-only');
   });
 
   it('renders notLoaded, unknown, and pending in tertiary text', () => {

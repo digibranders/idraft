@@ -74,22 +74,22 @@ describe('EnginePanel: the By engine section of the drawer', () => {
     render([chatgpt(), gemini()], '?metric=sov');
     const [first, second] = rows();
     expect(first).toHaveTextContent('40%');
-    expect(first).toHaveTextContent('5 answers naming a brand, 4 prompts');
+    expect(first).toHaveTextContent('5 answers mentioning a brand, 4 prompts');
     expect(second).toHaveTextContent('25%');
-    expect(second).toHaveTextContent('4 answers naming a brand, 4 prompts');
+    expect(second).toHaveTextContent('4 answers mentioning a brand, 4 prompts');
     expect(first?.textContent).not.toMatch(/\d+ of \d+/);
   });
 
   it('the metric control switches Mention, Citation and Share of voice and writes ?metric', async () => {
     const writes: string[] = [];
     const { user } = render([chatgpt(), gemini()], '', { onUrlUpdate: ({ queryString }) => writes.push(queryString) });
-    expect(screen.getByRole('combobox', { name: 'Metric of the platform panel' })).toHaveTextContent('Mention');
-    await user.click(screen.getByRole('combobox', { name: 'Metric of the platform panel' }));
+    expect(screen.getByRole('combobox', { name: 'Metric of the platform table' })).toHaveTextContent('Mention');
+    await user.click(screen.getByRole('combobox', { name: 'Metric of the platform table' }));
     await user.click(await screen.findByRole('option', { name: 'Citation' }));
     expect(new URLSearchParams(writes.at(-1)).get('metric')).toBe('citation');
     // The rows follow the address: Gemini's 4 of 8 citations
     expect(await screen.findByRole('list', { name: 'Citation by platform' })).toBeInTheDocument();
-    await user.click(screen.getByRole('combobox', { name: 'Metric of the platform panel' }));
+    await user.click(screen.getByRole('combobox', { name: 'Metric of the platform table' }));
     await user.click(await screen.findByRole('option', { name: 'Share of voice' }));
     expect(new URLSearchParams(writes.at(-1)).get('metric')).toBe('sov');
   });

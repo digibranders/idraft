@@ -50,9 +50,9 @@ async function openDialog(user: User): Promise<HTMLElement> {
 }
 
 const countriesField = (dialog: HTMLElement): HTMLElement =>
-  within(dialog).getByRole('combobox', { name: /^Countries/ });
+  within(dialog).getByRole('combobox', { name: /^Locations/ });
 const chosenCountries = (dialog: HTMLElement): HTMLElement =>
-  within(dialog).getByRole('toolbar', { name: 'Chosen Countries' });
+  within(dialog).getByRole('toolbar', { name: 'Chosen Locations' });
 
 /** Types part of a country's name in the Countries field, picks it, and leaves the field. */
 async function pickCountry(user: User, dialog: HTMLElement, typed: string, name: string): Promise<void> {
@@ -64,7 +64,7 @@ async function pickCountry(user: User, dialog: HTMLElement, typed: string, name:
 /** The dialog with the project's country, Germany, chosen once the list of countries is in. */
 async function openWithCountry(user: User): Promise<HTMLElement> {
   const dialog = await openDialog(user);
-  await within(dialog).findByRole('toolbar', { name: 'Chosen Countries' });
+  await within(dialog).findByRole('toolbar', { name: 'Chosen Locations' });
   return dialog;
 }
 
@@ -598,7 +598,7 @@ describe('Add keywords when a request fails', () => {
     expect(await within(dialog).findByText('The countries could not be loaded')).toBeInTheDocument();
     fail = false;
     await user.click(within(dialog).getByRole('button', { name: 'Try again' }));
-    expect(await within(dialog).findByRole('toolbar', { name: 'Chosen Countries' })).toBeInTheDocument();
+    expect(await within(dialog).findByRole('toolbar', { name: 'Chosen Locations' })).toBeInTheDocument();
     expect(within(dialog).queryByText('The countries could not be loaded')).toBeNull();
   }, 15_000);
 });

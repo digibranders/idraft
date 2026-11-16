@@ -579,7 +579,7 @@ describe('numbers that are read again', () => {
     });
     expect(slot('mention-chatgpt', 'value')).toBe(value);
     expect(slot('mention-chatgpt', 'delta')).toBe(delta);
-    expect(slot('mention-chatgpt', 'tip')).toContain('Window:');
+    expect(slot('mention-chatgpt', 'tip')).toContain('Period:');
     same.open();
     await waitFor(() => {
       expect(status()).toBe('ready');
@@ -598,12 +598,12 @@ describe('numbers that are read again', () => {
       expect(status()).toBe('refetching');
     });
     expect(slot('mention-gemini', 'delta')).toBe('');
-    expect(slot('mention-gemini', 'tip')).not.toContain('Window:');
+    expect(slot('mention-gemini', 'tip')).not.toContain('Period:');
     changed.open();
     await waitFor(() => {
       expect(status()).toBe('ready');
       expect(slot('mention-gemini', 'delta')).not.toBe('');
     });
-    expect(slot('mention-gemini', 'tip')).toContain('Window:');
+    expect(slot('mention-gemini', 'tip')).toContain('Period:');
   });
 });

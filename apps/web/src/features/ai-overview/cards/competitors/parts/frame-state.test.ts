@@ -174,7 +174,7 @@ describe('mapReadToFrame', () => {
 
     it('says how many answers name a tracked brand when fewer than 4 do', () => {
       const state = empty({ kind: 'too_few', answers: 3 });
-      expect(state.status === 'empty' && state.empty.title).toBe('Too few answers name a tracked brand (3)');
+      expect(state.status === 'empty' && state.empty.title).toBe('Too few answers mention a tracked brand (3)');
       expect(state.status === 'empty' && state.empty.reason).toContain('at least 4 answers');
     });
 
@@ -186,7 +186,7 @@ describe('mapReadToFrame', () => {
 
     it('tells a viewer to ask a member who can edit entities, with no link', () => {
       const state = empty({ kind: 'no_competitor' }, { canEditEntities: false });
-      expect(state.status === 'empty' && state.empty.reason).toContain('Ask a member who can edit entities');
+      expect(state.status === 'empty' && state.empty.reason).toContain('Ask a member who can edit brands');
       expect(state.status === 'empty' && state.empty.action).toBeUndefined();
     });
 

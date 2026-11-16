@@ -81,8 +81,8 @@ test.describe('The New and lost tab', () => {
 
   test('the strip counts equal the segment counts', async ({ page }) => {
     await openNewLost(page, 1280);
-    const added = await stripCount(page, 'New sources');
-    const lost = await stripCount(page, 'Lost sources');
+    const added = await stripCount(page, 'New domains');
+    const lost = await stripCount(page, 'Lost domains');
     // Both listed domains are counted, and a count is the same figure wherever it is drawn
     expect(added).toBeGreaterThan(0);
     expect(lost).toBeGreaterThan(0);
@@ -93,7 +93,7 @@ test.describe('The New and lost tab', () => {
   test('the Lost list says how many days it reads', async ({ page }) => {
     await openNewLost(page, 1280, 'lost');
     const note = page.getByText(
-      /^Lost sources read [\d,]+ days of answers, three windows of [\d,]+ days, so this list can take a moment\.$/,
+      /^Lost domains read [\d,]+ days of answers, three periods of [\d,]+ days, so this list can take a moment\.$/,
     );
     await expect(note).toBeVisible();
     const [read = 0, window = 0] =
@@ -211,10 +211,10 @@ test.describe('The domain inspector', () => {
     await expect(inspector.getByRole('img', { name: 'Share of citations by platform' })).toBeVisible();
 
     // The entities are named, or the card says none is: it has stopped reading either way
-    const entities = sectionOf(inspector, 'Named when cited');
+    const entities = sectionOf(inspector, 'Mentioned when cited');
     await expect(entities).toBeVisible();
     await expect(entities).not.toHaveAttribute('aria-busy', 'true');
-    await expect(entities.getByRole('listitem').or(entities.getByText('None named')).first()).toBeVisible();
+    await expect(entities.getByRole('listitem').or(entities.getByText('None mentioned')).first()).toBeVisible();
 
     // No read of search share of voice exists: the card says so and draws no figure
     const share = sectionOf(inspector, 'Search share of voice');
@@ -273,7 +273,7 @@ test.describe('The source inspector', () => {
   test('the Answers tab link goes to the prompts page with the answer open', async ({ page }) => {
     const inspector = await openSourceInspector(page, 1280);
     await chooseTab(inspector, 'Answers');
-    const link = inspector.getByRole('link', { name: /^Open the evidence of the answer of .+, source \d+$/ }).first();
+    const link = inspector.getByRole('link', { name: /^Open the evidence of the answer of .+, citation \d+$/ }).first();
     await expect(link).toBeVisible();
 
     // The link names the answer (colon encoded) and the source to show
@@ -289,7 +289,7 @@ test.describe('The source inspector', () => {
     await link.click();
     await expect(page).toHaveURL(new RegExp(`${PROMPTS_PATH}\\?`));
     const viewer = viewerOf(page);
-    const sources = viewer.getByRole('list', { name: 'Sources cited in this answer' });
+    const sources = viewer.getByRole('list', { name: 'Citations in this answer' });
     await expect(sources).toBeVisible();
     // The key is read and spent: the cited source is the current one and has focus, and the address no longer names it
     const cited = sources.locator('li[aria-current="true"]');
@@ -351,7 +351,7 @@ test.describe('Where the inspector is drawn', () => {
       await chooseTab(inspector, 'Pages');
       await tableOf(inspector, `Most cited pages of ${FIRST_DOMAIN}`).getByRole('link').first().click();
       await awaitSourceInspector(page);
-      expect(await expectPlacement(page, 'Source views')).toBe(mode);
+      expect(await expectPlacement(page, 'Page tabs')).toBe(mode);
     });
   }
 });

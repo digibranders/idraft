@@ -19,7 +19,7 @@ describe('TrackedFootnote', () => {
     renderWithProviders(<TrackedFootnote set={set} />);
     const note = screen.getByTestId('tracked-footnote');
     expect(note).toHaveTextContent('Tracked brands: you and 2 competitors.');
-    expect(note).toHaveTextContent('Added in this window: HubSpot on Oct 21.');
+    expect(note).toHaveTextContent('Added in this period: HubSpot on Oct 21.');
     expect(note).not.toHaveTextContent('Zoho on');
   });
 
@@ -28,8 +28,8 @@ describe('TrackedFootnote', () => {
     renderWithProviders(<TrackedFootnote set={set} />);
     const note = screen.getByTestId('tracked-footnote');
     expect(note).toHaveTextContent('Tracked brands: you and 2 competitors.');
-    expect(note).toHaveTextContent('The tracked set changed in this window');
-    expect(note).not.toHaveTextContent('Added in this window');
+    expect(note).toHaveTextContent('The tracked set changed in this period');
+    expect(note).not.toHaveTextContent('Added in this period');
   });
 
   it('only names the set when it did not change', () => {

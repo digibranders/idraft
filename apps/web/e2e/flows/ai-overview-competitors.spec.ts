@@ -108,8 +108,8 @@ test.describe('the competitors cards', () => {
 
     const card = cardById(page, PRESET_FAMILY.shareOfVoiceChatgpt);
     await test.step('a share of voice percent comes with its count and its denominator', async () => {
-      const row = card.getByText(/share of voice, named in [\d,]+ of [\d,]+ answers?/).first();
-      const match = /: (\d+%|<0\.1%) share of voice, named in ([\d,]+) of ([\d,]+) answers?/.exec(
+      const row = card.getByText(/share of voice, mentioned in [\d,]+ of [\d,]+ answers?/).first();
+      const match = /: (\d+%|<0\.1%) share of voice, mentioned in ([\d,]+) of ([\d,]+) answers?/.exec(
         (await row.textContent()) ?? '',
       );
       if (match === null) throw new Error('The first row of share of voice has no percent with a count');
@@ -117,18 +117,18 @@ test.describe('the competitors cards', () => {
       const answers = Number((match[3] ?? '').replaceAll(',', ''));
       expect(answers).toBeGreaterThan(0);
       expect(named).toBeLessThanOrEqual(answers);
-      await expect(card).toContainText(/of [\d,]+ answers? naming a tracked brand/);
+      await expect(card).toContainText(/of [\d,]+ answers? mentioning a tracked brand/);
     });
 
     await test.step('the Table view lists every brand with the counts', async () => {
       await tableButton(card).click();
       await expect(tableButton(card)).toHaveAttribute('aria-pressed', 'true');
       const table = card.getByRole('table');
-      for (const name of ['Brand', 'Share of voice', 'Named in']) {
+      for (const name of ['Brand', 'Share of voice', 'Mentioned in']) {
         await expect(table.getByRole('columnheader', { name })).toBeVisible();
       }
       expect(await table.getByRole('row').count()).toBeGreaterThan(2);
-      await expect(table).toContainText(/named in [\d,]+ of [\d,]+ answers?/);
+      await expect(table).toContainText(/mentioned in [\d,]+ of [\d,]+ answers?/);
       await tableButton(card).click();
       await expect(tableButton(card)).toHaveAttribute('aria-pressed', 'false');
     });

@@ -153,7 +153,7 @@ test.describe('the group and prompt cards', () => {
         movers: 'Groups gaining or losing',
         gap: 'Where platforms disagree',
         trends: 'Mention rate by week, group and platform',
-        disagreement: 'Named by one platform, not another',
+        disagreement: 'Mentioned by one platform, not another',
         contribution: 'What each group adds',
       };
       for (const [key, id] of Object.entries(TOPIC_OWNER_CARDS) as Array<[keyof typeof TOPIC_OWNER_CARDS, string]>) {
@@ -312,7 +312,7 @@ test.describe('the group and prompt cards', () => {
 
     await expect(movers.getByRole('heading', { level: 3, name: 'Comparison is off' })).toBeVisible();
     await expect(movers).toContainText(
-      'Turn the comparison on to see which groups gained or lost against the previous window.',
+      'Turn the comparison on to see which groups gained or lost against the previous period.',
     );
     // The cards that do not compare are not touched: the heat map still reads
     await awaitCardReady(heatmapCard(page));

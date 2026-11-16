@@ -178,7 +178,7 @@ describe('TopicEngineGapCard', () => {
     const items = await itemsOf();
     const nobody = items.find((item) => labelOf(item) === 'Nobody') as HTMLElement;
     const same = items.find((item) => labelOf(item) === 'Same') as HTMLElement;
-    expect(nobody).toHaveTextContent(/Nobody: no platform names you\./);
+    expect(nobody).toHaveTextContent(/Nobody: no platform mentions you\./);
     expect(nobody).not.toHaveTextContent(/too few answers/);
     expect(same).toHaveTextContent(/Same: the same on every platform\./);
     expect(same).not.toHaveTextContent(/too few answers/);
@@ -373,7 +373,7 @@ describe('TopicEngineGapCard states', () => {
   it('partial names a platform that has no valid answer in any group', async () => {
     render({ searchParams: '', threeEngines: true });
     await plotOf();
-    expect(screen.getByText('Partial data: AI Mode has no valid answer in this window')).toBeInTheDocument();
+    expect(screen.getByText('Partial data: Google AI Mode has no valid answer in this period')).toBeInTheDocument();
   });
 });
 

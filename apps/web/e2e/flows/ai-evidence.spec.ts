@@ -13,7 +13,7 @@ const FIRST_PROMPT_ID = '0192d1a8-e000-7a10-8e00-000000000002';
 /** Its number among the fixture prompts, which the answer ids are made from. */
 const FIRST_PROMPT_INDEX = 1;
 const OPEN_ANSWER = /^Open the ChatGPT answer of /;
-const COMPARE_TITLE = 'Change since the last answer that named the brand';
+const COMPARE_TITLE = 'Change since the last answer that mentioned the brand';
 
 /** The answer viewer: beside the table on a wide window, a sheet over it on a narrow one. */
 const viewerOf = (page: Page): Locator =>
@@ -28,7 +28,7 @@ async function viewerReady(page: Page): Promise<Locator> {
   const viewer = viewerOf(page);
   await expect(viewer.getByRole('heading', { name: 'Details' })).toBeVisible();
   await expect(viewer.getByRole('radiogroup', { name: 'Answer view' })).toBeVisible();
-  await expect(viewer.getByRole('list', { name: 'Sources cited in this answer' })).toBeVisible();
+  await expect(viewer.getByRole('list', { name: 'Citations in this answer' })).toBeVisible();
   return viewer;
 }
 
@@ -76,7 +76,7 @@ async function chooseView(viewer: Locator, name: 'Evidence' | 'Formatted' | 'Raw
   await expect(views.getByRole('radio', { name })).toBeChecked();
 }
 
-const ownMarks = (viewer: Locator): Locator => viewer.locator('[aria-label*="mention, own brand"]');
+const ownMarks = (viewer: Locator): Locator => viewer.locator('[aria-label*="mention, your brand"]');
 
 test.describe('The answer viewer', () => {
   test('jumps from a citation marker to its item in the source list', async ({ page }) => {
@@ -87,7 +87,7 @@ test.describe('The answer viewer', () => {
     expect(index).toBeDefined();
     await marker.click();
     const item = viewer
-      .getByRole('list', { name: 'Sources cited in this answer' })
+      .getByRole('list', { name: 'Citations in this answer' })
       .getByRole('button', { name: `Show in answer, citation ${String(index)}` })
       .locator('xpath=ancestor::li[1]');
     await expect(item).toHaveAttribute('aria-current', 'true');
@@ -96,7 +96,7 @@ test.describe('The answer viewer', () => {
 
   test('takes the marks of an entity away when it is toggled off, and puts them back', async ({ page }) => {
     const viewer = await openAnswer(page, 1280);
-    const entities = viewer.getByRole('group', { name: 'Entities' });
+    const entities = viewer.getByRole('group', { name: 'Brands' });
     // The own brand is listed first
     const own = entities.getByRole('checkbox').first();
     await expect(ownMarks(viewer).first()).toBeVisible();
@@ -126,7 +126,7 @@ test.describe('The answer viewer', () => {
     await expect(viewer.locator('script')).toHaveCount(0);
   });
 
-  test('says what changed since the last answer that named the brand, or why there is no earlier answer', async ({
+  test('says what changed since the last answer that mentioned the brand, or why there is no earlier answer', async ({
     page,
   }) => {
     const newest = await openAnswer(page, 1280);

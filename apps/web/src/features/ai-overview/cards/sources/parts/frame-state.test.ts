@@ -91,7 +91,7 @@ describe('mapReadToFrame', () => {
   it('is empty with its reason for branded prompts alone', () => {
     const state = map({ situation: { kind: 'branded_only' }, read: read({ status: 'idle' }) });
     if (state.status !== 'empty') throw new Error('expected an empty state');
-    expect(state.empty.title).toBe('Sources cannot be read for branded prompts alone');
+    expect(state.empty.title).toBe('Cited domains cannot be read for branded prompts alone');
   });
 
   it('says no valid answer, no cited source, or no domain over the minimum, each with its own words', () => {
@@ -106,7 +106,7 @@ describe('mapReadToFrame', () => {
     });
     expect(titles).toEqual([
       ['No valid answers in these 28 days', 'Answers appear after the next run, or widen the date range.'],
-      ['No answer cited a source in this window', '12 answers were collected in this window, and none cited a source.'],
+      ['No answer cited a domain in this period', '12 answers were collected in this period, and none cited a domain.'],
       [
         'No domain has 2 or more citation units',
         'Domains below the minimum are not listed. Widen the date range or change the domains shown.',

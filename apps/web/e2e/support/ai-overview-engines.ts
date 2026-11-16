@@ -60,7 +60,7 @@ export const BUILTIN_FAMILY = {
 } as const;
 
 /** The headings of the three family cards the built-in layout holds. */
-export const BUILTIN_TITLES = ['What changed', 'Mention rate by platform', 'Named and cited, by platform'] as const;
+export const BUILTIN_TITLES = ['What changed', 'Mention rate by platform', 'Mentioned and cited, by platform'] as const;
 
 /**
  * The other nine cards of the family as the Add card dialog names them: the catalog titles

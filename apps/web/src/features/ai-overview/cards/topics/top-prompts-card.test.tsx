@@ -512,7 +512,7 @@ describe('states', () => {
     renderCard({
       summary: summaryOf({ prompts: [prompt('p', 'Only Gemini', { chatgpt: [0, 0], gemini: [9, 10] })] }),
     });
-    expect(await screen.findByText('Partial data: ChatGPT has no valid answer in this window')).toBeInTheDocument();
+    expect(await screen.findByText('Partial data: ChatGPT has no valid answer in this period')).toBeInTheDocument();
   });
 
   it('holds the card as loading while the vocabulary tree is pending, then shows the rows', async () => {

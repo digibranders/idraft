@@ -189,7 +189,7 @@ describe('CountryBreakdownCard', () => {
     serveCountries({ DE: GERMANY });
     renderCard();
     expect(await screen.findByText('This project asks in one location')).toBeInTheDocument();
-    expect(screen.getByText('Compare markets by adding prompts for another location.')).toBeInTheDocument();
+    expect(screen.getByText('Add prompts for another location to compare locations.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Open Prompts' }).getAttribute('href')).toContain('/prompts');
   });
 

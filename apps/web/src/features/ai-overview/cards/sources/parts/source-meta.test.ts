@@ -14,7 +14,7 @@ const DASHES = new RegExp(`[${String.fromCharCode(0x2012, 0x2013, 0x2014, 0x2015
 
 describe('engineNames', () => {
   it('names the engines in the order of the catalog, whatever order the read had them in', () => {
-    expect(engineNames(['google_ai_mode', 'chatgpt_web'])).toEqual(['ChatGPT', 'AI Mode']);
+    expect(engineNames(['google_ai_mode', 'chatgpt_web'])).toEqual(['ChatGPT', 'Google AI Mode']);
   });
 });
 

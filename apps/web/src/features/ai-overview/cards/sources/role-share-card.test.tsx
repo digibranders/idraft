@@ -26,8 +26,8 @@ import { renderWithProviders } from '@/test/render';
 vi.mock('next/navigation', async () => (await import('@/test/next-navigation')).navigationModule);
 
 const DOMAINS = '*/api/v1/workspaces/:w/projects/:p/ai/sources/domains';
-const HEADING = 'Citation share by source role and platform';
-const CAPTION = 'Citation units by source role, by platform';
+const HEADING = 'Citation share by domain type and platform';
+const CAPTION = 'Citation units by domain type, by platform';
 
 const ENGINES = ['chatgpt_web', 'gemini_web'] as const;
 const CHATGPT: EngineSplit = {
@@ -147,7 +147,7 @@ describe('the citation share by source role card', () => {
     const image = within(at(await engineRows(), 0)).getByRole('img');
     expect(image).toHaveAttribute(
       'aria-label',
-      `ChatGPT: ${formatList(['Own 15.0%, 300 of 2,000 units', 'Competitor 30.0%, 600 of 2,000 units', 'Third party 55.0%, 1,100 of 2,000 units'])}, of 2,000 citation units`,
+      `ChatGPT: ${formatList(['Your site 15.0%, 300 of 2,000 units', 'Competitor 30.0%, 600 of 2,000 units', 'Third party 55.0%, 1,100 of 2,000 units'])}, of 2,000 citation units`,
     );
     const legend = screen.getByRole('table', { name: CAPTION });
     expect(within(legend).getByText('15.0%, 300 of 2,000 units')).toBeInTheDocument();
@@ -223,7 +223,7 @@ describe('the citation share by source role card', () => {
     await user.click(screen.getByRole('button', { name: 'Table' }));
     const table = await screen.findByRole('table', { name: CAPTION });
     expect(within(table).queryByText('No citation on this platform')).not.toBeInTheDocument();
-    expect(sink.read().blocks[0]?.rows[0]).toEqual(['ChatGPT', 'Own', null, null, null, 'unavailable']);
+    expect(sink.read().blocks[0]?.rows[0]).toEqual(['ChatGPT', 'Your site', null, null, null, 'unavailable']);
   });
 
   it('is arranged and not used in customize mode: every button and link of the card is inside an inert body', async () => {
@@ -254,7 +254,7 @@ describe('the citation share by source role card', () => {
       ),
     ).toBeInTheDocument();
     expect(screen.getByText(/Each bar is one platform/)).toBeInTheDocument();
-    expect(screen.getByText(/Roles only/)).toBeInTheDocument();
+    expect(screen.getByText(/Your site, competitors and other sites only/)).toBeInTheDocument();
     expect(
       screen.getByText('Citations flagged as unresolved redirects or platform-internal links are left out.'),
     ).toBeInTheDocument();
@@ -318,14 +318,14 @@ describe('the citation share by source role card', () => {
       }),
     );
     renderCard('cmp=off&branded=only');
-    expect(await screen.findByText('Sources cannot be read for branded prompts alone')).toBeInTheDocument();
+    expect(await screen.findByText('Cited domains cannot be read for branded prompts alone')).toBeInTheDocument();
     expect(asked).not.toHaveBeenCalled();
   });
 
   it('says no answer cited a source, and no valid answer, each with its words and no zero', async () => {
     serve(domainPage([], sourcesMeta({ units: 0, answers: 40, citing: 0, engines: ['chatgpt_web'] }), 0));
     const { unmount } = renderCard();
-    expect(await screen.findByText('No answer cited a source in this window')).toBeInTheDocument();
+    expect(await screen.findByText('No answer cited a domain in this period')).toBeInTheDocument();
     expect(screen.queryByText(/%/)).not.toBeInTheDocument();
     unmount();
     serve(domainPage([], sourcesMeta({ units: 0, answers: 0, citing: 0, engines: ['chatgpt_web'] }), 0));
@@ -336,7 +336,7 @@ describe('the citation share by source role card', () => {
   it('shows Retry and an error id for a failed read, and Retry reads again', async () => {
     server.use(http.get(DOMAINS, () => failing('req-1')));
     const { user } = renderCard();
-    expect(await screen.findByText('Could not load citation share by source role')).toBeInTheDocument();
+    expect(await screen.findByText('Could not load citation share by domain type')).toBeInTheDocument();
     expect(screen.getByText('Error ID req-1')).toBeInTheDocument();
     serve();
     await user.click(screen.getByRole('button', { name: 'Try again' }));
@@ -405,8 +405,8 @@ describe('the citation share by source role card', () => {
     const table = await screen.findByRole('table', { name: CAPTION });
     const rows = within(table).getAllByRole('row');
     expect(rows).toHaveLength(4);
-    expect(at(rows, 0)).toHaveTextContent('Source roleChatGPTGemini');
-    expect(at(rows, 1)).toHaveTextContent('Own15.0%, 300 of 2,000 units16.0%, 112 of 700 units');
+    expect(at(rows, 0)).toHaveTextContent('Domain typeChatGPTGemini');
+    expect(at(rows, 1)).toHaveTextContent('Your site15.0%, 300 of 2,000 units16.0%, 112 of 700 units');
     expect(at(rows, 3)).toHaveTextContent('Third party55.0%, 1,100 of 2,000 units57.1%, 400 of 700 units');
   });
 
@@ -425,14 +425,14 @@ describe('the citation share by source role card', () => {
       'Status',
     ]);
     expect(block?.rows).toHaveLength(6);
-    expect(at(block?.rows ?? [], 0)).toEqual(['ChatGPT', 'Own', '15.0%', 300, 2000, 'ok']);
-    expect(at(block?.rows ?? [], 3)).toEqual(['Gemini', 'Own', null, null, null, 'none']);
+    expect(at(block?.rows ?? [], 0)).toEqual(['ChatGPT', 'Your site', '15.0%', 300, 2000, 'ok']);
+    expect(at(block?.rows ?? [], 3)).toEqual(['Gemini', 'Your site', null, null, null, 'none']);
   });
 
   it('has nothing to export while the card loads or has failed', async () => {
     server.use(http.get(DOMAINS, () => failing('req-3')));
     renderCard();
-    await screen.findByText('Could not load citation share by source role');
+    await screen.findByText('Could not load citation share by domain type');
     expect(sink.read().blocks).toEqual([]);
   });
 

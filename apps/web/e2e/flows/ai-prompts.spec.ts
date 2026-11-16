@@ -139,7 +139,9 @@ test.describe('AI prompt tracking', () => {
     await expect(inspector.getByRole('button', { name: /^Open the full answer from / }).first()).toBeVisible();
     await openHistory(inspector);
     await inspector.getByRole('tab', { name: 'Competitors' }).click();
-    await expect(inspector.getByRole('table', { name: 'Brands named in the answers to this prompt' })).toBeVisible();
+    await expect(
+      inspector.getByRole('table', { name: 'Brands mentioned in the answers to this prompt' }),
+    ).toBeVisible();
     await inspector.getByRole('tab', { name: 'Stats' }).click();
     await expect(
       inspector.getByText(/^The interval is the 95 percent Wilson interval over the valid answers/),
@@ -147,9 +149,9 @@ test.describe('AI prompt tracking', () => {
     await openHistory(inspector);
 
     await openAnswerButton(namingTheBrand(inspector).first()).click();
-    await expect(page.getByLabel(/^Fynix mention, own brand/).first()).toBeVisible();
-    await expect(page.getByRole('list', { name: 'Sources cited in this answer' })).toBeVisible();
-    await expect(page.getByText('Ads in the answer are left out of the mentions and the sources.')).toBeVisible();
+    await expect(page.getByLabel(/^Fynix mention, your brand/).first()).toBeVisible();
+    await expect(page.getByRole('list', { name: 'Citations in this answer' })).toBeVisible();
+    await expect(page.getByText('Ads in the answer are left out of the mentions and the citations.')).toBeVisible();
     // The raw answer is for those who may read raw data (`raw:read`): a viewer has no link to it
     await expect(page.getByRole('link', { name: 'Download the raw answer' })).toHaveCount(0);
     await expectAccessible(page);
@@ -264,8 +266,8 @@ for (const theme of ['light', 'dark'] as const) {
 
         // The answer viewer, with the own brand and the competitors marked
         await openAnswerButton(namingTheBrand(inspector).first()).click();
-        await expect(page.getByLabel(/^Fynix mention, own brand/).first()).toBeVisible();
-        await expect(page.getByRole('list', { name: 'Sources cited in this answer' })).toBeVisible();
+        await expect(page.getByLabel(/^Fynix mention, your brand/).first()).toBeVisible();
+        await expect(page.getByRole('list', { name: 'Citations in this answer' })).toBeVisible();
         await expectAccessible(page);
         await noSidewaysScroll();
 

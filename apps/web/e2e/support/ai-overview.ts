@@ -61,7 +61,7 @@ export const BUILTIN_NUMBER_LABELS = [
   'Prompts',
   'Mention rate ChatGPT',
   'Mention rate Gemini',
-  'Mention rate AI Mode',
+  'Mention rate Google AI Mode',
 ] as const;
 
 // -------------------------------------------------------------------------------------------------

@@ -58,8 +58,8 @@ describe('NotExposedState', () => {
 describe('FanoutEmpty', () => {
   it('says no answer was read in the window, with the engine named', () => {
     renderWithProviders(<FanoutEmpty kind="noAnswers" engine="ChatGPT" />);
-    expect(screen.getByRole('heading', { level: 2, name: 'No ChatGPT answer in this window' })).toBeInTheDocument();
-    expect(screen.getByText('Choose a longer window or wait for the next run.')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: 'No ChatGPT answer in this period' })).toBeInTheDocument();
+    expect(screen.getByText('Choose a longer period or wait for the next run.')).toBeInTheDocument();
     expect(screen.queryByRole('button')).toBeNull();
   });
 
@@ -67,12 +67,12 @@ describe('FanoutEmpty', () => {
     const { unmount } = renderWithProviders(<FanoutEmpty kind="none" engine="ChatGPT" answers={12} />);
     expect(screen.getByRole('heading', { name: 'No answer issued a query' })).toBeInTheDocument();
     expect(
-      screen.getByText('12 ChatGPT answers were collected in this window, and none issued a query.'),
+      screen.getByText('12 ChatGPT answers were collected in this period, and none issued a fan-out query.'),
     ).toBeInTheDocument();
     unmount();
     renderWithProviders(<FanoutEmpty kind="none" engine="ChatGPT" answers={1} />);
     expect(
-      screen.getByText('1 ChatGPT answer was collected in this window, and none issued a query.'),
+      screen.getByText('1 ChatGPT answer was collected in this period, and none issued a fan-out query.'),
     ).toBeInTheDocument();
   });
 
@@ -81,7 +81,9 @@ describe('FanoutEmpty', () => {
     const { user } = renderWithProviders(<FanoutEmpty kind="underMin" minSupport={3} onShowEvery={onShowEvery} />);
     expect(screen.getByRole('heading', { name: 'No query was issued by 3 or more answers' })).toBeInTheDocument();
     expect(
-      screen.getByText('Queries issued by fewer answers are left out. Lower the minimum or choose a longer window.'),
+      screen.getByText(
+        'Fan-out queries issued by fewer answers are left out. Lower the minimum or choose a longer period.',
+      ),
     ).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Show every query' }));
     expect(onShowEvery).toHaveBeenCalledOnce();

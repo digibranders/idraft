@@ -126,13 +126,13 @@ test.describe('AI settings', () => {
     await expect(page.getByRole('group', { name: DEVICE_GROUP }).getByRole('radio', { name: 'Mobile' })).toBeChecked();
 
     // Entities: each role shows the date it was added, and Competitors say what the date means
-    await openSection(page, 'Entities and aliases', 'Entities and aliases');
-    const own = page.getByRole('table', { name: 'Own brand' });
+    await openSection(page, 'Brands and aliases', 'Brands and aliases');
+    const own = page.getByRole('table', { name: 'Your brand' });
     await expect(own.getByRole('columnheader', { name: 'Added' })).toBeVisible();
     await expect(own.locator('td[title]').last()).toHaveText(/^[A-Z][a-z]{2} \d{1,2}(, \d{4})?$/);
     await expect(
       page.getByText(
-        'Share of voice counts a competitor from the date it was added. Adding or removing one changes share of voice for all entities from that day.',
+        'Share of voice counts a competitor from the date it was added. Adding or removing one changes share of voice for all brands from that day.',
       ),
     ).toBeVisible();
     await expectAccessibleAtBothWidths(page);
@@ -165,9 +165,9 @@ test.describe('AI settings', () => {
     }
     await expectAccessibleAtBothWidths(page);
 
-    await openSection(page, 'Entities and aliases', 'Entities and aliases');
+    await openSection(page, 'Brands and aliases', 'Brands and aliases');
     await expect(
-      page.getByRole('table', { name: 'Own brand' }).getByRole('columnheader', { name: 'Added' }),
+      page.getByRole('table', { name: 'Your brand' }).getByRole('columnheader', { name: 'Added' }),
     ).toBeVisible();
     await expect(page.getByRole('button', { name: 'Add competitor' })).toHaveCount(0);
     await expectAccessibleAtBothWidths(page);

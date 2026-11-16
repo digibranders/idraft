@@ -88,7 +88,7 @@ const NEW: readonly Row[] = [
   row('ai.rate_trend_by_engine', 'Rates by platform over time', 'ai', '2T F H', PER_VISIBILITY_METRIC, [
     VISIBILITY_METRIC,
   ]),
-  row('ai.outcome_mix', 'Named and cited', 'ai', 'T H', 1),
+  row('ai.outcome_mix', 'Mentioned and cited', 'ai', 'T H', 1),
   row('ai.answer_funnel', 'From answer to citation', 'ai', 'T H', 1),
   // The three competitor cards follow the page scope, so they have no engine option and one instance.
   row('ai.share_of_voice', 'Share of voice', 'ai', 'H T', 1, [rows(['5', '10'], '10')]),
@@ -101,7 +101,7 @@ const NEW: readonly Row[] = [
     rows(['5', '10'], '5'),
   ]),
   row('ai.lost_to_competitor', 'Competitor gap', 'ai', 'H F', 1, [rows(['5', '10'], '5')]),
-  row('ai.co_mentions', 'Who we are named with', 'ai', 'H 2T', PER_ENGINE, [ENGINE]),
+  row('ai.co_mentions', 'Who we are mentioned with', 'ai', 'H 2T', PER_ENGINE, [ENGINE]),
   row('ai.sov_over_time', 'Share of voice over time', 'ai', 'H 2T F', 1),
   row('ai.sov_rank', 'Share of voice rank', 'ai', 'H 2T', PER_ENGINE, [ENGINE]),
   row('ai.topic_heatmap', 'Groups by platform', 'ai', '2T F', PER_VISIBILITY_METRIC, [
@@ -117,7 +117,7 @@ const NEW: readonly Row[] = [
     rows(['5', '10'], '5'),
   ]),
   row('ai.topic_engine_gap', 'Where platforms disagree', 'ai', '2T H F', PER_METRIC, [METRIC, rows(['5', '10'], '10')]),
-  row('ai.engine_disagreement', 'Named by one platform, not another', 'ai', 'H 2T', 1, [rows(['5', '10'], '5')]),
+  row('ai.engine_disagreement', 'Mentioned by one platform, not another', 'ai', 'H 2T', 1, [rows(['5', '10'], '5')]),
   row('ai.topic_trends', 'Group trends by platform', 'ai', 'F 2T', PER_METRIC, [
     METRIC,
     opt('topics', ['3', '6'], '6'),
@@ -145,20 +145,20 @@ const NEW: readonly Row[] = [
     opt('metric', ['mention', 'citation'], 'mention'),
   ]),
   row('ai.engine_agreement', 'Platform agreement', 'ai', 'T H', 1),
-  row('ai.citation_vs_mention', 'Cited as often as named?', 'ai', 'H 2T', PER_ENGINE, [ENGINE]),
+  row('ai.citation_vs_mention', 'Cited as often as mentioned?', 'ai', 'H 2T', PER_ENGINE, [ENGINE]),
   row('ai.country_breakdown', 'By location', 'ai', 'H 2T', PER_METRIC, [METRIC]),
   row('sources.top_domains', 'Top cited domains', 'ai', 'H T', 1, [
     opt('role', ['all', 'third_party', 'competitor'], 'all'),
     rows(['5', '8', '10'], '8'),
   ]),
   row('sources.own_pages', 'Your pages AI platforms cite', 'ai', 'H T', 1, [rows(['5', '8', '10'], '8')]),
-  row('sources.new_lost', 'New and lost sources', 'ai', 'H T', 1),
-  row('sources.diversity', 'Source diversity', 'ai', 'H 2T', 1),
+  row('sources.new_lost', 'New and lost domains', 'ai', 'H T', 1),
+  row('sources.diversity', 'Cited domain diversity', 'ai', 'H 2T', 1),
   row('ai.fanout_top', 'What ChatGPT searched', 'ai', 'H T F', 1, [rows(['5', '10'], '5')]),
-  row('ai.unlinked_mentions', 'Unlinked brand mentions', 'ai', 'H T', 1, [], { released: REDESIGN_RELEASED }),
+  row('ai.unlinked_mentions', 'Mentioned only', 'ai', 'H T', 1, [], { released: REDESIGN_RELEASED }),
   row('ai.position_distribution', 'Mention position', 'ai', 'H T F', 1, [], { released: REDESIGN_RELEASED }),
   row('ai.sentiment_by_engine', 'Brand sentiment', 'ai', 'H T', 1, [], { released: REDESIGN_RELEASED }),
-  row('traffic.ai_referrals', 'AI referral traffic', 'traffic', 'F 2T', 1, [], {
+  row('traffic.ai_referrals', 'AI referral visits', 'traffic', 'F 2T', 1, [], {
     integration: 'ga4',
     released: REDESIGN_RELEASED,
   }),
@@ -182,9 +182,9 @@ const NUMBERS: ReadonlyArray<readonly [string, string, boolean]> = [
   ['ai.valid_answers', 'Valid answers', true],
   ['ai.mention_rate', 'Mention rate', true],
   ['ai.citation_rate', 'Citation rate', true],
-  ['ai.mention_and_citation_rate', 'Named and cited', true],
+  ['ai.mention_and_citation_rate', 'Mentioned and cited', true],
   ['ai.share_of_voice', 'Share of voice', true],
-  ['ai.citation_share', 'Own citation share', true],
+  ['ai.citation_share', 'Your citation share', true],
   ['ai.fanout_presence_rate', 'Fan-out presence', true],
 ];
 
