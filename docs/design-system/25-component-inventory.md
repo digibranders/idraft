@@ -361,6 +361,8 @@ Paths are relative to `apps/web/src/`. `ui/` is `components/ui/`; `app/` is `com
 | AIOverviewStatus | SEO | `app/seo/ai-overview-status.tsx` | V1 | 12 §6, 23 §7.1 |
 | SERPPreview | SEO | `app/seo/serp-preview.tsx` | V1 | 19 §12.3 |
 | TierBadge | SEO | `app/tier/tier-badge.tsx` | V1 | 02 §7.4 |
+| LinkCard | SEO | `app/link-canvas/link-card.tsx` | V1 | 20 §7.1 |
+| LinkCanvas | SEO | `app/link-canvas/link-canvas.tsx` | V1 | 15 §13, 20 §7.1 |
 | EngineBadge (observation class badge) | AI | `app/ai/engine-badge.tsx` | V1 | 14 §4 |
 | MentionStatus | AI | `app/ai/mention-status.tsx` | V1 | 23 §5 |
 | CitationStatus | AI | `app/ai/citation-status.tsx` | V1 | 12 §6 |
@@ -4085,6 +4087,47 @@ interface TierBadgeProps {
 - **A11y:** plain text; the code or label is the meaning, the square is `aria-hidden`; a code-only badge carries the tier name as visually hidden text (a screen reader reads "T1 Money pages") and as its title (a mouse hint only). The badge keeps `type-label` and `px-1.5` as the reference screens draw it, and never shrinks in a flex row.
 - **Use:** tier cells of the Pages and Links tables, cards, the tier flow headers; `withName` in filters, tooltips, the inspector and settings.
 - **Not for:** a choice of tier (a `Select` of labels), counts.
+
+### 14.16 LinkCard
+`components/app/link-canvas/link-card.tsx` · V1 · internal link tracker spec 7.5 and 7.9
+
+Purpose: one node of the link canvas: a page card, a stub for a page already on the canvas, or a group card for the links of another scope.
+
+```ts
+type LinkCardProps = LinkCardPageProps | LinkCardStubProps | LinkCardGroupProps; // `kind` tells them apart
+```
+
+- **Variants:** `kind` card, stub, group (structure, not style).
+- **States:** default, hover, focus (focus ring), opened (`primary-subtle`), the focus page (`primary-border` ring), highlighted (dashed primary outline: a back-link target or a found original), stub (dashed border), group (`surface-subtle`), error target (status badge in the negative tone, redirect in the warning tone). The card pads 12 px at the sides, the next spacing step above the 10 px of the reference screen.
+- **A11y:** a `button` named like a sentence ("/pricing, T1 Money pages, 12 linking pages, linked as “See plans”, content"); the tooltip is its description (status, depth, link details, both ways); `aria-expanded` only when it can open; the back-link marker is a toggle button (`aria-pressed`) named "Links back to 2 earlier pages"; tools ("Make /x the focus", "Details of /x") are `IconButton`s with tooltips.
+- **Use:** inside `LinkCanvas` only.
+- **Not for:** record lists (a table), cards on a dashboard.
+
+### 14.17 LinkCanvas
+`components/app/link-canvas/link-canvas.tsx` · V1 · internal link tracker spec 7.5, [15 §13](15-data-visualization.md), [20 §7.1](20-accessibility.md)
+
+Purpose: the journey of links from one page: the focus in the middle, links out to the right and links in to the left, one column a step, grown one card at a time.
+
+```ts
+interface LinkCanvasProps<N extends JourneyNeighbor> {
+  layout: JourneyLayout<N>;        // lib/internal-links/journey-layout.ts
+  focus: CanvasFocus;
+  focusNote?: ReactNode;
+  zoom: 0.6 | 0.8 | 1 | 1.2;
+  pinned: ReadonlySet<string>;
+  onTogglePin, onToggleCard, onToggleGroup, onMore: (key: string) => void;
+  onRefocus, onDetails: (urlId: string) => void;
+  onRetry: (request: ListRequest) => void;
+  onFull: () => void;              // opening refused at 300 cards
+  ref?: Ref<{ fitZoom: () => Zoom }>;
+}
+```
+
+- **Variants:** none. `ZoomControls` (`zoom-controls.tsx`) sits in the toolbar above it.
+- **States:** loading list (a skeleton row and `role="status"`), failed list (words and Try again), full canvas (refused through `onFull`), back links shown on hover, focus or pin.
+- **A11y:** the scroller is a named `group` whose name points to the tree list; keyboard model in 20 §7.1; the SVG is `aria-hidden` and nothing it shows is only there.
+- **Use:** the Journey tab of Internal links.
+- **Not for:** a whole-site graph (spec 3: "when asked"), any other diagram.
 
 ## 15. AI components
 

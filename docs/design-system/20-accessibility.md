@@ -393,6 +393,10 @@ Every drag has a single-pointer alternative that does not require dragging. Keyb
 
 During a pointer drag, Escape cancels and restores the previous state. The resize handle itself is 8 px wide visually and in hit area; it relies on the "Equivalent" exception of 2.5.8 because the menu alternative exists.
 
+### 7.1 Link canvas
+
+The link canvas (25 §14.17) is a named `group` whose name says the tree list shows the same journey as a table. Cards, stubs, group cards and "+N more" are buttons in reading order (columns left to right, top to bottom in a column). Right and Left Arrow move to the nearest card of the next or previous column; Up and Down move within a column; Enter and Space open or close a card or group; F makes the focused card the focus page and follows the single-key switch (section 14); Escape returns to the focus card. A card's name is a sentence (path, tier, linking pages, anchor, placement); its status, depth and the link's details are the description the tooltip adds, so a screen reader reads them too. Opening past 300 cards is refused with a message, and focus stays on the card. After a card opens or closes, focus stays on it. Panning and zooming have buttons (Zoom out, Zoom in, Fit to view); nothing needs a drag.
+
 ## 8. Target size (WCAG 2.5.8)
 
 | Element | Target | How it passes |

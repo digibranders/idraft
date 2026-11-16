@@ -244,3 +244,7 @@ Use sparklines for ranking history, visibility, mention rate, citation rate, tra
 - Hidden series are removed from the option, not just hidden, when there are more than 6.
 - One ECharts instance per visible chart; charts below the fold mount when they enter the viewport (IntersectionObserver).
 - Resize work is throttled to animation frames by the wrapper.
+
+## 13. Link canvas (internal links)
+
+The journey canvas of Internal links (25 §14.17) is a diagram, not a chart. Columns are 256 px wide with a 64 px gap; edges are orthogonal with 8 px rounded corners on a vertical spine halfway between two columns, 1.5 px strokes: editorial solid in `foreground-tertiary`, auto-generated dotted (`2 4`) and template dashed (`6 4`) in `border-strong`, an edge into a redirect in `warning-text` and into a broken target in `negative-text`, drawn last so the color shows on its own segment. Back links are never drawn by default: hovering, focusing or pinning a card's marker draws dashed `primary` return arrows that dip 40 px under both cards and outlines their targets. A legend under the canvas names all six. Zoom is 60, 80, 100 or 120 percent with buttons and Fit to view; there is no minimap and nothing animates. The tier of a card is the 4 px left edge in its `tier-*` color (02 §7.4) beside the written code, so color is never the only cue.
