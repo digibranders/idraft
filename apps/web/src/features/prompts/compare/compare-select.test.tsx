@@ -48,13 +48,34 @@ describe('CompareSelect', () => {
     await waitFor(() => expect(writes.at(-1)?.queryString).not.toContain('cmp'));
   });
 
-  it('offers the two choices only', async () => {
+  it('offers the previous period, the same period last year and no comparison', async () => {
     const { user } = render();
     await user.click(screen.getByRole('combobox', { name: 'Compare with' }));
     expect((await screen.findAllByRole('option')).map((option) => option.textContent)).toEqual([
       'vs previous period',
+      'vs same period last year',
       'No comparison',
     ]);
+  });
+
+  it('shows vs same period last year for cmp=year, and writes it', async () => {
+    const { user, writes } = render('?cmp=year');
+    const trigger = screen.getByRole('combobox', { name: 'Compare with' });
+    expect(trigger).toHaveTextContent('vs same period last year');
+    await user.click(trigger);
+    await user.click(await screen.findByRole('option', { name: 'vs previous period' }));
+    await waitFor(() => expect(writes.at(-1)?.queryString).toContain('cmp=previous'));
+    await user.click(screen.getByRole('combobox', { name: 'Compare with' }));
+    await user.click(await screen.findByRole('option', { name: 'vs same period last year' }));
+    await waitFor(() => expect(writes.at(-1)?.queryString).toContain('cmp=year'));
+    expect(writes.at(-1)?.history).toBe('replace');
+  });
+
+  it('names the same dates a year earlier in the tooltip of cmp=year', () => {
+    render('?cmp=year', { from: '2025-09-18', to: '2025-10-15', timezone: 'Europe/Berlin' });
+    expect(screen.getByRole('combobox', { name: 'Compare with' })).toHaveAccessibleDescription(
+      'Same period last year: Sep 18 to Oct 15, 2025',
+    );
   });
 
   it('names the previous window in a tooltip when the response has one', async () => {
@@ -96,9 +117,10 @@ describe('CompareSelect', () => {
     await waitFor(() =>
       expect(document.querySelector('[data-slot="select-popup"]')?.contains(document.activeElement)).toBe(true),
     );
+    // The choice above No comparison is the same period last year
     await user.keyboard('{ArrowUp}');
     await user.keyboard('{Enter}');
-    await waitFor(() => expect(writes.at(-1)?.queryString).toContain('cmp=previous'));
+    await waitFor(() => expect(writes.at(-1)?.queryString).toContain('cmp=year'));
   });
 
   it('is axe clean', async () => {

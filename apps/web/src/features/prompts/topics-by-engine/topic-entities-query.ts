@@ -13,6 +13,8 @@ export interface TopicReadScope {
   scope: PromptScope;
   range: DateRange;
   includeBranded: boolean;
+  /** Only the branded prompts (`branded_only`, which wins over `include_branded`); false when left out. */
+  brandedOnly?: boolean | undefined;
   country: string | null;
 }
 
@@ -27,6 +29,7 @@ export const topicEntitiesQuery = ({
   scope,
   range,
   includeBranded,
+  brandedOnly,
   country,
 }: TopicReadScope): ApiQueryOptions<typeof SUMMARY> =>
   apiQuery(SUMMARY, {
@@ -36,6 +39,7 @@ export const topicEntitiesQuery = ({
         from: range.from,
         to: range.to,
         include_branded: includeBranded,
+        ...(brandedOnly === true ? { branded_only: true } : {}),
         ...(country === null ? {} : { 'filter[country_iso]': country }),
         rows: 'topics',
         include: ['entities'],

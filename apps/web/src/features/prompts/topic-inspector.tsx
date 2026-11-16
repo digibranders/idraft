@@ -13,14 +13,16 @@ import {
   topicSummaryRow,
   type TopicDescendants,
 } from './prompt-model';
-import { ChangeInline, useChangeWords, useComparedWindow, useCompare } from './compare';
+import { useChangeWords, useComparedWindow, useCompare } from './compare';
 import { averageChange, type AverageChange } from './compare/average-change';
 import { TippedChange } from './compare/tipped-change';
 import { chosenTab } from './seams/shared';
 import { TOPIC_TAB_ENTRIES, topicTabs, type TopicInspectorTab, type TopicTabContext } from './seams/topic-tabs';
+import { TrendIcon } from './trend-icon';
 import { TopicDrawerProvider, type TopicDrawerExtras } from './topic-drawer/drawer-context';
 import { EngineFilteredPrompts } from './topic-drawer/engine-filter';
 import { TopicEngineSections } from './topic-drawer/engine-sections';
+import { TopPromptsTable } from './topic-drawer/top-prompts-table';
 import { PromptRow } from './topic-drawer/prompt-row';
 import { useTopicHeader } from './topic-drawer/use-topic-header';
 import { Inspector } from '@/components/app/inspector/inspector';
@@ -109,7 +111,7 @@ function PromptList({
             change={
               mention.change === null ? undefined : (
                 <TippedChange tip={mention.tip}>
-                  <ChangeInline change={mention.change} size="sm" />
+                  <TrendIcon change={mention.change} />
                 </TippedChange>
               )
             }
@@ -246,7 +248,7 @@ function TopicInspectorBody({
             <span className="num type-meta text-foreground-tertiary">
               {t('acrossEngines', { count: average.engines })}
             </span>
-            <ChangeInline change={change.change} size="sm" />
+            <TrendIcon change={change.change} />
           </TippedChange>
         ),
     };
@@ -288,15 +290,15 @@ function TopicInspectorBody({
           error={failed}
           empty={noPrompts}
           action={
-            prompts !== null && prompts.length > TOPIC_TOP_PROMPTS ? (
-              <Button variant="link" size="sm" onClick={() => onTabChange(TOPIC_TAB.prompts)}>
-                {words('topics.showAll', { count: prompts.length })}
+            prompts !== null && prompts.length > 0 ? (
+              <Button variant="secondary" size="sm" onClick={() => onTabChange(TOPIC_TAB.prompts)}>
+                {t('topPromptsTable.viewAll')}
               </Button>
             ) : undefined
           }
         >
           {prompts === null ? null : (
-            <PromptList prompts={prompts.slice(0, TOPIC_TOP_PROMPTS)} engines={engines} onOpen={onOpenPrompt} />
+            <TopPromptsTable prompts={prompts.slice(0, TOPIC_TOP_PROMPTS)} engines={engines} onOpen={onOpenPrompt} />
           )}
         </InspectorSection>
       </>

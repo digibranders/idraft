@@ -52,19 +52,28 @@ const chipOf = (label: string): HTMLElement => {
   return within(chip).getByRole('definition');
 };
 const tooltip = (): HTMLElement | null => document.querySelector<HTMLElement>('[data-slot="tooltip"]');
+/** The change is drawn as an icon: its direction is in `data-direction`, the points are spoken and in the tooltip. */
+const iconOf = (chip: HTMLElement): HTMLElement => {
+  const icon = chip.querySelector<HTMLElement>('[data-slot="trend-icon"]');
+  if (icon === null) throw new Error('The chip draws no change');
+  return icon;
+};
 
 describe('PromptsStrip change', () => {
   it('shows the change coloured when it is detectable, with the real Delta classes', () => {
     render(twice(DETECTABLE));
     const chip = chipOf('ChatGPT');
-    expect(within(chip).getByText('+30.0 pts')).toHaveClass('text-positive-text');
+    expect(iconOf(chip)).toHaveClass('text-positive-text');
+    expect(iconOf(chip)).toHaveAttribute('data-direction', 'up');
+    // The figures are not drawn beside the percent: the icon is, and the points are spoken
+    expect(chip).not.toHaveTextContent('+30.0 pts');
     expect(chip).toHaveTextContent('up 30.0 pts, detectable, provisional');
   });
 
   it('keeps a change within normal variation neutral', () => {
     render(twice(WITHIN));
     const chip = chipOf('ChatGPT');
-    const delta = within(chip).getByText(/pts$/);
+    const delta = iconOf(chip);
     expect(delta).toHaveClass('text-foreground-secondary');
     expect(delta).not.toHaveClass('text-positive-text');
     expect(chip).toHaveTextContent('within normal variation, provisional');
@@ -74,7 +83,7 @@ describe('PromptsStrip change', () => {
     // The prompt weighted rate rose from 30% to 63% while the answers pooled fell from 57% to 36%
     const { user } = render(promptsOf([cell(2, 2), cell(0, 1)], [cell(3, 12), cell(12, 20)]));
     const chip = chipOf('ChatGPT');
-    expect(within(chip).getByText('+32.5 pts')).toHaveClass('text-foreground-secondary');
+    expect(iconOf(chip)).toHaveClass('text-foreground-secondary');
     expect(chip).toHaveTextContent('up 32.5 pts');
     expect(chip.textContent).not.toMatch(/detectable|within normal variation|provisional/);
     await user.hover(chip);
@@ -97,7 +106,10 @@ describe('PromptsStrip change', () => {
   it('holds the previous figure with its answers and prompts, and the window, in the tooltip', async () => {
     const { user } = render(twice(DETECTABLE));
     await user.hover(chipOf('ChatGPT'));
-    await waitFor(() => expect(tooltip()).toHaveTextContent('Previous 20%, 12 of 60 answers, over 2 prompts'));
+    await waitFor(() =>
+      expect(tooltip()).toHaveTextContent('Up 30.0 pts against the previous period, from 20% to 50%'),
+    );
+    expect(tooltip()).toHaveTextContent('Previous 20%, 12 of 60 answers, over 2 prompts');
     expect(tooltip()).toHaveTextContent('Previous period: Sep 18 to Oct 15');
     expect(tooltip()).toHaveTextContent('Detectable change');
     expect(tooltip()).toHaveTextContent('Provisional');
@@ -119,12 +131,12 @@ describe('PromptsStrip change', () => {
   it('keeps its changes while refetching and says it is busy', () => {
     render(twice(DETECTABLE), ON, 'refetching');
     expect(screen.getByRole('group', { name: 'Summary of the prompts in view' })).toHaveAttribute('aria-busy', 'true');
-    expect(within(chipOf('ChatGPT')).getByText('+30.0 pts')).toBeInTheDocument();
+    expect(iconOf(chipOf('ChatGPT'))).toBeInTheDocument();
   });
 
   it('draws no change while loading', () => {
     render(twice(DETECTABLE), ON, 'loading');
-    expect(screen.queryByText('+30.0 pts')).toBeNull();
+    expect(document.querySelector('[data-slot="trend-icon"]')).toBeNull();
   });
 
   it('has no accessibility violation with a change', async () => {
@@ -201,7 +213,7 @@ describe('PromptsStrip slots', () => {
     const { user } = render(twice(DETECTABLE));
     await user.click(screen.getByRole('button', { name: 'About AI visibility rate' }));
     const popover = await screen.findByRole('dialog', { name: 'About AI visibility rate' });
-    expect(popover).toHaveTextContent("how often that platform's answers mention or cite your brand");
+    expect(popover).toHaveTextContent('how often that platform’s answers mention or cite your brand');
     expect(popover).toHaveTextContent('Each prompt counts once');
   });
 });

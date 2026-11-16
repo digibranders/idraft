@@ -11,11 +11,17 @@ describe('scopeParts', () => {
       engines: 2,
       country: 'DE',
       branded: false,
+      brandedOnly: false,
     });
     expect(scopeParts({ engines: two, country: null, includeBranded: true })).toEqual({
       engines: 2,
       country: null,
       branded: true,
+      brandedOnly: false,
+    });
+    expect(scopeParts({ engines: two, country: null, includeBranded: true, brandedOnly: true })).toMatchObject({
+      branded: true,
+      brandedOnly: true,
     });
   });
 

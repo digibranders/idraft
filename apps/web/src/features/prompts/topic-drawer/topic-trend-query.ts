@@ -16,7 +16,7 @@ const SUMMARY = '/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/prom
  * under the project's `ai` prefix, so `refreshPrompts` reaches it.
  */
 export const topicTrendQuery = (
-  { scope, range, includeBranded, country }: TopicReadScope,
+  { scope, range, includeBranded, brandedOnly, country }: TopicReadScope,
   termId: string,
 ): ApiQueryOptions<typeof SUMMARY> =>
   apiQuery(SUMMARY, {
@@ -26,6 +26,7 @@ export const topicTrendQuery = (
         from: range.from,
         to: range.to,
         include_branded: includeBranded,
+        ...(brandedOnly === true ? { branded_only: true } : {}),
         ...(country === null ? {} : { 'filter[country_iso]': country }),
         rows: 'topics',
         include: ['series', 'entities'],

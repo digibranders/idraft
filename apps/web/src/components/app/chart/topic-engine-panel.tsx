@@ -51,6 +51,8 @@ export interface TopicEnginePanelProps {
   contextHeader: string;
   /** The header of the table's change column; the column exists when a row has a change. */
   changeHeader?: string | undefined;
+  /** Draws each row's change as the trend icon, the figures being in the row's `tip` (the Prompts page). Default: text. */
+  deltaIcon?: boolean | undefined;
   /** One row for each engine, in the order the engines are shown. */
   rows: readonly EnginePanelRow[];
   density?: Density | undefined;

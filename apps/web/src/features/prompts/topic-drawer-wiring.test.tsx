@@ -377,10 +377,11 @@ describe('the topic drawer: Close', () => {
     const tree = await screen.findByRole('treegrid', { name: 'Groups' });
     await user.click(await within(tree).findByRole('button', { name: 'Open the group Paid Search' }));
     const panel = await drawer('Paid Search');
-    const top = (await within(panel).findByRole('heading', { name: 'Top prompts' })).closest('section');
+    const top = (await within(panel).findByRole('heading', { name: 'Top prompts in this group' })).closest('section');
     if (top === null) throw new Error('The Top prompts card is missing');
-    const [first] = await within(top).findAllByRole('listitem');
-    await user.click(within(first ?? top).getByRole('button'));
+    // The table's own rows: the header row first, then one for each prompt, whose first cell is the prompt's button
+    const [, first] = await within(top).findAllByRole('row');
+    await user.click(within(first ?? top).getAllByRole('button')[0] ?? top);
     const prompt = await screen.findByRole('complementary', { name: /\?$/ });
     await user.click(within(prompt).getByRole('button', { name: 'Close' }));
     expect(back).toHaveBeenCalledTimes(1);
@@ -400,13 +401,19 @@ describe('the built rows of the topic drawer, confirmed through the real screen'
     await waitFor(() => expect(screen.queryByRole('complementary', { name: 'Paid Search' })).toBeNull());
   });
 
-  it('WB-TI-15 lists the 5 top prompts of a topic with more, and Show all opens the Prompts tab with every one', async () => {
+  it('WB-TI-15 lists the 5 top prompts of a topic with more, and View all opens the Prompts tab with every one', async () => {
     const { user } = renderOn('viewer', inspect(MOCK_TERM_IDS.seo));
     const panel = await drawer('SEO');
-    const top = (await within(panel).findByRole('heading', { name: 'Top prompts' })).closest('section');
+    const top = (await within(panel).findByRole('heading', { name: 'Top prompts in this group' })).closest('section');
     if (top === null) throw new Error('The Top prompts card is missing');
-    expect(await within(top).findAllByRole('listitem')).toHaveLength(5);
-    await user.click(within(top).getByRole('button', { name: 'Show all 12 prompts' }));
+    // The header row, and one row for each of the five prompts, with Mention, Citation and Change beside each
+    expect(await within(top).findAllByRole('row')).toHaveLength(6);
+    expect(
+      within(top)
+        .getAllByRole('columnheader')
+        .map((header) => header.textContent),
+    ).toEqual(['Prompt', 'Mention', 'Citation', 'Change']);
+    await user.click(within(top).getByRole('button', { name: 'View all' }));
     expect(await within(panel).findByRole('tab', { name: /^Prompts/, selected: true })).toBeInTheDocument();
     expect(await within(panel).findAllByRole('listitem')).toHaveLength(12);
   });

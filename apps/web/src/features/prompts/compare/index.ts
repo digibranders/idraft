@@ -1,4 +1,3 @@
-export { ChangeInline } from './change-inline';
 export { useChangeWords, type ChangeGap, type ChangeTipOptions, type ChangeWords } from './change-words';
 export { ComparedWindowProvider, useComparedWindow, type ComparedWindow } from './compared-window';
 export { CompareSelect } from './compare-select';

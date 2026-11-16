@@ -6,10 +6,14 @@ import { useCompare } from './use-compare';
 import { renderWithProviders } from '@/test/render';
 
 function Probe(): ReactElement {
-  const { compare, setCompare } = useCompare();
+  const { compare, kind, setCompare, setMode } = useCompare();
   return (
     <div>
       <output aria-label="compare">{compare ? 'on' : 'off'}</output>
+      <output aria-label="kind">{kind}</output>
+      <button type="button" onClick={() => setMode('year')}>
+        last year
+      </button>
       <button type="button" onClick={() => setCompare(false)}>
         turn off
       </button>
@@ -65,6 +69,24 @@ describe('useCompare', () => {
     await waitFor(() => expect(writes.at(-1)?.queryString).not.toContain('cmp'));
     expect(writes.at(-1)?.queryString).toContain('tab=prompts');
     expect(screen.getByLabelText('compare')).toHaveTextContent('off');
+  });
+
+  it('reads cmp=year as on, with the same dates a year earlier', () => {
+    render('?cmp=year');
+    expect(screen.getByLabelText('compare')).toHaveTextContent('on');
+    expect(screen.getByLabelText('kind')).toHaveTextContent('previous_year');
+  });
+
+  it('reads cmp=previous as the days just before, and an off link as the same, which nothing reads', () => {
+    render('?cmp=previous');
+    expect(screen.getByLabelText('kind')).toHaveTextContent('previous_period');
+  });
+
+  it('writes cmp=year with history replace when the mode is year', async () => {
+    const { user, writes } = render('?cmp=previous');
+    await user.click(screen.getByRole('button', { name: 'last year' }));
+    await waitFor(() => expect(writes.at(-1)?.queryString).toContain('cmp=year'));
+    expect(writes.at(-1)?.history).toBe('replace');
   });
 
   it('reads an unknown value as off and leaves the address as it is', () => {

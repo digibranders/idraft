@@ -221,9 +221,9 @@ async function drawerCard(change: Case): Promise<HTMLElement> {
 
 async function topPrompt(change: Case): Promise<HTMLElement> {
   renderDrawer(change);
-  const item = within(await sectionOf('Top prompts'))
+  const item = within(await sectionOf('Top prompts in this group'))
     .getByText('Prompt p')
-    .closest('li');
+    .closest('tr');
   if (item === null) throw new Error('The top prompt is missing');
   return item;
 }
@@ -341,6 +341,7 @@ describe('no source names a tone class', () => {
   const FOLDERS = ['features/prompts/compare', 'lib/compare'];
   const FILES = [
     'features/prompts/prompts-strip.tsx',
+    'features/prompts/trend-icon.tsx',
     'features/prompts/rate-columns.tsx',
     'features/prompts/inspector-strip.tsx',
     'features/prompts/topic-inspector.tsx',
@@ -362,7 +363,7 @@ describe('no source names a tone class', () => {
   const TONE_CLASS = /\b(?:text|bg|border|ring|fill|stroke)-(?:positive|negative|green|red)\b|\b(?:green|red)\b/;
 
   it('reads the files of the package, so a rename cannot empty the scan', () => {
-    expect(sources).toEqual(expect.arrayContaining(['features/prompts/compare/change-inline.tsx']));
+    expect(sources).toEqual(expect.arrayContaining(['features/prompts/compare/change-words.ts']));
     expect(sources.length).toBeGreaterThan(15);
   });
 

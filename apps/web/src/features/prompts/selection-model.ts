@@ -55,8 +55,17 @@ export const selectionKeyOf = (scope: {
   country: string | null;
   topicIds: readonly string[];
   includeBranded: boolean;
+  /** The Branded filter is `Only`: the branded prompts alone, which is another choice from `Included`. */
+  brandedOnly: boolean;
 }): string =>
-  JSON.stringify([scope.projectId, scope.tab, scope.country, [...scope.topicIds].sort(), scope.includeBranded]);
+  JSON.stringify([
+    scope.projectId,
+    scope.tab,
+    scope.country,
+    [...scope.topicIds].sort(),
+    scope.includeBranded,
+    scope.brandedOnly,
+  ]);
 
 /** The prompts behind the rows, each once, in the order of the rows. */
 export const promptIdsOf = (rowIds: readonly string[], rows: RowPrompts): string[] => [

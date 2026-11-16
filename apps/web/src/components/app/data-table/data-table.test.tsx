@@ -633,6 +633,13 @@ describe('DataTable', () => {
     expect(screen.getByText('The keywords did not load.')).toBeInTheDocument();
   });
 
+  it('keeps a message the width of the panel, pinned left, so a wide table does not centre it out of view', () => {
+    renderWithProviders(<Harness rows={[]} status="filtered-empty" />);
+    const box = screen.getByText('No keywords match.').closest('.sticky');
+    expect(box).toHaveClass('left-0');
+    expect((box as HTMLElement).style.width).toMatch(/^\d+px$/);
+  });
+
   it('opens a row menu from the keyboard, runs its action on that row only, and returns to the cell', async () => {
     const { user } = renderWithProviders(<Harness rows={rowsOf(3)} />);
     const cell = within(grid()).getAllByRole('rowheader')[0];

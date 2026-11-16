@@ -55,6 +55,7 @@ export function averageChange({ cells, engines, metric, range, words }: AverageC
       range,
       metric,
       shown,
+      move: true,
       ...(others.length === 0 && label !== undefined ? { engine: label } : {}),
     }),
   };

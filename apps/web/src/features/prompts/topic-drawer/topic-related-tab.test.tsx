@@ -73,6 +73,14 @@ describe('RelatedTab: the other groups of the scope', () => {
     expect(params.get('itab')).toBe('related');
   });
 
+  it('shows the Related keywords card as not collected yet: the API has no keywords per group', () => {
+    renderTab();
+    const card = screen.getByRole('heading', { name: 'Related keywords' }).closest('section');
+    if (card === null) throw new Error('The Related keywords card is missing');
+    expect(within(card).getByText('Not collected yet')).toBeInTheDocument();
+    expect(within(card).queryByRole('table')).toBeNull();
+  });
+
   it('names the count behind the mention rate and the platforms averaged in its tooltip', async () => {
     const { user } = renderTab();
     await user.hover(within(rows()[0] ?? document.body).getByText('50%'));

@@ -265,7 +265,13 @@ export function usePromptActions({
       toast({
         type: 'success',
         title: t('inspector.runQueued'),
-        description: [t('inspector.runQueuedHint'), ...notLoadedText(skipped)].join(' '),
+        description: [
+          t('inspector.runQueuedAnswers', {
+            engines: formatList(entry.engineCodes.map(engineName), locale),
+          }),
+          t('inspector.runQueuedHint'),
+          ...notLoadedText(skipped),
+        ].join(' '),
       });
       queued([promptId]);
     } finally {
@@ -426,7 +432,7 @@ export function usePromptActions({
           ? t('bulk.archived', { count: updated })
           : t('bulk.archivePartialTitle', { done: updated, total: ids.length }),
       ...(failure === null && updated === ids.length
-        ? {}
+        ? { description: t('bulk.archivedHint') }
         : {
             description:
               failure === null ? t('bulk.archiveLeft', { count: ids.length - updated }) : archiveProblemText(failure),

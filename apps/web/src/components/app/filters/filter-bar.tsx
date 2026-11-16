@@ -55,6 +55,8 @@ export interface FilterBarProps {
    * Branded): a button that can do nothing is not drawn, and is not a tab stop. Focus goes to the chip just added.
    */
   hideAddWhenFull?: boolean | undefined;
+  /** 32 px "+ Filter" and chips, for a screen whose controls are all 32 px high (the Prompts page); off: 36 px. */
+  compact?: boolean | undefined;
 }
 
 /**
@@ -72,6 +74,7 @@ export function FilterBar({
   hiddenChipFields,
   nowrap = false,
   hideAddWhenFull = false,
+  compact = false,
 }: FilterBarProps): ReactElement {
   const t = useTranslations('filters');
   const groupRef = useRef<HTMLDivElement>(null);
@@ -139,12 +142,14 @@ export function FilterBar({
               value={value}
               onApply={(next) => set(field.id, next)}
               onRemove={() => remove(field.id)}
+              compact={compact}
             />
           );
         })}
         {hideAddWhenFull && available.length === 0 ? null : (
           <AddFilter
             fields={available}
+            compact={compact}
             onAdd={(id, value) => {
               // The last field's chip takes the focus the button would have had
               if (hideAddWhenFull && available.length === 1) pendingFocus.current = id;
@@ -170,9 +175,11 @@ export function FilterBar({
 function AddFilter({
   fields,
   onAdd,
+  compact,
 }: {
   fields: readonly FilterField[];
   onAdd: (id: string, value: FilterValue) => void;
+  compact: boolean;
 }): ReactElement {
   const t = useTranslations('filters');
   const formId = useId();
@@ -217,6 +224,7 @@ function AddFilter({
       trigger={
         <Button
           variant="ghost"
+          {...(compact ? { size: 'sm' as const } : {})}
           icon={Plus}
           disabled={fields.length === 0}
           // Focus returns here when the last field is added, so a disabled "+ Filter" keeps it

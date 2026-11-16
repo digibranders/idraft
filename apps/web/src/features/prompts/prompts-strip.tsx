@@ -3,8 +3,9 @@
 import { useTranslations } from 'next-intl';
 import { useId, useMemo, type ReactElement } from 'react';
 
-import { ChangeInline, useChangeWords, useComparedWindow, useCompare } from './compare';
+import { useChangeWords, useComparedWindow, useCompare } from './compare';
 import { useRateWords } from './rate-view';
+import { TrendIcon } from './trend-icon';
 import { visibilityChangeOf } from './visibility-change';
 import { CardInfoButton } from '@/components/app/chart/card-info';
 import { EngineLogo } from '@/components/app/engine/engine-logo';
@@ -195,7 +196,7 @@ export function PromptsStrip({
         unknown={visibility.state === 'ok' ? null : visibility.state}
         quiet={quiet}
         note={quietNote}
-        delta={change === null ? null : <ChangeInline change={change} />}
+        delta={change === null ? null : <TrendIcon change={change} />}
         loading={loading}
         tip={
           change === null
@@ -204,6 +205,7 @@ export function PromptsStrip({
                 tip,
                 change: changeWords.tip(change, {
                   kind: 'strip',
+                  move: true,
                   range: compared === null ? null : formatDateRange(compared.from, compared.to),
                 }),
               })

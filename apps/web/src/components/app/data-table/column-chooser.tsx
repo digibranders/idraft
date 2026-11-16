@@ -9,6 +9,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { IconButton } from '@/components/ui/icon-button';
 import { Popover } from '@/components/ui/popover';
 import { announce } from '@/lib/a11y/announcer';
+import { cn } from '@/lib/utils';
 
 export interface ColumnChooserColumn {
   id: string;
@@ -42,6 +43,8 @@ export interface ColumnChooserProps {
   onReset: () => void;
   /** Adds the Narrower, Wider and Reset row for the identity column; a table without one passes nothing. */
   width?: ColumnChooserWidth | undefined;
+  /** The narrow popover (280 px) where the default takes the width of its content: the width row then wraps under its label. */
+  compact?: boolean | undefined;
 }
 
 /**
@@ -56,6 +59,7 @@ export function ColumnChooser({
   onMove,
   onReset,
   width,
+  compact = false,
 }: ColumnChooserProps): ReactElement {
   const t = useTranslations('dataTable');
   const shown = columns.filter((column) => column.visible);
@@ -70,6 +74,7 @@ export function ColumnChooser({
       trigger={trigger}
       title={t('columns')}
       padding="list"
+      {...(compact ? { width: 'min' as const } : {})}
       align="end"
       footer={
         <Button variant="ghost" size="sm" onClick={onReset}>
@@ -128,9 +133,9 @@ export function ColumnChooser({
         <div
           role="group"
           aria-label={t('chooser.columnWidth', { column: width.column })}
-          className="mt-1 flex items-center gap-1 border-t border-border-subtle px-2 pt-2"
+          className={cn('mt-1 flex items-center gap-1 border-t border-border-subtle px-2 pt-2', compact && 'flex-wrap')}
         >
-          <span aria-hidden="true" className="min-w-0 flex-1 truncate type-meta">
+          <span aria-hidden="true" className={cn('min-w-0 truncate type-meta', compact ? 'basis-full' : 'flex-1')}>
             {t('chooser.columnWidth', { column: width.column })}
           </span>
           <Button variant="secondary" size="sm" disabled={width.atMin} focusableWhenDisabled onClick={width.onNarrower}>

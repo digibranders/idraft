@@ -554,6 +554,7 @@ export function TopicsTable({
         onSortChange={(next) => onSortTextChange(sameSort(next, DEFAULT_TOPIC_SORT) ? null : formatSort(next))}
         defaultSort={DEFAULT_TOPIC_SORT}
         compactToolbar
+        compactChooser
         // Rows are always compact: no density menu and no sort note (the footer counts)
         toolbarParts={{ density: false, sortNote: false }}
         density="compact"

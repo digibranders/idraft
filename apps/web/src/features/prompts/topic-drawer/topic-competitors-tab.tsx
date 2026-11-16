@@ -37,8 +37,11 @@ export function CompetitorsTab(): ReactElement {
   const strip = useTranslations('prompts.strip');
   const common = useTranslations('common');
   const words = useRateWords();
-  const { scope, range, includeBranded, country } = extras;
-  const read = useMemo(() => ({ scope, range, includeBranded, country }), [scope, range, includeBranded, country]);
+  const { scope, range, includeBranded, brandedOnly, country } = extras;
+  const read = useMemo(
+    () => ({ scope, range, includeBranded, brandedOnly, country }),
+    [scope, range, includeBranded, brandedOnly, country],
+  );
   const entities = useTopicEntities(read, true);
   const errorId = useErrorId(entities.error);
   const [metric, setMetric] = useState<EntityMetric>('share_of_voice');

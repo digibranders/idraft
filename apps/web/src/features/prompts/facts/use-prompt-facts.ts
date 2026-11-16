@@ -38,7 +38,7 @@ export function promptFactsQuery(
   scope: PromptScope,
   range: DateRange,
   includeBranded: boolean,
-  { requestFacts = factsRequested(), country, term, brandedOnly, compare }: PromptFactsOptions = {},
+  { requestFacts = factsRequested(), country, term, brandedOnly, compare, compareKind }: PromptFactsOptions = {},
 ): ApiQueryOptions<typeof SUMMARY> {
   return apiQuery(SUMMARY, {
     params: {
@@ -51,7 +51,7 @@ export function promptFactsQuery(
         ...(term === undefined ? {} : { 'filter[term]': term }),
         ...(brandedOnly === true ? { branded_only: true } : {}),
         include: requestFacts ? ['entities', FACTS_INCLUDE] : ['entities'],
-        ...compareParams(compare === true),
+        ...compareParams(compare === true, compareKind),
       },
     },
   });

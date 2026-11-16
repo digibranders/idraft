@@ -718,6 +718,44 @@ describe('Prompts: Mentioned and Cited per platform, filters and sort', () => {
     server.events.removeAllListeners();
   });
 
+  it('keeps the branded prompts alone for branded=only, and asks the summary for branded_only', async () => {
+    const asked: string[] = [];
+    server.events.on('request:start', ({ request }) => {
+      const url = new URL(request.url);
+      if (url.pathname.endsWith('/ai/prompts-summary')) asked.push(url.searchParams.get('branded_only') ?? '');
+    });
+    renderOnPrompts(promptsAs('viewer'), { searchParams: '?tab=prompts&branded=only' });
+    const table = await grid();
+    expect(await within(table).findByText(BRANDED_TEXT)).toBeInTheDocument();
+    // An unbranded prompt is not one of them
+    expect(within(table).queryByText(FIRST_TEXT)).toBeNull();
+    expect(asked).toContain('true');
+    server.events.removeAllListeners();
+  });
+
+  it('puts the type of a prompt in its Prompt cell, shown only from the cell width of the preview (24 rem)', async () => {
+    renderOnPrompts(promptsAs('viewer'), { searchParams: '?tab=prompts' });
+    const table = await grid();
+    await within(table).findByText(FIRST_TEXT);
+    const badge = within(table).getAllByText(/^(Question|Comparison|Recommendation|How to|Definition|Local)$/)[0];
+    if (badge === undefined) throw new Error('No prompt shows its type');
+    expect(badge).toHaveClass('hidden', '@sm:inline-flex');
+    expect(badge.closest('.\\@container')).not.toBeNull();
+  });
+
+  it('offers Included and Only in the Branded filter', async () => {
+    const { user } = renderOnPrompts(promptsAs('viewer'), { searchParams: '?tab=prompts' });
+    await within(await grid()).findByText(FIRST_TEXT);
+    await user.click(screen.getByRole('button', { name: 'Add a filter' }));
+    const field = (await screen.findAllByRole('button', { name: 'Branded prompts' })).find(
+      (button) => button.closest('[role="treegrid"]') === null,
+    );
+    if (field === undefined) throw new Error('The menu has no Branded prompts field');
+    await user.click(field);
+    expect(await screen.findByRole('radio', { name: 'Included' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Only' })).toBeInTheDocument();
+  });
+
   it('filters by group and location from the URL, and sorts by a platform column', async () => {
     const { user } = renderOnPrompts(promptsAs('viewer'), {
       searchParams: `?tab=prompts&topic=${encodeURIComponent(MOCK_TERM_IDS.technicalSeo)}&country=DE&${PLATFORM_COLUMNS}`,

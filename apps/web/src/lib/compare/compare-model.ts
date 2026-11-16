@@ -13,9 +13,21 @@ export const parseCompare = (value: string | null | undefined): boolean => value
 /** The value of `cmp` that says `compare`: nothing for on (a default writes nothing), `off` for off. */
 export const cmpParam = (compare: boolean): 'off' | null => (compare ? null : 'off');
 
-/** The query of a read that asks for the previous period while `compare` is on, and nothing while off (API default `none`). */
-export const compareParams = (compare: boolean): { readonly compare?: 'previous_period' } =>
-  compare ? { compare: 'previous_period' } : {};
+/** What a comparison is with: the days just before the window, or the same dates a year earlier (the API's `compare`). */
+export type CompareKind = 'previous_period' | 'previous_year';
+
+/**
+ * The query of a read that asks for the previous period (or `kind`) while `compare` is on, and nothing while off
+ * (API default `none`).
+ */
+export function compareParams(compare: boolean): { readonly compare?: 'previous_period' };
+export function compareParams(compare: boolean, kind: CompareKind | undefined): { readonly compare?: CompareKind };
+export function compareParams(
+  compare: boolean,
+  kind: CompareKind | undefined = 'previous_period',
+): { readonly compare?: CompareKind } {
+  return compare ? { compare: kind } : {};
+}
 
 /** Whether a response was compared with another window: only one that carries `compare_window` was. */
 export const isCompared = (summary: Compared): boolean => comparedWindow(summary) !== null;

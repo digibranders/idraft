@@ -3946,7 +3946,8 @@
       "country": "Location",
       "engine": "Platform",
       "branded": "Branded prompts",
-      "brandedInclude": "Included"
+      "brandedInclude": "Included",
+      "brandedOnly": "Only"
     },
     "tabs": {
       "label": "Groups and prompts",
@@ -4003,7 +4004,7 @@
       "archiveConfirmTitle": "Archive {count, plural, one {# prompt} other {# prompts}}?",
       "archiveConfirmDescription": "They are no longer asked and leave the tables. Their answers stay, and Undo brings them back.",
       "archiveConfirmLabel": "Archive {count, plural, one {# prompt} other {# prompts}}",
-      "archived": "{count, plural, one {# prompt archived} other {# prompts archived}}",
+      "archived": "{count, plural, one {Prompt archived} other {# prompts archived}}",
       "archivePartialTitle": "Archived {done, number} of {total, number} prompts",
       "archiveFailedTitle": "Not archived",
       "archiveLeft": "{count, plural, one {# prompt was} other {# prompts were}} not changed: gone or archived already.",
@@ -4011,7 +4012,8 @@
       "restorePartialTitle": "Restored {done, number} of {total, number} prompts",
       "restoreFailedTitle": "Not brought back",
       "restoreQuota": "The workspace has {used, number} of {limit, number} active prompts, so {requested, plural, one {# prompt does} other {# prompts do}} not fit. None was brought back. Archive other prompts first.",
-      "tryAgain": "Try again in a moment."
+      "tryAgain": "Try again in a moment.",
+      "archivedHint": "History is kept. No answers are collected from the next run."
     },
     "topics": {
       "caption": "Groups",
@@ -4049,7 +4051,7 @@
       "acrossEngines": "{count, plural, one {1 platform} other {average of #}}",
       "noRate": "No valid answers",
       "byEngine": "By platform",
-      "topPrompts": "Top prompts",
+      "topPrompts": "Top prompts in this group",
       "prompts": "Prompts",
       "engineMentioned": "{engine} mentioned {count}",
       "emptyTitle": "No prompts to list",
@@ -4121,7 +4123,8 @@
         "scopeEngines": "{count, plural, one {# platform} other {# platforms}}",
         "scopeBranded": "Branded included",
         "scopeNonBranded": "Non-branded",
-        "scopeLabel": "Scope of the counts: {scope}"
+        "scopeLabel": "Scope of the counts: {scope}",
+        "scopeBrandedOnly": "Branded only"
       },
       "panel": {
         "caption": "{metric} by platform",
@@ -4216,6 +4219,18 @@
         "hidden": "{count, plural, one {# prompt is hidden: it has} other {# prompts are hidden: they have}} no answer on {engine}.",
         "emptyTitle": "No prompt has an answer on {engine}",
         "emptyReason": "Show every platform to list the prompts of this group."
+      },
+      "topPromptsTable": {
+        "prompt": "Prompt",
+        "mention": "Mention",
+        "citation": "Citation",
+        "change": "Change",
+        "viewAll": "View all"
+      },
+      "relatedKeywords": {
+        "title": "Related keywords",
+        "emptyTitle": "Not collected yet",
+        "emptyReason": "The keywords tracked for this group appear here once they are collected."
       }
     },
     "droppedFilters": {
@@ -4605,7 +4620,8 @@
         "definitionMention": "The share of valid answers of this prompt on this platform that mention your brand.",
         "definitionCitation": "The share of valid answers of this prompt on this platform that cite one of your pages.",
         "intervalMethod": "The 95 percent Wilson interval over the valid answers of this period, for this platform only."
-      }
+      },
+      "runQueuedAnswers": "Asked on {engines}."
     },
     "answer": {
       "type": "Answer",
@@ -4681,7 +4697,7 @@
       "label": "Compare with",
       "previous": "vs previous period",
       "off": "No comparison",
-      "windowTip": "Previous period: {range}",
+      "windowTip": "{kind, select, year {Same period last year: {range}} other {Previous period: {range}}}",
       "offTip": "No change is read while comparison is off",
       "detectable": {
         "field": "Show",
@@ -4690,17 +4706,17 @@
       },
       "empty": {
         "noneTitle": "No detectable change in these rows",
-        "noneReason": "{count, plural, one {# row was} other {# rows were}} compared with the previous period and none changed by more than normal variation.",
+        "noneReason": "{count, plural, one {# row was} other {# rows were}} compared with {kind, select, year {the same period last year} other {the previous period}} and none changed by more than normal variation.",
         "offTitle": "No comparison to read changes from",
         "offReason": "Comparison is off, so no change can be detected. Turn it on or clear the filter.",
-        "noPreviousReason": "The previous period has no answers, so no change can be told.",
+        "noPreviousReason": "{kind, select, year {The same period last year has no answers, so no change can be told.} other {The previous period has no answers, so no change can be told.}}",
         "tooFewReason": "No row has enough answers in both periods to tell a change.",
         "turnOn": "Compare with previous period"
       },
       "change": {
         "engineHeader": "{engine} change",
         "off": "Comparison is off",
-        "noPrevious": "No answers in the previous period",
+        "noPrevious": "No answers in {kind, select, year {the same period last year} other {the previous period}}",
         "tooFew": "Too few answers in one of the periods for a rate",
         "shareNoTest": "No test exists for share of voice, so its change is not coloured",
         "untested": "This change is not tested because the platform rates and the pooled answers move in different directions, so it is not coloured",
@@ -4718,9 +4734,10 @@
         "detail": "{average}. {change}"
       },
       "strip": {
-        "previousLabel": "Previous period: {range}",
+        "previousLabel": "{kind, select, year {Same period last year: {range}} other {Previous period: {range}}}",
         "tip": "{tip} {change}"
-      }
+      },
+      "year": "vs same period last year"
     },
     "citationsTab": {
       "tab": "Citations",
@@ -4807,7 +4824,7 @@
       },
       "strip": {
         "infoTitle": "AI visibility rate",
-        "infoWhat": "The percentage for each platform is its AI visibility rate: how often that platform's answers mention or cite your brand.",
+        "infoWhat": "The percentage for each platform is its AI visibility rate: how often that platform’s answers mention or cite your brand.",
         "infoHow": "The share of valid answers that mention your brand, cite your site, or both. Each prompt counts once. Hover a figure for the counts behind it, with the mention, citation and share of voice figures.",
         "visibilityTip": "AI visibility rate (mentioned or cited): {detail}",
         "tip": "{platform}. {visibility}. {mentioned}. {cited}. {prompts}. {shareOfVoice}.",
@@ -4819,9 +4836,9 @@
       },
       "columns": {
         "mentionChangeTip": "The icon is the change against the comparison period: green or red only when it is a detectable change, grey when it is within normal variation. The figures are in the cell's tooltip",
-        "moveUp": "Up {points} against the previous period, from {before} to {now}",
-        "moveDown": "Down {points} against the previous period, from {before} to {now}",
-        "moveFlat": "No change against the previous period, at {now}",
+        "moveUp": "Up {points} against {kind, select, year {the same period last year} other {the previous period}}, from {before} to {now}",
+        "moveDown": "Down {points} against {kind, select, year {the same period last year} other {the previous period}}, from {before} to {now}",
+        "moveFlat": "No change against {kind, select, year {the same period last year} other {the previous period}}, at {now}",
         "weeklyRates": "Weekly rates: {rates}",
         "locationTip": "The location the prompt is asked for"
       }

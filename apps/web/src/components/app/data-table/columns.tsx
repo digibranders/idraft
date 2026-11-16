@@ -109,6 +109,8 @@ export const col = {
       copy?: { label: (row: TRow) => string; announcement: string } | undefined;
       marker?: ((row: TRow) => ReactNode) | undefined;
       trailing?: ((row: TRow) => ReactNode) | undefined;
+      /** Makes the cell a container, so `trailing` can show a part only from a width of the cell itself (`@sm:`). */
+      containerQuery?: boolean | undefined;
     },
   ): DataTableColumn<TRow> {
     return {
@@ -136,7 +138,12 @@ export const col = {
           }
           // `bg-inherit` hands the cell's own background (hover, selected) to the button's backing
           return (
-            <span className="relative flex min-w-0 items-center justify-between gap-1.5 bg-inherit">
+            <span
+              className={cn(
+                'relative flex min-w-0 items-center justify-between gap-1.5 bg-inherit',
+                options.containerQuery === true && '@container',
+              )}
+            >
               <span className="flex min-w-0 items-center gap-1.5">
                 {label}
                 {marker !== undefined && marker !== null ? <span className="shrink-0">{marker}</span> : null}

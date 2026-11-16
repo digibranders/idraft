@@ -249,6 +249,8 @@ export interface DataTableProps<TRow> {
   toolbarParts?: ToolbarParts | undefined;
   /** Opt in to the compact toolbar (`DataTableToolbar` `compact`): the sort summary is drawn from 1440 px, not 1280. */
   compactToolbar?: boolean;
+  /** Opt in to the column chooser at the narrow popover width (280 px) instead of the width of its content (up to 360 px). */
+  compactChooser?: boolean;
   /**
    * Hold the identity column at its type maximum while the other columns can still widen toward theirs
    * (`resolveWidths` with `capIdentity`): for a table that shows few columns, the By group view.
