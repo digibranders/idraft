@@ -3,9 +3,12 @@ import { SORT_ID } from '../prompt-model';
 import type { Translate } from '../seams/shared';
 import { col } from '@/components/app/data-table/columns';
 import type { DataTableColumn } from '@/components/app/data-table/types';
-import { EMPTY_VALUE } from '@/lib/format';
+import { EMPTY_VALUE, formatInteger } from '@/lib/format';
 
-/** The preview's width is 132 px; the volume column type stops at 120. */
+/**
+ * The preview's width, 132 px. The volume column type stops at 120, which cuts the header "SEARCH VOLUME", so this is a
+ * count of the `volumeTrend` type, whose width may be set down to this.
+ */
 const VOLUME_WIDTH = 132;
 
 type Reading = VolumeReading | GroupVolumeReading;
@@ -17,7 +20,7 @@ const isGroup = (reading: Reading): reading is GroupVolumeReading => 'prompts' i
  * the tooltip of an `n/a`, never a 0; it sorts last. `readingOf` gives a prompt's or a group's reading.
  */
 export function volumeColumn<TRow>(t: Translate, readingOf: (row: TRow) => Reading): DataTableColumn<TRow> {
-  const base = col.volume<TRow>(
+  const base = col.volumeTrend<TRow>(
     SORT_ID.volume,
     (row) => {
       const reading = readingOf(row);
@@ -28,6 +31,8 @@ export function volumeColumn<TRow>(t: Translate, readingOf: (row: TRow) => Readi
       headerTooltip: t('prompts.metrics.volume.tip'),
       priority: 3,
       width: VOLUME_WIDTH,
+      minWidth: VOLUME_WIDTH,
+      known: (_row, value) => <span className="num">{formatInteger(value)}</span>,
       unknown: (row) => {
         const reading = readingOf(row);
         if (reading.state === 'ok') return { label: EMPTY_VALUE };

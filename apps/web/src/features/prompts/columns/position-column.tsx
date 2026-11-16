@@ -8,6 +8,9 @@ import { col } from '@/components/app/data-table/columns';
 import type { CellTip, DataTableColumn } from '@/components/app/data-table/types';
 import { EMPTY_VALUE, formatDecimal } from '@/lib/format';
 
+/** The preview's Mention position column: 120 px. */
+const POSITION_WIDTH = 120;
+
 /** What a row gives the column: its facts and, for Google AI Overview, the keyword it is linked to. */
 export interface PositionRows<TRow> {
   /** The facts of the row; `undefined` while they are not read. */
@@ -56,7 +59,9 @@ export function positionColumn<TRow>(context: MetricContext, rows: PositionRows<
       header: t('prompts.metrics.position.header'),
       headerTooltip: t('prompts.metrics.position.tip'),
       priority: 2,
-      width: 120,
+      width: POSITION_WIDTH,
+      // The preview's 120 px, which the header "MENTION POS..." fills: the table must not squeeze it further
+      minWidth: POSITION_WIDTH,
       cell: (row): ReactElement => {
         const reading = readingOf(row);
         if (reading?.state === 'ok')

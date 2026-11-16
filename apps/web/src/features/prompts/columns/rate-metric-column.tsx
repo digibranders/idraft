@@ -72,6 +72,7 @@ export function rateMetricColumn<TRow>(context: MetricContext, spec: RateColumnS
       headerTooltip: spec.headerTooltip,
       priority: spec.priority,
       width: spec.width,
+      minWidth: spec.width,
       // The cell is drawn below, for it has the thin state too
       known: () => null,
     },
