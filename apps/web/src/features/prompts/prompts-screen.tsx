@@ -321,7 +321,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     setValues({});
     void setView({ country: null });
   }, [setValues, setView]);
-  const includeBranded = enumValuesOf(values.branded).includes('include');
+  const includeBranded = useMemo(() => enumValuesOf(values.branded).includes('include'), [values.branded]);
   // Only the platforms the Platform filter names, else every platform that is on
   const chosenPlatforms = useMemo(() => enumValuesOf(values.engine), [values.engine]);
   const shown = useMemo(
@@ -333,15 +333,12 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   );
   // The Platform select is the filter's own control: one platform needs no chip, while a set of two or more keeps it
   const platformChipHidden = chosenPlatforms.length > 0 && shown.length === 1;
-  const setPlatforms = useCallback(
-    (codes: readonly string[]): void =>
-      setValues(
-        codes.length === 0
-          ? Object.fromEntries(Object.entries(values).filter(([id]) => id !== 'engine'))
-          : { ...values, engine: { kind: 'enum', values: codes } },
-      ),
-    [setValues, values],
-  );
+  const setPlatforms = (codes: readonly string[]): void =>
+    setValues(
+      codes.length === 0
+        ? Object.fromEntries(Object.entries(values).filter(([id]) => id !== 'engine'))
+        : { ...values, engine: { kind: 'enum', values: codes } },
+    );
 
   // The table stays on the last counts while a new window, or the Branded filter, is read. The weekly series comes
   // with them in the one read, which the strip and the drawers use too: for the Trend column of the Groups tab, and
