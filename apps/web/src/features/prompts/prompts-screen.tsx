@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import Link from 'next/link';
-import { parseAsString, useQueryStates } from 'nuqs';
+import { parseAsString, useQueryState, useQueryStates } from 'nuqs';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { useJustAdded } from './add/just-added-store';
@@ -36,7 +36,7 @@ import {
 } from './compare';
 import { PlatformSelect, withoutFullPlatformSet } from './engine-select';
 import { factsRequested, indexFacts, type PromptFacts } from './facts';
-import { groupsOfSummary } from './group-model';
+import { groupChoices, groupsOfSummary } from './group-model';
 import { asRecordActions, type PromptAction } from './prompt-action';
 import { usePromptColumns, type PromptRow } from './prompt-columns';
 import { PromptInspector, type PromptCounts } from './prompt-inspector';
@@ -52,12 +52,10 @@ import {
   parseTab,
   SORT_ID,
   PROMPTS_TABS,
-  topicChoices,
   topicDescendants,
   topicPrompts,
   topicOriginOf,
   topicsBelow,
-  topicsSpanned,
   topicSummaryRow,
   topicTermsOf,
   type DateRange,
@@ -237,29 +235,40 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   );
   const topicPaths = useMemo(() => new Map(topicTree.map((term) => [term.termId, term.path])), [topicTree]);
   const topicsUnknown = vocabularies.pending || vocabularies.error;
+  // Branded prompts are in the counts only when the filter includes them; read from the address, as the filter reads it,
+  // because the group choices below come from the summary, which this decides (the filter field is built from them)
+  const [brandedParam] = useQueryState('branded', parseAsString);
+  const includeBranded = brandedParam === 'include';
+  // The table stays on the last counts while a new window, or the Branded filter, is read. The weekly series comes
+  // with them in the one read, which the strip and the drawers use too, whatever the comparison: the Trend column of
+  // the Groups tab, the line in the Mention rate cell while comparing and the prompt's History tab read it. A failed
+  // series cannot be told from a failed summary, and a summary without series (an older API) leaves the line out
+  const summary = useQuery({
+    ...summaryQuery(scope, range, includeBranded, {
+      ...(country === null ? {} : { country }),
+      include: factsRequested() ? SERIES_AND_FACTS : SERIES,
+      compare,
+    }),
+    enabled: enabled.length > 0,
+    placeholderData: keepPreviousData,
+  });
+  const summaryData = summary.data?.data;
+  // The groups of the scope, as the Groups tab lists them: a topic with a prompt and none with a prompt below it. The
+  // vocabulary's other terms (an SEO group no prompt is in, a parent that has groups below it) are not groups here
+  const groupOptions = useMemo(
+    () => groupChoices(summaryData?.topics ?? [], topicTree, topicPaths),
+    [summaryData, topicTree, topicPaths],
+  );
   const fields = useMemo((): FilterField[] => {
-    const choices = topicChoices(topicTree, topicTerms);
-    const inTree = new Set(topicTree.map((term) => term.termId));
-    // A topic the tree does not hold (not read yet, or deleted) is named as the prompt names it; two of one name are told
-    // apart by their paths
-    const nameCounts = new Map<string, number>();
-    for (const choice of choices) nameCounts.set(choice.name, (nameCounts.get(choice.name) ?? 0) + 1);
     return [
       {
         id: 'topic',
         kind: 'enum',
         label: t('filters.topic'),
         multi: true,
-        optionsLoading: optionsPending || topicsUnknown,
-        // One flat list: a group of the tree below another is named by its path, so two of one name differ
-        options: choices.map((choice) => ({
-          value: choice.termId,
-          label: inTree.has(choice.termId)
-            ? choice.path
-            : (nameCounts.get(choice.name) ?? 0) > 1
-              ? t('filters.topicWithPath', { name: choice.name, path: choice.path })
-              : choice.name,
-        })),
+        // The groups are known when the summary and the trees are in; a value from a link is kept until then
+        optionsLoading: summaryData === undefined || topicsUnknown,
+        options: groupOptions.map((group) => ({ value: group.key, label: group.label, count: group.promptCount })),
       },
       {
         id: 'engine',
@@ -279,7 +288,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
       },
       detectableField({ field: t('compare.detectable.field'), option: t('compare.detectable.option') }),
     ];
-  }, [t, optionsPending, topicsUnknown, topicTree, topicTerms, enabled, engines.data]);
+  }, [t, summaryData, topicsUnknown, groupOptions, enabled, engines.data]);
   // A filter of a shared link that does not read is left out, and the person is told (13 section 5)
   const [urlValues, setUrlValues] = useUrlFilters(fields, {
     onDropped: (dropped) =>
@@ -333,7 +342,6 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     setValues({});
     void setView({ country: null });
   }, [setValues, setView]);
-  const includeBranded = useMemo(() => enumValuesOf(values.branded).includes('include'), [values.branded]);
   // Only the platforms the Platform filter names, else every platform that is on
   const chosenPlatforms = useMemo(() => enumValuesOf(values.engine), [values.engine]);
   const shown = useMemo(
@@ -352,20 +360,6 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
         : { ...values, engine: { kind: 'enum', values: codes } },
     );
 
-  // The table stays on the last counts while a new window, or the Branded filter, is read. The weekly series comes
-  // with them in the one read, which the strip and the drawers use too, whatever the comparison: the Trend column of
-  // the Groups tab, the line in the Mention rate cell while comparing and the prompt's History tab read it. A failed
-  // series cannot be told from a failed summary, and a summary without series (an older API) leaves the line out
-  const summary = useQuery({
-    ...summaryQuery(scope, range, includeBranded, {
-      ...(country === null ? {} : { country }),
-      include: factsRequested() ? SERIES_AND_FACTS : SERIES,
-      compare,
-    }),
-    enabled: enabled.length > 0,
-    placeholderData: keepPreviousData,
-  });
-  const summaryData = summary.data?.data;
   const codes = useMemo(() => shown.map((engine) => engine.engine.engine_code), [shown]);
   // Counts held from a read made without the comparison carry no `previous`: while the new read is on its way the chip
   // waits for it, so it does not empty the table for a moment. A read that failed has no counts to judge by either:
@@ -497,13 +491,22 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
       })),
     [rows],
   );
-  // Without the topic trees (still being read, or failed) a topic cannot be rolled up, so the count would fall short
-  const stripTopics = useMemo(
+  // The groups the Groups tab lists (the same rule and the same filters), so the strip and the tab count alike. Without
+  // the topic trees (still being read, or failed) a group cannot be told from the topic above it
+  const stripGroups = useMemo(
     () =>
-      summary.data === undefined || topicsUnknown
+      summaryData === undefined || topicsUnknown
         ? null
-        : topicsSpanned(summary.data.data.topics, stripPrompts, descendants, topicIds.length > 0 ? kept : null),
-    [summary.data, topicsUnknown, stripPrompts, descendants, topicIds, kept],
+        : groupsOfSummary({
+            summary: summaryData,
+            tree: topicTree,
+            descendants,
+            kept,
+            filtering: topicIds.length > 0,
+            codes,
+            only: detectableGroups,
+          }).length,
+    [summaryData, topicsUnknown, topicTree, descendants, kept, topicIds, codes, detectableGroups],
   );
 
   // The facts of the columns that later packages build, from the one summary read (never a request for a row); absent
@@ -957,7 +960,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
           prompts={stripPrompts}
           engines={enabled}
           inView={codes}
-          topics={stripTopics}
+          topics={stripGroups}
           status={stripStatus}
           countsFailed={summaryFailed}
         />

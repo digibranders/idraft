@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { distinctPrompts, groupCoverage, groupsOfSummary, searchGroups, type Group } from './group-model';
+import { distinctPrompts, groupChoices, groupCoverage, groupsOfSummary, searchGroups, type Group } from './group-model';
 import { topicDescendants } from './prompt-model';
 import { engine, promptRow, term, topicRow, weighted } from './topics-by-engine/cells-fixtures';
 
@@ -104,5 +104,36 @@ describe('groupCoverage and distinctPrompts', () => {
     // p3 is in two groups; p4 is only in a parent that has groups below it, and p6 in none
     expect(groupCoverage(SUMMARY.prompts, all)).toEqual({ overlapping: 1, outside: 2 });
     expect(distinctPrompts(searchGroups(all, '', 'en'))).toBe(4);
+  });
+});
+
+describe('groupChoices', () => {
+  const paths = new Map(TREE.map((entry) => [entry.termId, entry.path]));
+
+  it('offers the groups only, flat, with their prompt counts: a parent with groups below it is none', () => {
+    expect(groupChoices(SUMMARY.topics, TREE, paths)).toEqual([
+      { key: 'tech', label: 'Technical SEO', promptCount: 2 },
+      { key: 'local', label: 'Local SEO', promptCount: 1 },
+      { key: 'ads', label: 'Paid Search', promptCount: 2 },
+    ]);
+  });
+
+  it('leaves out a term of the tree that no prompt is in', () => {
+    const topics = SUMMARY.topics.filter((row) => row.term_id !== 'ads');
+    expect(groupChoices(topics, TREE, paths).map((choice) => choice.key)).toEqual(['tech', 'local']);
+  });
+
+  it('labels two groups of one name by their paths', () => {
+    const tree = [...TREE, term('ads-tech', 'Technical SEO', 'ads', 'Paid Search / Technical SEO')];
+    const topics = [...SUMMARY.topics, topicRow('ads-tech', 'Technical SEO', 1)];
+    const labels = groupChoices(topics, tree, new Map(tree.map((entry) => [entry.termId, entry.path])));
+    expect(labels.filter((choice) => choice.key === 'tech' || choice.key === 'ads-tech').map((c) => c.label)).toEqual([
+      'SEO / Technical SEO',
+      'Paid Search / Technical SEO',
+    ]);
+  });
+
+  it('has none while the summary has no topic rows', () => {
+    expect(groupChoices([], TREE, paths)).toEqual([]);
   });
 });

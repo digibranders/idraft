@@ -62,14 +62,14 @@ describe('buildTopicChoices', () => {
     ]);
   });
 
-  it('names the vocabulary on every group when the project sees more than one group vocabulary', () => {
+  it('never names the vocabulary on a group, however many group vocabularies the project sees', () => {
     const own = vocabulary({ vocabulary_id: 'v-own', name: 'Fynix topics', kind: 'topic', project_id: 'p-1' });
     const two = buildTopicChoices([...LOADED, { vocabulary: own, terms: [term('o-1', 'Pricing')] }], tagLabel);
     expect(two.filter((entry) => entry.group === 'topic').map((entry) => entry.label)).toEqual([
-      'Topics: CRM',
-      'Topics: CRM / Startups',
-      'Topics: SEO',
-      'Fynix topics: Pricing',
+      'CRM',
+      'CRM / Startups',
+      'SEO',
+      'Pricing',
     ]);
   });
 });

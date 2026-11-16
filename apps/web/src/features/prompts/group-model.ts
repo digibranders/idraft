@@ -68,6 +68,36 @@ export function groupsOfSummary({
   });
 }
 
+/** One choice of the Group filter: a group, by the label that tells it from the others, with its prompts. */
+export interface GroupChoice {
+  /** The term id. */
+  key: string;
+  label: string;
+  promptCount: number;
+}
+
+/**
+ * The choices of the Group filter: the groups of the summary (`groupsOf`), flat and in the order of the tree, each
+ * with its prompt count. A group is labelled by its name; two of one name are labelled by their paths. A parent that
+ * has groups below it, and a term no prompt is in (an SEO group), are no choice.
+ */
+export function groupChoices(
+  topics: readonly TopicSummaryRow[],
+  tree: readonly NamedTerm[],
+  pathOf: ReadonlyMap<string, string>,
+): GroupChoice[] {
+  const groups = groupsOf(buildTopicTree(topics, tree)).flatMap((row) =>
+    row.term_id === null ? [] : [{ key: row.term_id, name: row.name ?? '', promptCount: row.prompt_count }],
+  );
+  const named = new Map<string, number>();
+  for (const { name } of groups) named.set(name, (named.get(name) ?? 0) + 1);
+  return groups.map(({ key, name, promptCount }) => ({
+    key,
+    label: (named.get(name) ?? 0) > 1 ? (pathOf.get(key) ?? name) : name,
+    promptCount,
+  }));
+}
+
 /** A group the search keeps, with the prompts it then lists. */
 export interface FoundGroup {
   group: Group;
