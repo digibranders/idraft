@@ -220,13 +220,14 @@ export default function RateTrendCard({ item, live }: CardProps): ReactElement {
     { name: title, empty },
   );
 
-  const dark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
   const extendOption = useCallback(
     (base: Record<string, unknown>, tokens: ChartTokens): Record<string, unknown> => {
       const axis = axisOf(
         trend ?? { metric: weekMetric, weeks: [], boundary: null, platforms: [], average: null, collected: true },
         single,
       );
+      // The theme is a class of the page, read each time the chart is built so a switch of theme redraws the band
+      const dark = document.documentElement.classList.contains('dark');
       const banded = rateBandOption(base, tokens, { points, ceiling: axis.max, dark, titles });
       const boundary =
         trend?.boundary == null
@@ -254,7 +255,7 @@ export default function RateTrendCard({ item, live }: CardProps): ReactElement {
         series: [...(banded.series as unknown[]), ...boundary],
       };
     },
-    [trend, weekMetric, points, dark, titles, categories, single],
+    [trend, weekMetric, points, titles, categories, single],
   );
   const cellText = useCallback(
     (seriesId: string, index: number): string | null => points[seriesId]?.[index]?.tip ?? null,

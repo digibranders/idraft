@@ -1,4 +1,5 @@
 import { gapAt, hasWeeklyVisibility, projectWeeks, type TrendPoint, type WeekMetric } from './trend-model';
+import { optionOfMetric } from '../../scope/metric-option';
 import type { ScopeMetric } from '../../scope/scope-model';
 import type { EngineCode, PromptsSummary } from '@/lib/api/types';
 import { rateState } from '@/lib/stats';
@@ -12,8 +13,14 @@ import { rateState } from '@/lib/stats';
  * visibility is drawn only from a weekly visibility cell the API carries.
  */
 
-/** The metric of the scope (`sov`) as a week names it. */
-export const weekMetricOf = (metric: ScopeMetric): WeekMetric => (metric === 'sov' ? 'share_of_voice' : metric);
+const isWeekMetric = (value: string): value is WeekMetric =>
+  value === 'visibility' || value === 'mention' || value === 'citation' || value === 'share_of_voice';
+
+/** The metric of the scope (`sov`) as a week names it: the layout option value, which `metric-option.ts` spells. */
+export function weekMetricOf(metric: ScopeMetric): WeekMetric {
+  const option = optionOfMetric(metric);
+  return isWeekMetric(option) ? option : 'visibility';
+}
 
 export interface TrendWeek {
   /** The Monday the week starts on. */

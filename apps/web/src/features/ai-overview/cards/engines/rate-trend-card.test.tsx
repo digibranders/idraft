@@ -93,7 +93,7 @@ describe('the trend card', () => {
     serve(platform('chatgpt_web', [4, 5, 6]), platform('gemini_web', [2, 3, 4]));
     renderCard('cmp=off');
     expect(await screen.findByText('Not collected yet')).toBeInTheDocument();
-    expect(screen.getByText(/Over the window: ChatGPT 50% and Gemini 50%/)).toBeInTheDocument();
+    expect(screen.getByText(/Over the period: ChatGPT 50% and Gemini 50%/)).toBeInTheDocument();
     // The Metric tabs stay, so a person can leave this metric
     expect(screen.getByRole('radio', { name: 'Mention' })).toBeInTheDocument();
   });

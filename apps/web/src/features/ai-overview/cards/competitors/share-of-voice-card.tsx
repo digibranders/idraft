@@ -3,7 +3,7 @@
 import { useTranslations } from 'next-intl';
 import type { ReactElement } from 'react';
 
-import { useCompetitorReads, useTrackedSet } from './data/use-competitor-reads';
+import { SHAPE_OPTIONS, useTrackedSet } from './data/use-competitor-reads';
 import { shareAcrossPlatforms, type ScopeShareRead } from './model/scope-share';
 import { colorSlots } from './model/tracked-set';
 import type { TrackedSet } from './model/types';
@@ -14,6 +14,7 @@ import { TrackedFootnote } from './parts/tracked-footnote';
 import { loadingBodyHeight } from './skeletons';
 import { useCardExport } from '../engines/use-card-seams';
 import { useOpenCompetitor } from '../../competitor-drawer/open-competitor';
+import { useOverviewSummary } from '../../overview-context';
 import { useScopeUnavailable } from '../../states/scope-unavailable';
 import { BarListTable, barListCsv, type BarListProps, type ComparisonRow } from '@/components/app/chart/bar-list';
 import { ChartFrame } from '@/components/app/chart/chart-frame';
@@ -50,8 +51,9 @@ export default function ShareOfVoiceCard({ item, options, live }: CardProps): Re
   const platforms = useCardPlatforms();
   const open = useOpenCompetitor();
   const unavailable = useScopeUnavailable(t('title'));
-  const reads = useCompetitorReads('totals', { subscribed: live });
-  const current = reads.current.data;
+  // One read: this card draws no change, so the previous period is not asked
+  const summaryRead = useOverviewSummary({ ...SHAPE_OPTIONS.totals, subscribed: live });
+  const current = summaryRead.data;
   const set = useTrackedSet(current);
   const share: ScopeShareRead | null =
     current !== undefined && set !== null && platforms.codes.length > 0
@@ -59,7 +61,7 @@ export default function ShareOfVoiceCard({ item, options, live }: CardProps): Re
       : null;
   const base = useFrameState({
     subject: t('subject'),
-    read: reads.current,
+    read: summaryRead,
     previous: null,
     previousEmpty: false,
     engine: null,
