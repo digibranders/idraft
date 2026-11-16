@@ -32,14 +32,15 @@ describe('versusRows', () => {
   it('has a row per platform then the average, with the gap in whole points of the rate difference', () => {
     const result = rows(own, all);
     expect(result.map((row) => row.label)).toEqual(['ChatGPT', 'Gemini', 'Average']);
-    expect(result[0]).toMatchObject({ gap: 10, group: { state: 'ok', successes: 6, answers: 10 } });
+    expect(result[0]?.difference).toBeCloseTo(0.1);
+    expect(result[0]).toMatchObject({ group: { state: 'ok', successes: 6, answers: 10 } });
     expect(result[2]?.average).toBe(true);
   });
 
   it('has no rate for a platform with fewer than 4 valid answers in the group, and no gap', () => {
     const [, gemini] = rows(own, all);
     expect(gemini?.group).toMatchObject({ state: 'insufficient', value: null, answers: 3 });
-    expect(gemini?.gap).toBeNull();
+    expect(gemini?.difference).toBeNull();
     expect(gemini?.all.value).toBeCloseTo(0.3);
   });
 
@@ -49,14 +50,14 @@ describe('versusRows', () => {
     expect(average?.group.value).toBeCloseTo(0.6);
     expect(average?.all).toMatchObject({ used: 2 });
     expect(average?.all.value).toBeCloseTo(0.4);
-    expect(average?.gap).toBe(20);
+    expect(average?.difference).toBeCloseTo(0.2);
   });
 
   it('is unknown, never 0, when the group has no row or all groups are not read yet', () => {
     const noGroup = rows(undefined, all);
     expect(noGroup.every((row) => row.group.state === 'none' && row.group.value === null)).toBe(true);
     const noAll = rows(own, undefined);
-    expect(noAll.every((row) => row.all.value === null && row.gap === null)).toBe(true);
+    expect(noAll.every((row) => row.all.value === null && row.difference === null)).toBe(true);
   });
 
   it('reads the measure the page chose', () => {

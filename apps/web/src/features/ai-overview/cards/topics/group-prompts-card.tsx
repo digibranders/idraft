@@ -89,11 +89,15 @@ export function GroupPromptsCard({ live }: CardProps): ReactElement {
       wrap: true,
       cell: (row) => {
         const href = holdsOffEngine ? null : promptHref(context, row.prompt.prompt_id);
+        // Narrow, the prompt keeps to one line so the rates stay in view; wide, it wraps in full
+        const text = (
+          <span className="block max-w-56 truncate @xl:max-w-none @xl:whitespace-normal">{row.prompt.text}</span>
+        );
         return href === null ? (
-          row.prompt.text
+          text
         ) : (
           <Link href={href} className="hover:underline">
-            {row.prompt.text}
+            {text}
           </Link>
         );
       },
@@ -160,7 +164,7 @@ export function GroupPromptsCard({ live }: CardProps): ReactElement {
       ) : versus.data.phase === 'loading' ? (
         <Skeleton shape="block" className="h-40 w-full" />
       ) : (
-        <GroupVersus rows={versus.rows} unavailable={versus.unavailable} counted={versus.counted} />
+        <GroupVersus group={group} rows={versus.rows} unavailable={versus.unavailable} counted={versus.counted} />
       )}
     </div>
   );

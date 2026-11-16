@@ -132,14 +132,14 @@ describe('with one group chosen: the group against all groups', () => {
     expect(screen.queryByText('Strongest')).not.toBeInTheDocument();
   });
 
-  it('has a block per platform and the average, with the gap against all groups in whole points', async () => {
+  it('has a block per platform and the average, with the rate of all groups', async () => {
     render({ searchParams: GROUP });
     const items = await screen.findAllByRole('listitem');
     const names = items.map((item) => item.querySelector('span')?.textContent);
     expect(names).toEqual(['ChatGPT', 'Gemini', 'AI Overview', 'Average']);
     // Alpha 90% on ChatGPT against 40% of all groups
-    expect(await screen.findByText('All groups 40% (+50 pts)')).toBeInTheDocument();
-    expect(screen.getByText('All groups 30% (+60 pts)')).toBeInTheDocument();
+    expect(await screen.findByText('All groups 40%')).toBeInTheDocument();
+    expect(screen.getByText('All groups 30%')).toBeInTheDocument();
     expect(screen.getByText('Not collected yet')).toBeInTheDocument();
   });
 
@@ -151,7 +151,16 @@ describe('with one group chosen: the group against all groups', () => {
 
   it('shows no rate for a platform under 4 valid answers in the group and says why', async () => {
     render({ searchParams: GROUP, summary: { ...SUMMARY, topics: NAMES.map((_, place) => group(place, true)) } });
-    expect(await screen.findByText('Too few answers')).toBeInTheDocument();
+    expect((await screen.findAllByText('Not enough data')).length).toBeGreaterThan(0);
+  });
+
+  it('shows the difference as a trend icon: ahead, behind or level, with the figures and the untested note in its words', async () => {
+    render({ searchParams: GROUP });
+    await screen.findByRole('heading', { name: 'Alpha vs all groups' });
+    // Alpha is 90% on ChatGPT against 40% of all groups
+    expect(
+      await screen.findByText('Alpha is 50.0 pts above all groups: 90% against 40%. Not tested for detectability.'),
+    ).toBeInTheDocument();
   });
 
   it('has the counts of every rate in its tooltip text for screen readers', async () => {

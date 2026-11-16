@@ -97,8 +97,18 @@ export const heatFileName = (measure: ScopeMetric): string => `group-heat-map-${
 
 const percentNumber = (rate: number): number => Math.round(rate * 10000) / 100;
 
-/** A group is named by its path from the top, so two groups of one name differ. */
-export const groupName = (node: TopicNode): string => node.path.join(' / ');
+/** A group's whole name from the top, as the Group select writes it. */
+export const groupPath = (node: TopicNode): string => node.path.join(' / ');
+
+/**
+ * What a row calls a group: its own name, as the groups are one flat list and the rows are narrow. Two groups of one
+ * name are told apart by their path, so a name is never ambiguous.
+ */
+export function groupNames(nodes: readonly TopicNode[]): ReadonlyMap<string, string> {
+  const count = new Map<string, number>();
+  for (const node of nodes) count.set(node.name, (count.get(node.name) ?? 0) + 1);
+  return new Map(nodes.map((node) => [node.key, (count.get(node.name) ?? 0) > 1 ? groupPath(node) : node.name]));
+}
 
 const csvRows = (rows: readonly HeatRow[]): HeatCsvRow[] =>
   rows.map((row) => ({
@@ -165,7 +175,7 @@ export function heatRows(
 
   const rowOf = (row: TopicEngineRow): HeatRow => {
     const { node } = row;
-    const name = groupName(node);
+    const name = names.get(node.key) ?? node.name;
     return {
       id: node.key,
       label: name,
@@ -187,7 +197,7 @@ export function heatRows(
   };
 
   const exportRowOf = (row: TopicEngineRow): CsvCell[] => [
-    groupName(row.node),
+    groupPath(row.node),
     row.node.promptCount,
     ...row.values.flatMap((value) => exportCells(value)),
     ...(withAverage
@@ -200,6 +210,7 @@ export function heatRows(
   ];
 
   const ranked = groupRows(nodes, codes, measure);
+  const names = groupNames(ranked.map((row) => row.node));
   const columns: HeatColumnSpec[] = [
     ...engines.map((engine) => ({ id: engine.code, label: engine.label, engine: engine.code })),
     ...unavailable.map((platform) => ({ id: platform.code, label: platform.label, engine: platform.code })),

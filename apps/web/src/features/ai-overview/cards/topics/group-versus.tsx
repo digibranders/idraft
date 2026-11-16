@@ -1,11 +1,13 @@
 'use client';
 
+import { Minus, TrendingDown, TrendingUp } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { ReactElement } from 'react';
 
 import type { UnavailablePlatform } from './heatmap-model';
 import type { Reading, VersusRow } from './group-versus-model';
 import { PlainTable, type PlainColumn } from '@/components/app/table/plain-table';
+import { Icon } from '@/components/ui/icon';
 import { Tooltip } from '@/components/ui/tooltip';
 import { EMPTY_VALUE, formatPercent, formatPointsDelta } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -19,7 +21,40 @@ const FILL: Readonly<Record<string, string>> = {
 const FILL_AVERAGE = 'bg-chart-other';
 const FILL_OTHER = 'bg-chart-bar-neutral';
 
+const TONE = { above: 'text-positive-text', below: 'text-negative-text', level: 'text-foreground-secondary' } as const;
+const ICON = { above: TrendingUp, below: TrendingDown, level: Minus } as const;
+/** Two rates that differ by less than this are level: a point is far above the rounding of a whole percent. */
+const LEVEL_BELOW = 0.0005;
+
+/**
+ * The difference between the group and all groups as the trend icon of the Prompts page: green when the group is
+ * ahead, red when it is behind, a grey dash when level. It is a direction of a difference between two things, not a
+ * detected change, so its hover says it was not tested; shape and words carry it for people who get no colour.
+ */
+function GapIcon({ group, row }: { group: string; row: VersusRow }): ReactElement | null {
+  const t = useTranslations('aiOverview.topics.groups.versus');
+  const { difference } = row;
+  if (difference === null || row.group.value === null || row.all.value === null) return null;
+  const side = Math.abs(difference) < LEVEL_BELOW ? 'level' : difference > 0 ? 'above' : 'below';
+  const sentence = t(side === 'level' ? 'gapLevel' : side === 'above' ? 'gapAbove' : 'gapBelow', {
+    group,
+    points: formatPointsDelta(Math.abs(difference), { decimals: 1 }).replace(/^\+/, ''),
+    ours: percent(row.group.value),
+    theirs: percent(row.all.value),
+  });
+  return (
+    <Tooltip content={sentence} purpose="label">
+      <span className={cn('inline-flex shrink-0 self-center', TONE[side])}>
+        <Icon icon={ICON[side]} size="sm" />
+        <span className="sr-only">{sentence}</span>
+      </span>
+    </Tooltip>
+  );
+}
+
 export interface GroupVersusProps {
+  /** The name of the chosen group, for the hover of the trend icon. */
+  group: string;
   rows: readonly VersusRow[];
   /** Platforms the API does not collect yet: a row that says so, in the place of the platform. */
   unavailable: readonly UnavailablePlatform[];
@@ -31,7 +66,7 @@ const percent = (value: number): string => formatPercent(value, { decimals: 0 })
 
 /**
  * The chosen group against all groups (OV-GRP-12), one block per platform and the average: the group's rate and a bar
- * for it, a tick for the rate of all groups on the same scale, and a note with the gap in points. A platform with fewer
+ * for it, a tick for the rate of all groups on the same scale, and a note with the rate of all groups, and beside the rate a trend icon for the difference. A platform with fewer
  * than 4 valid answers in the group has no rate and no bar (R2); the counts of each rate are in its tooltip and in
  * text for screen readers (R1).
  */
@@ -50,19 +85,15 @@ function useVersusText(counted: boolean): {
     reading.value === null ? t('tipNone') : t('tipValue', { rate: percent(reading.value), counts: countsOf(reading) });
 
   const noteOf = (row: VersusRow): { note: string; against: string } => {
-    const { all, gap } = row;
+    const { all } = row;
     if (all.value === null) return { note: t('againstNone'), against: t('againstNone') };
-    const rate = percent(all.value);
-    const against =
-      gap === null || gap === 0
-        ? t('against', { rate })
-        : t('againstGap', { rate, gap: formatPointsDelta(gap / 100, { decimals: 0 }) });
+    const against = t('against', { rate: percent(all.value) });
     return { note: row.group.value === null ? t('tooFew') : against, against };
   };
   return { ownText, noteOf };
 }
 
-export function GroupVersus({ rows, unavailable, counted }: GroupVersusProps): ReactElement {
+export function GroupVersus({ group, rows, unavailable, counted }: GroupVersusProps): ReactElement {
   const t = useTranslations('aiOverview.topics.groups.versus');
   const { ownText, noteOf } = useVersusText(counted);
 
@@ -99,13 +130,16 @@ export function GroupVersus({ rows, unavailable, counted }: GroupVersusProps): R
             <Tooltip content={tip} purpose="label">
               <div className="flex items-baseline justify-between gap-2">
                 <span className="truncate type-body text-foreground-secondary">{label}</span>
-                <span
-                  className={cn(
-                    'num type-body-strong',
-                    row.group.value === null ? 'text-foreground-tertiary' : 'text-foreground',
-                  )}
-                >
-                  {row.group.value === null ? t('valueNone') : percent(row.group.value)}
+                <span className="inline-flex items-center gap-1.5">
+                  <span
+                    className={cn(
+                      'num type-body-strong',
+                      row.group.value === null ? 'text-foreground-tertiary' : 'text-foreground',
+                    )}
+                  >
+                    {row.group.value === null ? t('valueNone') : percent(row.group.value)}
+                  </span>
+                  <GapIcon group={group} row={row} />
                 </span>
               </div>
             </Tooltip>
@@ -141,12 +175,7 @@ interface TableRow {
 }
 
 /** The Table view of the same numbers: the group's rate and the rate of all groups, each with its counts. */
-export function GroupVersusTable({
-  group,
-  rows,
-  unavailable,
-  counted,
-}: GroupVersusProps & { group: string }): ReactElement {
+export function GroupVersusTable({ group, rows, unavailable, counted }: GroupVersusProps): ReactElement {
   const t = useTranslations('aiOverview.topics.groups.versus');
   const { ownText } = useVersusText(counted);
   const notCollected = t('notCollected');

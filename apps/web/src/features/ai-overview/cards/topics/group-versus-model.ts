@@ -30,8 +30,8 @@ export interface VersusRow {
   average: boolean;
   group: Reading;
   all: Reading;
-  /** The group minus all groups in whole points when both have a rate; `null` otherwise. */
-  gap: number | null;
+  /** The group's rate minus the rate of all groups, as a ratio (0.05 is 5 points), when both have a rate; `null` otherwise. */
+  difference: number | null;
 }
 
 export interface VersusInput {
@@ -79,9 +79,9 @@ function averageReading(
   };
 }
 
-/** Whole points between two readings that both have a rate, else `null`. */
-function gapOf(group: Reading, all: Reading): number | null {
-  return group.value === null || all.value === null ? null : Math.round((group.value - all.value) * 100);
+/** The difference between two readings that both have a rate, else `null`. */
+function differenceOf(group: Reading, all: Reading): number | null {
+  return group.value === null || all.value === null ? null : group.value - all.value;
 }
 
 export function versusRows({ platforms, group, all, measure, averageLabel }: VersusInput): VersusRow[] {
@@ -92,7 +92,7 @@ export function versusRows({ platforms, group, all, measure, averageLabel }: Ver
     average: isAverage,
     group: own,
     all: every,
-    gap: gapOf(own, every),
+    difference: differenceOf(own, every),
   });
   return [
     ...platforms.map((platform) =>

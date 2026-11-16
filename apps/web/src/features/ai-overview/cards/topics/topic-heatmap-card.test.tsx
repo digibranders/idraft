@@ -149,7 +149,7 @@ const queryOf = (urls: readonly string[]): URLSearchParams => new URLSearchParam
 describe('the groups heat map', () => {
   it('is one flat level of groups, in tree order, with no row for a group that has groups below it', async () => {
     render();
-    expect(await rowNames()).toEqual(['CRM / Pricing', 'Security', 'Support']);
+    expect(await rowNames()).toEqual(['Pricing', 'Security', 'Support']);
   });
 
   it('has a column per platform in order, the AI Overview column and then the average of the two collected', async () => {

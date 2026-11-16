@@ -99,7 +99,7 @@ describe('the columns', () => {
 describe('the rows', () => {
   it('are one per group with no group below it, flat, with its prompts', () => {
     const { rows, total } = model(TOPICS);
-    expect(rows.map((row) => row.name)).toEqual(['SEO / Technical SEO', 'Paid Search']);
+    expect(rows.map((row) => row.name)).toEqual(['Technical SEO', 'Paid Search']);
     expect(rows.map((row) => row.prompts)).toEqual(['5', '4']);
     expect(total).toBe(2);
   });
@@ -118,7 +118,7 @@ describe('the cells', () => {
     expect(tech?.cells[0]).toMatchObject({
       state: 'ok',
       text: '60%',
-      tip: 'SEO / Technical SEO on ChatGPT: 60% of 10',
+      tip: 'Technical SEO on ChatGPT: 60% of 10',
     });
   });
 
@@ -135,7 +135,7 @@ describe('the cells', () => {
     expect(tech?.cells[3]).toMatchObject({
       state: 'none',
       text: '',
-      tip: 'SEO / Technical SEO on AI Overview: not collected yet',
+      tip: 'Technical SEO on AI Overview: not collected yet',
     });
     expect(tech?.cells[3]?.href).toBeUndefined();
   });
@@ -187,8 +187,31 @@ describe('the answers', () => {
 });
 
 describe('names', () => {
+  it('tell two groups of one name apart by their path', () => {
+    const tree = [
+      term('a', 'A'),
+      term('a1', 'Pricing', 'a', 'A / Pricing'),
+      term('b', 'B'),
+      term('b1', 'Pricing', 'b', 'B / Pricing'),
+    ];
+    const topics = [topicRow('a1', 'Pricing', 3, []), topicRow('b1', 'Pricing', 2, [])];
+    const nodes = buildTopicNodes({
+      topics,
+      prompts: [],
+      tree,
+      descendants: topicDescendants(tree, []),
+      kept: null,
+      noTopicName: '',
+    });
+    expect(
+      heatRows({ nodes, engines: ENGINES }, { measure: 'mention' }, WORDS, LINKS, UNAVAILABLE).rows.map(
+        (row) => row.name,
+      ),
+    ).toEqual(['A / Pricing', 'B / Pricing']);
+  });
+
   it('name a group by its path and the file by the measure', () => {
-    expect(model(TOPICS).rows[0]?.name).toBe('SEO / Technical SEO');
+    expect(model(TOPICS).rows[0]?.name).toBe('Technical SEO');
     expect(heatFileName('sov')).toBe('group-heat-map-sov');
   });
 });

@@ -6062,13 +6062,12 @@
           "average": "Average",
           "valueNone": "n/a",
           "against": "All groups {rate}",
-          "againstGap": "All groups {rate} ({gap})",
           "againstNone": "All groups: no rate",
-          "tooFew": "Too few answers",
+          "tooFew": "Not enough data",
           "notCollected": "Not collected yet",
           "tip": "{label}: {value}. {against}.",
           "tipValue": "{rate}, {counts}",
-          "tipNone": "too few valid answers (fewer than 4)",
+          "tipNone": "not enough data, a rate needs 4 valid answers",
           "tipNotCollected": "{label}: not collected yet.",
           "averageCounts": "average of {count, plural, one {# platform} other {# platforms}}",
           "ownAnswers": "{successes, number} of {answers, plural, one {# answer} other {# answers}}",
@@ -6077,7 +6076,10 @@
           "failed": "All groups could not be read.",
           "tableThis": "This group",
           "tableAll": "All groups",
-          "tablePlatform": "Platform"
+          "tablePlatform": "Platform",
+          "gapAbove": "{group} is {points} above all groups: {ours} against {theirs}. Not tested for detectability.",
+          "gapBelow": "{group} is {points} below all groups: {ours} against {theirs}. Not tested for detectability.",
+          "gapLevel": "{group} is level with all groups: {ours} against {theirs}. Not tested for detectability."
         },
         "prompts": {
           "title": "Prompts in {group}",

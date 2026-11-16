@@ -135,6 +135,7 @@ function GroupsHeatmap({ item, live }: CardProps): ReactElement {
       rows={model.rows}
       scale="sequential"
       density="compact"
+      columnWidth="wide"
       form={form}
     />
   );

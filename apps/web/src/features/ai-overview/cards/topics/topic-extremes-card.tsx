@@ -14,7 +14,7 @@ import {
 } from './extremes-model';
 import { groupRows, isCountedMeasure } from './group-rows';
 import { GroupVersus, GroupVersusTable } from './group-versus';
-import { groupName } from './heatmap-model';
+import { groupNames } from './heatmap-model';
 import type { TopicData } from './model-types';
 import { TopicFootnote } from './topic-footnote';
 import { useGroupVersus } from './use-group-versus';
@@ -70,6 +70,8 @@ function GroupExtremes({ item, live }: CardProps): ReactElement {
     [nodes, engines, measure],
   );
   const extremes = useMemo(() => extremesOf(rows), [rows]);
+  const names = useMemo(() => groupNames(rows.map((row) => row.node)), [rows]);
+  const nameOf = (entry: RankedGroup): string => names.get(entry.row.node.key) ?? entry.row.node.name;
   const answered = rows.some((row) => row.values.some((value) => value.state !== 'none'));
 
   const title = t('extremes.title');
@@ -96,7 +98,7 @@ function GroupExtremes({ item, live }: CardProps): ReactElement {
   const tipOf = (entry: RankedGroup): string => {
     const taking = entry.row.values.filter((value) => value.state === 'ok');
     return t('extremes.tip', {
-      group: groupName(entry.row.node),
+      group: nameOf(entry),
       percent: percent(entry.value),
       platforms: formatList(
         taking.map((value) => engines.find((engine) => engine.code === value.code)?.label ?? value.code),
@@ -104,7 +106,7 @@ function GroupExtremes({ item, live }: CardProps): ReactElement {
     });
   };
   const rowOf = (entry: RankedGroup, own: boolean): ComparisonRow => {
-    const name = groupName(entry.row.node);
+    const name = nameOf(entry);
     const tip = tipOf(entry);
     return {
       id: entry.row.node.key,
@@ -124,7 +126,7 @@ function GroupExtremes({ item, live }: CardProps): ReactElement {
   const tableRows: TableRow[] = sides.flatMap((side) =>
     side.entries.map((entry) => ({
       id: `${side.id}:${entry.row.node.key}`,
-      group: groupName(entry.row.node),
+      group: nameOf(entry),
       side: side.label,
       value: tipOf(entry),
     })),
@@ -219,7 +221,12 @@ function GroupAgainstAll({ live }: CardProps): ReactElement {
       info={{ what: t('info.versus.what'), how: t('info.versus.how') }}
       footnote={<TopicFootnote overlapPrompts={null} pooled={false} weighting="prompt" />}
       body={
-        <GroupVersus rows={versus.rows} unavailable={versus.unavailable} counted={isCountedMeasure(scope.metric)} />
+        <GroupVersus
+          group={group}
+          rows={versus.rows}
+          unavailable={versus.unavailable}
+          counted={isCountedMeasure(scope.metric)}
+        />
       }
       table={
         <GroupVersusTable
