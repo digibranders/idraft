@@ -32,32 +32,43 @@ const isHeader = (cells: readonly string[]): boolean =>
  * API's answer (`pending`), not this check's.
  */
 export function parseTierCsv(text: string, tiers: readonly CsvTier[]): { rows: CsvTierRow[]; errors: CsvTierError[] } {
-  const byName = new Map<string, string>();
+  // A code is looked up before a name, and a name two tiers share names none (an ambiguous tier is an unknown one)
+  const byCode = new Map<string, string>();
+  const byName = new Map<string, string | null>();
   for (const tier of tiers) {
-    byName.set(tier.code.toLowerCase(), tier.tier_id);
-    byName.set(tier.name.trim().toLowerCase(), tier.tier_id);
+    byCode.set(tier.code.trim().toLowerCase(), tier.tier_id);
+    const name = tier.name.trim().toLowerCase();
+    byName.set(name, byName.has(name) ? null : tier.tier_id);
   }
   const rows: CsvTierRow[] = [];
   const errors: CsvTierError[] = [];
-  const lines = text.split(/\r?\n/);
+  // Lines end in LF, CRLF or a lone CR, as `parseCsv` reads them
+  const lines = text.split(/\r\n|\r|\n/);
   let counted = 0;
+  let started = false;
   for (const [index, raw] of lines.entries()) {
     const line = index + 1;
-    const cells = parseCsv(raw)[0];
+    // A line is one record: a quote left open means a cell that runs over a line break, which the Check refuses
+    const open = (raw.match(/"/g)?.length ?? 0) % 2 === 1;
+    const cells = open ? [raw] : parseCsv(raw)[0];
     if (cells === undefined) continue;
-    if (line === 1 && isHeader(cells)) continue;
+    // The header is the first line with anything on it
+    const first = !started;
+    started = true;
+    if (first && isHeader(cells)) continue;
     counted += 1;
     if (counted > MAX_CSV_ROWS) {
       errors.push({ line, code: 'too_many_rows', value: '' });
       break;
     }
-    const url = cells[0]?.trim() ?? '';
-    const tierText = cells[1]?.trim() ?? '';
+    const url = open ? '' : (cells[0]?.trim() ?? '');
+    const tierText = open ? '' : (cells[1]?.trim() ?? '');
     if (url === '' || tierText === '') {
       errors.push({ line, code: 'missing_column', value: '' });
       continue;
     }
-    const tierId = byName.get(tierText.toLowerCase());
+    const key = tierText.toLowerCase();
+    const tierId = byCode.get(key) ?? byName.get(key) ?? undefined;
     if (tierId === undefined) errors.push({ line, code: 'unknown_tier', value: tierText });
     else rows.push({ line, url, tierId });
   }

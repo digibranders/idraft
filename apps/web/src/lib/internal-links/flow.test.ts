@@ -14,6 +14,12 @@ describe('tier flow (spec 7.6, mock il-flow.js)', () => {
     expect(flowLevel(3, 0)).toBeNull();
   });
 
+  it('leaves a cell that is not a number without fill', () => {
+    expect(flowLevel(Number.NaN, 10)).toBeNull();
+    expect(flowLevel(5, Number.POSITIVE_INFINITY)).toBeNull();
+    expect(tierShares([{ tier: T1, pages: Number.NaN, average_depth: null }]).rows[0]?.share).toBe(0);
+  });
+
   it('finds the tier, other than T1, that sends the most links to T1', () => {
     const cells = [
       { from_tier: T1, to_tier: T1, links: 26 },

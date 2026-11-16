@@ -5,7 +5,7 @@ const STEPS = 6;
 
 /** The bin index of a cell, or `null` for a zero cell (no fill, tertiary text, as the mock draws it). */
 export function flowLevel(value: number, max: number): number | null {
-  if (value <= 0 || max <= 0) return null;
+  if (!Number.isFinite(value) || !Number.isFinite(max) || value <= 0 || max <= 0) return null;
   return Math.min(STEPS, Math.ceil((value / max) * STEPS));
 }
 
@@ -49,6 +49,7 @@ export function tierShares<TTier>(stats: readonly TierStatLike<TTier>[]): {
   total: number;
   rows: (TierStatLike<TTier> & { share: number })[];
 } {
-  const total = stats.reduce((sum, stat) => sum + stat.pages, 0);
-  return { total, rows: stats.map((stat) => ({ ...stat, share: total === 0 ? 0 : stat.pages / total })) };
+  const pagesOf = (stat: TierStatLike<TTier>): number => (Number.isFinite(stat.pages) ? stat.pages : 0);
+  const total = stats.reduce((sum, stat) => sum + pagesOf(stat), 0);
+  return { total, rows: stats.map((stat) => ({ ...stat, share: total === 0 ? 0 : pagesOf(stat) / total })) };
 }

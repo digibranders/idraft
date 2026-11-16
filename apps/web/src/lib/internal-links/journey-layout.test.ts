@@ -205,7 +205,101 @@ describe('buildJourney (spec 7.5, mock il-journey-layout.js)', () => {
   });
 });
 
+describe('buildJourney, edge cases found in review', () => {
+  const keysOf = (items: readonly JourneyItem<JourneyNeighbor>[]): string[] =>
+    items.flatMap((item) => ('key' in item ? [item.key] : []));
+
+  it('makes one card for a page named twice in a list or in an opened scope group', () => {
+    const lists = { '1|out|editorial': [PRICING, PRICING], '1|out|template': [PRICING] };
+    const layout = buildJourney(
+      state({ groups: new Set([groupKey('out', FOCUS_KEY, 'template')]) }),
+      lookupFrom(lists),
+    );
+    const keys = keysOf(layout.out[0]?.items ?? []);
+    expect(new Set(keys).size).toBe(keys.length);
+    expect(ofKind(layout.out[0]?.items ?? [], 'card')).toHaveLength(1);
+  });
+
+  it('keeps the opened cards below a list that failed, so Try again finds them', () => {
+    const opened = state({ open: new Set([cardKey('out', ['2']), cardKey('out', ['2', '4'])]) });
+    const failing: ListLookup<JourneyNeighbor> = (request) =>
+      request.urlId === '2' && request.direction === 'out'
+        ? { status: 'error', items: [], total: 0, otherScopes: [] }
+        : lookupFrom(LISTS)(request);
+    const layout = buildJourney(opened, failing);
+    expect(layout.pending).toBe(true);
+    expect(pruneJourney(opened, layout)).toBeNull();
+    expect(ofKind(layout.out[1]?.items ?? [], 'failed')).toHaveLength(1);
+  });
+
+  it('stops at 300 cards however the address asks, and counts the rest as more', () => {
+    const many = Array.from({ length: 400 }, (_, index) => node(String(1000 + index), `/p${String(index)}`, 'T3'));
+    const lookupMany = lookupFrom({ '1|out|editorial': many }, { '1|out|editorial': 400 });
+    const layout = buildJourney(state({ more: new Map([[moreKey('o|f'), 40]]) }), lookupMany);
+    expect(layout.cardCount).toBe(MAX_CARDS);
+    expect(ofKind(layout.out[0]?.items ?? [], 'more')).toEqual([expect.objectContaining({ count: 101 })]);
+  });
+
+  it('opens nothing on a card that cannot open, and reads nothing for it', () => {
+    const closed = { ...PRICING, has_children: false };
+    const lists = { '1|out|editorial': [closed], '2|out|editorial': [POST] };
+    const layout = buildJourney(state({ open: new Set([cardKey('out', ['2'])]) }), lookupFrom(lists));
+    expect(ofKind(layout.out[0]?.items ?? [], 'card')).toEqual([
+      expect.objectContaining({ canOpen: false, open: false }),
+    ]);
+    expect(layout.requests.map((request) => request.urlId)).not.toContain('2');
+    expect(layout.out).toHaveLength(1);
+  });
+
+  it('orders by code unit and then by id, whatever the locale', () => {
+    const lists = {
+      '1|out|editorial': [
+        node('11', '/b', 'T3'),
+        node('9', '/b', 'T3'),
+        node('7', '/a-b', 'T3'),
+        node('8', '/a/b', 'T3'),
+        node('6', '/Z', 'T3'),
+      ],
+    };
+    const paths = ofKind(buildJourney(state(), lookupFrom(lists)).out[0]?.items ?? [], 'card').map((card) => [
+      card.node.path,
+      card.urlId,
+    ]);
+    expect(paths).toEqual([
+      ['/Z', '6'],
+      ['/a-b', '7'],
+      ['/a/b', '8'],
+      ['/b', '9'],
+      ['/b', '11'],
+    ]);
+  });
+
+  it('builds keys the address codec reads back, at the deepest step with the longest ids', () => {
+    const id = (index: number): string => `9223372036854775${String(100 + index)}`;
+    const chain: Record<string, readonly JourneyNeighbor[]> = {};
+    for (let index = 0; index < 12; index += 1) {
+      chain[`${index === 0 ? '1' : id(index - 1)}|out|editorial`] = [node(id(index), `/s${String(index)}`, 'T3')];
+    }
+    const ids = Array.from({ length: 12 }, (_, index) => id(index));
+    const open = new Set(ids.map((_, index) => cardKey('out', ids.slice(0, index + 1))));
+    const layout = buildJourney(state({ open }), lookupFrom(chain));
+    expect(layout.out).toHaveLength(12);
+    for (const key of layout.validKeys) expect(key).toMatch(/^[a-z0-9_.:|]{1,400}$/);
+    expect(pruneJourney(state({ open }), layout)).toBeNull();
+  });
+});
+
 describe('buildTree (spec 7.5 tree list)', () => {
+  it('lists a page named twice once, and stops at 300 rows with one more row', () => {
+    const many = Array.from({ length: 320 }, (_, index) => node(String(1000 + index), `/p${String(index)}`, 'T3'));
+    const { rows } = buildTree(
+      { focus: '1', dir: 'out', scope: 'editorial' as EdgeScope, open: new Set() },
+      lookupFrom({ '1|out|editorial': [...many, many[0] as JourneyNeighbor] }),
+    );
+    expect(rows.filter((row) => row.kind === 'page')).toHaveLength(MAX_CARDS);
+    expect(rows.at(-1)).toEqual(expect.objectContaining({ kind: 'more', count: 21 }));
+  });
+
   it('shows a back link as a muted row and a page listed elsewhere as "listed above"', () => {
     const pricingKey = 't.2';
     const blogKey = 't.3';

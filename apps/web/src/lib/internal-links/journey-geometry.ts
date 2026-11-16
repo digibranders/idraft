@@ -20,7 +20,8 @@ const center = (box: Box): number => box.left + box.width / 2;
 
 /**
  * An orthogonal edge with rounded corners from the middle of `from`'s right side to the middle of `to`'s left side,
- * down a spine halfway between them (the mock's `elbow`). Cards of one parent share the spine.
+ * down a spine halfway between them (the mock's `elbow`). Cards of one parent share the spine. `from` is always the
+ * card on the left: an edge into the focus from the left (a link in) passes the child first.
  */
 export function elbowPath(from: Box, to: Box): string {
   const startX = right(from);

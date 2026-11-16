@@ -20,8 +20,25 @@ export function parseKeySet(text: string | null | undefined): Set<string> {
   return keys;
 }
 
-export const formatKeySet = (keys: ReadonlySet<string>): string | null =>
-  keys.size === 0 ? null : [...keys].join(',');
+/** A shared link stays under the 8 KB many servers and proxies allow for a whole address. */
+export const MAX_ADDRESS_LENGTH = 4000;
+
+/** The items that fit `MAX_ADDRESS_LENGTH` once joined; the longest (deepest) are the ones left out. */
+function fitting(items: readonly string[]): string[] {
+  const kept = new Set<string>();
+  let length = 0;
+  for (const item of [...items].sort((a, b) => a.length - b.length)) {
+    if (length + item.length + 1 > MAX_ADDRESS_LENGTH) break;
+    kept.add(item);
+    length += item.length + 1;
+  }
+  return items.filter((item) => kept.has(item));
+}
+
+export const formatKeySet = (keys: ReadonlySet<string>): string | null => {
+  const fit = fitting([...keys]);
+  return fit.length === 0 ? null : fit.join(',');
+};
 
 export function parseMore(text: string | null | undefined): Map<string, number> {
   const more = new Map<string, number>();
@@ -37,5 +54,7 @@ export function parseMore(text: string | null | undefined): Map<string, number> 
   return more;
 }
 
-export const formatMore = (more: ReadonlyMap<string, number>): string | null =>
-  more.size === 0 ? null : [...more].map(([key, count]) => `${key}*${String(count)}`).join(',');
+export const formatMore = (more: ReadonlyMap<string, number>): string | null => {
+  const fit = fitting([...more].map(([key, count]) => `${key}*${String(count)}`));
+  return fit.length === 0 ? null : fit.join(',');
+};

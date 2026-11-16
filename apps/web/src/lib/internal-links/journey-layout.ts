@@ -119,7 +119,7 @@ export interface JourneyLayout<N> {
   requests: ListRequest[];
   /** Every key the layout can show: opened, group and more keys outside it are stale. */
   validKeys: ReadonlySet<string>;
-  /** A list is still loading: stale keys are not judged yet. */
+  /** A list is loading or failed: the cards below it are unknown, so stale keys are not judged yet. */
   pending: boolean;
 }
 
@@ -129,11 +129,17 @@ export const groupKey = (dir: Direction, parentKey: string, scope: EdgeScope | '
   `g:${side(dir)}:${parentKey}:${scope}`;
 export const moreKey = (owner: string): string => `m:${owner}`;
 
-/** Tier first (Untiered last), then the best linked, then the path (decision W8: no equity). */
+/** Code unit order, never the locale's, so a server render, the browser and a shared link agree. */
+const compareText = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
+/** Url ids are 64 bit integers as strings: the shorter is the smaller, then digit by digit. */
+const compareIds = (a: string, b: string): number => a.length - b.length || compareText(a, b);
+
+/** Tier first (Untiered last), then the best linked, then the path, then the id (decision W8: no equity). */
 export const compareChildren = (a: JourneyNeighbor, b: JourneyNeighbor): number =>
   tierPosition(a.tier) - tierPosition(b.tier) ||
   b.linking_pages_all - a.linking_pages_all ||
-  a.path.localeCompare(b.path);
+  compareText(a.path, b.path) ||
+  compareIds(a.url_id, b.url_id);
 
 const readsFor = (shown: number): number => Math.max(1, Math.ceil(shown / READ_LIMIT));
 const isStepOneOut = (placed: Placed | undefined): boolean => placed?.dir === 'out' && placed.step === 1;
@@ -161,7 +167,8 @@ export function buildJourney<N extends JourneyNeighbor>(state: JourneyState, loo
     const known = requests.get(id);
     if (known === undefined || known.pages < pages) requests.set(id, { urlId, direction, scope, pages });
     const list = lookup({ urlId, direction, scope, pages: Math.max(pages, known?.pages ?? 0) });
-    if (list.status === 'loading') pending = true;
+    // A failed list hides the cards below it just as a loading one does: their keys must survive until Try again
+    if (list.status !== 'ready') pending = true;
     return list;
   };
   const moreOf = (key: string): number => state.more.get(key) ?? 0;
@@ -177,12 +184,20 @@ export function buildJourney<N extends JourneyNeighbor>(state: JourneyState, loo
         const free = (candidate: N): boolean =>
           candidate.url_id !== parent.urlId && !parent.path.includes(candidate.url_id);
 
+        // One page shows once under a parent, whichever scope list names it, so no key is made twice
+        const seen = new Set<string>();
         const emit = (nodes: readonly N[], owner: string, unloaded: number): void => {
           const key = moreKey(owner);
           validKeys.add(key);
           const limit = PER_CARD * (1 + moreOf(key));
-          const sorted = [...nodes].sort(compareChildren);
+          const fresh = nodes.filter((node) => !seen.has(node.url_id));
+          for (const node of fresh) seen.add(node.url_id);
+          const sorted = [...new Map(fresh.map((node) => [node.url_id, node])).values()].sort(compareChildren);
+          let shown = 0;
           for (const child of sorted.slice(0, limit)) {
+            // The canvas holds MAX_CARDS: the rest waits behind "+N more", which the canvas refuses with a message
+            if (cardCount >= MAX_CARDS) break;
+            shown += 1;
             const childKey = cardKey(dir, [...parent.path.slice(1), child.url_id]);
             validKeys.add(childKey);
             const at = placed.get(child.url_id);
@@ -201,7 +216,8 @@ export function buildJourney<N extends JourneyNeighbor>(state: JourneyState, loo
               continue;
             }
             if (!twoWay) placed.set(child.url_id, { dir, step });
-            const open = state.open.has(childKey);
+            const canOpen = child.has_children && step < MAX_STEPS;
+            const open = canOpen && state.open.has(childKey);
             const path = [...parent.path, child.url_id];
             const keys = [...parent.keys, childKey];
             let backs: BackLink<N>[] = [];
@@ -229,15 +245,15 @@ export function buildJourney<N extends JourneyNeighbor>(state: JourneyState, loo
               parentKey: parent.key,
               dir,
               step,
-              canOpen: child.has_children && step < MAX_STEPS,
+              canOpen,
               open,
               bothWays: child.reciprocal,
               backs,
             });
-            next.push({ key: childKey, urlId: child.url_id, path, keys });
+            if (open) next.push({ key: childKey, urlId: child.url_id, path, keys });
             cardCount += 1;
           }
-          const remaining = Math.max(0, sorted.length - limit) + unloaded;
+          const remaining = sorted.length - shown + unloaded;
           if (remaining > 0) items.push({ kind: 'more', key, parentKey: parent.key, count: remaining });
         };
 
@@ -395,8 +411,16 @@ export function buildTree<N extends JourneyNeighbor>(
       rows.push({ kind: 'failed', key: `${key}.failed`, level: level + 1, request });
       return;
     }
-    for (const child of [...list.items].sort(compareChildren)) {
+    // One page shows once under a row, so no row key is made twice
+    const children = [...new Map(list.items.map((item) => [item.url_id, item])).values()].sort(compareChildren);
+    let skipped = 0;
+    for (const child of children) {
       if (child.url_id === urlId) continue;
+      // The tree holds as many rows as the canvas holds cards; the rest waits behind one "more" row
+      if (rows.length >= MAX_CARDS) {
+        skipped += 1;
+        continue;
+      }
       const childKey = `${key}.${child.url_id}`;
       if (path.includes(child.url_id)) {
         rows.push({
@@ -413,7 +437,7 @@ export function buildTree<N extends JourneyNeighbor>(
         walk(child.url_id, childKey, level + 1, child, [...path, child.url_id]);
       }
     }
-    const unloaded = list.total - list.items.length;
+    const unloaded = Math.max(0, list.total - list.items.length) + skipped;
     if (unloaded > 0) rows.push({ kind: 'more', key: `${key}.more`, level: level + 1, count: unloaded });
   };
 
