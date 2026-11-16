@@ -135,32 +135,32 @@
     <div data-view="prompts" hidden class="flex h-page-body min-h-page-body-min flex-col gap-3 px-3 pt-3 pb-5 md:px-4 lg:px-5">
       <div class="@container flex min-w-0 flex-col gap-2">
         <h1 class="sr-only">Prompts</h1>
-        <div class="flex w-full max-w-full min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
-          <div class="scrollbar-none flex h-control-sm max-w-full min-w-0 items-center overflow-x-auto" style="contain: paint">
-            <div role="group" aria-label="Summary of the prompts in view">
-              <dl data-prompt-strip class="flex flex-nowrap items-baseline gap-x-5 gap-y-1"></dl>
+        <!-- Row 1: controls in fixed places. Engine and Compare keep a fixed width, the filters take the rest on one line and
+             scroll inside themselves, the actions stay at the right edge. Nothing here changes size with the data. -->
+        <div data-prompt-controls class="flex w-full min-w-0 flex-wrap items-center gap-2 md:flex-nowrap">
+          <div data-prompt-selects class="grid w-full min-w-0 grid-cols-2 gap-2 md:flex md:w-auto md:shrink-0 md:items-center">
+            <div data-compare-wrap class="min-w-0 md:w-48 md:shrink-0">
+              <button type="button" data-popup="ed-compare" aria-haspopup="menu" aria-label="Compare with" class="flex h-control-sm w-full min-w-0 items-center justify-between gap-2 rounded-md border border-border bg-surface px-2 text-left type-body text-foreground hover:bg-surface-hover focus-visible:focus-ring"><span data-compare-label class="min-w-0 truncate">No comparison</span><span aria-hidden="true" class="flex shrink-0 text-foreground-muted"><svg data-icon="chevron-down" class="size-icon-sm shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m6 9 6 6 6-6" vector-effect="non-scaling-stroke" /></svg></span></button>
             </div>
           </div>
-          <div class="min-w-0 max-w-full">
-            <div class="flex flex-wrap items-center gap-2">
-              <div role="group" aria-label="Filters" class="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+          <div role="group" aria-label="Filters" class="scrollbar-none -mx-1 flex min-w-0 flex-1 items-center gap-2 overflow-x-auto px-1 py-1 max-md:basis-full md:-my-1">
                 <span data-prompt-chips class="contents"></span>
-                <button type="button" data-prompt-add-filter data-popup="menu-prompt-filter" aria-haspopup="menu" aria-label="Add a filter" class="inline-flex h-control shrink-0 items-center justify-center gap-2 rounded-md border border-transparent bg-transparent px-3 type-body-strong whitespace-nowrap text-foreground-secondary select-none hover:bg-surface-hover hover:text-foreground focus-visible:focus-ring"><svg data-icon="plus" class="size-icon shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 12h14" vector-effect="non-scaling-stroke" /><path d="M12 5v14" vector-effect="non-scaling-stroke" /></svg>Filter</button>
-                <button type="button" data-prompt-reset hidden class="flex h-control items-center rounded-md px-2 type-body text-link hover:underline">Reset filters</button>
-              </div>
-              <div class="w-48 shrink-0">
-                <button type="button" data-popup="ed-compare" aria-haspopup="menu" aria-label="Compare with" class="flex h-control-sm w-full min-w-0 items-center justify-between gap-2 rounded-md border border-border bg-surface px-2 text-left type-body text-foreground hover:bg-surface-hover focus-visible:focus-ring"><span data-compare-label class="min-w-0 truncate">No comparison</span><span aria-hidden="true" class="flex shrink-0 text-foreground-muted"><svg data-icon="chevron-down" class="size-icon-sm shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m6 9 6 6 6-6" vector-effect="non-scaling-stroke" /></svg></span></button>
-              </div>
-            </div>
+                <button type="button" data-prompt-add-filter data-popup="menu-prompt-filter" aria-haspopup="menu" aria-label="Add a filter" class="inline-flex h-control-sm shrink-0 items-center justify-center gap-2 rounded-md border border-transparent bg-transparent px-3 type-body-strong whitespace-nowrap text-foreground-secondary select-none hover:bg-surface-hover hover:text-foreground focus-visible:focus-ring"><svg data-icon="plus" class="size-icon shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 12h14" vector-effect="non-scaling-stroke" /><path d="M12 5v14" vector-effect="non-scaling-stroke" /></svg>Filter</button>
+                <button type="button" data-prompt-reset hidden class="flex h-control-sm shrink-0 items-center whitespace-nowrap rounded-md px-2 type-body text-link hover:underline">Reset filters</button>
           </div>
-          <div class="ml-auto flex min-h-control-sm max-w-full flex-wrap items-center gap-3">
+          <div class="ml-auto flex shrink-0 items-center gap-3">
             <div class="flex items-center gap-3">
               <span data-prompt-status class="inline-flex"></span>
-              <span data-prompt-updated class="type-meta whitespace-nowrap"></span>
+              <span data-prompt-updated class="hidden type-meta whitespace-nowrap lg:inline"></span>
             </div>
             <button type="button" data-popup="menu-prompt-more" data-align="end" aria-haspopup="menu" data-tip="More actions" aria-label="More actions" class="inline-flex size-control-sm shrink-0 items-center justify-center rounded-md border border-border bg-surface px-0 text-foreground hover:bg-surface-hover focus-visible:focus-ring"><svg data-icon="ellipsis" class="size-icon-sm shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="1" vector-effect="non-scaling-stroke" /><circle cx="19" cy="12" r="1" vector-effect="non-scaling-stroke" /><circle cx="5" cy="12" r="1" vector-effect="non-scaling-stroke" /></svg></button>
             <button type="button" data-prompt-add aria-haspopup="dialog" class="inline-flex h-control-sm shrink-0 items-center justify-center gap-2 rounded-md border border-transparent bg-primary px-2 type-body-strong whitespace-nowrap text-primary-foreground hover:bg-primary-hover focus-visible:focus-ring"><svg data-icon="plus" class="size-icon-sm shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 12h14" vector-effect="non-scaling-stroke" /><path d="M12 5v14" vector-effect="non-scaling-stroke" /></svg><span class="sr-only sm:not-sr-only">Add prompts</span></button>
           </div>
+        </div>
+        <!-- Row 2: the summary. Five slots of fixed place: the prompts in view and one per engine, always all four engines.
+             An engine outside the Engine select shows on a quiet ground, so the strip never changes shape. -->
+        <div role="group" aria-label="Summary of the prompts in view" class="scrollbar-none overflow-x-auto rounded-lg border border-border bg-surface">
+          <dl data-prompt-strip class="grid grid-cols-[minmax(7rem,0.6fr)_repeat(4,minmax(13rem,1fr))] divide-x divide-border-subtle"></dl>
         </div>
       </div>
 

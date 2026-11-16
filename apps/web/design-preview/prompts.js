@@ -253,7 +253,7 @@ function rowFor(prompt) {
 const head = $('[data-prompt-head]', view);
 const cols = $('[data-prompt-cols]', view);
 const promptTable = $('[data-prompt-table]', view);
-const sortHeader = (column) => sortHeaderCell({ key: column.key, label: column.label, sort: state.sort, attr: 'promptSort', tip: HEAD_TIP[column.key] });
+const sortHeader = (column) => sortHeaderCell({ key: column.key, label: column.label, sort: state.sort, attr: 'promptSort', tip: HEAD_TIP[column.key], logo: column.engine });
 const HEAD_TIP = {
   get mention() {
     const base = 'The share of valid answers that name your brand, averaged over the engines shown';
@@ -347,28 +347,46 @@ function scopeRate(code, metric) {
 }
 
 /** One chip of the toolbar: a label, the figure, and its change. The counts behind it are one hover away (P5). */
-function stripChip({ label, value, delta, tip }) {
-  const item = el('div', 'flex min-w-0 shrink-0 items-baseline gap-1.5');
-  const dd = el('dd', 'flex items-baseline gap-1.5 -mx-1 rounded-sm px-1 outline-none focus-visible:focus-ring-inset');
+function stripChip({ label, logo, value, delta, tip, quiet }) {
+  // One slot of the strip: the name (with the engine's mark), the figure, its change. The change comes after the figure,
+  // so it appearing or going never moves anything else, and a slot keeps its width whatever it holds.
+  const item = el('div', `flex h-control min-w-0 items-center gap-2 px-3${quiet ? ' bg-surface-subtle' : ''}`);
+  const dt = el('dt', 'flex min-w-0 items-center gap-1.5 type-meta text-foreground-secondary');
+  if (logo) dt.append(engineLogo(logo));
+  dt.append(el('span', 'truncate', label));
+  const dd = el('dd', 'flex shrink-0 items-baseline gap-1.5 rounded-sm px-1 -mx-1 outline-none focus-visible:focus-ring-inset');
   dd.tabIndex = 0;
   dd.append(el('span', `num type-body-strong ${value === 'n/a' ? 'text-foreground-tertiary' : 'text-foreground'}`, value));
   if (delta) {
     delta.classList.add('type-body-strong');
     dd.append(delta);
   }
-  item.append(el('dt', 'type-meta text-foreground-tertiary', label), dd);
+  if (quiet) dd.append(el('span', 'sr-only', ', not in the Engine filter'));
+  item.append(dt, dd);
   if (tip) item.dataset.tip = tip;
   return item;
 }
 
+/**
+ * The summary strip: the prompts in view and one mention rate for each of the four engines, in that order, always. An
+ * engine the Engine select leaves out stays in its place on a quiet ground, so choosing an engine, comparing or
+ * filtering changes figures but never the shape of the strip.
+ */
 function renderStrip() {
-  const engines = scopeEngines();
   const count = scopePrompts().length;
   const items = [{ label: 'Prompts', value: formatInteger(count), tip: `Across ${plural(topicsInScope().length, 'topic')}` }];
-  for (const engine of engines) {
+  for (const engine of ENGINES) {
     const rate = scopeRate(engine.code, 'mention');
     const others = ['citation', 'sov'].map((metric) => `${METRIC_LABEL[metric]}: ${scopeRate(engine.code, metric).context}`);
-    items.push({ label: engine.name, value: rate.value, delta: rate.delta, tip: `${engine.name}. Mention: ${rate.context}. ${others.join('. ')}.` });
+    const quiet = !state.engines.includes(engine.code);
+    items.push({
+      label: engine.name,
+      logo: engine.name,
+      value: rate.value,
+      delta: rate.delta,
+      quiet,
+      tip: `${engine.name}. Mention: ${rate.context}. ${others.join('. ')}.${quiet ? ' Not in the Engine filter, so the table leaves it out.' : ''}`,
+    });
   }
   $('[data-prompt-updated]', view).textContent = 'Updated Sep 28, 02:10';
   strip.replaceChildren(...items.map(stripChip));
@@ -649,7 +667,7 @@ $('[data-prompt-empty-reset]', view).addEventListener('click', () => {
 
 // Engine: one engine or all of them, beside the filters. One engine adds the columns that belong to one engine's answers.
 const refreshEngineSelect = initEngineSelect({
-  before: $('[role="group"][aria-label="Filters"]', view),
+  before: $('[data-compare-wrap]', view),
   choose: (codes) => {
     state.engines = codes;
     applyFilters();

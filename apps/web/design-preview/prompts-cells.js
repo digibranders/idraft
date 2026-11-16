@@ -113,7 +113,7 @@ export function updatedCell(updated, className, stale = false) {
 export const promptUpdatedCell = (prompt, className) => updatedCell(updatedOf(prompt), className, prompt.stale);
 
 /**
- * PromptCell content (25 section 8.2): one line of text, the lock of a locked core panel, and the type badge
+ * PromptCell content (25 section 8.2): one line of text, the Branded badge, and the type badge
  * while the cell is wide enough for both (a container query: the cell narrows when the drawer docks).
  */
 export function promptLine(prompt) {
@@ -124,13 +124,6 @@ export function promptLine(prompt) {
   text.dataset.keyCell = '';
   text.dataset.tip = prompt.text;
   line.append(text);
-  if (prompt.locked) {
-    const lock = icon('lock', 'size-icon-xs shrink-0 text-foreground-tertiary');
-    lock.setAttribute('aria-label', 'Locked core panel');
-    lock.setAttribute('role', 'img');
-    lock.removeAttribute('aria-hidden');
-    line.append(lock);
-  }
   if (prompt.branded) line.append(el('span', `${NEUTRAL_BADGE} shrink-0 group-aria-selected:bg-surface`, 'Branded'));
   line.append(el('span', `hidden @sm:inline-flex shrink-0 ${NEUTRAL_BADGE_LOOK} group-aria-selected:bg-surface`, TYPE_LABEL[prompt.type]));
   return box;
@@ -162,7 +155,7 @@ const HEADER = 'sticky top-0 z-(--z-table-header) border-b border-border bg-surf
  * A sortable column header (12 section 7). `sort` is the { key, dir } in force and `attr` the data attribute
  * the table listens for, so each table keeps its own sort. The arrow shows on the column that sorts.
  */
-export function sortHeaderCell({ key, label, className = '', sort, attr, tip }) {
+export function sortHeaderCell({ key, label, className = '', sort, attr, tip, logo }) {
   const active = sort.key === key;
   const th = el('th', `${HEADER} ${className}`.trim());
   th.scope = 'col';
@@ -171,6 +164,8 @@ export function sortHeaderCell({ key, label, className = '', sort, attr, tip }) 
   const button = el('button', 'flex min-w-0 items-center gap-1 rounded-sm');
   button.type = 'button';
   button.dataset[attr] = key;
+  // The mark of the engine a column belongs to, as everywhere an engine is named
+  if (logo) button.append(engineLogo(logo));
   button.append(el('span', `truncate type-table-header${active ? ' text-foreground' : ''}`, label));
   if (active) button.append(icon(sort.dir === 'asc' ? 'arrow-up-narrow-wide' : 'arrow-down-wide-narrow', 'size-icon-sm shrink-0 text-foreground'));
   th.append(el('span', 'relative flex min-w-0 items-center gap-1'));
@@ -178,11 +173,12 @@ export function sortHeaderCell({ key, label, className = '', sort, attr, tip }) 
   return th;
 }
 
-export function plainHeaderCell(label, className = '', tip) {
+export function plainHeaderCell(label, className = '', tip, logo) {
   const th = el('th', `${HEADER} ${className}`.trim());
   th.scope = 'col';
   if (tip) th.dataset.tip = tip;
   th.append(el('span', 'flex min-w-0 items-center gap-1'));
+  if (logo) th.firstChild.append(engineLogo(logo));
   th.firstChild.append(el('span', 'truncate type-table-header', label));
   return th;
 }
@@ -230,7 +226,9 @@ export function wireColumnChooser({ popover, columns, shown, change, reset, iden
         input.value = column.key;
         input.checked = column.locked === true || shown().has(column.key);
         if (column.locked) input.disabled = true;
-        row.append(wrap, el('span', `truncate${column.locked ? ' text-foreground-disabled' : ''}`, column.label));
+        row.append(wrap);
+        if (column.engine) row.append(engineLogo(column.engine));
+        row.append(el('span', `truncate${column.locked ? ' text-foreground-disabled' : ''}`, column.label));
         return row;
       }),
     );
