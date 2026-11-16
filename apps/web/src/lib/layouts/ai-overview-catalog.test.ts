@@ -160,7 +160,7 @@ const NEW: readonly Row[] = [
   row('ai.sentiment_by_engine', 'Sentiment by platform', 'ai', 'H T', 1, [], { released: REDESIGN_RELEASED }),
   row('traffic.ai_referrals', 'AI referral visits', 'traffic', 'F 2T', 1, [], { released: REDESIGN_RELEASED }),
   row('ai.opportunities', 'AI opportunities', 'ai', 'H T', 1, [rows(['4', '8'], '4')]),
-  row('ops.answer_calendar', 'Answers collected', 'activity', 'F H', 1),
+  row('ops.answer_calendar', 'Run calendar', 'activity', 'F H', 1),
   row('ops.answer_status', 'Answer status by platform', 'activity', 'H 2T', 1),
   row('ops.engines', 'Platforms and schedule', 'activity', 'T H', 1),
   row('ops.ai_spend', 'AI spend', 'activity', 'T', 1, [], { permission: 'costs:read' }),

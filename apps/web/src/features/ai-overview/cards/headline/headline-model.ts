@@ -1,10 +1,18 @@
 import { OUTCOME_PARTS, outcomeFigures, type OutcomePart } from '../engines/outcome-model';
-import { projectWeeks, type TrendMetric } from '../engines/trend-model';
+import { projectWeeks, type WeekMetric } from '../engines/trend-model';
 import type { EngineCode, PromptsSummary, PromptSummaryRow, Run } from '@/lib/api/types';
 import { formatIsoDate } from '@/lib/format';
+import {
+  orderDistribution,
+  recommendedOf,
+  SENTIMENT_KEYS,
+  SENTIMENT_MIN,
+  sentimentOf,
+  type FactsRow,
+} from '@/lib/prompt-facts';
 import { engineRates, type RateFigure } from '@/lib/rates/strip-model';
 import { averageVisibility, platformVisibility, visibilityOfPrompts } from '@/lib/rates/visibility-model';
-import { equalWeightAverage, MIN_OBSERVATIONS } from '@/lib/stats';
+import { equalWeightAverage, MIN_OBSERVATIONS, wholePercents } from '@/lib/stats';
 
 /**
  * The numbers of the headline card (`ai.visibility_split`, parity register OV-HEAD): the AI visibility hero with its
@@ -16,8 +24,11 @@ import { equalWeightAverage, MIN_OBSERVATIONS } from '@/lib/stats';
  * Unknown is never zero (R6): a measure the API does not carry yet is `notCollected`.
  */
 
-/** What the counts of a figure are of: answers for a rate, answers that name a tracked brand for share of voice. */
-export type CountNoun = 'answers' | 'namingAnswers';
+/**
+ * What the counts of a figure are of: answers for a rate, answers that name a tracked brand for share of voice, answers
+ * that give the brand a place for the mention position, judged mentions for sentiment.
+ */
+export type CountNoun = 'answers' | 'namingAnswers' | 'orderedAnswers' | 'judgedMentions';
 
 /** What stands behind a figure, for its tooltip. */
 export type Basis =
@@ -34,6 +45,8 @@ export type Reading =
   | { state: 'none' }
   /** The API does not carry the measure yet. */
   | { state: 'notCollected' }
+  /** The platforms in scope do not classify the measure (recommendation, sentiment). */
+  | { state: 'notClassified' }
   /** The member may not read what the figure is made of. */
   | { state: 'noAccess' };
 
@@ -165,21 +178,96 @@ export function readTile(prompts: readonly PromptSummaryRow[], { asked, single }
 /** The tile of a measure the API does not carry yet. */
 export const notCollected = (): Reading => NOT_COLLECTED;
 
-const SPARK_WEEKS = 8;
-const TREND_OF = { mention: 'mention', sov: 'share_of_voice', citation: 'citation' } as const satisfies Record<
-  CellTile,
-  TrendMetric
->;
+/** The tiles read from the facts of the prompt rows (position counts, recommendation, sentiment counts). */
+export type FactTile = 'position' | 'recommendation' | 'sentiment';
+
+/** The platforms a facts tile is over: the one chosen, else every platform asked. */
+const factScope = ({ asked, single }: Platforms): string[] => (single === null ? [...asked] : [single]);
 
 /**
- * The last eight weekly points of a tile, a gap as `null`: a week of one platform that has a rate (a point under the
- * floor has none), or for All platforms the equal-weight average of the platforms that have one that week. Fewer than
- * two points is no line, so `null`.
+ * A tile from the same facts as its card (R12): the mean position (1 is first, lower is better), the recommendation
+ * rate, the positive share of the judged mentions. The platforms are never pooled: All platforms is the equal-weight
+ * average of those with a figure. Without facts in the rows (production until the backend sends them) the figure is
+ * `notCollected`, never a sample.
+ */
+export function readFactTile(prompts: readonly FactsRow[], platforms: Platforms, tile: FactTile): Reading {
+  const scope = factScope(platforms);
+  const single = platforms.single !== null;
+  if (tile === 'position') {
+    // The Mention position card's own reading, so the tile and the card never differ (R12)
+    const orders = scope.map((code) => ({ code, order: orderDistribution(prompts, code) }));
+    const rated = orders.flatMap(({ code, order }) => (order.state === 'ok' ? [{ code, order }] : []));
+    const average = equalWeightAverage(rated.map(({ order }) => order.mean));
+    if (average.value !== null) {
+      const basis: Basis = single
+        ? { kind: 'counts', k: null, n: rated[0]?.order.ordered ?? 0, noun: 'orderedAnswers', prompts: 0 }
+        : { kind: 'average', codes: rated.map(({ code }) => code) };
+      return { state: 'ok', value: average.value, basis };
+    }
+    if (orders.every(({ order }) => order.state === 'not_collected')) return NOT_COLLECTED;
+    return {
+      state: 'insufficient',
+      n: Math.max(0, ...orders.map(({ order }) => order.ordered)),
+      noun: 'orderedAnswers',
+    };
+  }
+  if (tile === 'recommendation') {
+    const recommended = recommendedOf(prompts, scope);
+    if (recommended.state === 'ok') {
+      const basis: Basis = single
+        ? { kind: 'counts', k: null, n: recommended.answers, noun: 'answers', prompts: 0 }
+        : { kind: 'average', codes: recommended.codes };
+      return { state: 'ok', value: recommended.value, basis };
+    }
+    if (recommended.reason === 'not_collected') return NOT_COLLECTED;
+    if (recommended.reason === 'not_classified') return { state: 'notClassified' };
+    return { state: 'insufficient', n: recommended.answers, noun: 'answers' };
+  }
+  const sentiment = sentimentOf(prompts, scope);
+  if (sentiment.state === 'ok' && sentiment.shares !== null) {
+    const basis: Basis = single
+      ? { kind: 'counts', k: null, n: sentiment.mentions, noun: 'judgedMentions', prompts: 0 }
+      : { kind: 'average', codes: sentiment.codes };
+    // One platform: the whole percent the Sentiment card prints for Positive (largest remainder over the four shares)
+    const positive = single
+      ? (wholePercents(SENTIMENT_KEYS.map((key) => sentiment.shares?.[key] ?? 0))[0] ?? 0) / 100
+      : sentiment.shares.positive;
+    return { state: 'ok', value: positive, basis };
+  }
+  if (sentiment.state === 'not_collected') return NOT_COLLECTED;
+  if (sentiment.state === 'none') return { state: 'notClassified' };
+  if (sentiment.state === 'unobserved') return { state: 'none' };
+  return { state: 'insufficient', n: sentiment.mentions, noun: 'judgedMentions' };
+}
+
+/** The floor each count noun is held to, for the "not enough data" words. */
+export const FLOOR_OF: Readonly<Record<CountNoun, number>> = {
+  answers: MIN_OBSERVATIONS,
+  namingAnswers: MIN_OBSERVATIONS,
+  orderedAnswers: MIN_OBSERVATIONS,
+  judgedMentions: SENTIMENT_MIN,
+};
+
+const SPARK_WEEKS = 8;
+/** The tiles and the hero (`visibility`) that draw a weekly line. */
+export type SparkTile = CellTile | 'visibility';
+const TREND_OF = {
+  visibility: 'visibility',
+  mention: 'mention',
+  sov: 'share_of_voice',
+  citation: 'citation',
+} as const satisfies Record<SparkTile, WeekMetric>;
+
+/**
+ * The last eight weekly points of a tile or the hero, a gap as `null`: a week of one platform that has a rate (a
+ * point under the floor has none), or for All platforms the equal-weight average of the platforms that have one that
+ * week. Fewer than two points is no line, so `null`: with no weekly visibility from the API (backend request 1) the
+ * hero has none, and nothing is made up.
  */
 export function sparkOf(
   summary: PromptsSummary,
   { asked, single }: Platforms,
-  tile: CellTile,
+  tile: SparkTile,
 ): (number | null)[] | null {
   const metric = TREND_OF[tile];
   const range = summary.window;

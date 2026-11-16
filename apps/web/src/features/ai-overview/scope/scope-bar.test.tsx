@@ -51,14 +51,14 @@ describe('the scope bar', () => {
     const compare = screen.getByRole('button', { name: 'Compare with: vs previous period' });
     const reset = screen.getByRole('button', { name: 'Reset scope' });
     const branded = await chip('Branded: Excluded. Edit filter');
-    const add = screen.getByRole('button', { name: 'Add a filter' });
     const follows = (a: HTMLElement, b: HTMLElement): boolean =>
       (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
     expect(follows(platform, group)).toBe(true);
     expect(follows(group, compare)).toBe(true);
     expect(follows(compare, reset)).toBe(true);
     expect(follows(reset, branded)).toBe(true);
-    expect(follows(branded, add)).toBe(true);
+    // With the chip on there is nothing to add: no "+ Filter", disabled or not
+    expect(screen.queryByRole('button', { name: 'Add a filter' })).not.toBeInTheDocument();
     // Reset keeps its place while the scope is the default, invisible and out of the tab order
     expect(reset).toHaveClass('invisible');
     expect(screen.queryByRole('button', { name: 'Clear filters' })).not.toBeInTheDocument();
@@ -132,7 +132,7 @@ describe('the scope bar', () => {
     // The Prompts tile of the headline names the choice again
     await waitFor(() => {
       const box = screen.getByText('Prompts', { selector: 'span.type-label' }).closest('div.bg-surface');
-      expect(box?.querySelector('.type-metric')).toHaveAccessibleDescription(/core and branded prompts/);
+      expect(box?.querySelector('.type-metric')).toHaveTextContent(/core and branded prompts/);
     });
   });
 
@@ -149,9 +149,9 @@ describe('the scope bar', () => {
   it('chooses a group from the vocabulary, searches it and writes its id', async () => {
     const { user, urls } = await page();
     await user.click(screen.getByRole('combobox', { name: 'Group: All groups' }));
-    // One flat list: a topic below another is named by its path, and no row is marked as a parent
-    expect(await screen.findByRole('option', { name: 'SEO' })).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: 'SEO / Technical SEO' })).toBeInTheDocument();
+    // One flat list of groups: a topic below another is named by its path, and a topic above a group is no row
+    expect(await screen.findByRole('option', { name: 'SEO / Technical SEO' })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'SEO' })).not.toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'Paid Search' })).toBeInTheDocument();
     await user.type(screen.getByRole('combobox', { name: 'Search groups' }), 'technical');
     expect(screen.queryByRole('option', { name: 'Paid Search' })).not.toBeInTheDocument();
@@ -168,7 +168,7 @@ describe('the scope bar', () => {
     // Once the vocabulary has loaded the group is named, and the Prompts tile of the headline counts the group's prompts
     await waitFor(() => {
       const box = screen.getByText('Prompts', { selector: 'span.type-label' }).closest('div.bg-surface');
-      expect(box?.querySelector('.type-metric')).toHaveAccessibleDescription(/in SEO$/);
+      expect(box?.querySelector('.type-metric')).toHaveTextContent(/in SEO$/);
     });
   });
 
@@ -307,7 +307,7 @@ describe('the scope bar below 768 px', () => {
     expect(within(sheet).getByRole('combobox', { name: 'Platform: Gemini' })).toBeInTheDocument();
     expect(within(sheet).getByRole('combobox', { name: 'Group: All groups' })).toBeInTheDocument();
     expect(within(sheet).getByRole('button', { name: 'Branded: Excluded. Edit filter' })).toBeInTheDocument();
-    expect(within(sheet).getByRole('button', { name: 'Add a filter' })).toBeInTheDocument();
+    expect(within(sheet).queryByRole('button', { name: 'Add a filter' })).not.toBeInTheDocument();
     expect(await within(sheet).findByRole('combobox', { name: 'Location: All locations' })).toBeInTheDocument();
     expect(within(sheet).getByRole('button', { name: /7 days/ })).toBeInTheDocument();
     await user.click(within(sheet).getByRole('button', { name: 'Reset scope' }));

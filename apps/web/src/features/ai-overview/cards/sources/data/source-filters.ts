@@ -4,8 +4,8 @@ import type { DomainRole } from '@/lib/citations/types';
 
 /**
  * The scope of the Overview as the filters of the source reads (WP-37 plan D1): the same rules as
- * `overviewSourcesQuery`, so a card's denominator is the strip's. The engine filter is left out when every engine
- * that is on is asked (leaving it out is what asking all of them means), the branded choice is `include_branded`,
+ * `overviewSourcesQuery`, so a card's denominator is the strip's. The engine filter always names the engines asked
+ * (left out, the routes would read the engine that is off as well), the branded choice is `include_branded`,
  * and the two flags are never set: citations flagged as unresolved redirects or engine-internal links stay left out
  * (owner decision O1), as on the strip and on the Citations page.
  */
@@ -33,7 +33,8 @@ export function sourceFilters({ scope, enabledEngines }: ReadScope, roles: reado
   return {
     from: scope.range.from,
     to: scope.range.to,
-    engines: asked.length === enabledEngines.length ? [] : asked,
+    // Always named: the sources routes read all three engines, one that is off included, when it is left out
+    engines: asked,
     roles,
     includeBranded: scope.branded !== 'excluded',
     ...(scope.topic === null ? {} : { term: scope.topic }),

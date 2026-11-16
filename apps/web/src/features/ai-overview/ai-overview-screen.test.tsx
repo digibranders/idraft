@@ -95,10 +95,10 @@ describe('the AI visibility page of a project with platforms on', () => {
     expect(screen.queryByText('Customizing')).not.toBeInTheDocument();
   });
 
-  it('keeps the scope toolbar under the top bar from 1920 px, with the headline below it', async () => {
+  it('keeps the scope toolbar under the top bar at every width, with the headline below it', async () => {
     renderWithProviders(overviewAs('admin'));
     const toolbar = await screen.findByRole('region', { name: 'Scope and actions' });
-    expect(toolbar).toHaveClass('min-[120rem]:sticky', 'min-[120rem]:top-topbar');
+    expect(toolbar).toHaveClass('sticky', 'top-topbar');
     // The scope controls are a named group of their own inside it
     expect(await within(toolbar).findByRole('region', { name: 'Scope' })).toBeInTheDocument();
     const headline = await screen.findByRole('group', { name: 'Headline numbers' });
@@ -287,7 +287,7 @@ describe('the headline of the AI visibility page', () => {
     });
     await waitFor(() => {
       const figure = screen.getByRole('region', { name: HERO }).querySelector('.type-metric');
-      expect(figure).toHaveAccessibleDescription(/^[\d,]+ of [\d,]+ answers\./);
+      expect(figure).toHaveTextContent(/^\d+%, [\d,]+ of [\d,]+ answers\./);
     });
     await user.keyboard('{Escape}');
     await user.click(await screen.findByRole('button', { name: 'Compare with: vs previous period' }));

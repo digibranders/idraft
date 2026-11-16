@@ -212,6 +212,22 @@ describe('FilterBar', () => {
     expect(screen.queryByRole('button', { name: 'Clear filters' })).not.toBeInTheDocument();
   });
 
+  it('draws no + Filter while every field has its chip, and gives it back when the chip goes', async () => {
+    const only = FIELDS.filter((field) => field.id === 'device');
+    function Single(): ReactElement {
+      const [values, setValues] = useState<FilterValues>({ device: { kind: 'enum', values: ['desktop'] } });
+      return <FilterBar fields={only} values={values} onChange={setValues} hideClear hideAddWhenFull />;
+    }
+    const { user } = renderWithProviders(<Single />);
+    expect(screen.queryByRole('button', { name: 'Add a filter' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Remove filter Device: Desktop' }));
+    await user.click(await screen.findByRole('button', { name: 'Add a filter' }));
+    await user.click(await screen.findByRole('button', { name: 'Device' }));
+    await user.click(screen.getByRole('radio', { name: 'Mobile' }));
+    expect(await screen.findByRole('button', { name: 'Device: Mobile. Edit filter' })).toHaveFocus();
+    expect(screen.queryByRole('button', { name: 'Add a filter' })).not.toBeInTheDocument();
+  });
+
   it('applies a single choice on Space, not while the arrows move through the options', async () => {
     const { user } = renderWithProviders(<Harness initial={{ device: { kind: 'enum', values: ['desktop'] } }} />);
     await user.click(screen.getByRole('button', { name: 'Device: Desktop. Edit filter' }));

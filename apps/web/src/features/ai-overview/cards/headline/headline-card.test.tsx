@@ -102,9 +102,7 @@ describe('HeadlineCard', () => {
     renderCard();
     const value = await heroFigure('53%');
     // (50% + 56.25%) / 2; the pooled 41 of 66 answers would be 62%
-    expect(value).toHaveAccessibleDescription(
-      /^Average of 2 platforms: ChatGPT and Gemini\. 2 prompts, each counted once$/,
-    );
+    expect(value).toHaveTextContent(/^53%, Average of 2 platforms: ChatGPT and Gemini\. 2 prompts, each counted once$/);
     expect(within(await hero()).queryByText('62%')).toBeNull();
     // The four outcomes are named in the legend under the bar
     for (const name of ['Mentioned and cited', 'Mentioned only', 'Cited only', 'Neither']) {
@@ -116,11 +114,12 @@ describe('HeadlineCard', () => {
     serve();
     renderCard('&engine=chatgpt_web');
     const value = await heroFigure('50%');
-    expect(value).toHaveAccessibleDescription('25 of 50 answers. 2 prompts, each counted once');
+    // The sentence is read with the value (screen reader text), not only on hover
+    expect(value).toHaveTextContent('50%, 25 of 50 answers. 2 prompts, each counted once');
     const bar = within(await hero()).getByRole('img');
     expect(bar).toHaveAccessibleName(/^Mentioned and cited \d+%, Mentioned only \d+%, Cited only \d+%, Neither \d+%$/);
     const mention = await tileOf('Mention rate');
-    expect(within(mention).getByText('39%')).toHaveAccessibleDescription('19 of 50 answers');
+    expect(within(mention).getByText('39%')).toHaveTextContent('39%, 19 of 50 answers');
   });
 
   it('position, recommendation and sentiment say they are not collected yet, never a sample and never a zero', async () => {
@@ -166,8 +165,8 @@ describe('HeadlineCard', () => {
     serve([promptRow('p1', [cells('chatgpt_web', [1, 0, 1, 0])])]);
     renderCard('&engine=chatgpt_web');
     const tile = await tileOf('Mention rate');
-    expect(within(tile).getByText('n/a')).toHaveAccessibleDescription(
-      'Not enough data: 2 valid answers, a rate needs at least 4',
+    expect(within(tile).getByText('n/a')).toHaveTextContent(
+      'n/a, Not enough data: 2 valid answers, a rate needs at least 4',
     );
     expect(within(tile).getByText('Not enough data')).toBeInTheDocument();
     expect(within(await hero()).getByText('Not enough data')).toBeInTheDocument();
@@ -178,7 +177,7 @@ describe('HeadlineCard', () => {
     serve();
     renderCard();
     const tile = await tileOf('Prompts');
-    expect(await within(tile).findByText('2')).toHaveAccessibleDescription('core prompts, not branded');
+    expect(await within(tile).findByText('2')).toHaveTextContent('2, core prompts, not branded');
   });
 
   it('each info button opens what the figure is, then how it is counted', async () => {

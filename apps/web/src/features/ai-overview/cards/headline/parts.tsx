@@ -9,15 +9,15 @@ import { Tooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
 /**
- * The tokens of the four outcomes, the ones the outcome split card uses for the same four, so a segment has one colour
- * on the whole page. Never `chart-1` (the own brand's), and not the sequential steps, which only bin a rate
- * (`heat-bins.test.ts`): the preview draws these with `seq-6`, `seq-4`, `seq-3` (register OV-HEAD-06, differs).
+ * The tokens of the four outcomes: `seq-6`, `seq-4`, `seq-3` and the neutral bar, as the preview draws them and as the
+ * Answer outcomes card does for the same four (`OutcomeBars`), so a segment has one colour on the whole page
+ * (OV-HEAD-06, OV-HEAD-20). Set as a custom property, the token being the only place the colour is named.
  */
-const FILL: Readonly<Record<Segment, string>> = {
-  mentioned_and_cited: 'bg-chart-3',
-  mentioned_only: 'bg-chart-4',
-  cited_only: 'bg-chart-5',
-  neither: 'bg-chart-other',
+const FILL: Readonly<Record<Segment, { backgroundColor: string }>> = {
+  mentioned_and_cited: { backgroundColor: 'var(--seq-6)' },
+  mentioned_only: { backgroundColor: 'var(--seq-4)' },
+  cited_only: { backgroundColor: 'var(--seq-3)' },
+  neither: { backgroundColor: 'var(--chart-bar-neutral)' },
 };
 
 const SPARK_WIDTH = 100;
@@ -92,8 +92,8 @@ export function SplitBar({ split, nameOf, percent, tipOf, label }: SplitBarProps
         {SEGMENTS.filter((segment) => split.shares[segment] > 0).map((segment) => (
           <Tooltip key={segment} content={tipOf(segment)}>
             <div
-              className={cn('h-full min-w-0', FILL[segment])}
-              style={{ width: `${String(split.shares[segment] * 100)}%` }}
+              className="h-full min-w-0"
+              style={{ ...FILL[segment], width: `${String(split.shares[segment] * 100)}%` }}
             />
           </Tooltip>
         ))}
@@ -101,7 +101,7 @@ export function SplitBar({ split, nameOf, percent, tipOf, label }: SplitBarProps
       <dl className="m-0 grid grid-cols-2 gap-x-4 gap-y-1">
         {SEGMENTS.map((segment) => (
           <div key={segment} className="flex min-w-0 items-center gap-1.5 type-table">
-            <span aria-hidden="true" className={cn('size-2 shrink-0 rounded-xs', FILL[segment])} />
+            <span aria-hidden="true" className="size-2 shrink-0 rounded-xs" style={FILL[segment]} />
             <dt className="truncate text-foreground-secondary">{nameOf(segment)}</dt>
             <dd className="ml-auto num text-foreground">{percent(split.shares[segment])}</dd>
           </div>
@@ -136,6 +136,8 @@ export function Tile({ label, info, value, known, tip, note, spark, loading = fa
       {...(tip === null ? {} : { tabIndex: 0 })}
     >
       {value}
+      {/* The counts or the reason are read with the value, as the preview does (OV-HEAD-12), not only on hover */}
+      {tip === null ? null : <span className="sr-only">, {tip}</span>}
     </span>
   );
   return (
@@ -147,7 +149,13 @@ export function Tile({ label, info, value, known, tip, note, spark, loading = fa
         </span>
       </div>
       <div className="flex min-w-0 items-center justify-between gap-3">
-        {tip === null || loading ? figure : <Tooltip content={tip}>{figure}</Tooltip>}
+        {tip === null || loading ? (
+          figure
+        ) : (
+          <Tooltip content={tip} purpose="label">
+            {figure}
+          </Tooltip>
+        )}
         {spark === null ? null : <div className="w-14 shrink-0">{spark}</div>}
       </div>
       <span className="block min-h-4 truncate type-micro text-foreground-tertiary">{note}</span>

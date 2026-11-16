@@ -59,6 +59,17 @@ function engineFilter(read: ReadScope): { 'filter[engine_code_in]'?: EngineCode[
   return asked.length === read.enabledEngines.length ? {} : { 'filter[engine_code_in]': [...asked] };
 }
 
+/**
+ * The engine filter of the sources reads: always the engines asked. Unlike the summary, which leaves out the filter
+ * for the project's enabled engines, these routes read all three engines when it is left out, an engine that is off
+ * included (OV-SCOPE-13, R12). The fan-out read keeps the plain filter: it counts only the engines that show their
+ * queries, so an engine that is off and shows none adds no answer to it.
+ */
+function namedEngineFilter(read: ReadScope): { 'filter[engine_code_in]'?: EngineCode[] } {
+  const asked = askedEngines(read);
+  return asked.length === 0 ? {} : { 'filter[engine_code_in]': [...asked] };
+}
+
 function scopeFilters(scope: OverviewScope): { 'filter[country_iso]'?: string; 'filter[term]'?: string } {
   return {
     ...(scope.country === null ? {} : { 'filter[country_iso]': scope.country }),
@@ -174,7 +185,7 @@ export function overviewSourcesQuery(
         to: scope.range.to,
         include_branded: scope.branded !== 'excluded',
         limit: 1,
-        ...engineFilter(read),
+        ...namedEngineFilter(read),
         ...scopeFilters(scope),
         ...compareParams(comparisonWindow(scope) !== null),
         ...(include.length === 0 ? {} : { include: [...include].sort() }),

@@ -173,6 +173,8 @@ describe('overviewSourcesQuery', () => {
       to: '2026-11-12',
       include_branded: false,
       limit: 1,
+      // Named, so the platform that is off is not read (the summary leaves the filter out for all of them)
+      'filter[engine_code_in]': ALL,
       include: ['by_role_by_engine'],
     });
   });

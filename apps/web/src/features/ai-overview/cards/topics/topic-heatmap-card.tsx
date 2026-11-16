@@ -123,7 +123,8 @@ function GroupsHeatmap({ item, live }: CardProps): ReactElement {
       : model.answered
         ? null
         : empties.noAnswers(
-            engines.map((engine) => engine.label),
+            // The columns are every platform that is on; with one chosen, the empty state names that one
+            engines.filter((engine) => chosen === null || engine.code === chosen).map((engine) => engine.label),
             scope.range.days,
           );
   const grid = (form: 'grid' | 'table'): ReactElement => (

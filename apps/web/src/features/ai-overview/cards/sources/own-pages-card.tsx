@@ -12,7 +12,7 @@ import { engineNames, metaLine } from './parts/source-meta';
 import { engineLabel } from '../engines/engine-role';
 import { useCardDensity } from '../engines/use-card-density';
 import { useCardExport } from '../engines/use-card-seams';
-import type { Say } from '../../numbers/number-model';
+import type { Say } from '../say';
 import { BarListTable, type BarListProps, type ComparisonRow } from '@/components/app/chart/bar-list';
 import { ChartFrame } from '@/components/app/chart/chart-frame';
 import { visibleUrlText } from '@/components/app/cells/visible-text';

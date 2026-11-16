@@ -29,14 +29,13 @@ export interface OverviewHeaderProps {
 }
 
 /**
- * Sticky under the top bar from 1920 px, so the scope can be changed from any card (preview commit 1363ff90). It is one
- * row (52 px) only there. Measured in the real app: 96 px at 1680, 1440, 1280 and 1024 px (selects, then Branded, the
- * actions and the freshness wrap onto a second row) and 140 px at 768 px, too much of a screen to keep in view, so
- * below 1920 px the toolbar scrolls away with the page. The negative margins and the equal padding make it sit where
- * it would without them (8 px; the preview has 10).
+ * Sticky under the top bar at every width, so the scope can be changed from any card (OV-SHELL-10, preview
+ * `aiov.js`). The negative margins and the equal padding make it sit where it would without them (8 px; the preview
+ * has 10). Wider than the preview's one row: from 1680 px down the selects, Branded, the actions and the freshness
+ * wrap onto a second row (96 px), and 140 px at 768 px.
  */
 const TOOLBAR_CLASS =
-  'bg-background -mx-3 -my-2 px-3 py-2 md:-mx-4 md:px-4 lg:-mx-5 lg:px-5 min-[120rem]:sticky min-[120rem]:top-topbar min-[120rem]:z-(--z-sticky)';
+  'bg-background -mx-3 -my-2 px-3 py-2 md:-mx-4 md:px-4 lg:-mx-5 lg:px-5 sticky top-topbar z-(--z-sticky)';
 
 /**
  * The toolbar of the AI Overview page: the scope selects, then Branded, the freshness text, the Customize toggle, Export

@@ -13,7 +13,7 @@ import {
   type ReadFacts,
 } from './frame-state';
 import messages from '../../../../../../messages/en.json';
-import type { Say } from '../../../numbers/number-model';
+import type { Say } from '../../say';
 import type { Route } from 'next';
 
 const translator = (namespace: string): Say => {

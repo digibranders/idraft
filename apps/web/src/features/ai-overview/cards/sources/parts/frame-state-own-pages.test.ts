@@ -7,7 +7,7 @@ import { mapReadToFrame, type FrameContext, type FrameInput, type FrameWords } f
 import messages from '../../../../../../messages/en.json';
 import { drillHref } from '../../../drilldown/drill-links';
 import { scopeOf } from '../model/source-fixtures';
-import type { Say } from '../../../numbers/number-model';
+import type { Say } from '../../say';
 
 const translator = (namespace: string): Say => {
   const translate = createTranslator({ locale: 'en', messages, namespace: namespace as never });

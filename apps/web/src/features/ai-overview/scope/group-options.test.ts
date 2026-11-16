@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { chosenGroup, groupChoices } from './group-options';
+import { chosenGroup, groupChoices, groupTerms } from './group-options';
 import type { NamedTerm } from '@/lib/keywords/taxonomy-reads';
 
 const term = (termId: string, name: string, parentId: string | null, path: string): NamedTerm => ({
@@ -28,6 +28,26 @@ describe('groupChoices', () => {
 
   it('is All groups alone for a project with no topic', () => {
     expect(groupChoices([], 'All groups')).toEqual([{ termId: null, label: 'All groups' }]);
+  });
+});
+
+describe('groupTerms', () => {
+  const rows = (...held: [string, number][]): { term_id: string; prompt_count: number }[] =>
+    held.map(([term_id, prompt_count]) => ({ term_id, prompt_count }));
+
+  it('lists the topics that hold a prompt and have none below them, in the tree order', () => {
+    // SEO rolls up its sub-topic, so it is above a group and not one; Paid search holds prompts and is a group
+    expect(groupTerms(TREE, rows(['paid', 2], ['seo', 3], ['technical', 3])).map((term) => term.termId)).toEqual([
+      'technical',
+      'paid',
+    ]);
+  });
+
+  it('leaves out a topic with no prompt, and a topic whose only sub-topics are empty is a group', () => {
+    expect(groupTerms(TREE, rows(['paid', 0], ['seo', 2], ['technical', 0])).map((term) => term.termId)).toEqual([
+      'seo',
+    ]);
+    expect(groupTerms(TREE, [])).toEqual([]);
   });
 });
 
