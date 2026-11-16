@@ -10,6 +10,8 @@ import { col } from '@/components/app/data-table/columns';
 import { DataTable } from '@/components/app/data-table/data-table';
 import type { DataTableColumn } from '@/components/app/data-table/types';
 import { parseDensity, type Density, type SortKey } from '@/lib/tables/table-state';
+import { PermissionProvider } from '@/lib/permissions';
+import { membershipFactory } from '@/mocks/factories/identity';
 import { renderWithProviders } from '@/test/render';
 import messages from '../../../../messages/en.json';
 
@@ -72,32 +74,34 @@ function Table({ rows }: { rows: Row[] }): ReactElement {
   const [visible, setVisible] = useState<readonly string[] | null>(null);
   const [search, setSearch] = useState('');
   return (
-    <div className="flex h-200 flex-col">
-      <DataTable<Row>
-        caption="Prompts"
-        itemNoun={{ one: 'prompt', other: 'prompts' }}
-        columns={COLUMNS}
-        getRowId={(row) => row.id}
-        rows={rows}
-        total={rows.length}
-        sort={sort}
-        onSortChange={setSort}
-        defaultSort={DEFAULT_SORT}
-        density={density}
-        onDensityChange={setDensity}
-        columnState={{ visible, onChange: setVisible }}
-        search={search}
-        onSearchChange={setSearch}
-        searchPlaceholder="Search prompts"
-        searchText={(row) => row.prompt}
-        rowName={(row) => row.prompt}
-        onRowOpen={onOpen}
-        status="ready"
-        errorState={<p>Failed</p>}
-        emptyState={<p>None</p>}
-        filteredEmptyState={<p>No match</p>}
-      />
-    </div>
+    <PermissionProvider membership={membershipFactory('editor')}>
+      <div className="flex h-200 flex-col">
+        <DataTable<Row>
+          caption="Prompts"
+          itemNoun={{ one: 'prompt', other: 'prompts' }}
+          columns={COLUMNS}
+          getRowId={(row) => row.id}
+          rows={rows}
+          total={rows.length}
+          sort={sort}
+          onSortChange={setSort}
+          defaultSort={DEFAULT_SORT}
+          density={density}
+          onDensityChange={setDensity}
+          columnState={{ visible, onChange: setVisible }}
+          search={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="Search prompts"
+          searchText={(row) => row.prompt}
+          rowName={(row) => row.prompt}
+          onRowOpen={onOpen}
+          status="ready"
+          errorState={<p>Failed</p>}
+          emptyState={<p>None</p>}
+          filteredEmptyState={<p>No match</p>}
+        />
+      </div>
+    </PermissionProvider>
   );
 }
 

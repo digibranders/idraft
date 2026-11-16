@@ -4913,7 +4913,7 @@
         "add": "Add",
         "addLabel": "Add {name} to your competitors",
         "addTip": "Track it: it counts in share of voice and the competitor gap from the next run",
-        "addLimitTip": "You track {count, number} brands, the most the project can follow. Remove one in Brands settings to add another.",
+        "addLimitTip": "{count, number} brands are tracked, the most the project can track. Remove one in Brands and aliases to add another.",
         "added": "Added",
         "addedTitle": "{name} added to your competitors",
         "addedBody": "It counts in share of voice and the competitor gap from the next run.",

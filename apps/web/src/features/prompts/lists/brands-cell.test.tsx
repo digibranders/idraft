@@ -7,6 +7,9 @@ import { chatgptRow, PROJECT, platformName, TRACKED } from './lists-fixtures';
 import { brandsOf, type FactsRow, type TrackedEntity } from '../facts';
 import { cellOf, engine, entityCells, rowOf } from '../facts/test-helpers';
 import { aiKey } from '../prompt-queries';
+import type { Role } from '@/lib/api/types';
+import { PermissionProvider } from '@/lib/permissions';
+import { membershipFactory } from '@/mocks/factories/identity';
 import { mswPath } from '@/mocks/respond';
 import { axe } from '@/test/axe';
 import { server } from '@/test/msw';
@@ -19,20 +22,24 @@ function Cell({
   rows,
   scope = ['chatgpt_web'],
   entities = TRACKED,
+  memberRole = 'editor',
 }: {
   rows: readonly FactsRow[];
   scope?: readonly string[];
   entities?: readonly TrackedEntity[];
+  memberRole?: Role;
 }) {
   return (
-    <BrandsCell
-      reading={brandsOf(rows, scope, entities)}
-      rows={rows}
-      entities={entities}
-      label="This prompt"
-      project={PROJECT}
-      platformName={platformName}
-    />
+    <PermissionProvider membership={membershipFactory(memberRole)}>
+      <BrandsCell
+        reading={brandsOf(rows, scope, entities)}
+        rows={rows}
+        entities={entities}
+        label="This prompt"
+        project={PROJECT}
+        platformName={platformName}
+      />
+    </PermissionProvider>
   );
 }
 
@@ -274,6 +281,41 @@ describe('Add as competitor', () => {
     await user.click(opener());
     const add = await screen.findByRole('button', { name: 'Add Copper to your competitors' });
     expect(add).toHaveAttribute('aria-disabled', 'true');
-    expect(add).toHaveAccessibleDescription(/You track 20 brands, the most the project can follow\./);
+    expect(add).toHaveAccessibleDescription(/20 brands are tracked, the most the project can track\./);
+  });
+
+  it('has no Add button for a role that may not change the project entities, but still says Not a competitor', async () => {
+    const { user } = renderWithProviders(<Cell rows={[chatgptRow()]} memberRole="viewer" />);
+    await user.click(opener());
+    const dialog = await screen.findByRole('dialog', { name: 'Brands mentioned in answers' });
+    expect(within(dialog).queryByRole('button', { name: /^Add / })).not.toBeInTheDocument();
+    expect(within(dialog).getByText('Not a competitor')).toBeInTheDocument();
+  });
+
+  it('counts a brand it added once towards the limit, also after the summary lists it among the entities', async () => {
+    routes();
+    const eighteen: TrackedEntity[] = Array.from({ length: 18 }, (_, index) => ({
+      entity_id: index === 0 ? 'own' : `rival-${String(index)}`,
+      name: index === 0 ? 'Northwind' : `Rival ${String(index)}`,
+      role: index === 0 ? 'own' : 'competitor',
+    }));
+    const row = chatgptRow({
+      other_brands: [
+        { name: 'Copper', mentioned: cellOf(2, 12) },
+        { name: 'Close', mentioned: cellOf(1, 12) },
+      ],
+    });
+    const { user, rerender } = renderWithProviders(<Cell rows={[row]} entities={eighteen} />);
+    await user.click(opener());
+    await user.click(await screen.findByRole('button', { name: 'Add Copper to your competitors' }));
+    await screen.findByText('Copper added to your competitors');
+    // The summary has been read again and lists Copper: 19 brands are tracked, not 20
+    rerender(
+      <Cell rows={[row]} entities={[...eighteen, { entity_id: 'new-entity', name: 'Copper', role: 'competitor' }]} />,
+    );
+    expect(await screen.findByRole('button', { name: 'Add Close to your competitors' })).not.toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
   });
 });

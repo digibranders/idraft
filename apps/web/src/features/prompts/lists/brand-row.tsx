@@ -26,6 +26,8 @@ export interface BrandRowViewProps {
   limitReached: boolean;
   /** How many brands the project follows, for the words of the limit. */
   trackedCount: number;
+  /** The caller may change the project's entities: a role that never may has no Add button (hidden, not disabled). */
+  canWrite: boolean;
   onAdd: (name: string) => void;
 }
 
@@ -41,11 +43,12 @@ export function BrandRowView({
   tip,
   limitReached,
   trackedCount,
+  canWrite,
   onAdd,
 }: BrandRowViewProps): ReactElement {
   const t = useTranslations('prompts.lists.brands');
   const tracked = row.tracked || added !== undefined;
-  const canAdd = !row.own && !tracked;
+  const untracked = !row.own && !tracked;
   return (
     <ListRow
       place={row.place}
@@ -60,7 +63,7 @@ export function BrandRowView({
           ) : null}
           <span className="truncate type-body text-foreground">{row.name}</span>
           {row.own ? <Badge className="shrink-0">{t('you')}</Badge> : null}
-          {canAdd ? (
+          {untracked ? (
             <Tooltip content={t('notCompetitorTip')}>
               <span className="shrink-0 type-meta">{t('notCompetitor')}</span>
             </Tooltip>
@@ -70,7 +73,7 @@ export function BrandRowView({
       }
       value={
         <span className="flex items-center gap-2 whitespace-nowrap">
-          {canAdd ? (
+          {untracked && canWrite ? (
             <Tooltip content={limitReached ? t('addLimitTip', { count: trackedCount }) : t('addTip')}>
               <Button
                 size="sm"

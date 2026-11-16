@@ -17,6 +17,7 @@ import {
   type TrackedEntity,
 } from '../facts';
 import type { PromptScope } from '../prompt-queries';
+import { canWriteEntities, useMembership } from '@/lib/permissions';
 
 /** How many names the cell shows before "+N". */
 const NAMES_SHOWN = 3;
@@ -49,6 +50,7 @@ export function BrandsCell({
 }: BrandsCellProps): ReactElement | null {
   const t = useTranslations('prompts.lists');
   const state = useAddedBrands(project);
+  const canWrite = canWriteEntities(useMembership());
   const { shown, codes } = reading;
   if (reading.state !== 'ok' || shown.length === 0) return null;
 
@@ -75,7 +77,10 @@ export function BrandsCell({
     });
     return counts.length === 0 ? undefined : counts.join(', ');
   };
-  const trackedCount = entities.length + state.added.size;
+  // A brand added here counts once, also after the summary has been read again and lists it among the entities
+  const trackedCount =
+    entities.length +
+    [...state.added.keys()].filter((name) => !entities.some((entity) => sameBrand(entity.name, name))).length;
   const rowView = (row: BrandRow | PinnedOwnBrand): ReactElement => (
     <BrandRowView
       key={row.name}
@@ -86,6 +91,7 @@ export function BrandsCell({
       tip={tipOf(row)}
       limitReached={atTrackedLimit(trackedCount)}
       trackedCount={trackedCount}
+      canWrite={canWrite}
       onAdd={state.add}
     />
   );

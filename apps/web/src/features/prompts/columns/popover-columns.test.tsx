@@ -17,6 +17,8 @@ import { col } from '@/components/app/data-table/columns';
 import type { DataTableColumn } from '@/components/app/data-table/types';
 import type { PromptsSummaryWithFacts } from '@/lib/api/prompt-facts';
 import type { ProjectEngine } from '@/lib/api/types';
+import { PermissionProvider } from '@/lib/permissions';
+import { membershipFactory } from '@/mocks/factories/identity';
 import { renderWithProviders } from '@/test/render';
 import messages from '../../../../messages/en.json';
 
@@ -67,7 +69,11 @@ const shot = (loaded: boolean): DataTableColumn<Row> =>
   });
 
 const show = <TRow,>(column: DataTableColumn<TRow>, value: TRow) =>
-  renderWithProviders(<Cell column={column} value={value} />);
+  renderWithProviders(
+    <PermissionProvider membership={membershipFactory('editor')}>
+      <Cell column={column} value={value} />
+    </PermissionProvider>,
+  );
 const cellText = (): string => screen.getByTestId('cell').textContent;
 const tipText = (): string => screen.getByTestId('tip').textContent;
 
@@ -225,10 +231,10 @@ describe('the Screenshot column', () => {
       within(dialog).getByRole('img', { name: 'The latest ChatGPT answer to the prompt, as the page showed it' }),
     ).toHaveAttribute('src', IMAGE);
     // The close button takes the focus first, with the name Close
-    expect(within(dialog).getByRole('button', { name: 'Close' })).toHaveFocus();
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Close' })).toHaveFocus());
     await user.keyboard('{Escape}');
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Answer screenshot' })).not.toBeInTheDocument());
-    expect(button).toHaveFocus();
+    await waitFor(() => expect(button).toHaveFocus());
   });
 
   it('does not draw an address that is not a web address or an inline image', async () => {
