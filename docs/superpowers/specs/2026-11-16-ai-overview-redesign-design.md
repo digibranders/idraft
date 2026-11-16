@@ -51,6 +51,12 @@ separated from Google organic in GA4). Fan-out queries come from ChatGPT only. A
   others". A card that cannot exist for a platform is hidden and a quiet note says how many are hidden.
 - **Group:** with one group selected, the group comparison cards are replaced by the prompts of that group and the
   other cards show the group beside the project value.
+- **Flat or nested topics:** the taxonomy allows a tree (`core.taxonomy_terms.parent_id`), but a project may have a
+  flat list. The live Eventus project has 11 top-level topics and no parents (checked 2026-11-16; its 10 topics with
+  prompts add up to the 123 prompts). The Group select and the group heat map therefore show parent rows and indented
+  topics only when the project has a tree, and a plain list otherwise. The preview fixture has a two-level tree;
+  `?taxonomy=flat` in the address shows the page for a flat project. Deeper trees (the plan allows 3 levels) are not
+  drawn yet.
 - Both controls, the compare setting and the branded chip are saved in the URL (`#/ai?platform=chatgpt&group=Pricing`).
 - The header line states the last run, the run number and the prompts in scope.
 

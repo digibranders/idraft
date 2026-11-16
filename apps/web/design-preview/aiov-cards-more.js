@@ -6,6 +6,7 @@ import { formatInteger } from './vendor/format/number.js';
 import {
   GA4_CONNECTED,
   GROUPS,
+  HAS_TREE,
   MEASURES,
   PARENTS,
   PLATFORM_CODES,
@@ -82,6 +83,22 @@ export function groupHeatmapCard(ctx) {
   headRow.append(avg);
   head.append(headRow);
   const body = el('tbody');
+  // One row for a topic: indented under its parent when the project has a tree, flush left when its topics are flat
+  const topicRow = (topic, indent) => {
+    const tr = el('tr', 'border-t border-border-subtle');
+    const th = el('th', `${indent ? 'pl-8' : 'pl-4'} pr-3 py-1 text-left font-normal`);
+    th.scope = 'row';
+    const link = el('button', 'type-body text-foreground hover:underline truncate max-w-48 text-left');
+    link.type = 'button';
+    link.textContent = topic.name;
+    link.addEventListener('click', () => setScope({ group: topic.id }));
+    th.append(link);
+    tr.append(th, el('td', 'px-2 text-right type-table num text-foreground-secondary', formatInteger(topic.prompts)));
+    HEAT_COLUMNS.forEach((code) => tr.append(heatCell(topic.cells[code], () => setScope({ group: topic.id, platform: code }), `${topic.name}, ${engineName(code)}`)));
+    tr.append(heatCell(topic.average, () => setScope({ group: topic.id }), `${topic.name}, average`));
+    return tr;
+  };
+  if (!HAS_TREE) topics.forEach((topic) => body.append(topicRow(topic, false)));
   PARENTS.forEach((parent) => {
     const children = topics.filter((topic) => topic.parent === parent);
     if (children.length === 0) return;
@@ -98,20 +115,7 @@ export function groupHeatmapCard(ctx) {
     HEAT_COLUMNS.forEach((code) => parentRow.append(heatCell(model.cells[measure][code], () => setScope({ group: `parent:${parent}`, platform: code }), `${parent}, ${engineName(code)}`)));
     parentRow.append(heatCell(model.average[measure], () => setScope({ group: `parent:${parent}` }), `${parent}, average`));
     body.append(parentRow);
-    children.forEach((topic) => {
-      const tr = el('tr', 'border-t border-border-subtle');
-      const th = el('th', 'pl-8 pr-3 py-1 text-left font-normal');
-      th.scope = 'row';
-      const link = el('button', 'type-body text-foreground hover:underline truncate max-w-48 text-left');
-      link.type = 'button';
-      link.textContent = topic.name;
-      link.addEventListener('click', () => setScope({ group: topic.id }));
-      th.append(link);
-      tr.append(th, el('td', 'px-2 text-right type-table num text-foreground-secondary', formatInteger(topic.prompts)));
-      HEAT_COLUMNS.forEach((code) => tr.append(heatCell(topic.cells[code], () => setScope({ group: topic.id, platform: code }), `${topic.name}, ${engineName(code)}`)));
-      tr.append(heatCell(topic.average, () => setScope({ group: topic.id }), `${topic.name}, average`));
-      body.append(tr);
-    });
+    children.forEach((topic) => body.append(topicRow(topic, true)));
   });
   table.append(head, body);
   const wrap = el('div', 'relative overflow-x-auto');
