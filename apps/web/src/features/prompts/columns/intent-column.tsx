@@ -29,6 +29,7 @@ export function intentColumn<TRow>(
       headerTooltip: t('prompts.metrics.intent.tip'),
       priority: 3,
       width: INTENT_WIDTH,
+      minWidth: INTENT_WIDTH,
       unknown: (row) => {
         const found = reading(row);
         return {

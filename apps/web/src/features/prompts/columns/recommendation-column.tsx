@@ -2,7 +2,7 @@ import { recommendedOf, type FactsRow } from '../facts';
 import { countText, SORT_ID } from '../prompt-model';
 import { rateMetricColumn, type RateFigure } from './rate-metric-column';
 import type { RateColumnSpec } from './rate-metric-column';
-import type { MetricContext } from './metric-shared';
+import { unanswered, type MetricContext } from './metric-shared';
 import type { DataTableColumn } from '@/components/app/data-table/types';
 import { EMPTY_VALUE } from '@/lib/format';
 
@@ -17,6 +17,7 @@ const RECOMMENDATION_WIDTH = 196;
  */
 export function recommendationFigure(facts: FactsRow | undefined, scope: readonly string[]): RateFigure {
   if (facts === undefined) return { state: 'unknown', kind: 'not_collected' };
+  if (unanswered(facts, scope)) return { state: 'unknown', kind: 'no_answers' };
   const reading = recommendedOf([facts], scope);
   if (reading.state === 'ok') {
     return {

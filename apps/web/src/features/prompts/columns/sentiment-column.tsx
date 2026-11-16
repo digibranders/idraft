@@ -3,7 +3,16 @@ import type { ReactElement } from 'react';
 import { SENTIMENT_KEYS, SENTIMENT_MIN, sentimentOf, type FactsRow, type LinkedKeywordVolume } from '../facts';
 import type { SentimentKey } from '../facts';
 import { SORT_ID } from '../prompt-model';
-import { absenceOf, HatchedPill, Missing, notCollected, platformLabel, platformList, tipOf } from './metric-shared';
+import {
+  absenceOf,
+  HatchedPill,
+  Missing,
+  notCollected,
+  platformLabel,
+  platformList,
+  tipOf,
+  unanswered,
+} from './metric-shared';
 import type { MetricContext, UnknownCell } from './metric-shared';
 import { col } from '@/components/app/data-table/columns';
 import type { CellTip, DataTableColumn } from '@/components/app/data-table/types';
@@ -38,7 +47,10 @@ export function sentimentColumn<TRow>(context: MetricContext, rows: SentimentRow
   const { t, scope } = context;
   const readingOf = (row: TRow): ReturnType<typeof sentimentOf> | null => {
     const facts = rows.facts(row);
-    return facts === undefined ? null : sentimentOf([facts], scope);
+    if (facts === undefined) return null;
+    // Read, and no platform in view has an answer for the row: that is an absence, not a fact the backend lacks
+    if (unanswered(facts, scope)) return { state: 'unobserved', shares: null, codes: [], mentions: 0, answers: 0 };
+    return sentimentOf([facts], scope);
   };
   const unknownOf = (row: TRow, reading: ReturnType<typeof sentimentOf> | null): UnknownCell => {
     if (reading === null || reading.state === 'not_collected') return notCollected(context);
@@ -51,6 +63,7 @@ export function sentimentColumn<TRow>(context: MetricContext, rows: SentimentRow
     headerTooltip: t('prompts.metrics.sentiment.tip'),
     priority: 3,
     width: SENTIMENT_WIDTH,
+    minWidth: SENTIMENT_WIDTH,
     // The cell is drawn below, for it has the thin state too
     known: () => null,
   });

@@ -2,7 +2,16 @@ import type { ReactElement } from 'react';
 
 import { POSITION_MIN_LISTS, positionOf, type FactsRow, type LinkedKeywordVolume } from '../facts';
 import { SORT_ID } from '../prompt-model';
-import { absenceOf, HatchedPill, Missing, notCollected, platformLabel, platformList, tipOf } from './metric-shared';
+import {
+  absenceOf,
+  HatchedPill,
+  Missing,
+  notCollected,
+  platformLabel,
+  platformList,
+  tipOf,
+  unanswered,
+} from './metric-shared';
 import type { MetricContext, UnknownCell } from './metric-shared';
 import { col } from '@/components/app/data-table/columns';
 import type { CellTip, DataTableColumn } from '@/components/app/data-table/types';
@@ -28,7 +37,11 @@ export function positionColumn<TRow>(context: MetricContext, rows: PositionRows<
   const { t, scope } = context;
   const readingOf = (row: TRow): ReturnType<typeof positionOf> | null => {
     const facts = rows.facts(row);
-    return facts === undefined ? null : positionOf([facts], scope);
+    if (facts === undefined) return null;
+    // Read, and no platform in view has an answer for the row: that is an absence, not a fact the backend lacks
+    if (unanswered(facts, scope))
+      return { state: 'unknown', reason: 'unobserved', mentions: 0, ordered_answers: 0, answers: 0 };
+    return positionOf([facts], scope);
   };
   const unknownOf = (row: TRow, reading: ReturnType<typeof positionOf> | null): UnknownCell => {
     if (reading === null || (reading.state === 'unknown' && reading.reason === 'not_collected')) {

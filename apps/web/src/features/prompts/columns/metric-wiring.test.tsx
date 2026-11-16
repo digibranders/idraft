@@ -51,7 +51,7 @@ const ROW: PromptRow = {
 
 const METRICS = ['intent', 'volume', 'position', 'recommendation', 'sov', 'sentiment'];
 
-function Probe({ withFacts }: { withFacts: boolean }): ReactElement {
+function Probe({ withFacts, row = ROW }: { withFacts: boolean; row?: PromptRow }): ReactElement {
   const { columns, sortFields } = usePromptColumns([projectEngine('chatgpt_web')], 'mention', null, {
     showLocation: true,
     facts: withFacts ? FACTS : undefined,
@@ -64,7 +64,7 @@ function Probe({ withFacts }: { withFacts: boolean }): ReactElement {
         .filter((column) => METRICS.includes(column.id))
         .map((column) => (
           <div key={column.id} data-testid={`cell-${column.id}`}>
-            {column.cell(ROW)}
+            {column.cell(row)}
           </div>
         ))}
     </>
@@ -115,5 +115,14 @@ describe('the metric columns on the Prompts tab', () => {
     const text = (id: string): string | null => screen.getByTestId(`cell-${id}`).textContent;
     expect(['volume', 'position', 'recommendation', 'sentiment'].map(text)).toEqual(['n/a', 'n/a', 'n/a', 'n/a']);
     expect(text('intent')).toBe('Commercial');
+  });
+
+  it('say the prompt has no answers when the facts were read and hold no row for it', () => {
+    const unknownPrompt = { ...ROW, prompt: { ...prompt, prompt_id: 'p2' } };
+    renderWithProviders(<Probe withFacts row={unknownPrompt} />);
+    const text = (id: string): string | null => screen.getByTestId(`cell-${id}`).textContent;
+    expect(['position', 'recommendation', 'sentiment'].map(text)).toEqual(['n/a', 'n/a', 'n/a']);
+    // The reason is the cell's tooltip: not "Not collected yet"
+    expect(screen.getByTestId('cell-position')).not.toHaveTextContent('Not collected');
   });
 });

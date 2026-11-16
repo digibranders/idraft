@@ -1,4 +1,4 @@
-import { promptVolumeOf, type LinkedKeywordVolume, type PromptSummaryRowWithFacts } from '../facts';
+import { promptVolumeOf, type FactsRow, type LinkedKeywordVolume, type PromptSummaryRowWithFacts } from '../facts';
 import type { PromptRow } from '../prompt-columns';
 import { cellsOfPrompt } from '../prompt-model';
 import { COLUMN_AFTER, type PromptColumnContext, type PromptColumnEntry } from '../seams/columns';
@@ -18,14 +18,20 @@ const metricContext = ({ t, locale, engines, scope }: PromptColumnContext): Metr
   scope,
 });
 
+const NO_ANSWERS: FactsRow = { engines: [] };
+
 /** What a prompt row of the Prompts tab gives the generic columns: the facts of its summary row, by prompt id. */
 function promptRows(context: PromptColumnContext): {
-  facts: (row: PromptRow) => PromptSummaryRowWithFacts | undefined;
+  facts: (row: PromptRow) => FactsRow | undefined;
   link: (row: PromptRow) => LinkedKeywordVolume | null | undefined;
 } {
-  const facts = (row: PromptRow): PromptSummaryRowWithFacts | undefined =>
+  const summary = (row: PromptRow): PromptSummaryRowWithFacts | undefined =>
     context.facts?.prompts.get(row.prompt.prompt_id);
-  return { facts, link: (row) => facts(row)?.linked_keyword };
+  return {
+    // The facts were read and the prompt has no row in them: it has no answers in the window
+    facts: (row) => (context.facts === undefined ? undefined : (summary(row) ?? NO_ANSWERS)),
+    link: (row) => summary(row)?.linked_keyword,
+  };
 }
 
 /**

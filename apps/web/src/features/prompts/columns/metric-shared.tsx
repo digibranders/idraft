@@ -1,6 +1,6 @@
 import type { ReactElement, ReactNode } from 'react';
 
-import type { LinkedKeywordVolume } from '../facts';
+import type { FactsRow, LinkedKeywordVolume } from '../facts';
 import type { Translate } from '../seams/shared';
 import type { CellTip } from '@/components/app/data-table/types';
 import type { ProjectEngine } from '@/lib/api/types';
@@ -15,6 +15,13 @@ export interface MetricContext {
   /** Their codes, in the same order. */
   scope: readonly string[];
 }
+
+/**
+ * Whether the facts of a row were read and hold no entry for any platform in view: the row has no answer there. An entry
+ * without a field is another thing (the backend does not send it yet).
+ */
+export const unanswered = (facts: FactsRow, scope: readonly string[]): boolean =>
+  !scope.some((code) => facts.engines.some((engine) => engine.engine_code === code));
 
 /** The platform whose answers come from the rank checks of a linked keyword. */
 export const AI_OVERVIEW = 'google_ai_overview';

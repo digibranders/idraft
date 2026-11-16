@@ -368,6 +368,28 @@ describe('sentimentColumn', () => {
   });
 });
 
+describe('a row the facts hold no answer for on the platforms in view', () => {
+  it('says there are no answers, not that the facts are not collected', () => {
+    // Answered on Gemini only, with ChatGPT in view
+    const row: Row = {
+      facts: rowOf(
+        engine(GEMINI, {
+          position: { rank_sum: 2, ordered_answers: 2, mentions: 3, answers: 10 },
+          recommended: cellOf(5, 10),
+          sentiment: { positive: 4, neutral: 1, negative: 0, mixed: 0 },
+        }),
+      ),
+    };
+    const scope = contextOf(CHAT);
+    expect(show(positionColumn<Row>(scope, rows), row)).toMatchObject({
+      text: 'n/a',
+      tip: 'No answers in this period.',
+    });
+    expect(show(recommendationColumn<Row>(scope, rows), row).tip).toBe('ChatGPT: no answers in this period');
+    expect(show(sentimentColumn<Row>(scope, rows), row).tip).toBe('No answers in this period.');
+  });
+});
+
 describe('metricColumns', () => {
   it('registers Intent, Search volume and Mention position, then the three rates, as two entries', () => {
     const entry = (id: string): number => metricColumns.findIndex((candidate) => candidate.id === id);
