@@ -33,6 +33,8 @@ import {
   rateFor,
   seeded,
 } from './prompts-data.js';
+import { visibilityCounts } from './aiov-data.js';
+import { infoButton } from './aiov-parts.js';
 import { brandsOf, citedLinksOf, intentOf, latestAnswerOf, positionOf, sentimentOf, volumeOf } from './prompts-extra.js';
 import { brandsCell, citedLinksCell, closeStaleList, initEngineSelect, onCompetitorsChange, intentCell, positionCell, screenshotCell, sentimentCell, textCell, volumeCell } from './prompts-extra-cells.js';
 import { initPromptInspector, refreshPromptInspector } from './prompts-inspector.js';
@@ -321,25 +323,38 @@ function renderHead() {
 }
 
 // -------------------------------------------------------------------------------------------------
-// Strip (ADR-DS-022 decision 12): the chips of the toolbar, the prompts in view and one mention rate per engine
+// Strip (ADR-DS-022 decision 12): the chips of the toolbar, the prompts in view and one AI visibility rate per engine
 
 const strip = $('[data-prompt-strip]', view);
+// The "i" button says what the percentages are; it sits beside the chips, and the chips scroll on their own
+const STRIP_INFO = {
+  what: 'The percentage for each engine is its AI visibility: how often that engine’s answers mention or cite your brand.',
+  how: 'The share of valid answers that name your brand, link to your site, or both. Each prompt counts once. Hover a figure for the counts behind it, with the mention, citation and share of voice figures.',
+};
+strip.parentElement.classList.remove('overflow-x-auto');
+strip.parentElement.classList.add('flex');
+strip.classList.add('min-w-0', 'flex-1', 'overflow-x-auto', 'scrollbar-none');
+const stripInfo = el('div', 'flex shrink-0 items-center border-l border-border-subtle px-1');
+stripInfo.append(infoButton('AI visibility', STRIP_INFO));
+strip.parentElement.append(stripInfo);
 
 /** One rate of the filtered scope on one engine: prompt-weighted, with the pooled counts as its context. */
 function scopeRate(code, metric) {
   const usable = scopePrompts().filter((prompt) => prompt.engines[code].n > 0);
-  const current = usable.map((prompt) => countsOf(prompt, code, metric));
+  // AI visibility (named or cited) is derived in the Overview's data layer, so both pages show the same figure
+  const countsFor = (prompt, period) => (metric === 'visibility' ? visibilityCounts(prompt, code, period) : countsOf(prompt, code, metric, period));
+  const current = usable.map((prompt) => countsFor(prompt, 'current'));
   const pooled = pooledCounts(current);
   const engine = engineOf(code);
-  if (!measures(code, metric)) return { value: 'n/a', delta: null, context: NOT_CLASSIFIED };
+  if (metric !== 'visibility' && !measures(code, metric)) return { value: 'n/a', delta: null, context: NOT_CLASSIFIED };
   const observations = current.reduce((sum, entry) => sum + entry.observations, 0);
   if (observations === 0 || pooled.n === 0) return { value: 'n/a', delta: null, context: `no ${engine.unit} in this scope` };
   // A narrow scope can leave an engine with fewer observations than a rate needs, like a single prompt
   if (rateState(observations) !== 'ok') return { value: 'n/a', delta: null, context: `${formatInteger(observations)} ${engine.unit}, too few for a rate` };
   const rate = metric === 'sov' ? pooled.k / pooled.n : promptWeightedRate(current);
   let delta = null;
-  if (metric === 'mention' || metric === 'citation') {
-    const previous = usable.map((prompt) => countsOf(prompt, code, metric, 'previous'));
+  if (metric !== 'sov') {
+    const previous = usable.map((prompt) => countsFor(prompt, 'previous'));
     const change = { value: rate - promptWeightedRate(previous), detectable: isDetectableChange(pooled, pooledCounts(previous)) };
     delta = deltaNode(change, 1);
   }
@@ -376,8 +391,8 @@ function renderStrip() {
   const count = scopePrompts().length;
   const items = [{ label: 'Prompts', value: formatInteger(count), tip: `Across ${plural(topicsInScope().length, 'topic')}` }];
   for (const engine of ENGINES) {
-    const rate = scopeRate(engine.code, 'mention');
-    const others = ['citation', 'sov'].map((metric) => `${METRIC_LABEL[metric]}: ${scopeRate(engine.code, metric).context}`);
+    const rate = scopeRate(engine.code, 'visibility');
+    const others = ['mention', 'citation', 'sov'].map((metric) => `${METRIC_LABEL[metric]}: ${scopeRate(engine.code, metric).context}`);
     const quiet = !state.engines.includes(engine.code);
     items.push({
       label: engine.name,
@@ -385,7 +400,7 @@ function renderStrip() {
       value: rate.value,
       delta: rate.delta,
       quiet,
-      tip: `${engine.name}. Mention: ${rate.context}. ${others.join('. ')}.${quiet ? ' Not in the Engine filter, so the table leaves it out.' : ''}`,
+      tip: `${engine.name}. AI visibility (named or cited): ${rate.context}. ${others.join('. ')}.${quiet ? ' Not in the Engine filter, so the table leaves it out.' : ''}`,
     });
   }
   $('[data-prompt-updated]', view).textContent = 'Updated Sep 28, 02:10';

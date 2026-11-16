@@ -75,6 +75,12 @@ function derived(prompt, code, previous) {
   };
 }
 
+/** Answers of one prompt on one platform that name or cite the brand, for the Prompts page strip (same counts as the Overview). */
+export function visibilityCounts(prompt, code, period = 'current') {
+  const { visible, n } = derived(prompt, code, period === 'previous');
+  return { k: visible, n, observations: n };
+}
+
 // -------------------------------------------------------------------------------------------------
 // One platform over a list of prompts, one period
 
