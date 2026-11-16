@@ -183,8 +183,8 @@ export function LinkCard(props: LinkCardProps): ReactElement {
           </span>
         </button>
       </Tooltip>
-      {/* Invisible tools take no pointer: a tap on the corner of a card must not hit them on a device with no hover */}
-      <div className="pointer-events-none absolute top-1 right-1 flex gap-0.5 opacity-0 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100">
+      {/* Hidden tools take no pointer, so a tap on the corner of a card cannot hit one it does not show; a touch screen has no hover, so there they always show */}
+      <div className="pointer-events-none absolute top-1 right-1 flex gap-0.5 opacity-0 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100 pointer-coarse:pointer-events-auto pointer-coarse:opacity-100">
         {tools.focusLabel === null ? null : (
           <IconButton
             icon={Crosshair}
