@@ -6839,6 +6839,16 @@
         "infoWhat": "The domains AI answers cite most often.",
         "infoHow": "A page is counted once for each answer that cites it. Each share is a part of all citations in scope."
       },
+      "ownPages": {
+        "title": "Your pages cited",
+        "meta": "{units, plural, one {# unit} other {# units}} from {domain}",
+        "metaDomains": "{units, plural, one {# unit} other {# units}} from {count} domains",
+        "note": "{units, plural, one {# unit} other {# units}}",
+        "emptyTitle": "None of your pages was cited",
+        "emptyReason": "No answer in this scope cited a page of your domain.",
+        "infoWhat": "Which pages of your site AI answers cite.",
+        "infoHow": "Each page's share of all the citations that go to your domains."
+      },
       "referrals": {
         "title": "AI referral visits",
         "connect": "Connect GA4",

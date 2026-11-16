@@ -13,8 +13,12 @@ export interface DomainBarRow {
   label: string;
   /** The project's own domain: a strong label and a `chart-1` bar; every other bar is neutral. */
   own: boolean;
+  /** The label is in the strong weight; left out, it follows `own`. */
+  strong?: boolean | undefined;
   /** The role badge beside the label. */
-  badge: ReactNode;
+  badge?: ReactNode;
+  /** After the share, in the meta style: "24 units". */
+  note?: string | undefined;
   /** 0 to 1; `null` has no bar (a share that cannot be told is never a 0). */
   value: number | null;
   /** The share as text, or the words that stand in for it. */
@@ -28,13 +32,15 @@ export interface DomainBarRow {
 export interface DomainBarsProps {
   rows: readonly DomainBarRow[];
   caption: string;
+  /** The bars show at any card width; left out they are hidden under 20 rem, where the share stays. */
+  alwaysBars?: boolean | undefined;
 }
 
 /**
  * The domains of a card as one line each, as the design preview draws them: the domain and its role badge, a bar on one
  * scale from 0, and the share. The bar column is hidden under 20 rem of card width, where the share stays.
  */
-export function DomainBars({ rows, caption }: DomainBarsProps): ReactElement {
+export function DomainBars({ rows, caption, alwaysBars = false }: DomainBarsProps): ReactElement {
   const top = Math.max(0.0001, ...rows.map((row) => row.value ?? 0));
   return (
     <div className="@container">
@@ -54,7 +60,10 @@ export function DomainBars({ rows, caption }: DomainBarsProps): ReactElement {
                     <span className="inline-flex max-w-full min-w-0 items-center gap-2">
                       {row.href === undefined ? (
                         <span
-                          className={cn('min-w-0 truncate text-foreground', row.own ? 'type-body-strong' : 'type-body')}
+                          className={cn(
+                            'min-w-0 truncate text-foreground',
+                            (row.strong ?? row.own) ? 'type-body-strong' : 'type-body',
+                          )}
                         >
                           {row.label}
                         </span>
@@ -63,7 +72,7 @@ export function DomainBars({ rows, caption }: DomainBarsProps): ReactElement {
                           href={row.href}
                           className={cn(
                             'min-w-0 truncate rounded-sm text-foreground outline-none hover:underline focus-visible:focus-ring',
-                            row.own ? 'type-body-strong' : 'type-body',
+                            (row.strong ?? row.own) ? 'type-body-strong' : 'type-body',
                           )}
                         >
                           {row.label}
@@ -73,7 +82,7 @@ export function DomainBars({ rows, caption }: DomainBarsProps): ReactElement {
                     </span>,
                   )}
                 </th>
-                <td className="hidden w-full pr-3 @xs:table-cell">
+                <td className={cn('w-full pr-3', !alwaysBars && 'hidden @xs:table-cell')}>
                   {tip(
                     <div
                       aria-hidden="true"
@@ -92,7 +101,12 @@ export function DomainBars({ rows, caption }: DomainBarsProps): ReactElement {
                     row.value === null && 'text-foreground-tertiary',
                   )}
                 >
-                  {tip(<span>{row.valueText}</span>)}
+                  {tip(
+                    <span>
+                      {row.valueText}
+                      {row.note === undefined ? null : <span className="ml-1.5 type-meta">{row.note}</span>}
+                    </span>,
+                  )}
                 </td>
               </tr>
             );

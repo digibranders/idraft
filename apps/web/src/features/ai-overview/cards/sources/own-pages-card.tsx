@@ -7,19 +7,18 @@ import { useSourcePages } from './data/source-reads';
 import { pageRows, type PageFigures } from './model/page-rows';
 import { useCitationsDrill } from './parts/drill';
 import { useFrameState, type DataSituation } from './parts/frame-state';
+import { DomainBars, type DomainBarRow } from './parts/domain-bars';
 import { engineNames, metaLine } from './parts/source-meta';
 import { engineLabel } from '../engines/engine-role';
 import { useCardDensity } from '../engines/use-card-density';
 import { useCardExport } from '../engines/use-card-seams';
 import type { Say } from '../../numbers/number-model';
-import { BarList, BarListTable, type BarListProps, type ComparisonRow } from '@/components/app/chart/bar-list';
+import { BarListTable, type BarListProps, type ComparisonRow } from '@/components/app/chart/bar-list';
 import { ChartFrame } from '@/components/app/chart/chart-frame';
 import { visibleUrlText } from '@/components/app/cells/visible-text';
-import { MetricInfo } from '@/components/app/metric/metric-info';
 import type { CardProps } from '@/features/layouts';
-import { METHODOLOGY_HREF } from '@/lib/citations/methodology';
 import { safeText, type CsvTable } from '@/lib/csv/csv-write';
-import { formatInteger, formatIsoDate, formatList, formatTableDate } from '@/lib/format';
+import { formatInteger, formatIsoDate, formatList, formatPercent, formatTableDate } from '@/lib/format';
 
 /** The `rows` option (catalog 5, 8 or 10, default 8). */
 const ROW_OPTIONS = [5, 8, 10] as const;
@@ -34,14 +33,15 @@ function rowsOf(option: string | undefined): number {
 const SUMMARY_LEADERS = 3;
 
 /**
- * CH-08: the pages of your own domains that answers cite, by citation units, every bar in `chart-1` (they are all
- * yours). The units of every engine in scope are one pool (the API aggregates them): the meta line and the footnote
- * name the engines and each row's tooltip carries the split. No percent is drawn, so every number is a count with
- * its words. The address and the title are provider text and only ever drawn as text: a row opens the source
- * inspector of the Citations page, never the address itself.
+ * CH-08 and OV-CIT-05: the pages of your own domains that answers cite, one line each (the path, a bar in `chart-1`,
+ * the page's share of the units that go to your domains and its units). The units of every platform in scope are one
+ * pool (the API aggregates them): the footnote names the platforms and each row's tooltip carries the split. The
+ * address and the title are provider text and only ever drawn as text: a row opens the source inspector of the
+ * Citations page, never the address itself.
  */
 export default function OwnPagesCard({ item, options, live }: CardProps): ReactElement {
   const t = useTranslations('aiOverview.sources.ownPages');
+  const words = useTranslations('aiOverview.sourcesTracking.ownPages');
   const say = useTranslations('aiOverview.sources.common') as Say;
   const density = useCardDensity();
   const citations = useCitationsDrill();
@@ -57,13 +57,18 @@ export default function OwnPagesCard({ item, options, live }: CardProps): ReactE
     if (page.meta.citation_units === 0) return { kind: 'no_citations', answers: page.meta.answers };
     return figures.length === 0 ? { kind: 'no_own_pages' } : { kind: 'ready' };
   })();
-  const frame = useFrameState({
+  const state = useFrameState({
     subject: t('subject'),
     read: reads.current,
     previous: null,
     previousEmpty: false,
     situation,
   });
+  // The preview's reason for no page of yours in the citations, whether nothing was cited or only other sites were
+  const frame =
+    state.status === 'empty' && (situation.kind === 'no_citations' || situation.kind === 'no_own_pages')
+      ? { ...state, empty: { title: words('emptyTitle'), reason: words('emptyReason') } }
+      : state;
 
   const timeZone = page?.meta.window.timezone ?? 'UTC';
   const engineText = (figure: PageFigures): string =>
@@ -76,7 +81,9 @@ export default function OwnPagesCard({ item, options, live }: CardProps): ReactE
       ),
     );
 
-  const rowOf = (figure: PageFigures): ComparisonRow => {
+  // One denominator: the units that go to your domains, which the read states for the whole scope
+  const ownUnits = page?.meta.by_role.find((entry) => entry.domain_role === 'own')?.citation_units ?? 0;
+  const rowOf = (figure: PageFigures): ComparisonRow & { barRow: DomainBarRow } => {
     const name = visibleUrlText(figure.label);
     const tip = [
       figure.title === null ? null : visibleUrlText(figure.title),
@@ -86,11 +93,23 @@ export default function OwnPagesCard({ item, options, live }: CardProps): ReactE
     ]
       .filter((part) => part !== null)
       .join('. ');
+    const href = citations({ tab: 'pages', role: 'own', source: figure.urlId }) ?? undefined;
     return {
       id: figure.id,
       label: name,
       own: true,
-      href: citations({ tab: 'pages', role: 'own', source: figure.urlId }) ?? undefined,
+      href,
+      barRow: {
+        id: figure.id,
+        label: name,
+        own: true,
+        strong: false,
+        value: ownUnits > 0 ? figure.units / ownUnits : null,
+        valueText: ownUnits > 0 ? formatPercent(figure.units / ownUnits, { decimals: 0 }) : '',
+        note: words('note', { units: figure.units }),
+        tip,
+        href,
+      },
       value: {
         kind: 'value',
         value: figure.units,
@@ -139,12 +158,22 @@ export default function OwnPagesCard({ item, options, live }: CardProps): ReactE
   });
 
   const shown = frame.status === 'ready' || frame.status === 'refetching';
-  const meta = page === undefined || !shown ? null : metaLine(page.meta, say);
+  const domains = page === undefined ? [] : [...new Set(page.data.map((row) => row.registrable_domain))];
+  const meta =
+    page === undefined || !shown || ownUnits === 0
+      ? null
+      : domains.length === 1
+        ? words('meta', { units: ownUnits, domain: domains[0] ?? '' })
+        : words('metaDomains', { units: ownUnits, count: domains.length });
   const hidden = page === undefined ? 0 : page.page.total - figures.length;
   const footnote =
     page === undefined
       ? []
-      : [say('footnotePooled', { engines: formatList(engineNames(page.meta.engine_codes)) }), say('footnoteFlagged')];
+      : [
+          metaLine(page.meta, say),
+          say('footnotePooled', { engines: formatList(engineNames(page.meta.engine_codes)) }),
+          say('footnoteFlagged'),
+        ];
   const leaders = formatList(
     rows
       .slice(0, SUMMARY_LEADERS)
@@ -153,10 +182,12 @@ export default function OwnPagesCard({ item, options, live }: CardProps): ReactE
   return (
     <ChartFrame
       kind="html"
+      keepHeaderWhenEmpty
       variant="panel"
       height={280}
-      title={t('title')}
+      title={words('title')}
       meta={meta}
+      info={{ what: words('infoWhat'), how: words('infoHow') }}
       summary={rows.length === 0 ? t('summaryNone') : t('summary', { pages: rows.length, list: leaders })}
       footnote={
         page === undefined ? undefined : (
@@ -168,25 +199,7 @@ export default function OwnPagesCard({ item, options, live }: CardProps): ReactE
           </div>
         )
       }
-      body={
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 type-meta">
-            <span>{t('rankedBy')}</span>
-            <MetricInfo
-              name={t('infoName')}
-              definition={t('infoDefinition')}
-              formula={t('infoFormula')}
-              {...(page === undefined
-                ? {}
-                : {
-                    denominatorText: t('infoSample', { units: page.meta.citation_units, answers: page.meta.answers }),
-                  })}
-              methodologyHref={METHODOLOGY_HREF}
-            />
-          </div>
-          <BarList {...list} />
-        </div>
-      }
+      body={<DomainBars rows={rows.map((row) => row.barRow)} caption={t('caption')} alwaysBars />}
       table={<BarListTable {...list} />}
       menu={{ fileName: t('fileName'), csv }}
       {...frame}
