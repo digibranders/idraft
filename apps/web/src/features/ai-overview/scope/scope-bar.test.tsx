@@ -74,14 +74,14 @@ describe('the scope bar', () => {
     expect(compare).not.toHaveClass('type-body-strong');
   });
 
-  it('lists the platforms that are on with AI Overview as not available, and writes one choice as one engine', async () => {
+  it('lists the platforms that are on with Google AI Overview as not available, and writes one choice as one engine', async () => {
     const { user, urls } = await page();
     await user.click(screen.getByRole('combobox', { name: 'Platform: All platforms' }));
     expect((await screen.findAllByRole('option')).map((option) => option.textContent)).toEqual([
       'All platforms',
       'ChatGPT',
       'Gemini',
-      'AI OverviewNot available',
+      'Google AI OverviewNot available',
     ]);
     expect(screen.getByRole('option', { name: /AI Overview/ })).toHaveAttribute('aria-disabled', 'true');
     await user.click(screen.getByRole('option', { name: 'Gemini' }));

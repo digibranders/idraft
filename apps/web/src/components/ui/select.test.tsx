@@ -199,13 +199,13 @@ describe('Select', () => {
       <Select
         value="ai"
         placeholder="Pick"
-        triggerPrefix="Workload:"
+        triggerPrefix="Job type:"
         options={[{ value: 'ai', label: 'AI visibility' }]}
         onValueChange={vi.fn()}
       />,
     );
-    expect(screen.getByRole('combobox')).toHaveTextContent('Workload:AI visibility');
-    expect(screen.getByText('Workload:')).toHaveClass('text-foreground-secondary');
+    expect(screen.getByRole('combobox')).toHaveTextContent('Job type:AI visibility');
+    expect(screen.getByText('Job type:')).toHaveClass('text-foreground-secondary');
   });
 
   it('shows no prefix unless one is given', () => {

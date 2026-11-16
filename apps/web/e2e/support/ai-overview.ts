@@ -51,7 +51,7 @@ export const BUILTIN_CARD_TITLES: Readonly<Record<string, string | null>> = {
   'topic-heatmap': null,
   'top-domains': 'Top cited domains',
   'position-distribution': 'Mention position',
-  'sentiment-by-engine': 'Brand sentiment',
+  'sentiment-by-engine': 'Sentiment by platform',
   'ai-referrals': 'AI referral traffic',
   'fanout-top': null,
 };

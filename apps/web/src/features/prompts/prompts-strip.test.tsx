@@ -145,12 +145,12 @@ describe('PromptsStrip slots', () => {
     expect(termsOf()).toEqual(['Prompts', 'ChatGPT', 'Gemini', 'Google AI Mode', 'Google AI Overview']);
   });
 
-  it('shows the AI visibility, named or cited, with the counts of every rate in the tooltip', async () => {
+  it('shows the AI visibility rate, mentioned or cited, with the counts of every rate in the tooltip', async () => {
     const { user } = render(twice(DETECTABLE));
     const chip = chipOf('ChatGPT');
     expect(chip).toHaveTextContent('50%');
     await user.hover(chip);
-    await waitFor(() => expect(tooltip()).toHaveTextContent('AI visibility (named or cited): 30 of 60 answers'));
+    await waitFor(() => expect(tooltip()).toHaveTextContent('AI visibility rate (mentioned or cited): 30 of 60 answers'));
     expect(tooltip()).toHaveTextContent('Mentioned: 30 of 60 answers');
   });
 
@@ -182,7 +182,7 @@ describe('PromptsStrip slots', () => {
     const slot = (label: string): HTMLElement | null => chipOf(label).parentElement;
     expect(slot('ChatGPT')).not.toHaveClass('bg-surface-subtle');
     expect(slot('Gemini')).toHaveClass('bg-surface-subtle');
-    expect(chipOf('Gemini')).toHaveTextContent('not in the Platform select');
+    expect(chipOf('Gemini')).toHaveTextContent('not in the Platform filter');
   });
 
   it('says a platform that is not on is not collected, never a number', async () => {

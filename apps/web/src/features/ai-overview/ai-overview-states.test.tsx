@@ -225,14 +225,14 @@ describe('a link from before the Platform select', () => {
       searchParams: '?engine=chatgpt_web,gemini_web&win=7d',
       onUrlUpdate: (event) => urls.push(event.queryString),
     });
-    expect(await screen.findByText('The link named several platforms')).toBeInTheDocument();
+    expect(await screen.findByText('The link listed several platforms')).toBeInTheDocument();
     expect(screen.getByText('The page shows one platform at a time, so it shows all platforms.')).toBeInTheDocument();
     expect(await screen.findByRole('combobox', { name: 'Platform: All platforms' })).toBeInTheDocument();
     await waitFor(() => {
       expect(urls.at(-1)).toBe('?win=7d');
     });
     // Strict mode runs effects twice and the key is gone after the first: one toast
-    expect(screen.getAllByText('The link named several platforms')).toHaveLength(1);
+    expect(screen.getAllByText('The link listed several platforms')).toHaveLength(1);
   });
 
   it('that names every platform that is on is All platforms without a word', async () => {
@@ -246,7 +246,7 @@ describe('a link from before the Platform select', () => {
     await waitFor(() => {
       expect(urls.at(-1)).toBe('');
     });
-    expect(screen.queryByText('The link named several platforms')).not.toBeInTheDocument();
+    expect(screen.queryByText('The link listed several platforms')).not.toBeInTheDocument();
   });
 });
 

@@ -573,7 +573,7 @@ const AI_OVERVIEW_CARDS: ReadonlyArray<CardTypeDefinition> = [
   ),
   aiCard(
     'ai.unlinked_mentions',
-    'Mentioned only',
+    'Mentioned, not cited',
     'Prompts that mention you without citing you.',
     'ai',
     ['half', 'third'],
@@ -589,7 +589,7 @@ const AI_OVERVIEW_CARDS: ReadonlyArray<CardTypeDefinition> = [
   ),
   aiCard(
     'ai.sentiment_by_engine',
-    'Brand sentiment',
+    'Sentiment by platform',
     'The tone of the mentions as four shares, per platform.',
     'ai',
     ['half', 'third'],

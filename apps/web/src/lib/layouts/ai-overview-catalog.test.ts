@@ -155,9 +155,9 @@ const NEW: readonly Row[] = [
   row('sources.new_lost', 'New and lost domains', 'ai', 'H T', 1),
   row('sources.diversity', 'Cited domain diversity', 'ai', 'H 2T', 1),
   row('ai.fanout_top', 'What ChatGPT searched', 'ai', 'H T F', 1, [rows(['5', '10'], '5')]),
-  row('ai.unlinked_mentions', 'Mentioned only', 'ai', 'H T', 1, [], { released: REDESIGN_RELEASED }),
+  row('ai.unlinked_mentions', 'Mentioned, not cited', 'ai', 'H T', 1, [], { released: REDESIGN_RELEASED }),
   row('ai.position_distribution', 'Mention position', 'ai', 'H T F', 1, [], { released: REDESIGN_RELEASED }),
-  row('ai.sentiment_by_engine', 'Brand sentiment', 'ai', 'H T', 1, [], { released: REDESIGN_RELEASED }),
+  row('ai.sentiment_by_engine', 'Sentiment by platform', 'ai', 'H T', 1, [], { released: REDESIGN_RELEASED }),
   row('traffic.ai_referrals', 'AI referral visits', 'traffic', 'F 2T', 1, [], {
     integration: 'ga4',
     released: REDESIGN_RELEASED,

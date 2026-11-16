@@ -317,12 +317,12 @@ test.describe('the AI visibility Overview', () => {
     await expectResetHidden(page);
   });
 
-  test('Platform lists AI Overview as not available', async ({ page }) => {
+  test('Platform lists Google AI Overview as not available', async ({ page }) => {
     await signIn(page, EDITOR);
     await openOverview(page, 'Fynix');
     await platformSelect(page).click();
-    await expect(page.getByRole('option', { name: /^AI Overview/ })).toHaveAttribute('aria-disabled', 'true');
-    await expect(page.getByRole('option', { name: /^AI Overview/ })).toContainText('Not available');
+    await expect(page.getByRole('option', { name: /^Google AI Overview/ })).toHaveAttribute('aria-disabled', 'true');
+    await expect(page.getByRole('option', { name: /^Google AI Overview/ })).toContainText('Not available');
   });
 
   test('a number links to Prompts with the scope carried', async ({ page }) => {
