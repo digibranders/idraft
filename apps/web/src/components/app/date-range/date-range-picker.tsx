@@ -47,6 +47,8 @@ export interface DateRangePickerProps extends RangeLimits {
   timeZone: string;
   /** `md` (36 px) in the top bar, `sm` (32 px) in forms. Default `md`. */
   size?: 'sm' | 'md' | undefined;
+  /** The page's word for the range, where the shared one ("Date range") is not the glossary's ("Period"). */
+  word?: string | undefined;
 }
 
 interface Draft {
@@ -108,11 +110,13 @@ export function DateRangePicker({
   onValueChange,
   timeZone,
   size = 'md',
+  word,
   today,
   earliest,
   maxDays,
 }: DateRangePickerProps): ReactElement {
   const t = useTranslations('common.dateRange');
+  const prefix = word === undefined ? t('namePrefix') : `${word}:`;
   const common = useTranslations('common');
   const limits: RangeLimits = { today, earliest, maxDays };
   const limitDays = limitDaysOf(limits);
@@ -122,7 +126,7 @@ export function DateRangePicker({
   const shortLabel = t('short', { days: range.days });
   // The button shows the long form from 640 px and the short one below it: the name holds both, so what a person
   // sees (and says to a voice control) is in the name at every width (WCAG 2.5.3)
-  const named = `${t('namePrefix')} ${label} (${shortLabel})`;
+  const named = `${prefix} ${label} (${shortLabel})`;
   const name = value.kind === 'preset' ? `${named}, ${resolvedText}` : named;
   const twoMonths = useMediaQuery(TWO_MONTHS);
 
@@ -269,7 +273,7 @@ export function DateRangePicker({
     const first = day < fromDay ? day : fromDay;
     const last = day < fromDay ? fromDay : day;
     setDraft({ from: first, to: last });
-    announce(`${t('namePrefix')} ${formatDateRange(first, last)}`, { key: 'date-range-pick' });
+    announce(`${prefix} ${formatDateRange(first, last)}`, { key: 'date-range-pick' });
   };
 
   const handleOpenChange = (next: boolean): void => {
@@ -286,14 +290,14 @@ export function DateRangePicker({
 
   const choose = (preset: RangePreset): void => {
     onValueChange({ kind: 'preset', preset });
-    announce(`${t('namePrefix')} ${t('lastDays', { days: PRESET_DAYS[preset] })}`, { key: 'date-range' });
+    announce(`${prefix} ${t('lastDays', { days: PRESET_DAYS[preset] })}`, { key: 'date-range' });
     setOpen(false);
   };
 
   const apply = (): void => {
     if (problem !== null) return;
     onValueChange({ kind: 'custom', from: fromText, to: toText });
-    announce(`${t('namePrefix')} ${formatDateRange(fromText, toText)}`, { key: 'date-range' });
+    announce(`${prefix} ${formatDateRange(fromText, toText)}`, { key: 'date-range' });
     setOpen(false);
   };
 
@@ -362,7 +366,7 @@ export function DateRangePicker({
           size={size}
         />
       }
-      aria-label={t('label')}
+      aria-label={word ?? t('label')}
       padding="list"
       align="end"
       // Presets alone: 176 px. With the calendar the popover is as wide as its content, and the popover's own

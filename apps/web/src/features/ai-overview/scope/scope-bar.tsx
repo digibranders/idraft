@@ -131,6 +131,7 @@ export function ScopeBar(): ReactElement {
       today={today}
       timeZone={project.timeZone}
       maxDays={MAX_DAYS}
+      word={t('window')}
     />
   );
 
@@ -140,7 +141,7 @@ export function ScopeBar(): ReactElement {
         <FiltersSheet count={changed}>
           <SheetRow label={t('window')}>{rangeControl}</SheetRow>
           <SheetRow label={t('location')}>
-            <CountryControl />
+            <CountryControl showName />
           </SheetRow>
           {controls}
           <BrandedFilter />

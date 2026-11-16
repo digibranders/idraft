@@ -1,5 +1,5 @@
 import { engineLabel, inCatalogOrder } from '../../engines/engine-role';
-import type { Say } from '../../../numbers/number-model';
+import type { Say } from '../../say';
 import type { EngineCode } from '@/lib/api/types';
 import type { SourcesMeta } from '@/lib/citations/types';
 import { formatDateRange, formatList } from '@/lib/format';

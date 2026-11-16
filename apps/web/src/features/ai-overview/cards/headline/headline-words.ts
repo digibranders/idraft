@@ -1,7 +1,7 @@
 import { FLOOR_OF, isNamedCount, type Reading } from './headline-model';
+import type { Say } from '../say';
 
-/** The words of `aiOverview.headline`, as `useTranslations('aiOverview.headline')` gives them. */
-export type Say = (key: string, values?: Record<string, string | number>) => string;
+export type { Say };
 
 /** What the page needs to put a figure into words. */
 export interface Words {

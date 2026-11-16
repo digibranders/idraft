@@ -13,7 +13,7 @@ import { useCountries } from '@/lib/locations/countries';
  * prompts ask in. It is the shared `CountryScopeControl` (the plan's copy of the Prompts page's control is not
  * needed: WP-22 moved it to `components/app/scope`) with this page's words and its own country read.
  */
-export function CountryControl(): ReactElement {
+export function CountryControl({ showName = false }: { showName?: boolean }): ReactElement {
   const t = useTranslations('aiOverview.scope');
   const { workspaceId, project, scope, setScope } = useOverview();
   const countries = usePromptCountries({ workspaceId, projectId: project.id }, scope.country);
@@ -37,6 +37,7 @@ export function CountryControl(): ReactElement {
       isos={countries.data ?? []}
       nameOf={nameOf}
       labels={labels}
+      showName={showName}
       onCountryChange={(country) => setScope({ country })}
     />
   );

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import { engineNames, footnoteLines, metaLine } from './source-meta';
 import messages from '../../../../../../messages/en.json';
-import type { Say } from '../../../numbers/number-model';
+import type { Say } from '../../say';
 import { sourcesMeta } from '../model/source-fixtures';
 import { formatList } from '@/lib/format';
 

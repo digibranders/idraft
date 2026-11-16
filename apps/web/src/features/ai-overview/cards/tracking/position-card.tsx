@@ -3,6 +3,7 @@
 import { useTranslations } from 'next-intl';
 import { useMemo, type ReactElement } from 'react';
 
+import { percentTexts } from './percent-texts';
 import { ShareRows, type ShareRow, type ShareSegment, type ShareToken } from './share-rows';
 import { engineLabel } from '../engines/engine-role';
 import { useCardData } from '../engines/use-card-data';
@@ -77,6 +78,7 @@ export default function PositionDistributionCard({ item, live }: CardProps): Rea
     if (reading.state === 'too_few') {
       return { ...base, note: t('tooFewNote'), body: { kind: 'chip', text: t('tooFewChip') } };
     }
+    const texts = percentTexts(reading.shares);
     return {
       ...base,
       note: meanText(reading.mean),
@@ -84,7 +86,7 @@ export default function PositionDistributionCard({ item, live }: CardProps): Rea
         kind: 'shares',
         cells: PARTS.map((part, index) => {
           const share = reading.shares[index] ?? 0;
-          const shareText = formatPercent(share, { decimals: 0 });
+          const shareText = texts[index] ?? '';
           return {
             share,
             shareText,
@@ -118,7 +120,7 @@ export default function PositionDistributionCard({ item, live }: CardProps): Rea
       cell: ({ reading }) =>
         reading.state === 'ok'
           ? t('cell', {
-              share: formatPercent(reading.shares[index] ?? 0, { decimals: 0 }),
+              share: percentTexts(reading.shares)[index] ?? '',
               k: reading.counts[index] ?? 0,
             })
           : '',
@@ -152,8 +154,8 @@ export default function PositionDistributionCard({ item, live }: CardProps): Rea
         ? t('summaryPlatform', {
             platform: nameOf(code),
             parts: formatList(
-              PARTS.map((part, index) =>
-                t('summaryPart', { name: t(part), share: formatPercent(reading.shares[index] ?? 0, { decimals: 0 }) }),
+              percentTexts(reading.shares).map((share, index) =>
+                t('summaryPart', { name: t(PARTS[index] ?? 'first'), share }),
               ),
             ),
           })

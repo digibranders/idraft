@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import { mapReadToFrame, type FrameContext, type FrameInput, type FrameWords } from './frame-state';
 import messages from '../../../../../../messages/en.json';
-import type { Say } from '../../../numbers/number-model';
+import type { Say } from '../../say';
 
 const translator = (namespace: string): Say => {
   const translate = createTranslator({ locale: 'en', messages, namespace: namespace as never });

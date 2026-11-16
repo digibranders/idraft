@@ -3,6 +3,7 @@
 import { useTranslations } from 'next-intl';
 import { useMemo, type ReactElement } from 'react';
 
+import { percentTexts } from './percent-texts';
 import { ShareRows, type ShareRow, type ShareSegment, type ShareToken } from './share-rows';
 import { engineLabel } from '../engines/engine-role';
 import { useCardData } from '../engines/use-card-data';
@@ -87,14 +88,15 @@ export default function SentimentCard({ item, live }: CardProps): ReactElement {
     const base = { id: code, label: nameOf(code), icon: <EngineLogo engine={code} name="" /> };
     if (reading.state === 'ok' && reading.shares !== null) {
       const { shares, mentions } = reading;
+      const texts = percentTexts(SENTIMENT_KEYS.map((key) => shares[key]));
       return {
         ...base,
         note: coverage === null ? '' : t('coverage', { share: formatPercent(coverage, { decimals: 0 }) }),
         body: {
           kind: 'shares',
-          cells: SENTIMENT_KEYS.map((key) => {
+          cells: SENTIMENT_KEYS.map((key, index) => {
             const share = shares[key];
-            const shareText = formatPercent(share, { decimals: 0 });
+            const shareText = texts[index] ?? '';
             return {
               share,
               shareText,
@@ -124,13 +126,13 @@ export default function SentimentCard({ item, live }: CardProps): ReactElement {
       header: t('mentionsHeader'),
       cell: (tone) => (tone.reading.state === 'ok' ? formatInteger(tone.reading.mentions) : ''),
     },
-    ...SENTIMENT_KEYS.map((key): PlainColumn<PlatformTone> => ({
+    ...SENTIMENT_KEYS.map((key, index): PlainColumn<PlatformTone> => ({
       id: key,
       header: t(key),
       cell: ({ reading }) =>
         reading.state === 'ok' && reading.shares !== null
           ? t('cell', {
-              share: formatPercent(reading.shares[key], { decimals: 0 }),
+              share: percentTexts(SENTIMENT_KEYS.map((each) => reading.shares?.[each] ?? 0))[index] ?? '',
               k: Math.round(reading.shares[key] * reading.mentions),
             })
           : '',
@@ -154,8 +156,8 @@ export default function SentimentCard({ item, live }: CardProps): ReactElement {
         ? t('summaryPlatform', {
             platform: nameOf(code),
             parts: formatList(
-              SENTIMENT_KEYS.map((key) =>
-                t('summaryPart', { name: t(key), share: formatPercent(reading.shares?.[key] ?? 0, { decimals: 0 }) }),
+              percentTexts(SENTIMENT_KEYS.map((key) => reading.shares?.[key] ?? 0)).map((share, index) =>
+                t('summaryPart', { name: t(SENTIMENT_KEYS[index] ?? 'positive'), share }),
               ),
             ),
           })
