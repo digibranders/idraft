@@ -59,9 +59,15 @@ function noteOf(cell) {
 
 function tileNode({ label, info, cell, ctx, series, plain, measure }) {
   const node = el('div', 'bg-surface px-3.5 py-3 flex flex-col justify-between gap-1 min-w-0');
-  const name = el('span', 'type-label text-foreground-secondary truncate', label);
-  if (info) name.dataset.tip = info;
-  node.append(name);
+  // The label and its info button share one row; the label gives way (it truncates), the button never leaves the tile
+  const head = el('div', 'flex items-center justify-between gap-1 min-w-0');
+  head.append(el('span', 'type-label text-foreground-secondary truncate min-w-0', label));
+  if (info) {
+    const button = infoButton(label, info);
+    button.classList.add('-my-1.5', '-mr-1.5');
+    head.append(button);
+  }
+  node.append(head);
   const row = el('div', 'flex items-center justify-between gap-3 min-w-0');
   const missing = !plain && cell.state !== 'ok';
   const value = el('span', `type-metric num ${missing ? 'text-foreground-tertiary' : 'text-foreground'}`, plain ? plain.value : valueText(cell));
@@ -170,7 +176,7 @@ export function headlineRow(ctx) {
     recommendation: () => tileNode({ label: MEASURES.recommendation.label, info: MEASURES.recommendation.info, cell: cell('recommendation'), ctx, measure: 'recommendation', series: seriesFor(model, 'recommendation', ctx.scope.platform) }),
     sentiment: () => {
       const sentiment = cell('sentiment');
-      const node = tileNode({ label: 'Sentiment, positive share', info: MEASURES.sentiment.info, cell: sentiment, ctx, measure: 'sentiment', series: seriesFor(model, 'sentiment', ctx.scope.platform) });
+      const node = tileNode({ label: 'Sentiment', info: MEASURES.sentiment.info, cell: sentiment, ctx, measure: 'sentiment', series: seriesFor(model, 'sentiment', ctx.scope.platform) });
       return node;
     },
     prompts: () => {
@@ -179,7 +185,7 @@ export function headlineRow(ctx) {
       const withAnswers = ctx.scope.platform === 'all' ? null : aggregateFor(model, ctx.scope.platform).prompts;
       return tileNode({ label: MEASURES.prompts.label, info: MEASURES.prompts.info, ctx, plain: { value: formatInteger(model.prompts.length), detail: withAnswers === null ? where : `${where}. ${withAnswers} with answers on ${engineName(ctx.scope.platform)}`, note: null } });
     },
-    runs: () => tileNode({ label: 'Runs in window', info: 'Weekly collection runs behind these numbers. Prompts are asked on the schedule of their panel.', ctx, plain: { value: String(RUNS.inWindow), detail: `Run ${RUNS.number}, last ${ctx.scope.platform === 'all' ? RUNS.last : lastRunOf(ctx.scope.platform)}`, note: null } }),
+    runs: () => tileNode({ label: 'Runs', info: 'Weekly collection runs behind these numbers. Prompts are asked on the schedule of their panel.', ctx, plain: { value: String(RUNS.inWindow), detail: `Run ${RUNS.number}, last ${ctx.scope.platform === 'all' ? RUNS.last : lastRunOf(ctx.scope.platform)}`, note: null } }),
   };
   TILE_LAYOUT.forEach((key) => strip.append(tiles[key]()));
   grid.append(hero, strip);
@@ -296,14 +302,14 @@ export function trendCard(ctx) {
 export function outcomeCard(ctx) {
   const { model } = ctx;
   const rows = outcomesFor(model);
-  if (rows.length === 0) return cardFrame({ key: 'ai.outcome_mix', title: 'Outcome split', body: emptyBody('No rate yet', 'These prompts have too few valid answers.') });
+  if (rows.length === 0) return cardFrame({ key: 'ai.outcome_mix', title: 'Answer outcomes', body: emptyBody('No rate yet', 'These prompts have too few valid answers.') });
   const body = stackedRows({
     segments: OUTCOME_SEGMENTS,
     rows: rows.map((row) => ({ label: platformLabel(row.code), shares: row.shares, counts: row.counts, note: `${formatInteger(row.observations)} answers` })),
   });
   return cardFrame({
     key: 'ai.outcome_mix',
-    title: 'What answers do with the brand',
+    title: 'Answer outcomes',
     meta: ctx.scope.platform === 'all' ? 'by platform' : engineName(ctx.scope.platform),
     body,
     footnote: 'The four shares add up to 100% of valid answers. Named only means the brand is named and none of its pages is cited.',
@@ -353,7 +359,7 @@ export function sovOverTimeCard(ctx) {
 
 export function gapCard(ctx) {
   const gaps = gapFor(ctx.model).filter((entry) => entry.gap !== null).sort((a, b) => b.lost - a.lost);
-  if (gaps.length === 0) return cardFrame({ key: 'ai.lost_to_competitor', title: 'Gap to competitors', body: emptyBody('No rate yet', 'Too few answers on this platform.') });
+  if (gaps.length === 0) return cardFrame({ key: 'ai.lost_to_competitor', title: 'Competitor gap', body: emptyBody('No rate yet', 'Too few answers on this platform.') });
   const limit = Math.max(...gaps.map((entry) => Math.abs(entry.gap)), 0.05);
   const table = el('table', 'w-full type-table');
   const head = el('thead');

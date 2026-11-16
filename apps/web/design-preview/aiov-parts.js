@@ -101,7 +101,7 @@ let infoPanel = null;
  * the same text in a small popover, which is how touch reaches it. The text is also in the button for screen readers.
  */
 export function infoButton(title, text) {
-  const button = el('button', 'size-control-sm shrink-0 rounded-md flex items-center justify-center text-foreground-tertiary hover:bg-surface-hover hover:text-foreground aria-expanded:bg-surface-hover aria-expanded:text-foreground');
+  const button = el('button', 'size-control-sm shrink-0 rounded-md flex items-center justify-center self-center text-foreground-tertiary hover:bg-surface-hover hover:text-foreground aria-expanded:bg-surface-hover aria-expanded:text-foreground');
   button.type = 'button';
   button.dataset.tip = text;
   button.setAttribute('aria-haspopup', 'dialog');
@@ -142,15 +142,24 @@ export function cardFrame({ key, title, meta, tools = [], body, footnote, flush 
   const section = el('section', 'relative min-w-0 @container bg-surface border border-border rounded-lg overflow-hidden flex flex-col');
   section.dataset.card = key;
   section.setAttribute('aria-labelledby', id);
-  const head = el('div', 'min-h-12 px-4 py-3 flex flex-wrap items-baseline gap-x-2 gap-y-1');
-  const heading = el('h2', 'type-section-title', title);
+  // A two-column grid: the title and its meta on the left, the info button on the right, so the button never wraps
+  // away from the title or leaves the card. The tools (metric tabs, buttons) sit on a second row, and move up beside
+  // the title when the card is wide enough for them (a container query on the card).
+  const head = el('div', 'min-h-12 px-4 py-3 grid grid-cols-[minmax(0,1fr)_auto] @2xl:grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-2 gap-y-2');
+  const text = el('div', 'min-w-0 col-start-1 row-start-1 flex flex-wrap items-baseline gap-x-2 gap-y-0');
+  const heading = el('h2', 'type-section-title min-w-0 wrap-anywhere', title);
   heading.id = id;
-  head.append(heading);
-  if (meta) head.append(el('span', 'type-meta', meta));
-  if (tools.length > 0 || footnote) {
-    const holder = el('span', 'ml-auto flex items-center gap-2');
+  text.append(heading);
+  if (meta) text.append(el('span', 'type-meta min-w-0 wrap-anywhere', meta));
+  head.append(text);
+  if (footnote) {
+    const info = infoButton(title, footnote);
+    info.classList.add('col-start-2', 'row-start-1', '@2xl:col-start-3', '-my-1', '-mr-1.5');
+    head.append(info);
+  }
+  if (tools.length > 0) {
+    const holder = el('div', 'min-w-0 col-span-2 row-start-2 justify-self-start @2xl:col-span-1 @2xl:col-start-2 @2xl:row-start-1 @2xl:justify-self-end flex flex-wrap items-center gap-2');
     holder.append(...tools);
-    if (footnote) holder.append(infoButton(title, footnote));
     head.append(holder);
   }
   section.append(head);

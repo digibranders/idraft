@@ -130,7 +130,7 @@ export function groupHeatmapCard(ctx) {
 export function groupExtremesCard(ctx) {
   const measure = ctx.scope.metric;
   const rows = groupRows(ctx.scope, measure).filter((row) => row.average.state === 'ok');
-  if (rows.length < 4) return cardFrame({ key: 'ai.topic_extremes', title: 'Strongest and weakest groups', body: emptyBody('Not enough groups', 'At least 4 groups with a rate are needed.') });
+  if (rows.length < 4) return cardFrame({ key: 'ai.topic_extremes', title: 'Top and bottom groups', body: emptyBody('Not enough groups', 'At least 4 groups with a rate are needed.') });
   const sorted = [...rows].sort((a, b) => b.average.value - a.average.value);
   const list = (items, token) => barList(items.map((row) => ({ label: row.name, value: row.average.value, barToken: token, strong: false, note: `${row.prompts} prompts` })), { max: sorted[0].average.value, always: true });
   // Never list a group on both sides: take at most half of the groups
@@ -139,7 +139,7 @@ export function groupExtremesCard(ctx) {
   strongest.append(el('p', 'type-label text-foreground-secondary mb-1', 'Strongest'), list(sorted.slice(0, count), 'chart-1'));
   const weakest = el('div', 'mt-3');
   weakest.append(el('p', 'type-label text-foreground-secondary mb-1', 'Weakest'), list(sorted.slice(-count).reverse(), 'chart-bar-neutral'));
-  return cardFrame({ key: 'ai.topic_extremes', title: 'Strongest and weakest groups', meta: MEASURES[measure].label.toLowerCase(), body: [strongest, weakest], footnote: 'Average of the platforms, with each group’s prompt count. Click a group in the heat map to open it.' });
+  return cardFrame({ key: 'ai.topic_extremes', title: 'Top and bottom groups', meta: MEASURES[measure].label.toLowerCase(), body: [strongest, weakest], footnote: 'Average of the platforms, with each group’s prompt count. Click a group in the heat map to open it.' });
 }
 
 /** With one group selected the comparison cards give way to that group's own prompts. */
@@ -228,7 +228,7 @@ export function ownPagesCard(ctx) {
 
 export function unlinkedCard(ctx) {
   const rows = unlinkedPrompts(ctx.model);
-  if (rows.length === 0) return cardFrame({ key: 'ai.unlinked_mentions', title: 'Unlinked mentions', body: emptyBody('No unlinked mentions', 'Every answer that names the brand also cites it, or there are too few answers.') });
+  if (rows.length === 0) return cardFrame({ key: 'ai.unlinked_mentions', title: 'Unlinked brand mentions', body: emptyBody('No unlinked mentions', 'Every answer that names the brand also cites it, or there are too few answers.') });
   const link = el('a', 'type-body text-link hover:underline whitespace-nowrap', 'View prompts');
   link.href = '#/prompts/explorer';
   const list = el('ul', 'flex flex-col');
@@ -267,7 +267,7 @@ export function positionCard(ctx) {
   });
   return cardFrame({
     key: 'ai.position_distribution',
-    title: 'Where the brand is named',
+    title: 'Mention position',
     meta: 'order among tracked brands',
     body: stackedRows({ segments: POSITION_SEGMENTS, rows, empty: 'Too few mentions' }),
     footnote: 'Order is the position of the first mention among the brands you track, not among every brand in the answer. A lower mean is better.',
