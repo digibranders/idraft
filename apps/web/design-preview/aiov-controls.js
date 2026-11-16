@@ -61,8 +61,11 @@ export function createSelect({ name, options, get, set, searchable = false, widt
   trigger.setAttribute('aria-haspopup', 'listbox');
   trigger.setAttribute('aria-expanded', 'false');
   const panel = el('div', `hidden fixed z-(--z-dropdown) max-h-80 overflow-y-auto rounded-lg border border-border bg-surface-elevated shadow-popover p-1 ${width}`);
-  panel.setAttribute('role', 'listbox');
-  panel.setAttribute('aria-label', name);
+  // The search field sits beside the listbox, not inside it: a listbox holds only options
+  const list = el('div');
+  list.setAttribute('role', 'listbox');
+  list.setAttribute('aria-label', name);
+  panel.append(list);
   document.body.append(panel);
 
   let search = null;
@@ -85,13 +88,15 @@ export function createSelect({ name, options, get, set, searchable = false, widt
     search.type = 'search';
     search.placeholder = `Search ${name.toLowerCase()}s`;
     search.setAttribute('aria-label', `Search ${name.toLowerCase()}s`);
-    panel.append(search);
+    panel.insertBefore(search, list);
   }
   options.forEach((option) => {
     const button = el('button', `${OPTION} ${option.indent ? 'pl-6' : ''}`);
     button.type = 'button';
     button.setAttribute('role', 'option');
     button.dataset.value = option.id;
+    // Indentation is visual only, so the group a topic belongs to is in its name
+    if (option.parent) button.setAttribute('aria-label', `${option.label}, in ${option.parent}`);
     const check = el('span', 'size-icon-sm shrink-0 text-primary-text invisible group-aria-selected:visible');
     check.setAttribute('aria-hidden', 'true');
     check.append(icon('check', 'size-icon-sm'));
@@ -102,20 +107,13 @@ export function createSelect({ name, options, get, set, searchable = false, widt
       if (option.id !== get()) set(option.id);
     });
     buttons.push({ button, option });
-    panel.append(button);
+    list.append(button);
   });
   search?.addEventListener('input', () => {
     const needle = search.value.trim().toLowerCase();
     buttons.forEach(({ button, option }) => (button.hidden = needle !== '' && !option.label.toLowerCase().includes(needle)));
   });
-  panel.addEventListener('keydown', (event) => {
-    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
-    event.preventDefault();
-    const visible = buttons.map(({ button }) => button).filter((button) => !button.hidden);
-    const at = visible.indexOf(document.activeElement);
-    const next = event.key === 'ArrowDown' ? visible[Math.min(visible.length - 1, at + 1)] : at <= 0 ? search : visible[at - 1];
-    next?.focus();
-  });
+  // Arrow keys inside a popup are handled once, for every popup, by interactions.js
   trigger.addEventListener('click', () => {
     if (!panel.classList.contains('hidden')) return ui.closePopup();
     if (search) {
@@ -129,4 +127,4 @@ export function createSelect({ name, options, get, set, searchable = false, widt
 }
 
 export const platformOptions = [{ id: 'all', label: 'All platforms' }, ...PLATFORMS.map((platform) => ({ id: platform.code, label: platform.name, logo: platform.name }))];
-export const groupOptions = GROUPS.map((group) => ({ id: group.id, label: group.label, indent: group.kind === 'topic', note: group.kind === 'parent' ? 'group' : undefined }));
+export const groupOptions = GROUPS.map((group) => ({ id: group.id, label: group.label, indent: group.kind === 'topic', parent: group.kind === 'topic' ? group.parent : undefined, note: group.kind === 'parent' ? 'group' : undefined }));

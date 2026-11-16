@@ -120,7 +120,8 @@ function aggregate(prompts, code, period, key) {
     mention: rate((row) => row.m),
     citation: rate((row) => row.c),
     unlinked: rate((row) => row.mentionedOnly),
-    sov: enough && mentions + competitorMentions > 0 ? mentions / (mentions + competitorMentions) : null,
+    // A share needs at least 4 brand mentions behind it (R2): otherwise it is not shown
+    sov: enough && mentions + competitorMentions >= 4 ? mentions / (mentions + competitorMentions) : null,
     recommendation: hasRecommendation ? rate((row) => row.recommendation ?? 0) : null,
     outcomes: {
       both: rate((row) => row.both),
@@ -144,12 +145,12 @@ function aggregate(prompts, code, period, key) {
 export const MEASURES = {
   visibility: { label: 'AI Visibility', short: 'Visibility', unit: 'ratio', better: 'up', info: 'Share of valid answers that name or cite the brand. 100% minus "neither".' },
   mention: { label: 'Mention rate', short: 'Mention', unit: 'ratio', better: 'up', info: 'Share of valid answers that name the brand. Each prompt counts once.' },
-  position: { label: 'Avg. mention position', short: 'Mention position', unit: 'order', better: 'down', info: 'Mean order in which the brand is named among tracked brands. 1 means named first.' },
+  position: { label: 'Avg. mention position', short: 'Mention position', unit: 'order', better: 'down', noun: 'mentions', info: 'Mean order in which the brand is named among tracked brands. 1 means named first.' },
   recommendation: { label: 'Recommendation rate', short: 'Recommendation', unit: 'ratio', better: 'up', info: 'Share of valid answers that recommend the brand. Not named counts as not recommended.', sample: true },
-  rank: { label: 'Avg. recommendation position', short: 'Recommendation position', unit: 'order', better: 'down', info: 'Mean rank in ordered lists that recommend brands. Only answers with a list count.', sample: true },
-  sov: { label: 'Share of voice', short: 'Share of voice', unit: 'ratio', better: 'up', info: 'Share of tracked-brand mentions that are the brand. Depends on the tracked competitors.' },
+  rank: { label: 'Avg. recommendation position', short: 'Recommendation position', unit: 'order', better: 'down', noun: 'listed answers', info: 'Mean rank in ordered lists that recommend brands. Only answers with a list count.', sample: true },
+  sov: { label: 'Share of voice', short: 'Share of voice', unit: 'ratio', better: 'up', noun: 'brand mentions', info: 'Share of tracked-brand mentions that are the brand. Depends on the tracked competitors.' },
   citation: { label: 'Source citation rate', short: 'Citation', unit: 'ratio', better: 'up', info: 'Share of valid answers that cite a page of the brand’s domain.' },
-  sentiment: { label: 'Brand sentiment', short: 'Sentiment', unit: 'ratio', better: 'up', info: 'Share of classified mentions with a positive tone. Shown as four shares, never one score.', sample: true },
+  sentiment: { label: 'Brand sentiment', short: 'Sentiment', unit: 'ratio', better: 'up', noun: 'classified mentions', info: 'Share of classified mentions with a positive tone. Shown as four shares, never one score.', sample: true },
   unlinked: { label: 'Unlinked brand mention', short: 'Unlinked mention', unit: 'ratio', better: 'up', info: 'Share of valid answers that name the brand without citing it.' },
   referral: { label: 'Referral traffic', short: 'Referrals', unit: 'count', better: 'up', info: 'Sessions from AI platforms (GA4).', sample: true },
   domain: { label: 'Top domain cited', short: 'Top domain', unit: 'text', better: 'up', info: 'The domain cited in the most answers.' },
@@ -180,11 +181,11 @@ function cellOf(measure, code, scopeCtx) {
   }
   if (measure === 'rank') {
     // Position inside ordered lists, only where the answer had a list: a fifth of answers have one
-    if (cur.position === null) return { ...info, state: 'insufficient' };
     const listed = Math.round(cur.mentioned * 0.38);
+    if (cur.position === null) return { ...info, state: 'insufficient', counts: { k: listed, n: listed } };
     const value = cur.position + 0.7;
     const previous = prev.position === null ? null : prev.position + 0.7;
-    return { ...info, state: listed >= 4 ? 'ok' : 'insufficient', value, previous, change: previous === null ? null : { value: value - previous, detectable: false }, counts: { k: listed, n: cur.mentioned }, coverage: listed / Math.max(1, cur.mentioned) };
+    return { ...info, state: listed >= 4 ? 'ok' : 'insufficient', value, previous, change: previous === null ? null : { value: value - previous, detectable: null }, counts: { k: listed, n: listed }, coverage: listed / Math.max(1, cur.mentioned) };
   }
   if (measure === 'sentiment') {
     const shares = sentimentOf(code, scopeCtx.scope.group);
@@ -195,7 +196,8 @@ function cellOf(measure, code, scopeCtx) {
       state: classified >= 4 ? 'ok' : 'insufficient',
       value: shares.positive,
       previous: previous.positive * 0.99,
-      change: { value: shares.positive - previous.positive * 0.99, detectable: false },
+      // No interval is computed for a rule-based tone share yet: the change is shown as not tested (R5)
+      change: { value: shares.positive - previous.positive * 0.99, detectable: null },
       shares,
       counts: { k: Math.round(classified * shares.positive), n: classified },
       coverage: shares.coverage,
@@ -204,26 +206,33 @@ function cellOf(measure, code, scopeCtx) {
   if (measure === 'position') {
     if (cur.position === null) return { ...info, state: cur.mentioned > 0 ? 'insufficient' : 'none', counts: { k: cur.mentioned, n: cur.mentioned } };
     const previous = prev.position;
-    return { ...info, state: 'ok', value: cur.position, previous, change: previous === null ? null : { value: cur.position - previous, detectable: false }, counts: { k: cur.mentioned, n: cur.mentioned } };
+    return { ...info, state: 'ok', value: cur.position, previous, change: previous === null ? null : { value: cur.position - previous, detectable: null }, counts: { k: cur.mentioned, n: cur.mentioned } };
   }
   const value = cur[measure];
   if (value === null) return { ...info, state: cur.observations > 0 ? 'insufficient' : 'none', counts: cur.counts[measure] };
   const previous = prev[measure];
   const detectable = previous !== null && isDetectableChange(cur.counts[measure], prev.counts[measure]);
-  return { ...info, state: 'ok', value, previous, change: previous === null ? null : { value: value - previous, detectable }, counts: cur.counts[measure] };
+  return { ...info, state: 'ok', value, previous, change: previous === null ? null : { value: value - previous, detectable }, counts: cur.counts[measure], previousCounts: prev.counts[measure] };
 }
 
 /** The equal-weight average of the platforms that have the measure ("avg of N"); its change is detectable from their pooled counts. */
 function averageOf(cells, codes) {
   const used = cells.filter((cell) => cell.state === 'ok');
-  if (used.length === 0) return { measure: cells[0].measure, code: 'all', state: cells.every((cell) => cell.state === 'unavailable') ? 'unavailable' : 'insufficient', used: 0, platforms: codes };
+  if (used.length === 0) {
+    const state = cells.every((cell) => cell.state === 'unavailable') ? 'unavailable' : 'insufficient';
+    // The count that fell under the floor is the largest one a platform reached, never zero (R2, R6)
+    const reached = cells.filter((cell) => cell.counts).map((cell) => cell.counts.n);
+    return { measure: cells[0].measure, code: 'all', state, used: 0, platforms: codes, observations: Math.max(0, ...cells.map((cell) => cell.observations ?? 0)), counts: reached.length > 0 ? { k: Math.max(...reached), n: Math.max(...reached) } : undefined };
+  }
   const { value } = equalWeightAverage(used.map((cell) => cell.value));
   const previousCells = used.filter((cell) => cell.previous !== null && cell.previous !== undefined);
   const previous = previousCells.length === used.length ? equalWeightAverage(previousCells.map((cell) => cell.previous)).value : null;
   const measure = cells[0].measure;
   const counts = pooledCounts(used.map((cell) => cell.counts));
   const ratio = MEASURES[measure].unit === 'ratio';
-  const detectable = ratio && previous !== null && used.every((cell) => cell.change?.detectable !== undefined) && isDetectableChange(counts, pooledCounts(used.map((cell) => ({ k: Math.round(cell.counts.n * cell.previous), n: cell.counts.n }))));
+  // Detectable only from the pooled counts of both periods (R5); a measure without previous counts is not tested
+  const testable = ratio && previous !== null && used.every((cell) => cell.previousCounts);
+  const detectable = testable ? isDetectableChange(counts, pooledCounts(used.map((cell) => cell.previousCounts))) : null;
   return {
     measure,
     code: 'all',
@@ -265,13 +274,15 @@ export const aggregateFor = (model, code, period = 'current') => aggregate(model
 
 export const WEEK_LABELS = WEEKS;
 
-export function weekly(previous, current, seedText, amplitude = 0.012) {
+export function weekly(previous, current, seedText, amplitude = 0.012, bounds = [0, 1]) {
   if (current === null || current === undefined) return Array(8).fill(null);
   const from = previous ?? current;
   const random = rng(seedText);
   const points = Array.from({ length: 8 }, (_, week) => {
     const base = week < 4 ? from : from + ((current - from) * (week - 3)) / 4;
-    return base + (random() - 0.5) * 2 * amplitude;
+    const value = base + (random() - 0.5) * 2 * amplitude;
+    // A rate stays between 0 and 100%; orders and counts pass `null` bounds
+    return bounds ? clamp(value, bounds[0], bounds[1]) : value;
   });
   points[3] = from;
   points[7] = current;
@@ -281,7 +292,8 @@ export function weekly(previous, current, seedText, amplitude = 0.012) {
 export function seriesFor(model, measure, code) {
   const cell = code === 'all' ? model.average[measure] : model.cells[measure][code];
   if (cell.state !== 'ok') return Array(8).fill(null);
-  return weekly(cell.previous, cell.value, `${model.key}|${measure}|${code}`, MEASURES[measure].unit === 'order' ? 0.06 : 0.012);
+  const order = MEASURES[measure].unit === 'order';
+  return weekly(cell.previous, cell.value, `${model.key}|${measure}|${code}`, order ? 0.06 : 0.012, order ? null : [0, 1]);
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -502,7 +514,7 @@ export function trafficFor(model) {
   const scale = model.scope.group === 'all' ? 1 : clamp(model.prompts.length / 250, 0.05, 1) * (0.7 + share);
   const sources = REFERRAL_SOURCES.filter((source) => model.codes.includes(source.code)).map((source) => {
     const sessions = Math.round(source.sessions * scale);
-    return { ...source, sessions, series: weekly(sessions * 0.86, sessions, `traffic|${model.key}|${source.code}`, sessions * 0.04).map((value) => Math.round(value / 4)) };
+    return { ...source, sessions, series: weekly(sessions * 0.86, sessions, `traffic|${model.key}|${source.code}`, sessions * 0.04, null).map((value) => Math.round(value / 4)) };
   });
   const pages = [
     ['/pricing', 0.24],

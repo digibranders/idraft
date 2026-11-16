@@ -24,7 +24,8 @@ import {
 } from './aiov-data.js';
 import { chartHost, lineOption, mountChart, shareAreaOption } from './aiov-charts.js';
 import { HEAT_METRICS, setScope } from './aiov-controls.js';
-import { NEUTRAL_BADGE, averageBadge, barList, cardFrame, countsText, deltaNode, el, emptyBody, engineName, icon, insufficient, pct0, plural, platformLabel, sampleBadge, sparkline, stackedRows, valueText } from './aiov-parts.js';
+import { NEUTRAL_BADGE, averageBadge, barList, cardFrame, countsText, deltaNode, el, emptyBody, engineName, icon, insufficient, insufficientText, pct0, plural, platformLabel, sampleBadge, sparkline, stackedRows, valueText } from './aiov-parts.js';
+import { wilsonInterval } from './vendor/stats/index.js';
 
 const ENGINE_TOKEN = { chatgpt_web: 'chart-1', gemini_web: 'chart-2', google_ai_mode: 'chart-3', google_ai_overview: 'chart-4' };
 export const OUTCOME_SEGMENTS = [
@@ -57,9 +58,13 @@ const TILE_LAYOUT = ['mention', 'sov', 'citation', 'position', 'recommendation',
 
 function contextOf(cell, ctx) {
   if (cell.state === 'unavailable') return cell.reason ?? 'not available';
-  if (cell.state === 'insufficient') return `${formatInteger(cell.observations ?? 0)} answers, too few for a rate`;
-  if (ctx.scope.platform === 'all') return `avg of ${cell.used}${MEASURES[cell.measure].sample ? ', sample data' : ''}`;
-  return `${countsText(cell, cell.measure === 'sentiment' ? 'classified mentions' : cell.measure === 'rank' ? 'listed answers' : 'answers')}${MEASURES[cell.measure].sample ? ', sample data' : ''}`;
+  if (cell.state === 'insufficient' || cell.state === 'none') {
+    const why = insufficientText(cell);
+    return why === 'Too few' ? 'Too few for a rate' : `${why}, too few for a rate`;
+  }
+  const sample = MEASURES[cell.measure].sample ? ', sample data' : '';
+  if (ctx.scope.platform === 'all') return `avg of ${cell.used}${sample}`;
+  return `${countsText(cell)}${sample}`;
 }
 
 function tileNode({ label, info, cell, ctx, series, plain, measure }) {
@@ -107,7 +112,9 @@ export function headlineRow(ctx) {
   hero.append(value);
   const projectValue = ctx.baseline?.shown('visibility');
   if (projectValue?.state === 'ok') hero.append(el('p', 'type-meta num', `All groups ${valueText(projectValue)}`));
-  hero.append(el('p', 'type-meta', visibility.state === 'ok' ? `${ctx.scope.platform === 'all' ? `Average of ${visibility.used} platforms` : countsText(visibility)} · ${plural(model.prompts.length, 'prompt')}, each counted once` : 'Too few answers for a rate'));
+  // The prompts that contribute: on one platform only those with a valid answer there (one denominator, R12)
+  const contributing = ctx.scope.platform === 'all' ? model.prompts.length : aggregateFor(model, ctx.scope.platform).prompts;
+  hero.append(el('p', 'type-meta', visibility.state === 'ok' ? `${ctx.scope.platform === 'all' ? `Average of ${visibility.used} platforms` : countsText(visibility)} · ${plural(contributing, 'prompt')}, each counted once` : 'Too few answers for a rate'));
   const outcomes = outcomesFor(model);
   const shares = ctx.scope.platform === 'all' ? averageShares(outcomes) : outcomes[0]?.shares ?? null;
   hero.append(
@@ -141,7 +148,12 @@ export function headlineRow(ctx) {
       const node = tileNode({ label: 'Sentiment, positive share', info: MEASURES.sentiment.info, cell: sentiment, ctx, measure: 'sentiment', series: seriesFor(model, 'sentiment', ctx.scope.platform) });
       return node;
     },
-    prompts: () => tileNode({ label: MEASURES.prompts.label, info: MEASURES.prompts.info, ctx, plain: { value: formatInteger(model.prompts.length), context: ctx.scope.group === 'all' ? 'core prompts, not branded' : `in ${ctx.scope.group.split(':')[1]}` } }),
+    prompts: () => {
+      const kind = { exclude: 'core prompts, not branded', include: 'core and branded prompts', only: 'branded prompts' }[ctx.scope.branded];
+      const where = ctx.scope.group === 'all' ? kind : `${kind}, in ${ctx.scope.group.split(':')[1]}`;
+      const withAnswers = ctx.scope.platform === 'all' ? null : aggregateFor(model, ctx.scope.platform).prompts;
+      return tileNode({ label: MEASURES.prompts.label, info: MEASURES.prompts.info, ctx, plain: { value: formatInteger(model.prompts.length), context: withAnswers === null ? where : `${withAnswers} with answers on ${engineName(ctx.scope.platform)}` } });
+    },
     runs: () => tileNode({ label: 'Runs in window', info: 'Weekly collection runs behind these numbers. Prompts are asked on the schedule of their panel.', ctx, plain: { value: String(RUNS.inWindow), context: `run ${RUNS.number}, last ${ctx.scope.platform === 'all' ? RUNS.last : lastRunOf(ctx.scope.platform)}` } }),
   };
   TILE_LAYOUT.forEach((key) => strip.append(tiles[key]()));
@@ -178,9 +190,15 @@ export function trendCard(ctx) {
   const one = scope.platform !== 'all' ? model.cells[measure][scope.platform] : null;
   let band = null;
   if (one?.state === 'ok' && lines[0]) {
-    // The interval of the latest point carries to the whole line as a band; a weekly interval needs per-week counts (R8)
-    const half = 1.96 * Math.sqrt((one.value * (1 - one.value)) / Math.max(1, one.counts.n));
-    band = { low: lines[0].values.map((value) => (value === null ? null : Math.max(0, value - half))), high: lines[0].values.map((value) => (value === null ? null : value + half)) };
+    // The Wilson interval of the current window (R8) as a band around the current weeks; the earlier weeks have no counts here
+    const interval = wilsonInterval(one.counts.k, one.counts.n);
+    if (interval) {
+      const half = (interval.high - interval.low) / 2;
+      band = {
+        low: lines[0].values.map((value, week) => (value === null || week < 4 ? null : Math.max(0, value - half))),
+        high: lines[0].values.map((value, week) => (value === null || week < 4 ? null : Math.min(1, value + half))),
+      };
+    }
   }
   const state = { view: 'chart' };
   const body = el('div', 'flex flex-col gap-3');
@@ -207,7 +225,7 @@ export function trendCard(ctx) {
     }
     const host = chartHost(284, `${MEASURES[measure].label} over the last 8 weekly runs, ${lines.map((line) => line.name).join(', ')}`);
     body.append(host);
-    dispose = mountChart(host, () => lineOption({ labels: WEEK_LABELS, lines, band, boundary: WEEK_LABELS[4] }));
+    dispose = mountChart(host, () => lineOption({ labels: WEEK_LABELS, lines, band, boundary: ctx.compare ? WEEK_LABELS[4] : undefined }));
     const legend = el('div', 'flex flex-wrap gap-x-4 gap-y-1');
     lines.forEach((line) => {
       const item = el('span', 'inline-flex items-center gap-1.5 type-meta num');
@@ -241,7 +259,9 @@ export function trendCard(ctx) {
     meta: scope.platform === 'all' ? 'a line per platform, with their average' : `${engineName(scope.platform)}, with its 95% interval`,
     tools,
     body,
-    footnote: 'Weeks to the right of the dashed line are the current 28 days; the weeks before it are the previous 28 days. Each point is a weekly run, prompt-weighted.',
+    footnote: ctx.compare
+      ? 'Weeks to the right of the dashed line are the current 28 days; the weeks before it are the previous 28 days. Each point is a weekly run, prompt-weighted. The band is the 95% Wilson interval of the current window.'
+      : 'Each point is a weekly run, prompt-weighted. The band is the 95% Wilson interval of the current window.',
   });
 }
 
@@ -285,9 +305,11 @@ function measureCell(cell, ctx, { text } = {}) {
     return stack;
   }
   if (cell.state === 'insufficient' || cell.state === 'none') {
-    stack.append(insufficient(cell.state === 'none' ? 'No data' : `${formatInteger(cell.observations ?? 0)} answers`));
+    stack.append(insufficient(cell.state === 'none' ? 'No data' : insufficientText(cell)));
     return stack;
   }
+  // Every number carries its counts (R1): an average says which platforms it averages, a platform its answers
+  stack.dataset.tip = cell.code === 'all' ? `Average of ${cell.used} platforms: ${cell.platforms.map((code) => engineName(code)).join(', ')}` : countsText(cell);
   const top = el('div', 'flex items-baseline justify-end gap-2');
   top.append(el('span', 'type-table-strong num text-foreground', text ?? valueText(cell)));
   const delta = deltaNode(cell, ctx.compare);
@@ -339,6 +361,7 @@ export function matrixCard(ctx) {
         return { measure: 'referral', state: 'ok', value: sessions, text: formatInteger(sessions) };
       },
       text: (cell) => cell.text,
+      sub: (cell, code) => (code === 'all' && cell.state === 'ok' ? '2 of 4 platforms' : null),
       sample: true,
     },
     {
@@ -349,6 +372,7 @@ export function matrixCard(ctx) {
       },
       text: (cell) => cell.text,
       sub: (cell) => `${(cell.share * 100).toFixed(1)}% of citations`,
+      noAverageLabel: true,
     },
   ];
 
@@ -383,8 +407,9 @@ export function matrixCard(ctx) {
       const resolved = row.cell ? row.cell(code) : code === 'all' ? allModel.average[row.measure] : platformModels[code].cells[row.measure][code];
       const text = row.text ? row.text(resolved) : row.suffix && resolved.state === 'ok' ? `${pct0(resolved.value)} ${row.suffix}` : undefined;
       const content = measureCell(resolved, ctx, { text });
-      if (row.sub && resolved.state === 'ok') content.append(el('span', 'type-micro text-foreground-tertiary', row.sub(resolved)));
-      if (resolved?.state === 'ok' && code === 'all' && resolved.used) content.append(el('span', 'type-micro text-foreground-tertiary', `avg of ${resolved.used}`));
+      const sub = row.sub && resolved.state === 'ok' ? row.sub(resolved, code) : null;
+      if (sub) content.append(el('span', 'type-micro text-foreground-tertiary', sub));
+      if (resolved?.state === 'ok' && code === 'all' && resolved.used && !row.noAverageLabel && !row.cell) content.append(el('span', 'type-micro text-foreground-tertiary', `avg of ${resolved.used}`));
       tr.append(matrixCell(content, { selected: scope.platform === code }));
     });
     body.append(tr);
@@ -412,7 +437,7 @@ export function matrixCard(ctx) {
     tools: [],
     body: wrap,
     flush: true,
-    footnote: 'All platforms is the equal-weight average of the platforms that have the metric. Recommendation, sentiment and referral traffic use sample data until their collectors ship. AI Overview is read from rank checks and counts only checks that showed one.',
+    footnote: 'Rates are prompt-weighted, each prompt counting once; the counts in the tooltips are the pooled answers behind them. All platforms is the equal-weight average of the platforms that have the metric. Recommendation, sentiment and referral traffic use sample data until their collectors ship. AI Overview is read from rank checks and counts only checks that showed one.',
   });
 }
 
@@ -426,7 +451,9 @@ function entityLabel(entity) {
 export function sovCard(ctx) {
   const entities = entitiesFor(ctx.model);
   if (entities[0].sov === null) return cardFrame({ key: 'ai.share_of_voice', title: 'Share of voice', body: emptyBody('No rate yet', 'Too few answers on this platform.') });
-  const rows = [...entities].sort((a, b) => (b.sov ?? 0) - (a.sov ?? 0)).map((entity) => ({ label: entityLabel(entity), value: entity.sov, strong: entity.own, token: entity.token, barToken: entity.own ? 'chart-1' : 'chart-bar-neutral' }));
+  const rows = [...entities]
+    .sort((a, b) => (b.sov ?? 0) - (a.sov ?? 0))
+    .map((entity) => ({ label: entityLabel(entity), value: entity.sov, strong: entity.own, token: entity.token, barToken: entity.own ? 'chart-1' : 'chart-bar-neutral', tip: `${entity.name}: ${formatInteger(entity.answers)} of ${formatInteger(entity.answersOfTracked)} brand mentions` }));
   const total = entities[0].answersOfTracked;
   return cardFrame({
     key: 'ai.share_of_voice',

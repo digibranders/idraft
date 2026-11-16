@@ -1780,6 +1780,9 @@
   .text-primary-text {
     color: var(--primary-text);
   }
+  .text-surface {
+    color: var(--surface);
+  }
   .text-theme-switch-moon {
     color: var(--theme-switch-moon);
   }
@@ -2451,9 +2454,6 @@
   }
   .dark\:text-primary-foreground:where(.dark, .dark *) {
     color: var(--primary-foreground);
-  }
-  .dark\:text-surface:where(.dark, .dark *) {
-    color: var(--surface);
   }
   .dark\:invert:where(.dark, .dark *) {
     --tw-invert: invert(100%);

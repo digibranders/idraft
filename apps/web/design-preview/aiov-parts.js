@@ -27,10 +27,22 @@ export function valueText(cell) {
   return MEASURES[cell.measure].unit === 'order' ? orderText(cell.value) : pct0(cell.value);
 }
 
-/** "612 of 1,800 answers", the counts every rate shows (R1). */
-export function countsText(cell, noun = 'answers') {
+/** The unit a measure counts: answers for a rate, brand mentions for share of voice (R11). */
+export const nounOf = (cell) => MEASURES[cell?.measure]?.noun ?? 'answers';
+
+/** "612 of 1,800 answers", the counts every rate shows (R1). An order has no ratio: "62 mentions". */
+export function countsText(cell, noun) {
   if (!cell?.counts) return '';
-  return `${formatInteger(cell.counts.k)} of ${formatInteger(cell.counts.n)} ${noun}`;
+  const unit = noun ?? nounOf(cell);
+  if (MEASURES[cell.measure]?.unit === 'order') return `${formatInteger(cell.counts.n)} ${unit}`;
+  return `${formatInteger(cell.counts.k)} of ${formatInteger(cell.counts.n)} ${unit}`;
+}
+
+/** Why a rate is not shown: the count that fell under the floor of 4 (R2), never a made-up zero (R6). */
+export function insufficientText(cell) {
+  const n = cell?.counts?.n ?? cell?.observations;
+  if (typeof n === 'number' && n > 0 && n < 4) return `${n} ${nounOf(cell)}`;
+  return 'Too few';
 }
 
 /**
@@ -40,10 +52,13 @@ export function countsText(cell, noun = 'answers') {
 export function deltaNode(cell, compare, { decimals = 1 } = {}) {
   if (!compare || !cell?.change || cell.state !== 'ok') return null;
   const { value, detectable } = cell.change;
-  if (MEASURES[cell.measure].unit === 'order') {
-    const sign = value > 0 ? '+' : value < 0 ? MINUS : '';
-    const node = el('span', `num shrink-0 whitespace-nowrap ${TONE.neutral}`, `${sign}${Math.abs(value).toFixed(2)}`);
-    node.dataset.tip = 'A lower number means named earlier. Not tested for detectability';
+  const untested = detectable === null || detectable === undefined;
+  if (MEASURES[cell.measure].unit === 'order' || untested) {
+    const rounded = Math.round(Math.abs(value) * 100) / 100;
+    const sign = rounded === 0 ? '' : value > 0 ? '+' : MINUS;
+    const text = MEASURES[cell.measure].unit === 'order' ? `${sign}${rounded.toFixed(2)}` : formatPointsDelta(value, { decimals });
+    const node = el('span', `num shrink-0 whitespace-nowrap ${TONE.neutral}`, text);
+    node.dataset.tip = `${MEASURES[cell.measure].unit === 'order' ? 'A lower number means named earlier. ' : ''}Not tested for detectability`;
     node.append(el('span', 'sr-only', ', not tested for detectability'));
     return node;
   }
@@ -110,7 +125,7 @@ export function cardFrame({ key, title, meta, tools = [], body, footnote, flush 
 /** A card that cannot be drawn for this scope: says why, and what to do. */
 export function emptyBody(title, text) {
   const box = el('div', 'min-h-24 py-6 flex flex-col items-center justify-center gap-1 text-center');
-  box.append(el('p', 'type-body-strong text-foreground', title), el('p', 'type-meta max-w-prose', text));
+  box.append(el('p', 'type-body-strong text-foreground', title), el('p', 'type-meta max-w-md', text));
   return box;
 }
 
@@ -228,6 +243,7 @@ export function stackedRows({ rows, segments, empty = 'No answers yet' }) {
         part.style.width = `${share * 100}%`;
         part.style.background = `var(--${segment.token})`;
         part.dataset.tip = `${segment.label}: ${pct0(share)}${total ? `, ${formatInteger(row.counts[index])} of ${formatInteger(total)} answers` : ''}`;
+        part.setAttribute('aria-hidden', 'true');
         bar.append(part);
       });
       // The exact shares sit under the bar: color alone never carries them

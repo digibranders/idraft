@@ -27,7 +27,7 @@ import {
 import { chartHost, lineOption, mountChart, treemapOption } from './aiov-charts.js';
 import { HEAT_METRICS, setScope } from './aiov-controls.js';
 import { segmented } from './aiov-cards-core.js';
-import { NEUTRAL_BADGE, barList, cardFrame, el, emptyBody, engineName, heatBin, icon, orderText, pct0, plural, platformLabel, sampleBadge, stackedRows } from './aiov-parts.js';
+import { NEUTRAL_BADGE, barList, cardFrame, countsText, el, emptyBody, engineName, heatBin, icon, insufficientText, orderText, pct0, plural, platformLabel, sampleBadge, stackedRows } from './aiov-parts.js';
 
 const ENGINE_TOKEN = { chatgpt_web: 'chart-1', gemini_web: 'chart-2', google_ai_mode: 'chart-3', google_ai_overview: 'chart-4' };
 const HEAT_COLUMNS = ['chatgpt_web', 'gemini_web', 'google_ai_overview', 'google_ai_mode'];
@@ -44,16 +44,19 @@ function heatCell(cell, onClick, label) {
     return td;
   }
   if (cell.state !== 'ok') {
-    const box = el('div', 'h-8 rounded-xs bg-insufficient flex items-center justify-center type-micro text-foreground-tertiary', `${cell.observations ?? 0} answers`);
-    box.dataset.tip = 'Fewer than 4 valid answers: no rate';
+    const box = el('div', 'h-8 rounded-xs bg-insufficient flex items-center justify-center type-micro text-foreground-tertiary', insufficientText(cell));
+    box.dataset.tip = 'Too few valid answers for a rate (fewer than 4)';
     td.append(box);
     return td;
   }
   const bin = heatBin(cell.value);
-  const button = el('button', `w-full h-8 rounded-xs type-table-strong num ${bin >= 5 ? 'text-white dark:text-surface' : 'text-foreground'} hover:outline hover:outline-2 hover:outline-primary`, pct0(cell.value));
+  // `surface` is white in light and near-black in dark, and the dark bins are the other way round: it contrasts in both
+  const button = el('button', `w-full h-8 rounded-xs type-table-strong num ${bin >= 5 ? 'text-surface' : 'text-foreground'} hover:outline hover:outline-2 hover:outline-primary`, pct0(cell.value));
   button.type = 'button';
   button.style.background = `var(--seq-${bin})`;
-  button.dataset.tip = `${label}: ${pct0(cell.value)}${cell.counts ? `, ${formatInteger(cell.counts.k)} of ${formatInteger(cell.counts.n)} answers` : ''}`;
+  const detail = cell.code === 'all' ? `average of ${cell.used} platforms` : countsText(cell);
+  button.dataset.tip = `${label}: ${pct0(cell.value)}${detail ? `, ${detail}` : ''}`;
+  button.setAttribute('aria-label', `${label}: ${pct0(cell.value)}. Open this group`);
   button.addEventListener('click', onClick);
   td.append(button);
   return td;
@@ -130,7 +133,8 @@ export function groupExtremesCard(ctx) {
   if (rows.length < 4) return cardFrame({ key: 'ai.topic_extremes', title: 'Strongest and weakest groups', body: emptyBody('Not enough groups', 'At least 4 groups with a rate are needed.') });
   const sorted = [...rows].sort((a, b) => b.average.value - a.average.value);
   const list = (items, token) => barList(items.map((row) => ({ label: row.name, value: row.average.value, barToken: token, strong: false, note: `${row.prompts} prompts` })), { max: sorted[0].average.value, always: true });
-  const count = sorted.length >= 12 ? 5 : 3;
+  // Never list a group on both sides: take at most half of the groups
+  const count = Math.min(sorted.length >= 12 ? 5 : 3, Math.floor(sorted.length / 2));
   const strongest = el('div');
   strongest.append(el('p', 'type-label text-foreground-secondary mb-1', 'Strongest'), list(sorted.slice(0, count), 'chart-1'));
   const weakest = el('div', 'mt-3');

@@ -146,7 +146,7 @@ export function treemapOption({ types, total }) {
         right: 0,
         bottom: 0,
         itemStyle: { borderColor: charts.token('surface'), borderWidth: 2, gapWidth: 2, borderRadius: 3 },
-        label: { show: true, fontFamily: charts.fontFamily(), fontSize: 12, color: '#fff', formatter: (param) => `${param.name}\n${((param.value / total) * 100).toFixed(0)}%` },
+        label: { show: true, fontFamily: charts.fontFamily(), fontSize: 12, color: charts.token('surface'), formatter: (param) => `${param.name}\n${((param.value / total) * 100).toFixed(0)}%` },
         data: types.map((entry) => ({ name: entry.type, value: entry.units, itemStyle: { color: charts.token(colorOf(entry.type)) } })),
       },
     ],
