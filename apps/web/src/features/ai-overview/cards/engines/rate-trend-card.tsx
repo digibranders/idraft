@@ -67,13 +67,14 @@ function pointsOf(
   words: TrendWords,
   metric: WeekMetric,
   t: Translate,
+  banded: boolean,
 ): Record<string, (RateBandPoint | null)[]> {
   const platforms = trend.platforms.map((entry): [string, (RateBandPoint | null)[]] => [
     entry.code,
     entry.points.map((point: TrendPoint) =>
       point.n === 0
         ? null
-        : { value: point.value, band: point.band, thin: point.thin, tip: tipOf(point, metric, words) },
+        : { value: point.value, band: banded ? point.band : null, thin: point.thin, tip: tipOf(point, metric, words) },
     ),
   ]);
   const average: [string, (RateBandPoint | null)[]][] =
@@ -93,10 +94,14 @@ function pointsOf(
 }
 
 /** The axis from the lowest to the highest value (and band) on 5 point steps, never outside 0 to 100%. */
-function axisOf(trend: PlatformTrend): { min: number; max: number } {
+function axisOf(trend: PlatformTrend, banded: boolean): { min: number; max: number } {
   const values = [
     ...trend.platforms.flatMap((entry) =>
-      entry.points.flatMap((point) => [point.value, point.band?.low, point.band?.high]),
+      entry.points.flatMap((point) => [
+        point.value,
+        banded ? point.band?.low : undefined,
+        banded ? point.band?.high : undefined,
+      ]),
     ),
     ...(trend.average ?? []).map((point) => point.value),
   ].filter((value): value is number => typeof value === 'number');
@@ -155,8 +160,8 @@ export default function RateTrendCard({ item, live }: CardProps): ReactElement {
   );
   const series = useMemo(() => (trend === null ? [] : seriesOf(trend, label, t('average'))), [trend, label, t]);
   const points = useMemo(
-    () => (trend === null ? {} : pointsOf(trend, words, weekMetric, t)),
-    [trend, words, weekMetric, t],
+    () => (trend === null ? {} : pointsOf(trend, words, weekMetric, t, single)),
+    [trend, words, weekMetric, t, single],
   );
   const categories = useMemo(
     () =>
@@ -220,6 +225,7 @@ export default function RateTrendCard({ item, live }: CardProps): ReactElement {
     (base: Record<string, unknown>, tokens: ChartTokens): Record<string, unknown> => {
       const axis = axisOf(
         trend ?? { metric: weekMetric, weeks: [], boundary: null, platforms: [], average: null, collected: true },
+        single,
       );
       const banded = rateBandOption(base, tokens, { points, ceiling: axis.max, dark, titles });
       const boundary =
@@ -248,7 +254,7 @@ export default function RateTrendCard({ item, live }: CardProps): ReactElement {
         series: [...(banded.series as unknown[]), ...boundary],
       };
     },
-    [trend, weekMetric, points, dark, titles, categories],
+    [trend, weekMetric, points, dark, titles, categories, single],
   );
   const cellText = useCallback(
     (seriesId: string, index: number): string | null => points[seriesId]?.[index]?.tip ?? null,
