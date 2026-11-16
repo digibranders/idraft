@@ -32,11 +32,13 @@ export type GroupVolumeReading =
 
 /**
  * The volume of a group: each linked keyword once, however many prompts share it. `links` is one entry per prompt of the
- * group. Keywords without a volume are never counted as 0: they are reported in `missing`.
+ * group. Keywords without a volume are never counted as 0: they are reported in `missing`. A group where any prompt
+ * carries no link field at all (`undefined`) is `not_collected`: its keywords are not all known.
  */
 export function groupVolumeOf(links: readonly (LinkedKeywordVolume | null | undefined)[]): GroupVolumeReading {
   const prompts = links.length;
-  if (links.length > 0 && links.every((link) => link === undefined)) {
+  // One prompt without the field means the group's keywords are not all known: a partial sum would read as the whole
+  if (links.some((link) => link === undefined)) {
     return { state: 'unknown', reason: 'not_collected', keywords: 0, prompts };
   }
   const keywords = new Map<string, number | null>();

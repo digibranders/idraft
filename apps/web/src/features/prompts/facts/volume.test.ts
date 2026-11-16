@@ -34,6 +34,14 @@ describe('groupVolumeOf', () => {
     expect(reading).toMatchObject({ state: 'ok', value: 100, keywords: 2, missing: 1 });
   });
 
+  it('is not collected when only some prompts carry the field, so a partial group never reads as ok', () => {
+    expect(groupVolumeOf([{ keyword: 'a', search_volume: 100 }, undefined])).toMatchObject({
+      state: 'unknown',
+      reason: 'not_collected',
+      prompts: 2,
+    });
+  });
+
   it('is unknown with a reason', () => {
     expect(groupVolumeOf([undefined, undefined])).toMatchObject({ state: 'unknown', reason: 'not_collected' });
     expect(groupVolumeOf([null, null])).toMatchObject({ state: 'unknown', reason: 'no_link', keywords: 0, prompts: 2 });
