@@ -3925,7 +3925,8 @@
       "reason": "{reason, select, noAnswers {No answers} noneValid {None valid} other {No brand mentioned}}",
       "avgLabel": "{count, plural, one {1 platform} other {avg of #}}",
       "avgTip": "Equal weight average of {engines}, each platform counting once",
-      "onlyTip": "{engines} only"
+      "onlyTip": "{engines} only",
+      "avgTipPrompts": "Equal weight average of {engines}, each platform and each prompt counting once"
     },
     "strip": {
       "label": "Summary of the prompts in view",
@@ -4119,7 +4120,7 @@
         "rowHeader": "Group",
         "promptsHeader": "Prompts",
         "average": "avg of {count, number}",
-        "averageTip": "Equal weight average of {engines}, each platform counting once.",
+        "averageTip": "Equal weight average of {engines}, each platform and each prompt counting once.",
         "orderLabel": "Order rows by",
         "orderPrompts": "Prompts",
         "orderRate": "Average rate",

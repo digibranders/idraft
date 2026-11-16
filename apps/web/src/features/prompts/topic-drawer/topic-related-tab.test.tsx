@@ -80,7 +80,7 @@ describe('RelatedTab: the other groups of the scope', () => {
     // tooltip for sighted users and in the cell for everyone else
     expect((await screen.findAllByText('ChatGPT 4 of 8 and Gemini 4 of 8')).length).toBeGreaterThanOrEqual(2);
     expect(
-      screen.getByText('Equal weight average of ChatGPT and Gemini, each platform counting once'),
+      screen.getByText('Equal weight average of ChatGPT and Gemini, each platform and each prompt counting once'),
     ).toBeInTheDocument();
   });
 

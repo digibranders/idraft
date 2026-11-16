@@ -95,7 +95,7 @@ describe('TopicHeatmap: the groups by platform as a heat map (CH-04)', () => {
     const average = within(grid).getByRole('gridcell', { name: /^SEO, avg of 2: 56%/ });
     expect(average).toHaveTextContent('56%');
     expect(average.getAttribute('aria-label')).toContain(
-      'Equal weight average of ChatGPT and Gemini, each platform counting once.',
+      'Equal weight average of ChatGPT and Gemini, each platform and each prompt counting once.',
     );
     unmount();
     const [chatgpt] = BOTH;

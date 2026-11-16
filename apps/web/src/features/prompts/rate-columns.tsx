@@ -62,7 +62,16 @@ export interface RateColumns<TRow> {
 export function useRateColumns<TRow>(
   engines: readonly ProjectEngine[],
   cellsOf: (row: TRow) => readonly EngineSummary[] | undefined,
-  { note, window }: { note?: string; window?: ComparedWindow | undefined } = {},
+  {
+    note,
+    window,
+    byPrompts,
+  }: {
+    note?: string;
+    window?: ComparedWindow | undefined;
+    /** A row whose rate on a platform is the mean of its prompts' rates (a group): its tooltip says so. */
+    byPrompts?: ((row: TRow) => boolean) | undefined;
+  } = {},
 ): RateColumns<TRow> {
   const t = useTranslations('prompts.columns');
   const shell = useTranslations('prompts.shell.columns');
@@ -178,7 +187,7 @@ export function useRateColumns<TRow>(
           const avgDetail =
             counting.length === 1
               ? rate('onlyTip', { engines: engineNames })
-              : rate('avgTip', { engines: engineNames });
+              : rate(byPrompts?.(row) === true ? 'avgTipPrompts' : 'avgTip', { engines: engineNames });
           // Every change shows what it rests on: the previous figure with its answers, the window and the test, or why none
           const change = metric === 'mentioned' && compare ? changeOf(row) : null;
           // A row without a change says why only when the response was compared: the read held right after turning
@@ -251,7 +260,7 @@ export function useRateColumns<TRow>(
       citation: rateColumn(SORT_ID.citation, 'cited', t('citationRate'), t('citationRateTip')),
       topEngine: topColumn,
     };
-  }, [engines, cellsOf, note, t, shell, rate, tc, words, changeWords, compare, comparedWindow, locale]);
+  }, [engines, cellsOf, note, byPrompts, t, shell, rate, tc, words, changeWords, compare, comparedWindow, locale]);
 }
 
 const HEADER_KEY = { mention: 'engineMention', citation: 'engineCitation', sov: 'engineShareOfVoice' } as const;

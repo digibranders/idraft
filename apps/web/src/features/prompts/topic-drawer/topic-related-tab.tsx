@@ -71,7 +71,7 @@ export function RelatedTab(): ReactElement {
       // The tooltip is for sighted users; the counts are in the cell for everyone else
       <Tooltip
         content={counts}
-        detail={rate(sibling.counting.length === 1 ? 'onlyTip' : 'avgTip', { engines: engineNames })}
+        detail={rate(sibling.counting.length === 1 ? 'onlyTip' : 'avgTipPrompts', { engines: engineNames })}
         purpose="label"
       >
         <span className="inline-flex items-baseline gap-2">

@@ -78,6 +78,8 @@ const rowId = (row: TopicRow): string => row.id;
 const idsOf = (members: readonly PromptSummaryRow[] | null): string[] => (members ?? []).map((m) => m.prompt_id);
 const nothing = (): void => undefined;
 const cellsOf = (row: TopicRow): readonly EngineSummary[] => row.engines;
+/** A group's rate on a platform is the mean of its prompts' rates; a prompt row's is its own. */
+const isGroupRow = (row: TopicRow): boolean => row.kind === 'topic';
 const NO_ANSWERS: FactsRow = { engines: [] };
 
 export interface TopicsTableProps {
@@ -206,7 +208,7 @@ export function TopicsTable({
   const [clicked, setClicked] = useState<string | null>(null);
   const [visible, setVisible] = useState<readonly string[] | null>(null);
   const codes = useMemo(() => engines.map((engine) => engine.engine.engine_code), [engines]);
-  const rateColumns = useRateColumns(engines, cellsOf);
+  const rateColumns = useRateColumns(engines, cellsOf, { byPrompts: isGroupRow });
   const countColumns = useEngineColumns(engines, cellsOf, { sortable: true, defaultVisible: false, marks: true });
   // The latest handler, so the columns (which the table keys its work by) do not change with every render
   const latestOpenTopic = useRef(onOpenTopic);
