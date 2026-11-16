@@ -59,7 +59,9 @@ export function FanoutTable({ rows, caption, headers }: FanoutTableProps): React
               </th>
               <td className="px-3 text-right num">{row.answers}</td>
               <td className="px-3 text-right num">{row.prompts}</td>
-              <td className="hidden px-3 pr-4 text-right text-foreground-secondary md:table-cell">{row.topCited}</td>
+              <td className="hidden max-w-32 truncate px-3 pr-4 text-right text-foreground-secondary md:table-cell">
+                {row.topCited}
+              </td>
             </tr>
           ))}
         </tbody>
