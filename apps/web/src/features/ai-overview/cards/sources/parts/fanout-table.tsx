@@ -22,7 +22,7 @@ export interface FanoutTableProps {
   headers: { query: string; answers: string; prompts: string; topCited: string };
 }
 
-const HEAD = 'px-3 type-label whitespace-nowrap';
+const HEAD = 'px-3 type-table-header whitespace-nowrap';
 
 /**
  * The fan-out queries of the card as a table, as the preview draws it: the query (one line, cut where it is long), the
