@@ -151,7 +151,7 @@ describe('CitationList', () => {
     const rows = screen.getAllByRole('listitem');
     expect(within(rows[0] as HTMLElement).getByText('Redirect not resolved. Left out of the counts.')).toBeVisible();
     expect(
-      within(rows[1] as HTMLElement).getByText('An address of the engine itself. Left out of the counts.'),
+      within(rows[1] as HTMLElement).getByText('An address of the platform itself. Left out of the counts.'),
     ).toBeVisible();
     expect(within(rows[2] as HTMLElement).queryByText(/Left out of the counts/)).toBeNull();
   });

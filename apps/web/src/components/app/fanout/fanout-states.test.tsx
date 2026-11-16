@@ -18,7 +18,7 @@ describe('NotExposedState', () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        'These engines do not show the queries they issue, so there is nothing to list. Choose an engine that does.',
+        'These platforms do not show the queries they issue, so there is nothing to list. Choose a platform that does.',
       ),
     ).toBeInTheDocument();
     // Neither a zero nor an empty list: the engines say nothing, which is not none
@@ -32,7 +32,7 @@ describe('NotExposedState', () => {
     expect(screen.getByRole('heading', { name: 'Fan-out is not exposed by Gemini' })).toBeInTheDocument();
     expect(
       screen.getByText(
-        'This engine does not show the queries it issues, so there is nothing to list. Choose an engine that does.',
+        'This platform does not show the queries it issues, so there is nothing to list. Choose a platform that does.',
       ),
     ).toBeInTheDocument();
   });
@@ -40,7 +40,7 @@ describe('NotExposedState', () => {
   it('shows all engines from its action', async () => {
     const onShowAll = vi.fn();
     const { user } = renderWithProviders(<NotExposedState engines={['Gemini']} onShowAll={onShowAll} />);
-    await user.click(screen.getByRole('button', { name: 'Show all engines' }));
+    await user.click(screen.getByRole('button', { name: 'Show all platforms' }));
     expect(onShowAll).toHaveBeenCalledOnce();
   });
 
