@@ -44,7 +44,7 @@ const SNAP = 8;
 /** An id is an opaque token of the API: no spaces, and not longer than this. */
 const MAX_ID_LENGTH = 200;
 
-const WIDE_TYPES: ReadonlySet<InspectorType> = new Set(['prompt', 'topic', 'citation', 'answer']);
+const WIDE_TYPES: ReadonlySet<InspectorType> = new Set(['prompt', 'topic', 'citation', 'answer', 'competitor']);
 const TYPES: ReadonlySet<string> = new Set(INSPECTOR_TYPES);
 
 const isInspectorType = (value: string): value is InspectorType => TYPES.has(value);
