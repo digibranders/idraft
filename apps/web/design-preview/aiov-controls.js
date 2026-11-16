@@ -4,7 +4,7 @@
  * trigger and the branded chip. The scope lives in the address (`?platform=chatgpt_web&group=topic:Pricing`), so a
  * link reopens the same view (inventory 3.2). Platform and group are single selects (spec decisions D3 and D4).
  */
-import { BRANDED_LABEL, GROUPS, PLATFORMS } from './aiov-data.js';
+import { GROUPS, PLATFORMS } from './aiov-data.js';
 import { el, icon } from './aiov-parts.js';
 
 const ui = window.PreviewUI;
@@ -22,11 +22,11 @@ export function readUrl() {
   const params = new URLSearchParams(location.search);
   const platform = params.get('platform');
   const group = params.get('group');
-  const branded = params.get('branded');
   const metric = params.get('metric');
   state.platform = PLATFORM_IDS.has(platform) ? platform : DEFAULTS.platform;
   state.group = GROUP_IDS.has(group) ? group : DEFAULTS.group;
-  state.branded = branded in BRANDED_LABEL ? branded : DEFAULTS.branded;
+  // The page has no branded filter: branded prompts are never in these numbers (inventory R10)
+  state.branded = DEFAULTS.branded;
   state.compare = params.get('cmp') !== 'off';
   state.metric = HEAT_METRICS.includes(metric) ? metric : DEFAULTS.metric;
 }
@@ -35,7 +35,6 @@ function writeUrl() {
   const params = new URLSearchParams();
   if (state.platform !== DEFAULTS.platform) params.set('platform', state.platform);
   if (state.group !== DEFAULTS.group) params.set('group', state.group);
-  if (state.branded !== DEFAULTS.branded) params.set('branded', state.branded);
   if (!state.compare) params.set('cmp', 'off');
   if (state.metric !== DEFAULTS.metric) params.set('metric', state.metric);
   const query = params.toString();

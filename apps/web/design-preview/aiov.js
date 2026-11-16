@@ -8,7 +8,7 @@
  * width) from aiov-layout.js, and customize mode from aiov-customize.js. Every control writes the address and the
  * whole page draws again from one scope, so every number has one denominator (inventory R12).
  */
-import { BRANDED_LABEL, RUNS, buildModel, platformsIn } from './aiov-data.js';
+import { RUNS, buildModel, platformsIn } from './aiov-data.js';
 import { disposeCharts } from './aiov-charts.js';
 import { createSelect, groupOptions, platformOptions, readUrl, setScope, state, subscribe } from './aiov-controls.js';
 import { createCustomizer } from './aiov-customize.js';
@@ -49,17 +49,10 @@ const compareSelect = createSelect({
   set: (id) => setScope({ compare: id === 'prev' }),
   width: 'min-w-52',
 });
-const brandedSelect = createSelect({
-  name: 'Branded',
-  options: Object.entries(BRANDED_LABEL).map(([id, label]) => ({ id, label })),
-  get: () => state.branded,
-  set: (id) => setScope({ branded: id }),
-  width: 'min-w-40',
-});
 const reset = el('button', 'h-control px-3 rounded-md type-body text-foreground-secondary hover:bg-surface-hover hover:text-foreground whitespace-nowrap', 'Reset scope');
 reset.type = 'button';
 reset.addEventListener('click', () => setScope({ platform: 'all', group: 'all', branded: 'exclude', compare: true, metric: 'visibility' }));
-scopeBar.append(platformSelect.trigger, groupSelect.trigger, compareSelect.trigger, brandedSelect.trigger, reset);
+scopeBar.append(platformSelect.trigger, groupSelect.trigger, compareSelect.trigger, reset);
 
 const note = el('p', 'type-meta');
 note.setAttribute('role', 'status');
@@ -91,8 +84,8 @@ function render() {
   const ctx = { model, scope, compare: state.compare, baseline: scope.group === 'all' ? null : buildModel({ ...scope, group: 'all' }) };
   const names = platformsIn(scope).length;
   meta.textContent = `Updated ${RUNS.last} · run ${RUNS.number} · ${plural(model.prompts.length, 'prompt')} · ${scope.platform === 'all' ? `${names} platforms` : engineName(scope.platform)}${scope.group === 'all' ? '' : ` · ${scope.group.split(':')[1]}`}`;
-  [platformSelect, groupSelect, compareSelect, brandedSelect].forEach((select) => select.refresh());
-  reset.hidden = state.platform === 'all' && state.group === 'all' && state.branded === 'exclude' && state.compare && state.metric === 'visibility';
+  [platformSelect, groupSelect, compareSelect].forEach((select) => select.refresh());
+  reset.hidden = state.platform === 'all' && state.group === 'all' && state.compare && state.metric === 'visibility';
   custom.updateBar();
 
   grid.replaceChildren();
