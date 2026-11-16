@@ -450,7 +450,7 @@ describe('Add prompts', () => {
     await user.paste('One more question?');
     await user.click(within(dialog).getByRole('combobox', { name: /Country/ }));
     await user.click(await screen.findByRole('option', { name: 'India' }));
-    await user.click(within(dialog).getByRole('combobox', { name: /Topic/ }));
+    await user.click(within(dialog).getByRole('combobox', { name: /Group/ }));
     await user.click(await screen.findByRole('option', { name: 'Content Marketing' }));
     // The topic list stays open after a pick, so that several can be chosen in a row: Escape closes it
     await user.keyboard('{Escape}');

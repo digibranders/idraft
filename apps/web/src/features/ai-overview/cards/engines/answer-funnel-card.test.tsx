@@ -21,7 +21,7 @@ vi.mock('@/lib/csv/csv-write', async (importOriginal) => ({
 }));
 
 const TYPE = 'ai.answer_funnel';
-const TITLE = 'From answer to citation, by engine';
+const TITLE = 'From answer to citation, by platform';
 const WINDOW = 'from=2026-10-16&to=2026-11-12';
 const SUMMARY = '*/api/v1/workspaces/:w/projects/:p/ai/prompts-summary';
 

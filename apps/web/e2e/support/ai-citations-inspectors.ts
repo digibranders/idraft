@@ -119,8 +119,8 @@ export const REDIRECTS_FLAG: Flag = {
 };
 export const INTERNAL_FLAG: Flag = {
   key: 'internal',
-  field: 'Engine links',
-  option: 'Include engine-internal links',
+  field: 'Platform links',
+  option: 'Include platform-internal links',
   param: 'include_engine_internal',
 };
 export const FLAGS: readonly Flag[] = [REDIRECTS_FLAG, INTERNAL_FLAG];

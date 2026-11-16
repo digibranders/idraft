@@ -36,7 +36,7 @@ async function page(searchParams = ''): Promise<{ user: Rendered['user']; urls: 
     searchParams,
     onUrlUpdate: (event) => urls.push(event.queryString),
   });
-  await screen.findByRole('button', { name: /^Engines: / });
+  await screen.findByRole('button', { name: /^Platforms: / });
   return { user, urls };
 }
 
@@ -44,10 +44,10 @@ const chip = (name: string): Promise<HTMLElement> => screen.findByRole('button',
 const lastUrl = (urls: readonly string[]): string => new URLSearchParams(urls.at(-1) ?? '').toString();
 
 describe('the scope bar', () => {
-  it('renders compare, engines, then the filter bar with the Branded Excluded chip and no Clear filters', async () => {
+  it('renders compare, platforms, then the filter bar with the Branded Excluded chip and no Clear filters', async () => {
     await page();
     const compare = screen.getByRole('button', { name: 'vs previous period' });
-    const engines = screen.getByRole('button', { name: 'Engines: 2 of 2' });
+    const engines = screen.getByRole('button', { name: 'Platforms: 2 of 2' });
     const branded = await chip('Branded: Excluded. Edit filter');
     const add = screen.getByRole('button', { name: 'Add a filter' });
     const follows = (a: HTMLElement, b: HTMLElement): boolean =>
@@ -59,9 +59,9 @@ describe('the scope bar', () => {
     expect(screen.queryByRole('button', { name: 'Reset filters' })).not.toBeInTheDocument();
   });
 
-  it('draws the compare and engines triggers in the type of the chips beside them', async () => {
+  it('draws the compare and platforms triggers in the type of the chips beside them', async () => {
     await page();
-    for (const name of ['vs previous period', 'Engines: 2 of 2']) {
+    for (const name of ['vs previous period', 'Platforms: 2 of 2']) {
       const trigger = screen.getByRole('button', { name });
       expect(trigger).toHaveClass('type-body');
       expect(trigger).not.toHaveClass('type-body-strong');
@@ -69,15 +69,15 @@ describe('the scope bar', () => {
   });
 
   it.each(['?engine=chatgpt_web,gemini_web', '?engine=gemini_web,chatgpt_web'])(
-    'treats %s, every engine in any order, as no filter',
+    'treats %s, every platform in any order, as no filter',
     async (searchParams) => {
       await page(searchParams);
-      expect(screen.getByRole('button', { name: 'Engines: 2 of 2' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Platforms: 2 of 2' })).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'Reset filters' })).not.toBeInTheDocument();
     },
   );
 
-  it('does not count every engine as an active filter on a phone', async () => {
+  it('does not count every platform as an active filter on a phone', async () => {
     stubViewport(NARROW);
     renderWithProviders(overviewAs('admin'), { searchParams: '?engine=gemini_web,chatgpt_web' });
     expect(await screen.findByRole('button', { name: 'Filters' })).toBeInTheDocument();
@@ -105,75 +105,75 @@ describe('the scope bar', () => {
     expect(await screen.findByRole('group', { name: /branded prompts included$/ })).toBeInTheDocument();
   });
 
-  it('offers Topic and brings Branded back from + Filter', async () => {
+  it('offers Group and brings Branded back from + Filter', async () => {
     const { user } = await page('?branded=included');
     await user.click(screen.getByRole('button', { name: 'Add a filter' }));
-    expect(await screen.findByRole('button', { name: 'Topic' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Group' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Branded' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Branded' }));
     await user.click(await screen.findByRole('radio', { name: 'Only' }));
     expect(await chip('Branded: Only. Edit filter')).toBeInTheDocument();
   });
 
-  it('chooses a topic from the vocabulary and writes its id', async () => {
+  it('chooses a group from the vocabulary and writes its id', async () => {
     const { user, urls } = await page();
     await user.click(screen.getByRole('button', { name: 'Add a filter' }));
-    await user.click(await screen.findByRole('button', { name: 'Topic' }));
+    await user.click(await screen.findByRole('button', { name: 'Group' }));
     // A topic below another is named by its path; the parent says it includes its subtopics
-    expect(await screen.findByRole('radio', { name: 'SEO (includes subtopics)' })).toBeInTheDocument();
+    expect(await screen.findByRole('radio', { name: 'SEO (includes subgroups)' })).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: 'Paid Search' })).toBeInTheDocument();
     await user.click(screen.getByRole('radio', { name: 'SEO / Technical SEO' }));
     await waitFor(() => {
       expect(new URLSearchParams(urls.at(-1)).get('topic')).toBe(MOCK_TERM_IDS.technicalSeo);
     });
-    expect(await chip('Topic: SEO / Technical SEO. Edit filter')).toBeInTheDocument();
+    expect(await chip('Group: SEO / Technical SEO. Edit filter')).toBeInTheDocument();
   });
 
-  it('keeps a topic of the link while the vocabulary loads, and counts the topics below it once it has', async () => {
+  it('keeps a group of the link while the vocabulary loads, and counts the groups below it once it has', async () => {
     renderWithProviders(overviewAs('admin'), { searchParams: `?topic=${SEO}` });
-    expect(await chip('Topic: SEO (includes subtopics). Edit filter')).toBeInTheDocument();
+    expect(await chip('Group: SEO (includes subgroups). Edit filter')).toBeInTheDocument();
     // SEO, Technical SEO and Local SEO: the count of the Prompts number is of the chosen subtree
     await waitFor(() => {
-      expect(screen.getAllByRole('definition')[0]).toHaveAccessibleDescription(/in 3 topics/);
+      expect(screen.getAllByRole('definition')[0]).toHaveAccessibleDescription(/in 3 groups/);
     });
   });
 
-  it('drops a topic of the link that the vocabulary does not hold, and says so once', async () => {
+  it('drops a group of the link that the vocabulary does not hold, and says so once', async () => {
     const { urls } = await page(`?topic=${UNKNOWN_TOPIC}`);
     expect(await screen.findByText('A filter from the link was left out')).toBeInTheDocument();
-    expect(screen.getByText('Topic: the link holds a value this project has nothing for.')).toBeInTheDocument();
+    expect(screen.getByText('Group: the link holds a value this project has nothing for.')).toBeInTheDocument();
     await waitFor(() => {
       expect(new URLSearchParams(urls.at(-1)).has('topic')).toBe(false);
     });
     expect(screen.getAllByText('A filter from the link was left out')).toHaveLength(1);
   });
 
-  it('drops an engine of the link that is off in the project, and says so once', async () => {
+  it('drops a platform of the link that is off in the project, and says so once', async () => {
     const { urls } = await page('?engine=chatgpt_web,google_ai_mode');
     expect(await screen.findByText('A filter from the link was left out')).toBeInTheDocument();
-    expect(screen.getByText('Engines: the link holds a value this project has nothing for.')).toBeInTheDocument();
+    expect(screen.getByText('Platforms: the link holds a value this project has nothing for.')).toBeInTheDocument();
     await waitFor(() => {
       expect(urls.at(-1)).toBe('?engine=chatgpt_web');
     });
-    expect(screen.getByRole('button', { name: 'Engines: 1 of 2' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Platforms: 1 of 2' })).toBeInTheDocument();
     expect(screen.getAllByText('A filter from the link was left out')).toHaveLength(1);
   });
 
-  it('puts the window and the country in the top bar', async () => {
+  it('puts the window and the location in the top bar', async () => {
     await page();
     const bar = screen.getByRole('banner');
     expect(await within(bar).findByRole('button', { name: /Last 28 days|28 days/ })).toBeInTheDocument();
-    expect(await within(bar).findByRole('combobox', { name: 'Country: All countries' })).toBeInTheDocument();
+    expect(await within(bar).findByRole('combobox', { name: 'Location: All locations' })).toBeInTheDocument();
   });
 });
 
-describe('the country control of the scope bar', () => {
-  it("lists the prompts' countries and all countries, and writes the one chosen", async () => {
+describe('the location control of the scope bar', () => {
+  it("lists the prompts' locations and all locations, and writes the one chosen", async () => {
     const { user, urls } = await page();
     const bar = screen.getByRole('banner');
-    await user.click(await within(bar).findByRole('combobox', { name: 'Country: All countries' }));
+    await user.click(await within(bar).findByRole('combobox', { name: 'Location: All locations' }));
     expect((await screen.findAllByRole('option')).map((option) => option.textContent)).toEqual([
-      'All countries',
+      'All locations',
       'Germany',
       'India',
     ]);
@@ -181,18 +181,18 @@ describe('the country control of the scope bar', () => {
     await waitFor(() => {
       expect(lastUrl(urls)).toBe('country=IN');
     });
-    expect(await within(bar).findByRole('combobox', { name: 'Country: India' })).toBeInTheDocument();
+    expect(await within(bar).findByRole('combobox', { name: 'Location: India' })).toBeInTheDocument();
   });
 
   it('shows the ISO code under 1024 px and the name from 1024 px', async () => {
     await page('?country=DE');
     const bar = screen.getByRole('banner');
-    await within(bar).findByRole('combobox', { name: 'Country: Germany' });
+    await within(bar).findByRole('combobox', { name: 'Location: Germany' });
     expect(within(bar).getByText('DE')).toHaveClass('lg:hidden');
     expect(within(bar).getByText('Germany')).toHaveClass('hidden', 'lg:inline');
   });
 
-  it('is a label with one country and no choice', async () => {
+  it('is a label with one location and no choice', async () => {
     const prompt = {
       prompt_id: '11111111-1111-4111-8111-111111111111',
       country_iso: 'DE',
@@ -206,16 +206,16 @@ describe('the country control of the scope bar', () => {
     await page();
     const bar = screen.getByRole('banner');
     // Nothing to choose between: the control is a label (it says all countries, as the one country is all of them)
-    expect(await within(bar).findByText('Country: All countries')).toBeInTheDocument();
+    expect(await within(bar).findByText('Location: All locations')).toBeInTheDocument();
     expect(within(bar).queryByRole('combobox')).not.toBeInTheDocument();
-    expect(within(bar).queryByRole('button', { name: /^Country:/ })).not.toBeInTheDocument();
+    expect(within(bar).queryByRole('button', { name: /^Location:/ })).not.toBeInTheDocument();
   });
 
-  it('clears the country only: the other scope keys stay', async () => {
+  it('clears the location only: the other scope keys stay', async () => {
     const { user, urls } = await page('?country=DE&engine=gemini_web&branded=only&win=7d&cmp=off');
     const bar = screen.getByRole('banner');
-    await user.click(await within(bar).findByRole('combobox', { name: 'Country: Germany' }));
-    await user.click(await screen.findByRole('option', { name: 'All countries' }));
+    await user.click(await within(bar).findByRole('combobox', { name: 'Location: Germany' }));
+    await user.click(await screen.findByRole('option', { name: 'All locations' }));
     await waitFor(() => {
       expect(new URLSearchParams(urls.at(-1)).has('country')).toBe(false);
     });
@@ -228,7 +228,7 @@ describe('the country control of the scope bar', () => {
 });
 
 describe('Reset filters', () => {
-  it('appears while anything differs from the default and puts back the filters, not the window or the country', async () => {
+  it('appears while anything differs from the default and puts back the filters, not the window or the location', async () => {
     const { user, urls } = await page(
       `?win=7d&country=DE&cmp=off&engine=gemini_web&branded=only&topic=${MOCK_TERM_IDS.technicalSeo}`,
     );
@@ -240,7 +240,7 @@ describe('Reset filters', () => {
     expect(await chip('Branded: Excluded. Edit filter')).toBeInTheDocument();
   });
 
-  it('is absent when only the window and the country are not the default', async () => {
+  it('is absent when only the window and the location are not the default', async () => {
     await page('?win=7d&country=DE');
     expect(screen.queryByRole('button', { name: 'Reset filters' })).not.toBeInTheDocument();
   });
@@ -267,10 +267,10 @@ describe('the scope bar below 768 px', () => {
     await user.click(button);
     const sheet = await screen.findByRole('dialog', { name: 'Filters' });
     expect(within(sheet).getByRole('button', { name: 'No comparison' })).toBeInTheDocument();
-    expect(within(sheet).getByRole('button', { name: 'Engines: 1 of 2' })).toBeInTheDocument();
+    expect(within(sheet).getByRole('button', { name: 'Platforms: 1 of 2' })).toBeInTheDocument();
     expect(within(sheet).getByRole('button', { name: 'Branded: Excluded. Edit filter' })).toBeInTheDocument();
     expect(within(sheet).getByRole('button', { name: 'Add a filter' })).toBeInTheDocument();
-    expect(await within(sheet).findByRole('combobox', { name: 'Country: All countries' })).toBeInTheDocument();
+    expect(await within(sheet).findByRole('combobox', { name: 'Location: All locations' })).toBeInTheDocument();
     expect(within(sheet).getByRole('button', { name: /7 days/ })).toBeInTheDocument();
     await user.click(within(sheet).getByRole('button', { name: 'Reset filters' }));
     await waitFor(() => {

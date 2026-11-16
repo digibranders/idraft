@@ -26,8 +26,8 @@ import { renderWithProviders } from '@/test/render';
 vi.mock('next/navigation', async () => (await import('@/test/next-navigation')).navigationModule);
 
 const DOMAINS = '*/api/v1/workspaces/:w/projects/:p/ai/sources/domains';
-const HEADING = 'Citation share by source role and engine';
-const CAPTION = 'Citation units by source role, by engine';
+const HEADING = 'Citation share by source role and platform';
+const CAPTION = 'Citation units by source role, by platform';
 
 const ENGINES = ['chatgpt_web', 'gemini_web'] as const;
 const CHATGPT: EngineSplit = {
@@ -102,7 +102,7 @@ const engineRows = (): Promise<HTMLElement[]> =>
 const DASHES = new RegExp(`[${String.fromCharCode(0x2012, 0x2013, 0x2014, 0x2015)}]`);
 
 describe('the citation share by source role card', () => {
-  it('shows a skeleton at its height, then one row for each engine in the order of the catalog', async () => {
+  it('shows a skeleton at its height, then one row for each platform in the order of the catalog', async () => {
     server.use(
       http.get(DOMAINS, async () => {
         await delay(60);
@@ -120,7 +120,7 @@ describe('the citation share by source role card', () => {
     expect(at(rows, 1)).toHaveTextContent(/^Gemini/);
   });
 
-  it('asks the split by engine with one row of domains, no comparison and the scope of the strip', async () => {
+  it('asks the split by platform with one row of domains, no comparison and the scope of the strip', async () => {
     const seen = recordRequests();
     serve();
     renderCard();
@@ -132,7 +132,7 @@ describe('the citation share by source role card', () => {
     expect(read?.searchParams.has('filter[domain_role_in]')).toBe(false);
   });
 
-  it('keeps the engines as separate rows, each over its own units, and never adds them', async () => {
+  it('keeps the platforms as separate rows, each over its own units, and never adds them', async () => {
     serve();
     renderCard();
     const rows = await engineRows();
@@ -176,19 +176,19 @@ describe('the citation share by source role card', () => {
     expect(container.querySelector('[data-segment="competitor"]')?.className).toContain('bg-chart-2');
   });
 
-  it('says an engine with no citation unit has none, with no bar and no percent', async () => {
+  it('says a platform with no citation unit has none, with no bar and no percent', async () => {
     serve(split(CHATGPT, SILENT));
     renderCard();
     const gemini = at(await engineRows(), 1);
-    expect(gemini).toHaveTextContent('No citation on this engine');
+    expect(gemini).toHaveTextContent('No citation on this platform');
     expect(within(gemini).queryByRole('img')).not.toBeInTheDocument();
     expect(gemini).not.toHaveTextContent(/%/);
     const legend = screen.getByRole('table', { name: CAPTION });
-    expect(within(legend).getAllByText('No citation on this engine').length).toBeGreaterThan(0);
+    expect(within(legend).getAllByText('No citation on this platform').length).toBeGreaterThan(0);
     expect(within(legend).queryByText(/^0%/)).not.toBeInTheDocument();
   });
 
-  it('says how few answers stand behind an engine, with its units, and draws no bar, when there are fewer than 4', async () => {
+  it('says how few answers stand behind a platform, with its units, and draws no bar, when there are fewer than 4', async () => {
     serve(split(CHATGPT, THIN));
     renderCard();
     const gemini = at(await engineRows(), 1);
@@ -203,12 +203,12 @@ describe('the citation share by source role card', () => {
     await engineRows();
     expect(
       screen.getByText(
-        'An engine is marked too few when fewer than 4 answers cite on it. The answer count shown is an upper bound, because one answer can cite several roles.',
+        'A platform is marked too few when fewer than 4 answers cite on it. The answer count shown is an upper bound, because one answer can cite several roles.',
       ),
     ).toBeInTheDocument();
   });
 
-  it('says the per-engine split is not available, never none and never 0%, when the read carries no split', async () => {
+  it('says the per-platform split is not available, never none and never 0%, when the read carries no split', async () => {
     server.use(
       http.get(DOMAINS, () =>
         HttpResponse.json(domainPage([], sourcesMeta({ units: 900, answers: 40, citing: 30, engines: ENGINES }), 0)),
@@ -217,12 +217,12 @@ describe('the citation share by source role card', () => {
     const { container, user } = renderCard();
     const rows = await engineRows();
     expect(rows).toHaveLength(2);
-    for (const row of rows) expect(row).toHaveTextContent('Per-engine split not available in this read');
-    expect(container.textContent).not.toMatch(/No citation on this engine|%/);
+    for (const row of rows) expect(row).toHaveTextContent('Per-platform split not available in this read');
+    expect(container.textContent).not.toMatch(/No citation on this platform|%/);
     expect(container.querySelector('[role="img"]')).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Table' }));
     const table = await screen.findByRole('table', { name: CAPTION });
-    expect(within(table).queryByText('No citation on this engine')).not.toBeInTheDocument();
+    expect(within(table).queryByText('No citation on this platform')).not.toBeInTheDocument();
     expect(sink.read().blocks[0]?.rows[0]).toEqual(['ChatGPT', 'Own', null, null, null, 'unavailable']);
   });
 
@@ -243,7 +243,7 @@ describe('the citation share by source role card', () => {
     for (const target of targets) expect(target.closest('[inert]')).toBe(body);
   });
 
-  it('names the window, the units and answers, and the engines, and says roles only and flagged left out', async () => {
+  it('names the window, the units and answers, and the platforms, and says roles only and flagged left out', async () => {
     serve();
     renderCard();
     await engineRows();
@@ -253,10 +253,10 @@ describe('the citation share by source role card', () => {
         `Oct 16 to Nov 12, 2026, 2,700 citation units in 400 answers, ${engines}, branded prompts left out`,
       ),
     ).toBeInTheDocument();
-    expect(screen.getByText(/Each bar is one engine/)).toBeInTheDocument();
+    expect(screen.getByText(/Each bar is one platform/)).toBeInTheDocument();
     expect(screen.getByText(/Roles only/)).toBeInTheDocument();
     expect(
-      screen.getByText('Citations flagged as unresolved redirects or engine-internal links are left out.'),
+      screen.getByText('Citations flagged as unresolved redirects or platform-internal links are left out.'),
     ).toBeInTheDocument();
   });
 
@@ -277,7 +277,7 @@ describe('the citation share by source role card', () => {
     expect(container.querySelector('[data-pattern]')).not.toBeNull();
   });
 
-  it('shows the idle state, and asks nothing, when no engine is on for the project', async () => {
+  it('shows the idle state, and asks nothing, when no platform is on for the project', async () => {
     const asked = vi.fn();
     server.use(
       http.get(DOMAINS, () => {
@@ -304,7 +304,7 @@ describe('the citation share by source role card', () => {
       </PermissionProvider>,
       { searchParams: 'cmp=off' },
     );
-    expect(await screen.findByText('No engine is on for this project')).toBeInTheDocument();
+    expect(await screen.findByText('No platform is on for this project')).toBeInTheDocument();
     expect(screen.queryByText(/%/)).not.toBeInTheDocument();
     expect(asked).not.toHaveBeenCalled();
   });
@@ -410,14 +410,14 @@ describe('the citation share by source role card', () => {
     expect(at(rows, 3)).toHaveTextContent('Third party55.0%, 1,100 of 2,000 units57.1%, 400 of 700 units');
   });
 
-  it('registers each engine and role for the export under the layout item id, unknown as an empty cell', async () => {
+  it('registers each platform and role for the export under the layout item id, unknown as an empty cell', async () => {
     serve(split(CHATGPT, SILENT));
     renderCard();
     await engineRows();
     const [block] = sink.read().blocks;
     expect(block?.id).toBe('card-under-test');
     expect(block?.header).toEqual([
-      'Engine',
+      'Platform',
       'Role',
       'Share of citation units',
       'Citation units',
@@ -485,13 +485,13 @@ describe('the citation share by source role card', () => {
     expect(text).not.toMatch(/ - /);
   });
 
-  it('draws the card on the seeded Eventus world, each engine over its own units', async () => {
+  it('draws the card on the seeded Eventus world, each platform over its own units', async () => {
     setAiSeeded(true);
     renderCard('cmp=off', 'eventus-security');
     const rows = await engineRows();
     expect(rows.length).toBeGreaterThan(0);
     for (const row of rows) {
-      expect(row).toHaveTextContent(/of [\d,]+ citation units|No citation on this engine|\d+ answers?/);
+      expect(row).toHaveTextContent(/of [\d,]+ citation units|No citation on this platform|\d+ answers?/);
     }
   });
 });

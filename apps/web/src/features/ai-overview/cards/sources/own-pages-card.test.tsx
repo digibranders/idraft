@@ -40,7 +40,7 @@ vi.mock('../engines/use-card-seams', async (importActual) => {
 });
 
 const PAGES = '*/api/v1/workspaces/:w/projects/:p/ai/sources/pages';
-const HEADING = 'Your pages AI engines cite';
+const HEADING = 'Your pages AI platforms cite';
 const CAPTION = 'Your pages by citation units';
 const ENGINES = ['chatgpt_web', 'gemini_web'] as const;
 
@@ -207,7 +207,7 @@ describe('the own pages card', () => {
     ).toBeInTheDocument();
     expect(screen.getByText(new RegExp(`Citation units are pooled over ${engines}`))).toBeInTheDocument();
     expect(
-      screen.getByText('Citations flagged as unresolved redirects or engine-internal links are left out.'),
+      screen.getByText('Citations flagged as unresolved redirects or platform-internal links are left out.'),
     ).toBeInTheDocument();
   });
 
@@ -219,7 +219,7 @@ describe('the own pages card', () => {
     if (trigger === null) throw new Error('The row has no trigger');
     await user.hover(trigger);
     const tip = await screen.findByText(/Pricing \| Fynix/);
-    expect(tip).toHaveTextContent(`By engine: ${formatList(['ChatGPT 301', 'Gemini 112'])}`);
+    expect(tip).toHaveTextContent(`By platform: ${formatList(['ChatGPT 301', 'Gemini 112'])}`);
     expect(tip).toHaveTextContent('First cited Oct 17');
     expect(tip).toHaveTextContent('https://fynix.com/pricing?utm_source=x');
   });
@@ -251,7 +251,7 @@ describe('the own pages card', () => {
       </PermissionProvider>,
       { searchParams: 'cmp=off' },
     );
-    expect(await screen.findByText('No engine is on for this project')).toBeInTheDocument();
+    expect(await screen.findByText('No platform is on for this project')).toBeInTheDocument();
     expect(screen.queryByRole('list', { name: CAPTION })).not.toBeInTheDocument();
     expect(asked).not.toHaveBeenCalled();
   });
@@ -467,7 +467,7 @@ describe('the own pages card', () => {
       'Prompts',
       'Address',
       'Title',
-      'Units by engine',
+      'Units by platform',
       'First cited',
     ]);
     expect(block?.rows).toHaveLength(3);

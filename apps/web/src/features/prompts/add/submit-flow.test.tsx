@@ -359,7 +359,7 @@ describe('Add prompts: after the add', () => {
     const confirm = await screen.findByRole('alertdialog', { name: 'Ask 301 prompts now?' });
     await user.click(within(confirm).getByRole('button', { name: 'Ask 301 prompts' }));
     // The first run went through, the second was refused, and the third is never tried
-    expect(await screen.findAllByText(/Run started: 150 prompts on 2 engines/)).not.toHaveLength(0);
+    expect(await screen.findAllByText(/Run started: 150 prompts on 2 platforms/)).not.toHaveLength(0);
     expect(screen.getAllByText(/All 20 manual runs of today \(UTC\) are used/)).not.toHaveLength(0);
     expect(screen.getAllByText(/151 prompts were not tried\./)).not.toHaveLength(0);
     expect(writesTo(sent, '/runs')).toHaveLength(2);

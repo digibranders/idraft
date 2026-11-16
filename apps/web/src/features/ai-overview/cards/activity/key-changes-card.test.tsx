@@ -395,9 +395,9 @@ describe('the key changes card', () => {
     serve({ runs: [] });
     render({ searchParams: `${WINDOW}&engine=google_ai_mode` });
     expect(
-      await screen.findByRole('heading', { name: 'Changes are not compared: no engine is asked' }),
+      await screen.findByRole('heading', { name: 'Changes are not compared: no platform is asked' }),
     ).toBeInTheDocument();
-    expect(screen.getByText('Turn on an engine, or choose one that is on.')).toBeInTheDocument();
+    expect(screen.getByText('Turn on a platform, or choose one that is on.')).toBeInTheDocument();
     expect(screen.queryByText(/No detectable changes/)).not.toBeInTheDocument();
   });
 
@@ -462,7 +462,7 @@ describe('the key changes card', () => {
     render({ searchParams: `${WINDOW}&engine=google_ai_mode` });
     expect(
       await screen.findByText(
-        'Changes are not compared: no engine is asked. Turn on an engine, or choose one that is on.',
+        'Changes are not compared: no platform is asked. Turn on a platform, or choose one that is on.',
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText(/mention you|cite you/)).not.toBeInTheDocument();
@@ -591,7 +591,7 @@ describe('the key changes card', () => {
     await screen.findByText(RISE);
     const [block] = await readExport(user);
     expect(block?.id).toBe(ITEM_ID);
-    expect(block?.header).toEqual(['Group', 'Change', 'Engine', 'Count', 'Out of', 'When']);
+    expect(block?.header).toEqual(['Group', 'Change', 'Platform', 'Count', 'Out of', 'When']);
     expect(block?.rows.map((row) => row[0])).toEqual(['Needs attention', 'Changes', 'Changes', 'Notices']);
     // The export says the whole change in words, and dates a window row by its last day, not by a time of day
     expect(block?.rows).toContainEqual(['Needs attention', FALL_FULL, 'ChatGPT', 575, 1800, '2026-11-12']);

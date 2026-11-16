@@ -6,7 +6,7 @@ import { signIn } from '../support';
 
 /**
  * What the compare e2e of WP-19 shares (apps/web/e2e/flows/ai-compare.spec.ts): the page and its people, the way into
- * Topics & Prompts with or without the detectable change the mock can draw, the locators of what the page draws, and the
+ * Prompts with or without the detectable change the mock can draw, the locators of what the page draws, and the
  * reading of every change drawn in a region (its text, how it is spoken, its colour). The helpers live here because
  * `e2e/support.ts` is frozen.
  */
@@ -69,7 +69,7 @@ export const openTip = (page: Page): Locator => page.locator('[data-slot="toolti
 
 /** The summary strip above the tables: one chip per engine. */
 export const stripOf = (page: Page): Locator => page.getByRole('group', { name: 'Summary of the prompts in view' });
-export const topicsGrid = (page: Page): Locator => page.getByRole('treegrid', { name: 'Topics' });
+export const topicsGrid = (page: Page): Locator => page.getByRole('treegrid', { name: 'Groups' });
 export const promptsGrid = (page: Page): Locator => page.getByRole('grid', { name: 'Prompts' });
 export const compareSelect = (page: Page): Locator => page.getByRole('combobox', { name: 'Compare with' });
 
@@ -110,14 +110,14 @@ export async function setDetectable(page: Page, on: boolean): Promise<void> {
 
 /** Waits until the page has drawn its table: Topics, or the Prompts tab when the address asks for it. */
 async function awaitTable(page: Page, params: Readonly<Record<string, string>>): Promise<void> {
-  await expect(page.getByRole('heading', { level: 1, name: 'Topics & Prompts' })).toBeAttached();
+  await expect(page.getByRole('heading', { level: 1, name: 'Prompts' })).toBeAttached();
   if (params['tab'] === 'prompts') {
     await expect(promptsGrid(page).getByRole('row').nth(1)).toBeVisible();
   } else if ((page.viewportSize()?.width ?? 1280) < 768) {
     // A phone has no tree table: the topics are a list of buttons
     await expect(
       page
-        .getByRole('list', { name: /^Topics, \d+ results?$/ })
+        .getByRole('list', { name: /^Groups, \d+ results?$/ })
         .getByRole('listitem')
         .first(),
     ).toBeVisible();
@@ -133,7 +133,7 @@ export interface OpenOptions {
   table?: boolean;
 }
 
-/** Opens Topics & Prompts at `width`, as the editor, on the view and filters `params` name (Topics with none). */
+/** Opens Prompts at `width`, as the editor, on the view and filters `params` name (Topics with none). */
 export async function openPrompts(
   page: Page,
   width: number,
@@ -146,7 +146,7 @@ export async function openPrompts(
   await visitPrompts(page, params, table);
 }
 
-/** Goes to Topics & Prompts again in the signed-in session. */
+/** Goes to Prompts again in the signed-in session. */
 export async function visitPrompts(
   page: Page,
   params: Readonly<Record<string, string>> = {},
@@ -155,7 +155,7 @@ export async function visitPrompts(
   const query = new URLSearchParams(params).toString();
   await page.goto(query === '' ? FYNIX_PROMPTS : `${FYNIX_PROMPTS}?${query}`);
   if (table) await awaitTable(page, params);
-  else await expect(page.getByRole('heading', { level: 1, name: 'Topics & Prompts' })).toBeAttached();
+  else await expect(page.getByRole('heading', { level: 1, name: 'Prompts' })).toBeAttached();
 }
 
 /** Waits until the read of the previous period has arrived: the strip has its changes. */

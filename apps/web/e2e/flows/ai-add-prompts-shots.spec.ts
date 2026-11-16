@@ -70,19 +70,19 @@ test.describe('Add prompts, visual pass', () => {
       // The states that need the topic list or a failure, at the two ends only
       if (width !== 390 && width !== 1280) continue;
 
-      test(`the topic list with a new name typed at ${String(width)} px, ${theme}`, async ({ page }) => {
+      test(`the group list with a new name typed at ${String(width)} px, ${theme}`, async ({ page }) => {
         await startIn(page, theme);
         await signIn(page, EDITOR);
         await openPromptsTab(page, width);
         const dialog = await openAddDialog(page);
         await fillLines(dialog, NEW_LINES);
         await topicField(dialog).fill(NEW_TOPIC);
-        await page.getByRole('option', { name: `Create topic “${NEW_TOPIC}”` }).waitFor();
+        await page.getByRole('option', { name: `Create group “${NEW_TOPIC}”` }).waitFor();
         await settle(page);
         await shot(page, `${theme}-${String(width)}-topic-list`);
       });
 
-      test(`the topic list left open after a topic is picked at ${String(width)} px, ${theme}`, async ({ page }) => {
+      test(`the group list left open after a group is picked at ${String(width)} px, ${theme}`, async ({ page }) => {
         await startIn(page, theme);
         await signIn(page, EDITOR);
         await openPromptsTab(page, width);
@@ -93,7 +93,7 @@ test.describe('Add prompts, visual pass', () => {
         await shot(page, `${theme}-${String(width)}-topic-picked`);
       });
 
-      test(`the failed add after a topic was made at ${String(width)} px, ${theme}`, async ({ page }) => {
+      test(`the failed add after a group was made at ${String(width)} px, ${theme}`, async ({ page }) => {
         await startIn(page, theme);
         await installAddFaults(page);
         await signIn(page, EDITOR);

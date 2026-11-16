@@ -110,7 +110,7 @@ function promptsAs(role: Role): ReactElement {
 const renderOn = (role: Role, searchParams: string): ProvidedRender =>
   renderWithProviders(promptsAs(role), { searchParams });
 const prompts = (): Promise<HTMLElement> => screen.findByRole('grid', { name: 'Prompts' });
-const topics = (): Promise<HTMLElement> => screen.findByRole('treegrid', { name: 'Topics' });
+const topics = (): Promise<HTMLElement> => screen.findByRole('treegrid', { name: 'Groups' });
 const itemNames = (): string[] => screen.getAllByRole('menuitem').map((item) => item.textContent ?? '');
 /** The place of each named tab in the tab row, which holds no others. */
 const tabPlaces = (panel: HTMLElement, names: readonly string[]): number[] => {

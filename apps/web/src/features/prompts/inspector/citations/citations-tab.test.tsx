@@ -312,7 +312,7 @@ describe('the choices of the tab', () => {
     await user.click(screen.getByRole('radio', { name: 'Gemini' }));
     // The last answer in the banner is of any engine, and the line says so
     expect(
-      await screen.findByText('Only Gemini is read. The last answer date above covers all engines.'),
+      await screen.findByText('Only Gemini is read. The last answer date above covers all platforms.'),
     ).toBeInTheDocument();
     expect(screen.getByText('Shares are of 48 citation units in 8 answers.')).toBeInTheDocument();
     await waitFor(() => {
@@ -358,7 +358,7 @@ describe('the scope line', () => {
     renderTab();
     await domainsTable();
     expect(
-      screen.getByText('Shares are of 48 citation units in 8 answers, counted over all engines.'),
+      screen.getByText('Shares are of 48 citation units in 8 answers, counted over all platforms.'),
     ).toBeInTheDocument();
   });
 

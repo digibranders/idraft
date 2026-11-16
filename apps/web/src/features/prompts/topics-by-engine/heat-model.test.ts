@@ -22,7 +22,7 @@ describe('heatOrder: the order of the rows of the heat map', () => {
     topic('b', 'Beta', 5, [5, 8], [5, 8]),
     topic('a', 'Alpha', 5, [2, 8], [6, 8]),
     topic('big', 'Gamma', 9, [1, 8], [1, 8]),
-    head(NO_TOPIC, 'No topic', { promptCount: 20, engines: [engine('chatgpt_web', { mentioned: weighted(8, 8, 2) })] }),
+    head(NO_TOPIC, 'No group', { promptCount: 20, engines: [engine('chatgpt_web', { mentioned: weighted(8, 8, 2) })] }),
   ];
 
   it('orders by prompts, then by name, and puts No topic last', () => {

@@ -84,8 +84,8 @@ function renderOnPrompts(
   return renderWithProviders(ui, { ...options, searchParams: `?${query.toString()}` });
 }
 
-describe('Topics & Prompts', () => {
-  it('lists the active prompts with their topic and country, under a heading that is read and not drawn', async () => {
+describe('Prompts', () => {
+  it('lists the active prompts with their group and location, under a heading that is read and not drawn', async () => {
     const { container } = renderOnPrompts(promptsAs('viewer'), { searchParams: '?tab=prompts' });
     const table = await grid();
     expect(
@@ -93,14 +93,14 @@ describe('Topics & Prompts', () => {
     ).toBeInTheDocument();
     expect(within(table).getAllByText('Technical SEO').length).toBeGreaterThan(0);
     expect(within(table).getAllByText('Germany').length).toBeGreaterThan(0);
-    const heading = screen.getByRole('heading', { level: 1, name: 'Topics & Prompts' });
+    const heading = screen.getByRole('heading', { level: 1, name: 'Prompts' });
     expect(heading).toHaveClass('sr-only');
     // The dates of the window are not a caption: they are in the tooltip of the window and of the Updated text
     expect(screen.queryByText(/^Answers from /)).toBeNull();
     expect(await axe(container)).toHaveNoViolations();
   });
 
-  it('shows the topic of a prompt as a badge, with where it sits in the tree in a tooltip the keyboard reaches', async () => {
+  it('shows the group of a prompt as a badge, with where it sits in the tree in a tooltip the keyboard reaches', async () => {
     renderOnPrompts(promptsAs('viewer'), { searchParams: '?tab=prompts' });
     const table = await grid();
     const badge = (await within(table).findAllByText('Technical SEO'))[0] as HTMLElement;
@@ -115,9 +115,9 @@ describe('Topics & Prompts', () => {
     expect(top.closest('[role="gridcell"]')).toHaveAccessibleDescription('SEO');
   });
 
-  it('says no engine is on, and where to turn one on, for a project without one', async () => {
+  it('says no platform is on, and where to turn one on, for a project without one', async () => {
     renderOnPrompts(promptsAs('editor', asProject(cleanstart, 'US')));
-    expect(await screen.findByRole('heading', { name: 'No AI engine is on' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'No AI platform is on' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Open the Engines settings' })).toHaveAttribute(
       'href',
       '/digibranders/cleanstart/settings/engines',
@@ -213,7 +213,7 @@ const NO_PROMPTS_TITLE = 'No prompts yet';
 const SUMMARY_PATH = mswPath(`${P}/ai/prompts-summary`);
 const LIST_PATH = mswPath(`${P}/prompts`);
 const ENGINES_PATH = mswPath(`${P}/engines`);
-const TOPICS_STALE = 'The topic counts could not be refreshed. The last counts loaded are shown.';
+const TOPICS_STALE = 'The group counts could not be refreshed. The last counts loaded are shown.';
 const W = '/api/v1/workspaces/{workspace_id}';
 const VOCABULARIES_PATH = mswPath(`${W}/vocabularies`);
 const TERMS_PATH = mswPath(`${W}/vocabularies/{vocabulary_id}/terms`);
@@ -228,7 +228,7 @@ const serveVocabulary = (nodes: TermNode[]): void =>
           {
             vocabulary_id: idOf(4, 1),
             kind: 'topic',
-            name: 'Topics',
+            name: 'Groups',
             is_hierarchical: true,
             is_single_valued: false,
             project_id: null,
@@ -305,7 +305,7 @@ const withTopBar = (ui: ReactElement): ReactElement => (
 const RANGE_NAME = 'Date range:';
 const rangeTrigger = (): Promise<HTMLElement> => screen.findByRole('button', { name: /^Date range: / });
 
-describe('Topics & Prompts: what the list and the counts do while they load or fail', () => {
+describe('Prompts: what the list and the counts do while they load or fail', () => {
   it('leaves a branded prompt out of the table', async () => {
     renderOnPrompts(promptsAs('viewer'));
     const table = await grid();
@@ -333,21 +333,21 @@ describe('Topics & Prompts: what the list and the counts do while they load or f
     ).toBeNull();
   });
 
-  it('offers a retry when the engines do not load', async () => {
+  it('offers a retry when the platforms do not load', async () => {
     server.use(http.get(ENGINES_PATH, () => HttpResponse.json({ code: 'boom' }, { status: 500 })));
     renderOnPrompts(promptsAs('viewer'));
-    expect(await screen.findByText('The engines of this project could not be loaded.')).toBeInTheDocument();
+    expect(await screen.findByText('The platforms of this project could not be loaded.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
   });
 
-  it('keeps the page when a later read of the engines fails', async () => {
+  it('keeps the page when a later read of the platforms fails', async () => {
     const { queryClient } = renderOnPrompts(promptsAs('viewer'));
     await grid();
     server.use(http.get(ENGINES_PATH, () => HttpResponse.json({ code: 'boom' }, { status: 500 })));
     await queryClient.refetchQueries({
       queryKey: enginesKey({ workspaceId: MOCK_WORKSPACE.workspace_id, projectId: fynixProject.id }),
     });
-    expect(screen.queryByText('The engines of this project could not be loaded.')).toBeNull();
+    expect(screen.queryByText('The platforms of this project could not be loaded.')).toBeNull();
     expect(await grid()).toBeInTheDocument();
   });
 
@@ -396,7 +396,7 @@ describe('Topics & Prompts: what the list and the counts do while they load or f
     renderOnPrompts(withTopBar(promptsAs('viewer')));
     const trigger = await rangeTrigger();
     expect(trigger).toHaveAccessibleName(`${RANGE_NAME} Last 28 days (28d), Oct 16 to Nov 12, 2026`);
-    const country = await screen.findByRole('combobox', { name: /^Country:/ });
+    const country = await screen.findByRole('combobox', { name: /^Location:/ });
     expect(trigger.compareDocumentPosition(country) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     await grid();
     expect(asked.map((url) => [url.searchParams.get('from'), url.searchParams.get('to')])).toContainEqual([
@@ -567,7 +567,7 @@ describe('Topics & Prompts: what the list and the counts do while they load or f
     second.open();
   });
 
-  it('does not say there are no prompts, nor offer Add prompts, before the engines have answered', async () => {
+  it('does not say there are no prompts, nor offer Add prompts, before the platforms have answered', async () => {
     const engines = gate();
     server.use(
       http.get(ENGINES_PATH, async () => {
@@ -583,7 +583,7 @@ describe('Topics & Prompts: what the list and the counts do while they load or f
     engines.open();
   });
 
-  it('does not offer Add prompts over a list before the engines have answered', async () => {
+  it('does not offer Add prompts over a list before the platforms have answered', async () => {
     const engines = gate();
     server.use(
       http.get(ENGINES_PATH, async () => {
@@ -644,8 +644,8 @@ describe('Topics & Prompts: what the list and the counts do while they load or f
 const BRANDED_TEXT = 'Is Fynix a good SEO agency for software companies?';
 const FIRST_TEXT = 'Which SEO agency is best for a SaaS startup in Germany?';
 
-describe('Topics & Prompts: Mentioned and Cited per engine, filters and sort', () => {
-  it('shows the Mention of each enabled engine as a percent with its count of valid answers, and only for enabled engines', async () => {
+describe('Prompts: Mentioned and Cited per platform, filters and sort', () => {
+  it('shows the Mention of each enabled platform as a percent with its count of valid answers, and only for enabled platforms', async () => {
     // Without a comparison: the change beside the Mention rate has its own tests (rate-columns.test.tsx)
     renderOnPrompts(promptsAs('viewer'), { searchParams: '?tab=prompts&cmp=off' });
     const table = await grid();
@@ -709,7 +709,7 @@ describe('Topics & Prompts: Mentioned and Cited per engine, filters and sort', (
     server.events.removeAllListeners();
   });
 
-  it('filters by topic and country from the URL, and sorts by an engine column', async () => {
+  it('filters by group and location from the URL, and sorts by a platform column', async () => {
     const { user } = renderOnPrompts(promptsAs('viewer'), {
       searchParams: `?tab=prompts&topic=${encodeURIComponent(MOCK_TERM_IDS.technicalSeo)}&country=DE`,
     });
@@ -725,7 +725,7 @@ describe('Topics & Prompts: Mentioned and Cited per engine, filters and sort', (
     );
   });
 
-  it('matches a topic as the summary does: the prompts of the term and of every term below it', async () => {
+  it('matches a group as the summary does: the prompts of the term and of every term below it', async () => {
     renderOnPrompts(promptsAs('viewer'), { searchParams: `?topic=${MOCK_TERM_IDS.seo}` });
     const table = await grid();
     // Technical SEO and Local SEO are below SEO
@@ -736,7 +736,7 @@ describe('Topics & Prompts: Mentioned and Cited per engine, filters and sort', (
     expect(within(table).queryByText('What is the best way to manage paid search on a small budget?')).toBeNull();
   });
 
-  it('matches any of several topics', async () => {
+  it('matches any of several groups', async () => {
     renderOnPrompts(promptsAs('viewer'), {
       searchParams: `?topic=${MOCK_TERM_IDS.localSeo},${MOCK_TERM_IDS.paidSearch}`,
     });
@@ -749,7 +749,7 @@ describe('Topics & Prompts: Mentioned and Cited per engine, filters and sort', (
     expect(within(table).queryByText(FIRST_TEXT)).toBeNull();
   });
 
-  describe('with a topic tree the test sets', () => {
+  describe('with a group tree the test sets', () => {
     const ids = { seo: idOf(3, 1), technical: idOf(3, 2), paid: idOf(3, 3), toolsA: idOf(3, 4), toolsB: idOf(3, 5) };
     const termOf = (term_id: string, name: string, path: string): Prompt['terms'][number] => ({
       term_id,
@@ -784,7 +784,7 @@ describe('Topics & Prompts: Mentioned and Cited per engine, filters and sort', (
       expect(within(table).queryByText('Question number 4?')).toBeNull();
     });
 
-    it('names two topics that share a name by their paths, and others by name alone', async () => {
+    it('names two groups that share a name by their paths, and others by name alone', async () => {
       serveList([
         withTerms(1, termOf(ids.toolsA, 'Tools', 'a/tools')),
         withTerms(2, termOf(ids.toolsB, 'Tools', 'b/tools')),
@@ -792,13 +792,13 @@ describe('Topics & Prompts: Mentioned and Cited per engine, filters and sort', (
       ]);
       const { user } = renderOnPrompts(promptsAs('viewer'), { searchParams: `?topic=${ids.toolsA}` });
       await grid();
-      await user.click(await screen.findByRole('button', { name: 'Topic: Tools (a/tools). Edit filter' }));
+      await user.click(await screen.findByRole('button', { name: 'Group: Tools (a/tools). Edit filter' }));
       expect(await screen.findByRole('checkbox', { name: 'Tools (a/tools)' })).toBeChecked();
       expect(screen.getByRole('checkbox', { name: 'Tools (b/tools)' })).toBeInTheDocument();
       expect(screen.getByRole('checkbox', { name: 'Paid search' })).toBeInTheDocument();
     });
 
-    it('keeps a topic from the link while a later page of the list is on its way, and filters once it is in', async () => {
+    it('keeps a group from the link while a later page of the list is on its way, and filters once it is in', async () => {
       const second = gate();
       const writes: string[] = [];
       server.use(
@@ -838,9 +838,9 @@ describe('Topics & Prompts: Mentioned and Cited per engine, filters and sort', (
       });
       const heading = await screen.findByRole('heading', { name: NO_MATCH_TITLE });
       const empty = heading.parentElement as HTMLElement;
-      expect(within(empty).getByText('Topic: SEO')).toBeInTheDocument();
+      expect(within(empty).getByText('Group: SEO')).toBeInTheDocument();
       // The fixture's country list has no Austria: the code stands for it
-      expect(within(empty).getByText('Country: AT')).toBeInTheDocument();
+      expect(within(empty).getByText('Location: AT')).toBeInTheDocument();
       expect(await axe(container)).toHaveNoViolations();
     });
   });
@@ -861,7 +861,7 @@ describe('Topics & Prompts: Mentioned and Cited per engine, filters and sort', (
     expect(within(table).queryByText(BRANDED_TEXT)).toBeNull();
   });
 
-  it('keeps an Engine filter of a link while the engines fail to load, and applies it when they do', async () => {
+  it('keeps a platform filter of a link while the platforms fail to load, and applies it when they do', async () => {
     let failing = true;
     const writes: string[] = [];
     // Answering nothing passes the request on to the mock
@@ -872,7 +872,7 @@ describe('Topics & Prompts: Mentioned and Cited per engine, filters and sort', (
       searchParams: '?engine=gemini_web',
       onUrlUpdate: ({ queryString }) => writes.push(queryString),
     });
-    expect(await screen.findByText('The engines of this project could not be loaded.')).toBeInTheDocument();
+    expect(await screen.findByText('The platforms of this project could not be loaded.')).toBeInTheDocument();
     await settle();
     expect(writes).toEqual([]);
     expect(screen.queryByText('A filter from the link was left out')).toBeNull();
@@ -885,7 +885,7 @@ describe('Topics & Prompts: Mentioned and Cited per engine, filters and sort', (
     expect(screen.queryByText('A filter from the link was left out')).toBeNull();
   });
 
-  it('says there are no prompts yet, not that none match, when only the Engine or Branded filter is set', async () => {
+  it('says there are no prompts yet, not that none match, when only the Platform or Branded filter is set', async () => {
     server.use(
       http.get(LIST_PATH, () => HttpResponse.json(pageOf([promptOf(1, true), promptOf(2, true)], null))),
       http.get(SUMMARY_PATH, () => HttpResponse.json(EMPTY_SUMMARY)),
@@ -900,7 +900,7 @@ describe('Topics & Prompts: Mentioned and Cited per engine, filters and sort', (
     expect(screen.queryByRole('heading', { name: NO_MATCH_TITLE })).toBeNull();
   });
 
-  it('shows only the engines the Engine filter names', async () => {
+  it('shows only the platforms the Platform filter names', async () => {
     renderOnPrompts(promptsAs('viewer'), { searchParams: '?tab=prompts&engine=gemini_web' });
     const table = await grid();
     expect(await within(table).findByRole('columnheader', { name: /^Gemini mention/ })).toBeInTheDocument();
@@ -1041,7 +1041,7 @@ describe('Topics & Prompts: Mentioned and Cited per engine, filters and sort', (
       expect(await order()).toEqual([5, 4, 3, 2, 1].map((n) => `Question number ${String(n)}?`));
     });
 
-    it('keeps a sort on a hidden engine in the link: the default sort applies, and the sort returns with the engine', async () => {
+    it('keeps a sort on a hidden platform in the link: the default sort applies, and the sort returns with the platform', async () => {
       serve();
       const writes: string[] = [];
       const { user } = renderOnPrompts(promptsAs('viewer'), {
@@ -1109,8 +1109,8 @@ describe('Topics & Prompts: Mentioned and Cited per engine, filters and sort', (
   });
 });
 
-describe('Topics & Prompts: the Topics tab', () => {
-  const treegrid = (): Promise<HTMLElement> => screen.findByRole('treegrid', { name: 'Topics' });
+describe('Prompts: the Groups tab', () => {
+  const treegrid = (): Promise<HTMLElement> => screen.findByRole('treegrid', { name: 'Groups' });
   /** The topic and prompt names in the tree, in order (a parent row is named by its label, which its count of topics follows). */
   const names = async (): Promise<string[]> =>
     (await within(await treegrid()).findAllByRole('rowheader')).map(
@@ -1126,24 +1126,24 @@ describe('Topics & Prompts: the Topics tab', () => {
   /** What the footer puts between its counts. */
   const MIDDLE_DOT = String.fromCodePoint(0xb7);
 
-  it('opens on Topics: one row per top level topic, the highest Mention rate first, a parent opening onto the topics below it', async () => {
+  it('opens on Groups: one row per top level group, the highest Mention rate first, a parent opening onto the groups below it', async () => {
     const { container, user } = renderWithProviders(promptsAs('viewer'));
     const tree = await treegrid();
     // The mock's answers are made from the prompt, the engine and the day, so the rates and this order are the same
     // every run. A topic below another is not a row of the top level: SEO holds its own 5 prompts and the 4 of
     // Technical SEO and 3 of Local SEO (the branded one is out), and its row counts all 12
-    expect(await names()).toEqual(['No topic', 'Content Marketing', 'SEO', 'Paid Search']);
+    expect(await names()).toEqual(['No group', 'Content Marketing', 'SEO', 'Paid Search']);
     expect(within(tree).queryByText('Technical SEO')).toBeNull();
     expect(within(tree).getByRole('columnheader', { name: /^ChatGPT mentioned/ })).toBeInTheDocument();
-    expect(within(tree).getByRole('button', { name: 'Expand SEO, 2 topics' })).toBeInTheDocument();
-    expect(within(tree).getByRole('button', { name: 'Expand Content Marketing, 1 topic' })).toBeInTheDocument();
+    expect(within(tree).getByRole('button', { name: 'Expand SEO, 2 groups' })).toBeInTheDocument();
+    expect(within(tree).getByRole('button', { name: 'Expand Content Marketing, 1 group' })).toBeInTheDocument();
     // A topic without topics below it opens onto its prompts
     expect(within(tree).getByRole('button', { name: 'Expand Paid Search, 2 prompts' })).toBeInTheDocument();
     expect(within(rowOf(tree, 'SEO')).getByText('12')).toBeInTheDocument();
     // A parent opens in place onto the topics under it, one level in, and offers its own prompts
-    await user.click(within(tree).getByRole('button', { name: 'Expand SEO, 2 topics' }));
+    await user.click(within(tree).getByRole('button', { name: 'Expand SEO, 2 groups' }));
     expect(await names()).toEqual([
-      'No topic',
+      'No group',
       'Content Marketing',
       'SEO',
       'Technical SEO',
@@ -1151,18 +1151,18 @@ describe('Topics & Prompts: the Topics tab', () => {
       'Show all 12 prompts of SEO',
       'Paid Search',
     ]);
-    expect(levelOf(tree, 1)).toEqual(['No topic', 'Content Marketing', 'SEO', 'Paid Search']);
+    expect(levelOf(tree, 1)).toEqual(['No group', 'Content Marketing', 'SEO', 'Paid Search']);
     expect(levelOf(tree, 2)).toEqual(['Technical SEO', 'Local SEO', 'Show all 12 prompts of SEO']);
     expect(within(tree).queryByText('Which SEO agency is best for a SaaS startup in Germany?')).toBeNull();
     // A child is a row of its own, with its own numbers and no disclosure button, and opens the topic's drawer
     expect(within(rowOf(tree, 'Technical SEO')).getByText('4')).toBeInTheDocument();
     expect(rowOf(tree, 'Technical SEO')).not.toHaveAttribute('aria-expanded');
-    expect(within(tree).queryByRole('button', { name: 'Open the topic Technical SEO' })).toBeNull();
-    expect(within(tree).getByRole('button', { name: 'Collapse SEO, 2 topics' })).toBeInTheDocument();
+    expect(within(tree).queryByRole('button', { name: 'Open the group Technical SEO' })).toBeNull();
+    expect(within(tree).getByRole('button', { name: 'Collapse SEO, 2 groups' })).toBeInTheDocument();
     expect(await axe(container)).toHaveNoViolations();
   });
 
-  it('opens a topic without topics below it onto eight of its prompts, and offers the rest', async () => {
+  it('opens a group without groups below it onto eight of its prompts, and offers the rest', async () => {
     const { user } = renderWithProviders(promptsAs('viewer'));
     const tree = await treegrid();
     await user.click(await within(tree).findByRole('button', { name: 'Expand Paid Search, 2 prompts' }));
@@ -1187,25 +1187,25 @@ describe('Topics & Prompts: the Topics tab', () => {
     const { user } = renderWithProviders(promptsAs('viewer'));
     const tree = await treegrid();
     await within(tree).findByText('Paid Search');
-    const count = within(rowOf(tree, 'SEO')).getByText('2 topics');
+    const count = within(rowOf(tree, 'SEO')).getByText('2 groups');
     // Cut to an ellipsis in a narrow cell, the count says all of itself in a tooltip
     await user.hover(count);
-    expect(await screen.findByText('2 topics', { selector: '[data-slot="tooltip"] span' })).toBeInTheDocument();
+    expect(await screen.findByText('2 groups', { selector: '[data-slot="tooltip"] span' })).toBeInTheDocument();
     await user.unhover(count);
     // The count gives way before the name does: it ends in an ellipsis where the name keeps its room
     expect(count).toHaveClass('text-foreground-tertiary', 'min-w-0', 'truncate');
-    expect(within(rowOf(tree, 'SEO')).getByRole('button', { name: 'Open the topic SEO' })).toHaveClass('shrink-0');
-    expect(within(rowOf(tree, 'Content Marketing')).getByText('1 topic')).toBeInTheDocument();
+    expect(within(rowOf(tree, 'SEO')).getByRole('button', { name: 'Open the group SEO' })).toHaveClass('shrink-0');
+    expect(within(rowOf(tree, 'Content Marketing')).getByText('1 group')).toBeInTheDocument();
     // A topic with none below it opens onto its prompts
     expect(within(rowOf(tree, 'Paid Search')).getByText('2 prompts')).toBeInTheDocument();
-    expect(within(tree).getByRole('button', { name: 'Expand SEO, 2 topics' })).toBeInTheDocument();
+    expect(within(tree).getByRole('button', { name: 'Expand SEO, 2 groups' })).toBeInTheDocument();
   });
 
-  it('draws the name of a parent in the text color of a group name, and a topic under it as text that a click on the row opens', async () => {
+  it('draws the name of a parent in the text color of a group name, and a group under it as text that a click on the row opens', async () => {
     const { user } = renderWithProviders(promptsAs('viewer'));
     const tree = await treegrid();
-    await user.click(await within(tree).findByRole('button', { name: 'Expand SEO, 2 topics' }));
-    const name = within(tree).getByRole('button', { name: 'Open the topic SEO' });
+    await user.click(await within(tree).findByRole('button', { name: 'Expand SEO, 2 groups' }));
+    const name = within(tree).getByRole('button', { name: 'Open the group SEO' });
     expect(name).toHaveClass('text-foreground');
     expect(name).not.toHaveClass('text-link');
     // The row's height and type are the table's: no class of the topic rows sets them
@@ -1214,14 +1214,14 @@ describe('Topics & Prompts: the Topics tab', () => {
     expect(await screen.findByRole('complementary', { name: 'Technical SEO' })).toBeInTheDocument();
   });
 
-  it('counts the topics and the prompts in the footer, each once: the topics shown with those under them, the prompts in scope', async () => {
+  it('counts the groups and the prompts in the footer, each once: the groups shown with those under them, the prompts in scope', async () => {
     const first = renderWithProviders(promptsAs('viewer'));
     await treegrid();
     // Four top level topics and three below them; 23 prompts, the branded one out, each counted once
-    expect(await screen.findByText(`7 topics ${MIDDLE_DOT} 23 prompts`)).toBeInTheDocument();
+    expect(await screen.findByText(`7 groups ${MIDDLE_DOT} 23 prompts`)).toBeInTheDocument();
     first.unmount();
     renderWithProviders(promptsAs('viewer'), { searchParams: `?topic=${MOCK_TERM_IDS.seo}` });
-    expect(await screen.findByText(`3 topics ${MIDDLE_DOT} 12 prompts`)).toBeInTheDocument();
+    expect(await screen.findByText(`3 groups ${MIDDLE_DOT} 12 prompts`)).toBeInTheDocument();
   });
 
   it('opens every parent from Expand all and closes them from Collapse all, by the keyboard too', async () => {
@@ -1247,30 +1247,30 @@ describe('Topics & Prompts: the Topics tab', () => {
     for (const row of tree.querySelectorAll('[data-group-row]')) expect(row).toHaveAttribute('aria-expanded', 'false');
     expect(screen.getByRole('button', { name: 'Expand all' })).toHaveFocus();
     // One parent opened by hand makes the button offer to open the rest
-    await user.click(within(tree).getByRole('button', { name: 'Expand SEO, 2 topics' }));
+    await user.click(within(tree).getByRole('button', { name: 'Expand SEO, 2 groups' }));
     expect(screen.getByRole('button', { name: 'Expand all' })).toBeInTheDocument();
   });
 
   it('opens a parent from the keyboard and keeps the focus on its button', async () => {
     const { user } = renderWithProviders(promptsAs('viewer'));
     const tree = await treegrid();
-    const open = await within(tree).findByRole('button', { name: 'Expand SEO, 2 topics' });
+    const open = await within(tree).findByRole('button', { name: 'Expand SEO, 2 groups' });
     open.focus();
     await user.keyboard('{Enter}');
-    expect(await within(tree).findByRole('button', { name: 'Collapse SEO, 2 topics' })).toHaveFocus();
+    expect(await within(tree).findByRole('button', { name: 'Collapse SEO, 2 groups' })).toHaveFocus();
     expect(rowOf(tree, 'SEO')).toHaveAttribute('aria-expanded', 'true');
     expect(levelOf(tree, 2)).toEqual(['Technical SEO', 'Local SEO', 'Show all 12 prompts of SEO']);
   });
 
-  it('sorts the top level among itself and the topics under a parent among themselves', async () => {
+  it('sorts the top level among itself and the groups under a parent among themselves', async () => {
     const { user } = renderWithProviders(promptsAs('viewer'));
     const tree = await treegrid();
-    await user.click(await within(tree).findByRole('button', { name: 'Expand SEO, 2 topics' }));
+    await user.click(await within(tree).findByRole('button', { name: 'Expand SEO, 2 groups' }));
     await user.click(within(tree).getByRole('button', { name: 'Prompts' }));
     await user.click(within(tree).getByRole('button', { name: 'Prompts' }));
     // Fewest prompts first, a tie by name: the topics of SEO stay under it, Local SEO (3) before Technical SEO (4)
     expect(await names()).toEqual([
-      'No topic',
+      'No group',
       'Paid Search',
       'Content Marketing',
       'SEO',
@@ -1280,7 +1280,7 @@ describe('Topics & Prompts: the Topics tab', () => {
     ]);
   });
 
-  it('opens and closes a topic from the keyboard and keeps the focus on its button', async () => {
+  it('opens and closes a group from the keyboard and keeps the focus on its button', async () => {
     const { user } = renderWithProviders(promptsAs('viewer'));
     const tree = await treegrid();
     const open = await within(tree).findByRole('button', { name: 'Expand Paid Search, 2 prompts' });
@@ -1295,14 +1295,14 @@ describe('Topics & Prompts: the Topics tab', () => {
     expect(within(tree).queryByText('What is the best way to manage paid search on a small budget?')).toBeNull();
   });
 
-  it('counts the branded prompts in the topics once the Branded filter includes them', async () => {
+  it('counts the branded prompts in the groups once the Branded filter includes them', async () => {
     const { user } = renderWithProviders(promptsAs('viewer'), { searchParams: '?branded=include' });
     const tree = await treegrid();
-    await user.click(await within(tree).findByRole('button', { name: 'Expand SEO, 2 topics' }));
+    await user.click(await within(tree).findByRole('button', { name: 'Expand SEO, 2 groups' }));
     expect(await within(tree).findByRole('button', { name: 'Show all 13 prompts of SEO' })).toBeInTheDocument();
   });
 
-  it('keeps the chosen topic and the topics below it, as the Prompts tab does', async () => {
+  it('keeps the chosen group and the groups below it, as the Prompts tab does', async () => {
     const { user } = renderWithProviders(promptsAs('viewer'), { searchParams: `?topic=${MOCK_TERM_IDS.seo}` });
     await vi.waitFor(async () => expect(await names()).toEqual(['SEO']));
     await user.click(await screen.findByRole('button', { name: 'Expand all' }));
@@ -1317,7 +1317,7 @@ describe('Topics & Prompts: the Topics tab', () => {
     expect(screen.queryByText(ROLLUP_NOTE)).toBeNull();
   });
 
-  it('keeps only a leaf topic when that is the one chosen, and any of several', async () => {
+  it('keeps only a leaf group when that is the one chosen, and any of several', async () => {
     renderWithProviders(promptsAs('viewer'), {
       searchParams: `?topic=${MOCK_TERM_IDS.technicalSeo},${MOCK_TERM_IDS.paidSearch}`,
     });
@@ -1339,7 +1339,7 @@ describe('Topics & Prompts: the Topics tab', () => {
     expect(onPrompts.get('tab')).toBe('prompts');
     expect(onPrompts.get('topic')).toBe(MOCK_TERM_IDS.technicalSeo);
     expect(onPrompts.get('window')).toBe('7');
-    await user.click(screen.getByRole('radio', { name: 'Topics' }));
+    await user.click(screen.getByRole('radio', { name: 'Groups' }));
     expect(await names()).toEqual(['Technical SEO']);
     const back = new URLSearchParams(writes.at(-1));
     expect(back.has('tab')).toBe(false);
@@ -1347,18 +1347,18 @@ describe('Topics & Prompts: the Topics tab', () => {
     expect(back.get('window')).toBe('7');
   });
 
-  it('keeps a country of the address on both tabs, and narrows the topics to it too', async () => {
+  it('keeps a location of the address on both tabs, and narrows the groups to it too', async () => {
     const { user } = renderWithProviders(promptsAs('viewer'), { searchParams: '?tab=prompts&country=IN' });
     const table = await grid();
     await vi.waitFor(() => expect(within(table).getAllByRole('row')).toHaveLength(2));
-    await user.click(screen.getByRole('radio', { name: 'Topics' }));
+    await user.click(screen.getByRole('radio', { name: 'Groups' }));
     // The Hindi prompt is the only one in India, and it is given SEO: no other topic has a prompt left
     await vi.waitFor(async () => expect(await names()).toEqual(['SEO']));
     await user.click(screen.getByRole('radio', { name: 'Prompts' }));
     await vi.waitFor(async () => expect(within(await grid()).getAllByRole('row')).toHaveLength(2));
   });
 
-  it('says no prompt matches a search that finds no topic, and no prompts yet when every prompt is branded', async () => {
+  it('says no prompt matches a search that finds no group, and no prompts yet when every prompt is branded', async () => {
     const first = renderWithProviders(promptsAs('viewer'), { searchParams: '?q=zzzznothing' });
     expect(await screen.findByRole('heading', { name: NO_MATCH_TITLE })).toBeInTheDocument();
     first.unmount();
@@ -1371,7 +1371,7 @@ describe('Topics & Prompts: the Topics tab', () => {
     expect(screen.queryByRole('heading', { name: NO_MATCH_TITLE })).toBeNull();
   });
 
-  describe('searching a parent and its child topic', () => {
+  describe('searching a parent and its child group', () => {
     const PARENT = idOf(3, 1);
     const CHILD = idOf(3, 2);
     const serveParentAndChild = (): void => {
@@ -1416,20 +1416,20 @@ describe('Topics & Prompts: the Topics tab', () => {
       );
     };
 
-    it('finds the parent of a child topic whose own name is searched, and opens onto that child alone', async () => {
+    it('finds the parent of a child group whose own name is searched, and opens onto that child alone', async () => {
       serveParentAndChild();
       const { user } = renderWithProviders(promptsAs('viewer'), { searchParams: '?q=zebra' });
       const tree = await treegrid();
       expect(await names()).toEqual(['Alpha']);
-      await user.click(within(tree).getByRole('button', { name: 'Expand Alpha, 1 topic' }));
+      await user.click(within(tree).getByRole('button', { name: 'Expand Alpha, 1 group' }));
       expect(await names()).toEqual(['Alpha', 'Zebra', 'Show the prompt of Alpha']);
     });
 
-    it('keeps every topic below a parent whose own name is searched, and finds a parent by the text of a prompt', async () => {
+    it('keeps every group below a parent whose own name is searched, and finds a parent by the text of a prompt', async () => {
       serveParentAndChild();
       const first = renderWithProviders(promptsAs('viewer'), { searchParams: '?q=alpha' });
       await vi.waitFor(async () => expect(await names()).toEqual(['Alpha']));
-      expect(within(await treegrid()).getByRole('button', { name: 'Expand Alpha, 1 topic' })).toBeInTheDocument();
+      expect(within(await treegrid()).getByRole('button', { name: 'Expand Alpha, 1 group' })).toBeInTheDocument();
       first.unmount();
       serveParentAndChild();
       renderWithProviders(promptsAs('viewer'), { searchParams: '?q=question' });
@@ -1437,12 +1437,12 @@ describe('Topics & Prompts: the Topics tab', () => {
     });
   });
 
-  it('finds a topic by the text of one of its prompts', async () => {
+  it('finds a group by the text of one of its prompts', async () => {
     renderWithProviders(promptsAs('viewer'), { searchParams: '?q=fintech' });
     await vi.waitFor(async () => expect(await names()).toEqual(['SEO']));
   });
 
-  it('offers a retry when the topics do not load, while the Prompts tab still lists the prompts', async () => {
+  it('offers a retry when the groups do not load, while the Prompts tab still lists the prompts', async () => {
     let calls = 0;
     server.use(
       http.get(SUMMARY_PATH, () => {
@@ -1451,14 +1451,14 @@ describe('Topics & Prompts: the Topics tab', () => {
       }),
     );
     const { user } = renderWithProviders(promptsAs('viewer'));
-    expect(await screen.findByText('The topics could not be loaded.')).toBeInTheDocument();
+    expect(await screen.findByText('The groups could not be loaded.')).toBeInTheDocument();
     await user.click(screen.getByRole('radio', { name: 'Prompts' }));
     expect(
       await within(await grid()).findByText('Which SEO agency is best for a SaaS startup in Germany?'),
     ).toBeInTheDocument();
   });
 
-  it('keeps the topics on screen while a new window is read', async () => {
+  it('keeps the groups on screen while a new window is read', async () => {
     const second = gate();
     let calls = 0;
     server.use(
@@ -1474,7 +1474,7 @@ describe('Topics & Prompts: the Topics tab', () => {
       }),
     );
     const { user } = renderWithProviders(withTopBar(promptsAs('viewer')));
-    await within(await treegrid()).findByText('No topic');
+    await within(await treegrid()).findByText('No group');
     await user.click(await rangeTrigger());
     await user.click(await screen.findByRole('button', { name: 'Last 7 days' }));
     await vi.waitFor(() =>
@@ -1484,11 +1484,11 @@ describe('Topics & Prompts: the Topics tab', () => {
     );
     await settle();
     expect(calls).toBe(2);
-    expect(within(await treegrid()).getByText('No topic')).toBeInTheDocument();
+    expect(within(await treegrid()).getByText('No group')).toBeInTheDocument();
     second.open();
   });
 
-  it('gives an editor Add prompts on the Topics tab too, and a viewer none', async () => {
+  it('gives an editor Add prompts on the Groups tab too, and a viewer none', async () => {
     const editor = renderWithProviders(promptsAs('editor'));
     await names();
     expect(await screen.findByRole('button', { name: 'Add prompts' })).toBeInTheDocument();
@@ -1498,14 +1498,14 @@ describe('Topics & Prompts: the Topics tab', () => {
     expect(screen.queryByRole('button', { name: 'Add prompts' })).toBeNull();
   });
 
-  it('shows only the engines the Engine filter names', async () => {
+  it('shows only the platforms the Platform filter names', async () => {
     renderWithProviders(promptsAs('viewer'), { searchParams: '?engine=gemini_web' });
     const tree = await treegrid();
     expect(await within(tree).findByRole('columnheader', { name: /^Gemini mentioned/ })).toBeInTheDocument();
     expect(within(tree).queryByRole('columnheader', { name: /^ChatGPT mentioned/ })).toBeNull();
   });
 
-  it('says each prompt counts once in the header of a topic count, and not in the Prompts table', async () => {
+  it('says each prompt counts once in the header of a group count, and not in the Prompts table', async () => {
     const first = renderWithProviders(promptsAs('viewer'));
     const header = await within(await treegrid()).findByRole('columnheader', { name: /^ChatGPT mentioned/ });
     expect(header).toHaveAccessibleDescription(/Each prompt counts once, whatever the number of its answers\.$/);
@@ -1515,21 +1515,21 @@ describe('Topics & Prompts: the Topics tab', () => {
     expect(column).not.toHaveAccessibleDescription(/Each prompt counts once/);
   });
 
-  it('clears the filters from the empty state and brings the topics back', async () => {
+  it('clears the filters from the empty state and brings the groups back', async () => {
     const { user } = renderWithProviders(promptsAs('viewer'), {
       searchParams: `?topic=${MOCK_TERM_IDS.paidSearch}&q=seo`,
     });
     const heading = await screen.findByRole('heading', { name: NO_MATCH_TITLE });
     await user.click(within(heading.parentElement as HTMLElement).getByRole('button', { name: 'Clear filters' }));
     // The search stays, and finds the topics whose name or prompts say SEO
-    await vi.waitFor(async () => expect(await names()).toEqual(['No topic', 'SEO']));
+    await vi.waitFor(async () => expect(await names()).toEqual(['No group', 'SEO']));
     expect(screen.queryByRole('heading', { name: NO_MATCH_TITLE })).toBeNull();
   });
 
   it('moves between the two views with the arrow keys, and keeps the focus on the switch when the table is another', async () => {
     const { user } = renderWithProviders(promptsAs('viewer'));
     await treegrid();
-    screen.getByRole('radio', { name: 'Topics' }).focus();
+    screen.getByRole('radio', { name: 'Groups' }).focus();
     await user.keyboard('{ArrowRight}');
     expect(await grid()).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: 'Prompts' })).toBeChecked();
@@ -1537,23 +1537,23 @@ describe('Topics & Prompts: the Topics tab', () => {
     await vi.waitFor(() => expect(screen.getByRole('radio', { name: 'Prompts' })).toHaveFocus());
     await user.keyboard('{ArrowLeft}');
     expect(await treegrid()).toBeInTheDocument();
-    expect(screen.getByRole('radio', { name: 'Topics' })).toBeChecked();
-    await vi.waitFor(() => expect(screen.getByRole('radio', { name: 'Topics' })).toHaveFocus());
+    expect(screen.getByRole('radio', { name: 'Groups' })).toBeChecked();
+    await vi.waitFor(() => expect(screen.getByRole('radio', { name: 'Groups' })).toHaveFocus());
   });
 
   it('is a radio group named for the two views, at the end of the toolbar before the density and columns as on Rankings, and the table keeps its own name', async () => {
     renderWithProviders(promptsAs('viewer'));
     const tree = await treegrid();
-    const group = screen.getByRole('radiogroup', { name: 'Topics and prompts' });
+    const group = screen.getByRole('radiogroup', { name: 'Groups and prompts' });
     expect(within(group).getAllByRole('radio')).toHaveLength(2);
     expect(within(group).getByRole('radio', { name: 'Prompts' })).not.toBeChecked();
-    expect(within(group).getByRole('radio', { name: 'Topics' })).toBeChecked();
+    expect(within(group).getByRole('radio', { name: 'Groups' })).toBeChecked();
     const search = screen.getByRole('searchbox');
     expect(search.compareDocumentPosition(group) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    const controls = screen.getByRole('toolbar', { name: /Topics table actions/ });
+    const controls = screen.getByRole('toolbar', { name: /Groups table actions/ });
     expect(group.compareDocumentPosition(controls) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(controls).not.toContainElement(group);
-    expect(tree).toHaveAccessibleName('Topics');
+    expect(tree).toHaveAccessibleName('Groups');
     expect(screen.queryByRole('tablist')).toBeNull();
   });
 
@@ -1567,11 +1567,11 @@ describe('Topics & Prompts: the Topics tab', () => {
     expect(writes.at(-1)).toEqual({ query: '?tab=prompts', history: 'push' });
     await user.type(await screen.findByRole('searchbox'), 'seo');
     expect(writes.at(-1)?.history).toBe('replace');
-    await user.click(screen.getByRole('radio', { name: 'Topics' }));
+    await user.click(screen.getByRole('radio', { name: 'Groups' }));
     expect(writes.at(-1)).toEqual({ query: '?q=seo', history: 'push' });
   });
 
-  it('says the topic counts could not be refreshed, keeps the last ones, and reads them again on Try again', async () => {
+  it('says the group counts could not be refreshed, keeps the last ones, and reads them again on Try again', async () => {
     let calls = 0;
     server.use(
       http.get(SUMMARY_PATH, () => {
@@ -1587,21 +1587,21 @@ describe('Topics & Prompts: the Topics tab', () => {
       }),
     );
     const { queryClient, user } = renderWithProviders(promptsAs('viewer'));
-    await within(await treegrid()).findByText('No topic');
+    await within(await treegrid()).findByText('No group');
     expect(screen.queryByText(TOPICS_STALE)).toBeNull();
     await queryClient.refetchQueries({
       predicate: (query) => JSON.stringify(query.queryKey).includes('prompts-summary'),
     });
     expect(await screen.findByText(TOPICS_STALE)).toBeInTheDocument();
-    expect(within(await treegrid()).getByText('No topic')).toBeInTheDocument();
+    expect(within(await treegrid()).getByText('No group')).toBeInTheDocument();
     // The Prompts table says it in its own words
-    expect(screen.queryByText('The topics could not be loaded.')).toBeNull();
+    expect(screen.queryByText('The groups could not be loaded.')).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Try again' }));
     await vi.waitFor(() => expect(screen.queryByText(TOPICS_STALE)).toBeNull());
     expect(calls).toBe(3);
   });
 
-  describe('with a topic tree and counts the test sets', () => {
+  describe('with a group tree and counts the test sets', () => {
     const ids = { seo: idOf(3, 1), technical: idOf(3, 2), paid: idOf(3, 3), above: idOf(3, 9) };
     const termOf = (term_id: string, name: string, path: string): Prompt['terms'][number] => ({
       term_id,
@@ -1649,7 +1649,7 @@ describe('Topics & Prompts: the Topics tab', () => {
     const cellOf = (row: HTMLElement, text: string): HTMLElement =>
       within(row).getAllByText(text)[0]?.closest('[role="gridcell"]') as HTMLElement;
 
-    it('shows a topic cell as the answers behind it, and says why it has none', async () => {
+    it('shows a group cell as the answers behind it, and says why it has none', async () => {
       const first = [counted(4, 1), counted(4, 2)];
       serve(
         [carrying(1, SEO), carrying(2, SEO), carrying(3, PAID), carrying(4, TECHNICAL)],
@@ -1699,20 +1699,20 @@ describe('Topics & Prompts: the Topics tab', () => {
         ],
       );
 
-    it('opens a topic that only a topic below it is given onto that topic, and offers the prompts it rolls up', async () => {
+    it('opens a group that only a group below it is given onto that group, and offers the prompts it rolls up', async () => {
       serveBoth();
       serveTree();
       const { user } = renderWithProviders(promptsAs('viewer'));
       const tree = await treegrid();
       // No prompt is given SEO itself, but the tree tells what is below it: Technical SEO is a row under it, not at the top
       expect(await names()).toEqual(['Paid search', 'SEO']);
-      await user.click(await within(tree).findByRole('button', { name: 'Expand SEO, 1 topic' }));
+      await user.click(await within(tree).findByRole('button', { name: 'Expand SEO, 1 group' }));
       expect(await names()).toEqual(['Paid search', 'SEO', 'Technical SEO', 'Show all 2 prompts of SEO']);
       expect(within(tree).queryAllByText(/^Question number \d\?$/)).toHaveLength(0);
       expect(within(tree).getByRole('button', { name: 'Show all 2 prompts of SEO' })).toBeInTheDocument();
     });
 
-    it('lists a prompt of two topics under each, and marks the row that was clicked, not the first row of the prompt', async () => {
+    it('lists a prompt of two groups under each, and marks the row that was clicked, not the first row of the prompt', async () => {
       serveBoth();
       const { user } = renderWithProviders(promptsAs('viewer'));
       const tree = await treegrid();
@@ -1732,7 +1732,7 @@ describe('Topics & Prompts: the Topics tab', () => {
       });
     });
 
-    it('lists eight prompts of a topic with none below it, offers the rest, and steps through all of them', async () => {
+    it('lists eight prompts of a group with none below it, offers the rest, and steps through all of them', async () => {
       const members = Array.from({ length: 10 }, (_, index) => index + 1);
       serve(
         members.map((index) => carrying(index, PAID)),
@@ -1755,7 +1755,7 @@ describe('Topics & Prompts: the Topics tab', () => {
       expect(within(inspector).getByText(/^\d+ of 10$/)).toBeInTheDocument();
     });
 
-    it('gives a topic below the second level no row, and counts its prompts in the two topics above it', async () => {
+    it('gives a group below the second level no row, and counts its prompts in the two groups above it', async () => {
       const deep = { top: idOf(3, 21), middle: idOf(3, 22), low: idOf(3, 23) };
       serveVocabulary([
         treeNode(deep.top, 'Compliance', null, [
@@ -1773,16 +1773,16 @@ describe('Topics & Prompts: the Topics tab', () => {
       );
       const { user } = renderWithProviders(promptsAs('viewer'));
       const tree = await treegrid();
-      await user.click(await within(tree).findByRole('button', { name: 'Expand Compliance, 1 topic' }));
+      await user.click(await within(tree).findByRole('button', { name: 'Expand Compliance, 1 group' }));
       expect(await names()).toEqual(['Compliance', 'RBI', 'Show the prompt of Compliance']);
       expect(within(tree).queryByText('Cyber')).toBeNull();
       expect(within(rowOf(tree, 'Compliance')).getByText('1')).toBeInTheDocument();
       expect(within(rowOf(tree, 'RBI')).getByText('1')).toBeInTheDocument();
       // Compliance and RBI: two rows, though three topics hold the prompt
-      expect(screen.getByText(`2 topics ${MIDDLE_DOT} 1 prompt`)).toBeInTheDocument();
+      expect(screen.getByText(`2 groups ${MIDDLE_DOT} 1 prompt`)).toBeInTheDocument();
     });
 
-    it('keeps a topic no prompt is given and the topics below it under a filter on it', async () => {
+    it('keeps a group no prompt is given and the groups below it under a filter on it', async () => {
       serveBoth();
       serveTree();
       const { user } = renderWithProviders(promptsAs('viewer'), { searchParams: `?topic=${ids.above}` });
@@ -1793,7 +1793,7 @@ describe('Topics & Prompts: the Topics tab', () => {
       );
     });
 
-    it('offers a topic no prompt is given in the filter, and filters the Prompts tab by it', async () => {
+    it('offers a group no prompt is given in the filter, and filters the Prompts tab by it', async () => {
       serveBoth();
       serveTree();
       const writes: string[] = [];
@@ -1804,12 +1804,12 @@ describe('Topics & Prompts: the Topics tab', () => {
       const table = await grid();
       expect(await within(table).findByText('Question number 1?')).toBeInTheDocument();
       expect(within(table).getByText('Question number 2?')).toBeInTheDocument();
-      expect(await screen.findByRole('button', { name: 'Topic: SEO. Edit filter' })).toBeInTheDocument();
+      expect(await screen.findByRole('button', { name: 'Group: SEO. Edit filter' })).toBeInTheDocument();
       expect(screen.queryByText('A filter from the link was left out')).toBeNull();
       expect(writes).toEqual([]);
     });
 
-    it('keeps a topic of the link, and matches the prompts that carry it, while the topics are not read', async () => {
+    it('keeps a group of the link, and matches the prompts that carry it, while the groups are not read', async () => {
       serveBoth();
       server.use(http.get(VOCABULARIES_PATH, () => HttpResponse.json({ code: 'boom' }, { status: 500 })));
       renderOnPrompts(promptsAs('viewer'), { searchParams: `?topic=${ids.paid}` });
@@ -1819,7 +1819,7 @@ describe('Topics & Prompts: the Topics tab', () => {
       expect(screen.queryByText('A filter from the link was left out')).toBeNull();
     });
 
-    it('keeps a topic from the link while a later page of the list is on its way, and keeps its topics once it is in', async () => {
+    it('keeps a group from the link while a later page of the list is on its way, and keeps its groups once it is in', async () => {
       const second = gate();
       server.use(
         http.get(LIST_PATH, async ({ request }) => {
@@ -1853,7 +1853,7 @@ describe('Topics & Prompts: the Topics tab', () => {
   });
 });
 
-describe('Topics & Prompts: the metric strip', () => {
+describe('Prompts: the metric strip', () => {
   const STRIP = 'Summary of the prompts in view';
   const stripOf = (): Promise<HTMLElement> => screen.findByRole('group', { name: STRIP });
   const counted = (
@@ -1938,7 +1938,7 @@ describe('Topics & Prompts: the metric strip', () => {
     return within(strip).getAllByRole('definition');
   };
 
-  it('shows the prompts in view and a chip per engine with its mention rate, in the one row of the toolbar', async () => {
+  it('shows the prompts in view and a chip per platform with its mention rate, in the one row of the toolbar', async () => {
     serveStrip();
     const { container } = renderWithProviders(promptsAs('viewer'));
     const [prompts, chatgpt, gemini] = await cards();
@@ -1951,7 +1951,7 @@ describe('Topics & Prompts: the metric strip', () => {
     expect(prompts).toHaveTextContent(/^3$/);
     expect(chatgpt).toHaveTextContent(/^67%$/);
     expect(gemini).toHaveTextContent(/^2 answers$/);
-    expect(prompts).toHaveAccessibleDescription('Across 2 topics');
+    expect(prompts).toHaveAccessibleDescription('Across 2 groups');
     expect(chatgpt).toHaveAccessibleDescription(
       'Mentioned: 8 of 12 answers. Cited: 6 of 12 answers. Over 3 prompts, each counted once. Share of voice: 8 answers that name a brand.',
     );
@@ -1979,11 +1979,11 @@ describe('Topics & Prompts: the metric strip', () => {
     renderOnPrompts(promptsAs('viewer'), { searchParams: `?topic=${idOf(3, 1)}` });
     const [prompts, chatgpt] = await cards();
     expect(prompts).toHaveTextContent(/^2$/);
-    expect(prompts).toHaveAccessibleDescription('Across 1 topic');
+    expect(prompts).toHaveAccessibleDescription('Across 1 group');
     expect(chatgpt).toHaveTextContent(/^50%$/);
   });
 
-  it('follows the country of the address too, on either tab, and asks the summary for it', async () => {
+  it('follows the location of the address too, on either tab, and asks the summary for it', async () => {
     serveStrip();
     const asked: (string | null)[] = [];
     server.events.on('request:start', ({ request }) => {
@@ -1999,7 +1999,7 @@ describe('Topics & Prompts: the metric strip', () => {
     server.events.removeAllListeners();
   });
 
-  it('does not say how many topics the prompts span until the topic tree is read', async () => {
+  it('does not say how many groups the prompts span until the group tree is read', async () => {
     serveStrip();
     const held = gate();
     server.use(
@@ -2013,7 +2013,7 @@ describe('Topics & Prompts: the metric strip', () => {
     expect(prompts).toHaveTextContent(/^3$/);
     expect(prompts).not.toHaveAttribute('tabindex');
     held.open();
-    await vi.waitFor(() => expect(prompts).toHaveAccessibleDescription('Across 2 topics'));
+    await vi.waitFor(() => expect(prompts).toHaveAccessibleDescription('Across 2 groups'));
   });
 
   it('shows the answers there are, hatched, in place of a rate under four valid answers', async () => {
@@ -2056,7 +2056,7 @@ describe('Topics & Prompts: the metric strip', () => {
     ).toHaveLength(1);
   });
 
-  it('is not there when the page shows no prompts or no engine', async () => {
+  it('is not there when the page shows no prompts or no platform', async () => {
     server.use(
       http.get(LIST_PATH, () => HttpResponse.json({ data: [], page: { has_more: false, next_cursor: null } })),
     );
@@ -2065,12 +2065,12 @@ describe('Topics & Prompts: the metric strip', () => {
     expect(screen.queryByRole('group', { name: STRIP })).toBeNull();
     first.unmount();
     renderWithProviders(promptsAs('editor', asProject(cleanstart, 'US')));
-    expect(await screen.findByRole('heading', { name: 'No AI engine is on' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'No AI platform is on' })).toBeInTheDocument();
     expect(screen.queryByRole('group', { name: STRIP })).toBeNull();
   });
 });
 
-describe('Topics & Prompts: rate columns, Top engine, sorting and the metric switcher', () => {
+describe('Prompts: rate columns, Top platform, sorting and the metric switcher', () => {
   const counted = (
     valid: number,
     mentioned: number,
@@ -2157,7 +2157,7 @@ describe('Topics & Prompts: rate columns, Top engine, sorting and the metric swi
       .getAllByRole('rowheader')
       .map((cell) => cell.getAttribute('aria-label') ?? cell.textContent ?? '');
 
-  it('shows the Mention rate and Citation rate of the engines in scope, an insufficient one as its answers, highest Mention rate first', async () => {
+  it('shows the Mention rate and Citation rate of the platforms in scope, an insufficient one as its answers, highest Mention rate first', async () => {
     serveRates();
     renderOnPrompts(promptsAs('viewer'));
     const table = await grid();
@@ -2171,8 +2171,8 @@ describe('Topics & Prompts: rate columns, Top engine, sorting and the metric swi
         .map((header) => header.textContent?.replace(/\d$/, '')),
     ).toEqual([
       'Prompt',
-      'Topic',
-      'Country',
+      'Group',
+      'Location',
       'Mention rate',
       'Citation rate',
       'Trend',
@@ -2214,7 +2214,7 @@ describe('Topics & Prompts: rate columns, Top engine, sorting and the metric swi
     // An equal weight percent gets the count of each engine, not a pooled count that would read as another rate
     const [, , , mention] = within(rowOf(table, 'Question number 1?')).getAllByRole('gridcell');
     expect(mention).toHaveAccessibleDescription(
-      'ChatGPT 6 of 8 and Gemini 2 of 8 Equal weight average of ChatGPT and Gemini, each engine counting once',
+      'ChatGPT 6 of 8 and Gemini 2 of 8 Equal weight average of ChatGPT and Gemini, each platform counting once',
     );
     expect(order(table)).toEqual(['Question number 2?', 'Question number 1?', 'Question number 3?']);
     expect(within(table).getByRole('columnheader', { name: /^Mention rate/ })).toHaveAttribute(
@@ -2241,7 +2241,7 @@ describe('Topics & Prompts: rate columns, Top engine, sorting and the metric swi
     expect(order(table)).toEqual(['Question number 2?', 'Question number 1?', 'Question number 3?']);
   });
 
-  it('shows Mention, Citation or Share of voice in the engine columns, and keeps the counts in the column chooser', async () => {
+  it('shows Mention, Citation or Share of voice in the platform columns, and keeps the counts in the column chooser', async () => {
     serveRates();
     const writes: string[] = [];
     const { user } = renderOnPrompts(promptsAs('viewer'), {
@@ -2249,7 +2249,7 @@ describe('Topics & Prompts: rate columns, Top engine, sorting and the metric swi
     });
     const table = await grid();
     await within(table).findByText('Question number 1?');
-    const metric = screen.getByRole('combobox', { name: 'Metric of the engine columns' });
+    const metric = screen.getByRole('combobox', { name: 'Metric of the platform columns' });
     await user.click(metric);
     await user.click(await screen.findByRole('option', { name: 'Citation' }));
     expect(
@@ -2260,7 +2260,7 @@ describe('Topics & Prompts: rate columns, Top engine, sorting and the metric swi
     ).toEqual(['ChatGPT citation', 'Gemini citation']);
     expect(cellsOf(table, 'Question number 1?').slice(-2)).toEqual(['50% 4 of 8', '88% 7 of 8']);
     expect(new URLSearchParams(writes.at(-1)).get('metric')).toBe('citation');
-    await user.click(screen.getByRole('combobox', { name: 'Metric of the engine columns' }));
+    await user.click(screen.getByRole('combobox', { name: 'Metric of the platform columns' }));
     await user.click(await screen.findByRole('option', { name: 'Share of voice' }));
     // Share of voice is a share of the answers that name a brand, not a count of answers that do
     expect(cellsOf(table, 'Question number 1?').slice(-2)).toEqual(['50% 6 answers', 'n/a']);
@@ -2274,13 +2274,13 @@ describe('Topics & Prompts: rate columns, Top engine, sorting and the metric swi
     expect(screen.getByRole('checkbox', { name: 'Gemini cited' })).not.toBeChecked();
   });
 
-  it('adds Mention rate, Citation rate and Top engine to the Topics tab, which opens on the highest Mention rate', async () => {
+  it('adds Mention rate, Citation rate and Top platform to the Groups tab, which opens on the highest Mention rate', async () => {
     serveRates();
     const writes: string[] = [];
     const { user } = renderWithProviders(promptsAs('viewer'), {
       onUrlUpdate: ({ queryString }) => writes.push(queryString),
     });
-    const tree = await screen.findByRole('treegrid', { name: 'Topics' });
+    const tree = await screen.findByRole('treegrid', { name: 'Groups' });
     await within(tree).findByText('SEO');
     expect(
       within(tree)
@@ -2289,11 +2289,11 @@ describe('Topics & Prompts: rate columns, Top engine, sorting and the metric swi
         .slice(1, -1)
         .map((header) => header.textContent),
     ).toEqual([
-      'Topic',
+      'Group',
       'Prompts',
       'Mention rate',
       'Citation rate',
-      'Top engine',
+      'Top platform',
       'Trend',
       'ChatGPT mentioned',
       'ChatGPT cited',
@@ -2334,10 +2334,10 @@ describe('Topics & Prompts: rate columns, Top engine, sorting and the metric swi
     expect(new URLSearchParams(writes.at(-1)).get('sort')).toBe('prompts');
   });
 
-  it('draws the mark of the top engine before its name, and none where a topic has no top engine', async () => {
+  it('draws the mark of the top platform before its name, and none where a group has no top platform', async () => {
     serveRates();
     renderWithProviders(promptsAs('viewer'));
-    const tree = await screen.findByRole('treegrid', { name: 'Topics' });
+    const tree = await screen.findByRole('treegrid', { name: 'Groups' });
     await within(tree).findByText('SEO');
     const topCell = within(rowOf(tree, 'SEO')).getByText('ChatGPT').closest('[role="gridcell"]');
     const mark = topCell?.querySelector('img');
@@ -2348,7 +2348,7 @@ describe('Topics & Prompts: rate columns, Top engine, sorting and the metric swi
     expect(noTopCell?.querySelector('img')).toBeNull();
   });
 
-  describe('on three topics of other rates and top engines', () => {
+  describe('on three groups of other rates and top platforms', () => {
     /** Alpha: ChatGPT 75%, Gemini 50%. Beta: ChatGPT 25%, Gemini 75%. Gamma: too few answers on either engine. */
     const serveTopics = (): void => {
       serveRates();
@@ -2378,21 +2378,21 @@ describe('Topics & Prompts: rate columns, Top engine, sorting and the metric swi
     };
     const topicNames = (tree: HTMLElement): string[] => order(tree);
 
-    it('sorts by Top engine A to Z and back, a topic without one last either way', async () => {
+    it('sorts by Top platform A to Z and back, a group without one last either way', async () => {
       serveTopics();
       const { user } = renderWithProviders(promptsAs('viewer'));
-      const tree = await screen.findByRole('treegrid', { name: 'Topics' });
+      const tree = await screen.findByRole('treegrid', { name: 'Groups' });
       await within(tree).findByText('Alpha');
-      await user.click(within(tree).getByRole('button', { name: 'Top engine' }));
+      await user.click(within(tree).getByRole('button', { name: 'Top platform' }));
       expect(topicNames(tree)).toEqual(['Alpha', 'Beta', 'Gamma']);
-      await user.click(within(tree).getByRole('button', { name: 'Top engine' }));
+      await user.click(within(tree).getByRole('button', { name: 'Top platform' }));
       expect(topicNames(tree)).toEqual(['Beta', 'Alpha', 'Gamma']);
     });
 
-    it('puts a topic whose rates are too few last on Mention rate in both directions', async () => {
+    it('puts a group whose rates are too few last on Mention rate in both directions', async () => {
       serveTopics();
       const { user } = renderWithProviders(promptsAs('viewer'));
-      const tree = await screen.findByRole('treegrid', { name: 'Topics' });
+      const tree = await screen.findByRole('treegrid', { name: 'Groups' });
       await within(tree).findByText('Alpha');
       expect(cellsOf(tree, 'Gamma').slice(1, 4)).toEqual(['2 answers', '2 answers', 'n/a']);
       expect(topicNames(tree)).toEqual(['Alpha', 'Beta', 'Gamma']);
@@ -2400,10 +2400,10 @@ describe('Topics & Prompts: rate columns, Top engine, sorting and the metric swi
       expect(topicNames(tree)).toEqual(['Beta', 'Alpha', 'Gamma']);
     });
 
-    it('ignores a sort id of the Prompts tab, such as the topic column, and opens on the Mention rate order', async () => {
+    it('ignores a sort id of the Prompts tab, such as the group column, and opens on the Mention rate order', async () => {
       serveTopics();
       renderWithProviders(promptsAs('viewer'), { searchParams: '?sort=-topic' });
-      const tree = await screen.findByRole('treegrid', { name: 'Topics' });
+      const tree = await screen.findByRole('treegrid', { name: 'Groups' });
       await within(tree).findByText('Alpha');
       expect(within(tree).getByRole('columnheader', { name: /^Mention rate/ })).toHaveAttribute(
         'aria-sort',
@@ -2414,13 +2414,13 @@ describe('Topics & Prompts: rate columns, Top engine, sorting and the metric swi
   });
 });
 
-describe('Topics & Prompts: the compact header and the country in the top bar', () => {
-  const treegrid = (): Promise<HTMLElement> => screen.findByRole('treegrid', { name: 'Topics' });
+describe('Prompts: the compact header and the location in the top bar', () => {
+  const treegrid = (): Promise<HTMLElement> => screen.findByRole('treegrid', { name: 'Groups' });
   const topicNames = async (): Promise<string[]> =>
     (await within(await treegrid()).findAllByRole('rowheader')).map(
       (cell) => cell.getAttribute('aria-label') ?? cell.textContent ?? '',
     );
-  const countryControl = (name = 'Country: All countries'): Promise<HTMLElement> =>
+  const countryControl = (name = 'Location: All locations'): Promise<HTMLElement> =>
     screen.findByRole('combobox', { name });
   /** One prompt with an answer read at `observed`, on the ChatGPT engine. */
   const serveObserved = (observed: string | null): void =>
@@ -2445,21 +2445,21 @@ describe('Topics & Prompts: the compact header and the country in the top bar', 
       ),
     );
 
-  it('puts the country in the top bar beside the date range, with all countries and the countries of the prompts', async () => {
+  it('puts the location in the top bar beside the date range, with all locations and the locations of the prompts', async () => {
     const { user } = renderWithProviders(withTopBar(promptsAs('viewer')));
     await treegrid();
     expect(await countryControl()).toBeInTheDocument();
-    expect(screen.getAllByRole('combobox', { name: /^Country:/ })).toHaveLength(1);
+    expect(screen.getAllByRole('combobox', { name: /^Location:/ })).toHaveLength(1);
     expect(await rangeTrigger()).toBeInTheDocument();
     await user.click(await countryControl());
     expect((await screen.findAllByRole('option')).map((option) => option.textContent)).toEqual([
-      'All countries',
+      'All locations',
       'Germany',
       'India',
     ]);
   });
 
-  it('narrows the strip, the topics and the prompts to the country chosen there, and asks the summary for it', async () => {
+  it('narrows the strip, the groups and the prompts to the location chosen there, and asks the summary for it', async () => {
     const asked: (string | null)[] = [];
     server.events.on('request:start', ({ request }) => {
       const url = new URL(request.url);
@@ -2469,7 +2469,7 @@ describe('Topics & Prompts: the compact header and the country in the top bar', 
     const { user } = renderWithProviders(withTopBar(promptsAs('viewer')), {
       onUrlUpdate: ({ queryString }) => writes.push(queryString),
     });
-    expect(await topicNames()).toEqual(['No topic', 'Content Marketing', 'SEO', 'Paid Search']);
+    expect(await topicNames()).toEqual(['No group', 'Content Marketing', 'SEO', 'Paid Search']);
     const strip = await screen.findByRole('group', { name: 'Summary of the prompts in view' });
     await vi.waitFor(() => expect(strip).not.toHaveAttribute('aria-busy'));
     expect(within(strip).getAllByRole('definition')[0]).not.toHaveTextContent(/^1$/);
@@ -2480,50 +2480,50 @@ describe('Topics & Prompts: the compact header and the country in the top bar', 
     await vi.waitFor(() => expect(within(strip).getAllByRole('definition')[0]).toHaveTextContent(/^1$/));
     expect(new URLSearchParams(writes.at(-1)).get('country')).toBe('IN');
     expect(asked).toContain('IN');
-    expect(await countryControl('Country: India')).toBeInTheDocument();
+    expect(await countryControl('Location: India')).toBeInTheDocument();
     // The Prompts tab keeps to the same country
     await user.click(screen.getByRole('radio', { name: 'Prompts' }));
     await vi.waitFor(async () => expect(within(await grid()).getAllByRole('row')).toHaveLength(2));
     // All countries clears the key from the address
-    await user.click(await countryControl('Country: India'));
-    await user.click(await screen.findByRole('option', { name: 'All countries' }));
+    await user.click(await countryControl('Location: India'));
+    await user.click(await screen.findByRole('option', { name: 'All locations' }));
     await vi.waitFor(() => expect(new URLSearchParams(writes.at(-1)).has('country')).toBe(false));
     server.events.removeAllListeners();
   });
 
-  it('keeps the country of a link that the prompts do not have, so the person can leave it for all countries', async () => {
+  it('keeps the location of a link that the prompts do not have, so the person can leave it for all locations', async () => {
     renderWithProviders(withTopBar(promptsAs('viewer')), { searchParams: '?country=ZZ' });
-    expect(await countryControl('Country: ZZ')).toBeInTheDocument();
+    expect(await countryControl('Location: ZZ')).toBeInTheDocument();
   });
 
-  it('names a country that matches nothing in the empty state, and Clear filters leaves it for all countries', async () => {
+  it('names a location that matches nothing in the empty state, and Clear filters leaves it for all locations', async () => {
     const { user } = renderWithProviders(promptsAs('viewer'), { searchParams: '?country=ZZ' });
     const heading = await screen.findByRole('heading', { name: NO_MATCH_TITLE });
     const empty = heading.parentElement as HTMLElement;
-    expect(within(empty).getByText('Country: ZZ')).toBeInTheDocument();
+    expect(within(empty).getByText('Location: ZZ')).toBeInTheDocument();
     await user.click(within(empty).getByRole('button', { name: 'Clear filters' }));
     expect(await topicNames()).toContain('SEO');
     expect(screen.queryByRole('heading', { name: NO_MATCH_TITLE })).toBeNull();
   });
 
-  it('is a label, not a choice, when every prompt is in one country and all of them are shown', async () => {
+  it('is a label, not a choice, when every prompt is in one location and all of them are shown', async () => {
     server.use(
       http.get(LIST_PATH, () => HttpResponse.json(pageOf([promptOf(1), promptOf(2)], null))),
       http.get(SUMMARY_PATH, () => HttpResponse.json(EMPTY_SUMMARY)),
     );
     renderWithProviders(withTopBar(promptsAs('viewer')));
-    await screen.findByRole('radiogroup', { name: 'Topics and prompts' });
-    expect(screen.queryByRole('combobox', { name: /^Country:/ })).toBeNull();
-    expect(screen.getByText('Country: All countries')).toBeInTheDocument();
+    await screen.findByRole('radiogroup', { name: 'Groups and prompts' });
+    expect(screen.queryByRole('combobox', { name: /^Location:/ })).toBeNull();
+    expect(screen.getByText('Location: All locations')).toBeInTheDocument();
   });
 
-  it('has no Country chip: the filter bar offers the topic, the engine and the branded prompts', async () => {
+  it('has no Location chip: the filter bar offers the group, the platform and the branded prompts', async () => {
     const { user } = renderWithProviders(promptsAs('viewer'), { searchParams: '?country=IN' });
     await treegrid();
-    expect(within(screen.getByRole('group', { name: 'Filters' })).queryByText(/^Country/)).toBeNull();
+    expect(within(screen.getByRole('group', { name: 'Filters' })).queryByText(/^Location/)).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Add a filter' }));
-    const fields = await screen.findAllByRole('button', { name: /^(Topic|Country|Engine|Branded prompts)$/ });
-    expect(fields.map((field) => field.textContent)).toEqual(['Topic', 'Engine', 'Branded prompts']);
+    const fields = await screen.findAllByRole('button', { name: /^(Group|Location|Platform|Branded prompts)$/ });
+    expect(fields.map((field) => field.textContent)).toEqual(['Group', 'Platform', 'Branded prompts']);
   });
 
   it('has no row of chips under the toolbar until a filter is set, and the Filter button is in the toolbar', async () => {
@@ -2540,7 +2540,7 @@ describe('Topics & Prompts: the compact header and the country in the top bar', 
     await treegrid();
     expect(
       within(screen.getByRole('group', { name: 'Filters' })).getByRole('button', {
-        name: /^Engine: .*\. Edit filter$/,
+        name: /^Platform: .*\. Edit filter$/,
       }),
     ).toBeInTheDocument();
   });
@@ -2603,8 +2603,8 @@ describe('Topics & Prompts: the compact header and the country in the top bar', 
     expect(trigger).toHaveAccessibleName(`${RANGE_NAME} Last 28 days (28d), Oct 16 to Nov 12, 2026`);
   });
 
-  it('ends a long topic badge in an ellipsis inside its cell, with the whole name in the cell tooltip and no native title', async () => {
-    const long = 'A topic with a very long name that does not fit its column';
+  it('ends a long group badge in an ellipsis inside its cell, with the whole name in the cell tooltip and no native title', async () => {
+    const long = 'A group with a very long name that does not fit its column';
     server.use(
       http.get(LIST_PATH, () =>
         HttpResponse.json(

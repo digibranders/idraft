@@ -31,7 +31,7 @@ const ROWS: readonly Row[] = [
   row('cyber', 'Cyber'),
   row('pricing', 'Pricing'),
   row('sebi', 'SEBI'),
-  row(null, 'No topic'),
+  row(null, 'No group'),
 ];
 const shape = (branches: ReturnType<typeof buildTopicTree<Row>>): [string, string[]][] =>
   branches.map((branch) => [branch.row.name, branch.children.map((child) => child.name)]);
@@ -41,7 +41,7 @@ describe('buildTopicTree', () => {
     expect(shape(buildTopicTree(ROWS, TREE))).toEqual([
       ['Compliance', ['RBI', 'SEBI']],
       ['Pricing', []],
-      ['No topic', []],
+      ['No group', []],
     ]);
   });
 
@@ -58,7 +58,7 @@ describe('buildTopicTree', () => {
       ['Cyber', []],
       ['Pricing', []],
       ['SEBI', []],
-      ['No topic', []],
+      ['No group', []],
     ]);
   });
 
@@ -97,13 +97,13 @@ describe('sortTopicTree', () => {
     const sorted = sortTopicTree(buildTopicTree(ROWS, TREE), byName);
     expect(shape(sorted)).toEqual([
       ['Compliance', ['RBI', 'SEBI']],
-      ['No topic', []],
+      ['No group', []],
       ['Pricing', []],
     ]);
     const descending = sortTopicTree(buildTopicTree(ROWS, TREE), (rows) => byName(rows).reverse());
     expect(shape(descending)).toEqual([
       ['Pricing', []],
-      ['No topic', []],
+      ['No group', []],
       ['Compliance', ['SEBI', 'RBI']],
     ]);
   });

@@ -67,7 +67,7 @@ const show = (given: PlanBlockProps): ReturnType<typeof renderWithProviders> =>
 describe('the plan block', () => {
   it('says the answers a month from the engines, the cost of each, and the quota after the add', () => {
     show(props());
-    expect(screen.getByText('About 234 answers a month: 9 prompts x 3 engines x 2 runs a week.')).toBeInTheDocument();
+    expect(screen.getByText('About 234 answers a month: 9 prompts x 3 platforms x 2 runs a week.')).toBeInTheDocument();
     expect(
       screen.getByText('About $0.09 a month: ChatGPT $0.03, Gemini $0.03, and AI Mode $0.03 (standard queue).'),
     ).toBeInTheDocument();
@@ -124,7 +124,7 @@ describe('the plan block', () => {
     show(props({ checking: true }));
     expect(screen.getByText('Checking...')).toBeInTheDocument();
     expect(screen.getByRole('group', { name: 'What this add takes' })).toHaveAttribute('aria-busy', 'true');
-    const answers = screen.getByText('About 234 answers a month: 9 prompts x 3 engines x 2 runs a week.');
+    const answers = screen.getByText('About 234 answers a month: 9 prompts x 3 platforms x 2 runs a week.');
     expect(answers).toBeInTheDocument();
     // No dimming: rule 17 keeps a refetch at full opacity
     expect(screen.getByRole('group', { name: 'What this add takes' }).querySelector('[class*="opacity"]')).toBeNull();

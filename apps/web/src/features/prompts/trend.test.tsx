@@ -179,9 +179,9 @@ describe('the Trend column of the tables', () => {
       if (new URL(request.url).pathname.endsWith('/ai/prompts-summary')) summaries.push(request.url);
     });
     renderOn('');
-    const tree = await screen.findByRole('treegrid', { name: 'Topics' });
+    const tree = await screen.findByRole('treegrid', { name: 'Groups' });
     const headers = (await within(tree).findAllByRole('columnheader')).map((header) => header.textContent);
-    expect(headers.indexOf('Trend')).toBe(headers.findIndex((text) => text?.startsWith('Top engine')) + 1);
+    expect(headers.indexOf('Trend')).toBe(headers.findIndex((text) => text?.startsWith('Top platform')) + 1);
     await waitFor(() =>
       expect(within(tree).getAllByRole('img', { name: /^Mention rate by week: / }).length).toBeGreaterThan(0),
     );

@@ -237,7 +237,7 @@ describe('the opportunities card', () => {
     serve(summary(PROMPTS));
     renderCard('cmp=off&engine=gemini_web');
     const list = await barList();
-    expect(screen.getByText('Engines in scope: Gemini.')).toBeInTheDocument();
+    expect(screen.getByText('Platforms in scope: Gemini.')).toBeInTheDocument();
     expect(within(list).getByText('Lost to HubSpot: 1 prompt, of 1 prompt')).toBeInTheDocument();
   });
 

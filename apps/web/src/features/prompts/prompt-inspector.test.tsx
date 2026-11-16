@@ -85,7 +85,7 @@ const opened = `?tab=prompts&${inspectOf(first.prompt_id)}`;
 const openedOn = (tab: string): string => `${opened}&itab=${tab}`;
 const panel = (name: string = first.text): Promise<HTMLElement> => screen.findByRole('complementary', { name });
 const grid = (): Promise<HTMLElement> => screen.findByRole('grid', { name: 'Prompts' });
-const treegrid = (): Promise<HTMLElement> => screen.findByRole('treegrid', { name: 'Topics' });
+const treegrid = (): Promise<HTMLElement> => screen.findByRole('treegrid', { name: 'Groups' });
 
 /** Renders with the options a link to the Prompts tab or the Topics tab has. */
 const renderOn = (role: Role, searchParams: string): ProvidedRender =>
@@ -199,7 +199,7 @@ describe('the prompt inspector: what it shows', () => {
     expect(within(inspector).queryByText(/never/i)).toBeNull();
   });
 
-  it('shows the topic path as the badge when the prompt is opened from the Prompts tab', async () => {
+  it('shows the group path as the badge when the prompt is opened from the Prompts tab', async () => {
     const stored = promptsOf(fynix.project_id).prompts.find((prompt) => prompt.prompt_id === first.prompt_id);
     if (stored === undefined) throw new Error('The stored prompt is missing');
     stored.term_ids = [MOCK_TERM_IDS.technicalSeo];
@@ -254,7 +254,7 @@ describe('the prompt inspector: what it shows', () => {
     expect(await within(inspector).findByText('No answers in this window')).toBeInTheDocument();
   });
 
-  it('says on the Latest tab that an engine has no valid answer yet when the window has none', async () => {
+  it('says on the Latest tab that a platform has no valid answer yet when the window has none', async () => {
     server.use(
       http.get(mswPath(`${P}/ai/observations`), () =>
         HttpResponse.json({ data: [], page: { has_more: false, next_cursor: null, limit: 200 } }),
@@ -331,7 +331,7 @@ describe('the prompt inspector: opening and stepping', () => {
     expect(await panel()).toBeInTheDocument();
   });
 
-  it('opens from a prompt under a topic of the Topics tab, which opens with the prompt, not the row', async () => {
+  it('opens from a prompt under a group of the Groups tab, which opens with the prompt, not the row', async () => {
     const { user } = renderOn('viewer', '');
     const tree = await treegrid();
     await user.click(await within(tree).findByRole('button', { name: 'Expand Paid Search, 2 prompts' }));
@@ -339,9 +339,9 @@ describe('the prompt inspector: opening and stepping', () => {
     const inspector = await panel('What is the best way to manage paid search on a small budget?');
     // The topic is a fact of the prompt, and a badge that leads back to it, since the prompt was opened from the topic
     expect(await within(inspector).findAllByText('Paid Search')).toHaveLength(2);
-    expect(within(inspector).getByRole('button', { name: 'Open the topic Paid Search' })).toBeInTheDocument();
+    expect(within(inspector).getByRole('button', { name: 'Open the group Paid Search' })).toBeInTheDocument();
     // A topic's name opens the topic's drawer, in the place of the prompt's
-    await user.click(within(tree).getByRole('button', { name: 'Open the topic Content Marketing' }));
+    await user.click(within(tree).getByRole('button', { name: 'Open the group Content Marketing' }));
     expect(await panel('Content Marketing')).toBeInTheDocument();
   });
 
@@ -360,7 +360,7 @@ describe('the prompt inspector: opening and stepping', () => {
     expect(within(await panel()).getByText(`${String(at)} of ${String(LISTED)}`)).toBeInTheDocument();
   });
 
-  it('steps between the prompts of the open topics on the Topics tab', async () => {
+  it('steps between the prompts of the open groups on the Groups tab', async () => {
     const { user } = renderOn('viewer', '');
     const tree = await treegrid();
     await user.click(await within(tree).findByRole('button', { name: 'Expand Paid Search, 2 prompts' }));
@@ -488,7 +488,7 @@ describe('the prompt inspector: the address and the answers', () => {
     expect(screen.queryByRole('table', { name: 'Answers to this prompt' })).toBeNull();
   });
 
-  it('opens an answer from its date, naming its engine and date, and puts it in the address', async () => {
+  it('opens an answer from its date, naming its platform and date, and puts it in the address', async () => {
     const urls: string[] = [];
     const { user } = renderWithProviders(promptsAs('viewer'), {
       searchParams: openedOn('history'),
@@ -565,7 +565,7 @@ describe('the prompt inspector: the address and the answers', () => {
 });
 
 describe('the prompt inspector: the counts', () => {
-  it('does not say there are no counts while the engines are still loading', async () => {
+  it('does not say there are no counts while the platforms are still loading', async () => {
     // The engines answer when the test says so, not after a time that a loaded machine can outrun: while they are
     // pending the inspector must not claim there are no counts, and it must show them once they have arrived
     let release: () => void = () => undefined;
@@ -640,7 +640,7 @@ describe('the prompt inspector: Run now', () => {
   // Known to lose its refresh under the load of the whole suite (about one run in four, never alone: the page then
   // holds no Run now button and no toast): it is retried twice, and the cause is not found yet
   it(
-    'runs the prompt now on every enabled engine, refreshes the prompts and the runs, and says an answer is on its way when asked again',
+    'runs the prompt now on every enabled platform, refreshes the prompts and the runs, and says an answer is on its way when asked again',
     { retry: 2, timeout: 40_000 },
     async () => {
       const bodies: unknown[] = [];
@@ -679,7 +679,7 @@ describe('the prompt inspector: Run now', () => {
     },
   );
 
-  it('names only the engines that have an answer on its way', async () => {
+  it('names only the platforms that have an answer on its way', async () => {
     refuse(409, problemBody('check_pending', { engine_codes: ['gemini_web'] }));
     const { user } = renderOn('analyst', opened);
     await user.click(await within(await panel()).findByRole('button', { name: 'Run now' }));
@@ -719,7 +719,7 @@ describe('the prompt inspector: Run now', () => {
     ['engine_not_enabled', 'Gemini is not turned on for this project.'],
     ['prompt_too_long', 'Gemini does not take a prompt this long.'],
     ['location_not_enabled', 'Gemini has no location in the country of this prompt.'],
-  ])('says why an engine was refused with %s, naming the engine', async (code, words) => {
+  ])('says why a platform was refused with %s, naming the platform', async (code, words) => {
     refuse(
       422,
       problemBody('validation_failed', {
@@ -731,7 +731,7 @@ describe('the prompt inspector: Run now', () => {
     await said(words);
   });
 
-  it('words a missing price for every engine asked: the API sends it with no engine in the message', async () => {
+  it('words a missing price for every platform asked: the API sends it with no platform in the message', async () => {
     // backend api/operations/runs.py `_ai_subjects`: the price book is read for the whole run
     refuse(
       422,
@@ -741,7 +741,7 @@ describe('the prompt inspector: Run now', () => {
             location: 'body',
             path: 'engine_codes',
             code: 'price_unavailable',
-            message: 'The price book has no price for these engines today.',
+            message: 'The price book has no price for these platforms today.',
           },
         ],
       }),
@@ -751,7 +751,7 @@ describe('the prompt inspector: Run now', () => {
     await said('No price is known for ChatGPT and Gemini today, so they cannot be asked.');
   });
 
-  it('tells each engine refused for the same reason in one sentence, and each other reason in its own', async () => {
+  it('tells each platform refused for the same reason in one sentence, and each other reason in its own', async () => {
     refuse(
       422,
       problemBody('validation_failed', {
@@ -766,7 +766,7 @@ describe('the prompt inspector: Run now', () => {
     await said('ChatGPT and Gemini do not take a prompt this long.');
   });
 
-  it('keeps one sentence for each reason when engines are refused for different ones', async () => {
+  it('keeps one sentence for each reason when platforms are refused for different ones', async () => {
     refuse(
       422,
       problemBody('validation_failed', {
@@ -781,7 +781,7 @@ describe('the prompt inspector: Run now', () => {
     await said('ChatGPT does not take a prompt this long. Gemini has no location in the country of this prompt.');
   });
 
-  it('applies a known reason that names no engine we know to every engine asked', async () => {
+  it('applies a known reason that names no platform we know to every platform asked', async () => {
     refuse(
       422,
       problemBody('validation_failed', {
@@ -822,7 +822,7 @@ describe('the prompt inspector: Run now', () => {
     await said('Too many requests. Try again in 2 minutes.');
   });
 
-  it('asks only the engines that have a location in the country of the prompt', async () => {
+  it('asks only the platforms that have a location in the location of the prompt', async () => {
     const bodies: unknown[] = [];
     server.events.on('request:start', ({ request }) => {
       if (request.method === 'POST' && new URL(request.url).pathname.endsWith('/run-now')) {
@@ -842,19 +842,19 @@ describe('the prompt inspector: Run now', () => {
     await waitFor(() => expect(bodies).toEqual([{ engine_codes: ['chatgpt_web'] }]));
   });
 
-  it('says why there is no Run now when no engine has a location in the country of the prompt', async () => {
+  it('says why there is no Run now when no platform has a location in the location of the prompt', async () => {
     for (const engine of promptsOf(fynix.project_id).engines) engine.location_ids = [2356];
     renderOn('analyst', opened);
     const inspector = await panel();
     expect(
       await within(inspector).findByText(
-        'No enabled engine can ask this prompt: it is too long for them, or they have no location in its country.',
+        'No enabled platform can ask this prompt: it is too long for them, or they have no location in its country.',
       ),
     ).toBeInTheDocument();
     expect(within(inspector).queryByRole('button', { name: 'Run now' })).toBeNull();
   });
 
-  it('names an engine that is off in the answers it still has, and asks and counts only the engines that are on', async () => {
+  it('names a platform that is off in the answers it still has, and asks and counts only the platforms that are on', async () => {
     const bodies: unknown[] = [];
     server.events.on('request:start', ({ request }) => {
       if (request.method === 'POST' && new URL(request.url).pathname.endsWith('/run-now')) {
@@ -887,7 +887,7 @@ describe('the prompt inspector: Run now', () => {
     renderOn('viewer', opened);
     const inspector = await panel();
     await within(inspector).findByText('English');
-    expect(within(inspector).queryByText(/^No enabled engine can ask this prompt/)).toBeNull();
+    expect(within(inspector).queryByText(/^No enabled platform can ask this prompt/)).toBeNull();
   });
 
   it('says the run was not queued for an answer it does not know', async () => {

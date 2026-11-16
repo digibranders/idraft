@@ -72,13 +72,13 @@ const renderOn = (role: Role): ProvidedRender => renderWithProviders(promptsAs(r
 const active = () => promptsOf(fynix?.project_id ?? '').prompts.filter((prompt) => prompt.is_active);
 
 async function openSeoMenu(user: ProvidedRender['user']): Promise<void> {
-  const tree = await screen.findByRole('treegrid', { name: 'Topics' });
+  const tree = await screen.findByRole('treegrid', { name: 'Groups' });
   await user.click(await within(tree).findByRole('button', { name: 'Actions for SEO' }));
   await screen.findByRole('menu');
 }
 
-describe('the menu of a topic while the prompt list is not whole', () => {
-  it('waits for the list before it runs or exports the prompts of a topic, and says why', async () => {
+describe('the menu of a group while the prompt list is not whole', () => {
+  it('waits for the list before it runs or exports the prompts of a group, and says why', async () => {
     // The first page arrives and the second never does: the topic counts are there, the prompts of the topic are not
     server.use(
       http.get(LIST, async ({ request }) => {
@@ -101,8 +101,8 @@ describe('the menu of a topic while the prompt list is not whole', () => {
   });
 });
 
-describe('Run now from the menu of a topic', () => {
-  it('sends the prompts of the topic in one request, after the confirm, and says what started', async () => {
+describe('Run now from the menu of a group', () => {
+  it('sends the prompts of the group in one request, after the confirm, and says what started', async () => {
     const bodies: { prompt_ids: string[]; engine_codes?: string[] }[] = [];
     const singles: string[] = [];
     server.events.on('request:start', async ({ request }) => {
@@ -114,7 +114,7 @@ describe('Run now from the menu of a topic', () => {
     await openSeoMenu(user);
     await user.click(screen.getByRole('menuitem', { name: 'Run now' }));
     await user.click(await screen.findByRole('button', { name: 'Run 12 prompts' }));
-    expect((await screen.findAllByText(/^Run started: 12 prompts on \d engines?$/)).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText(/^Run started: 12 prompts on \d platforms?$/)).length).toBeGreaterThan(0);
     expect((await screen.findAllByText(/^About \$/)).length).toBeGreaterThan(0);
     // One request with the 12 prompts and the engines that are on, so what the API left out is read against them; none of the single prompt route
     expect(bodies).toHaveLength(1);
@@ -124,7 +124,7 @@ describe('Run now from the menu of a topic', () => {
   });
 });
 
-describe('the menu of a topic for prompts the list does not hold', () => {
+describe('the menu of a group for prompts the list does not hold', () => {
   it('exports only the prompts it holds and says how many it does not, and never writes a file of a header alone', async () => {
     const download = vi.mocked(csv.downloadBlob);
     download.mockClear();
@@ -150,7 +150,7 @@ describe('the menu of a topic for prompts the list does not hold', () => {
     expect((await screen.findAllByText('1 prompt is not loaded yet.')).length).toBeGreaterThan(0);
   });
 
-  it('asks about the prompts it holds when it runs a topic, and counts only those', async () => {
+  it('asks about the prompts it holds when it runs a group, and counts only those', async () => {
     server.use(
       http.get(LIST, () =>
         HttpResponse.json({

@@ -48,13 +48,13 @@ vi.mock('../engines/use-card-seams', async (importActual) => {
 
 const SUMMARY = '*/api/v1/workspaces/:w/projects/:p/ai/prompts-summary';
 const CURRENT_FROM = '2026-10-16';
-const HEADING = 'Mention rate by engine';
-const SHARE_HEADING = 'Share of voice by engine';
-const TABLE = 'Mention rate of each tracked brand on each engine';
-const SHARE_TABLE = 'Share of voice of each tracked brand on each engine';
+const HEADING = 'Mention rate by platform';
+const SHARE_HEADING = 'Share of voice by platform';
+const TABLE = 'Mention rate of each tracked brand on each platform';
+const SHARE_TABLE = 'Share of voice of each tracked brand on each platform';
 /** The column header, short; its full words are the header's description, the Table view's engine and the export's. */
 const AVERAGE = 'Average';
-const AVERAGE_FULL = 'Average of 2 engines, equal weight';
+const AVERAGE_FULL = 'Average of 2 platforms, equal weight';
 
 beforeEach(() => {
   vi.setSystemTime(new Date('2026-11-12T12:00:00Z'));
@@ -183,7 +183,7 @@ function cellAt(element: HTMLElement, brand: string, column: string): HTMLElemen
 }
 
 describe('the competitor table card', () => {
-  it('shows a skeleton at its height, then one row per brand with you first and one column per engine in scope', async () => {
+  it('shows a skeleton at its height, then one row per brand with you first and one column per platform in scope', async () => {
     server.use(
       http.get(SUMMARY, async () => {
         await delay(60);
@@ -205,7 +205,7 @@ describe('the competitor table card', () => {
     expect(cellAt(element, 'Zoho', 'Gemini')).toHaveTextContent('10%');
   });
 
-  it('keeps the brands after you in the order of the metric, by the equal weight mean of the engines', async () => {
+  it('keeps the brands after you in the order of the metric, by the equal weight mean of the platforms', async () => {
     // Zoho leads on ChatGPT alone, HubSpot leads on the mean of both engines
     const chatgpt: EngineSpec = { ...CHATGPT, mentions: [30, 40, 70] };
     const gemini: EngineSpec = { ...GEMINI, mentions: [15, 18, 2] };
@@ -215,7 +215,7 @@ describe('the competitor table card', () => {
     expect(bodyRows(element).map((row) => brandOf(row))).toEqual(['Fynix (you)', 'HubSpot', 'Zoho']);
   });
 
-  it('orders by the displayed average: a brand with a figure on one engine only does not outrank a lower full mean', async () => {
+  it('orders by the displayed average: a brand with a figure on one platform only does not outrank a lower full mean', async () => {
     // HubSpot has 90% on ChatGPT and nothing on Gemini (its average is n/a); Zoho has 40% on both
     const chatgpt: EngineSpec = { ...CHATGPT, mentions: [30, 108, 48] };
     const gemini: EngineSpec = { ...GEMINI, mentions: [15, 10, 8] };
@@ -241,7 +241,7 @@ describe('the competitor table card', () => {
     ).toBeVisible();
   });
 
-  it('orders by the one engine that has answers, and says it is the value in the column', async () => {
+  it('orders by the one platform that has answers, and says it is the value in the column', async () => {
     const chatgpt: EngineSpec = { ...CHATGPT, mentions: [30, 40, 70] };
     serve(summary([chatgpt]));
     renderCard();
@@ -258,7 +258,7 @@ describe('the competitor table card', () => {
     const element = await table();
     expect(cellAt(element, 'HubSpot', 'ChatGPT')).toHaveTextContent('<0.1%named in 1 of 2,001 answers');
     await user.click(screen.getByRole('button', { name: 'Table' }));
-    const long = await screen.findByRole('table', { name: 'Mention rate by brand and engine, one row for each' });
+    const long = await screen.findByRole('table', { name: 'Mention rate by brand and platform, one row for each' });
     expect(long).toHaveTextContent('HubSpotChatGPT<0.1%');
     expect(document.body.innerHTML).not.toContain('0.0%');
     const [block] = sink.read().blocks;
@@ -284,16 +284,16 @@ describe('the competitor table card', () => {
     expect(within(element).queryByText(/named in/)).not.toBeInTheDocument();
   });
 
-  it('labels the average column equal weight, and takes the plain mean of the engines whatever their answers', async () => {
+  it('labels the average column equal weight, and takes the plain mean of the platforms whatever their answers', async () => {
     serve(summary());
     renderCard();
     const element = await table();
     // Fynix: 25% of 120 answers and 75% of 20: the mean is 50%, where answers weighting would say 32%
-    expect(cellAt(element, 'Fynix', AVERAGE)).toHaveTextContent('50%mean of 2 engines');
-    expect(cellAt(element, 'Zoho', AVERAGE)).toHaveTextContent('13%mean of 2 engines');
+    expect(cellAt(element, 'Fynix', AVERAGE)).toHaveTextContent('50%mean of 2 platforms');
+    expect(cellAt(element, 'Zoho', AVERAGE)).toHaveTextContent('13%mean of 2 platforms');
   });
 
-  it('has no average column with one engine in scope', async () => {
+  it('has no average column with one platform in scope', async () => {
     serve(summary());
     renderCard('cmp=off&engine=chatgpt_web');
     const element = await table();
@@ -301,7 +301,7 @@ describe('the competitor table card', () => {
     expect(screen.queryByText(/equal weight/)).not.toBeInTheDocument();
   });
 
-  it('draws the two engines of an engine filter with two columns and the average', async () => {
+  it('draws the two platforms of a platform filter with two columns and the average', async () => {
     serve(summary());
     renderCard('cmp=off&engine=chatgpt_web,gemini_web');
     expect(headers(await table())).toEqual(['Brand', 'ChatGPT', 'Gemini', AVERAGE]);
@@ -346,7 +346,7 @@ describe('the competitor table card', () => {
     expect(await screen.findByText('No comparison: the previous period could not be read')).toBeInTheDocument();
   });
 
-  it('drops the changes of an engine whose previous window has no answer, and keeps those of the other', async () => {
+  it('drops the changes of a platform whose previous window has no answer, and keeps those of the other', async () => {
     const before = summary([{ ...CHATGPT, mentions: [10, 66, 20] }]);
     serve(summary(), before);
     renderCard('');
@@ -362,7 +362,7 @@ describe('the competitor table card', () => {
     expect(within(element).queryByText(/pts/)).not.toBeInTheDocument();
   });
 
-  it('shows No answers, never 0, for an engine column without a valid answer', async () => {
+  it('shows No answers, never 0, for a platform column without a valid answer', async () => {
     serve(summary([CHATGPT]));
     renderCard();
     const element = await table();
@@ -372,7 +372,7 @@ describe('the competitor table card', () => {
     expect(screen.queryByText(/equal weight/)).not.toBeInTheDocument();
   });
 
-  it('shows n/a, never 0, for a brand the engine read has no figure for', async () => {
+  it('shows n/a, never 0, for a brand the platform read has no figure for', async () => {
     serve(summary([CHATGPT, GEMINI], THREE, ['Zoho']));
     renderCard();
     const element = await table();
@@ -381,7 +381,7 @@ describe('the competitor table card', () => {
     expect(cellAt(element, 'Zoho', 'ChatGPT').textContent).not.toMatch(/0%/);
   });
 
-  it('says too few, with the count, and prints no percent, for an engine with under 4 valid answers', async () => {
+  it('says too few, with the count, and prints no percent, for a platform with under 4 valid answers', async () => {
     const thin: EngineSpec = { code: 'gemini_web', valid: 3, mentions: [1, 1, 0], named: 3, numerators: [1, 1, 1] };
     serve(summary([CHATGPT, thin]));
     renderCard();
@@ -426,7 +426,7 @@ describe('the competitor table card', () => {
     await table();
     expect(screen.getByRole('columnheader', { name: AVERAGE, description: AVERAGE_FULL })).toBeInTheDocument();
     // The footnote keeps its sentence
-    expect(screen.getByText(/The last column is the plain mean of the engines/)).toBeVisible();
+    expect(screen.getByText(/The last column is the plain mean of the platforms/)).toBeVisible();
   });
 
   it('puts the value and its change on one line, with the count on the line below', async () => {
@@ -448,7 +448,7 @@ describe('the competitor table card', () => {
     expect(cellAt(element, 'HubSpot', 'Gemini')).toHaveTextContent('10 of 20');
   });
 
-  it('gives every engine, average and brand column a minimum width, so the table scrolls instead of squeezing', async () => {
+  it('gives every platform, average and brand column a minimum width, so the table scrolls instead of squeezing', async () => {
     serve(summary());
     renderCard();
     const element = await table();
@@ -482,7 +482,7 @@ describe('the competitor table card', () => {
     }
   });
 
-  it('shows the same mention rate as the strip for you on the same engine and scope', async () => {
+  it('shows the same mention rate as the strip for you on the same platform and scope', async () => {
     const strip = engineRates([promptRow(1, [engine('chatgpt_web', { mentioned: cell(30, 120) })])], 'chatgpt_web');
     serve(summary());
     renderCard();
@@ -513,14 +513,14 @@ describe('the competitor table card', () => {
     expect(within(await table()).queryByRole('link')).not.toBeInTheDocument();
   });
 
-  it('lists every brand on every engine, with its words, in the Table view and in the export', async () => {
+  it('lists every brand on every platform, with its words, in the Table view and in the export', async () => {
     const before = summary([{ ...CHATGPT, mentions: [10, 66, 20] }, GEMINI]);
     serve(summary([CHATGPT, GEMINI], THREE, ['Zoho']), before);
     const { user } = renderCard('');
     await table();
     await user.click(screen.getByRole('button', { name: 'Table' }));
-    const long = await screen.findByRole('table', { name: 'Mention rate by brand and engine, one row for each' });
-    expect(headers(long)).toEqual(['Brand', 'Engine', 'Mention rate', 'Answers', 'Change since the previous period']);
+    const long = await screen.findByRole('table', { name: 'Mention rate by brand and platform, one row for each' });
+    expect(headers(long)).toEqual(['Brand', 'Platform', 'Mention rate', 'Answers', 'Change since the previous period']);
     // 3 brands, 2 engines and the average
     expect(bodyRows(long)).toHaveLength(9);
     expect(long).toHaveTextContent('HubSpotChatGPT54%named in 65 of 120 answers');
@@ -529,7 +529,7 @@ describe('the competitor table card', () => {
     expect(block?.id).toBe('card-under-test');
     expect(block?.header).toEqual([
       'Brand',
-      'Engine',
+      'Platform',
       'Mention rate',
       'Answers',
       'Change since the previous period',
@@ -548,7 +548,7 @@ describe('the competitor table card', () => {
     expect(JSON.stringify(block?.rows)).not.toContain('"0%"');
   });
 
-  it('writes No answers, with no value, for an engine without a valid answer in the export', async () => {
+  it('writes No answers, with no value, for a platform without a valid answer in the export', async () => {
     serve(summary([CHATGPT]));
     renderCard();
     await table();
@@ -556,11 +556,11 @@ describe('the competitor table card', () => {
     expect(block?.rows).toContainEqual(['HubSpot', 'Gemini', null, null, null, 'No answers']);
   });
 
-  it('says no engine is asked, and does not wait forever, when the engine filter names an engine that is off', async () => {
+  it('says no platform is asked, and does not wait forever, when the platform filter names a platform that is off', async () => {
     serve(summary());
     renderCard('cmp=off&engine=google_ai_mode');
-    expect(await screen.findByText('No engine is asked in this scope')).toBeInTheDocument();
-    expect(screen.getByText(/Turn on an engine or widen the engine filter/)).toBeInTheDocument();
+    expect(await screen.findByText('No platform is asked in this scope')).toBeInTheDocument();
+    expect(screen.getByText(/Turn on a platform or widen the platform filter/)).toBeInTheDocument();
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: HEADING }).closest('section')).not.toHaveAttribute('aria-busy', 'true');
     // No engine, no columns: the export has no block, not a header only one
@@ -578,7 +578,7 @@ describe('the competitor table card', () => {
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
   });
 
-  it('tells assistive technology no figure when no engine is asked or the read failed, and the figures otherwise', async () => {
+  it('tells assistive technology no figure when no platform is asked or the read failed, and the figures otherwise', async () => {
     serve(summary());
     const none = renderCard('cmp=off&engine=google_ai_mode');
     const off = chartSummaryText(await screen.findByRole('heading', { level: 2, name: HEADING }));
@@ -587,14 +587,14 @@ describe('the competitor table card', () => {
     none.unmount();
     server.use(http.get(SUMMARY, () => failing('req-1')));
     const failed = renderCard();
-    await screen.findByText('Could not load competitors by engine');
+    await screen.findByText('Could not load competitors by platform');
     expect(chartSummaryText(screen.getByRole('heading', { level: 2, name: HEADING }))).not.toMatch(/\d/);
     failed.unmount();
     serve(summary());
     renderCard();
     await table();
     expect(chartSummaryText(screen.getByRole('heading', { level: 2, name: HEADING }))).toMatch(
-      /^Mention rate of \d+ tracked brands on ChatGPT and Gemini, averaged over the engines with equal weight: /,
+      /^Mention rate of \d+ tracked brands on ChatGPT and Gemini, averaged over the platforms with equal weight: /,
     );
   });
 
@@ -603,7 +603,7 @@ describe('the competitor table card', () => {
     renderCard();
     const grid = await table();
     const info = screen.getByRole('button', { name: 'About Mention rate' });
-    expect(info.closest('div.type-meta')).toHaveTextContent('Each cell is one engine');
+    expect(info.closest('div.type-meta')).toHaveTextContent('Each cell is one platform');
     // Nothing sits between the card's header and the table's own region
     expect(grid.closest('[class*="overflow-x-auto"]')?.previousElementSibling).toBeNull();
   });
@@ -612,7 +612,7 @@ describe('the competitor table card', () => {
     serve(summary());
     renderCard();
     await table();
-    expect(screen.queryByText('Scroll sideways for more engines.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Scroll sideways for more platforms.')).not.toBeInTheDocument();
     cleanup();
 
     class Observer {
@@ -628,7 +628,7 @@ describe('the competitor table card', () => {
     const client = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500);
     try {
       renderCard();
-      expect(await screen.findByText('Scroll sideways for more engines.')).toBeInTheDocument();
+      expect(await screen.findByText('Scroll sideways for more platforms.')).toBeInTheDocument();
     } finally {
       scroll.mockRestore();
       client.mockRestore();
@@ -638,7 +638,7 @@ describe('the competitor table card', () => {
   it('shows Retry for a failed read, and Retry reads again', async () => {
     server.use(http.get(SUMMARY, () => failing('req-1')));
     const { user } = renderCard();
-    expect(await screen.findByText('Could not load competitors by engine')).toBeInTheDocument();
+    expect(await screen.findByText('Could not load competitors by platform')).toBeInTheDocument();
     serve(summary());
     await user.click(screen.getByRole('button', { name: 'Try again' }));
     expect(await table()).toBeInTheDocument();
@@ -670,7 +670,7 @@ describe('the competitor table card', () => {
     }
   });
 
-  it('draws the card on the default mock world with a value and a count on every engine cell', async () => {
+  it('draws the card on the default mock world with a value and a count on every platform cell', async () => {
     renderCard('cmp=off', { rows: '10' });
     const element = await table();
     expect(headers(element)).toEqual(['Brand', 'ChatGPT', 'Gemini', AVERAGE]);

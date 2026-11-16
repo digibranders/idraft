@@ -77,7 +77,7 @@ test.describe('the competitors cards', () => {
       for (const id of Object.values(PRESET_FAMILY)) await awaitCardReady(cardById(page, id));
     });
 
-    await test.step('each share of voice card names its engine and the tracked set', async () => {
+    await test.step('each share of voice card names its platform and the tracked set', async () => {
       for (const [id, title] of [
         [PRESET_FAMILY.shareOfVoiceChatgpt, 'Share of voice on ChatGPT'],
         [PRESET_FAMILY.shareOfVoiceGemini, 'Share of voice on Gemini'],
@@ -88,7 +88,7 @@ test.describe('the competitors cards', () => {
       }
     });
 
-    await test.step('add the other cards of the family and give one instance another engine', async () => {
+    await test.step('add the other cards of the family and give one instance another platform', async () => {
       await startCustomizing(page);
       await addCard(page, 'Share of voice rank');
       await addCard(page, 'AI opportunities');

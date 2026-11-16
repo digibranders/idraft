@@ -49,7 +49,7 @@ describe('the engine settings link', () => {
   it('is in the no-engine warning too', () => {
     navigateTo('/digibranders/fynix/ai/prompts');
     renderWithProviders(<Fields engines={[]} />);
-    expect(screen.getByText('No engine is on, so these prompts will not be asked until one is.')).toBeInTheDocument();
+    expect(screen.getByText('No platform is on, so these prompts will not be asked until one is.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Engine settings/ })).toHaveAttribute(
       'href',
       '/digibranders/fynix/settings/engines',

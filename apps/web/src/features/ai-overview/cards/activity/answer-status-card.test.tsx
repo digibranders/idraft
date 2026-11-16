@@ -27,7 +27,7 @@ const DAILY = `${PROJECT}/ai/collection/daily`;
 /** The skeleton that stands for the body of the frame while loading: the one inside a box of the frame's height. */
 const LOADING_BODY = 'section[aria-busy="true"] div[style*="height"] > [data-slot="skeleton"]';
 const TYPE = 'ops.answer_status';
-const TITLE = 'Answer status by engine and day';
+const TITLE = 'Answer status by platform and day';
 
 beforeEach(() => {
   vi.setSystemTime(new Date('2026-11-12T12:00:00Z'));
@@ -243,7 +243,7 @@ describe('the answer status card (CH-21)', () => {
   it('says no engine is asked for a project with its engines off, and asks the API for nothing', async () => {
     const seen = recordRequests();
     render({ world: 'cleanstart' });
-    expect(await screen.findByRole('heading', { name: 'No engine is asked' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'No platform is asked' })).toBeInTheDocument();
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 150));
     });

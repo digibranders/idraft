@@ -37,7 +37,7 @@ const args = (over: Partial<TopicHeadsArgs> = {}): TopicHeadsArgs => ({
   filtering: false,
   search: null,
   locale: 'en',
-  noTopicName: 'No topic',
+  noTopicName: 'No group',
   ...over,
 });
 
@@ -47,7 +47,7 @@ const names = (heads: readonly { name: string; children: readonly { name: string
 describe('topicHeads: the topic rows of the page as plain heads', () => {
   it('lists the top level topics with their children under them', () => {
     const heads = topicHeads(args());
-    expect(names(heads)).toEqual(['SEO[Technical SEO,Local SEO]', 'Paid Search[]', 'No topic[]']);
+    expect(names(heads)).toEqual(['SEO[Technical SEO,Local SEO]', 'Paid Search[]', 'No group[]']);
     const [seo] = heads;
     expect(seo?.path).toBe('SEO');
     expect(seo?.parent).toBeNull();
@@ -87,7 +87,7 @@ describe('topicHeads: the topic rows of the page as plain heads', () => {
     const first = { ...SUMMARY, topics: [topicRow(null, null, 1), ...SUMMARY.topics.slice(0, 4)] };
     const heads = topicHeads(args({ summary: first }));
     expect(heads.at(-1)?.key).toBe(NO_TOPIC);
-    expect(heads.at(-1)?.name).toBe('No topic');
+    expect(heads.at(-1)?.name).toBe('No group');
     expect(heads.at(-1)?.children).toEqual([]);
     expect(heads.at(-1)?.members?.map((member) => member.prompt_id)).toEqual(['p5']);
   });

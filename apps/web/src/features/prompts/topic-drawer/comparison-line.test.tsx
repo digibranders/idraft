@@ -96,7 +96,7 @@ describe('ComparisonLine: what can be said of the gap between the engines', () =
 
   it('says there is nothing to compare under 2 engines', () => {
     line([[3, 8], null, [1, 3]]);
-    expect(screen.getByText('Fewer than 2 engines have a rate, so there is nothing to compare.')).toBeVisible();
+    expect(screen.getByText('Fewer than 2 platforms have a rate, so there is nothing to compare.')).toBeVisible();
     expect(screen.getByText('Left out for too few answers: Gemini and Google AI Mode.')).toBeVisible();
     expect(screen.queryByText(/Best on/)).toBeNull();
   });
@@ -106,7 +106,7 @@ describe('ComparisonLine: what can be said of the gap between the engines', () =
       [0, 8],
       [0, 8],
     ]);
-    expect(screen.getByText('No engine names the brand in this topic.')).toBeVisible();
+    expect(screen.getByText('No platform names the brand in this group.')).toBeVisible();
   });
 
   it('says every engine is at the same rate', () => {
@@ -114,7 +114,7 @@ describe('ComparisonLine: what can be said of the gap between the engines', () =
       [4, 8],
       [4, 8],
     ]);
-    expect(screen.getByText('Every engine with a rate is at 50.0%.')).toBeVisible();
+    expect(screen.getByText('Every platform with a rate is at 50.0%.')).toBeVisible();
   });
 
   it('never writes a rate of 0 for an engine without data', () => {

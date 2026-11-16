@@ -245,7 +245,7 @@ describe('the period comparison card', () => {
       within(table)
         .getAllByRole('columnheader')
         .map((header) => header.textContent),
-    ).toEqual(['Engine', 'Previous', 'Current', 'Change', '95% interval']);
+    ).toEqual(['Platform', 'Previous', 'Current', 'Change', '95% interval']);
     const [first] = within(table).getAllByRole('row').slice(1);
     expect(first).toHaveTextContent('37.5%, 6 of 16 answers');
     expect(first).toHaveTextContent('62.5%, 10 of 16 answers');
@@ -254,7 +254,7 @@ describe('the period comparison card', () => {
     const [blob] = vi.mocked(csvWrite.downloadBlob).mock.calls[0] ?? [];
     if (!(blob instanceof Blob)) throw new Error('No file was downloaded');
     const text = await blob.text();
-    expect(text).toContain('Engine,Previous,Current,Change,95% interval');
+    expect(text).toContain('Platform,Previous,Current,Change,95% interval');
     expect(text).toContain('"37.5%, 6 of 16 answers"');
   });
 

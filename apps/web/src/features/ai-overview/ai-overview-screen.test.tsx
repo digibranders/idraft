@@ -68,12 +68,12 @@ describe('the AI visibility page without access', () => {
     expect(screen.getByRole('heading', { name: 'You cannot see AI visibility for this project' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Customize' })).not.toBeInTheDocument();
     await new Promise((resolve) => setTimeout(resolve, 50));
-    expect(requests.filter((path) => /\/(engines|ai\/|layouts)/.test(path))).toEqual([]);
+    expect(requests.filter((path) => /\/(platforms|ai\/|layouts)/.test(path))).toEqual([]);
     server.events.removeListener('request:start', listener);
   });
 });
 
-describe('the AI visibility page of a project with engines on', () => {
+describe('the AI visibility page of a project with platforms on', () => {
   it('has the title, the meta line from the answers, Customize, Export and More actions in the header', async () => {
     renderWithProviders(overviewAs('admin'));
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
@@ -81,7 +81,7 @@ describe('the AI visibility page of a project with engines on', () => {
     await waitFor(() => {
       // The freshness is its own element (a time in a button), so the line is read in two parts
       expect(screen.getByText(/^AI updated .+$/)).toBeInTheDocument();
-      expect(screen.getByText(/^· \d+ prompts · 2 engines$/)).toBeInTheDocument();
+      expect(screen.getByText(/^· \d+ prompts · 2 platforms$/)).toBeInTheDocument();
     });
     expect(customize()).toHaveClass('hidden', 'md:inline-flex');
     expect(screen.getByRole('button', { name: 'More actions' })).toBeInTheDocument();
@@ -135,7 +135,7 @@ describe('the AI visibility page of a project with engines on', () => {
     expect(within(cardsRegion()).queryAllByText(reason)).toHaveLength(pending.length);
   });
 
-  it('does not offer Customize while the engines load, and offers it once they are read', async () => {
+  it('does not offer Customize while the platforms load, and offers it once they are read', async () => {
     const release = gate();
     server.use(
       http.get(ENGINES, async ({ request }) => {
@@ -147,7 +147,7 @@ describe('the AI visibility page of a project with engines on', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'AI visibility' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Customize' })).not.toBeInTheDocument();
     expect(screen.queryByRole('region', { name: CARDS })).not.toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'No AI engine is on' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'No AI platform is on' })).not.toBeInTheDocument();
     release.open();
     expect(await screen.findByRole('button', { name: 'Customize' })).toBeInTheDocument();
     expect(await screen.findByRole('region', { name: CARDS })).toBeInTheDocument();
@@ -184,9 +184,9 @@ describe('the AI visibility page of a project with engines on', () => {
 });
 
 describe('the AI visibility page of a project with AI off', () => {
-  it('shows the no engine state and no cards, with the action to turn engines on for a person who may', async () => {
+  it('shows the no platform state and no cards, with the action to turn platforms on for a person who may', async () => {
     renderWithProviders(overviewAs('admin', { world: 'cleanstart' }));
-    expect(await screen.findByRole('heading', { name: 'No AI engine is on' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'No AI platform is on' })).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: CARDS })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Turn on engines' })).toHaveAttribute(
       'href',
@@ -197,8 +197,8 @@ describe('the AI visibility page of a project with AI off', () => {
 
   it('asks a viewer to ask a workspace admin, with no link', async () => {
     renderWithProviders(overviewAs('viewer', { world: 'cleanstart' }));
-    expect(await screen.findByRole('heading', { name: 'No AI engine is on' })).toBeInTheDocument();
-    expect(screen.getByText('Ask a workspace admin to turn on an engine')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'No AI platform is on' })).toBeInTheDocument();
+    expect(screen.getByText('Ask a workspace admin to turn on a platform')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Turn on engines' })).not.toBeInTheDocument();
   });
 
@@ -213,7 +213,7 @@ describe('the AI visibility page of a project with AI off', () => {
     await waitFor(() => {
       expect(region.querySelectorAll('[data-slot="unavailable-card"]').length).toBeGreaterThan(0);
     });
-    expect(screen.queryByRole('heading', { name: 'No AI engine is on' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'No AI platform is on' })).not.toBeInTheDocument();
   });
 });
 
@@ -222,7 +222,7 @@ describe('the numbers strip of the AI visibility page', () => {
   const stripOf = (): Promise<HTMLElement> => screen.findByRole('group', { name: STRIP });
   const valuesOf = (strip: HTMLElement): HTMLElement[] => within(strip).getAllByRole('definition');
 
-  it('shows the Fynix numbers, the engines in the order ChatGPT, Gemini, AI Mode, named by the window and the branded choice', async () => {
+  it('shows the Fynix numbers, the platforms in the order ChatGPT, Gemini, AI Mode, named by the window and the branded choice', async () => {
     renderWithProviders(overviewAs('admin'));
     const strip = await stripOf();
     await waitFor(() => {
@@ -276,7 +276,7 @@ describe('the numbers strip of the AI visibility page', () => {
     expect(aiMode?.querySelector('a')).toBeNull();
   });
 
-  it('carries the window and the engine filter of the page into the links', async () => {
+  it('carries the window and the platform filter of the page into the links', async () => {
     renderWithProviders(overviewAs('admin'), { searchParams: '?win=7d&engine=gemini_web' });
     const strip = await screen.findByRole('group', { name: /AI visibility numbers for Nov 6 to Nov 12, 2026/ });
     await waitFor(() => {
@@ -299,7 +299,7 @@ describe('the numbers strip of the AI visibility page', () => {
     expect(within(strip).queryAllByRole('link')).toHaveLength(0);
   });
 
-  it('shows the single engine of the filter and says the others are not asked', async () => {
+  it('shows the single platform of the filter and says the others are not asked', async () => {
     renderWithProviders(overviewAs('admin'), { searchParams: '?engine=gemini_web' });
     const strip = await stripOf();
     await waitFor(() => {
@@ -307,7 +307,7 @@ describe('the numbers strip of the AI visibility page', () => {
     });
     const [, chatgpt, gemini] = valuesOf(strip);
     expect(chatgpt).toHaveTextContent('Not asked');
-    expect(chatgpt).toHaveAccessibleDescription(/not in the engine filter/i);
+    expect(chatgpt).toHaveAccessibleDescription(/not in the platform filter/i);
     expect(gemini).not.toHaveTextContent('Not asked');
   });
 
@@ -331,7 +331,7 @@ describe('the numbers strip of the AI visibility page', () => {
       expect(strip).not.toHaveAttribute('aria-busy');
     });
     expect(valuesOf(strip)[1]).not.toHaveTextContent('Not asked');
-    await user.click(await screen.findByRole('button', { name: 'Engines: 2 of 2' }));
+    await user.click(await screen.findByRole('button', { name: 'Platforms: 2 of 2' }));
     await user.click(await screen.findByRole('checkbox', { name: 'ChatGPT' }));
     await waitFor(() => {
       expect(urls.at(-1)).toBe('?engine=gemini_web');
@@ -426,7 +426,7 @@ describe('the presets of the AI visibility page', () => {
       'Executive summary',
       'SEO analyst',
       'Competitive',
-      'Topic owner',
+      'Group owner',
     ]);
   });
 
@@ -493,10 +493,10 @@ describe('a card inside the overview harness', () => {
   it('reads the overview context and sits in the grid with its frame', async () => {
     function Card(): ReactElement {
       const { project, enabledEngines } = useOverview();
-      return <p>{`${project.slug} with ${String(enabledEngines.length)} engines`}</p>;
+      return <p>{`${project.slug} with ${String(enabledEngines.length)} platforms`}</p>;
     }
     renderWithProviders(cardInOverview({ type: 'ai.outcome_mix', Card }));
-    expect(await screen.findByText('fynix with 2 engines')).toBeInTheDocument();
+    expect(await screen.findByText('fynix with 2 platforms')).toBeInTheDocument();
     expect(document.querySelector(`[data-layout-card="${CARD_ID}"]`)).not.toBeNull();
   });
 });

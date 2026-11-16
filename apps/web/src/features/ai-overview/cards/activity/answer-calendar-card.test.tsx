@@ -295,7 +295,7 @@ describe('the answer collection calendar card (CH-20)', () => {
     render();
     await screen.findByRole('table', { name: /^Collection calendar for ChatGPT/ });
     expect(
-      screen.getByText(/Counts every answer collected, whatever the topic or country in the scope/),
+      screen.getByText(/Counts every answer collected, whatever the group or location in the scope/),
     ).toBeInTheDocument();
     expect(screen.getByText(/Valid means complete or partial/)).toBeInTheDocument();
     expect(screen.getByText(/never added up/)).toBeInTheDocument();
@@ -325,7 +325,7 @@ describe('the answer collection calendar card (CH-20)', () => {
   it('says no engine is asked for a project with its engines off, and asks the API for nothing', async () => {
     const seen = recordRequests();
     render({ world: 'cleanstart' });
-    expect(await screen.findByRole('heading', { name: 'No engine is asked' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'No platform is asked' })).toBeInTheDocument();
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 150));
     });
@@ -441,7 +441,7 @@ describe('the answer collection calendar card (CH-20)', () => {
     expect(block?.id).toBe(ITEM_ID);
     expect(block?.header).toEqual([
       'Day',
-      'Engine',
+      'Platform',
       'Scheduled',
       'Answers',
       'Valid',

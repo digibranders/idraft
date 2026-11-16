@@ -81,11 +81,11 @@ function nodesOf(source: typeof rows, tree: readonly NamedTerm[] = TREE): TopicN
 }
 
 const WORDS: HeatWords = {
-  noTopic: 'No topic',
-  rowHeader: 'Topic',
+  noTopic: 'No group',
+  rowHeader: 'Group',
   promptsHeader: 'Prompts',
   averageHead: (count) => `avg of ${String(count)}`,
-  avgLabel: (count) => (count === 1 ? '1 engine' : `avg of ${String(count)}`),
+  avgLabel: (count) => (count === 1 ? '1 platform' : `avg of ${String(count)}`),
   percent: (value) => (value === null ? 'n/a' : `${String(Math.round(value * 100))}%`),
   integer: (count) => String(count),
   // The model hands the counted flag over: the tip records it so a test can read it back
@@ -93,7 +93,7 @@ const WORDS: HeatWords = {
     `${value.state}:${String(value.successes)}/${String(value.answers)}:${counted ? 'counted' : 'share'}`,
   cellSubject: (topic, engine, value) => `${topic} on ${engine}: ${value}`,
   averageSubject: (topic, average, value) => `${topic}, ${average}: ${value}`,
-  averageNone: (topic, value) => `${topic}, average of the engines: ${value}`,
+  averageNone: (topic, value) => `${topic}, average of the platforms: ${value}`,
   averageValue: (percent, counts, note) => `${percent}, ${counts}. ${note}`,
   averageNote: (engines) => `Equal weight average of ${engines}`,
   averageOnly: (engines) => `${engines} only`,
@@ -116,14 +116,14 @@ const run = (over: Partial<HeatOptions> = {}, nodes: readonly TopicNode[] = node
 const ids = (list: readonly { id: string }[]): string[] => list.map((row) => row.id);
 
 describe('rows and the level', () => {
-  it('level top gives the top level topics with no children and the no topic row last', () => {
+  it('level top gives the top level groups with no children and the no group row last', () => {
     const model = run();
     expect(ids(model.rows)).toEqual([CRM, SECURITY, SUPPORT, NO_TOPIC]);
     expect(model.rows.every((row) => row.children === undefined)).toBe(true);
-    expect(model.rows.at(-1)?.name).toBe('No topic');
+    expect(model.rows.at(-1)?.name).toBe('No group');
   });
 
-  it('level all gives a topic its second level topics as children, in the order asked', () => {
+  it('level all gives a group its second level groups as children, in the order asked', () => {
     const model = run({ level: 'all' });
     expect(model.rows.find((row) => row.id === CRM)?.children?.map((child) => child.id)).toEqual([PRICING]);
     expect(model.rows.find((row) => row.id === SECURITY)?.children).toBeUndefined();
@@ -133,7 +133,7 @@ describe('rows and the level', () => {
     expect(run().rows.map((row) => row.prompts)).toEqual(['17', '9', '4', '3']);
   });
 
-  it('a row of the topic filter keeps only its topic and the ones below it', () => {
+  it('a row of the group filter keeps only its group and the ones below it', () => {
     const kept = buildTopicNodes({
       topics: rows,
       prompts: [],
@@ -147,7 +147,7 @@ describe('rows and the level', () => {
 });
 
 describe('the order', () => {
-  it('sort by prompts, rate and gap orders the rows and the no topic row stays last', () => {
+  it('sort by prompts, rate and gap orders the rows and the no group row stays last', () => {
     // Average rate: Security 58%, Support 40% (one engine has a rate), CRM 39%; the no topic row has 40% and still comes last
     expect(ids(run({ sort: 'prompts' }).rows)).toEqual([CRM, SECURITY, SUPPORT, NO_TOPIC]);
     expect(ids(run({ sort: 'rate' }).rows)).toEqual([SECURITY, SUPPORT, CRM, NO_TOPIC]);
@@ -187,7 +187,7 @@ describe('the cut', () => {
 });
 
 describe('the columns', () => {
-  it('one column per asked engine, then the average from two engines', () => {
+  it('one column per asked platform, then the average from two platforms', () => {
     expect(run().columns).toEqual([
       { id: 'chatgpt_web', label: 'ChatGPT', engine: 'chatgpt_web' },
       { id: 'gemini_web', label: 'Gemini', engine: 'gemini_web' },
@@ -195,7 +195,7 @@ describe('the columns', () => {
     ]);
   });
 
-  it('three asked engines give three columns, then avg of 3, and a cell of each per row', () => {
+  it('three asked platforms give three columns, then avg of 3, and a cell of each per row', () => {
     const three = [...ENGINES, { code: 'google_ai_mode', label: 'AI Mode' }] as const;
     const model = heatRows({ nodes: nodesOf(rows), engines: three }, OPTIONS, WORDS, LINKS);
     expect(model.columns.map((column) => column.label)).toEqual(['ChatGPT', 'Gemini', 'AI Mode', 'avg of 3']);
@@ -205,7 +205,7 @@ describe('the columns', () => {
     expect(model.rows[0]?.cells[2]).toMatchObject({ state: 'none', text: '' });
   });
 
-  it('one asked engine has no average column and no average cell', () => {
+  it('one asked platform has no average column and no average cell', () => {
     const model = heatRows(
       { nodes: nodesOf(rows), engines: [{ code: 'chatgpt_web', label: 'ChatGPT' }] },
       OPTIONS,
@@ -224,7 +224,7 @@ describe('a cell', () => {
     return cell;
   };
 
-  it('an ok cell prints its percent and links to the topic on that engine', () => {
+  it('an ok cell prints its percent and links to the group on that platform', () => {
     const cell = cellOf(CRM, 0);
     expect(cell).toMatchObject({ state: 'ok', text: '47%', answers: 136, href: `/topic/${CRM}/chatgpt_web` });
     expect(cell.value).toBeCloseTo(64 / 136);
@@ -258,11 +258,11 @@ describe('a cell', () => {
     expect(model.rows[0]?.cells[0]?.href).toBeUndefined();
   });
 
-  it('the name of a row links to the topic drawer', () => {
+  it('the name of a row links to the group drawer', () => {
     expect(run().rows[0]?.href).toBe(`/topic/${CRM}`);
   });
 
-  it('the average is the equal weight of the engines with a rate and says how many', () => {
+  it('the average is the equal weight of the platforms with a rate and says how many', () => {
     const cell = cellOf(CRM, 2);
     expect(cell.state).toBe('ok');
     expect(cell.text).toBe('39%');
@@ -271,27 +271,27 @@ describe('a cell', () => {
     );
   });
 
-  it('an average over one engine with a rate says that engine only', () => {
+  it('an average over one platform with a rate says that platform only', () => {
     const cell = cellOf(SUPPORT, 2);
     expect(cell.text).toBe('40%');
-    expect(cell.tip).toMatch(/^Support, 1 engine: 40%, Gemini 20\. Gemini only$/);
+    expect(cell.tip).toMatch(/^Support, 1 platform: 40%, Gemini 20\. Gemini only$/);
   });
 
-  it('an average with no engine that has a rate has no percent and says why', () => {
+  it('an average with no platform that has a rate has no percent and says why', () => {
     const empty = run(
       {},
       nodesOf([topicRow(SECURITY, 'Security', 1, [engineCells('gemini_web', { mentioned: [0, 0] })])]),
     );
     const none = empty.rows[0]?.cells[2];
     expect(none).toMatchObject({ state: 'none', text: '', value: null });
-    expect(none?.tip).toBe('Security, average of the engines: no answers');
+    expect(none?.tip).toBe('Security, average of the platforms: no answers');
   });
 });
 
 describe('the table and the CSV', () => {
   it('the CSV has the words of each cell, n/a where there is no answer, and the children after their parent', () => {
     const model = run({ level: 'all' });
-    expect(model.csv.header).toEqual(['Topic', 'Prompts', 'ChatGPT', 'Gemini', 'avg of 2']);
+    expect(model.csv.header).toEqual(['Group', 'Prompts', 'ChatGPT', 'Gemini', 'avg of 2']);
     const crm = model.csv.rows.find((row) => row[0] === 'CRM');
     expect(crm).toEqual([
       'CRM',
@@ -327,7 +327,7 @@ describe('the table and the CSV', () => {
     // Support on ChatGPT has 3 answers: no rate, the answers it has, and the status that says why
     expect(byName.get('Support')?.slice(3, 6)).toEqual([null, 3, 'insufficient']);
     // The no topic row has no answer on ChatGPT
-    expect(byName.get('No topic')?.slice(3, 6)).toEqual([null, 0, 'no_answers']);
+    expect(byName.get('No group')?.slice(3, 6)).toEqual([null, 0, 'no_answers']);
     expect(byName.get('Pricing')?.[1]).toBe(2);
     // Whatever the engine, a rate is written only beside the status ok
     for (const row of model.exportTable.rows) {
@@ -345,14 +345,14 @@ describe('the table and the CSV', () => {
   });
 });
 
-describe('what the engines have', () => {
+describe('what the platforms have', () => {
   it('says whether any cell has a valid answer', () => {
     expect(run().answered).toBe(true);
     const silent = nodesOf([topicRow(SECURITY, 'Security', 1, [engineCells('gemini_web', { mentioned: [0, 0] })])]);
     expect(run({}, silent).answered).toBe(false);
   });
 
-  it('names the asked engines that have no valid answer in any row', () => {
+  it('names the asked platforms that have no valid answer in any row', () => {
     const onlyGemini = nodesOf([
       topicRow(SECURITY, 'Security', 5, [
         engineCells('chatgpt_web', { mentioned: [0, 0], prompts: 5 }),
@@ -363,7 +363,7 @@ describe('what the engines have', () => {
     expect(run().unanswered).toEqual([]);
   });
 
-  it('an engine with only a thin cell is not named: it has answers', () => {
+  it('a platform with only a thin cell is not named: it has answers', () => {
     const thin = nodesOf([
       topicRow(SECURITY, 'Security', 5, [
         engineCells('chatgpt_web', { mentioned: [1, 2], prompts: 5 }),
@@ -380,7 +380,7 @@ const SUMMARY = z.custom<PromptsSummary>(
   (value) => typeof value === 'object' && value !== null && 'prompts' in value && 'topics' in value,
 );
 
-describe('against the WP-20 engine values', () => {
+describe('against the WP-20 platform values', () => {
   beforeEach(() => {
     vi.spyOn(Date, 'now').mockImplementation(() => NOW);
     setAiSeeded(true);
@@ -390,7 +390,7 @@ describe('against the WP-20 engine values', () => {
     setAiSeeded(false);
   });
 
-  it('values equal the WP-20 engine values for every topic and engine of the Eventus summary', async () => {
+  it('values equal the WP-20 platform values for every group and platform of the Eventus summary', async () => {
     const path = `/api/v1/workspaces/${MOCK_WORKSPACE.workspace_id}/projects/${EVENTUS_WORLD.projectId}/ai/prompts-summary`;
     const answer = await mockBrowser('viewer').call('GET', `${path}?from=2026-10-16&to=2026-11-12`);
     const summary = dataOf(answer, SUMMARY);

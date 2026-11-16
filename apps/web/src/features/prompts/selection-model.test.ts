@@ -20,7 +20,7 @@ describe('what drops the selection', () => {
   it.each([
     ['the project', { projectId: 'p2' }],
     ['the tab', { tab: 'topics' }],
-    ['the country', { country: 'DE' }],
+    ['the location', { country: 'DE' }],
     ['the topic filter', { topicIds: ['a'] }],
     ['the Branded filter', { includeBranded: true }],
   ])('drops the choice when %s changes', (_name, change) => {

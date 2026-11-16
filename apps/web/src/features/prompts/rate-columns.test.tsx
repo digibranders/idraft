@@ -57,7 +57,7 @@ const chat = (pair: readonly [MetricCell, MetricCell]): EngineSummary => engineO
 const gemini = (now: MetricCell, before: MetricCell | null): EngineSummary => engineOf('gemini_web', now, before);
 
 describe('the Mention rate cell change', () => {
-  it('shows the change of the average over the engines that have a rate in both periods', () => {
+  it('shows the change of the average over the platforms that have a rate in both periods', () => {
     // Gemini has no previous period: it is in the shown average but in neither side of the change
     render({ cells: [chat(DETECTABLE), gemini(cell(20, 20), null)] });
     expect(screen.getByTestId('cell')).toHaveTextContent('75%');
@@ -65,21 +65,21 @@ describe('the Mention rate cell change', () => {
     expect(screen.getByText('+30.0 pts')).toHaveClass('text-positive-text');
   });
 
-  it('names the one engine the change is of when the others have no rate in the previous period', () => {
+  it('names the one platform the change is of when the others have no rate in the previous period', () => {
     render({ cells: [chat(DETECTABLE), gemini(cell(20, 20), null)] });
     expect(screen.getByTestId('tip')).toHaveTextContent('Previous 20%, 12 of 60 answers');
     // One engine took part: the tip says which, so the points do not read as the average's change
     expect(screen.getByTestId('tip')).toHaveTextContent(
-      'Change of ChatGPT only, the one engine with a rate in both periods',
+      'Change of ChatGPT only, the one platform with a rate in both periods',
     );
     expect(screen.getByTestId('tip')).not.toHaveTextContent('Average of');
   });
 
-  it('pools the answers of two engines, says so, and tests them together', () => {
+  it('pools the answers of two platforms, says so, and tests them together', () => {
     render({ cells: [chat(DETECTABLE), gemini(cell(20, 40), cell(8, 40))] });
     expect(screen.getByText('+30.0 pts')).toBeInTheDocument();
     expect(screen.getByTestId('tip')).toHaveTextContent(
-      'Average of 2 engines that have a rate in both periods, tested on pooled answers',
+      'Average of 2 platforms that have a rate in both periods, tested on pooled answers',
     );
     expect(screen.getByTestId('tip')).toHaveTextContent('Previous 20%, 20 of 100 answers');
     expect(screen.getByTestId('tip')).toHaveTextContent('Previous period: Sep 18 to Oct 15');
@@ -89,7 +89,7 @@ describe('the Mention rate cell change', () => {
     expect(tip.match(/unpaired/g)).toHaveLength(1);
   });
 
-  it('uses the engine own test when one engine is in scope', () => {
+  it('uses the platform own test when one platform is in scope', () => {
     render({ cells: [chat(WITHIN), gemini(cell(20, 20), cell(1, 20))] }, '', CHAT_ONLY);
     const delta = screen.getByText('+6.7 pts');
     expect(delta).toHaveClass('text-foreground-secondary');
@@ -124,7 +124,7 @@ describe('the Mention rate cell change', () => {
     expect(screen.getByTestId('tip').textContent).not.toMatch(/Previous period|Sep 18|Oct 15/);
   });
 
-  it('says nothing in the cell and why in the tooltip when no engine has a previous period', () => {
+  it('says nothing in the cell and why in the tooltip when no platform has a previous period', () => {
     render({ cells: [engineOf('chatgpt_web', cell(30, 60), null), gemini(cell(20, 40), null)] });
     expect(screen.getByTestId('cell').textContent).not.toMatch(/pts/);
     expect(screen.getByTestId('tip')).toHaveTextContent('No answers in the previous period');
@@ -140,10 +140,10 @@ describe('the Mention rate cell change', () => {
   it('says there are too few answers when a previous period exists but gives no rate', () => {
     render({ cells: [chat([cell(30, 60), cell(2, 3)]), gemini(cell(20, 40), cell(1, 2))] });
     expect(screen.getByTestId('cell').textContent).not.toMatch(/pts/);
-    expect(screen.getByTestId('tip')).toHaveTextContent('No engine has a rate in both periods');
+    expect(screen.getByTestId('tip')).toHaveTextContent('No platform has a rate in both periods');
   });
 
-  it('agrees for a topic row and a prompt row with the same counts', () => {
+  it('agrees for a group row and a prompt row with the same counts', () => {
     const prompt = chat(DETECTABLE);
     const topic = engineOf('chatgpt_web', topicCell(30, 60, 5), topicCell(12, 60, 4));
     const first = render({ cells: [prompt] }, '', CHAT_ONLY);
@@ -153,7 +153,7 @@ describe('the Mention rate cell change', () => {
     expect(screen.getByTestId('cell').textContent).toBe(prompts);
   });
 
-  it('keeps the rate, the engine count and the change on one line', () => {
+  it('keeps the rate, the platform count and the change on one line', () => {
     render({ cells: [chat(DETECTABLE), gemini(cell(20, 40), cell(8, 40))] });
     expect(screen.getByTestId('cell').firstElementChild).toHaveClass('whitespace-nowrap');
   });

@@ -62,7 +62,7 @@ const PAID_SEARCH = mockId('term', 6);
 const CHATGPT = 'chatgpt_web';
 const GEMINI = 'gemini_web';
 /** The columns of the heat map while both engines are asked. */
-const BOTH_ENGINE_COLUMNS = ['Topic', 'Prompts', 'ChatGPT', 'Gemini', 'avg of 2'];
+const BOTH_ENGINE_COLUMNS = ['Group', 'Prompts', 'ChatGPT', 'Gemini', 'avg of 2'];
 
 /** The drawer of a topic: beside the table on a wide window, a sheet over it on a narrow one. */
 const drawerOf = (page: Page, name: string): Locator =>
@@ -80,17 +80,17 @@ const columnNames = (card: Locator): Promise<string[]> =>
     .getByRole('columnheader')
     .evaluateAll((headers) => headers.map((header) => (header.textContent ?? '').trim()));
 
-test.describe('the topic and prompt cards', () => {
+test.describe('the group and prompt cards', () => {
   test.beforeEach(async ({ page }) => {
     await signIn(page, EDITOR);
   });
 
-  test('the heat map shows topics by engine with counts in the cell names and an avg column', async ({ page }) => {
+  test('the heat map shows groups by platform with counts in the cell names and an avg column', async ({ page }) => {
     await saveTopicLayout(page);
     const card = heatmapCard(page);
     await expect(card.getByRole('heading', { level: 2, name: HEATMAP_TITLE })).toBeVisible();
 
-    await test.step('a row per top level topic, a column per asked engine, then the average of the two', async () => {
+    await test.step('a row per top level group, a column per asked platform, then the average of the two', async () => {
       expect(await columnNames(card)).toEqual(BOTH_ENGINE_COLUMNS);
       for (const topic of TOP_LEVEL_TOPICS) {
         await expect(heatmapGrid(card).getByRole('rowheader', { name: topic, exact: true })).toBeVisible();
@@ -115,18 +115,18 @@ test.describe('the topic and prompt cards', () => {
         await expect(average).toHaveCount(1);
         await expect(average).toHaveAttribute(
           'aria-label',
-          /Equal weight average of ChatGPT and Gemini, each engine counting once\./,
+          /Equal weight average of ChatGPT and Gemini, each platform counting once\./,
         );
       }
     });
 
     await test.step('the footnote explains the colours and the average', async () => {
       await expect(card).toContainText('Cell colour by rate:');
-      await expect(card).toContainText('The average column gives each engine that shows a rate the same weight');
+      await expect(card).toContainText('The average column gives each platform that shows a rate the same weight');
     });
   });
 
-  test('a heat map cell opens the topic drawer on the Prompts tab filtered to its engine', async ({ page }) => {
+  test('a heat map cell opens the group drawer on the Prompts tab filtered to its platform', async ({ page }) => {
     await saveTopicLayout(page);
     await heatCell(heatmapCard(page), 'Paid Search', 'ChatGPT').getByRole('link').click();
 
@@ -138,22 +138,22 @@ test.describe('the topic and prompt cards', () => {
 
     const drawer = drawerOf(page, 'Paid Search');
     await expect(drawer.getByRole('tab', { name: 'Prompts', selected: true })).toBeVisible();
-    await expect(drawer.getByText('Engine: ChatGPT')).toBeVisible();
+    await expect(drawer.getByText('Platform: ChatGPT')).toBeVisible();
   });
 
-  test('Topic owner preset shows every topic card with its overlap footnote', async ({ page }) => {
+  test('Group owner preset shows every group card with its overlap footnote', async ({ page }) => {
     await saveTopicLayout(page, { extras: true });
     await expect(cardGrid(page).locator('[data-layout-card]')).toHaveCount(PRESET_CARD_COUNT + EXTRA_CARDS.length);
 
     await test.step('each of the seven cards of the preset has its title and the footnote with the overlap count', async () => {
       const titles: Record<keyof typeof TOPIC_OWNER_CARDS, string> = {
         heatmap: HEATMAP_TITLE,
-        extremes: 'Strongest and weakest topics',
-        movers: 'Topics gaining or losing',
-        gap: 'Where engines disagree',
-        trends: 'Mention rate by week, topic and engine',
-        disagreement: 'Named by one engine, not another',
-        contribution: 'What each topic adds',
+        extremes: 'Strongest and weakest groups',
+        movers: 'Groups gaining or losing',
+        gap: 'Where platforms disagree',
+        trends: 'Mention rate by week, group and platform',
+        disagreement: 'Named by one platform, not another',
+        contribution: 'What each group adds',
       };
       for (const [key, id] of Object.entries(TOPIC_OWNER_CARDS) as Array<[keyof typeof TOPIC_OWNER_CARDS, string]>) {
         const card = cardById(page, id);
@@ -178,40 +178,40 @@ test.describe('the topic and prompt cards', () => {
     });
   });
 
-  test('the engine option of a card with an engine choice changes the card and not the page scope', async ({
+  test('the platform option of a card with a platform choice changes the card and not the page scope', async ({
     page,
   }) => {
     await saveTopicLayout(page);
     const card = cardById(page, TOPIC_OWNER_CARDS.contribution);
     await expect(card).toContainText('to the mention rate on ChatGPT');
-    await expect(enginesButton(page)).toHaveAccessibleName('Engines: 2 of 2');
+    await expect(enginesButton(page)).toHaveAccessibleName('Platforms: 2 of 2');
 
     await startCustomizing(page);
-    await changeEngine(page, TOPIC_OWNER_CARDS.contribution, 'What each topic adds: ChatGPT', 'Gemini');
+    await changeEngine(page, TOPIC_OWNER_CARDS.contribution, 'What each group adds: ChatGPT', 'Gemini');
     await expect(card).toContainText('to the mention rate on Gemini');
     await expect(card).not.toContainText('to the mention rate on ChatGPT');
     await saveLayout(page);
 
     // The page still asks both engines: no key in the address, the same count on the control, both columns in the heat map
     expect(new URL(page.url()).searchParams.has('engine')).toBe(false);
-    await expect(enginesButton(page)).toHaveAccessibleName('Engines: 2 of 2');
+    await expect(enginesButton(page)).toHaveAccessibleName('Platforms: 2 of 2');
     await awaitCardReady(heatmapCard(page));
     expect(await columnNames(heatmapCard(page))).toEqual(BOTH_ENGINE_COLUMNS);
   });
 
-  test('the page scope (engine filter, topic) narrows every topic card; the URL survives reload and Back', async ({
+  test('the page scope (platform filter, group) narrows every group card; the URL survives reload and Back', async ({
     page,
   }) => {
     await saveTopicLayout(page);
     const heatmap = heatmapCard(page);
     const named = (id: string): Locator => cardById(page, id);
 
-    await test.step('one engine: every card leaves the other out', async () => {
+    await test.step('one platform: every card leaves the other out', async () => {
       await enginesButton(page).click();
       await page.getByRole('checkbox', { name: /ChatGPT/ }).click();
       await page.keyboard.press('Escape');
       expect((await queryOf(page, 'engine')).get('engine')).toBe(GEMINI);
-      await expect(enginesButton(page)).toHaveAccessibleName('Engines: 1 of 2');
+      await expect(enginesButton(page)).toHaveAccessibleName('Platforms: 1 of 2');
 
       await expect(heatmapGrid(heatmap).getByRole('columnheader', { name: /ChatGPT/ })).toHaveCount(0);
       await expect(heatmapGrid(heatmap).getByRole('columnheader', { name: /avg of/ })).toHaveCount(0);
@@ -221,14 +221,14 @@ test.describe('the topic and prompt cards', () => {
         await expect(named(id)).not.toContainText('ChatGPT');
       }
       await awaitCardReady(named(TOPIC_OWNER_CARDS.gap));
-      await expect(named(TOPIC_OWNER_CARDS.gap)).toContainText('Needs two engines');
+      await expect(named(TOPIC_OWNER_CARDS.gap)).toContainText('Needs two platforms');
       await awaitCardReady(named(TOPIC_OWNER_CARDS.contribution));
       await expect(named(TOPIC_OWNER_CARDS.contribution)).toContainText('ChatGPT is not part of this view');
     });
 
-    await test.step('one topic: every card leaves the others out', async () => {
+    await test.step('one group: every card leaves the others out', async () => {
       await page.getByRole('button', { name: 'Add a filter' }).click();
-      await page.getByRole('button', { name: 'Topic', exact: true }).click();
+      await page.getByRole('button', { name: 'Group', exact: true }).click();
       await page.getByRole('radio', { name: THIN_TOPIC, exact: true }).click();
       await page.keyboard.press('Escape');
       expect((await queryOf(page, 'topic')).get('topic')).toBe(PAID_SEARCH);
@@ -314,7 +314,7 @@ test.describe('the topic and prompt cards', () => {
 
     await expect(movers.getByRole('heading', { level: 3, name: 'Comparison is off' })).toBeVisible();
     await expect(movers).toContainText(
-      'Turn the comparison on to see which topics gained or lost against the previous window.',
+      'Turn the comparison on to see which groups gained or lost against the previous window.',
     );
     // The cards that do not compare are not touched: the heat map still reads
     await awaitCardReady(heatmapCard(page));
@@ -325,7 +325,7 @@ test.describe('the topic and prompt cards', () => {
     await expect(movers.getByText('Comparison is off')).toHaveCount(0);
     await awaitCardReady(movers);
     await expect(movers.getByRole('group', { name: / view$/ })).toBeVisible();
-    await expect(movers).toContainText(/topics? moved within normal variation|gaining|lost/i);
+    await expect(movers).toContainText(/groups? moved within normal variation|gaining|lost/i);
   });
 
   test('a failed summary shows the card error with Retry and Retry recovers', async ({ page }) => {
@@ -408,7 +408,7 @@ test.describe('the topic and prompt cards', () => {
       await expect(card.getByRole('link', { name: /^Paid Search on ChatGPT: / })).toBeFocused();
     });
 
-    await test.step('Enter follows the link of the cell to the drawer of its engine', async () => {
+    await test.step('Enter follows the link of the cell to the drawer of its platform', async () => {
       await page.keyboard.press('Enter');
       const query = await queryOf(page, 'inspect');
       expect(query.get('inspect')).toBe(`topic:${PAID_SEARCH}`);

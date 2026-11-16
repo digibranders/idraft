@@ -56,7 +56,7 @@ function promptsAs(role: Role): ReactElement {
 const renderOn = (role: Role, searchParams: string): ProvidedRender =>
   renderWithProviders(promptsAs(role), { searchParams });
 const prompts = (): Promise<HTMLElement> => screen.findByRole('grid', { name: 'Prompts' });
-const topics = (): Promise<HTMLElement> => screen.findByRole('treegrid', { name: 'Topics' });
+const topics = (): Promise<HTMLElement> => screen.findByRole('treegrid', { name: 'Groups' });
 const bar = (): HTMLElement => screen.getByRole('group', { name: /^Bulk actions/ });
 
 describe('selecting prompts on the Prompts tab', () => {
@@ -82,7 +82,7 @@ describe('selecting prompts on the Prompts tab', () => {
       within(table).getByRole('checkbox', { name: 'Select How do I run a technical SEO audit on a large site?' }),
     );
     expect(within(bar()).getByText('2 selected')).toBeInTheDocument();
-    await user.click(within(within(table).getByRole('columnheader', { name: /^Country/ })).getByText('Country'));
+    await user.click(within(within(table).getByRole('columnheader', { name: /^Location/ })).getByText('Location'));
     expect(within(bar()).getByText('2 selected')).toBeInTheDocument();
     await user.click(within(bar()).getByRole('button', { name: 'Clear selection' }));
     expect(screen.queryByRole('group', { name: /^Bulk actions/ })).toBeNull();
@@ -96,36 +96,36 @@ describe('selecting prompts on the Prompts tab', () => {
   });
 });
 
-describe('selecting topics on the Topics tab', () => {
-  it('has a checkbox on every topic row and one in the header', async () => {
+describe('selecting groups on the Groups tab', () => {
+  it('has a checkbox on every group row and one in the header', async () => {
     renderOn('viewer', '');
     const tree = await topics();
     expect(await within(tree).findByRole('checkbox', { name: 'Select SEO' })).toBeInTheDocument();
     expect(within(tree).getByRole('checkbox', { name: 'Select Content Marketing' })).toBeInTheDocument();
-    expect(within(tree).getByRole('checkbox', { name: /^Select all \d+ topics loaded$/ })).toBeInTheDocument();
+    expect(within(tree).getByRole('checkbox', { name: /^Select all \d+ groups loaded$/ })).toBeInTheDocument();
   });
 
-  it('selects the prompts a topic holds, a parent with those of its topics, and says so in the bar', async () => {
+  it('selects the prompts a group holds, a parent with those of its groups, and says so in the bar', async () => {
     const { user } = renderOn('viewer', '');
     const tree = await topics();
     await user.click(await within(tree).findByRole('checkbox', { name: 'Select Paid Search' }));
-    expect(within(bar()).getByText('1 topic selected, 2 prompts')).toBeInTheDocument();
+    expect(within(bar()).getByText('1 group selected, 2 prompts')).toBeInTheDocument();
     await user.click(within(tree).getByRole('checkbox', { name: 'Select SEO' }));
-    expect(within(bar()).getByText('2 topics selected, 14 prompts')).toBeInTheDocument();
+    expect(within(bar()).getByText('2 groups selected, 14 prompts')).toBeInTheDocument();
   });
 
-  it('draws the topics below a ticked parent as ticked once it is opened, and a parent as partly ticked when one is left out', async () => {
+  it('draws the groups below a ticked parent as ticked once it is opened, and a parent as partly ticked when one is left out', async () => {
     const { user } = renderOn('viewer', '');
     const tree = await topics();
     await user.click(await within(tree).findByRole('checkbox', { name: 'Select SEO' }));
-    await user.click(within(tree).getByRole('button', { name: 'Expand SEO, 2 topics' }));
+    await user.click(within(tree).getByRole('button', { name: 'Expand SEO, 2 groups' }));
     expect(within(tree).getByRole('checkbox', { name: 'Select Technical SEO' })).toBeChecked();
     await user.click(within(tree).getByRole('checkbox', { name: 'Select Technical SEO' }));
     expect(within(tree).getByRole('checkbox', { name: 'Select SEO' })).toHaveAttribute('aria-checked', 'mixed');
-    expect(within(bar()).getByText('1 topic selected, 8 prompts')).toBeInTheDocument();
+    expect(within(bar()).getByText('1 group selected, 8 prompts')).toBeInTheDocument();
   });
 
-  it('selects the prompt rows of an open topic one by one, and counts them as prompts', async () => {
+  it('selects the prompt rows of an open group one by one, and counts them as prompts', async () => {
     const { user } = renderOn('viewer', '');
     const tree = await topics();
     await user.click(await within(tree).findByRole('button', { name: /^Expand Paid Search/ }));
@@ -152,18 +152,18 @@ describe('selecting topics on the Topics tab', () => {
     expect(screen.queryByRole('group', { name: /^Bulk actions/ })).toBeNull();
   });
 
-  it('selects every topic and its prompts from the header checkbox, closed rows included', async () => {
+  it('selects every group and its prompts from the header checkbox, closed rows included', async () => {
     const { user } = renderOn('viewer', '');
     const tree = await topics();
-    await user.click(await within(tree).findByRole('checkbox', { name: /^Select all \d+ topics loaded$/ }));
+    await user.click(await within(tree).findByRole('checkbox', { name: /^Select all \d+ groups loaded$/ }));
     // SEO, Content Marketing and Paid Search: the prompts without a topic are chosen too, but are no topic
-    expect(within(bar()).getByText('3 topics selected, 23 prompts')).toBeInTheDocument();
+    expect(within(bar()).getByText('3 groups selected, 23 prompts')).toBeInTheDocument();
   });
 
-  it('does not count the prompts without a topic as a topic, and counts them as prompts', async () => {
+  it('does not count the prompts without a group as a group, and counts them as prompts', async () => {
     const { user } = renderOn('viewer', '');
     const tree = await topics();
-    await user.click(await within(tree).findByRole('checkbox', { name: 'Select No topic' }));
+    await user.click(await within(tree).findByRole('checkbox', { name: 'Select No group' }));
     expect(within(bar()).getByText('2 selected')).toBeInTheDocument();
   });
 });

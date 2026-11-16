@@ -52,11 +52,11 @@ describe('topicOptions', () => {
 });
 
 describe('topicField', () => {
-  const words = { label: 'Topic', below };
+  const words = { label: 'Group', below };
 
   it('is a single choice enum named Topic whose options are the tree', () => {
     const field = topicField({ ...words, tree: TREE, pending: false });
-    expect(field).toMatchObject({ id: 'topic', kind: 'enum', multi: false, label: 'Topic', optionsLoading: false });
+    expect(field).toMatchObject({ id: 'topic', kind: 'enum', multi: false, label: 'Group', optionsLoading: false });
     expect(field.options).toHaveLength(4);
   });
 

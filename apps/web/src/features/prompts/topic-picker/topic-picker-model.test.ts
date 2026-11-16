@@ -52,7 +52,7 @@ const choice = (key: string): TopicChoice => {
 };
 
 describe('buildTopicChoices', () => {
-  it('lists the topics depth first and the tags of the other vocabularies after them, labelled by vocabulary', () => {
+  it('lists the groups depth first and the tags of the other vocabularies after them, labelled by vocabulary', () => {
     expect(CHOICES.map((entry) => [entry.label, entry.group])).toEqual([
       ['CRM', 'topic'],
       ['CRM / Startups', 'topic'],
@@ -62,7 +62,7 @@ describe('buildTopicChoices', () => {
     ]);
   });
 
-  it('names the vocabulary on every topic when the project sees more than one topic vocabulary', () => {
+  it('names the vocabulary on every group when the project sees more than one group vocabulary', () => {
     const own = vocabulary({ vocabulary_id: 'v-own', name: 'Fynix topics', kind: 'topic', project_id: 'p-1' });
     const two = buildTopicChoices([...LOADED, { vocabulary: own, terms: [term('o-1', 'Pricing')] }], tagLabel);
     expect(two.filter((entry) => entry.group === 'topic').map((entry) => entry.label)).toEqual([
@@ -134,7 +134,7 @@ describe('nextTopicValue', () => {
     expect(problem).toEqual({ code: 'tooMany' });
   });
 
-  it('turns a typed path that is already a topic into that topic, whatever its case and spacing', () => {
+  it('turns a typed path that is already a group into that group, whatever its case and spacing', () => {
     const typed: TopicChoice = {
       key: 'new:v-topics:crm/startups',
       label: 'crm/startups',
@@ -181,7 +181,7 @@ describe('splitSelections', () => {
   });
 });
 
-describe('a topic typed where no vocabulary exists yet', () => {
+describe('a group typed where no vocabulary exists yet', () => {
   it('is held with no vocabulary id, and carries it through the choice, the selection and the split', () => {
     const typed = newTopicChoice('CRM/Startups', NEW_TOPIC_VOCABULARY, (path) => `${path} (new)`);
     expect(typed).toMatchObject({
@@ -208,7 +208,7 @@ describe('createTarget', () => {
   const own = vocabulary({ vocabulary_id: 'v-own', name: 'Fynix topics', kind: 'topic', project_id: 'p-1' });
   const withOwn: readonly VocabularyTerms[] = [...LOADED, { vocabulary: own, terms: [] }];
 
-  it('prefers the project own topic vocabulary, and falls back to the shared one only for a member of every project', () => {
+  it('prefers the project own group vocabulary, and falls back to the shared one only for a member of every project', () => {
     expect(createTarget(withOwn, 'p-1', { canWrite: true, canWriteShared: true })?.vocabulary_id).toBe('v-own');
     expect(createTarget(LOADED, 'p-1', { canWrite: true, canWriteShared: true })?.vocabulary_id).toBe('v-topics');
   });
@@ -218,7 +218,7 @@ describe('createTarget', () => {
     expect(createTarget(withOwn, 'p-1', { canWrite: false, canWriteShared: false })).toBeNull();
   });
 
-  it('never targets a vocabulary of another project or one that is not a topic vocabulary', () => {
+  it('never targets a vocabulary of another project or one that is not a group vocabulary', () => {
     const other = vocabulary({ vocabulary_id: 'v-other', name: 'Other', kind: 'topic', project_id: 'p-2' });
     const target = createTarget(
       [
@@ -231,7 +231,7 @@ describe('createTarget', () => {
     expect(target).toEqual(NEW_TOPIC_VOCABULARY);
   });
 
-  it('offers to make the topic vocabulary of the project when none exists to write to, to a person who can write', () => {
+  it('offers to make the group vocabulary of the project when none exists to write to, to a person who can write', () => {
     for (const vocabularies of [[], [{ vocabulary: SERVICES, terms: [] }]] satisfies VocabularyTerms[][]) {
       expect(createTarget(vocabularies, 'p-1', { canWrite: true, canWriteShared: true })).toEqual(NEW_TOPIC_VOCABULARY);
     }
@@ -243,7 +243,7 @@ describe('createTarget', () => {
     expect(createTarget(LOADED, 'p-1', { canWrite: true, canWriteShared: false })).toEqual(NEW_TOPIC_VOCABULARY);
   });
 
-  it('offers nothing to a person who cannot write when there is no topic vocabulary', () => {
+  it('offers nothing to a person who cannot write when there is no group vocabulary', () => {
     expect(createTarget([], 'p-1', { canWrite: false, canWriteShared: false })).toBeNull();
     expect(createTarget(LOADED, 'p-1', { canWrite: false, canWriteShared: true })).toBeNull();
   });

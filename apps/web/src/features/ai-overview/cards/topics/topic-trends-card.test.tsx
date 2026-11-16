@@ -73,7 +73,7 @@ afterEach(() => {
 });
 
 const SUMMARY_PATH = mswPath('/api/v1/workspaces/:w/projects/:p/ai/prompts-summary');
-const TITLE = 'Mention rate by week, topic and engine';
+const TITLE = 'Mention rate by week, group and platform';
 
 const NAMES = ['SEO tools', 'Email', 'CRM', 'Pricing', 'Support', 'Billing', 'Reports'] as const;
 const PROMPTS = [12, 8, 6, 5, 4, 3, 2] as const;
@@ -182,7 +182,7 @@ const failing = (): ReturnType<typeof HttpResponse.json> =>
   );
 
 describe('TopicTrendsCard', () => {
-  it('a row per top topic by prompts and a panel per asked engine', async () => {
+  it('a row per top group by prompts and a panel per asked platform', async () => {
     render();
     await charts();
     expect(topicNames()).toEqual(['SEO tools', 'Email', 'CRM']);
@@ -194,7 +194,7 @@ describe('TopicTrendsCard', () => {
     expect(screen.queryByRole('img', { name: /AI Mode/ })).not.toBeInTheDocument();
   });
 
-  it('topics 3 or 6 cut the panels', async () => {
+  it('groups 3 or 6 cut the panels', async () => {
     const three = render();
     await charts();
     expect(topicNames()).toHaveLength(3);
@@ -248,7 +248,7 @@ describe('TopicTrendsCard', () => {
     expect(ceiling ?? 0).toBeGreaterThan(0.5);
   });
 
-  it('panels of one topic share a crosshair group and different topics do not', async () => {
+  it('panels of one group share a crosshair group and different groups do not', async () => {
     render();
     await charts();
     const groupOf = (topic: string, code: string): string | undefined => drawnOf(`${topic}:${code}`).group;
@@ -264,7 +264,7 @@ describe('TopicTrendsCard', () => {
     const plain = render({ summary: summaryOf7(false) });
     const frame = await frameOf();
     await charts();
-    expect(within(frame).getByText(/Topics overlap/)).toBeInTheDocument();
+    expect(within(frame).getByText(/Groups overlap/)).toBeInTheDocument();
     expect(within(frame).queryByText(/shows the last 4 weeks together/)).not.toBeInTheDocument();
     plain.unmount();
     render({ summary: summaryOf7(true) });
@@ -279,10 +279,10 @@ describe('TopicTrendsCard', () => {
     render();
     const frame = await frameOf();
     await charts();
-    expect(within(frame).getByText(/Topics overlap/)).toBeInTheDocument();
+    expect(within(frame).getByText(/Groups overlap/)).toBeInTheDocument();
     expect(within(frame).getByText(/Prompt weighted/)).toBeInTheDocument();
     // The rows hold no prompt rows, so the footnote does not claim how many prompts are in two topics
-    expect(within(frame).queryByText(/in more than one topic/)).not.toBeInTheDocument();
+    expect(within(frame).queryByText(/in more than one group/)).not.toBeInTheDocument();
   });
 
   it('the latest week is named in each panel, with its counts', async () => {
@@ -303,14 +303,14 @@ describe('TopicTrendsCard', () => {
     expect(built.canvases.has('t2:gemini_web')).toBe(false);
   });
 
-  it('the summary sentence names the metric and the engines', async () => {
+  it('the summary sentence names the metric and the platforms', async () => {
     render({ options: { metric: 'share_of_voice' } });
     await charts();
     expect(
-      screen.getByText(/Share of voice week by week for the 3 topics with the most prompts, on ChatGPT and Gemini/),
+      screen.getByText(/Share of voice week by week for the 3 groups with the most prompts, on ChatGPT and Gemini/),
     ).toBeInTheDocument();
     expect(
-      await screen.findByRole('heading', { level: 2, name: 'Share of voice by week, topic and engine' }),
+      await screen.findByRole('heading', { level: 2, name: 'Share of voice by week, group and platform' }),
     ).toBeInTheDocument();
   });
 
@@ -349,7 +349,7 @@ describe('TopicTrendsCard', () => {
     expect(within(grid).getByRole('row', { name: /^Oct 19/ })).toHaveTextContent('No data');
   });
 
-  it('the legend toggles an engine column and keeps at least one', async () => {
+  it('the legend toggles a platform column and keeps at least one', async () => {
     const { user } = render();
     await charts();
     const legend = screen.getByRole('list', { name: `Series in ${TITLE}` });
@@ -368,7 +368,7 @@ describe('TopicTrendsCard', () => {
     });
   });
 
-  it('the ceiling stays when an engine is turned off', async () => {
+  it('the ceiling stays when a platform is turned off', async () => {
     const { user } = render();
     await charts();
     const before = (drawnOf('t3:chatgpt_web').option.yAxis as { max: number }).max;
@@ -453,7 +453,7 @@ describe('TopicTrendsCard states', () => {
     await charts();
   });
 
-  it('no engine asked is an empty state with its action', async () => {
+  it('no platform asked is an empty state with its action', async () => {
     document.cookie = `${SESSION_COOKIE}=mock.active.${mockUser('admin').user_id}.${String(Date.now() + 600_000)}; Path=/; Secure`;
     renderWithProviders(
       <PermissionProvider membership={membershipFactory('admin')}>
@@ -474,18 +474,18 @@ describe('TopicTrendsCard states', () => {
         </Suspense>
       </PermissionProvider>,
     );
-    expect(await screen.findByText('No engine is part of this view')).toBeInTheDocument();
+    expect(await screen.findByText('No platform is part of this view')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Turn on engines' })).toBeInTheDocument();
   });
 
-  it('no topics is an empty state with Open Topics and prompts', async () => {
+  it('no groups is an empty state with Open Prompts', async () => {
     render({ summary: summaryOf({ topics: [], prompts: [], engineCodes: ['chatgpt_web'] }) });
-    const title = await screen.findByRole('heading', { name: 'No topics yet' });
+    const title = await screen.findByRole('heading', { name: 'No groups yet' });
     const box = within(title.closest('[data-slot="empty-state"]') as HTMLElement);
-    expect(box.getByRole('link', { name: 'Open Topics and prompts' })).toBeInTheDocument();
+    expect(box.getByRole('link', { name: 'Open Prompts' })).toBeInTheDocument();
   });
 
-  it('no valid answer in any week names the engines and has one action', async () => {
+  it('no valid answer in any week names the platforms and has one action', async () => {
     render({
       searchParams: 'engine=chatgpt_web',
       summary: summaryOf({
@@ -547,7 +547,7 @@ describe('TopicTrendsCard states', () => {
     expect(screen.getAllByTestId('echart-canvas').length).toBeGreaterThan(0);
   });
 
-  it('partial names an engine that has no valid answer in any topic', async () => {
+  it('partial names a platform that has no valid answer in any group', async () => {
     render({ searchParams: 'engine=chatgpt_web,google_ai_mode', threeEngines: true });
     await charts();
     expect(screen.getByText('Partial data: AI Mode has no valid answer in this window')).toBeInTheDocument();

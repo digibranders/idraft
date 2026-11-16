@@ -148,7 +148,7 @@ describe('usePageColumns', () => {
       .filter((column) => column.group !== undefined)
       .map((column) => column.id);
     expect(grouped).toEqual(['engine-chatgpt_web', 'engine-gemini_web', 'engine-google_ai_mode']);
-    expect(columnOf('engine-chatgpt_web').group).toEqual({ id: 'engines', label: 'Share by engine' });
+    expect(columnOf('engine-chatgpt_web').group).toEqual({ id: 'engines', label: 'Share by platform' });
   });
 
   it('with one engine the engine group collapses', () => {

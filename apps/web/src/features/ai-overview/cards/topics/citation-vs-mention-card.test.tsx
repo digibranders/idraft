@@ -60,7 +60,7 @@ afterEach(() => {
 });
 
 const SUMMARY_PATH = mswPath('/api/v1/workspaces/:w/projects/:p/ai/prompts-summary');
-const TITLE = 'Citation against mention by topic on ChatGPT';
+const TITLE = 'Citation against mention by group on ChatGPT';
 
 const TERMS: TermSpec[] = ['t1', 't2', 't3', 't4', 't5'].map((id) => ({ id, name: id, parent: null }));
 type Pair = readonly [number, number];
@@ -160,7 +160,7 @@ describe('CitationVsMentionCard', () => {
     expect(source.match(new RegExp(SCATTER_MODULE, 'g'))).toHaveLength(1);
   });
 
-  it('draws one point for each topic with a rate on both, on one axis', async () => {
+  it('draws one point for each group with a rate on both, on one axis', async () => {
     render();
     await canvasOf();
     expect(drawnSeries().data).toHaveLength(3);
@@ -170,7 +170,7 @@ describe('CitationVsMentionCard', () => {
     expect(drawn.height).toBe(280);
   });
 
-  it('the Table form lists every topic with counts', async () => {
+  it('the Table form lists every group with counts', async () => {
     const { user } = render();
     await canvasOf();
     await user.click(screen.getByRole('button', { name: 'Table' }));
@@ -179,7 +179,7 @@ describe('CitationVsMentionCard', () => {
       within(grid)
         .getAllByRole('columnheader')
         .map((cell) => cell.textContent),
-    ).toEqual(['Topic', 'Mention rate', 'Citation rate', 'Prompts', 'Gap']);
+    ).toEqual(['Group', 'Mention rate', 'Citation rate', 'Prompts', 'Gap']);
     // The largest gap first, the topics that cannot be plotted after them, each with its answers
     expect(
       within(grid)
@@ -202,7 +202,7 @@ describe('CitationVsMentionCard', () => {
     expect(cells('Support')).toEqual(['No answers', 'No answers', '4 prompts', 'n/a']);
   });
 
-  it('a topic name in the table links to its drawer', async () => {
+  it('a group name in the table links to its drawer', async () => {
     const { user } = render();
     await canvasOf();
     await user.click(screen.getByRole('button', { name: 'Table' }));
@@ -210,16 +210,16 @@ describe('CitationVsMentionCard', () => {
     expect(new URL(link.getAttribute('href') ?? '', 'http://localhost').searchParams.get('inspect')).toBe('topic:t1');
   });
 
-  it('a topic under 4 answers on either rate is in the count, not a point', async () => {
+  it('a group under 4 answers on either rate is in the count, not a point', async () => {
     render();
     const frame = await frameOf();
     await canvasOf();
     // Pricing (3 citation answers) and Support (none) are not drawn and are counted in words
     expect(drawnSeries().data).toHaveLength(3);
-    expect(within(frame).getByText(/2 topics have too few answers on mention or citation/)).toBeInTheDocument();
+    expect(within(frame).getByText(/2 groups have too few answers on mention or citation/)).toBeInTheDocument();
   });
 
-  it('a parent topic is not a point or a row, its subtopics are', async () => {
+  it('a parent group is not a point or a row, its subtopics are', async () => {
     const terms: TermSpec[] = [
       { id: 'tp', name: 'Tools', parent: null },
       { id: 't1', name: 't1', parent: 'tp' },
@@ -269,27 +269,27 @@ describe('CitationVsMentionCard', () => {
     expect(drawnSeries().data).toHaveLength(3);
   });
 
-  it('the summary sentence says the count, the diagonal and the topics named without being cited', async () => {
+  it('the summary sentence says the count, the diagonal and the groups named without being cited', async () => {
     render();
     await canvasOf();
     const summary = screen.getByText(/Citation rate against mention rate on ChatGPT/);
     expect(summary).toHaveTextContent(
-      'Citation rate against mention rate on ChatGPT: 3 topics, one point each, sized by prompts. A point on the dashed diagonal is cited as often as it is named. Named most often without being cited: SEO tools and Email.',
+      'Citation rate against mention rate on ChatGPT: 3 groups, one point each, sized by prompts. A point on the dashed diagonal is cited as often as it is named. Named most often without being cited: SEO tools and Email.',
     );
   });
 
-  it('the footnote names the reference line and that topics overlap', async () => {
+  it('the footnote names the reference line and that groups overlap', async () => {
     render();
     const frame = await frameOf();
     await canvasOf();
     expect(
-      within(frame).getByText(/The dashed line marks topics cited as often as they are named/),
+      within(frame).getByText(/The dashed line marks groups cited as often as they are named/),
     ).toBeInTheDocument();
-    expect(within(frame).getByText(/Topics overlap/)).toBeInTheDocument();
+    expect(within(frame).getByText(/Groups overlap/)).toBeInTheDocument();
     await waitFor(() => {
-      expect(within(frame).getByText(/1 prompt is in more than one topic/)).toBeInTheDocument();
+      expect(within(frame).getByText(/1 prompt is in more than one group/)).toBeInTheDocument();
     });
-    expect(within(frame).getByText(/Only the most specific topics are shown/)).toBeInTheDocument();
+    expect(within(frame).getByText(/Only the most specific groups are shown/)).toBeInTheDocument();
     expect(within(frame).getByText(/fewer than 4 valid answers|under 4 valid answers/)).toBeInTheDocument();
   });
 
@@ -299,7 +299,7 @@ describe('CitationVsMentionCard', () => {
     expect(within(frame).getByText(/Oct 16.*Nov 12.*28 days/)).toBeInTheDocument();
   });
 
-  it('an engine outside the engine filter is an empty state with Use all engines', async () => {
+  it('a platform outside the platform filter is an empty state with Use all platforms', async () => {
     const updates: string[] = [];
     server.use(summaryHandler(SUMMARY), ...vocabularyHandlers(TERMS));
     function Card(props: CardProps): ReactElement {
@@ -318,39 +318,39 @@ describe('CitationVsMentionCard', () => {
     const box = within(title.closest('[data-slot="empty-state"]') as HTMLElement);
     expect([...box.queryAllByRole('button'), ...box.queryAllByRole('link')]).toHaveLength(1);
     expect(screen.queryByTestId('scatter-canvas')).not.toBeInTheDocument();
-    await user.click(box.getByRole('button', { name: 'Use all engines' }));
+    await user.click(box.getByRole('button', { name: 'Use all platforms' }));
     await waitFor(() => {
       expect(updates.length).toBeGreaterThan(0);
     });
     expect(updates.at(-1)).not.toContain('engine=');
   });
 
-  it('an engine that is not on in the project is an empty state with an action or a sentence', async () => {
+  it('a platform that is not on in the project is an empty state with an action or a sentence', async () => {
     render({ options: { engine: 'google_ai_mode' }, searchParams: '' });
     const title = await screen.findByRole('heading', { name: 'AI Mode is not part of this view' });
     expect(title.closest('[data-slot="empty-state"]')).not.toBeNull();
     expect(screen.queryByTestId('scatter-canvas')).not.toBeInTheDocument();
   });
 
-  it('no topics is an empty state with Open Topics and prompts', async () => {
+  it('no groups is an empty state with Open Prompts', async () => {
     render({ summary: summaryOf({ topics: [], prompts: [], engineCodes: ['chatgpt_web', 'gemini_web'] }) });
-    const title = await screen.findByRole('heading', { name: 'No topics yet' });
+    const title = await screen.findByRole('heading', { name: 'No groups yet' });
     const box = within(title.closest('[data-slot="empty-state"]') as HTMLElement);
-    expect(box.getByRole('link', { name: 'Open Topics and prompts' })).toBeInTheDocument();
+    expect(box.getByRole('link', { name: 'Open Prompts' })).toBeInTheDocument();
   });
 
-  it('no valid answers names the engine and the days', async () => {
+  it('no valid answers names the platform and the days', async () => {
     render({ summary: summaryOf({ topics: [row('t1', 'SEO tools', 4, [0, 0], [0, 0])] }) });
     expect(
       await screen.findByRole('heading', { name: 'No valid answers in these 28 days on ChatGPT' }),
     ).toBeInTheDocument();
   });
 
-  it('answers but no topic with a rate on both is its own empty state, with the count', async () => {
+  it('answers but no group with a rate on both is its own empty state, with the count', async () => {
     render({ summary: summaryOf({ topics: [row('t1', 'SEO tools', 4, [8, 10], [2, 3])] }) });
-    const title = await screen.findByRole('heading', { name: 'No topic has a rate on both yet' });
+    const title = await screen.findByRole('heading', { name: 'No group has a rate on both yet' });
     const box = within(title.closest('[data-slot="empty-state"]') as HTMLElement);
-    expect(box.getByRole('link', { name: 'Open Topics and prompts' })).toBeInTheDocument();
+    expect(box.getByRole('link', { name: 'Open Prompts' })).toBeInTheDocument();
     expect(screen.queryByTestId('scatter-canvas')).not.toBeInTheDocument();
   });
 

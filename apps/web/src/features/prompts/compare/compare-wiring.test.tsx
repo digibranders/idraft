@@ -215,7 +215,7 @@ function serve(asked: URL[] = []): void {
 }
 
 const grid = (): Promise<HTMLElement> => screen.findByRole('grid', { name: 'Prompts' });
-const treegrid = (): Promise<HTMLElement> => screen.findByRole('treegrid', { name: 'Topics' });
+const treegrid = (): Promise<HTMLElement> => screen.findByRole('treegrid', { name: 'Groups' });
 const promptTexts = (table: HTMLElement): string[] =>
   within(table)
     .queryAllByText(/^Question number \d\?$/)
@@ -236,7 +236,7 @@ const chooseDetectable = async (user: ProvidedRender['user']): Promise<void> => 
   await user.click(await screen.findByRole('radio', { name: 'Detectable changes only' }));
 };
 
-describe('Topics & Prompts: compare, the read and the address', () => {
+describe('Prompts: compare, the read and the address', () => {
   it('asks the summary for the previous period by default', async () => {
     const asked: URL[] = [];
     serve(asked);
@@ -282,7 +282,7 @@ describe('Topics & Prompts: compare, the read and the address', () => {
       if (!(row instanceof HTMLElement)) throw new Error('The first row is missing');
       const mention = within(row)
         .getAllByRole('gridcell')
-        .find((node) => node.textContent?.includes('1 engine'));
+        .find((node) => node.textContent?.includes('1 platform'));
       if (mention === undefined) throw new Error('The Mention rate cell is missing');
       return mention;
     };
@@ -316,7 +316,7 @@ describe('Topics & Prompts: compare, the read and the address', () => {
       if (!(row instanceof HTMLElement)) throw new Error('The first prompt row is missing');
       const mention = within(row)
         .getAllByRole('gridcell')
-        .find((node) => node.textContent?.includes('1 engine'));
+        .find((node) => node.textContent?.includes('1 platform'));
       if (mention === undefined) throw new Error('The Mention rate cell is missing');
       return mention;
     };
@@ -352,7 +352,7 @@ describe('Topics & Prompts: compare, the read and the address', () => {
       }),
     );
     const { queryClient } = render('', CLEANSTART);
-    expect(await screen.findByRole('heading', { name: 'No AI engine is on' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'No AI platform is on' })).toBeInTheDocument();
     await waitFor(() => expect(queryClient.isFetching()).toBe(0));
     expect(asked).toEqual([]);
   });
@@ -384,7 +384,7 @@ describe('Topics & Prompts: compare, the read and the address', () => {
   });
 });
 
-describe('Topics & Prompts: the change column of an engine', () => {
+describe('Prompts: the change column of an engine', () => {
   it('waits in the column chooser, off by default, and shows its change once chosen', async () => {
     serve();
     const { user } = render('?tab=prompts');
@@ -438,7 +438,7 @@ describe('Topics & Prompts: the change column of an engine', () => {
   });
 });
 
-describe('Topics & Prompts: the Detectable changes only chip', () => {
+describe('Prompts: the Detectable changes only chip', () => {
   it('is in the address as detectable=only and narrows the Prompts rows and the strip', async () => {
     serve();
     const { user, writes } = render('?tab=prompts');

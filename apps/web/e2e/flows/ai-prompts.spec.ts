@@ -55,7 +55,9 @@ async function expectNoArchive(page: Page, inspector: Locator): Promise<void> {
 }
 
 test.describe('AI prompt tracking', () => {
-  test('an editor turns an engine on, adds prompts by pasting a list and finds them in the table', async ({ page }) => {
+  test('an editor turns a platform on, adds prompts by pasting a list and finds them in the table', async ({
+    page,
+  }) => {
     const policy = watchPolicy(page);
     await signIn(page, EDITOR);
     await page.goto(CLEANSTART_ENGINES);
@@ -73,9 +75,9 @@ test.describe('AI prompt tracking', () => {
     // mocks' memory lives in the page
     await page.getByRole('region', { name: 'Engines' }).getByRole('link', { name: 'Schedules' }).click();
     await expect(page.getByRole('heading', { level: 2, name: 'Schedules' })).toBeVisible();
-    await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Topics & Prompts' }).click();
+    await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Prompts', exact: true }).click();
     // The title is read and not drawn (the breadcrumb shows it), so it is in the page without being seen
-    await expect(page.getByRole('heading', { level: 1, name: 'Topics & Prompts' })).toBeAttached();
+    await expect(page.getByRole('heading', { level: 1, name: 'Prompts' })).toBeAttached();
     await expect(page.getByRole('heading', { name: 'No prompts yet' })).toBeVisible();
     await page.getByRole('button', { name: 'Add prompts' }).click();
     const dialog = page.getByRole('dialog', { name: 'Add prompts' });
@@ -93,7 +95,7 @@ test.describe('AI prompt tracking', () => {
     await expect(toastsOf(page).getByText('2 prompts added')).toBeVisible();
     await expect(dialog).toBeHidden();
 
-    // Topics and Prompts are a segmented control in the table toolbar: a radio group, not a tab list
+    // Prompts are a segmented control in the table toolbar: a radio group, not a tab list
     await page.getByRole('radio', { name: 'Prompts' }).click();
     const table = page.getByRole('grid', { name: 'Prompts' });
     await expect(table.getByText('How often should an office be cleaned?', { exact: true })).toBeVisible();
@@ -201,7 +203,7 @@ test.describe('AI prompt tracking', () => {
 });
 
 for (const theme of ['light', 'dark'] as const) {
-  test.describe(`Topics & Prompts in the ${theme} theme`, () => {
+  test.describe(`Prompts in the ${theme} theme`, () => {
     test.beforeEach(async ({ page }) => {
       await page.addInitScript(
         ([key, value]) => {
@@ -221,11 +223,11 @@ for (const theme of ['light', 'dark'] as const) {
         await page.goto(FYNIX_PROMPTS);
         // Under 768 px the topics are a list of rows (the best engine and the engine count on each), not a grid
         if (width < 768) {
-          const topics = page.getByRole('list', { name: /^Topics, \d+ results/ });
+          const topics = page.getByRole('list', { name: /^Groups, \d+ results/ });
           await expect(topics).toBeVisible();
           await expect(topics.getByRole('button').first()).toBeVisible();
         } else {
-          await expect(page.getByRole('treegrid', { name: 'Topics' })).toBeVisible();
+          await expect(page.getByRole('treegrid', { name: 'Groups' })).toBeVisible();
         }
         await expectAccessible(page);
         await noSidewaysScroll();

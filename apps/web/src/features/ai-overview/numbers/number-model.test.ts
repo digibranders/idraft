@@ -60,12 +60,12 @@ describe('the numbers of the AI visibility catalog', () => {
   // One row per number of inventory 9.3 (wave 1): what it reads, what it shows, and what its context line says
   it.each([
     {
-      name: 'ai.prompts_in_scope shows the count and "in 13 topics"',
+      name: 'ai.prompts_in_scope shows the count and "in 13 groups"',
       item: { id: 'n', metric: 'ai.prompts_in_scope' } satisfies NumberItem,
       reading: read({ value: 250, k: null, n: null, unit: 'prompts', prompts: null, invalid: null, topics: 13 }),
       value: '250',
-      context: 'in 13 topics',
-      tip: ['250 prompts in scope, each counted once across engines (in 13 topics)', WINDOW_SENTENCE],
+      context: 'in 13 groups',
+      tip: ['250 prompts in scope, each counted once across platforms (in 13 groups)', WINDOW_SENTENCE],
     },
     {
       name: 'ai.valid_answers is an integer with its answers and the ones not valid',
@@ -221,23 +221,23 @@ describe('what a number says when it has no rate', () => {
     expect(display.unknown).toEqual({ kind: 'pending' });
   });
 
-  it('says an engine outside the engine filter is Not asked, with the reason', () => {
+  it('says a platform outside the platform filter is Not asked, with the reason', () => {
     const display = show({ status: 'notAsked', why: 'outsideFilter' }, gemini('ai.mention_rate'));
     expect(display.value).toBe('Not asked');
     expect(display.unknown).toEqual({ kind: 'not-applicable' });
-    expect(display.context).toBe('Not in the engine filter');
-    expect(display.tip).toContain('Gemini is not in the engine filter');
+    expect(display.context).toBe('Not in the platform filter');
+    expect(display.tip).toContain('Gemini is not in the platform filter');
     expect(display.change).toBeNull();
   });
 
-  it('says an engine that is off is Off in this project', () => {
+  it('says a platform that is off is Off in this project', () => {
     const display = show({ status: 'notAsked', why: 'off' }, gemini('ai.mention_rate'));
     expect(display.value).toBe('Not asked');
     expect(display.context).toBe('Off in this project');
     expect(display.tip).toContain('Gemini is off in this project');
   });
 
-  it('says fan-out presence on an engine that does not show it is Not exposed', () => {
+  it('says fan-out presence on a platform that does not show it is Not exposed', () => {
     const display = show({ status: 'notExposed' }, gemini('ai.fanout_presence_rate'));
     expect(display.value).toBe('Not exposed');
     expect(display.unknown).toEqual({ kind: 'not-applicable' });
@@ -439,23 +439,23 @@ describe('the wording of a tip', () => {
     expect(one.tip).toContain('Cited 21%, share of voice n/a');
   });
 
-  it('says the fan-out is read for one engine at a time, which is a limit and not a missing figure', () => {
+  it('says the fan-out is read for one platform at a time, which is a limit and not a missing figure', () => {
     const display = show({ status: 'unread' }, chatgpt('ai.fanout_presence_rate'), { unreadOf: () => 'oneAtATime' });
     expect(display.value).toBe('n/a');
-    expect(display.context).toBe('Read for one engine at a time');
-    expect(display.tip).toContain('more than one engine that shows its fan-out is on');
+    expect(display.context).toBe('Read for one platform at a time');
+    expect(display.tip).toContain('more than one platform that shows its fan-out is on');
     expect(display.tip).not.toMatch(/no figure/i);
   });
 
-  it('says no engine is asked, truly, when none of the engines of the choice is on', () => {
+  it('says no platform is asked, truly, when none of the platforms of the choice is on', () => {
     const prompts = show(
       { status: 'unread' },
       { id: 'n', metric: 'ai.prompts_in_scope' },
       { unreadOf: () => 'noEngine' },
     );
     expect(prompts.value).toBe('Not asked');
-    expect(prompts.context).toBe('No engine is asked');
-    expect(prompts.tip).toContain('No engine in the engine filter is on in this project, so nothing is asked');
+    expect(prompts.context).toBe('No platform is asked');
+    expect(prompts.tip).toContain('No platform in the platform filter is on in this project, so nothing is asked');
   });
 
   it('never says a number has no figure unless its metric has no source on the page', () => {

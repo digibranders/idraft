@@ -93,7 +93,7 @@ describe('useCardEngine', () => {
       expect(screen.getByTestId('availability')).toHaveTextContent('outside');
     });
     expect(screen.getByTestId('empty')).toHaveTextContent('Gemini is not asked in this scope');
-    expect(screen.getByTestId('empty')).toHaveTextContent('outside the engine filter');
+    expect(screen.getByTestId('empty')).toHaveTextContent('outside the platform filter');
   });
 
   it('shows an editor a link to the engines of the project', async () => {
@@ -107,7 +107,7 @@ describe('useCardEngine', () => {
     await waitFor(() => {
       expect(screen.getByTestId('availability')).toHaveTextContent('off');
     });
-    expect(screen.getByTestId('empty')).toHaveTextContent('Ask a workspace admin to turn on an engine');
+    expect(screen.getByTestId('empty')).toHaveTextContent('Ask a workspace admin to turn on a platform');
     expect(screen.queryByRole('link', { name: 'Turn on engines' })).not.toBeInTheDocument();
   });
 });

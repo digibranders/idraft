@@ -82,16 +82,16 @@ describe('the share trend', () => {
   it('draws a chart with its title, its meta line and its summary', async () => {
     renderWithProviders(<Trend />);
     await screen.findByTestId('echart-canvas');
-    const chart = screen.getByRole('img', { name: 'Share of citations by engine' });
-    expect(screen.getByRole('heading', { level: 3, name: 'Share of citations by engine' })).toBeInTheDocument();
+    const chart = screen.getByRole('img', { name: 'Share of citations by platform' });
+    expect(screen.getByRole('heading', { level: 3, name: 'Share of citations by platform' })).toBeInTheDocument();
     expect(screen.getByText('Weekly, Oct 16 to Nov 12, 2026')).toBeInTheDocument();
     expect(document.getElementById(chart.getAttribute('aria-describedby') ?? '')).toHaveTextContent(
-      'Weekly share of the citation units on each engine that cite g2.com, 2 weeks, one line for each of 3 engines.',
+      'Weekly share of the citation units on each platform that cite g2.com, 2 weeks, one line for each of 3 platforms.',
     );
-    expect(screen.getByText('A gap is a week with no citation on that engine.')).toBeInTheDocument();
+    expect(screen.getByText('A gap is a week with no citation on that platform.')).toBeInTheDocument();
   });
 
-  it('draws one line for each engine, never one pooled line, with a gap for a week with no unit', async () => {
+  it('draws one line for each platform, never one pooled line, with a gap for a week with no unit', async () => {
     renderWithProviders(<Trend />);
     await screen.findByTestId('echart-canvas');
     const lines = (lastOption().series as { name: string; data: (number | null)[] }[]).filter(
@@ -106,7 +106,7 @@ describe('the share trend', () => {
     const { user } = renderWithProviders(<Trend />);
     await screen.findByTestId('echart-canvas');
     await user.click(screen.getByRole('button', { name: 'Table' }));
-    const table = screen.getByRole('table', { name: 'Share of citations by engine' });
+    const table = screen.getByRole('table', { name: 'Share of citations by platform' });
     expect(
       within(table)
         .getAllByRole('columnheader')
@@ -134,10 +134,10 @@ describe('the share trend', () => {
     expect(tipOf(0, 'Oct 12')).not.toContain('%');
   });
 
-  it('gives the empty state when the engines have no weekly figure', () => {
+  it('gives the empty state when the platforms have no weekly figure', () => {
     renderWithProviders(<Trend data={dataOf([])} />);
     expect(screen.getByText('No weekly figures')).toBeInTheDocument();
-    expect(screen.getByText('The engines have no citation in this window.')).toBeInTheDocument();
+    expect(screen.getByText('The platforms have no citation in this window.')).toBeInTheDocument();
     expect(screen.queryByTestId('echart-canvas')).toBeNull();
   });
 
@@ -156,7 +156,7 @@ describe('the share trend', () => {
 
   it('shows a skeleton while the read has nothing, with the title kept', () => {
     renderWithProviders(<Trend data={null} read={read({ status: 'loading' })} />);
-    expect(screen.getByRole('heading', { level: 3, name: 'Share of citations by engine' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 3, name: 'Share of citations by platform' })).toBeInTheDocument();
     expect(screen.queryByTestId('echart-canvas')).toBeNull();
     expect(screen.getByRole('heading', { level: 3 }).closest('section')).toHaveAttribute('aria-busy', 'true');
   });
@@ -165,7 +165,7 @@ describe('the share trend', () => {
     const { container } = renderWithProviders(<Trend refetching />);
     await screen.findByTestId('echart-canvas');
     expect(container.querySelector('[data-slot="chart-refetch-bar"]')).not.toBeNull();
-    expect(screen.getByRole('img', { name: 'Share of citations by engine' }).closest('section')).toHaveAttribute(
+    expect(screen.getByRole('img', { name: 'Share of citations by platform' }).closest('section')).toHaveAttribute(
       'aria-busy',
       'true',
     );

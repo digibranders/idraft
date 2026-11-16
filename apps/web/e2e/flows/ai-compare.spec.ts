@@ -42,7 +42,7 @@ const sectionOf = (drawer: Locator, name: string): Locator =>
 async function openTopic(page: Page, name: string): Promise<Locator> {
   await topicsGrid(page).getByText(name, { exact: true }).click();
   const drawer = drawerOf(page, name);
-  await expect(drawer.getByRole('tablist', { name: 'Topic sections' })).toBeVisible();
+  await expect(drawer.getByRole('tablist', { name: 'Group sections' })).toBeVisible();
   return drawer;
 }
 
@@ -53,7 +53,7 @@ async function chooseCompare(page: Page, option: string): Promise<void> {
 }
 
 test.describe('Compare with the previous period', () => {
-  test('is on by default, and the strip, the Mention column and the first topic drawer show changes', async ({
+  test('is on by default, and the strip, the Mention column and the first group drawer show changes', async ({
     page,
   }) => {
     await openPrompts(page, 1280);
@@ -70,7 +70,7 @@ test.describe('Compare with the previous period', () => {
     for (const card of ['Mentioned', 'Cited', 'Share of voice']) {
       await expect(valueOf(drawer, card)).toContainText(/\d pts/);
     }
-    expect(await countChanges(drawer.getByRole('list', { name: 'Mention by engine' }))).toBeGreaterThanOrEqual(1);
+    expect(await countChanges(drawer.getByRole('list', { name: 'Mention by platform' }))).toBeGreaterThanOrEqual(1);
   });
 
   test('No comparison writes cmp=off and removes every change', async ({ page }) => {
@@ -88,7 +88,7 @@ test.describe('Compare with the previous period', () => {
     // The drawer and the inspector draw none either
     await page.goto(inspectTopic(SEO, { cmp: 'off' }));
     const drawer = drawerOf(page, 'SEO');
-    await expect(drawer.getByRole('tablist', { name: 'Topic sections' })).toBeVisible();
+    await expect(drawer.getByRole('tablist', { name: 'Group sections' })).toBeVisible();
     await expect(valueOf(drawer, 'Mentioned')).toContainText('avg of');
     expect(await countChanges(drawer)).toBe(0);
 
@@ -99,7 +99,7 @@ test.describe('Compare with the previous period', () => {
     await awaitChanges(page);
   });
 
-  test('Detectable changes only is in the URL, narrows Topics and Prompts, and survives a reload', async ({ page }) => {
+  test('Detectable changes only is in the URL, narrows Prompts, and survives a reload', async ({ page }) => {
     await openPrompts(page, 1280, {}, { detectable: true });
     await awaitChanges(page);
     await expect(topicsGrid(page).getByText('Content Marketing', { exact: true })).toBeVisible();
@@ -174,7 +174,7 @@ test.describe('Compare with the previous period', () => {
     await expect(openTip(page)).toContainText('Previous period: ');
   });
 
-  test('a detectable change is coloured on the Mention column and in the topic drawer, and nothing else is', async ({
+  test('a detectable change is coloured on the Mention column and in the group drawer, and nothing else is', async ({
     page,
   }) => {
     await openPrompts(page, 1280, {}, { detectable: true });
@@ -194,7 +194,7 @@ test.describe('Compare with the previous period', () => {
     await row.getByRole('gridcell').filter({ hasText: 'avg of' }).first().hover();
     await expect(openTip(page)).toContainText('Detectable change');
     await expect(openTip(page)).toContainText('Interim test');
-    await expect(openTip(page)).toContainText('Average of 2 engines that have a rate in both periods');
+    await expect(openTip(page)).toContainText('Average of 2 platforms that have a rate in both periods');
     await page.mouse.move(0, 0);
 
     // The strip's chips are over every prompt: the move of two prompts does not make them detectable
@@ -212,7 +212,7 @@ test.describe('Compare with the previous period', () => {
     // The drawer of Paid Search: the Mentioned card is coloured, the Cited card is not
     await page.goto(inspectTopic(PAID_SEARCH));
     const drawer = drawerOf(page, 'Paid Search');
-    await expect(drawer.getByRole('tablist', { name: 'Topic sections' })).toBeVisible();
+    await expect(drawer.getByRole('tablist', { name: 'Group sections' })).toBeVisible();
     await expect(valueOf(drawer, 'Mentioned')).toContainText(/\d pts/);
     expect(await colouredIn(valueOf(drawer, 'Mentioned'))).toHaveLength(1);
     expect((await colouredIn(valueOf(drawer, 'Mentioned')))[0]?.tone).toBe(POSITIVE);
@@ -227,7 +227,7 @@ test.describe('Compare with the previous period', () => {
     expect(await colouredIn(sectionOf(drawer, 'Top prompts'))).toHaveLength(2);
   });
 
-  test('the prompt inspector strip shows the change per engine', async ({ page }) => {
+  test('the prompt inspector strip shows the change per platform', async ({ page }) => {
     await openPrompts(page, 1280);
     await page.goto(INSPECT_FIRST_PROMPT);
     const inspector = inspectorOf(page);
@@ -245,16 +245,16 @@ test.describe('Compare with the previous period', () => {
     await expect(openTip(page)).toContainText('Within normal variation');
   });
 
-  test('the topic drawer cards and top prompts show a change', async ({ page }) => {
+  test('the group drawer cards and top prompts show a change', async ({ page }) => {
     await openPrompts(page, 1280);
     await page.goto(inspectTopic(SEO));
     const drawer = drawerOf(page, 'SEO');
-    await expect(drawer.getByRole('tablist', { name: 'Topic sections' })).toBeVisible();
+    await expect(drawer.getByRole('tablist', { name: 'Group sections' })).toBeVisible();
     for (const card of ['Mentioned', 'Cited', 'Share of voice']) {
       await expect.poll(async () => (await changesIn(valueOf(drawer, card))).length).toBe(1);
     }
     await valueOf(drawer, 'Mentioned').locator('[tabindex="0"]').first().hover();
-    await expect(openTip(page)).toContainText(/Average of \d engines/);
+    await expect(openTip(page)).toContainText(/Average of \d platforms/);
     await expect(openTip(page)).toContainText(/Previous \d+%/);
     await page.mouse.move(0, 0);
 
@@ -298,7 +298,7 @@ test.describe('Compare with the previous period', () => {
     }
   });
 
-  test('cmp survives the switch between Topics and Prompts and the inspector', async ({ page }) => {
+  test('cmp survives the switch between Prompts and the inspector', async ({ page }) => {
     await openPrompts(page, 1280, { cmp: 'off' });
     await expect(compareSelect(page)).toHaveText('No comparison');
     await page.getByRole('radio', { name: 'Prompts' }).click();
@@ -318,7 +318,7 @@ test.describe('Compare with the previous period', () => {
     expect(await changesIn(inspectorOf(page))).toEqual([]);
   });
 
-  test('the chip survives the switch between Topics and Prompts, the inspector and a reload', async ({ page }) => {
+  test('the chip survives the switch between Prompts, the inspector and a reload', async ({ page }) => {
     await openPrompts(page, 1280, { detectable: 'only' }, { detectable: true });
     await expect(topicsGrid(page).getByText('Paid Search', { exact: true })).toBeVisible();
     await page.getByRole('radio', { name: 'Prompts' }).click();
@@ -352,7 +352,7 @@ for (const theme of ['light', 'dark'] as const) {
     });
 
     for (const width of [1280, 390]) {
-      test(`has no accessibility violation on Topics, Prompts with a change column, the prompt inspector and the topic drawer at ${String(width)} px`, async ({
+      test(`has no accessibility violation on Groups, Prompts with a change column, the prompt inspector and the group drawer at ${String(width)} px`, async ({
         page,
       }) => {
         // The detectable change is drawn, so a coloured change is among what axe measures
@@ -375,7 +375,7 @@ for (const theme of ['light', 'dark'] as const) {
 
         await page.goto(inspectTopic(PAID_SEARCH));
         const drawer = drawerOf(page, 'Paid Search');
-        await expect(drawer.getByRole('tablist', { name: 'Topic sections' })).toBeVisible();
+        await expect(drawer.getByRole('tablist', { name: 'Group sections' })).toBeVisible();
         await expect(valueOf(drawer, 'Mentioned')).toContainText(/\d pts/);
         await expectAccessible(page);
       });

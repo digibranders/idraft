@@ -77,7 +77,7 @@ describe('mapReadToFrame', () => {
     const editor = map({ situation: { kind: 'no_engine' }, read: read({ status: 'idle' }) });
     expect(editor.status).toBe('empty');
     if (editor.status !== 'empty') throw new Error('expected an empty state');
-    expect(editor.empty.title).toBe('No engine is on for this project');
+    expect(editor.empty.title).toBe('No platform is on for this project');
     expect(isValidElement(editor.empty.action)).toBe(true);
     const viewer = map(
       { situation: { kind: 'no_engine' }, read: read({ status: 'idle' }) },
@@ -85,7 +85,7 @@ describe('mapReadToFrame', () => {
     );
     if (viewer.status !== 'empty') throw new Error('expected an empty state');
     expect(viewer.empty.action).toBeUndefined();
-    expect(viewer.empty.reason).toContain('Ask a workspace admin to turn on an engine.');
+    expect(viewer.empty.reason).toContain('Ask a workspace admin to turn on a platform.');
   });
 
   it('is empty with its reason for branded prompts alone', () => {

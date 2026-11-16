@@ -47,10 +47,10 @@ const props = (over: Partial<TopicsMobileListProps> = {}): TopicsMobileListProps
   ...over,
 });
 
-describe('TopicsMobileList: the Topics tab on a phone (WB-TPE-17)', () => {
-  it('renders two line rows: the topic and its mention rate, then the best engine and the engines with a rate', async () => {
+describe('TopicsMobileList: the Groups tab on a phone (WB-TPE-17)', () => {
+  it('renders two line rows: the group and its mention rate, then the best platform and the platforms with a rate', async () => {
     renderWithProviders(<TopicsMobileList {...props()} />);
-    const list = await screen.findByRole('list', { name: /^Topics, 3 results/ });
+    const list = await screen.findByRole('list', { name: /^Groups, 3 results/ });
     const rows = within(list).getAllByRole('button');
     // The children follow their parent, named by their path
     expect(rows.map((row) => row.textContent?.split('Mention rate')[0]?.trim())).toEqual([
@@ -61,41 +61,41 @@ describe('TopicsMobileList: the Topics tab on a phone (WB-TPE-17)', () => {
     const [seo, tech, ads] = rows;
     // The average of the two engines, and the best engine with the answers behind its rate
     expect(seo).toHaveTextContent('56%');
-    expect(seo).toHaveTextContent('Best on Gemini 75% (6 of 8 answers), 2 engines');
+    expect(seo).toHaveTextContent('Best on Gemini 75% (6 of 8 answers), 2 platforms');
     // A rate over too few answers says its answers and never a percent
-    expect(tech).toHaveTextContent('No engine has a rate yet');
+    expect(tech).toHaveTextContent('No platform has a rate yet');
     expect(tech).toHaveTextContent('3 answers');
     expect(tech).not.toHaveTextContent('%');
     // One engine with a rate is said as one engine
-    expect(ads).toHaveTextContent('Best on ChatGPT 10% (1 of 10 answers), 1 engine');
+    expect(ads).toHaveTextContent('Best on ChatGPT 10% (1 of 10 answers), 1 platform');
   });
 
-  it('says the first line is an average over the engines that have a rate', async () => {
+  it('says the first line is an average over the platforms that have a rate', async () => {
     renderWithProviders(<TopicsMobileList {...props()} />);
-    const list = await screen.findByRole('list', { name: /^Topics, 3 results/ });
+    const list = await screen.findByRole('list', { name: /^Groups, 3 results/ });
     const [seo, tech, ads] = within(list).getAllByRole('button');
     // SEO has a rate on 2 engines, Paid Search on 1, Technical SEO on none
     expect(seo).toHaveTextContent('Mention rate, avg of 2');
-    expect(ads).toHaveTextContent('Mention rate, 1 engine');
+    expect(ads).toHaveTextContent('Mention rate, 1 platform');
     expect(tech).not.toHaveTextContent('avg of 0');
-    expect(tech).toHaveTextContent('Mention rate, no engine has a rate');
+    expect(tech).toHaveTextContent('Mention rate, no platform has a rate');
   });
 
-  it('opens the topic drawer on Overview', async () => {
+  it('opens the group drawer on Overview', async () => {
     const onOpenTopic = vi.fn();
     const { user } = renderWithProviders(<TopicsMobileList {...props({ onOpenTopic })} />);
     await user.click(await screen.findByRole('button', { name: /^Paid Search/ }));
     expect(onOpenTopic).toHaveBeenCalledWith('ads');
   });
 
-  it("keeps the topic order for the drawer's Previous and Next", async () => {
+  it("keeps the group order for the drawer's Previous and Next", async () => {
     const onTopicOrderChange = vi.fn();
     renderWithProviders(<TopicsMobileList {...props({ onTopicOrderChange })} />);
     await screen.findByRole('list');
     await waitFor(() => expect(onTopicOrderChange).toHaveBeenLastCalledWith(['seo', 'tech', 'ads']));
   });
 
-  it('marks the open topic', async () => {
+  it('marks the open group', async () => {
     renderWithProviders(<TopicsMobileList {...props({ activeTopicKey: 'ads' })} />);
     expect(await screen.findByRole('button', { name: /^Paid Search/ })).toHaveAttribute('aria-current', 'true');
   });

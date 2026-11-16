@@ -60,12 +60,12 @@ export const BUILTIN_FAMILY = {
 } as const;
 
 /** The headings of the three family cards the built-in layout holds. */
-export const BUILTIN_TITLES = ['What changed', 'Mention rate by engine', 'Named and cited, by engine'] as const;
+export const BUILTIN_TITLES = ['What changed', 'Mention rate by platform', 'Named and cited, by platform'] as const;
 
 /**
  * The other nine cards of the family as the Add card dialog names them: the catalog titles
  * (`src/lib/layouts/catalog.ts`), which `addCard` clicks as `Add <title>`. Two of them differ from the heading the
- * card draws (the funnel says "..., by engine" in its heading), so a card is found by `ADDED_TITLES`, not by these.
+ * card draws (the funnel says "..., by platform" in its heading), so a card is found by `ADDED_TITLES`, not by these.
  */
 export const ADDED_CATALOG_TITLES = [
   'Mention rate trend',
@@ -85,11 +85,11 @@ export const ADDED_TITLES = [
   'Prompt movers',
   'This period vs the last',
   'What moved the rate',
-  'AI by engine',
-  'From answer to citation, by engine',
+  'AI by platform',
+  'From answer to citation, by platform',
   'Answers behind the numbers',
-  'Engine agreement',
-  'By country',
+  'Platform agreement',
+  'By location',
 ] as const;
 
 /** All twelve headings of the family: the layout holds twelve cards at most, so these fill it. */

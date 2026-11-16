@@ -65,7 +65,7 @@ describe('topicsInScope', () => {
     expect(topicsInScope({ topics: [], prompts: [], total }, null)).toBeNull();
   });
 
-  it('equals the topics the Topics and Prompts strip counts on the Eventus Security world', async () => {
+  it('equals the topics the Prompts strip counts on the Eventus Security world', async () => {
     const summary = dataOf(await mockBrowser('viewer').call('GET', SUMMARY_URL), SUMMARY);
     const tree = EVENTUS_WORLD.terms.map((term) => ({
       termId: term.term_id,

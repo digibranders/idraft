@@ -46,7 +46,7 @@ test.describe.configure({ timeout: 120_000 });
 /** "612 of 1,800 answers": a count of what the figure rests on, as the cells of the rate Table views write it. */
 const K_OF_N = /\d[\d,]* of [\d,]+ (?:valid )?(?:answers?|prompts?|citation units?)/;
 /** What What changed may say instead when it has no answer counts to give: engines, domains or days compared. */
-const ANY_COUNT = /\d[\d,]* (?:of [\d,]+ )?(?:answers?|prompts?|engines?|domains?|days?|citation units?)/;
+const ANY_COUNT = /\d[\d,]* (?:of [\d,]+ )?(?:answers?|prompts?|platforms?|domains?|days?|citation units?)/;
 
 /**
  * What each card's Table view must show, by the exact heading of the card. The rate cards write "k of n answers" in
@@ -57,25 +57,25 @@ const ANY_COUNT = /\d[\d,]* (?:of [\d,]+ )?(?:answers?|prompts?|engines?|domains
  */
 const TABLE_WORDS: Record<(typeof FAMILY_TITLES)[number], RegExp> = {
   'What changed': ANY_COUNT,
-  'Mention rate by engine': K_OF_N,
-  'Named and cited, by engine': K_OF_N,
+  'Mention rate by platform': K_OF_N,
+  'Named and cited, by platform': K_OF_N,
   'Mention rate trend': K_OF_N,
   'Prompt movers': K_OF_N,
   'This period vs the last': K_OF_N,
   'What moved the rate': /Largest change/,
-  'AI by engine': /Answers that count/,
-  'From answer to citation, by engine': K_OF_N,
+  'AI by platform': /Answers that count/,
+  'From answer to citation, by platform': K_OF_N,
   'Answers behind the numbers': /Of prompts in scope/,
-  'Engine agreement': /Of compared prompts/,
-  'By country': /Answers/,
+  'Platform agreement': /Of compared prompts/,
+  'By location': /Answers/,
 };
 
-test.describe('the engines cards', () => {
+test.describe('the platforms cards', () => {
   test.beforeEach(async ({ page }) => {
     await signIn(page, EDITOR);
   });
 
-  test('Fynix: the built-in layout shows What changed, Rates by engine over time and Named and cited as real cards', async ({
+  test('Fynix: the built-in layout shows What changed, Rates by platform over time and Named and cited as real cards', async ({
     page,
   }) => {
     await openOverview(page);
@@ -134,7 +134,7 @@ test.describe('the engines cards', () => {
     await saveEnginesLayout(page, ['AI by engine', 'This period vs the last'], { hideOthers: false });
     const trend = cardById(page, BUILTIN_FAMILY.rateTrend);
     const summary = cardById(page, BUILTIN_FAMILY.changeSummary);
-    const byEngine = cardByHeading(page, 'AI by engine');
+    const byEngine = cardByHeading(page, 'AI by platform');
     const comparison = cardByHeading(page, 'This period vs the last');
     const OFF_FACT = 'The comparison with the previous period is off, so nothing is said about change.';
 
@@ -186,11 +186,11 @@ test.describe('the engines cards', () => {
     }
   });
 
-  test('Cleanstart (engines off) shows no cards', async ({ page }) => {
+  test('Cleanstart (platforms off) shows no cards', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 1100 });
     await page.goto(CLEANSTART_PATH);
     await expect(pageHeading(page)).toBeVisible();
-    await expect(page.getByText('No AI engine is on', { exact: true })).toBeVisible();
+    await expect(page.getByText('No AI platform is on', { exact: true })).toBeVisible();
     await expect(cardGrid(page)).toHaveCount(0);
     await expect(page.getByText(NOT_BUILT)).toHaveCount(0);
   });
@@ -215,7 +215,7 @@ test.describe('the engines cards', () => {
     test.describe(`axe, ${theme}`, () => {
       test(`no serious or critical violation at 390, 768, 1024 and 1280 px in ${theme}`, async ({ page }) => {
         test.setTimeout(240_000);
-        const titles = [...BUILTIN_TITLES, 'Prompt movers', 'AI by engine', 'By country'];
+        const titles = [...BUILTIN_TITLES, 'Prompt movers', 'AI by platform', 'By location'];
         await saveEnginesLayout(page, ['Prompt movers', 'AI by engine', 'By country']);
         for (const width of WIDTHS) {
           await test.step(`${theme} at ${String(width)} px`, async () => {

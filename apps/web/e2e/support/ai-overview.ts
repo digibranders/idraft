@@ -161,7 +161,7 @@ export async function numberOf(page: Page, label: string): Promise<NumberCell> {
   return found;
 }
 
-/** The strip of the Prompts page (Topics & Prompts), which the numbers of the Overview must agree with. */
+/** The strip of the Prompts page (Prompts), which the numbers of the Overview must agree with. */
 export const promptsStrip = (page: Page): Locator =>
   page.getByRole('group', { name: 'Summary of the prompts in view' });
 

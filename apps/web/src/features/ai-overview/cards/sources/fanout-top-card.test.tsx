@@ -296,7 +296,7 @@ describe('the fan-out card', () => {
       </PermissionProvider>,
       { searchParams: 'cmp=off' },
     );
-    expect(await screen.findByText('No engine is on for this project')).toBeInTheDocument();
+    expect(await screen.findByText('No platform is on for this project')).toBeInTheDocument();
     expect(screen.queryByText(/0%/)).not.toBeInTheDocument();
     expect(fanoutReads(seen)).toHaveLength(0);
   });
@@ -477,7 +477,7 @@ describe('the fan-out card', () => {
       'Share of answers',
       'Answers that ran it',
       'Prompts',
-      'Engine',
+      'Platform',
       'Own domain cited',
       'Sources cited with it',
     ]);

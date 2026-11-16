@@ -222,7 +222,7 @@ describe('the Prompts tab of the domain inspector', () => {
     server.use(http.get(CITATIONS, () => HttpResponse.json({ title: 'down' }, { status: 500 })));
     renderWithProviders(<Tab />);
     expect(
-      await screen.findByText('The engines of the prompts could not be loaded, so they read n/a.'),
+      await screen.findByText('The platforms of the prompts could not be loaded, so they read n/a.'),
     ).toBeInTheDocument();
     expect(await rowOf(textOf(1))).toBeInTheDocument();
     expect(within(await rowOf(textOf(1))).getByText('n/a')).toBeInTheDocument();

@@ -47,7 +47,7 @@ const SENTENCES: readonly (readonly [fact: Fact, sentence: string])[] = [
   ],
   [
     { id: 'w', kind: 'withinVariation', params: { engines: 1 }, link: null },
-    'Mention rates moved within normal variation on 1 engine.',
+    'Mention rates moved within normal variation on 1 platform.',
   ],
   [
     { id: 'n1', kind: 'noPrevious', params: { reason: 'off', days: 28 }, link: null },
@@ -145,7 +145,7 @@ describe('FactSentence', () => {
     expect(items.map((item) => item.textContent)).toEqual(SENTENCES.map(([, sentence]) => sentence));
   });
 
-  it('links the figure of an engine change through the card drill, to the Prompts page with the engine', async () => {
+  it('links the figure of a platform change through the card drill, to the Prompts page with the platform', async () => {
     render();
     const [, up] = await lines();
     const link = within(up as HTMLElement).getByRole('link');
@@ -171,7 +171,7 @@ describe('HowThisIsWritten', () => {
     await user.click(button);
     const dialog = await screen.findByRole('dialog', { name: 'How this is written' });
     expect(within(dialog).getAllByRole('listitem')).toHaveLength(5);
-    expect(dialog).toHaveTextContent('No sentence names a cause or judges a change, and engines are never pooled.');
+    expect(dialog).toHaveTextContent('No sentence names a cause or judges a change, and platforms are never pooled.');
     expect(dialog).toHaveTextContent('Answers that were not valid come first');
     expect(dialog).toHaveTextContent('A prompt names you when at least one of its valid answers does.');
     await user.keyboard('{Escape}');

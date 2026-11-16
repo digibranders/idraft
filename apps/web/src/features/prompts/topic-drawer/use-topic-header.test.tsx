@@ -86,13 +86,13 @@ describe('useTopicHeader', () => {
     const badges = within(screen.getByTestId('badges'));
     expect(badges.getByText('SEO')).toBeInTheDocument();
     expect(badges.getByText('12 prompts')).toBeInTheDocument();
-    expect(badges.getByText('2 engines, Germany, and Non-branded')).toBeInTheDocument();
+    expect(badges.getByText('2 platforms, Germany, and Non-branded')).toBeInTheDocument();
     expect(
-      badges.getByRole('group', { name: 'Scope of the counts: 2 engines, Germany, and Non-branded' }),
+      badges.getByRole('group', { name: 'Scope of the counts: 2 platforms, Germany, and Non-branded' }),
     ).toBeVisible();
   });
 
-  it('says one engine by name and the branded choice', () => {
+  it('says one platform by name and the branded choice', () => {
     renderDrawerPart(<Probe />, {
       engines: [projectEngine('gemini_web')],
       extras: { tree: TREE, includeBranded: true },
@@ -100,7 +100,7 @@ describe('useTopicHeader', () => {
     expect(screen.getByText('Gemini and Branded included')).toBeInTheDocument();
   });
 
-  it('shows no category badge for a top level topic', () => {
+  it('shows no category badge for a top level group', () => {
     renderDrawerPart(<Probe topicKey="seo" row={topicRow('seo', 'SEO', 3)} />, { extras: { tree: TREE } });
     const badges = within(screen.getByTestId('badges'));
     expect(badges.queryByText('SEO')).not.toBeInTheDocument();
@@ -114,10 +114,10 @@ describe('useTopicHeader', () => {
     const badge = screen.getByText('SEO');
     expect(badge).toHaveFocus();
     // The tooltip's text is the badge's description, in the document whether the tooltip is open or not
-    expect(badge).toHaveAccessibleDescription('Where the topic sits: SEO / Technical SEO');
+    expect(badge).toHaveAccessibleDescription('Where the group sits: SEO / Technical SEO');
   });
 
-  it('Add prompt calls the screen with the topic, and is absent without prompts:write and for No topic', async () => {
+  it('Add prompt calls the screen with the group, and is absent without prompts:write and for No group', async () => {
     const onAddPrompt = vi.fn();
     const first = renderDrawerPart(<Probe />, { extras: { onAddPrompt } });
     await first.user.click(within(screen.getByTestId('actions')).getByRole('button', { name: 'Add prompt' }));
@@ -136,7 +136,7 @@ describe('useTopicHeader', () => {
     expect(screen.queryByRole('button', { name: 'Add prompt' })).not.toBeInTheDocument();
   });
 
-  it('Run now calls the screen with the prompt ids of the topic, and is absent without runs:trigger', async () => {
+  it('Run now calls the screen with the prompt ids of the group, and is absent without runs:trigger', async () => {
     const onRun = vi.fn();
     const { user, unmount } = renderDrawerPart(<Probe />, { extras: { run: { onRun, blockedReason: null } } });
     await user.click(screen.getByRole('button', { name: 'Run now' }));
@@ -167,7 +167,7 @@ describe('useTopicHeader', () => {
     expect(onRun).not.toHaveBeenCalled();
   });
 
-  it('Run now is disabled while the prompts of the topic are not known, and when it holds none', () => {
+  it('Run now is disabled while the prompts of the group are not known, and when it holds none', () => {
     const run = { onRun: vi.fn(), blockedReason: null };
     const { unmount } = renderDrawerPart(<Probe prompts={null} />, { extras: { run } });
     expect(screen.getByRole('button', { name: 'Run now' })).toHaveAttribute('aria-disabled', 'true');
@@ -179,11 +179,11 @@ describe('useTopicHeader', () => {
     renderDrawerPart(<Probe prompts={[]} />, { extras: { run } });
     expect(screen.getByRole('button', { name: 'Run now' })).toHaveAttribute('aria-disabled', 'true');
     expect(screen.getByRole('button', { name: 'Run now' })).toHaveAccessibleDescription(
-      'This topic holds no prompt to run.',
+      'This group holds no prompt to run.',
     );
   });
 
-  it('Run now gives the reason of the screen first, then that the prompts are loading, then that the topic is empty', () => {
+  it('Run now gives the reason of the screen first, then that the prompts are loading, then that the group is empty', () => {
     const blocked = { onRun: vi.fn(), blockedReason: 'A run is already on its way.' };
     const { unmount } = renderDrawerPart(<Probe prompts={null} />, { extras: { run: blocked } });
     expect(screen.getByRole('button', { name: 'Run now' })).toHaveAccessibleDescription('A run is already on its way.');
@@ -202,7 +202,7 @@ describe('useTopicHeader', () => {
     loading.unmount();
     renderDrawerPart(<Probe prompts={[]} />, { extras: { run: free } });
     expect(screen.getByRole('button', { name: 'Run now' })).toHaveAccessibleDescription(
-      'This topic holds no prompt to run.',
+      'This group holds no prompt to run.',
     );
   });
 
@@ -220,7 +220,7 @@ describe('useTopicHeader', () => {
     expect(writes.at(-1)).toBe(`?inspect=topic:${DRAWER_TOPIC_ID}&itab=prompts`);
   });
 
-  it('J and K step to the next and previous topic and stop at the ends', async () => {
+  it('J and K step to the next and previous group and stop at the ends', async () => {
     const writes: string[] = [];
     setTopicOrder(PROJECT_ID, ['a', DRAWER_TOPIC_ID, 'c']);
     const { user, unmount } = renderDrawerPart(<Probe />, {
@@ -241,7 +241,7 @@ describe('useTopicHeader', () => {
     await last.user.click(screen.getByRole('button', { name: 'Key J' }));
     expect(writes).toEqual([]);
     // The shared stepping says so, for a screen reader, instead of doing nothing
-    expect(announce).toHaveBeenLastCalledWith('Last topic in this list', expect.anything());
+    expect(announce).toHaveBeenLastCalledWith('Last group in this list', expect.anything());
     expect(screen.getByRole('button', { name: 'Next topic' })).toBeDisabled();
     last.unmount();
 
@@ -252,17 +252,17 @@ describe('useTopicHeader', () => {
     });
     await first.user.click(screen.getByRole('button', { name: 'Key K' }));
     expect(writes).toEqual([]);
-    expect(announce).toHaveBeenLastCalledWith('First topic in this list', expect.anything());
+    expect(announce).toHaveBeenLastCalledWith('First group in this list', expect.anything());
   });
 
-  it('announces the topic and its place after a step', async () => {
+  it('announces the group and its place after a step', async () => {
     setTopicOrder(PROJECT_ID, ['a', DRAWER_TOPIC_ID, 'c']);
     const { user } = renderDrawerPart(<Probe />, { searchParams: `inspect=topic:${DRAWER_TOPIC_ID}` });
     await user.click(screen.getByRole('button', { name: 'Key J' }));
-    expect(announce).toHaveBeenLastCalledWith('Topic, 3 of 3', expect.anything());
+    expect(announce).toHaveBeenLastCalledWith('Group, 3 of 3', expect.anything());
   });
 
-  it('has no counter or steps when the topic is not in the list', () => {
+  it('has no counter or steps when the group is not in the list', () => {
     setTopicOrder(PROJECT_ID, ['a', 'b']);
     const { unmount } = renderDrawerPart(<Probe />, { searchParams: `inspect=topic:${DRAWER_TOPIC_ID}` });
     expect(screen.getByTestId('position')).toBeEmptyDOMElement();
@@ -277,7 +277,7 @@ describe('useTopicHeader', () => {
     expect(screen.queryByRole('button', { name: 'Previous topic' })).not.toBeInTheDocument();
   });
 
-  it('shows when the topic was last answered', () => {
+  it('shows when the group was last answered', () => {
     const answered = { ...ROW, last_observed_at: new Date(Date.now() - 2 * 3_600_000).toISOString() };
     const { unmount } = renderDrawerPart(<Probe row={answered} />);
     expect(screen.getByTestId('freshness')).toHaveTextContent('Updated 2h ago');

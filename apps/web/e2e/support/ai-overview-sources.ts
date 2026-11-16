@@ -36,16 +36,16 @@ const MAKE_ROOM_FOR_ADDED = [
 
 /** The ten cards added through Add card: the name of the catalog (the dialog's button) and the title the card draws. */
 export const ADDED_CARDS = {
-  ownPages: { catalog: 'Your pages AI engines cite', title: 'Your pages AI engines cite' },
-  roleShare: { catalog: 'Citation share by domain type', title: 'Citation share by source role and engine' },
+  ownPages: { catalog: 'Your pages AI engines cite', title: 'Your pages AI platforms cite' },
+  roleShare: { catalog: 'Citation share by domain type', title: 'Citation share by source role and platform' },
   fanout: { catalog: 'What ChatGPT searched', title: 'What ChatGPT searched' },
   newLost: { catalog: 'New and lost sources', title: 'New and lost sources' },
   diversity: { catalog: 'Source diversity', title: 'Source diversity over time' },
   collection: { catalog: 'Collection status', title: 'Collection status' },
-  engines: { catalog: 'Engines and schedule', title: 'Engines and schedule' },
+  engines: { catalog: 'Engines and schedule', title: 'Platforms and schedule' },
   spend: { catalog: 'AI spend', title: 'AI spend' },
   calendar: { catalog: 'Answers collected', title: 'Answer collection calendar' },
-  status: { catalog: 'Answer status by engine', title: 'Answer status by engine and day' },
+  status: { catalog: 'Answer status by engine', title: 'Answer status by platform and day' },
 } as const;
 export type AddedCard = keyof typeof ADDED_CARDS;
 
@@ -74,7 +74,7 @@ export const tableToggle = (card: Locator): Locator =>
 /** The Ranked and By role choice of the top cited domains card: a radio group named View. */
 export const viewChoice = (card: Locator): Locator => card.getByRole('radiogroup', { name: 'View', exact: true });
 /** The engine toolbar of the collection calendar and status cards: one engine at a time. */
-export const engineTabs = (card: Locator): Locator => card.getByRole('toolbar', { name: 'Engine', exact: true });
+export const engineTabs = (card: Locator): Locator => card.getByRole('toolbar', { name: 'Platform', exact: true });
 
 // -------------------------------------------------------------------------------------------------
 // Opening the page and the layout
@@ -88,7 +88,7 @@ export async function openScreen(page: Page, path: string, width = 1280, search 
 
 /** True once the project's cards are on the page; false when it says that no AI engine is on (an unseeded Eventus). */
 export async function hasAiEngines(page: Page): Promise<boolean> {
-  const none = page.getByText('No AI engine is on', { exact: true });
+  const none = page.getByText('No AI platform is on', { exact: true });
   await none.or(cardGrid(page)).first().waitFor();
   return (await none.count()) === 0;
 }

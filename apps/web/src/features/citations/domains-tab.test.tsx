@@ -515,7 +515,7 @@ describe('DomainsTab', () => {
   it('shows the share by engine under one heading', async () => {
     renderTab();
     const table = await loaded();
-    expect(within(table).getByRole('columnheader', { name: 'Share by engine' })).toBeInTheDocument();
+    expect(within(table).getByRole('columnheader', { name: 'Share by platform' })).toBeInTheDocument();
     expect(within(table).getByRole('columnheader', { name: 'ChatGPT' })).toBeInTheDocument();
     expect(within(table).getByRole('columnheader', { name: 'Gemini' })).toBeInTheDocument();
   });
@@ -648,7 +648,7 @@ describe('DomainsTab', () => {
     serveDomains([], { meta: { ...META, answers: 0, answers_citing: 0, citation_units: 0, by_role: [] } });
     renderTab();
     expect(await screen.findByRole('heading', { name: 'No citations yet' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Open Topics and Prompts' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Open Prompts' })).toHaveAttribute(
       'href',
       '/digibranders/fynix/ai/prompts',
     );

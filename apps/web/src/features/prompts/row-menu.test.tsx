@@ -70,7 +70,7 @@ function promptsAs(role: Role): ReactElement {
 const renderOn = (role: Role, searchParams: string): ProvidedRender =>
   renderWithProviders(promptsAs(role), { searchParams });
 const prompts = (): Promise<HTMLElement> => screen.findByRole('grid', { name: 'Prompts' });
-const topics = (): Promise<HTMLElement> => screen.findByRole('treegrid', { name: 'Topics' });
+const topics = (): Promise<HTMLElement> => screen.findByRole('treegrid', { name: 'Groups' });
 const itemNames = (): string[] => screen.getAllByRole('menuitem').map((item) => item.textContent ?? '');
 
 async function openMenu(user: ProvidedRender['user'], table: HTMLElement, name: string): Promise<void> {
@@ -131,7 +131,7 @@ describe('the row menu of a prompt', () => {
   });
 });
 
-describe('the row menu of a topic', () => {
+describe('the row menu of a group', () => {
   it('has Open, Show in Prompts and Export CSV for a viewer', async () => {
     const { user } = renderOn('viewer', '');
     await openMenu(user, await topics(), 'SEO');
@@ -144,14 +144,14 @@ describe('the row menu of a topic', () => {
     expect(itemNames()).toEqual(['Open', 'Show in Prompts', 'Run now', 'Add prompt', 'Export CSV']);
   });
 
-  it('opens the topic drawer', async () => {
+  it('opens the group drawer', async () => {
     const { user } = renderOn('viewer', '');
     await openMenu(user, await topics(), 'SEO');
     await user.click(screen.getByRole('menuitem', { name: 'Open' }));
     expect(await screen.findByRole('complementary', { name: 'SEO' })).toBeInTheDocument();
   });
 
-  it('shows the topic in the Prompts tab with the topic as the filter, and the other filters kept', async () => {
+  it('shows the group in the Prompts tab with the group as the filter, and the other filters kept', async () => {
     const { user } = renderOn('viewer', '?engine=gemini_web');
     await openMenu(user, await topics(), 'Content Marketing');
     await user.click(screen.getByRole('menuitem', { name: 'Show in Prompts' }));
@@ -159,11 +159,11 @@ describe('the row menu of a topic', () => {
     expect(await within(table).findByText(OTHER_TOPIC)).toBeInTheDocument();
     expect(within(table).queryByText(FIRST)).toBeNull();
     const filters = screen.getByRole('group', { name: 'Filters' });
-    expect(within(filters).getByRole('button', { name: /^Topic: Content Marketing/ })).toBeInTheDocument();
-    expect(within(filters).getByRole('button', { name: /^Engine: / })).toBeInTheDocument();
+    expect(within(filters).getByRole('button', { name: /^Group: Content Marketing/ })).toBeInTheDocument();
+    expect(within(filters).getByRole('button', { name: /^Platform: / })).toBeInTheDocument();
   });
 
-  it('opens Add prompts with the topic already chosen', async () => {
+  it('opens Add prompts with the group already chosen', async () => {
     const { user } = renderOn('editor', '');
     await openMenu(user, await topics(), 'SEO');
     await user.click(screen.getByRole('menuitem', { name: 'Add prompt' }));
@@ -172,7 +172,7 @@ describe('the row menu of a topic', () => {
     expect(await within(dialog).findByText('SEO')).toBeInTheDocument();
   });
 
-  it('asks before it runs the prompts of the topic, and says it is one of the 20 manual runs of the day', async () => {
+  it('asks before it runs the prompts of the group, and says it is one of the 20 manual runs of the day', async () => {
     const { user } = renderOn('editor', '');
     await openMenu(user, await topics(), 'SEO');
     await user.click(screen.getByRole('menuitem', { name: 'Run now' }));

@@ -82,7 +82,7 @@ const OUT = z.object({ termIds: z.array(z.string()), made: z.array(z.string()) }
 const result = (): z.infer<typeof OUT> => OUT.parse(JSON.parse(screen.getByTestId('out').textContent));
 
 describe('useEnsureTopics', () => {
-  it('writes nothing when every topic exists, and answers their ids in order', async () => {
+  it('writes nothing when every group exists, and answers their ids in order', async () => {
     const writes = termWrites();
     const { user } = render([
       { kind: 'existing', termId: MOCK_TERM_IDS.seo },
@@ -123,7 +123,7 @@ describe('useEnsureTopics', () => {
     expect(result().termIds).toHaveLength(2);
   });
 
-  it('uses a topic that was made meanwhile and does not call it made', async () => {
+  it('uses a group that was made meanwhile and does not call it made', async () => {
     const { user } = render([{ kind: 'new', vocabularyId: TOPICS, path: 'Startups' }]);
     await user.click(screen.getByRole('button', { name: /Submit/ }));
     await waitFor(() => expect(result().made).toEqual(['Startups']));
@@ -133,15 +133,15 @@ describe('useEnsureTopics', () => {
     expect(result().termIds).toEqual(first);
   });
 
-  it('says the topic was created and the prompts were not added when the add fails after it', async () => {
+  it('says the group was created and the prompts were not added when the add fails after it', async () => {
     const { user } = render([{ kind: 'new', vocabularyId: TOPICS, path: 'Startups' }], true);
     await user.click(screen.getByRole('button', { name: /Submit/ }));
     await waitFor(() =>
-      expect(screen.getByTestId('out')).toHaveTextContent('Topic “Startups” was created. The prompts were not added.'),
+      expect(screen.getByTestId('out')).toHaveTextContent('Group “Startups” was created. The prompts were not added.'),
     );
   });
 
-  it('names several topics in one sentence', async () => {
+  it('names several groups in one sentence', async () => {
     const { user } = render(
       [
         { kind: 'new', vocabularyId: TOPICS, path: 'Startups' },
@@ -152,7 +152,7 @@ describe('useEnsureTopics', () => {
     await user.click(screen.getByRole('button', { name: /Submit/ }));
     await waitFor(() =>
       expect(screen.getByTestId('out')).toHaveTextContent(
-        'Topics “Startups” and “CRM / Agencies” were created. The prompts were not added.',
+        'Groups “Startups” and “CRM / Agencies” were created. The prompts were not added.',
       ),
     );
   });
@@ -193,7 +193,7 @@ function vocabularyAndTermWrites(): { what: 'vocabularies' | 'terms'; body: unkn
   return writes;
 }
 
-describe('useEnsureTopics where the project has no topic vocabulary', () => {
+describe('useEnsureTopics where the project has no group vocabulary', () => {
   it('makes the project vocabulary first and then the terms in it, and answers the new leaf id', async () => {
     const writes = vocabularyAndTermWrites();
     const { user } = render([{ kind: 'new', vocabularyId: null, path: 'CRM / Startups' }]);
@@ -211,7 +211,7 @@ describe('useEnsureTopics where the project has no topic vocabulary', () => {
     expect(result().termIds).toHaveLength(1);
   });
 
-  it('makes the vocabulary once for several topics and the terms in one request', async () => {
+  it('makes the vocabulary once for several groups and the terms in one request', async () => {
     const writes = vocabularyAndTermWrites();
     const { user } = render([
       { kind: 'new', vocabularyId: null, path: 'Startups' },
@@ -224,7 +224,7 @@ describe('useEnsureTopics where the project has no topic vocabulary', () => {
     expect(result().termIds).toHaveLength(2);
   });
 
-  it('uses the vocabulary that exists when the create answers 409 duplicate, and does not call its topics made', async () => {
+  it('uses the vocabulary that exists when the create answers 409 duplicate, and does not call its groups made', async () => {
     const writes = vocabularyAndTermWrites();
     const { user } = render([{ kind: 'new', vocabularyId: null, path: 'Startups' }]);
     await user.click(screen.getByRole('button', { name: /Submit/ }));
@@ -237,11 +237,11 @@ describe('useEnsureTopics where the project has no topic vocabulary', () => {
     expect(writes.map((write) => write.what)).toEqual(['vocabularies', 'terms', 'vocabularies', 'terms']);
   });
 
-  it('says the topic was created when the add fails after the vocabulary and the topic were made', async () => {
+  it('says the group was created when the add fails after the vocabulary and the group were made', async () => {
     const { user } = render([{ kind: 'new', vocabularyId: null, path: 'Startups' }], true);
     await user.click(screen.getByRole('button', { name: /Submit/ }));
     await waitFor(() =>
-      expect(screen.getByTestId('out')).toHaveTextContent('Topic “Startups” was created. The prompts were not added.'),
+      expect(screen.getByTestId('out')).toHaveTextContent('Group “Startups” was created. The prompts were not added.'),
     );
   });
 
@@ -284,8 +284,8 @@ describe('useEnsureTopics where the project has no topic vocabulary', () => {
   });
 });
 
-describe('the topic picker and the submit', () => {
-  it('holds a typed topic in the form and writes nothing until the form submits', async () => {
+describe('the group picker and the submit', () => {
+  it('holds a typed group in the form and writes nothing until the form submits', async () => {
     const writes = termWrites();
     function Form(): ReactElement {
       const [value, setValue] = useState<readonly TopicSelection[]>([]);
@@ -308,7 +308,7 @@ describe('the topic picker and the submit', () => {
     await waitFor(() => expect(input).toBeEnabled());
     await user.click(input);
     await user.keyboard('Startups');
-    await user.click(await screen.findByRole('option', { name: 'Create topic “Startups”' }));
+    await user.click(await screen.findByRole('option', { name: 'Create group “Startups”' }));
     expect(writes).toEqual([]);
     // The list stays open after a pick; Escape closes it, as a person does before pressing Save
     await user.keyboard('{Escape}');

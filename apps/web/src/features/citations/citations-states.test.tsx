@@ -35,33 +35,27 @@ const filtered = (onClear = vi.fn()): ReactElement => (
 );
 
 describe('the states of the Domains and Pages tabs and of the screen', () => {
-  it('no engine on says so with a link to Engines', () => {
+  it('no platform on says so with a link to Platforms', () => {
     renderWithProviders(<NoEngine workspaceSlug="ws" projectSlug="proj" />);
-    expect(screen.getByRole('heading', { name: 'No engine is on' })).toBeInTheDocument();
-    expect(screen.getByText('Citations come from the answers of the engines you turn on.')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'No platform is on' })).toBeInTheDocument();
+    expect(screen.getByText('Citations come from the answers of the platforms you turn on.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Open Engines' })).toHaveAttribute('href', '/ws/proj/settings/engines');
   });
 
-  it('no answers says when they come with a link to Topics and Prompts', () => {
+  it('no answers says when they come with a link to Prompts', () => {
     renderWithProviders(<NoAnswers workspaceSlug="ws" projectSlug="proj" />);
     expect(screen.getByRole('heading', { name: 'No citations yet' })).toBeInTheDocument();
     expect(
       screen.getByText('Each prompt is asked twice a week. Citations appear after the first answers.'),
     ).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Open Topics and Prompts' })).toHaveAttribute(
-      'href',
-      '/ws/proj/ai/prompts',
-    );
+    expect(screen.getByRole('link', { name: 'Open Prompts' })).toHaveAttribute('href', '/ws/proj/ai/prompts');
   });
 
   it('answers without a citing one says how many were read', () => {
     renderWithProviders(<NoCiting answers={12} workspaceSlug="ws" projectSlug="proj" />);
     expect(screen.getByRole('heading', { name: 'The answers cite no source' })).toBeInTheDocument();
     expect(screen.getByText('12 answers were read in this window and none names a source.')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Open Topics and Prompts' })).toHaveAttribute(
-      'href',
-      '/ws/proj/ai/prompts',
-    );
+    expect(screen.getByRole('link', { name: 'Open Prompts' })).toHaveAttribute('href', '/ws/proj/ai/prompts');
   });
 
   it('says one answer in the singular', () => {
@@ -99,7 +93,7 @@ describe('the states of the Domains and Pages tabs and of the screen', () => {
   });
 
   it.each([
-    ['no engine', <NoEngine key="e" workspaceSlug="ws" projectSlug="proj" />],
+    ['no platform', <NoEngine key="e" workspaceSlug="ws" projectSlug="proj" />],
     ['no answers', <NoAnswers key="a" workspaceSlug="ws" projectSlug="proj" />],
     ['no citing answer', <NoCiting key="c" answers={3} workspaceSlug="ws" projectSlug="proj" />],
     ['filtered to nothing', filtered()],
@@ -111,7 +105,7 @@ describe('the states of the Domains and Pages tabs and of the screen', () => {
 
   // Found by role and by words, not by the type utilities that draw them
   it.each([
-    ['no engine', <NoEngine key="e" workspaceSlug="ws" projectSlug="proj" />, /engines you turn on/],
+    ['no platform', <NoEngine key="e" workspaceSlug="ws" projectSlug="proj" />, /platforms you turn on/],
     ['no answers', <NoAnswers key="a" workspaceSlug="ws" projectSlug="proj" />, /asked twice a week/],
     ['no citing answer', <NoCiting key="c" answers={3} workspaceSlug="ws" projectSlug="proj" />, /read in this window/],
     ['filtered to nothing', filtered(), /clear a filter/],

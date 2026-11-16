@@ -38,7 +38,7 @@ const summaryWith = (engines: readonly EngineSummary[], last: string | null = nu
   summaryOf([{ ...topicRow(DRAWER_TOPIC_ID, 'Technical SEO', 4, engines), last_valid_at: last }]);
 
 /** The engine rows, whatever the metric the list is named by. */
-const rows = (): HTMLElement[] => within(screen.getByRole('list', { name: / by engine$/ })).getAllByRole('listitem');
+const rows = (): HTMLElement[] => within(screen.getByRole('list', { name: / by platform$/ })).getAllByRole('listitem');
 const labelsOf = (): (string | null)[] =>
   rows().map((row) => row.querySelector('[data-slot="bar-list-label"]')?.textContent ?? null);
 
@@ -60,7 +60,7 @@ describe('EnginePanel: the By engine section of the drawer', () => {
     expect(first).toHaveTextContent('3 of 8 answers, 4 prompts');
     expect(second).toHaveTextContent('25%');
     expect(second).toHaveTextContent('2 of 8 answers, 4 prompts');
-    expect(screen.getByRole('heading', { name: 'By engine' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'By platform' })).toBeInTheDocument();
   });
 
   it('shows the weighted note', () => {
@@ -81,13 +81,13 @@ describe('EnginePanel: the By engine section of the drawer', () => {
   it('the metric control switches Mention, Citation and Share of voice and writes ?metric', async () => {
     const writes: string[] = [];
     const { user } = render([chatgpt(), gemini()], '', { onUrlUpdate: ({ queryString }) => writes.push(queryString) });
-    expect(screen.getByRole('combobox', { name: 'Metric of the engine panel' })).toHaveTextContent('Mention');
-    await user.click(screen.getByRole('combobox', { name: 'Metric of the engine panel' }));
+    expect(screen.getByRole('combobox', { name: 'Metric of the platform panel' })).toHaveTextContent('Mention');
+    await user.click(screen.getByRole('combobox', { name: 'Metric of the platform panel' }));
     await user.click(await screen.findByRole('option', { name: 'Citation' }));
     expect(new URLSearchParams(writes.at(-1)).get('metric')).toBe('citation');
     // The rows follow the address: Gemini's 4 of 8 citations
-    expect(await screen.findByRole('list', { name: 'Citation by engine' })).toBeInTheDocument();
-    await user.click(screen.getByRole('combobox', { name: 'Metric of the engine panel' }));
+    expect(await screen.findByRole('list', { name: 'Citation by platform' })).toBeInTheDocument();
+    await user.click(screen.getByRole('combobox', { name: 'Metric of the platform panel' }));
     await user.click(await screen.findByRole('option', { name: 'Share of voice' }));
     expect(new URLSearchParams(writes.at(-1)).get('metric')).toBe('sov');
   });
@@ -155,7 +155,10 @@ describe('EnginePanel: the By engine section of the drawer', () => {
   it('loading is a skeleton, a failed read has Retry, an unknown topic says so', async () => {
     const retry = vi.fn();
     const loading = renderDrawerPart(<EnginePanel />, { counts: { ...READY_COUNTS, status: 'loading' } });
-    expect(screen.getByRole('heading', { name: 'By engine' }).closest('section')).toHaveAttribute('aria-busy', 'true');
+    expect(screen.getByRole('heading', { name: 'By platform' }).closest('section')).toHaveAttribute(
+      'aria-busy',
+      'true',
+    );
     expect(screen.queryByRole('list', { name: 'Mention by engine' })).toBeNull();
     loading.unmount();
 
@@ -165,7 +168,7 @@ describe('EnginePanel: the By engine section of the drawer', () => {
     failed.unmount();
 
     renderDrawerPart(<EnginePanel />, { summary: summaryOf([]) });
-    expect(screen.getByText('The topic could not be loaded.')).toBeInTheDocument();
+    expect(screen.getByText('The group could not be loaded.')).toBeInTheDocument();
     expect(screen.queryByRole('list', { name: 'Mention by engine' })).toBeNull();
   });
 
@@ -173,7 +176,7 @@ describe('EnginePanel: the By engine section of the drawer', () => {
     // The page keeps the previous summary while the next is read: the counts say loading, the rows stay
     render([chatgpt(), gemini()], '', { counts: { ...READY_COUNTS, status: 'loading' } });
     expect(labelsOf()).toEqual(['ChatGPT', 'Gemini']);
-    expect(screen.getByRole('heading', { name: 'By engine' }).closest('section')).not.toHaveAttribute('aria-busy');
+    expect(screen.getByRole('heading', { name: 'By platform' }).closest('section')).not.toHaveAttribute('aria-busy');
   });
 
   it('says when the topic has had no valid answer for a week', () => {
