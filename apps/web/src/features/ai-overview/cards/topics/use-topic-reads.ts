@@ -6,8 +6,9 @@ import { buildAggregates } from '../../data/aggregates';
 import { askedEngines, type SummaryOptions } from '../../data/overview-queries';
 import type { Read } from '../../data/read-state';
 import { promptRowsRead } from '../../data/topics-in-scope';
-import type { SummaryReadOptions } from '../../data/use-overview-reads';
+import { useOverviewSummary as readSummary, type SummaryReadOptions } from '../../data/use-overview-reads';
 import { useOverview, useOverviewPeriods, useOverviewSummary } from '../../overview-context';
+import type { OverviewScope } from '../../scope/scope-model';
 import type { EngineInfo, Phase, TopicData, TopicNode } from './model-types';
 import { buildTopicNodes, topicDescendants, topicsBelow } from './topic-nodes';
 import type { PromptsSummary, PromptSummaryRow } from '@/lib/api/types';
@@ -58,8 +59,13 @@ const NO_PROMPTS: readonly PromptSummaryRow[] = [];
 const promptsOf = (summary: PromptsSummary | null | undefined): readonly PromptSummaryRow[] =>
   summary !== null && summary !== undefined && promptRowsRead(summary) ? summary.prompts : NO_PROMPTS;
 
-function useTopicData({ current, previous, paired, settled, subscribed }: Reads): TopicData {
-  const { workspaceId, project, scope, enabledEngines, engines: engineRead } = useOverview();
+function useTopicData(
+  { current, previous, paired, settled, subscribed }: Reads,
+  scopeOf?: (page: OverviewScope) => OverviewScope,
+): TopicData {
+  const { workspaceId, project, scope: pageScope, enabledEngines, engines: engineRead } = useOverview();
+  // The groups cards read every group on every platform whatever the page's Group and Platform say
+  const scope = useMemo(() => (scopeOf === undefined ? pageScope : scopeOf(pageScope)), [scopeOf, pageScope]);
   const vocabularies = useVocabularies({ workspaceId, projectId: project.id });
   const tree = useMemo(
     () => vocabularies.loaded.filter((entry) => entry.vocabulary.kind === 'topic').flatMap((entry) => entry.terms),
@@ -169,6 +175,27 @@ export function useTopicSummary(options?: SummaryReadOptions): TopicData {
     settled: !waiting(current),
     subscribed: options?.subscribed ?? true,
   });
+}
+
+/** The page's scope with every platform and every group: what the groups heat map and extremes are read over. */
+const ALL_GROUPS_SCOPE = (page: OverviewScope): OverviewScope => ({ ...page, engines: null, topic: null });
+
+/**
+ * The topic data of every group on every platform, whatever the page's Group and Platform select say (the heat map
+ * has a column for each platform, the group against all groups needs the groups and the platforms both). At the
+ * default scope this is the strip's own read, so it adds no request. `subscribed` is the `live` of the card.
+ */
+export function useAllGroupsSummary(options?: SummaryReadOptions): TopicData {
+  const { workspaceId, project, scope, enabledEngines } = useOverview();
+  const input = useMemo(
+    () => ({ project: { workspaceId, projectId: project.id }, scope: ALL_GROUPS_SCOPE(scope), enabledEngines }),
+    [workspaceId, project.id, scope, enabledEngines],
+  );
+  const current = readSummary(input, options);
+  return useTopicData(
+    { current, previous: null, paired: true, settled: !waiting(current), subscribed: options?.subscribed ?? true },
+    ALL_GROUPS_SCOPE,
+  );
 }
 
 /**

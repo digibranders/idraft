@@ -6014,6 +6014,112 @@
         "engineOutFiltered": "The platform filter leaves out {engine}.",
         "engineOutOff": "{engine} is not on in this project.",
         "engineOutAdmin": "{engine} is not on in this project. Ask a workspace admin to turn it on."
+      },
+      "groups": {
+        "heatmap": {
+          "title": "Groups by platform",
+          "meta": "{measure}",
+          "summary": "{measure} of {groups, plural, one {# group} other {# groups}} on {platforms}. Choose a cell to open the group on that platform.",
+          "metricLabel": "Metric",
+          "notCollected": "{group} on {platform}: not collected yet",
+          "footnoteNotCollected": "{platform} is not collected yet: its column says n/a and it is not in the average.",
+          "outsideGroups": "{count, plural, one {# prompt is} other {# prompts are}} in no group listed here."
+        },
+        "measure": {
+          "visibility": "AI visibility rate",
+          "mention": "Mention rate",
+          "citation": "Citation rate",
+          "sov": "Share of voice"
+        },
+        "tab": {
+          "visibility": "Visibility",
+          "mention": "Mention",
+          "citation": "Citation",
+          "sov": "Share of voice"
+        },
+        "extremes": {
+          "title": "Top and bottom groups",
+          "meta": "{measure}",
+          "strongest": "Strongest",
+          "weakest": "Weakest",
+          "notEnoughTitle": "Not enough groups",
+          "notEnoughReason": "At least 4 groups with a rate are needed.",
+          "summary": "The strongest and weakest groups by {measure}, each ranked by its average over the platforms.",
+          "listCaption": "{side} groups by {measure}",
+          "tableCaption": "Strongest and weakest groups",
+          "tableGroup": "Group",
+          "tableSide": "Side",
+          "tableValue": "Average rate",
+          "context": "{count, plural, one {# prompt} other {# prompts}}",
+          "ranking": "Groups are ranked by the equal weight average of the platforms that show a rate, and only from {min, number} groups with a rate.",
+          "tip": "{group}: {percent}, equal weight average of {platforms}"
+        },
+        "versus": {
+          "title": "{group} vs all groups",
+          "meta": "{measure}",
+          "summary": "{group} against all groups by {measure}, on each platform and on average.",
+          "listLabel": "{group} against all groups",
+          "average": "Average",
+          "valueNone": "n/a",
+          "against": "All groups {rate}",
+          "againstGap": "All groups {rate} ({gap})",
+          "againstNone": "All groups: no rate",
+          "tooFew": "Too few answers",
+          "notCollected": "Not collected yet",
+          "tip": "{label}: {value}. {against}.",
+          "tipValue": "{rate}, {counts}",
+          "tipNone": "too few valid answers (fewer than 4)",
+          "tipNotCollected": "{label}: not collected yet.",
+          "averageCounts": "average of {count, plural, one {# platform} other {# platforms}}",
+          "ownAnswers": "{successes, number} of {answers, plural, one {# answer} other {# answers}}",
+          "ownAnswersOnly": "{answers, plural, one {# answer} other {# answers}}",
+          "tableCaption": "{group} against all groups",
+          "failed": "All groups could not be read.",
+          "tableThis": "This group",
+          "tableAll": "All groups",
+          "tablePlatform": "Platform"
+        },
+        "prompts": {
+          "title": "Prompts in {group}",
+          "metaAll": "{count, plural, one {# prompt} other {# prompts}} with a rate, by mention rate",
+          "metaPlatform": "{count, plural, one {# prompt} other {# prompts}} with a rate on {platform}, by mention rate",
+          "summary": "The prompts of {group} with a rate, and how the group compares with all groups.",
+          "back": "All groups",
+          "backLabel": "Back to all groups",
+          "viewAll": "View all {count, plural, one {# prompt} other {# prompts}}",
+          "prompt": "Prompt",
+          "visibility": "Visibility",
+          "mention": "Mention",
+          "citation": "Citation",
+          "answers": "Answers",
+          "tableCaption": "Prompts in {group}",
+          "emptyTitle": "No prompt has a rate yet",
+          "emptyReason": "No prompt in this group has 4 valid answers in this window.",
+          "emptyReasonPlatform": "No prompt in this group has 4 valid answers on {platform} in this window.",
+          "footnote": "Each rate is the equal weight average of the platforms in scope that show a rate for the prompt. Answers are the valid answers behind it.",
+          "listed": "Prompts with fewer than 4 valid answers are not listed.",
+          "tipSingle": "{percent}, {successes, number} of {answers, plural, one {# answer} other {# answers}}",
+          "tipAverage": "{percent}, average of {platforms, plural, one {# platform} other {# platforms}} over {answers, plural, one {# answer} other {# answers}}",
+          "tipAnswers": "{percent}, {answers, plural, one {# answer} other {# answers}}"
+        },
+        "info": {
+          "heatmap": {
+            "what": "How each group of prompts performs on each platform.",
+            "how": "Pick a measure; each cell is that rate for the group's prompts on that platform. A prompt can be in more than one group, so the groups may add up to more than the total. A hatched cell has fewer than 4 valid answers and shows no rate. Click a cell to open the group."
+          },
+          "prompts": {
+            "what": "The prompts of this group and how your brand does on each.",
+            "how": "Rates are averaged over the platforms in scope. Prompts with fewer than 4 valid answers are not listed."
+          },
+          "extremes": {
+            "what": "The groups where your brand does best and worst.",
+            "how": "Groups are ranked by the chosen measure, averaged over the platforms, with each group's prompt count. It needs at least 4 groups with a rate."
+          },
+          "versus": {
+            "what": "How the chosen group compares with all groups, on each platform.",
+            "how": "The bar is the group's rate for the chosen measure. The note beside it is the rate for all groups and the gap in points. A platform with fewer than 4 valid answers in the group shows no rate."
+          }
+        }
       }
     },
     "activity": {
