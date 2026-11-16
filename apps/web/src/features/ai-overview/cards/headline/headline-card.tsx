@@ -75,6 +75,8 @@ interface TileModel {
 
 interface Model {
   hero: Hero;
+  /** The weekly visibility, 8 weeks at most; `null` with fewer than two points. */
+  heroSpark: (number | null)[] | null;
   baselineHero: Reading | null;
   tiles: Readonly<Record<CellTile, TileModel>>;
   facts: Readonly<Record<FactTile, Reading>>;
@@ -132,6 +134,7 @@ export default function HeadlineCard({ item, live }: CardProps): ReactElement {
     });
     return {
       hero: buildHero(summary.prompts, platforms, promptCount),
+      heroSpark: sparkOf(summary, platforms, 'visibility'),
       baselineHero: baselinePrompts === undefined ? null : buildHero(baselinePrompts, platforms, null).reading,
       tiles: { mention: tileOf('mention'), sov: tileOf('sov'), citation: tileOf('citation') },
       facts: {
@@ -281,20 +284,31 @@ export default function HeadlineCard({ item, live }: CardProps): ReactElement {
           <h2 className="type-section-title">{t('hero')}</h2>
           <CardInfoButton title={t('hero')} info={infoOf('hero')} />
         </div>
-        <div className="min-w-0">
-          {heroTip === '' ? (
-            <span className="num type-metric text-foreground-tertiary">{heroFace.value}</span>
-          ) : (
-            <Tooltip content={heroTip}>
-              <span
-                {...TAB_STOP}
-                className={cn('num type-metric', heroFace.known ? 'text-foreground' : 'text-foreground-tertiary')}
-              >
-                {heroFace.value}
-              </span>
-            </Tooltip>
+        <div className="flex items-center justify-between gap-4">
+          <div className="min-w-0">
+            {heroTip === '' ? (
+              <span className="num type-metric text-foreground-tertiary">{heroFace.value}</span>
+            ) : (
+              <Tooltip content={heroTip}>
+                <span
+                  {...TAB_STOP}
+                  className={cn('num type-metric', heroFace.known ? 'text-foreground' : 'text-foreground-tertiary')}
+                >
+                  {heroFace.value}
+                </span>
+              </Tooltip>
+            )}
+            <span className="block min-h-4 num type-micro text-foreground-tertiary">{projectValue}</span>
+          </div>
+          {model.heroSpark === null || !heroFace.known ? null : (
+            <div className="w-28 shrink-0">
+              <Sparkline
+                points={model.heroSpark}
+                height={32}
+                label={t('spark', { name: t('hero'), count: model.heroSpark.length, value: heroFace.value })}
+              />
+            </div>
           )}
-          <span className="block min-h-4 num type-micro text-foreground-tertiary">{projectValue}</span>
         </div>
         {hero.split === null ? (
           <span className="inline-flex h-6 w-fit items-center rounded-xs bg-insufficient px-1.5 type-label whitespace-nowrap text-foreground-tertiary">

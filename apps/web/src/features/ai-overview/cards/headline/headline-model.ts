@@ -1,5 +1,5 @@
 import { OUTCOME_PARTS, outcomeFigures, type OutcomePart } from '../engines/outcome-model';
-import { projectWeeks, type TrendMetric } from '../engines/trend-model';
+import { projectWeeks, type WeekMetric } from '../engines/trend-model';
 import type { EngineCode, PromptsSummary, PromptSummaryRow, Run } from '@/lib/api/types';
 import { formatIsoDate } from '@/lib/format';
 import {
@@ -239,20 +239,25 @@ export const FLOOR_OF: Readonly<Record<CountNoun, number>> = {
 };
 
 const SPARK_WEEKS = 8;
-const TREND_OF = { mention: 'mention', sov: 'share_of_voice', citation: 'citation' } as const satisfies Record<
-  CellTile,
-  TrendMetric
->;
+/** The tiles and the hero (`visibility`) that draw a weekly line. */
+export type SparkTile = CellTile | 'visibility';
+const TREND_OF = {
+  visibility: 'visibility',
+  mention: 'mention',
+  sov: 'share_of_voice',
+  citation: 'citation',
+} as const satisfies Record<SparkTile, WeekMetric>;
 
 /**
- * The last eight weekly points of a tile, a gap as `null`: a week of one platform that has a rate (a point under the
- * floor has none), or for All platforms the equal-weight average of the platforms that have one that week. Fewer than
- * two points is no line, so `null`.
+ * The last eight weekly points of a tile or the hero, a gap as `null`: a week of one platform that has a rate (a
+ * point under the floor has none), or for All platforms the equal-weight average of the platforms that have one that
+ * week. Fewer than two points is no line, so `null`: with no weekly visibility from the API (backend request 1) the
+ * hero has none, and nothing is made up.
  */
 export function sparkOf(
   summary: PromptsSummary,
   { asked, single }: Platforms,
-  tile: CellTile,
+  tile: SparkTile,
 ): (number | null)[] | null {
   const metric = TREND_OF[tile];
   const range = summary.window;
