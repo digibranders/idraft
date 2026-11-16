@@ -79,7 +79,7 @@ test.describe('the competitor cards', () => {
     await expect(tableButton(card)).toHaveAttribute('aria-pressed', 'true');
     const table = card.getByRole('table');
     for (const name of ['Brand', 'Share of voice']) {
-      await expect(table.getByRole('columnheader', { name })).toBeVisible();
+      await expect(table.getByRole('columnheader', { name, exact: true })).toBeVisible();
     }
     expect(await table.getByRole('row').count()).toBeGreaterThan(2);
     await tableButton(card).click();

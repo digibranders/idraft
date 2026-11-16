@@ -107,10 +107,10 @@ test.describe('the groups cards', () => {
       );
     });
 
-    await test.step('AI Overview says it is not collected yet and is never a rate', async () => {
-      const overview = heatCell(card, THIN_TOPIC, 'AI Overview');
+    await test.step('Google AI Overview says it is not collected yet and is never a rate', async () => {
+      const overview = heatCell(card, THIN_TOPIC, 'Google AI Overview');
       await expect(overview).toHaveText('n/a');
-      await expect(overview).toHaveAttribute('aria-label', `${THIN_TOPIC} on AI Overview: not collected yet`);
+      await expect(overview).toHaveAttribute('aria-label', `${THIN_TOPIC} on Google AI Overview: not collected yet`);
       await expect(overview.getByRole('link')).toHaveCount(0);
     });
 
@@ -170,7 +170,7 @@ test.describe('the groups cards', () => {
       await awaitCardReady(extremes);
       await expect(extremes.getByRole('heading', { level: 2, name: `${THIN_TOPIC} vs all groups` })).toBeVisible();
       await expect(extremes.getByRole('listitem')).toHaveCount(4);
-      await expect(extremes).toContainText('AI Overview');
+      await expect(extremes).toContainText('Google AI Overview');
       await expect(extremes).toContainText('Not collected yet');
     });
 

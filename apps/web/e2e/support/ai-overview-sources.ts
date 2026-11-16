@@ -20,19 +20,28 @@ export const FYNIX_PATH = '/digibranders/fynix/ai';
 export const EVENTUS_PATH = '/digibranders/eventus-security/ai';
 export const POLITE = '#live-region-polite';
 
-/** The built-in layout of the screen holds these two source and activity cards; the others are real once added. */
-export const BUILTIN_IDS = { topDomains: 'top-domains', keyChanges: 'key-changes' } as const;
+/** The built-in layout of the screen holds the top cited domains card; Key changes is real once added. */
+export const BUILTIN_IDS = { topDomains: 'top-domains' } as const;
 
-/** The cards the layout leaves out to make room: a layout holds 12 cards at most and the built-in one holds 9. */
+/**
+ * The cards of the built-in layout that Customize hides to make room: a layout holds 12 cards at most and the built-in
+ * one holds 11. Only the top cited domains card stays, so Key changes and the ten others fit beside it.
+ */
 const MAKE_ROOM_FOR_ADDED = [
-  'change-summary',
+  'visibility-split',
   'rate-trend',
   'outcome-mix',
+  'share-of-voice',
+  'lost-to-competitor',
   'topic-heatmap',
-  'share-of-voice-chatgpt',
-  'competitor-trend-chatgpt',
-  'opportunities',
+  'position-distribution',
+  'sentiment-by-engine',
+  'ai-referrals',
+  'fanout-top',
 ] as const;
+
+/** The catalog name of the Key changes card, which the built-in layout no longer holds. */
+const KEY_CHANGES_CATALOG = 'Key changes';
 
 /** The ten cards added through Add card: the name of the catalog (the dialog's button) and the title the card draws. */
 export const ADDED_CARDS = {
@@ -44,7 +53,7 @@ export const ADDED_CARDS = {
   collection: { catalog: 'Collection status', title: 'Collection status' },
   engines: { catalog: 'Platforms and schedule', title: 'Platforms and schedule' },
   spend: { catalog: 'AI spend', title: 'AI spend' },
-  calendar: { catalog: 'Answers collected', title: 'Answer collection calendar' },
+  calendar: { catalog: 'Run calendar', title: 'Run calendar' },
   status: { catalog: 'Answer status by platform', title: 'Answer status by platform and day' },
 } as const;
 export type AddedCard = keyof typeof ADDED_CARDS;
@@ -112,25 +121,26 @@ export async function addCatalogCard(page: Page, catalog: string): Promise<void>
   await expect(dialog).toHaveCount(0);
 }
 
-/** In Customize mode, hides the seven cards of the built-in layout that this package does not need (room for ten). */
+/** In Customize mode, hides the ten cards of the built-in layout that this package does not need (room for eleven). */
 export async function makeRoom(page: Page): Promise<void> {
   for (const id of MAKE_ROOM_FOR_ADDED) await hideCard(page, id);
 }
 
-/** In Customize mode, adds the ten cards of this package one after the other. */
-export async function addTenCards(page: Page): Promise<void> {
+/** In Customize mode, adds Key changes and the ten cards of this package one after the other. */
+export async function addPackageCards(page: Page): Promise<void> {
+  await addCatalogCard(page, KEY_CHANGES_CATALOG);
   for (const card of Object.values(ADDED_CARDS)) await addCatalogCard(page, card.catalog);
 }
 
 /**
- * Starts from the built-in layout (the top cited domains and key changes cards among its nine), hides the seven
- * others, adds the ten cards of this package and saves: twelve cards, the most a layout holds. Customize mode needs a
- * window of tablet width or more.
+ * Starts from the built-in layout (the top cited domains card among its eleven), hides the ten others, adds Key changes
+ * and the ten cards of this package and saves: twelve cards, the most a layout holds. Customize mode needs a window of
+ * tablet width or more.
  */
 export async function saveSourcesLayout(page: Page): Promise<void> {
   await startCustomizing(page);
   await makeRoom(page);
-  await addTenCards(page);
+  await addPackageCards(page);
   await saveLayout(page);
   await expect(cardGrid(page).locator('[data-layout-card]')).toHaveCount(12);
 }
