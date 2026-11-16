@@ -362,12 +362,11 @@ export function sovOverTimeCard(ctx) {
 export function gapCard(ctx) {
   const gaps = gapFor(ctx.model).filter((entry) => entry.gap !== null).sort((a, b) => b.lost - a.lost);
   if (gaps.length === 0) return cardFrame({ key: 'ai.lost_to_competitor', title: 'Competitor gap', body: emptyBody('No rate yet', 'Too few answers on this platform.') });
-  const limit = Math.max(...gaps.map((entry) => Math.abs(entry.gap)), 0.05);
   const table = el('table', 'w-full type-table');
   const head = el('thead');
   const headRow = el('tr', 'border-t border-border-subtle bg-surface-subtle h-row-header');
-  ['Competitor', 'Mention rate gap to you', 'Prompts where they lead', 'Prompts where you lead'].forEach((text, index) => {
-    const th = el('th', `px-3 ${index === 0 ? 'pl-4 text-left' : index === 1 ? 'text-left' : 'text-right'} type-label whitespace-nowrap ${index > 1 ? 'hidden md:table-cell' : ''}`, text);
+  ['Competitor', 'They lead', 'You lead'].forEach((text, index) => {
+    const th = el('th', `px-3 ${index === 0 ? 'pl-4 text-left' : 'text-right'} ${index === 2 ? 'pr-4' : ''} type-label whitespace-nowrap`, text);
     th.scope = 'col';
     headRow.append(th);
   });
@@ -382,27 +381,7 @@ export function gapCard(ctx) {
     dot.style.background = `var(--${entry.token})`;
     wrap.append(dot, entry.name);
     name.append(wrap);
-    // A diverging bar: left of the middle they are ahead of us, right of it we are ahead
-    const barCell = el('td', 'px-3 w-1/2');
-    const row = el('div', 'flex items-center gap-3');
-    const value = el('span', 'w-36 shrink-0 type-table num text-foreground-secondary whitespace-nowrap', `${entry.gap > 0 ? '+' : '−'}${(Math.abs(entry.gap) * 100).toFixed(1)} pts ${entry.gap > 0 ? 'ahead of you' : 'behind you'}`);
-    const track = el('div', 'relative h-4 flex-1 min-w-24');
-    track.setAttribute('aria-hidden', 'true');
-    const middle = el('div', 'absolute left-1/2 top-0 bottom-0 w-px');
-    middle.style.background = 'var(--border-strong)';
-    const bar = el('div', 'absolute top-0.5 h-3 rounded-2xs');
-    bar.style.width = `${(Math.abs(entry.gap) / limit) * 50}%`;
-    if (entry.gap > 0) {
-      bar.style.right = '50%';
-      bar.style.background = 'var(--chart-negative)';
-    } else {
-      bar.style.left = '50%';
-      bar.style.background = 'var(--chart-positive)';
-    }
-    track.append(middle, bar);
-    row.append(value, track);
-    barCell.append(row);
-    tr.append(name, barCell, el('td', 'px-3 text-right num hidden md:table-cell', `${formatInteger(entry.lost)} of ${formatInteger(entry.compared)}`), el('td', 'px-3 pr-4 text-right num hidden md:table-cell', `${formatInteger(entry.ahead)} of ${formatInteger(entry.compared)}`));
+    tr.append(name, el('td', 'px-3 text-right num', `${formatInteger(entry.lost)} of ${formatInteger(entry.compared)}`), el('td', 'px-3 pr-4 text-right num', `${formatInteger(entry.ahead)} of ${formatInteger(entry.compared)}`));
     body.append(tr);
   });
   table.append(head, body);
@@ -411,10 +390,10 @@ export function gapCard(ctx) {
   return cardFrame({
     key: 'ai.lost_to_competitor',
     title: 'Competitor gap',
-    meta: 'mention rate, same answers',
+    meta: 'prompts, on the same answers',
     body: wrap,
     flush: true,
-    footnote: 'The gap is the competitor’s mention rate minus yours. A prompt counts as led when one brand is named in more of its answers.',
+    footnote: 'Counts of prompts. "They lead" are the prompts where the competitor is named in more answers than you; "You lead" the reverse. Prompts where both are named equally are in neither column.',
   });
 }
 

@@ -20,7 +20,7 @@ export const CARD_REGISTRY = [
   { key: 'ai.outcome_mix', title: 'Answer outcomes', description: 'Named and linked, named only, cited only and neither, per platform.', group: 'Overview', widths: ['third', 'half'], build: outcomeCard },
   { key: 'ai.share_of_voice', title: 'Share of voice', description: 'Your share of tracked-brand mentions beside each competitor.', group: 'Competitors', widths: ['half', 'third'], build: sovCard },
   { key: 'ai.sov_over_time', title: 'Share of voice over time', description: 'The share of every tracked brand over the weekly runs, stacked to 100%.', group: 'Competitors', widths: ['half', 'two_thirds', 'full'], build: sovOverTimeCard },
-  { key: 'ai.lost_to_competitor', title: 'Competitor gap', description: 'The mention gap to each competitor and the prompts where they lead.', group: 'Competitors', widths: ['half', 'full'], build: gapCard },
+  { key: 'ai.lost_to_competitor', title: 'Competitor gap', description: 'For each competitor, the prompts where they are named more often than you, and where you lead.', group: 'Competitors', widths: ['half', 'full'], build: gapCard },
   { key: 'ai.topic_heatmap', title: 'Groups by platform', description: 'A rate for every group on every platform. With one group chosen, its prompts.', group: 'Groups', widths: ['two_thirds', 'full'], build: heatmapOrPrompts },
   { key: 'ai.topic_extremes', title: 'Top and bottom groups', description: 'The groups where the brand is strongest and weakest. All groups only.', group: 'Groups', widths: ['third', 'half'], build: extremes },
   { key: 'sources.top_domains', title: 'Top cited domains', description: 'The domains answers cite most, with your own highlighted.', group: 'Citations', widths: ['half', 'third'], build: domainsCard },
