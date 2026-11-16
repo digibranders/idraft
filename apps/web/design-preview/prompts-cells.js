@@ -17,8 +17,8 @@ const { $, icon, engineLogo } = window.PreviewUI;
 export const CELL = 'border-b border-border-subtle px-3';
 
 /**
- * The change of a rate as a ticker arrow, as price tables show it: a triangle up or down, and a dot when the change
- * rounds to nothing. The triangle always says the direction. It takes the green or red of a good or bad change only
+ * The change of a rate as a trend icon, as price tables show it: a line trending up or down, and a dash when the change
+ * rounds to nothing. The icon always says the direction. It takes the green or red of a good or bad change only
  * when the change is detectable (17 section 6.3); within normal variation it stays grey, so a wobble does not look like
  * news. The hover carries the figures: the rate now and before, the change in points, whether it is detectable, the
  * sample and the weekly rates. Null when there is nothing to compare, or when the person chose "No comparison".
@@ -32,7 +32,8 @@ function trendArrow({ value, change, trend, sample }) {
   const points = formatPointsDelta(Math.abs(change.value), { decimals: 1 }).replace(/^\+/, '');
   const weekly = trend?.some((point) => point !== null) ? ` Weekly rates: ${trend.map((point) => (point === null ? 'n/a' : percent0(point))).join(', ')}.` : '';
   const verdict = change.detectable ? 'Detectable: its 95% interval excludes zero.' : 'Within normal variation, so it is not colored.';
-  const arrow = el('span', `inline-block w-3.5 shrink-0 text-center type-meta ${TONE_CLASS[display.tone]}`, flat ? '•' : change.value > 0 ? '▲' : '▼');
+  const arrow = el('span', `inline-flex shrink-0 self-center ${TONE_CLASS[display.tone]}`);
+  arrow.append(icon(flat ? 'minus' : change.value > 0 ? 'trending-up' : 'trending-down', 'size-icon-sm'));
   arrow.dataset.tip = `${words}${flat ? '' : ` ${points}`} against the previous period, from ${percent0(value - change.value)} to ${percent0(value)}. ${verdict} ${sample}.${weekly}`;
   arrow.append(el('span', 'sr-only', `${words}${flat ? '' : ` ${points}`}${change.detectable ? ', detectable change' : ', within normal variation'}`));
   return arrow;
