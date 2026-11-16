@@ -6,14 +6,11 @@ import { formatInteger } from './vendor/format/number.js';
 import {
   GA4_CONNECTED,
   GROUPS,
-  HAS_TREE,
   MEASURES,
-  PARENTS,
   PLATFORM_CODES,
   RUNS,
   RUN_CALENDAR,
   WEEK_LABELS,
-  buildModel,
   domainsFor,
   fanoutFor,
   gapFor,
@@ -67,7 +64,6 @@ export function groupHeatmapCard(ctx) {
   const { scope } = ctx;
   const measure = scope.metric;
   const topics = groupRows(scope, measure);
-  const parentModels = Object.fromEntries(PARENTS.map((parent) => [parent, buildModel({ ...scope, group: `parent:${parent}`, platform: 'all' })]));
   const table = el('table', 'w-full min-w-[34rem]');
   const head = el('thead');
   const headRow = el('tr', 'border-t border-border-subtle bg-surface-subtle h-row-header');
@@ -83,10 +79,9 @@ export function groupHeatmapCard(ctx) {
   headRow.append(avg);
   head.append(headRow);
   const body = el('tbody');
-  // One row for a topic: indented under its parent when the project has a tree, flush left when its topics are flat
-  const topicRow = (topic, indent) => {
+  const topicRow = (topic) => {
     const tr = el('tr', 'border-t border-border-subtle');
-    const th = el('th', `${indent ? 'pl-8' : 'pl-4'} pr-3 py-1 text-left font-normal`);
+    const th = el('th', 'pl-4 pr-3 py-1 text-left font-normal');
     th.scope = 'row';
     const link = el('button', 'type-body text-foreground hover:underline truncate max-w-48 text-left');
     link.type = 'button';
@@ -98,25 +93,7 @@ export function groupHeatmapCard(ctx) {
     tr.append(heatCell(topic.average, () => setScope({ group: topic.id }), `${topic.name}, average`));
     return tr;
   };
-  if (!HAS_TREE) topics.forEach((topic) => body.append(topicRow(topic, false)));
-  PARENTS.forEach((parent) => {
-    const children = topics.filter((topic) => topic.parent === parent);
-    if (children.length === 0) return;
-    const model = parentModels[parent];
-    const parentRow = el('tr', 'border-t border-border-subtle bg-surface-subtle');
-    const name = el('th', 'pl-4 pr-3 py-1 text-left');
-    name.scope = 'row';
-    const open = el('button', 'type-subsection-title text-foreground hover:underline');
-    open.type = 'button';
-    open.textContent = parent;
-    open.addEventListener('click', () => setScope({ group: `parent:${parent}` }));
-    name.append(open);
-    parentRow.append(name, el('td', 'px-2 text-right type-table num text-foreground-secondary', formatInteger(model.prompts.length)));
-    HEAT_COLUMNS.forEach((code) => parentRow.append(heatCell(model.cells[measure][code], () => setScope({ group: `parent:${parent}`, platform: code }), `${parent}, ${engineName(code)}`)));
-    parentRow.append(heatCell(model.average[measure], () => setScope({ group: `parent:${parent}` }), `${parent}, average`));
-    body.append(parentRow);
-    children.forEach((topic) => body.append(topicRow(topic, true)));
-  });
+  topics.forEach((topic) => body.append(topicRow(topic)));
   table.append(head, body);
   const wrap = el('div', 'relative overflow-x-auto');
   wrap.append(table);

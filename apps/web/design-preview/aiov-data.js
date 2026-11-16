@@ -1,4 +1,3 @@
-/* global URLSearchParams */
 /**
  * Data of the AI visibility Overview (docs/superpowers/specs/2026-11-16-ai-overview-redesign-design.md).
  *
@@ -17,27 +16,8 @@ import { COMPETITORS, ENGINES, OWN, PROMPTS, TOPIC_PARENT, WEEKS, clamp, seeded 
 export const PLATFORMS = ENGINES.map((engine) => ({ code: engine.code, name: engine.name, asked: engine.asked, recommendations: engine.recommendations }));
 export const PLATFORM_CODES = PLATFORMS.map((platform) => platform.code);
 export const platformOf = (code) => PLATFORMS.find((platform) => platform.code === code);
-/**
- * The shape of the project's topics. The fixture has a two-level tree (CRM and Sales above their topics), as a project
- * with a nested taxonomy would. A project with a flat list of topics, such as Eventus Security, has no parents: add
- * `?taxonomy=flat` to the address to see the page that way. The page shows parent rows only when there is a tree.
- */
-const FLAT = typeof globalThis.location?.search === 'string' && new URLSearchParams(globalThis.location.search).get('taxonomy') === 'flat';
-export const parentOf = (topic) => (FLAT ? null : (TOPIC_PARENT[topic] ?? null));
-export const PARENTS = FLAT ? [] : [...new Set(Object.values(TOPIC_PARENT))];
-export const HAS_TREE = PARENTS.length > 0;
-/** A group is a top-level topic (`parent:CRM`) or a topic (`topic:Pricing`). Every prompt has exactly one topic. */
-export const GROUPS = [
-  { id: 'all', label: 'All groups', kind: 'all' },
-  ...(HAS_TREE
-    ? PARENTS.flatMap((parent) => [
-        { id: `parent:${parent}`, label: parent, kind: 'parent', parent },
-        ...Object.keys(TOPIC_PARENT)
-          .filter((topic) => TOPIC_PARENT[topic] === parent)
-          .map((topic) => ({ id: `topic:${topic}`, label: topic, kind: 'topic', parent })),
-      ])
-    : Object.keys(TOPIC_PARENT).map((topic) => ({ id: `topic:${topic}`, label: topic, kind: 'topic', parent: null }))),
-];
+/** A group is a topic (`topic:Pricing`), one flat level as on the Prompts page. Every prompt has exactly one topic. */
+export const GROUPS = [{ id: 'all', label: 'All groups', kind: 'all' }, ...Object.keys(TOPIC_PARENT).map((topic) => ({ id: `topic:${topic}`, label: topic, kind: 'topic' }))];
 export const groupOf = (id) => GROUPS.find((group) => group.id === id) ?? GROUPS[0];
 export const BRANDED_LABEL = { exclude: 'Excluded', include: 'Included', only: 'Only' };
 
@@ -52,9 +32,7 @@ export function promptsIn(scope) {
   return PROMPTS.filter((prompt) => {
     if (scope.branded === 'only' ? !prompt.branded : scope.branded === 'exclude' ? prompt.panel !== 'Core' : prompt.panel !== 'Core' && !prompt.branded) return false;
     const group = groupOf(scope.group);
-    if (group.kind === 'topic') return prompt.topic === group.label;
-    if (group.kind === 'parent') return parentOf(prompt.topic) === group.parent;
-    return true;
+    return group.kind === 'topic' ? prompt.topic === group.label : true;
   });
 }
 
@@ -484,7 +462,6 @@ export function groupRows(scope, measure) {
     rows.push({
       id: `topic:${topic}`,
       name: topic,
-      parent: parentOf(topic),
       prompts: model.prompts.length,
       cells: Object.fromEntries(PLATFORM_CODES.map((code) => [code, model.cells[measure][code]])),
       average: model.average[measure],

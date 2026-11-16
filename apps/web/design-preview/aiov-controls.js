@@ -37,9 +37,6 @@ function writeUrl() {
   if (state.group !== DEFAULTS.group) params.set('group', state.group);
   if (!state.compare) params.set('cmp', 'off');
   if (state.metric !== DEFAULTS.metric) params.set('metric', state.metric);
-  // The preview's taxonomy switch is not part of the scope but must survive a change of it
-  const taxonomy = new URLSearchParams(location.search).get('taxonomy');
-  if (taxonomy) params.set('taxonomy', taxonomy);
   const query = params.toString();
   history.replaceState(null, '', `${location.pathname}${query ? `?${query}` : ''}${location.hash}`);
 }
@@ -93,12 +90,10 @@ export function createSelect({ name, options, get, set, searchable = false, widt
     panel.insertBefore(search, list);
   }
   options.forEach((option) => {
-    const button = el('button', `${OPTION} ${option.indent ? 'pl-6' : ''}`);
+    const button = el('button', OPTION);
     button.type = 'button';
     button.setAttribute('role', 'option');
     button.dataset.value = option.id;
-    // Indentation is visual only, so the group a topic belongs to is in its name
-    if (option.parent) button.setAttribute('aria-label', `${option.label}, in ${option.parent}`);
     const check = el('span', 'size-icon-sm shrink-0 text-primary-text invisible group-aria-selected:visible');
     check.setAttribute('aria-hidden', 'true');
     check.append(icon('check', 'size-icon-sm'));
@@ -129,4 +124,4 @@ export function createSelect({ name, options, get, set, searchable = false, widt
 }
 
 export const platformOptions = [{ id: 'all', label: 'All platforms' }, ...PLATFORMS.map((platform) => ({ id: platform.code, label: platform.name, logo: platform.name }))];
-export const groupOptions = GROUPS.map((group) => ({ id: group.id, label: group.label, indent: group.kind === 'topic' && Boolean(group.parent), parent: group.kind === 'topic' ? group.parent : undefined, note: group.kind === 'parent' ? 'group' : undefined }));
+export const groupOptions = GROUPS.map((group) => ({ id: group.id, label: group.label }));
