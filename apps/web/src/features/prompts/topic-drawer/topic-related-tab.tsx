@@ -33,6 +33,7 @@ export function RelatedTab(): ReactElement {
   const prompts = useTranslations('prompts');
   const common = useTranslations('common');
   const rate = useTranslations('prompts.rate');
+  const groupRates = useTranslations('prompts.groupRates');
   const columnWords = useTranslations('prompts.columns');
   const locale = useLocale();
   const words = useRateWords();
@@ -71,7 +72,11 @@ export function RelatedTab(): ReactElement {
       // The tooltip is for sighted users; the counts are in the cell for everyone else
       <Tooltip
         content={counts}
-        detail={rate(sibling.counting.length === 1 ? 'onlyTip' : 'avgTipPrompts', { engines: engineNames })}
+        detail={
+          sibling.counting.length === 1
+            ? rate('onlyTip', { engines: engineNames })
+            : groupRates('avgTip', { engines: engineNames })
+        }
         purpose="label"
       >
         <span className="inline-flex items-baseline gap-2">

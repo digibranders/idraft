@@ -117,6 +117,26 @@ describe('the topic drawer: opening', () => {
     await waitFor(() => expect(screen.queryByRole('complementary', { name: 'Paid Search' })).toBeNull());
   });
 
+  it('says a group the project holds but the scope has no prompt of is out of the scope, not that it does not exist', async () => {
+    server.use(
+      http.get(SUMMARY_PATH, () =>
+        HttpResponse.json({
+          data: {
+            window: { from: '2026-10-16', to: '2026-11-12', timezone: 'Europe/Berlin' },
+            include_branded: false,
+            engine_codes: ['chatgpt_web'],
+            prompts: [],
+            topics: [],
+          },
+        }),
+      ),
+    );
+    renderOn('viewer', inspect(`topic:${MOCK_TERM_IDS.paidSearch}`));
+    const panel = await screen.findByRole('complementary');
+    expect(await within(panel).findByText('No prompt of this group in this scope')).toBeInTheDocument();
+    expect(within(panel).queryByText(/does not exist/)).toBeNull();
+  });
+
   it('says a topic the summary has no row for does not exist', async () => {
     renderOn('viewer', inspect('topic:99999999-0000-4000-8000-000000000001'));
     const panel = await screen.findByRole('complementary');

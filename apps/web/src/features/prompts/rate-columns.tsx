@@ -82,6 +82,7 @@ export function useRateColumns<TRow>(
   const metrics = useTranslations('prompts.metrics');
   const shell = useTranslations('prompts.shell.columns');
   const rate = useTranslations('prompts.rate');
+  const groupRates = useTranslations('prompts.groupRates');
   const tc = useTranslations('prompts.compare');
   const words = useRateWords();
   const changeWords = useChangeWords();
@@ -197,7 +198,9 @@ export function useRateColumns<TRow>(
           const avgDetail =
             counting.length === 1
               ? rate('onlyTip', { engines: engineNames })
-              : rate(byPrompts?.(row) === true ? 'avgTipPrompts' : 'avgTip', { engines: engineNames });
+              : byPrompts?.(row) === true
+                ? groupRates('avgTip', { engines: engineNames })
+                : rate('avgTip', { engines: engineNames });
           // Every change shows what it rests on: the previous figure with its answers, the window and the test, or why none
           const change = metric === 'mentioned' && compare ? changeOf(row) : null;
           // A row without a change says why only when the response was compared: the read held right after turning
@@ -279,6 +282,7 @@ export function useRateColumns<TRow>(
     metrics,
     shell,
     rate,
+    groupRates,
     tc,
     words,
     changeWords,
