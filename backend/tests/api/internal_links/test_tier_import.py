@@ -122,3 +122,68 @@ async def test_a_project_without_a_website_takes_no_rows_and_viewers_cannot_impo
 
     assert [e["code"] for e in blank.json()["data"]["errors"]] == ["other_site"]
     assert denied.status_code == 403
+
+
+async def test_twenty_thousand_new_urls_import_in_one_request(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    editor = await member(resources, migrated, workspace, "editor")
+    project = await keyword_project(migrated, workspace)
+    await set_website(migrated, project)
+    await seed_tiers(migrated, workspace)
+    lines = "".join(f"https://example.com/bulk/{n},T1\n" for n in range(20_000))
+
+    response = await api.post(
+        project_url(workspace, project, "pages", "tiers", "import"),
+        json={"csv": "url,tier\n" + lines},
+        headers=editor.headers,
+    )
+
+    assert response.status_code == 200, response.text[:300]
+    data = response.json()["data"]
+    assert (data["accepted"], data["applied"], len(data["pending"])) == (20_000, True, 20_000)
+
+
+async def test_a_cell_the_csv_reader_refuses_is_an_error_on_its_line_not_a_crash(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    editor = await member(resources, migrated, workspace, "editor")
+    project = await keyword_project(migrated, workspace)
+    await set_website(migrated, project)
+    await seed_tiers(migrated, workspace)
+
+    response = await api.post(
+        project_url(workspace, project, "pages", "tiers", "import"),
+        json={"csv": "url,tier\nhttps://example.com/" + "a" * 200_000 + ",T1\n"},
+        headers=editor.headers,
+    )
+
+    assert response.status_code == 200, response.text[:300]
+    data = response.json()["data"]
+    assert (data["applied"], [e["line"] for e in data["errors"]]) == (False, [2])
+
+
+async def test_a_code_beats_a_tier_that_is_named_like_one(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    editor = await member(resources, migrated, workspace, "editor")
+    project = await keyword_project(migrated, workspace)
+    await set_website(migrated, project)
+    t1, t2, *_ = await seed_tiers(migrated, workspace)
+    await execute(migrated, "UPDATE core.page_tier_levels SET name = 'T2' WHERE id = $1", t1)
+    await seed_crawl(migrated, workspace, project, [("/pricing", 200)])
+
+    response = await api.post(
+        project_url(workspace, project, "pages", "tiers", "import"),
+        json={"csv": "url,tier\nhttps://example.com/pricing,T2\n"},
+        headers=editor.headers,
+    )
+
+    assert response.json()["data"]["applied"] is True
+    rows = await fetch(
+        migrated, "SELECT tier_id FROM core.project_pages WHERE project_id = $1", project
+    )
+    assert [row["tier_id"] for row in rows] == [t2]

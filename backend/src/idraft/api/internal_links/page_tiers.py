@@ -251,10 +251,14 @@ async def _site_hosts(db: AsyncSession, workspace_id: UUID, project_id: UUID) ->
 
 def _tier_names(tiers: dict[UUID, tuple[int, str]]) -> dict[str, UUID | None]:
     """What a CSV `tier` cell may say, lower case: a code, a name, a label, or Untiered."""
-    names: dict[str, UUID | None] = {"none": None, "untiered": None}
+    names: dict[str, UUID | None] = {}
     for tier_id, (position, name) in tiers.items():
-        for spelling in (f"t{position}", name.lower(), f"t{position} {name.lower()}"):
-            names[spelling] = tier_id
+        names[name.lower()] = tier_id
+        names[f"t{position} {name.lower()}"] = tier_id
+    # Codes and Untiered are spelled the same whatever a tier is called, so they win.
+    for tier_id, (position, _) in tiers.items():
+        names[f"t{position}"] = tier_id
+    names.update({"none": None, "untiered": None})
     return names
 
 
@@ -264,7 +268,18 @@ def parse_tier_csv(
     """Rows as (line, URL, tier), the last row of a URL winning, and the problems by line."""
     # A spreadsheet export may start with a byte order mark.
     reader = csv.reader(io.StringIO(text_in.removeprefix("﻿")))
-    header = [cell.strip().lower() for cell in next(reader, [])]
+    try:
+        records = list(reader)
+    except csv.Error:
+        # A cell over the reader's field size limit, or a stray quote.
+        return [], [
+            ImportProblem(
+                line=reader.line_num,
+                code="invalid_url",
+                message="This line is not valid CSV or has a cell that is too long.",
+            )
+        ]
+    header = [cell.strip().lower() for cell in (records[0] if records else [])]
     if "url" not in header or "tier" not in header:
         return [], [
             ImportProblem(
@@ -274,7 +289,7 @@ def parse_tier_csv(
     names = _tier_names(tiers)
     rows: dict[bytes, tuple[int, CanonicalUrl, UUID | None]] = {}
     problems: list[ImportProblem] = []
-    for line, record in enumerate(reader, start=2):
+    for line, record in enumerate(records[1:], start=2):
         if not any(cell.strip() for cell in record):
             continue
         if len(rows) + len(problems) >= CSV_ROWS_MAX:
