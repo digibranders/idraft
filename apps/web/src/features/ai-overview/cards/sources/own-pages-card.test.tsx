@@ -4,7 +4,6 @@ import { useEffect, type ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import OwnPagesCard from './own-pages-card';
-import { failing, renderWithoutPlatform } from './test-harness';
 import { pagePage, pageRow } from './model/page-fixtures';
 import { at, sourcesMeta } from './model/source-fixtures';
 import { ExportProvider, useExportBlocks, type ExportRead } from '../../export/export-registry';
@@ -17,6 +16,7 @@ import { axe } from '@/test/axe';
 import { cardInOverview, type OverviewWorld } from '@/test/ai-overview-harness';
 import { stubViewport } from '@/test/customize-harness';
 import { server } from '@/test/msw';
+import { failing, renderWithoutPlatform } from '@/test/overview-no-platform';
 import { renderWithProviders } from '@/test/render';
 
 vi.mock('next/navigation', async () => (await import('@/test/next-navigation')).navigationModule);

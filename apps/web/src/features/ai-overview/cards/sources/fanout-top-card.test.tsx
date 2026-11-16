@@ -4,7 +4,6 @@ import { useEffect, type ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import FanoutTopCard from './fanout-top-card';
-import { failing, renderWithoutPlatform } from './test-harness';
 import { fanoutMeta, fanoutPage, fanoutRow } from './model/fanout-fixtures';
 import { ExportProvider, useExportBlocks, type ExportRead } from '../../export/export-registry';
 import { CardInfoProvider } from '@/components/app/chart/card-info';
@@ -15,6 +14,7 @@ import { axe } from '@/test/axe';
 import { cardInOverview, type OverviewWorld } from '@/test/ai-overview-harness';
 import { stubViewport } from '@/test/customize-harness';
 import { server } from '@/test/msw';
+import { failing, renderWithoutPlatform } from '@/test/overview-no-platform';
 import { renderWithProviders } from '@/test/render';
 
 vi.mock('next/navigation', async () => (await import('@/test/next-navigation')).navigationModule);

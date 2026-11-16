@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 
-import { OverviewProvider } from '../../overview-context';
+import { OverviewProvider } from '@/features/ai-overview';
 import { PermissionProvider } from '@/lib/permissions';
 import { membershipFactory } from '@/mocks/factories/identity';
 import { MOCK_WORKSPACE, mockUser } from '@/mocks/fixtures';
@@ -9,7 +9,7 @@ import { overviewProject } from '@/test/ai-overview-harness';
 import { renderWithProviders } from '@/test/render';
 
 /**
- * A card of the sources family on a project with no platform turned on (the mock project "cleanstart"), as an admin:
+ * A card of the AI visibility Overview on a project with no platform turned on (the mock project "cleanstart"), as an admin:
  * the card says why it has nothing and asks the API for nothing.
  */
 export function renderWithoutPlatform(card: ReactElement): ReturnType<typeof renderWithProviders> {

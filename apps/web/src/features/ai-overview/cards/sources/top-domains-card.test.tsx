@@ -6,7 +6,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CardInfoProvider } from '@/components/app/chart/card-info';
 import { at, domainPage, domainRow, sourcesMeta } from './model/source-fixtures';
 import TopDomainsCard from './top-domains-card';
-import { failing, renderWithoutPlatform } from './test-harness';
 import { ExportProvider, useExportBlocks, type ExportRead } from '../../export/export-registry';
 import type { CardDrill } from '../engines/use-card-seams';
 import type { CardProps } from '@/features/layouts';
@@ -16,6 +15,7 @@ import { axe } from '@/test/axe';
 import { cardInOverview, type OverviewWorld } from '@/test/ai-overview-harness';
 import { stubViewport } from '@/test/customize-harness';
 import { server } from '@/test/msw';
+import { failing, renderWithoutPlatform } from '@/test/overview-no-platform';
 import { renderWithProviders } from '@/test/render';
 
 vi.mock('next/navigation', async () => (await import('@/test/next-navigation')).navigationModule);
