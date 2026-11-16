@@ -6,6 +6,7 @@
 import { formatMetricDelta } from './vendor/format/delta.js';
 import { MINUS, formatInteger, formatPercent, formatPointsDelta } from './vendor/format/number.js';
 import { MEASURES, platformOf } from './aiov-data.js';
+import { CARD_INFO, infoText } from './aiov-info.js';
 import { NEUTRAL_BADGE, el, insufficient, plural } from './prompts-parts.js';
 
 export { NEUTRAL_BADGE, el, insufficient, plural };
@@ -100,7 +101,8 @@ let infoPanel = null;
  * An "i" button that explains a card or a number. Hover or keyboard focus shows the text in a tooltip; a click opens
  * the same text in a small popover, which is how touch reaches it. The text is also in the button for screen readers.
  */
-export function infoButton(title, text) {
+export function infoButton(title, info) {
+  const text = infoText(info);
   const button = el('button', 'size-control-sm shrink-0 rounded-md flex items-center justify-center self-center text-foreground-tertiary hover:bg-surface-hover hover:text-foreground aria-expanded:bg-surface-hover aria-expanded:text-foreground');
   button.type = 'button';
   button.dataset.tip = text;
@@ -116,7 +118,10 @@ export function infoButton(title, text) {
     }
     if (button.getAttribute('aria-expanded') === 'true') return ui.closePopup();
     infoPanel.setAttribute('aria-label', title);
-    infoPanel.textContent = text;
+    // A definition first, then how it is counted, as two short paragraphs
+    const paragraphs = typeof info === 'string' ? [el('p', '', info)] : [el('p', 'text-foreground', info.what), el('p', 'mt-2')];
+    if (typeof info !== 'string') paragraphs[1].append(el('span', 'type-body-strong text-foreground', 'How it’s counted: '), info.how);
+    infoPanel.replaceChildren(...paragraphs);
     // The tooltip would repeat the popover while it is open
     delete button.dataset.tip;
     ui.openPopup(infoPanel, button, {
@@ -131,11 +136,11 @@ export function infoButton(title, text) {
 }
 
 /**
- * A card of the dashboard: title row, optional meta and tools, a body. `footnote` is what the card used to print
- * under itself (how it is counted, what it leaves out); it now sits behind the card's info button. Cards read the
- * same scope, so a card says what it covers in its meta line.
+ * A card of the dashboard: title row, optional meta and tools, a body. The card's definition and method sit behind
+ * its info button, read from `CARD_INFO` by key. Cards read the same scope, so a card says what it covers in its
+ * meta line.
  */
-export function cardFrame({ key, title, meta, tools = [], body, footnote, flush = false }) {
+export function cardFrame({ key, title, meta, tools = [], body, flush = false }) {
   cardSeed += 1;
   const id = `aiov-card-${cardSeed}`;
   // `relative` keeps the screen-reader-only text of a wide table inside the card, so it cannot widen the page
@@ -152,8 +157,8 @@ export function cardFrame({ key, title, meta, tools = [], body, footnote, flush 
   text.append(heading);
   if (meta) text.append(el('span', 'type-meta min-w-0 wrap-anywhere', meta));
   head.append(text);
-  if (footnote) {
-    const info = infoButton(title, footnote);
+  if (CARD_INFO[key]) {
+    const info = infoButton(title, CARD_INFO[key]);
     info.classList.add('col-start-2', 'row-start-1', '@2xl:col-start-3', '-my-1', '-mr-1.5');
     head.append(info);
   }

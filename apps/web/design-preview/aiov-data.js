@@ -154,18 +154,18 @@ function aggregate(prompts, code, period, key) {
 
 /** `better` says which direction is good, for the tone of a change. Position: a lower number is better. */
 export const MEASURES = {
-  visibility: { label: 'AI Visibility', short: 'Visibility', unit: 'ratio', better: 'up', info: 'Share of valid answers that name or cite the brand. 100% minus "neither".' },
-  mention: { label: 'Mention rate', short: 'Mention', unit: 'ratio', better: 'up', info: 'Share of valid answers that name the brand. Each prompt counts once.' },
-  position: { label: 'Avg. mention position', short: 'Mention position', unit: 'order', better: 'down', noun: 'mentions', info: 'Mean order in which the brand is named among tracked brands. 1 means named first.' },
-  recommendation: { label: 'Recommendation rate', short: 'Recommendation', unit: 'ratio', better: 'up', info: 'Share of valid answers that recommend the brand. Not named counts as not recommended.', sample: true },
-  rank: { label: 'Avg. recommendation position', short: 'Recommendation position', unit: 'order', better: 'down', noun: 'listed answers', info: 'Mean rank in ordered lists that recommend brands. Only answers with a list count.', sample: true },
-  sov: { label: 'Share of voice', short: 'Share of voice', unit: 'ratio', better: 'up', noun: 'brand mentions', info: 'Share of tracked-brand mentions that are the brand. Depends on the tracked competitors.' },
-  citation: { label: 'Source citation rate', short: 'Citation', unit: 'ratio', better: 'up', info: 'Share of valid answers that cite a page of the brand’s domain.' },
-  sentiment: { label: 'Brand sentiment', short: 'Sentiment', unit: 'ratio', better: 'up', noun: 'classified mentions', info: 'Share of classified mentions with a positive tone. Shown as four shares, never one score.', sample: true },
-  unlinked: { label: 'Unlinked brand mention', short: 'Unlinked mention', unit: 'ratio', better: 'up', info: 'Share of valid answers that name the brand without citing it.' },
-  referral: { label: 'Referral traffic', short: 'Referrals', unit: 'count', better: 'up', info: 'Sessions from AI platforms (GA4).', sample: true },
-  domain: { label: 'Top domain cited', short: 'Top domain', unit: 'text', better: 'up', info: 'The domain cited in the most answers.' },
-  prompts: { label: 'Total prompts tracked', short: 'Prompts', unit: 'count', better: 'up', info: 'Prompts in scope, each counted once.' },
+  visibility: { label: 'AI Visibility', short: 'Visibility', unit: 'ratio', better: 'up' },
+  mention: { label: 'Mention rate', short: 'Mention', unit: 'ratio', better: 'up' },
+  position: { label: 'Avg. mention position', short: 'Mention position', unit: 'order', better: 'down', noun: 'mentions' },
+  recommendation: { label: 'Recommendation rate', short: 'Recommendation', unit: 'ratio', better: 'up', sample: true },
+  rank: { label: 'Avg. recommendation position', short: 'Recommendation position', unit: 'order', better: 'down', noun: 'listed answers', sample: true },
+  sov: { label: 'Share of voice', short: 'Share of voice', unit: 'ratio', better: 'up', noun: 'brand mentions' },
+  citation: { label: 'Source citation rate', short: 'Citation', unit: 'ratio', better: 'up' },
+  sentiment: { label: 'Brand sentiment', short: 'Sentiment', unit: 'ratio', better: 'up', noun: 'classified mentions', sample: true },
+  unlinked: { label: 'Unlinked brand mention', short: 'Unlinked mention', unit: 'ratio', better: 'up' },
+  referral: { label: 'Referral traffic', short: 'Referrals', unit: 'count', better: 'up', sample: true },
+  domain: { label: 'Top domain cited', short: 'Top domain', unit: 'text', better: 'up' },
+  prompts: { label: 'Total prompts tracked', short: 'Prompts', unit: 'count', better: 'up' },
 };
 
 const NOT_CLASSIFIED = 'not classified for this engine';

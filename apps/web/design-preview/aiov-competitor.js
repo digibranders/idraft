@@ -8,7 +8,7 @@
  */
 import { formatInteger } from './vendor/format/number.js';
 import { COMPETITORS } from './prompts-data.js';
-import { LEAD_MARGIN, WEEK_LABELS, buildModel, competitorId, groupOf, headToHead, leadsFor, sourcesBehind } from './aiov-data.js';
+import { WEEK_LABELS, buildModel, competitorId, groupOf, headToHead, leadsFor, sourcesBehind } from './aiov-data.js';
 import { chartHost, lineOption, mountChart } from './aiov-charts.js';
 import { segmented } from './aiov-cards-core.js';
 import { state } from './aiov-controls.js';
@@ -102,7 +102,6 @@ function fillOverview(model, index) {
     meta: view.scopeText,
     body: overviewTable(rival, rows),
     flush: true,
-    footnote: 'The gap is your value minus the competitor’s. Rates are prompt-weighted, each prompt counting once. Share of voice depends on the tracked set of competitors.',
   });
 
   // The trend: both brands over the weekly runs
@@ -115,7 +114,7 @@ function fillOverview(model, index) {
   });
   disposeTrend?.();
   disposeTrend = null;
-  const trend = cardFrame({ key: 'competitor.trend', title: 'Mention rate over time', meta: 'weekly runs', body: [host, legend], footnote: 'Each point is a weekly run, prompt-weighted. The 8 weeks are the previous 28 days and the current 28 days.' });
+  const trend = cardFrame({ key: 'competitor.trend', title: 'Mention rate over time', meta: 'weekly runs', body: [host, legend] });
 
   // The same by platform
   const table = el('table', 'w-full type-table');
@@ -131,7 +130,7 @@ function fillOverview(model, index) {
     body.append(tr);
   });
   table.append(body);
-  const byPlatform = cardFrame({ key: 'competitor.platforms', title: 'By platform', meta: 'mention rate, you · them · gap', body: table, flush: true, footnote: 'A platform with fewer than 4 valid answers shows n/a. AI Overview is read from rank checks and counts only checks that showed one.' });
+  const byPlatform = cardFrame({ key: 'competitor.platforms', title: 'By platform', meta: 'mention rate, you · them · gap', body: table, flush: true });
 
   target.replaceChildren(summary, trend, byPlatform);
   disposeTrend = mountChart(host, () => lineOption({ labels: WEEK_LABELS, lines: [{ name: 'You', token: 'chart-1', values: data.series.own }, { name: rival.name, token: rival.token, values: data.series.rival }] }));
@@ -245,7 +244,6 @@ function fillPrompts(model, index) {
         meta: 'groups, prompts',
         body: strip,
         flush: true,
-        footnote: 'Click a group to narrow the list below to it. Click it again to clear.',
       }),
     );
   }
@@ -263,14 +261,12 @@ function fillPrompts(model, index) {
   all.type = 'button';
   all.dataset.previewNote = `The prompt list filtered to ${KIND_LABEL[view.lead].toLowerCase()} against ${rival.name} (opp=lost_to:${rival.id})`;
   footer.append(all);
-  const tooFew = leads.tooFew > 0 ? ` ${formatInteger(leads.tooFew)} prompts have too few answers and are left out.` : '';
   const listCard = cardFrame({
     key: 'competitor.prompts',
     title: view.lead === 'they' ? `Prompts where ${rival.name} leads` : view.lead === 'you' ? 'Prompts where you lead' : 'Prompts that are equal or too close',
     meta: `${formatInteger(rows.length)} ${rows.length === 1 ? 'prompt' : 'prompts'}`,
     body: [list, footer],
     flush: true,
-    footnote: `A brand leads a prompt when it is named in at least ${LEAD_MARGIN} more answers than the other, over the platforms in scope. A smaller difference is mostly noise, so it counts as equal. A prompt needs at least 4 valid answers.${tooFew}`,
   });
   target.replaceChildren(controls, ...sections, listCard);
 }
@@ -310,8 +306,8 @@ function fillSources(model, index) {
     target.replaceChildren(cardFrame({ key: 'competitor.sources', title: 'Sources', body: emptyBody('No citations in this scope', 'No answer in this scope cited a page, so there is nothing to compare.') }));
     return;
   }
-  const theirs = cardFrame({ key: 'competitor.sources.theirs', title: `When ${rival.name} is named`, meta: 'top domains cited', body: sourceList('theirs', data.theirs, rival.token), flush: true, footnote: 'Share of the citation units in answers that name the competitor. Their own domain is lifted because their pages are cited more when they are named.' });
-  const yours = cardFrame({ key: 'competitor.sources.yours', title: 'When you are named', meta: 'top domains cited', body: sourceList('yours', data.yours, 'chart-1'), flush: true, footnote: 'The same for answers that name you.' });
+  const theirs = cardFrame({ key: 'competitor.sources.theirs', title: `When ${rival.name} is named`, meta: 'top domains cited', body: sourceList('theirs', data.theirs, rival.token), flush: true });
+  const yours = cardFrame({ key: 'competitor.sources.yours', title: 'When you are named', meta: 'top domains cited', body: sourceList('yours', data.yours, 'chart-1'), flush: true });
   const only = el('div', 'px-4 pb-4 flex flex-col gap-3');
   only.append(el('p', 'type-body text-foreground-secondary', `The top 8 of the two lists share ${pct0(data.overlap)} of their domains (Jaccard overlap).`));
   const chips = el('div', 'flex flex-wrap gap-1.5');
@@ -319,7 +315,7 @@ function fillSources(model, index) {
   data.onlyTheirs.forEach((domain) => chips.append(el('span', NEUTRAL_BADGE, domain)));
   const gapTitle = el('p', 'type-label text-foreground-secondary', 'Third-party domains in their top 8 and not in yours');
   only.append(gapTitle, chips);
-  const gap = cardFrame({ key: 'competitor.sources.gap', title: 'Where they are cited and you are not', body: only, flush: true, footnote: 'These are the places to look for a citation: the engines already cite them next to this competitor. Source overlap is metric C7 of the metrics methodology.' });
+  const gap = cardFrame({ key: 'competitor.sources.gap', title: 'Where they are cited and you are not', body: only, flush: true });
   target.replaceChildren(gap, theirs, yours);
 }
 

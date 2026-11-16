@@ -127,7 +127,6 @@ export function groupHeatmapCard(ctx) {
     tools: [segmented(METRIC_TABS, measure, (key) => setScope({ metric: key }), 'Metric')],
     body: wrap,
     flush: true,
-    footnote: 'Click a cell to open that group on that platform. Every prompt belongs to one group, so group values add up to the total. Hatched cells have fewer than 4 valid answers.',
   });
 }
 
@@ -143,7 +142,7 @@ export function groupExtremesCard(ctx) {
   strongest.append(el('p', 'type-label text-foreground-secondary mb-1', 'Strongest'), list(sorted.slice(0, count), 'chart-1'));
   const weakest = el('div', 'mt-3');
   weakest.append(el('p', 'type-label text-foreground-secondary mb-1', 'Weakest'), list(sorted.slice(-count).reverse(), 'chart-bar-neutral'));
-  return cardFrame({ key: 'ai.topic_extremes', title: 'Top and bottom groups', meta: MEASURES[measure].label.toLowerCase(), body: [strongest, weakest], footnote: 'Average of the platforms, with each group’s prompt count. Click a group in the heat map to open it.' });
+  return cardFrame({ key: 'ai.topic_extremes', title: 'Top and bottom groups', meta: MEASURES[measure].label.toLowerCase(), body: [strongest, weakest] });
 }
 
 /** With one group selected the comparison cards give way to that group's own prompts. */
@@ -179,7 +178,6 @@ export function groupPromptsCard(ctx) {
     tools: [link],
     body: wrap,
     flush: true,
-    footnote: 'Rates are over the platforms in scope. Prompts with fewer than 4 valid answers are not listed.',
   });
 }
 
@@ -204,7 +202,6 @@ export function domainsCard(ctx) {
     title: 'Top cited domains',
     meta: `of ${formatInteger(domains.total)} citation units`,
     body: barList(rows, { valueText: (value) => `${(value * 100).toFixed(1)}%` }),
-    footnote: `${domains.rows[0].domain} is the most cited domain here. A citation unit is one distinct page cited in one answer.`,
   });
 }
 
@@ -213,7 +210,7 @@ export function sourceTypesCard(ctx) {
   if (domains.rows.length === 0) return cardFrame({ key: 'ai.citation_share_by_domain_type', title: 'Sources by type', body: emptyBody('No citations yet', 'No answers cited a page in this scope.') });
   const host = chartHost(232, `Citation units by source type: ${domains.types.map((entry) => `${entry.type} ${((entry.units / domains.total) * 100).toFixed(0)}%`).join(', ')}`);
   mountChart(host, () => treemapOption({ types: domains.types, total: domains.total }));
-  return cardFrame({ key: 'ai.citation_share_by_domain_type', title: 'Sources by type', meta: 'area is share of citation units', body: host, footnote: 'The areas add up to every citation unit in scope: your own site, competitors, review sites, publishers, community and others.' });
+  return cardFrame({ key: 'ai.citation_share_by_domain_type', title: 'Sources by type', meta: 'area is share of citation units', body: host });
 }
 
 export function ownPagesCard(ctx) {
@@ -226,7 +223,6 @@ export function ownPagesCard(ctx) {
     title: 'Your pages cited',
     meta: `${formatInteger(domains.own)} units from ${domains.rows.find((row) => row.role === 'Own')?.domain}`,
     body: barList(rows, { always: true, valueText: (value) => `${Math.round(value * 100)}%` }),
-    footnote: 'Pages of your domain that answers cite, by share of your citation units.',
   });
 }
 
@@ -249,7 +245,7 @@ export function unlinkedCard(ctx) {
     li.append(meta);
     list.append(li);
   });
-  return cardFrame({ key: 'ai.unlinked_mentions', title: 'Unlinked brand mentions', meta: 'prompts that name you without citing you', tools: [link], body: list, footnote: 'A page that earns the link is the fastest gain: the engine already knows the brand.' });
+  return cardFrame({ key: 'ai.unlinked_mentions', title: 'Unlinked brand mentions', meta: 'prompts that name you without citing you', tools: [link], body: list });
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -274,7 +270,6 @@ export function positionCard(ctx) {
     title: 'Mention position',
     meta: 'order among tracked brands',
     body: stackedRows({ segments: POSITION_SEGMENTS, rows, empty: 'Too few mentions' }),
-    footnote: 'Order is the position of the first mention among the brands you track, not among every brand in the answer. A lower mean is better.',
   });
 }
 
@@ -303,7 +298,6 @@ export function sentimentCard(ctx) {
     meta: 'tone of the mentions',
     tools: [sampleBadge()],
     body: stackedRows({ segments: SENTIMENT_SEGMENTS, rows, empty: 'Not classified' }),
-    footnote: 'Four shares, never one score: the tone of generated text is a coarse signal. Rule-based, with an LLM check on low-confidence mentions.',
   });
 }
 
@@ -360,7 +354,6 @@ export function referralCard(ctx) {
     tools: [sampleBadge('Sample until GA4 is connected'), connect],
     body: grid,
     flush: true,
-    footnote: 'Sessions from chatgpt.com and gemini.google.com, as GA4 classifies them. Google AI Mode and AI Overview sessions cannot be told apart from Google organic.',
   });
 }
 
@@ -394,7 +387,6 @@ export function fanoutCard(ctx) {
     meta: `ChatGPT only · ${fanout.meanQueries.toFixed(1)} searches per answer`,
     body: wrap,
     flush: true,
-    footnote: 'The searches ChatGPT ran to build its answers. Gemini and Google do not expose them. Shown for queries in at least 2 answers.',
   });
 }
 
@@ -438,7 +430,7 @@ export function changesCard(ctx) {
     li.append(mark, text);
     list.append(li);
   });
-  return cardFrame({ key: 'activity.key_changes', title: 'Key changes', meta: 'last 28 days', body: list, footnote: 'Only changes beyond normal variation and collection events are listed.' });
+  return cardFrame({ key: 'activity.key_changes', title: 'Key changes', meta: 'last 28 days', body: list });
 }
 
 export function calendarCard() {
@@ -483,7 +475,6 @@ export function calendarCard() {
     title: 'Collection runs',
     meta: `run ${RUNS.number}, weekly`,
     body: wrap,
-    footnote: 'Each cell is one weekly run. A partial run kept the answers that completed; failed answers are collection health, not a miss for the brand.',
   });
 }
 

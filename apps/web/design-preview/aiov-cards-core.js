@@ -8,6 +8,7 @@ import { formatInteger } from './vendor/format/number.js';
 import { MEASURES, PLATFORMS, RUNS, WEEK_LABELS, aggregateFor, entitiesFor, gapFor, lastRunOf, platformOf, seriesFor, sovSeries } from './aiov-data.js';
 import { chartHost, lineOption, mountChart, shareAreaOption } from './aiov-charts.js';
 import { HEAT_METRICS, setScope } from './aiov-controls.js';
+import { CARD_INFO, MEASURE_INFO } from './aiov-info.js';
 import { barList, cardFrame, countsText, el, emptyBody, engineName, icon, infoButton, insufficient, insufficientText, pct0, plural, platformLabel, sparkline, stackedRows, valueText } from './aiov-parts.js';
 import { wilsonInterval } from './vendor/stats/index.js';
 
@@ -136,8 +137,6 @@ export function headlineRow(ctx) {
   const hero = el('section', 'xl:col-span-4 min-w-0 bg-surface border border-border rounded-lg px-4 py-3.5 flex flex-col justify-between gap-3');
   hero.setAttribute('aria-label', 'AI Visibility');
   const title = el('h2', 'type-section-title', MEASURES.visibility.label);
-  // What the rate is, said once in the tooltip instead of in paragraphs on the card
-  title.dataset.tip = `${MEASURES.visibility.info} Named and linked, named only (an unlinked brand mention) and cited only added together. Each prompt counts once.`;
   // The prompts that contribute: on one platform only those with a valid answer there (one denominator, R12)
   const contributing = ctx.scope.platform === 'all' ? model.prompts.length : aggregateFor(model, ctx.scope.platform).prompts;
   const top = el('div', 'flex items-center justify-between gap-4');
@@ -158,11 +157,9 @@ export function headlineRow(ctx) {
   }
   const outcomes = outcomesFor(model);
   const shares = ctx.scope.platform === 'all' ? averageShares(outcomes) : outcomes[0]?.shares ?? null;
-  // The explanation sits behind an info button, as on every card; the tiles keep theirs on hover
+  // The explanation sits behind an info button, as on every card and tile
   const heading = el('div', 'flex items-center justify-between gap-2 -my-1');
-  const explanation = `${title.dataset.tip} The tiles beside it show the other key numbers; hover a tile name for its definition.`;
-  delete title.dataset.tip;
-  heading.append(title, infoButton(MEASURES.visibility.label, explanation));
+  heading.append(title, infoButton(MEASURES.visibility.label, CARD_INFO['ai.visibility_split']));
   hero.append(heading, top, splitBar(shares, ctx.scope.platform === 'all' ? null : outcomes[0]?.counts));
 
   // The tiles share hairlines: a grid with a 1 px gap on the border color
@@ -170,23 +167,23 @@ export function headlineRow(ctx) {
   strip.setAttribute('aria-label', 'Key numbers');
   const cell = (measure) => model.shown(measure);
   const tiles = {
-    mention: () => tileNode({ label: MEASURES.mention.label, info: MEASURES.mention.info, cell: cell('mention'), ctx, measure: 'mention', series: seriesFor(model, 'mention', ctx.scope.platform) }),
-    sov: () => tileNode({ label: MEASURES.sov.label, info: MEASURES.sov.info, cell: cell('sov'), ctx, measure: 'sov', series: seriesFor(model, 'sov', ctx.scope.platform) }),
-    citation: () => tileNode({ label: MEASURES.citation.label, info: MEASURES.citation.info, cell: cell('citation'), ctx, measure: 'citation', series: seriesFor(model, 'citation', ctx.scope.platform) }),
-    position: () => tileNode({ label: 'Mention position', info: MEASURES.position.info, cell: cell('position'), ctx, measure: 'position', series: seriesFor(model, 'position', ctx.scope.platform) }),
-    recommendation: () => tileNode({ label: 'Recommendation', info: MEASURES.recommendation.info, cell: cell('recommendation'), ctx, measure: 'recommendation', series: seriesFor(model, 'recommendation', ctx.scope.platform) }),
+    mention: () => tileNode({ label: MEASURES.mention.label, info: MEASURE_INFO.mention, cell: cell('mention'), ctx, measure: 'mention', series: seriesFor(model, 'mention', ctx.scope.platform) }),
+    sov: () => tileNode({ label: MEASURES.sov.label, info: MEASURE_INFO.sov, cell: cell('sov'), ctx, measure: 'sov', series: seriesFor(model, 'sov', ctx.scope.platform) }),
+    citation: () => tileNode({ label: MEASURES.citation.label, info: MEASURE_INFO.citation, cell: cell('citation'), ctx, measure: 'citation', series: seriesFor(model, 'citation', ctx.scope.platform) }),
+    position: () => tileNode({ label: 'Mention position', info: MEASURE_INFO.position, cell: cell('position'), ctx, measure: 'position', series: seriesFor(model, 'position', ctx.scope.platform) }),
+    recommendation: () => tileNode({ label: 'Recommendation', info: MEASURE_INFO.recommendation, cell: cell('recommendation'), ctx, measure: 'recommendation', series: seriesFor(model, 'recommendation', ctx.scope.platform) }),
     sentiment: () => {
       const sentiment = cell('sentiment');
-      const node = tileNode({ label: 'Sentiment', info: MEASURES.sentiment.info, cell: sentiment, ctx, measure: 'sentiment', series: seriesFor(model, 'sentiment', ctx.scope.platform) });
+      const node = tileNode({ label: 'Sentiment', info: MEASURE_INFO.sentiment, cell: sentiment, ctx, measure: 'sentiment', series: seriesFor(model, 'sentiment', ctx.scope.platform) });
       return node;
     },
     prompts: () => {
       const kind = { exclude: 'core prompts, not branded', include: 'core and branded prompts', only: 'branded prompts' }[ctx.scope.branded];
       const where = ctx.scope.group === 'all' ? kind : `${kind}, in ${ctx.scope.group.split(':')[1]}`;
       const withAnswers = ctx.scope.platform === 'all' ? null : aggregateFor(model, ctx.scope.platform).prompts;
-      return tileNode({ label: 'Prompts', info: MEASURES.prompts.info, ctx, plain: { value: formatInteger(model.prompts.length), detail: withAnswers === null ? where : `${where}. ${withAnswers} with answers on ${engineName(ctx.scope.platform)}`, note: null } });
+      return tileNode({ label: 'Prompts', info: MEASURE_INFO.prompts, ctx, plain: { value: formatInteger(model.prompts.length), detail: withAnswers === null ? where : `${where}. ${withAnswers} with answers on ${engineName(ctx.scope.platform)}`, note: null } });
     },
-    runs: () => tileNode({ label: 'Runs', info: 'Weekly collection runs behind these numbers. Prompts are asked on the schedule of their panel.', ctx, plain: { value: String(RUNS.inWindow), detail: `Run ${RUNS.number}, last ${ctx.scope.platform === 'all' ? RUNS.last : lastRunOf(ctx.scope.platform)}`, note: null } }),
+    runs: () => tileNode({ label: 'Runs', info: MEASURE_INFO.runs, ctx, plain: { value: String(RUNS.inWindow), detail: `Run ${RUNS.number}, last ${ctx.scope.platform === 'all' ? RUNS.last : lastRunOf(ctx.scope.platform)}`, note: null } }),
   };
   TILE_LAYOUT.forEach((key) => strip.append(tiles[key]()));
   grid.append(hero, strip);
@@ -292,9 +289,6 @@ export function trendCard(ctx) {
     meta: scope.platform === 'all' ? 'a line per platform, with their average' : `${engineName(scope.platform)}, with its 95% interval`,
     tools,
     body,
-    footnote: ctx.compare
-      ? 'Weeks to the right of the dashed line are the current 28 days; the weeks before it are the previous 28 days. Each point is a weekly run, prompt-weighted. The band is the 95% Wilson interval of the current window.'
-      : 'Each point is a weekly run, prompt-weighted. The band is the 95% Wilson interval of the current window.',
   });
 }
 
@@ -314,7 +308,6 @@ export function outcomeCard(ctx) {
     title: 'Answer outcomes',
     meta: ctx.scope.platform === 'all' ? 'by platform' : engineName(ctx.scope.platform),
     body,
-    footnote: 'The four shares add up to 100% of valid answers. Named only means the brand is named and none of its pages is cited.',
   });
 }
 
@@ -337,7 +330,6 @@ export function sovCard(ctx) {
     title: 'Share of voice',
     meta: ctx.scope.platform === 'all' ? `avg of ${entities[0].platforms} platforms` : `of ${formatInteger(total)} brand mentions`,
     body: barList(rows),
-    footnote: `Tracked set: ${entities[0].name} and ${entities.length - 1} competitors. Adding a competitor lowers every other share.`,
   });
 }
 
@@ -356,7 +348,7 @@ export function sovOverTimeCard(ctx) {
     item.append(dot, entity.name);
     legend.append(item);
   });
-  return cardFrame({ key: 'ai.sov_over_time', title: 'Share of voice over time', meta: 'stacked to 100%', body: [host, legend], footnote: 'Each week adds up to 100% of tracked-brand mentions on the set of competitors named above.' });
+  return cardFrame({ key: 'ai.sov_over_time', title: 'Share of voice over time', meta: 'stacked to 100%', body: [host, legend] });
 }
 
 export function gapCard(ctx) {
@@ -407,7 +399,6 @@ export function gapCard(ctx) {
     meta: 'prompts, on the same answers',
     body: wrap,
     flush: true,
-    footnote: 'Counts of prompts. A brand leads a prompt when it is named in at least 2 more answers than the other; a smaller difference is mostly noise and is in neither column. Click a name or a count to open the competitor and the prompts behind it.',
   });
 }
 

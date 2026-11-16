@@ -83,10 +83,12 @@ section 9. Presets: Executive, Analyst, Competitive.
 
 ### 5.0 Card information
 
-Every card has an "i" button at the end of its title row. Its text says how the card is counted and what it leaves
-out. Hover or keyboard focus shows it in a tooltip; a click opens it in a small popover, which is how touch reaches
-it. Nothing is printed under a card. The headline block has one button, on the AI Visibility hero; the key numbers
-keep their definitions on hover.
+Every card, the AI Visibility hero and each of the 8 key-number tiles has an "i" button. All of them have the same two
+parts, in plain words and in this order: **what it shows** (one sentence, a definition) and **how it's counted** (the
+method and what it leaves out). Neither part contains a figure that changes with the data, such as a name or a count of
+this project, so the text is true for any scope. Hover or keyboard focus shows both in a tooltip; a click opens them as
+two paragraphs in a small popover, which is how touch reaches them. Nothing is printed under a card. The texts live in
+one file (`aiov-info.js`, keyed by card key and by measure) so they stay consistent.
 
 ### 5.1 Customize mode (built in the preview)
 
