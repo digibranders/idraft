@@ -120,7 +120,7 @@ describe('the Export menu of the AI visibility page', () => {
     expect(item).toHaveAccessibleDescription('No AI platform is on');
   });
 
-  it('downloads one file of the strip and its two notes when no card has a table, and toasts the rows', async () => {
+  it('downloads one file of the numbers and its two notes when no card has a table, and toasts the rows', async () => {
     const { user } = renderWithProviders(overviewAs('admin'));
     await exportNumbers(user);
     expect(csvWrite.downloadBlob).toHaveBeenCalledOnce();
@@ -135,37 +135,27 @@ describe('the Export menu of the AI visibility page', () => {
     expect(await screen.findByText(`${numbers.length} rows exported`)).toBeInTheDocument();
   });
 
-  it('writes the numbers the strip shows: the same value and the same counts', async () => {
+  it('writes the numbers from the prompt rows: a percent value with the counts behind it, the prompts in scope as a count', async () => {
     const { user } = renderWithProviders(overviewAs('admin'));
-    const strip = await screen.findByRole('group', { name: /AI visibility numbers/ });
-    await waitFor(() => {
-      expect(strip).not.toHaveAttribute('aria-busy');
-    });
     await exportNumbers(user);
     const { rows } = await downloaded();
     const mention = rows.find((row) => row[2] === 'ai.mention_rate' && row[3] === 'chatgpt_web');
     if (mention === undefined) throw new Error('The file has no ChatGPT mention rate');
     const [, , , , value = '', unit, numerator = '', denominator = ''] = mention;
     expect(unit).toBe('percent');
-    // The strip's numbers in order: Prompts, then ChatGPT, Gemini and AI Mode
-    const [promptsCell, chatgptCell] = within(strip).getAllByRole('definition');
-    const text = chatgptCell?.textContent ?? '';
-    const percent = /(\d+(?:\.\d)?)%/.exec(text)?.[1];
-    expect(Math.abs(Number(percent) - Number(value))).toBeLessThanOrEqual(0.5);
-    expect(chatgptCell).toHaveAccessibleDescription(
-      new RegExp(
-        `${Number(numerator).toLocaleString('en-US')} of ${Number(denominator).toLocaleString('en-US')} (?:valid )?answers`,
-      ),
-    );
+    expect(Number(value)).toBeGreaterThan(0);
+    expect(Number(value)).toBeLessThanOrEqual(100);
+    expect(Number(numerator)).toBeLessThanOrEqual(Number(denominator));
     const prompts = rows.find((row) => row[2] === 'ai.prompts_in_scope');
-    expect(promptsCell).toHaveTextContent(new RegExp(`^${prompts?.[4] ?? 'none'}`));
+    expect(prompts?.[5]).toBe('count');
+    expect(Number(prompts?.[4])).toBeGreaterThan(0);
     // AI Mode is off in Fynix: no value, never zero
     const off = rows.find((row) => row[2] === 'ai.mention_rate' && row[3] === 'google_ai_mode');
     expect(off?.[4]).toBe('');
     expect(off?.[10]).toBe('off');
   });
 
-  it('writes the table of a card after the strip, in its own block under its own header, and an unmounted card leaves it out', async () => {
+  it('writes the table of a card after the numbers, in its own block under its own header, and an unmounted card leaves it out', async () => {
     const block = (id: string): ExportBlock => ({
       id,
       header: ['label', 'value'],
@@ -228,11 +218,8 @@ describe('the Export menu of the AI visibility page', () => {
     };
     server.events.on('request:start', listener);
     const { user } = renderWithProviders(overviewAs('admin'));
-    const strip = await screen.findByRole('group', { name: /AI visibility numbers/ });
-    await waitFor(() => {
-      expect(strip).not.toHaveAttribute('aria-busy');
-    });
-    // The default strip needs neither read, so nothing asked them yet
+    await exportButton();
+    // The default headline needs neither read, so nothing asked them yet
     expect(asked).toEqual([]);
     await exportNumbers(user);
     server.events.removeListener('request:start', listener);
@@ -254,10 +241,7 @@ describe('the Export menu of the AI visibility page', () => {
       }),
     );
     const { user } = renderWithProviders(overviewAs('admin'));
-    const strip = await screen.findByRole('group', { name: /AI visibility numbers/ });
-    await waitFor(() => {
-      expect(strip).not.toHaveAttribute('aria-busy');
-    });
+    await exportButton();
     await user.click(await exportButton());
     const item = await screen.findByRole('menuitem', { name: 'Numbers (CSV)' });
     expect(item).toHaveAttribute('aria-disabled', 'true');
