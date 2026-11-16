@@ -232,6 +232,16 @@ for (const theme of ['light', 'dark'] as const) {
         await expectAccessible(page);
         await noSidewaysScroll();
 
+        // The controls row and the strip under it, at every width: the Platform select, and a slot for each of the four platforms
+        await page.goto(`${FYNIX_PROMPTS}?tab=prompts`);
+        await expect(page.getByRole('grid', { name: 'Prompts' })).toBeVisible();
+        await expect(page.getByRole('combobox', { name: 'Platform' })).toBeVisible();
+        await expect(page.getByRole('group', { name: 'Summary of the prompts in view' }).getByRole('term')).toHaveCount(
+          5,
+        );
+        await expectAccessible(page);
+        await noSidewaysScroll();
+
         await page.goto(`${FYNIX_PROMPTS}?tab=prompts&inspect=${encodeURIComponent(`prompt:${FIRST_PROMPT_ID}`)}`);
         const inspector = inspectorOf(page, FIRST_PROMPT);
         await expect(inspector.getByRole('tablist', { name: 'Prompt sections' })).toBeVisible();
