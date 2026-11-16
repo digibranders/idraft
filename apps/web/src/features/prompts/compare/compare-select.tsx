@@ -42,8 +42,8 @@ export function CompareSelect({ window }: CompareSelectProps): ReactElement {
           onValueChange={(next) => setCompare(next === 'previous')}
           placeholder={t('label')}
           options={[
-            { value: 'off', label: t('off') },
             { value: 'previous', label: t('previous') },
+            { value: 'off', label: t('off') },
           ]}
         />
         {tip === null ? null : (

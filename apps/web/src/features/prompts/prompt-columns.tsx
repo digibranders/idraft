@@ -124,12 +124,15 @@ export interface PromptColumnOptions {
   facts: PromptFacts | undefined;
 }
 
+/** The preview's Location column: 120 px, which holds "United Arab Emirates" cut with its ellipsis. */
+const LOCATION_WIDTH = 120;
+
 const DEFAULT_OPTIONS: PromptColumnOptions = { showLocation: true, facts: undefined };
 
 /**
  * The columns of the Prompts tab, in the mock's order: Prompt, Group, Location (only while the top bar says All
- * locations), Mention rate and Citation rate (the average of the platforms shown; the Mention rate cell draws the
- * weekly line while the person compares), then each platform's mention rate and its Mentioned and Cited counts, which
+ * locations), Mention rate and Citation rate (the average of the platforms shown; the Mention rate cell has the trend
+ * icon of its change while the person compares), then each platform's mention rate and its Mentioned and Cited counts, which
  * wait in the column chooser. Intent, Search volume, Avg position, Recommendation rate, Share of voice, Sentiment,
  * Cited links, Brands and Screenshot are built by later packages and plug in through `seams/columns.ts`, which
  * gives them the facts, the platform scope and the comparison.
@@ -142,13 +145,14 @@ export function usePromptColumns(
   { showLocation, facts }: PromptColumnOptions = DEFAULT_OPTIONS,
 ): PromptColumns {
   const t = useTranslations('prompts');
+  const shell = useTranslations('prompts.shell.columns');
   const root = useTranslations();
   const locale = useLocale();
   const { compare } = useCompare();
   const changeWords = useChangeWords();
   const contextWindow = useComparedWindow();
   const compared = comparedWindow ?? contextWindow;
-  const { mention, citation } = useRateColumns(engines, cellsOfPrompt, { window: compared, trend: true });
+  const { mention, citation } = useRateColumns(engines, cellsOfPrompt, { window: compared });
   const engineRateColumns = useEngineRateColumns(engines, cellsOfPrompt, metric, {
     defaultVisible: false,
     marks: true,
@@ -197,8 +201,9 @@ export function usePromptColumns(
         ? [
             col.text<PromptRow>(SORT_ID.country, (row) => row.country, {
               header: t('columns.country'),
+              headerTooltip: shell('locationTip'),
               priority: 3,
-              width: 136,
+              width: LOCATION_WIDTH,
             }),
           ]
         : []),
@@ -229,6 +234,7 @@ export function usePromptColumns(
     };
   }, [
     t,
+    shell,
     root,
     locale,
     engines,

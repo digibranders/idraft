@@ -2,19 +2,17 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { cleanup, screen, within } from '@testing-library/react';
-import { useMemo, type ReactElement } from 'react';
+import type { ReactElement } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { cell, engineOf, projectEngine, promptsOf } from './change-test-data';
 import { ComparedWindowProvider } from './compared-window';
 import type { PromptCounts } from '../inspector-reads';
 import { InspectorStrip } from '../inspector-strip';
-import { usePromptColumns, type PromptRow } from '../prompt-columns';
 import { PromptsStrip } from '../prompts-strip';
 import { useRateColumns } from '../rate-columns';
 import { TopicInspector } from '../topic-inspector';
 import { promptRow, topicRow } from '../topics-by-engine/cells-fixtures';
-import type { DataTableColumn } from '@/components/app/data-table/types';
 import type { EngineSummary, MetricCell } from '@/lib/api/types';
 import type { StripPrompt } from '@/lib/rates/strip-model';
 import { renderWithProviders, type ProvidedRender } from '@/test/render';
@@ -161,31 +159,6 @@ function mentionCell(change: Case): HTMLElement {
   return screen.getByTestId('mention-cell');
 }
 
-/** A row of the Prompts tab with the engine cells its summary has. */
-const promptTableRow = (cells: readonly EngineSummary[]): PromptRow =>
-  ({
-    prompt: { prompt_id: 'prompt', current_version: { text: 'prompt' }, is_branded: false },
-    summary: { prompt_id: 'prompt', engines: cells },
-    countsLoaded: true,
-    topics: null,
-    topicList: [],
-    country: null,
-  }) as unknown as PromptRow;
-
-function ChangeColumnCell({ row }: { row: PromptRow }): ReactElement {
-  const { columns } = usePromptColumns([CHAT], 'mention', WINDOW);
-  const column: DataTableColumn<PromptRow> | undefined = useMemo(
-    () => columns.find((entry) => entry.id === 'change_chatgpt_web'),
-    [columns],
-  );
-  return <div data-testid="change-cell">{column?.cell(row)}</div>;
-}
-
-function changeColumnCell(change: Case): HTMLElement {
-  renderOn(<ChangeColumnCell row={promptTableRow(chatCells(change))} />);
-  return screen.getByTestId('change-cell');
-}
-
 function inspectorItem(change: Case): HTMLElement {
   const counts: PromptCounts = {
     status: 'ready',
@@ -263,7 +236,6 @@ async function byEngineRow(change: Case): Promise<HTMLElement> {
 const SURFACES: readonly Surface[] = [
   { name: 'the strip chip', draw: stripChip },
   { name: 'the Mention cell', draw: mentionCell },
-  { name: 'the change column cell', draw: changeColumnCell },
   { name: 'the inspector strip item', draw: inspectorItem },
   { name: 'the drawer card', draw: drawerCard },
   { name: 'the top prompt change', draw: topPrompt },
@@ -278,6 +250,20 @@ interface Drawn {
 
 /** The one change drawn in `region`, as a person sees it and as a screen reader says it; `null` when none is drawn. */
 function drawnIn(region: HTMLElement): Drawn | null {
+  // The table cell draws the change as an icon: its tone is on the icon, its direction in `data-direction`
+  const icons = Array.from(region.querySelectorAll<HTMLElement>('[data-slot="trend-icon"]'));
+  if (icons.length > 0) {
+    const [icon] = icons;
+    if (icon === undefined || icons.length > 1) throw new Error(`${String(icons.length)} icons are drawn here`);
+    const tones = (Object.keys(TONES) as Tone[]).filter((tone) => icon.classList.contains(TONES[tone]));
+    const [tone] = tones;
+    if (tone === undefined || tones.length !== 1) throw new Error(`The icon has ${String(tones.length)} tone classes`);
+    return {
+      tone,
+      sign: icon.dataset.direction === 'up' ? '+' : '-',
+      spoken: icon.querySelector('.sr-only')?.textContent ?? '',
+    };
+  }
   const visible = Array.from(region.querySelectorAll<HTMLElement>('span[aria-hidden="true"]')).filter((element) =>
     /pts$/.test(element.textContent ?? ''),
   );
@@ -354,7 +340,6 @@ describe('no source names a tone class', () => {
   const ROOT = resolve(process.cwd(), 'src');
   const FOLDERS = ['features/prompts/compare', 'lib/compare'];
   const FILES = [
-    'features/prompts/columns/compare-columns.tsx',
     'features/prompts/prompts-strip.tsx',
     'features/prompts/rate-columns.tsx',
     'features/prompts/inspector-strip.tsx',

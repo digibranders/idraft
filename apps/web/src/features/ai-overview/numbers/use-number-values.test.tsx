@@ -9,7 +9,7 @@ import { useRateWords } from '@/features/prompts/rate-view';
 import { PromptsStrip } from '@/features/prompts/prompts-strip';
 import { CustomizableScreen, defineCards, useLayoutCapabilities } from '@/features/layouts';
 import type { NumberItem } from '@/lib/layouts/types';
-import { visibilityOfPrompts } from '@/lib/rates/visibility-model';
+import { engineRates } from '@/lib/rates/strip-model';
 import { PermissionProvider } from '@/lib/permissions';
 import { setAiSeeded } from '@/mocks/ai-seed';
 import { membershipFactory } from '@/mocks/factories/identity';
@@ -344,11 +344,11 @@ describe('useNumberValues', () => {
 });
 
 /**
- * The Prompts strip over the prompts this page read, next to the numbers this page shows (R12). The strip shows AI
- * visibility (named or cited) per platform, while these numbers are mention rates: the strip's percent is checked
- * against `visibilityOfPrompts` over the same prompts (one `output` per platform), and the counts of the Mentioned
- * rate stay compared with the strip's tooltip. Percent parity with an Overview number waits for package O-headline,
- * which owns making the Overview show the same visibility; repoint the first check to that number then.
+ * The Prompts strip over the prompts this page read, next to the numbers this page shows (R12). The strip now shows AI
+ * visibility (named or cited), not the mention rate these numbers show, so the percent of a number is compared with
+ * the mention rate of `engineRates` over the same prompts (the figure the strip held before, still in its tooltip as
+ * counts), and the Mentioned counts stay compared with the strip's tooltip. Equality of the strip's visibility with an
+ * Overview number is pending: see the `it.todo` below.
  */
 function Parity({ seen }: { seen: Seen }): ReactElement {
   const words = useRateWords();
@@ -363,8 +363,8 @@ function Parity({ seen }: { seen: Seen }): ReactElement {
         <>
           <PromptsStrip prompts={prompts} engines={enabled} topics={null} status="ready" countsFailed={false} />
           {enabled.map((engine) => (
-            <output key={engine.engine.engine_code} data-testid={`visibility-${engine.engine.engine_code}`}>
-              {words.text(visibilityOfPrompts(prompts, engine.engine.engine_code))}
+            <output key={engine.engine.engine_code} data-testid={`mention-${engine.engine.engine_code}`}>
+              {words.text(engineRates(prompts, engine.engine.engine_code).mentioned)}
             </output>
           ))}
         </>
@@ -377,58 +377,63 @@ describe('the numbers and the Prompts strip (R12)', () => {
   it.each<{ world: OverviewWorld; seeded: boolean }>([
     { world: 'fynix', seeded: false },
     { world: 'eventus-security', seeded: true },
-  ])('show the strip visibility figure and the mention counts for each engine of $world', async ({ world, seeded }) => {
-    setAiSeeded(seeded);
-    const { user } = renderWithProviders(tree(MENTION, <Parity seen={{ values: [] }} />, world));
-    const chips = await screen.findByRole('group', { name: 'Summary of the prompts in view' });
-    await waitFor(() => {
-      expect(chips).not.toHaveAttribute('aria-busy');
-    });
-    await waitFor(() => {
-      expect(status()).toBe('ready');
-    });
-    const byLabel = new Map(
-      within(chips)
-        .getAllByRole('term')
-        .map((term) => [term.textContent, term.parentElement?.querySelector('dd') ?? null] as const),
-    );
-    const engineIds: readonly [string, string, string][] = [
-      ['mention-chatgpt', 'ChatGPT', 'chatgpt_web'],
-      ['mention-gemini', 'Gemini', 'gemini_web'],
-      ['mention-ai-mode', 'Google AI Mode', 'google_ai_mode'],
-    ];
-    let compared = 0;
-    for (const [id, label, code] of engineIds) {
-      const chip = byLabel.get(label);
-      if (chip === undefined || chip === null) continue;
-      const mine = slot(id, 'value');
-      const theirs = chip.textContent ?? '';
-      if (theirs === 'n/a') {
-        // The Prompts strip has no word for an engine with no valid answer: this page says it
-        // (a platform this project does not ask is n/a in its slot, and "Not asked" here)
-        expect(['No valid answers', 'Not asked']).toContain(mine);
-        continue;
+  ])(
+    'show the same mention rate and counts as the Prompts strip holds for each engine of $world',
+    async ({ world, seeded }) => {
+      setAiSeeded(seeded);
+      const { user } = renderWithProviders(tree(MENTION, <Parity seen={{ values: [] }} />, world));
+      const chips = await screen.findByRole('group', { name: 'Summary of the prompts in view' });
+      await waitFor(() => {
+        expect(chips).not.toHaveAttribute('aria-busy');
+      });
+      await waitFor(() => {
+        expect(status()).toBe('ready');
+      });
+      const byLabel = new Map(
+        within(chips)
+          .getAllByRole('term')
+          .map((term) => [term.textContent, term.parentElement?.querySelector('dd') ?? null] as const),
+      );
+      const engineIds: readonly [string, string, string][] = [
+        ['mention-chatgpt', 'ChatGPT', 'chatgpt_web'],
+        ['mention-gemini', 'Gemini', 'gemini_web'],
+        ['mention-ai-mode', 'Google AI Mode', 'google_ai_mode'],
+      ];
+      let compared = 0;
+      for (const [id, label, code] of engineIds) {
+        const chip = byLabel.get(label);
+        if (chip === undefined || chip === null) continue;
+        const mine = slot(id, 'value');
+        const held = screen.queryByTestId(`mention-${code}`)?.textContent ?? 'n/a';
+        if (held === 'n/a') {
+          // No valid answer on the platform: this page says it (a platform this project does not ask is "Not asked")
+          expect(['No valid answers', 'Not asked']).toContain(mine);
+          continue;
+        }
+        expect(mine).toBe(held);
+        compared += 1;
+        if (/%$/.test(held)) {
+          // "612 of 1,800 answers" is the Prompts strip's own "Mentioned: 612 of 1,800 answers"
+          await user.hover(chip);
+          expect(
+            await screen.findByText(`Mentioned: ${slot(id, 'context')}.`, {
+              exact: false,
+              selector: '[data-slot="tooltip"] span',
+            }),
+          ).toBeInTheDocument();
+          expect(slot(id, 'tip')).toContain(slot(id, 'context').replace(' answers', ' valid answers'));
+          await user.unhover(chip);
+        }
       }
-      // The strip's AI visibility; the Overview shows the same figure once O-headline has built it
-      expect(theirs).toBe(screen.getByTestId(`visibility-${code}`).textContent);
-      compared += 1;
-      if (/%$/.test(theirs)) {
-        // "612 of 1,800 answers" is the Prompts strip's own "Mentioned: 612 of 1,800 answers"
-        await user.hover(chip);
-        expect(
-          await screen.findByText(`Mentioned: ${slot(id, 'context')}.`, {
-            exact: false,
-            selector: '[data-slot="tooltip"] span',
-          }),
-        ).toBeInTheDocument();
-        expect(slot(id, 'tip')).toContain(slot(id, 'context').replace(' answers', ' valid answers'));
-        await user.unhover(chip);
-      }
-    }
-    expect(compared).toBeGreaterThan(0);
-    // The prompts in scope are the Prompts chip's count
-    expect(slot('prompts', 'value')).toBe(byLabel.get('Prompts')?.textContent);
-  });
+      expect(compared).toBeGreaterThan(0);
+      // The prompts in scope are the Prompts chip's count
+      expect(slot('prompts', 'value')).toBe(byLabel.get('Prompts')?.textContent);
+    },
+  );
+
+  // Pending, not dropped: the strip's figure is AI visibility, and the Overview numbers are still mention rates until
+  // package O-headline makes the Overview show the visibility. Then compare a visibility number with the strip's slot.
+  it.todo('show the strip AI visibility of each platform as the same number on the Overview (package O-headline)');
 });
 
 const ENGINES = mswPath(`${P}/engines`);

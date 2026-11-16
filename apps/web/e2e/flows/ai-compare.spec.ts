@@ -12,14 +12,12 @@ import {
   awaitChanges,
   changesIn,
   colouredIn,
-  columnOf,
   compareSelect,
   drawerOf,
   inspectTopic,
   inspectorOf,
   openPrompts,
   openTip,
-  pointsOf,
   promptsGrid,
   stripOf,
   topicsGrid,
@@ -109,19 +107,24 @@ test.describe('Compare with the previous period', () => {
     await awaitChanges(page);
   });
 
-  test('the Mention rate cell draws its weekly line only while comparing, and there is no Trend column', async ({
+  test('the Mention rate cell draws a trend icon only while comparing, with its figures in the tooltip, and there is no Trend column', async ({
     page,
   }) => {
     await openPrompts(page, 1280, { tab: 'prompts' });
+    const icons = promptsGrid(page).locator('[data-slot="trend-icon"]');
     await expect(promptsGrid(page).getByRole('columnheader', { name: /^Trend/ })).toHaveCount(0);
-    await expect(promptsGrid(page).getByRole('img', { name: /^Mention rate by week: / })).toHaveCount(0);
+    await expect(icons).toHaveCount(0);
     await chooseCompare(page, 'vs previous period');
-    await expect(
-      promptsGrid(page)
-        .getByRole('img', { name: /^Mention rate by week: / })
-        .first(),
-    ).toBeVisible();
+    await expect(icons.first()).toBeVisible();
     await expect(promptsGrid(page).getByRole('columnheader', { name: /^Trend/ })).toHaveCount(0);
+    // No points in the cell and no line: the icon says the direction, the hover says the figures
+    await expect(promptsGrid(page).getByRole('img', { name: /^Mention rate by week: / })).toHaveCount(0);
+    const cell = promptsGrid(page).getByRole('gridcell').filter({ has: icons }).first();
+    expect(await cell.textContent()).toMatch(/^\d+%/);
+    expect(await cell.locator('[aria-hidden="true"]').filter({ hasText: /pts/ }).count()).toBe(0);
+    await cell.hover();
+    await expect(openTip(page)).toContainText(/(Up|Down|No change)( [\d.]+ pts)? against the previous period/);
+    await expect(openTip(page)).toContainText(/Within normal variation|Detectable change/);
   });
 
   test('Detectable changes only is in the URL, narrows Prompts, and survives a reload', async ({ page }) => {
@@ -191,7 +194,7 @@ test.describe('Compare with the previous period', () => {
     await topicsGrid(page)
       .getByRole('row', { name: /Paid Search/ })
       .getByRole('gridcell')
-      .filter({ hasText: /\d pts/ })
+      .filter({ has: page.locator('[data-slot="trend-icon"]') })
       // The Mention rate cell comes before the Citation rate cell, which has no change
       .first()
       .hover();
@@ -218,7 +221,7 @@ test.describe('Compare with the previous period', () => {
     expect(change?.color).not.toBe(neutral?.color);
     await row
       .getByRole('gridcell')
-      .filter({ hasText: /\d pts/ })
+      .filter({ has: page.locator('[data-slot="trend-icon"]') })
       .first()
       .hover();
     await expect(openTip(page)).toContainText('Detectable change');
@@ -295,38 +298,6 @@ test.describe('Compare with the previous period', () => {
     await expect.poll(() => countChanges(sectionOf(drawer, 'Prompts'))).toBeGreaterThanOrEqual(1);
   });
 
-  test('a change column chosen in the chooser shows and sorts', async ({ page }) => {
-    await openPrompts(page, 1280, { tab: 'prompts', ...ON });
-    const grid = promptsGrid(page);
-    await expect(grid.getByRole('columnheader', { name: /ChatGPT change/ })).toHaveCount(0);
-    await page.getByRole('button', { name: 'Columns' }).click();
-    await page.getByRole('checkbox', { name: 'ChatGPT change' }).check();
-    await page.keyboard.press('Escape');
-    const header = grid.getByRole('columnheader', { name: /ChatGPT change/ });
-    await expect(header).toBeVisible();
-    await expect(page).toHaveURL(/cols=[^&]*change_chatgpt_web/);
-    await expect
-      .poll(async () => (await columnOf(grid, /ChatGPT change/)).filter((cell) => pointsOf(cell) !== null).length)
-      .toBeGreaterThan(5);
-
-    // Each click orders the rows by the points; a change that cannot be told ("n/a") stays last
-    // A rate column sorts high first, then low first
-    for (const direction of ['descending', 'ascending'] as const) {
-      await header
-        .getByRole('button', { name: /^ChatGPT change/ })
-        .first()
-        .click();
-      await expect(header).toHaveAttribute('aria-sort', direction);
-      const cells = await columnOf(grid, /ChatGPT change/);
-      const points = cells.map(pointsOf);
-      const known = points.filter((value): value is number => value !== null);
-      expect(known.length).toBeGreaterThan(5);
-      expect(points.slice(0, known.length).every((value) => value !== null)).toBe(true);
-      const expected = [...known].sort((a, b) => (direction === 'ascending' ? a - b : b - a));
-      expect(known).toEqual(expected);
-    }
-  });
-
   test('cmp survives the switch between Prompts and the inspector', async ({ page }) => {
     await openPrompts(page, 1280, ON);
     await expect(compareSelect(page)).toHaveText('vs previous period');
@@ -390,7 +361,7 @@ for (const theme of ['light', 'dark'] as const) {
     });
 
     for (const width of [1280, 390]) {
-      test(`has no accessibility violation on Groups, Prompts with a change column, the prompt inspector and the group drawer at ${String(width)} px`, async ({
+      test(`has no accessibility violation on Groups, Prompts with trend icons, the prompt inspector and the group drawer at ${String(width)} px`, async ({
         page,
       }) => {
         // The detectable change is drawn, so a coloured change is among what axe measures
@@ -400,10 +371,10 @@ for (const theme of ['light', 'dark'] as const) {
 
         await visitPrompts(page, {
           tab: 'prompts',
-          cols: 'prompt,mention,change_chatgpt_web,change_gemini_web',
+          cols: 'prompt,mention,citation',
           ...ON,
         });
-        await expect(promptsGrid(page).getByRole('columnheader', { name: /ChatGPT change/ })).toBeVisible();
+        await expect(promptsGrid(page).getByRole('columnheader', { name: /^Mention rate/ })).toBeVisible();
         await expect.poll(async () => (await colouredIn(promptsGrid(page))).length).toBeGreaterThan(0);
         await expectAccessible(page);
 

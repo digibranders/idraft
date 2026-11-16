@@ -397,57 +397,62 @@ describe('Prompts: compare, the read and the address', () => {
   });
 });
 
-describe('Prompts: the change column of an engine', () => {
-  it('waits in the column chooser, off by default, and shows its change once chosen', async () => {
+describe('Prompts: the trend icon of the Mention rate cell', () => {
+  const firstRow = async (table: HTMLElement): Promise<HTMLElement> => {
+    const row = (await within(table).findByText('Question number 1?')).closest('[role="row"]');
+    if (!(row instanceof HTMLElement)) throw new Error('The first prompt row is missing');
+    return row;
+  };
+  const mentionCellOf = (row: HTMLElement): HTMLElement => {
+    const cell = within(row)
+      .getAllByRole('gridcell')
+      .find((node) => node.querySelector('[data-slot="trend-icon"]') !== null);
+    if (cell === undefined) throw new Error('The Mention rate cell has no trend icon');
+    return cell;
+  };
+
+  it('has no per-platform change column in the chooser: the change is the icon of the Mention rate cell', async () => {
     serve();
     const { user } = render('?tab=prompts&cmp=previous');
     const table = await grid();
-    expect(within(table).queryByRole('columnheader', { name: /ChatGPT change/ })).toBeNull();
+    await within(table).findByText('Question number 1?');
     await user.click(screen.getByRole('button', { name: 'Columns' }));
-    const choice = screen.getByRole('checkbox', { name: 'ChatGPT change' });
-    expect(choice).not.toBeChecked();
-    await user.click(choice);
-    expect(within(table).getByRole('columnheader', { name: /ChatGPT change/ })).toBeInTheDocument();
-    const row = (await within(table).findByText('Question number 1?')).closest('[role="row"]');
-    if (!(row instanceof HTMLElement)) throw new Error('The first prompt row is missing');
-    // The Mention rate cell and the new column both show this prompt's rise of 30 points on ChatGPT
-    expect(within(row).getAllByText('+30.0 pts')).toHaveLength(2);
+    expect(screen.queryByRole('checkbox', { name: 'ChatGPT change' })).toBeNull();
+    expect(screen.getByRole('checkbox', { name: 'ChatGPT mention' })).toBeInTheDocument();
   });
 
-  it('gives its tip to the focused cell of the table and adds no tab stop inside it', async () => {
+  it('shows a trending up icon, coloured because the rise is detectable, and no points text in the cell', async () => {
     serve();
-    render('?tab=prompts&cols=prompt,mention,change_chatgpt_web&cmp=previous');
-    const table = await grid();
-    expect(await within(table).findByRole('columnheader', { name: /ChatGPT change/ })).toBeInTheDocument();
-    const row = (await within(table).findByText('Question number 1?')).closest('[role="row"]');
-    if (!(row instanceof HTMLElement)) throw new Error('The first prompt row is missing');
-    // The Mention rate cell holds the rate beside the 30 points; the change column is the cell with the points alone
-    const changeCell = (): HTMLElement | undefined =>
-      within(row)
-        .getAllByRole('gridcell')
-        .find((node) => node.textContent?.includes('30.0 pts') && !node.textContent.includes('%'));
-    await waitFor(() => expect(changeCell()).toBeDefined());
-    const cell = changeCell();
-    if (cell === undefined) throw new Error('The change cell is missing');
+    render('?tab=prompts&cmp=previous');
+    const row = await firstRow(await grid());
+    await waitFor(() => expect(row.querySelector('[data-slot="trend-icon"]')).not.toBeNull());
+    const icon = row.querySelector('[data-slot="trend-icon"]');
+    expect(icon).toHaveAttribute('data-direction', 'up');
+    expect(icon).toHaveClass('text-positive-text');
+    const cell = mentionCellOf(row);
+    expect(cell.textContent).not.toMatch(/\+30\.0 pts/);
+    // A screen reader hears the same direction and verdict as the tooltip says
+    expect(icon).toHaveTextContent('up 30.0 pts, detectable');
+  });
+
+  it('gives its figures to the focused cell of the table and adds no tab stop inside it', async () => {
+    serve();
+    render('?tab=prompts&cmp=previous');
+    const row = await firstRow(await grid());
+    await waitFor(() => expect(row.querySelector('[data-slot="trend-icon"]')).not.toBeNull());
+    const cell = mentionCellOf(row);
+    expect(cell).toHaveAccessibleDescription(/Up 30\.0 pts against the previous period, from 20% to 50%/);
     expect(cell).toHaveAccessibleDescription(/Previous 20%, 12 of 60 answers.*Previous period: Sep 18 to Oct 15, 2026/);
     expect(cell).toHaveAccessibleDescription(/Detectable change/);
     expect(cell.querySelectorAll('[tabindex]')).toHaveLength(0);
   });
 
-  it('can be shown from the address, and says Comparison is off without cmp=previous', async () => {
+  it('draws no icon without cmp=previous, and the cell says what it said before', async () => {
     serve();
-    const on = render('?tab=prompts&cols=prompt,mention,change_chatgpt_web&cmp=previous');
-    const table = await grid();
-    // The engines load after the table: the column appears with them
-    expect(await within(table).findByRole('columnheader', { name: /ChatGPT change/ })).toBeInTheDocument();
-    await waitFor(() => expect(within(table).getAllByText('+30.0 pts').length).toBeGreaterThan(0));
-    on.unmount();
-
-    render('?tab=prompts&cols=prompt,mention,change_chatgpt_web');
-    const off = await grid();
-    expect(await within(off).findByRole('columnheader', { name: /ChatGPT change/ })).toBeInTheDocument();
-    await waitFor(() => expect(within(off).getAllByText('n/a').length).toBeGreaterThan(0));
-    expect(within(off).queryByText('+30.0 pts')).toBeNull();
+    render('?tab=prompts');
+    const row = await firstRow(await grid());
+    expect(row.querySelector('[data-slot="trend-icon"]')).toBeNull();
+    expect(within(row).queryByText(/pts/)).toBeNull();
   });
 });
 

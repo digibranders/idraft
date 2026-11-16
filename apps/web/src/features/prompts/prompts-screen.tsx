@@ -17,7 +17,7 @@ import {
 import { useLocale, useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { parseAsString, useQueryStates } from 'nuqs';
-import { Fragment, useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { useJustAdded } from './add/just-added-store';
 import { useAddPrompts } from './add/use-add-prompts';
@@ -34,7 +34,8 @@ import {
   narrowSummary,
   useCompare,
 } from './compare';
-import { PlatformSelect } from './engine-select';
+import { PlatformSelect, withoutFullPlatformSet } from './engine-select';
+import { factsRequested, indexFacts, type PromptFacts } from './facts';
 import { asRecordActions, type PromptAction } from './prompt-action';
 import { usePromptColumns, type PromptRow } from './prompt-columns';
 import { PromptInspector, type PromptCounts } from './prompt-inspector';
@@ -48,6 +49,7 @@ import {
   NO_TOPIC,
   parseCountry,
   parseTab,
+  SORT_ID,
   PROMPTS_TABS,
   topicChoices,
   topicDescendants,
@@ -66,7 +68,6 @@ import { enginesQuery, observationQuery, summaryQuery, usePromptList, type Promp
 import { PromptsControls } from './prompts-controls';
 import { PromptsCountryControl } from './prompts-scope';
 import { PromptsStrip } from './prompts-strip';
-import { usePageFacts } from './use-page-facts';
 import { PROMPT_ACTION_ENTRIES, withActionEntries } from './seams/actions';
 import { PROMPTS_TOOLBAR_ENTRIES, promptsToolbarItems } from './seams/toolbar';
 import { UpdatedRunLink, useUpdatedRunHref } from './updated-run-link';
@@ -158,8 +159,13 @@ const VIEW_STATE = {
   density: parseAsString,
 };
 
-/** The weekly series, asked of the summary: the Trend column, the line in the Mention rate cell and the History tab read it. Module level, so the query's key stays the same. */
+/**
+ * The blocks asked of the summary: the weekly series (the Trend column of Groups, the tooltip of the Mention rate cell
+ * and the History tab read it), and, where the API knows them (`factsRequested`), the tracked entities and the facts of
+ * the Prompts columns, in the same one read. Module level, so the query's key stays the same.
+ */
 const SERIES: readonly ['series'] = ['series'];
+const SERIES_AND_FACTS: readonly ['series', 'entities', 'facts'] = ['series', 'entities', 'facts'];
 const NO_ENTITIES: readonly SummaryEntity[] = [];
 
 const promptRowId = (row: PromptRow): string => row.prompt.prompt_id;
@@ -280,7 +286,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     ];
   }, [t, optionsPending, topicsUnknown, topicTree, topicTerms, enabled, engines.data]);
   // A filter of a shared link that does not read is left out, and the person is told (13 section 5)
-  const [values, setValues] = useUrlFilters(fields, {
+  const [urlValues, setUrlValues] = useUrlFilters(fields, {
     onDropped: (dropped) =>
       toast({
         type: 'info',
@@ -293,6 +299,16 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
         }),
       }),
   });
+  // A Platform filter that names every platform that is on is All platforms: it has no chip, and the address drops it
+  const enabledCodes = useMemo(() => enabled.map((engine) => engine.engine.engine_code), [enabled]);
+  const values = useMemo(() => withoutFullPlatformSet(urlValues, enabledCodes), [urlValues, enabledCodes]);
+  const setValues = useCallback(
+    (next: FilterValues): void => void setUrlValues(withoutFullPlatformSet(next, enabledCodes)),
+    [setUrlValues, enabledCodes],
+  );
+  useEffect(() => {
+    if (values !== urlValues) void setUrlValues(values);
+  }, [values, urlValues, setUrlValues]);
   // The country is scope, not a filter: the bar's chips and Clear filters leave it, an empty state names it and leaves it
   // together with the filters
   const nameOfCountry = useCallback((iso: string): string => countryName.get(iso) ?? iso, [countryName]);
@@ -348,7 +364,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   const summary = useQuery({
     ...summaryQuery(scope, range, includeBranded, {
       ...(country === null ? {} : { country }),
-      include: SERIES,
+      include: factsRequested() ? SERIES_AND_FACTS : SERIES,
       compare,
     }),
     enabled: enabled.length > 0,
@@ -488,15 +504,17 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     [summary.data, topicsUnknown, stripPrompts, descendants, topicIds, kept],
   );
 
-  // The facts of the columns that later packages build, from the one summary read (never a request for a row)
-  const facts = usePageFacts(scope, range, includeBranded, enabled.length > 0, {
-    ...(country === null ? {} : { country }),
-    compare,
-  });
+  // The facts of the columns that later packages build, from the one summary read (never a request for a row); absent
+  // while the API does not send them, which those columns say as not collected yet
+  const facts = useMemo(
+    (): PromptFacts | undefined =>
+      summaryData === undefined || !factsRequested() ? undefined : indexFacts(summaryData, true),
+    [summaryData],
+  );
   const { columns, sortFields, searchText, rowName } = usePromptColumns(shown, 'mention', comparedWindow(summaryData), {
     // The location of the top bar already says which, so a Location column repeats it on every row
     showLocation: country === null,
-    facts: facts.data,
+    facts,
   });
   const columnIds = useMemo(() => new Set(columns.map((column) => column.id)), [columns]);
   const visible = useMemo(() => parseColumns(view.cols, columnIds, ['prompt']), [view.cols, columnIds]);
@@ -506,6 +524,12 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     const parsed = parseSort(view.sort, sortFields);
     return parsed.length === 0 ? DEFAULT_PROMPT_SORT : parsed;
   }, [view.sort, sortFields]);
+  // The Location column is not there while the top bar names a location, so the chooser cannot say whether it is on: its
+  // choice is kept in the address as it was (on by default), and applies again when the top bar is back on All locations
+  const keepLocationChoice = (next: readonly string[]): readonly string[] => {
+    const wasOn = view.cols === null || view.cols.split(',').includes(SORT_ID.country);
+    return country !== null && wasOn && !next.includes(SORT_ID.country) ? [...next, SORT_ID.country] : next;
+  };
   const density = parseDensity(view.density);
 
   // The inspector: a prompt opened from either tab, stepping in the order of the table on screen
@@ -1073,7 +1097,8 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
                 onDensityChange={nothing}
                 columnState={{
                   visible,
-                  onChange: (next) => void setView({ cols: next === null ? null : formatColumns(next) }),
+                  onChange: (next) =>
+                    void setView({ cols: next === null ? null : formatColumns(keepLocationChoice(next)) }),
                 }}
                 search={view.q}
                 onSearchChange={(next) => void setView({ q: next === '' ? null : next })}

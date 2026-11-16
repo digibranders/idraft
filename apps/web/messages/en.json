@@ -4866,15 +4866,20 @@
         "infoWhat": "The percentage for each platform is its AI visibility rate: how often that platform's answers mention or cite your brand.",
         "infoHow": "The share of valid answers that mention your brand, cite your site, or both. Each prompt counts once. Hover a figure for the counts behind it, with the mention, citation and share of voice figures.",
         "visibilityTip": "AI visibility rate (mentioned or cited): {detail}",
-        "tip": "{visibility}. {mentioned}. {cited}. {prompts}. {shareOfVoice}.",
-        "tipNoPrompts": "{visibility}. {mentioned}. {cited}. {shareOfVoice}.",
+        "tip": "{platform}. {visibility}. {mentioned}. {cited}. {prompts}. {shareOfVoice}.",
+        "tipNoPrompts": "{platform}. {visibility}. {mentioned}. {cited}. {shareOfVoice}.",
         "quietNote": ", not in the Platform filter",
         "quietTip": "Not in the Platform filter, so the table leaves it out",
         "notCollectedTip": "{platform} is not collected for this project yet",
         "countsFailedTip": "The counts could not be read"
       },
       "columns": {
-        "mentionTrendTip": "The change is against the comparison period, and the line is the rate of each week of the period (a week with no valid answer is a gap)"
+        "mentionChangeTip": "The icon is the change against the comparison period: green or red only when it is a detectable change, grey when it is within normal variation. The figures are in the cell's tooltip",
+        "moveUp": "Up {points} against the previous period, from {before} to {now}",
+        "moveDown": "Down {points} against the previous period, from {before} to {now}",
+        "moveFlat": "No change against the previous period, at {now}",
+        "weeklyRates": "Weekly rates: {rates}",
+        "locationTip": "The location the prompt is asked for"
       }
     }
   },

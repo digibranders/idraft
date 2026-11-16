@@ -5,8 +5,10 @@ import { useMemo, type ReactElement } from 'react';
 
 import { PlatformMark } from './platform-mark';
 import { byEngineOrder } from '@/components/app/engine/order';
+import type { FilterValues } from '@/components/app/filters/types';
 import { Select, type SelectOption } from '@/components/ui/select';
 import type { ProjectEngine } from '@/lib/api/types';
+import { enumValuesOf } from '@/lib/filters/filter-values';
 
 /** The values of the choices that are not a platform: every platform, and a set of two or more of them. */
 const ALL = 'all';
@@ -20,6 +22,17 @@ export function platformChoice(chosen: readonly string[], enabled: readonly stri
   const known = chosen.filter((code) => enabled.includes(code));
   if (known.length === 0 || known.length === enabled.length) return ALL;
   return known.length === 1 ? (known[0] ?? ALL) : SET;
+}
+
+/**
+ * `values` without the Platform filter when it names every platform that is on: that is All platforms, which has no
+ * chip and nothing to clear. The same object when there is nothing to take out (and always while no platform is known,
+ * since a link's platforms wait for the list of them).
+ */
+export function withoutFullPlatformSet(values: FilterValues, enabled: readonly string[]): FilterValues {
+  const chosen = enumValuesOf(values['engine']);
+  if (enabled.length === 0 || chosen.length === 0 || !enabled.every((code) => chosen.includes(code))) return values;
+  return Object.fromEntries(Object.entries(values).filter(([id]) => id !== 'engine'));
 }
 
 export interface PlatformSelectProps {

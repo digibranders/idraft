@@ -192,21 +192,21 @@ describe('the Trend column of the tables', () => {
 
   it('does not draw the sparklines again when a row is chosen: only a change of the data draws them', async () => {
     const getContext = vi.spyOn(HTMLCanvasElement.prototype, 'getContext');
-    const { user } = renderOn('?tab=prompts&cmp=previous');
-    const grid = await screen.findByRole('grid', { name: 'Prompts' });
+    const { user } = renderOn('');
+    const tree = await screen.findByRole('treegrid', { name: 'Groups' });
     await waitFor(() =>
-      expect(within(grid).getAllByRole('img', { name: /^Mention rate by week: / }).length).toBeGreaterThan(0),
+      expect(within(tree).getAllByRole('img', { name: /^Mention rate by week: / }).length).toBeGreaterThan(0),
     );
-    const [, first, second] = within(grid).getAllByRole('checkbox');
+    const [, first, second] = within(tree).getAllByRole('checkbox');
     await user.click(first as HTMLElement);
-    await waitFor(() => expect(screen.getByRole('group', { name: /^Bulk actions, 1 selected/ })).toBeInTheDocument());
+    await waitFor(() => expect(first).toBeChecked());
     const drawn = getContext.mock.calls.length;
     await user.click(second as HTMLElement);
-    await waitFor(() => expect(screen.getByRole('group', { name: /^Bulk actions, 2 selected/ })).toBeInTheDocument());
+    await waitFor(() => expect(second).toBeChecked());
     expect(getContext.mock.calls.length).toBe(drawn);
   });
 
-  it('is not a column of the Prompts tab: the line sits in the Mention rate cell, only while comparing', async () => {
+  it('is not a column of the Prompts tab, and no line is drawn there: the Mention rate cell has a trend icon while comparing', async () => {
     const summaries: string[] = [];
     server.events.on('request:start', ({ request }) => {
       if (new URL(request.url).pathname.endsWith('/ai/prompts-summary')) summaries.push(request.url);
@@ -216,19 +216,14 @@ describe('the Trend column of the tables', () => {
     const headers = (await within(plain).findAllByRole('columnheader')).map((header) => header.textContent);
     expect(headers).not.toContain('Trend');
     await waitFor(() => expect(summaries.length).toBeGreaterThan(0));
-    // No comparison: no line. The weeks are asked for all the same, since the prompt's History tab reads them too
-    expect(within(plain).queryAllByRole('img', { name: /^Mention rate by week: / })).toHaveLength(0);
+    // The weeks are asked for all the same, since the prompt's History tab reads them too, and the Groups tab draws them
     expect(summaries.every((url) => /[?&]include=series(&|$)/.test(url))).toBe(true);
+    expect(within(plain).queryAllByRole('img', { name: /^Mention rate by week: / })).toHaveLength(0);
     off.unmount();
 
     renderOn('?tab=prompts&cmp=previous');
     const grid = await screen.findByRole('grid', { name: 'Prompts' });
-    await waitFor(() =>
-      expect(within(grid).getAllByRole('img', { name: /^Mention rate by week: / }).length).toBeGreaterThan(0),
-    );
-    const line = within(grid).getAllByRole('img', { name: /^Mention rate by week: / })[0];
-    // The line is inside a Mention rate cell, after its percent
-    expect(line?.closest('[role="gridcell"]')).toHaveTextContent('%');
-    expect(headers).not.toContain('Trend');
+    await waitFor(() => expect(grid.querySelector('[data-slot="trend-icon"]')).not.toBeNull());
+    expect(within(grid).queryAllByRole('img', { name: /^Mention rate by week: / })).toHaveLength(0);
   });
 });

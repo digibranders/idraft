@@ -1996,7 +1996,7 @@ describe('Prompts: the metric strip', () => {
     expect(gemini).toHaveTextContent(/^2 answers$/);
     expect(prompts).toHaveAccessibleDescription('Across 2 groups');
     expect(chatgpt).toHaveAccessibleDescription(
-      'AI visibility rate (mentioned or cited): 9 of 12 answers. Mentioned: 8 of 12 answers. Cited: 6 of 12 answers. Over 3 prompts, each counted once. Share of voice: 8 answers that mention a brand.',
+      'ChatGPT. AI visibility rate (mentioned or cited): 9 of 12 answers. Mentioned: 8 of 12 answers. Cited: 6 of 12 answers. Over 3 prompts, each counted once. Share of voice: 8 answers that mention a brand.',
     );
     // The two platforms this project has off keep their place, and say they are not collected, never a number
     expect(aiMode).toHaveTextContent(/^n\/a$/);
@@ -2017,7 +2017,7 @@ describe('Prompts: the metric strip', () => {
     for (let stops = 0; stops < 30 && document.activeElement !== chatgpt; stops += 1) await user.tab();
     expect(chatgpt).toHaveFocus();
     expect(
-      await screen.findByText(/^AI visibility rate \(mentioned or cited\): 9 of 12 answers\./, {
+      await screen.findByText(/^ChatGPT\. AI visibility rate \(mentioned or cited\): 9 of 12 answers\./, {
         selector: '[data-slot="tooltip"] span',
       }),
     ).toBeInTheDocument();
@@ -2073,7 +2073,7 @@ describe('Prompts: the metric strip', () => {
     expect(within(gemini).getByText('2 answers')).toHaveClass('bg-insufficient');
     expect(gemini).not.toHaveTextContent('%');
     expect(gemini).toHaveAccessibleDescription(
-      'AI visibility rate (mentioned or cited): 1 of 2 answers, too few for a rate. Mentioned: 1 of 2 answers, too few for a rate. Cited: 0 of 2 answers, too few for a rate. Over 1 prompt, each counted once. Share of voice: no brand mentioned.',
+      'Gemini. AI visibility rate (mentioned or cited): 1 of 2 answers, too few for a rate. Mentioned: 1 of 2 answers, too few for a rate. Cited: 0 of 2 answers, too few for a rate. Over 1 prompt, each counted once. Share of voice: no brand mentioned.',
     );
   });
 
@@ -2286,6 +2286,32 @@ describe('Prompts: rate columns, Top platform, sorting and the metric switcher',
     await user.click(screen.getByRole('checkbox', { name: 'ChatGPT mention' }));
     expect(within(table).getByRole('columnheader', { name: /^ChatGPT mention/ })).toBeInTheDocument();
     expect(cellsOf(table, 'Question number 1?').at(-1)).toBe('75% 6 of 8');
+  });
+
+  it('explains the Location column in its header tooltip', async () => {
+    serveRates();
+    const { user } = renderOnPrompts(promptsAs('viewer'));
+    const table = await grid();
+    await within(table).findByText('Question number 1?');
+    await user.hover(within(table).getByRole('columnheader', { name: /^Location/ }));
+    expect(await screen.findAllByText('The location the prompt is asked for')).not.toHaveLength(0);
+  });
+
+  it('keeps the Location choice in the address while the top bar names a location, so it returns with All locations', async () => {
+    serveRates();
+    const writes: string[] = [];
+    const { user } = renderOnPrompts(promptsAs('viewer'), {
+      searchParams: '?country=DE&cols=prompt,topic,country,mention',
+      onUrlUpdate: ({ queryString }) => writes.push(queryString),
+    });
+    const table = await grid();
+    await within(table).findByText('Question number 1?');
+    expect(within(table).queryByRole('columnheader', { name: /^Location/ })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Columns' }));
+    await user.click(await screen.findByRole('checkbox', { name: 'Citation rate' }));
+    await vi.waitFor(() => expect(writes.length).toBeGreaterThan(0));
+    const cols = new URLSearchParams(writes.at(-1)).get('cols')?.split(',') ?? [];
+    expect(cols).toEqual(expect.arrayContaining(['prompt', 'topic', 'mention', 'citation', 'country']));
   });
 
   it('keeps a saved link that names the removed Trend column: the other columns it names still show', async () => {
@@ -2739,10 +2765,17 @@ describe('Prompts: the Platform select and the controls row', () => {
     expect(await platform()).toHaveTextContent('All platforms');
   });
 
-  it('keeps the chip while the filter names more than one platform, and the select reads All platforms when that is every platform', async () => {
-    renderOnPrompts(promptsAs('viewer'), { searchParams: '?engine=chatgpt_web,gemini_web' });
-    expect(await screen.findByRole('button', { name: /^Platform:/ })).toBeInTheDocument();
-    expect(await platform()).toHaveTextContent('All platforms');
+  it('takes a Platform filter that names every platform that is on for All platforms: no chip, no Clear filters, and the address drops it', async () => {
+    const writes: string[] = [];
+    renderOnPrompts(promptsAs('viewer'), {
+      searchParams: '?engine=chatgpt_web,gemini_web',
+      onUrlUpdate: ({ queryString }) => writes.push(queryString),
+    });
+    await vi.waitFor(async () => expect(await platform()).toHaveTextContent('All platforms'));
+    await vi.waitFor(() => expect(writes.length).toBeGreaterThan(0));
+    expect(lastEngine(writes)).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Platform:/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Clear filters' })).toBeNull();
   });
 
   it('puts the status, the update time, More actions and Add prompts at the right edge of the row', async () => {
