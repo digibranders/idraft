@@ -190,11 +190,8 @@ export const promptRow = (
 export const head = (key: string, name: string, over: Partial<TopicHead> = {}): TopicHead => ({
   key,
   name,
-  path: name,
-  parent: null,
   promptCount: 1,
   engines: [],
   members: null,
-  children: [],
   ...over,
 });

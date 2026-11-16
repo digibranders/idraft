@@ -119,6 +119,7 @@ export function PromptInspector({
   const t = useTranslations('prompts.inspector');
   const root = useTranslations();
   const words = useTranslations('prompts');
+  const groupsWords = useTranslations('prompts.groupsTab');
   const common = useTranslations('common');
   const inspectorWords = useTranslations('inspector');
   const locale = useLocale();
@@ -407,28 +408,23 @@ export function PromptInspector({
           prompt === null && topic == null ? null : (
             <span className="inline-flex flex-wrap items-center gap-1.5">
               {topic == null ? (
-                firstTopic === undefined ? null : !firstTopic.path.includes('/') ? (
+                // The group by its own name, as the table says it (flat: no path above it). A prompt in no group
+                // listed in scope has no way to its drawer, so its badge is plain
+                firstTopic === undefined ? null : (
                   <Badge>{firstTopic.name}</Badge>
-                ) : (
-                  // A topic below another is named by its path (WB-PI-06), cut short in a narrow header; the tooltip
-                  // has it whole, and the badge takes the keyboard so it reaches it. It is no button: a prompt that
-                  // was not opened from a topic has no way back to one (decision 8)
-                  <Tooltip content={firstTopic.path}>
-                    <Badge tabIndex={0} className="max-w-full truncate">
-                      {firstTopic.path}
-                    </Badge>
-                  </Tooltip>
                 )
               ) : (
                 // There is no interactive badge: the badge is the button's label
-                <Button
-                  variant="link"
-                  size="sm"
-                  aria-label={words('topics.openTopic', { name: topic.name })}
-                  onClick={topic.onOpen}
-                >
-                  <Badge>{topic.name}</Badge>
-                </Button>
+                <Tooltip content={groupsWords('openGroupTip')}>
+                  <Button
+                    variant="link"
+                    size="sm"
+                    aria-label={words('topics.openTopic', { name: topic.name })}
+                    onClick={topic.onOpen}
+                  >
+                    <Badge>{topic.name}</Badge>
+                  </Button>
+                </Tooltip>
               )}
               {prompt?.is_branded === true ? <Badge>{words('branded')}</Badge> : null}
               {prompt === null || prompt.is_active ? null : <Badge tone="warning">{t('archivedBadge')}</Badge>}

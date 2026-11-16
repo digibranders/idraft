@@ -5,7 +5,7 @@ import {
   promptIdsOf,
   rowSelection,
   selectionKeyOf,
-  topicsChosen,
+  groupsChosen,
   type RowPrompts,
 } from './selection-model';
 
@@ -83,28 +83,16 @@ describe('the prompts behind several rows', () => {
   });
 });
 
-describe('the topics a choice counts', () => {
-  const tree = [
-    {
-      ids: ['p1', 'p2', 'p3'],
-      children: [{ ids: ['p1', 'p2'] }, { ids: ['p3'] }],
-    },
-    { ids: ['p4'], children: [] },
-    { ids: [], children: [] },
-  ];
+describe('the groups a choice counts', () => {
+  const groups = [['p1', 'p2'], ['p2', 'p3'], ['p4'], []];
 
-  it('counts a parent alone when all of its prompts are chosen, and not the topics below it', () => {
-    expect(topicsChosen(tree, new Set(['p1', 'p2', 'p3']))).toBe(1);
+  it('counts the groups whose prompts are all chosen, a prompt in two groups filling both', () => {
+    expect(groupsChosen(groups, new Set(['p1', 'p2', 'p3']))).toBe(2);
+    expect(groupsChosen(groups, new Set(['p1', 'p2', 'p3', 'p4']))).toBe(3);
   });
 
-  it('counts the topics below a parent that is only partly chosen', () => {
-    expect(topicsChosen(tree, new Set(['p1', 'p2']))).toBe(1);
-    expect(topicsChosen(tree, new Set(['p1', 'p2', 'p3', 'p4']))).toBe(2);
-    expect(topicsChosen(tree.slice(0, 1), new Set(['p3', 'p1']))).toBe(1);
-  });
-
-  it('counts no topic for prompts that fill none, nor for a topic without prompts', () => {
-    expect(topicsChosen(tree, new Set(['p1']))).toBe(0);
-    expect(topicsChosen(tree, new Set())).toBe(0);
+  it('counts no group for prompts that fill none, nor for a group without prompts', () => {
+    expect(groupsChosen(groups, new Set(['p1']))).toBe(0);
+    expect(groupsChosen(groups, new Set())).toBe(0);
   });
 });

@@ -173,7 +173,7 @@ function promptsAs(role: Role): ReactElement {
 const renderOn = (searchParams: string): ProvidedRender => renderWithProviders(promptsAs('viewer'), { searchParams });
 
 describe('the Trend column of the tables', () => {
-  it('is on the Topics tab after Top engine, with a sparkline for each topic, from the one summary read that asks for series', async () => {
+  it('is not a column of the Groups tab either (PR-TOPICS-20): no Trend header and no weekly line in a row', async () => {
     const summaries: string[] = [];
     server.events.on('request:start', ({ request }) => {
       if (new URL(request.url).pathname.endsWith('/ai/prompts-summary')) summaries.push(request.url);
@@ -181,29 +181,11 @@ describe('the Trend column of the tables', () => {
     renderOn('');
     const tree = await screen.findByRole('treegrid', { name: 'Groups' });
     const headers = (await within(tree).findAllByRole('columnheader')).map((header) => header.textContent);
-    expect(headers.indexOf('Trend')).toBe(headers.findIndex((text) => text?.startsWith('Top platform')) + 1);
-    await waitFor(() =>
-      expect(within(tree).getAllByRole('img', { name: /^Mention rate by week: / }).length).toBeGreaterThan(0),
-    );
-    // One read of the summary, for the strip and both tables, and it asks for the weeks
+    expect(headers).toContain('Mention rate');
+    expect(headers).not.toContain('Trend');
+    await within(tree).findByRole('button', { name: 'Open the group Paid Search' });
+    expect(within(tree).queryAllByRole('img', { name: /^Mention rate by week: / })).toHaveLength(0);
     expect(summaries.length).toBeGreaterThan(0);
-    expect(summaries.every((url) => /[?&]include=series(&|$)/.test(url))).toBe(true);
-  });
-
-  it('does not draw the sparklines again when a row is chosen: only a change of the data draws them', async () => {
-    const getContext = vi.spyOn(HTMLCanvasElement.prototype, 'getContext');
-    const { user } = renderOn('');
-    const tree = await screen.findByRole('treegrid', { name: 'Groups' });
-    await waitFor(() =>
-      expect(within(tree).getAllByRole('img', { name: /^Mention rate by week: / }).length).toBeGreaterThan(0),
-    );
-    const [, first, second] = within(tree).getAllByRole('checkbox');
-    await user.click(first as HTMLElement);
-    await waitFor(() => expect(first).toBeChecked());
-    const drawn = getContext.mock.calls.length;
-    await user.click(second as HTMLElement);
-    await waitFor(() => expect(second).toBeChecked());
-    expect(getContext.mock.calls.length).toBe(drawn);
   });
 
   it('is not a column of the Prompts tab, and no line is drawn there: the Mention rate cell has a trend icon while comparing', async () => {

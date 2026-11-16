@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildTopicTree, countTopicRows, sortTopicTree } from './topic-tree';
+import { buildTopicTree, groupsOf } from './topic-tree';
 import type { NamedTerm } from '@/lib/keywords/taxonomy-reads';
 
 const term = (termId: string, name: string, parentId: string | null, path: string): NamedTerm => ({
@@ -48,7 +48,6 @@ describe('buildTopicTree', () => {
   it('gives a topic below the second level no row of its own: its row is read in its second level topic', () => {
     const all = buildTopicTree(ROWS, TREE).flatMap((branch) => [branch.row, ...branch.children]);
     expect(all.map((entry) => entry.name)).not.toContain('Cyber');
-    expect(countTopicRows(buildTopicTree(ROWS, TREE))).toBe(5);
   });
 
   it('lists every topic at the top level while the trees are not read', () => {
@@ -83,28 +82,46 @@ describe('buildTopicTree', () => {
     const rows = [...ROWS, row('later', 'Later')];
     expect(shape(buildTopicTree(rows, TREE)).at(-1)).toEqual(['Later', []]);
   });
-
-  it('counts a parent row once, not its children again', () => {
-    expect(countTopicRows(buildTopicTree(ROWS, TREE))).toBe(5);
-    expect(countTopicRows([])).toBe(0);
-  });
 });
 
-describe('sortTopicTree', () => {
-  const byName = (rows: readonly Row[]): Row[] => [...rows].sort((a, b) => a.name.localeCompare(b.name));
+describe('groupsOf', () => {
+  interface Counted extends Row {
+    prompt_count: number;
+  }
+  const counted = (term_id: string | null, name: string, prompt_count: number): Counted => ({
+    term_id,
+    name,
+    prompt_count,
+  });
+  const names = (rows: readonly Counted[], keep?: (id: string | null) => boolean): string[] =>
+    groupsOf(buildTopicTree(rows, TREE, keep)).map((group) => group.name);
 
-  it('sorts the top level among itself and the children among their siblings, never moving a child out of its parent', () => {
-    const sorted = sortTopicTree(buildTopicTree(ROWS, TREE), byName);
-    expect(shape(sorted)).toEqual([
-      ['Compliance', ['RBI', 'SEBI']],
-      ['No group', []],
-      ['Pricing', []],
-    ]);
-    const descending = sortTopicTree(buildTopicTree(ROWS, TREE), (rows) => byName(rows).reverse());
-    expect(shape(descending)).toEqual([
-      ['Pricing', []],
-      ['No group', []],
-      ['Compliance', ['SEBI', 'RBI']],
-    ]);
+  it('lists the topics that have a prompt and none with a prompt below them: the children of a parent, the topic alone otherwise', () => {
+    const rows = [
+      counted('compliance', 'Compliance', 9),
+      counted('rbi', 'RBI', 5),
+      counted('sebi', 'SEBI', 4),
+      counted('pricing', 'Pricing', 3),
+      counted(null, 'No group', 2),
+    ];
+    expect(names(rows)).toEqual(['RBI', 'SEBI', 'Pricing']);
+  });
+
+  it('leaves out a topic the API lists with no prompt: a parent whose only topics below are empty is a group', () => {
+    const rows = [counted('compliance', 'Compliance', 6), counted('rbi', 'RBI', 0), counted('sebi', 'SEBI', 6)];
+    expect(names(rows)).toEqual(['SEBI']);
+    expect(names([counted('compliance', 'Compliance', 6), counted('rbi', 'RBI', 0)])).toEqual(['Compliance']);
+    expect(names([counted('compliance', 'Compliance', 0), counted('rbi', 'RBI', 0)])).toEqual([]);
+  });
+
+  it('follows a topic filter: the kept topics only, and a kept parent shows its groups', () => {
+    const rows = [counted('compliance', 'Compliance', 9), counted('rbi', 'RBI', 5), counted('pricing', 'Pricing', 3)];
+    expect(names(rows, (id) => id === 'pricing')).toEqual(['Pricing']);
+    expect(names(rows, (id) => id === 'compliance' || id === 'rbi')).toEqual(['RBI']);
+  });
+
+  it('has no group for the prompts without a topic, and none before the rows are read', () => {
+    expect(names([counted(null, 'No group', 4)])).toEqual([]);
+    expect(groupsOf([])).toEqual([]);
   });
 });

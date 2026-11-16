@@ -49,10 +49,10 @@ const SEARCH_MAX_LENGTH = 200;
 
 /**
  * The Topics tab below 768 px (19-responsive-behavior.md section 6.7, WB-TPE-17): two line rows, each one button that
- * opens the topic's drawer. Line 1 is the topic (a topic under a parent by its path) and its mention rate, the average
+ * opens the topic's drawer. Line 1 is the group and its mention rate, the average
  * of the engines shown; line 2 the engine where it is best, with the answers behind that rate, and how many engines
- * show a rate. The List and the By engine view are this one list. The topics come highest mention rate first, the
- * topics under a parent after it; the sort menu orders them by one column.
+ * show a rate. The List and the By engine view are this one list. The groups come highest mention rate first; the
+ * sort menu orders them by one column.
  */
 export function TopicsMobileList({
   heads,
@@ -72,13 +72,10 @@ export function TopicsMobileList({
   const view = useTranslations('prompts.topicDrawer.byEngineView');
   const compare = useTranslations('prompts.topicDrawer.compare');
   const table = useTranslations('dataTable');
-  // Nothing sorts until the person picks a column: the rows keep the order above, children after their parent
+  // Nothing sorts until the person picks a column: the rows keep the order above
   const [sort, setSort] = useState<readonly SortKey[]>([]);
   const codes = useMemo(() => engines.map(({ engine }) => engine.engine_code), [engines]);
-  const rows = useMemo(
-    () => heatOrder(heads, 'avg_rate', 'mentioned', codes).flatMap((head) => [head, ...head.children]),
-    [heads, codes],
-  );
+  const rows = useMemo(() => heatOrder(heads, 'avg_rate', 'mentioned', codes), [heads, codes]);
   const averageOf = useMemo(
     () => (head: TopicHead) =>
       averageRate(codes.map((code) => head.engines.find((cell) => cell.engine_code === code)?.mentioned)),
@@ -86,7 +83,7 @@ export function TopicsMobileList({
   );
   const columns = useMemo(
     (): DataTableColumn<TopicHead>[] => [
-      col.keyword<TopicHead>('topic', (head) => head.path, { header: t('topics.topic') }),
+      col.keyword<TopicHead>('topic', (head) => head.name, { header: t('topics.topic') }),
       col.volumeTrend<TopicHead>('mention', (head) => averageOf(head).value, {
         header: t('columns.mentionRate'),
         known: () => null,
@@ -102,7 +99,7 @@ export function TopicsMobileList({
   const line1 = (head: TopicHead): ListLine1 => {
     const average = averageOf(head);
     return {
-      identity: head.path,
+      identity: head.name,
       // Spoken before the value: the average says how many engines took part, and none when no engine has a rate
       valueLabel: view('listAvgRate', { metric: t('columns.mentionRate'), count: average.engines }),
       value:

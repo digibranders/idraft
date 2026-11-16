@@ -15,15 +15,11 @@ const HEADS: TopicHead[] = [
       engine('chatgpt_web', { mentioned: weighted(3, 8, 2) }),
       engine('gemini_web', { mentioned: weighted(6, 8, 2) }),
     ],
-    children: [
-      head('tech', 'Technical SEO', {
-        path: 'SEO / Technical SEO',
-        parent: 'SEO',
-        promptCount: 2,
-        // Too few answers for a rate, and Gemini has none
-        engines: [engine('chatgpt_web', { mentioned: weighted(2, 3, 2) })],
-      }),
-    ],
+  }),
+  head('tech', 'Technical SEO', {
+    promptCount: 2,
+    // Too few answers for a rate, and Gemini has none
+    engines: [engine('chatgpt_web', { mentioned: weighted(2, 3, 2) })],
   }),
   head('ads', 'Paid Search', {
     promptCount: 3,
@@ -52,13 +48,13 @@ describe('TopicsMobileList: the Groups tab on a phone (WB-TPE-17)', () => {
     renderWithProviders(<TopicsMobileList {...props()} />);
     const list = await screen.findByRole('list', { name: /^Groups, 3 results/ });
     const rows = within(list).getAllByRole('button');
-    // The children follow their parent, named by their path
+    // Highest mention rate first, a group with none last
     expect(rows.map((row) => row.textContent?.split('Mention rate')[0]?.trim())).toEqual([
       'SEO',
-      'SEO / Technical SEO',
       'Paid Search',
+      'Technical SEO',
     ]);
-    const [seo, tech, ads] = rows;
+    const [seo, ads, tech] = rows;
     // The average of the two engines, and the best engine with the answers behind its rate
     expect(seo).toHaveTextContent('56%');
     expect(seo).toHaveTextContent('Best on Gemini 75% (6 of 8 answers), 2 platforms');
@@ -73,7 +69,7 @@ describe('TopicsMobileList: the Groups tab on a phone (WB-TPE-17)', () => {
   it('says the first line is an average over the platforms that have a rate', async () => {
     renderWithProviders(<TopicsMobileList {...props()} />);
     const list = await screen.findByRole('list', { name: /^Groups, 3 results/ });
-    const [seo, tech, ads] = within(list).getAllByRole('button');
+    const [seo, ads, tech] = within(list).getAllByRole('button');
     // SEO has a rate on 2 engines, Paid Search on 1, Technical SEO on none
     expect(seo).toHaveTextContent('Mention rate, avg of 2');
     expect(ads).toHaveTextContent('Mention rate, 1 platform');
@@ -92,7 +88,7 @@ describe('TopicsMobileList: the Groups tab on a phone (WB-TPE-17)', () => {
     const onTopicOrderChange = vi.fn();
     renderWithProviders(<TopicsMobileList {...props({ onTopicOrderChange })} />);
     await screen.findByRole('list');
-    await waitFor(() => expect(onTopicOrderChange).toHaveBeenLastCalledWith(['seo', 'tech', 'ads']));
+    await waitFor(() => expect(onTopicOrderChange).toHaveBeenLastCalledWith(['seo', 'ads', 'tech']));
   });
 
   it('marks the open group', async () => {

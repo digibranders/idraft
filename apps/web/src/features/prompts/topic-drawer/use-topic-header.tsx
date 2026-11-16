@@ -5,7 +5,7 @@ import { useLocale, useTimeZone, useTranslations } from 'next-intl';
 import type { ReactNode } from 'react';
 
 import { useTopicDrawer } from './drawer-context';
-import { categoryOf, scopeParts } from './header-model';
+import { scopeParts } from './header-model';
 import { useTopicOrder } from './topic-order-store';
 import type { InspectorNavigation } from '@/components/app/inspector/inspector-header';
 import { useInspector } from '@/components/app/inspector/use-inspector';
@@ -71,7 +71,6 @@ export function useTopicHeader({
     typeNoun: t('noun'),
   });
 
-  const category = categoryOf(topicKey, extras.tree);
   const parts = scopeParts({ engines, country: extras.country, includeBranded: extras.includeBranded });
   const scope = formatList(
     [
@@ -83,15 +82,6 @@ export function useTopicHeader({
   );
   const badges = (
     <span className="inline-flex flex-wrap items-center gap-1.5">
-      {category === null ? null : (
-        // A topic below another is named by what is above it, cut short in a narrow header; the tooltip has the whole path
-        // and the badge takes the keyboard so it reaches it
-        <Tooltip content={t('header.categoryTip', { path: category.path })}>
-          <Badge tabIndex={0} className="max-w-full truncate">
-            {category.text}
-          </Badge>
-        </Tooltip>
-      )}
       {row === undefined ? null : <Badge>{t('promptCount', { count: row.prompt_count })}</Badge>}
       <Badge variant="outline" role="group" aria-label={t('header.scopeLabel', { scope })}>
         {scope}

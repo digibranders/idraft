@@ -1,8 +1,8 @@
 /**
- * The selection of Topics & Prompts (parity spec G26, G47). What is chosen is a set of prompt ids, as Rankings' By
- * group view chooses keywords: a prompt row is its prompt, and a topic row stands for the prompts the topic holds
- * (a parent's include those of its topics below; a prompt under several topics is one prompt). Each row is drawn
- * from that set, so the same choice reads right whichever rows are open, sorted or searched.
+ * The selection of the Prompts page (parity spec G26, G47). What is chosen is a set of prompt ids, as Rankings' By
+ * group view chooses keywords: a prompt row is its prompt, and a group row on the Groups tab stands for the prompts
+ * the group holds (a prompt in several groups is one prompt, so groups that share it show it chosen together). Each
+ * row is drawn from that set, so the same choice reads right whichever rows are open, sorted or searched.
  */
 
 /** The prompt ids each row of the table stands for, by row id; a row without prompts has an empty list. */
@@ -63,24 +63,10 @@ export const promptIdsOf = (rowIds: readonly string[], rows: RowPrompts): string
   ...new Set(rowIds.flatMap((rowId) => rows.get(rowId) ?? [])),
 ];
 
-/** A topic with the prompts it holds and the topics listed under it. */
-export interface TopicIds {
-  ids: readonly string[];
-  children: readonly { ids: readonly string[] }[];
-}
-
-const filled = (ids: readonly string[], chosen: ReadonlySet<string>): boolean =>
-  ids.length > 0 && ids.every((id) => chosen.has(id));
-
 /**
- * The topics a choice counts: those whose prompts are all chosen, except the topics below a parent that is itself
- * all chosen, which it stands for. Ticking a parent is one topic, however many it holds.
+ * The groups a choice counts: those with a prompt whose prompts are all chosen. `groups` holds the prompt ids of each
+ * group. A prompt in two groups is chosen for both, so a group whose prompts another group holds is counted with it.
  */
-export function topicsChosen(tree: readonly TopicIds[], chosen: ReadonlySet<string>): number {
-  let count = 0;
-  for (const topic of tree) {
-    if (filled(topic.ids, chosen)) count += 1;
-    else count += topic.children.filter((child) => filled(child.ids, chosen)).length;
-  }
-  return count;
+export function groupsChosen(groups: readonly (readonly string[])[], chosen: ReadonlySet<string>): number {
+  return groups.filter((ids) => ids.length > 0 && ids.every((id) => chosen.has(id))).length;
 }

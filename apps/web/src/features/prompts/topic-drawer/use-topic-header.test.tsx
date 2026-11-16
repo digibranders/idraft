@@ -81,10 +81,10 @@ afterEach(() => {
 });
 
 describe('useTopicHeader', () => {
-  it('shows the category, prompt count and scope as badges, the prompt count text unchanged', () => {
+  it('shows the prompt count and the scope as the two badges, and no category (PR-DRAWER-11: no parent groups)', () => {
     renderDrawerPart(<Probe />, { extras: { tree: TREE, country: 'DE', countryName: () => 'Germany' } });
     const badges = within(screen.getByTestId('badges'));
-    expect(badges.getByText('SEO')).toBeInTheDocument();
+    expect(badges.queryByText('SEO')).not.toBeInTheDocument();
     expect(badges.getByText('12 prompts')).toBeInTheDocument();
     expect(badges.getByText('2 platforms, Germany, and Non-branded')).toBeInTheDocument();
     expect(
@@ -100,21 +100,11 @@ describe('useTopicHeader', () => {
     expect(screen.getByText('Gemini and Branded included')).toBeInTheDocument();
   });
 
-  it('shows no category badge for a top level group', () => {
+  it('shows no category badge for a top level group either', () => {
     renderDrawerPart(<Probe topicKey="seo" row={topicRow('seo', 'SEO', 3)} />, { extras: { tree: TREE } });
     const badges = within(screen.getByTestId('badges'));
     expect(badges.queryByText('SEO')).not.toBeInTheDocument();
     expect(badges.getByText('3 prompts')).toBeInTheDocument();
-  });
-
-  it('the category badge takes the keyboard and its tooltip has the whole path', async () => {
-    // The badge is the first thing the keyboard reaches: nothing before it in the probe takes focus
-    const { user } = renderDrawerPart(<Probe />, { extras: { tree: TREE } });
-    await user.tab();
-    const badge = screen.getByText('SEO');
-    expect(badge).toHaveFocus();
-    // The tooltip's text is the badge's description, in the document whether the tooltip is open or not
-    expect(badge).toHaveAccessibleDescription('Where the group sits: SEO / Technical SEO');
   });
 
   it('Add prompt calls the screen with the group, and is absent without prompts:write and for No group', async () => {

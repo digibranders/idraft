@@ -36,6 +36,7 @@ import {
 } from './compare';
 import { PlatformSelect, withoutFullPlatformSet } from './engine-select';
 import { factsRequested, indexFacts, type PromptFacts } from './facts';
+import { groupsOfSummary } from './group-model';
 import { asRecordActions, type PromptAction } from './prompt-action';
 import { usePromptColumns, type PromptRow } from './prompt-columns';
 import { PromptInspector, type PromptCounts } from './prompt-inspector';
@@ -115,17 +116,7 @@ import { useCountries } from '@/lib/locations/countries';
 import { useCan, useMembership } from '@/lib/permissions';
 import type { StripPrompt } from '@/lib/rates/strip-model';
 import { projectPath } from '@/lib/routes/paths';
-import {
-  DEFAULT_DENSITY,
-  formatColumns,
-  formatSort,
-  parseColumns,
-  parseDensity,
-  parseSort,
-  sameSort,
-  type Density,
-  type SortKey,
-} from '@/lib/tables/table-state';
+import { formatColumns, formatSort, parseColumns, parseSort, sameSort, type SortKey } from '@/lib/tables/table-state';
 
 export interface PromptsProject {
   id: string;
@@ -248,9 +239,6 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   const topicsUnknown = vocabularies.pending || vocabularies.error;
   const fields = useMemo((): FilterField[] => {
     const choices = topicChoices(topicTree, topicTerms);
-    // Two topics of one name under different parents are told apart by their paths
-    const nameCounts = new Map<string, number>();
-    for (const choice of choices) nameCounts.set(choice.name, (nameCounts.get(choice.name) ?? 0) + 1);
     return [
       {
         id: 'topic',
@@ -258,13 +246,8 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
         label: t('filters.topic'),
         multi: true,
         optionsLoading: optionsPending || topicsUnknown,
-        options: choices.map((choice) => ({
-          value: choice.termId,
-          label:
-            (nameCounts.get(choice.name) ?? 0) > 1
-              ? t('filters.topicWithPath', { name: choice.name, path: choice.path })
-              : choice.name,
-        })),
+        // One flat list: a group below another is named by its path, so two of one name differ
+        options: choices.map((choice) => ({ value: choice.termId, label: choice.path })),
       },
       {
         id: 'engine',
@@ -532,7 +515,11 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     const wasOn = view.cols === null || view.cols.split(',').includes(SORT_ID.country);
     return country !== null && wasOn && !next.includes(SORT_ID.country) ? [...next, SORT_ID.country] : next;
   };
-  const density = parseDensity(view.density);
+  // The location of each prompt by id, for a group's Location cell: the names of the prompts it holds
+  const promptLocations = useMemo(
+    (): ReadonlyMap<string, string | null> => new Map(rows.map((row) => [row.prompt.prompt_id, row.country])),
+    [rows],
+  );
 
   // The inspector: a prompt opened from either tab, stepping in the order of the table on screen
   // The topic drawer's engine filter (`?eng=`) belongs to its entry: Close after a drill-down goes back and drops it
@@ -558,15 +545,13 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   const openTopic = inspector.target?.type === 'topic' ? inspector.target.id : null;
   const topicTab = inspector.tab;
   const [promptFrom, setPromptFrom] = useState<TopicOrigin | null>(null);
-  const firstShown = shown[0]?.engine.engine_code;
   const originKey = promptFrom?.key ?? null;
   const originOrder = useMemo(
     () =>
       originKey === null
         ? null
-        : (topicPrompts(summary.data?.data, originKey, descendants, firstShown)?.map((prompt) => prompt.prompt_id) ??
-          null),
-    [originKey, summary.data, descendants, firstShown],
+        : (topicPrompts(summary.data?.data, originKey, descendants, codes)?.map((prompt) => prompt.prompt_id) ?? null),
+    [originKey, summary.data, descendants, codes],
   );
   // Only while the open prompt is still the one it was opened for or one the topic holds, in this project: a prompt
   // that arrives another way (Forward, an answer's Back) has no topic, so no badge and the table's own order
@@ -577,6 +562,20 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     key === NO_TOPIC
       ? t('columns.noTopic')
       : (topicSummaryRow(summary.data?.data, key)?.name ?? topicTree.find((term) => term.termId === key)?.name ?? null);
+  // The first group in scope that holds the open prompt: its badge opens that group's drawer when the prompt was not
+  // opened from one (PR-DRAWER-03). A prompt in no group row of the scope has none, so its badge is plain
+  const promptGroup = useMemo((): { key: string; name: string } | null => {
+    if (openPrompt === null || summary.data === undefined || topicsUnknown) return null;
+    const group = groupsOfSummary({
+      summary: summary.data.data,
+      tree: topicTree,
+      descendants,
+      kept: new Set(),
+      filtering: false,
+      codes,
+    }).find((entry) => entry.members?.some((member) => member.prompt_id === openPrompt) === true);
+    return group === undefined ? null : { key: group.key, name: group.name };
+  }, [openPrompt, summary.data, topicsUnknown, topicTree, descendants, codes]);
   const [order, setOrder] = useState<readonly string[]>([]);
   const stepOrder = topicOrder ?? order;
   const at = inspector.position(stepOrder);
@@ -1043,8 +1042,9 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
               onSortTextChange={(next) => void setView({ sort: next })}
               search={view.q}
               onSearchChange={(next) => void setView({ q: next === '' ? null : next })}
-              density={density}
-              onDensityChange={(next: Density) => void setView({ density: next === DEFAULT_DENSITY ? null : next })}
+              facts={facts}
+              showLocation={country === null}
+              locations={promptLocations}
               activePromptId={selectedPrompt}
               activeTopicKey={openTopic ?? fromTopic}
               onOpenPrompt={openPromptRow}
@@ -1184,12 +1184,17 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
         }
         onStep={at === null ? undefined : step}
         topic={
-          origin === null || topicName(origin.key) === null
-            ? null
-            : {
+          origin !== null && topicName(origin.key) !== null
+            ? {
                 name: topicName(origin.key) ?? '',
                 onOpen: () => inspector.open({ type: 'topic', id: origin.key }, { tab: origin.tab }),
               }
+            : promptGroup === null
+              ? null
+              : {
+                  name: promptGroup.name,
+                  onOpen: () => inspector.open({ type: 'topic', id: promptGroup.key }, { tab: DEFAULT_INSPECTOR_TAB }),
+                }
         }
         tab={inspector.tab}
         // Latest is the inspector's first tab, which the address leaves out

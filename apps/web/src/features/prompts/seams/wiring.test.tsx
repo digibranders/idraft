@@ -113,7 +113,7 @@ const prompts = (): Promise<HTMLElement> => screen.findByRole('grid', { name: 'P
 const topics = (): Promise<HTMLElement> => screen.findByRole('treegrid', { name: 'Groups' });
 const itemNames = (): string[] => screen.getAllByRole('menuitem').map((item) => item.textContent ?? '');
 /** The place of each named tab in the tab row, which holds no others. */
-const tabPlaces = (panel: HTMLElement, names: readonly string[]): number[] => {
+const tabPlaces = (panel: HTMLElement, names: readonly (string | RegExp)[]): number[] => {
   const row = within(panel).getAllByRole('tab');
   return [row.length, ...names.map((name) => row.indexOf(within(panel).getByRole('tab', { name })))];
 };
@@ -146,7 +146,7 @@ describe('the topic drawer reads the tab seam', () => {
   it('lists an entry after the built-in tabs, and shows its panel when chosen', async () => {
     const { user } = renderOn('viewer', `?inspect=${encodeURIComponent(`topic:${MOCK_TERM_IDS.paidSearch}`)}`);
     const panel = await screen.findByRole('complementary', { name: 'Paid Search' });
-    expect(tabPlaces(panel, ['Overview', 'Prompts', 'Fake topic tab'])).toEqual([3, 0, 1, 2]);
+    expect(tabPlaces(panel, ['Overview', /^Prompts \(\d+\)$/, 'Fake topic tab'])).toEqual([3, 0, 1, 2]);
     await user.click(within(panel).getByRole('tab', { name: 'Fake topic tab' }));
     expect(await within(panel).findByText('Fake topic panel')).toBeInTheDocument();
   });
@@ -161,7 +161,7 @@ describe('the menus read the action seam', () => {
 
   it('adds the entry to the row menu of a topic', async () => {
     const { user } = renderOn('viewer', '');
-    await openMenu(user, await topics(), 'SEO');
+    await openMenu(user, await topics(), 'Technical SEO');
     expect(itemNames()).toEqual(['Open', 'Show in Prompts', 'Export CSV', 'Fake action']);
   });
 

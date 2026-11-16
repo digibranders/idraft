@@ -5,7 +5,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import { useMemo, type ReactElement } from 'react';
 
 import { useTopicDrawer } from './drawer-context';
-import { siblingKeys, siblingsOf, type Sibling } from './related-model';
+import { otherGroups, type Sibling } from './related-model';
 import { useInspector } from '@/components/app/inspector/use-inspector';
 import { InspectorSection, type InspectorSectionStatus } from '@/components/app/inspector/inspector-section';
 import { EmptyState } from '@/components/app/status/empty-state';
@@ -20,15 +20,16 @@ import type { TopicInspectorTab } from '@/features/prompts/seams/topic-tabs';
 import { EMPTY_VALUE, formatInteger, formatList } from '@/lib/format';
 
 /**
- * The Related tab of the topic drawer (WB-TI-19): the topics beside this one, the siblings under the same parent, each
- * with its prompts and its mention rate (the equal weight average of the engines that show one, with the count of each
- * behind it in the tooltip). At most 10, the ones with most prompts first, the rest counted. A name opens that topic's
- * drawer on this tab. The siblings are worked out from the topic tree alone; a topic the tree does not hold says so, and
- * the section is a skeleton only while the page summary is on its way (or says it failed, with Retry).
+ * The Related tab of the group drawer (PR-DRAWER-14): there are no parent groups, so it lists the other groups of the
+ * scope, at most five, the ones with most prompts first, each with its prompts and its mention rate (the equal weight
+ * average of the platforms that show one, with the count of each behind it in the tooltip). A name opens that group's
+ * drawer on this tab. The section is a skeleton only while the page summary is on its way (or says it failed, with
+ * Retry).
  */
 export function RelatedTab(): ReactElement {
-  const { topicKey, summary, counts, descendants, engines } = useTopicDrawer();
+  const { topicKey, summary, counts, descendants, engines, extras } = useTopicDrawer();
   const t = useTranslations('prompts.topicDrawer.related');
+  const groupsText = useTranslations('prompts.groupsTab');
   const prompts = useTranslations('prompts');
   const common = useTranslations('common');
   const rate = useTranslations('prompts.rate');
@@ -42,13 +43,14 @@ export function RelatedTab(): ReactElement {
   );
   const siblings = useMemo(
     () =>
-      siblingsOf(
+      otherGroups(
         topicKey,
         summary,
+        extras.tree,
         descendants,
         engines.map(({ engine }) => engine.engine_code),
       ),
-    [topicKey, summary, descendants, engines],
+    [topicKey, summary, extras.tree, descendants, engines],
   );
 
   const mentionCell = (sibling: Sibling): ReactElement => {
@@ -100,22 +102,18 @@ export function RelatedTab(): ReactElement {
     { id: 'mention', header: t('mention'), cell: mentionCell },
   ];
 
-  // The tree does not hold the topic: its neighbours cannot be told, which is said and not waited for
-  const unlisted = siblingKeys(topicKey, descendants) === null;
   // A page read that failed leaves nothing to list; a row already held stays while the next window is read
   const status: InspectorSectionStatus =
     summary === undefined && counts.status === 'failed'
       ? 'error'
-      : unlisted
-        ? 'empty'
-        : siblings === null
-          ? 'loading'
-          : siblings.shown.length === 0
-            ? 'empty'
-            : 'ready';
+      : siblings === null
+        ? 'loading'
+        : siblings.length === 0
+          ? 'empty'
+          : 'ready';
   return (
     <InspectorSection
-      title={t('title')}
+      title={groupsText('relatedTitle')}
       icon={Network}
       status={status}
       error={
@@ -131,42 +129,35 @@ export function RelatedTab(): ReactElement {
       empty={
         <EmptyState
           variant="inline"
-          title={t('emptyTitle')}
-          reason={unlisted ? t('notInTreeReason') : t('emptyReason')}
+          title={groupsText('relatedEmptyTitle')}
+          reason={groupsText('relatedEmptyReason')}
           headingLevel={3}
         />
       }
     >
       <div className="flex flex-col gap-3">
+        <p className="type-meta text-foreground-tertiary">{groupsText('relatedNote')}</p>
         <PlainTable<Sibling>
-          caption={t('title')}
+          caption={groupsText('relatedTitle')}
           columns={columns}
-          rows={siblings?.shown ?? []}
+          rows={siblings ?? []}
           rowKey={(sibling) => sibling.key}
           status="ready"
           errorState={null}
-          emptyText={t('emptyTitle')}
+          emptyText={groupsText('relatedEmptyTitle')}
         />
-        {siblings === null || siblings.more === 0 ? null : (
-          <p className="type-meta text-foreground-tertiary">{t('more', { count: siblings.more })}</p>
-        )}
       </div>
     </InspectorSection>
   );
 }
 
 /**
- * The tab entry of the topic drawer (the seam `seams/topic-tabs.ts`), after Competitors: offered when the topic has
- * siblings in the tree. While the tree does not hold the topic it is offered too, so an address that names the tab keeps
- * it; the tab then says why it is empty, and leaves once the tree is read and the topic has no sibling.
+ * The tab entry of the group drawer (the seam `seams/topic-tabs.ts`), after Competitors: always offered, as the
+ * preview's is; with no other group in the scope the tab says so.
  */
 export const topicRelatedTab: TopicInspectorTab = {
   id: 'related',
   label: (t) => t('prompts.topicDrawer.tabRelated'),
   after: 'competitors',
-  available: ({ topicKey, descendants }) => {
-    const keys = siblingKeys(topicKey, descendants);
-    return keys === null || keys.length > 0;
-  },
   render: () => <RelatedTab />,
 };
