@@ -33160,6 +33160,7 @@
                 }
               ],
               "maxLength": 9,
+              "minLength": 1,
               "title": "Filter[Source Tier]"
             }
           },
@@ -33189,6 +33190,7 @@
                 }
               ],
               "maxLength": 9,
+              "minLength": 1,
               "title": "Filter[Target Tier]"
             }
           },
@@ -33661,6 +33663,7 @@
                 }
               ],
               "maxLength": 9,
+              "minLength": 1,
               "title": "Filter[Tier]"
             }
           },

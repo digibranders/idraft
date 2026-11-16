@@ -9,7 +9,7 @@ import httpx
 
 from idraft.api.resources import Resources
 from tests.api.auth.support import execute, make_workspace
-from tests.api.entities.support import member
+from tests.api.entities.support import member, problem
 from tests.api.internal_links.support import read_site
 from tests.api.keywords.support import keyword_project, project_url
 from tests.conftest import PostgresServer
@@ -97,3 +97,24 @@ async def test_edges_filter_by_placement_status_page_and_path_and_the_csv_matche
         "'@home",
         "'-1",
     }
+
+
+async def test_an_empty_tier_filter_is_a_validation_error_on_the_pages_and_the_links(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    project = await keyword_project(migrated, workspace)
+    await read_site(migrated, workspace, project)
+
+    for route, name in (
+        ("pages", "filter[tier]"),
+        ("edges", "filter[source_tier]"),
+        ("edges", "filter[target_tier]"),
+    ):
+        url = project_url(workspace, project, "internal-links", route)
+        for empty in ("", ","):
+            refused = await api.get(url, params={name: empty}, headers=viewer.headers)
+            assert problem(refused) == (422, "validation_failed"), (route, name, empty)
+        as_csv = await api.get(url, params={name: "", "format": "csv"}, headers=viewer.headers)
+        assert problem(as_csv) == (422, "validation_failed"), (route, name)

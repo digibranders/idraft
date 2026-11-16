@@ -20,14 +20,17 @@ from typing import Any, Final, Literal
 from uuid import UUID
 
 from sqlalchemy import (
+    ARRAY,
     BigInteger,
     ColumnElement,
     Row,
     Text,
     and_,
+    any_,
     case,
     distinct,
     exists,
+    false,
     func,
     literal,
     or_,
@@ -426,9 +429,6 @@ class EdgeList:
 
 _SOURCE_URL = aliased(urls)
 _TARGET_URL = aliased(urls)
-_TARGET_PAGE = aliased(crawl_pages)
-_SOURCE_TIER = aliased(project_pages)
-_TARGET_TIER = aliased(project_pages)
 _STATUS_RANGES: Final = {"2xx": (200, 299), "3xx": (300, 399), "4xx": (400, 499), "5xx": (500, 599)}
 
 
@@ -451,34 +451,109 @@ class EdgeQuery:
 
 
 def _edge_rows(scope: PageScope) -> Any:
-    def tier_join(alias: Any, column: Any) -> ColumnElement[bool]:
-        return and_(
-            alias.c.workspace_id == scope.workspace_id,
-            alias.c.project_id == scope.project_id,
-            alias.c.url_id == column,
-        )
-
-    return (
-        crawl_links.join(_SOURCE_URL, _SOURCE_URL.c.id == crawl_links.c.source_url_id)
-        .join(_TARGET_URL, _TARGET_URL.c.id == crawl_links.c.target_url_id)
-        .outerjoin(
-            _TARGET_PAGE,
-            and_(
-                _TARGET_PAGE.c.run_id == crawl_links.c.run_id,
-                _TARGET_PAGE.c.url_id == crawl_links.c.target_url_id,
-            ),
-        )
-        .outerjoin(_SOURCE_TIER, tier_join(_SOURCE_TIER, crawl_links.c.source_url_id))
-        .outerjoin(_TARGET_TIER, tier_join(_TARGET_TIER, crawl_links.c.target_url_id))
+    """The edges and the two URLs of each. Nothing else is joined: on a crawl without statistics
+    (a fresh partition) the planner would pick a nested loop over a materialized page list for any
+    further join, thousands of times slower. The tier and the status of the pages of the rows
+    returned are read afterwards by `_edge_facts`, and filters on them look the page up for each
+    edge by its primary key (a scalar subquery, which the planner cannot turn into a join)."""
+    return crawl_links.join(_SOURCE_URL, _SOURCE_URL.c.id == crawl_links.c.source_url_id).join(
+        _TARGET_URL, _TARGET_URL.c.id == crawl_links.c.target_url_id
     )
 
 
-def _tier_condition(alias: Any, wanted: tuple[UUID | None, ...]) -> ColumnElement[bool]:
-    ids = [tier for tier in wanted if tier is not None]
-    either = [alias.c.tier_id.in_(ids)] if ids else []
+def _target_value(scope: PageScope, column: str) -> Any:
+    """One column of the crawl's row of the edge's target; null when it was not crawled."""
+    return (
+        select(crawl_pages.c[column])
+        .where(
+            crawl_pages.c.workspace_id == scope.workspace_id,
+            crawl_pages.c.run_id == scope.run_id,
+            crawl_pages.c.url_id == crawl_links.c.target_url_id,
+        )
+        .scalar_subquery()
+    )
+
+
+def _tier_condition(
+    scope: PageScope, url_id: ColumnElement[int], wanted: tuple[UUID | None, ...]
+) -> ColumnElement[bool]:
+    """The page `url_id` is on one of the tiers wanted; `None` is no tier, which is also a page
+    with no row of its own. The tier is looked up for each edge by the primary key (a scalar
+    subquery, so no join for the planner to get wrong and no row of the edges multiplied)."""
+    tier = (
+        select(project_pages.c.tier_id)
+        .where(
+            project_pages.c.workspace_id == scope.workspace_id,
+            project_pages.c.project_id == scope.project_id,
+            project_pages.c.url_id == url_id,
+        )
+        .scalar_subquery()
+    )
+    ids = [tier_id for tier_id in wanted if tier_id is not None]
+    either = [tier.in_(ids)] if ids else []
     if None in wanted:
-        either.append(alias.c.tier_id.is_(None))
-    return or_(*either)
+        either.append(tier.is_(None))
+    return or_(*either) if either else false()
+
+
+@dataclass(frozen=True, slots=True)
+class _TargetPage:
+    status_code: int | None
+    is_indexable: bool | None
+    redirect_url: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class _EdgeFacts:
+    """What the edges returned say of their pages: tiers (by URL id) and the crawl's own view of
+    the targets. A page that is not here has no tier, or was not crawled."""
+
+    tier_of: Mapping[int, UUID]
+    targets: Mapping[int, _TargetPage]
+
+
+_NOT_CRAWLED: Final = _TargetPage(status_code=None, is_indexable=None, redirect_url=None)
+
+
+async def _edge_facts(db: AsyncSession, scope: PageScope, rows: Sequence[Row[Any]]) -> _EdgeFacts:
+    """Two statements whatever the number of rows (the CSV's 100,000 too, so the ids go as one
+    array, not as one parameter each)."""
+    sources = {row.source_url_id for row in rows}
+    targets = {row.target_url_id for row in rows}
+    if not rows:
+        return _EdgeFacts({}, {})
+    redirect = aliased(urls)
+    tiers = await db.execute(
+        select(project_pages.c.url_id, project_pages.c.tier_id).where(
+            project_pages.c.workspace_id == scope.workspace_id,
+            project_pages.c.project_id == scope.project_id,
+            project_pages.c.url_id == any_(literal(sorted(sources | targets), ARRAY(BigInteger))),
+            project_pages.c.tier_id.is_not(None),
+        )
+    )
+    pages = await db.execute(
+        select(
+            crawl_pages.c.url_id,
+            crawl_pages.c.status_code,
+            crawl_pages.c.is_indexable,
+            redirect.c.canonical_url,
+        )
+        .select_from(
+            crawl_pages.outerjoin(redirect, redirect.c.id == crawl_pages.c.redirect_url_id)
+        )
+        .where(
+            crawl_pages.c.workspace_id == scope.workspace_id,
+            crawl_pages.c.run_id == scope.run_id,
+            crawl_pages.c.url_id == any_(literal(sorted(targets), ARRAY(BigInteger))),
+        )
+    )
+    return _EdgeFacts(
+        tier_of={row.url_id: row.tier_id for row in tiers},
+        targets={
+            row.url_id: _TargetPage(row.status_code, row.is_indexable, row.canonical_url)
+            for row in pages
+        },
+    )
 
 
 def _like(text: str) -> str:
@@ -492,9 +567,9 @@ def _edge_conditions(scope: PageScope, query: EdgeQuery) -> list[ColumnElement[b
         _in_view(query.view),
     ]
     if query.source_tiers is not None:
-        conditions.append(_tier_condition(_SOURCE_TIER, query.source_tiers))
+        conditions.append(_tier_condition(scope, crawl_links.c.source_url_id, query.source_tiers))
     if query.target_tiers is not None:
-        conditions.append(_tier_condition(_TARGET_TIER, query.target_tiers))
+        conditions.append(_tier_condition(scope, crawl_links.c.target_url_id, query.target_tiers))
     if query.tag_ids:
         tagged = select(page_terms.c.url_id).where(
             page_terms.c.workspace_id == scope.workspace_id,
@@ -507,22 +582,18 @@ def _edge_conditions(scope: PageScope, query: EdgeQuery) -> list[ColumnElement[b
     if query.placements:
         conditions.append(crawl_links.c.placement.in_(query.placements))
     if query.target_status:
+        status = _target_value(scope, "status_code")
         conditions.append(
-            or_(
-                *(
-                    _TARGET_PAGE.c.status_code.between(*_STATUS_RANGES[name])
-                    for name in query.target_status
-                )
-            )
+            or_(*(status.between(*_STATUS_RANGES[name]) for name in query.target_status))
         )
     if query.source is not None:
         conditions.append(crawl_links.c.source_url_id == query.source)
     if query.target is not None:
         conditions.append(crawl_links.c.target_url_id == query.target)
     if query.worklist == "broken_and_redirected":
-        conditions.append(_TARGET_PAGE.c.status_code >= 300)
+        conditions.append(_target_value(scope, "status_code") >= 300)
     elif query.worklist == "links_to_non_indexable":
-        conditions.append(_TARGET_PAGE.c.is_indexable.is_(False))
+        conditions.append(_target_value(scope, "is_indexable").is_(False))
     if query.q_source:
         conditions.append(_SOURCE_URL.c.path.ilike(_like(query.q_source), escape="\\"))
     if query.q_target:
@@ -531,21 +602,13 @@ def _edge_conditions(scope: PageScope, query: EdgeQuery) -> list[ColumnElement[b
 
 
 def _edge_select(scope: PageScope) -> Any:
-    redirect = aliased(urls)
     return select(
         crawl_links,
         _SOURCE_URL.c.canonical_url.label("source_url"),
         _SOURCE_URL.c.path.label("source_path"),
         _TARGET_URL.c.canonical_url.label("target_url"),
         _TARGET_URL.c.path.label("target_path"),
-        _TARGET_PAGE.c.status_code.label("target_status"),
-        _TARGET_PAGE.c.is_indexable.label("target_indexable"),
-        redirect.c.canonical_url.label("target_redirect"),
-        _SOURCE_TIER.c.tier_id.label("source_tier_id"),
-        _TARGET_TIER.c.tier_id.label("target_tier_id"),
-    ).select_from(
-        _edge_rows(scope).outerjoin(redirect, redirect.c.id == _TARGET_PAGE.c.redirect_url_id)
-    )
+    ).select_from(_edge_rows(scope))
 
 
 def _edge_order() -> tuple[ColumnElement[Any], ColumnElement[Any], ColumnElement[Any]]:
@@ -553,14 +616,16 @@ def _edge_order() -> tuple[ColumnElement[Any], ColumnElement[Any], ColumnElement
     return case(_SCOPE_RANK, value=crawl_links.c.scope), _TARGET_URL.c.path, crawl_links.c.id
 
 
-def _edge_row(row: Row[Any], tiers: Tiers) -> EdgeRow:
+def _edge_row(row: Row[Any], tiers: Tiers, facts: _EdgeFacts) -> EdgeRow:
+    tier_of = facts.tier_of
+    target = facts.targets.get(row.target_url_id, _NOT_CRAWLED)
     return EdgeRow(
         link_id=str(row.id),
         source=EdgePage(
             url_id=str(row.source_url_id),
             url=row.source_url,
             path=row.source_path,
-            tier=tiers.ref(row.source_tier_id),
+            tier=tiers.ref(tier_of.get(row.source_url_id)),
             status_code=None,
             redirect_url=None,
             is_indexable=None,
@@ -569,10 +634,10 @@ def _edge_row(row: Row[Any], tiers: Tiers) -> EdgeRow:
             url_id=str(row.target_url_id),
             url=row.target_url,
             path=row.target_path,
-            tier=tiers.ref(row.target_tier_id),
-            status_code=row.target_status,
-            redirect_url=row.target_redirect,
-            is_indexable=row.target_indexable,
+            tier=tiers.ref(tier_of.get(row.target_url_id)),
+            status_code=target.status_code,
+            redirect_url=target.redirect_url,
+            is_indexable=target.is_indexable,
         ),
         anchor=row.anchor,
         kind=row.kind,
@@ -1083,6 +1148,7 @@ class LinkReadService:
             rows = (await db.execute(statement.order_by(*order).limit(limit + 1))).all()
             more = len(rows) > limit
             rows = rows[:limit]
+            facts = await _edge_facts(db, scope, rows)
             next_cursor = (
                 encode_cursor(
                     [_SCOPE_RANK[rows[-1].scope], rows[-1].target_path, rows[-1].id],
@@ -1092,7 +1158,7 @@ class LinkReadService:
                 else None
             )
             return EdgeList(
-                rows=[_edge_row(row, tiers) for row in rows],
+                rows=[_edge_row(row, tiers, facts) for row in rows],
                 total=total,
                 next_cursor=next_cursor,
                 run_id=scope.run_id,
@@ -1112,20 +1178,21 @@ class LinkReadService:
                     .limit(EXPORT_ROWS_MAX)
                 )
             ).all()
+            facts = await _edge_facts(db, scope, rows)
         return csv_text(
             _EDGE_CSV_HEADER,
             (
                 (
                     row.source_url,
-                    tiers.label(row.source_tier_id),
+                    tiers.label(facts.tier_of.get(row.source_url_id)),
                     row.target_url,
-                    tiers.label(row.target_tier_id),
+                    tiers.label(facts.tier_of.get(row.target_url_id)),
                     row.anchor,
                     row.placement,
                     row.scope,
                     " ".join(row.rel),
-                    row.target_status,
-                    row.target_indexable,
+                    facts.targets.get(row.target_url_id, _NOT_CRAWLED).status_code,
+                    facts.targets.get(row.target_url_id, _NOT_CRAWLED).is_indexable,
                     row.occurrences,
                 )
                 for row in rows

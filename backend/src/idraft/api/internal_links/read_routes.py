@@ -44,9 +44,13 @@ Run = Annotated[Literal["latest"] | UUID, Query(description="`latest` or a crawl
 Scope = Annotated[LinkScopeName, Query()]
 Output = Annotated[Literal["json", "csv"], Query(alias="format")]
 TierList = list[UUID | Literal["none"]] | None
-TierIds = Annotated[TierList, Commas, Query(alias="filter[tier]", max_length=9)]
-SourceTiers = Annotated[TierList, Commas, Query(alias="filter[source_tier]", max_length=9)]
-TargetTiers = Annotated[TierList, Commas, Query(alias="filter[target_tier]", max_length=9)]
+TierIds = Annotated[TierList, Commas, Query(alias="filter[tier]", min_length=1, max_length=9)]
+SourceTiers = Annotated[
+    TierList, Commas, Query(alias="filter[source_tier]", min_length=1, max_length=9)
+]
+TargetTiers = Annotated[
+    TierList, Commas, Query(alias="filter[target_tier]", min_length=1, max_length=9)
+]
 Tags = Annotated[list[UUID] | None, Commas, Query(alias="filter[tag]", max_length=50)]
 Statuses = Annotated[list[StatusClass] | None, Commas, Query(alias="filter[status]", max_length=4)]
 TargetStatuses = Annotated[

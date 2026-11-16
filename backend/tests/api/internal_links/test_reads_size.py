@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import csv
 import io
+import time
 import uuid
 
 import httpx
@@ -22,6 +23,11 @@ from tests.conftest import PostgresServer
 # the tiers, and the reads of the page (the inspector, the largest, asks 18). A request that
 # asked one question for each row would pass this at 21 rows, and these pages hold 200.
 STATEMENTS_MAX = 20
+# The API's statement timeout is 15 s; a list on a crawl with no statistics must answer far
+# inside it, with room for a busy machine.
+# Alone the requests take under a second; four test workers on a busy machine tripped a 3 s
+# bound. This one still catches the plans that took minutes without statistics.
+SLOW_SECONDS = 6.0
 
 _URLS = """
 INSERT INTO core.urls (url_hash, canonical_url, domain_id, path, canonicalizer_version)
@@ -55,10 +61,17 @@ FROM ids, generate_series(1, $3::int) i
 
 
 async def bulk_site(
-    pg: PostgresServer, workspace: Workspace, project: uuid.UUID, pages: int, links: int
+    pg: PostgresServer,
+    workspace: Workspace,
+    project: uuid.UUID,
+    pages: int,
+    links: int,
+    *,
+    analyze: bool = True,
 ) -> tuple[uuid.UUID, int]:
     """A finished crawl of `pages` pages and `links` links, a twentieth of the pages on T1.
-    Returns the run and the id of one page that has links both ways."""
+    Returns the run and the id of one page that has links both ways. `analyze=False` leaves the
+    tables as a fresh partition is, with no statistics."""
     tiers = await seed_tiers(pg, workspace)
     run, _ = await seed_crawl(pg, workspace, project, [], [])
     await url_id(pg, "https://example.com/")
@@ -77,11 +90,10 @@ async def bulk_site(
         run,
     )
     await set_counts(pg, run)
-    # The planner needs statistics on what was just written, as autovacuum would have given it.
-    # Without them the Links list took 4 s on 200,000 links (0.1 s with them), and past the API's
-    # 15 s statement timeout on a busy machine: ingest (Task 11) must have the partition analysed
-    # before a crawl turns `ready`.
-    await execute(pg, "ANALYZE seo.crawl_pages, seo.crawl_links, core.urls, core.project_pages")
+    # The size cases run as autovacuum would have left the tables, with statistics. The Links list
+    # does not depend on them: see the case that skips this.
+    if analyze:
+        await execute(pg, "ANALYZE seo.crawl_pages, seo.crawl_links, core.urls, core.project_pages")
     hub = await fetchrow(
         pg,
         "SELECT url_id FROM seo.crawl_pages WHERE run_id = $1 "
@@ -137,6 +149,50 @@ async def test_a_large_crawl_reads_with_a_bounded_number_of_statements(
         at("edges"), params={"limit": 200, "scope": "all"}, headers=viewer.headers
     )
     assert edges.json()["meta"]["total"] == 200_000
+
+
+async def test_the_links_list_does_not_need_statistics_on_a_fresh_crawl(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    """A crawl just written has no statistics until autovacuum comes. The list joined the tiers
+    twice and took 4.6 s then (0.1 s analysed); it reads them for the rows it returns instead."""
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    project = await keyword_project(migrated, workspace)
+    await bulk_site(migrated, workspace, project, pages=20_000, links=200_000, analyze=False)
+    url = project_url(workspace, project, "internal-links", "edges")
+    # The first request of a session also loads the session; time the ones after it.
+    await api.get(
+        project_url(workspace, project, "internal-links", "worklists"), headers=viewer.headers
+    )
+    tier = str(
+        (
+            await fetchrow(
+                migrated,
+                "SELECT tier_id FROM core.project_pages WHERE project_id = $1 LIMIT 1",
+                project,
+            )
+        )["tier_id"]
+    )
+
+    cases: list[tuple[dict[str, str | int], str | None, str | None]] = [
+        ({"limit": 200, "scope": "all"}, None, None),
+        ({"limit": 200, "scope": "all", "filter[source_tier]": tier}, "source", "T1"),
+        ({"limit": 200, "scope": "all", "filter[target_tier]": "none"}, "target", None),
+    ]
+    for params, side, wanted in cases:
+        with statements(resources) as seen:
+            started = time.perf_counter()
+            response = await api.get(url, params=params, headers=viewer.headers)
+            elapsed = time.perf_counter() - started
+        assert response.status_code == 200, (params, response.text)
+        rows = response.json()["data"]
+        assert len(rows) == 200, params
+        assert len(seen) <= STATEMENTS_MAX, (params, len(seen))
+        assert elapsed < SLOW_SECONDS, (params, elapsed)
+        if side is not None:
+            codes = {(row[side]["tier"] or {}).get("code") for row in rows}
+            assert codes == {wanted}, (params, codes)
 
 
 async def test_the_csv_holds_100_000_rows_and_no_more(
