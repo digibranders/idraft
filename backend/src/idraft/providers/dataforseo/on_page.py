@@ -29,6 +29,11 @@ TASK_POST: Final = "on_page/task_post"
 PAGE_LIMIT: Final = 1000
 _TASK_ID: Final = re.compile(r"[0-9A-Za-z-]{1,64}")
 _COST_STEP: Final = Decimal("0.000001")
+# 200,000 pages (the largest ceiling) at the JavaScript price of $0.0015.
+COST_MAX: Final = Decimal("300")
+# Raw HTML above this is treated as missing: the page's links come from the provider instead.
+HTML_MAX: Final = 10 * 1024 * 1024
+_PROGRESS: Final = frozenset({"in_progress", "finished"})
 _LINK_TYPES: Final = {"anchor": "text", "image": "image"}
 K = ProviderErrorKind
 
@@ -130,21 +135,44 @@ def _mapping(value: object) -> Mapping[str, object]:
 
 
 def _cost(value: object) -> Decimal | None:
+    """The cost the answer reports, or None (the price book estimate is used then): absent,
+    zero, negative or above what the largest crawl could cost."""
     if isinstance(value, bool) or not isinstance(value, int | Decimal):
         return None
     number = Decimal(value)
-    if not number.is_finite() or number < 0 or number >= Decimal(10) ** 8:
+    if not number.is_finite() or not 0 < number <= COST_MAX:
         return None
     return number.quantize(_COST_STEP, rounding=ROUND_UP)
+
+
+def _total(found: Mapping[str, object], count: int) -> int:
+    """`total_items_count` of a list answer. A list with items and no usable total is a
+    mismatch: guessing it from the items would end a paged read after the first batch."""
+    total = found.get("total_items_count")
+    if isinstance(total, int) and not isinstance(total, bool) and total >= 0:
+        return total
+    if count == 0:
+        return 0
+    raise _mismatch("a list with no total")
+
+
+def _task(task_id: str) -> str:
+    if not _TASK_ID.fullmatch(task_id):
+        raise _mismatch("a task id that is not one")
+    return task_id
 
 
 def _summary(result: Mapping[str, object]) -> CrawlSummary:
     status = _mapping(result.get("crawl_status"))
     domain = _mapping(result.get("domain_info"))
     sitemap = _mapping(domain.get("checks")).get("sitemap")
+    progress = result.get("crawl_progress")
+    if progress not in _PROGRESS:
+        # An empty or renamed summary must not read as "still running" for ever.
+        raise _mismatch("a summary with no crawl progress")
     return CrawlSummary.model_validate(
         {
-            "finished": result.get("crawl_progress") == "finished",
+            "finished": progress == "finished",
             "pages_crawled": status.get("pages_crawled") or 0,
             "pages_in_queue": status.get("pages_in_queue") or 0,
             "stop_reason": result.get("crawl_stop_reason"),
@@ -225,6 +253,9 @@ class OnPage:
             raise ProviderCallError(outcome)
         first = task.result[0] if task.result else None
         if first is not None and not isinstance(first, Mapping):
+            if sending:
+                # The task exists and is charged: keep its id, the caller does not read a result.
+                return task, None
             raise _mismatch("a result that is not an object")
         return task, first
 
@@ -236,14 +267,14 @@ class OnPage:
         return PostedCrawl(task_id=task.id, cost_usd=_cost(task.cost))
 
     async def summary(self, task_id: str) -> CrawlSummary:
-        _, result = await self._call("GET", f"/v3/on_page/summary/{task_id}")
+        _, result = await self._call("GET", f"/v3/on_page/summary/{_task(task_id)}")
         try:
             return _summary(result or {})
         except ValidationError:
             raise _mismatch("a summary that cannot be read") from None
 
     async def pages(self, task_id: str, *, token: str | None) -> PageBatch:
-        body: dict[str, object] = {"id": task_id, "limit": PAGE_LIMIT}
+        body: dict[str, object] = {"id": _task(task_id), "limit": PAGE_LIMIT}
         if token is not None:
             body["search_after_token"] = token
         _, result = await self._call("POST", "/v3/on_page/pages", [body])
@@ -253,49 +284,56 @@ class OnPage:
         except ValidationError:
             raise _mismatch("a page that cannot be read") from None
         next_token = found.get("search_after_token")
-        total = found.get("total_items_count")
         return PageBatch(
             items=pages,
             token=next_token if isinstance(next_token, str) and next_token and pages else None,
-            total=total if isinstance(total, int) else len(pages),
+            total=_total(found, len(pages)),
         )
 
     async def non_indexable(self, task_id: str, *, offset: int) -> NonIndexableBatch:
-        body: dict[str, object] = {"id": task_id, "limit": PAGE_LIMIT, "offset": offset}
+        body: dict[str, object] = {"id": _task(task_id), "limit": PAGE_LIMIT, "offset": offset}
         _, result = await self._call("POST", "/v3/on_page/non_indexable", [body])
         found = result or {}
         try:
             items = [NonIndexableItem.model_validate(_mapping(item)) for item in _items(found)]
         except ValidationError:
             raise _mismatch("a non-indexable page that cannot be read") from None
-        total = found.get("total_items_count")
-        return NonIndexableBatch(items=items, total=total if isinstance(total, int) else len(items))
+        return NonIndexableBatch(items=items, total=_total(found, len(items)))
 
     async def links_from(self, task_id: str, page_url: str) -> list[LinkItem]:
-        body: dict[str, object] = {
-            "id": task_id,
-            "page_from": _relative(page_url),
-            "limit": PAGE_LIMIT,
-            "filters": ["direction", "=", "internal"],
-        }
-        _, result = await self._call("POST", "/v3/on_page/links", [body])
-        try:
-            found = [_link(item) for item in _items(result or {})]
-        except ValidationError:
-            raise _mismatch("a link that cannot be read") from None
-        return [link for link in found if link is not None]
+        """Every internal link of one page, read in batches of PAGE_LIMIT until the total."""
+        links: list[LinkItem] = []
+        offset = 0
+        while True:
+            body: dict[str, object] = {
+                "id": _task(task_id),
+                "page_from": _relative(page_url),
+                "limit": PAGE_LIMIT,
+                "offset": offset,
+                "filters": ["direction", "=", "internal"],
+            }
+            _, result = await self._call("POST", "/v3/on_page/links", [body])
+            found = result or {}
+            try:
+                items = _items(found)
+                links.extend(link for link in map(_link, items) if link is not None)
+            except ValidationError:
+                raise _mismatch("a link that cannot be read") from None
+            offset += len(items)
+            if not items or offset >= _total(found, len(items)):
+                return links
 
     async def raw_html(self, task_id: str, url: str) -> str | None:
         try:
             _, result = await self._call(
-                "POST", "/v3/on_page/raw_html", [{"id": task_id, "url": url}]
+                "POST", "/v3/on_page/raw_html", [{"id": _task(task_id), "url": url}]
             )
         except ProviderCallError as failure:
             if failure.error.kind is K.NOT_FOUND_EXPIRED:
                 return None
             raise
         html = _mapping(_mapping(result).get("items")).get("html")
-        return html if isinstance(html, str) and html else None
+        return html if isinstance(html, str) and 0 < len(html) <= HTML_MAX else None
 
     async def force_stop(self, task_id: str) -> None:
-        await self._call("POST", "/v3/on_page/force_stop", [{"id": task_id}])
+        await self._call("POST", "/v3/on_page/force_stop", [{"id": _task(task_id)}])

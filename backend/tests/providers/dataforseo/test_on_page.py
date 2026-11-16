@@ -12,7 +12,7 @@ import pytest
 from idraft.domain.retries import ProviderErrorKind
 from idraft.providers.contract import ProviderCallError
 from idraft.providers.dataforseo.client import FAMILY_LIMITS, DataForSeoClient
-from idraft.providers.dataforseo.on_page import FAMILY, CrawlOrder, OnPage
+from idraft.providers.dataforseo.on_page import FAMILY, HTML_MAX, CrawlOrder, OnPage
 from tests.providers.dataforseo.support import (
     LOGIN,
     ORIGIN,
@@ -244,3 +244,146 @@ async def test_an_answer_that_is_not_what_was_asked_is_a_schema_mismatch(
     with pytest.raises(ProviderCallError) as raised:
         await on_page.pages(TASK, token=None)
     assert raised.value.error.kind is ProviderErrorKind.SCHEMA_MISMATCH
+
+
+ORDER = CrawlOrder("example.com", 2000, enable_javascript=False, allowed_subdomains=(), tag="t")
+
+
+@pytest.mark.parametrize(
+    ("reported", "expected"),
+    [(0.3, Decimal("0.300000")), (0, None), (None, None), ("0.3", None), (-1, None), (5e6, None)],
+)
+async def test_only_a_sane_reported_cost_is_kept(
+    api: Api, on_page: OnPage, reported: object, expected: Decimal | None
+) -> None:
+    api.answer(
+        "POST",
+        "/v3/on_page/task_post",
+        envelope([task_answer(task_id=TASK, cost=reported, status_code=20100)]),
+    )
+    assert (await on_page.post(ORDER)).cost_usd == expected
+
+
+async def test_a_created_task_keeps_its_id_when_the_result_is_malformed(
+    api: Api, on_page: OnPage
+) -> None:
+    api.answer(
+        "POST",
+        "/v3/on_page/task_post",
+        envelope([task_answer(task_id=TASK, status_code=20100, result=["x"])]),
+    )
+    assert (await on_page.post(ORDER)).task_id == TASK
+
+
+async def test_a_refused_or_unreachable_post_has_the_right_error_kind(
+    api: Api, on_page: OnPage
+) -> None:
+    def refuse(_request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("down")
+
+    api.on("POST", "/v3/on_page/task_post", refuse)
+    with pytest.raises(ProviderCallError) as raised:
+        await on_page.post(ORDER)
+    assert raised.value.error.kind is ProviderErrorKind.NOT_SENT
+
+    api.answer(
+        "POST",
+        "/v3/on_page/task_post",
+        envelope([task_answer(task_id=TASK, status_code=50000, message="Internal error.")]),
+    )
+    with pytest.raises(ProviderCallError) as raised:
+        await on_page.post(ORDER)
+    assert raised.value.error.kind is ProviderErrorKind.TIMEOUT
+
+    api.answer(
+        "POST",
+        "/v3/on_page/task_post",
+        envelope([task_answer(task_id="not a task id!", status_code=20100)]),
+    )
+    with pytest.raises(ProviderCallError) as raised:
+        await on_page.post(ORDER)
+    assert raised.value.error.kind is ProviderErrorKind.TIMEOUT
+
+
+async def test_a_task_id_that_is_not_one_never_reaches_a_path(api: Api, on_page: OnPage) -> None:
+    for call in (
+        on_page.summary("../x"),
+        on_page.pages("a b", token=None),
+        on_page.non_indexable("", offset=0),
+        on_page.links_from("a/b", "https://example.com/"),
+        on_page.raw_html("a?b", "https://example.com/"),
+        on_page.force_stop("a#b"),
+    ):
+        with pytest.raises(ProviderCallError) as raised:
+            await call
+        assert raised.value.error.kind is ProviderErrorKind.SCHEMA_MISMATCH
+    assert api.requests == []
+
+
+async def test_a_summary_with_no_progress_is_not_a_running_crawl(api: Api, on_page: OnPage) -> None:
+    api.answer(
+        "GET", f"/v3/on_page/summary/{TASK}", envelope([task_answer(task_id=TASK, result=None)])
+    )
+    with pytest.raises(ProviderCallError) as raised:
+        await on_page.summary(TASK)
+    assert raised.value.error.kind is ProviderErrorKind.SCHEMA_MISMATCH
+
+
+async def test_a_list_with_items_and_no_total_is_a_mismatch_and_an_empty_one_is_not(
+    api: Api, on_page: OnPage
+) -> None:
+    item = {"reason": "meta_tag", "url": "https://example.com/x"}
+    api.answer(
+        "POST",
+        "/v3/on_page/non_indexable",
+        envelope([task_answer(task_id=TASK, result=[{"items": [item]}])]),
+    )
+    with pytest.raises(ProviderCallError) as raised:
+        await on_page.non_indexable(TASK, offset=0)
+    assert raised.value.error.kind is ProviderErrorKind.SCHEMA_MISMATCH
+
+    api.answer(
+        "POST",
+        "/v3/on_page/non_indexable",
+        envelope([task_answer(task_id=TASK, result=[{"items": None}])]),
+    )
+    empty = await on_page.non_indexable(TASK, offset=0)
+    assert (empty.items, empty.total) == ([], 0)
+
+
+async def test_the_links_of_a_page_are_read_in_batches_until_the_total(
+    api: Api, on_page: OnPage
+) -> None:
+    def link(n: int) -> dict[str, object]:
+        return {"type": "anchor", "link_to": f"https://example.com/{n}", "text": "", "dofollow": 1}
+
+    def batches(request: httpx.Request) -> httpx.Response:
+        offset = json.loads(request.content)[0]["offset"]
+        items = [link(n) for n in range(offset, min(offset + 1000, 1500))]
+        result = {"items": items, "total_items_count": 1500}
+        return httpx.Response(200, json=envelope([task_answer(task_id=TASK, result=[result])]))
+
+    api.on("POST", "/v3/on_page/links", batches)
+
+    links = await on_page.links_from(TASK, "https://example.com/")
+
+    assert len(links) == 1500
+    assert [json.loads(request.content)[0]["offset"] for request in api.requests] == [0, 1000]
+
+
+async def test_raw_html_that_expired_or_is_too_large_counts_as_missing(
+    api: Api, on_page: OnPage
+) -> None:
+    api.answer(
+        "POST",
+        "/v3/on_page/raw_html",
+        envelope([task_answer(task_id=TASK, status_code=40403, message="Not found.")]),
+    )
+    assert await on_page.raw_html(TASK, "https://example.com/") is None
+
+    api.answer(
+        "POST",
+        "/v3/on_page/raw_html",
+        envelope([task_answer(task_id=TASK, result=[{"items": {"html": "x" * (HTML_MAX + 1)}}])]),
+    )
+    assert await on_page.raw_html(TASK, "https://example.com/") is None
