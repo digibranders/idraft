@@ -4,6 +4,7 @@ import type { OverviewAggregates } from '../../data/aggregates';
 import type { SmallMultiplePanel } from '@/components/app/chart/small-multiples';
 import { addDays } from '@/components/app/date-range/business-date';
 import type { EngineCode, EngineSummary, MetricCell, ProjectEngine, PromptsSummary, WeekCells } from '@/lib/api/types';
+import type { WeekWithVisibility } from '@/lib/api/week-visibility';
 import type { RateBandPoint } from '@/lib/charts/rate-band-chart';
 import { rateTipText, type RateTipWords } from '@/lib/charts/rate-tip';
 import type { CsvCell } from '@/lib/csv/csv-write';
@@ -31,9 +32,6 @@ export const isTrendMetric = (value: string): value is TrendMetric => TREND_METR
  * and says so (`hasWeeklyVisibility`); the figure is never made up from the mention and citation cells.
  */
 export type WeekMetric = TrendMetric | 'visibility';
-
-/** A week that may carry the weekly AI visibility cell of backend request 1. */
-type WeekWithVisibility = WeekCells & { visibility?: MetricCell | null | undefined };
 
 const CELL_OF = { mention: 'mentioned', citation: 'cited' } as const;
 

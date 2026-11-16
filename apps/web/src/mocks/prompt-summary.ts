@@ -8,6 +8,8 @@ import type {
   Schemas,
   WeekCells,
 } from '@/lib/api/types';
+import type { WeekWithVisibility } from '@/lib/api/week-visibility';
+import { visibilityCell } from '@/lib/rates/visibility-model';
 
 type EngineCoMentions = Schemas['EngineCoMentions'];
 
@@ -193,7 +195,7 @@ export const weekCells = (
   own: EngineSummary,
   pooled?: PooledCells,
   entities?: EntityCells[],
-): WeekCells => {
+): WeekWithVisibility => {
   const shown = pooled?.cells ?? own;
   return {
     week_start: weekStart,
@@ -203,6 +205,8 @@ export const weekCells = (
     mentioned: shown.mentioned,
     cited: shown.cited,
     share_of_voice: shown.share_of_voice,
+    // The weekly AI visibility of backend request 1: the three outcomes that are not "neither", as the web adds them
+    visibility: visibilityCell(shown.outcomes),
     ...(entities === undefined ? {} : { entities }),
   };
 };
