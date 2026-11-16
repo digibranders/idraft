@@ -2,7 +2,7 @@
  * Cards of the AI visibility Overview, second half: groups, citations, position and sentiment, traffic, fan-out,
  * key changes and the collection calendar. Same contract as aiov-cards-core.js.
  */
-import { MINUS, formatInteger } from './vendor/format/number.js';
+import { formatInteger } from './vendor/format/number.js';
 import {
   GA4_CONNECTED,
   GROUPS,
@@ -26,7 +26,7 @@ import {
 import { chartHost, lineOption, mountChart, treemapOption } from './aiov-charts.js';
 import { HEAT_METRICS, setScope } from './aiov-controls.js';
 import { segmented } from './aiov-cards-core.js';
-import { NEUTRAL_BADGE, barList, cardFrame, countsText, el, emptyBody, engineName, heatBin, icon, insufficientText, orderText, pct0, plural, platformLabel, sampleBadge, stackedRows } from './aiov-parts.js';
+import { NEUTRAL_BADGE, barList, cardFrame, countsText, el, emptyBody, engineName, gapIcon, gapSentence, heatBin, icon, insufficientText, orderText, pct0, plural, platformLabel, sampleBadge, stackedRows } from './aiov-parts.js';
 
 const ENGINE_TOKEN = { chatgpt_web: 'chart-1', gemini_web: 'chart-2', google_ai_mode: 'chart-3', google_ai_overview: 'chart-4' };
 const HEAT_COLUMNS = ['chatgpt_web', 'gemini_web', 'google_ai_overview', 'google_ai_mode'];
@@ -146,9 +146,17 @@ function versusList(ctx) {
   const all = buildModel({ ...ctx.scope, platform: 'all', group: 'all' });
   const rows = [...own.codes.map((code) => ({ label: engineName(code), a: own.cells[measure][code], b: all.cells[measure][code], token: ENGINE_TOKEN[code] })), { label: 'Average', a: own.average[measure], b: all.average[measure], token: 'chart-other' }].map((row) => {
     const ok = row.a?.state === 'ok';
-    const gap = ok && row.b?.state === 'ok' ? Math.round((row.a.value - row.b.value) * 100) : null;
-    const against = row.b?.state === 'ok' ? `All groups ${pct0(row.b.value)}${gap === null || gap === 0 ? '' : ` (${gap > 0 ? '+' : MINUS}${Math.abs(gap)} pts)`}` : 'All groups: no rate';
-    return { label: row.label, value: ok ? row.a.value : null, all: row.b?.state === 'ok' ? row.b.value : null, token: row.token, note: ok ? against : 'Too few answers', tip: `${row.label}: ${ok ? pct0(row.a.value) : 'too few valid answers (fewer than 4)'}. ${against}.` };
+    const against = row.b?.state === 'ok' ? `All groups ${pct0(row.b.value)}` : 'All groups: no rate';
+    const difference = ok && row.b?.state === 'ok' ? row.a.value - row.b.value : null;
+    return {
+      label: row.label,
+      value: ok ? row.a.value : null,
+      all: row.b?.state === 'ok' ? row.b.value : null,
+      token: row.token,
+      note: ok ? against : 'Too few answers',
+      tip: `${row.label}: ${ok ? pct0(row.a.value) : 'too few valid answers (fewer than 4)'}. ${against}.`,
+      icon: difference === null ? null : gapIcon(difference, gapSentence(groupName(ctx.scope.group), difference, 'all groups', row.a.value, row.b.value)),
+    };
   });
   // One scale for every row, so the bars and the ticks can be compared
   const top = Math.max(0.01, ...rows.flatMap((row) => [row.value ?? 0, row.all ?? 0])) * 1.1;
@@ -157,7 +165,10 @@ function versusList(ctx) {
     const item = el('div', 'flex flex-col gap-1');
     item.dataset.tip = row.tip;
     const line = el('div', 'flex items-baseline justify-between gap-2');
-    line.append(el('span', 'type-body text-foreground-secondary truncate', row.label), el('span', `type-body-strong num ${row.value === null ? 'text-foreground-tertiary' : 'text-foreground'}`, row.value === null ? 'n/a' : pct0(row.value)));
+    const figure = el('span', 'inline-flex items-center gap-1.5');
+    figure.append(el('span', `type-body-strong num ${row.value === null ? 'text-foreground-tertiary' : 'text-foreground'}`, row.value === null ? 'n/a' : pct0(row.value)));
+    if (row.icon) figure.append(row.icon);
+    line.append(el('span', 'type-body text-foreground-secondary truncate', row.label), figure);
     // The bar is the group; the tick is all groups
     const track = el('div', 'relative h-2');
     track.setAttribute('aria-hidden', 'true');

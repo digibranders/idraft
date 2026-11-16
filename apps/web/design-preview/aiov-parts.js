@@ -3,11 +3,10 @@
  * Small pieces the AI visibility Overview is drawn with: formatted values and changes, the card frame, a headline
  * tile, a sparkline, a bar list and stacked share bars. Plain DOM, tokens only (14, 15, 12 in docs/design-system).
  */
-import { formatMetricDelta } from './vendor/format/delta.js';
-import { MINUS, formatInteger, formatPercent, formatPointsDelta } from './vendor/format/number.js';
+import { formatInteger, formatPercent } from './vendor/format/number.js';
 import { MEASURES, platformOf } from './aiov-data.js';
 import { CARD_INFO, infoText } from './aiov-info.js';
-import { NEUTRAL_BADGE, el, insufficient, plural } from './prompts-parts.js';
+import { NEUTRAL_BADGE, el, insufficient, plural, trendIcon } from './prompts-parts.js';
 
 export { NEUTRAL_BADGE, el, insufficient, plural };
 
@@ -17,8 +16,6 @@ export const icon = (name, size = 'size-icon') => ui.icon(name, size);
 export const pct0 = (ratio) => formatPercent(ratio, { decimals: 0 });
 export const pct1 = (ratio) => formatPercent(ratio, { decimals: 1 });
 export const orderText = (value) => (Math.round(value * 10) / 10).toFixed(1);
-
-const TONE = { positive: 'text-positive-text', negative: 'text-negative-text', neutral: 'text-foreground-secondary' };
 
 /** The value of a cell as text: a rate, an order, or why there is none. */
 export function valueText(cell) {
@@ -47,27 +44,17 @@ export function insufficientText(cell) {
 }
 
 /**
- * A change against the previous period, in points (R5), colored only when detectable. An order (mention position)
- * changes in places, and a lower number is better, so it is never colored. Null when there is nothing to compare.
+ * The difference between two rates, in points, as the trend icon of the Prompts page: green when the first is higher,
+ * red when it is lower, a grey dash when level. `say` is the sentence of its hover. Differences between two things are
+ * not tested for detectability.
  */
-export function deltaNode(cell, compare, { decimals = 1 } = {}) {
-  if (!compare || !cell?.change || cell.state !== 'ok') return null;
-  const { value, detectable } = cell.change;
-  const untested = detectable === null || detectable === undefined;
-  if (MEASURES[cell.measure].unit === 'order' || untested) {
-    const rounded = Math.round(Math.abs(value) * 100) / 100;
-    const sign = rounded === 0 ? '' : value > 0 ? '+' : MINUS;
-    const text = MEASURES[cell.measure].unit === 'order' ? `${sign}${rounded.toFixed(2)}` : formatPointsDelta(value, { decimals });
-    const node = el('span', `num shrink-0 whitespace-nowrap ${TONE.neutral}`, text);
-    node.dataset.tip = `${MEASURES[cell.measure].unit === 'order' ? 'A lower number means named earlier. ' : ''}Not tested for detectability`;
-    node.append(el('span', 'sr-only', ', not tested for detectability'));
-    return node;
-  }
-  const display = formatMetricDelta({ value, unit: 'points', polarity: 'higher_is_better', isDetectable: detectable });
-  const node = el('span', `num shrink-0 whitespace-nowrap ${TONE[display.tone]}`, formatPointsDelta(value, { decimals }));
-  node.dataset.tip = detectable ? 'Detectable change: its 95% interval excludes zero' : 'Within normal variation';
-  node.append(el('span', 'sr-only', detectable ? ', detectable change' : ', within normal variation'));
-  return node;
+export const gapIcon = (difference, say) => trendIcon({ value: difference, detectable: null }, { say });
+
+/** The sentence of a gap's hover: "Pricing is 10 pts below all groups", with the two figures. */
+export function gapSentence(subject, difference, other, ours, theirs) {
+  const points = `${(Math.abs(difference) * 100).toFixed(1)} pts`;
+  const where = Math.abs(difference) < 0.0005 ? `level with ${other}` : `${points} ${difference > 0 ? 'above' : 'below'} ${other}`;
+  return `${subject} ${subject === 'You' ? 'are' : 'is'} ${where}: ${pct0(ours)} against ${pct0(theirs)}. Not tested for detectability.`;
 }
 
 export function engineName(code) {

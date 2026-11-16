@@ -12,7 +12,7 @@ import { WEEK_LABELS, buildModel, competitorId, groupOf, headToHead, leadsFor, s
 import { chartHost, lineOption, mountChart } from './aiov-charts.js';
 import { segmented } from './aiov-cards-core.js';
 import { state } from './aiov-controls.js';
-import { NEUTRAL_BADGE, cardFrame, el, emptyBody, engineName, pct0, pct1, platformLabel } from './aiov-parts.js';
+import { NEUTRAL_BADGE, cardFrame, el, emptyBody, engineName, gapIcon, gapSentence, pct0, pct1, platformLabel } from './aiov-parts.js';
 
 const ui = window.PreviewUI;
 const inspector = ui.$('#inspector');
@@ -42,7 +42,18 @@ const dot = (token) => {
 /** "612 of 1,800 answers", or nothing when a count is missing. */
 const countsOf = (total, part, noun) => (typeof total === 'number' && typeof part === 'number' ? `${formatInteger(part)} of ${formatInteger(total)} ${noun}` : undefined);
 
-const signedPoints =(diff) => (Math.abs(diff) < 0.0005 ? '0 pts' : `${diff > 0 ? '+' : '−'}${(Math.abs(diff) * 100).toFixed(1)} pts`);
+/** The gap column: you against the competitor as the trend icon, green when you are ahead, "n/a" when either has no rate. */
+function gapCell(own, rival, name) {
+  const cell = el('td', 'px-3 pr-4 text-right');
+  if (own === null || rival === null) {
+    cell.append(el('span', 'text-foreground-tertiary', 'n/a'));
+    return cell;
+  }
+  const holder = el('span', 'inline-flex justify-end');
+  holder.append(gapIcon(own - rival, gapSentence('You', own - rival, name, own, rival)));
+  cell.append(holder);
+  return cell;
+}
 
 // -------------------------------------------------------------------------------------------------
 // Overview: you against the competitor
@@ -73,9 +84,7 @@ function overviewTable(rival, rows) {
       if (tip) cell.dataset.tip = tip;
       return cell;
     };
-    const gap = el('td', 'px-3 pr-4 text-right num text-foreground-secondary', row.own === null || row.rival === null ? 'n/a' : signedPoints(row.own - row.rival));
-    gap.dataset.tip = 'Your value minus theirs, in points. Not tested for detectability';
-    tr.append(name, value(row.own, row.decimals, row.ownTip), value(row.rival, row.decimals, row.rivalTip), gap);
+    tr.append(name, value(row.own, row.decimals, row.ownTip), value(row.rival, row.decimals, row.rivalTip), gapCell(row.own, row.rival, rival.name));
     body.append(tr);
   });
   table.append(head, body);
@@ -125,8 +134,7 @@ function fillOverview(model, index) {
     name.scope = 'row';
     name.append(platformLabel(entry.code));
     const cell = (ratio) => (ratio === null ? el('td', 'px-3 text-right text-foreground-tertiary', 'n/a') : el('td', 'px-3 text-right num', pct0(ratio)));
-    const gap = el('td', 'px-3 pr-4 text-right num text-foreground-secondary', entry.own === null || entry.rival === null ? 'n/a' : signedPoints(entry.own - entry.rival));
-    tr.append(name, cell(entry.own), cell(entry.rival), gap);
+    tr.append(name, cell(entry.own), cell(entry.rival), gapCell(entry.own, entry.rival, rival.name));
     body.append(tr);
   });
   table.append(body);
