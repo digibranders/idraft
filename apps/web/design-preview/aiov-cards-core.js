@@ -24,7 +24,7 @@ import {
 } from './aiov-data.js';
 import { chartHost, lineOption, mountChart, shareAreaOption } from './aiov-charts.js';
 import { HEAT_METRICS, setScope } from './aiov-controls.js';
-import { NEUTRAL_BADGE, averageBadge, barList, cardFrame, countsText, deltaNode, el, emptyBody, engineName, icon, insufficient, insufficientText, pct0, plural, platformLabel, sampleBadge, sparkline, stackedRows, valueText } from './aiov-parts.js';
+import { NEUTRAL_BADGE, barList, cardFrame, countsText, deltaNode, el, emptyBody, engineName, icon, insufficient, insufficientText, pct0, plural, platformLabel, sampleBadge, sparkline, stackedRows, valueText } from './aiov-parts.js';
 import { wilsonInterval } from './vendor/stats/index.js';
 
 const ENGINE_TOKEN = { chatgpt_web: 'chart-1', gemini_web: 'chart-2', google_ai_mode: 'chart-3', google_ai_overview: 'chart-4' };
@@ -56,36 +56,81 @@ function averageShares(rows) {
 
 const TILE_LAYOUT = ['mention', 'sov', 'citation', 'position', 'recommendation', 'sentiment', 'prompts', 'runs'];
 
-function contextOf(cell, ctx) {
-  if (cell.state === 'unavailable') return cell.reason ?? 'not available';
-  if (cell.state === 'insufficient' || cell.state === 'none') {
-    const why = insufficientText(cell);
-    return why === 'Too few' ? 'Too few for a rate' : `${why}, too few for a rate`;
-  }
-  const sample = MEASURES[cell.measure].sample ? ', sample data' : '';
-  if (ctx.scope.platform === 'all') return `avg of ${cell.used}${sample}`;
-  return `${countsText(cell)}${sample}`;
+/**
+ * What stands behind a number, for its tooltip and for screen readers (R1): the counts, or which platforms an average
+ * covers. It is not printed on the card, which keeps the label, the value and the trend.
+ */
+function detailOf(cell, ctx) {
+  if (cell.state !== 'ok') return cell.state === 'unavailable' ? cell.reason ?? '' : insufficientText(cell) === 'Too few' ? 'Too few answers for a rate' : `${insufficientText(cell)}, too few for a rate`;
+  if (ctx.scope.platform === 'all') return `Average of ${cell.used} platforms: ${cell.platforms.map((code) => engineName(code)).join(', ')}`;
+  return countsText(cell);
+}
+
+/** The one short line a tile may carry: why it has no value, or that it is sample data. */
+function noteOf(cell) {
+  if (cell.state === 'unavailable') return 'Not classified';
+  if (cell.state !== 'ok') return 'Too few answers';
+  return MEASURES[cell.measure].sample ? 'Sample data' : null;
 }
 
 function tileNode({ label, info, cell, ctx, series, plain, measure }) {
-  const node = el('div', 'bg-surface px-4 py-3 flex flex-col gap-1 min-w-0');
+  const node = el('div', 'bg-surface px-3.5 py-3 flex flex-col justify-between gap-1 min-w-0');
   const name = el('span', 'type-label text-foreground-secondary truncate', label);
   if (info) name.dataset.tip = info;
   node.append(name);
-  const line = el('div', 'flex items-baseline gap-2 min-w-0');
-  if (plain) line.append(el('span', 'type-metric num text-foreground', plain.value));
-  else {
-    const missing = cell.state !== 'ok';
-    line.append(el('span', `type-metric num ${missing ? 'text-foreground-tertiary' : 'text-foreground'}`, valueText(cell)));
-    const delta = deltaNode(cell, ctx.compare);
-    if (delta) line.append(delta);
+  const row = el('div', 'flex items-center justify-between gap-3 min-w-0');
+  const missing = !plain && cell.state !== 'ok';
+  const value = el('span', `type-metric num ${missing ? 'text-foreground-tertiary' : 'text-foreground'}`, plain ? plain.value : valueText(cell));
+  const detail = plain ? plain.detail : detailOf(cell, ctx);
+  if (detail) {
+    value.dataset.tip = detail;
+    value.append(el('span', 'sr-only', `, ${detail}`));
   }
-  node.append(line, el('span', 'type-meta', plain ? plain.context : contextOf(cell, ctx)));
+  row.append(value);
+  if (series && series.filter((point) => point !== null).length > 1) {
+    const trend = el('div', 'w-14 shrink-0');
+    trend.append(sparkline(series, { token: 'chart-1', height: 22 }));
+    row.append(trend);
+  }
+  node.append(row);
+  const note = plain ? plain.note : noteOf(cell);
   // With one group selected, the project value stands beside it (spec section 4)
   const base = measure && ctx.baseline ? ctx.baseline.shown(measure) : null;
-  if (base && base.state === 'ok' && cell.state === 'ok') node.append(el('span', 'type-micro text-foreground-tertiary num', `All groups ${valueText(base)}`));
-  if (series && series.filter((value) => value !== null).length > 1) node.append(sparkline(series, { token: 'chart-1', height: 24 }));
+  const baseText = base && base.state === 'ok' && cell.state === 'ok' ? `All groups ${valueText(base)}` : null;
+  const line = [note, baseText].filter(Boolean).join(' · ');
+  if (line) node.append(el('span', 'type-micro text-foreground-tertiary truncate num', line));
   return node;
+}
+
+/** The four outcomes of an answer as one bar, with each share beside its name. The counts are in the tooltips. */
+function splitBar(shares, counts) {
+  const wrap = el('div', 'flex flex-col gap-2');
+  if (shares === null) {
+    wrap.append(insufficient('Too few answers'));
+    return wrap;
+  }
+  const bar = el('div', 'h-2.5 flex gap-0.5 overflow-hidden rounded-xs');
+  bar.setAttribute('role', 'img');
+  bar.setAttribute('aria-label', OUTCOME_SEGMENTS.map((segment, index) => `${segment.label} ${pct0(shares[index])}`).join(', '));
+  const total = counts ? counts.reduce((a, b) => a + b, 0) : 0;
+  const legend = el('div', 'grid grid-cols-2 gap-x-4 gap-y-1');
+  OUTCOME_SEGMENTS.forEach((segment, index) => {
+    if (shares[index] > 0) {
+      const part = el('div', 'h-full min-w-0');
+      part.style.width = `${shares[index] * 100}%`;
+      part.style.background = `var(--${segment.token})`;
+      part.dataset.tip = `${segment.label}: ${pct0(shares[index])}${total ? `, ${formatInteger(counts[index])} of ${formatInteger(total)} answers` : ''}`;
+      bar.append(part);
+    }
+    const item = el('span', 'flex items-center gap-1.5 min-w-0 type-table');
+    const dot = el('span', 'size-2 shrink-0 rounded-2xs');
+    dot.style.background = `var(--${segment.token})`;
+    dot.setAttribute('aria-hidden', 'true');
+    item.append(dot, el('span', 'truncate text-foreground-secondary', segment.label.replace(' (unlinked)', '')), el('span', 'ml-auto num text-foreground', pct0(shares[index])));
+    legend.append(item);
+  });
+  wrap.append(bar, legend);
+  return wrap;
 }
 
 export function headlineRow(ctx) {
@@ -97,41 +142,32 @@ export function headlineRow(ctx) {
 
   // The hero: a plain rate, with the four outcomes that make it up (decision D1)
   const visibility = model.shown('visibility');
-  const hero = el('section', 'xl:col-span-4 min-w-0 bg-surface border border-border rounded-lg p-4 flex flex-col gap-3');
+  const hero = el('section', 'xl:col-span-4 min-w-0 bg-surface border border-border rounded-lg px-4 py-3.5 flex flex-col justify-between gap-3');
   hero.setAttribute('aria-label', 'AI Visibility');
-  const top = el('div', 'flex items-center gap-2');
   const title = el('h2', 'type-section-title', MEASURES.visibility.label);
-  title.dataset.tip = MEASURES.visibility.info;
-  top.append(title);
-  if (ctx.scope.platform === 'all' && visibility.state === 'ok') top.append(averageBadge(visibility.used));
-  hero.append(top);
-  const value = el('div', 'flex items-baseline gap-2');
-  value.append(el('span', `type-metric num ${visibility.state === 'ok' ? 'text-foreground' : 'text-foreground-tertiary'}`, valueText(visibility)));
-  const delta = deltaNode(visibility, ctx.compare);
-  if (delta) value.append(delta);
-  hero.append(value);
-  const projectValue = ctx.baseline?.shown('visibility');
-  if (projectValue?.state === 'ok') hero.append(el('p', 'type-meta num', `All groups ${valueText(projectValue)}`));
+  // What the rate is, said once in the tooltip instead of in paragraphs on the card
+  title.dataset.tip = `${MEASURES.visibility.info} Named and linked, named only (an unlinked brand mention) and cited only added together. Each prompt counts once.`;
   // The prompts that contribute: on one platform only those with a valid answer there (one denominator, R12)
   const contributing = ctx.scope.platform === 'all' ? model.prompts.length : aggregateFor(model, ctx.scope.platform).prompts;
-  hero.append(el('p', 'type-meta', visibility.state === 'ok' ? `${ctx.scope.platform === 'all' ? `Average of ${visibility.used} platforms` : countsText(visibility)} · ${plural(contributing, 'prompt')}, each counted once` : 'Too few answers for a rate'));
-  const outcomes = outcomesFor(model);
-  const shares = ctx.scope.platform === 'all' ? averageShares(outcomes) : outcomes[0]?.shares ?? null;
-  hero.append(
-    stackedRows({
-      rows: [{ label: ctx.scope.platform === 'all' ? 'Share of answers, average of platforms' : 'Share of answers', shares, counts: ctx.scope.platform === 'all' ? null : outcomes[0]?.counts }],
-      segments: OUTCOME_SEGMENTS,
-    }),
-  );
-  const names = el('p', 'type-meta');
-  names.append('Visibility is named and linked, named only and cited only added together. ', el('span', 'text-foreground-secondary', 'Named only is an unlinked brand mention.'));
-  hero.append(names);
+  const top = el('div', 'flex items-center justify-between gap-4');
+  const value = el('div', 'min-w-0');
+  const number = el('span', `type-metric num ${visibility.state === 'ok' ? 'text-foreground' : 'text-foreground-tertiary'}`, valueText(visibility));
+  const detail = visibility.state === 'ok' ? `${detailOf(visibility, ctx)}. ${plural(contributing, 'prompt')}, each counted once` : 'Too few answers for a rate';
+  number.dataset.tip = detail;
+  number.append(el('span', 'sr-only', `, ${detail}`));
+  value.append(number);
+  const projectValue = ctx.baseline?.shown('visibility');
+  if (projectValue?.state === 'ok') value.append(el('span', 'ml-2 type-micro text-foreground-tertiary num', `All groups ${valueText(projectValue)}`));
+  top.append(value);
   const spark = seriesFor(model, 'visibility', ctx.scope.platform);
   if (spark.some((point) => point !== null)) {
-    const wrap = el('div', 'mt-auto');
-    wrap.append(el('span', 'type-meta', 'Last 8 runs'), sparkline(spark, { token: 'chart-1', height: 36, label: `AI Visibility over the last 8 weekly runs, latest ${valueText(visibility)}` }));
-    hero.append(wrap);
+    const trend = el('div', 'w-28 shrink-0');
+    trend.append(sparkline(spark, { token: 'chart-1', height: 32, label: `AI Visibility over the last 8 weekly runs, latest ${valueText(visibility)}` }));
+    top.append(trend);
   }
+  const outcomes = outcomesFor(model);
+  const shares = ctx.scope.platform === 'all' ? averageShares(outcomes) : outcomes[0]?.shares ?? null;
+  hero.append(title, top, splitBar(shares, ctx.scope.platform === 'all' ? null : outcomes[0]?.counts));
 
   // The tiles share hairlines: a grid with a 1 px gap on the border color
   const strip = el('section', 'xl:col-span-8 min-w-0 border border-border rounded-lg overflow-hidden bg-border grid grid-cols-2 md:grid-cols-4 gap-px');
@@ -152,9 +188,9 @@ export function headlineRow(ctx) {
       const kind = { exclude: 'core prompts, not branded', include: 'core and branded prompts', only: 'branded prompts' }[ctx.scope.branded];
       const where = ctx.scope.group === 'all' ? kind : `${kind}, in ${ctx.scope.group.split(':')[1]}`;
       const withAnswers = ctx.scope.platform === 'all' ? null : aggregateFor(model, ctx.scope.platform).prompts;
-      return tileNode({ label: MEASURES.prompts.label, info: MEASURES.prompts.info, ctx, plain: { value: formatInteger(model.prompts.length), context: withAnswers === null ? where : `${withAnswers} with answers on ${engineName(ctx.scope.platform)}` } });
+      return tileNode({ label: MEASURES.prompts.label, info: MEASURES.prompts.info, ctx, plain: { value: formatInteger(model.prompts.length), detail: withAnswers === null ? where : `${where}. ${withAnswers} with answers on ${engineName(ctx.scope.platform)}`, note: null } });
     },
-    runs: () => tileNode({ label: 'Runs in window', info: 'Weekly collection runs behind these numbers. Prompts are asked on the schedule of their panel.', ctx, plain: { value: String(RUNS.inWindow), context: `run ${RUNS.number}, last ${ctx.scope.platform === 'all' ? RUNS.last : lastRunOf(ctx.scope.platform)}` } }),
+    runs: () => tileNode({ label: 'Runs in window', info: 'Weekly collection runs behind these numbers. Prompts are asked on the schedule of their panel.', ctx, plain: { value: String(RUNS.inWindow), detail: `Run ${RUNS.number}, last ${ctx.scope.platform === 'all' ? RUNS.last : lastRunOf(ctx.scope.platform)}`, note: null } }),
   };
   TILE_LAYOUT.forEach((key) => strip.append(tiles[key]()));
   grid.append(hero, strip);
