@@ -86,7 +86,7 @@ keep their definitions on hover.
 
 - **A layout is a list of cards** with a width each, at most 12 (the layout library's limit). The headline hero and
   tiles are one card, `ai.visibility_split`, so the numbers zone of the library is not used on this page yet.
-- **The default shows 12 of the 18 cards (Brand sentiment among them)**, one for each section of the senior's sheet. The other cards are in the
+- **The default shows 11 of the 18 cards (Brand sentiment among them, Top and bottom groups not)**, one for each section of the senior's sheet. The other cards are in the
   card catalog. Presets: Default, Executive, Analyst, Competitive; each fills complete rows of 12 columns at 1280 px.
 - **Controls:** Customize toggle, a toolbar on every card (drag handle with arrow keys, width, hide, move menu), an
   Add card slot that opens the catalog, Start from (presets), and a save bar with Reset, Cancel, Save layout and a
