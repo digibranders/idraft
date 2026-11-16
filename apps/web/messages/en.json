@@ -4855,10 +4855,10 @@
         "all": "All platforms",
         "set": "{count, plural, one {# platform} other {# platforms}}",
         "names": {
-          "chatgpt_web": "ChatGPT",
-          "gemini_web": "Gemini",
-          "google_ai_mode": "Google AI Mode",
-          "google_ai_overview": "Google AI Overview"
+          "chatgptWeb": "ChatGPT",
+          "geminiWeb": "Gemini",
+          "googleAiMode": "Google AI Mode",
+          "googleAiOverview": "Google AI Overview"
         }
       },
       "strip": {

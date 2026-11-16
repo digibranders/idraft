@@ -355,21 +355,16 @@ function Parity({ seen }: { seen: Seen }): ReactElement {
   const engines = useOverviewEngines();
   const summary = useOverviewSummary();
   const enabled = (engines.data ?? []).filter((engine) => engine.is_enabled);
+  const prompts = summary.data?.prompts;
   return (
     <div>
       <Probe items={MENTION} seen={seen} />
-      {summary.data === undefined ? null : (
+      {prompts === undefined ? null : (
         <>
-          <PromptsStrip
-            prompts={summary.data.prompts}
-            engines={enabled}
-            topics={null}
-            status="ready"
-            countsFailed={false}
-          />
+          <PromptsStrip prompts={prompts} engines={enabled} topics={null} status="ready" countsFailed={false} />
           {enabled.map((engine) => (
             <output key={engine.engine.engine_code} data-testid={`visibility-${engine.engine.engine_code}`}>
-              {words.text(visibilityOfPrompts(summary.data.prompts, engine.engine.engine_code))}
+              {words.text(visibilityOfPrompts(prompts, engine.engine.engine_code))}
             </output>
           ))}
         </>

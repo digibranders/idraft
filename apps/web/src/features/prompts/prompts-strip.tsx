@@ -32,7 +32,13 @@ export interface PromptsStripProps {
 }
 
 /** The first slot, the prompts in view, and one slot for each platform: the room is fixed, whatever the data holds. */
-const PLATFORMS = ['chatgpt_web', 'gemini_web', 'google_ai_mode', 'google_ai_overview'] as const;
+/** The platforms the product names, by API code, and the key of their name in the catalog. */
+const PLATFORM_NAMES = {
+  chatgpt_web: 'chatgptWeb',
+  gemini_web: 'geminiWeb',
+  google_ai_mode: 'googleAiMode',
+  google_ai_overview: 'googleAiOverview',
+} as const;
 const GRID = 'minmax(6rem,0.6fr)';
 const PLATFORM_COLUMN = 'minmax(12.5rem,1fr)';
 
@@ -139,8 +145,8 @@ export function PromptsStrip({
 
   // A platform that is not on has no label from the API: the product's own names stand in
   const nameOf = (code: string): string => {
-    const named = PLATFORMS.find((platform) => platform === code);
-    return named === undefined ? code : names(named);
+    const key = Object.entries(PLATFORM_NAMES).find(([known]) => known === code)?.[1];
+    return key === undefined ? code : names(key);
   };
 
   const platformSlot = (code: string): ReactElement => {
