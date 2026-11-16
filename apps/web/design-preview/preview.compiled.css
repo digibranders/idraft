@@ -2126,6 +2126,9 @@
     background-color: var(--primary);
   }
   @media (hover: hover) {
+    .hover\:bg-border:hover {
+      background-color: var(--border);
+    }
     .hover\:bg-negative-button-hover:hover {
       background-color: var(--negative-button-hover);
     }
@@ -2191,6 +2194,9 @@
   .focus-visible\:focus-ring-inset:focus-visible {
     outline: 2px solid var(--ring);
     outline-offset: -2px;
+  }
+  .active\:bg-primary:active {
+    background-color: var(--primary);
   }
   .disabled\:cursor-not-allowed:disabled {
     cursor: not-allowed;

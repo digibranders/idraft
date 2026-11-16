@@ -214,9 +214,12 @@ export function rowMenuCell(kind, name) {
  * [{ key, label, from, extra }], `shown()` returns the Set in force, `change(key, on)` and `reset()` update it.
  * A column that is on but hidden by the window's width says from which width it shows.
  */
-export function wireColumnChooser({ popover, columns, shown, change, reset }) {
+export function wireColumnChooser({ popover, columns, shown, change, reset, identity }) {
   const options = $('[data-options]', popover);
+  const widthRow = identity ? identityWidthRow(identity) : null;
+  if (widthRow) options.after(widthRow);
   const render = () => {
+    widthRow?.refresh();
     options.replaceChildren(
       ...(typeof columns === 'function' ? columns() : columns).map((column) => {
         const row = el('label', 'h-control-sm px-2 rounded-md flex items-center gap-2 type-body hover:bg-surface-hover cursor-pointer');
@@ -244,4 +247,66 @@ export function wireColumnChooser({ popover, columns, shown, change, reset }) {
     reset();
     render();
   });
+}
+
+// -------------------------------------------------------------------------------------------------
+// The width of the pinned first column, as the app's DataTable has it: dragged by its right edge, or set from the menu
+
+/** Narrowest width, the room the other columns keep at the widest, and the step of Wider and Narrower. */
+export const IDENTITY_RESIZE = { min: 120, leaveRoom: 160, step: 40 };
+
+/**
+ * The drag handle on the right edge of the pinned first column's header. It is a pointer affordance only and is hidden
+ * from assistive technology (a labelled control inside a header would become part of its name): the column chooser
+ * has Narrower, Wider and Reset width for the keyboard. A double click goes back to the default width.
+ * `current()` is the width now, `set(width)` stores a width (null is the default) and draws it, `max()` is the widest allowed.
+ */
+export function identityHandle({ current, set, max }) {
+  const handle = el('div', 'absolute inset-y-0 right-0 w-2 cursor-col-resize touch-none hover:bg-border active:bg-primary');
+  handle.setAttribute('role', 'presentation');
+  handle.dataset.resizeHandle = '';
+  let drag = null;
+  const fit = (width) => Math.min(Math.max(IDENTITY_RESIZE.min, Math.round(width)), Math.max(IDENTITY_RESIZE.min, max()));
+  handle.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    handle.setPointerCapture(event.pointerId);
+    drag = { x: event.clientX, width: current() };
+  });
+  handle.addEventListener('pointermove', (event) => {
+    if (drag) set(fit(drag.width + event.clientX - drag.x));
+  });
+  const end = () => {
+    drag = null;
+  };
+  handle.addEventListener('pointerup', end);
+  handle.addEventListener('pointercancel', end);
+  handle.addEventListener('dblclick', () => set(null));
+  return handle;
+}
+
+/** Narrower, Wider and Reset width for the column chooser, so the width can be set without a pointer (WCAG 2.5.7). */
+function identityWidthRow({ label, current, isDefault, set, max }) {
+  const row = el('div', 'mt-1 flex items-center gap-1 border-t border-border-subtle px-2 pt-2');
+  row.append(el('span', 'min-w-0 flex-1 truncate type-meta', `${label} column width`));
+  const step = (direction) => set(Math.min(Math.max(IDENTITY_RESIZE.min, current() + direction * IDENTITY_RESIZE.step), Math.max(IDENTITY_RESIZE.min, max())));
+  const button = (text, run) => {
+    const node = el('button', 'h-control-sm shrink-0 rounded-md border border-border bg-surface px-2 type-body text-foreground hover:bg-surface-hover disabled:cursor-not-allowed disabled:text-foreground-disabled', text);
+    node.type = 'button';
+    node.addEventListener('click', () => {
+      run();
+      row.refresh();
+    });
+    return node;
+  };
+  const narrower = button('Narrower', () => step(-1));
+  const wider = button('Wider', () => step(1));
+  const reset = button('Reset', () => set(null));
+  row.append(narrower, wider, reset);
+  row.refresh = () => {
+    narrower.disabled = current() <= IDENTITY_RESIZE.min;
+    wider.disabled = current() >= Math.max(IDENTITY_RESIZE.min, max());
+    reset.disabled = isDefault();
+  };
+  return row;
 }

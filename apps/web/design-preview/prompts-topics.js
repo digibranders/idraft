@@ -10,7 +10,7 @@ import { MIN_OBSERVATIONS } from './vendor/stats/index.js';
 import { ENGINES, NOT_CLASSIFIED, countsOf, engineOf, groupAverage, groupChange, groupRate, groupTrend, groupUpdated, measures, rateFor, seoOf, topicsOf } from './prompts-data.js';
 import { brandsOf, groupVolume, positionOf, sentimentOf } from './prompts-extra.js';
 import { brandsCell, closeStaleList, positionCell, sentimentCell, textCell, volumeCell } from './prompts-extra-cells.js';
-import { CELL, focusSearchOnSlash, plainHeaderCell, rateCell, rowMenuCell, sortHeaderCell, sparkCell, topEngineCell, wireColumnChooser } from './prompts-cells.js';
+import { CELL, IDENTITY_RESIZE, focusSearchOnSlash, identityHandle, plainHeaderCell, rateCell, rowMenuCell, sortHeaderCell, sparkCell, topEngineCell, wireColumnChooser } from './prompts-cells.js';
 import { checkbox, el, percent0, plural } from './prompts-parts.js';
 import { METRIC_LABEL, scopeCodes, scopeEngines, scopePrompts, scopeText, state } from './prompts-state.js';
 
@@ -213,16 +213,34 @@ const HEAD_TIP = {
 };
 const sortHeader = (column) => sortHeaderCell({ key: column.key, label: column.label, sort: state.topicSort, attr: 'topicSort', tip: HEAD_TIP[column.key] });
 
-function renderHead() {
+/** The width the person gave the Topic column, or null for its default. */
+state.topicIdentity = null;
+const identityWidth = () => state.topicIdentity ?? WIDTH.topic;
+const widthOf = (column) => (column.key === 'topic' ? identityWidth() : column.width);
+
+/** Sets the width of every column and of the table. Dragging the Topic column calls this, so it never draws the header again. */
+function applyWidths() {
   const shown = shownColumns();
   cols.replaceChildren(
-    ...[WIDTH.select, ...shown.map((column) => column.width), WIDTH.actions].map((width) => {
+    ...[WIDTH.select, ...shown.map(widthOf), WIDTH.actions].map((width) => {
       const col = el('col');
       col.style.width = `${width}px`;
       return col;
     }),
   );
-  table.style.width = `${WIDTH.select + WIDTH.actions + shown.reduce((sum, column) => sum + column.width, 0)}px`;
+  table.style.width = `${WIDTH.select + WIDTH.actions + shown.reduce((sum, column) => sum + widthOf(column), 0)}px`;
+}
+
+/** The widest the Topic column can be: the other columns keep room beside it in the panel. */
+const identityMax = () => table.parentElement.clientWidth - IDENTITY_RESIZE.leaveRoom;
+function setIdentityWidth(width) {
+  state.topicIdentity = width;
+  applyWidths();
+}
+
+function renderHead() {
+  const shown = shownColumns();
+  applyWidths();
   const row = el('tr', 'h-row-header');
   const select = el('th', 'sticky top-0 left-0 z-(--z-sticky) border-b border-border border-r border-r-border-subtle bg-surface-subtle px-0 text-center align-middle font-normal');
   const all = checkbox('Select all topics');
@@ -231,8 +249,11 @@ function renderHead() {
   const cells = shown.map((column) => {
     if (column.key === 'topic') {
       const th = sortHeader(column);
+      // The pinned header must sit above the headers that scroll under it: it takes the sticky layer, not the header one
+      th.classList.remove('z-(--z-table-header)');
       th.classList.add('z-(--z-sticky)');
       th.style.left = `${WIDTH.select}px`;
+      th.append(identityHandle({ current: identityWidth, set: setIdentityWidth, max: identityMax }));
       return th;
     }
     return ['trend', 'engine', 'country', 'brands'].includes(column.key) ? plainHeaderCell(column.label, '', HEAD_TIP[column.key]) : sortHeader(column);
@@ -406,11 +427,15 @@ function moreRow(parent) {
   cell.style.paddingLeft = '80px';
   cell.colSpan = shownColumns().length + 2;
   const count = parent.prompts.length;
+  // The row spans every column, so the button is pinned to the window's left edge and stays put while the table scrolls
+  const pinned = el('div', 'sticky w-fit');
+  pinned.style.left = '80px';
   const button = el('button', 'type-body text-link hover:underline', count === 1 ? 'Show the prompt' : `Show all ${formatInteger(count)} prompts`);
   button.type = 'button';
   button.dataset.topicMore = '';
   button.setAttribute('aria-label', `Show ${count === 1 ? 'the prompt' : `all ${formatInteger(count)} prompts`} of ${parent.name}`);
-  cell.append(button);
+  pinned.append(button);
+  cell.append(pinned);
   row.append(cell);
   return row;
 }
@@ -660,6 +685,7 @@ export function initTopics(page) {
 
   wireColumnChooser({
     popover: $('#pop-topic-columns'),
+    identity: { label: 'Topic', current: identityWidth, isDefault: () => state.topicIdentity === null, set: setIdentityWidth, max: identityMax },
     columns: columnsOf,
     shown: () => ({ has: (key) => !state.topicHidden.has(key) }),
     change: (key, on) => {

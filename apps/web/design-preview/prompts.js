@@ -39,7 +39,7 @@ import { brandsCell, citedLinksCell, closeStaleList, initEngineSelect, onCompeti
 import { initPromptInspector, refreshPromptInspector } from './prompts-inspector.js';
 import { initTopicInspector, refreshTopicInspector } from './prompts-topic-inspector.js';
 import { initTopics, promptsByMention, renderTopics, topicOrder, topicsInScope } from './prompts-topics.js';
-import { CELL, focusSearchOnSlash, plainHeaderCell, promptLine, promptRateCell, promptTrendCell, rowMenuCell, sortHeaderCell, wireColumnChooser } from './prompts-cells.js';
+import { CELL, IDENTITY_RESIZE, focusSearchOnSlash, identityHandle, plainHeaderCell, promptLine, promptRateCell, promptTrendCell, rowMenuCell, sortHeaderCell, wireColumnChooser } from './prompts-cells.js';
 import { NEUTRAL_BADGE, checkbox, el, insufficient, intervalText, percent0, plural } from './prompts-parts.js';
 import { BRANDED_LABEL, METRIC_LABEL, VIEWS, deltaNode, inScope, scopeCodes, scopeEngines, scopePrompts, scopeText, state } from './prompts-state.js';
 
@@ -88,6 +88,10 @@ const columnsOf = () => {
 };
 const defaultOff = () => new Set(ENGINES.flatMap((engine) => [`e:${engine.code}`, `m:${engine.code}`, `c:${engine.code}`]));
 state.promptHidden = defaultOff();
+/** The width the person gave the Prompt column, or null for its default. */
+state.promptIdentity = null;
+const identityWidth = () => state.promptIdentity ?? WIDTH.prompt;
+const widthOf = (column) => (column.key === 'prompt' ? identityWidth() : column.width);
 const shownColumns = () => columnsOf().filter((column) => column.locked || !state.promptHidden.has(column.key));
 const rowClass = () => (state.density === 'compact' ? 'h-row-compact' : 'h-row');
 
@@ -269,16 +273,29 @@ const HEAD_TIP = {
 /** Columns that open something or show a picture: they have no order. */
 const PLAIN_COLUMNS = ['trend', 'links', 'brands', 'shot'];
 
-function renderHead() {
+/** Sets the width of every column and of the table. Dragging the Prompt column calls this, so it never draws the header again. */
+function applyWidths() {
   const shown = shownColumns();
   cols.replaceChildren(
-    ...[WIDTH.select, ...shown.map((column) => column.width), WIDTH.actions].map((width) => {
+    ...[WIDTH.select, ...shown.map(widthOf), WIDTH.actions].map((width) => {
       const col = el('col');
       col.style.width = `${width}px`;
       return col;
     }),
   );
-  promptTable.style.width = `${WIDTH.select + WIDTH.actions + shown.reduce((sum, column) => sum + column.width, 0)}px`;
+  promptTable.style.width = `${WIDTH.select + WIDTH.actions + shown.reduce((sum, column) => sum + widthOf(column), 0)}px`;
+}
+
+/** The widest the Prompt column can be: the other columns keep room beside it in the panel. */
+const identityMax = () => promptTable.parentElement.clientWidth - IDENTITY_RESIZE.leaveRoom;
+function setIdentityWidth(width) {
+  state.promptIdentity = width;
+  applyWidths();
+}
+
+function renderHead() {
+  const shown = shownColumns();
+  applyWidths();
   const row = el('tr', 'h-row-header');
   const select = el('th', 'sticky top-0 left-0 z-(--z-sticky) border-b border-border border-r border-r-border-subtle bg-surface-subtle px-0 text-center align-middle font-normal');
   const all = checkbox('Select all prompts');
@@ -288,8 +305,11 @@ function renderHead() {
     if (PLAIN_COLUMNS.includes(column.key)) return plainHeaderCell(column.label, '', HEAD_TIP[column.key]);
     const th = sortHeader(column);
     if (column.key === 'prompt') {
+      // The pinned header must sit above the headers that scroll under it: it takes the sticky layer, not the header one
+      th.classList.remove('z-(--z-table-header)');
       th.classList.add('z-(--z-sticky)');
       th.style.left = `${WIDTH.select}px`;
+      th.append(identityHandle({ current: identityWidth, set: setIdentityWidth, max: identityMax }));
     }
     return th;
   });
@@ -668,6 +688,7 @@ $$('[data-select="lb-prompt-metric"]', view).forEach((trigger) =>
 
 wireColumnChooser({
   popover: $('#pop-prompt-columns'),
+  identity: { label: 'Prompt', current: identityWidth, isDefault: () => state.promptIdentity === null, set: setIdentityWidth, max: identityMax },
   columns: columnsOf,
   shown: () => ({ has: (key) => !state.promptHidden.has(key) }),
   change: (key, on) => {
