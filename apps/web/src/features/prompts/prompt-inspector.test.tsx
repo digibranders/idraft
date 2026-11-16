@@ -211,6 +211,15 @@ describe('the prompt inspector: what it shows', () => {
     expect(within(inspector).queryByText('SEO / Technical SEO')).toBeNull();
   });
 
+  it('names the type and the version of the prompt in badges of its header', async () => {
+    renderOn('viewer', opened);
+    const inspector = await panel();
+    expect(await within(inspector).findByText(/^v\d+$/)).toBeInTheDocument();
+    expect(
+      within(inspector).getByText(/^(Question|Comparison|Recommendation|How to|Definition|Local|Transactional|Other)$/),
+    ).toBeInTheDocument();
+  });
+
   it('lists the latest ten answers of the prompt on the History tab', async () => {
     const { container } = renderOn('viewer', openedOn('history'));
     const inspector = await panel();

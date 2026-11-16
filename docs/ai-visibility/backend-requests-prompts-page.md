@@ -94,6 +94,26 @@ Rules:
   Answers already stored are matched again by the re-derive job (WP-56); until it has run the new competitor shows 0 answers and
   the web must not present that as a measured zero.
 
+## Fields for the prompt drawer (package P-drawer, 2026-11-17)
+
+The prompt drawer is built against these optional fields; until the backend sends one, the drawer says "Not collected yet" (or
+n/a where the platform is not classified) and shows no number. Types: `apps/web/src/lib/api/prompt-facts.ts`
+(`AnswerFactsExtra`, `LinkedKeywordVolume`); sample values for them live only in `apps/web/src/mocks/prompt-facts.ts`.
+
+| # | Where | Field | Meaning and smallest change | Used by |
+|---|---|---|---|---|
+| 11 | `ObservationFacts` (the answer list and the answer detail) | `recommended: boolean \| null` | The answer recommends the own brand; `null` on a platform whose answers are not classified for it. Same fact as `recommended` of the summary, per answer. Add the stage 9 fact to the fact row. | Latest card fact `Recommended`; History Answers column `Recommended` |
+| 11 | `ObservationFacts` | `list_rank: { place: number, listed: number } \| null` | The place of the own brand in a list the answer gives (1 is first) and how many brands the list names; `null` when the answer is not a list. Today `own_mention_order` is the place among the tracked brands and `had_structured_list` says a list was found, but the length of the list is not stored. | Latest card fact `Rank 2 of 3` |
+| 12 | `linked_keyword` of a prompt row (with `include=facts`) | `rank: number \| null` | Where the linked keyword ranks in its latest rank check; `null` when it is not in the first 20 results. | Competitors tab, Related keywords card (`Rank`) |
+| 12 | `linked_keyword` | `ai_overview: { cited_position: number \| null } \| null` | What Google showed for the keyword in its latest rank check: `null` is no Google AI Overview; `cited_position` is the place of the own site among the sources of the overview, `null` when it is not cited. | Related keywords card (`Google AI Overview`: `Cited #2`, `Not cited`, `No Google AI Overview`) |
+| 13 | `entities` cells of the summary, per engine | `recommended` cell of each tracked brand | The recommendation rate of a competitor, built as `mentioned` is. Today only the own brand's `recommended` cell exists. | Competitors tab, Brands card, `Recommendation` switch (competitor rows say "Not collected yet") |
+| 14 | `sources/domains` and `sources/pages` rows | `observations` per engine in `EngineUnits` | The answers that cite the row on each platform, so a per-platform column of the Citations tab can be counted in answers too. Today `observations` is one number over the platforms read, and `EngineUnits` has citation units only. | Citations tab (one platform at a time until then) |
+| 15 | Prompt | `schedule` (`core`, `discovery`, `brand_watch`) and the core lock | The schedule the prompt is asked on, for the badge beside the type and the version in the drawer header. Not on `Prompt` today. | Drawer header badges (not shown until sent) |
+| 16 | History, version boundary | the day each `PromptVersion` took effect (`created_at` of the version exists) and a `GET` of the version list | The History chart draws a dashed boundary where the wording changed, as the preview does (`v2`). Reading the version list per prompt is not done in the drawer yet. | History chart (not drawn until read) |
+
+The Citations tab counts in answers (rule R11) from the `observations` of each domain and page row over `meta.answers`; the
+sort is `-observations`. The minimum of citation units was removed from the tab because it is a threshold of another unit.
+
 ## Order of work for the backend
 
 1. `include=facts` with `intent`, `position`, `top_links` and `latest` (data that exists today: facts rows, citations, answers).

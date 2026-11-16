@@ -120,6 +120,10 @@ export function PromptInspector({
   const root = useTranslations();
   const words = useTranslations('prompts');
   const groupsWords = useTranslations('prompts.groupsTab');
+  const drawer = useTranslations('prompts.drawer.header');
+  const typeWords = useTranslations('prompts.add.details.types');
+  /** The type of a prompt in words: the Add dialog's own labels. */
+  const typeLabel = (type: Prompt['prompt_type']): string => typeWords(type === 'how_to' ? 'howTo' : type);
   const common = useTranslations('common');
   const inspectorWords = useTranslations('inspector');
   const locale = useLocale();
@@ -435,6 +439,8 @@ export function PromptInspector({
                   </Button>
                 </Tooltip>
               )}
+              {prompt === null ? null : <Badge>{typeLabel(prompt.prompt_type)}</Badge>}
+              {prompt === null ? null : <Badge>{drawer('version', { n: prompt.current_version.version_no })}</Badge>}
               {prompt?.is_branded === true ? <Badge>{words('branded')}</Badge> : null}
               {prompt === null || prompt.is_active ? null : <Badge tone="warning">{t('archivedBadge')}</Badge>}
               {prompt?.country_iso == null ? null : <Badge variant="outline">{countryName(prompt.country_iso)}</Badge>}
