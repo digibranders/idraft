@@ -132,6 +132,8 @@ export interface PromptColumnOptions {
 
 /** The preview's Location column: 120 px, which holds "United Arab Emirates" cut with its ellipsis. */
 const LOCATION_WIDTH = 120;
+/** The preview's Prompt column: 300 px. */
+const PROMPT_WIDTH = 300;
 
 const DEFAULT_OPTIONS: PromptColumnOptions = {
   showLocation: true,
@@ -173,6 +175,9 @@ export function usePromptColumns(
     const builtIn: DataTableColumn<PromptRow>[] = [
       col.keyword<PromptRow>(SORT_ID.prompt, (row) => row.prompt.current_version.text, {
         header: t('columns.prompt'),
+        // The preview's 300 px, which the table never narrows (it scrolls instead; the person may drag it)
+        width: PROMPT_WIDTH,
+        minWidth: PROMPT_WIDTH,
         trailing: (row) => (row.prompt.is_branded ? <Badge>{t('branded')}</Badge> : null),
       }),
       {
@@ -190,9 +195,9 @@ export function usePromptColumns(
           {
             header: t('columns.topic'),
             priority: 2,
-            // The badge type stops at 180; a topic keeps 140 at least when the table is tight, and ends in an ellipsis
-            width: 200,
-            minWidth: 140,
+            // The preview's 160 px, which the table never narrows (it scrolls instead); a long name ends in an ellipsis
+            width: 160,
+            minWidth: 160,
             unknown: () => ({ label: t('columns.noTopic') }),
           },
         ),
@@ -215,6 +220,7 @@ export function usePromptColumns(
               headerTooltip: shell('locationTip'),
               priority: 3,
               width: LOCATION_WIDTH,
+              minWidth: LOCATION_WIDTH,
             }),
           ]
         : []),

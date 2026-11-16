@@ -33,6 +33,11 @@ import { MIN_OBSERVATIONS } from '@/lib/stats';
 /** "Google AI Mode mention" in capitals with its sort arrow needs about 176 px. */
 export const ENGINE_COLUMN_WIDTH = 176;
 
+/** The preview's widths of the two rate columns (Mention rate wider while the person compares, for its change icon). */
+const MENTION_WIDTH = 168;
+const MENTION_COMPARE_WIDTH = 204;
+const CITATION_WIDTH = 136;
+
 /** What a cell says in place of a rate, and what its tooltip says about why. */
 interface Gap {
   label: string;
@@ -146,10 +151,14 @@ export function useRateColumns<TRow>(
       header: string,
       tip: string,
     ): DataTableColumn<TRow> => {
+      // The preview's fixed widths: a column never shrinks with the window, the table scrolls instead (PR-RESP-07)
+      const width = metric === 'mentioned' ? (compare ? MENTION_COMPARE_WIDTH : MENTION_WIDTH) : CITATION_WIDTH;
       const base = col.volumeTrend<TRow>(id, (row) => averageOf(row, metric).value, {
         header,
         headerTooltip: withNote(metric === 'mentioned' && compare ? `${tip}. ${shell('mentionChangeTip')}` : tip),
         priority: metric === 'mentioned' ? 1 : 2,
+        width,
+        minWidth: width,
         sortable: true,
         // The cell is drawn below, for it has the insufficient state too
         known: () => null,

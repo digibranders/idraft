@@ -254,9 +254,9 @@ export function TopicsTable({
     };
     const name = col.keyword<TopicRow>('topic', rowName, {
       header: t('topics.topic'),
-      // The preview's 260 px is the least; a name such as "Compliance and regulation" with its count after it needs about
-      // 320 px, and the header drags wider
-      width: 320,
+      // The preview's 260 px, which the table never narrows; the header drags wider, and a table with room to spare
+      // gives the column what is left
+      width: 260,
       minWidth: 260,
       trailing: (row) => (row.kind === 'prompt' && row.branded ? <Badge>{t('branded')}</Badge> : null),
     });
@@ -307,6 +307,7 @@ export function TopicsTable({
         headerTooltip: root('prompts.shell.columns.locationTip'),
         priority: 3,
         width: 120,
+        minWidth: 120,
         sortable: false,
         unknown: () => ({ label: EMPTY_VALUE, tooltip: groupsText('locationNoneTip') }),
       },
