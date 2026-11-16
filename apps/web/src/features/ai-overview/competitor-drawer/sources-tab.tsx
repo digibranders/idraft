@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import { useMemo, type ReactElement } from 'react';
 
 import type { CompetitorRead } from './data/use-competitor-read';
-import { SOURCES_COLLECTED, useCompetitorSources } from './data/use-competitor-sources';
+import { sourcesCollected, useCompetitorSources } from './data/use-competitor-sources';
 import { DrawerCard } from './drawer-card';
 import { compareSources, TOP, type CitedDomain } from './model/sources';
 import { colorSlots } from '../cards/competitors/model/tracked-set';
@@ -64,7 +64,7 @@ export function SourcesTab({ read, competitor }: { read: CompetitorRead; competi
       errorTitle={t('errorTitle')}
     />
   );
-  if (!SOURCES_COLLECTED) {
+  if (!sourcesCollected()) {
     return single({ status: 'empty', title: t('notCollectedTitle'), reason: t('sources.notCollectedReason') });
   }
   if (sources.status === 'loading' || sources.status === 'idle') return single({ status: 'loading' });

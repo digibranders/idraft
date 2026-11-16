@@ -19,7 +19,7 @@ import { queryKey } from '@/lib/api/keys';
  * off (production) never sends the request, and the mock handler (`mocks/handlers/ai-source-overlap.ts`) answers it with a
  * fixture so the tab can be seen and tested. A real answer is `{ data: { theirs, yours } }` as `CompetitorSources`.
  */
-export const SOURCES_COLLECTED = process.env.NEXT_PUBLIC_API_MOCKING !== 'off';
+export const sourcesCollected = (): boolean => process.env.NEXT_PUBLIC_API_MOCKING !== 'off';
 
 const OVERLAP = '/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/overlap';
 
@@ -51,7 +51,7 @@ export function parseSources(body: unknown): CompetitorSources {
 export function useCompetitorSources(entityId: string, subscribed: boolean): Read<CompetitorSources> {
   const { workspaceId, project, scope, enabledEngines } = useOverview();
   const asked = useMemo(() => askedEngines({ scope, enabledEngines }), [scope, enabledEngines]);
-  const enabled = SOURCES_COLLECTED && subscribed && asked.length > 0;
+  const enabled = sourcesCollected() && subscribed && asked.length > 0;
   const query = useQuery({
     queryKey: queryKey(
       OVERLAP,

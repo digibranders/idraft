@@ -1,10 +1,12 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import type { UserEvent } from '@testing-library/user-event';
+import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { overviewAs } from '@/test/ai-overview-harness';
 import { MOCK_ENTITY_IDS } from '@/mocks/entity-fixtures';
 import { stubViewport } from '@/test/customize-harness';
+import { server } from '@/test/msw';
 import { renderWithProviders } from '@/test/render';
 
 vi.mock('next/navigation', async () => (await import('@/test/next-navigation')).navigationModule);
@@ -17,6 +19,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
 });
 
 const TIMEOUT = { timeout: 8000 };
@@ -166,7 +169,45 @@ describe('the Prompts tab', () => {
   });
 });
 
+describe('the scope of the page', () => {
+  it('names the platform of the page in the badges and reads the drawer over it', async () => {
+    render(`cmp=off&engine=chatgpt_web&inspect=competitor:${MOCK_ENTITY_IDS.brightwave}`);
+    const aside = await drawer('Brightwave Digital');
+    expect(within(aside).getByText('ChatGPT')).toBeInTheDocument();
+    // One platform is its own figures: the count behind a mention rate is named in the cell
+    const table = await within(aside).findByRole('table', { name: 'You against Brightwave Digital' }, TIMEOUT);
+    expect(within(table).getAllByText(/^\d+ of \d+ answers$/).length).toBeGreaterThan(0);
+  });
+});
+
 describe('the Cited domains tab', () => {
+  it('says nothing is cited when the answers cite no page', async () => {
+    server.use(
+      http.get('*/api/v1/workspaces/:w/projects/:p/ai/sources/overlap', () =>
+        HttpResponse.json({ data: { theirs: [], yours: [] } }),
+      ),
+    );
+    const { user } = render(`cmp=off&inspect=competitor:${MOCK_ENTITY_IDS.brightwave}&itab=sources`);
+    expect(await screen.findByText('No citations in this scope', undefined, TIMEOUT)).toBeInTheDocument();
+    expect(screen.getByText(/nothing to compare/)).toBeInTheDocument();
+    expect(user).toBeDefined();
+  });
+
+  it('says Not collected yet in production, where the read does not exist, and asks nothing', async () => {
+    vi.stubEnv('NEXT_PUBLIC_API_MOCKING', 'off');
+    const asked: string[] = [];
+    const listener = ({ request }: { request: Request }): void => {
+      asked.push(new URL(request.url).pathname);
+    };
+    server.events.on('request:start', listener);
+    render(`cmp=off&inspect=competitor:${MOCK_ENTITY_IDS.brightwave}&itab=sources`);
+    const aside = await drawer('Brightwave Digital');
+    expect(await within(aside).findByRole('heading', { name: 'Not collected yet' }, TIMEOUT)).toBeInTheDocument();
+    expect(within(aside).getByText(/is not collected yet/)).toBeInTheDocument();
+    expect(asked.filter((path) => path.endsWith('/sources/overlap'))).toEqual([]);
+    server.events.removeListener('request:start', listener);
+  });
+
   it('compares the domains cited when each of you is mentioned, from the sample read of the mock', async () => {
     const { user } = render();
     await openFromBars(user, 'Brightwave Digital');

@@ -17,7 +17,7 @@ import type { Schemas } from '@/lib/api/types';
  *
  * `ai/sources/overlap` (backend request 6, NOT in the API yet): a fixture of the domains cited in the answers that mention
  * each brand, so the Cited domains tab can be seen and tested. The weights are sample values, which is allowed in a fixture
- * and shipped nowhere: a production build never asks for this route (`SOURCES_COLLECTED`).
+ * and shipped nowhere: a production build never asks for this route (`sourcesCollected`).
  */
 
 const P = '/api/v1/workspaces/{workspace_id}/projects/{project_id}';
