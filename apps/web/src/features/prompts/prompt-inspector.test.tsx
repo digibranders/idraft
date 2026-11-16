@@ -372,11 +372,12 @@ describe('the prompt inspector: opening and stepping', () => {
     const other = 'How do I lower the cost per click of search ads?';
     await user.click(await within(tree).findByText(one));
     const inspector = await panel(one);
-    const position = within(inspector).getByText(/^[12] of 2$/);
-    const forward = position.textContent === '1 of 2';
+    // The position is the first "n of 2" in the drawer: the header comes before the tab panels, which can say "1 of 2" too
+    const position = within(inspector).getAllByText(/^[12] of 2$/)[0];
+    const forward = position?.textContent === '1 of 2';
     await user.click(within(inspector).getByRole('button', { name: forward ? 'Next prompt' : 'Previous prompt' }));
     expect(await panel(other)).toBeInTheDocument();
-    expect(within(await panel(other)).getByText(forward ? '2 of 2' : '1 of 2')).toBeInTheDocument();
+    expect(within(await panel(other)).getAllByText(forward ? '2 of 2' : '1 of 2')[0]).toBeInTheDocument();
   });
 
   it('gives focus back to the row of the prompt when the inspector closes', async () => {

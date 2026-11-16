@@ -4584,9 +4584,7 @@
         "noText": "The answer text is not available.",
         "pendingReason": "The newest answer has not been read yet. It counts once it has been.",
         "mentioned": "Mentioned",
-        "notMentioned": "Not mentioned",
         "cited": "Cited",
-        "notCited": "Not cited",
         "order": "{place, select, first {Mentioned first} second {Mentioned second} third {Mentioned third} other {Mentioned {order, selectordinal, one {#st} two {#nd} few {#rd} other {#th}}}} among the tracked brands",
         "factsLabel": "Facts of this answer",
         "sourcesLabel": "Top cited domains of this answer",
@@ -5025,6 +5023,17 @@
       "tabPromptsCount": "Prompts ({count, number})"
     },
     "drawer": {
+      "latest": {
+        "valid": "Valid",
+        "replicate": "replicate {n, number}",
+        "yes": "Yes",
+        "no": "No",
+        "notApplicable": "n/a",
+        "notCollected": "Not collected yet",
+        "rank": "Rank",
+        "rankOf": "{place, number} of {listed, number}",
+        "recommended": "Recommended"
+      },
       "history": {
         "answersTitle": "Answers",
         "answersScope": "last {count, number}",

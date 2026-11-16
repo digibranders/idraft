@@ -398,8 +398,10 @@ describe('the Latest tab', () => {
     expect(within(chatgpt).getByText('Mentioned first among the tracked brands')).toBeInTheDocument();
     expect(within(chatgpt).getByText('Mentioned')).toBeInTheDocument();
     expect(within(chatgpt).getByText('Cited')).toBeInTheDocument();
-    // No rank and no recommendation: only where the brand stands among the brands named
-    expect(chatgpt.textContent).not.toMatch(/Rank|Recommended/);
+    // The third fact is the place in a list, or the recommendation of an answer that is not a list
+    expect(within(chatgpt).getByText(/^(Rank|Recommended)$/)).toBeInTheDocument();
+    expect(within(chatgpt).getByText('Valid')).toBeInTheDocument();
+    expect(within(chatgpt).getByText('replicate 1')).toBeInTheDocument();
     // The sources come in the order the answer cites them, each with its role
     const sources = within(chatgpt).getByRole('list', { name: 'Top cited domains of this answer' });
     expect(
@@ -407,11 +409,12 @@ describe('the Latest tab', () => {
         .getAllByRole('listitem')
         .map((item) => item.textContent),
     ).toEqual(['fynix.example', 'reviews.example']);
-    // The time is relative, with the exact time as its name
-    expect(within(chatgpt).getByText('10h ago').closest('time')).toHaveAttribute(
-      'aria-label',
-      expect.stringContaining('Nov 12, 2026'),
-    );
+    // The time is the day and the clock, with the exact time as its name
+    expect(
+      within(chatgpt)
+        .getByText(/^Nov 12, \d\d:\d\d$/)
+        .closest('time'),
+    ).toHaveAttribute('aria-label', expect.stringContaining('Nov 12, 2026'));
     expect(await within(gemini).findByText('gemini-3')).toBeInTheDocument();
   });
 
@@ -498,11 +501,11 @@ describe('the Latest tab', () => {
     expect(within(gemini).getByRole('button', { name: 'Open the full answer from Gemini' })).toBeInTheDocument();
   });
 
-  it('gives the relative time a tab stop, so the keyboard reaches its tooltip', async () => {
+  it('gives the time of an answer a tab stop, so the keyboard reaches its tooltip', async () => {
     serveTwoAnswers();
     renderOn('viewer', opened);
     const inspector = await panel();
-    const time = (await within(inspector).findAllByText('10h ago'))[0];
+    const time = (await within(inspector).findAllByText(/^Nov 12, \d\d:\d\d$/))[0];
     expect(time?.closest('time')).toHaveAttribute('tabindex', '0');
   });
 
