@@ -32,7 +32,6 @@ import {
   measures,
   rateFor,
   seeded,
-  topicPath,
 } from './prompts-data.js';
 import { brandsOf, citedLinksOf, intentOf, latestAnswerOf, positionOf, sentimentOf, volumeOf } from './prompts-extra.js';
 import { brandsCell, citedLinksCell, closeStaleList, initEngineSelect, onCompetitorsChange, intentCell, positionCell, screenshotCell, sentimentCell, textCell, volumeCell } from './prompts-extra-cells.js';
@@ -173,7 +172,6 @@ function topicCell(prompt) {
   const cell = el('td', CELL);
   const tag = el('span', `${NEUTRAL_BADGE} max-w-full group-aria-selected:bg-surface`);
   tag.append(el('span', 'truncate', prompt.topic));
-  tag.dataset.tip = topicPath(prompt.topic);
   cell.append(tag);
   return cell;
 }

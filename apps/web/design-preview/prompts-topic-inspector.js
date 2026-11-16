@@ -234,9 +234,10 @@ function fillCompetitors(topic) {
 }
 
 function fillRelated(topic) {
-  const related = host.topics().filter((other) => other.parent === topic.parent && other.id !== topic.id);
-  $('[data-topic-related-note]', inspector).textContent = `also under ${topic.parent}`;
-  const none = el('td', 'px-4 type-meta', `No other topic under ${topic.parent} is in this scope.`);
+  // Topics are one level, so the related ones are the other topics of the scope, the largest first
+  const related = host.topics().filter((other) => other.id !== topic.id).sort((a, b) => b.prompts.length - a.prompts.length).slice(0, 5);
+  $('[data-topic-related-note]', inspector).textContent = 'other topics in this scope';
+  const none = el('td', 'px-4 type-meta', 'No other topic is in this scope.');
   none.colSpan = 3;
   $('[data-topic-related]', inspector).replaceChildren(
     ...(related.length === 0
@@ -268,7 +269,7 @@ function fillTopic(id) {
   const topic = topicOf(id);
   openTopicId = id;
   $('#inspector-title').textContent = topic.name;
-  $('[data-inspector-badges]', inspector).replaceChildren(ui.badge(topic.parent), ui.badge(plural(topic.prompts.length, 'prompt')), ui.badge(scopeText()));
+  $('[data-inspector-badges]', inspector).replaceChildren(ui.badge(plural(topic.prompts.length, 'prompt')), ui.badge(scopeText()));
   context(topic);
   fillOverview(topic);
   fillPrompts(topic);

@@ -1,16 +1,17 @@
 /* global document, window */
 /**
- * The Topics tab, laid out as the app's screen: one row per parent topic, which opens onto the topics under it, then
- * "Show all N prompts" to read the prompts in the Prompts tab. A parent row counts every prompt under it (so rows do not
- * add up to the parent); a topic row opens the topic drawer. Three views of the same rows: the list, the topics by
- * engine, and a heat map. A topic's numbers are computed from its prompts (prompts-data.js, "group" measures).
+ * The Topics tab, laid out as the app's screen: two levels, a row per topic, which opens onto the prompts inside it (each
+ * prompt is in exactly one topic, so topic rows add up to the prompts in view). A topic row opens the topic drawer and its
+ * chevron opens the prompts; a prompt row opens the prompt drawer. Three views of the topics: the list (the only one
+ * whose rows open), the topics by engine, and a heat map. A topic's numbers are computed from its prompts
+ * (prompts-data.js, "group" measures).
  */
 import { formatDecimal, formatInteger, formatSampleCount } from './vendor/format/number.js';
 import { MIN_OBSERVATIONS } from './vendor/stats/index.js';
-import { ENGINES, NOT_CLASSIFIED, countsOf, engineOf, groupAverage, groupChange, groupRate, groupTrend, groupUpdated, measures, rateFor, seoOf, topicsOf } from './prompts-data.js';
-import { brandsOf, groupVolume, positionOf, sentimentOf } from './prompts-extra.js';
+import { ENGINES, NOT_CLASSIFIED, absenceSentence, countsOf, engineOf, groupAverage, groupChange, groupRate, groupTrend, groupUpdated, measures, rateFor, seoOf, topicsOf } from './prompts-data.js';
+import { brandsOf, groupVolume, positionOf, sentimentOf, volumeOf } from './prompts-extra.js';
 import { brandsCell, closeStaleList, positionCell, sentimentCell, textCell, volumeCell } from './prompts-extra-cells.js';
-import { CELL, IDENTITY_RESIZE, focusSearchOnSlash, identityHandle, plainHeaderCell, rateCell, rowMenuCell, sortHeaderCell, sparkCell, topEngineCell, wireColumnChooser } from './prompts-cells.js';
+import { CELL, IDENTITY_RESIZE, focusSearchOnSlash, identityHandle, plainHeaderCell, promptLine, promptRateCell, promptTrendCell, rateCell, rowMenuCell, sortHeaderCell, sparkCell, topEngineCell, wireColumnChooser } from './prompts-cells.js';
 import { checkbox, el, percent0, plural } from './prompts-parts.js';
 import { METRIC_LABEL, isAllLocations, scopeCodes, scopeEngines, scopePrompts, scopeText, state } from './prompts-state.js';
 
@@ -29,12 +30,10 @@ const empty = $('[data-topic-empty]', view);
 const heatmap = $('[data-topic-heatmap]', view);
 const menu = $('#menu-topic-row');
 
-/** How many of a parent's prompts are counted in "Show all N prompts": every one of them. */
 let host = null;
-/** Every parent of the scope, with its topics, and the ones the table shows (after its search), in display order. */
+/** Every topic of the scope, and the ones the table shows (after its search), in display order. A shown topic's `shown` lists the prompts it opens onto. */
 let allTopics = [];
-let allParents = [];
-let shownParents = [];
+let shownTopics = [];
 let menuTopicId = null;
 /** What the topic menu was opened from: focus returns there when the menu starts a dialog. */
 let menuAnchor = null;
@@ -65,7 +64,7 @@ function summarize(topic) {
     engineRates: scopeEngines().map((engine) => ({ engine, rate: groupRate(topic.prompts, engine.code, 'mention').rate })),
     trend: groupTrend(topic.prompts, scope),
     updated: groupUpdated(topic.prompts),
-    // The topic's tracked keywords, which its drawer shows; a parent has none of its own
+    // The topic's tracked keywords, which its drawer shows
     seo: seoOf(topic.name),
   };
 }
@@ -83,7 +82,6 @@ function engineCounts(topic, code, metric) {
 
 const SORTS = {
   topic: (topic) => topic.name.toLowerCase(),
-  prompts: (topic) => topic.prompts.length,
   mention: (topic) => topic.mention.value,
   citation: (topic) => topic.citation.value,
   recommendation: (topic) => topic.recommendation.value,
@@ -122,29 +120,25 @@ function sorted(topics) {
 }
 
 function compute() {
-  const leaves = topicsOf(scopePrompts()).map(summarize);
-  allTopics = leaves;
-  const parents = new Map();
-  for (const leaf of leaves) {
-    if (!parents.has(leaf.parent)) parents.set(leaf.parent, { id: `g-${leaf.parent.toLowerCase().replace(/[^a-z]+/g, '-')}`, name: leaf.parent, prompts: [], children: [] });
-    const parent = parents.get(leaf.parent);
-    parent.prompts.push(...leaf.prompts);
-    parent.children.push(leaf);
-  }
-  allParents = [...parents.values()].map((parent) => ({ ...summarize(parent), children: parent.children, group: true }));
+  allTopics = topicsOf(scopePrompts()).map(summarize);
   // Sorting by a column that is not shown would leave no sort indicator
   // ... and neither does one the column chooser turned off
   const { key } = state.topicSort;
   if (!columnsOf().some((column) => column.key === key) || (key !== 'mention' && state.topicHidden.has(key))) state.topicSort = { key: 'mention', dir: 'desc' };
+  // The search finds a topic by its name, which keeps all of its prompts, or by the text of a prompt, which keeps those
   const search = state.topicSearch;
-  shownParents = sorted(allParents)
-    .map((parent) => {
-      if (search === '' || parent.name.toLowerCase().includes(search)) return { ...parent, shown: sorted(parent.children) };
-      const kept = parent.children.filter((child) => child.name.toLowerCase().includes(search));
-      return kept.length === 0 ? null : { ...parent, shown: sorted(kept) };
+  shownTopics = sorted(allTopics)
+    .map((topic) => {
+      const prompts = promptsByMention(topic);
+      if (search === '' || topic.name.toLowerCase().includes(search)) return { ...topic, shown: prompts };
+      const kept = prompts.filter((prompt) => prompt.text.toLowerCase().includes(search));
+      return kept.length === 0 ? null : { ...topic, shown: kept };
     })
     .filter(Boolean);
 }
+
+/** Whether a topic shows its prompts: only in the list, and while the search is finding prompts, so they are in sight. */
+const isOpen = (topic) => state.topicView === 'list' && (state.topicSearch !== '' || state.expanded.has(topic.id));
 
 /** The prompts of a topic in the order they are listed everywhere: most mentioned first, unknown last. */
 export function promptsByMention(topic) {
@@ -159,7 +153,7 @@ export function promptsByMention(topic) {
 // -------------------------------------------------------------------------------------------------
 // Columns of the three views
 
-const WIDTH = { select: 40, topic: 260, prompts: 96, country: 120, volume: 132, position: 120, mention: 168, citation: 136, recommendation: 196, sov: 140, sentiment: 168, brands: 248, engine: 140, trend: 96, count: 152, e: 176, gap: 120, actions: 40 };
+const WIDTH = { select: 40, topic: 260, country: 120, volume: 132, position: 120, mention: 168, citation: 136, recommendation: 196, sov: 140, sentiment: 168, brands: 248, engine: 140, trend: 96, count: 152, e: 176, gap: 120, actions: 40 };
 
 /** The columns of the view in force, in table order. `locked` columns cannot be turned off. */
 function columnsOf() {
@@ -167,7 +161,6 @@ function columnsOf() {
   if (state.topicView === 'engines') {
     return [
       { key: 'topic', label: 'Topic', width: WIDTH.topic, locked: true },
-      { key: 'prompts', label: 'Prompts', width: WIDTH.prompts },
       { key: 'mention', label: 'Mention rate', width: WIDTH.mention },
       ...engines.map((engine) => ({ key: `e:${engine.code}`, label: `${engine.name} ${METRIC_LABEL[state.metric].toLowerCase()}`, width: WIDTH.e })),
       { key: 'gap', label: 'Engine gap', width: WIDTH.gap },
@@ -175,7 +168,6 @@ function columnsOf() {
   }
   return [
     { key: 'topic', label: 'Topic', width: WIDTH.topic, locked: true },
-    { key: 'prompts', label: 'Prompts', width: WIDTH.prompts },
     ...(isAllLocations() ? [{ key: 'country', label: 'Location', width: WIDTH.country }] : []),
     { key: 'volume', label: 'Search volume', width: WIDTH.volume },
     { key: 'position', label: 'Avg position', width: WIDTH.position },
@@ -197,7 +189,6 @@ const shownColumns = () => columnsOf().filter((column) => column.locked || !stat
 const rowClass = () => (state.density === 'compact' ? 'h-row-compact' : 'h-row');
 
 const HEAD_TIP = {
-  prompts: 'The prompts under the topic, each counted once',
   mention: 'The share of valid answers that name your brand, averaged over the engines shown',
   citation: 'The share of valid answers that cite your domain, averaged over the engines shown',
   engine: 'The engine with the highest mention rate. A pointer, not a ranking.',
@@ -338,7 +329,7 @@ function gapCell(topic) {
   return cell;
 }
 
-/** The cells of a row after its name, one per column shown. `leaf` rows are topics, the others parents. */
+/** The cells of a topic row after its name, one per column shown. */
 function dataCells(topic) {
   const make = {
     mention: () => topicRateCell(topic, 'mention'),
@@ -357,99 +348,105 @@ function dataCells(topic) {
   return shownColumns()
     .filter((column) => column.key !== 'topic')
     .map((column) => {
-      if (column.key === 'prompts') {
-        const cell = el('td', CELL);
-        cell.append(el('span', 'num', formatInteger(topic.prompts.length)));
-        return cell;
-      }
       if (column.key.startsWith('m:') || column.key.startsWith('c:')) return countCell(topic, column.key.slice(2), column.key.startsWith('c:') ? 'citation' : 'mention');
       if (column.key.startsWith('e:')) return engineRateCell(topic, column.key.slice(2));
       return make[column.key]();
     });
 }
 
-function nameCell(topic, { parent, open }) {
-  const surface = parent ? 'bg-surface-subtle' : 'bg-surface';
-  const cell = el('th', `sticky z-(--z-pinned-cell) border-b border-border-subtle px-3 text-left ${PIN(surface)}${parent ? '' : ' pl-10 font-normal'}`);
+/** The name of a topic: the chevron that opens its prompts (in the list), the name, and how many prompts it holds. */
+function nameCell(topic, { open }) {
+  const cell = el('th', `sticky z-(--z-pinned-cell) border-b border-border-subtle px-3 text-left ${PIN('bg-surface')}`);
   cell.style.left = `${WIDTH.select}px`;
   cell.scope = 'row';
   cell.setAttribute('aria-label', topic.name);
-  if (!parent) {
-    const title = el('span', 'block min-w-0 truncate text-foreground', topic.name);
-    title.dataset.keyCell = '';
-    cell.append(title);
-    return cell;
-  }
   const line = el('span', 'flex min-w-0 items-center gap-2');
-  const toggle = el('button', 'flex size-5 shrink-0 items-center justify-center rounded-sm text-foreground-tertiary outline-none hover:text-foreground focus-visible:focus-ring');
-  toggle.type = 'button';
-  toggle.dataset.topicToggle = '';
-  toggle.setAttribute('aria-expanded', String(open));
-  toggle.setAttribute('aria-label', `${open ? 'Collapse' : 'Expand'} ${topic.name}, ${plural(topic.children.length, 'topic')}`);
-  toggle.append(icon('chevron-right', `size-icon-sm shrink-0 transition-transform${open ? ' rotate-90' : ''}`));
+  if (state.topicView === 'list') {
+    const toggle = el('button', 'flex size-5 shrink-0 items-center justify-center rounded-sm text-foreground-tertiary outline-none hover:text-foreground focus-visible:focus-ring');
+    toggle.type = 'button';
+    toggle.dataset.topicToggle = '';
+    toggle.setAttribute('aria-expanded', String(open));
+    toggle.setAttribute('aria-label', `${open ? 'Collapse' : 'Expand'} ${topic.name}, ${plural(topic.prompts.length, 'prompt')}`);
+    toggle.append(icon('chevron-right', `size-icon-sm shrink-0 transition-transform${open ? ' rotate-90' : ''}`));
+    line.append(toggle);
+  }
   const text = el('span', 'flex min-w-0 flex-1 items-baseline gap-2');
   const title = el('span', 'min-w-0 truncate text-foreground', topic.name);
   title.dataset.keyCell = '';
-  text.append(title, el('span', 'min-w-0 truncate num font-normal text-foreground-tertiary', plural(topic.children.length, 'topic')));
-  line.append(toggle, text);
+  text.append(title, el('span', 'min-w-0 truncate num font-normal text-foreground-tertiary', plural(topic.prompts.length, 'prompt')));
+  line.append(text);
   cell.append(line);
   return cell;
 }
 
-function parentRow(parent) {
-  const open = state.expanded.has(parent.id);
-  const row = el('tr', `group ${rowClass()} cursor-default type-body-strong bg-surface-subtle hover:bg-surface-hover`);
-  row.dataset.id = parent.id;
-  row.dataset.parent = '';
-  row.setAttribute('aria-level', '1');
-  row.setAttribute('aria-expanded', String(open));
-  row.append(selectCell(parent, 'bg-surface-subtle'), nameCell(parent, { parent: true, open }), ...dataCells(parent), rowMenuCell('topic', parent.name));
-  return row;
-}
-
-function topicRow(topic, parent) {
-  const row = el('tr', `group ${rowClass()} cursor-pointer bg-surface font-normal hover:bg-surface-hover aria-selected:bg-surface-selected`);
+function topicRow(topic) {
+  const open = isOpen(topic);
+  const row = el('tr', `group ${rowClass()} cursor-pointer type-body-strong bg-surface hover:bg-surface-hover aria-selected:bg-surface-selected`);
   row.dataset.id = topic.id;
   row.dataset.topic = '';
-  row.dataset.childOf = parent.id;
-  row.setAttribute('aria-level', '2');
-  row.append(selectCell(topic, 'bg-surface'), nameCell(topic, { parent: false }), ...dataCells(topic), rowMenuCell('topic', topic.name));
+  row.setAttribute('aria-level', '1');
+  if (state.topicView === 'list') row.setAttribute('aria-expanded', String(open));
+  row.append(selectCell(topic, 'bg-surface'), nameCell(topic, { open }), ...dataCells(topic), rowMenuCell('topic', topic.name));
   return row;
 }
 
-/** "Show all 10 prompts" under the topics of a parent: the Prompts tab, filtered to them. */
-function moreRow(parent) {
-  const row = el('tr', `${rowClass()} bg-surface`);
-  row.dataset.moreOf = parent.id;
-  const cell = el('td', 'border-b border-border-subtle pr-3');
-  // Under the names of the topics: the checkbox column, the chevron and the gap before the name
-  cell.style.paddingLeft = '80px';
-  cell.colSpan = shownColumns().length + 2;
-  const count = parent.prompts.length;
-  // The row spans every column, so the button is pinned to the window's left edge and stays put while the table scrolls
-  const pinned = el('div', 'sticky w-fit');
-  pinned.style.left = '80px';
-  const button = el('button', 'type-body text-link hover:underline', count === 1 ? 'Show the prompt' : `Show all ${formatInteger(count)} prompts`);
-  button.type = 'button';
-  button.dataset.topicMore = '';
-  button.setAttribute('aria-label', `Show ${count === 1 ? 'the prompt' : `all ${formatInteger(count)} prompts`} of ${parent.name}`);
-  pinned.append(button);
-  cell.append(pinned);
-  row.append(cell);
+// A prompt inside a topic: its own numbers in the columns of the list, in the same cells the Prompts tab draws
+
+/** "36 of 76" for one engine of one prompt. */
+function promptCountCell(prompt, code, metric) {
+  const cell = el('td', CELL);
+  const counts = countsOf(prompt, code, metric);
+  if (counts.n === 0) cell.append(el('span', 'text-foreground-tertiary', 'No answers'));
+  else cell.append(el('span', 'num', formatSampleCount(counts.k, counts.n)));
+  return cell;
+}
+
+function promptDataCells(prompt) {
+  const scope = scopeCodes();
+  // With one engine in view, nothing observed has that engine's own reason (an AI Overview that did not show)
+  const absent = scope.length === 1 ? absenceSentence(prompt, scope[0]) : 'Not observed in this window';
+  return shownColumns()
+    .filter((column) => column.key !== 'topic')
+    .map((column) => {
+      const { key } = column;
+      if (key === 'country') return textCell('United States', 'Every prompt is asked for the project location, the one the top bar shows');
+      if (key === 'volume') return volumeCell(volumeOf(prompt));
+      if (key === 'position') return positionCell(positionOf([prompt], scope), absent);
+      if (key === 'mention') return promptRateCell(prompt, 'mention', true);
+      if (['citation', 'recommendation', 'sov'].includes(key)) return promptRateCell(prompt, key, false);
+      if (key === 'sentiment') return sentimentCell(sentimentOf([prompt], scope), absent);
+      if (key === 'trend') return promptTrendCell(prompt, '');
+      if (key === 'brands') return brandsCell(brandsOf([prompt], scope), 'This prompt');
+      if (key === 'engine') return topEngineCell(scopeEngines().map((engine) => ({ engine, rate: rateFor(prompt, engine.code, 'mention') })));
+      return promptCountCell(prompt, key.slice(2), key.startsWith('c:') ? 'citation' : 'mention');
+    });
+}
+
+function promptRow(prompt, topic) {
+  const row = el('tr', `group ${rowClass()} cursor-pointer bg-surface font-normal hover:bg-surface-hover`);
+  row.dataset.id = prompt.id;
+  row.dataset.prompt = '';
+  row.dataset.childOf = topic.id;
+  row.setAttribute('aria-level', '2');
+  const select = el('td', `sticky left-0 z-(--z-pinned-cell) border-b border-border-subtle ${PIN('bg-surface')}`);
+  const name = el('th', `sticky z-(--z-pinned-cell) border-b border-border-subtle pr-3 pl-10 text-left font-normal ${PIN('bg-surface')}`);
+  name.style.left = `${WIDTH.select}px`;
+  name.scope = 'row';
+  name.setAttribute('aria-label', prompt.text);
+  name.append(promptLine(prompt));
+  row.append(select, name, ...promptDataCells(prompt), rowMenuCell('prompt', prompt.text));
   return row;
 }
 
 function renderRows() {
   const rows = [];
-  for (const parent of shownParents) {
-    rows.push(parentRow(parent));
-    if (!state.expanded.has(parent.id)) continue;
-    parent.shown.forEach((topic) => rows.push(topicRow(topic, parent)));
-    rows.push(moreRow(parent));
+  for (const topic of shownTopics) {
+    rows.push(topicRow(topic));
+    if (isOpen(topic)) topic.shown.forEach((prompt) => rows.push(promptRow(prompt, topic)));
   }
   body.replaceChildren(...rows);
   closeStaleList();
-  const none = shownParents.length === 0;
+  const none = shownTopics.length === 0;
   empty.hidden = !none;
   table.hidden = none || state.topicView === 'heatmap';
   heatmap.hidden = none || state.topicView !== 'heatmap';
@@ -494,11 +491,11 @@ function renderHeatmap() {
   header.append(el('th', `${headClass} w-64 text-left border-r border-r-border-subtle`, 'Topic'), el('th', `${headClass} w-22 text-right`, 'Prompts'));
   engines.forEach((engine) => header.append(el('th', `${headClass} text-center`, engine.name)));
   if (engines.length > 1) header.append(el('th', `${headClass} text-center`, `Avg of ${engines.length}`));
-  const rows = shownParents.map((parent) => {
+  const rows = shownTopics.map((topic) => {
     const row = el('tr', rowClass());
-    row.append(el('th', 'border-b border-border-subtle border-r border-r-border-subtle bg-surface px-3 text-left font-normal', parent.name), el('td', 'border-b border-border-subtle px-3 text-right num', formatInteger(parent.prompts.length)));
-    const values = engines.map((engine) => groupRate(parent.prompts, engine.code, metric).rate);
-    const average = engines.length > 1 ? groupAverage(parent.prompts, scopeCodes(), metric).value : null;
+    row.append(el('th', 'border-b border-border-subtle border-r border-r-border-subtle bg-surface px-3 text-left font-normal', topic.name), el('td', 'border-b border-border-subtle px-3 text-right num', formatInteger(topic.prompts.length)));
+    const values = engines.map((engine) => groupRate(topic.prompts, engine.code, metric).rate);
+    const average = engines.length > 1 ? groupAverage(topic.prompts, scopeCodes(), metric).value : null;
     [...values, ...(engines.length > 1 ? [average] : [])].forEach((rate) => {
       if (rate === null) row.append(el('td', 'border-b border-border-subtle bg-surface px-3 text-center text-foreground-tertiary', 'n/a'));
       else row.append(el('td', `border-b border-border-subtle px-3 text-center num ${binOf(rate).fill} ${binOf(rate).text}`, percent0(rate)));
@@ -515,34 +512,34 @@ function renderHeatmap() {
     item.append(el('span', `size-4 shrink-0 rounded-xs ${bin.fill}`), bin.label);
     key.append(item);
   });
-  wrap.append(title, frame, key, el('p', 'type-meta', 'Topic rows overlap: a prompt in two topics counts in both. Each cell is prompt weighted.'));
+  wrap.append(title, frame, key, el('p', 'type-meta', 'Each prompt is in one topic, so the topics add up to the prompts in view. Each cell is prompt weighted.'));
   heatmap.replaceChildren(wrap);
 }
 
 function renderChrome() {
-  const parents = shownParents.length;
-  const prompts = new Set(shownParents.flatMap((parent) => parent.prompts.map((prompt) => prompt.id))).size;
-  const topics = shownParents.reduce((sum, parent) => sum + parent.shown.length, 0);
+  const topics = shownTopics.length;
+  const prompts = shownTopics.reduce((sum, topic) => sum + topic.shown.length, 0);
   $('[data-topic-count]', view).textContent = plural(topics, 'topic');
   $('[data-topic-range]', view).textContent = `${plural(topics, 'topic')} · ${plural(prompts, 'prompt')}`;
-  const allOpen = parents > 0 && shownParents.every((parent) => state.expanded.has(parent.id));
+  const allOpen = topics > 0 && shownTopics.every(isOpen);
   const expand = $('[data-topic-expand-all]', view);
   const label = $('[data-topic-expand-label]', view);
   label.textContent = allOpen ? 'Collapse all' : 'Expand all';
   expand.replaceChildren(icon(allOpen ? 'chevrons-down-up' : 'chevrons-up-down', 'size-icon-sm shrink-0'), label);
-  expand.hidden = state.topicView === 'heatmap';
+  // Only the list has rows that open
+  expand.hidden = state.topicView !== 'list';
   $('[data-topic-engines-only]', view).hidden = state.topicView !== 'engines';
   $$topicView().forEach((button) => button.setAttribute('aria-checked', String(button.dataset.topicView === state.topicView)));
   $$topicDensity().forEach((item) => item.setAttribute('aria-checked', String(item.dataset.density === state.density)));
 
-  const visible = new Set(shownParents.flatMap((parent) => [parent.id, ...parent.shown.map((topic) => topic.id)]));
+  const visible = new Set(shownTopics.map((topic) => topic.id));
   const selected = [...state.topicSelected].filter((id) => visible.has(id));
   toolbar.hidden = selected.length > 0;
   bulkBar.hidden = selected.length === 0;
   $('[data-topic-selected]', bulkBar).textContent = `${plural(selected.length, 'topic')} selected · ${plural(selectedPromptIds().length, 'prompt')}`;
   const all = $('[data-topic-all]', head);
   if (all) {
-    const rows = shownParents.map((parent) => parent.id);
+    const rows = shownTopics.map((topic) => topic.id);
     all.checked = rows.length > 0 && rows.every((id) => state.topicSelected.has(id));
     all.indeterminate = !all.checked && selected.length > 0;
   }
@@ -561,7 +558,7 @@ export function renderTopics() {
 
 /** Topics of the current scope, whatever the table search: the drawer and the strip count these. */
 export const topicsInScope = () => allTopics;
-export const topicOrder = () => shownParents.flatMap((parent) => parent.shown.map((topic) => topic.id));
+export const topicOrder = () => shownTopics.map((topic) => topic.id);
 
 // -------------------------------------------------------------------------------------------------
 // Interaction
@@ -577,14 +574,11 @@ function toggle(id, focus = true) {
 function openMenu(id, anchor, options) {
   menuTopicId = id;
   menuAnchor = anchor;
-  $('[data-topic-menu-label]', menu).textContent = allTopics.find((topic) => topic.id === id)?.name ?? allParents.find((parent) => parent.id === id).name;
+  $('[data-topic-menu-label]', menu).textContent = allTopics.find((topic) => topic.id === id)?.name ?? '';
   openPopup(menu, anchor, options);
 }
 
-const selectedTopics = () => {
-  const chosen = state.topicSelected;
-  return [...allParents.filter((parent) => chosen.has(parent.id)), ...allTopics.filter((topic) => chosen.has(topic.id))];
-};
+const selectedTopics = () => allTopics.filter((topic) => state.topicSelected.has(topic.id));
 const selectedPromptIds = () => [...new Set(selectedTopics().flatMap((topic) => topic.prompts.map((prompt) => prompt.id)))];
 
 export function initTopics(page) {
@@ -601,7 +595,7 @@ export function initTopics(page) {
   });
   head.addEventListener('change', (event) => {
     if (!event.target.matches('[data-topic-all]')) return;
-    shownParents.forEach((parent) => (event.target.checked ? state.topicSelected.add(parent.id) : state.topicSelected.delete(parent.id)));
+    shownTopics.forEach((topic) => (event.target.checked ? state.topicSelected.add(topic.id) : state.topicSelected.delete(topic.id)));
     renderRows();
     renderChrome();
   });
@@ -618,26 +612,29 @@ export function initTopics(page) {
   body.addEventListener('click', (event) => {
     const row = event.target.closest('tr');
     if (!row) return;
-    const parentId = row.dataset.childOf ?? row.dataset.moreOf ?? row.dataset.id;
-    if (event.target.closest('[data-topic-toggle]')) return toggle(parentId);
-    if (event.target.closest('[data-topic-more]')) {
-      const parent = allParents.find((entry) => entry.id === parentId);
-      return host.showInPrompts(parent.children.map((child) => child.name));
-    }
+    if (event.target.closest('[data-topic-toggle]')) return toggle(row.dataset.id);
+    const prompt = row.dataset.prompt !== undefined;
+    // A prompt steps (J and K) through the prompts of its topic, as listed
+    const siblings = () => shownTopics.find((topic) => topic.id === row.dataset.childOf)?.shown.map((entry) => entry.id) ?? null;
     const more = event.target.closest('[data-record-menu]');
     if (more) {
       event.stopPropagation();
+      if (prompt) return host.openPromptMenu(row.dataset.id, more, { align: 'end' }, siblings());
       return openMenu(row.dataset.id, more, { align: 'end' });
     }
-    if (event.target.closest('input, button, a, label') || row.dataset.moreOf) return undefined;
-    if (row.dataset.parent !== undefined) return toggle(row.dataset.id, false);
+    if (event.target.closest('input, button, a, label')) return undefined;
+    if (prompt) return host.openPrompt(row.dataset.id, row, siblings());
     return host.openTopic(row.dataset.id, row);
   });
   body.addEventListener('contextmenu', (event) => {
     const row = event.target.closest('tr');
-    if (!row || row.dataset.moreOf || event.shiftKey) return;
+    if (!row || event.shiftKey) return;
     event.preventDefault();
-    openMenu(row.dataset.id, row, { point: { x: event.clientX, y: event.clientY } });
+    const point = { point: { x: event.clientX, y: event.clientY } };
+    if (row.dataset.prompt !== undefined) {
+      const siblings = shownTopics.find((topic) => topic.id === row.dataset.childOf)?.shown.map((entry) => entry.id) ?? null;
+      host.openPromptMenu(row.dataset.id, row, point, siblings);
+    } else openMenu(row.dataset.id, row, point);
   });
 
   $('[data-topic-search]', view).addEventListener('input', (event) => {
@@ -645,8 +642,8 @@ export function initTopics(page) {
     renderTopics();
   });
   $('[data-topic-expand-all]', view).addEventListener('click', () => {
-    const allOpen = shownParents.every((parent) => state.expanded.has(parent.id));
-    shownParents.forEach((parent) => (allOpen ? state.expanded.delete(parent.id) : state.expanded.add(parent.id)));
+    const allOpen = shownTopics.every(isOpen);
+    shownTopics.forEach((topic) => (allOpen ? state.expanded.delete(topic.id) : state.expanded.add(topic.id)));
     renderRows();
     renderChrome();
   });
@@ -707,15 +704,12 @@ export function initTopics(page) {
   }, true);
   menu.addEventListener('click', (event) => {
     const action = event.target.closest('[data-topic-action]')?.dataset.topicAction;
-    const topic = allTopics.find((entry) => entry.id === menuTopicId) ?? allParents.find((entry) => entry.id === menuTopicId);
+    const topic = allTopics.find((entry) => entry.id === menuTopicId);
     if (!action || !topic) return;
     closePopup({ restoreFocus: false });
-    const names = topic.group ? topic.children.map((child) => child.name) : [topic.name];
-    if (action === 'open') {
-      if (topic.group) toggle(topic.id, false);
-      else host.openTopic(topic.id, $(`tr[data-id="${topic.id}"]`, body));
-    } else if (action === 'explore') host.showInPrompts(names);
-    else if (action === 'add') host.addPrompt(names[0], menuAnchor?.isConnected ? menuAnchor : null);
+    if (action === 'open') host.openTopic(topic.id, $(`tr[data-id="${topic.id}"]`, body));
+    else if (action === 'explore') host.showInPrompts([topic.name]);
+    else if (action === 'add') host.addPrompt(topic.name, menuAnchor?.isConnected ? menuAnchor : null);
     else if (action === 'run') host.runNow(topic.prompts.map((prompt) => prompt.id));
     else if (action === 'export') host.exportRows(topic.prompts.length);
   });
