@@ -202,6 +202,10 @@ function CardInfoSpecimen({ density }: DensityProps): ReactElement {
           title="Share of voice, footnote behind the info button"
           meta="ChatGPT, last 28 days, 1,412 answers naming a tracked brand"
           footnote="Tracked set: your brand and 5 competitors. Excludes branded prompts."
+          info={{
+            what: 'How much of the brand talk in answers is about you, compared with your competitors.',
+            how: 'Your mentions divided by all mentions of you and the tracked competitors. Adding a competitor lowers every other share.',
+          }}
           height={140}
           summary="HubSpot is named in 466 of 1,412 answers that name a tracked brand, idraft.ai in 312 and Zapier in 198."
           status="ready"
@@ -1154,7 +1158,7 @@ export function ChartPartsSection(): ReactNode {
       </SpecimenGroup>
       <SpecimenGroup
         title="CardInfoProvider and CardInfoButton"
-        note="Inside CardInfoProvider a chart frame does not print its footnote: an i button at the end of the title row holds it. Hover or keyboard focus shows it in a tooltip, a click opens it in a popover (touch). The footnote stays in the page, hidden, for screen readers and the PNG export. Outside the provider the footnote is printed, as in the specimen above."
+        note="Inside CardInfoProvider a chart frame does not print its footnote: an i button at the right edge of the header holds it, or the `info` of the frame (what the card shows, then how it is counted) when it has one. Hover or keyboard focus shows it in a tooltip, a click opens it in a popover (touch). The footnote stays in the page, hidden, for screen readers and the PNG export. Outside the provider the footnote is printed, as in the specimen above."
       >
         <CardInfoSpecimen density={density} />
       </SpecimenGroup>

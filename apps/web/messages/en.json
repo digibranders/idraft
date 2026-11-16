@@ -1817,7 +1817,8 @@
       "keepOne": "{name} stays shown: at least one chart must be visible"
     },
     "info": {
-      "about": "About {title}"
+      "about": "About {title}",
+      "how": "How it is counted:"
     }
   },
   "inspector": {

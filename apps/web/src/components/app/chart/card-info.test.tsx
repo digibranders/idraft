@@ -65,10 +65,17 @@ describe('card info mode', () => {
     expect(screen.queryByRole('button', { name: /^About / })).toBeNull();
   });
 
-  it('puts the button in the title row, after the title', () => {
+  it('puts the button at the right edge of the header, after the title and the views', () => {
     renderWithProviders(<CardInfoProvider>{html()}</CardInfoProvider>);
     const heading = screen.getByRole('heading', { level: 2, name: 'Topic heat map' });
-    expect(heading.nextElementSibling).toBe(infoButton());
+    const edge = infoButton().parentElement;
+    expect(edge?.lastElementChild).toBe(infoButton());
+    expect(edge?.firstElementChild).toContainElement(heading);
+  });
+
+  it('adds no button for an empty footnote', () => {
+    renderWithProviders(<CardInfoProvider>{html({ footnote: '' })}</CardInfoProvider>);
+    expect(screen.queryByRole('button', { name: /^About / })).toBeNull();
   });
 
   it('shows the footnote in a tooltip on hover', async () => {
@@ -79,7 +86,8 @@ describe('card info mode', () => {
 
   it('shows it on keyboard focus too, and Escape closes the tooltip', async () => {
     const { user } = renderWithProviders(<CardInfoProvider>{html()}</CardInfoProvider>);
-    await user.tab();
+    // The button is the last in the header, after the view controls
+    for (let step = 0; step < 8 && document.activeElement !== infoButton(); step += 1) await user.tab();
     await waitFor(() => expect(infoButton()).toHaveFocus());
     await waitFor(() => expect(tip()).toHaveTextContent(NOTE));
     await user.keyboard('{Escape}');
@@ -97,6 +105,44 @@ describe('card info mode', () => {
     await user.keyboard('{Escape}');
     await waitFor(() => expect(popover()).toBeNull());
     expect(infoButton()).toHaveFocus();
+  });
+
+  describe('with info', () => {
+    const INFO = { what: 'How each group does on each platform.', how: 'Each cell is a rate over valid answers.' };
+    const withInfo = (extra: Partial<ChartFrameProps> = {}): ReactElement => html({ info: INFO, ...extra });
+
+    it('shows what the card shows, then how it is counted, in the popover, and not the footnote', async () => {
+      const { user } = renderWithProviders(<CardInfoProvider>{withInfo()}</CardInfoProvider>);
+      await user.click(infoButton());
+      const dialog = await screen.findByRole('dialog', { name: 'About Topic heat map' });
+      const [what, how] = within(dialog).getAllByText(/./, { selector: 'p' });
+      expect(what).toHaveTextContent(INFO.what);
+      expect(how).toHaveTextContent(`How it is counted: ${INFO.how}`);
+      expect(within(how as HTMLElement).getByText('How it is counted:').tagName).toBe('STRONG');
+      expect(within(dialog).queryByText(NOTE)).toBeNull();
+    });
+
+    it('reads both paragraphs in the tooltip', async () => {
+      const { user } = renderWithProviders(<CardInfoProvider>{withInfo()}</CardInfoProvider>);
+      await user.hover(infoButton());
+      await waitFor(() => expect(tip()).toHaveTextContent(`${INFO.what} How it is counted: ${INFO.how}`));
+      expect(tip()).not.toHaveTextContent(NOTE);
+    });
+
+    it('keeps the footnote hidden in the document, and draws the button for a card without a footnote', () => {
+      renderWithProviders(<CardInfoProvider>{withInfo()}</CardInfoProvider>);
+      expect(screen.getByText(NOTE)).toHaveClass('sr-only');
+      expect(infoButton()).toBeInTheDocument();
+    });
+
+    it('draws the button with info alone, and none without the provider', () => {
+      const { unmount } = renderWithProviders(<CardInfoProvider>{withInfo({ footnote: undefined })}</CardInfoProvider>);
+      expect(infoButton()).toBeInTheDocument();
+      unmount();
+      renderWithProviders(withInfo());
+      expect(screen.queryByRole('button', { name: /^About / })).toBeNull();
+      expect(screen.getByText(NOTE)).not.toHaveClass('sr-only');
+    });
   });
 
   it('keeps the button in an empty card, and has no accessibility violations', async () => {

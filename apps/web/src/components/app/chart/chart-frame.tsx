@@ -14,7 +14,7 @@ import {
   type RefObject,
 } from 'react';
 
-import { CardInfoButton, useCardInfo } from './card-info';
+import { CardInfoButton, hasFootnote, useCardInfo, type CardInfo } from './card-info';
 import { useCardReadiness, useCurrentCardId } from './card-readiness';
 import { ChartLegend, type LegendItem } from './chart-legend';
 import { ChartMenu, type ChartMenuAction } from './chart-menu';
@@ -94,6 +94,12 @@ interface ChartFrameCommon {
   notice?: ChartNotice | undefined;
   /** Method and filters that change how to read it. */
   footnote?: ReactNode;
+  /**
+   * What the card shows and how it is counted. In info mode (`CardInfoProvider`) the "i" button shows it, as two
+   * paragraphs, in place of the footnote; the footnote stays in the document, hidden, for the PNG and for screen
+   * readers. Outside info mode it is not drawn.
+   */
+  info?: CardInfo | undefined;
   /** Controls that change what is drawn (a window, layers), between the header and the chart. */
   controls?: ReactNode;
   /** Reserved for the skeleton, the empty and the error state; the canvas height of line and bar. */
@@ -409,7 +415,7 @@ function FrameShell({
   children,
 }: FrameShellProps): ReactElement {
   const t = useTranslations('chart');
-  const { title, variant, meta, notice, footnote, controls, height, loadingHeight, summary } = common;
+  const { title, variant, meta, notice, footnote, info, controls, height, loadingHeight, summary } = common;
   const { status } = state;
   // "Updating" appears when a refetch has run for 400 ms (the table's rule)
   const [showUpdating, setShowUpdating] = useState(false);
@@ -421,8 +427,11 @@ function FrameShell({
       setShowUpdating(false);
     };
   }, [status]);
-  const info = useCardInfo() && footnote !== undefined && footnote !== null && footnote !== false;
-  const infoButton = info ? <CardInfoButton title={title} footnote={footnote} footnoteRef={footnoteRef} /> : null;
+  // No button for a card with nothing to say: an empty footnote is nothing
+  const infoMode = useCardInfo() && (info !== undefined || hasFootnote(footnote));
+  const infoButton = infoMode ? (
+    <CardInfoButton title={title} footnote={footnote} footnoteRef={footnoteRef} info={info} />
+  ) : null;
   const hasControls = controls !== undefined && controls !== null;
   const hasMeta = meta !== null && meta !== undefined;
   const showViews = status === 'ready' || status === 'refetching';
@@ -465,6 +474,36 @@ function FrameShell({
     );
   }
 
+  const header = (
+    <>
+      {/* The title keeps a readable measure: the legend and the views wrap to the next line before it narrows */}
+      <div className="flex min-w-0 shrink grow basis-64 flex-col">
+        <div className="flex items-center gap-2">
+          <Title className={inspector ? 'type-subsection-title' : 'type-section-title'}>{title}</Title>
+          {showUpdating ? (
+            <span className="inline-flex items-center gap-1 type-meta">
+              <Spinner size="sm" />
+              {t('updating')}
+            </span>
+          ) : null}
+        </div>
+        {hasMeta || notice !== undefined ? (
+          <div className="flex flex-wrap items-center gap-x-2">
+            {hasMeta ? <p className="type-meta">{meta}</p> : null}
+            {notice === undefined ? null : (
+              <p className="inline-flex items-center gap-1 type-meta text-warning-text">
+                <Icon icon={notice.kind === 'stale' ? Clock : CircleDashed} size="sm" />
+                {notice.text}
+              </p>
+            )}
+          </div>
+        ) : null}
+      </div>
+      {legend}
+      {hasControls ? null : viewsGroup}
+    </>
+  );
+
   return (
     <section
       ref={section}
@@ -472,38 +511,19 @@ function FrameShell({
       className={cn(
         'flex h-full flex-col gap-3',
         // The hidden footnote is positioned, so it stays inside its own card
-        info && 'relative',
+        infoMode && 'relative',
         inspector ? 'py-1' : 'rounded-lg border border-border bg-surface p-4',
       )}
     >
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        {/* The title keeps a readable measure: the legend and the views wrap to the next line before it narrows */}
-        <div className="flex min-w-0 shrink grow basis-64 flex-col">
-          <div className="flex items-center gap-2">
-            <Title className={inspector ? 'type-subsection-title' : 'type-section-title'}>{title}</Title>
-            {infoButton}
-            {showUpdating ? (
-              <span className="inline-flex items-center gap-1 type-meta">
-                <Spinner size="sm" />
-                {t('updating')}
-              </span>
-            ) : null}
-          </div>
-          {hasMeta || notice !== undefined ? (
-            <div className="flex flex-wrap items-center gap-x-2">
-              {hasMeta ? <p className="type-meta">{meta}</p> : null}
-              {notice === undefined ? null : (
-                <p className="inline-flex items-center gap-1 type-meta text-warning-text">
-                  <Icon icon={notice.kind === 'stale' ? Clock : CircleDashed} size="sm" />
-                  {notice.text}
-                </p>
-              )}
-            </div>
-          ) : null}
+      {infoButton ? (
+        // The "i" button sits at the right edge of the header, as on the Overview cards
+        <div className="flex items-start gap-2">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-2">{header}</div>
+          {infoButton}
         </div>
-        {legend}
-        {hasControls ? null : viewsGroup}
-      </div>
+      ) : (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">{header}</div>
+      )}
       {hasControls ? (
         <div className="flex flex-wrap items-center gap-x-2 gap-y-2">
           {controls}
@@ -517,12 +537,12 @@ function FrameShell({
       <FrameBody state={state} height={height} loadingHeight={loadingHeight}>
         {children}
       </FrameBody>
-      {footnote === undefined || footnote === null ? null : (
+      {hasFootnote(footnote) ? (
         // Info mode keeps the text in the document, for the PNG and for screen readers, and prints none of it
-        <div ref={footnoteRef} className={info ? 'sr-only' : 'mt-auto type-meta'}>
+        <div ref={footnoteRef} className={infoMode ? 'sr-only' : 'mt-auto type-meta'}>
           {footnote}
         </div>
-      )}
+      ) : null}
     </section>
   );
 }
