@@ -6,7 +6,8 @@
  */
 import { formatDecimal, formatInteger, formatSampleCount } from './vendor/format/number.js';
 import { ENGINES, engineOf } from './prompts-data.js';
-import { INTENT_TIP, intentOf } from './prompts-extra.js';
+import { MIN_OBSERVATIONS } from './vendor/stats/index.js';
+import { INTENT_TIP, LIST_SIZE, POSITION_MIN_LISTS, SENTIMENT_MIN, intentOf } from './prompts-extra.js';
 import { CELL } from './prompts-cells.js';
 import { NEUTRAL_BADGE, el, insufficient, percent0, plural } from './prompts-parts.js';
 import { state } from './prompts-state.js';
@@ -50,17 +51,29 @@ export function volumeCell({ value, keyword, keywords, prompts }) {
   return cell;
 }
 
-export function positionCell({ value, lists, mentions }) {
-  if (mentions === 0) return unknown('n/a', 'Your brand was not named, so there is no position');
+/**
+ * The mean position. `absent` is the reason when nothing was observed, for one engine its own (an AI Overview that did
+ * not show, a keyword that is not linked). Zero mentions is only a finding once there are enough answers to say it.
+ */
+export function positionCell({ value, used, names, lists, mentions, answers }, absent = 'Not observed in this window') {
+  if (answers === 0) return unknown('n/a', absent);
   if (value === null) {
+    if (mentions === 0) {
+      return answers < MIN_OBSERVATIONS
+        ? unknown('n/a', `${plural(answers, 'answer')} so far, too few to say where the brand sits`)
+        : unknown('n/a', `Your brand was not named in any of ${plural(answers, 'answer')}, so it has no position`);
+    }
     const cell = el('td', CELL);
-    cell.append(insufficient(`${plural(lists, 'list')}`));
-    cell.dataset.tip = `Only answers that are an ordered list have a position, and a mean needs at least 3. ${plural(mentions, 'mention')}, ${plural(lists, 'ordered answer')}.`;
+    cell.append(insufficient(plural(lists, 'list')));
+    cell.dataset.tip = `Only answers that are an ordered list have a position, and an engine needs at least ${POSITION_MIN_LISTS}. ${plural(mentions, 'mention')}, ${plural(lists, 'ordered answer')}.`;
     return cell;
   }
   const cell = el('td', CELL);
-  cell.append(el('span', 'num', formatDecimal(value, 1)));
-  cell.dataset.tip = `Mean position over ${plural(lists, 'ordered answer')} of ${plural(mentions, 'mention')}. 1 means named first, so lower is better.`;
+  const line = el('span', 'inline-flex items-baseline gap-1 whitespace-nowrap');
+  line.append(el('span', 'num', formatDecimal(value, 1)));
+  if (used > 1) line.append(el('span', 'type-label text-foreground-tertiary', `avg of ${used}`));
+  cell.append(line);
+  cell.dataset.tip = `${used > 1 ? `Equal-weight average of ${names.join(', ')}, each from its own ordered answers. ` : `${names[0]}: `}${plural(lists, 'ordered answer')} of ${plural(mentions, 'mention')}. 1 means named first, so lower is better.`;
   return cell;
 }
 
@@ -72,28 +85,30 @@ const SENTIMENT = [
 ];
 
 /** The share of positive mentions with the four shares as a bar. Never one score: the split is the value. */
-export function sentimentCell(sentiment) {
+export function sentimentCell(sentiment, absent = 'Not observed in this window') {
   if (sentiment.state === 'none') return unknown('n/a', 'Sentiment is classified on ChatGPT and Gemini answers, and none of them is in view');
+  if (sentiment.state === 'unobserved') return unknown('n/a', absent);
   const cell = el('td', CELL);
   if (sentiment.state === 'insufficient') {
-    cell.append(insufficient(`${plural(sentiment.mentions, 'mention')}`));
-    cell.dataset.tip = `${plural(sentiment.mentions, 'classified mention')}. The shares need at least 4.`;
+    cell.append(insufficient(plural(sentiment.mentions, 'mention')));
+    cell.dataset.tip = `${plural(sentiment.mentions, 'classified mention')} in ${plural(sentiment.answers, 'answer')}. The shares need at least ${SENTIMENT_MIN} on an engine.`;
     return cell;
   }
+  const { shares, used, names } = sentiment;
   const line = el('span', 'inline-flex items-center gap-2 whitespace-nowrap');
   const bar = el('span', 'flex h-1.5 w-14 shrink-0 overflow-hidden rounded-full bg-neutral-subtle');
   bar.setAttribute('aria-hidden', 'true');
   SENTIMENT.forEach(({ key, token }) => {
-    if (sentiment[key] === 0) return;
+    if (shares[key] === 0) return;
     const part = el('span', 'h-full');
-    part.style.width = `${(sentiment[key] / sentiment.mentions) * 100}%`;
+    part.style.width = `${shares[key] * 100}%`;
     part.style.background = `var(--${token})`;
     bar.append(part);
   });
-  line.append(el('span', 'num', `${percent0(sentiment.positive / sentiment.mentions)}`), el('span', 'type-label text-foreground-tertiary', 'positive'), bar);
+  line.append(el('span', 'num', percent0(shares.positive)), el('span', 'type-label text-foreground-tertiary', used > 1 ? `positive, avg of ${used}` : 'positive'), bar);
   cell.append(line);
-  const parts = SENTIMENT.map(({ key, label }) => `${label} ${percent0(sentiment[key] / sentiment.mentions)}`).join(', ');
-  cell.dataset.tip = `${parts}, of ${plural(sentiment.mentions, 'classified mention')}. Four shares, never one score. Sample values until sentiment is collected.`;
+  const parts = SENTIMENT.map(({ key, label }) => `${label} ${percent0(shares[key])}`).join(', ');
+  cell.dataset.tip = `${parts}. ${used > 1 ? `Equal-weight average of ${names.join(', ')}, each from its own classified mentions` : `${names[0]}: ${plural(sentiment.mentions, 'classified mention')}`}. Four shares, never one score. Sample values until sentiment is collected.`;
   return cell;
 }
 
@@ -103,11 +118,34 @@ export function sentimentCell(sentiment) {
 let panel = null;
 function listPanel() {
   if (panel) return panel;
-  panel = el('div', 'hidden fixed z-(--z-dropdown) w-88 max-w-[calc(100vw-1.5rem)] max-h-96 overflow-y-auto rounded-lg border border-border bg-surface-elevated shadow-popover');
+  // Ten rows, a header and a note fit without scrolling, so the list needs no keyboard scrolling of its own
+  panel = el('div', 'hidden fixed z-(--z-dropdown) w-88 max-w-[calc(100vw-1.5rem)] max-h-112 overflow-y-auto rounded-lg border border-border bg-surface-elevated shadow-popover');
   panel.setAttribute('role', 'dialog');
   panel.tabIndex = -1;
+  // The list has nothing to tab to: Tab leaves it and closes it, back on the cell that opened it
+  panel.addEventListener('keydown', (event) => {
+    if (event.key === 'Tab') closePopup();
+  });
   document.body.append(panel);
+  // The panel is fixed to the window, so a scrolling table would leave it behind
+  document.addEventListener('scroll', (event) => {
+    if (listTrigger && event.target !== panel && !panel.contains(event.target)) closeList();
+  }, true);
   return panel;
+}
+
+/** The cell button the open list belongs to, or null when no list is open. */
+let listTrigger = null;
+
+function closeList() {
+  if (!listTrigger) return;
+  listTrigger = null;
+  closePopup({ restoreFocus: false });
+}
+
+/** After a table drew its rows again: a list opened from a row that is gone belongs to nothing, so it closes. */
+export function closeStaleList() {
+  if (listTrigger && !listTrigger.isConnected) closeList();
 }
 
 /** One line of a list: the place, what it is, and its value. */
@@ -131,7 +169,8 @@ function openList(trigger, { title, subtitle, rows, ownRow, note }) {
   }
   body.push(el('p', 'border-t border-border-subtle px-3 py-2 type-meta', note));
   node.replaceChildren(...body);
-  openPopup(node, trigger, { align: 'start', focus: node });
+  listTrigger = trigger;
+  openPopup(node, trigger, { align: 'start', focus: node, onClose: () => (listTrigger = null) });
 }
 
 function opener(trigger, build) {
@@ -165,8 +204,8 @@ export function brandsCell(brands, label) {
   opener(button, () => ({
     title: 'Brands named in answers',
     subtitle: `${label} · ${scopeSentence(brands.names, brands.answers)}`,
-    rows: brands.shown.map((row) => brandRow(row, brands.names.length === 1)),
-    ownRow: brands.own ? brandRow(brands.own, brands.names.length === 1) : null,
+    rows: brands.shown.map((row) => brandRow(row, brands)),
+    ownRow: brands.own ? brandRow(brands.own, brands) : null,
     note: 'The share of answers that name each brand. A brand marked Not tracked is not in your competitor set yet.',
   }));
   cell.append(button);
@@ -174,10 +213,12 @@ export function brandsCell(brands, label) {
 }
 
 /**
- * One brand of the list. The rate is an equal-weight average when several engines are in view, so the pooled answer
- * count would not match it: it is shown only for one engine, and is in the tooltip otherwise (one denominator, R12).
+ * One brand of the list. A rate is the mean of the prompts' own rates (each prompt counting once), averaged over the
+ * engines, so counts of answers match it only for one prompt: then one engine shows its count beside the rate and several
+ * list each engine's count in the tooltip. For a group the tooltip says what the rate is a mean of (one denominator, R12).
  */
-function brandRow(row, single) {
+function brandRow(row, brands) {
+  const single = brands.names.length === 1 && brands.prompts === 1;
   const main = el('span', 'flex min-w-0 items-center gap-2');
   if (row.swatch) main.append(el('span', `size-2.5 shrink-0 rounded-xs ${row.swatch}`));
   main.append(el('span', 'truncate type-body text-foreground', row.name));
@@ -187,16 +228,22 @@ function brandRow(row, single) {
   value.append(el('span', 'num type-body-strong text-foreground', percent0(row.rate)));
   if (single) value.append(el('span', 'type-meta num', formatSampleCount(row.k, row.n)));
   const item = listRow({ place: row.place, main, value, own: row.own });
-  if (!single) item.dataset.tip = `Named in ${formatSampleCount(row.k, row.n)} answers across the engines`;
+  if (brands.prompts > 1) item.dataset.tip = `Mean over ${plural(brands.prompts, 'prompt')}, each prompt counting once${brands.names.length > 1 ? ', averaged over the engines' : ''}`;
+  else if (!single) item.dataset.tip = [...row.counts.entries()].map(([name, counts]) => `${name} ${formatSampleCount(counts.k, counts.n)} answers`).join(', ');
   return item;
 }
 
 /** The links one engine cited: the most cited as text, the rest in the popover. */
-export function citedLinksCell({ links, answers }, label) {
+export function citedLinksCell({ links, answers }, label, absent = 'Not observed in this window') {
   const cell = el('td', CELL);
+  if (answers === 0) {
+    cell.append(el('span', 'text-foreground-tertiary', 'n/a'));
+    cell.dataset.tip = absent;
+    return cell;
+  }
   if (links.length === 0) {
     cell.append(el('span', 'text-foreground-tertiary', 'None'));
-    cell.dataset.tip = 'No answer in this window cited a link';
+    cell.dataset.tip = `None of ${plural(answers, 'answer')} cited a link`;
     return cell;
   }
   const button = el('button', LINK_BUTTON);
@@ -206,7 +253,7 @@ export function citedLinksCell({ links, answers }, label) {
   opener(button, () => ({
     title: 'Links cited in answers',
     subtitle: `${label} · ${plural(answers, 'answer')}`,
-    rows: links.slice(0, 10).map((link, index) => {
+    rows: links.slice(0, LIST_SIZE).map((link, index) => {
       const main = el('span', 'flex min-w-0 items-center gap-2');
       main.append(el('span', 'truncate type-body text-foreground', link.url));
       if (link.own) main.append(el('span', `${NEUTRAL_BADGE} shrink-0`, 'Your site'));
@@ -346,7 +393,7 @@ export function initEngineSelect({ before, choose }) {
     return { button, option };
   });
   trigger.addEventListener('click', () => {
-    if (!menu.classList.contains('hidden')) return closePopup();
+    if (trigger.getAttribute('aria-expanded') === 'true') return closePopup();
     openPopup(menu, trigger, { align: 'start', focus: buttons.find(({ button }) => button.getAttribute('aria-selected') === 'true')?.button });
     return undefined;
   });

@@ -650,7 +650,8 @@ const PROSE = [
 const THIRD_PARTY = ['g2.com', 'techradar.com', 'capterra.com', 'forbes.com', 'zapier.com', 'reddit.com'];
 
 function answerFor(prompt, observation) {
-  const random = seeded(prompt.seed + 17 * (observation.engineOrder + 1));
+  // Each observation is its own draw, so the answers of one prompt and engine differ from run to run
+  const random = seeded(prompt.seed + 17 * (observation.engineOrder + 1) + 131 * (Math.max(0, observation.run) + 1) + 7 * observation.replicate);
   const counts = prompt.engines[observation.engine.code];
   const rivals = COMPETITORS.map((competitor, c) => ({ ...competitor, count: counts.competitors[c] + random() })).sort((a, b) => b.count - a.count);
   // An AI Overview summarizes the results of the linked keyword: it is prose, not a ranked answer to the prompt

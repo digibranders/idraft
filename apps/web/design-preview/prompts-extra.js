@@ -71,55 +71,84 @@ function ranksOf(prompt, code) {
   return result;
 }
 
-/** The mean position over the prompts and engines given. `lists` is how many ordered answers it rests on. */
+/** An engine needs this many ordered answers before its mean position is shown. */
+export const POSITION_MIN_LISTS = 2;
+
+/**
+ * The position over the prompts and engines given: each engine's own mean, then the equal-weight average of the
+ * engines that have enough ordered answers (`used` of them, by `names`), never one pooled mean. `lists`, `mentions` and
+ * `answers` count what the engines in scope rest on; `answers` of 0 means nothing was observed at all.
+ */
 export function positionOf(prompts, scope) {
-  let lists = 0;
-  let mentions = 0;
-  let sum = 0;
-  prompts.forEach((prompt) =>
-    scope.forEach((code) => {
+  const engines = scope.map((code) => {
+    let lists = 0;
+    let mentions = 0;
+    let sum = 0;
+    let answers = 0;
+    prompts.forEach((prompt) => {
       const found = ranksOf(prompt, code);
+      answers += prompt.engines[code].n;
       lists += found.ranks.length;
       mentions += found.mentions;
       sum += found.ranks.reduce((total, rank) => total + rank, 0);
-    }),
-  );
-  return { value: lists >= 3 ? sum / lists : null, lists, mentions };
+    });
+    return { code, answers, lists, mentions, mean: lists >= POSITION_MIN_LISTS ? sum / lists : null };
+  });
+  const used = engines.filter((engine) => engine.mean !== null);
+  const total = (key) => engines.reduce((sum, engine) => sum + engine[key], 0);
+  return {
+    value: used.length === 0 ? null : used.reduce((sum, engine) => sum + engine.mean, 0) / used.length,
+    used: used.length,
+    names: used.map((engine) => engineOf(engine.code).name),
+    lists: total('lists'),
+    mentions: total('mentions'),
+    answers: total('answers'),
+  };
 }
 
 // -------------------------------------------------------------------------------------------------
 // Sentiment: the tone of the answers that name the brand, as four shares (never one score). It is classified on the
 // engines that classify recommendations, and a share needs at least MIN_OBSERVATIONS classified mentions.
 
-const SENTIMENT_MIN = MIN_OBSERVATIONS;
+export const SENTIMENT_MIN = MIN_OBSERVATIONS;
+const SHARES = ['positive', 'neutral', 'negative', 'mixed'];
 
-/** Positive, neutral, negative and mixed counts of the mentions on one engine. */
+/** Positive, neutral, negative and mixed counts of the mentions on one engine. They always add up to its mentions. */
 function sentimentCounts(prompt, code) {
-  const counts = prompt.engines[code];
-  const mentions = counts.mention;
+  const mentions = prompt.engines[code].mention;
   const random = seeded(prompt.seed + 313 + ENGINES.findIndex((engine) => engine.code === code) * 29);
   const positive = Math.round(mentions * clamp(0.3 + prompt.strength * 0.55 + (random() - 0.5) * 0.25, 0.12, 0.92));
-  const negative = Math.round(mentions * clamp(0.14 - prompt.strength * 0.1 + (random() - 0.5) * 0.08, 0.01, 0.3));
-  const mixed = Math.round(mentions * clamp(0.04 + random() * 0.05, 0, 0.12));
-  const neutral = Math.max(0, mentions - positive - negative - mixed);
-  return { positive, neutral, negative, mixed, mentions: positive + neutral + negative + mixed };
+  const negative = Math.min(mentions - positive, Math.round(mentions * clamp(0.14 - prompt.strength * 0.1 + (random() - 0.5) * 0.08, 0.01, 0.3)));
+  const mixed = Math.min(mentions - positive - negative, Math.round(mentions * clamp(0.04 + random() * 0.05, 0, 0.12)));
+  return { positive, neutral: mentions - positive - negative - mixed, negative, mixed };
 }
 
 /**
- * The sentiment of the prompts over the engines given. `state` is "none" when no engine in scope classifies sentiment,
- * "insufficient" under SENTIMENT_MIN classified mentions, otherwise "ok".
+ * The sentiment of the prompts over the engines given: each classifying engine's four shares, then the equal-weight
+ * average of the engines with at least SENTIMENT_MIN classified mentions (`used` of them, by `names`). `state` is
+ * "none" when no engine in scope classifies sentiment, "unobserved" when they have no answers, "insufficient" when
+ * none has enough mentions, otherwise "ok" and `shares` holds the four shares. `mentions` is what the engines rest on.
  */
 export function sentimentOf(prompts, scope) {
   const classifying = scope.filter((code) => engineOf(code).recommendations);
-  const total = { positive: 0, neutral: 0, negative: 0, mixed: 0, mentions: 0 };
-  prompts.forEach((prompt) =>
-    classifying.forEach((code) => {
-      const counts = sentimentCounts(prompt, code);
-      Object.keys(total).forEach((key) => (total[key] += counts[key]));
-    }),
-  );
-  if (classifying.length === 0) return { state: 'none', ...total, engines: 0 };
-  return { state: total.mentions >= SENTIMENT_MIN ? 'ok' : 'insufficient', ...total, engines: classifying.length };
+  const engines = classifying.map((code) => {
+    const counts = { positive: 0, neutral: 0, negative: 0, mixed: 0 };
+    let answers = 0;
+    prompts.forEach((prompt) => {
+      answers += prompt.engines[code].n;
+      const found = sentimentCounts(prompt, code);
+      SHARES.forEach((key) => (counts[key] += found[key]));
+    });
+    return { code, answers, counts, mentions: SHARES.reduce((sum, key) => sum + counts[key], 0) };
+  });
+  const used = engines.filter((engine) => engine.mentions >= SENTIMENT_MIN);
+  const mentions = engines.reduce((sum, engine) => sum + engine.mentions, 0);
+  const answers = engines.reduce((sum, engine) => sum + engine.answers, 0);
+  if (classifying.length === 0) return { state: 'none', shares: null, used: 0, names: [], mentions, answers };
+  if (answers === 0) return { state: 'unobserved', shares: null, used: 0, names: [], mentions, answers };
+  if (used.length === 0) return { state: 'insufficient', shares: null, used: 0, names: [], mentions, answers };
+  const shares = Object.fromEntries(SHARES.map((key) => [key, used.reduce((sum, engine) => sum + engine.counts[key] / engine.mentions, 0) / used.length]));
+  return { state: 'ok', shares, used: used.length, names: used.map((engine) => engineOf(engine.code).name), mentions, answers };
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -127,7 +156,8 @@ export function sentimentOf(prompts, scope) {
 // that nobody tracks yet, which is what makes the list longer than the competitor set.
 
 const OTHER_BRANDS = ['Copper', 'Insightly', 'Monday CRM', 'Close', 'Nutshell', 'Zendesk Sell', 'Keap', 'Capsule', 'Less Annoying CRM', 'Apptivo'];
-export const BRAND_LIST_SIZE = 10;
+/** How many brands or links a list popover shows. */
+export const LIST_SIZE = 10;
 
 /** One count per brand for one prompt on one engine, for the answers observed. */
 function entityCounts(prompt, code) {
@@ -157,11 +187,15 @@ export function brandsOf(prompts, scope) {
     answers += observations;
     observed.forEach((prompt) =>
       entityCounts(prompt, code).forEach((entity) => {
-        const row = rows.get(entity.name) ?? { ...entity, rates: new Map(), k: 0, n: 0 };
+        const row = rows.get(entity.name) ?? { ...entity, rates: new Map(), counts: new Map(), k: 0, n: 0 };
         const rate = row.rates.get(code) ?? { sum: 0, count: 0 };
         rate.sum += entity.k / prompt.engines[code].n;
         rate.count += 1;
         row.rates.set(code, rate);
+        const counts = row.counts.get(engineOf(code).name) ?? { k: 0, n: 0 };
+        counts.k += entity.k;
+        counts.n += prompt.engines[code].n;
+        row.counts.set(engineOf(code).name, counts);
         row.k += entity.k;
         row.n += prompt.engines[code].n;
         rows.set(entity.name, row);
@@ -169,12 +203,12 @@ export function brandsOf(prompts, scope) {
     );
   });
   const ranked = [...rows.values()]
-    .map((row) => ({ name: row.name, own: row.own, tracked: row.tracked, swatch: row.swatch, k: row.k, n: row.n, rate: [...row.rates.values()].reduce((sum, rate) => sum + rate.sum / rate.count, 0) / row.rates.size }))
+    .map((row) => ({ name: row.name, own: row.own, tracked: row.tracked, swatch: row.swatch, k: row.k, n: row.n, counts: row.counts, rate: [...row.rates.values()].reduce((sum, rate) => sum + rate.sum / rate.count, 0) / row.rates.size }))
     .filter((row) => row.rate > 0 || row.own)
     .sort((a, b) => b.rate - a.rate)
     .map((row, index) => ({ ...row, place: index + 1 }));
-  const shown = ranked.slice(0, BRAND_LIST_SIZE);
-  return { shown, own: shown.some((row) => row.own) ? null : ranked.find((row) => row.own) ?? null, engines: names.length, names, answers, total: ranked.length };
+  const shown = ranked.slice(0, LIST_SIZE);
+  return { shown, own: shown.some((row) => row.own) ? null : ranked.find((row) => row.own) ?? null, names, answers, prompts: prompts.length, total: ranked.length };
 }
 
 // -------------------------------------------------------------------------------------------------

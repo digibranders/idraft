@@ -25,6 +25,7 @@ import {
   TOPIC_PARENT,
   TYPE_LABEL,
   absenceOf,
+  absenceSentence,
   averageFor,
   countsOf,
   engineOf,
@@ -34,7 +35,7 @@ import {
   topicPath,
 } from './prompts-data.js';
 import { brandsOf, citedLinksOf, intentOf, latestAnswerOf, positionOf, sentimentOf, volumeOf } from './prompts-extra.js';
-import { brandsCell, citedLinksCell, initEngineSelect, intentCell, positionCell, screenshotCell, sentimentCell, textCell, volumeCell } from './prompts-extra-cells.js';
+import { brandsCell, citedLinksCell, closeStaleList, initEngineSelect, intentCell, positionCell, screenshotCell, sentimentCell, textCell, volumeCell } from './prompts-extra-cells.js';
 import { initPromptInspector, refreshPromptInspector } from './prompts-inspector.js';
 import { initTopicInspector, refreshTopicInspector } from './prompts-topic-inspector.js';
 import { initTopics, promptsByMention, renderTopics, topicOrder, topicsInScope } from './prompts-topics.js';
@@ -59,7 +60,7 @@ const PAGE_SIZE = Number.MAX_SAFE_INTEGER;
  * view is that engine's own value. Cited links and the answer screenshot belong to one engine's answers, so they are
  * there only while one engine is in view. The per-engine columns and counts are off until they are chosen.
  */
-const WIDTH = { select: 40, prompt: 240, topic: 140, country: 120, intent: 128, volume: 112, position: 112, mention: 152, citation: 152, recommendation: 184, sov: 152, sentiment: 184, trend: 88, links: 240, brands: 220, shot: 112, e: 176, count: 152, actions: 40 };
+const WIDTH = { select: 40, prompt: 300, topic: 160, country: 120, intent: 128, volume: 132, position: 120, mention: 184, citation: 136, recommendation: 196, sov: 140, sentiment: 224, trend: 96, links: 320, brands: 248, shot: 120, e: 176, count: 152, actions: 40 };
 const columnsOf = () => {
   const single = scopeEngines().length === 1;
   return [
@@ -102,10 +103,7 @@ function sortValue(prompt, key) {
   if (key === 'intent') return intentOf(prompt).toLowerCase();
   if (key === 'volume') return volumeOf(prompt).value;
   if (key === 'position') return positionOf([prompt], scope).value;
-  if (key === 'sentiment') {
-    const sentiment = sentimentOf([prompt], scope);
-    return sentiment.state === 'ok' ? sentiment.positive / sentiment.mentions : null;
-  }
+  if (key === 'sentiment') return sentimentOf([prompt], scope).shares?.positive ?? null;
   if (key.startsWith('e:')) return rateFor(prompt, key.slice(2), state.metric);
   if (key.startsWith('m:') || key.startsWith('c:')) {
     const counts = countsOf(prompt, key.slice(2), key.startsWith('c:') ? 'citation' : 'mention');
@@ -118,6 +116,8 @@ function compute() {
   // Sorting by an engine column only makes sense while that column is on screen
   const sortCode = state.sort.key.includes(':') ? state.sort.key.slice(2) : null;
   if (sortCode && !state.engines.includes(sortCode)) setSort('mention', 'desc');
+  // A column the chooser turned off has no header to show the sort on
+  if (state.sort.key !== 'mention' && state.promptHidden.has(state.sort.key)) setSort('mention', 'desc');
   const { key, dir } = state.sort;
   const keyed = PROMPTS.filter(matches).map((prompt) => ({ prompt, value: sortValue(prompt, key) }));
   keyed.sort((a, b) => {
@@ -210,12 +210,14 @@ function engineCell(prompt, engine) {
 /** The cell of a column that is not a rate or a count of an engine. */
 function extraCell(prompt, key) {
   const scope = scopeCodes();
+  // With one engine in view, nothing observed has that engine's own reason (an AI Overview that did not show)
+  const absent = scope.length === 1 ? absenceSentence(prompt, scope[0]) : 'Not observed in this window';
   if (key === 'intent') return intentCell(prompt);
   if (key === 'volume') return volumeCell(volumeOf(prompt));
-  if (key === 'position') return positionCell(positionOf([prompt], scope));
-  if (key === 'sentiment') return sentimentCell(sentimentOf([prompt], scope));
+  if (key === 'position') return positionCell(positionOf([prompt], scope), absent);
+  if (key === 'sentiment') return sentimentCell(sentimentOf([prompt], scope), absent);
   if (key === 'brands') return brandsCell(brandsOf([prompt], scope), 'This prompt');
-  if (key === 'links') return citedLinksCell(citedLinksOf(prompt, scope[0]), 'This prompt');
+  if (key === 'links') return citedLinksCell(citedLinksOf(prompt, scope[0]), 'This prompt', absent);
   return screenshotCell(prompt, scope[0], latestAnswerOf(prompt, scope[0]));
 }
 
@@ -362,6 +364,7 @@ const empty = $('[data-prompt-empty]', view);
 function renderRows() {
   const rows = pageRows();
   body.replaceChildren(...rows.map(rowFor));
+  closeStaleList();
   const none = state.rows.length === 0;
   empty.hidden = !none;
   promptTable.hidden = none;

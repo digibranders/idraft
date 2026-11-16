@@ -9,7 +9,7 @@ import { formatDecimal, formatInteger, formatSampleCount } from './vendor/format
 import { MIN_OBSERVATIONS } from './vendor/stats/index.js';
 import { ENGINES, NOT_CLASSIFIED, countsOf, engineOf, groupAverage, groupChange, groupRate, groupTrend, groupUpdated, measures, rateFor, seoOf, topicsOf } from './prompts-data.js';
 import { brandsOf, groupVolume, positionOf, sentimentOf } from './prompts-extra.js';
-import { brandsCell, positionCell, sentimentCell, textCell, volumeCell } from './prompts-extra-cells.js';
+import { brandsCell, closeStaleList, positionCell, sentimentCell, textCell, volumeCell } from './prompts-extra-cells.js';
 import { CELL, focusSearchOnSlash, plainHeaderCell, rateCell, rowMenuCell, sortHeaderCell, sparkCell, topEngineCell, wireColumnChooser } from './prompts-cells.js';
 import { checkbox, el, percent0, plural } from './prompts-parts.js';
 import { METRIC_LABEL, scopeCodes, scopeEngines, scopePrompts, scopeText, state } from './prompts-state.js';
@@ -90,7 +90,7 @@ const SORTS = {
   sov: (topic) => topic.sov.value,
   volume: (topic) => topic.volume.value,
   position: (topic) => topic.position.value,
-  sentiment: (topic) => (topic.sentiment.state === 'ok' ? topic.sentiment.positive / topic.sentiment.mentions : null),
+  sentiment: (topic) => topic.sentiment.shares?.positive ?? null,
   engine: (topic) => topic.engineRates.filter((entry) => entry.rate !== null).sort((a, b) => b.rate - a.rate)[0]?.engine.name.toLowerCase() ?? null,
   gap: (topic) => {
     const rates = topic.engineRates.map((entry) => entry.rate).filter((rate) => rate !== null);
@@ -133,7 +133,9 @@ function compute() {
   }
   allParents = [...parents.values()].map((parent) => ({ ...summarize(parent), children: parent.children, group: true }));
   // Sorting by a column that is not shown would leave no sort indicator
-  if (!columnsOf().some((column) => column.key === state.topicSort.key)) state.topicSort = { key: 'mention', dir: 'desc' };
+  // ... and neither does one the column chooser turned off
+  const { key } = state.topicSort;
+  if (!columnsOf().some((column) => column.key === key) || (key !== 'mention' && state.topicHidden.has(key))) state.topicSort = { key: 'mention', dir: 'desc' };
   const search = state.topicSearch;
   shownParents = sorted(allParents)
     .map((parent) => {
@@ -157,7 +159,7 @@ export function promptsByMention(topic) {
 // -------------------------------------------------------------------------------------------------
 // Columns of the three views
 
-const WIDTH = { select: 40, topic: 260, prompts: 88, country: 120, volume: 112, position: 112, mention: 152, citation: 152, recommendation: 184, sov: 152, sentiment: 184, brands: 220, engine: 140, trend: 88, count: 152, e: 176, gap: 120, actions: 40 };
+const WIDTH = { select: 40, topic: 260, prompts: 96, country: 120, volume: 132, position: 120, mention: 184, citation: 136, recommendation: 196, sov: 140, sentiment: 224, brands: 248, engine: 140, trend: 96, count: 152, e: 176, gap: 120, actions: 40 };
 
 /** The columns of the view in force, in table order. `locked` columns cannot be turned off. */
 function columnsOf() {
@@ -422,6 +424,7 @@ function renderRows() {
     rows.push(moreRow(parent));
   }
   body.replaceChildren(...rows);
+  closeStaleList();
   const none = shownParents.length === 0;
   empty.hidden = !none;
   table.hidden = none || state.topicView === 'heatmap';
