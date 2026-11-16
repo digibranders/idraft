@@ -72,11 +72,11 @@ export const ADDED_CATALOG_TITLES = [
   'Prompt movers',
   'This period vs the last',
   'What moved the rate',
-  'AI by engine',
+  'AI by platform',
   'From answer to citation',
   'Answers behind the numbers',
-  'Engine agreement',
-  'By country',
+  'Platform agreement',
+  'By location',
 ] as const;
 
 /** The same nine cards by the exact heading each draws (`aiOverview.engines.*.title`), in the order of the list above. */

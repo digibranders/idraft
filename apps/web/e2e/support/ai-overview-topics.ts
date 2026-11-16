@@ -72,8 +72,8 @@ export const PRESET_CARD_COUNT = 8;
 
 /** The cards the preset leaves out: the name in the Add card dialog and the title the card then carries. */
 export const EXTRA_CARDS = [
-  { menu: 'Topic trends, one engine', title: 'Mention rate by group on ChatGPT' },
-  { menu: 'Prompts by engine', title: 'Prompts by platform' },
+  { menu: 'Group trends, one platform', title: 'Mention rate by group on ChatGPT' },
+  { menu: 'Prompts by platform', title: 'Prompts by platform' },
   { menu: 'Prompts to look at', title: 'Prompts to look at' },
   { menu: 'Cited as often as named?', title: 'Citation against mention by group on ChatGPT' },
 ] as const;

@@ -71,7 +71,7 @@ describe('catalogEntries', () => {
   });
 
   it('says add, addAnother, added, unavailable with its reason, or pageFull', () => {
-    // The built-in layout holds AI by engine once, and the type takes one instance
+    // The built-in layout holds AI by platform once, and the type takes one instance
     expect(entryOf(entries(), 'ai.by_engine').state).toBe('added');
     expect(entryOf(entries(), 'seo.top_movers').state).toBe('add');
 

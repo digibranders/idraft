@@ -31,7 +31,7 @@ const EXPECTED: ReadonlyArray<readonly [ScreenKey, string, Zones]> = [
   ['overview', 'Overview', BOTH_WITH_WIDTHS],
   ['ai_overview', 'AI visibility', BOTH_WITH_WIDTHS],
   ['rankings', 'Rankings', NUMBERS_ONLY],
-  ['prompts', 'Topics and prompts', NUMBERS_ONLY],
+  ['prompts', 'Prompts', NUMBERS_ONLY],
   ['citations', 'Citations', NUMBERS_ONLY],
   ['sources', 'Sources', NUMBERS_ONLY],
   ['pages', 'Pages', NUMBERS_ONLY],
@@ -39,7 +39,7 @@ const EXPECTED: ReadonlyArray<readonly [ScreenKey, string, Zones]> = [
   ['inspector.prompt', 'Prompt', CARDS_ONLY],
   ['inspector.page', 'Page', CARDS_ONLY],
   ['inspector.citation', 'Citation', CARDS_ONLY],
-  ['inspector.topic', 'Topic', CARDS_ONLY],
+  ['inspector.topic', 'Group', CARDS_ONLY],
 ];
 
 describe('the types follow the API schema', () => {

@@ -85,7 +85,7 @@ const EXISTING: readonly Row[] = [
 const NEW: readonly Row[] = [
   row('ai.visibility_split', 'Headline numbers', 'ai', 'F', 1, [], { released: REDESIGN_RELEASED }),
   row('ai.change_summary', 'What changed', 'activity', 'F 2T', 1, [opt('facts', ['3', '5'], '5')]),
-  row('ai.rate_trend_by_engine', 'Rates by engine over time', 'ai', '2T F H', PER_VISIBILITY_METRIC, [
+  row('ai.rate_trend_by_engine', 'Rates by platform over time', 'ai', '2T F H', PER_VISIBILITY_METRIC, [
     VISIBILITY_METRIC,
   ]),
   row('ai.outcome_mix', 'Named and cited', 'ai', 'T H', 1),
@@ -96,7 +96,7 @@ const NEW: readonly Row[] = [
     ENGINE,
     opt('competitors', ['3', '5'], '3'),
   ]),
-  row('ai.competitor_table', 'Competitors by engine', 'ai', 'H 2T F', 1, [
+  row('ai.competitor_table', 'Competitors by platform', 'ai', 'H 2T F', 1, [
     opt('metric', ['mention', 'share_of_voice'], 'mention'),
     rows(['5', '10'], '5'),
   ]),
@@ -104,30 +104,33 @@ const NEW: readonly Row[] = [
   row('ai.co_mentions', 'Who we are named with', 'ai', 'H 2T', PER_ENGINE, [ENGINE]),
   row('ai.sov_over_time', 'Share of voice over time', 'ai', 'H 2T F', 1),
   row('ai.sov_rank', 'Share of voice rank', 'ai', 'H 2T', PER_ENGINE, [ENGINE]),
-  row('ai.topic_heatmap', 'Topics by engine', 'ai', '2T F', PER_VISIBILITY_METRIC, [
+  row('ai.topic_heatmap', 'Groups by platform', 'ai', '2T F', PER_VISIBILITY_METRIC, [
     VISIBILITY_METRIC,
     rows(['5', '10', '20'], '10'),
     opt('level', ['top', 'all'], 'top'),
     opt('sort', ['prompts', 'rate', 'gap'], 'prompts'),
   ]),
-  row('ai.topic_extremes', 'Strongest and weakest topics', 'ai', 'T H', PER_METRIC, [METRIC, rows(['3', '5'], '5')]),
-  row('ai.topic_movers', 'Topics gaining or losing', 'ai', 'H 2T', PER_METRIC, [
+  row('ai.topic_extremes', 'Strongest and weakest groups', 'ai', 'T H', PER_METRIC, [METRIC, rows(['3', '5'], '5')]),
+  row('ai.topic_movers', 'Groups gaining or losing', 'ai', 'H 2T', PER_METRIC, [
     METRIC,
     DIRECTION,
     rows(['5', '10'], '5'),
   ]),
-  row('ai.topic_engine_gap', 'Where engines disagree', 'ai', '2T H F', PER_METRIC, [METRIC, rows(['5', '10'], '10')]),
-  row('ai.engine_disagreement', 'Named by one engine, not another', 'ai', 'H 2T', 1, [rows(['5', '10'], '5')]),
-  row('ai.topic_trends', 'Topic trends by engine', 'ai', 'F 2T', PER_METRIC, [METRIC, opt('topics', ['3', '6'], '6')]),
-  row('ai.topic_small_multiples', 'Topic trends, one engine', 'ai', '2T F', PER_ENGINE, [
+  row('ai.topic_engine_gap', 'Where platforms disagree', 'ai', '2T H F', PER_METRIC, [METRIC, rows(['5', '10'], '10')]),
+  row('ai.engine_disagreement', 'Named by one platform, not another', 'ai', 'H 2T', 1, [rows(['5', '10'], '5')]),
+  row('ai.topic_trends', 'Group trends by platform', 'ai', 'F 2T', PER_METRIC, [
+    METRIC,
+    opt('topics', ['3', '6'], '6'),
+  ]),
+  row('ai.topic_small_multiples', 'Group trends, one platform', 'ai', '2T F', PER_ENGINE, [
     ENGINE,
     opt('topics', ['6', '9'], '6'),
   ]),
-  row('ai.topic_contribution', 'What each topic adds', 'ai', 'H 2T', PER_ENGINE, [
+  row('ai.topic_contribution', 'What each group adds', 'ai', 'H 2T', PER_ENGINE, [
     ENGINE,
     opt('view', ['level', 'change'], 'level'),
   ]),
-  row('ai.prompt_heatmap', 'Prompts by engine', 'ai', '2T F', 1, [
+  row('ai.prompt_heatmap', 'Prompts by platform', 'ai', '2T F', 1, [
     rows(['10', '20'], '10'),
     opt('sort', ['most_named', 'least_named'], 'least_named'),
   ]),
@@ -141,14 +144,14 @@ const NEW: readonly Row[] = [
     ENGINE,
     opt('metric', ['mention', 'citation'], 'mention'),
   ]),
-  row('ai.engine_agreement', 'Engine agreement', 'ai', 'T H', 1),
+  row('ai.engine_agreement', 'Platform agreement', 'ai', 'T H', 1),
   row('ai.citation_vs_mention', 'Cited as often as named?', 'ai', 'H 2T', PER_ENGINE, [ENGINE]),
-  row('ai.country_breakdown', 'By country', 'ai', 'H 2T', PER_METRIC, [METRIC]),
+  row('ai.country_breakdown', 'By location', 'ai', 'H 2T', PER_METRIC, [METRIC]),
   row('sources.top_domains', 'Top cited domains', 'ai', 'H T', 1, [
     opt('role', ['all', 'third_party', 'competitor'], 'all'),
     rows(['5', '8', '10'], '8'),
   ]),
-  row('sources.own_pages', 'Your pages AI engines cite', 'ai', 'H T', 1, [rows(['5', '8', '10'], '8')]),
+  row('sources.own_pages', 'Your pages AI platforms cite', 'ai', 'H T', 1, [rows(['5', '8', '10'], '8')]),
   row('sources.new_lost', 'New and lost sources', 'ai', 'H T', 1),
   row('sources.diversity', 'Source diversity', 'ai', 'H 2T', 1),
   row('ai.fanout_top', 'What ChatGPT searched', 'ai', 'H T F', 1, [rows(['5', '10'], '5')]),
@@ -161,8 +164,8 @@ const NEW: readonly Row[] = [
   }),
   row('ai.opportunities', 'AI opportunities', 'ai', 'H T', 1, [rows(['4', '8'], '4')]),
   row('ops.answer_calendar', 'Answers collected', 'activity', 'F H', 1),
-  row('ops.answer_status', 'Answer status by engine', 'activity', 'H 2T', 1),
-  row('ops.engines', 'Engines and schedule', 'activity', 'T H', 1),
+  row('ops.answer_status', 'Answer status by platform', 'activity', 'H 2T', 1),
+  row('ops.engines', 'Platforms and schedule', 'activity', 'T H', 1),
   row('ops.ai_spend', 'AI spend', 'activity', 'T', 1, [], { permission: 'costs:read' }),
   row('ai.sample_coverage', 'Answers behind the numbers', 'activity', 'T H', 1),
 ];
@@ -337,7 +340,7 @@ describe('the five reused types', () => {
 
   it('keep their titles, widths and release dates for the project Overview', () => {
     expect(cardType('ai.mention_trend')?.title).toBe('Mention rate trend');
-    expect(cardType('ai.by_engine')?.title).toBe('AI by engine');
+    expect(cardType('ai.by_engine')?.title).toBe('AI by platform');
     expect(cardType('activity.key_changes')?.addedOn).toBe('2026-06-01');
     expect(cardType('ai.mention_trend')?.addedOn).toBe('2026-09-30');
   });

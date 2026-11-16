@@ -34,7 +34,7 @@ const ROWS_5_10: OptionDefinition = {
   default: '5',
 };
 const ENGINE_OPTION: OptionDefinition = {
-  label: 'Engine',
+  label: 'Platform',
   values: ENGINES.map((e) => ({ value: e.code, label: e.label })),
   default: 'chatgpt_web',
 };
@@ -205,8 +205,8 @@ const AI_OVERVIEW_CARDS: ReadonlyArray<CardTypeDefinition> = [
   ),
   aiCard(
     'ai.rate_trend_by_engine',
-    'Rates by engine over time',
-    'How each engine’s rate moved week by week, with its interval.',
+    'Rates by platform over time',
+    'How each platform’s rate moved week by week, with its interval.',
     'ai',
     ['two_thirds', 'full', 'half'],
     { maxInstances: PER_VISIBILITY_METRIC, options: { metric: VISIBILITY_METRIC_OPTION } },
@@ -237,7 +237,7 @@ const AI_OVERVIEW_CARDS: ReadonlyArray<CardTypeDefinition> = [
   aiCard(
     'ai.competitor_trend',
     'You vs top competitors',
-    'How your share of voice moved next to your top competitors on one engine.',
+    'How your share of voice moved next to your top competitors on one platform.',
     'ai',
     ['half', 'two_thirds', 'full'],
     {
@@ -247,8 +247,8 @@ const AI_OVERVIEW_CARDS: ReadonlyArray<CardTypeDefinition> = [
   ),
   aiCard(
     'ai.competitor_table',
-    'Competitors by engine',
-    'How you and each competitor compare on every engine.',
+    'Competitors by platform',
+    'How you and each competitor compare on every platform.',
     'ai',
     ['half', 'two_thirds', 'full'],
     {
@@ -276,7 +276,7 @@ const AI_OVERVIEW_CARDS: ReadonlyArray<CardTypeDefinition> = [
   aiCard(
     'ai.co_mentions',
     'Who we are named with',
-    'Which brands answers name next to you on one engine.',
+    'Which brands answers name next to you on one platform.',
     'ai',
     ['half', 'two_thirds'],
     { maxInstances: PER_ENGINE, options: { engine: ENGINE_OPTION } },
@@ -291,15 +291,15 @@ const AI_OVERVIEW_CARDS: ReadonlyArray<CardTypeDefinition> = [
   aiCard(
     'ai.sov_rank',
     'Share of voice rank',
-    'Where you rank among tracked brands by share of voice on one engine, over time.',
+    'Where you rank among tracked brands by share of voice on one platform, over time.',
     'ai',
     ['half', 'two_thirds'],
     { maxInstances: PER_ENGINE, options: { engine: ENGINE_OPTION } },
   ),
   aiCard(
     'ai.topic_heatmap',
-    'Topics by engine',
-    'Which topics each engine names, cites or gives you a share of voice in.',
+    'Groups by platform',
+    'Which groups each platform names, cites or gives you a share of voice in.',
     'ai',
     ['two_thirds', 'full'],
     {
@@ -310,7 +310,7 @@ const AI_OVERVIEW_CARDS: ReadonlyArray<CardTypeDefinition> = [
         level: enumOption(
           'Level',
           [
-            ['top', 'Top level topics'],
+            ['top', 'Top level groups'],
             ['all', 'All levels'],
           ],
           'top',
@@ -320,7 +320,7 @@ const AI_OVERVIEW_CARDS: ReadonlyArray<CardTypeDefinition> = [
           [
             ['prompts', 'Prompts'],
             ['rate', 'Rate'],
-            ['gap', 'Gap between engines'],
+            ['gap', 'Gap between platforms'],
           ],
           'prompts',
         ),
@@ -329,8 +329,8 @@ const AI_OVERVIEW_CARDS: ReadonlyArray<CardTypeDefinition> = [
   ),
   aiCard(
     'ai.topic_extremes',
-    'Strongest and weakest topics',
-    'Which topics do best and worst on the chosen metric.',
+    'Strongest and weakest groups',
+    'Which groups do best and worst on the chosen metric.',
     'ai',
     ['third', 'half'],
     {
@@ -340,8 +340,8 @@ const AI_OVERVIEW_CARDS: ReadonlyArray<CardTypeDefinition> = [
   ),
   aiCard(
     'ai.topic_movers',
-    'Topics gaining or losing',
-    'Which topics gained or lost the most against the previous window.',
+    'Groups gaining or losing',
+    'Which groups gained or lost the most against the previous window.',
     'ai',
     ['half', 'two_thirds'],
     {
@@ -355,8 +355,8 @@ const AI_OVERVIEW_CARDS: ReadonlyArray<CardTypeDefinition> = [
   ),
   aiCard(
     'ai.topic_engine_gap',
-    'Where engines disagree',
-    'Which topics one engine covers far better than another.',
+    'Where platforms disagree',
+    'Which groups one platform covers far better than another.',
     'ai',
     ['two_thirds', 'half', 'full'],
     {
@@ -366,38 +366,38 @@ const AI_OVERVIEW_CARDS: ReadonlyArray<CardTypeDefinition> = [
   ),
   aiCard(
     'ai.engine_disagreement',
-    'Named by one engine, not another',
-    'Which prompts name you on one engine and not on another.',
+    'Named by one platform, not another',
+    'Which prompts name you on one platform and not on another.',
     'ai',
     ['half', 'two_thirds'],
     { options: { rows: countOption('Rows', 'rows', ['5', '10'], '5') } },
   ),
   aiCard(
     'ai.topic_trends',
-    'Topic trends by engine',
-    'How the metric moved in your leading topics, one panel per engine.',
+    'Group trends by platform',
+    'How the metric moved in your leading groups, one panel per platform.',
     'ai',
     ['full', 'two_thirds'],
     {
       maxInstances: PER_METRIC,
-      options: { metric: METRIC_OPTION, topics: countOption('Topics', 'topics', ['3', '6'], '6') },
+      options: { metric: METRIC_OPTION, topics: countOption('Groups', 'groups', ['3', '6'], '6') },
     },
   ),
   aiCard(
     'ai.topic_small_multiples',
-    'Topic trends, one engine',
-    'How the mention rate moved in each of your leading topics on one engine.',
+    'Group trends, one platform',
+    'How the mention rate moved in each of your leading groups on one platform.',
     'ai',
     ['two_thirds', 'full'],
     {
       maxInstances: PER_ENGINE,
-      options: { engine: ENGINE_OPTION, topics: countOption('Topics', 'topics', ['6', '9'], '6') },
+      options: { engine: ENGINE_OPTION, topics: countOption('Groups', 'groups', ['6', '9'], '6') },
     },
   ),
   aiCard(
     'ai.topic_contribution',
-    'What each topic adds',
-    'Which topics drive the mention rate of one engine, and which moved it.',
+    'What each group adds',
+    'Which groups drive the mention rate of one platform, and which moved it.',
     'ai',
     ['half', 'two_thirds'],
     {
@@ -417,8 +417,8 @@ const AI_OVERVIEW_CARDS: ReadonlyArray<CardTypeDefinition> = [
   ),
   aiCard(
     'ai.prompt_heatmap',
-    'Prompts by engine',
-    'Which prompts each engine names you in, one row per prompt.',
+    'Prompts by platform',
+    'Which prompts each platform names you in, one row per prompt.',
     'ai',
     ['two_thirds', 'full'],
     {
@@ -459,7 +459,7 @@ const AI_OVERVIEW_CARDS: ReadonlyArray<CardTypeDefinition> = [
   aiCard(
     'ai.prompt_movers',
     'Prompt movers',
-    'Which prompts gained or lost the most against the previous window on one engine.',
+    'Which prompts gained or lost the most against the previous window on one platform.',
     'ai',
     ['half', 'two_thirds'],
     {
@@ -474,7 +474,7 @@ const AI_OVERVIEW_CARDS: ReadonlyArray<CardTypeDefinition> = [
   aiCard(
     'ai.period_comparison',
     'This period vs the last',
-    'How each engine compares with the previous window for the metric.',
+    'How each platform compares with the previous window for the metric.',
     'ai',
     ['third', 'half'],
     { maxInstances: PER_METRIC, options: { metric: METRIC_OPTION } },
@@ -482,7 +482,7 @@ const AI_OVERVIEW_CARDS: ReadonlyArray<CardTypeDefinition> = [
   aiCard(
     'ai.change_waterfall',
     'What moved the rate',
-    'Which prompts account for the change in the rate of one engine.',
+    'Which prompts account for the change in the rate of one platform.',
     'ai',
     ['half', 'two_thirds'],
     {
@@ -502,23 +502,23 @@ const AI_OVERVIEW_CARDS: ReadonlyArray<CardTypeDefinition> = [
   ),
   aiCard(
     'ai.engine_agreement',
-    'Engine agreement',
-    'How often the engines agree on naming you for the same prompt.',
+    'Platform agreement',
+    'How often the platforms agree on naming you for the same prompt.',
     'ai',
     ['third', 'half'],
   ),
   aiCard(
     'ai.citation_vs_mention',
     'Cited as often as named?',
-    'Which topics name you more often than they cite your pages on one engine.',
+    'Which groups name you more often than they cite your pages on one platform.',
     'ai',
     ['half', 'two_thirds'],
     { maxInstances: PER_ENGINE, options: { engine: ENGINE_OPTION } },
   ),
   aiCard(
     'ai.country_breakdown',
-    'By country',
-    'How the metric differs between the countries you track.',
+    'By location',
+    'How the metric differs between the locations you track.',
     'ai',
     ['half', 'two_thirds'],
     { maxInstances: PER_METRIC, options: { metric: METRIC_OPTION } },
@@ -546,7 +546,7 @@ const AI_OVERVIEW_CARDS: ReadonlyArray<CardTypeDefinition> = [
   ),
   aiCard(
     'sources.own_pages',
-    'Your pages AI engines cite',
+    'Your pages AI platforms cite',
     'Which of your pages answers cite, and how often.',
     'ai',
     ['half', 'third'],
@@ -606,7 +606,7 @@ const AI_OVERVIEW_CARDS: ReadonlyArray<CardTypeDefinition> = [
   aiCard(
     'ai.opportunities',
     'AI opportunities',
-    'Prompts where you are named but not cited, cited but not named, lost to a competitor, or named by no engine.',
+    'Prompts where you are named but not cited, cited but not named, lost to a competitor, or named by no platform.',
     'ai',
     ['half', 'third'],
     { options: { rows: countOption('Rows', 'rows', ['4', '8'], '4') } },
@@ -620,15 +620,15 @@ const AI_OVERVIEW_CARDS: ReadonlyArray<CardTypeDefinition> = [
   ),
   aiCard(
     'ops.answer_status',
-    'Answer status by engine',
-    'How many answers were valid, failed or refused on each engine.',
+    'Answer status by platform',
+    'How many answers were valid, failed or refused on each platform.',
     'activity',
     ['half', 'two_thirds'],
   ),
   aiCard(
     'ops.engines',
-    'Engines and schedule',
-    'Which engines are on, the days they ask, the next run and the estimated monthly cost.',
+    'Platforms and schedule',
+    'Which platforms are on, the days they ask, the next run and the estimated monthly cost.',
     'activity',
     ['third', 'half'],
   ),
@@ -638,7 +638,7 @@ const AI_OVERVIEW_CARDS: ReadonlyArray<CardTypeDefinition> = [
   aiCard(
     'ai.sample_coverage',
     'Answers behind the numbers',
-    'How many prompts have enough valid answers per engine to read a rate.',
+    'How many prompts have enough valid answers per platform to read a rate.',
     'activity',
     ['third', 'half'],
   ),
@@ -648,7 +648,7 @@ export const CARD_TYPES: ReadonlyArray<CardTypeDefinition> = [
   dashboardCard(
     'trend.visibility_mentions',
     'Visibility and mention rate',
-    'How SEO visibility and each engine’s mention rate moved over the window.',
+    'How SEO visibility and each platform’s mention rate moved over the window.',
     'cross',
     ['two_thirds', 'full'],
     EITHER,
@@ -695,8 +695,8 @@ export const CARD_TYPES: ReadonlyArray<CardTypeDefinition> = [
   ),
   dashboardCard(
     'ai.by_engine',
-    'AI by engine',
-    'Mention, citation and recommendation rates for each engine, side by side.',
+    'AI by platform',
+    'Mention, citation and recommendation rates for each platform, side by side.',
     'ai',
     ['half', 'two_thirds', 'full'],
     AI,
@@ -705,7 +705,7 @@ export const CARD_TYPES: ReadonlyArray<CardTypeDefinition> = [
   dashboardCard(
     'ai.mention_trend',
     'Mention rate trend',
-    'One engine’s mention rate over the window, with its interval.',
+    'One platform’s mention rate over the window, with its interval.',
     'ai',
     ['half', 'two_thirds', 'full'],
     AI,
@@ -764,7 +764,7 @@ export const CARD_TYPES: ReadonlyArray<CardTypeDefinition> = [
   dashboardCard(
     'competitors.share_of_voice',
     'Share of voice',
-    'Share of voice as bars, for search or for one AI engine.',
+    'Share of voice as bars, for search or for one AI platform.',
     'cross',
     ['third', 'half'],
     EITHER,
@@ -823,8 +823,8 @@ export const CARD_TYPES: ReadonlyArray<CardTypeDefinition> = [
   ),
   drawerCard(
     'inspector.ai_by_engine',
-    'AI mentions by engine',
-    'Share of responses to linked prompts that mention you, per engine.',
+    'AI mentions by platform',
+    'Share of responses to linked prompts that mention you, per platform.',
     'ai',
     AI,
   ),
@@ -966,7 +966,7 @@ export const SCREENS: Readonly<Record<ScreenKey, ScreenDefinition>> = {
     },
   },
   rankings: numbersScreen('rankings', 'Rankings'),
-  prompts: numbersScreen('prompts', 'Topics and prompts'),
+  prompts: numbersScreen('prompts', 'Prompts'),
   citations: numbersScreen('citations', 'Citations'),
   sources: numbersScreen('sources', 'Sources'),
   pages: numbersScreen('pages', 'Pages'),
@@ -987,7 +987,7 @@ export const SCREENS: Readonly<Record<ScreenKey, ScreenDefinition>> = {
   'inspector.prompt': drawerScreen('inspector.prompt', 'Prompt'),
   'inspector.page': drawerScreen('inspector.page', 'Page'),
   'inspector.citation': drawerScreen('inspector.citation', 'Citation'),
-  'inspector.topic': drawerScreen('inspector.topic', 'Topic'),
+  'inspector.topic': drawerScreen('inspector.topic', 'Group'),
 };
 
 const CARD_TYPE_BY_KEY = new Map(CARD_TYPES.map((type) => [type.key, type]));

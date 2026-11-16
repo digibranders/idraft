@@ -37,7 +37,7 @@ const BUILTIN_TITLES = [
   'Not classified',
   'Key changes',
   'Opportunities',
-  'AI by engine',
+  'AI by platform',
   'Competitors',
 ] as const;
 /** What ArrowDown from Rank distribution says at 1280 px: fourth of eight, in the second row. */
@@ -327,7 +327,7 @@ test.describe('the live specimen at 1280 px', () => {
   test('the AI channel switch takes the AI cards off the page, and customizing explains them', async ({ page }) => {
     await expect(partOf(page, 'ai-by-engine', 'handle')).toHaveCount(0);
     await live(page).getByRole('switch').click();
-    // Matrix, Not classified, Opportunities and AI by engine need the AI channel
+    // Matrix, Not classified, Opportunities and AI by platform need the AI channel
     await expect(gridOf(page).locator('[data-layout-card]')).toHaveCount(4);
     await expect(cardOf(page, 'ai-by-engine')).toHaveCount(0);
     await customize(page);
@@ -672,7 +672,7 @@ test.describe('the resize grip at 1280 px', () => {
     const previewBox = await boxOf(preview);
     expect(previewBox.width).toBeCloseTo(8 * column + 7 * grid.gap, 0);
     await page.mouse.up();
-    await said(page, 'AI by engine width: Two thirds');
+    await said(page, 'AI by platform width: Two thirds');
     await expect(preview).toHaveCount(0);
     const wide = await boxOf(frame);
     expect(wide.width).toBeCloseTo(8 * column + 7 * grid.gap, 0);

@@ -50,7 +50,7 @@ const ANY_COUNT = /\d[\d,]* (?:of [\d,]+ )?(?:answers?|prompts?|platforms?|domai
 
 /**
  * What each card's Table view must show, by the exact heading of the card. The rate cards write "k of n answers" in
- * their cells (`rateText`, `tip`, `shareValid`, `countText`). Four cards do not: "AI by engine" gives k and n in the
+ * their cells (`rateText`, `tip`, `shareValid`, `countText`). Four cards do not: "AI by platform" gives k and n in the
  * columns "Answers that count" and "Valid answers"; the waterfall, the agreement and the coverage card put their
  * counts in columns of their own ("Largest change", "Of compared prompts", "Of prompts in scope"); the country card
  * has an "Answers" column. Those four are held to their header words, which are the same whatever the data.
@@ -131,7 +131,7 @@ test.describe('the platforms cards', () => {
   });
 
   test('compare off removes the dashed lines and the changes, compare on shows them', async ({ page }) => {
-    await saveEnginesLayout(page, ['AI by engine', 'This period vs the last'], { hideOthers: false });
+    await saveEnginesLayout(page, ['AI by platform', 'This period vs the last'], { hideOthers: false });
     const trend = cardById(page, BUILTIN_FAMILY.rateTrend);
     const summary = cardById(page, BUILTIN_FAMILY.changeSummary);
     const byEngine = cardByHeading(page, 'AI by platform');
@@ -216,7 +216,7 @@ test.describe('the platforms cards', () => {
       test(`no serious or critical violation at 390, 768, 1024 and 1280 px in ${theme}`, async ({ page }) => {
         test.setTimeout(240_000);
         const titles = [...BUILTIN_TITLES, 'Prompt movers', 'AI by platform', 'By location'];
-        await saveEnginesLayout(page, ['Prompt movers', 'AI by engine', 'By country']);
+        await saveEnginesLayout(page, ['Prompt movers', 'AI by platform', 'By location']);
         for (const width of WIDTHS) {
           await test.step(`${theme} at ${String(width)} px`, async () => {
             await page.setViewportSize({ width, height: 1100 });

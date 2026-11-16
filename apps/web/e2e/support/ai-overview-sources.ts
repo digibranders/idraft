@@ -36,16 +36,16 @@ const MAKE_ROOM_FOR_ADDED = [
 
 /** The ten cards added through Add card: the name of the catalog (the dialog's button) and the title the card draws. */
 export const ADDED_CARDS = {
-  ownPages: { catalog: 'Your pages AI engines cite', title: 'Your pages AI platforms cite' },
+  ownPages: { catalog: 'Your pages AI platforms cite', title: 'Your pages AI platforms cite' },
   roleShare: { catalog: 'Citation share by domain type', title: 'Citation share by source role and platform' },
   fanout: { catalog: 'What ChatGPT searched', title: 'What ChatGPT searched' },
   newLost: { catalog: 'New and lost sources', title: 'New and lost sources' },
   diversity: { catalog: 'Source diversity', title: 'Source diversity over time' },
   collection: { catalog: 'Collection status', title: 'Collection status' },
-  engines: { catalog: 'Engines and schedule', title: 'Platforms and schedule' },
+  engines: { catalog: 'Platforms and schedule', title: 'Platforms and schedule' },
   spend: { catalog: 'AI spend', title: 'AI spend' },
   calendar: { catalog: 'Answers collected', title: 'Answer collection calendar' },
-  status: { catalog: 'Answer status by engine', title: 'Answer status by platform and day' },
+  status: { catalog: 'Answer status by platform', title: 'Answer status by platform and day' },
 } as const;
 export type AddedCard = keyof typeof ADDED_CARDS;
 
