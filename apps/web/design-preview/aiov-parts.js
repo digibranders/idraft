@@ -85,7 +85,8 @@ let cardSeed = 0;
 export function cardFrame({ key, title, meta, tools = [], body, footnote, flush = false }) {
   cardSeed += 1;
   const id = `aiov-card-${cardSeed}`;
-  const section = el('section', 'min-w-0 @container bg-surface border border-border rounded-lg overflow-hidden flex flex-col');
+  // `relative` keeps the screen-reader-only text of a wide table inside the card, so it cannot widen the page
+  const section = el('section', 'relative min-w-0 @container bg-surface border border-border rounded-lg overflow-hidden flex flex-col');
   section.dataset.card = key;
   section.setAttribute('aria-labelledby', id);
   const head = el('div', 'min-h-12 px-4 py-3 flex flex-wrap items-baseline gap-x-2 gap-y-1');

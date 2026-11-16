@@ -52,7 +52,7 @@ export function setScope(patch) {
 // -------------------------------------------------------------------------------------------------
 // A single select: a trigger and a listbox popup, optionally with a search field
 
-const TRIGGER = 'h-control px-3 max-w-full rounded-md border border-border bg-surface flex items-center gap-2 whitespace-nowrap type-body text-foreground hover:bg-surface-hover aria-expanded:bg-surface-hover';
+const TRIGGER = 'h-control px-3 w-full sm:w-auto min-w-0 max-w-full rounded-md border border-border bg-surface flex items-center gap-2 whitespace-nowrap type-body text-foreground hover:bg-surface-hover aria-expanded:bg-surface-hover';
 const OPTION = 'group w-full h-control-sm px-2 rounded-md flex items-center gap-2 whitespace-nowrap type-body text-foreground text-left outline-none hover:bg-surface-hover focus-visible:bg-surface-hover';
 
 export function createSelect({ name, options, get, set, searchable = false, width = 'min-w-56' }) {

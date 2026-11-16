@@ -64,7 +64,7 @@ for (const name of ['Customize', 'Export']) {
 }
 header.append(heading, actions);
 
-const scopeBar = el('section', 'flex flex-wrap items-center gap-2');
+const scopeBar = el('section', 'grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center');
 scopeBar.setAttribute('aria-label', 'Scope');
 const platformSelect = createSelect({ name: 'Platform', options: platformOptions, get: () => state.platform, set: (id) => setScope({ platform: id }), width: 'min-w-52' });
 const groupSelect = createSelect({ name: 'Group', options: groupOptions, get: () => state.group, set: (id) => setScope({ group: id }), searchable: true, width: 'min-w-60' });
