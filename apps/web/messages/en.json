@@ -4881,6 +4881,87 @@
         "weeklyRates": "Weekly rates: {rates}",
         "locationTip": "The location the prompt is asked for"
       }
+    },
+    "metrics": {
+      "notCollectedTip": "Not collected yet",
+      "noAnswersTip": "No answers in this period",
+      "notEnough": "Not enough data",
+      "notEnoughTip": "{answers, plural, one {# answer} other {# answers}} in scope. A rate needs at least {min, number} on a platform.",
+      "notClassifiedTip": "{platforms}: not classified for this platform",
+      "absence": {
+        "none": "None",
+        "platformTip": "{platform}: {reason}",
+        "reason": {
+          "noAnswers": "no answers in this period",
+          "noLinkedKeyword": "no linked keyword. Google AI Overview is taken from the rank checks of a linked keyword",
+          "noOverview": "no Google AI Overview was shown for \"{keyword}\" in this period"
+        },
+        "sentence": {
+          "noAnswers": "No answers in this period.",
+          "noLinkedKeyword": "No linked keyword. Google AI Overview is taken from the rank checks of a linked keyword.",
+          "noOverview": "No Google AI Overview was shown for \"{keyword}\" in this period."
+        }
+      },
+      "intent": {
+        "header": "Intent",
+        "tip": "What the asker wants: to learn, to choose, to buy or to find a brand",
+        "unclassifiedTip": "This prompt has no intent yet",
+        "values": {
+          "informational": "Informational",
+          "commercial": "Commercial",
+          "transactional": "Transactional",
+          "navigational": "Navigational",
+          "local": "Local"
+        },
+        "tips": {
+          "informational": "The asker wants to learn something",
+          "commercial": "The asker is choosing between options",
+          "transactional": "The asker is ready to buy or sign up",
+          "navigational": "The asker is looking for a specific brand",
+          "local": "The asker wants something near a place"
+        }
+      },
+      "volume": {
+        "header": "Search volume",
+        "tip": "Monthly searches of the keyword the prompt is linked to",
+        "promptTip": "Monthly searches of \"{keyword}\", the keyword this prompt is linked to",
+        "groupTip": "Monthly searches of {keywords, plural, one {# linked keyword} other {# linked keywords}} across {prompts, plural, one {# prompt} other {# prompts}}, each keyword counted once",
+        "groupMissingTip": "{missing, plural, one {# of them has} other {# of them have}} no volume yet, so the total is a lower bound",
+        "noLinkTip": "No linked keyword. Volume is the monthly searches of the keyword a prompt is linked to.",
+        "noLinkGroupTip": "No prompt in this group has a linked keyword",
+        "noVolumeTip": "The linked keyword has no search volume yet",
+        "noVolumeGroupTip": "The linked keywords have no search volume yet"
+      },
+      "position": {
+        "header": "Mention position",
+        "tip": "Where your brand sits in an ordered answer, 1 being first. Lower is better. Only ordered lists have a mention position.",
+        "tooFewAnswersTip": "{answers, plural, one {# answer} other {# answers}} so far, too few to say where the brand sits",
+        "neverNamedTip": "Your brand was not mentioned in any of {answers, plural, one {# answer} other {# answers}}, so it has no mention position",
+        "tooFewListsTip": "Only answers that are an ordered list have a mention position, and a platform needs at least {min, number}. {mentions, plural, one {# mention} other {# mentions}}, {lists, plural, one {# ordered answer} other {# ordered answers}}.",
+        "averageTip": "Equal-weight average of {platforms}, each from its own ordered answers. {lists, plural, one {# ordered answer} other {# ordered answers}} of {mentions, plural, one {# mention} other {# mentions}}. 1 means mentioned first, so lower is better.",
+        "onlyTip": "{platform}: {lists, plural, one {# ordered answer} other {# ordered answers}} of {mentions, plural, one {# mention} other {# mentions}}. 1 means mentioned first, so lower is better."
+      },
+      "recommendation": {
+        "header": "Recommendation rate",
+        "tip": "The share of valid answers that recommend your brand, on the platforms that classify recommendations"
+      },
+      "shareOfVoice": {
+        "header": "Share of voice",
+        "tip": "Your mentions as a share of every brand mention in the answers",
+        "basis": "{answers, plural, one {# answer} other {# answers}} that mention a brand"
+      },
+      "sentiment": {
+        "header": "Sentiment",
+        "tip": "The tone of the answers that mention your brand, as four shares",
+        "positive": "positive",
+        "noneTip": "Sentiment is classified on ChatGPT and Gemini answers, and none of them is in view",
+        "pill": "{count, plural, one {# mention} other {# mentions}}",
+        "insufficientTip": "{mentions, plural, one {# classified mention} other {# classified mentions}} in {answers, plural, one {# answer} other {# answers}}. The shares need at least {min, number} on a platform.",
+        "shares": "Positive {positive}, Neutral {neutral}, Negative {negative}, Mixed {mixed}",
+        "averageBasis": "Equal-weight average of {platforms}, each from its own classified mentions",
+        "onlyBasis": "{platform}: {mentions, plural, one {# classified mention} other {# classified mentions}}",
+        "cellTip": "{shares}. {basis}. Four shares, never one score."
+      }
     }
   },
   "aiOverview": {
