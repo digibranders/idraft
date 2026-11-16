@@ -64,7 +64,7 @@ export function TopPromptsTable({ prompts, engines, onOpen }: TopPromptsTablePro
         <Button
           variant="link"
           size="sm"
-          className="block max-w-56 min-w-0 justify-start text-left text-foreground"
+          className="block max-w-32 min-w-0 justify-start text-left text-foreground"
           onClick={() => onOpen(prompt.prompt_id)}
         >
           <Truncate text={prompt.text} />
@@ -101,14 +101,17 @@ export function TopPromptsTable({ prompts, engines, onOpen }: TopPromptsTablePro
   ];
 
   return (
-    <PlainTable<PromptSummaryRow>
-      caption={t('topPrompts')}
-      columns={columns}
-      rows={prompts}
-      rowKey={(prompt) => prompt.prompt_id}
-      status="ready"
-      errorState={null}
-      emptyText={t('emptyTitle')}
-    />
+    // As the preview's card: the table runs edge to edge under the title, with no border of its own inside the card's
+    <div className="-mx-4 -mb-4 overflow-hidden rounded-b-lg [&>div]:rounded-none [&>div]:border-x-0 [&>div]:border-b-0">
+      <PlainTable<PromptSummaryRow>
+        caption={t('topPrompts')}
+        columns={columns}
+        rows={prompts}
+        rowKey={(prompt) => prompt.prompt_id}
+        status="ready"
+        errorState={null}
+        emptyText={t('emptyTitle')}
+      />
+    </div>
   );
 }

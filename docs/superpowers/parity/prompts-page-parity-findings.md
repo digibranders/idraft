@@ -117,6 +117,16 @@ By package (rows, before to after): P-shell todo 117 to 2 (done 5 to 81, differs
 
 Six rows were added (PR-POST-01 to 06), so the register has 335 rows.
 
+## 6. Gap pass of 2026-11-17 (branch `port/gap-prompts`)
+
+Built: the trend icon in the strip and the drawers (PR-POST-01 and 02, `13c36022`), `vs same period last year` (PR-COMPARE-01, 03, PR-OPEN-03, `00ba7b1c`), the Branded `Only` value (PR-FILTER-08, `2bdc844f`), the `Top prompts in this group` card and the `Related keywords` card in the Related tab (PR-DRAWER-12, 14, `8b8ebfa2`), the typographic apostrophe of the strip info (PR-STRIP-09, `8b8ebfa2`), the empty state cut-off (PR-TABLE-08, `8b34d4b1`), and in `7dd365e7` the toasts of archive and Run now (PR-MENU-05, 08), the 32 px Filter button and chips (PR-TOOLBAR-04, PR-FILTER-02), the 280 px column chooser (PR-COLS-01), `ChatGPT mention` 176 px (PR-PCOLS-12), `Platform gap` 120 px (PR-TVIEW-02) and the type badge of the Prompt cell (PR-CELL-01).
+
+Not built, with the reason in the rows: Schedule filter, Schedule chip and Move to schedule (backend request 17), Edit prompt (request 18), Generate from keywords (request 19), Open page (request 20), Import prompts (request 21), the Type filter (the preview's Filter menu does not offer it), row 1 at 768 px (the `Gemini degraded` badge), focus on the search after an archive (the grid keeps focus on purpose), the Group column width in By platform (the preview has four platforms).
+
+Shell gap (not a Prompts page gap): the command palette and the global search in the top bar, Cmd or Ctrl plus K (PR-KEY-01). The preview has a search field in the top bar of every page and the real shell has none; the mock handler `src/mocks/handlers/command-palette.ts` is empty, so no search route exists yet either. It belongs to the shell package, and no page can build it alone.
+
+Opt-in props added to shared components (defaults keep today's look, so Rankings, Citations and the other pages are unchanged): `compact` on `FilterBar` and `FilterChip`, `compactChooser` on `DataTable`, `compact` on `ColumnChooser`, `containerQuery` on the keyword column, and the optional `kind` of `compareParams` (`lib/compare/compare-model.ts`, which the Overview also calls; its call is unchanged). One shared change is not opt-in: a table's message row (empty, no match, error) is now as wide as the panel and pinned left, which only changes a table that scrolls sideways.
+
 ## What was not verified
 
 - No screen reader, touch device or reduced-motion setting was used (PR-KEY-04 to 09 name what was read).
