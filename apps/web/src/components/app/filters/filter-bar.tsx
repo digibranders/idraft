@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Popover } from '@/components/ui/popover';
 import { announce } from '@/lib/a11y/announcer';
 import type { FilterValue } from '@/lib/filters/filter-values';
+import { cn } from '@/lib/utils';
 
 /** The field picker gets a search box above this many fields, like an enum editor. */
 const SEARCH_FROM = 8;
@@ -44,6 +45,11 @@ export interface FilterBarProps {
    * control (the Prompts platform select). They are not offered in "+ Filter" and "Clear filters" leaves them alone.
    */
   hiddenChipFields?: readonly string[] | undefined;
+  /**
+   * Keeps the chips, "+ Filter" and "Clear filters" on one line: the group scrolls sideways inside its own room
+   * (scrollbar hidden) instead of wrapping to more rows, so the bar never changes height. Off: the group wraps.
+   */
+  nowrap?: boolean | undefined;
 }
 
 /**
@@ -59,6 +65,7 @@ export function FilterBar({
   trailing,
   hideClear = false,
   hiddenChipFields,
+  nowrap = false,
 }: FilterBarProps): ReactElement {
   const t = useTranslations('filters');
   const groupRef = useRef<HTMLDivElement>(null);
@@ -111,7 +118,11 @@ export function FilterBar({
         ref={groupRef}
         role="group"
         aria-label={t('bar')}
-        className="flex min-w-0 flex-1 flex-wrap items-center gap-2"
+        className={cn(
+          'flex min-w-0 flex-1 items-center gap-2',
+          // The padding and negative margin keep the focus rings of the first and last control from being clipped
+          nowrap ? '-mx-1 -my-1 scrollbar-none overflow-x-auto px-1 py-1 *:shrink-0' : 'flex-wrap',
+        )}
       >
         {active.map((field) => {
           const value = values[field.id];

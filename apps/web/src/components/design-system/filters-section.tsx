@@ -61,7 +61,15 @@ const APPLIED: FilterValues = {
   kw: { kind: 'text', operator: 'contains', text: 'crm' },
 };
 
-function SampleBar({ initial, count }: { initial: FilterValues; count?: boolean }): ReactNode {
+function SampleBar({
+  initial,
+  count,
+  nowrap,
+}: {
+  initial: FilterValues;
+  count?: boolean;
+  nowrap?: boolean;
+}): ReactNode {
   const [values, setValues] = useState<FilterValues>(initial);
   const applied = Object.keys(values).length;
   return (
@@ -69,6 +77,7 @@ function SampleBar({ initial, count }: { initial: FilterValues; count?: boolean 
       fields={FIELDS}
       values={values}
       onChange={setValues}
+      nowrap={nowrap}
       resultCount={count === true ? `${formatInteger(4812 - applied * 1100)} keywords` : null}
     />
   );
@@ -88,6 +97,14 @@ export function FiltersSection(): ReactNode {
         note="13 section 2. Clear filters shows only while a chip is applied."
       >
         <SampleBar initial={{}} count />
+      </SpecimenGroup>
+      <SpecimenGroup
+        title="FilterBar, one line"
+        note="nowrap keeps the chips and Filter on one line in a room too narrow for them: the group scrolls sideways inside itself with its scrollbar hidden, so the bar keeps its height. The default wraps."
+      >
+        <div className="w-96 max-w-full">
+          <SampleBar initial={APPLIED} nowrap />
+        </div>
       </SpecimenGroup>
     </>
   );

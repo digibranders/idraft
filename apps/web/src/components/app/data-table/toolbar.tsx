@@ -4,6 +4,7 @@ import { Columns3, Rows3, Search } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useRef, type ReactElement, type ReactNode } from 'react';
 
+import type { ToolbarParts } from './types';
 import { IconButton } from '@/components/ui/icon-button';
 import { Input } from '@/components/ui/input';
 import { InputGroup } from '@/components/ui/input-group';
@@ -34,6 +35,8 @@ export interface DataTableToolbarProps {
   end?: ReactNode;
   /** A bar with more in its end slot than a view switch: the sort summary is read, not shown, below 1440 px. */
   compact?: boolean | undefined;
+  /** Parts left out; absent: all are drawn. */
+  parts?: ToolbarParts | undefined;
 }
 
 /**
@@ -53,6 +56,7 @@ export function DataTableToolbar({
   columns,
   end,
   compact = false,
+  parts,
 }: DataTableToolbarProps): ReactElement {
   const t = useTranslations('dataTable');
   const input = useRef<HTMLInputElement>(null);
@@ -83,10 +87,19 @@ export function DataTableToolbar({
         />
       </InputGroup>
       {/* The table announces a new count itself, so it is heard while the bulk bar is up as well */}
-      {countText === null ? null : <p className="shrink-0 num type-meta whitespace-nowrap">{countText}</p>}
+      {countText === null || parts?.count === false ? null : (
+        <p className="shrink-0 num type-meta whitespace-nowrap">{countText}</p>
+      )}
       {/* Shown from 1280 px (compact: from 1440 px, so the bar stays on one row), and always readable, since aria-sort names only the first key */}
       {sortSummary === null ? null : (
-        <p className={cn('sr-only type-meta', compact ? '2xl:not-sr-only' : 'xl:not-sr-only')}>{sortSummary}</p>
+        <p
+          className={cn(
+            'sr-only type-meta',
+            parts?.sortNote !== false && (compact ? '2xl:not-sr-only' : 'xl:not-sr-only'),
+          )}
+        >
+          {sortSummary}
+        </p>
       )}
       {updating ? (
         <p className="flex items-center gap-1.5 type-meta">
@@ -98,18 +111,20 @@ export function DataTableToolbar({
       <div className="ml-auto flex items-center gap-1">
         {end}
         <div role="toolbar" aria-label={t('toolbar', { caption })} className="flex items-center gap-1">
-          <Menu
-            align="end"
-            trigger={<IconButton icon={Rows3} variant="ghost" label={t('density')} />}
-            items={DENSITIES.map((value) => ({
-              id: value,
-              kind: 'radio' as const,
-              group: t('density'),
-              label: value === 'compact' ? t('densityCompact') : t('densityDefault'),
-              checked: density === value,
-              onSelect: () => onDensityChange(value),
-            }))}
-          />
+          {parts?.density === false ? null : (
+            <Menu
+              align="end"
+              trigger={<IconButton icon={Rows3} variant="ghost" label={t('density')} />}
+              items={DENSITIES.map((value) => ({
+                id: value,
+                kind: 'radio' as const,
+                group: t('density'),
+                label: value === 'compact' ? t('densityCompact') : t('densityDefault'),
+                checked: density === value,
+                onSelect: () => onDensityChange(value),
+              }))}
+            />
+          )}
           {columns(<IconButton icon={Columns3} variant="ghost" label={t('columns')} />)}
         </div>
       </div>

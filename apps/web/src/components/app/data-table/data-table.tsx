@@ -143,11 +143,13 @@ export function DataTable<TRow extends RowData>({
   total,
   server,
   loadProgress,
-  sort,
+  sort: requestedSort,
+  sortFallback,
   onSortChange,
   defaultSort,
-  density,
+  density: chosenDensity,
   onDensityChange,
+  toolbarParts,
   columnState,
   search,
   onSearchChange,
@@ -176,6 +178,8 @@ export function DataTable<TRow extends RowData>({
   footerNote,
 }: DataTableProps<TRow>): ReactNode {
   const t = useTranslations('dataTable');
+  // Without the density menu nobody can undo a stored "default", so the rows are compact, as the opt-out promises
+  const density: Density = toolbarParts?.density === false ? 'compact' : chosenDensity;
   const captionId = useId();
   const hintId = useId();
   const gridId = useId();
@@ -200,6 +204,12 @@ export function DataTable<TRow extends RowData>({
     const column = byId.get(id);
     return column === undefined ? [] : [column];
   });
+  // A sort with a key on a column that is not shown is drawn nowhere, so with `sortFallback` the fallback sorts
+  // (and shows its indicator) instead; `sortFallback` itself is the caller's, so its identity is stable
+  const sort =
+    sortFallback !== undefined && requestedSort.some((key) => !shown.some((column) => column.id === key.id))
+      ? sortFallback
+      : requestedSort;
   // F2 does something only where a column shown has controls in its cells, so only then does the hint say so
   const hasControls = shown.some((column) => column.hasControls === true);
   const grid: GridColumn<TRow>[] = [
@@ -893,6 +903,7 @@ export function DataTable<TRow extends RowData>({
     return [...chosen, ...rest].map((id) => ({
       id,
       label: labelOf(id),
+      icon: byId.get(id)?.headerIcon,
       visible: chosen.includes(id),
       locked: byId.get(id)?.identity === true,
     }));
@@ -1189,6 +1200,7 @@ export function DataTable<TRow extends RowData>({
           updating={showUpdating}
           density={density}
           onDensityChange={onDensityChange}
+          parts={toolbarParts}
           compact={compactToolbar}
           end={toolbarEnd}
           columns={(trigger) => (
@@ -1557,9 +1569,21 @@ function HeaderContent<TRow>({
   items,
   optionsLabel,
 }: HeaderContentProps<TRow>): ReactElement {
-  const label = (
+  const text = (
     <span className={cn('truncate type-table-header', sortKey !== null && 'text-foreground')}>{column.header}</span>
   );
+  // The mark is decoration: the header's text stays the column's name
+  const label =
+    column.headerIcon === undefined ? (
+      text
+    ) : (
+      <span className="flex min-w-0 items-center gap-1.5">
+        <span aria-hidden="true" className="flex shrink-0 items-center">
+          {column.headerIcon}
+        </span>
+        {text}
+      </span>
+    );
   const sortable = column.sortValue !== undefined;
   return (
     // The flex container occupies the available cell width inside <th>, so right-0 places the

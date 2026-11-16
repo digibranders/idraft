@@ -23,6 +23,8 @@ export interface UnknownValue {
 interface Options {
   header: string;
   headerTooltip?: string | undefined;
+  /** A mark before the header label and beside the name in the column chooser (a platform's logo). */
+  headerIcon?: ReactNode;
   priority?: ColumnPriority | undefined;
   /** The screen's default width, kept between the type's minimum and maximum. */
   width?: number | undefined;
@@ -59,6 +61,7 @@ function base<TRow>(
     type,
     header: options.header,
     headerTooltip: options.headerTooltip,
+    headerIcon: options.headerIcon,
     cellTip,
     hasControls: options.hasControls,
     group: options.group,
