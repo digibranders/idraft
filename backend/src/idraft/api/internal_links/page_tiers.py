@@ -119,9 +119,11 @@ async def select_pages(db: AsyncSession, scope: PageScope, selection: PageSelect
 
 async def _tier_ids(db: AsyncSession, workspace_id: UUID) -> dict[UUID, tuple[int, str]]:
     rows = await db.execute(
-        select(page_tier_levels.c.id, page_tier_levels.c.position, page_tier_levels.c.name).where(
-            page_tier_levels.c.workspace_id == workspace_id
-        )
+        select(page_tier_levels.c.id, page_tier_levels.c.position, page_tier_levels.c.name)
+        .where(page_tier_levels.c.workspace_id == workspace_id)
+        # Held until this write commits, so a tier deleted at the same time waits and the
+        # foreign key it would break cannot fire as a 500.
+        .with_for_update(key_share=True)
     )
     return {row.id: (row.position, row.name) for row in rows}
 

@@ -108,6 +108,31 @@ async def test_parallel_adds_to_a_workspace_with_no_tier_take_one_position_each(
     assert [tier["position"] for tier in listed.json()["data"]] == [1, 2, 3, 4]
 
 
+async def test_deleting_a_tier_while_pages_are_set_on_it_never_breaks_a_key(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    owner = await member(resources, migrated, workspace, "owner")
+    project = await keyword_project(migrated, workspace)
+    _, t2, *_ = await seed_tiers(migrated, workspace)
+    _, ids = await seed_crawl(migrated, workspace, project, [("/a", 200), ("/b", 200)])
+
+    answers = await asyncio.gather(
+        api.delete(tiers_url(workspace, t2), params={"move_to": "none"}, headers=owner.headers),
+        *(
+            api.put(
+                project_url(workspace, project, "pages", "tiers"),
+                json={"url_ids": [str(ids["/a"]), str(ids["/b"])], "tier_id": str(t2)},
+                headers=owner.headers,
+            )
+            for _ in range(4)
+        ),
+    )
+
+    # The delete wins or loses the race; a set that lost is a clean 422, never a 500.
+    assert {answer.status_code for answer in answers} <= {200, 204, 422}
+
+
 @pytest.mark.parametrize("role", ["editor", "analyst", "viewer"])
 async def test_other_roles_cannot_change_tiers(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer, role: str
