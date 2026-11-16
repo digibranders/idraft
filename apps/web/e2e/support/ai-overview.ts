@@ -89,9 +89,17 @@ export const groupSelect = (page: Page, shown: string | RegExp = 'All groups'): 
     name: typeof shown === 'string' ? `Group: ${shown}` : shown,
     exact: typeof shown === 'string',
   });
-/** The icon button that puts the scope back: always in the bar, invisible while the scope is the default. */
-export const resetScope = (page: Page): Locator =>
-  scopeBar(page).getByRole('button', { name: 'Reset scope', exact: true });
+/**
+ * The icon button that puts the scope back: always in the bar, `visibility: hidden` while the scope is the default. A
+ * role query skips a hidden element, so it is found by its name in the DOM; use `expectResetHidden` for its state.
+ */
+export const resetScope = (page: Page): Locator => scopeBar(page).locator('button[aria-label="Reset scope"]');
+
+/** The Reset button is there and takes its room, but is not drawn: the scope is the default. */
+export async function expectResetHidden(page: Page): Promise<void> {
+  await expect(resetScope(page)).toHaveCount(1);
+  await expect(resetScope(page)).toHaveCSS('visibility', 'hidden');
+}
 /** The strip error row of the numbers zone, with its own Retry. */
 export const stripError = (page: Page): Locator =>
   page.locator('[data-slot="inline-error"]').filter({ hasText: 'The AI numbers could not be read' });

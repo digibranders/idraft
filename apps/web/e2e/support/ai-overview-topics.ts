@@ -20,6 +20,7 @@ import {
   startCustomizing,
   startFrom,
 } from './ai-overview-competitors';
+import { groupSelect, platformSelect } from './ai-overview';
 import { DENSITIES, expectNoSeriousViolations, type Density, type Theme } from './layouts';
 import { preferenceKey } from '../../src/lib/preferences/storage';
 import { MOCK_USERS } from '../../src/mocks/fixtures';
@@ -89,9 +90,11 @@ export const OVERLAP_COUNT = /\d+ prompts? (?:is|are) in more than one group\./;
 /** The topics of the Fynix mock, as the heat map lists them at the top level. */
 export const TOP_LEVEL_TOPICS = ['SEO', 'Content Marketing', 'Paid Search', 'Prompts without a group'] as const;
 
+/** The Platform and Group selects of the scope bar (`support/ai-overview.ts`), which the group cards' specs drive. */
+export { groupSelect, platformSelect };
+
 export const customizeButton = (page: Page): Locator => page.getByRole('button', { name: 'Customize', exact: true });
 export const saveBar = (page: Page): Locator => page.locator('[data-slot="layout-save-bar"]');
-export const enginesButton = (page: Page): Locator => page.getByRole('button', { name: /^Platforms: / });
 
 /** Customizes the page: the Topic owner preset, and with `extras` the four cards it leaves out; then saves. */
 export async function saveTopicLayout(page: Page, { extras = false }: { extras?: boolean } = {}): Promise<void> {

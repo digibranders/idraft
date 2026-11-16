@@ -18,6 +18,7 @@ import {
   cardById,
   cardGrid,
   expectNoSeriousViolations,
+  expectResetHidden,
   groupSelect,
   installSummaryControl,
   layoutSettled,
@@ -229,7 +230,7 @@ test.describe('the AI visibility Overview', () => {
       await expect(platformSelect(page, 'Gemini')).toBeVisible();
       await expect(groupSelect(page, /^Group: .*Technical SEO$/)).toBeVisible();
       await expect(scopeBar(page).getByRole('button', { name: /^Branded:/ })).toHaveCount(0);
-      await expect(resetScope(page)).toBeVisible();
+      await expect(resetScope(page)).toHaveCSS('visibility', 'visible');
       await expect(top.getByRole('combobox', { name: 'Location: Germany' })).toBeVisible();
     };
 
@@ -254,8 +255,7 @@ test.describe('the AI visibility Overview', () => {
       await resetScope(page).click();
       await expect.poll(() => Object.fromEntries(paramsOf(page))).toEqual({ win: '7d', country: 'DE' });
       // It keeps its place, invisible, so the row does not move
-      await expect(resetScope(page)).toBeHidden();
-      await expect(resetScope(page)).toHaveCount(1);
+      await expectResetHidden(page);
     });
   });
 
@@ -287,6 +287,26 @@ test.describe('the AI visibility Overview', () => {
     expect(after).toEqual(before);
   });
 
+  test('the metric key survives a reload, makes Reset scope available, and a bad value falls back', async ({
+    page,
+  }) => {
+    await signIn(page, EDITOR);
+    await openOverview(page, 'Fynix', { search: '?metric=sov' });
+    await expect(resetScope(page)).toHaveCSS('visibility', 'visible');
+    await page.reload();
+    await waitForOverview(page);
+    expect(paramsOf(page).get('metric')).toBe('sov');
+    await resetScope(page).click();
+    await expect.poll(() => paramsOf(page).has('metric')).toBe(false);
+    await expectResetHidden(page);
+
+    // A value that is not a measure reads as the default: no Reset, and the address is left as the link had it
+    await page.goto(overviewPath('Fynix', '?metric=bogus'));
+    await waitForOverview(page);
+    await expectResetHidden(page);
+    expect(paramsOf(page).get('metric')).toBe('bogus');
+  });
+
   test('a link that names every platform that is on reads as All platforms and the address is tidied', async ({
     page,
   }) => {
@@ -294,7 +314,7 @@ test.describe('the AI visibility Overview', () => {
     await openOverview(page, 'Fynix', { search: '?engine=gemini_web,chatgpt_web' });
     await expect(platformSelect(page)).toBeVisible();
     await expect.poll(() => paramsOf(page).has('engine')).toBe(false);
-    await expect(resetScope(page)).toBeHidden();
+    await expectResetHidden(page);
   });
 
   test('Platform lists AI Overview as not available', async ({ page }) => {
