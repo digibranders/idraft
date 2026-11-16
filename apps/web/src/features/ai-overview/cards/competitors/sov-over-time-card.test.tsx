@@ -115,6 +115,20 @@ describe('the share of voice over time card without its weekly cells', () => {
     expect(screen.queryByText(/Could not load/)).not.toBeInTheDocument();
   });
 
+  it('says Not collected yet too when the weekly series is there but no week carries a cell for a tracked brand', async () => {
+    const withoutCells = (code: string): EngineSummary =>
+      engine(code, {
+        mentioned: cell(6, 10),
+        share: share(6, 10),
+        entities: [entityCells(own(), share(6, 10), share(6, 10)), entityCells(HUBSPOT, share(4, 10), share(4, 10))],
+        series: WEEKS.map((weekStart) => week(weekStart, { share: share(6, 10) })),
+      });
+    serve(withoutCells('chatgpt_web'));
+    renderCard('cmp=off&engine=chatgpt_web');
+    expect(await screen.findByText('Not collected yet')).toBeInTheDocument();
+    expect(screen.queryByText('Could not load share of voice over time')).not.toBeInTheDocument();
+  });
+
   it('still shows the error with Try again when the read itself fails', async () => {
     server.use(
       http.get(SUMMARY, () =>
