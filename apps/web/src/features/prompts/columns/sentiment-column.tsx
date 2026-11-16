@@ -1,6 +1,13 @@
 import type { ReactElement } from 'react';
 
-import { SENTIMENT_KEYS, SENTIMENT_MIN, sentimentOf, type FactsRow, type LinkedKeywordVolume } from '../facts';
+import {
+  SENTIMENT_KEYS,
+  SENTIMENT_MIN,
+  sentimentOf,
+  wholePercents,
+  type FactsRow,
+  type LinkedKeywordVolume,
+} from '../facts';
 import type { SentimentKey } from '../facts';
 import { SORT_ID } from '../prompt-model';
 import {
@@ -35,7 +42,8 @@ export interface SentimentRows<TRow> {
   link: (row: TRow) => LinkedKeywordVolume | null | undefined;
 }
 
-const percent = (share: number): string => formatPercent(share, { decimals: 0 });
+/** A whole percent from `wholePercents`: the four shares of a reading add up to 100 wherever they are printed. */
+const percent = (whole: number): string => formatPercent(whole / 100, { decimals: 0 });
 
 /**
  * Sentiment: the tone of the answers that name the brand, as four shares (positive, neutral, negative, mixed) and never
@@ -76,9 +84,10 @@ export function sentimentColumn<TRow>(context: MetricContext, rows: SentimentRow
       }
       if (reading?.state !== 'ok' || reading.shares === null) return <Missing label={unknownOf(row, reading).label} />;
       const { shares } = reading;
+      const whole = wholePercents(shares);
       return (
         <span className="inline-flex items-center gap-2 whitespace-nowrap">
-          <span className="num">{percent(shares.positive)}</span>
+          <span className="num">{percent(whole.positive)}</span>
           <span className="type-label text-foreground-tertiary">{t('prompts.metrics.sentiment.positive')}</span>
           <span aria-hidden="true" className="flex h-1.5 w-14 shrink-0 overflow-hidden rounded-full bg-neutral-subtle">
             {SENTIMENT_KEYS.filter((key) => shares[key] > 0).map((key) => (
@@ -105,14 +114,15 @@ export function sentimentColumn<TRow>(context: MetricContext, rows: SentimentRow
       }
       if (reading?.state !== 'ok' || reading.shares === null) return tipOf(unknownOf(row, reading));
       const { shares, codes } = reading;
+      const whole = wholePercents(shares);
       const [only] = codes;
       return {
         content: t('prompts.metrics.sentiment.cellTip', {
           shares: t('prompts.metrics.sentiment.shares', {
-            positive: percent(shares.positive),
-            neutral: percent(shares.neutral),
-            negative: percent(shares.negative),
-            mixed: percent(shares.mixed),
+            positive: percent(whole.positive),
+            neutral: percent(whole.neutral),
+            negative: percent(whole.negative),
+            mixed: percent(whole.mixed),
           }),
           basis:
             codes.length > 1 || only === undefined
