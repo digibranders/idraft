@@ -95,7 +95,8 @@ describe('useSourceDomains', () => {
     expect(current?.searchParams.get('limit')).toBe('8');
     expect(current?.searchParams.get('min_support')).toBe('2');
     expect(current?.searchParams.get('compare')).toBe('previous_period');
-    expect(current?.searchParams.has('filter[engine_code_in]')).toBe(false);
+    // Named even when every platform that is on is asked: left out, the route would read the one that is off too
+    expect(current?.searchParams.get('filter[engine_code_in]')).toBe('chatgpt_web,gemini_web');
     expect(current?.searchParams.has('include_unresolved_redirects')).toBe(false);
     expect(current?.searchParams.has('include_engine_internal')).toBe(false);
   });
