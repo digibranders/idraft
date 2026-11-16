@@ -12,7 +12,7 @@ import { brandsOf, groupVolume, positionOf, sentimentOf } from './prompts-extra.
 import { brandsCell, closeStaleList, positionCell, sentimentCell, textCell, volumeCell } from './prompts-extra-cells.js';
 import { CELL, IDENTITY_RESIZE, focusSearchOnSlash, identityHandle, plainHeaderCell, rateCell, rowMenuCell, sortHeaderCell, sparkCell, topEngineCell, wireColumnChooser } from './prompts-cells.js';
 import { checkbox, el, percent0, plural } from './prompts-parts.js';
-import { METRIC_LABEL, scopeCodes, scopeEngines, scopePrompts, scopeText, state } from './prompts-state.js';
+import { METRIC_LABEL, isAllLocations, scopeCodes, scopeEngines, scopePrompts, scopeText, state } from './prompts-state.js';
 
 const ui = window.PreviewUI;
 const charts = window.PreviewCharts;
@@ -176,7 +176,7 @@ function columnsOf() {
   return [
     { key: 'topic', label: 'Topic', width: WIDTH.topic, locked: true },
     { key: 'prompts', label: 'Prompts', width: WIDTH.prompts },
-    { key: 'country', label: 'Location', width: WIDTH.country },
+    ...(isAllLocations() ? [{ key: 'country', label: 'Location', width: WIDTH.country }] : []),
     { key: 'volume', label: 'Search volume', width: WIDTH.volume },
     { key: 'position', label: 'Avg position', width: WIDTH.position },
     { key: 'mention', label: 'Mention rate', width: WIDTH.mention },

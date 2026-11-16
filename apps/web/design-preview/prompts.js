@@ -1,4 +1,4 @@
-/* global document, window, navigator */
+/* global document, window, navigator, MutationObserver */
 /**
  * The "Prompts" page (once "Topics & Prompts") of the static preview (24 section 9.5, ADR-DS-022): the Prompts tab, the Panels
  * and Versions tabs, the Add prompts dialog, the filters both scoped tabs share, and the routing between tabs.
@@ -41,7 +41,7 @@ import { initTopicInspector, refreshTopicInspector } from './prompts-topic-inspe
 import { initTopics, promptsByMention, renderTopics, topicOrder, topicsInScope } from './prompts-topics.js';
 import { CELL, IDENTITY_RESIZE, focusSearchOnSlash, identityHandle, plainHeaderCell, promptLine, promptRateCell, promptTrendCell, rowMenuCell, sortHeaderCell, wireColumnChooser } from './prompts-cells.js';
 import { NEUTRAL_BADGE, checkbox, el, insufficient, intervalText, percent0, plural } from './prompts-parts.js';
-import { BRANDED_LABEL, METRIC_LABEL, VIEWS, deltaNode, inScope, scopeCodes, scopeEngines, scopePrompts, scopeText, state } from './prompts-state.js';
+import { BRANDED_LABEL, METRIC_LABEL, VIEWS, deltaNode, inScope, isAllLocations, scopeCodes, scopeEngines, scopePrompts, scopeText, state } from './prompts-state.js';
 
 const ui = window.PreviewUI;
 const charts = window.PreviewCharts;
@@ -66,7 +66,7 @@ const columnsOf = () => {
   return [
     { key: 'prompt', label: 'Prompt', width: WIDTH.prompt, locked: true },
     { key: 'topic', label: 'Topic', width: WIDTH.topic },
-    { key: 'country', label: 'Location', width: WIDTH.country },
+    ...(isAllLocations() ? [{ key: 'country', label: 'Location', width: WIDTH.country }] : []),
     { key: 'intent', label: 'Intent', width: WIDTH.intent },
     { key: 'volume', label: 'Search volume', width: WIDTH.volume },
     { key: 'position', label: 'Avg position', width: WIDTH.position },
@@ -120,8 +120,9 @@ function compute() {
   // Sorting by an engine column only makes sense while that column is on screen
   const sortCode = state.sort.key.includes(':') ? state.sort.key.slice(2) : null;
   if (sortCode && !state.engines.includes(sortCode)) setSort('mention', 'desc');
-  // A column the chooser turned off has no header to show the sort on
-  if (state.sort.key !== 'mention' && state.promptHidden.has(state.sort.key)) setSort('mention', 'desc');
+  // A column the chooser turned off, or one the scope took away (Location), has no header to show the sort on
+  const gone = state.promptHidden.has(state.sort.key) || !columnsOf().some((column) => column.key === state.sort.key);
+  if (state.sort.key !== 'mention' && gone) setSort('mention', 'desc');
   const { key, dir } = state.sort;
   const keyed = PROMPTS.filter(matches).map((prompt) => ({ prompt, value: sortValue(prompt, key) }));
   keyed.sort((a, b) => {
@@ -657,6 +658,9 @@ const refreshEngineSelect = initEngineSelect({
 
 // A brand added to the competitor list from a brands list shows in every list once that list has closed
 onCompetitorsChange(render);
+
+// The Location column is there only for "All locations" in the top bar, so a change of location draws the tables again
+new MutationObserver(render).observe($('[data-location-label]'), { childList: true, characterData: true, subtree: true });
 
 // Compare: the shared menu sets the label; "No comparison" takes the deltas away
 $('#ed-compare').addEventListener('click', (event) => {
