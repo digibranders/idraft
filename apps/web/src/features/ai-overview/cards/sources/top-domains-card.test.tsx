@@ -104,11 +104,11 @@ function renderCard({
   });
 }
 
-const barList = (): Promise<HTMLElement> => screen.findByRole('list', { name: CAPTION });
+const barList = (): Promise<HTMLElement> => screen.findByRole('table', { name: CAPTION });
 const labelsOf = (list: HTMLElement): string[] =>
   within(list)
-    .getAllByRole('listitem')
-    .map((item) => item.querySelector('a, span')?.textContent ?? '');
+    .getAllByRole('row')
+    .map((item) => item.querySelector('th a, th > span > span')?.textContent ?? '');
 
 describe('the top cited domains card', () => {
   it('shows a skeleton at its height, then one line per domain with yours in chart-1', async () => {
@@ -125,7 +125,7 @@ describe('the top cited domains card', () => {
     const list = await barList();
     expect(labelsOf(list)).toEqual(['g2.com', 'fynix.com', 'capterra.com', 'hubspot.com']);
     const fills = within(list)
-      .getAllByRole('listitem')
+      .getAllByRole('row')
       .map((item) => item.querySelector('[data-slot="domain-bar"]')?.className ?? '');
     expect(at(fills, 1)).toContain('bg-chart-1');
     for (const index of [0, 2, 3]) expect(at(fills, index)).not.toContain('bg-chart-1');
@@ -134,7 +134,7 @@ describe('the top cited domains card', () => {
   it('names the role of each domain in text, beside the domain', async () => {
     serve(page());
     renderCard();
-    const items = within(await barList()).getAllByRole('listitem');
+    const items = within(await barList()).getAllByRole('row');
     expect(within(at(items, 0)).getByText('Third party')).toBeInTheDocument();
     expect(within(at(items, 1)).getByText('Your site')).toBeInTheDocument();
     expect(within(at(items, 3)).getByText('Competitor')).toBeInTheDocument();
@@ -143,7 +143,7 @@ describe('the top cited domains card', () => {
   it('writes the share of citation units with one decimal and the units of the scope in the meta line', async () => {
     serve(page());
     renderCard();
-    const items = within(await barList()).getAllByRole('listitem');
+    const items = within(await barList()).getAllByRole('row');
     expect(within(at(items, 0)).getByText('10.4%')).toBeInTheDocument();
     expect(within(at(items, 1)).getByText('8.1%')).toBeInTheDocument();
     expect(await screen.findByText('of 18,420 citation units')).toBeInTheDocument();
@@ -173,7 +173,7 @@ describe('the top cited domains card', () => {
   it('shows a share over fewer than 4 answers as its answers, never as a percent', async () => {
     serve(page({ valid: 3 }));
     renderCard();
-    const items = within(await barList()).getAllByRole('listitem');
+    const items = within(await barList()).getAllByRole('row');
     expect(within(at(items, 0)).queryByText(/%/)).toBeNull();
     expect(within(at(items, 0)).getByText(/3 answers/)).toBeInTheDocument();
   });

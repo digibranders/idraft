@@ -38,35 +38,34 @@ export function DomainBars({ rows, caption }: DomainBarsProps): ReactElement {
   const top = Math.max(0.0001, ...rows.map((row) => row.value ?? 0));
   return (
     <div className="@container">
-      <ul
-        aria-label={caption}
-        className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 @xs:grid-cols-[minmax(0,max-content)_minmax(0,1fr)_auto]"
-      >
-        {rows.map((row) => (
-          <li key={row.id} className="col-span-full grid grid-cols-subgrid">
-            <Tooltip content={row.label} detail={row.tip} purpose="description">
-              <div className="col-span-full grid h-10 grid-cols-subgrid items-center">
-                <div className="flex min-w-0 items-center gap-2">
-                  {row.href === undefined ? (
-                    <span
-                      className={cn('min-w-0 truncate text-foreground', row.own ? 'type-body-strong' : 'type-body')}
-                    >
-                      {row.label}
-                    </span>
-                  ) : (
-                    <Link
-                      href={row.href}
-                      className={cn(
-                        'min-w-0 truncate rounded-sm text-foreground outline-none hover:underline focus-visible:focus-ring',
-                        row.own ? 'type-body-strong' : 'type-body',
-                      )}
-                    >
-                      {row.label}
-                    </Link>
-                  )}
-                  {row.badge}
-                </div>
-                <div className="hidden min-w-0 @xs:block">
+      <table aria-label={caption} className="w-full">
+        <tbody>
+          {rows.map((row) => (
+            <Tooltip key={row.id} content={row.label} detail={row.tip} purpose="description">
+              <tr className="h-10">
+                <th scope="row" className="pr-3 text-left font-normal">
+                  <span className="inline-flex max-w-full min-w-0 items-center gap-2">
+                    {row.href === undefined ? (
+                      <span
+                        className={cn('min-w-0 truncate text-foreground', row.own ? 'type-body-strong' : 'type-body')}
+                      >
+                        {row.label}
+                      </span>
+                    ) : (
+                      <Link
+                        href={row.href}
+                        className={cn(
+                          'min-w-0 truncate rounded-sm text-foreground outline-none hover:underline focus-visible:focus-ring',
+                          row.own ? 'type-body-strong' : 'type-body',
+                        )}
+                      >
+                        {row.label}
+                      </Link>
+                    )}
+                    {row.badge}
+                  </span>
+                </th>
+                <td className="hidden w-full pr-3 @xs:table-cell">
                   <div
                     aria-hidden="true"
                     data-slot="domain-bar"
@@ -75,20 +74,20 @@ export function DomainBars({ rows, caption }: DomainBarsProps): ReactElement {
                       width: row.value === null ? '0%' : `${String(Math.max(1, Math.round((row.value / top) * 100)))}%`,
                     }}
                   />
-                </div>
-                <span
+                </td>
+                <td
                   className={cn(
                     'text-right num type-label whitespace-nowrap',
                     row.value === null && 'text-foreground-tertiary',
                   )}
                 >
                   {row.valueText}
-                </span>
-              </div>
+                </td>
+              </tr>
             </Tooltip>
-          </li>
-        ))}
-      </ul>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
