@@ -152,3 +152,22 @@ The preview kept changing while this plan was written, so the target moves:
 Rule: every reviewer diffs against the newest preview at review time (`git log` on `apps/web/design-preview`), and one
 last re-sync pass runs after wave 3 against the final preview, listing each preview commit made since this plan and
 porting it. The owner should say when the preview is frozen.
+
+## Preview change ledger (checked 2026-11-16, commits after the plan baseline ef780b4e)
+
+Every package brief must cover the rows that touch it. Reviewers check each row.
+
+| Commit | Change | Package |
+|---|---|---|
+| 9082face | Overview info texts say what the card shows, then how it is counted (`aiov-info.js` has the text per card) | every Overview card package, O-shell reports the mapping |
+| 2577bee7 | Lock icon removed from prompt rows (type badge stays) | P-shell |
+| c2eb7393 | Compare defaults off; no Trend column, sparkline inside Mention rate only while comparing; Avg position shows the bare list count; Brands and Cited links get a green check (brand named or site cited) or a grey dash | P-shell, P-metrics, P-popovers |
+| 7d1382ce, 45bfeb48 | Prompts top part in fixed places (controls row, summary strip with all four platform slots); platform marks in select, strip, headers, chooser | P-shell |
+| 6f3e4a9c | Overview Group select and groups heat map are one flat level, no parents | O-shell, O-groups |
+| 2413d3a9 | Metric select of the platform columns removed; platform columns show the mention rate | P-shell |
+| 48a5af36 | Intent column is plain text, no badge | P-metrics |
+| 1cb2a311 | Density menu removed from the Prompts and Topics tables, rows always compact | P-shell, P-groups |
+| 1f4101f7 | Prompt count and sort note removed from the Prompts toolbar, footer keeps the count | P-shell |
+| 58088738 | Prompts strip shows AI visibility per platform (named or cited) with an info button | P-shell |
+| 98e7d226 | Overview keeps one layout in every scope: every card keeps its place and smallest height, cards with nothing for a scope show why | O-shell, all Overview card packages |
+| 09be48bc, 1059557d | Internal links feature | out of scope |
