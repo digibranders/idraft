@@ -2017,7 +2017,7 @@ describe('Prompts: the metric strip', () => {
     for (let stops = 0; stops < 30 && document.activeElement !== chatgpt; stops += 1) await user.tab();
     expect(chatgpt).toHaveFocus();
     expect(
-      await screen.findByText(/^AI visibility \(named or cited\): 9 of 12 answers\./, {
+      await screen.findByText(/^AI visibility rate \(mentioned or cited\): 9 of 12 answers\./, {
         selector: '[data-slot="tooltip"] span',
       }),
     ).toBeInTheDocument();
