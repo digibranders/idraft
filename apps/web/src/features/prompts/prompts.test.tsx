@@ -2334,6 +2334,20 @@ describe('Topics & Prompts: rate columns, Top engine, sorting and the metric swi
     expect(new URLSearchParams(writes.at(-1)).get('sort')).toBe('prompts');
   });
 
+  it('draws the mark of the top engine before its name, and none where a topic has no top engine', async () => {
+    serveRates();
+    renderWithProviders(promptsAs('viewer'));
+    const tree = await screen.findByRole('treegrid', { name: 'Topics' });
+    await within(tree).findByText('SEO');
+    const topCell = within(rowOf(tree, 'SEO')).getByText('ChatGPT').closest('[role="gridcell"]');
+    const mark = topCell?.querySelector('img');
+    expect(mark).toHaveAttribute('alt', '');
+    expect(mark).toHaveAttribute('width', '16');
+    expect(mark?.nextSibling).toHaveTextContent('ChatGPT');
+    const noTopCell = within(rowOf(tree, 'Paid search')).getByText('n/a').closest('[role="gridcell"]');
+    expect(noTopCell?.querySelector('img')).toBeNull();
+  });
+
   describe('on three topics of other rates and top engines', () => {
     /** Alpha: ChatGPT 75%, Gemini 50%. Beta: ChatGPT 25%, Gemini 75%. Gamma: too few answers on either engine. */
     const serveTopics = (): void => {

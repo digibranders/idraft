@@ -1534,8 +1534,8 @@
   // instead of navigating.
 
   const VIEWS = { overview: 'Overview', ai: 'AI visibility', keywords: 'Keywords', pages: 'Pages', prompts: 'Topics & Prompts', settings: 'Settings' };
-  // Pages with tabs keep the tab in the route: #/prompts (Topics), #/prompts/explorer, #/prompts/panels, #/prompts/versions
-  const PAGE_TABS = { pages: ['performance', 'landing'], prompts: ['topics', 'explorer', 'panels', 'versions'] };
+  // Pages with tabs keep the tab in the route: #/prompts (Topics), #/prompts/explorer
+  const PAGE_TABS = { pages: ['performance', 'landing'], prompts: ['topics', 'explorer'] };
   let route = { view: 'keywords', section: null };
 
   function parseRoute(hash) {

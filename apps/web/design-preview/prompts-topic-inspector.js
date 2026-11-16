@@ -25,29 +25,31 @@ const hash = (text) => [...text].reduce((sum, char) => (sum * 31 + char.charCode
 // -------------------------------------------------------------------------------------------------
 // Overview
 
-function metricCard(label, value, change, note) {
-  const card = el('div', 'rounded-lg border border-border bg-surface p-3 min-w-0');
-  const dd = el('dd', 'mt-1 flex flex-col min-w-0');
-  dd.append(el('span', `type-metric-sm num truncate${value === null ? ' text-foreground-tertiary' : ''}`, value === null ? 'n/a' : percent0(value)));
-  // The change and the note each get a line: side by side they do not fit a third of the drawer
-  const delta = deltaNode(change, 1);
-  if (delta) {
-    delta.classList.add('mt-0.5', 'type-body-strong');
-    dd.append(delta);
+/** One line of the Rates card: the rate's name on the left, the rate, what it averages over and its change on the right. */
+function rateLine(label, value, change, note) {
+  const row = el('div', 'flex items-baseline justify-between gap-3 min-w-0');
+  const dd = el('dd', 'flex items-baseline gap-1 whitespace-nowrap');
+  if (value === null) dd.append(el('span', 'text-foreground-tertiary', 'n/a'));
+  else {
+    dd.append(el('span', 'num type-body-strong', percent0(value)), ' ', el('span', 'type-label text-foreground-tertiary', note));
+    const delta = deltaNode(change, 1);
+    if (delta) {
+      delta.classList.add('type-meta');
+      dd.append(delta);
+    }
   }
-  dd.append(el('span', 'mt-0.5 type-meta num truncate', note));
-  card.append(el('dt', 'type-label truncate', label), dd);
-  return card;
+  row.append(el('dt', 'type-meta text-foreground-tertiary', label), dd);
+  return row;
 }
 
 function fillNumbers(topic) {
   const scope = scopeCodes();
-  const note = scope.length > 1 ? `avg of ${scope.length}` : scopeEngines()[0].name;
+  const note = scope.length > 1 ? `avg of ${scope.length}` : '';
   const sov = groupAverage(topic.prompts, scope, 'sov');
   $('[data-topic-kv]', inspector).replaceChildren(
-    metricCard('Mention rate', topic.mention.value, topic.mentionChange, note),
-    metricCard('Citation rate', topic.citation.value, groupChange(topic.prompts, scope, 'citation'), note),
-    metricCard('Share of voice', sov.value, null, note),
+    rateLine('Mentioned', topic.mention.value, topic.mentionChange, note),
+    rateLine('Cited', topic.citation.value, groupChange(topic.prompts, scope, 'citation'), note),
+    rateLine('Share of voice', sov.value, null, note),
   );
 }
 

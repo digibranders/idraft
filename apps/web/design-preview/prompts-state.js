@@ -13,6 +13,8 @@ export const VIEWS = {
   branded: { label: 'Branded prompts', panel: [], branded: 'only' },
   discovery: { label: 'Discovery panel', panel: ['Discovery'], branded: 'exclude' },
 };
+/** The metric names of the select and of the engine columns. */
+export const METRIC_LABEL = { mention: 'Mention', citation: 'Citation', sov: 'Share of voice' };
 export const BRANDED_LABEL = { exclude: 'Excluded', include: 'Included', only: 'Only' };
 
 export const state = {
