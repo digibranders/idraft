@@ -201,7 +201,7 @@ function EnumEditor({
           />
           <ul className="flex flex-col">
             {shown.map((option) => (
-              <li key={option.value} className="group/option flex h-control-sm items-center gap-2">
+              <li key={option.value} className="group/option flex min-h-control-sm items-center gap-2">
                 <Checkbox
                   checked={selected.includes(option.value)}
                   label={option.label}

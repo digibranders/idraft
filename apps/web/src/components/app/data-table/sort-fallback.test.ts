@@ -16,6 +16,11 @@ describe('effectiveSort', () => {
     expect(effectiveSort([...SORT, { id: 'prompt', desc: false }], FALLBACK, ['prompt'])).toBe(FALLBACK);
   });
 
+  it('sorts by nothing while a column of the fallback is not shown either, so no header is left unmarked', () => {
+    expect(effectiveSort(SORT, SORT, ['prompt'])).toEqual([]);
+    expect(effectiveSort(SORT, [{ id: 'intent', desc: false }], ['prompt'])).toEqual([]);
+  });
+
   it('keeps the sort when there is no fallback', () => {
     expect(effectiveSort(SORT, undefined, ['prompt'])).toBe(SORT);
   });

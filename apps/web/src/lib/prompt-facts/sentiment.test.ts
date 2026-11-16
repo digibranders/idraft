@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { SENTIMENT_MIN, sentimentOf } from './sentiment';
+import { SENTIMENT_MIN, sentimentOf, wholePercents } from './sentiment';
 import { engine, rowOf } from './test-helpers';
 import type { SentimentCounts } from './types';
 
@@ -89,5 +89,31 @@ describe('sentimentOf', () => {
 
   it('is not collected when no row of the scope reports sentiment', () => {
     expect(sentimentOf([], SCOPE)).toMatchObject({ state: 'not_collected' });
+  });
+});
+
+describe('wholePercents', () => {
+  const add = (shares: Record<string, number>): number => Object.values(shares).reduce((sum, value) => sum + value, 0);
+
+  it('adds up to 100 where plain rounding gives 99', () => {
+    // 1/3 each of three keys: 33 + 33 + 33 + 0 would be 99
+    const shares = { positive: 1 / 3, neutral: 1 / 3, negative: 1 / 3, mixed: 0 };
+    expect(add(wholePercents(shares))).toBe(100);
+    expect(wholePercents(shares)).toEqual({ positive: 34, neutral: 33, negative: 33, mixed: 0 });
+  });
+
+  it('adds up to 100 where plain rounding gives 101', () => {
+    // 12.5, 12.5, 12.5, 62.5: plain rounding gives 13 + 13 + 13 + 63 = 102
+    const shares = { positive: 0.125, neutral: 0.125, negative: 0.125, mixed: 0.625 };
+    expect(add(wholePercents(shares))).toBe(100);
+  });
+
+  it('keeps shares that are whole already, and the first key wins a tie', () => {
+    expect(wholePercents({ positive: 0.78, neutral: 0.22, negative: 0, mixed: 0 })).toEqual({
+      positive: 78,
+      neutral: 22,
+      negative: 0,
+      mixed: 0,
+    });
   });
 });

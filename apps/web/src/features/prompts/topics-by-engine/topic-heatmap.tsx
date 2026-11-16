@@ -315,19 +315,25 @@ export function TopicHeatmap({
     <div className="flex min-h-0 flex-1 flex-col gap-2">
       {toolbar}
       {stateBody ?? (
-        <ChartFrame
-          kind="html"
-          title={title}
-          variant="panel"
-          meta={t('meta', { topics: topicCount, engines: engines.length })}
-          footnote={t('footnote', { min: MIN_OBSERVATIONS })}
-          height={FRAME_HEIGHT}
-          summary={t('summary', { metric: metricLabel, topics: topicCount, engines: engines.length })}
-          body={grid('grid')}
-          table={grid('table')}
-          menu={{ fileName: heatFileName(metric), csv }}
-          status={status === 'loading' || status === 'refetching' ? status : 'ready'}
-        />
+        // The page body has a fixed height: the whole panel (grid, legend, footnote) scrolls inside it. The block
+        // between has no height of its own, so the frame takes its natural height instead of the page's.
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <div>
+            <ChartFrame
+              kind="html"
+              title={title}
+              variant="panel"
+              meta={t('meta', { topics: topicCount, engines: engines.length })}
+              footnote={t('footnote', { min: MIN_OBSERVATIONS })}
+              height={FRAME_HEIGHT}
+              summary={t('summary', { metric: metricLabel, topics: topicCount, engines: engines.length })}
+              body={grid('grid')}
+              table={grid('table')}
+              menu={{ fileName: heatFileName(metric), csv }}
+              status={status === 'loading' || status === 'refetching' ? status : 'ready'}
+            />
+          </div>
+        </div>
       )}
     </div>
   );

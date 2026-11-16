@@ -19,7 +19,12 @@ const isGroup = (reading: Reading): reading is GroupVolumeReading => 'prompts' i
  * keywords, each counted once (`groupVolumeOf`). A row with no linked keyword, or none with a volume yet, says so in
  * the tooltip of an `n/a`, never a 0; it sorts last. `readingOf` gives a prompt's or a group's reading.
  */
-export function volumeColumn<TRow>(t: Translate, readingOf: (row: TRow) => Reading): DataTableColumn<TRow> {
+export function volumeColumn<TRow>(
+  t: Translate,
+  readingOf: (row: TRow) => Reading,
+  /** The header's tooltip where it is not the prompt's (the Groups tab words its own). */
+  headerTip: string = t('prompts.metrics.volume.tip'),
+): DataTableColumn<TRow> {
   const base = col.volumeTrend<TRow>(
     SORT_ID.volume,
     (row) => {
@@ -28,7 +33,7 @@ export function volumeColumn<TRow>(t: Translate, readingOf: (row: TRow) => Readi
     },
     {
       header: t('prompts.metrics.volume.header'),
-      headerTooltip: t('prompts.metrics.volume.tip'),
+      headerTooltip: headerTip,
       priority: 3,
       width: VOLUME_WIDTH,
       minWidth: VOLUME_WIDTH,

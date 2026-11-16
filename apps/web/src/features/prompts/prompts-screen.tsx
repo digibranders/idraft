@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import Link from 'next/link';
-import { parseAsString, useQueryStates } from 'nuqs';
+import { parseAsString, useQueryState, useQueryStates } from 'nuqs';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { useJustAdded } from './add/just-added-store';
@@ -36,7 +36,7 @@ import {
 } from './compare';
 import { PlatformSelect, withoutFullPlatformSet } from './engine-select';
 import { factsRequested, indexFacts, type PromptFacts } from './facts';
-import { groupsOfSummary } from './group-model';
+import { groupChoices, groupsOfSummary } from './group-model';
 import { asRecordActions, type PromptAction } from './prompt-action';
 import { usePromptColumns, type PromptRow } from './prompt-columns';
 import { PromptInspector, type PromptCounts } from './prompt-inspector';
@@ -52,12 +52,10 @@ import {
   parseTab,
   SORT_ID,
   PROMPTS_TABS,
-  topicChoices,
   topicDescendants,
   topicPrompts,
   topicOriginOf,
   topicsBelow,
-  topicsSpanned,
   topicSummaryRow,
   topicTermsOf,
   type DateRange,
@@ -136,10 +134,10 @@ export interface PromptsScreenProps {
 }
 
 /**
- * The URL's keys besides the filters': the tab (Topics has none), the country of the top bar and the tables'
+ * The URL's keys besides the filters': the tab (Groups has none), the country of the top bar and the tables'
  * state. They all stay when the tab changes, and so do the date range's own keys (`useDateRangeParams`). Each table
  * reads the sort ids it has and ignores the others (`SORT_ID` in prompt-model.ts); the columns are the Prompts
- * table's. `metric` is the Topics views' (the Prompts table's platform columns always show the mention rate).
+ * table's. `metric` is the Groups views' (the Prompts table's platform columns always show the mention rate).
  */
 const VIEW_STATE = {
   tab: parseAsString,
@@ -172,13 +170,12 @@ const COPY_LINK = 'copy-link';
 const OPEN_RUN = 'open-run';
 
 /**
- * AI > Topics & Prompts (spec 2026-11-11 section 4.6, ADR-DS-022): the project's prompts over a window of
- * days (28 by default) and a country, both in the top bar as project-wide scope, with Mentioned and Cited per
- * enabled engine. The country narrows both tabs and the counts. The filter bar narrows by topic and engine;
- * branded prompts are left out of the table and the
- * counts until the Branded filter includes them (16-metrics-methodology.md rule 4). A project
- * without an engine on is sent to Settings > Engines; until the first answers arrive the page says when they
- * come, so an empty table is not read as a failure.
+ * AI visibility > Prompts (spec 2026-11-11 section 4.6, ADR-DS-022): the project's prompts over a window of
+ * days (28 by default) and a location, both in the top bar as project-wide scope, with the rates per enabled
+ * platform. The location narrows both tabs and the counts. The filter bar narrows by group and platform; branded
+ * prompts are left out of the table and the counts until the Branded filter includes them
+ * (16-metrics-methodology.md rule 4). A project without a platform on is sent to Settings > Platforms; until the
+ * first answers arrive the page says when they come, so an empty table is not read as a failure.
  */
 export function PromptsScreen(props: PromptsScreenProps): ReactNode {
   const t = useTranslations('prompts');
@@ -237,29 +234,51 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   );
   const topicPaths = useMemo(() => new Map(topicTree.map((term) => [term.termId, term.path])), [topicTree]);
   const topicsUnknown = vocabularies.pending || vocabularies.error;
+  // Branded prompts are in the counts only when the filter includes them; read from the address, as the filter reads it,
+  // because the group choices below come from the summary, which this decides (the filter field is built from them)
+  const [brandedParam] = useQueryState('branded', parseAsString);
+  const includeBranded = brandedParam === 'include';
+  // The table stays on the last counts while a new window, or the Branded filter, is read. The weekly series comes
+  // with them in the one read, which the strip and the drawers use too, whatever the comparison: the Trend column of
+  // the Groups tab, the line in the Mention rate cell while comparing and the prompt's History tab read it. A failed
+  // series cannot be told from a failed summary, and a summary without series (an older API) leaves the line out
+  const summary = useQuery({
+    ...summaryQuery(scope, range, includeBranded, {
+      ...(country === null ? {} : { country }),
+      include: factsRequested() ? SERIES_AND_FACTS : SERIES,
+      compare,
+    }),
+    enabled: enabled.length > 0,
+    placeholderData: keepPreviousData,
+  });
+  const summaryData = summary.data?.data;
+  // The groups of the scope, as the Groups tab lists them: a topic with a prompt and none with a prompt below it. The
+  // vocabulary's other terms (an SEO group no prompt is in, a parent that has groups below it) are not groups here
+  // The groups the filter holds, read from the address like the Branded filter: the options are built from them
+  const [topicParam] = useQueryState('topic', parseAsString);
+  const chosenGroups = useMemo(
+    () => (topicParam === null ? [] : topicParam.split(',').map((id) => id.trim())),
+    [topicParam],
+  );
+  const carriedGroups = useMemo(
+    (): ReadonlyMap<string, string> => new Map([...topicTerms].map(([id, term]) => [id, term.name])),
+    [topicTerms],
+  );
+  const groupOptions = useMemo(
+    () => groupChoices(summaryData?.topics ?? [], topicTree, topicPaths, chosenGroups, carriedGroups),
+    [summaryData, topicTree, topicPaths, chosenGroups, carriedGroups],
+  );
   const fields = useMemo((): FilterField[] => {
-    const choices = topicChoices(topicTree, topicTerms);
-    const inTree = new Set(topicTree.map((term) => term.termId));
-    // A topic the tree does not hold (not read yet, or deleted) is named as the prompt names it; two of one name are told
-    // apart by their paths
-    const nameCounts = new Map<string, number>();
-    for (const choice of choices) nameCounts.set(choice.name, (nameCounts.get(choice.name) ?? 0) + 1);
     return [
       {
         id: 'topic',
         kind: 'enum',
         label: t('filters.topic'),
         multi: true,
-        optionsLoading: optionsPending || topicsUnknown,
-        // One flat list: a group of the tree below another is named by its path, so two of one name differ
-        options: choices.map((choice) => ({
-          value: choice.termId,
-          label: inTree.has(choice.termId)
-            ? choice.path
-            : (nameCounts.get(choice.name) ?? 0) > 1
-              ? t('filters.topicWithPath', { name: choice.name, path: choice.path })
-              : choice.name,
-        })),
+        // The groups are known when the summary, the trees and every page of the prompts are in (a chosen group that
+        // has no prompt in this scope is found among them); a value from a link is kept until then
+        optionsLoading: summaryData === undefined || topicsUnknown || optionsPending,
+        options: groupOptions.map((group) => ({ value: group.key, label: group.label, count: group.promptCount })),
       },
       {
         id: 'engine',
@@ -279,7 +298,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
       },
       detectableField({ field: t('compare.detectable.field'), option: t('compare.detectable.option') }),
     ];
-  }, [t, optionsPending, topicsUnknown, topicTree, topicTerms, enabled, engines.data]);
+  }, [t, summaryData, topicsUnknown, optionsPending, groupOptions, enabled, engines.data]);
   // A filter of a shared link that does not read is left out, and the person is told (13 section 5)
   const [urlValues, setUrlValues] = useUrlFilters(fields, {
     onDropped: (dropped) =>
@@ -333,7 +352,6 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     setValues({});
     void setView({ country: null });
   }, [setValues, setView]);
-  const includeBranded = useMemo(() => enumValuesOf(values.branded).includes('include'), [values.branded]);
   // Only the platforms the Platform filter names, else every platform that is on
   const chosenPlatforms = useMemo(() => enumValuesOf(values.engine), [values.engine]);
   const shown = useMemo(
@@ -352,20 +370,6 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
         : { ...values, engine: { kind: 'enum', values: codes } },
     );
 
-  // The table stays on the last counts while a new window, or the Branded filter, is read. The weekly series comes
-  // with them in the one read, which the strip and the drawers use too, whatever the comparison: the Trend column of
-  // the Groups tab, the line in the Mention rate cell while comparing and the prompt's History tab read it. A failed
-  // series cannot be told from a failed summary, and a summary without series (an older API) leaves the line out
-  const summary = useQuery({
-    ...summaryQuery(scope, range, includeBranded, {
-      ...(country === null ? {} : { country }),
-      include: factsRequested() ? SERIES_AND_FACTS : SERIES,
-      compare,
-    }),
-    enabled: enabled.length > 0,
-    placeholderData: keepPreviousData,
-  });
-  const summaryData = summary.data?.data;
   const codes = useMemo(() => shown.map((engine) => engine.engine.engine_code), [shown]);
   // Counts held from a read made without the comparison carry no `previous`: while the new read is on its way the chip
   // waits for it, so it does not empty the table for a moment. A read that failed has no counts to judge by either:
@@ -486,6 +490,8 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   // In the order of the list, as the table shows them
   const bulkActions: readonly PromptAction[] = actions.bar(
     [...rowsById.keys()].filter((promptId) => chosen.has(promptId)),
+    // On the Groups tab the prompts chosen are those of groups, and their file says so
+    tab === 'topics' ? 'groups' : 'prompts',
   );
 
   // The strip reads the prompts in scope (a search is no filter, so it does not narrow it, ADR-DS-022 decision 6)
@@ -497,14 +503,24 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
       })),
     [rows],
   );
-  // Without the topic trees (still being read, or failed) a topic cannot be rolled up, so the count would fall short
-  const stripTopics = useMemo(
+  // The groups the Groups tab lists (the same rule and the same filters), so the strip and the tab count alike. Without
+  // the topic trees (still being read, or failed) a group cannot be told from the topic above it
+  const groupsInScope = useMemo(
     () =>
-      summary.data === undefined || topicsUnknown
+      summaryData === undefined || topicsUnknown
         ? null
-        : topicsSpanned(summary.data.data.topics, stripPrompts, descendants, topicIds.length > 0 ? kept : null),
-    [summary.data, topicsUnknown, stripPrompts, descendants, topicIds, kept],
+        : groupsOfSummary({
+            summary: summaryData,
+            tree: topicTree,
+            descendants,
+            kept,
+            filtering: topicIds.length > 0,
+            codes,
+            only: detectableGroups,
+          }),
+    [summaryData, topicsUnknown, topicTree, descendants, kept, topicIds, codes, detectableGroups],
   );
+  const stripGroups = groupsInScope === null ? null : groupsInScope.length;
 
   // The facts of the columns that later packages build, from the one summary read (never a request for a row); absent
   // while the API does not send them, which those columns say as not collected yet
@@ -611,7 +627,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     window.open(url, '_blank', 'noopener');
   };
   /**
-   * A prompt opened from a row: of the Prompts tab (flat, no `topicKey`) or under a topic of the Topics tab, whose
+   * A prompt opened from a row: of the Prompts tab (flat, no `topicKey`) or under a group of the Groups tab, whose
    * prompts are then the list J and K step through, as when it is opened from the drawer (decision 8).
    */
   const openPromptRow = (promptId: string, intent: 'inspector' | 'new-tab' = 'inspector', topicKey?: string): void => {
@@ -654,7 +670,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   // A topic's prompts come from the summary, and an action reads them from the list: until the list is whole (or when
   // it failed) some of them are not in it, so the actions that read them wait
   const listReason = optionsPending ? t('bulk.listLoading') : null;
-  /** The "More" menu of a row of the Topics tab: a topic's, or the prompt listed under a topic's. */
+  /** The "More" menu of a row of the Groups tab: a group's, or the prompt listed under a group's. */
   const topicMenu = (target: TopicMenuTarget): readonly PromptAction[] => {
     if (target.kind === 'prompt') {
       return actions.forPrompt(target.promptId, () => openPromptRow(target.promptId, 'inspector', target.topicKey));
@@ -712,7 +728,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
               icon: Download,
               group: 'copy' as const,
               disabledReason: listReason,
-              run: () => actions.exportPrompts(target.promptIds),
+              run: () => actions.exportPrompts(target.promptIds, 'groups'),
             },
           ]
         : []),
@@ -768,6 +784,35 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     }
     return summary.isFetching || list.fetching ? 'refetching' : 'ready';
   })();
+
+  // A drawer follows the scope (PR-DRAWER-16): when the location, the window or a filter changes under an open prompt or
+  // group and the new scope no longer holds it, the drawer closes once the counts of the new scope are in, instead of
+  // saying it has no counts or that the group does not exist. A drawer that came with the link is not judged until the
+  // scope changes, so a shared link to a prompt outside the filters still opens it
+  const scopeKey = [project.id, country, range.from, range.to, includeBranded, topicIds.join(','), detectableOnly].join(
+    '|',
+  );
+  const judgedScope = useRef(scopeKey);
+  const judgeDrawer = useRef(false);
+  useEffect(() => {
+    if (judgedScope.current === scopeKey) return;
+    judgedScope.current = scopeKey;
+    judgeDrawer.current = true;
+  }, [scopeKey]);
+  const scopeSettled = topicsStatus === 'ready' && !summary.isPlaceholderData;
+  const groupKeysInScope = useMemo(
+    () => (groupsInScope === null ? null : new Set(groupsInScope.map((group) => group.key))),
+    [groupsInScope],
+  );
+  const closeInspector = inspector.close;
+  useEffect(() => {
+    if (!judgeDrawer.current || !scopeSettled) return;
+    judgeDrawer.current = false;
+    const promptLeft = openPrompt !== null && !rowsById.has(openPrompt);
+    const groupLeft =
+      openTopic !== null && openTopic !== NO_TOPIC && groupKeysInScope !== null && !groupKeysInScope.has(openTopic);
+    if (promptLeft || groupLeft) closeInspector();
+  }, [scopeSettled, openPrompt, openTopic, rowsById, groupKeysInScope, closeInspector]);
 
   // The views of the page, in the toolbar of whichever table is shown, so the table is drawn again when the view
   // changes and the switch with it: the focus is put back on it when the change was made from it
@@ -957,7 +1002,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
           prompts={stripPrompts}
           engines={enabled}
           inView={codes}
-          topics={stripTopics}
+          topics={stripGroups}
           status={stripStatus}
           countsFailed={summaryFailed}
         />
@@ -1042,8 +1087,6 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
             <TopicsView
               scope={scope}
               range={range}
-              includeBranded={includeBranded}
-              country={country}
               summary={summaryData}
               detectable={detectableGroups}
               engines={shown}
@@ -1119,8 +1162,15 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
                 onDensityChange={nothing}
                 columnState={{
                   visible,
-                  onChange: (next) =>
-                    void setView({ cols: next === null ? null : formatColumns(keepLocationChoice(next)) }),
+                  // Hiding the sorted column drops its sort from the address too, so the link says what the table does
+                  onChange: (next) => {
+                    const kept = next === null ? null : keepLocationChoice(next);
+                    const sortHidden = kept !== null && sort.some((key) => !kept.includes(key.id));
+                    void setView({
+                      cols: kept === null ? null : formatColumns(kept),
+                      ...(sortHidden ? { sort: null } : {}),
+                    });
+                  },
                 }}
                 search={view.q}
                 onSearchChange={(next) => void setView({ q: next === '' ? null : next })}

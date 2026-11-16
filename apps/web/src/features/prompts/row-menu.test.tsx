@@ -162,7 +162,7 @@ describe('the row menu of a group', () => {
     expect(within(filters).getByRole('button', { name: /^Group: .*Blog Strategy/ })).toBeInTheDocument();
     // One platform is the Platform select's, which keeps it; it has no chip
     expect(within(filters).queryByRole('button', { name: /^Platform: / })).toBeNull();
-    expect(screen.getByRole('combobox', { name: 'Platform' })).toHaveTextContent('Gemini');
+    expect(screen.getByRole('combobox', { name: /^Platform: / })).toHaveTextContent('Gemini');
   });
 
   it('opens Add prompts with the group already chosen', async () => {

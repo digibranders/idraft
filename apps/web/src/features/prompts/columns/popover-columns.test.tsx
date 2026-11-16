@@ -9,7 +9,7 @@ import { popoverColumns } from './popover-columns';
 import { screenshotColumn } from './screenshot-column';
 import { indexFacts, type FactsRow, type PromptFacts } from '../facts';
 import { cellOf, engine, entityCells, rowOf } from '../facts/test-helpers';
-import { chatgptRow, PROJECT, platformName, TRACKED } from '../lists/lists-fixtures';
+import { chatgptRow, PROJECT, platformName, TRACKED } from '@/test/prompt-lists-fixtures';
 import type { PromptRow } from '../prompt-columns';
 import { SORT_ID } from '../prompt-model';
 import { COLUMN_AFTER, withColumnEntries, type PromptColumnContext } from '../seams/columns';

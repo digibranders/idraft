@@ -109,5 +109,8 @@ describe('the CSV of prompts', () => {
 
   it('names the file for the window of the answers', () => {
     expect(exportFileName({ from: '2026-10-16', to: '2026-11-12' })).toBe('prompts-2026-10-16-to-2026-11-12.csv');
+    expect(exportFileName({ from: '2026-10-16', to: '2026-11-12' }, 'groups')).toBe(
+      'groups-prompts-2026-10-16-to-2026-11-12.csv',
+    );
   });
 });

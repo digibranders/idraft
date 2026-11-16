@@ -117,6 +117,26 @@ describe('the topic drawer: opening', () => {
     await waitFor(() => expect(screen.queryByRole('complementary', { name: 'Paid Search' })).toBeNull());
   });
 
+  it('says a group the project holds but the scope has no prompt of is out of the scope, not that it does not exist', async () => {
+    server.use(
+      http.get(SUMMARY_PATH, () =>
+        HttpResponse.json({
+          data: {
+            window: { from: '2026-10-16', to: '2026-11-12', timezone: 'Europe/Berlin' },
+            include_branded: false,
+            engine_codes: ['chatgpt_web'],
+            prompts: [],
+            topics: [],
+          },
+        }),
+      ),
+    );
+    renderOn('viewer', inspect(`topic:${MOCK_TERM_IDS.paidSearch}`));
+    const panel = await screen.findByRole('complementary');
+    expect(await within(panel).findByText('No prompt of this group in this scope')).toBeInTheDocument();
+    expect(within(panel).queryByText(/does not exist/)).toBeNull();
+  });
+
   it('says a topic the summary has no row for does not exist', async () => {
     renderOn('viewer', inspect('topic:99999999-0000-4000-8000-000000000001'));
     const panel = await screen.findByRole('complementary');
@@ -206,7 +226,7 @@ describe('the topic drawer: the numbers', () => {
     if (rates === null) throw new Error('The Rates card is missing');
     // The mean of 37.5% and 100%, over the two engines that have a rate
     expect(within(rates).getByText('69%')).toBeInTheDocument();
-    expect(within(rates).getAllByText('avg of 2').length).toBeGreaterThan(0);
+    expect(within(rates).getAllByText('average of 2').length).toBeGreaterThan(0);
     // No answer names a tracked brand, so there is no share of voice to average
     expect(within(rates).getByText('No valid answers')).toBeInTheDocument();
     const byEngine = within(panel).getByRole('heading', { name: 'By platform' }).closest('section');

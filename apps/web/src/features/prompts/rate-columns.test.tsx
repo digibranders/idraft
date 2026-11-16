@@ -71,7 +71,7 @@ describe('the Mention rate cell change', () => {
     render({ cells: [chat(DETECTABLE), gemini(cell(20, 20), null)] });
     expect(screen.getByTestId('cell')).toHaveTextContent('75%');
     // The percent alone: the platforms the average is over are in the tooltip
-    expect(screen.getByTestId('cell')).not.toHaveTextContent('avg of');
+    expect(screen.getByTestId('cell')).not.toHaveTextContent('average of');
     expect(icon()).toHaveClass('text-positive-text');
     expect(icon()).toHaveAttribute('data-direction', 'up');
     // The points are not in the cell: they are in its tooltip

@@ -443,17 +443,17 @@ describe('the built rows of the topic drawer, confirmed through the real screen'
     expect(within(failed).getAllByRole('button', { name: 'Try again' }).length).toBeGreaterThan(0);
   });
 
-  it('WB-TPE-18 says "avg of 2" on the drawer rate card, and the average column of the By engine view shows the percent alone', async () => {
+  it('WB-TPE-18 says "average of 2" on the drawer rate card, and the average column of the By engine view shows the percent alone', async () => {
     const { unmount } = renderOn('viewer', inspect(PAID_SEARCH));
     const panel = await drawer('Paid Search');
     const rates = (await within(panel).findByRole('heading', { name: 'Rates' })).closest('section');
     if (rates === null) throw new Error('The Rates card is missing');
-    expect((await within(rates).findAllByText('avg of 2')).length).toBeGreaterThan(0);
+    expect((await within(rates).findAllByText('average of 2')).length).toBeGreaterThan(0);
     unmount();
 
     renderOn('viewer', '?view=engines');
     const table = await screen.findByRole('treegrid', { name: 'Groups' });
     expect((await within(table).findAllByText(/^\d+%$/)).length).toBeGreaterThan(0);
-    expect(within(table).queryByText(/avg of/)).toBeNull();
+    expect(within(table).queryByText(/average of/)).toBeNull();
   });
 });

@@ -98,7 +98,7 @@ describe('InSearch: the search counts of a topic', () => {
   it('links to Rankings filtered to the topic', async () => {
     serve(4, 1);
     renderDrawerPart(<InSearch />);
-    const link = await screen.findByRole('link', { name: 'Open in Rankings' });
+    const link = await screen.findByRole('link', { name: 'Open in Keywords' });
     expect(link).toHaveAttribute('href', `/digibranders/fynix/seo/keywords?tag=${DRAWER_TOPIC_ID}`);
   });
 

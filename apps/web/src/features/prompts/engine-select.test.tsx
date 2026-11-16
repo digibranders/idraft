@@ -58,35 +58,39 @@ describe('withoutFullPlatformSet', () => {
 });
 
 describe('PlatformSelect', () => {
-  it('is named Platform and lists All platforms, then the platforms in the product order, each with a mark', async () => {
+  it('is named Platform with its choice and lists All platforms, then the platforms in the product order, each with a mark', async () => {
     const { user } = renderWithProviders(<Harness />);
-    const select = screen.getByRole('combobox', { name: 'Platform' });
+    const select = screen.getByRole('combobox', { name: 'Platform: All platforms' });
     expect(select).toHaveTextContent('All platforms');
     await user.click(select);
+    // The list has its own name, and Google AI Overview is listed as not available, never chosen
+    expect(await screen.findByRole('listbox', { name: 'Platform in view' })).toBeInTheDocument();
     const options = await screen.findAllByRole('option');
     expect(options.map((option) => option.textContent)).toEqual([
       'All platforms',
       'ChatGPT',
       'Gemini',
       'Google AI Mode',
+      'Google AI OverviewNot available',
     ]);
-    expect(options.slice(1).every((option) => option.querySelector('img') !== null)).toBe(true);
+    expect(options.slice(1, 4).every((option) => option.querySelector('img') !== null)).toBe(true);
+    expect(options[4]).toHaveAttribute('aria-disabled', 'true');
   });
 
   it('chooses one platform, and All platforms again empties the filter', async () => {
     const { user } = renderWithProviders(<Harness />);
-    await user.click(screen.getByRole('combobox', { name: 'Platform' }));
+    await user.click(screen.getByRole('combobox', { name: 'Platform: All platforms' }));
     await user.click(await screen.findByRole('option', { name: 'Google AI Mode' }));
     expect(screen.getByLabelText('filter')).toHaveTextContent('google_ai_mode');
-    expect(screen.getByRole('combobox', { name: 'Platform' })).toHaveTextContent('Google AI Mode');
-    await user.click(screen.getByRole('combobox', { name: 'Platform' }));
+    expect(screen.getByRole('combobox', { name: 'Platform: Google AI Mode' })).toHaveTextContent('Google AI Mode');
+    await user.click(screen.getByRole('combobox', { name: 'Platform: Google AI Mode' }));
     await user.click(await screen.findByRole('option', { name: 'All platforms' }));
     expect(screen.getByLabelText('filter')).toBeEmptyDOMElement();
   });
 
   it('shows a set of two as its count, and choosing the set again changes nothing', async () => {
     const { user } = renderWithProviders(<Harness initial={['chatgpt_web', 'gemini_web']} />);
-    const select = screen.getByRole('combobox', { name: 'Platform' });
+    const select = screen.getByRole('combobox', { name: 'Platform: 2 platforms' });
     expect(select).toHaveTextContent('2 platforms');
     await user.click(select);
     await user.click(await screen.findByRole('option', { name: '2 platforms' }));

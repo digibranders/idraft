@@ -217,7 +217,8 @@ export function PromptsStrip({
       role="group"
       aria-label={t('label')}
       aria-busy={status === 'ready' ? undefined : true}
-      className="flex overflow-hidden rounded-lg border border-border bg-surface"
+      // Positioned, so the screen reader text of a chip scrolled out of view is clipped here and not left beyond the page
+      className="relative flex overflow-hidden rounded-lg border border-border bg-surface"
     >
       <dl
         style={{ gridTemplateColumns: `${GRID} repeat(${String(slots.length)}, ${PLATFORM_COLUMN})` }}

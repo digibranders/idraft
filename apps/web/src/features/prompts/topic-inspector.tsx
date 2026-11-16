@@ -174,6 +174,7 @@ function TopicInspectorBody({
   onClose,
 }: Omit<TopicInspectorProps, 'extras'>): ReactElement {
   const t = useTranslations('prompts.topicDrawer');
+  const groupScope = useTranslations('prompts.groupOutOfScope');
   const root = useTranslations();
   const words = useTranslations('prompts');
   const common = useTranslations('common');
@@ -255,12 +256,22 @@ function TopicInspectorBody({
   if (missing) {
     body = (
       <InspectorBody>
-        <EmptyState
-          variant="inline"
-          title={t('loadFailed')}
-          reason={inspectorWords('notFound', { type: t('noun') })}
-          headingLevel={3}
-        />
+        {/* A group the project holds but the scope has no prompt of is not a group that does not exist */}
+        {treeName === null ? (
+          <EmptyState
+            variant="inline"
+            title={t('loadFailed')}
+            reason={inspectorWords('notFound', { type: t('noun') })}
+            headingLevel={3}
+          />
+        ) : (
+          <EmptyState
+            variant="inline"
+            title={groupScope('noneTitle')}
+            reason={groupScope('noneReason')}
+            headingLevel={3}
+          />
+        )}
       </InspectorBody>
     );
   } else {

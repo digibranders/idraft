@@ -76,8 +76,9 @@ const foldPath = (text: string): string =>
     .join('/');
 
 /**
- * Every term the project sees as a choice: the terms of the topic vocabularies first, then the terms of the
- * others as tags labelled with their vocabulary. With more than one topic vocabulary each topic names its own.
+ * Every term the project sees as a choice: the terms of the topic vocabularies first, each by its path (never with
+ * the name of its vocabulary: the vocabulary is not a word the person uses), then the terms of the others as tags
+ * labelled with their vocabulary.
  */
 export function buildTopicChoices(
   vocabularies: readonly VocabularyTerms[],
@@ -99,7 +100,7 @@ export function buildTopicChoices(
         group,
       })),
     );
-  return [...named(topics, 'topic', topics.length > 1), ...named(tags, 'tag', true)];
+  return [...named(topics, 'topic', false), ...named(tags, 'tag', true)];
 }
 
 /** A typed path as a choice to make in `vocabulary`; `label` words it for the chip ("CRM / Startups (new)"). */

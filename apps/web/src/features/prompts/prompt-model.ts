@@ -12,7 +12,6 @@ import type {
 import { formatIsoDate, formatSampleCount } from '@/lib/format';
 import type { NamedTerm } from '@/lib/keywords/taxonomy-reads';
 import type { Country } from '@/lib/locations/countries';
-import type { StripPrompt } from '@/lib/rates/strip-model';
 import type { SortKey } from '@/lib/tables/table-state';
 
 /**
@@ -201,28 +200,6 @@ export function topicMembers<T extends Pick<PromptSummaryRow, 'topic_term_ids'>>
   return prompts.filter((prompt) => prompt.topic_term_ids.some((id) => below.has(id)));
 }
 
-/**
- * How many topics the prompts in scope span: the topics of the summary that hold at least one of them, as the
- * Topics tab lists them (the topic a prompt is given and every topic above it; the "No topic" row is not a
- * topic), within `kept` when a topic filter is set (`null` otherwise). The caller must not ask before the
- * vocabulary trees are read: a topic the tree does not hold cannot be rolled up, and this counts it only when a
- * prompt carries it itself.
- */
-export function topicsSpanned(
-  topics: readonly TopicSummaryRow[],
-  prompts: readonly StripPrompt[],
-  descendants: TopicDescendants,
-  kept: ReadonlySet<string> | null,
-): number {
-  return topics.filter((topic) => {
-    // The row of no topic is not a topic the prompts span
-    const termId = topic.term_id;
-    if (termId === null || (kept !== null && !topicRowKept(termId, kept))) return false;
-    const members = topicMembers(termId, prompts, descendants);
-    return members === null ? prompts.some((prompt) => prompt.topic_term_ids.includes(termId)) : members.length > 0;
-  }).length;
-}
-
 /** The topic key of the prompts without a topic, in the address (`topic:__none`) and in the table's row ids. */
 export const NO_TOPIC = '__none';
 
@@ -298,29 +275,6 @@ export function topicOriginOf(
 ): TopicOrigin | null {
   if (origin === null || open.promptId === null || origin.projectId !== open.projectId) return null;
   return origin.promptId === open.promptId || open.order?.includes(open.promptId) === true ? origin : null;
-}
-
-export interface TopicChoice {
-  termId: string;
-  name: string;
-  /** Where the topic sits, to tell two of one name apart. */
-  path: string;
-}
-
-/**
- * The groups a filter offers, as the Overview's Group select does (preview commit 6f3e4a9c): every topic of the topic
- * vocabularies as one flat list in the tree's order, with no parent rows or indent; a topic below another is named by
- * its path (`path` of a top level topic is its name). A carried topic the tree does not hold (not read yet, or deleted)
- * comes after, as the prompt describes it. Choosing a topic that has others below it keeps their groups too.
- */
-export function topicChoices(tree: readonly NamedTerm[], carried: ReadonlyMap<string, TopicTerm>): TopicChoice[] {
-  const byId = new Map(tree.map((term) => [term.termId, term]));
-  return [
-    ...tree.map(({ termId, name, path }) => ({ termId, name, path })),
-    ...[...carried.values()]
-      .filter((term) => !byId.has(term.term_id))
-      .map((term) => ({ termId: term.term_id, name: term.name, path: term.path })),
-  ];
 }
 
 /**

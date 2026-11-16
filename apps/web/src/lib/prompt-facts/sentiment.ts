@@ -83,3 +83,24 @@ export function sentimentOf(rows: readonly FactsRow[], scope: readonly string[])
     answers,
   };
 }
+
+/**
+ * The four shares as whole percents that add up to 100 (largest remainder; a tie goes to the key first in
+ * `SENTIMENT_KEYS`), so a line that prints all four never reads 99 or 101. The counts behind them stay exact.
+ */
+export function wholePercents(shares: Readonly<Record<SentimentKey, number>>): Record<SentimentKey, number> {
+  const parts = SENTIMENT_KEYS.map((key) => {
+    const exact = shares[key] * 100;
+    return { key, floor: Math.floor(exact), rest: exact - Math.floor(exact) };
+  });
+  const missing = 100 - parts.reduce((sum, part) => sum + part.floor, 0);
+  const bumped = new Set(
+    [...parts]
+      .sort((a, b) => b.rest - a.rest || SENTIMENT_KEYS.indexOf(a.key) - SENTIMENT_KEYS.indexOf(b.key))
+      .slice(0, Math.max(0, missing))
+      .map((part) => part.key),
+  );
+  const whole = (key: SentimentKey): number =>
+    (parts.find((part) => part.key === key)?.floor ?? 0) + (bumped.has(key) ? 1 : 0);
+  return { positive: whole('positive'), neutral: whole('neutral'), negative: whole('negative'), mixed: whole('mixed') };
+}

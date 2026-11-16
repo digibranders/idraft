@@ -123,7 +123,9 @@ function withProjectTopics(): void {
 describe('Group picker', () => {
   it('lists the groups with the groups above them, the tags by vocabulary, and says what a nested group counts under', async () => {
     const { user, container } = render();
-    expect(screen.getByText('A prompt counts under its group and the groups above it.')).toBeInTheDocument();
+    expect(
+      screen.getByText('A prompt counts in each group you give it. A group inside another shows its path.'),
+    ).toBeInTheDocument();
     await open(user);
     const names = (await screen.findAllByRole('option')).map((option) => option.textContent);
     expect(names).toEqual(

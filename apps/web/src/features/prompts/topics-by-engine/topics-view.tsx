@@ -3,7 +3,7 @@
 import { Download } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { parseAsString, useQueryState } from 'nuqs';
-import { useCallback, useEffect, useMemo, type ReactElement, type ReactNode } from 'react';
+import { useCallback, useEffect, type ReactElement, type ReactNode } from 'react';
 
 import { buildByEngineExport, byEngineFileName } from './by-engine-export';
 import { parseView, type TopicsView as View } from './drill';
@@ -11,16 +11,16 @@ import { useByEngineColumns } from './engine-columns';
 import { heatOrder, heatOrderText, parseHeatOrder, type HeatOrder } from './heat-model';
 import { TopicHeatmap } from './topic-heatmap';
 import { topicHeads, type TopicHead } from './topic-rows';
-import { useTopicEntities, type TopicReadScope } from './topic-entities-query';
 import { TopicsMobileList } from './topics-mobile-list';
 import { useDrill } from './use-drill';
 import { ViewSwitch } from './view-switch';
 import { LIST_MEDIA } from '@/components/app/data-table/data-table-list';
-import type { DataTableColumn, TableStatus } from '@/components/app/data-table/types';
+import type { TableStatus } from '@/components/app/data-table/types';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/toast';
 import { setTopicOrder } from '@/features/prompts/topic-drawer/topic-order-store';
-import { CELL_OF_METRIC, engineSortId, TOPIC_TAB, type RateMetric } from '@/features/prompts/prompt-model';
+import { CELL_OF_METRIC, TOPIC_TAB, type DateRange, type RateMetric } from '@/features/prompts/prompt-model';
+import type { PromptScope } from '@/features/prompts/prompt-queries';
 import { TopicsTable, type TopicRow, type TopicsTableProps } from '@/features/prompts/topics-table';
 import type { EngineSummary } from '@/lib/api/types';
 import { csvBlob, downloadBlob } from '@/lib/csv/csv-write';
@@ -53,7 +53,11 @@ function usePhoneLayout(): boolean {
   return narrow && !wide;
 }
 
-export type TopicsViewProps = Omit<TopicsTableProps, 'project'> & TopicReadScope;
+export type TopicsViewProps = Omit<TopicsTableProps, 'project'> & {
+  scope: PromptScope;
+  /** The window of the counts, which names the By platform file. */
+  range: DateRange;
+};
 
 /**
  * The Groups tab (WP-20, PR-TVIEW): the List, the table of groups that open onto their prompts; the By platform view,
@@ -62,7 +66,7 @@ export type TopicsViewProps = Omit<TopicsTableProps, 'project'> & TopicReadScope
  * since a column of one view is not a column of another. Under 768 px the List and the By platform view are one list
  * of two line rows, and the Heat map stays a grid that scrolls.
  */
-export function TopicsView({ scope, range, includeBranded, country, ...table }: TopicsViewProps): ReactElement {
+export function TopicsView({ scope, range, ...table }: TopicsViewProps): ReactElement {
   const t = useTranslations('prompts.topicDrawer.byEngineView');
   const prompts = useTranslations('prompts');
   const locale = useLocale();
@@ -72,25 +76,15 @@ export function TopicsView({ scope, range, includeBranded, country, ...table }: 
   const metricKey = CELL_OF_METRIC[METRIC];
   // The phone has no By platform table: its list is the List
   const columnsView = view === 'engines' && !phone;
-  // Not asked: the leaders of a platform are not in the By platform view of the preview
-  const entities = useTopicEntities({ scope, range, includeBranded, country }, false);
   const onDrill = useDrill();
-  const allColumns = useByEngineColumns<TopicRow>({
+  // The columns of the preview's By platform view: each platform's mention rate and the platform gap
+  const columns = useByEngineColumns<TopicRow>({
     engines: table.engines,
     cellsOf,
     topicOf,
-    entities,
     metric: METRIC,
     onDrill,
   });
-  // The columns of the preview's By platform view: each platform's mention rate and the platform gap
-  const columns = useMemo((): DataTableColumn<TopicRow>[] => {
-    const shown = new Set([
-      ...table.engines.map(({ engine }) => engineSortId(engine.engine_code, 'rate')),
-      'engine_gap',
-    ]);
-    return allColumns.filter((column) => shown.has(column.id));
-  }, [allColumns, table.engines]);
   const { projectId } = scope;
   const onTopicOrderChange = useCallback((keys: readonly string[]) => setTopicOrder(projectId, keys), [projectId]);
   // The order the drawer steps through is this table's: it goes with it

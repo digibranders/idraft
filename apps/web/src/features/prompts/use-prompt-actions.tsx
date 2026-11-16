@@ -5,7 +5,7 @@ import { Archive, Copy, Download, PanelRight, Play } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 
-import { buildPromptExport, exportFileName } from './export-rows';
+import { buildPromptExport, exportFileName, type ExportSubject } from './export-rows';
 import type { PromptAction } from './prompt-action';
 import type { PromptRow } from './prompt-columns';
 import type { DateRange } from './prompt-model';
@@ -77,13 +77,13 @@ export interface PromptActionsOptions {
 
 export interface PromptActions {
   /** The bulk bar's actions on the prompts of `ids`, for the permissions the person has. */
-  bar: (ids: readonly string[]) => PromptAction[];
+  bar: (ids: readonly string[], subject?: ExportSubject) => PromptAction[];
   /** The row menu of one prompt: `open` shows it in the inspector. */
   forPrompt: (promptId: string, open: () => void) => PromptAction[];
   /** Run now on the prompts of `ids` (a topic's): asks first for more than one. The caller checks `runs:trigger`. */
   run: (ids: readonly string[]) => void;
-  /** Writes the prompts of `ids` as CSV. */
-  exportPrompts: (ids: readonly string[]) => void;
+  /** Writes the prompts of `ids` as CSV; the file is named for the groups when they are those of groups. */
+  exportPrompts: (ids: readonly string[], subject?: ExportSubject) => void;
   /** Why Run now and Archive wait: one of them is running. `null` when none is. */
   busyReason: string | null;
   /** The dialogs the actions open; the screen renders them once. */
@@ -439,7 +439,7 @@ export function usePromptActions({
     });
   };
 
-  const exportPrompts = (ids: readonly string[]): void => {
+  const exportPrompts = (ids: readonly string[], subject: ExportSubject = 'prompts'): void => {
     const chosen = new Set(ids);
     // In the order of the list, as the table shows them
     const rows = [...rowsById.values()].filter((row) => chosen.has(row.prompt.prompt_id));
@@ -470,7 +470,7 @@ export function usePromptActions({
         cited: (engine) => t('columns.cited', { engine }),
         answers: (engine) => t('bulk.exportAnswers', { engine }),
       });
-      downloadBlob(csvBlob(table), exportFileName(range));
+      downloadBlob(csvBlob(table), exportFileName(range, subject));
       toast({
         type: 'success',
         title: t('bulk.exported', { count: rows.length }),
@@ -533,7 +533,7 @@ export function usePromptActions({
       permissions,
     );
 
-  const bar = (ids: readonly string[]): PromptAction[] => {
+  const bar = (ids: readonly string[], subject: ExportSubject = 'prompts'): PromptAction[] => {
     const plan = planRuns(
       rowsOf(ids).map((row) => row.prompt),
       engines,
@@ -557,7 +557,7 @@ export function usePromptActions({
         label: t('bulk.export'),
         icon: Download,
         group: 'object' as const,
-        run: () => exportPrompts(ids),
+        run: () => exportPrompts(ids, subject),
       },
       ...(canWrite
         ? [

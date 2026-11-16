@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { useMemo, useState, type ReactElement, type ReactNode } from 'react';
 
 import { heatOrder } from './heat-model';
+import { HatchedPill } from '../columns/metric-shared';
 import { topicListLines } from './list-lines';
 import type { TopicHead } from './topic-rows';
 import { col } from '@/components/app/data-table/columns';
@@ -15,7 +16,6 @@ import {
   type ListLine2,
 } from '@/components/app/data-table/data-table-list';
 import type { DataTableColumn, TableStatus } from '@/components/app/data-table/types';
-import { InsufficientPill } from '@/components/app/metric/insufficient-pill';
 import { Input } from '@/components/ui/input';
 import { InputGroup } from '@/components/ui/input-group';
 import type { ProjectEngine } from '@/lib/api/types';
@@ -106,7 +106,7 @@ export function TopicsMobileList({
         average.state === 'ok' && average.value !== null ? (
           percent(average.value)
         ) : average.state === 'insufficient' ? (
-          <InsufficientPill answers={average.answers} tip={false} />
+          <HatchedPill>{t('metrics.notEnough')}</HatchedPill>
         ) : (
           <span className="text-foreground-tertiary">{EMPTY_VALUE}</span>
         ),

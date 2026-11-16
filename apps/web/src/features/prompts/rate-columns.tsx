@@ -3,6 +3,7 @@
 import { useLocale, useTranslations } from 'next-intl';
 import { useMemo, type ReactElement } from 'react';
 
+import { HatchedPill } from './columns/metric-shared';
 import { useChangeWords, useComparedWindow, useCompare, type ComparedWindow } from './compare';
 import { CELL_OF_METRIC, countText, engineSortId, SORT_ID, type RateMetric } from './prompt-model';
 import { PlatformMark } from './platform-mark';
@@ -12,7 +13,6 @@ import { trendPoints } from './trend-model';
 import { col } from '@/components/app/data-table/columns';
 import type { CellTip, DataTableColumn } from '@/components/app/data-table/types';
 import { EngineLogo } from '@/components/app/engine/engine-logo';
-import { InsufficientPill } from '@/components/app/metric/insufficient-pill';
 import type { EngineSummary, ProjectEngine } from '@/lib/api/types';
 import { averageChangeOf, engineChangeOf, type RateChange } from '@/lib/compare/change-model';
 import { EMPTY_VALUE, formatDateRange, formatList, formatPercent, formatPointsDelta } from '@/lib/format';
@@ -32,6 +32,14 @@ import { MIN_OBSERVATIONS } from '@/lib/stats';
 
 /** "Google AI Mode mention" in capitals with its sort arrow needs about 176 px. */
 export const ENGINE_COLUMN_WIDTH = 176;
+
+/**
+ * The preview's widths of the two rate columns (Mention rate wider while the person compares, for its change icon).
+ * The preview's 204 while comparing is 200 here: the table's column type (`volumeTrend`) holds no column past 200 px.
+ */
+const MENTION_WIDTH = 168;
+const MENTION_COMPARE_WIDTH = 200;
+const CITATION_WIDTH = 136;
 
 /** What a cell says in place of a rate, and what its tooltip says about why. */
 interface Gap {
@@ -62,11 +70,22 @@ export interface RateColumns<TRow> {
 export function useRateColumns<TRow>(
   engines: readonly ProjectEngine[],
   cellsOf: (row: TRow) => readonly EngineSummary[] | undefined,
-  { note, window }: { note?: string; window?: ComparedWindow | undefined } = {},
+  {
+    note,
+    window,
+    byPrompts,
+  }: {
+    note?: string;
+    window?: ComparedWindow | undefined;
+    /** A row whose rate on a platform is the mean of its prompts' rates (a group): its tooltip says so. */
+    byPrompts?: ((row: TRow) => boolean) | undefined;
+  } = {},
 ): RateColumns<TRow> {
   const t = useTranslations('prompts.columns');
+  const metrics = useTranslations('prompts.metrics');
   const shell = useTranslations('prompts.shell.columns');
   const rate = useTranslations('prompts.rate');
+  const groupRates = useTranslations('prompts.groupRates');
   const tc = useTranslations('prompts.compare');
   const words = useRateWords();
   const changeWords = useChangeWords();
@@ -136,10 +155,14 @@ export function useRateColumns<TRow>(
       header: string,
       tip: string,
     ): DataTableColumn<TRow> => {
+      // The preview's fixed widths: a column never shrinks with the window, the table scrolls instead (PR-RESP-07)
+      const width = metric === 'mentioned' ? (compare ? MENTION_COMPARE_WIDTH : MENTION_WIDTH) : CITATION_WIDTH;
       const base = col.volumeTrend<TRow>(id, (row) => averageOf(row, metric).value, {
         header,
         headerTooltip: withNote(metric === 'mentioned' && compare ? `${tip}. ${shell('mentionChangeTip')}` : tip),
         priority: metric === 'mentioned' ? 1 : 2,
+        width,
+        minWidth: width,
         sortable: true,
         // The cell is drawn below, for it has the insufficient state too
         known: () => null,
@@ -148,7 +171,7 @@ export function useRateColumns<TRow>(
         ...base,
         cell: (row) => {
           const average = averageOf(row, metric);
-          if (average.state === 'insufficient') return <InsufficientPill answers={average.answers} tip={false} />;
+          if (average.state === 'insufficient') return <HatchedPill>{metrics('notEnough')}</HatchedPill>;
           if (average.state === 'none') return <Missing label={gapOf(row, average).label} />;
           // The percent keeps a room of its own so the icons of every row start at the same place
           return (
@@ -161,7 +184,7 @@ export function useRateColumns<TRow>(
         cellTip: (row) => {
           const average = averageOf(row, metric);
           if (average.state === 'insufficient') {
-            return { content: rate('insufficientTip', { count: average.answers, min: MIN_OBSERVATIONS }) };
+            return { content: metrics('notEnoughTip', { answers: average.answers, min: MIN_OBSERVATIONS }) };
           }
           if (average.state === 'none') return tipOf(gapOf(row, average));
           // The count of each engine that counts: a pooled count beside an equal weight percent would read as another rate
@@ -178,7 +201,9 @@ export function useRateColumns<TRow>(
           const avgDetail =
             counting.length === 1
               ? rate('onlyTip', { engines: engineNames })
-              : rate('avgTip', { engines: engineNames });
+              : byPrompts?.(row) === true
+                ? groupRates('avgTip', { engines: engineNames })
+                : rate('avgTip', { engines: engineNames });
           // Every change shows what it rests on: the previous figure with its answers, the window and the test, or why none
           const change = metric === 'mentioned' && compare ? changeOf(row) : null;
           // A row without a change says why only when the response was compared: the read held right after turning
@@ -251,7 +276,23 @@ export function useRateColumns<TRow>(
       citation: rateColumn(SORT_ID.citation, 'cited', t('citationRate'), t('citationRateTip')),
       topEngine: topColumn,
     };
-  }, [engines, cellsOf, note, t, shell, rate, tc, words, changeWords, compare, comparedWindow, locale]);
+  }, [
+    engines,
+    cellsOf,
+    note,
+    byPrompts,
+    t,
+    metrics,
+    shell,
+    rate,
+    groupRates,
+    tc,
+    words,
+    changeWords,
+    compare,
+    comparedWindow,
+    locale,
+  ]);
 }
 
 const HEADER_KEY = { mention: 'engineMention', citation: 'engineCitation', sov: 'engineShareOfVoice' } as const;
@@ -272,6 +313,7 @@ export function useEngineRateColumns<TRow>(
   { defaultVisible, marks = false }: { defaultVisible?: boolean; marks?: boolean } = {},
 ): DataTableColumn<TRow>[] {
   const t = useTranslations('prompts.columns');
+  const metrics = useTranslations('prompts.metrics');
   const rate = useTranslations('prompts.rate');
   const words = useRateWords();
   return useMemo(
@@ -303,7 +345,7 @@ export function useEngineRateColumns<TRow>(
           ...base,
           cell: (row) => {
             const figure = figureOf(row);
-            if (figure.state === 'insufficient') return <InsufficientPill answers={figure.answers} tip={false} />;
+            if (figure.state === 'insufficient') return <HatchedPill>{metrics('notEnough')}</HatchedPill>;
             if (figure.state === 'none') return <Missing label={gapOf(row).label} />;
             const count = metric === 'sov' ? words.basis(figure) : countText(summaryOf(row)?.[key]);
             return (
@@ -322,10 +364,10 @@ export function useEngineRateColumns<TRow>(
             const figure = figureOf(row);
             if (figure.state === 'insufficient') {
               return {
-                content: rate(metric === 'sov' ? 'insufficientShareTip' : 'insufficientTip', {
-                  count: figure.answers,
-                  min: MIN_OBSERVATIONS,
-                }),
+                content:
+                  metric === 'sov'
+                    ? rate('insufficientShareTip', { count: figure.answers, min: MIN_OBSERVATIONS })
+                    : metrics('notEnoughTip', { answers: figure.answers, min: MIN_OBSERVATIONS }),
               };
             }
             if (figure.state === 'none') return tipOf(gapOf(row));
@@ -336,6 +378,6 @@ export function useEngineRateColumns<TRow>(
           },
         };
       }),
-    [engines, cellsOf, metric, defaultVisible, marks, t, rate, words],
+    [engines, cellsOf, metric, defaultVisible, marks, t, metrics, rate, words],
   );
 }
