@@ -6830,6 +6830,15 @@
           "how": "Prompts are asked on their schedule, so a run may hold only some of them."
         }
       }
+    },
+    "sourcesTracking": {
+      "topDomains": {
+        "meta": "of {units, plural, one {# citation unit} other {# citation units}}",
+        "emptyTitle": "No citations yet",
+        "emptyReason": "No answers cited a page in this scope.",
+        "infoWhat": "The domains AI answers cite most often.",
+        "infoHow": "A page is counted once for each answer that cites it. Each share is a part of all citations in scope."
+      }
     }
   },
   "citations": {
