@@ -1,7 +1,13 @@
 # Decisions for the owner
 
-Written 2026-11-16 by the glossary research session. Nothing here is applied. The recommended word of each decision is
-the one `terms.md` already uses; if you choose differently, `terms.md` changes first (see `README.md`).
+Written 2026-11-16 by the glossary research session. Nothing here is applied.
+
+**Decision record (2026-11-16):** the owner chose Group for D1 and asked the session to take its best decision on every
+other open choice. Each recommendation below was therefore taken as the decision, except D17, D18 and D20, which are
+facts or unspecified screens and stay open. The one list of results is `final-list.md`. The reasoning below is kept so
+a later change is made with the same evidence in view. If the owner reverses any word, `terms.md` changes first (see
+`README.md`). Added decisions made on the way: D12 Type values become Company, Product, Person, Other; D19 as written;
+the WP-61 page keeps the working name "Citation opportunities" until it is built.
 
 How the glossary was made: an inventory of the real app, the design preview and the docs
 (`research/00-term-inventory.md`); competitor and user-language research on 19 tools

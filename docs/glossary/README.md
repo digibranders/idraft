@@ -3,8 +3,9 @@
 The glossary is the one list of words the whole app uses: each term, what it means, what it never means, and the exact
 text of its info ("i") button. A word that is not here is not final.
 
-Status: PROPOSAL, written 2026-11-16, not approved. Until the owner approves it, the provisional words in the real app
-(Platform, Group, Location, Prompts) stay as they are and nothing is renamed. See `decisions-for-owner.md`.
+Status: decided 2026-11-16 (Group by the owner, the rest by taking the session's recommendations), except D17, D18 and
+D20. Nothing is applied yet: the real app and the preview keep their current words until the pass in
+`application-plan.md` runs. See `final-list.md` and `decisions-for-owner.md`.
 
 ## The one rule
 
@@ -16,6 +17,7 @@ visible word and does not touch `docs/glossary/terms.md` is unfinished.
 
 | File | What it holds | Who reads it |
 |---|---|---|
+| `final-list.md` | One page: the word to use and the word never to use, for every concept, plus the decisions taken and the three still open | Everyone, while writing a string |
 | `terms.md` | One row per term: the label (singular, plural, casing), the one-sentence definition, what it is not, banned synonyms, where it is used, the info text in two parts, translation notes | Everyone who writes or reviews a visible string |
 | `decisions-for-owner.md` | The open choices, with options, reasons, how each model voted and the recommendation. Deleted from the proposal once the owner has decided, and each answer is copied into `terms.md` | The owner |
 | `application-plan.md` | For each term, the exact edits needed in the real app, the design preview and the parity registers, in order, with sizes | The session that applies the glossary |

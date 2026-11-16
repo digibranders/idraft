@@ -1,9 +1,11 @@
 # idraft glossary: terms
 
-Status: PROPOSAL (2026-11-16). Not approved. Where a row says **Firm**, the label is recommended and none of the three
-independent proposals (Opus, Fable, Codex) chose a different word for that term. Where it says **D1** to **D22**, the
-owner must decide, or a proposal split on it; the options are in `decisions-for-owner.md`. The label shown is the
-recommendation, and that recommendation is the session's synthesis, not a vote result.
+Status: DECIDED 2026-11-16, except D17, D18 and D20 (see `final-list.md`). The owner chose Group (D1) and delegated
+every other word choice to the glossary session, which took its own recommendation. Where a row says **Firm**, none of
+the three independent proposals (Opus, Fable, Codex) chose a different word for that term. Where it says **D1** to
+**D22**, a proposal split on it or the owner had to choose; the options and reasons are in `decisions-for-owner.md`,
+and the label shown is the decision taken. Rows marked D17, D18 or D20 are not final: their wording waits for a backend
+fact or an unspecified screen.
 
 Rules that apply to every row:
 
