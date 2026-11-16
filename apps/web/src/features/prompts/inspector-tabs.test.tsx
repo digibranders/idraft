@@ -290,7 +290,7 @@ describe('the tabs of the prompt inspector', () => {
     await user.click(await within(inspector).findByRole('tab', { name: 'History' }));
     expect(urls.at(-1)).toContain('itab=history');
     expect(within(inspector).getByRole('tab', { name: 'History' })).toHaveAttribute('aria-selected', 'true');
-    expect(await within(inspector).findByText('Latest answers')).toBeInTheDocument();
+    expect(await within(inspector).findByText('Answers')).toBeInTheDocument();
     await user.keyboard('{ArrowRight}');
     expect(urls.at(-1)).toContain('itab=citations');
     expect(within(inspector).getByRole('tab', { name: 'Citations' })).toHaveFocus();
@@ -354,8 +354,8 @@ describe('the tabs of the prompt inspector', () => {
     // Stats: no list at all
     lists.length = 0;
     const stats = renderOn('viewer', openedOn('stats'));
-    await within(await panel()).findByRole('heading', { name: 'ChatGPT' });
-    await screen.findByText(/^The interval is the 95 percent Wilson interval/);
+    await within(await panel()).findByRole('heading', { name: 'Mention rate' });
+    await screen.findByText(/^A rate is successes over valid answers in the period/);
     expect(lists).toEqual([]);
     stats.unmount();
     // History: the window's list, once, and nothing of Latest
@@ -398,8 +398,10 @@ describe('the Latest tab', () => {
     expect(within(chatgpt).getByText('Mentioned first among the tracked brands')).toBeInTheDocument();
     expect(within(chatgpt).getByText('Mentioned')).toBeInTheDocument();
     expect(within(chatgpt).getByText('Cited')).toBeInTheDocument();
-    // No rank and no recommendation: only where the brand stands among the brands named
-    expect(chatgpt.textContent).not.toMatch(/Rank|Recommended/);
+    // The third fact is the place in a list, or the recommendation of an answer that is not a list
+    expect(within(chatgpt).getByText(/^(Rank|Recommended)$/)).toBeInTheDocument();
+    expect(within(chatgpt).getByText('Valid')).toBeInTheDocument();
+    expect(within(chatgpt).getByText('replicate 1')).toBeInTheDocument();
     // The sources come in the order the answer cites them, each with its role
     const sources = within(chatgpt).getByRole('list', { name: 'Top cited domains of this answer' });
     expect(
@@ -407,11 +409,12 @@ describe('the Latest tab', () => {
         .getAllByRole('listitem')
         .map((item) => item.textContent),
     ).toEqual(['fynix.example', 'reviews.example']);
-    // The time is relative, with the exact time as its name
-    expect(within(chatgpt).getByText('10h ago').closest('time')).toHaveAttribute(
-      'aria-label',
-      expect.stringContaining('Nov 12, 2026'),
-    );
+    // The time is the day and the clock, with the exact time as its name
+    expect(
+      within(chatgpt)
+        .getByText(/^Nov 12, \d\d:\d\d$/)
+        .closest('time'),
+    ).toHaveAttribute('aria-label', expect.stringContaining('Nov 12, 2026'));
     expect(await within(gemini).findByText('gemini-3')).toBeInTheDocument();
   });
 
@@ -498,11 +501,11 @@ describe('the Latest tab', () => {
     expect(within(gemini).getByRole('button', { name: 'Open the full answer from Gemini' })).toBeInTheDocument();
   });
 
-  it('gives the relative time a tab stop, so the keyboard reaches its tooltip', async () => {
+  it('gives the time of an answer a tab stop, so the keyboard reaches its tooltip', async () => {
     serveTwoAnswers();
     renderOn('viewer', opened);
     const inspector = await panel();
-    const time = (await within(inspector).findAllByText('10h ago'))[0];
+    const time = (await within(inspector).findAllByText(/^Nov 12, \d\d:\d\d$/))[0];
     expect(time?.closest('time')).toHaveAttribute('tabindex', '0');
   });
 
@@ -562,7 +565,7 @@ describe('the History tab', () => {
     );
     expect(
       within(inspector).getByText(
-        /Each point is the share of valid answers that mention your brand over its week and the weeks before it, \d weeks in all at most/,
+        /Each point is the share of valid answers that mention your brand as a rolling rate over its week and the weeks before it, \d weeks \(\d+ days\) in all at most/,
       ),
     ).toBeInTheDocument();
     expect(within(inspector).queryByText(/computed in the browser/i)).toBeNull();
@@ -592,26 +595,47 @@ describe('the History tab', () => {
 });
 
 describe('the Competitors tab', () => {
-  it('counts the brands named in the answers of this prompt, the own brand first, on one engine or on all', async () => {
+  it('counts the brands named in the answers of this prompt for each platform on its own, the own brand first', async () => {
     serveTwoAnswers();
     const { user } = renderOn('viewer', openedOn('competitors'));
     const inspector = await panel();
     const table = await within(inspector).findByRole('table', {
       name: 'Brands mentioned in the answers to this prompt',
     });
+    expect(
+      within(table)
+        .getAllByRole('columnheader')
+        .map((header) => header.textContent),
+    ).toEqual(['Brand', 'ChatGPT', 'Gemini']);
     const rows = within(table).getAllByRole('row').slice(1);
     expect(rows[0]).toHaveTextContent('Fynix');
     expect(rows[0]).toHaveTextContent('Your brand');
-    expect(rows[0]).toHaveTextContent('2 of 2 answers');
-    expect(rows[0]).toHaveTextContent('100%');
     expect(rows[1]).toHaveTextContent('Rankforge');
-    expect(rows[1]).toHaveTextContent('2 of 2 answers');
-    // The switch narrows the counts to one engine
-    await user.click(within(inspector).getByRole('radio', { name: 'Gemini' }));
-    expect(within(table).getAllByRole('row')[1]).toHaveTextContent('1 of 1 answer');
+    // One answer on each platform: the count is shown, and no rate under four answers, and no pooled column
+    for (const row of rows.slice(0, 2)) {
+      expect(within(row).getAllByText('1 of 1 answer')).toHaveLength(2);
+      expect(row).not.toHaveTextContent('%');
+    }
+    expect(within(inspector).queryByRole('radio', { name: 'All' })).toBeNull();
     expect(
       within(inspector).getByText(/A mention is a tracked brand whose name appears in an answer/),
     ).toBeInTheDocument();
+    // Recommendation: nothing is collected for it yet, and the tab says so instead of a number
+    await user.click(within(inspector).getByRole('radio', { name: 'Recommendation' }));
+    expect(within(table).getAllByRole('row')[1]).toHaveTextContent('Not collected yet');
+    expect(within(table).getAllByRole('row')[2]).toHaveTextContent('Not collected yet');
+    expect(within(table).getAllByRole('row')[1]).not.toHaveTextContent(/\d/);
+  });
+
+  it('says the keyword is not collected yet when the facts do not carry it, with no rank', async () => {
+    serveTwoAnswers();
+    renderOn('viewer', openedOn('competitors'));
+    const inspector = await panel();
+    expect(await within(inspector).findByRole('heading', { name: 'Related keywords' })).toBeInTheDocument();
+    expect(
+      await within(inspector).findByText(/^Not collected yet\. The keyword linked to this prompt/),
+    ).toBeInTheDocument();
+    expect(within(inspector).queryByText('Linked')).toBeNull();
   });
 
   it('says no competitor was named when the answers name none', async () => {
@@ -629,7 +653,7 @@ describe('the Competitors tab', () => {
     expect(within(table).getByText('Fynix')).toBeInTheDocument();
   });
 
-  it('counts only the engines that are on in All, and falls back to All when the engine chosen is turned off', async () => {
+  it('has a column only for the platforms that are on, though the list holds an answer of one that is off', async () => {
     serveTwoAnswers();
     const gemini = promptsOf(fynix.project_id).engines.find((engine) => engine.engine_code === 'gemini_web');
     if (gemini === undefined) throw new Error('The Gemini fixture is missing');
@@ -639,10 +663,13 @@ describe('the Competitors tab', () => {
     const table = await within(inspector).findByRole('table', {
       name: 'Brands mentioned in the answers to this prompt',
     });
-    // The list holds a Gemini answer too: it is no part of All
+    // The list holds a Gemini answer too: it is no column
+    expect(
+      within(table)
+        .getAllByRole('columnheader')
+        .map((header) => header.textContent),
+    ).toEqual(['Brand', 'ChatGPT']);
     expect(within(table).getAllByRole('row')[1]).toHaveTextContent('1 of 1 answer');
-    expect(within(inspector).queryByRole('radio', { name: 'Gemini' })).toBeNull();
-    expect(within(inspector).getByRole('radio', { name: 'All' })).toBeChecked();
   });
 });
 
@@ -650,22 +677,17 @@ describe('the Stats tab', () => {
   it('says the estimate, the 95 percent interval, the sample and the method of each rate of each engine', async () => {
     renderOn('viewer', openedOn('stats'));
     const inspector = await panel();
-    const chatgpt = (await within(inspector).findByRole('heading', { name: 'ChatGPT' })).closest('section');
-    if (chatgpt === null) throw new Error('The ChatGPT card is missing');
-    const lines = await within(chatgpt).findByRole('list', { name: 'Rates of ChatGPT with their 95% intervals' });
-    const [mention, citation] = within(lines).getAllByRole('listitem');
+    const mention = (await within(inspector).findByRole('heading', { name: 'Mention rate' })).closest('section');
+    const citation = within(inspector).getByRole('heading', { name: 'Citation rate' }).closest('section');
+    if (mention === null || citation === null) throw new Error('A rate table is missing');
     // 3 of 6 mentioned and 4 of 6 cited, as the strip and the Prompts table say
-    expect(mention).toHaveTextContent('Mention');
-    expect(mention).toHaveTextContent('50%');
+    const chatgpt = within(mention).getByRole('row', { name: /ChatGPT/ });
+    expect(chatgpt).toHaveTextContent('50%');
+    expect(within(chatgpt).getByRole('img', { name: /^95% interval \d+% to \d+%$/ })).toBeInTheDocument();
+    expect(chatgpt).toHaveTextContent('3 of 6 answers');
+    expect(within(citation).getByRole('row', { name: /ChatGPT/ })).toHaveTextContent('4 of 6 answers');
     expect(
-      within(mention as HTMLElement).getByRole('img', { name: /^95% interval \d+% to \d+%$/ }),
-    ).toBeInTheDocument();
-    expect(mention).toHaveTextContent('3 of 6 answers');
-    expect(citation).toHaveTextContent('4 of 6 answers');
-    expect(
-      within(inspector).getByText(
-        'The interval is the 95 percent Wilson interval over the valid answers of this period.',
-      ),
+      within(inspector).getByText(/Intervals are Wilson score intervals on a shared scale of 0% to 100%/),
     ).toBeInTheDocument();
     expect(within(inspector).queryByText(/server provides it/)).toBeNull();
   });
@@ -674,10 +696,12 @@ describe('the Stats tab', () => {
     // A week holds two runs: two valid answers on an engine, under the four a rate needs
     renderOn('viewer', `${openedOn('stats')}&window=7`);
     const inspector = await panel();
-    const chatgpt = (await within(inspector).findByRole('heading', { name: 'ChatGPT' })).closest('section');
-    if (chatgpt === null) throw new Error('The ChatGPT card is missing');
-    expect((await within(chatgpt).findAllByText('Too few answers for a reliable rate')).length).toBe(2);
+    const mention = (await within(inspector).findByRole('heading', { name: 'Mention rate' })).closest('section');
+    if (mention === null) throw new Error('The Mention rate table is missing');
+    const chatgpt = await within(mention).findByRole('row', { name: /ChatGPT/ });
+    expect(chatgpt).toHaveTextContent('Not enough data');
     expect(within(chatgpt).queryByRole('img', { name: /^95% interval/ })).toBeNull();
-    expect(within(chatgpt).getAllByText(/^\d+ of 2 answers$/).length).toBe(2);
+    expect(chatgpt).toHaveTextContent(/\d+ of 2 answers/);
+    expect(chatgpt).not.toHaveTextContent('%');
   });
 });

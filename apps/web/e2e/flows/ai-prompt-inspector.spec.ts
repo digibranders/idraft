@@ -61,9 +61,7 @@ test.describe('The prompt inspector, completed', () => {
     // Stats: the sample behind each rate, what the rates count, and the statistics of one rate
     await inspector.getByRole('tab', { name: 'Stats' }).click();
     await expect(inspector.getByText(/^\d+ of \d+ answers$/).first()).toBeVisible();
-    await expect(
-      inspector.getByText('ChatGPT only: rates count valid answers, each of this prompt counted once'),
-    ).toBeVisible();
+    await expect(inspector.getByText(/^A rate is successes over valid answers in the period/)).toBeVisible();
     const opener = inspector.getByRole('button', { name: 'Open statistics for Mention on ChatGPT' });
     await opener.click();
     await inspector.getByRole('button', { name: 'Back to Stats' }).click();

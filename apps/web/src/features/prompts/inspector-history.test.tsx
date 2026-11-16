@@ -214,7 +214,7 @@ describe('the words of the chart follow the pool', () => {
     await screen.findByTestId('echart-canvas');
     expect(
       screen.getByText(
-        /over its week and the weeks before it, 4 weeks in all at most \(fewer where the period opens\)/,
+        /as a rolling rate over its week and the weeks before it, 4 weeks \(28 days\) in all at most, fewer where the period opens/,
       ),
     ).toBeInTheDocument();
     expect(document.getElementById(chartSummary())).toHaveTextContent(
@@ -230,7 +230,7 @@ describe('the words of the chart follow the pool', () => {
   it('says the real number when the date range opens with fewer weeks', async () => {
     renderHistory({ counts: pooledCounts(2) });
     await screen.findByTestId('echart-canvas');
-    expect(screen.getByText(/the weeks before it, 2 weeks in all at most/)).toBeInTheDocument();
+    expect(screen.getByText(/the weeks before it, 2 weeks \(14 days\) in all at most/)).toBeInTheDocument();
     expect(document.getElementById(chartSummary())).toHaveTextContent('at most 2 weeks');
     expect(screen.queryByText(/4 weeks/)).toBeNull();
   });
@@ -309,14 +309,18 @@ describe('the model change marker on the chart', () => {
 
 describe('the latest answers of the History tab', () => {
   const OUTCOMES = ['mentioned_and_cited', 'mentioned_only', 'cited_only', 'neither'] as const;
-  const WORDS = ['Mentioned and cited', 'Mentioned only', 'Cited only', 'Neither'];
   /** Twelve answers, newest first, one a day at 02:00 from Nov 12 back. */
   const newestFirst = Array.from({ length: 12 }, (_, at): ObservationSummary => {
     const base = answer(`o${String(at)}`, at % 2 === 0 ? 'chatgpt_web' : 'gemini_web', '');
     return {
       ...base,
       observed_at: new Date(Date.UTC(2026, 10, 12 - at, 2)).toISOString(),
-      facts: { is_valid: true, outcome: OUTCOMES[at % 4] },
+      facts: {
+        is_valid: true,
+        outcome: OUTCOMES[at % 4],
+        own_mentioned: at % 4 === 0 || at % 4 === 1,
+        own_domain_cited: at % 4 === 0 || at % 4 === 2,
+      },
     } as unknown as ObservationSummary;
   });
   const when = (row: ObservationSummary): string => formatTableDateTime(row.observed_at, 'UTC');
@@ -325,7 +329,7 @@ describe('the latest answers of the History tab', () => {
       .getAllByRole('row')
       .slice(1);
 
-  it('lists at most 10 rows, one for each answer, newest first, with the outcome in words', () => {
+  it('lists at most 10 rows, one for each answer, newest first, with Mentioned and Cited as marks with words', () => {
     renderHistory({ answers: answersOf(newestFirst) });
     const rows = bodyRows();
     expect(rows).toHaveLength(10);
@@ -334,11 +338,38 @@ describe('the latest answers of the History tab', () => {
       if (source === undefined) throw new Error('A fixture answer is missing');
       expect(row).toHaveTextContent(when(source));
       expect(row).toHaveTextContent(at % 2 === 0 ? 'ChatGPT' : 'Gemini');
-      expect(row).toHaveTextContent(WORDS[at % 4] ?? '');
+      const mentioned = at % 4 === 0 || at % 4 === 1;
+      const cited = at % 4 === 0 || at % 4 === 2;
+      expect(within(row).getByText(`Mentioned: ${mentioned ? 'yes' : 'no'}`)).toBeInTheDocument();
+      expect(within(row).getByText(`Cited: ${cited ? 'yes' : 'no'}`)).toBeInTheDocument();
     });
     // The two oldest answers are past the cap
     for (const left of newestFirst.slice(10)) expect(screen.queryByText(when(left))).toBeNull();
-    expect(screen.getByText('The latest 10 answers of this period.')).toBeInTheDocument();
+    expect(screen.getByText('last 10')).toBeInTheDocument();
+  });
+
+  it('says n/a for Recommended where the facts do not have it, and never "no"', () => {
+    renderHistory({ answers: answersOf(newestFirst) });
+    for (const row of bodyRows()) {
+      expect(within(row).getByText('Recommended: not collected yet')).toBeInTheDocument();
+      expect(within(row).queryByText(/^Recommended: (yes|no)$/)).toBeNull();
+    }
+    expect(screen.getByText('Recommended is not collected yet, so its column says n/a.')).toBeInTheDocument();
+  });
+
+  it('shows Recommended as a mark where the facts have it, and n/a where the platform is not classified', () => {
+    const withFact = (row: ObservationSummary, recommended: boolean | null): ObservationSummary =>
+      ({ ...row, facts: { ...row.facts, recommended } }) as unknown as ObservationSummary;
+    renderHistory({
+      answers: answersOf([
+        withFact(newestFirst[0] as ObservationSummary, true),
+        withFact(newestFirst[1] as ObservationSummary, null),
+      ]),
+    });
+    const [yes, unclassified] = bodyRows() as [HTMLElement, HTMLElement];
+    expect(within(yes).getByText('Recommended: yes')).toBeInTheDocument();
+    expect(within(unclassified).queryByText(/^Recommended: (yes|no)$/)).toBeNull();
+    expect(screen.queryByText('Recommended is not collected yet, so its column says n/a.')).toBeNull();
   });
 
   it('says an answer that is not counted or still being read in words, never as a rate', () => {
@@ -349,6 +380,7 @@ describe('the latest answers of the History tab', () => {
     expect(rows).toHaveLength(2);
     expect(rows[0]).toHaveTextContent('Not counted');
     expect(rows[1]).toHaveTextContent('Being read');
-    expect(screen.queryByText(/latest 10 answers/)).toBeNull();
+    // Neither a "no" nor a mark for an answer that does not count
+    for (const row of rows) expect(within(row).queryByText(/^(Mentioned|Cited): (yes|no)$/)).toBeNull();
   });
 });

@@ -211,15 +211,32 @@ describe('the prompt inspector: what it shows', () => {
     expect(within(inspector).queryByText('SEO / Technical SEO')).toBeNull();
   });
 
+  it('names the type and the version of the prompt in badges of its header', async () => {
+    renderOn('viewer', opened);
+    const inspector = await panel();
+    expect(await within(inspector).findByText(/^v\d+$/)).toBeInTheDocument();
+    expect(
+      within(inspector).getByText(/^(Question|Comparison|Recommendation|How to|Definition|Local|Transactional|Other)$/),
+    ).toBeInTheDocument();
+  });
+
   it('lists the latest ten answers of the prompt on the History tab', async () => {
     const { container } = renderOn('viewer', openedOn('history'));
     const inspector = await panel();
     const answers = await within(inspector).findByRole('table', { name: 'Answers to this prompt' });
     // Eight runs in the 28 days (Monday and Thursday, 16 October to 12 November) on two engines: ten are listed
     expect(within(answers).getAllByRole('row')).toHaveLength(11);
-    expect(within(inspector).getByText('The latest 10 answers of this period.')).toBeInTheDocument();
-    expect(within(answers).getAllByText('Complete').length).toBeGreaterThan(0);
-    expect(within(answers).getAllByText(/^Mentioned|^Cited|^Neither|^Not counted/).length).toBe(10);
+    expect(within(inspector).getByText('last 10')).toBeInTheDocument();
+    expect(
+      within(answers)
+        .getAllByRole('columnheader')
+        .map((header) => header.textContent),
+    ).toEqual(['Date and platform', 'Mentioned', 'Cited', 'Recommended']);
+    // Each answer says whether it names and cites the brand in words for assistive technology
+    expect(within(answers).getAllByText(/^(Mentioned|Cited): (yes|no)$/).length).toBeGreaterThan(0);
+    // The mock sends the recommendation as sample data, so the column has its marks and no "not collected yet" note
+    expect(within(answers).getAllByText(/^Recommended: (yes|no)$/).length).toBeGreaterThan(0);
+    expect(within(inspector).queryByText(/not collected yet/)).toBeNull();
     expect(await axe(container)).toHaveNoViolations();
   });
 
@@ -364,11 +381,12 @@ describe('the prompt inspector: opening and stepping', () => {
     const other = 'How do I lower the cost per click of search ads?';
     await user.click(await within(tree).findByText(one));
     const inspector = await panel(one);
-    const position = within(inspector).getByText(/^[12] of 2$/);
-    const forward = position.textContent === '1 of 2';
+    // The position is the first "n of 2" in the drawer: the header comes before the tab panels, which can say "1 of 2" too
+    const position = within(inspector).getAllByText(/^[12] of 2$/)[0];
+    const forward = position?.textContent === '1 of 2';
     await user.click(within(inspector).getByRole('button', { name: forward ? 'Next prompt' : 'Previous prompt' }));
     expect(await panel(other)).toBeInTheDocument();
-    expect(within(await panel(other)).getByText(forward ? '2 of 2' : '1 of 2')).toBeInTheDocument();
+    expect(within(await panel(other)).getAllByText(forward ? '2 of 2' : '1 of 2')[0]).toBeInTheDocument();
   });
 
   it('gives focus back to the row of the prompt when the inspector closes', async () => {
@@ -436,8 +454,9 @@ describe('the prompt inspector: opening and stepping', () => {
     );
     const next = screen.getByRole('complementary');
     expect(next.querySelector('[data-slot="statistics-panel"]')).toBeNull();
-    const lists = await within(next).findAllByRole('list', { name: /^Rates of / }, { timeout: LOAD_WAIT });
-    expect(lists).not.toHaveLength(0);
+    expect(
+      await within(next).findByRole('heading', { name: 'Mention rate', level: 3 }, { timeout: LOAD_WAIT }),
+    ).toBeInTheDocument();
   });
 
   it('does not carry a Run now still on its way to the prompt it steps to', async () => {

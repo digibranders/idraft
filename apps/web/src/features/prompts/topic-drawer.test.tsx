@@ -266,7 +266,8 @@ describe('the topic drawer: a prompt opened from a topic', () => {
     const title = row?.querySelector('[role="rowheader"]')?.textContent ?? '';
     await user.click(within(tree).getByText(title));
     const prompt = await screen.findByRole('complementary', { name: title });
-    expect(within(prompt).getByText(/^\d+ of 2$/)).toBeInTheDocument();
+    // The position of the header comes first; the Latest tab can say "1 of 2" too, as the place of a brand in a list
+    expect(within(prompt).getAllByText(/^\d+ of 2$/)[0]).toBeInTheDocument();
     await user.click(within(prompt).getByRole('button', { name: 'Open the group Paid Search' }));
     const back = await drawer('Paid Search');
     expect(within(back).getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');

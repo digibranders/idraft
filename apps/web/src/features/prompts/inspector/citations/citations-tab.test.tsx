@@ -314,51 +314,53 @@ describe('the choices of the tab', () => {
     expect(
       await screen.findByText('Only Gemini is read. The last answer date above covers all platforms.'),
     ).toBeInTheDocument();
-    expect(screen.getByText('Shares are of 48 citation units in 8 answers.')).toBeInTheDocument();
+    expect(
+      screen.getByText(/^Counted in 8 valid answers\. A domain or page counts once in an answer/),
+    ).toBeInTheDocument();
     await waitFor(() => {
       expect(served.domains.at(-1)?.searchParams.get('filter[engine_code_in]')).toBe('gemini_web');
     });
     expect(served.pages.at(-1)?.searchParams.get('filter[engine_code_in]')).toBe('gemini_web');
   });
 
-  it('shows a count column for each engine under All engines and none for one engine', async () => {
+  it('counts in answers, with no column for a platform and a rate only once one platform is chosen', async () => {
     serve();
     const { user } = renderTab();
     const table = await domainsTable();
-    expect(within(table).getByRole('columnheader', { name: /ChatGPT/ })).toBeInTheDocument();
-    expect(within(table).getByRole('columnheader', { name: /Gemini/ })).toBeInTheDocument();
+    expect(
+      within(table)
+        .getAllByRole('columnheader')
+        .map((header) => header.textContent),
+    ).toEqual(['Domain', 'Citations']);
+    expect(within(table).queryByText(/%/)).toBeNull();
     await user.click(screen.getByRole('radio', { name: 'ChatGPT' }));
     await waitFor(() => {
       expect(
-        within(screen.getByRole('table', { name: 'Most cited domains for this prompt' })).queryByRole('columnheader', {
-          name: /Gemini/,
-        }),
-      ).toBeNull();
+        within(screen.getByRole('table', { name: 'Most cited domains for this prompt' })).getAllByText(/%/).length,
+      ).toBeGreaterThan(0);
     });
   });
 
-  it('asks for at least 1 unit and reads again for 2', async () => {
+  it('ranks by the answers that cite a row and asks for every row, at least 1 unit', async () => {
     const served = serve();
-    const { user } = renderTab();
+    renderTab();
     await domainsTable();
+    expect(served.domains[0]?.searchParams.get('sort')).toBe('-observations');
+    expect(served.pages[0]?.searchParams.get('sort')).toBe('-observations');
     expect(served.domains[0]?.searchParams.get('min_support')).toBe('1');
-    await user.click(screen.getByRole('combobox', { name: 'Fewest units per row' }));
-    await user.click(await screen.findByRole('option', { name: 'At least 2 units' }));
-    await waitFor(() => {
-      expect(served.domains.at(-1)?.searchParams.get('min_support')).toBe('2');
-    });
-    expect(served.pages.at(-1)?.searchParams.get('min_support')).toBe('2');
-    expect(served.changes.at(-1)?.searchParams.get('min_support')).toBe('2');
+    expect(screen.queryByRole('combobox', { name: 'Fewest units per row' })).toBeNull();
   });
 });
 
 describe('the scope line', () => {
-  it('says the shares are of N units in N answers', async () => {
+  it('says the counts are of N valid answers, over all platforms', async () => {
     serve();
     renderTab();
     await domainsTable();
     expect(
-      screen.getByText('Shares are of 48 citation units in 8 answers, counted over all platforms.'),
+      screen.getByText(
+        'Counted in 8 valid answers, over all platforms. A domain or page counts once in an answer, however many pages the answer cites.',
+      ),
     ).toBeInTheDocument();
   });
 

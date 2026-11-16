@@ -39,7 +39,7 @@ import {
   type Counts,
   type EntityCounts,
 } from '../prompt-summary';
-import { factsBuilder } from '../prompt-facts';
+import { answerFactsExtra, factsBuilder } from '../prompt-facts';
 import { promptsOf } from '../prompts-state';
 import { invalid, mock, problem } from '../respond';
 import { shiftIsoDate, validateDateWindow } from '../serp-views';
@@ -238,7 +238,8 @@ function detailFrom(
     citation_count: answer.citations.length,
     fanout_count: 0,
     served_from_cache: false,
-    facts: answer.facts,
+    // The drawer's extra facts (recommended, place in a list) are sample data until the backend builds them
+    facts: answer.facts === null ? null : { ...answer.facts, ...answerFactsExtra(observationId, code, answer.facts) },
     answer_text: answer.answer_text,
     error_code: answer.error_code,
     check_url: answer.check_url,

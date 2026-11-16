@@ -19,6 +19,22 @@ import type {
  * The exact names, shapes and owners are in `docs/ai-visibility/backend-requests-prompts-page.md`.
  */
 
+/**
+ * What an answer adds to its `ObservationFacts` for the prompt drawer (backend request 11): whether the answer recommends
+ * the own brand and the place of the brand in a list the answer gives. Both optional: absent means the backend has not
+ * built it, `null` means it does not apply (an engine that is not classified for recommendation, an answer that is not
+ * a list). The drawer never turns either into a zero or a "No".
+ */
+export interface AnswerFactsExtra {
+  /** The answer recommends the own brand; `null` on an engine whose answers are not classified for it. */
+  recommended?: boolean | null;
+  /** Place 1 of `listed` brands is the first of the list; `null` when the answer is not a list. */
+  list_rank?: { place: number; listed: number } | null;
+}
+
+/** The facts of an answer with what the drawer reads beyond the generated type. */
+export type ObservationFactsWithExtra = Schemas['ObservationFacts'] & AnswerFactsExtra;
+
 /** The API's intent enum (`Prompt.intent`). */
 export type PromptIntent = Prompt['intent'];
 
@@ -32,6 +48,22 @@ export type DomainRole = Schemas['CitationOut']['domain_role'];
 export interface LinkedKeywordVolume {
   keyword: string;
   search_volume: number | null;
+  /**
+   * The drawer's Related keywords card (backend request 12): where the keyword ranks in its latest rank check, `null`
+   * when it is not in the first 20 results. Absent means the backend has not built it.
+   */
+  rank?: number | null;
+  /**
+   * What Google showed for the keyword in its latest rank check: `null` is no Google AI Overview on the results page;
+   * `cited_position` is the place of the own site among the sources of the overview, `null` when it is not cited.
+   * Absent means the backend has not built it.
+   */
+  ai_overview?: AiOverviewState | null;
+}
+
+/** A Google AI Overview in a rank check, and whether it cites the own site. */
+export interface AiOverviewState {
+  cited_position: number | null;
 }
 
 /**

@@ -2,7 +2,7 @@
 
 import { keepPreviousData, useQuery, type UseQueryResult } from '@tanstack/react-query';
 
-import { ALL_ENGINES, TOP_LIMIT } from './citations-model';
+import { ALL_ENGINES, MIN_SUPPORT, TOP_LIMIT } from './citations-model';
 import { observationsQuery } from '../../prompt-queries';
 import type { PromptTabContext } from '../../seams/inspector-tabs';
 import {
@@ -44,7 +44,6 @@ export interface CitationReads {
 export interface CitationChoice {
   /** `ALL_ENGINES` or an engine code. */
   engine: string;
-  minSupport: number;
 }
 
 function useRead<TPage>(query: UseQueryResult<TPage>): CitationRead<TPage> {
@@ -67,7 +66,8 @@ function useRead<TPage>(query: UseQueryResult<TPage>): CitationRead<TPage> {
  * A branded prompt is read with `include_branded`, or its own answers would be left out (plan Q11). Every read
  * loads and fails alone.
  */
-export function useCitationReads(context: PromptTabContext, { engine, minSupport }: CitationChoice): CitationReads {
+export function useCitationReads(context: PromptTabContext, { engine }: CitationChoice): CitationReads {
+  const minSupport = MIN_SUPPORT;
   const { scope, promptId, range, exists, prompt } = context;
   const filters: SourceFilters = {
     from: range.from,
@@ -77,12 +77,13 @@ export function useCitationReads(context: PromptTabContext, { engine, minSupport
     ...(prompt?.is_branded === true ? { includeBranded: true } : {}),
   };
   const options = { placeholderData: keepPreviousData, enabled: exists } as const;
+  // The lists are ranked by the answers that cite a row, the number each row shows
   const domains = useQuery({
-    ...sourceDomainsQuery(scope, filters, { limit: TOP_LIMIT, minSupport, compare: true }),
+    ...sourceDomainsQuery(scope, filters, { limit: TOP_LIMIT, minSupport, compare: true, sort: '-observations' }),
     ...options,
   });
   const pages = useQuery({
-    ...sourcePagesQuery(scope, filters, { limit: TOP_LIMIT, minSupport, compare: true }),
+    ...sourcePagesQuery(scope, filters, { limit: TOP_LIMIT, minSupport, compare: true, sort: '-observations' }),
     ...options,
   });
   const ownPages = useQuery({

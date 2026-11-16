@@ -24,15 +24,7 @@ const labelOf = (code: string): string => ENGINE_FACTS[code as keyof typeof ENGI
 
 function renderControls(over: Partial<CitationsControlsProps> = {}): ProvidedRender {
   return renderWithProviders(
-    <CitationsControls
-      engines={ENGINES}
-      labelOf={labelOf}
-      engine="all"
-      onEngineChange={() => undefined}
-      minSupport={1}
-      onMinSupportChange={() => undefined}
-      {...over}
-    />,
+    <CitationsControls engines={ENGINES} labelOf={labelOf} engine="all" onEngineChange={() => undefined} {...over} />,
   );
 }
 
@@ -61,26 +53,10 @@ describe('the engine choice', () => {
   });
 });
 
-describe('the minimum of units', () => {
-  it('shows the choice and offers 1, 2 and 3', async () => {
-    const { user } = renderControls();
-    const select = screen.getByRole('combobox', { name: 'Fewest units per row' });
-    expect(select).toHaveTextContent('At least 1 unit');
-    await user.click(select);
-    const list = await screen.findByRole('listbox');
-    expect(
-      within(list)
-        .getAllByRole('option')
-        .map((option) => option.textContent),
-    ).toEqual(['At least 1 unit', 'At least 2 units', 'At least 3 units']);
-  });
-
-  it('hands the chosen number over', async () => {
-    const onMinSupportChange = vi.fn();
-    const { user } = renderControls({ onMinSupportChange });
-    await user.click(screen.getByRole('combobox', { name: 'Fewest units per row' }));
-    await user.click(await screen.findByRole('option', { name: 'At least 2 units' }));
-    expect(onMinSupportChange).toHaveBeenCalledWith(2);
+describe('the unit of the lists', () => {
+  it('has no minimum of citation units, which is of another unit than the answers the lists count', () => {
+    renderControls();
+    expect(screen.queryByRole('combobox')).toBeNull();
   });
 });
 
