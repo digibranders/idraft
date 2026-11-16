@@ -256,7 +256,12 @@ export default function RateTrendCard({ item, live }: CardProps): ReactElement {
       return {
         ...banded,
         yAxis: { ...(banded.yAxis as Record<string, unknown>), min: axis.min, max: axis.max },
-        series: [...(banded.series as unknown[]), ...boundary],
+        // As the preview draws: lines with no point markers; a small-sample point keeps its own hollow marker, which
+        // is a marker of that data item and so survives the series having none
+        series: [
+          ...(banded.series as Record<string, unknown>[]).map((entry) => ({ ...entry, symbol: 'none' })),
+          ...boundary,
+        ],
       };
     },
     [trend, weekMetric, points, titles, categories, single],
