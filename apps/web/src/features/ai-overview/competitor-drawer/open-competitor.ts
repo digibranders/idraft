@@ -6,7 +6,7 @@ import { createContext, use } from 'react';
 export type CompetitorLead = 'they' | 'you' | 'equal';
 
 /**
- * Opens the competitor drawer for one tracked brand (`inspect=entity:<id>`). `opener` is the element to give focus
+ * Opens the competitor drawer for one tracked brand (`inspect=competitor:<entity id>`). `opener` is the element to give focus
  * back to when the drawer closes. A count opens the Prompts tab with that kind of lead chosen (`options.lead`).
  */
 export type OpenCompetitor = (id: string, opener: HTMLElement | null, options?: { lead?: CompetitorLead }) => void;

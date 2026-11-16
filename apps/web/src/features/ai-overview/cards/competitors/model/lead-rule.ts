@@ -32,6 +32,10 @@ export interface PromptLead {
   /** The answers that mention you and the competitor, added over the platforms that could be compared. */
   own: number;
   rival: number;
+  /** The valid answers on those platforms: the "of 8" beside `own` and `rival`. */
+  answers: number;
+  /** The competitor is mentioned at least once and you never: the "lost to" prompts of the plan. */
+  absent: boolean;
 }
 
 export interface CompetitorLead {
@@ -89,12 +93,16 @@ export function leadsOf(summary: PromptsSummary, codes: readonly string[], set: 
       const kind: Lead = theyLead && !youLead ? 'they' : youLead && !theyLead ? 'you' : 'close';
       lead.compared += 1;
       lead[kind] += 1;
+      const ownTotal = sides.reduce((total, side) => total + side.own, 0);
+      const rivalTotal = sides.reduce((total, side) => total + side.rival, 0);
       lead.prompts.push({
         promptId: prompt.prompt_id,
         text: prompt.text,
         lead: kind,
-        own: sides.reduce((total, side) => total + side.own, 0),
-        rival: sides.reduce((total, side) => total + side.rival, 0),
+        own: ownTotal,
+        rival: rivalTotal,
+        answers: comparable.reduce((total, entry) => total + entry.mentioned.denominator, 0),
+        absent: rivalTotal > 0 && ownTotal === 0,
       });
     }
   }

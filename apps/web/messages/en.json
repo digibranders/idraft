@@ -6830,6 +6830,137 @@
           "how": "Prompts are asked on their schedule, so a run may hold only some of them."
         }
       }
+    },
+    "competitorDrawer": {
+      "type": "Competitor",
+      "noun": "competitor",
+      "tracked": "tracked in AI answers",
+      "back": "Overview",
+      "tabsLabel": "Competitor details",
+      "tabOverview": "Overview",
+      "tabPrompts": "Prompts",
+      "tabSources": "Cited domains",
+      "allPlatforms": "All platforms",
+      "allGroups": "All groups",
+      "notFound": "Could not open this competitor",
+      "errorTitle": "Could not load this competitor",
+      "errorReason": "The server did not answer. Your scope is unchanged.",
+      "na": "n/a",
+      "notCollectedTitle": "Not collected yet",
+      "summary": {
+        "title": "You against {name}",
+        "measure": "Measure",
+        "you": "You",
+        "gap": "Gap",
+        "mention": "Mention rate",
+        "share": "Share of voice",
+        "citation": "Citation share",
+        "mentionTip": "Share of valid answers that mention the brand. Each prompt counts once.",
+        "shareTip": "Share of tracked-brand mentions, within the tracked set.",
+        "citationTip": "Share of citation units that are pages of the brand’s domain.",
+        "valueMention": "{k, number} of {n, number} {n, plural, one {answer} other {answers}}",
+        "valueShare": "{n, number} {n, plural, one {answer} other {answers}} that mention a tracked brand",
+        "valueAverage": "average of {count, plural, one {# platform} other {# platforms}}",
+        "gapAbove": "You are {points} pts above {name}: {own} against {rival}. Not tested for detectability.",
+        "gapBelow": "You are {points} pts below {name}: {own} against {rival}. Not tested for detectability.",
+        "gapLevel": "You are level with {name}: {own} against {rival}. Not tested for detectability.",
+        "emptyTitle": "No rate yet",
+        "emptyReason": "Too few answers in this scope to compare.",
+        "citationNotCollected": "Not collected yet",
+        "info": {
+          "what": "You and this competitor side by side on each measure.",
+          "how": "The gap is your value minus theirs. Rates count each prompt once. Share of voice depends on which competitors are tracked."
+        }
+      },
+      "trend": {
+        "title": "Mention rate over time",
+        "meta": "weekly runs",
+        "label": "Mention rate of you and {name} over the last {count, plural, one {weekly run} other {# weekly runs}}",
+        "week": "Week of {date}",
+        "weekColumn": "Week",
+        "summary": "Mention rate of you and {name}, week by week.",
+        "notCollectedReason": "The weekly read has no figures for {name} yet, so no line is drawn for it.",
+        "emptyTitle": "Not enough data",
+        "emptyReason": "No week in this scope has 4 valid answers.",
+        "pointTip": "{value}, {count, plural, one {# answer} other {# answers}}",
+        "info": {
+          "what": "How your mention rate and theirs change week by week.",
+          "how": "One point for each weekly run. The 8 weeks are the previous 28 days and the current 28 days."
+        }
+      },
+      "platforms": {
+        "title": "By platform",
+        "meta": "mention rate, you · them · gap",
+        "caption": "Mention rate of you and {name} on each platform",
+        "empty": "No platform is on for this project.",
+        "info": {
+          "what": "You and this competitor on each platform.",
+          "how": "A platform with fewer than 4 valid answers shows n/a. Google AI Overview is read from rank checks and counts only the checks that showed one."
+        }
+      },
+      "prompts": {
+        "whoLeads": "Who leads",
+        "they": "They lead",
+        "you": "You lead",
+        "equal": "Equal",
+        "absent": "You are absent",
+        "absentTip": "{name} is mentioned and you are not mentioned at all: the plan’s “lost to” prompts",
+        "groupsMeta": "groups, prompts",
+        "groupsTitleThey": "Where {name} leads most",
+        "groupsTitleYou": "Where you lead most",
+        "groupsTitleEqual": "Where it is equal most",
+        "listTitleThey": "Prompts where {name} leads",
+        "listTitleYou": "Prompts where you lead",
+        "listTitleEqual": "Prompts that are equal or too close",
+        "listMeta": "{count, number} {count, plural, one {prompt} other {prompts}}",
+        "rowCounts": "You {own, number} of {answers, number} · {name} {rival, number} of {answers, number}",
+        "rowBars": "You {own}, {name} {rival}",
+        "showing": "Showing {shown, number} of {total, number}",
+        "emptyTitle": "No prompts here",
+        "emptyGroup": "None of the compared prompts falls in this group.",
+        "emptyNarrow": "No prompt matches this narrowing. Clear it to see the rest.",
+        "noPromptsTitle": "No prompts compared",
+        "noPromptsReason": "No prompt in this scope has 4 valid answers on a platform, so none can be compared.",
+        "tooFew": "{count, plural, one {# prompt has} other {# prompts have}} fewer than {min} valid answers and is not compared.",
+        "info": {
+          "groups": {
+            "what": "The groups where this kind of lead happens most.",
+            "how": "Click a group to narrow the prompt list below to it. Click it again to clear."
+          },
+          "list": {
+            "what": "The prompts behind the lead you picked, the largest difference first.",
+            "how": "A brand leads a prompt when it is mentioned in at least 2 more answers than the other, over the platforms in scope. A smaller difference is mostly noise and counts as equal. A prompt needs at least 4 valid answers; those with fewer are left out."
+          }
+        }
+      },
+      "sources": {
+        "title": "Cited domains",
+        "gapTitle": "Where they are cited and you are not",
+        "theirsTitle": "When {name} is mentioned",
+        "yoursTitle": "When you are mentioned",
+        "meta": "top domains cited",
+        "overlap": "The top 8 of the two lists share {percent} of their domains (Jaccard overlap).",
+        "onlyTheirs": "Third-party domains in their top 8 and not in yours",
+        "allShared": "Every third-party domain in their top 8 is also in yours.",
+        "emptyTitle": "No citations in this scope",
+        "emptyReason": "No answer in this scope cited a page, so there is nothing to compare.",
+        "notCollectedReason": "Which domains AI cites in the answers that mention each brand is not collected yet.",
+        "domainsCaption": "Top cited domains with their share of citations",
+        "info": {
+          "gap": {
+            "what": "Domains that AI cites next to this competitor and does not cite next to you.",
+            "how": "Taken from the top cited domains of each side. These are the places to look for a citation of your own."
+          },
+          "theirs": {
+            "what": "The domains AI cites in answers that mention this competitor.",
+            "how": "Each domain's share of the citations in those answers. Their domain ranks high because their pages are cited more when they are mentioned."
+          },
+          "yours": {
+            "what": "The domains AI cites in answers that mention you.",
+            "how": "The same count as for the competitor, over the answers that mention you."
+          }
+        }
+      }
     }
   },
   "citations": {

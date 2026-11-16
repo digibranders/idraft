@@ -42,6 +42,22 @@ describe('leadsOf', () => {
     expect(lead.compared).toBe(1);
   });
 
+  it('keeps the answers behind a prompt and flags the prompts where you are never mentioned', () => {
+    const lead = leadOf(
+      [
+        promptRow(1, [onPlatform('chatgpt_web', 8, 0, 3)]),
+        promptRow(2, [onPlatform('chatgpt_web', 8, 1, 3)]),
+        promptRow(3, [onPlatform('chatgpt_web', 8, 0, 0)]),
+      ],
+      ['chatgpt_web'],
+    );
+    expect(lead.prompts.map((prompt) => [prompt.answers, prompt.absent])).toEqual([
+      [8, true],
+      [8, false],
+      [8, false],
+    ]);
+  });
+
   it('leaves out a prompt with fewer than 4 valid answers and counts it as too few', () => {
     const summary = summaryOf({
       entities: ENTITIES,
