@@ -690,25 +690,12 @@ $('#ed-compare').addEventListener('click', (event) => {
 });
 
 // -------------------------------------------------------------------------------------------------
-// Toolbar: search, the metric of the engine columns, the column chooser
+// Toolbar: search, the column chooser (the engine columns always show the mention rate)
 
 $('[data-prompt-search]', view).addEventListener('input', (event) => {
   state.search = event.target.value.trim().toLowerCase();
   applyFilters();
 });
-// The metric of the engine columns, chosen in the Prompts toolbar or, for the topics by engine, in the Topics one
-$$('[data-select="lb-prompt-metric"]', view).forEach((trigger) =>
-  trigger.addEventListener('change', (event) => {
-    state.metric = event.target.dataset.value;
-    // The other trigger shows the metric too, and a column of the old metric is no longer there to sort by
-    $$('[data-select="lb-prompt-metric"]', view).forEach((other) => {
-      other.dataset.value = state.metric;
-      $('[data-select-value]', other).textContent = METRIC_LABEL[state.metric];
-    });
-    render();
-  }),
-);
-
 wireColumnChooser({
   popover: $('#pop-prompt-columns'),
   identity: { label: 'Prompt', current: identityWidth, isDefault: () => state.promptIdentity === null, set: setIdentityWidth, max: identityMax },
