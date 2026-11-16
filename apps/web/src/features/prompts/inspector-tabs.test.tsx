@@ -290,7 +290,7 @@ describe('the tabs of the prompt inspector', () => {
     await user.click(await within(inspector).findByRole('tab', { name: 'History' }));
     expect(urls.at(-1)).toContain('itab=history');
     expect(within(inspector).getByRole('tab', { name: 'History' })).toHaveAttribute('aria-selected', 'true');
-    expect(await within(inspector).findByText('Latest answers')).toBeInTheDocument();
+    expect(await within(inspector).findByText('Answers')).toBeInTheDocument();
     await user.keyboard('{ArrowRight}');
     expect(urls.at(-1)).toContain('itab=citations');
     expect(within(inspector).getByRole('tab', { name: 'Citations' })).toHaveFocus();
@@ -562,7 +562,7 @@ describe('the History tab', () => {
     );
     expect(
       within(inspector).getByText(
-        /Each point is the share of valid answers that mention your brand over its week and the weeks before it, \d weeks in all at most/,
+        /Each point is the share of valid answers that mention your brand as a rolling rate over its week and the weeks before it, \d weeks \(\d+ days\) in all at most/,
       ),
     ).toBeInTheDocument();
     expect(within(inspector).queryByText(/computed in the browser/i)).toBeNull();

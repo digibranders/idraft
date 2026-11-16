@@ -217,9 +217,17 @@ describe('the prompt inspector: what it shows', () => {
     const answers = await within(inspector).findByRole('table', { name: 'Answers to this prompt' });
     // Eight runs in the 28 days (Monday and Thursday, 16 October to 12 November) on two engines: ten are listed
     expect(within(answers).getAllByRole('row')).toHaveLength(11);
-    expect(within(inspector).getByText('The latest 10 answers of this period.')).toBeInTheDocument();
-    expect(within(answers).getAllByText('Complete').length).toBeGreaterThan(0);
-    expect(within(answers).getAllByText(/^Mentioned|^Cited|^Neither|^Not counted/).length).toBe(10);
+    expect(within(inspector).getByText('last 10')).toBeInTheDocument();
+    expect(
+      within(answers)
+        .getAllByRole('columnheader')
+        .map((header) => header.textContent),
+    ).toEqual(['Date and platform', 'Mentioned', 'Cited', 'Recommended']);
+    // Each answer says whether it names and cites the brand in words for assistive technology
+    expect(within(answers).getAllByText(/^(Mentioned|Cited): (yes|no)$/).length).toBeGreaterThan(0);
+    // The mock sends the recommendation as sample data, so the column has its marks and no "not collected yet" note
+    expect(within(answers).getAllByText(/^Recommended: (yes|no)$/).length).toBeGreaterThan(0);
+    expect(within(inspector).queryByText(/not collected yet/)).toBeNull();
     expect(await axe(container)).toHaveNoViolations();
   });
 

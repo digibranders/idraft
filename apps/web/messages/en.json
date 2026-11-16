@@ -4526,12 +4526,6 @@
       "answersEmpty": "No answers in this period",
       "answersEmptyReason": "Each prompt is asked twice a week. Choose a longer period to see earlier answers.",
       "answersFailed": "The answers could not be loaded.",
-      "columns": {
-        "date": "Date",
-        "engine": "Platform",
-        "status": "Status",
-        "outcome": "Outcome"
-      },
       "statuses": {
         "complete": "Complete",
         "partial": "Partial",
@@ -4603,7 +4597,7 @@
       },
       "history": {
         "chartTitle": "Mention rate by platform",
-        "chartFootnote": "Each point is the share of valid answers that mention your brand {weeks, plural, one {in its own week} other {over its week and the weeks before it, # weeks in all at most (fewer where the period opens), so one week of scheduled runs is not read on its own}}. The shaded band is the 95 percent Wilson interval over those valid answers. A hollow point has fewer than {min, number} valid answers and no band.",
+        "chartFootnote": "Each point is the share of valid answers that mention your brand {weeks, plural, one {in its own week} other {as a rolling rate over its week and the weeks before it, # weeks ({days, number} days) in all at most, fewer where the period opens}}. The shaded band is the 95 percent Wilson interval over those valid answers. A hollow point has fewer than {min, number} valid answers and no band.",
         "chartSummary": "Mention rate of this prompt on {engines}, {weeks, plural, one {each point over its own week} other {each point pooled over its week and the weeks before it, at most # weeks}}, from {from} to {to}. Every point with its counts and interval is in the Table view.",
         "weekColumn": "Weeks pooled to",
         "pointTitle": "{weeks, plural, one {# week} other {# weeks}} to {date}",
@@ -4612,8 +4606,6 @@
         "cellThin": "{value}, {basis}, too few for an interval",
         "cellNone": "No valid answer",
         "noSeriesTitle": "No weekly rates yet",
-        "latestAnswers": "Latest answers",
-        "latestNote": "The latest {count, number} answers of this period.",
         "events": "Events",
         "eventsLabel": "Events of this prompt",
         "eventAdded": "Prompt added",
@@ -5033,6 +5025,21 @@
       "tabPromptsCount": "Prompts ({count, number})"
     },
     "drawer": {
+      "history": {
+        "answersTitle": "Answers",
+        "answersScope": "last {count, number}",
+        "answerColumn": "Date and platform",
+        "mentionedColumn": "Mentioned",
+        "citedColumn": "Cited",
+        "recommendedColumn": "Recommended",
+        "answerYes": "{fact}: yes",
+        "answerNo": "{fact}: no",
+        "mentionedLabel": "Mentioned",
+        "citedLabel": "Cited",
+        "recommendedLabel": "Recommended",
+        "recommendedNotCollected": "Recommended: not collected yet",
+        "recommendedNote": "Recommended is not collected yet, so its column says n/a."
+      },
       "competitors": {
         "title": "Brands",
         "rateLabel": "Rate",

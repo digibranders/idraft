@@ -1,5 +1,6 @@
 import { cell, promptWeighted } from './prompt-summary';
 import type {
+  AnswerFactsExtra,
   EngineFacts,
   EngineSummaryWithFacts,
   LatestAnswer,
@@ -91,6 +92,22 @@ function hashText(text: string): number {
 const KEYWORD_SUFFIX: readonly string[] = ['agency', 'services', 'tools', 'software', 'pricing'];
 
 /** The keyword a prompt is linked to, or null for about one prompt in five. Prompts of one topic share a few keywords. */
+/**
+ * What an answer adds for the prompt drawer, as sample data from the answer's id: ChatGPT and Gemini classify the
+ * recommendation, one answer in three that names the brand is a list with a place in it. Nothing here reaches production.
+ */
+export function answerFactsExtra(observationId: string, code: string, facts: Facts): AnswerFactsExtra {
+  const seed = hashText(observationId);
+  const place = facts.own_mention_order;
+  return {
+    recommended: CLASSIFYING.has(code) ? facts.own_mentioned && seed % 5 < 3 : null,
+    list_rank:
+      place !== null && seed % 3 === 0
+        ? { place, listed: Math.max(place, facts.tracked_entities_mentioned) + (seed % 2) }
+        : null,
+  };
+}
+
 export function linkedKeywordOf(promptId: string, topicNames: readonly string[]): LinkedKeywordVolume | null {
   const seed = hashText(promptId);
   if (seed % 5 === 0) return null;

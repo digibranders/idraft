@@ -19,6 +19,22 @@ import type {
  * The exact names, shapes and owners are in `docs/ai-visibility/backend-requests-prompts-page.md`.
  */
 
+/**
+ * What an answer adds to its `ObservationFacts` for the prompt drawer (backend request 11): whether the answer recommends
+ * the own brand and the place of the brand in a list the answer gives. Both optional: absent means the backend has not
+ * built it, `null` means it does not apply (an engine that is not classified for recommendation, an answer that is not
+ * a list). The drawer never turns either into a zero or a "No".
+ */
+export interface AnswerFactsExtra {
+  /** The answer recommends the own brand; `null` on an engine whose answers are not classified for it. */
+  recommended?: boolean | null;
+  /** Place 1 of `listed` brands is the first of the list; `null` when the answer is not a list. */
+  list_rank?: { place: number; listed: number } | null;
+}
+
+/** The facts of an answer with what the drawer reads beyond the generated type. */
+export type ObservationFactsWithExtra = Schemas['ObservationFacts'] & AnswerFactsExtra;
+
 /** The API's intent enum (`Prompt.intent`). */
 export type PromptIntent = Prompt['intent'];
 
