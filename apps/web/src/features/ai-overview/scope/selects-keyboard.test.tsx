@@ -82,7 +82,7 @@ describe('the Group select by keyboard', () => {
     const search = await screen.findByRole('combobox', { name: 'Search groups' });
     expect(search).toHaveValue('');
     expect(await screen.findByRole('option', { name: 'All groups' })).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: 'SEO' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'SEO / Technical SEO' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'Paid Search' })).toBeInTheDocument();
   });
 });

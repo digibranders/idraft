@@ -149,9 +149,9 @@ describe('the scope bar', () => {
   it('chooses a group from the vocabulary, searches it and writes its id', async () => {
     const { user, urls } = await page();
     await user.click(screen.getByRole('combobox', { name: 'Group: All groups' }));
-    // One flat list: a topic below another is named by its path, and no row is marked as a parent
-    expect(await screen.findByRole('option', { name: 'SEO' })).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: 'SEO / Technical SEO' })).toBeInTheDocument();
+    // One flat list of groups: a topic below another is named by its path, and a topic above a group is no row
+    expect(await screen.findByRole('option', { name: 'SEO / Technical SEO' })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'SEO' })).not.toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'Paid Search' })).toBeInTheDocument();
     await user.type(screen.getByRole('combobox', { name: 'Search groups' }), 'technical');
     expect(screen.queryByRole('option', { name: 'Paid Search' })).not.toBeInTheDocument();

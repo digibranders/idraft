@@ -11,6 +11,7 @@ import { CountryControl } from './country-control';
 import { FiltersSheet, SheetRow } from './filters-sheet';
 import { GroupSelect } from './group-select';
 import { PlatformSelect, type PlatformChoice } from './platform-select';
+import { useGroupTerms } from './use-group-terms';
 import { canResetScope, changedFilterCount, RESET_PATCH } from './scope-model';
 import { topicField } from './topic-options';
 import { MAX_DAYS } from './use-overview-scope';
@@ -43,6 +44,7 @@ export function ScopeBar(): ReactElement {
   const onPage = useMediaQuery(PAGE_CONTROLS);
   const today = useZoneDay(project.timeZone);
   const { tree, pending } = useTopicTree();
+  const groups = useGroupTerms();
   const barRef = useRef<HTMLDivElement>(null);
 
   const choices = useMemo(
@@ -103,6 +105,7 @@ export function ScopeBar(): ReactElement {
       />
       <GroupSelect
         tree={tree}
+        groups={groups}
         pending={pending}
         selected={scope.topic}
         onChange={(topicId) => setScope({ topic: topicId })}
