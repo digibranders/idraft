@@ -165,7 +165,7 @@ function columnsOf() {
     return [
       { key: 'topic', label: 'Topic', width: WIDTH.topic, locked: true },
       { key: 'mention', label: 'Mention rate', width: mentionWidth() },
-      ...engines.map((engine) => ({ key: `e:${engine.code}`, label: `${engine.name} ${METRIC_LABEL[state.metric].toLowerCase()}`, width: WIDTH.e })),
+      ...engines.map((engine) => ({ key: `e:${engine.code}`, label: `${engine.name} ${METRIC_LABEL[state.metric].toLowerCase()}`, width: WIDTH.e, engine: engine.name })),
       { key: 'gap', label: 'Engine gap', width: WIDTH.gap },
     ];
   }
@@ -182,8 +182,8 @@ function columnsOf() {
     { key: 'brands', label: 'Brands', width: WIDTH.brands },
     { key: 'engine', label: 'Top engine', width: WIDTH.engine },
     ...engines.flatMap((engine) => [
-      { key: `m:${engine.code}`, label: `${engine.name} mentioned`, width: WIDTH.count },
-      { key: `c:${engine.code}`, label: `${engine.name} cited`, width: WIDTH.count },
+      { key: `m:${engine.code}`, label: `${engine.name} mentioned`, width: WIDTH.count, engine: engine.name },
+      { key: `c:${engine.code}`, label: `${engine.name} cited`, width: WIDTH.count, engine: engine.name },
     ]),
   ];
 }
@@ -206,7 +206,7 @@ const HEAD_TIP = {
   brands: 'The brands the answers name, most named first. Opens the list.',
   gap: 'The distance in points between the engine with the highest rate and the one with the lowest',
 };
-const sortHeader = (column) => sortHeaderCell({ key: column.key, label: column.label, sort: state.topicSort, attr: 'topicSort', tip: HEAD_TIP[column.key] });
+const sortHeader = (column) => sortHeaderCell({ key: column.key, label: column.label, sort: state.topicSort, attr: 'topicSort', tip: HEAD_TIP[column.key], logo: column.engine });
 
 /** The width the person gave the Topic column, or null for its default. */
 state.topicIdentity = null;

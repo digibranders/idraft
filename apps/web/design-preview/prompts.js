@@ -76,13 +76,13 @@ const columnsOf = () => {
     { key: 'recommendation', label: 'Recommendation rate', width: WIDTH.recommendation },
     { key: 'sov', label: 'Share of voice', width: WIDTH.sov },
     { key: 'sentiment', label: 'Sentiment', width: WIDTH.sentiment },
-    ...(single ? [{ key: 'links', label: 'Cited links', width: WIDTH.links }] : []),
+    ...(single ? [{ key: 'links', label: 'Cited links', width: WIDTH.links, engine: scopeEngines()[0].name }] : []),
     { key: 'brands', label: 'Brands', width: WIDTH.brands },
-    ...(single ? [{ key: 'shot', label: 'Screenshot', width: WIDTH.shot }] : []),
-    ...scopeEngines().map((engine) => ({ key: `e:${engine.code}`, label: `${engine.name} ${METRIC_LABEL[state.metric].toLowerCase()}`, width: WIDTH.e })),
+    ...(single ? [{ key: 'shot', label: 'Screenshot', width: WIDTH.shot, engine: scopeEngines()[0].name }] : []),
+    ...scopeEngines().map((engine) => ({ key: `e:${engine.code}`, label: `${engine.name} ${METRIC_LABEL[state.metric].toLowerCase()}`, width: WIDTH.e, engine: engine.name })),
     ...scopeEngines().flatMap((engine) => [
-      { key: `m:${engine.code}`, label: `${engine.name} mentioned`, width: WIDTH.count },
-      { key: `c:${engine.code}`, label: `${engine.name} cited`, width: WIDTH.count },
+      { key: `m:${engine.code}`, label: `${engine.name} mentioned`, width: WIDTH.count, engine: engine.name },
+      { key: `c:${engine.code}`, label: `${engine.name} cited`, width: WIDTH.count, engine: engine.name },
     ]),
   ];
 };
@@ -303,7 +303,7 @@ function renderHead() {
   all.input.dataset.promptAll = '';
   select.append(all.wrap);
   const cells = shown.map((column) => {
-    if (PLAIN_COLUMNS.includes(column.key)) return plainHeaderCell(column.label, '', HEAD_TIP[column.key]);
+    if (PLAIN_COLUMNS.includes(column.key)) return plainHeaderCell(column.label, '', HEAD_TIP[column.key], column.engine);
     const th = sortHeader(column);
     if (column.key === 'prompt') {
       // The pinned header must sit above the headers that scroll under it: it takes the sticky layer, not the header one
@@ -500,7 +500,8 @@ function chipLabel(field) {
 }
 
 function chip(label, editField, onRemove) {
-  const node = el('span', 'flex h-control max-w-60 pl-1 pr-1 rounded-md bg-neutral-subtle items-center gap-0.5 type-body text-foreground');
+  // The height of every control of the row, so a chip appearing never makes the row taller
+  const node = el('span', 'flex h-control-sm shrink-0 max-w-60 pl-0.5 pr-0.5 rounded-md bg-neutral-subtle items-center gap-0.5 type-body text-foreground');
   const edit = el('button', 'h-7 min-w-0 px-2 rounded-sm truncate hover:bg-surface-hover', label);
   edit.type = 'button';
   if (editField) {
