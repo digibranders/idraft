@@ -108,20 +108,25 @@ describe('EnginePanel: the By engine section of the drawer', () => {
     expect(params.get('metric')).toBe('citation');
   });
 
-  it('shows the change in points only when cells carry previous, coloured only when detectable', () => {
+  it('shows the change as the trend icon only when cells carry previous, coloured only when detectable', () => {
     render([
       chatgpt({ mentioned: weighted(40, 80, 4), previous: { mentioned: weighted(20, 80, 4) } }),
       gemini({ mentioned: weighted(5, 10, 4), previous: { mentioned: weighted(4, 10, 4) } }),
     ]);
     const [first, second] = rows();
-    const colour = (row: HTMLElement | undefined, text: string): string =>
-      (within(row ?? document.body).getAllByText(text, { selector: '[aria-hidden="true"]' })[0] ?? document.body)
-        .className;
-    expect(first).toHaveTextContent('+25.0 pts');
-    expect(colour(first, '+25.0 pts')).toContain('text-positive-text');
+    const icon = (row: HTMLElement | undefined): HTMLElement => {
+      const found = row?.querySelector<HTMLElement>('[data-slot="trend-icon"]');
+      if (found === null || found === undefined) throw new Error('The row draws no change');
+      return found;
+    };
+    // The icon draws no figures: the points are spoken and in the tooltip of the row
+    expect(first).not.toHaveTextContent('+25.0 pts');
+    expect(icon(first)).toHaveAttribute('data-direction', 'up');
+    expect(icon(first)).toHaveClass('text-positive-text');
+    expect(first).toHaveTextContent('up 25.0 pts');
     // Within normal variation: a change that is not told from noise is never coloured
-    expect(colour(second, '+10.0 pts')).toContain('text-foreground-secondary');
-    expect(colour(second, '+10.0 pts')).not.toContain('text-positive-text');
+    expect(icon(second)).toHaveClass('text-foreground-secondary');
+    expect(icon(second)).not.toHaveClass('text-positive-text');
   });
 
   it('shows no change without previous', () => {

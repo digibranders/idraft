@@ -267,7 +267,6 @@ export function usePromptActions({
         title: t('inspector.runQueued'),
         description: [
           t('inspector.runQueuedAnswers', {
-            count: entry.engineCodes.length,
             engines: formatList(entry.engineCodes.map(engineName), locale),
           }),
           t('inspector.runQueuedHint'),

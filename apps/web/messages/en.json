@@ -4530,7 +4530,6 @@
       "runNow": "Run now",
       "runQueued": "Run queued",
       "runQueuedHint": "Answers arrive within minutes. A run the AI budget blocks waits in Runs.",
-      "runQueuedAnswers": "{count, plural, one {# answer} other {# answers}} on {engines}.",
       "runFailedTitle": "Not queued",
       "runPending": "An answer is already on its way on {engines}. Try again once it has arrived.",
       "runLimit": "All {limit, number} manual runs of today (UTC) are used, keyword refreshes included. Try again tomorrow.",
@@ -4621,7 +4620,8 @@
         "definitionMention": "The share of valid answers of this prompt on this platform that mention your brand.",
         "definitionCitation": "The share of valid answers of this prompt on this platform that cite one of your pages.",
         "intervalMethod": "The 95 percent Wilson interval over the valid answers of this period, for this platform only."
-      }
+      },
+      "runQueuedAnswers": "Asked on {engines}."
     },
     "answer": {
       "type": "Answer",
@@ -4696,7 +4696,6 @@
     "compare": {
       "label": "Compare with",
       "previous": "vs previous period",
-      "year": "vs same period last year",
       "off": "No comparison",
       "windowTip": "{kind, select, year {Same period last year: {range}} other {Previous period: {range}}}",
       "offTip": "No change is read while comparison is off",
@@ -4737,7 +4736,8 @@
       "strip": {
         "previousLabel": "{kind, select, year {Same period last year: {range}} other {Previous period: {range}}}",
         "tip": "{tip} {change}"
-      }
+      },
+      "year": "vs same period last year"
     },
     "citationsTab": {
       "tab": "Citations",

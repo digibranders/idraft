@@ -230,7 +230,6 @@ export function PromptInspector({
       // What was asked and where, as the preview says it, then when the answers come
       description: [
         t('runQueuedAnswers', {
-          count: runnable.length,
           engines: formatList(
             runnable.map((e) => e.engine.label),
             locale,

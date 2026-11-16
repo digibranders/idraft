@@ -117,6 +117,8 @@ describe('the row menu of a prompt', () => {
     await openMenu(user, await prompts(), FIRST);
     await user.click(screen.getByRole('menuitem', { name: 'Run now' }));
     expect((await screen.findAllByText('Run queued')).length).toBeGreaterThan(0);
+    // What was asked and where, then when the answers come
+    expect((await screen.findAllByText(/^Asked on .+\. Answers arrive within minutes\./)).length).toBeGreaterThan(0);
     expect(screen.queryByRole('alertdialog')).toBeNull();
   });
 
@@ -126,6 +128,9 @@ describe('the row menu of a prompt', () => {
     await openMenu(user, table, FIRST);
     await user.click(screen.getByRole('menuitem', { name: 'Archive' }));
     expect((await screen.findAllByText('Prompt archived')).length).toBeGreaterThan(0);
+    expect(
+      (await screen.findAllByText('History is kept. No answers are collected from the next run.')).length,
+    ).toBeGreaterThan(0);
     await user.click((await screen.findAllByRole('button', { name: 'Undo' }))[0] as HTMLElement);
     expect((await screen.findAllByText('1 prompt restored')).length).toBeGreaterThan(0);
   });
