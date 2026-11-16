@@ -206,6 +206,50 @@ describe('the empty states of the AI visibility page', () => {
   });
 });
 
+describe('a link from before the Platform select', () => {
+  /** Fynix with the third platform on too, so a link can name two of three. */
+  function threePlatformsOn(): void {
+    server.use(
+      http.get(ENGINES, async ({ request }) => {
+        const body = await defaultJson(request);
+        const list = body.data as Record<string, unknown>[];
+        return HttpResponse.json({ ...body, data: list.map((engine) => ({ ...engine, is_enabled: true })) });
+      }),
+    );
+  }
+
+  it('that names two of three platforms shows All platforms, writes the key away and says so once', async () => {
+    threePlatformsOn();
+    const urls: string[] = [];
+    renderWithProviders(overviewAs('admin'), {
+      searchParams: '?engine=chatgpt_web,gemini_web&win=7d',
+      onUrlUpdate: (event) => urls.push(event.queryString),
+    });
+    expect(await screen.findByText('The link named several platforms')).toBeInTheDocument();
+    expect(screen.getByText('The page shows one platform at a time, so it shows all platforms.')).toBeInTheDocument();
+    expect(await screen.findByRole('combobox', { name: 'Platform: All platforms' })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(urls.at(-1)).toBe('?win=7d');
+    });
+    // Strict mode runs effects twice and the key is gone after the first: one toast
+    expect(screen.getAllByText('The link named several platforms')).toHaveLength(1);
+  });
+
+  it('that names every platform that is on is All platforms without a word', async () => {
+    threePlatformsOn();
+    const urls: string[] = [];
+    renderWithProviders(overviewAs('admin'), {
+      searchParams: '?engine=gemini_web,chatgpt_web,google_ai_mode',
+      onUrlUpdate: (event) => urls.push(event.queryString),
+    });
+    expect(await screen.findByRole('combobox', { name: 'Platform: All platforms' })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(urls.at(-1)).toBe('');
+    });
+    expect(screen.queryByText('The link named several platforms')).not.toBeInTheDocument();
+  });
+});
+
 describe('the notice region and the freshness of the AI visibility page', () => {
   it('says the scheduled runs are paused, with no other notice', async () => {
     server.use(
@@ -308,6 +352,13 @@ describe('the notice region and the freshness of the AI visibility page', () => 
     await waitFor(() => {
       expect(screen.getByRole('group', { name: STRIP })).not.toHaveAttribute('aria-busy');
     });
+    // The freshness is a skeleton while it is read and nothing once it has failed: wait for that, then look
+    await waitFor(
+      () => {
+        expect(document.querySelector('[data-slot="overview-meta"]')).toBeNull();
+      },
+      { timeout: 5000 },
+    );
     expect(screen.queryByText(/^AI updated /)).not.toBeInTheDocument();
     expect(screen.queryByText('No AI answers yet')).not.toBeInTheDocument();
   });

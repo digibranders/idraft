@@ -100,6 +100,15 @@ describe('the AI visibility page of a project with platforms on', () => {
     expect(toolbar.compareDocumentPosition(strip) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
   });
 
+  it('puts the freshness in the toolbar from 1440 px, and only there', async () => {
+    stubViewport(90);
+    const { container } = renderWithProviders(overviewAs('admin'));
+    const toolbar = await screen.findByRole('region', { name: 'Scope and actions' });
+    expect(await within(toolbar).findByText(/^AI updated .+$/)).toBeInTheDocument();
+    expect(screen.getAllByText(/^AI updated .+$/)).toHaveLength(1);
+    expect(container.querySelector('p[data-slot="overview-meta"]')).toBeNull();
+  });
+
   it('puts the freshness at the foot of the page where the toolbar has no room, and once', async () => {
     stubViewport(80);
     const { container } = renderWithProviders(overviewAs('admin'));
