@@ -6839,6 +6839,17 @@
         "infoWhat": "The domains AI answers cite most often.",
         "infoHow": "A page is counted once for each answer that cites it. Each share is a part of all citations in scope."
       },
+      "fanout": {
+        "title": "Top fan-out queries",
+        "meta": "{engines} only · {withFanout, number} of {answers, number} answers ran a search",
+        "caption": "Fan-out queries by the answers that ran them",
+        "queryHeader": "Fan-out query",
+        "answersHeader": "Answers",
+        "promptsHeader": "Prompts",
+        "topCitedHeader": "Top cited",
+        "infoWhat": "The extra searches ChatGPT runs to build its answers.",
+        "infoHow": "Only ChatGPT shows them. A fan-out query is listed when it appears in at least 2 answers."
+      },
       "ownPages": {
         "title": "Your pages cited",
         "meta": "{units, plural, one {# unit} other {# units}} from {domain}",
