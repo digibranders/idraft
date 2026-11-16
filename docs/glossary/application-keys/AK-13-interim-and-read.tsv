@@ -1,11 +1,13 @@
 key	current text
 common.delta.interim	interim test
+common.delta.interimTip	Interim test: unpaired, may understate uncertainty
 budgets.usage.reasonProject	These limits are read through a project, and there is none to read them through.
 rankings.refresh.dialog.selectionHint	A keyword is read at every location and language it is tracked in.
 rankings.refresh.dialog.matchingHint	The search box is left out. Each keyword is read at every location and language it is tracked in, whatever a filter says about them.
 prompts.bulk.runUnknown	Nothing was started: some of the selected prompts are archived or gone. The list is read again.
 prompts.bulk.runUnknownNext	The next run was not started: some of its prompts are archived or gone. The list is read again.
 prompts.compare.offTip	No change is read while comparison is off
+prompts.compare.detectable.tip	Keeps the rows whose Mention rate change is larger than normal variation. Interim test: unpaired, on pooled answers.
 prompts.citationsTab.scopeEngine	Only {engine} is read. The last answer date above covers all platforms.
 aiOverview.numbers.tipOneAtATime	Fan-out presence is read for one platform at a time, and more than one platform that shows its fan-out is on
 aiOverview.engines.movers.footnote	Each prompt is read on its own answers on one platform, in this window and in the one before. The two windows are unpaired: a change is tested on the pooled counts of each window and coloured only when it is larger than normal variation.

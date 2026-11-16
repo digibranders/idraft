@@ -3,11 +3,15 @@ common.statistics.noBoundaries	No version change in this window
 projectSettings.schedules.when.daily	Every day at {time}, {hours, number} hour window
 projectSettings.schedules.when.weekly	Every {weekday} at {time}, {hours, number} hour window
 projectSettings.schedules.when.monthly	On the {day, selectordinal, one {#st} two {#nd} few {#rd} other {#th}} of every month at {time}, {hours, number} hour window
+projectSettings.schedules.dialog.window	Window
 projectSettings.schedules.dialog.windowHint	The collection starts at some point inside the window.
 runReasons.missedWindow	The scheduled window passed before the run could be planned, so nothing was collected for it
+runs.columns.window	Window
+runs.inspector.window	Window
 keywordDetail.noChecks.stale	No check falls in this window, and the last good one is older. Choose a longer window.
 keywordDetail.noChecks.archived	This keyword is archived and no longer checked. No check falls in this window.
 keywordDetail.noChecks.window	No check falls in this window. Choose a longer window.
+keywordDetail.history.window.label	Window
 keywordDetail.history.statsAllFailed	Every check in this window failed.
 keywordDetail.history.statsUnranked	Not ranked in any of the {checks, plural, one {1 check} other {# checks}} in this window
 keywordDetail.strip.aioNoChecks	No readable checks in this window
@@ -39,6 +43,7 @@ prompts.citationsTab.pages.emptyTitle	No cited pages in this window
 prompts.citationsTab.pages.emptyReason	No answer read names a page. Choose a longer window or another platform.
 aiOverview.scope.compareUnavailable	No days before this window
 aiOverview.scope.window	Date window
+aiOverview.numbers.tipWindow	Window: {window} ({branded})
 aiOverview.numbers.tipNoChange	No change shown: a window has too few valid answers for a rate
 aiOverview.numbers.tipPreviousFailed	The previous window could not be read, so no change is shown
 aiOverview.engines.changeSummary.rulesGained	Prompts that named you before and no longer do, and the reverse, are counted over prompts with 4 or more valid answers on that platform in both windows. A prompt names you when at least one of its valid answers does. The others, including prompts with no answers on that platform in one window, are counted in the Table view.

@@ -1,0 +1,26 @@
+{
+  "description": "Machine copy of the banned words of terms.md and final-list.md. The test src/lib/glossary/glossary-words.test.ts fails when one of these appears in a visible string of apps/web/messages/en.json. Edit terms.md first, then this file (README rule). Patterns are JavaScript regular expressions matched against the visible text of a message (ICU variables removed).",
+  "words": [
+    { "id": "engine", "pattern": "(?<!search )\\bengines?\\b", "flags": "i", "use": "Platform (AI) or Search engine (SEO)" },
+    { "id": "ai-engine", "pattern": "\\bAI engines?\\b", "flags": "i", "use": "Platform" },
+    { "id": "topic", "pattern": "\\btopics?\\b", "flags": "i", "use": "Group" },
+    { "id": "cluster", "pattern": "\\bclusters?\\b", "flags": "i", "use": "Group or Segment" },
+    { "id": "source-cited", "pattern": "\\bsources?\\b", "flags": "i", "use": "cited domain, cited page or citation; Added from for keyword origin; \"Source: ...\" footnotes are allowed (see guard-exceptions.json)" },
+    { "id": "named", "pattern": "\\bnamed\\b|\\bnaming\\b", "flags": "i", "use": "mentioned, mentioning" },
+    { "id": "own-brand", "pattern": "\\bown (brand|domain|site|pages?)\\b|\\bowned (pages?|domains?|sites?)\\b", "flags": "i", "use": "your brand, your site, your pages" },
+    { "id": "insufficient", "pattern": "\\binsufficient\\b", "flags": "i", "use": "Not enough data" },
+    { "id": "window", "pattern": "\\bwindows?\\b", "flags": "i", "use": "Period (a schedule time slot is allowed, see guard-exceptions.json)" },
+    { "id": "entity", "pattern": "\\bentit(y|ies)\\b", "flags": "i", "use": "Brand" },
+    { "id": "vocabulary", "pattern": "\\bvocabular(y|ies)\\b", "flags": "i", "use": "Tag set" },
+    { "id": "taxonomy", "pattern": "\\btaxonom\\w*", "flags": "i", "use": "Tags" },
+    { "id": "workload", "pattern": "\\bworkloads?\\b", "flags": "i", "use": "Job type" },
+    { "id": "trigger", "pattern": "\\btriggers?\\b", "flags": "i", "use": "Started by" },
+    { "id": "panel", "pattern": "\\bpanels?\\b", "flags": "i", "use": "Schedule (\"Knowledge panel\" is a Google feature name)" },
+    { "id": "ai-overview-bare", "pattern": "(?<!Google )\\bAI Overview", "flags": "", "use": "Google AI Overview" },
+    { "id": "ai-visibility-capital", "pattern": "AI Visibility", "flags": "", "use": "AI visibility, AI visibility rate" },
+    { "id": "interim", "pattern": "\\binterim\\b", "flags": "i", "use": "Provisional" },
+    { "id": "observation", "pattern": "\\bobservations?\\b", "flags": "i", "use": "answer or check" },
+    { "id": "unlinked-mention", "pattern": "\\bunlinked mentions?\\b", "flags": "i", "use": "Mentioned only" },
+    { "id": "clear-change", "pattern": "\\bstatistically significant\\b", "flags": "i", "use": "Detectable change" }
+  ]
+}

@@ -1,15 +1,20 @@
 key	current text
 common.depths.untilOwnMatch100	Until own match, top 100
 common.domain.publicSuffix	This is a shared ending such as co.uk. Enter the site's own domain
+common.domainCell.roles.own	Own
 projectSettings.general.domainHint	The domain of the site this project tracks. The own brand's domains are set in Entities and aliases.
 projectSettings.keywordDefaults.description	What a keyword gets when it is added without its own choice. Keywords that are already tracked keep their settings.
 projectSettings.schedules.description	When this project's keyword metrics, rankings and AI answers are collected. Each schedule keeps to its own time zone.
 workspaceSettings.general.timezoneHint	Workspace pages such as Costs count their days in this time zone. Each project keeps its own.
 onboarding.workspace.timezoneHint	Workspace pages such as Costs count their days in this time zone. Each project keeps its own.
 account.preferences.densityHint	Tables open at 32 px rows. Comfortable (40 px) is kept here for when tables read this setting; each table keeps its own choice in its link.
+evidence.citationList.roles.own	Own
+evidence.compare.roles.own	Own
 entitySettings.description	The brands this project is judged against: its own, up to 10 competitors, and others to watch in answers.
+entitySettings.roles.own	Own brand
 entitySettings.empty.own	No own brand yet. The brand named when the project was created is its own brand.
 entitySettings.removeDialog.primaryOwn	The primary own brand stays: a project is always judged against it.
+entitySettings.editor.roles.own	Own brand
 entitySettings.domains.conflict	Another entity in a project with this one also claims {domain}. The own brand wins a tie.
 entitySettings.aliases.description	Other names that count as this entity in AI answers. Its own name and names made from its domains count too.
 entitySettings.aliases.restatesName	This is the entity's own name. The options below then set how the name itself is matched: its case, whether it needs context, or that it is never counted.
@@ -18,6 +23,7 @@ taxonomySettings.termDialog.cycle	{name} cannot move under one of its own terms.
 rankings.filters.featureOwned	SERP feature you own
 keywordDetail.events.types.featureGained	You now own {feature}
 keywordDetail.events.types.featureLost	You no longer own {feature}
+prompts.topicDrawer.byEngineView.leaderTip	{name}: {share} share of voice on {engine}, {answers, plural, one {# answer} other {# answers}} naming a brand. Own brand {own}.
 prompts.topicDrawer.rivals.meta	Mention rate of the own brand and {count, plural, one {the most mentioned competitor} other {the # most mentioned competitors}}
 prompts.topicDrawer.rivals.metaNone	Mention rate of the own brand and the competitors named most
 prompts.topicDrawer.rivals.own	{name}, own brand
@@ -25,10 +31,17 @@ prompts.topicDrawer.rivals.summary	Mention rate of the own brand and of the comp
 prompts.topicDrawer.inSearch.noneReason	Tracked keywords carry their own groups. Give this group to a keyword in Rankings to count it here.
 prompts.topicDrawer.competitors.own	own brand
 prompts.topicDrawer.competitors.footnote	The tracked set of the answers read, at most 20 entities, the own brand first. The leading competitor on each platform is in bold.
+prompts.inspector.competitors.own	Own
 prompts.answer.matchLabels.own	own brand
+prompts.answer.roles.own	Own
+prompts.answer.sourceRoles.own	Own
+prompts.citationsTab.answers.caption	Own page cited in each answer
 aiOverview.numbers.tipUnits	{count, number} of {total, number} citation units come from your own pages
 aiOverview.engines.trend.footnotePooled	Each point pools the answers of up to 4 weeks ending in the week shown. The figure is the mean of each prompt’s own rate, so each prompt counts once. That mean can sit outside the interval of the pooled answers.
 aiOverview.engines.trend.footnoteOwnWeek	Each point is the answers of its own week.
+aiOverview.engines.byEngine.ownCitation	Own citation
+aiOverview.engines.byEngine.metricOwnCitation	Own citation share
+aiOverview.engines.byEngine.ownNotRead	Own citation has not been read
 aiOverview.engines.byEngine.footnote	Each rate is the mean of the prompts’ own rates, so each prompt counts once. That mean can sit outside the interval of the pooled answers. Share of voice counts each answer that names a brand once. A change is coloured only when it is larger than normal variation (an unpaired test on the pooled counts).
 aiOverview.engines.movers.footnote	Each prompt is read on its own answers on one platform, in this window and in the one before. The two windows are unpaired: a change is tested on the pooled counts of each window and coloured only when it is larger than normal variation.
 aiOverview.engines.agreement.footnote	A platform names you on a prompt when it has {min, number} or more valid answers on it and at least one of them names you. A prompt with fewer than {min, number} valid answers on any of these platforms is left out and counted, never read as unnamed. One answer that names you is enough for a prompt to count as named, so this is not the prompt weighted rate of the strip. Platforms are never pooled: each is counted on its own.
@@ -36,6 +49,11 @@ aiOverview.engines.country.footnote	Each location is read on its own, with the o
 aiOverview.topics.extremes.ranking	A group is ranked on a platform from {answers, number} valid answers over at least {prompts, number} prompts. Only the most specific groups are ranked: a group is never ranked beside its own subgroups.
 aiOverview.sources.ownPages.infoDefinition	How often the answers of the platforms in scope cite a page on your own domains.
 aiOverview.sources.roleShare.footnoteSplit	Each bar is one platform over its own citation units. Platforms are never added together.
+aiOverview.sources.fanout.ownCited	Own domain cited
+aiOverview.sources.fanout.ownHeader	Own domain cited
+citations.filters.roles.own	Own
+citations.views.own	Own domain
+citations.strip.ownShare	Own citation share
 citations.noOwn.title	Prompts with no own page cited
 citations.noOwn.emptyTitle	Every prompt has an own page cited
 citations.noOwn.finding	none of {answers, plural, one {# answer} other {# answers}} cites an own page

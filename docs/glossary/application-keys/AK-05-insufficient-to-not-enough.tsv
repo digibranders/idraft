@@ -1,12 +1,23 @@
 key	current text
+common.insufficient.tip	Too few valid answers for a rate: {count, number} of the {min, number} it needs.
+common.statistics.insufficient	Insufficient data
 common.statistics.noIntervalInsufficient	No interval: too few valid answers
+chart.intervalBar.thin	Too few answers to compare
 runs.coverage.thin	{planned, number} planned, too few for a rate
+rankings.gscTrend.insufficient	Too few {metric, select, clicks {clicks} other {impressions}} in the last 28 days to show a trend
 prompts.rate.insufficientInline	too few answers ({count, number})
+prompts.rate.insufficientShareTip	Too few answers that name a brand for a share: {count, number} of the {min, number} it needs.
+prompts.rate.insufficientTip	Too few valid answers for a rate: {count, number} of the {min, number} it needs.
 prompts.strip.tipInsufficient	{basis}, too few for a rate
+prompts.topicDrawer.byEngineView.leaderFewTip	Too few answers that name a tracked brand on {engine}: {count, number} of the {min, number} it needs.
 prompts.topicDrawer.byEngineView.gapDetailLeftOut	{counts}. Left out for too few answers: {engines}.
+prompts.topicDrawer.compare.noTest	Too few answers to test the difference.
 prompts.topicDrawer.compare.leftOut	Left out for too few answers: {engines}.
 prompts.topicDrawer.trend.cellThin	{basis}, {prompts, plural, one {# prompt} other {# prompts}}, too few answers for a rate
 prompts.inspector.history.cellThin	{value}, {basis}, too few for an interval
+prompts.inspector.stats.tooFew	Too few answers for a reliable rate
+prompts.compare.change.tooFew	Too few answers in one of the periods for a rate
+aiOverview.numbers.tooFew	Too few for a rate
 aiOverview.numbers.tipFew	{count, plural, one {# valid answer} other {# valid answers}}, too few for a rate (it needs {min, number}), {invalid, plural, one {# answer} other {# answers}} not valid
 aiOverview.numbers.tipFewUnits	{count, plural, one {# citation unit} other {# citation units}}, too few for a share (it needs {min, number})
 aiOverview.numbers.tipFewNaming	{count, plural, one {# answer} other {# answers}} naming a tracked brand, too few for a rate (it needs {min, number}), {invalid, plural, one {# answer} other {# answers}} not valid
@@ -14,14 +25,22 @@ aiOverview.numbers.tipNoChange	No change shown: a window has too few valid answe
 aiOverview.engines.trend.summaryThin	{engine}: {count, plural, one {# answer} other {# answers}}, too few for a rate.
 aiOverview.engines.comparison.rowThin	{engine}: too few answers to compare, {nBefore, number} before and {nNow, number} now
 aiOverview.engines.comparison.summaryThin	{engine} has too few answers to compare
+aiOverview.engines.waterfall.barTooFew	Too few answers
 aiOverview.engines.waterfall.detailTooFew	{count, plural, one {# prompt} other {# prompts}} with too few answers
 aiOverview.engines.waterfall.summary	{engine} {metric} went from {start} to {end}: {rose} from prompts that rose, {fell} from prompts that fell, {tooFew} from prompts with too few answers and {setChanged} from the change of the prompt set.
+aiOverview.engines.waterfall.emptyUnknownTitle	Too few answers to explain the change
 aiOverview.engines.outcomeMix.summaryThin	{engine}: too few valid answers to give a share, {count, plural, one {# answer} other {# answers}}.
 aiOverview.engines.agreement.leftOutLabel	Left out, too few answers
 aiOverview.engines.agreement.summaryLeftOut	{count, plural, one {# prompt was} other {# prompts were}} left out for too few valid answers.
 aiOverview.engines.country.rowThin	{engine}: {count, plural, one {# answer} other {# answers}}, too few for a rate
+aiOverview.competitors.common.tooFewTitle	Too few answers name a tracked brand ({count})
 aiOverview.competitors.trend.summaryUnknown	Mention rate by week on {engine}. This window has too few answers for a comparison.
+aiOverview.competitors.sovOverTime.tooFew	Too few answers name a tracked brand that week: {answers, plural, one {# answer} other {# answers}}, fewer than {min, number}
 aiOverview.competitors.sovRank.cellNone	No rank: too few answers
+aiOverview.competitors.sovRank.footerGap	Too few answers name a tracked brand ({answers, number}): this week has no rank
+aiOverview.competitors.coMentions.summaryNone	Too few valid answers on {engine} to read which brands are named together.
+aiOverview.competitors.table.tooFew	Too few
+aiOverview.competitors.table.statusTooFew	Too few answers
 aiOverview.topics.extremes.notRanked	{engine}: {count, plural, one {# group has} other {# groups have}} too few answers or prompts.
 aiOverview.topics.gap.verdict.tooFew	too few answers to tell
 aiOverview.topics.gap.scope	Only the most specific groups are compared, and a group needs a rate on at least two platforms. The line runs from the lowest to the highest platform. A platform with too few answers has no dot and its answers are written beside the group. The reading is an unpaired test on the pooled answers of the platforms that differ most.

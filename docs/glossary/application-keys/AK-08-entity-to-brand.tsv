@@ -1,9 +1,17 @@
 key	current text
+settings.items.entities	Entities and aliases
+projectSettings.general.domainHint	The domain of the site this project tracks. The own brand's domains are set in Entities and aliases.
+onboarding.brandDescription	The brand answers are checked for. It owns the site above. Competitors are added later, under Entities and aliases.
+onboarding.brandTaken	Another brand in this workspace has this name. Choose another, or add this project's brand later under Entities and aliases.
+onboarding.aliasesTooMany	Add at most {max} other names. More can be added later under Entities and aliases.
+evidence.entityToggle.legend	Entities
+entitySettings.title	Entities and aliases
 entitySettings.readOnly	Owners, admins and editors can change the entities of a project.
 entitySettings.addWatched	Watch an entity
 entitySettings.loadFailed	The entities could not be loaded.
 entitySettings.loadFailedReason	The server did not answer. Your entities are safe.
 entitySettings.empty.watch	Nothing watched. A watched entity is followed in answers without counting as a competitor.
+entitySettings.columns.entity	Entity
 entitySettings.addedHint	Share of voice counts a competitor from the date it was added. Adding or removing one changes share of voice for all entities from that day.
 entitySettings.dialog.titleWatched	Watch an entity
 entitySettings.dialog.nameTaken	Another entity in this workspace has this name. Choose another.
@@ -12,6 +20,7 @@ entitySettings.dialog.submitWatched	Watch entity
 entitySettings.dialog.discardDescription	The entity you started will not be added.
 entitySettings.dialog.createFailed	The entity was not added. Try again in a moment.
 entitySettings.tracking.description	Where this entity counts. Turning off SEO keeps its rank history.
+entitySettings.editor.back	Entities and aliases
 entitySettings.editor.readOnly	Owners, admins and editors can change entities.
 entitySettings.editor.loadFailed	The entity could not be loaded.
 entitySettings.editor.gone	This entity no longer exists.
@@ -36,11 +45,19 @@ entitySettings.aliases.pasteAllKnown	Every line is already an alias of this enti
 entitySettings.aliasTest.description	Paste an answer from an AI platform to see which mentions the project's saved entities and aliases would count. Nothing is stored.
 entitySettings.aliasTest.sampleHint	Matched as you type, against every entity of this project.
 domainSettings.description	The sites that count as each entity's in rankings and cited sources. Change them in <link>Entities and aliases</link>.
+domainSettings.empty.own	The own brand has no domains yet. Add them in its editor, under Entities and aliases.
+domainSettings.empty.competitor	No competitor has a domain yet. Add one with Add competitor, under Entities and aliases.
 domainSettings.empty.watch	No watched entity has a domain. Add one in its editor, under Entities and aliases.
+domainSettings.columns.entity	Entity
+keywordDetail.snapshots.columns.entity	Entity
 prompts.topicDrawer.byEngineView.leaderTied	Tied on share of voice with {others}. The higher mention rate comes first, then the order of the entities.
 prompts.topicDrawer.rivals.footnote	Each competitor keeps the colour chosen for it in the entities. A competitor with no mention in the window is not shown.
+prompts.topicDrawer.competitors.entity	Entity
 prompts.topicDrawer.competitors.footnote	The tracked set of the answers read, at most 20 entities, the own brand first. The leading competitor on each platform is in bold.
+prompts.topicDrawer.competitors.emptyReason	Add a competitor in Entities to compare it here.
+prompts.topicDrawer.competitors.entitiesLink	Open Entities
 aiOverview.competitors.common.noCompetitorAsk	Ask a member who can edit entities to add a competitor.
+aiOverview.competitors.sovRank.needsBrandsReason	Add competitors in Settings > Entities. With fewer than 3 tracked brands there is little to put in order.
 citations.table.citedWithUnknown	The name of this entity is not loaded yet.
 citations.table.citedWithPageTip	The entity named most often beside the domain of this page. It is a figure of the domain, not of the page.
 citations.inspectors.domain.coLead	The tracked entities named most often in the answers that cite this domain.
