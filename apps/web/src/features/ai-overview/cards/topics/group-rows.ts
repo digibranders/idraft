@@ -33,13 +33,24 @@ export const forMeasure = (engines: readonly EngineSummary[], measure: ScopeMetr
     ? engines.map((engine) => ({ ...engine, mentioned: visibilityCell(engine.outcomes) }))
     : engines;
 
+/**
+ * The groups of the nodes: the topics with a prompt that have no topic with a prompt below them, in the order of the
+ * vocabulary tree. A topic the API lists with no prompt is no group, so a topic whose only sub-topics are empty is one.
+ */
+export function groupsOf(nodes: readonly TopicNode[]): TopicNode[] {
+  const held = nodes
+    .filter((node) => node.promptCount > 0)
+    .map((node) => ({ ...node, children: node.children.filter((child) => child.promptCount > 0) }));
+  return leavesOf(held);
+}
+
 /** The groups of the nodes, in the order of the vocabulary tree, each with its value on every platform and their average. */
 export function groupRows(
   nodes: readonly TopicNode[],
   codes: readonly string[],
   measure: ScopeMetric,
 ): TopicEngineRow[] {
-  const groups = leavesOf(nodes).map((node) => ({ ...node, engines: forMeasure(node.engines, measure) }));
+  const groups = groupsOf(nodes).map((node) => ({ ...node, engines: forMeasure(node.engines, measure) }));
   return topicEngineRows(groups, codes, CELL_OF_MEASURE[measure]);
 }
 
@@ -53,7 +64,7 @@ export function groupCoverage(
   nodes: readonly TopicNode[],
 ): { overlapping: number; outside: number } {
   const held = new Map<string, number>();
-  for (const node of leavesOf(nodes)) {
+  for (const node of groupsOf(nodes)) {
     for (const member of node.members ?? []) held.set(member.prompt_id, (held.get(member.prompt_id) ?? 0) + 1);
   }
   const counts = prompts.map((prompt) => held.get(prompt.prompt_id) ?? 0);

@@ -5,7 +5,6 @@ import {
   RETRY,
   THEMES,
   WIDTHS,
-  addCard,
   awaitCardReady,
   cardById,
   cardGrid,
@@ -27,10 +26,10 @@ import { MOCK_USERS } from '../../src/mocks/fixtures';
 import { mockId } from '../../src/mocks/mock-ids';
 
 /**
- * What the e2e of the topic and prompt cards (WP-36, apps/web/e2e/flows/ai-overview-topics.spec.ts) shares: the
- * layout of the Topic owner preset plus the four cards it leaves out, the locators of the heat map, and the three
- * switches the spec needs on the summary read: a failure, a hold, and cells with too few answers or none. The page
- * and the way through Customize are those of the competitors cards (`ai-overview-competitors.ts`).
+ * What the e2e of the groups cards (apps/web/e2e/flows/ai-overview-topics.spec.ts) shares: the Executive preset, which
+ * holds the groups heat map and the top and bottom groups, the locators of the heat map, and the three switches the
+ * spec needs on the summary read: a failure, a hold, and cells with too few answers or none. The page and the way
+ * through Customize are those of the competitors cards (`ai-overview-competitors.ts`).
  */
 export {
   DENSITIES,
@@ -58,37 +57,17 @@ export type { Density, Theme };
 // -------------------------------------------------------------------------------------------------
 // The cards
 
-/** The ids the Topic owner preset gives its cards (`presets/presets.ts`); the seven that carry the overlap footnote. */
-export const TOPIC_OWNER_CARDS = {
-  heatmap: 'topic-heatmap',
-  extremes: 'topic-extremes',
-  movers: 'topic-movers',
-  gap: 'topic-engine-gap',
-  trends: 'topic-trends',
-  disagreement: 'engine-disagreement',
-  contribution: 'topic-contribution-chatgpt',
-} as const;
-/** The seven topic cards and the coverage card the preset holds. */
-export const PRESET_CARD_COUNT = 8;
+/** The ids the Executive preset gives the two group cards (`presets/presets.ts`); the Default layout has the heat map only. */
+export const GROUP_CARDS = { heatmap: 'topic-heatmap', extremes: 'topic-extremes' } as const;
 
-/** The cards the preset leaves out: the name in the Add card dialog and the title the card then carries. */
-export const EXTRA_CARDS = [
-  { menu: 'Group trends, one platform', title: 'Mention rate by group on ChatGPT' },
-  { menu: 'Prompts by platform', title: 'Prompts by platform' },
-  { menu: 'Prompts to look at', title: 'Prompts to look at' },
-  { menu: 'Cited as often as named?', title: 'Citation against mention by group on ChatGPT' },
-] as const;
-/** The extra cards of `EXTRA_CARDS` that carry the topic footnote (the two prompt cards say nothing of overlap). */
-export const EXTRAS_WITH_FOOTNOTE = [EXTRA_CARDS[0], EXTRA_CARDS[3]] as const;
-
-export const HEATMAP_TITLE = 'Mention rate by group and platform';
-/** The first sentence of the footnote of every topic card, and the count that follows it. */
+export const HEATMAP_TITLE = 'Groups by platform';
+export const EXTREMES_TITLE = 'Top and bottom groups';
+/** The first sentence of the footnote of every groups card, and the count that follows it. */
 export const OVERLAP_NOTE =
   /Groups overlap: a prompt in two groups counts in both, so the rows do not add up to the total\./;
-export const OVERLAP_COUNT = /\d+ prompts? (?:is|are) in more than one group\./;
 
-/** The topics of the Fynix mock, as the heat map lists them at the top level. */
-export const TOP_LEVEL_TOPICS = ['SEO', 'Content Marketing', 'Paid Search', 'Prompts without a group'] as const;
+/** The columns of the heat map while both platforms of the Fynix mock are asked, AI Overview not collected yet. */
+export const BOTH_PLATFORM_COLUMNS = ['Group', 'Prompts', 'ChatGPT', 'Gemini', 'AI Overview', 'avg of 2'];
 
 /** The Platform and Group selects of the scope bar (`support/ai-overview.ts`), which the group cards' specs drive. */
 export { groupSelect, platformSelect };
@@ -96,17 +75,13 @@ export { groupSelect, platformSelect };
 export const customizeButton = (page: Page): Locator => page.getByRole('button', { name: 'Customize', exact: true });
 export const saveBar = (page: Page): Locator => page.locator('[data-slot="layout-save-bar"]');
 
-/** Customizes the page: the Topic owner preset, and with `extras` the four cards it leaves out; then saves. */
-export async function saveTopicLayout(page: Page, { extras = false }: { extras?: boolean } = {}): Promise<void> {
+/** Customizes the page: the Executive preset, which holds both group cards; then saves. */
+export async function saveGroupLayout(page: Page): Promise<void> {
   await openOverview(page);
   await startCustomizing(page);
-  await startFrom(page, 'Group owner');
-  if (extras) for (const { menu } of EXTRA_CARDS) await addCard(page, menu);
+  await startFrom(page, 'Executive');
   await saveLayout(page);
-  await expect(cardGrid(page).locator('[data-layout-card]')).toHaveCount(
-    PRESET_CARD_COUNT + (extras ? EXTRA_CARDS.length : 0),
-  );
-  for (const id of Object.values(TOPIC_OWNER_CARDS)) await awaitCardReady(cardById(page, id));
+  for (const id of Object.values(GROUP_CARDS)) await awaitCardReady(cardById(page, id));
 }
 
 /** Waits until every card of the page has stopped loading, and fails when one shows that its read failed. */
@@ -123,12 +98,13 @@ export async function awaitEveryCardReady(page: Page): Promise<void> {
 // -------------------------------------------------------------------------------------------------
 // The heat map
 
-export const heatmapCard = (page: Page): Locator => cardById(page, TOPIC_OWNER_CARDS.heatmap);
-/** The grid of the card, a tree grid while a row has rows under it. */
+export const heatmapCard = (page: Page): Locator => cardById(page, GROUP_CARDS.heatmap);
+export const extremesCard = (page: Page): Locator => cardById(page, GROUP_CARDS.extremes);
+/** The grid of the card. */
 export const heatmapGrid = (card: Locator): Locator => card.getByRole('treegrid').or(card.getByRole('grid'));
-/** A cell of the grid by the topic and the engine it is named for ("SEO on ChatGPT: ..."). */
-export const heatCell = (card: Locator, topic: string, engine: string): Locator =>
-  heatmapGrid(card).getByRole('gridcell', { name: new RegExp(`^${topic} on ${engine}: `) });
+/** A cell of the grid by the group and the platform it is named for ("SEO / Technical SEO on ChatGPT: ..."). */
+export const heatCell = (card: Locator, group: string, platform: string): Locator =>
+  heatmapGrid(card).getByRole('gridcell', { name: new RegExp(`^${group} on ${platform}: `) });
 
 // -------------------------------------------------------------------------------------------------
 // Display: theme and table density
@@ -211,7 +187,7 @@ export async function focusTitleOf(card: Locator): Promise<void> {
 
 const CELLS_KEY = 'e2e-thin-cells';
 
-/** The topic the rewritten cells belong to: two prompts, so nothing else of the page leans on it. */
+/** The group the rewritten cells belong to: two prompts, so nothing else of the page leans on it. */
 export const THIN_TOPIC = 'Paid Search';
 /** Its term id in the mock (`src/mocks/entity-fixtures.ts`): the summary names a row by it. */
 export const THIN_TOPIC_ID = mockId('term', 6);
@@ -220,8 +196,8 @@ export const THIN_ANSWERS = 3;
 
 /**
  * Lets a test change two cells of the summary the page reads, in the page and after the mock layer has answered:
- * the mention cell of the topic `THIN_TOPIC` on ChatGPT becomes 2 of 3 valid answers, and on Gemini it becomes no
- * answer at all. Both keep a `value` (a rate of 67% and a rate of 0), the way a careless reader of the API would
+ * the mention and outcome cells of the group `THIN_TOPIC` on ChatGPT become 2 of 3 valid answers, and on Gemini they
+ * become no answer at all. Both keep a `value` (a rate of 67% and a rate of 0), the way a careless reader of the API would
  * draw them: the card must go by the answers behind a cell and print neither. The mock data of Fynix has a rate
  * behind every cell at the default window, so this is the only way to meet these two states there. The switch is
  * kept in `sessionStorage`, which a reload keeps; a failed answer is left as it is.
@@ -234,8 +210,12 @@ export async function installThinCells(page: Page): Promise<void> {
     value: number | null;
     pooled?: { successes: number; trials: number } | null;
   }
+  interface Row {
+    term_id: string | null;
+    engines: Array<{ engine_code: string; mentioned: Cell; outcomes: Record<string, Cell> }>;
+  }
   interface Body {
-    data?: { topics?: Array<{ term_id: string | null; engines: Array<{ engine_code: string; mentioned: Cell }> }> };
+    data?: { topics?: Row[] };
   }
   await page.addInitScript(
     ([key, termId, answers]) => {
@@ -250,16 +230,25 @@ export async function installThinCells(page: Page): Promise<void> {
         for (const row of body.data?.topics ?? []) {
           if (row.term_id !== termId) continue;
           for (const engine of row.engines) {
-            const cell = engine.mentioned;
+            // AI visibility (the default measure) reads the outcome cells, the mention measure the mention cell
+            const cells = [engine.mentioned, ...Object.values(engine.outcomes)];
             if (engine.engine_code === 'chatgpt_web') {
-              cell.n_observations = answers;
-              cell.pooled = { successes: 2, trials: answers };
-              cell.value = 2 / answers;
+              for (const cell of cells) {
+                cell.n_observations = answers;
+                cell.pooled = { successes: cell === engine.outcomes.neither ? answers - 2 : 0, trials: answers };
+                cell.value = 0;
+              }
+              engine.mentioned.pooled = { successes: 2, trials: answers };
+              engine.mentioned.value = 2 / answers;
+              const both = engine.outcomes.mentioned_and_cited;
+              if (both?.pooled != null) both.pooled.successes = 2;
             } else if (engine.engine_code === 'gemini_web') {
-              cell.n_observations = 0;
-              cell.pooled = { successes: 0, trials: 0 };
-              cell.numerator = 0;
-              cell.value = 0;
+              for (const cell of cells) {
+                cell.n_observations = 0;
+                cell.pooled = { successes: 0, trials: 0 };
+                cell.numerator = 0;
+                cell.value = 0;
+              }
             }
           }
         }

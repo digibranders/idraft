@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { CELL_OF_MEASURE, forMeasure, groupCoverage, groupRows, isCountedMeasure } from './group-rows';
+import { CELL_OF_MEASURE, forMeasure, groupCoverage, groupRows, groupsOf, isCountedMeasure } from './group-rows';
 import { engineCells, promptRow, topicRow } from './topic-card-test-kit';
 import { buildTopicNodes, topicDescendants } from './topic-nodes';
 import type { PromptSummaryRow, TopicSummaryRow } from '@/lib/api/types';
@@ -85,6 +85,18 @@ describe('groupRows', () => {
     expect(ads?.average.value).toBeCloseTo(0.45);
     expect(ads?.average.engines).toBe(2);
     expect(ads?.values[2]?.state).toBe('insufficient');
+  });
+});
+
+describe('groupsOf', () => {
+  it('leaves out a topic with no prompt, so a topic whose sub-topics are empty is a group itself', () => {
+    const topics = [
+      topicRow('seo', 'SEO', 5, [chatgpt()]),
+      topicRow('tech', 'Technical SEO', 0, [chatgpt()]),
+      topicRow('local', 'Local SEO', 0, [chatgpt()]),
+      topicRow('ads', 'Paid Search', 4, [chatgpt()]),
+    ];
+    expect(groupsOf(nodesOf(topics)).map((node) => node.name)).toEqual(['SEO', 'Paid Search']);
   });
 });
 
