@@ -19,7 +19,7 @@ const doc = (list) => ({ schema: 1, cards: list.map(([key, width]) => card(key, 
 export const PRESETS = {
   default: {
     label: 'Default',
-    description: 'One card for each section of the sheet: headline, platforms, competitors, groups, citations, position, traffic, fan-out.',
+    description: 'One card for each section of the sheet: headline, competitors, groups, citations, position, sentiment, traffic, fan-out.',
     document: doc([
       ['ai.visibility_split', 'full'],
       ['ai.rate_trend_by_engine', 'two_thirds'],
@@ -28,8 +28,9 @@ export const PRESETS = {
       ['ai.lost_to_competitor', 'half'],
       ['ai.topic_heatmap', 'two_thirds'],
       ['ai.topic_extremes', 'third'],
-      ['sources.top_domains', 'half'],
-      ['ai.position_distribution', 'half'],
+      ['sources.top_domains', 'third'],
+      ['ai.position_distribution', 'third'],
+      ['ai.sentiment_by_engine', 'third'],
       ['traffic.ai_referrals', 'two_thirds'],
       ['ai.fanout_top', 'third'],
     ]),
