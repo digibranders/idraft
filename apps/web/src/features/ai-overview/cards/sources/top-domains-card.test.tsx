@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CardInfoProvider } from '@/components/app/chart/card-info';
 import { at, domainPage, domainRow, sourcesMeta } from './model/source-fixtures';
 import TopDomainsCard from './top-domains-card';
+import { failing, renderWithoutPlatform } from './test-harness';
 import { ExportProvider, useExportBlocks, type ExportRead } from '../../export/export-registry';
 import type { CardDrill } from '../engines/use-card-seams';
 import type { CardProps } from '@/features/layouts';
@@ -192,5 +193,37 @@ describe('the top cited domains card', () => {
     const { container } = renderCard();
     await barList();
     expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('shows the idle state, and asks nothing, when no platform is on for the project', async () => {
+    const asked = vi.fn();
+    server.use(
+      http.get(DOMAINS, () => {
+        asked();
+        return HttpResponse.json(page());
+      }),
+    );
+    renderWithoutPlatform(
+      <TopDomainsCard
+        item={{ id: 'bare', type: 'sources.top_domains' }}
+        options={{ rows: '8', role: 'all' }}
+        width="half"
+        mode="view"
+        live
+      />,
+    );
+    expect(await screen.findByText('No platform is on for this project')).toBeInTheDocument();
+    expect(screen.queryByRole('table', { name: CAPTION })).not.toBeInTheDocument();
+    expect(asked).not.toHaveBeenCalled();
+  });
+
+  it('shows Retry and an error id for a failed read, and Retry reads again', async () => {
+    server.use(http.get(DOMAINS, () => failing('req-1')));
+    const { user } = renderCard();
+    expect(await screen.findByText('Could not load top cited domains')).toBeInTheDocument();
+    expect(screen.getByText('Error ID req-1')).toBeInTheDocument();
+    serve(page());
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(await barList()).toBeInTheDocument();
   });
 });

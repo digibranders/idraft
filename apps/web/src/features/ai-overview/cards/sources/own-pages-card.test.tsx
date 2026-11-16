@@ -4,6 +4,7 @@ import { useEffect, type ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import OwnPagesCard from './own-pages-card';
+import { failing, renderWithoutPlatform } from './test-harness';
 import { pagePage, pageRow } from './model/page-fixtures';
 import { at, sourcesMeta } from './model/source-fixtures';
 import { ExportProvider, useExportBlocks, type ExportRead } from '../../export/export-registry';
@@ -171,5 +172,57 @@ describe('the your pages cited card', () => {
     const { container } = renderCard();
     await barList();
     expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('shows the idle state, and asks nothing, when no platform is on for the project', async () => {
+    const asked = vi.fn();
+    server.use(
+      http.get(PAGES, () => {
+        asked();
+        return HttpResponse.json(page());
+      }),
+    );
+    renderWithoutPlatform(
+      <OwnPagesCard
+        item={{ id: 'bare', type: 'sources.own_pages' }}
+        options={{ rows: '8' }}
+        width="half"
+        mode="view"
+        live
+      />,
+    );
+    expect(await screen.findByText('No platform is on for this project')).toBeInTheDocument();
+    expect(screen.queryByRole('table', { name: CAPTION })).not.toBeInTheDocument();
+    expect(asked).not.toHaveBeenCalled();
+  });
+
+  it('shows Retry and an error id for a failed read, and Retry reads again', async () => {
+    server.use(http.get(PAGES, () => failing('req-1')));
+    const { user } = renderCard();
+    expect(await screen.findByText('Could not load your cited pages')).toBeInTheDocument();
+    expect(screen.getByText('Error ID req-1')).toBeInTheDocument();
+    serve();
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(await barList()).toBeInTheDocument();
+  });
+
+  it('draws provider text as text: an address with markup is no markup', async () => {
+    serve(
+      pagePage(
+        [
+          pageRow({
+            url: 'https://fynix.com/%3Cimg%20src=x%20onerror=alert(1)%3E',
+            urlId: 21,
+            units: 50,
+            title: '<b>bold</b>',
+          }),
+        ],
+        META,
+      ),
+    );
+    renderCard();
+    await barList();
+    expect(document.querySelector('img[src="x"]')).toBeNull();
+    expect(document.querySelector('b')).toBeNull();
   });
 });

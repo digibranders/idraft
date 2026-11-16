@@ -4,6 +4,7 @@ import { useEffect, type ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import FanoutTopCard from './fanout-top-card';
+import { failing, renderWithoutPlatform } from './test-harness';
 import { fanoutMeta, fanoutPage, fanoutRow } from './model/fanout-fixtures';
 import { ExportProvider, useExportBlocks, type ExportRead } from '../../export/export-registry';
 import { CardInfoProvider } from '@/components/app/chart/card-info';
@@ -157,5 +158,63 @@ describe('the top fan-out queries card', () => {
     const { container } = renderCard();
     await table();
     expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('shows the idle state, and asks nothing, when no platform is on for the project', async () => {
+    const asked = vi.fn();
+    server.use(
+      http.get(FANOUT, () => {
+        asked();
+        return HttpResponse.json(page());
+      }),
+    );
+    renderWithoutPlatform(
+      <FanoutTopCard
+        item={{ id: 'bare', type: 'ai.fanout_top' }}
+        options={{ rows: '5' }}
+        width="half"
+        mode="view"
+        live
+      />,
+    );
+    expect(await screen.findByText('No platform is on for this project')).toBeInTheDocument();
+    expect(screen.queryByRole('table', { name: CAPTION })).not.toBeInTheDocument();
+    expect(asked).not.toHaveBeenCalled();
+  });
+
+  it('shows Retry and an error id for a failed read, and Retry reads again', async () => {
+    server.use(http.get(FANOUT, () => failing('req-1')));
+    const { user } = renderCard();
+    expect(await screen.findByText(/Could not load /)).toBeInTheDocument();
+    expect(screen.getByText('Error ID req-1')).toBeInTheDocument();
+    serve(page());
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(await table()).toBeInTheDocument();
+  });
+
+  it('says no answer ran a search, with the answers collected, and no zero', async () => {
+    serve(fanoutPage([], fanoutMeta({ answers: 40, withFanout: 0 })));
+    renderCard();
+    expect(await screen.findByText('No answer ran a search in this period')).toBeInTheDocument();
+    expect(screen.queryByRole('table', { name: CAPTION })).not.toBeInTheDocument();
+  });
+
+  it('draws the text of a query as text: markup in it is no markup', async () => {
+    serve(
+      fanoutPage(
+        [
+          fanoutRow({
+            text: '<img src=x onerror=alert(1)>best crm',
+            observations: 14,
+            cited: [['<b>g2</b>.com', 'third_party', 3]],
+          }),
+        ],
+        fanoutMeta(),
+      ),
+    );
+    renderCard();
+    await table();
+    expect(document.querySelector('img[src="x"]')).toBeNull();
+    expect(document.querySelector('b')).toBeNull();
   });
 });
