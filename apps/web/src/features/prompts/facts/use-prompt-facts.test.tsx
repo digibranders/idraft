@@ -66,6 +66,17 @@ describe('usePromptFacts', () => {
     expect(first?.engines[0]?.position).toBeUndefined();
   });
 
+  it('indexes the summary once: a re-render gives the same facts object', async () => {
+    const { result, rerender } = renderHook(() => usePromptFacts(scope, RANGE, true, { requestFacts: true }), {
+      wrapper,
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const first = result.current.data;
+    rerender();
+    rerender();
+    expect(result.current.data).toBe(first);
+  });
+
   it('does not ask a backend that has not built the include: that is for the mocks only', () => {
     expect(factsRequested()).toBe(false);
   });

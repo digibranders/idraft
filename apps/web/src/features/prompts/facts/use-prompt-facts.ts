@@ -1,6 +1,7 @@
 'use client';
 
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
+import { useCallback } from 'react';
 
 import type {
   PromptsSummaryWithFacts,
@@ -100,8 +101,13 @@ export function usePromptFacts(
   options: PromptFactsOptions = {},
 ): UseQueryResult<PromptFacts> {
   const requested = options.requestFacts ?? factsRequested();
+  // Stable per variant: a new function each render would index the whole summary again on every render
+  const select = useCallback(
+    (response: { data: PromptsSummaryWithFacts }) => indexFacts(response.data, requested),
+    [requested],
+  );
   return useQuery({
     ...promptFactsQuery(scope, range, includeBranded, { ...options, requestFacts: requested }),
-    select: (response) => indexFacts(response.data, requested),
+    select,
   });
 }
