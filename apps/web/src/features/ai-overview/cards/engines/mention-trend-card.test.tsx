@@ -102,7 +102,7 @@ describe('the mention trend card', () => {
     render('google_ai_mode');
     expect(await screen.findByText('AI Mode is off for this project')).toBeInTheDocument();
     expect(screen.getByText('Turn it on to see its trend.')).toBeInTheDocument();
-    const link = screen.getByRole('link', { name: 'Turn on engines' });
+    const link = screen.getByRole('link', { name: 'Turn on platforms' });
     expect(link.getAttribute('href')).toBe('/digibranders/fynix/settings/engines');
     expect(screen.queryByRole('img', { name: 'AI Mode' })).not.toBeInTheDocument();
   });
@@ -111,7 +111,7 @@ describe('the mention trend card', () => {
     render('google_ai_mode', WINDOW, 'viewer');
     expect(await screen.findByText('AI Mode is off for this project')).toBeInTheDocument();
     expect(screen.getByText('Ask a workspace admin to turn on a platform')).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Turn on engines' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Turn on platforms' })).not.toBeInTheDocument();
   });
 
   it('says an engine outside the page filter is not in it', async () => {

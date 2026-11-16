@@ -281,7 +281,7 @@ describe('the competitor trend card states', () => {
   it('says the engine is not asked when the project has it off, with the way to turn it on', async () => {
     renderCard(TYPE, CompetitorTrendCard, { engine: 'google_ai_mode', competitors: '3' });
     expect(await screen.findByText('AI Mode is not asked in this scope')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Turn on engines' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Turn on platforms' })).toBeInTheDocument();
   });
 
   it('shows Retry when the read failed, and reads again with it', async () => {

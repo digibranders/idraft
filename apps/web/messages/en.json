@@ -538,7 +538,7 @@
       "entities": "Entities and aliases",
       "domains": "Domains",
       "taxonomy": "Taxonomy",
-      "engines": "Engines",
+      "engines": "Platforms",
       "schedules": "Schedules",
       "retention": "Data retention",
       "workspace": "General",
@@ -1232,7 +1232,7 @@
       },
       "aiRaw": {
         "name": "AI answers",
-        "what": "Answers from AI engines, with their citations and the searches they ran."
+        "what": "Answers from AI platforms, with their citations and the searches they ran."
       },
       "firstPartyRaw": {
         "name": "Search Console and other first-party imports",
@@ -1508,7 +1508,7 @@
     },
     "aliasTest": {
       "title": "Test against a sample answer",
-      "description": "Paste an answer from an AI engine to see which mentions the project's saved entities and aliases would count. Nothing is stored.",
+      "description": "Paste an answer from an AI platform to see which mentions the project's saved entities and aliases would count. Nothing is stored.",
       "sample": "Sample answer",
       "sampleHint": "Matched as you type, against every entity of this project.",
       "placeholder": "For a ten-person agency, HubSpot and Pipedrive are the usual picks...",
@@ -3783,17 +3783,17 @@
     }
   },
   "aiEngines": {
-    "title": "Engines",
-    "description": "The AI engines this project asks its prompts on, twice a week, on Monday and Thursday. Each engine is off until you turn it on. Pause or resume those runs in <link>Schedules</link>.",
-    "spendNote": "Turning an engine on starts scheduled spend: every active prompt is asked on it twice a week, at the price shown.",
+    "title": "Platforms",
+    "description": "The AI platforms this project asks its prompts on, twice a week, on Monday and Thursday. Each platform is off until you turn it on. Pause or resume those runs in <link>Schedules</link>.",
+    "spendNote": "Turning a platform on starts scheduled spend: every active prompt is asked on it twice a week, at the price shown.",
     "readOnlyLead": "Read only:",
-    "readOnly": "Owners, admins and editors can turn engines on and off.",
-    "loadFailed": "The engines could not be loaded.",
+    "readOnly": "Owners, admins and editors can turn platforms on and off.",
+    "loadFailed": "The platforms could not be loaded.",
     "loadFailedReason": "The server did not answer. Try again in a moment.",
     "estimate": "About {cost} a month for {prompts, plural, one {# active prompt} other {# active prompts}}, twice a week",
-    "noPrice": "No price is on record for this engine yet.",
+    "noPrice": "No price is on record for this platform yet.",
     "countriesLabel": "Countries of {engine}",
-    "countriesHint": "The engine asks each prompt in the country the prompt stands for.",
+    "countriesHint": "The platform asks each prompt in the country the prompt stands for.",
     "countriesPlaceholder": "Add a country",
     "countriesEmpty": "No country matches “{query}”",
     "countriesRequired": "Choose at least one country.",
@@ -3801,7 +3801,7 @@
     "countriesRefused": "One of the countries cannot be used. Choose another.",
     "chips": "Countries of {engine}",
     "remove": "Remove {value}",
-    "forbidden": "You do not have permission to change the engines of this project.",
+    "forbidden": "You do not have permission to change the platforms of this project.",
     "saveFailed": "The change was not saved. Try again in a moment.",
     "confirmTitle": "Turn on {engine}?",
     "confirmDescription": "{engine} will ask your {prompts, plural, one {# active prompt} other {# active prompts}} twice a week, for about {cost} a month. This starts scheduled spend from the next run.",
@@ -3818,15 +3818,15 @@
     },
     "perplexityName": "Perplexity API",
     "perplexityState": "Not available yet",
-    "costChange": "Estimated cost change: about {amount} a month {direction, select, down {less} other {more}}. Estimated total for {count, plural, one {# engine that is} other {# engines that are}} on: {total} a month. Estimate from the price book.",
-    "costChangeNoTotal": "Estimated cost change: about {amount} a month {direction, select, down {less} other {more}}. The total is not estimated because an engine that is on has no price on record. Estimate from the price book.",
+    "costChange": "Estimated cost change: about {amount} a month {direction, select, down {less} other {more}}. Estimated total for {count, plural, one {# platform that is} other {# platforms that are}} on: {total} a month. Estimate from the price book.",
+    "costChangeNoTotal": "Estimated cost change: about {amount} a month {direction, select, down {less} other {more}}. The total is not estimated because a platform that is on has no price on record. Estimate from the price book.",
     "costChangeNoPrice": "No price is on record, so the change is not estimated.",
     "deviceLabel": "Device of {engine}",
     "deviceDesktop": "Desktop",
     "deviceMobile": "Mobile",
     "deviceHint": "Applies from the next run. Answers already collected keep the device they were collected on.",
     "deviceChanged": "Device of {engine} set to {device}.",
-    "deviceHeld": "Device of {engine} set to {device}. It applies once the engine is turned on."
+    "deviceHeld": "Device of {engine} set to {device}. It applies once the platform is turned on."
   },
   "prompts": {
     "title": "Prompts",
@@ -3853,7 +3853,7 @@
     "summaryLoadFailed": "The groups could not be loaded.",
     "noEngineTitle": "No AI platform is on",
     "noEngineReason": "Turn on ChatGPT, Gemini or Google AI Mode in the project settings to start asking your prompts.",
-    "toEngines": "Open the Engines settings",
+    "toEngines": "Open the Platforms settings",
     "noPromptsTitle": "No prompts yet",
     "noPromptsReason": "Add the questions your buyers ask AI assistants. Each prompt is asked twice a week.",
     "noAnswers": "No data yet. Each prompt is asked twice a week, on Monday and Thursday, and its first answers arrive after the next run.",
@@ -4274,7 +4274,7 @@
       "countryRequired": "Choose a country.",
       "countryHintEngines": "Only countries every enabled platform asks in. {reach}.",
       "engineReach": "{engine} asks in {count, plural, one {# country} other {# countries}}",
-      "engineSettings": "Engine settings",
+      "engineSettings": "Platform settings",
       "newTab": "(opens in a new tab)",
       "noEngineWarning": "No platform is on, so these prompts will not be asked until one is.",
       "countriesFailed": "Countries could not be loaded.",
@@ -4565,7 +4565,7 @@
       "runRateLimited": "Too many requests. Try again in {minutes, plural, one {# minute} other {# minutes}}.",
       "runGone": "This prompt is no longer asked: it was archived or removed.",
       "runForbidden": "You do not have permission to run prompts in this project.",
-      "runInvalid": "An engine of this project cannot ask this prompt. Check the Engines settings.",
+      "runInvalid": "A platform of this project cannot ask this prompt. Check the Platforms settings.",
       "runFailed": "The run was not queued. Try again in a moment.",
       "archive": "Archive",
       "archived": "Prompt archived",
@@ -4966,7 +4966,7 @@
     "empty": {
       "noEngineTitle": "No AI platform is on",
       "noEngineReason": "Turn on ChatGPT, Gemini or Google AI Mode in the project settings to start asking your prompts.",
-      "toEngines": "Turn on engines",
+      "toEngines": "Turn on platforms",
       "askAdmin": "Ask a workspace admin to turn on a platform",
       "noPromptsTitle": "No prompts are asked yet",
       "noPromptsReason": "Add the questions your buyers ask AI assistants. Each prompt is asked twice a week.",
@@ -5072,7 +5072,7 @@
         "avg": "avg of {count, number}",
         "unknownEngine": "Unknown platform",
         "viewRuns": "View runs",
-        "toEngines": "Turn on engines",
+        "toEngines": "Turn on platforms",
         "askAdmin": "Ask a workspace admin to turn on a platform"
       },
       "trend": {
@@ -5418,7 +5418,7 @@
         "engineOffReason": "{engine} is turned off for this project.",
         "engineOutsideReason": "{engine} is outside the platform filter of this page. Add it to the filter to see it.",
         "askAdmin": "Ask a workspace admin to turn on a platform.",
-        "toEngines": "Turn on engines",
+        "toEngines": "Turn on platforms",
         "tooFewTitle": "Too few answers name a tracked brand ({count})",
         "tooFewReason": "A share needs at least {min} answers that name a tracked brand in this window.",
         "noCompetitorTitle": "No competitor is tracked",
@@ -5684,7 +5684,7 @@
         "emptyNoEngineOff": "No AI platform is on in this project.",
         "emptyNoEngineAdmin": "No AI platform is on in this project. Ask a workspace admin to turn one on.",
         "useAllEngines": "Use all platforms",
-        "turnOnEngines": "Turn on engines",
+        "turnOnEngines": "Turn on platforms",
         "emptyNoTopicsTitle": "No groups yet",
         "emptyNoTopicsReason": "Group prompts into groups to see where you are strong.",
         "emptyNoTopicsFilteredReason": "Nothing in the chosen group matches the current filters.",
@@ -6072,7 +6072,7 @@
         "partial": "Schedules could not be read, so days and next runs show n/a",
         "emptyTitle": "No platform is set up",
         "emptyReason": "Turn on a platform to start asking your prompts.",
-        "toEngines": "Turn on engines",
+        "toEngines": "Turn on platforms",
         "askAdmin": "Ask a workspace admin to turn on a platform."
       },
       "spend": {
@@ -6224,7 +6224,7 @@
         "previousEmpty": "No comparison: the previous period has no answers",
         "noEngineTitle": "No platform is on for this project",
         "noEngineReason": "Citations come from the answers of the platforms you ask. Turn on a platform to see them.",
-        "toEngines": "Turn on engines",
+        "toEngines": "Turn on platforms",
         "askAdmin": "Ask a workspace admin to turn on a platform.",
         "brandedOnlyTitle": "Sources cannot be read for branded prompts alone",
         "brandedOnlyReason": "Leave branded prompts out or include them to see the sources.",
@@ -6634,7 +6634,7 @@
     "empty": {
       "noEngineTitle": "No platform is on",
       "noEngineReason": "Citations come from the answers of the platforms you turn on.",
-      "toEngines": "Open Engines",
+      "toEngines": "Open Platforms",
       "noAnswersTitle": "No citations yet",
       "noAnswersReason": "Each prompt is asked twice a week. Citations appear after the first answers.",
       "toPrompts": "Open Prompts",
@@ -7176,9 +7176,9 @@
       "title": "Setup could not be checked"
     },
     "engines": {
-      "name": "Select AI engines",
-      "fact": "{on, number} of {total, plural, one {# engine} other {# engines}} on",
-      "action": "Open Engines"
+      "name": "Select AI platforms",
+      "fact": "{on, number} of {total, plural, one {# platform} other {# platforms}} on",
+      "action": "Open Platforms"
     },
     "prompts": {
       "name": "Add prompts",
@@ -7188,7 +7188,7 @@
     "answers": {
       "name": "First answers",
       "waiting": "First answers arrive after the next Monday or Thursday run",
-      "blocked": "Needs engines and prompts"
+      "blocked": "Needs platforms and prompts"
     }
   }
 }

@@ -248,16 +248,16 @@ describe('TopicCardFrame', () => {
   });
 
   // A project with no engine on has no AI cards on its page, so the frame is rendered under the provider alone
-  it('idle with canManageEngines and no engine on shows Turn on engines as a link', async () => {
+  it('idle with canManageEngines and no engine on shows Turn on platforms as a link', async () => {
     renderWithProviders(bare('cleanstart', 'admin'));
-    const link = await screen.findByRole('link', { name: 'Turn on engines' });
+    const link = await screen.findByRole('link', { name: 'Turn on platforms' });
     expect(link).toHaveAttribute('href', expect.stringMatching(/\/settings\/engines$/));
   });
 
   it('idle without the permission says to ask a workspace admin', async () => {
     renderWithProviders(bare('cleanstart', 'viewer'));
     expect(await screen.findByText(/ask a workspace admin/i)).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Turn on engines' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Turn on platforms' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Use all platforms' })).not.toBeInTheDocument();
   });
 

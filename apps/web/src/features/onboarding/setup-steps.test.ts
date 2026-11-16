@@ -61,22 +61,22 @@ describe('enginesFacts', () => {
   });
 });
 
-describe('aiSetupSteps, Select AI engines', () => {
-  it('is to do with no engine on: a count of the engines, with the way to the Engines page', () => {
+describe('aiSetupSteps, Select AI platforms', () => {
+  it('is to do with no engine on: a count of the engines, with the way to the Platforms page', () => {
     const step = stepOf(steps(ok(three(0, 24)), ok(false)), 'engines');
     expect(step).toMatchObject({
-      name: 'Select AI engines',
+      name: 'Select AI platforms',
       done: false,
-      fact: '0 of 3 engines on',
-      action: { label: 'Open Engines', href: HREFS.engines },
+      fact: '0 of 3 platforms on',
+      action: { label: 'Open Platforms', href: HREFS.engines },
     });
   });
 
   it('is done with one engine on, and says how many, never one score for all of them', () => {
     const step = stepOf(steps(ok(three(1, 24)), ok(false)), 'engines');
-    expect(step).toMatchObject({ done: true, fact: '1 of 3 engines on' });
+    expect(step).toMatchObject({ done: true, fact: '1 of 3 platforms on' });
     expect(step.action).toBeUndefined();
-    expect(stepOf(steps(ok(three(3, 24)), ok(false)), 'engines').fact).toBe('3 of 3 engines on');
+    expect(stepOf(steps(ok(three(3, 24)), ok(false)), 'engines').fact).toBe('3 of 3 platforms on');
   });
 });
 
@@ -123,8 +123,8 @@ describe('aiSetupSteps, First answers', () => {
   it('needs engines and prompts when either is missing', () => {
     const noEngines = stepOf(steps(ok(three(0, 24)), ok(false)), 'answers');
     const noPrompts = stepOf(steps(ok(three(3, 0)), ok(false)), 'answers');
-    expect(noEngines).toMatchObject({ done: false, fact: 'Needs engines and prompts' });
-    expect(noPrompts).toMatchObject({ done: false, fact: 'Needs engines and prompts' });
+    expect(noEngines).toMatchObject({ done: false, fact: 'Needs platforms and prompts' });
+    expect(noPrompts).toMatchObject({ done: false, fact: 'Needs platforms and prompts' });
   });
 
   it('is done with an answer even when the engines could not be read', () => {

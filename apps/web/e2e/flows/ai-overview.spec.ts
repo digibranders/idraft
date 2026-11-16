@@ -72,12 +72,16 @@ const hrefParams = (href: string | null): URLSearchParams => {
 };
 
 /**
- * Turns an engine on in Settings > Engines. `country` is the one the row shows once the countries have loaded, which
+ * Turns an engine on in Settings > Platforms. `country` is the one the row shows once the countries have loaded, which
  * turning on needs; a project whose countries are not known to this flow leaves it out.
  */
 async function turnEngineOn(page: Page, engine: string, country?: string): Promise<void> {
   if (country !== undefined) {
-    const row = page.getByRole('region', { name: 'Engines' }).getByRole('listitem').filter({ hasText: engine }).first();
+    const row = page
+      .getByRole('region', { name: 'Platforms' })
+      .getByRole('listitem')
+      .filter({ hasText: engine })
+      .first();
     await expect(row.getByText(country, { exact: true })).toBeVisible();
   }
   await page.getByRole('switch', { name: engine }).click();
@@ -89,9 +93,9 @@ async function turnEngineOn(page: Page, engine: string, country?: string): Promi
   await expect(page.getByRole('switch', { name: engine })).toBeChecked();
 }
 
-/** Pauses the two AI schedules that turning an engine on made, on the Schedules page reached by the Engines page's link. */
+/** Pauses the two AI schedules that turning an engine on made, on the Schedules page reached by the Platforms page's link. */
 async function pauseAiSchedules(page: Page): Promise<void> {
-  await page.getByRole('region', { name: 'Engines' }).getByRole('link', { name: 'Schedules' }).click();
+  await page.getByRole('region', { name: 'Platforms' }).getByRole('link', { name: 'Schedules' }).click();
   await expect(page.getByRole('heading', { level: 2, name: 'Schedules' })).toBeVisible();
   for (const name of AI_SCHEDULES) {
     const row = page.getByRole('row').filter({ has: page.getByRole('rowheader', { name: new RegExp(`^${name}`) }) });
@@ -329,7 +333,7 @@ test.describe('the AI visibility Overview', () => {
       await expect(numbersGroup(page)).toHaveCount(0);
       await expect(cardGrid(page)).toHaveCount(0);
       await expect(bannersOf(page)).toHaveCount(0);
-      const action = state.getByRole('link', { name: 'Turn on engines' });
+      const action = state.getByRole('link', { name: 'Turn on platforms' });
       if (role === 'editor') {
         await expect(state).toContainText('Turn on ChatGPT, Gemini or Google AI Mode in the project settings');
         await expect(action).toHaveAttribute('href', '/digibranders/cleanstart/settings/engines');

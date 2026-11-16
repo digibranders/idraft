@@ -98,7 +98,7 @@ describe('useCardEngine', () => {
 
   it('shows an editor a link to the engines of the project', async () => {
     renderProbe('admin', 'google_ai_mode');
-    const link = await screen.findByRole('link', { name: 'Turn on engines' });
+    const link = await screen.findByRole('link', { name: 'Turn on platforms' });
     expect(link).toHaveAttribute('href', `/${MOCK_WORKSPACE.slug}/fynix/settings/engines`);
   });
 
@@ -108,6 +108,6 @@ describe('useCardEngine', () => {
       expect(screen.getByTestId('availability')).toHaveTextContent('off');
     });
     expect(screen.getByTestId('empty')).toHaveTextContent('Ask a workspace admin to turn on a platform');
-    expect(screen.queryByRole('link', { name: 'Turn on engines' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Turn on platforms' })).not.toBeInTheDocument();
   });
 });

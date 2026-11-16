@@ -232,7 +232,7 @@ describe('Citations page', () => {
     const reads = watch();
     renderWithProviders(citationsAs('editor', asProject(cleanstart)));
     expect(await screen.findByRole('heading', { name: 'No platform is on' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Open Engines' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Open Platforms' })).toHaveAttribute(
       'href',
       '/digibranders/cleanstart/settings/engines',
     );

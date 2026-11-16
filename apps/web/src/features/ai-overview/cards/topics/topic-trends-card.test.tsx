@@ -475,7 +475,7 @@ describe('TopicTrendsCard states', () => {
       </PermissionProvider>,
     );
     expect(await screen.findByText('No platform is part of this view')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Turn on engines' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Turn on platforms' })).toBeInTheDocument();
   });
 
   it('no groups is an empty state with Open Prompts', async () => {

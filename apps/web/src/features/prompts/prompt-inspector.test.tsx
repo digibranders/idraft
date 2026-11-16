@@ -802,7 +802,7 @@ describe('the prompt inspector: Run now', () => {
     );
     const { user } = renderOn('analyst', opened);
     await user.click(await within(await panel()).findByRole('button', { name: 'Run now' }));
-    await said('An engine of this project cannot ask this prompt. Check the Engines settings.');
+    await said('A platform of this project cannot ask this prompt. Check the Platforms settings.');
   });
 
   it.each([

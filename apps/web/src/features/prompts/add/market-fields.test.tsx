@@ -39,18 +39,18 @@ describe('the engine settings link', () => {
   it('opens the project’s engine settings in a new tab, and says so', () => {
     navigateTo('/digibranders/fynix/ai/prompts');
     renderWithProviders(<Fields engines={[ENGINE]} />);
-    const link = screen.getByRole('link', { name: /Engine settings/ });
+    const link = screen.getByRole('link', { name: /Platform settings/ });
     expect(link).toHaveAttribute('href', '/digibranders/fynix/settings/engines');
     expect(link).toHaveAttribute('target', '_blank');
     expect(link).toHaveAttribute('rel', 'noopener noreferrer');
-    expect(link).toHaveAccessibleName('Engine settings (opens in a new tab)');
+    expect(link).toHaveAccessibleName('Platform settings (opens in a new tab)');
   });
 
   it('is in the no-engine warning too', () => {
     navigateTo('/digibranders/fynix/ai/prompts');
     renderWithProviders(<Fields engines={[]} />);
     expect(screen.getByText('No platform is on, so these prompts will not be asked until one is.')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Engine settings/ })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: /Platform settings/ })).toHaveAttribute(
       'href',
       '/digibranders/fynix/settings/engines',
     );

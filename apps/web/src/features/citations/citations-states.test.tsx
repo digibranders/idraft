@@ -39,7 +39,7 @@ describe('the states of the Domains and Pages tabs and of the screen', () => {
     renderWithProviders(<NoEngine workspaceSlug="ws" projectSlug="proj" />);
     expect(screen.getByRole('heading', { name: 'No platform is on' })).toBeInTheDocument();
     expect(screen.getByText('Citations come from the answers of the platforms you turn on.')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Open Engines' })).toHaveAttribute('href', '/ws/proj/settings/engines');
+    expect(screen.getByRole('link', { name: 'Open Platforms' })).toHaveAttribute('href', '/ws/proj/settings/engines');
   });
 
   it('no answers says when they come with a link to Prompts', () => {

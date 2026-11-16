@@ -191,7 +191,7 @@ describe('the AI visibility page of a project with AI off', () => {
     renderWithProviders(overviewAs('admin', { world: 'cleanstart' }));
     expect(await screen.findByRole('heading', { name: 'No AI platform is on' })).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: CARDS })).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Turn on engines' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Turn on platforms' })).toHaveAttribute(
       'href',
       '/digibranders/cleanstart/settings/engines',
     );
@@ -202,7 +202,7 @@ describe('the AI visibility page of a project with AI off', () => {
     renderWithProviders(overviewAs('viewer', { world: 'cleanstart' }));
     expect(await screen.findByRole('heading', { name: 'No AI platform is on' })).toBeInTheDocument();
     expect(screen.getByText('Ask a workspace admin to turn on a platform')).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Turn on engines' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Turn on platforms' })).not.toBeInTheDocument();
   });
 
   it('shows placeholders for the AI cards in customize mode', async () => {

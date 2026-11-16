@@ -73,7 +73,7 @@ test.describe('AI prompt tracking', () => {
 
     // The sentence under the title leads to the schedules that ask the prompts; a link, not page.goto, since the
     // mocks' memory lives in the page
-    await page.getByRole('region', { name: 'Engines' }).getByRole('link', { name: 'Schedules' }).click();
+    await page.getByRole('region', { name: 'Platforms' }).getByRole('link', { name: 'Schedules' }).click();
     await expect(page.getByRole('heading', { level: 2, name: 'Schedules' })).toBeVisible();
     await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Prompts', exact: true }).click();
     // The title is read and not drawn (the breadcrumb shows it), so it is in the page without being seen

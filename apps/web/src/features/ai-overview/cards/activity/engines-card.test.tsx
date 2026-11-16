@@ -169,7 +169,7 @@ describe('the engines and schedule card', () => {
     serve([]);
     render({ role: 'admin' });
     expect(await screen.findByRole('heading', { name: 'No platform is set up' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Turn on engines' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Turn on platforms' })).toHaveAttribute(
       'href',
       expect.stringContaining('/settings/engines'),
     );
@@ -179,7 +179,7 @@ describe('the engines and schedule card', () => {
     serve([]);
     render({ role: 'viewer' });
     expect(await screen.findByText(/Ask a workspace admin to turn on a platform\./)).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Turn on engines' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Turn on platforms' })).not.toBeInTheDocument();
   });
 
   it.each([

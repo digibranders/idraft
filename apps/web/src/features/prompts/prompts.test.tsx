@@ -118,7 +118,7 @@ describe('Prompts', () => {
   it('says no platform is on, and where to turn one on, for a project without one', async () => {
     renderOnPrompts(promptsAs('editor', asProject(cleanstart, 'US')));
     expect(await screen.findByRole('heading', { name: 'No AI platform is on' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Open the Engines settings' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Open the Platforms settings' })).toHaveAttribute(
       'href',
       '/digibranders/cleanstart/settings/engines',
     );

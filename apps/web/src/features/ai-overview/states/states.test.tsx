@@ -38,10 +38,10 @@ function inProvider(role: Role, children: ReactElement, withoutPermissions: read
 }
 
 describe('NoEngineState', () => {
-  it('with projects:write the action goes to Settings > Engines', () => {
+  it('with projects:write the action goes to Settings > Platforms', () => {
     renderWithProviders(inProvider('admin', <NoEngineState />));
     expect(screen.getByRole('heading', { level: 2, name: 'No AI platform is on' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Turn on engines' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Turn on platforms' })).toHaveAttribute(
       'href',
       '/digibranders/fynix/settings/engines',
     );
