@@ -84,6 +84,31 @@ describe('brandsOf', () => {
     expect(reading.shown.map((row) => row.name)).toEqual(['Northwind']);
   });
 
+  it('keeps the own brand pinned with an unknown rate when no row holds a cell for it', () => {
+    // The group's rows list HubSpot and others, but no cell of Northwind: its rate is unknown, not 0, and it stays
+    const row = rowOf(
+      engine('chatgpt_web', {
+        valid: 10,
+        entities: [entityCells(RIVAL, cellOf(6, 10))],
+        other_brands: [{ name: 'Copper', mentioned: cellOf(4, 10) }],
+      }),
+    );
+    const reading = brandsOf([row], ['chatgpt_web'], ENTITIES);
+    expect(reading.state).toBe('ok');
+    expect(reading.shown.map((entry) => entry.name)).toEqual(['HubSpot', 'Copper']);
+    expect(reading.own).toMatchObject({ name: 'Northwind', own: true, place: null, rate: null, counts: null });
+  });
+
+  it('counts only the engines and answers of rows that carry brand cells, so "avg of N" cannot overstate N', () => {
+    // Gemini has 10 valid answers but its row holds no brand cell: it takes no part in the list
+    const row = rowOf(withBrands('chatgpt_web', 10, 3, 6), engine('gemini_web', { valid: 10 }));
+    const reading = brandsOf([row], SCOPE, ENTITIES);
+    expect(reading.codes).toEqual(['chatgpt_web']);
+    expect(reading.answers).toBe(10);
+    const mixed = brandsOf([row, rowOf(engine('chatgpt_web', { valid: 7 }))], ['chatgpt_web'], ENTITIES);
+    expect(mixed.answers).toBe(10);
+  });
+
   it('counts a brand that was added as a competitor once, as tracked', () => {
     const added: TrackedEntity[] = [
       ...ENTITIES,

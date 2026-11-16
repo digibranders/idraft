@@ -35,16 +35,25 @@ export interface BrandRow {
  */
 export type BrandsUnknown = 'not_collected' | 'unobserved' | 'too_few_answers';
 
+/**
+ * The own brand pinned under the list. It has no place and no rate when no engine in scope holds a cell for it on any
+ * row: its rate is then unknown, never 0.
+ */
+export interface PinnedOwnBrand extends Omit<BrandRow, 'place' | 'rate'> {
+  place: number | null;
+  rate: number | null;
+}
+
 export interface BrandsReading {
   state: 'ok' | 'unknown';
   reason: BrandsUnknown | null;
   /** The top `LIST_SIZE` brands, most named first. */
   shown: BrandRow[];
   /** The own brand when it is not in `shown`, pinned under the list. */
-  own: BrandRow | null;
-  /** Engines the rates rest on. */
+  own: PinnedOwnBrand | null;
+  /** Engines the rates rest on: those with enough valid answers in the rows that carry brand cells. */
   codes: string[];
-  /** Valid answers on those engines. */
+  /** Valid answers of those engines in the rows that carry brand cells. */
   answers: number;
   /** Rows (prompts) the list is over. */
   prompts: number;
@@ -110,13 +119,17 @@ export function brandsOf(
   const cellsExist = rows.some((row) =>
     scope.some((code) => {
       const engine = engineOf(row, code);
-      return engine !== undefined && (engine.entities != null || engine.other_brands != null);
+      return engine !== undefined && carriesBrands(engine);
     }),
   );
   if (!cellsExist) return { state: 'unknown', reason: 'not_collected', ...base };
-  // The engines a list rests on: those with enough valid answers over the rows
+  // The engines a list rests on: those with enough valid answers over the rows that carry brand cells on them, so
+  // "avg of N" never counts an engine whose answers hold no brand
   const answersOf = (code: string): number =>
-    rows.reduce((sum, row) => sum + validAnswers(engineOf(row, code)?.mentioned ?? EMPTY_CELL), 0);
+    rows.reduce((sum, row) => {
+      const engine = engineOf(row, code);
+      return engine !== undefined && carriesBrands(engine) ? sum + validAnswers(engine.mentioned) : sum;
+    }, 0);
   const codes = scope.filter((code) => answersOf(code) >= MIN_OBSERVATIONS);
   const answers = codes.reduce((sum, code) => sum + answersOf(code), 0);
   if (codes.length === 0) {
@@ -151,7 +164,7 @@ export function brandsOf(
     state: 'ok',
     reason: null,
     shown,
-    own: shown.some((row) => row.own) ? null : (ranked.find((row) => row.own) ?? null),
+    own: pinnedOwn(shown, ranked, candidates),
     codes,
     answers,
     prompts: rows.length,
@@ -159,7 +172,31 @@ export function brandsOf(
   };
 }
 
-const EMPTY_CELL: MetricCell = { value: null, numerator: 0, denominator: 0, n_observations: 0, pooled: null };
+/** Whether the engine of a row holds brand cells at all (tracked entities or the list of other brands). */
+const carriesBrands = (engine: EngineSummaryWithFacts): boolean =>
+  engine.entities != null || engine.other_brands != null;
+
+/** The own brand when `shown` leaves it out: its ranked row, else a row with an unknown rate (never 0, never dropped). */
+function pinnedOwn(
+  shown: readonly BrandRow[],
+  ranked: readonly BrandRow[],
+  candidates: readonly Candidate[],
+): PinnedOwnBrand | null {
+  if (shown.some((row) => row.own)) return null;
+  const row = ranked.find((entry) => entry.own);
+  if (row !== undefined) return row;
+  const own = candidates.find((candidate) => candidate.own);
+  if (own === undefined) return null;
+  return {
+    entityId: own.entityId,
+    name: own.name,
+    own: true,
+    tracked: own.tracked,
+    place: null,
+    rate: null,
+    counts: null,
+  };
+}
 
 /** Answers naming the brand, only for one prompt row on one engine: a prompt's cell holds counts, a topic's holds rates. */
 function countsOf(rows: readonly FactsRow[], codes: readonly string[], brand: Candidate): BrandCount | null {
