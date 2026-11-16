@@ -12,6 +12,7 @@ import {
   type Reading,
 } from './headline-model';
 import type { EngineCode, EngineSummary, PromptSummaryRow, Run } from '@/lib/api/types';
+import type { WeekWithVisibility } from '@/lib/api/week-visibility';
 import { cellOf as factCell, engine, rowOf } from '@/lib/prompt-facts/test-helpers';
 import type { PositionCounts, SentimentCounts } from '@/lib/prompt-facts';
 import { visibilityOfPrompts } from '@/lib/rates/visibility-model';
@@ -132,7 +133,7 @@ describe('the weekly points of a tile', () => {
   });
 
   it('the hero line is the weekly visibility, and is not drawn while the API sends none', () => {
-    const withVisibility = (start: string, k: number, n: number): ReturnType<typeof week> => ({
+    const withVisibility = (start: string, k: number, n: number): WeekWithVisibility => ({
       ...week(start, { mentioned: [0, n], prompts: 1 }),
       visibility: factCell(k, n),
     });
