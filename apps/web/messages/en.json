@@ -4862,10 +4862,10 @@
         }
       },
       "strip": {
-        "infoTitle": "AI visibility",
-        "infoWhat": "The percentage for each platform is its AI visibility: how often that platform’s answers mention or cite your brand.",
-        "infoHow": "The share of valid answers that name your brand, link to your site, or both. Each prompt counts once. Hover a figure for the counts behind it, with the mention, citation and share of voice figures.",
-        "visibilityTip": "AI visibility (named or cited): {detail}",
+        "infoTitle": "AI visibility rate",
+        "infoWhat": "The percentage for each platform is its AI visibility rate: how often that platform’s answers mention or cite your brand.",
+        "infoHow": "The share of valid answers that mention your brand, cite your site, or both. Each prompt counts once. Hover a figure for the counts behind it, with the mention, citation and share of voice figures.",
+        "visibilityTip": "AI visibility rate (mentioned or cited): {detail}",
         "tip": "{platform}. {visibility}. {mentioned}. {cited}. {prompts}. {shareOfVoice}.",
         "tipNoPrompts": "{platform}. {visibility}. {mentioned}. {cited}. {shareOfVoice}.",
         "quietNote": ", not in the Platform filter",
