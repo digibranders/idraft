@@ -59,9 +59,9 @@ export function CompareSelect({ scope, onCompareChange }: CompareSelectProps): R
         </p>
       }
       trigger={
-        <Button variant="secondary" className="type-body">
-          {compared ? t('comparePrevious') : t('compareOff')}
-          <Icon icon={ChevronDown} size="sm" className="text-foreground-tertiary" />
+        <Button variant="secondary" className="w-full justify-between type-body sm:w-60">
+          <span className="min-w-0 truncate">{compared ? t('comparePrevious') : t('compareOff')}</span>
+          <Icon icon={ChevronDown} size="sm" className="shrink-0 text-foreground-tertiary" />
         </Button>
       }
     />

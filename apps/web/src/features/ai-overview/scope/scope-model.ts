@@ -118,6 +118,18 @@ export function namesSeveralPlatforms(scope: Pick<OverviewScope, 'engines'>): bo
   return (scope.engines?.length ?? 0) > 1;
 }
 
+/**
+ * The engines the page works with: one platform, or `null` for All platforms. A link that names several (from before
+ * the Platform select) is All platforms, and so is one platform the project has not turned on. `enabled` empty means
+ * they are not known yet: one named platform is kept as it is.
+ */
+export function onePlatform(engines: readonly string[] | null, enabled: readonly string[]): readonly string[] | null {
+  const [only] = engines ?? [];
+  if (engines === null || engines.length !== 1 || only === undefined) return null;
+  if (enabled.length === 0) return engines;
+  return enabled.length > 1 && enabled.includes(only) ? engines : null;
+}
+
 /** The summary's branded parameters for a choice. `branded_only` counts branded prompts alone. */
 export function brandedParams(branded: Branded): { include_branded: boolean; branded_only?: true } {
   if (branded === 'only') return { include_branded: true, branded_only: true };

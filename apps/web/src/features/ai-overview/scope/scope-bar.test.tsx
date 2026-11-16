@@ -36,7 +36,7 @@ async function page(searchParams = ''): Promise<{ user: Rendered['user']; urls: 
     searchParams,
     onUrlUpdate: (event) => urls.push(event.queryString),
   });
-  await screen.findByRole('button', { name: /^Platforms: / });
+  await screen.findByRole('combobox', { name: /^Platform: / });
   return { user, urls };
 }
 
@@ -44,36 +44,64 @@ const chip = (name: string): Promise<HTMLElement> => screen.findByRole('button',
 const lastUrl = (urls: readonly string[]): string => new URLSearchParams(urls.at(-1) ?? '').toString();
 
 describe('the scope bar', () => {
-  it('renders compare, platforms, then the filter bar with the Branded Excluded chip and no Clear filters', async () => {
+  it('renders platform, group, compare, reset, then the filter bar with the Branded Excluded chip and no Clear filters', async () => {
     await page();
+    const platform = screen.getByRole('combobox', { name: 'Platform: All platforms' });
+    const group = screen.getByRole('combobox', { name: 'Group: All groups' });
     const compare = screen.getByRole('button', { name: 'vs previous period' });
-    const engines = screen.getByRole('button', { name: 'Platforms: 2 of 2' });
+    const reset = screen.getByRole('button', { name: 'Reset scope' });
     const branded = await chip('Branded: Excluded. Edit filter');
     const add = screen.getByRole('button', { name: 'Add a filter' });
     const follows = (a: HTMLElement, b: HTMLElement): boolean =>
       (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
-    expect(follows(compare, engines)).toBe(true);
-    expect(follows(engines, branded)).toBe(true);
+    expect(follows(platform, group)).toBe(true);
+    expect(follows(group, compare)).toBe(true);
+    expect(follows(compare, reset)).toBe(true);
+    expect(follows(reset, branded)).toBe(true);
     expect(follows(branded, add)).toBe(true);
+    // Reset keeps its place while the scope is the default, invisible and out of the tab order
+    expect(reset).toHaveClass('invisible');
     expect(screen.queryByRole('button', { name: 'Clear filters' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Reset filters' })).not.toBeInTheDocument();
   });
 
-  it('draws the compare and platforms triggers in the type of the chips beside them', async () => {
+  it('gives the selects one fixed width from 640 px, so a longer choice moves nothing', async () => {
     await page();
-    for (const name of ['vs previous period', 'Platforms: 2 of 2']) {
-      const trigger = screen.getByRole('button', { name });
-      expect(trigger).toHaveClass('type-body');
-      expect(trigger).not.toHaveClass('type-body-strong');
+    for (const name of ['Platform: All platforms', 'Group: All groups']) {
+      expect(screen.getByRole('combobox', { name })).toHaveClass('w-full', 'sm:w-60');
     }
+    const compare = screen.getByRole('button', { name: 'vs previous period' });
+    expect(compare).toHaveClass('type-body', 'w-full', 'sm:w-60');
+    expect(compare).not.toHaveClass('type-body-strong');
+  });
+
+  it('lists the platforms that are on with AI Overview as not available, and writes one choice as one engine', async () => {
+    const { user, urls } = await page();
+    await user.click(screen.getByRole('combobox', { name: 'Platform: All platforms' }));
+    expect((await screen.findAllByRole('option')).map((option) => option.textContent)).toEqual([
+      'All platforms',
+      'ChatGPT',
+      'Gemini',
+      'AI OverviewNot available',
+    ]);
+    expect(screen.getByRole('option', { name: /AI Overview/ })).toHaveAttribute('aria-disabled', 'true');
+    await user.click(screen.getByRole('option', { name: 'Gemini' }));
+    await waitFor(() => {
+      expect(lastUrl(urls)).toBe('engine=gemini_web');
+    });
+    expect(await screen.findByRole('combobox', { name: 'Platform: Gemini' })).toBeInTheDocument();
+    await user.click(screen.getByRole('combobox', { name: 'Platform: Gemini' }));
+    await user.click(await screen.findByRole('option', { name: 'All platforms' }));
+    await waitFor(() => {
+      expect(lastUrl(urls)).toBe('');
+    });
   });
 
   it.each(['?engine=chatgpt_web,gemini_web', '?engine=gemini_web,chatgpt_web'])(
     'treats %s, every platform in any order, as no filter',
     async (searchParams) => {
       await page(searchParams);
-      expect(screen.getByRole('button', { name: 'Platforms: 2 of 2' })).toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: 'Reset filters' })).not.toBeInTheDocument();
+      expect(screen.getByRole('combobox', { name: 'Platform: All platforms' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Reset scope' })).toHaveClass('invisible');
     },
   );
 
@@ -105,33 +133,35 @@ describe('the scope bar', () => {
     expect(await screen.findByRole('group', { name: /branded prompts included$/ })).toBeInTheDocument();
   });
 
-  it('offers Group and brings Branded back from + Filter', async () => {
+  it('brings Branded back from + Filter, which offers nothing else', async () => {
     const { user } = await page('?branded=included');
     await user.click(screen.getByRole('button', { name: 'Add a filter' }));
-    expect(await screen.findByRole('button', { name: 'Group' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Branded' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Branded' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Group' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Branded' }));
     await user.click(await screen.findByRole('radio', { name: 'Only' }));
     expect(await chip('Branded: Only. Edit filter')).toBeInTheDocument();
   });
 
-  it('chooses a group from the vocabulary and writes its id', async () => {
+  it('chooses a group from the vocabulary, searches it and writes its id', async () => {
     const { user, urls } = await page();
-    await user.click(screen.getByRole('button', { name: 'Add a filter' }));
-    await user.click(await screen.findByRole('button', { name: 'Group' }));
-    // A topic below another is named by its path; the parent says it includes its subtopics
-    expect(await screen.findByRole('radio', { name: 'SEO (includes subgroups)' })).toBeInTheDocument();
-    expect(screen.getByRole('radio', { name: 'Paid Search' })).toBeInTheDocument();
-    await user.click(screen.getByRole('radio', { name: 'SEO / Technical SEO' }));
+    await user.click(screen.getByRole('combobox', { name: 'Group: All groups' }));
+    // One flat list: a topic below another is named by its path, and no row is marked as a parent
+    expect(await screen.findByRole('option', { name: 'SEO' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'SEO / Technical SEO' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Paid Search' })).toBeInTheDocument();
+    await user.type(screen.getByRole('combobox', { name: 'Search groups' }), 'technical');
+    expect(screen.queryByRole('option', { name: 'Paid Search' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('option', { name: 'SEO / Technical SEO' }));
     await waitFor(() => {
       expect(new URLSearchParams(urls.at(-1)).get('topic')).toBe(MOCK_TERM_IDS.technicalSeo);
     });
-    expect(await chip('Group: SEO / Technical SEO. Edit filter')).toBeInTheDocument();
+    expect(await screen.findByRole('combobox', { name: 'Group: SEO / Technical SEO' })).toBeInTheDocument();
   });
 
   it('keeps a group of the link while the vocabulary loads, and counts the groups below it once it has', async () => {
     renderWithProviders(overviewAs('admin'), { searchParams: `?topic=${SEO}` });
-    expect(await chip('Group: SEO (includes subgroups). Edit filter')).toBeInTheDocument();
+    expect(await screen.findByRole('combobox', { name: 'Group: SEO' })).toBeInTheDocument();
     // SEO, Technical SEO and Local SEO: the count of the Prompts number is of the chosen subtree
     await waitFor(() => {
       expect(screen.getAllByRole('definition')[0]).toHaveAccessibleDescription(/in 3 groups/);
@@ -155,7 +185,7 @@ describe('the scope bar', () => {
     await waitFor(() => {
       expect(urls.at(-1)).toBe('?engine=chatgpt_web');
     });
-    expect(screen.getByRole('button', { name: 'Platforms: 1 of 2' })).toBeInTheDocument();
+    expect(await screen.findByRole('combobox', { name: 'Platform: ChatGPT' })).toBeInTheDocument();
     expect(screen.getAllByText('A filter from the link was left out')).toHaveLength(1);
   });
 
@@ -227,27 +257,30 @@ describe('the location control of the scope bar', () => {
   });
 });
 
-describe('Reset filters', () => {
-  it('appears while anything differs from the default and puts back the filters, not the window or the location', async () => {
+describe('Reset scope', () => {
+  it('is visible while anything differs from the default and puts back the filters, not the window or the location', async () => {
     const { user, urls } = await page(
       `?win=7d&country=DE&cmp=off&engine=gemini_web&branded=only&topic=${MOCK_TERM_IDS.technicalSeo}`,
     );
-    await user.click(await screen.findByRole('button', { name: 'Reset filters' }));
+    const reset = screen.getByRole('button', { name: 'Reset scope' });
+    expect(reset).not.toHaveClass('invisible');
+    await user.click(reset);
     await waitFor(() => {
       expect(lastUrl(urls)).toBe('win=7d&country=DE');
     });
-    expect(screen.queryByRole('button', { name: 'Reset filters' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reset scope' })).toHaveClass('invisible');
     expect(await chip('Branded: Excluded. Edit filter')).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Platform: All platforms' })).toBeInTheDocument();
   });
 
-  it('is absent when only the window and the location are not the default', async () => {
+  it('stays invisible when only the window and the location are not the default', async () => {
     await page('?win=7d&country=DE');
-    expect(screen.queryByRole('button', { name: 'Reset filters' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reset scope' })).toHaveClass('invisible');
   });
 
-  it('appears for the comparison alone', async () => {
+  it('is visible for the comparison alone', async () => {
     await page('?cmp=off');
-    expect(await screen.findByRole('button', { name: 'Reset filters' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Reset scope' })).not.toHaveClass('invisible');
   });
 });
 
@@ -267,14 +300,15 @@ describe('the scope bar below 768 px', () => {
     await user.click(button);
     const sheet = await screen.findByRole('dialog', { name: 'Filters' });
     expect(within(sheet).getByRole('button', { name: 'No comparison' })).toBeInTheDocument();
-    expect(within(sheet).getByRole('button', { name: 'Platforms: 1 of 2' })).toBeInTheDocument();
+    expect(within(sheet).getByRole('combobox', { name: 'Platform: Gemini' })).toBeInTheDocument();
+    expect(within(sheet).getByRole('combobox', { name: 'Group: All groups' })).toBeInTheDocument();
     expect(within(sheet).getByRole('button', { name: 'Branded: Excluded. Edit filter' })).toBeInTheDocument();
     expect(within(sheet).getByRole('button', { name: 'Add a filter' })).toBeInTheDocument();
     expect(await within(sheet).findByRole('combobox', { name: 'Location: All locations' })).toBeInTheDocument();
     expect(within(sheet).getByRole('button', { name: /7 days/ })).toBeInTheDocument();
-    await user.click(within(sheet).getByRole('button', { name: 'Reset filters' }));
+    await user.click(within(sheet).getByRole('button', { name: 'Reset scope' }));
     await waitFor(() => {
-      expect(screen.queryByRole('button', { name: 'Reset filters' })).not.toBeInTheDocument();
+      expect(within(sheet).getByRole('button', { name: 'Reset scope' })).toHaveClass('invisible');
     });
     await user.click(within(sheet).getByRole('button', { name: 'Done' }));
     await waitFor(() => {

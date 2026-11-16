@@ -7,6 +7,7 @@ import {
   changedFilterCount,
   namesSeveralPlatforms,
   normalizeEngines,
+  onePlatform,
   RESET_PATCH,
   parseBranded,
   parseCountry,
@@ -121,6 +122,23 @@ describe('singlePlatform and the fallback of a link that names several', () => {
   it('lets an unknown code fall back before it gets here: a list of one known engine is that platform', () => {
     expect(singlePlatform(scopeOf({ engines: parseEngines('bogus,chatgpt_web', KNOWN) }))).toBe('chatgpt_web');
     expect(singlePlatform(scopeOf({ engines: parseEngines('bogus', KNOWN) }))).toBeNull();
+  });
+});
+
+describe('onePlatform', () => {
+  it('keeps one platform that is on, and reads anything else as All platforms', () => {
+    expect(onePlatform(['gemini_web'], KNOWN)).toEqual(['gemini_web']);
+    expect(onePlatform(null, KNOWN)).toBeNull();
+    expect(onePlatform(['chatgpt_web', 'gemini_web'], KNOWN)).toBeNull();
+    expect(onePlatform(['google_ai_overview'], KNOWN)).toBeNull();
+  });
+
+  it('keeps the one named platform while the platforms that are on are not known yet', () => {
+    expect(onePlatform(['gemini_web'], [])).toEqual(['gemini_web']);
+  });
+
+  it('is All platforms for a project with one platform on, as that platform is all of them', () => {
+    expect(onePlatform(['gemini_web'], ['gemini_web'])).toBeNull();
   });
 });
 

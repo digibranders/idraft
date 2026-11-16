@@ -5,7 +5,9 @@ import { useTranslations } from 'next-intl';
 import { useMemo, type ReactElement, type ReactNode } from 'react';
 
 import { AI_OVERVIEW_CARDS } from './cards/registry';
+import { OpenCompetitorContext, type OpenCompetitor } from './competitor-drawer/open-competitor';
 import { ExportProvider } from './export/export-registry';
+import { OverviewFreshness } from './header/overview-freshness';
 import { OverviewHeader } from './header/overview-header';
 import { OverviewNotices } from './notices/overview-notices';
 import { useOverviewNotice } from './notices/use-overview-notice';
@@ -16,7 +18,8 @@ import { buildOverviewPresets } from './presets/presets';
 import { ScopeBar } from './scope/scope-bar';
 import { EnginesError } from './states/engines-error';
 import { NoEngineState } from './states/no-engine-state';
-import { NoCountryPromptsState, NoPromptsState } from './states/no-prompts-state';
+import { NoCountryPromptsState, NoGroupPromptsState, NoPromptsState } from './states/no-prompts-state';
+import { CardInfoProvider } from '@/components/app/chart/card-info';
 import { StatusChip } from '@/components/app/page-toolbar';
 import { PAGE_CLASS, PageHeader } from '@/components/app/shell/page-header';
 import { EmptyState } from '@/components/app/status/empty-state';
@@ -49,6 +52,12 @@ export interface AiOverviewScreenProps {
  * the header and 12 px between the blocks.
  */
 const OVERVIEW_PAGE_CLASS = 'flex flex-col gap-3 px-3 pt-3 pb-8 md:px-4 lg:px-5';
+
+/**
+ * Opens the competitor drawer. The drawer is not built (O-competitor-drawer): until it is, a card that opens a
+ * competitor does nothing, which is what the context says without a provider. The drawer's package replaces this.
+ */
+const openCompetitor: OpenCompetitor = () => undefined;
 
 /**
  * The page's body in each of its states. The engines decide what the page can say, so until they are read it holds
@@ -122,9 +131,10 @@ function OverviewBody({ setupSlot }: { setupSlot: ReactNode }): ReactElement {
     );
   }
 
-  // A country with no prompt leaves the strip and the grid out; the scope bar stays, in the same place in the tree
-  // whatever the body, so a control the person is using is not remounted when the answer comes
-  const countryEmpty = !customizing && notice?.kind === 'noCountryPrompts' ? notice : null;
+  // A location or a group with no prompt leaves the strip and the grid out; the scope bar stays, in the same place in
+  // the tree whatever the body, so a control the person is using is not remounted when the answer comes
+  const scopeEmpty =
+    !customizing && (notice?.kind === 'noCountryPrompts' || notice?.kind === 'noGroupPrompts') ? notice : null;
 
   const scopeFilters = (
     <div className="relative">
@@ -136,7 +146,7 @@ function OverviewBody({ setupSlot }: { setupSlot: ReactNode }): ReactElement {
   return (
     <div className={OVERVIEW_PAGE_CLASS}>
       <OverviewHeader
-        stats={countryEmpty === null && !customizing ? <NumbersZone size="inline" /> : null}
+        stats={scopeEmpty === null && !customizing ? <NumbersZone size="inline" /> : null}
         filters={scopeFilters}
         noticeChip={pausedChip}
         setupSlot={showSetup ? setupSlot : null}
@@ -147,13 +157,16 @@ function OverviewBody({ setupSlot }: { setupSlot: ReactNode }): ReactElement {
           <NumbersZone size="md" />
         </div>
       ) : null}
-      {countryEmpty === null ? (
+      {scopeEmpty === null ? (
         <div aria-busy={refetching || undefined}>
           <CustomizableGrid label={t('cards')} />
         </div>
+      ) : scopeEmpty.kind === 'noCountryPrompts' ? (
+        <NoCountryPromptsState country={scopeEmpty.country} />
       ) : (
-        <NoCountryPromptsState country={countryEmpty.country} />
+        <NoGroupPromptsState topic={scopeEmpty.topic} />
       )}
+      <OverviewFreshness place="foot" />
     </div>
   );
 }
@@ -187,7 +200,11 @@ function CustomizableOverview({
       registry={AI_OVERVIEW_CARDS}
       presets={presets ?? ownPresets}
     >
-      <OverviewBody setupSlot={setupSlot} />
+      <CardInfoProvider>
+        <OpenCompetitorContext value={openCompetitor}>
+          <OverviewBody setupSlot={setupSlot} />
+        </OpenCompetitorContext>
+      </CardInfoProvider>
     </CustomizableScreen>
   );
 }

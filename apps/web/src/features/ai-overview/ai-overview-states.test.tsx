@@ -2,6 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import { getResponse, http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { MOCK_TERM_IDS } from '@/mocks/entity-fixtures';
 import { handlers } from '@/mocks/handlers';
 import { mswPath } from '@/mocks/respond';
 import { overviewAs } from '@/test/ai-overview-harness';
@@ -154,6 +155,29 @@ describe('the empty states of the AI visibility page', () => {
     expect(screen.getByRole('region', { name: 'Scope' })).toBeInTheDocument();
     expect(screen.queryByRole('group', { name: STRIP })).not.toBeInTheDocument();
   });
+
+  it('a group with no prompts says so, keeps the scope bar, and Show all groups clears the group', async () => {
+    server.use(
+      http.get(SUMMARY, async ({ request }) => {
+        if (new URL(request.url).searchParams.get('rows') === 'none') return undefined;
+        const body = await defaultJson(request);
+        const data = body.data as Record<string, unknown>;
+        return HttpResponse.json({ ...body, data: { ...data, prompts: [], topics: [], total: undefined } });
+      }),
+    );
+    const urls: string[] = [];
+    const { user } = renderWithProviders(overviewAs('admin'), {
+      searchParams: `?topic=${MOCK_TERM_IDS.seo}`,
+      onUrlUpdate: (event) => urls.push(event.queryString),
+    });
+    expect(await screen.findByRole('heading', { name: 'No prompts in this scope' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Scope' })).toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: STRIP })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Show all groups' }));
+    await waitFor(() => {
+      expect(new URLSearchParams(urls.at(-1)).has('topic')).toBe(false);
+    });
+  });
 });
 
 describe('the notice region and the freshness of the AI visibility page', () => {
@@ -256,7 +280,7 @@ describe('the notice region and the freshness of the AI visibility page', () => 
     renderWithProviders(overviewAs('admin'));
     await screen.findByRole('group', { name: STRIP });
     await waitFor(() => {
-      expect(screen.getByText(/ prompts · 2 platforms$/)).toBeInTheDocument();
+      expect(screen.getByRole('group', { name: STRIP })).not.toHaveAttribute('aria-busy');
     });
     expect(screen.queryByText(/^AI updated /)).not.toBeInTheDocument();
     expect(screen.queryByText('No AI answers yet')).not.toBeInTheDocument();
@@ -295,9 +319,8 @@ describe('the page while it loads and refetches', () => {
     );
     await user.click(await screen.findByRole('button', { name: 'vs previous period' }));
     await user.click(await screen.findByRole('menuitemradio', { name: 'No comparison' }));
-    await user.click(await screen.findByRole('button', { name: 'Platforms: 2 of 2' }));
-    await user.click(await screen.findByRole('checkbox', { name: 'ChatGPT' }));
-    await user.keyboard('{Escape}');
+    await user.click(await screen.findByRole('combobox', { name: 'Platform: All platforms' }));
+    await user.click(await screen.findByRole('option', { name: 'Gemini' }));
     await waitFor(() => {
       expect(container.querySelector('[data-slot="refetch-bar"]')).not.toBeNull();
     });

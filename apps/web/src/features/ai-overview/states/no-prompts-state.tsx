@@ -1,11 +1,12 @@
 'use client';
 
-import { MapPinOff, MessageSquare } from 'lucide-react';
+import { FolderOpen, MapPinOff, MessageSquare } from 'lucide-react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useMemo, type ReactElement } from 'react';
 
 import { useOverview } from '../overview-context';
+import { useTopicTree } from '../scope/use-topic-tree';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { Button } from '@/components/ui/button';
 import { TextLink } from '@/components/ui/text-link';
@@ -60,6 +61,32 @@ export function NoCountryPromptsState({ country }: { country: string }): ReactEl
       primaryAction={
         <Button variant="secondary" onClick={() => setScope({ country: null })}>
           {t('clearCountry')}
+        </Button>
+      }
+      secondaryAction={<PromptsLink />}
+    />
+  );
+}
+
+/**
+ * The body when the group in the scope has no prompt that is counted: the scope bar stays, so another group can be
+ * chosen, and Show all groups puts the page back to every group. A group the vocabulary does not hold (a link's)
+ * is named by its id, which is all there is to name it by.
+ */
+export function NoGroupPromptsState({ topic }: { topic: string }): ReactElement {
+  const t = useTranslations('aiOverview.shell.emptyGroup');
+  const { setScope } = useOverview();
+  const { tree } = useTopicTree();
+  const group = tree.find((term) => term.termId === topic)?.path ?? topic;
+  return (
+    <EmptyState
+      icon={FolderOpen}
+      title={t('title')}
+      reason={t('reason', { group })}
+      headingLevel={2}
+      primaryAction={
+        <Button variant="secondary" onClick={() => setScope({ topic: null })}>
+          {t('clear')}
         </Button>
       }
       secondaryAction={<PromptsLink />}

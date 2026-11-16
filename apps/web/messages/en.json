@@ -6465,6 +6465,33 @@
         "infoEffectiveFormula": "The square of the total citation units, divided by the sum of each domain's citation units squared (the inverse of the Herfindahl index of the source shares). Both inputs, units and domains of each week, are in the Table view.",
         "announceView": "Showing {view, select, distinct {distinct domains} other {effective sources}}"
       }
+    },
+    "shell": {
+      "platform": "Platform",
+      "platformLabel": "Platform: {platform}",
+      "allPlatforms": "All platforms",
+      "platformAiOverview": "AI Overview",
+      "platformUnavailable": "Not available",
+      "group": "Group",
+      "groupLabel": "Group: {group}",
+      "allGroups": "All groups",
+      "groupSearch": "Search groups",
+      "groupEmpty": "No groups match “{query}”",
+      "groupClear": "Clear search",
+      "groupOpen": "Show groups",
+      "resetScope": "Reset scope",
+      "severalPlatformsTitle": "The link named several platforms",
+      "severalPlatformsDescription": "The page shows one platform at a time, so it shows all platforms.",
+      "unavailable": {
+        "title": "Not available for this scope",
+        "platform": "{card} is not measured on {platform}. Choose All platforms or another platform.",
+        "group": "{card} compares groups, so it needs All groups."
+      },
+      "emptyGroup": {
+        "title": "No prompts in this scope",
+        "reason": "No prompts of {group} are counted with these filters. Choose All groups, or add a prompt to this group in Prompts.",
+        "clear": "Show all groups"
+      }
     }
   },
   "citations": {

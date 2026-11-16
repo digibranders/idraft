@@ -1,5 +1,6 @@
 'use client';
 
+import { Undo2 } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useCallback, useMemo, useRef, type ReactElement } from 'react';
 
@@ -7,8 +8,9 @@ import { useOverview } from '../overview-context';
 import { brandedField, brandedFromValues, brandedValues } from './branded-field';
 import { CompareSelect } from './compare-select';
 import { CountryControl } from './country-control';
-import { EnginesControl, type EngineChoice } from './engines-control';
 import { FiltersSheet, SheetRow } from './filters-sheet';
+import { GroupSelect } from './group-select';
+import { PlatformSelect, type PlatformChoice } from './platform-select';
 import { changedFilterCount, RESET_PATCH } from './scope-model';
 import { topicField } from './topic-options';
 import { MAX_DAYS } from './use-overview-scope';
@@ -19,7 +21,7 @@ import { FilterBar } from '@/components/app/filters/filter-bar';
 import type { FilterField, FilterValues } from '@/components/app/filters/types';
 import { useUrlFilters } from '@/components/app/filters/use-url-filters';
 import { TopBarPortal } from '@/components/app/shell/top-bar-slot';
-import { Button } from '@/components/ui/button';
+import { IconButton } from '@/components/ui/icon-button';
 import { toast } from '@/components/ui/toast';
 import { useMediaQuery } from '@/lib/dom/use-media-query';
 import { useZoneDay } from '@/lib/dom/use-zone-day';
@@ -37,6 +39,7 @@ const PAGE_CONTROLS = '(width >= 48rem)';
  */
 export function ScopeBar(): ReactElement {
   const t = useTranslations('aiOverview.scope');
+  const tShell = useTranslations('aiOverview.shell');
   const locale = useLocale();
   const { project, scope, setScope, engines } = useOverview();
   const onPage = useMediaQuery(PAGE_CONTROLS);
@@ -45,7 +48,7 @@ export function ScopeBar(): ReactElement {
   const barRef = useRef<HTMLDivElement>(null);
 
   const choices = useMemo(
-    (): EngineChoice[] =>
+    (): PlatformChoice[] =>
       byEngineOrder(
         (engines.data ?? []).filter((engine) => engine.is_enabled),
         (engine) => engine.engine.engine_code,
@@ -95,14 +98,8 @@ export function ScopeBar(): ReactElement {
       }),
   });
 
-  const fields = useMemo((): FilterField[] => [topic, branded], [topic, branded]);
-  const values = useMemo(
-    (): FilterValues => ({
-      ...(scope.topic === null ? {} : { topic: { kind: 'enum', values: [scope.topic] } }),
-      ...brandedValues(scope.branded),
-    }),
-    [scope.topic, scope.branded],
-  );
+  const fields = useMemo((): FilterField[] => [branded], [branded]);
+  const values = useMemo((): FilterValues => brandedValues(scope.branded), [scope.branded]);
   const changed = changedFilterCount(scope);
   const reset = (): void => {
     setScope(RESET_PATCH);
@@ -111,29 +108,37 @@ export function ScopeBar(): ReactElement {
   };
 
   const controls = (
-    <div ref={barRef} className="flex flex-wrap items-start gap-2">
+    <div ref={barRef} className="flex flex-wrap items-center gap-2">
+      <PlatformSelect
+        platforms={choices}
+        selected={scope.engines?.[0] ?? null}
+        onChange={(code) => setScope({ engines: code === null ? null : [code] })}
+        className="w-full sm:w-60"
+      />
+      <GroupSelect
+        tree={tree}
+        selected={scope.topic}
+        onChange={(topicId) => setScope({ topic: topicId })}
+        className="w-full sm:w-60"
+      />
       <CompareSelect scope={scope} onCompareChange={(compare) => setScope({ compare })} />
-      <EnginesControl engines={choices} selected={scope.engines} onChange={(next) => setScope({ engines: next })} />
+      {/* Always in its place, invisible (and out of the tab order) while the scope is the default, so it never moves the row */}
+      <IconButton
+        icon={Undo2}
+        label={tShell('resetScope')}
+        variant="ghost"
+        size="icon"
+        onClick={reset}
+        className={changed === 0 ? 'invisible' : undefined}
+      />
       <div className="min-w-0">
         <FilterBar
           fields={fields}
           values={values}
           hideClear
-          onChange={(next) =>
-            setScope({
-              topic: next.topic?.kind === 'enum' ? (next.topic.values[0] ?? null) : null,
-              branded: brandedFromValues(next),
-            })
-          }
+          onChange={(next) => setScope({ branded: brandedFromValues(next) })}
         />
       </div>
-      {changed === 0 ? null : (
-        <div className="flex h-control shrink-0 items-center">
-          <Button variant="link" onClick={reset}>
-            {t('reset')}
-          </Button>
-        </div>
-      )}
     </div>
   );
 
