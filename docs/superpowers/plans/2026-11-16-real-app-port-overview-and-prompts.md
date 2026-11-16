@@ -138,3 +138,17 @@ Backend work: `ai.visibility_rate` and `ai.mention_order_mean` keys, the sentime
 rank classifier (WP-54), prompt to keyword links (WP-44), source categories and competitor overlap (WP-60), GA4
 referrals (WP-69), untracked brands, screenshots (needs a provider spike), one topic per prompt, AI Overview as an
 engine. Pushing to `develop` and releasing to `main` happen only on the owner's word.
+
+## Mock drift (added 2026-11-16, same day)
+
+The preview kept changing while this plan was written, so the target moves:
+
+- Prompts preview, commit 176bdbde (local on the preview worktree, not yet on `origin/develop`): comparison defaults to
+  off, the trend line moves into the Mention rate cell when comparing, Avg position shows the bare list count, Brands
+  and Cited links get a green check when the own brand or site is in them.
+- Overview preview, `origin/develop` 9082face: every info text says what the card shows, then how it is counted
+  (`aiov-info.js`, spec section 5.0 updated).
+
+Rule: every reviewer diffs against the newest preview at review time (`git log` on `apps/web/design-preview`), and one
+last re-sync pass runs after wave 3 against the final preview, listing each preview commit made since this plan and
+porting it. The owner should say when the preview is frozen.
