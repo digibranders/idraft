@@ -473,6 +473,10 @@ EXPECTED: dict[tuple[str, str], str] = {
     # WP-30 runs-costs-health
     ("GET", "/api/v1/workspaces/{workspace_id}/budgets"): "costs:read",
     ("POST", "/api/v1/workspaces/{workspace_id}/budgets"): "budgets:manage",
+    ("GET", "/api/v1/workspaces/{workspace_id}/page-tiers"): "data:read",
+    ("POST", "/api/v1/workspaces/{workspace_id}/page-tiers"): "workspace:update",
+    ("PATCH", "/api/v1/workspaces/{workspace_id}/page-tiers/{tier_id}"): "workspace:update",
+    ("DELETE", "/api/v1/workspaces/{workspace_id}/page-tiers/{tier_id}"): "workspace:update",
     ("PATCH", "/api/v1/workspaces/{workspace_id}/budgets/{budget_id}"): "budgets:manage",
     ("DELETE", "/api/v1/workspaces/{workspace_id}/budgets/{budget_id}"): "budgets:manage",
     ("GET", "/api/v1/workspaces/{workspace_id}/costs/forecast"): "costs:read",
@@ -562,6 +566,8 @@ PATH_PARAMETERS = {
     "entity_id",
     "alias_id",
     "entity_domain_id",
+    # A page tier belongs to the workspace and is shared by its projects.
+    "tier_id",
     # A vocabulary may belong to a project, but its routes check that project's scope in the
     # service: a vocabulary id is not a project id, and a workspace-wide one has none.
     "vocabulary_id",
