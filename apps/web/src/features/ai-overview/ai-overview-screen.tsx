@@ -171,9 +171,8 @@ function CustomizableOverview({
     () =>
       buildOverviewPresets({
         executive: t('presets.executive'),
-        seo_analyst: t('presets.seoAnalyst'),
+        analyst: t('presets.analyst'),
         competitive: t('presets.competitive'),
-        topic_owner: t('presets.topicOwner'),
       }),
     [t],
   );

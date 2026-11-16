@@ -10,9 +10,11 @@ import { useZoneDay } from '@/lib/dom/use-zone-day';
 import { ENGINES } from '@/lib/layouts/catalog';
 
 import {
+  DEFAULT_METRIC,
   parseBranded,
   parseCountry,
   parseEngines,
+  parseMetric,
   parseTopic,
   previousWindow,
   type OverviewScope,
@@ -32,6 +34,7 @@ const SCOPE_KEYS = {
   engine: parseAsString,
   topic: parseAsString,
   branded: parseAsString,
+  metric: parseAsString,
 };
 
 export interface UseOverviewScopeOptions {
@@ -55,10 +58,10 @@ export interface OverviewScopeState {
 
 /**
  * The Overview's scope kept in the URL: the date range through `useDateRangeParams` (`win`, or `from` and
- * `to`, at most 92 days) and `cmp`, `country`, `engine`, `topic` and `branded` beside it. Every value is read
+ * `to`, at most 92 days) and `cmp`, `country`, `engine`, `topic`, `branded` and `metric` beside it. Every value is read
  * through the parsers of `scope-model.ts`, so a link with a value that does not read shows the default; the
  * address keeps that link until the person changes it. Changes are made with `replace`, and the default of
- * each key (comparison on, no country, every engine, no topic, branded excluded) writes nothing.
+ * each key (comparison on, no country, every engine, no topic, branded excluded, visibility) writes nothing.
  */
 export function useOverviewScope({
   project,
@@ -79,6 +82,7 @@ export function useOverviewScope({
       engines: parseEngines(raw.engine, knownEngines),
       topic: parseTopic(raw.topic),
       branded: parseBranded(raw.branded),
+      metric: parseMetric(raw.metric),
     }),
     [picked.range, picked.value, raw, knownEngines],
   );
@@ -94,6 +98,7 @@ export function useOverviewScope({
       }
       if (patch.topic !== undefined) keys.topic = patch.topic;
       if (patch.branded !== undefined) keys.branded = patch.branded === 'excluded' ? null : patch.branded;
+      if (patch.metric !== undefined) keys.metric = patch.metric === DEFAULT_METRIC ? null : patch.metric;
       if (Object.keys(keys).length > 0) void setRaw(keys);
     },
     [onValueChange, setRaw],

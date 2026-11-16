@@ -5,14 +5,17 @@ import { parseCompare } from '@/lib/compare/compare-model';
 import {
   brandedParams,
   changedFilterCount,
+  namesSeveralPlatforms,
   normalizeEngines,
   RESET_PATCH,
   parseBranded,
   parseCountry,
   parseEngines,
+  parseMetric,
   parseTopic,
   previousWindow,
   scopeKey,
+  singlePlatform,
   type OverviewScope,
 } from './scope-model';
 
@@ -29,6 +32,7 @@ function scopeOf(patch: Partial<OverviewScope> = {}): OverviewScope {
     engines: null,
     topic: null,
     branded: 'excluded',
+    metric: 'visibility',
     ...patch,
   };
 }
@@ -80,6 +84,43 @@ describe('parseEngines', () => {
     expect(parseEngines('', KNOWN)).toBeNull();
     expect(parseEngines(null, KNOWN)).toBeNull();
     expect(parseEngines(',,', KNOWN)).toBeNull();
+  });
+});
+
+describe('parseMetric', () => {
+  it('defaults to visibility and reads the four measures', () => {
+    expect(parseMetric(null)).toBe('visibility');
+    expect(parseMetric('')).toBe('visibility');
+    expect(parseMetric('bogus')).toBe('visibility');
+    expect(parseMetric('VISIBILITY')).toBe('visibility');
+    expect(parseMetric('visibility')).toBe('visibility');
+    expect(parseMetric('mention')).toBe('mention');
+    expect(parseMetric('citation')).toBe('citation');
+    expect(parseMetric('sov')).toBe('sov');
+  });
+
+  it('does not accept the catalog name of share of voice: the URL says sov', () => {
+    expect(parseMetric('share_of_voice')).toBe('visibility');
+  });
+});
+
+describe('singlePlatform and the fallback of a link that names several', () => {
+  it('is the one engine of the scope, and null for every engine', () => {
+    expect(singlePlatform(scopeOf())).toBeNull();
+    expect(singlePlatform(scopeOf({ engines: ['gemini_web'] }))).toBe('gemini_web');
+  });
+
+  it('reads two or more engines (an old link, engine=a,b) as All platforms', () => {
+    const several = scopeOf({ engines: ['gemini_web', 'chatgpt_web'] });
+    expect(singlePlatform(several)).toBeNull();
+    expect(namesSeveralPlatforms(several)).toBe(true);
+    expect(namesSeveralPlatforms(scopeOf({ engines: ['gemini_web'] }))).toBe(false);
+    expect(namesSeveralPlatforms(scopeOf())).toBe(false);
+  });
+
+  it('lets an unknown code fall back before it gets here: a list of one known engine is that platform', () => {
+    expect(singlePlatform(scopeOf({ engines: parseEngines('bogus,chatgpt_web', KNOWN) }))).toBe('chatgpt_web');
+    expect(singlePlatform(scopeOf({ engines: parseEngines('bogus', KNOWN) }))).toBeNull();
   });
 });
 
@@ -142,6 +183,10 @@ describe('scopeKey', () => {
     expect(new Set([base, ...others]).size).toBe(others.length + 1);
   });
 
+  it('ignores the metric: it changes what a card draws, not what is read', () => {
+    expect(scopeKey(scopeOf({ metric: 'citation' }))).toBe(scopeKey(scopeOf()));
+  });
+
   it('ignores the previous window when the comparison is off', () => {
     const a = scopeOf({ compare: false });
     const b = scopeOf({ compare: false, previous: { from: '2000-01-01', to: '2000-01-02' } });
@@ -186,6 +231,10 @@ describe('changedFilterCount', () => {
     expect(
       changedFilterCount(scopeOf({ compare: false, engines: ['gemini_web'], topic: TOPIC, branded: 'only' })),
     ).toBe(4);
+  });
+
+  it('does not count the metric, which is not a filter', () => {
+    expect(changedFilterCount(scopeOf({ metric: 'sov' }))).toBe(0);
   });
 
   it('has a reset patch that leaves the window and the country out and brings the count to zero', () => {

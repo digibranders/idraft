@@ -64,6 +64,17 @@ const METRIC_OPTION = enumOption(
   ],
   'mention',
 );
+/** The trend and the group heat map also draw AI Visibility, the share of answers that name or cite the brand. */
+const VISIBILITY_METRIC_OPTION = enumOption(
+  'Metric',
+  [
+    ['visibility', 'AI Visibility'],
+    ['mention', 'Mention rate'],
+    ['citation', 'Citation rate'],
+    ['share_of_voice', 'Share of voice'],
+  ],
+  'visibility',
+);
 const DIRECTION_OPTION = enumOption(
   'Direction',
   [
@@ -84,6 +95,8 @@ const NONE: { all: Channel[]; any: Channel[] } = { all: [], any: [] };
 const ORIGINAL = '2026-06-01';
 const RELEASE = '2026-09-30';
 const AI_RELEASE = '2026-11-13';
+/** The cards the Overview redesign adds (spec 2026-11-16-ai-overview-redesign-design.md section 5). */
+const REDESIGN_RELEASE = '2026-11-16';
 
 /** A type reused by the AI visibility screen is listed on both screens. */
 const OVERVIEW_AND_AI: ReadonlyArray<ScreenKey> = ['overview', 'ai_overview'];
@@ -123,20 +136,25 @@ function aiCard(
   key: string,
   title: string,
   description: string,
-  group: 'ai' | 'activity',
+  group: 'ai' | 'activity' | 'traffic',
   widths: Width[],
-  extra: Partial<Pick<CardTypeDefinition, 'options' | 'maxInstances' | 'permission'>> = {},
+  extra: Partial<Pick<CardTypeDefinition, 'options' | 'maxInstances' | 'permission' | 'integration' | 'addedOn'>> = {},
 ): CardTypeDefinition {
-  return dashboardCard(key, title, description, group, widths, AI, {
-    screens: ['ai_overview'],
-    addedOn: AI_RELEASE,
-    ...extra,
-  });
+  const { integration = null, ...rest } = extra;
+  return {
+    ...dashboardCard(key, title, description, group, widths, AI, {
+      screens: ['ai_overview'],
+      addedOn: AI_RELEASE,
+      ...rest,
+    }),
+    integration,
+  };
 }
 
 /** Instances of a card that is reusable per engine, or per metric: one per value, as many as the identity has. */
 const PER_ENGINE = ENGINES.length;
 const PER_METRIC = METRIC_OPTION.values.length;
+const PER_VISIBILITY_METRIC = VISIBILITY_METRIC_OPTION.values.length;
 
 function drawerCard(
   key: string,
@@ -170,6 +188,14 @@ function drawerCard(
  */
 const AI_OVERVIEW_CARDS: ReadonlyArray<CardTypeDefinition> = [
   aiCard(
+    'ai.visibility_split',
+    'Headline numbers',
+    'AI Visibility with its four outcomes, and the key numbers beside it.',
+    'ai',
+    ['full'],
+    { addedOn: REDESIGN_RELEASE },
+  ),
+  aiCard(
     'ai.change_summary',
     'What changed',
     'What moved in the window, in a few sentences built from counted facts.',
@@ -182,8 +208,8 @@ const AI_OVERVIEW_CARDS: ReadonlyArray<CardTypeDefinition> = [
     'Rates by engine over time',
     'How each engine’s rate moved week by week, with its interval.',
     'ai',
-    ['two_thirds', 'full'],
-    { maxInstances: PER_METRIC, options: { metric: METRIC_OPTION } },
+    ['two_thirds', 'full', 'half'],
+    { maxInstances: PER_VISIBILITY_METRIC, options: { metric: VISIBILITY_METRIC_OPTION } },
   ),
   aiCard(
     'ai.outcome_mix',
@@ -199,16 +225,14 @@ const AI_OVERVIEW_CARDS: ReadonlyArray<CardTypeDefinition> = [
     'ai',
     ['third', 'half'],
   ),
+  // The three competitor cards follow the page scope (platform and group), so they have no engine of their own.
   aiCard(
     'ai.share_of_voice',
-    'Share of voice, one engine',
-    'How the answers of one engine divide mentions between you and your competitors.',
+    'Share of voice',
+    'Your share of tracked-brand mentions beside each competitor.',
     'ai',
     ['half', 'third'],
-    {
-      maxInstances: PER_ENGINE,
-      options: { engine: ENGINE_OPTION, rows: countOption('Rows', 'rows', ['5', '10'], '10') },
-    },
+    { options: { rows: countOption('Rows', 'rows', ['5', '10'], '10') } },
   ),
   aiCard(
     'ai.competitor_trend',
@@ -243,14 +267,11 @@ const AI_OVERVIEW_CARDS: ReadonlyArray<CardTypeDefinition> = [
   ),
   aiCard(
     'ai.lost_to_competitor',
-    'Prompts lost to a competitor',
-    'Which prompts name a competitor and not you on one engine.',
+    'Competitor gap',
+    'For each competitor, the prompts where they are named more often than you, and where you lead.',
     'ai',
-    ['third', 'half'],
-    {
-      maxInstances: PER_ENGINE,
-      options: { engine: ENGINE_OPTION, rows: countOption('Rows', 'rows', ['5', '10'], '5') },
-    },
+    ['half', 'full'],
+    { options: { rows: countOption('Rows', 'rows', ['5', '10'], '5') } },
   ),
   aiCard(
     'ai.co_mentions',
@@ -263,10 +284,9 @@ const AI_OVERVIEW_CARDS: ReadonlyArray<CardTypeDefinition> = [
   aiCard(
     'ai.sov_over_time',
     'Share of voice over time',
-    'How the share of voice of every tracked brand moved on one engine.',
+    'The share of every tracked brand over the weekly runs, stacked to 100%.',
     'ai',
-    ['two_thirds', 'half', 'full'],
-    { maxInstances: PER_ENGINE, options: { engine: ENGINE_OPTION } },
+    ['half', 'two_thirds', 'full'],
   ),
   aiCard(
     'ai.sov_rank',
@@ -283,9 +303,9 @@ const AI_OVERVIEW_CARDS: ReadonlyArray<CardTypeDefinition> = [
     'ai',
     ['two_thirds', 'full'],
     {
-      maxInstances: PER_METRIC,
+      maxInstances: PER_VISIBILITY_METRIC,
       options: {
-        metric: METRIC_OPTION,
+        metric: VISIBILITY_METRIC_OPTION,
         rows: countOption('Rows', 'rows', ['5', '10', '20'], '10'),
         level: enumOption(
           'Level',
@@ -312,7 +332,7 @@ const AI_OVERVIEW_CARDS: ReadonlyArray<CardTypeDefinition> = [
     'Strongest and weakest topics',
     'Which topics do best and worst on the chosen metric.',
     'ai',
-    ['half', 'third', 'two_thirds'],
+    ['third', 'half'],
     {
       maxInstances: PER_METRIC,
       options: { metric: METRIC_OPTION, rows: countOption('Rows', 'rows', ['3', '5'], '5') },
@@ -508,7 +528,7 @@ const AI_OVERVIEW_CARDS: ReadonlyArray<CardTypeDefinition> = [
     'Top cited domains',
     'Which domains answers cite most, and whose they are.',
     'ai',
-    ['third', 'half'],
+    ['half', 'third'],
     {
       options: {
         role: enumOption(
@@ -529,7 +549,7 @@ const AI_OVERVIEW_CARDS: ReadonlyArray<CardTypeDefinition> = [
     'Your pages AI engines cite',
     'Which of your pages answers cite, and how often.',
     'ai',
-    ['third', 'half'],
+    ['half', 'third'],
     { options: { rows: countOption('Rows', 'rows', ['5', '8', '10'], '8') } },
   ),
   aiCard(
@@ -548,8 +568,40 @@ const AI_OVERVIEW_CARDS: ReadonlyArray<CardTypeDefinition> = [
     'What ChatGPT searched',
     'Which searches ChatGPT ran to build its answers.',
     'ai',
-    ['half', 'third'],
+    ['half', 'third', 'full'],
     { options: { rows: countOption('Rows', 'rows', ['5', '10'], '5') } },
+  ),
+  aiCard(
+    'ai.unlinked_mentions',
+    'Unlinked brand mentions',
+    'Prompts that name you without citing you.',
+    'ai',
+    ['half', 'third'],
+    { addedOn: REDESIGN_RELEASE },
+  ),
+  aiCard(
+    'ai.position_distribution',
+    'Mention position',
+    'Whether the brand is named first, second, third or later.',
+    'ai',
+    ['half', 'third', 'full'],
+    { addedOn: REDESIGN_RELEASE },
+  ),
+  aiCard(
+    'ai.sentiment_by_engine',
+    'Brand sentiment',
+    'The tone of the mentions as four shares, per platform.',
+    'ai',
+    ['half', 'third'],
+    { addedOn: REDESIGN_RELEASE },
+  ),
+  aiCard(
+    'traffic.ai_referrals',
+    'AI referral traffic',
+    'Sessions from AI platforms and the pages they land on. Needs GA4.',
+    'traffic',
+    ['full', 'two_thirds'],
+    { addedOn: REDESIGN_RELEASE, integration: 'ga4' },
   ),
   aiCard(
     'ai.opportunities',
@@ -564,7 +616,7 @@ const AI_OVERVIEW_CARDS: ReadonlyArray<CardTypeDefinition> = [
     'Answers collected',
     'How many answers were collected on each day of the window.',
     'activity',
-    ['half', 'full'],
+    ['full', 'half'],
   ),
   aiCard(
     'ops.answer_status',
@@ -732,7 +784,8 @@ export const CARD_TYPES: ReadonlyArray<CardTypeDefinition> = [
     'Key changes',
     'Detectable changes and collection issues in the window, most urgent first.',
     'activity',
-    ['half', 'two_thirds', 'full'],
+    // Two thirds stays for the project Overview; the AI visibility page also takes a third.
+    ['half', 'third', 'two_thirds', 'full'],
     NONE,
     {
       screens: OVERVIEW_AND_AI,
@@ -878,8 +931,12 @@ export const SCREENS: Readonly<Record<ScreenKey, ScreenDefinition>> = {
   ai_overview: {
     key: 'ai_overview',
     title: 'AI visibility',
+    // The headline card (`ai.visibility_split`) replaces the numbers strip. The zone stays on, and the built-in layout
+    // keeps its four numbers, until the screen stops drawing the strip: that package sets `numbers: false` here, drops
+    // `numbers` below and from the presets, and runs `pnpm gen:layout-catalog`.
     zones: { numbers: true, cards: true, widths: true },
-    // The Default preset of inventory 9.5. Every option is written out, because sanitizing fills the defaults in.
+    // The Default preset of the redesign (spec 2026-11-16-ai-overview-redesign-design.md section 5). Every option is
+    // written out, because sanitizing fills the defaults in.
     builtin: {
       schema: 1,
       numbers: [
@@ -889,30 +946,22 @@ export const SCREENS: Readonly<Record<ScreenKey, ScreenDefinition>> = {
         { id: 'mention-ai-mode', metric: 'ai.mention_rate', engine: 'google_ai_mode' },
       ],
       cards: [
-        { id: 'change-summary', type: 'ai.change_summary', width: 'full', options: { facts: '5' } },
-        { id: 'rate-trend', type: 'ai.rate_trend_by_engine', width: 'two_thirds', options: { metric: 'mention' } },
+        { id: 'visibility-split', type: 'ai.visibility_split', width: 'full' },
+        { id: 'rate-trend', type: 'ai.rate_trend_by_engine', width: 'two_thirds', options: { metric: 'visibility' } },
         { id: 'outcome-mix', type: 'ai.outcome_mix', width: 'third' },
-        { id: 'top-domains', type: 'sources.top_domains', width: 'third', options: { role: 'all', rows: '8' } },
+        { id: 'share-of-voice', type: 'ai.share_of_voice', width: 'half', options: { rows: '10' } },
+        { id: 'lost-to-competitor', type: 'ai.lost_to_competitor', width: 'half', options: { rows: '5' } },
         {
           id: 'topic-heatmap',
           type: 'ai.topic_heatmap',
-          width: 'two_thirds',
-          options: { metric: 'mention', rows: '10', level: 'top', sort: 'prompts' },
+          width: 'full',
+          options: { metric: 'visibility', rows: '10', level: 'top', sort: 'prompts' },
         },
-        {
-          id: 'share-of-voice-chatgpt',
-          type: 'ai.share_of_voice',
-          width: 'half',
-          options: { engine: 'chatgpt_web', rows: '10' },
-        },
-        {
-          id: 'competitor-trend-chatgpt',
-          type: 'ai.competitor_trend',
-          width: 'half',
-          options: { engine: 'chatgpt_web', competitors: '3' },
-        },
-        { id: 'key-changes', type: 'activity.key_changes', width: 'half', options: { rows: '8' } },
-        { id: 'opportunities', type: 'ai.opportunities', width: 'half', options: { rows: '4' } },
+        { id: 'top-domains', type: 'sources.top_domains', width: 'third', options: { role: 'all', rows: '8' } },
+        { id: 'position-distribution', type: 'ai.position_distribution', width: 'third' },
+        { id: 'sentiment-by-engine', type: 'ai.sentiment_by_engine', width: 'third' },
+        { id: 'ai-referrals', type: 'traffic.ai_referrals', width: 'two_thirds' },
+        { id: 'fanout-top', type: 'ai.fanout_top', width: 'third', options: { rows: '5' } },
       ],
     },
   },

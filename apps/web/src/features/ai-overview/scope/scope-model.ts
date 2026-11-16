@@ -13,6 +13,14 @@ import type { DateRangeValue, ResolvedRange } from '@/components/app/date-range/
 /** Branded prompts: left out (default), counted with the rest, or counted alone. */
 export type Branded = 'excluded' | 'included' | 'only';
 
+/**
+ * The measure the trend and the group heat map draw (`metric`): AI Visibility, mention rate, citation rate or share
+ * of voice. It changes what a card draws, never what is read, so it is not part of `scopeKey`.
+ */
+export const SCOPE_METRICS = ['visibility', 'mention', 'citation', 'sov'] as const;
+export type ScopeMetric = (typeof SCOPE_METRICS)[number];
+export const DEFAULT_METRIC: ScopeMetric = 'visibility';
+
 /** A span of project days, both ends included. */
 export interface DateWindow {
   from: BusinessDate;
@@ -35,6 +43,8 @@ export interface OverviewScope {
   /** One topic term id and the topics below it, or `null` for all topics. */
   topic: string | null;
   branded: Branded;
+  /** The measure the trend and the heat map draw. */
+  metric: ScopeMetric;
 }
 
 /** The parts of the scope a person changes; a key left out stays as it is. */
@@ -46,6 +56,7 @@ export interface ScopePatch {
   engines?: readonly string[] | null;
   topic?: string | null;
   branded?: Branded;
+  metric?: ScopeMetric;
 }
 
 /**
@@ -75,6 +86,10 @@ export function parseEngines(value: string | null, known: readonly string[]): st
   return codes.length === 0 ? null : codes;
 }
 
+/** `visibility`, `mention`, `citation` or `sov`; visibility (the default) for anything else. */
+export const parseMetric = (value: string | null): ScopeMetric =>
+  SCOPE_METRICS.find((metric) => metric === value) ?? DEFAULT_METRIC;
+
 /**
  * `branded=only` and `branded=included`; excluded for anything else. The Prompts page writes `branded=include`
  * for the same choice, so a link from it reads as included here.
@@ -89,6 +104,19 @@ const TERM_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 /** A term id (a UUID, what `filter[term]` takes), lowercased so equal ids share a query key; else all topics. */
 export const parseTopic = (value: string | null): string | null =>
   value !== null && TERM_ID.test(value) ? value.toLowerCase() : null;
+
+/**
+ * The one platform the page is for, or `null` for All platforms. The page has a single Platform select, so a link
+ * that names several engines (`engine=a,b`, from before the select) reads as All platforms.
+ */
+export function singlePlatform(scope: Pick<OverviewScope, 'engines'>): string | null {
+  return scope.engines?.length === 1 ? (scope.engines[0] ?? null) : null;
+}
+
+/** Whether the scope came from a link that names several platforms, which `singlePlatform` reads as All platforms. */
+export function namesSeveralPlatforms(scope: Pick<OverviewScope, 'engines'>): boolean {
+  return (scope.engines?.length ?? 0) > 1;
+}
 
 /** The summary's branded parameters for a choice. `branded_only` counts branded prompts alone. */
 export function brandedParams(branded: Branded): { include_branded: boolean; branded_only?: true } {

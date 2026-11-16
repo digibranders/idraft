@@ -155,6 +155,7 @@ function scopeOf(over: Partial<OverviewScope> = {}): OverviewScope {
     engines: null,
     topic: null,
     branded: 'excluded',
+    metric: 'visibility',
     ...over,
   };
 }

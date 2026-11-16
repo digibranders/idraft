@@ -188,21 +188,21 @@ describe('the Export menu of the AI visibility page', () => {
       ['rate-trend', 'a', '1'],
       ['rate-trend', 'b', '2'],
     ]);
-    expect(rowsOfBlock(first.rows, 'change-summary')).toHaveLength(2);
+    expect(rowsOfBlock(first.rows, 'visibility-split')).toHaveLength(2);
     // The rows of the blocks are counted with the numbers, never the headers or the notes
-    const counted = first.rows.filter((row) => row[0] === 'numbers').length + 9 * 2;
+    const counted = first.rows.filter((row) => row[0] === 'numbers').length + 10 * 2;
     expect(await screen.findByText(`${counted} rows exported`)).toBeInTheDocument();
 
     // Hiding a card in customize mode takes it off the page, and its table out of the next file
     await user.click(screen.getByRole('button', { name: 'Customize' }));
     await user.click((await screen.findAllByRole('button', { name: /^Hide / }))[0] as HTMLElement);
     await waitFor(() => {
-      expect(screen.queryByTestId('fake-card-change-summary')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('fake-card-visibility-split')).not.toBeInTheDocument();
     });
     vi.mocked(csvWrite.downloadBlob).mockClear();
     await exportNumbers(user);
     const second = await downloaded();
-    expect(rowsOfBlock(second.rows, 'change-summary')).toHaveLength(0);
+    expect(rowsOfBlock(second.rows, 'visibility-split')).toHaveLength(0);
     expect(rowsOfBlock(second.rows, 'rate-trend')).toHaveLength(2);
   });
 
@@ -216,7 +216,7 @@ describe('the Export menu of the AI visibility page', () => {
     expect(rows.filter((row) => row[0] === 'note').map((row) => row[1])).toEqual([
       NOTE_UNKNOWN,
       NOTE_POOLED,
-      '8 cards were still loading and left out.',
+      '9 cards were still loading and left out.',
     ]);
   });
 

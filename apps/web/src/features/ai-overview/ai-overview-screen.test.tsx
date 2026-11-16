@@ -3,7 +3,7 @@ import { getResponse, http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { LIVE_REGION_ID } from '@/lib/a11y/announcer';
-import { cardName, SCREENS } from '@/lib/layouts';
+import { cardName, cardType, SCREENS } from '@/lib/layouts';
 import { handlers } from '@/mocks/handlers';
 import { mswPath } from '@/mocks/respond';
 import { CARD_ID, cardInOverview, overviewAs } from '@/test/ai-overview-harness';
@@ -102,10 +102,13 @@ describe('the AI visibility page of a project with engines on', () => {
     expect(await screen.findByText('Link copied')).toBeInTheDocument();
   });
 
-  it('shows the nine cards of the built-in layout, each card a pending card with its catalog title until its family builds it', async () => {
+  it('shows the eleven cards of the built-in layout, each card a pending card with its catalog title until its family builds it', async () => {
     renderWithProviders(overviewAs('admin'));
-    const cards = SCREENS.ai_overview.builtin.cards ?? [];
-    expect(cards).toHaveLength(9);
+    const layout = SCREENS.ai_overview.builtin.cards ?? [];
+    expect(layout).toHaveLength(11);
+    // The referral card needs the GA4 integration, which no project offers yet, so the page leaves it out
+    const cards = layout.filter((card) => cardType(card.type)?.integration === null);
+    expect(cards).toHaveLength(10);
     // A card that a family registers replaces its placeholder: only the others are pending
     const built = new Set(FAMILIES.flatMap((family) => Object.keys(family)));
     const pending = cards.filter((card) => !built.has(card.type));
@@ -365,7 +368,7 @@ describe('the numbers strip of the AI visibility page', () => {
     expect(within(panel as HTMLElement).getByRole('button', { name: 'Try again' })).toBeInTheDocument();
     expect(screen.queryByRole('group', { name: STRIP })).not.toBeInTheDocument();
     await waitFor(() => {
-      expect(cardIds()).toHaveLength(9);
+      expect(cardIds()).toHaveLength(10);
     });
   });
 
@@ -418,28 +421,21 @@ describe('the presets of the AI visibility page', () => {
       .getAllByRole('menuitem')
       .map((item) => item.textContent ?? '');
 
-  it('lists Built-in default, then the four presets in order', async () => {
+  it('lists Built-in default, then the three presets in order', async () => {
     const { user } = renderWithProviders(overviewAs('admin'));
     await startCustomizing(user);
-    expect(items(await openMenu(user))).toEqual([
-      'Built-in default',
-      'Executive summary',
-      'SEO analyst',
-      'Competitive',
-      'Topic owner',
-    ]);
+    expect(items(await openMenu(user))).toEqual(['Built-in default', 'Executive', 'Analyst', 'Competitive']);
   });
 
   it('offers the presets it is given instead of its own', async () => {
     const presets = buildOverviewPresets({
       executive: 'Alpha',
-      seo_analyst: 'Beta',
+      analyst: 'Beta',
       competitive: 'Gamma',
-      topic_owner: 'Delta',
     });
     const { user } = renderWithProviders(overviewAs('admin', { presets }));
     await startCustomizing(user);
-    expect(items(await openMenu(user))).toEqual(['Built-in default', 'Alpha', 'Beta', 'Gamma', 'Delta']);
+    expect(items(await openMenu(user))).toEqual(['Built-in default', 'Alpha', 'Beta', 'Gamma']);
   });
 
   it('replaces the draft with a preset, counts the change, announces it and writes nothing', async () => {
@@ -452,14 +448,14 @@ describe('the presets of the AI visibility page', () => {
     const { user } = renderWithProviders(overviewAs('admin'));
     await startCustomizing(user);
     const menu = await openMenu(user);
-    await user.click(within(menu).getByRole('menuitem', { name: 'Executive summary' }));
+    await user.click(within(menu).getByRole('menuitem', { name: 'Executive' }));
     const ids = EXECUTIVE_LAYOUT.cards?.map((card) => card.id) ?? [];
     await waitFor(() => {
       expect(cardIds()).toEqual(ids);
     });
     expect(screen.getByRole('group', { name: /^[1-9]\d* changes?$/ })).toBeInTheDocument();
     await waitFor(() => {
-      expect(polite()).toHaveTextContent('Executive summary applied. Save to keep it.');
+      expect(polite()).toHaveTextContent('Executive applied. Save to keep it.');
     });
     await new Promise((resolve) => setTimeout(resolve, 50));
     server.events.removeListener('request:start', listener);
@@ -472,12 +468,12 @@ describe('the presets of the AI visibility page', () => {
     const { user } = renderWithProviders(overviewAs('admin'));
     await startCustomizing(user);
     await waitFor(() => {
-      expect(cardIds()).toHaveLength(9);
+      expect(cardIds()).toHaveLength(11);
     });
     const before = cardIds();
-    await user.click(within(await openMenu(user)).getByRole('menuitem', { name: 'Executive summary' }));
+    await user.click(within(await openMenu(user)).getByRole('menuitem', { name: 'Executive' }));
     await waitFor(() => {
-      expect(cardIds()).toHaveLength(6);
+      expect(cardIds()).toHaveLength(10);
     });
     await user.click(
       within(screen.getByRole('group', { name: /^[1-9]\d* changes?$/ })).getByRole('button', { name: 'Undo' }),

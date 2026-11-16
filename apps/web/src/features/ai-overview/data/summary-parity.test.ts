@@ -25,6 +25,7 @@ function scopeOf(patch: Partial<OverviewScope>): OverviewScope {
     engines: null,
     topic: null,
     branded: 'excluded',
+    metric: 'visibility',
     ...patch,
   };
 }
