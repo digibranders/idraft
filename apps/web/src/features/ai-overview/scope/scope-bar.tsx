@@ -5,7 +5,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import { useCallback, useMemo, useRef, type ReactElement } from 'react';
 
 import { useOverview } from '../overview-context';
-import { brandedField, brandedFromValues, brandedValues } from './branded-field';
+import { BrandedFilter, PAGE_CONTROLS } from './branded-filter';
 import { CompareSelect } from './compare-select';
 import { CountryControl } from './country-control';
 import { FiltersSheet, SheetRow } from './filters-sheet';
@@ -17,8 +17,7 @@ import { MAX_DAYS } from './use-overview-scope';
 import { useTopicTree } from './use-topic-tree';
 import { DateRangePicker } from '@/components/app/date-range/date-range-picker';
 import { byEngineOrder } from '@/components/app/engine/order';
-import { FilterBar } from '@/components/app/filters/filter-bar';
-import type { FilterField, FilterValues } from '@/components/app/filters/types';
+import type { FilterField } from '@/components/app/filters/types';
 import { useUrlFilters } from '@/components/app/filters/use-url-filters';
 import { TopBarPortal } from '@/components/app/shell/top-bar-slot';
 import { IconButton } from '@/components/ui/icon-button';
@@ -26,9 +25,6 @@ import { toast } from '@/components/ui/toast';
 import { useMediaQuery } from '@/lib/dom/use-media-query';
 import { useZoneDay } from '@/lib/dom/use-zone-day';
 import { formatList } from '@/lib/format';
-
-/** 768 px, the width from which the scope controls are on the page and the window and country are in the top bar. */
-const PAGE_CONTROLS = '(width >= 48rem)';
 
 /**
  * The scope controls of the page (preview commit 98e7d226): Platform, Group and Compare, each with its name before
@@ -57,16 +53,6 @@ export function ScopeBar(): ReactElement {
   );
   const below = useCallback((label: string): string => t('topicIncludesBelow', { topic: label }), [t]);
   const topic = useMemo(() => topicField({ tree, pending, label: t('topic'), below }), [tree, pending, t, below]);
-  const branded = useMemo(
-    () =>
-      brandedField({
-        label: t('branded'),
-        excluded: t('brandedExcluded'),
-        only: t('brandedOnly'),
-        included: t('brandedIncluded'),
-      }),
-    [t],
-  );
   // The URL's own words about what it could not read: Topic and Engines of a link are checked against what the
   // project has once both are known, and the person is told once of what was left out (the Prompts page's rule).
   // The bar draws only Topic and Branded; the engines are the control before it.
@@ -98,8 +84,6 @@ export function ScopeBar(): ReactElement {
       }),
   });
 
-  const fields = useMemo((): FilterField[] => [branded], [branded]);
-  const values = useMemo((): FilterValues => brandedValues(scope.branded), [scope.branded]);
   const changed = changedFilterCount(scope);
   const reset = (): void => {
     setScope(RESET_PATCH);
@@ -132,14 +116,6 @@ export function ScopeBar(): ReactElement {
         onClick={reset}
         className={canResetScope(scope) ? undefined : 'invisible'}
       />
-      <div className="min-w-0">
-        <FilterBar
-          fields={fields}
-          values={values}
-          hideClear
-          onChange={(next) => setScope({ branded: brandedFromValues(next) })}
-        />
-      </div>
     </div>
   );
 
@@ -162,6 +138,7 @@ export function ScopeBar(): ReactElement {
             <CountryControl />
           </SheetRow>
           {controls}
+          <BrandedFilter />
         </FiltersSheet>
       </section>
     );

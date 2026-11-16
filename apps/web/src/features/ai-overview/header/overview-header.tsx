@@ -6,6 +6,7 @@ import type { ReactElement, ReactNode } from 'react';
 
 import { ExportMenu } from '../export/export-menu';
 import { useOverview } from '../overview-context';
+import { BrandedFilter, PAGE_CONTROLS } from '../scope/branded-filter';
 import { CustomizeShortcut } from './customize-shortcut';
 import { OverviewFreshness } from './overview-freshness';
 import { PageToolbar } from '@/components/app/page-toolbar';
@@ -14,6 +15,7 @@ import { Menu } from '@/components/ui/menu';
 import { toast } from '@/components/ui/toast';
 import { CustomizeButton, CustomizingBadge, useLayoutScreen } from '@/features/layouts';
 import { copyText } from '@/lib/dom/clipboard';
+import { useMediaQuery } from '@/lib/dom/use-media-query';
 
 /** The id of the More actions item that copies the link. */
 const COPY_LINK = 'copy-link';
@@ -27,15 +29,18 @@ export interface OverviewHeaderProps {
 }
 
 /**
- * Sticky under the top bar so the scope can be changed from any card. The negative margins and the equal padding make
- * it sit where it would without them while it is not stuck (preview commit 1363ff90; 8 px, the preview has 10).
+ * Sticky under the top bar from 1920 px, so the scope can be changed from any card (preview commit 1363ff90). It is one
+ * row (52 px) only there. Measured in the real app: 96 px at 1680, 1440, 1280 and 1024 px (selects, then Branded, the
+ * actions and the freshness wrap onto a second row) and 140 px at 768 px, too much of a screen to keep in view, so
+ * below 1920 px the toolbar scrolls away with the page. The negative margins and the equal padding make it sit where
+ * it would without them (8 px; the preview has 10).
  */
 const TOOLBAR_CLASS =
-  'sticky top-topbar z-(--z-sticky) -mx-3 -my-2 bg-background px-3 py-2 md:-mx-4 md:px-4 lg:-mx-5 lg:px-5';
+  'bg-background -mx-3 -my-2 px-3 py-2 md:-mx-4 md:px-4 lg:-mx-5 lg:px-5 min-[120rem]:sticky min-[120rem]:top-topbar min-[120rem]:z-(--z-sticky)';
 
 /**
- * The toolbar of the AI Overview page: one sticky row with the scope filters, the freshness text, the Customize toggle,
- * Export and More actions. The setup checklist and the numbers strip follow it and scroll under it.
+ * The toolbar of the AI Overview page: the scope selects, then Branded, the freshness text, the Customize toggle, Export
+ * and More actions, wrapping as the width asks. The setup checklist and the numbers strip follow it and scroll under it.
  */
 export function OverviewHeader({ stats, filters, noticeChip, setupSlot }: OverviewHeaderProps = {}): ReactElement {
   const t = useTranslations('aiOverview');
@@ -43,6 +48,7 @@ export function OverviewHeader({ stats, filters, noticeChip, setupSlot }: Overvi
   const common = useTranslations('common');
   const { engines, project } = useOverview();
   const { mode } = useLayoutScreen();
+  const onPage = useMediaQuery(PAGE_CONTROLS);
 
   const copyLink = (): void => {
     void copyText(window.location.href).then((copied) =>
@@ -73,6 +79,7 @@ export function OverviewHeader({ stats, filters, noticeChip, setupSlot }: Overvi
           }
           actions={
             <>
+              {onPage ? <BrandedFilter /> : null}
               {engines.status === 'loading' ? (
                 <span
                   aria-hidden="true"
