@@ -342,30 +342,103 @@ export function sovSeries(model, entities) {
   });
 }
 
-/** The gap to each competitor in mention rate, and the prompts where the competitor is named more often than we are. */
+/**
+ * Who leads each prompt, for every competitor (the Competitor gap card and the competitor drawer read the same
+ * counts, so a number is the same in both, R12). A prompt is compared on its answers over the platforms in scope and
+ * needs at least 4 of them (R2). One brand leads when it is named in at least `LEAD_MARGIN` more answers than the
+ * other; a smaller difference is "equal or too close", because with about 8 answers a prompt a one answer
+ * difference is mostly noise. `absent` marks the prompts where the competitor is named and the own brand never is
+ * (the plan's "lost to" definition, CH-05).
+ */
+export const LEAD_MARGIN = 2;
+export const competitorId = (competitor) => competitor.name.toLowerCase();
+
+export function leadsFor(model) {
+  const compared = [];
+  for (const prompt of model.prompts) {
+    let answers = 0;
+    let own = 0;
+    const rivals = COMPETITORS.map(() => 0);
+    for (const code of model.codes) {
+      const engine = prompt.engines[code];
+      if (engine.n < 1) continue;
+      answers += engine.n;
+      own += engine.mention;
+      engine.competitors.forEach((count, index) => (rivals[index] += count));
+    }
+    if (rateState(answers) === 'ok') compared.push({ prompt, answers, own, rivals });
+  }
+  const competitors = COMPETITORS.map((competitor, index) => {
+    const rows = compared.map(({ prompt, answers, own, rivals }) => {
+      const rival = rivals[index];
+      const diff = rival - own;
+      return { id: prompt.id, text: prompt.text, topic: prompt.topic, answers, own, rival, diff, lead: diff >= LEAD_MARGIN ? 'they' : -diff >= LEAD_MARGIN ? 'you' : 'close', absent: rival > 0 && own === 0 };
+    });
+    const count = (kind) => rows.filter((row) => row.lead === kind).length;
+    return { ...competitor, id: competitorId(competitor), index, rows, lost: count('they'), ahead: count('you'), close: count('close'), compared: rows.length, absent: rows.filter((row) => row.lead === 'they' && row.absent).length };
+  });
+  return { tooFew: model.prompts.length - compared.length, competitors };
+}
+
+/** The gap to each competitor in mention rate, and how many prompts each side leads (see leadsFor). */
 export function gapFor(model) {
   const entities = entitiesFor(model);
   const own = entities[0];
+  const { competitors } = leadsFor(model);
   return entities.slice(1).map((entity, index) => {
-    let lost = 0;
-    let ahead = 0;
-    for (const prompt of model.prompts) {
-      let ownRate = 0;
-      let competitorRate = 0;
-      let used = 0;
-      for (const code of model.codes) {
-        const engine = prompt.engines[code];
-        if (rateState(engine.n) !== 'ok') continue;
-        ownRate += engine.mention / engine.n;
-        competitorRate += engine.competitors[index] / engine.n;
-        used += 1;
-      }
-      if (used === 0) continue;
-      if (competitorRate > ownRate) lost += 1;
-      else if (ownRate > competitorRate) ahead += 1;
-    }
-    return { ...entity, gap: own.mention === null || entity.mention === null ? null : entity.mention - own.mention, lost, ahead, compared: lost + ahead };
+    const lead = competitors[index];
+    return { ...entity, id: lead.id, index, gap: own.mention === null || entity.mention === null ? null : entity.mention - own.mention, lost: lead.lost, ahead: lead.ahead, close: lead.close, compared: lead.compared };
   });
+}
+
+/** One competitor against the own brand: mention rate, share of voice and source share, overall and per platform. */
+export function headToHead(model, index) {
+  const entities = entitiesFor(model);
+  const own = entities[0];
+  const rival = entities[index + 1];
+  const domains = domainsFor(model);
+  const share = (domain) => domains.rows.find((row) => row.domain === domain)?.share ?? null;
+  const perPlatform = PLATFORM_CODES.map((code) => {
+    const platformModel = buildModel({ ...model.scope, platform: code });
+    const [ownEntity, ...others] = entitiesFor(platformModel);
+    const other = others[index];
+    return { code, own: ownEntity.mention, rival: other?.mention ?? null };
+  });
+  return {
+    own,
+    rival,
+    sourceShare: { own: share('northwind.com'), rival: share(COMPETITORS[index].domain) },
+    perPlatform,
+    series: {
+      own: weekly(own.mention * 0.96, own.mention, `h2h|${model.key}|own`, 0.012),
+      rival: weekly(rival.mention * 0.98, rival.mention, `h2h|${model.key}|${rival.name}`, 0.012),
+    },
+  };
+}
+
+/**
+ * Which domains answers cite when they name the competitor, and when they name the own brand (C7 of doc 16, the source
+ * overlap). The first list is the competitor's own domain, then the shared sources; weights are drawn from the scope's
+ * citation units with the named brand's domain lifted.
+ */
+export function sourcesBehind(model, index) {
+  const domains = domainsFor(model);
+  const competitor = COMPETITORS[index];
+  const lift = (domain) => (domain === competitor.domain ? 4.2 : domain === 'northwind.com' ? 0.35 : 1);
+  const liftOwn = (domain) => (domain === 'northwind.com' ? 4.2 : domain === competitor.domain ? 0.35 : 1);
+  const ranked = (weigh, seed) => {
+    const random = rng(`sources|${model.key}|${model.scope.platform}|${competitor.name}|${seed}`);
+    const weighted = domains.rows.map((row) => ({ domain: row.domain, role: row.role, weight: row.units * weigh(row.domain) * (0.85 + random() * 0.3) }));
+    const total = weighted.reduce((sum, row) => sum + row.weight, 0);
+    return weighted.map((row) => ({ domain: row.domain, role: row.role, share: total === 0 ? 0 : row.weight / total })).sort((a, b) => b.share - a.share);
+  };
+  const theirs = ranked(lift, 'they');
+  const yours = ranked(liftOwn, 'you');
+  const top = (list) => new Set(list.slice(0, 8).map((row) => row.domain));
+  const a = top(theirs);
+  const b = top(yours);
+  const shared = [...a].filter((domain) => b.has(domain)).length;
+  return { theirs: theirs.slice(0, 8), yours: yours.slice(0, 8), overlap: shared / (a.size + b.size - shared), onlyTheirs: [...a].filter((domain) => !b.has(domain)) };
 }
 
 /** The prompts of the scope with their rates over the platforms in scope, for the group view. */

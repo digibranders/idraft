@@ -11,6 +11,7 @@
 import { RUNS, buildModel, platformsIn } from './aiov-data.js';
 import { disposeCharts } from './aiov-charts.js';
 import { createSelect, groupOptions, platformOptions, readUrl, setScope, state, subscribe } from './aiov-controls.js';
+import { initCompetitorDrawer, openCompetitor } from './aiov-competitor.js';
 import { createCustomizer } from './aiov-customize.js';
 import { cardFrame, el, emptyBody, engineName, plural } from './aiov-parts.js';
 import { cardDef } from './aiov-registry.js';
@@ -81,7 +82,7 @@ function render() {
   const scope = { ...state };
   const model = buildModel(scope);
   // With one group selected, cards can show the project value beside it
-  const ctx = { model, scope, compare: state.compare, baseline: scope.group === 'all' ? null : buildModel({ ...scope, group: 'all' }) };
+  const ctx = { model, scope, compare: state.compare, baseline: scope.group === 'all' ? null : buildModel({ ...scope, group: 'all' }), openCompetitor };
   const names = platformsIn(scope).length;
   meta.textContent = `Updated ${RUNS.last} · run ${RUNS.number} · ${plural(model.prompts.length, 'prompt')} · ${scope.platform === 'all' ? `${names} platforms` : engineName(scope.platform)}${scope.group === 'all' ? '' : ` · ${scope.group.split(':')[1]}`}`;
   [platformSelect, groupSelect, compareSelect].forEach((select) => select.refresh());
@@ -115,6 +116,8 @@ function render() {
 }
 
 subscribe(render);
+// After the page: when the scope changes the page draws first (and clears its charts), then the open drawer follows
+initCompetitorDrawer();
 window.addEventListener('preview-route', (event) => {
   if (event.detail.view !== 'ai') return;
   readUrl();

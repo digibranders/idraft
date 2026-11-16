@@ -773,6 +773,10 @@
         <div role="tablist" aria-label="Topic details" data-inspector-type="topic" hidden class="mt-1 h-tab flex items-end gap-5 -mb-px overflow-x-auto">
           <button role="tab" aria-selected="true" data-tab="topic-overview"  class="h-tab px-0.5 border-b-2 border-primary type-body-strong text-primary-text shrink-0">Overview</button><button role="tab" aria-selected="false" data-tab="topic-prompts" data-topic-prompts-tab class="h-tab px-0.5 border-b-2 border-transparent type-body text-foreground-secondary hover:text-foreground shrink-0">Prompts</button><button role="tab" aria-selected="false" data-tab="topic-competitors"  class="h-tab px-0.5 border-b-2 border-transparent type-body text-foreground-secondary hover:text-foreground shrink-0">Competitors</button><button role="tab" aria-selected="false" data-tab="topic-related"  class="h-tab px-0.5 border-b-2 border-transparent type-body text-foreground-secondary hover:text-foreground shrink-0">Related</button>
         </div>
+        <!-- Competitor inspector (AI visibility Overview, aiov-competitor.js): the tabs and panels are filled by that module -->
+        <div role="tablist" aria-label="Competitor details" data-inspector-type="competitor" hidden class="mt-1 h-tab flex items-end gap-5 -mb-px overflow-x-auto">
+          <button role="tab" aria-selected="true" data-tab="comp-overview" class="h-tab px-0.5 border-b-2 border-primary type-body-strong text-primary-text shrink-0">Overview</button><button role="tab" aria-selected="false" data-tab="comp-prompts" class="h-tab px-0.5 border-b-2 border-transparent type-body text-foreground-secondary hover:text-foreground shrink-0">Prompts</button><button role="tab" aria-selected="false" data-tab="comp-sources" class="h-tab px-0.5 border-b-2 border-transparent type-body text-foreground-secondary hover:text-foreground shrink-0">Sources</button>
+        </div>
       </div>
 
       <!-- Body: a column of cards on the page background, 12 px apart (16 section 2.4) -->
@@ -882,6 +886,9 @@
             <table class="w-full type-table"><thead><tr class="text-left border-t border-border-subtle bg-surface-subtle"><th class="pl-4 h-row-compact type-label whitespace-nowrap">Keyword</th><th class="h-row-compact type-label whitespace-nowrap">Rank</th><th class="pr-4 pl-3 h-row-compact type-label whitespace-nowrap">AI Overview</th></tr></thead><tbody data-topic-keywords></tbody></table>
           </div>
         </section>
+        <section role="tabpanel" data-panel="comp-overview" hidden class="flex flex-col gap-3"></section>
+        <section role="tabpanel" data-panel="comp-prompts" hidden class="flex flex-col gap-3"></section>
+        <section role="tabpanel" data-panel="comp-sources" hidden class="flex flex-col gap-3"></section>
       </div>
   </aside>
     </div>

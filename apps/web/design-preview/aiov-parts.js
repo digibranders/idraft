@@ -235,7 +235,14 @@ export function barList(rows, { max, valueText: text = pct0, always = false } = 
       dot.setAttribute('aria-hidden', 'true');
       name.append(dot);
     }
-    name.append(el('span', 'truncate', row.label));
+    if (row.onClick) {
+      // A row that leads somewhere is a button (the competitor rows open the competitor drawer)
+      const open = el('button', 'truncate text-left rounded-sm hover:underline focus-visible:underline outline-none', row.label);
+      open.type = 'button';
+      open.setAttribute('aria-label', `Open ${row.label}`);
+      open.addEventListener('click', () => row.onClick(open));
+      name.append(open);
+    } else name.append(el('span', 'truncate', row.label));
     if (row.badge) name.append(row.badge);
     label.append(name);
     const barCell = el('td', `w-full pr-2 ${always ? '' : 'hidden @sm:table-cell'}`);

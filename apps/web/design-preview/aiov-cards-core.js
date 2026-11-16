@@ -330,7 +330,7 @@ export function sovCard(ctx) {
   if (entities[0].sov === null) return cardFrame({ key: 'ai.share_of_voice', title: 'Share of voice', body: emptyBody('No rate yet', 'Too few answers on this platform.') });
   const rows = [...entities]
     .sort((a, b) => (b.sov ?? 0) - (a.sov ?? 0))
-    .map((entity) => ({ label: entityLabel(entity), value: entity.sov, strong: entity.own, token: entity.token, barToken: entity.own ? 'chart-1' : 'chart-bar-neutral', tip: `${entity.name}: ${formatInteger(entity.answers)} of ${formatInteger(entity.answersOfTracked)} brand mentions` }));
+    .map((entity) => ({ label: entityLabel(entity), onClick: entity.own ? undefined : (opener) => ctx.openCompetitor?.(entity.name.toLowerCase(), opener), value: entity.sov, strong: entity.own, token: entity.token, barToken: entity.own ? 'chart-1' : 'chart-bar-neutral', tip: `${entity.name}: ${formatInteger(entity.answers)} of ${formatInteger(entity.answersOfTracked)} brand mentions` }));
   const total = entities[0].answersOfTracked;
   return cardFrame({
     key: 'ai.share_of_voice',
@@ -376,12 +376,26 @@ export function gapCard(ctx) {
     const tr = el('tr', 'h-row-compact border-t border-border-subtle');
     const name = el('th', 'pl-4 pr-3 text-left font-normal text-foreground whitespace-nowrap');
     name.scope = 'row';
-    const wrap = el('span', 'inline-flex items-center gap-2');
+    // The name opens the competitor drawer; a count opens it on the prompts behind that count
+    const open = el('button', 'inline-flex items-center gap-2 rounded-sm hover:underline focus-visible:underline outline-none');
+    open.type = 'button';
+    open.setAttribute('aria-label', `Open ${entry.name}`);
     const dot = el('span', 'size-2 rounded-full');
     dot.style.background = `var(--${entry.token})`;
-    wrap.append(dot, entry.name);
-    name.append(wrap);
-    tr.append(name, el('td', 'px-3 text-right num', `${formatInteger(entry.lost)} of ${formatInteger(entry.compared)}`), el('td', 'px-3 pr-4 text-right num', `${formatInteger(entry.ahead)} of ${formatInteger(entry.compared)}`));
+    open.append(dot, entry.name);
+    open.addEventListener('click', () => ctx.openCompetitor?.(entry.id, open));
+    name.append(open);
+    const countCell = (kind, count, extra = '') => {
+      const cell = el('td', `px-3 text-right num ${extra}`);
+      const button = el('button', 'rounded-sm hover:underline focus-visible:underline outline-none');
+      button.type = 'button';
+      button.textContent = `${formatInteger(count)} of ${formatInteger(entry.compared)}`;
+      button.setAttribute('aria-label', `${kind === 'they' ? `Prompts where ${entry.name} leads` : 'Prompts where you lead'}: ${formatInteger(count)} of ${formatInteger(entry.compared)}`);
+      button.addEventListener('click', () => ctx.openCompetitor?.(entry.id, button, { lead: kind }));
+      cell.append(button);
+      return cell;
+    };
+    tr.append(name, countCell('they', entry.lost), countCell('you', entry.ahead, 'pr-4'));
     body.append(tr);
   });
   table.append(head, body);
@@ -393,7 +407,7 @@ export function gapCard(ctx) {
     meta: 'prompts, on the same answers',
     body: wrap,
     flush: true,
-    footnote: 'Counts of prompts. "They lead" are the prompts where the competitor is named in more answers than you; "You lead" the reverse. Prompts where both are named equally are in neither column.',
+    footnote: 'Counts of prompts. A brand leads a prompt when it is named in at least 2 more answers than the other; a smaller difference is mostly noise and is in neither column. Click a name or a count to open the competitor and the prompts behind it.',
   });
 }
 

@@ -1324,6 +1324,9 @@ window.addEventListener('preview-route', (event) => {
 // -------------------------------------------------------------------------------------------------
 // The inspector asks the Explorer where a prompt sits in the list
 
+// Other pages (the competitor drawer of the AI visibility Overview) open a prompt in this inspector, with the list it sits in
+window.PreviewPrompts = { openPrompt };
+
 initPromptInspector({
   canOpen: (id) => !state.archived.has(id),
   order: () => openedFrom ?? pageRows().map((prompt) => prompt.id),

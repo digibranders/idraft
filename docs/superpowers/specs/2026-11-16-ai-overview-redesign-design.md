@@ -113,12 +113,27 @@ two parents) plus a deterministic layer for the measures the fixture lacks (join
 order, sentiment, domains, fan-out queries, referral sessions). No fixture file is changed. Theme tokens only, no new
 colours. Verified on the localhost origin in a background tab, in light and dark, at 1280, 1024, 768 and 390 pixels.
 
-## 7.1 Later: competitor analysis
+## 7.1 Competitor drawer (built in the preview)
 
-The Competitor gap card shows only counts, "They lead" and "You lead" per competitor (a prompt is led by the brand
-named in more of its answers). Seeing the prompts behind those counts is left for the Competitors page (WP-39) and the
-`opp=lost_to:<entity_id>` prompt filter of the existing plan (overview-and-charts.md, CH-05). The backend needs the
-per-competitor mentions per prompt for it. The counts stay plain numbers until then. Owner decision 2026-11-16.
+The Competitor gap card shows counts, "They lead" and "You lead" per competitor. A competitor name, a count, or a
+competitor row of the Share of voice card opens the **competitor drawer** (440 px, the planned competitor inspector,
+`inspect=entity:<id>`; WP-39 / WB-CMP-12). A count opens it on the Prompts tab with that kind of lead chosen.
+
+- **Lead rule:** a brand leads a prompt when it is named in at least 2 more answers than the other, over the platforms
+  in scope, and the prompt has at least 4 valid answers. A smaller difference is "equal or too close", because with
+  about 8 answers a prompt a one answer difference is mostly noise. The card and the drawer read the same counts (R12).
+  Owner default 2026-11-16 (the owner said "go ahead" to the recommended threshold).
+- **Overview tab:** you against the competitor for mention rate, share of voice and source share (gap in points, not
+  tested for detectability), a two line trend, and the same by platform.
+- **Prompts tab:** They lead, You lead and Equal with counts; an "You are absent" chip under They lead (the plan's
+  "lost to" definition: the competitor is named and you never are); the groups where it happens most (click to narrow);
+  up to 10 prompts, largest difference first, with both rates as paired bars; a link to the full filtered list
+  (`opp=lost_to:<id>`). A prompt opens in the prompt drawer.
+- **Sources tab:** the domains answers cite when each of you is named, their overlap (Jaccard, metric C7), and the
+  domains in their top 8 and not in yours.
+- The drawer follows the page scope and steps with J and K through the competitors in the card's order.
+- **Backend need:** the per-competitor mentions per prompt (the summary with `include=entities`) for the Prompts tab,
+  and the source overlap read for the Sources tab. Not built: Competitors page, the filtered prompt list link target.
 
 ## 8. Not decided yet
 
