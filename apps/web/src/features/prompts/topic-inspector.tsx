@@ -13,11 +13,12 @@ import {
   topicSummaryRow,
   type TopicDescendants,
 } from './prompt-model';
-import { ChangeInline, useChangeWords, useComparedWindow, useCompare } from './compare';
+import { useChangeWords, useComparedWindow, useCompare } from './compare';
 import { averageChange, type AverageChange } from './compare/average-change';
 import { TippedChange } from './compare/tipped-change';
 import { chosenTab } from './seams/shared';
 import { TOPIC_TAB_ENTRIES, topicTabs, type TopicInspectorTab, type TopicTabContext } from './seams/topic-tabs';
+import { TrendIcon } from './trend-icon';
 import { TopicDrawerProvider, type TopicDrawerExtras } from './topic-drawer/drawer-context';
 import { EngineFilteredPrompts } from './topic-drawer/engine-filter';
 import { TopicEngineSections } from './topic-drawer/engine-sections';
@@ -109,7 +110,7 @@ function PromptList({
             change={
               mention.change === null ? undefined : (
                 <TippedChange tip={mention.tip}>
-                  <ChangeInline change={mention.change} size="sm" />
+                  <TrendIcon change={mention.change} />
                 </TippedChange>
               )
             }
@@ -246,7 +247,7 @@ function TopicInspectorBody({
             <span className="num type-meta text-foreground-tertiary">
               {t('acrossEngines', { count: average.engines })}
             </span>
-            <ChangeInline change={change.change} size="sm" />
+            <TrendIcon change={change.change} />
           </TippedChange>
         ),
     };

@@ -15,7 +15,7 @@ import type { CellTip, DataTableColumn } from '@/components/app/data-table/types
 import { EngineLogo } from '@/components/app/engine/engine-logo';
 import type { EngineSummary, ProjectEngine } from '@/lib/api/types';
 import { averageChangeOf, engineChangeOf, type RateChange } from '@/lib/compare/change-model';
-import { EMPTY_VALUE, formatDateRange, formatList, formatPercent, formatPointsDelta } from '@/lib/format';
+import { EMPTY_VALUE, formatDateRange, formatList, formatPercent } from '@/lib/format';
 import { SENTENCE_BREAK } from '@/components/app/metric/delta';
 import { averageRate, cellFigure, engineRatesOf, hasRate, topEngine, type AverageRate } from '@/lib/rates/rate-model';
 import type { RateReading } from '@/lib/rates/strip-model';
@@ -125,12 +125,6 @@ export function useRateColumns<TRow>(
     const trendWords = (change: RateChange, row: TRow): string => {
       const took = codes.filter((code) => engineChangeOf(cellsOf(row), code, 'mentioned') !== null);
       const [only] = took;
-      const points = formatPointsDelta(Math.abs(change.points), { decimals: 1 }).replace(/^\+/, '');
-      const move = shell(change.points === 0 ? 'moveFlat' : change.points > 0 ? 'moveUp' : 'moveDown', {
-        points,
-        before: formatPercent(change.before.value, { decimals: 0 }),
-        now: formatPercent(change.now.value, { decimals: 0 }),
-      });
       const weekly = trendPoints(codes, cellsOf(row));
       const weeks =
         weekly === null || weekly.every((point) => point.value === null)
@@ -144,9 +138,10 @@ export function useRateColumns<TRow>(
         kind: 'average',
         range,
         shown: codes.length,
+        move: true,
         ...(took.length === 1 && only !== undefined ? { engine: labelOf(only) } : {}),
       });
-      return [move, detail, weeks].filter((part): part is string => part !== null).join(SENTENCE_BREAK);
+      return [detail, weeks].filter((part): part is string => part !== null).join(SENTENCE_BREAK);
     };
 
     const rateColumn = (

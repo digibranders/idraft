@@ -132,6 +132,18 @@ const stopOf = (card: HTMLElement): HTMLElement => {
   return stop;
 };
 const tooltip = (): HTMLElement | null => document.querySelector<HTMLElement>('[data-slot="tooltip"]');
+/** The change is drawn as an icon: its colour is on the icon, the points are spoken and in the tooltip. */
+const iconOf = (region: HTMLElement): HTMLElement => {
+  const icon = region.querySelector<HTMLElement>('[data-slot="trend-icon"]');
+  if (icon === null) throw new Error('No change is drawn here');
+  return icon;
+};
+/** The tab stop around the icon of a change, which holds its tooltip. */
+const stopAround = (region: HTMLElement): HTMLElement => {
+  const stop = iconOf(region).closest<HTMLElement>('[tabindex="0"]');
+  if (stop === null) throw new Error('The change has no tab stop');
+  return stop;
+};
 const sectionOf = async (name: string): Promise<HTMLElement> => {
   const section = (await screen.findByRole('heading', { name })).closest('section');
   if (section === null) throw new Error(`The ${name} section is missing`);
@@ -148,10 +160,11 @@ describe('the topic drawer: change on the three cards', () => {
     renderDrawer();
     const mentioned = await valueOf('Mentioned');
     expect(mentioned).toHaveTextContent('average of 2');
-    expect(within(mentioned).getByText('+27.5 pts')).toHaveClass('text-positive-text');
+    expect(iconOf(mentioned)).toHaveClass('text-positive-text');
+    expect(mentioned).not.toHaveTextContent('+27.5 pts');
     expect(mentioned).toHaveTextContent('up 27.5 pts, detectable, provisional');
     const cited = await valueOf('Cited');
-    const delta = within(cited).getByText('+6.5 pts');
+    const delta = iconOf(cited);
     expect(delta).toHaveClass('text-foreground-secondary');
     expect(delta).not.toHaveClass('text-positive-text');
     expect(cited).toHaveTextContent('within normal variation, provisional');
@@ -163,6 +176,7 @@ describe('the topic drawer: change on the three cards', () => {
     await user.hover(stop);
     await waitFor(() => expect(tooltip()).toHaveTextContent('Average of 2 platforms that have a rate in both periods'));
     expect(tooltip()).toHaveTextContent('tested on pooled answers');
+    expect(tooltip()).toHaveTextContent('Up 27.5 pts against the previous period, from 23% to 50%');
     expect(tooltip()).toHaveTextContent('Previous 23%, 32 of 140 answers');
     expect(tooltip()).toHaveTextContent('Previous period: Sep 18 to Oct 15');
     expect(tooltip()).toHaveTextContent('Detectable change');
@@ -175,7 +189,7 @@ describe('the topic drawer: change on the three cards', () => {
     const mentioned = await valueOf('Mentioned');
     // The average shown is over both engines, the change is ChatGPT's alone
     expect(mentioned).toHaveTextContent('average of 2');
-    expect(within(mentioned).getByText('+30.0 pts')).toBeInTheDocument();
+    expect(mentioned).toHaveTextContent('up 30.0 pts');
     await user.hover(stopOf(mentioned));
     await waitFor(() =>
       expect(tooltip()).toHaveTextContent('Change of ChatGPT only, the one platform with a rate in both periods'),
@@ -186,7 +200,7 @@ describe('the topic drawer: change on the three cards', () => {
   it('draws the change of Share of voice neutral and says in its tooltip that no test exists', async () => {
     const { user } = renderDrawer();
     const share = await valueOf('Share of voice');
-    const delta = within(share).getByText('+10.0 pts');
+    const delta = iconOf(share);
     expect(delta).toHaveClass('text-foreground-secondary');
     expect(delta).not.toHaveClass('text-positive-text');
     expect(share.textContent).not.toMatch(/detectable|within normal variation|provisional/);
@@ -245,7 +259,7 @@ describe('the topic drawer: change on the prompts', () => {
     renderDrawer();
     const top = await sectionOf('Top prompts');
     const rose = itemOf(top, 'rose');
-    expect(within(rose).getByText('+27.5 pts')).toHaveClass('text-positive-text');
+    expect(iconOf(rose)).toHaveClass('text-positive-text');
     expect(rose.textContent?.indexOf('Gemini mentioned')).toBeLessThan(rose.textContent?.indexOf('up 27.5 pts') ?? -1);
     expect(itemOf(top, 'few').textContent).not.toMatch(/\d pts/);
   });
@@ -253,10 +267,10 @@ describe('the topic drawer: change on the prompts', () => {
   it('makes no claim for a prompt whose engines and pooled answers move apart, and says why', async () => {
     const { user } = renderDrawer();
     const apart = itemOf(await sectionOf('Top prompts'), 'apart');
-    const delta = within(apart).getByText('+20.0 pts');
+    const delta = iconOf(apart);
     expect(delta).toHaveClass('text-foreground-secondary');
     expect(apart.textContent).not.toMatch(/detectable|provisional/);
-    await user.hover(within(apart).getByText('+20.0 pts').closest('[tabindex="0"]') ?? apart);
+    await user.hover(stopAround(apart));
     await waitFor(() => expect(tooltip()).toHaveTextContent('This change is not tested because'));
   });
 
@@ -264,17 +278,18 @@ describe('the topic drawer: change on the prompts', () => {
     const { user } = renderDrawer();
     const rose = itemOf(await sectionOf('Top prompts'), 'rose');
     // The prompt's own button is a tab stop too: the change's is the one around its text
-    const stop = within(rose).getByText('+27.5 pts').closest<HTMLElement>('[tabindex="0"]');
-    expect(stop).not.toBeNull();
-    if (stop !== null) await user.hover(stop);
-    await waitFor(() => expect(tooltip()).toHaveTextContent('Previous 23%, 32 of 140 answers'));
+    await user.hover(stopAround(rose));
+    await waitFor(() =>
+      expect(tooltip()).toHaveTextContent('Up 27.5 pts against the previous period, from 23% to 50%'),
+    );
+    expect(tooltip()).toHaveTextContent('Previous 23%, 32 of 140 answers');
     expect(tooltip()).toHaveTextContent('Previous period: Sep 18 to Oct 15');
   });
 
   it('shows the same change on the Prompts tab', async () => {
     renderDrawer({ tab: 'prompts' });
     const list = await sectionOf('Prompts');
-    expect(within(itemOf(list, 'rose')).getByText('+27.5 pts')).toBeInTheDocument();
+    expect(iconOf(itemOf(list, 'rose'))).toBeInTheDocument();
     expect(itemOf(list, 'few').textContent).not.toMatch(/\d pts/);
   });
 
@@ -284,7 +299,7 @@ describe('the topic drawer: change on the prompts', () => {
     const meta = rose.querySelector('p');
     const unit = meta?.lastElementChild;
     if (unit === null || unit === undefined) throw new Error('The meta line is empty');
-    expect(unit).toContainElement(within(rose).getByText('+27.5 pts'));
+    expect(unit).toContainElement(iconOf(rose));
     expect(unit).toHaveClass('whitespace-nowrap');
     // The element before the change is the last engine's count, not a dot
     expect(unit.previousElementSibling).not.toHaveAttribute('aria-hidden');
@@ -313,13 +328,14 @@ describe('the topic drawer: change on the prompts of one engine', () => {
     const { user } = renderDrawer({ tab: 'prompts', searchParams: '?eng=chatgpt_web&cmp=previous' });
     const list = await sectionOf('Prompts');
     const rose = itemOf(list, 'rose');
-    expect(within(rose).getByText('+30.0 pts')).toHaveClass('text-positive-text');
+    expect(iconOf(rose)).toHaveClass('text-positive-text');
     // A previous period of 3 answers has no rate, so no change
     expect(itemOf(list, 'few').textContent).not.toMatch(/\d pts/);
-    const stop = within(rose).getByText('+30.0 pts').closest<HTMLElement>('[tabindex="0"]');
-    expect(stop).not.toBeNull();
-    if (stop !== null) await user.hover(stop);
-    await waitFor(() => expect(tooltip()).toHaveTextContent('Previous 20%, 12 of 60 answers'));
+    await user.hover(stopAround(rose));
+    await waitFor(() =>
+      expect(tooltip()).toHaveTextContent('Up 30.0 pts against the previous period, from 20% to 50%'),
+    );
+    expect(tooltip()).toHaveTextContent('Previous 20%, 12 of 60 answers');
     expect(tooltip()).toHaveTextContent('Previous period: Sep 18 to Oct 15');
     expect(tooltip()).toHaveTextContent('Detectable change');
   });
