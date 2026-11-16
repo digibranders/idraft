@@ -3,166 +3,185 @@
 import { useTranslations } from 'next-intl';
 import { useMemo, type ReactElement } from 'react';
 
-import { useAnswersFrame } from './answers-frame';
-import { useCardMeta } from './card-meta';
 import { engineLabel } from './engine-role';
+import { OutcomeBars, type OutcomeRow, type OutcomeSegment, type OutcomeToken } from './outcome-bars';
 import { OUTCOME_PARTS, outcomeMix, type EngineOutcome, type OutcomePart } from './outcome-model';
 import { percentNumber } from './percent';
 import { useCardData } from './use-card-data';
-import { useCardDensity } from './use-card-density';
-import { useCardDrill, useCardExport } from './use-card-seams';
-import { DRILL_SUPPORT } from '../../drilldown/drill-links';
-import type { ExportBlock } from '../../export/export-model';
-import { ChartFrame } from '@/components/app/chart/chart-frame';
-import {
-  StackedShareBar,
-  StackedShareTable,
-  stackedShareCsv,
-  type ShareColor,
-  type ShareRow,
-  type ShareSegment,
-  type StackedShareBarProps,
-} from '@/components/app/chart/stacked-share-bar';
+import { useCardExport } from './use-card-seams';
+import { useFrameState } from './use-frame-state';
+import { singlePlatform } from '../../scope/scope-model';
+import { useScopeUnavailable } from '../../states/scope-unavailable';
+import { ChartFrame, type ChartEmpty } from '@/components/app/chart/chart-frame';
 import { EngineLogo } from '@/components/app/engine/engine-logo';
+import { PlainTable, type PlainColumn } from '@/components/app/table/plain-table';
 import type { CardProps } from '@/features/layouts';
-import type { CsvCell } from '@/lib/csv/csv-write';
-import { formatList, formatPercent, formatSampleCount } from '@/lib/format';
+import { safeText, type CsvTable } from '@/lib/csv/csv-write';
+import { formatInteger, formatList, formatPercent } from '@/lib/format';
 
 const PART_WORDS = {
-  mentioned_and_cited: 'partMentionedAndCited',
+  mentioned_and_cited: 'partBoth',
   mentioned_only: 'partMentionedOnly',
   cited_only: 'partCitedOnly',
   neither: 'partNeither',
 } as const satisfies Record<OutcomePart, string>;
 
-/** Never `chart-1`: that colour is the own brand's, and an outcome is a category (DS 15 section 5.2). */
-const PART_COLORS: Readonly<Record<OutcomePart, ShareColor>> = {
-  mentioned_and_cited: 'chart-3',
-  mentioned_only: 'chart-4',
-  cited_only: 'chart-5',
-  neither: 'chart-other',
+/** Tokens only (OV-OUT-04): never `chart-1`, which is the own brand's, and an outcome is a category. */
+const PART_TOKENS: Readonly<Record<OutcomePart, OutcomeToken>> = {
+  mentioned_and_cited: 'seq-6',
+  mentioned_only: 'seq-4',
+  cited_only: 'seq-3',
+  neither: 'chart-bar-neutral',
 };
 
-const FILE_NAME = 'named-and-cited-by-engine';
-const EXPORT_HEADER = ['engine', 'outcome', 'share_percent', 'k', 'n', 'prompts', 'status'] as const;
+type Ok = Extract<EngineOutcome, { state: 'ok' }>;
 
-/** CH-03: how the answers of each engine split between named and cited, named only, cited only and neither. */
+/**
+ * CH-03 and OV-OUT: how the answers of each platform of the page scope split between mentioned and cited, mentioned
+ * only, cited only and neither, as 100% bars. Platforms are never pooled: a bar is one platform's own answers. A platform
+ * with fewer than 4 valid answers has no bar and is left out; the shares are the mean of each prompt's own share, and
+ * every tooltip says the pooled answers behind it.
+ */
 export default function OutcomeMixCard({ item, live }: CardProps): ReactElement {
-  const t = useTranslations('aiOverview.engines.outcomeMix');
+  const t = useTranslations('aiOverview.engines.outcomeSplit');
   const common = useTranslations('aiOverview.engines.common');
-  const insufficient = useTranslations('common.insufficient');
-  const density = useCardDensity();
-  const drill = useCardDrill();
   const data = useCardData({ previous: 'none', subscribed: live });
-  const metaOf = useCardMeta();
   const title = t('title');
-  const frame = useAnswersFrame(data, title, (key, values) => t(key, values));
+  const unavailable = useScopeUnavailable(title);
 
   const prompts = data.current.data?.prompts;
   const mixes = useMemo(() => (prompts === undefined ? [] : outcomeMix(prompts, data.asked)), [prompts, data.asked]);
-  const engineName = (code: string): string => engineLabel(code) ?? common('unknownEngine');
+  const shown = mixes.filter((mix): mix is Ok => mix.state === 'ok');
+  const nameOf = (code: string): string => engineLabel(code) ?? common('unknownEngine');
+  const single = singlePlatform(data.scope);
 
-  const segments: ShareSegment[] = OUTCOME_PARTS.map((part) => ({
+  const segments: OutcomeSegment[] = OUTCOME_PARTS.map((part) => ({
     id: part,
     name: t(PART_WORDS[part]),
-    color: PART_COLORS[part],
+    token: PART_TOKENS[part],
+  }));
+  const rows = shown.map((mix): OutcomeRow => ({
+    id: mix.engineCode,
+    label: nameOf(mix.engineCode),
+    icon: <EngineLogo engine={mix.engineCode} name="" />,
+    answersText: t('answers', { count: mix.answers }),
+    shares: mix.shares.map((entry) => ({
+      segmentId: entry.part,
+      share: entry.share,
+      shareText: formatPercent(entry.share, { decimals: 0 }),
+      tip: t('segmentTip', {
+        label: t(PART_WORDS[entry.part]),
+        share: formatPercent(entry.share, { decimals: 0 }),
+        k: entry.k,
+        n: mix.answers,
+      }),
+    })),
   }));
 
-  const rowOf = (mix: EngineOutcome): ShareRow => {
-    // A destination that cannot filter by outcome would show other prompts than the ones clicked: plain text
-    const href = DRILL_SUPPORT.prompts.outcome ? drill('prompts', { engine: mix.engineCode }) : null;
-    const base = {
-      id: mix.engineCode,
-      label: engineName(mix.engineCode),
-      // The mark alone: the label carries the name
-      icon: <EngineLogo engine={mix.engineCode} name="" />,
-      ...(href === null ? {} : { href }),
-    };
-    if (mix.state === 'insufficient') {
-      return { ...base, denominatorText: '', value: { kind: 'thin', answers: mix.answers } };
+  const ready = data.phase === 'ready' || data.phase === 'refetching';
+  const empty = ((): ChartEmpty | null => {
+    if (data.asked.length === 0) return unavailable;
+    if (!ready) return null;
+    if (data.aggregates?.engines.some((engine) => engine.asked && engine.validAnswers > 0) !== true) {
+      return { title: t('emptyTitle'), reason: t('noAnswersReason') };
     }
-    if (mix.state === 'none') {
-      return { ...base, denominatorText: '', value: { kind: 'none', text: t('noValidAnswers') } };
-    }
-    return {
-      ...base,
-      denominatorText: t('denominator', { answers: mix.answers, prompts: mix.prompts }),
-      value: {
-        kind: 'shares',
-        cells: mix.shares.map((entry) => ({
-          segmentId: entry.part,
-          share: entry.share,
-          shareText: formatPercent(entry.share),
-          countText: t('counts', { counts: formatSampleCount(entry.k, mix.answers), n: mix.answers }),
-        })),
-      },
-    };
-  };
+    return shown.length === 0 ? { title: t('emptyTitle'), reason: t('emptyReason') } : null;
+  })();
+  const frame = useFrameState(
+    { ...data, phase: empty !== null && data.phase !== 'loading' && data.phase !== 'error' ? 'empty' : data.phase },
+    { name: title, empty },
+  );
 
-  const bar = (patterns: boolean): StackedShareBarProps => ({
-    caption: t('caption'),
-    segments,
-    rows: mixes.map(rowOf),
-    segmentHeader: t('segmentHeader'),
-    patterns,
-    density,
+  const columns: PlainColumn<Ok>[] = [
+    { id: 'platform', header: t('platformHeader'), cell: (mix) => nameOf(mix.engineCode) },
+    ...OUTCOME_PARTS.map((part): PlainColumn<Ok> => ({
+      id: part,
+      header: t(PART_WORDS[part]),
+      cell: (mix) => {
+        const entry = mix.shares.find((share) => share.part === part);
+        return entry === undefined
+          ? ''
+          : t('cell', {
+              share: formatPercent(entry.share, { decimals: 0 }),
+              counts: `${formatInteger(entry.k)} / ${formatInteger(mix.answers)}`,
+            });
+      },
+    })),
+    { id: 'answers', header: t('answersHeader'), cell: (mix) => formatInteger(mix.answers) },
+  ];
+  const csv: CsvTable = {
+    header: ['platform', 'outcome', 'share_percent', 'k', 'n', 'prompts'].map(safeText),
+    rows: shown.flatMap((mix) =>
+      mix.shares.map((entry) => [
+        safeText(nameOf(mix.engineCode)),
+        safeText(t(PART_WORDS[entry.part])),
+        percentNumber(entry.share),
+        entry.k,
+        mix.answers,
+        mix.prompts,
+      ]),
+    ),
+  };
+  useCardExport(item.id, () => {
+    if (prompts === undefined || !ready) return null;
+    return {
+      id: item.id,
+      header: [...csv.header, 'status'],
+      rows: mixes.flatMap((mix) =>
+        OUTCOME_PARTS.map((part) => {
+          const entry = mix.state === 'ok' ? mix.shares.find((share) => share.part === part) : undefined;
+          // No share and no count for a platform without enough answers: the status says why, and an unknown is never a 0
+          return [
+            safeText(nameOf(mix.engineCode)),
+            safeText(t(PART_WORDS[part])),
+            entry === undefined ? null : percentNumber(entry.share),
+            entry?.k ?? null,
+            mix.state === 'none' ? null : mix.answers,
+            mix.state === 'ok' ? mix.prompts : null,
+            mix.state,
+          ];
+        }),
+      ),
+    };
   });
 
   const summary = [
-    t('summaryIntro'),
-    ...mixes.map((mix) => {
-      const engine = engineName(mix.engineCode);
-      if (mix.state === 'none') return t('summaryNone', { engine });
-      if (mix.state === 'insufficient') return t('summaryThin', { engine, count: mix.answers });
-      const parts = formatList(
-        mix.shares.map((entry) =>
-          t('summaryPart', { name: t(PART_WORDS[entry.part]), share: formatPercent(entry.share) }),
+    t('summary'),
+    ...shown.map((mix) =>
+      t('summaryPlatform', {
+        platform: nameOf(mix.engineCode),
+        parts: formatList(
+          mix.shares.map((entry) =>
+            t('summaryPart', { name: t(PART_WORDS[entry.part]), share: formatPercent(entry.share, { decimals: 0 }) }),
+          ),
         ),
-      );
-      return t('summaryEngine', { engine, parts });
-    }),
-  ].join(' ');
-
-  useCardExport(item.id, (): ExportBlock | null => {
-    if (prompts === undefined) return null;
-    const rows = mixes.flatMap((mix): CsvCell[][] =>
-      OUTCOME_PARTS.map((part): CsvCell[] => {
-        const label = engineName(mix.engineCode);
-        const outcome = t(PART_WORDS[part]);
-        if (mix.state === 'ok') {
-          const entry = mix.shares.find((share) => share.part === part);
-          const share = entry === undefined ? null : percentNumber(entry.share);
-          return [label, outcome, share, entry?.k ?? null, mix.answers, mix.prompts, 'ok'];
-        }
-        // No share and no count: the status says why, and an unknown is never a 0
-        return [label, outcome, null, null, mix.state === 'insufficient' ? mix.answers : null, null, mix.state];
       }),
-    );
-    return { id: item.id, header: EXPORT_HEADER, rows };
-  });
+    ),
+  ].join(' ');
 
   return (
     <ChartFrame
       kind="html"
       variant="panel"
       title={title}
-      meta={metaOf({
-        range: data.scope.range,
-        prompts: data.aggregates?.promptCount ?? null,
-        answers: null,
-        branded: data.scope.branded,
-        promptWeighted: true,
-      })}
+      meta={single === null ? t('metaAll') : nameOf(single)}
+      info={{ what: t('info.what'), how: t('info.how') }}
       footnote={t('footnote')}
-      height={180}
-      summary={summary}
-      patterns
-      menu={{
-        fileName: FILE_NAME,
-        csv: stackedShareCsv(bar(false), (answers) => insufficient('answers', { count: answers })),
-      }}
-      body={({ patterns }) => <StackedShareBar {...bar(patterns)} />}
-      table={<StackedShareTable {...bar(false)} />}
+      height={240}
+      summary={ready && empty === null ? summary : ''}
+      body={<OutcomeBars segments={segments} rows={rows} caption={t('caption')} />}
+      table={
+        <PlainTable<Ok>
+          caption={t('caption')}
+          columns={columns}
+          rows={shown}
+          rowKey={(mix) => mix.engineCode}
+          status="ready"
+          errorState={null}
+          emptyText={t('emptyTitle')}
+        />
+      }
+      menu={{ fileName: t('fileName'), csv }}
       {...frame}
     />
   );

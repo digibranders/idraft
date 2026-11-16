@@ -5470,6 +5470,32 @@
           "what": "How the chosen rate changes from week to week.",
           "how": "One point for each weekly run, one line for each platform, with their average dashed. For a single platform the shaded band is the 95% range the true rate likely sits in. With Compare on, a dotted vertical line separates the previous window from the current one."
         }
+      },
+      "outcomeSplit": {
+        "title": "Answer outcomes",
+        "metaAll": "by platform",
+        "caption": "Share of valid answers by outcome, one bar per platform",
+        "partBoth": "Mentioned and cited",
+        "partMentionedOnly": "Mentioned only",
+        "partCitedOnly": "Cited only",
+        "partNeither": "Neither",
+        "answers": "{count, number} {count, plural, one {answer} other {answers}}",
+        "segmentTip": "{label}: {share}, {k, number} of {n, number} answers",
+        "emptyTitle": "No rate yet",
+        "emptyReason": "These prompts have too few valid answers.",
+        "noAnswersReason": "No valid answers in this scope yet.",
+        "platformHeader": "Platform",
+        "answersHeader": "Valid answers",
+        "cell": "{share} ({counts})",
+        "summary": "Share of valid answers by outcome, each prompt counting once.",
+        "summaryPlatform": "{platform}: {parts}.",
+        "summaryPart": "{name} {share}",
+        "footnote": "Each prompt counts once: a share is the mean of the shares of the prompts. A platform with fewer than 4 valid answers is left out. Answers that were not valid are left out.",
+        "fileName": "answer-outcomes",
+        "info": {
+          "what": "What happens to your brand in each platform's answers.",
+          "how": "Each valid answer is mentioned and cited, mentioned only, cited only, or neither. The four shares add up to 100%. Mentioned only means your brand is mentioned and none of your pages is cited."
+        }
       }
     },
     "competitors": {
