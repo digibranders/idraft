@@ -5050,6 +5050,12 @@
     "groupHeaderTips": {
       "location": "The location the prompts are asked for",
       "volume": "Monthly searches of the keywords the prompts are linked to, each keyword counted once"
+    },
+    "platformSelect": {
+      "trigger": "Platform: {value}",
+      "list": "Platform in view",
+      "aiOverview": "Google AI Overview",
+      "unavailable": "Not available"
     }
   },
   "aiOverview": {

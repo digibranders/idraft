@@ -1135,7 +1135,7 @@ describe('Prompts: Mentioned and Cited per platform, filters and sort', () => {
       );
       expect(writes).toEqual([]);
       // One platform has no chip: the Platform select is where it is left
-      await user.click(screen.getByRole('combobox', { name: 'Platform' }));
+      await user.click(screen.getByRole('combobox', { name: /^Platform: / }));
       await user.click(await screen.findByRole('option', { name: 'All platforms' }));
       expect(await within(table).findByRole('columnheader', { name: /^ChatGPT mention/ })).toHaveAttribute(
         'aria-sort',
@@ -2796,7 +2796,7 @@ describe('Prompts: the compact header and the location in the top bar', () => {
 });
 
 describe('Prompts: the Platform select and the controls row', () => {
-  const platform = (): Promise<HTMLElement> => screen.findByRole('combobox', { name: 'Platform' });
+  const platform = (): Promise<HTMLElement> => screen.findByRole('combobox', { name: /^Platform: / });
   const lastEngine = (writes: string[]): string | null => new URLSearchParams(writes.at(-1)).get('engine');
 
   it('opens on All platforms and No comparison, the selects first in the row, then the filters', async () => {
@@ -2806,7 +2806,7 @@ describe('Prompts: the Platform select and the controls row', () => {
     const [selects] = [document.querySelector('[data-slot="prompts-controls"]')];
     if (selects === null) throw new Error('The controls row is missing');
     const order = [
-      screen.getByRole('combobox', { name: 'Platform' }),
+      screen.getByRole('combobox', { name: /^Platform: / }),
       screen.getByRole('combobox', { name: 'Compare with' }),
       screen.getByRole('button', { name: 'Add a filter' }),
     ];
@@ -2818,11 +2818,16 @@ describe('Prompts: the Platform select and the controls row', () => {
     }
   });
 
-  it('offers All platforms and each platform that is on, with its mark, and nothing named Engine', async () => {
+  it('offers All platforms and each platform that is on, with its mark, Google AI Overview as not available, and nothing named Engine', async () => {
     const { user } = renderOnPrompts(promptsAs('viewer'));
     await user.click(await platform());
     const options = await screen.findAllByRole('option');
-    expect(options.map((option) => option.textContent)).toEqual(['All platforms', 'ChatGPT', 'Gemini']);
+    expect(options.map((option) => option.textContent)).toEqual([
+      'All platforms',
+      'ChatGPT',
+      'Gemini',
+      'Google AI OverviewNot available',
+    ]);
     // Every platform has its mark; the choice of all has the layers glyph
     expect(options[1]?.querySelector('img')).toHaveAttribute('width', '16');
     expect(options[0]?.querySelector('img')).toBeNull();

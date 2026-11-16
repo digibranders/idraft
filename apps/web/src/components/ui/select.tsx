@@ -39,6 +39,8 @@ export interface SelectProps<TValue extends string> extends Omit<
    * its content, so give the trigger an `aria-label` that says both ("Platform: ChatGPT").
    */
   triggerPrefix?: ReactNode | undefined;
+  /** The name of the list of options, which the trigger's `aria-label` does not give it ("Platform in view"). */
+  listLabel?: string | undefined;
   /** Layout only. The width of a field is set on `Field`. */
   className?: string | undefined;
 }
@@ -100,6 +102,7 @@ export function Select<TValue extends string>({
   required,
   disabled,
   triggerPrefix,
+  listLabel,
   className,
   ...props
 }: SelectProps<TValue>): ReactElement {
@@ -161,7 +164,7 @@ export function Select<TValue extends string>({
               POPUP_MOTION,
             )}
           >
-            <SelectPrimitive.List>
+            <SelectPrimitive.List {...(listLabel === undefined ? {} : { 'aria-label': listLabel })}>
               {grouped(options).map((group, index) =>
                 group.name === undefined ? (
                   group.options.map((option) => <Option key={option.value} option={option} />)
