@@ -29,7 +29,14 @@ Smallest change, in `backend/src/idraft/api/ai/metrics.py`:
 - Add the key to `SERIES_KEYS`, and add a `visibility` member to `WeekCells` (sum of the three outcome counts of the
   week, pooled the same way as `mentioned` and `cited`). The trend card needs it for the weekly line.
 
-Test: on a fixture, the value equals `1 - neither` for a prompt, a topic and the total.
+Weekly points, stated on their own because the Overview trend card waits for them: `WeekCells.visibility` is a
+`MetricCell` per week (numerator the three outcome counts that are not "neither", denominator the valid answers of the
+week), pooled over the trailing four weeks under 10 prompts exactly as `mentioned` and `cited` are (`is_pooled`,
+`pool`). Until it exists the trend card says "Not collected yet" for AI visibility and never draws mention or citation
+in its place. The web reads it as an optional field (`apps/web/src/lib/api/week-visibility.ts`) and the mock
+(`apps/web/src/mocks/prompt-summary.ts`, `weekCells`) already returns it, so the card draws with MSW.
+
+Test: on a fixture, the value equals `1 - neither` for a prompt, a topic and the total, and for every week of a series.
 
 ## 2. `ai.mention_order_mean` and the order counts
 

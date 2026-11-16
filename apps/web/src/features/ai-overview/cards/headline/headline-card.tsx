@@ -50,7 +50,14 @@ const isNotCollected = (key: TileKey): boolean => key === 'position' || key === 
 const EXPORT_HEADER = ['measure', 'value_percent', 'k', 'n', 'status'] as const;
 const RUNS_LIMIT = 200;
 /** The platforms the product names, by API code: the words are in the catalog (`aiOverview.headline.platforms`). */
-const PLATFORM_NAMES = { chatgpt_web: true, gemini_web: true, google_ai_mode: true } as const;
+const PLATFORM_NAMES = { chatgpt_web: 'chatgptWeb', gemini_web: 'geminiWeb', google_ai_mode: 'googleAiMode' } as const;
+/** The key of each outcome in the catalog (`aiOverview.headline.segments`). */
+const SEGMENT_KEYS = {
+  mentioned_and_cited: 'mentionedAndCited',
+  mentioned_only: 'mentionedOnly',
+  cited_only: 'citedOnly',
+  neither: 'neither',
+} as const;
 /** A figure with its counts in a tooltip is a tab stop that opens it (DS 20 section 6.2 rule 6). */
 const TAB_STOP = { tabIndex: 0 } as const;
 const percent = (ratio: number): string => formatPercent(ratio, { decimals: 0 });
@@ -129,7 +136,9 @@ export default function HeadlineCard({ item, live }: CardProps): ReactElement {
       // The words are looked up by key, as the number words of the other cards are
       say: t as Say,
       nameOf: (code) =>
-        code in PLATFORM_NAMES ? t(`platforms.${code as keyof typeof PLATFORM_NAMES}`) : common('unknownEngine'),
+        code in PLATFORM_NAMES
+          ? t(`platforms.${PLATFORM_NAMES[code as keyof typeof PLATFORM_NAMES]}`)
+          : common('unknownEngine'),
       list: formatList,
       formatValue: percent,
     }),
@@ -237,9 +246,9 @@ export default function HeadlineCard({ item, live }: CardProps): ReactElement {
   const splitLabel = (): string =>
     hero.split === null
       ? t('tooFew')
-      : SEGMENTS.map((segment) => `${t(`segments.${segment}`)} ${percent(hero.split?.shares[segment] ?? 0)}`).join(
-          ', ',
-        );
+      : SEGMENTS.map(
+          (segment) => `${t(`segments.${SEGMENT_KEYS[segment]}`)} ${percent(hero.split?.shares[segment] ?? 0)}`,
+        ).join(', ');
 
   return (
     <div
@@ -280,10 +289,10 @@ export default function HeadlineCard({ item, live }: CardProps): ReactElement {
           <SplitBar
             split={hero.split}
             label={splitLabel()}
-            nameOf={(segment) => t(`segments.${segment}`)}
+            nameOf={(segment) => t(`segments.${SEGMENT_KEYS[segment]}`)}
             percent={percent}
             tipOf={(segment) => {
-              const name = t(`segments.${segment}`);
+              const name = t(`segments.${SEGMENT_KEYS[segment]}`);
               const share = percent(hero.split?.shares[segment] ?? 0);
               const counts = hero.split?.counts;
               return counts === null || counts === undefined || hero.split?.answers == null

@@ -143,7 +143,7 @@ function OverviewBody({ setupSlot }: { setupSlot: ReactNode }): ReactElement {
       {notice?.kind !== 'paused' ? <OverviewNotices notice={notice} settled={settled} /> : null}
       {scopeEmpty === null ? (
         <div aria-busy={refetching || undefined}>
-          <CustomizableGrid label={t('cards')} cardClassName={minHeightOf} />
+          <CustomizableGrid label={t('cards')} cardClassName={minHeightOf} keepCardOrder />
         </div>
       ) : scopeEmpty.kind === 'noCountryPrompts' ? (
         <NoCountryPromptsState country={scopeEmpty.country} />

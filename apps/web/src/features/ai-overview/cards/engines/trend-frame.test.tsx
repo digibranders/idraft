@@ -3,7 +3,8 @@ import { http } from 'msw';
 import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import RateTrendCard from './rate-trend-card';
+import { TrendFrame } from './trend-frame';
+import { useCardData } from './use-card-data';
 import type { CardProps } from '@/features/layouts';
 import type { ChartTokens } from '@/lib/design/read-tokens';
 import { cardInOverview } from '@/test/ai-overview-harness';
@@ -41,6 +42,25 @@ vi.mock('@/components/app/chart/echart', () => ({
     return <div data-testid="echart-canvas" data-height={height} />;
   },
 }));
+
+/**
+ * The frame with its Series menu on, as the rate trend card used it before the Overview port (that card is now a
+ * line chart of its own): the frame keeps its coverage here.
+ */
+function RateTrendCard({ item, live }: CardProps): ReactElement {
+  const data = useCardData({ previous: 'optional', include: ['series'], subscribed: live });
+  return (
+    <TrendFrame
+      itemId={item.id}
+      data={data}
+      engines={data.asked}
+      metric="mention"
+      switchable
+      height={140}
+      fileName="rates-by-engine-over-time"
+    />
+  );
+}
 
 const WINDOW = 'from=2026-10-16&to=2026-11-12';
 const TYPE = 'ai.rate_trend_by_engine';

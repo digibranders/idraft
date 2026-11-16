@@ -171,10 +171,10 @@ describe('the empty states of the AI visibility page', () => {
       searchParams: `?topic=${topic}&engine=gemini_web`,
       onUrlUpdate: (event) => urls.push(event.queryString),
     });
-    expect(await screen.findByRole('heading', { name: 'No prompts in this scope' })).toBeInTheDocument();
-    // Before the vocabulary arrives the group is named neutrally, after it by its name: never by the id
-    expect(screen.queryByText(new RegExp(topic))).not.toBeInTheDocument();
+    // The page state replaces the grid once the read settles: wait for it, not for a card that says the same
     expect(await screen.findByText(/No prompts of SEO are counted/)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'No prompts in this scope' })).toBeInTheDocument();
+    expect(screen.queryByText(new RegExp(topic))).not.toBeInTheDocument();
     const state = document.querySelector<HTMLElement>('[data-slot="empty-state"]');
     await user.click(within(state as HTMLElement).getByRole('button', { name: 'Reset scope' }));
     await waitFor(() => {
@@ -196,10 +196,11 @@ describe('the empty states of the AI visibility page', () => {
       searchParams: `?topic=${MOCK_TERM_IDS.seo}`,
       onUrlUpdate: (event) => urls.push(event.queryString),
     });
-    expect(await screen.findByRole('heading', { name: 'No prompts in this scope' })).toBeInTheDocument();
+    const showAll = await screen.findByRole('button', { name: 'Show all groups' });
+    expect(screen.getByRole('heading', { name: 'No prompts in this scope' })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Scope' })).toBeInTheDocument();
     expect(screen.queryByRole('group', { name: HEADLINE })).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Show all groups' }));
+    await user.click(showAll);
     await waitFor(() => {
       expect(new URLSearchParams(urls.at(-1)).has('topic')).toBe(false);
     });
