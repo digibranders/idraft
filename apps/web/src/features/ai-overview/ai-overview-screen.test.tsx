@@ -17,6 +17,8 @@ import { ENGINE_CARDS } from './cards/engines';
 import { HEADLINE_CARDS } from './cards/headline';
 import { SOURCE_CARDS } from './cards/sources';
 import { TOPIC_CARDS } from './cards/topics';
+import { TRACKING_CARDS } from './cards/tracking';
+import { TRAFFIC_CARDS } from './cards/traffic';
 import { useOverview } from './overview-context';
 import { buildOverviewPresets, EXECUTIVE_LAYOUT } from './presets/presets';
 import type { ReactElement } from 'react';
@@ -37,6 +39,8 @@ const FAMILIES: readonly Readonly<Record<string, unknown>>[] = [
   COMPETITOR_CARDS,
   TOPIC_CARDS,
   SOURCE_CARDS,
+  TRACKING_CARDS,
+  TRAFFIC_CARDS,
   ACTIVITY_CARDS,
 ];
 
