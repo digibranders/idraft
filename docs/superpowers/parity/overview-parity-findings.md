@@ -132,3 +132,18 @@ Total: before `todo` 139, `done` 47, `differs` 37; after `todo` 10, `done` 126, 
   header and row of the gap table (OV-GAP-01), the 40 px rows and 96 px value column of the share of voice bars
   (OV-SOV-05).
 - Dark theme was looked at on the top of the default page only.
+
+## 7. Update of 2026-11-17 (branch `port/gap-overview`)
+
+Closed since the pass above: OV-SOVT-05 (`2a60dae9`), OV-KEY-02 (`ae512e8a`), OV-KEY-04 (`a25b36c9`), OV-KEEP-13
+(`2b26aeb4`), OV-TREND-08 (`0d8b01ec`, the legend under the chart with the latest values; the Table button of OV-TREND-02
+has its icon). Rows still `todo` after this update: 7 (the seven e2e rows). Backend requests 11 (weekly cells for mention
+position, recommendation and sentiment, OV-HEAD-14) and 12 (run number and last run per platform, OV-SHELL-07 and
+OV-HEAD-16) were added to `docs/ai-visibility/backend-requests-overview.md`. Left as they are, on purpose:
+
+- The trend card now draws its lines with no point markers, as the preview does (OV-TREND-04; a small-sample point keeps
+  its hollow marker). The design system (15 section 3, and `20-accessibility.md` section 12.2, binding) makes marker
+  shapes the non-colour encoding of lines: the owner should confirm this card may rely on colour, the dashed Average and
+  the legend.
+- The Table switch of a card staying on when the scope changes (OV-TREND-10): the state lives in the shared frame.
+- The freshness line against the Runs tile (OV-HEAD-16): two different facts (the newest answer, the newest finished run).

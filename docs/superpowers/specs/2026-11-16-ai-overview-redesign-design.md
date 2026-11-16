@@ -48,7 +48,8 @@ separated from Google organic in GA4). Fan-out queries come from ChatGPT only. A
 ## 4. Scope behaviour
 
 - **Platform:** a value card or trend filters to the platform. A "by platform" card becomes "this platform against the
-  others". A card that cannot exist for a platform is hidden and a quiet note says how many are hidden.
+  others". A card that cannot exist for a platform keeps its place and its smallest height and says why it has nothing
+  (owner decision of 2026-11-16, which replaced the earlier rule that hid such cards and noted how many were hidden).
 - **Group:** with one group selected, the group comparison cards are replaced by the prompts of that group and the
   other cards show the group beside the project value.
 - **Flat or nested topics:** the taxonomy allows a tree (`core.taxonomy_terms.parent_id`), but a project may have a
@@ -101,8 +102,10 @@ one file (`aiov-info.js`, keyed by card key and by measure) so they stay consist
   menu for Save as team default and Remove team default (both ask first, because other people see the change).
 - **Resolution:** the person's own layout, else the team default, else the built in Default. Reset goes back to the
   team default when there is one. Leaving with unsaved changes asks first, by route change, Escape or Cancel.
-- **Scope and layout are separate:** a card that cannot be drawn for the platform or group stays in the layout. It is
-  hidden outside customize mode (a note names it) and shows a placeholder while customizing.
+- **Scope and layout are separate:** a card that cannot be drawn for the platform or group stays in the layout. It
+  keeps its place and its header in view mode and in customize mode alike, at the smallest height of its type, and says
+  why it has nothing (for example that the card is not measured on the chosen platform, or compares groups and needs
+  All groups). No card is hidden and no note counts cards.
 - **Not built yet:** per-card options (for example the trend's metric lives in the page scope), a free resize grip,
   undo and redo, and the layouts API. The preview stores layouts in browser storage under the key convention of the
   project Overview (`preview-layout:<kind>:ai_overview`).

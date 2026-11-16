@@ -1,6 +1,6 @@
 'use client';
 
-import { CircleDashed, Clock } from 'lucide-react';
+import { CircleDashed, Clock, Table2 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
 import {
@@ -141,6 +141,14 @@ export interface CategoryFrameProps extends ChartFrameCommon {
   extendOption?: ((option: Record<string, unknown>, tokens: ChartTokens) => Record<string, unknown>) | undefined;
   /** Bars of a category stack into one column; lines ignore it. */
   stacked?: boolean | undefined;
+  /**
+   * The latest value of each series by id ("34%"; "n/a" for none). Given: the legend sits below the chart, names each
+   * value after its series, and goes away in the Table view (15-data-visualization.md section 2, "legend below, with
+   * values"). Left out: the plain legend of the header.
+   */
+  legendValues?: Readonly<Record<string, string>> | undefined;
+  /** A small table icon on the Table button, for a card whose view toggle is an icon button elsewhere. */
+  tableIcon?: boolean | undefined;
   menu?: CategoryChartMenu | undefined;
 }
 
@@ -190,6 +198,7 @@ export function ChartFrame(props: ChartFrameProps): ReactElement {
 
 function CategoryFrame(props: CategoryProps): ReactElement {
   const { kind, categories, categoryHeader, series, formatValue, cellText, stacked, extendOption, menu } = props;
+  const { legendValues, tableIcon } = props;
   const { title, meta, notice, height } = props;
   const t = useTranslations('chart');
   const summaryId = useId();
@@ -217,6 +226,7 @@ function CategoryFrame(props: CategoryProps): ReactElement {
     name: entry.name,
     role: entry.role,
     pressed: !hidden.has(entry.id),
+    valueText: legendValues?.[entry.id],
   }));
   const csv = menu?.csv;
   const actions: ChartMenuAction = {
@@ -243,10 +253,16 @@ function CategoryFrame(props: CategoryProps): ReactElement {
       summaryId={summaryId}
       section={section}
       footnoteRef={footnote}
-      legend={<ChartLegend title={title} items={legend} onToggle={toggleSeries} />}
+      legend={legendValues === undefined ? <ChartLegend title={title} items={legend} onToggle={toggleSeries} /> : null}
+      legendBelow={
+        legendValues === undefined || table ? null : (
+          <ChartLegend title={title} items={legend} onToggle={toggleSeries} />
+        )
+      }
       views={{
         patterns: kind === 'bar' ? { on: patterns, onToggle: () => setPatterns((on) => !on) } : null,
         table: { on: table, onToggle: () => setTable((on) => !on) },
+        tableIcon: tableIcon === true,
         fileName: menu?.fileName ?? '',
         actions,
       }}
@@ -392,6 +408,8 @@ interface ViewsProps {
   /** `null` where the chart has no patterns. */
   patterns: { on: boolean; onToggle: () => void } | null;
   table: { on: boolean; onToggle: () => void };
+  /** The Table button carries a table icon. */
+  tableIcon?: boolean | undefined;
   /** The menu's file name and actions; no menu when `actions` has none. */
   fileName: string;
   actions: ChartMenuAction;
@@ -404,6 +422,8 @@ interface FrameShellProps {
   section: RefObject<HTMLElement | null>;
   footnoteRef: RefObject<HTMLDivElement | null>;
   legend: ReactNode;
+  /** A legend under the chart, before the footnote, when the legend carries values. */
+  legendBelow?: ReactNode;
   views: ViewsProps;
   /** What a ready or refetching chart shows. */
   children: ReactNode;
@@ -417,10 +437,12 @@ function FrameShell({
   section,
   footnoteRef,
   legend,
+  legendBelow,
   views,
   children,
 }: FrameShellProps): ReactElement {
   const t = useTranslations('chart');
+  const titleId = useId();
   const {
     title,
     variant,
@@ -497,7 +519,9 @@ function FrameShell({
       {/* The title keeps a readable measure: the legend and the views wrap to the next line before it narrows */}
       <div className="flex min-w-0 shrink grow basis-64 flex-col">
         <div className="flex items-center gap-2">
-          <Title className={inspector ? 'type-subsection-title' : 'type-section-title'}>{title}</Title>
+          <Title id={titleId} className={inspector ? 'type-subsection-title' : 'type-section-title'}>
+            {title}
+          </Title>
           {showUpdating ? (
             <span className="inline-flex items-center gap-1 type-meta">
               <Spinner size="sm" />
@@ -525,6 +549,8 @@ function FrameShell({
   return (
     <section
       ref={section}
+      // The card is a region named by its title, as the empty state already is
+      aria-labelledby={titleId}
       aria-busy={status === 'loading' || status === 'refetching' ? true : undefined}
       className={cn(
         'flex h-full flex-col gap-3',
@@ -555,6 +581,7 @@ function FrameShell({
       <FrameBody state={state} height={height} loadingHeight={loadingHeight}>
         {children}
       </FrameBody>
+      {showViews ? legendBelow : null}
       {hasFootnote(footnote) ? (
         // Info mode keeps the text in the document, for the PNG and for screen readers, and prints none of it
         <div ref={footnoteRef} className={infoMode ? 'sr-only' : 'mt-auto type-meta'}>
@@ -619,6 +646,7 @@ function ChartViews({
   title,
   patterns,
   table,
+  tableIcon,
   fileName,
   actions,
   alignEnd,
@@ -636,7 +664,13 @@ function ChartViews({
           {t('patterns')}
         </Button>
       ) : null}
-      <Button size="sm" variant="ghost" aria-pressed={table.on} onClick={table.onToggle}>
+      <Button
+        size="sm"
+        variant="ghost"
+        icon={tableIcon === true ? Table2 : undefined}
+        aria-pressed={table.on}
+        onClick={table.onToggle}
+      >
         {t('table')}
       </Button>
       <ChartMenu title={title} fileName={fileName} actions={actions} />

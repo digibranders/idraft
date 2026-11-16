@@ -31,7 +31,13 @@ const HEAD = 'px-3 type-table-header whitespace-nowrap';
  */
 export function FanoutTable({ rows, caption, headers }: FanoutTableProps): ReactElement {
   return (
-    <div className="-mx-4 overflow-x-auto">
+    // A region that scrolls takes the keyboard and a name (WCAG 2.1.1, axe scrollable-region-focusable)
+    <div
+      role="region"
+      aria-label={caption}
+      tabIndex={0}
+      className="-mx-4 overflow-x-auto outline-none focus-visible:focus-ring"
+    >
       <table aria-label={caption} className="w-full type-table">
         <thead>
           <tr className="h-row-header border-t border-border-subtle bg-surface-subtle">

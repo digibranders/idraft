@@ -5604,6 +5604,9 @@
         "info": {
           "what": "How the chosen rate changes from week to week.",
           "how": "One point for each weekly run, one line for each platform, with their average dashed. For a single platform the shaded band is the 95% range the true rate likely sits in. With Compare on, a dashed vertical line separates the previous {days, plural, one {# day} other {# days}} from the current {days, plural, one {# day} other {# days}}."
+        },
+        "legend": {
+          "none": "n/a"
         }
       },
       "outcomeSplit": {
@@ -5975,6 +5978,10 @@
         "info": {
           "what": "How the split of brand mentions between you and your competitors changes week by week.",
           "how": "Each week adds up to 100% of the tracked brands' shares of voice."
+        },
+        "notCollected": {
+          "title": "Not collected yet",
+          "reason": "The weekly share of voice of each tracked brand is not collected yet, so no layer is drawn."
         }
       }
     },

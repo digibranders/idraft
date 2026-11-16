@@ -12,8 +12,10 @@ import { cardInOverview } from '@/test/ai-overview-harness';
 import { stubViewport } from '@/test/customize-harness';
 import { server } from '@/test/msw';
 import { renderWithProviders } from '@/test/render';
+import { drawnSeries } from '@/test/weekly-card-kit';
 
 vi.mock('next/navigation', async () => (await import('@/test/next-navigation')).navigationModule);
+vi.mock('@/components/app/chart/echart', async () => (await import('@/test/weekly-card-kit')).echartStandIn);
 
 const SUMMARY = '*/api/v1/workspaces/:w/projects/:p/ai/prompts-summary';
 const WEEKS = ['2026-10-19', '2026-10-26', '2026-11-02'];
@@ -74,12 +76,42 @@ describe('the trend card', () => {
     renderCard('cmp=off&metric=mention');
     await screen.findByRole('heading', { level: 2, name: 'Mention rate over time' });
     const legend = await screen.findByRole('list', { name: /Series in Mention rate over time/ });
+    // Under the chart, each line with its latest rate (the last week: 60% and 40%, their average 50%)
     expect(
       within(legend)
         .getAllByRole('listitem')
         .map((item) => item.textContent),
-    ).toEqual(expect.arrayContaining(['ChatGPT', 'Gemini', 'Average']));
+    ).toEqual(expect.arrayContaining(['ChatGPT 60%', 'Gemini 40%', 'Average 50%']));
     expect(screen.getByText('a line per platform, with their average')).toBeInTheDocument();
+  });
+
+  it('draws the lines with no point markers, except a hollow one on a point over too few answers', async () => {
+    const thin = engine('chatgpt_web', {
+      mentioned: cell(4, 10),
+      // One answer a week: the trailing weeks pool to 3 at most, under the 4 a rate needs
+      series: WEEKS.map((weekStart) => point(weekStart, 1, 1)),
+    });
+    serve(thin);
+    renderCard('cmp=off&metric=mention&engine=chatgpt_web');
+    await screen.findByTestId('echart-canvas');
+    const lines = drawnSeries().filter((entry) => entry.type === 'line');
+    expect(lines.length).toBeGreaterThan(0);
+    for (const line of lines) expect(line.symbol).toBe('none');
+    const hollow = drawnSeries()
+      .flatMap((entry) => entry.data)
+      .filter((value) => typeof value === 'object' && value !== null && 'symbolSize' in value);
+    expect(hollow.length).toBeGreaterThan(0);
+  });
+
+  it('puts the legend under the chart, and takes it away with the chart in the Table view', async () => {
+    serve(platform('chatgpt_web', [4, 5, 6]), platform('gemini_web', [2, 3, 4]));
+    const { user } = renderCard('cmp=off&metric=mention');
+    const legend = await screen.findByRole('list', { name: /Series in Mention rate over time/ });
+    const canvas = screen.getByRole('img', { name: 'Mention rate over time' });
+    expect(canvas.compareDocumentPosition(legend) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Table' }).querySelector('svg')).not.toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Table' }));
+    expect(screen.queryByRole('list', { name: /Series in Mention rate over time/ })).not.toBeInTheDocument();
   });
 
   it('draws one platform alone, with its 95% interval and no Average', async () => {

@@ -153,6 +153,14 @@ describe('the top fan-out queries card', () => {
     expect(block?.rows[0]?.[0]).toBe('best crm for startups');
   });
 
+  it('puts the scrolling table in a named region that takes the keyboard (jsdom has no layout for axe to measure)', async () => {
+    serve(page());
+    renderCard();
+    const region = within(await screen.findByRole('region', { name: CAPTION }));
+    expect(region.getByRole('table', { name: CAPTION })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: CAPTION })).toHaveAttribute('tabindex', '0');
+  });
+
   it('passes axe', async () => {
     serve(page());
     const { container } = renderCard();

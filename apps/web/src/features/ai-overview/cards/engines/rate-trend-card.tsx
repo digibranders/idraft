@@ -94,6 +94,9 @@ function pointsOf(
 }
 
 /** The axis from the lowest to the highest value (and band) on 5 point steps, never outside 0 to 100%. */
+const latest = (values: readonly CategoryValue[]): number | null =>
+  values.findLast((value): value is number => typeof value === 'number') ?? null;
+
 function axisOf(trend: PlatformTrend, banded: boolean): { min: number; max: number } {
   const values = [
     ...trend.platforms.flatMap((entry) =>
@@ -253,7 +256,12 @@ export default function RateTrendCard({ item, live }: CardProps): ReactElement {
       return {
         ...banded,
         yAxis: { ...(banded.yAxis as Record<string, unknown>), min: axis.min, max: axis.max },
-        series: [...(banded.series as unknown[]), ...boundary],
+        // As the preview draws: lines with no point markers; a small-sample point keeps its own hollow marker, which
+        // is a marker of that data item and so survives the series having none
+        series: [
+          ...(banded.series as Record<string, unknown>[]).map((entry) => ({ ...entry, symbol: 'none' })),
+          ...boundary,
+        ],
       };
     },
     [trend, weekMetric, points, titles, categories, single],
@@ -300,8 +308,6 @@ export default function RateTrendCard({ item, live }: CardProps): ReactElement {
     };
   });
 
-  const latest = (values: readonly CategoryValue[]): number | null =>
-    values.findLast((value): value is number => typeof value === 'number') ?? null;
   const summary = series
     .flatMap((entry) => {
       const value = latest(entry.values);
@@ -310,6 +316,17 @@ export default function RateTrendCard({ item, live }: CardProps): ReactElement {
         : [t('summaryPlatform', { platform: entry.name, value: formatPercent(value, { decimals: 0 }) })];
     })
     .join(', ');
+  // The legend under the chart names each line with its latest rate, as the Table view and the summary do
+  const legendValues = useMemo(
+    (): Record<string, string> =>
+      Object.fromEntries(
+        series.map((entry) => {
+          const value = latest(entry.values);
+          return [entry.id, value === null ? t('legend.none') : formatPercent(value, { decimals: 0 })];
+        }),
+      ),
+    [series, t],
+  );
   const hasBand = scope.metric !== 'sov';
   const platformName = data.asked[0] === undefined ? '' : label(data.asked[0]);
   const meta = single ? t(hasBand ? 'metaOne' : 'metaOneNoBand', { platform: platformName }) : t('metaAll');
@@ -356,6 +373,8 @@ export default function RateTrendCard({ item, live }: CardProps): ReactElement {
       formatValue={(value) => formatPercent(value, { decimals: 0 })}
       cellText={cellText}
       extendOption={extendOption}
+      legendValues={legendValues}
+      tableIcon
       menu={{ fileName: t('fileName'), png: true, csv: true }}
       {...frame}
     />

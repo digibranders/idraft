@@ -4,6 +4,15 @@ import type { PromptsSummary } from '@/lib/api/types';
 import type { RateState } from '@/lib/stats';
 
 /**
+ * A weekly series whose points hold the own cells only, with no cell for any tracked brand (backend request 10): its
+ * weeks would all read as "no value", which is not the same as weeks that were too thin to rate.
+ */
+function lacksBrandCells(summary: PromptsSummary, engineCode: string): boolean {
+  const series = summary.total?.engines.find((engine) => engine.engine_code === engineCode)?.series;
+  return series != null && series.length > 0 && series.every((point) => (point.entities?.length ?? 0) === 0);
+}
+
+/**
  * The weekly share of voice over the platforms the page scope asks for: one platform's own points, or for All
  * platforms the equal-weight average, week by week, of the platforms with a share that week (R3). A week that no
  * platform has a share for is a gap, never an average of nothing. The shares of every platform add up to 1, so their
@@ -14,7 +23,7 @@ export function weeklySharesAcross(
   codes: readonly string[],
   set: TrackedSet,
 ): WeeklyRead<WeeklyPoint> {
-  const reads = codes.map((code) => weeklyShares(summary, code, set));
+  const reads = codes.map((code) => (lacksBrandCells(summary, code) ? UNREAD : weeklyShares(summary, code, set)));
   const points = reads.flatMap((read) => (read.status === 'read' ? [read.points] : []));
   if (points.length === 0) return UNREAD;
   if (points.length === 1) return { status: 'read', points: points[0] ?? [] };
