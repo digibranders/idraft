@@ -12,7 +12,7 @@
  * Both read the scope of the page behind them, so their numbers match the table, and fill again when it changes.
  */
 import { formatInteger, formatPercent, formatSignedInteger } from './vendor/format/number.js';
-import { RUN_DAYS, gapRows, pageDetail, pageOf, pageRows, promptDetail, trackedOf } from './cit-data.js';
+import { OWN_NAME, RUN_DAYS, gapRows, pageDetail, pageOf, pageRows, promptDetail, trackedOf } from './cit-data.js';
 import { PLATFORMS, groupOf } from './aiov-data.js';
 import { NEUTRAL_BADGE, cardFrame, el, emptyBody, engineName, icon, plural, sparkline } from './aiov-parts.js';
 
@@ -184,7 +184,7 @@ function fillPage(url) {
     const name = el('td', 'pl-4 pr-2 min-w-0');
     const label = el('span', 'flex items-center gap-2 min-w-0');
     label.append(dot(entry.owner === 'own' ? 'chart-1' : entry.owner === 'competitor' ? trackedOf(entry.brand.toLowerCase())?.token ?? 'chart-other' : 'chart-other'), el('span', 'truncate', entry.domain));
-    if (entry.owner !== 'third') label.append(el('span', `${NEUTRAL_BADGE} shrink-0`, entry.owner === 'own' ? 'You' : 'Competitor'));
+    if (entry.owner !== 'third') label.append(el('span', `${NEUTRAL_BADGE} shrink-0`, entry.owner === 'own' ? 'Your site' : 'Competitor'));
     name.append(label);
     const count = el('td', 'px-2 pr-4 num text-right text-foreground-secondary', `${entry.count} of ${detail.citations}`);
     count.dataset.tip = `Cited in ${entry.count} of the ${plural(detail.citations, 'answer')} that cite this page`;
@@ -249,7 +249,7 @@ function fillGap(id) {
 
   // Who is cited: you and the selected competitors, over the platforms in scope
   const whoRows = [
-    { name: 'You', token: 'chart-1', cell: row.you, own: true },
+    { name: OWN_NAME, token: 'chart-1', cell: row.you, own: true },
     ...competitors.map((competitor) => ({ name: competitor.name, token: competitor.token, cell: row.rivals[competitor.id], own: false })),
   ].map((entry) => {
     const tr = el('tr', 'h-row-compact border-t border-border-subtle');
@@ -323,7 +323,7 @@ function fillGap(id) {
     return tr;
   });
   const wide = el('div', 'overflow-x-auto');
-  const grid = table([{ label: 'Platform', className: 'w-32' }, { label: 'You', className: 'w-28' }, ...competitors.map((competitor) => ({ label: competitor.name, className: 'w-28' }))], platformRows);
+  const grid = table([{ label: 'Platform', className: 'w-32' }, { label: OWN_NAME, className: 'w-28' }, ...competitors.map((competitor) => ({ label: competitor.name, className: 'w-28' }))], platformRows);
   grid.classList.remove('w-full');
   grid.classList.add('min-w-full');
   wide.append(grid);

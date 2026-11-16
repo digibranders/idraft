@@ -2813,6 +2813,9 @@
       font-weight: 400;
       letter-spacing: 0;
     }
+    .md\:whitespace-nowrap {
+      white-space: nowrap;
+    }
   }
   @media (width >= 64rem) {
     .lg\:fixed {

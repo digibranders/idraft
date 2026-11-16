@@ -10,10 +10,10 @@
  * Numbers come from cit-data.js. Every control writes the address, so a link reopens the same view.
  */
 import { formatInteger, formatPercent, formatRelativeChange, formatSignedInteger } from './vendor/format/number.js';
-import { DEFAULT_COMPETITORS, MAX_COMPETITORS, OWN_DOMAIN, RUN_CHOICES, RUN_DAYS, TRACKED, gapRows, headline, pageRows, trackedOf } from './cit-data.js';
+import { DEFAULT_COMPETITORS, MAX_COMPETITORS, OWN_DOMAIN, OWN_NAME, RUN_CHOICES, RUN_DAYS, TRACKED, gapRows, headline, pageRows, trackedOf } from './cit-data.js';
 import { GROUPS, PLATFORMS, RUNS, groupOf } from './aiov-data.js';
 import { createSelect, groupOptions, platformOptions } from './aiov-controls.js';
-import { NEUTRAL_BADGE, el, engineName, icon, infoButton, plural, sparkline } from './aiov-parts.js';
+import { NEUTRAL_BADGE, el, engineName, icon, plural, sparkline } from './aiov-parts.js';
 import { checkbox, trendIcon } from './prompts-parts.js';
 import { initCitationInspector, openGapPrompt, openCitedPage, refreshCitationInspector } from './cit-inspector.js';
 
@@ -24,10 +24,10 @@ const view = ui.$('[data-view="citations"]');
 // State, kept in the address
 
 const OWNERS = [
-  { id: 'own', label: 'Yours' },
-  { id: 'competitor', label: 'Competitors' },
-  { id: 'third', label: 'Third-party' },
-  { id: 'all', label: 'All' },
+  { id: 'own', label: 'Your site', noun: 'your' },
+  { id: 'competitor', label: 'Competitors', noun: 'competitor' },
+  { id: 'third', label: 'Third-party', noun: 'third-party' },
+  { id: 'all', label: 'All', noun: 'all' },
 ];
 const DEFAULTS = { platform: 'all', group: 'all', runs: 4, competitors: DEFAULT_COMPETITORS, owner: 'own', gapsOnly: true, search: '', pageSort: { key: 'citations', dir: 'desc' }, gapSort: { key: 'gap', dir: 'desc' } };
 export const state = { ...DEFAULTS, tab: 'pages' };
@@ -185,13 +185,14 @@ scopeBar.setAttribute('role', 'group');
 scopeBar.setAttribute('aria-label', 'Scope');
 scopeBar.append(platformSelect.trigger, groupSelect.trigger, runsSelect.trigger, competitorTrigger, reset);
 
-const updated = el('span', 'hidden 2xl:inline type-meta whitespace-nowrap', `Updated ${RUNS.last} · run ${RUNS.number}`);
+// Freshness sits in the table's footer, so the scope and Export keep to one row at 1440 px
+const updated = el('span', 'ml-auto type-meta whitespace-nowrap', `Updated ${RUNS.last} · run ${RUNS.number}`);
 const exportButton = el('button', BUTTON);
 exportButton.type = 'button';
 exportButton.dataset.previewNote = 'Exporting citations';
 exportButton.append(icon('download', 'size-icon-sm'), el('span', '', 'Export'));
 const right = el('div', 'flex items-center gap-x-4 min-w-0 xl:ml-auto');
-right.append(updated, exportButton);
+right.append(exportButton);
 const toolbar = el('section', 'flex flex-wrap items-center gap-x-4 gap-y-2');
 toolbar.setAttribute('aria-label', 'Scope and actions');
 toolbar.append(title, scopeBar, right);
@@ -207,45 +208,47 @@ stripGroup.setAttribute('aria-label', 'Citation measures');
 stripGroup.append(strip);
 
 const INFO = {
-  citations: { what: 'How many times AI answers cite a page of your site.', how: 'One URL in one answer’s source list counts once. An answer that cites two of your pages counts twice.' },
+  citations: { what: 'How many times AI answers cite a page of your site.', how: 'One URL in one answer’s list of citations counts once. An answer that cites two of your pages counts twice.' },
   frequency: { what: 'The share of answers that cite your site at least once.', how: 'Answers that cite you, divided by all valid answers. Over All platforms it is the equal-weight average of the platforms, never pooled.' },
   coverage: { what: 'The share of tracked prompts that cite your site at least once in these runs.', how: 'Prompts with at least one answer citing you, divided by prompts with an answer. Over All platforms it is the equal-weight average of the platforms.' },
-  urls: { what: 'How many different pages of your site AI answers cite.', how: `Distinct URLs on ${OWN_DOMAIN} in the source lists of the answers in scope.` },
-  domains: { what: 'How many different domains AI answers cite for your prompts: the field you compete in for citations.', how: 'Distinct domains in the source lists of the answers in scope, your own included.' },
+  urls: { what: 'How many different pages of your site AI answers cite.', how: `Distinct URLs on ${OWN_DOMAIN} in the citation lists of the answers in scope.` },
+  domains: { what: 'How many different domains AI answers cite for your prompts: the field you compete in for citations.', how: 'Distinct domains in the citation lists of the answers in scope, your site included.' },
   growth: { what: 'How total citations changed against the same number of runs before.', how: 'Total citations now minus before, divided by before. Not tested for detectability.' },
 };
 
+/**
+ * One slot of the strip on one 36 px line, as on Prompts: the name, then the figure at the right. There is no info
+ * button, so six names fit at 1440 px: the definition and the counts are the figure's tooltip, which focus reaches too.
+ */
 function stripItem({ key, label, value, delta, context, tip }) {
-  const item = el('div', 'flex min-w-0 flex-col gap-0.5 bg-surface p-3');
-  const dt = el('dt', 'flex min-w-0 items-center gap-1 type-label text-foreground-tertiary');
-  const info = infoButton(label, INFO[key]);
-  info.classList.add('-my-2');
-  dt.append(el('span', 'truncate', label), info);
-  const dd = el('dd', 'flex min-w-0 flex-col outline-none focus-visible:focus-ring-inset');
-  const line = el('span', 'flex min-w-0 items-baseline gap-2');
-  line.append(el('span', `shrink-0 num type-metric-sm ${value === 'n/a' ? 'text-foreground-tertiary' : 'text-foreground'}`, value));
+  const item = el('div', 'flex h-control min-w-0 items-center gap-2 bg-surface px-3');
+  const dt = el('dt', 'min-w-0 flex-1 truncate type-meta text-foreground-secondary', label);
+  const dd = el('dd', 'flex shrink-0 items-center gap-1.5 rounded-sm outline-none focus-visible:focus-ring-inset');
+  dd.append(el('span', `num type-body-strong ${value === 'n/a' ? 'text-foreground-tertiary' : 'text-foreground'}`, value));
   if (delta) {
     delta.classList.add('shrink-0', 'type-body-strong');
-    line.append(delta);
+    dd.append(delta);
   }
-  dd.append(line);
-  if (context) dd.append(el('span', 'truncate type-meta text-foreground-tertiary', context));
-  if (tip) {
-    dd.tabIndex = 0;
-    dd.dataset.tip = tip;
-  }
+  // The denominator ("in 4,460 answers") is not a line of its own, to keep the strip to label and figure; it leads the
+  // tooltip of the figure instead, so the sample size is still one hover or focus away
+  const hint = [INFO[key].what, context && `${context.charAt(0).toUpperCase()}${context.slice(1)}.`, tip, INFO[key].how].filter(Boolean).join(' ');
+  dd.tabIndex = 0;
+  dd.dataset.tip = hint;
+  dd.setAttribute('aria-label', `${label}: ${value}. ${hint}`);
+  // The whole slot shows it, so the name is a way in too
+  item.dataset.tip = hint;
   item.append(dt, dd);
   return item;
 }
 
 function renderStrip(data) {
   const all = state.platform === 'all';
-  const rateContext = (cell, noun) => (all ? `avg of ${cell.used} platforms` : `${formatInteger(cell.pooled.k)} of ${formatInteger(cell.pooled.n)} ${noun}`);
+  const rateContext = (cell, noun) => (all ? `average of ${cell.used} platforms` : `${formatInteger(cell.pooled.k)} of ${formatInteger(cell.pooled.n)} ${noun}`);
   const rateTip = (cell, noun) => `${formatInteger(cell.pooled.k)} of ${formatInteger(cell.pooled.n)} ${noun}${all ? ', summed over the platforms. The rate is their equal-weight average' : ''}. Change against ${previousText()}.`;
   const growth = data.citations.previous > 0 ? (data.citations.value - data.citations.previous) / data.citations.previous : null;
   strip.replaceChildren(
     stripItem({ key: 'citations', label: 'Total citations', value: formatInteger(data.citations.value), context: `in ${plural(data.answers, 'answer')}`, tip: `Citations of ${OWN_DOMAIN} pages in ${plural(data.answers, 'answer')} to ${plural(data.prompts, 'prompt')}.` }),
-    stripItem({ key: 'frequency', label: 'Citation frequency', value: data.frequency.value === null ? 'n/a' : pct1(data.frequency.value), delta: pointsDelta(data.frequency.change, data.frequency.value ?? undefined), context: data.frequency.value === null ? 'no answers' : rateContext(data.frequency, 'answers'), tip: data.frequency.value === null ? undefined : rateTip(data.frequency, 'answers cite you') }),
+    stripItem({ key: 'frequency', label: 'Citation rate', value: data.frequency.value === null ? 'n/a' : pct1(data.frequency.value), delta: pointsDelta(data.frequency.change, data.frequency.value ?? undefined), context: data.frequency.value === null ? 'no answers' : rateContext(data.frequency, 'answers'), tip: data.frequency.value === null ? undefined : rateTip(data.frequency, 'answers cite you') }),
     stripItem({ key: 'coverage', label: 'Prompt coverage', value: data.coverage.value === null ? 'n/a' : pct1(data.coverage.value), delta: pointsDelta(data.coverage.change, data.coverage.value ?? undefined), context: data.coverage.value === null ? 'no answers' : rateContext(data.coverage, 'prompts'), tip: data.coverage.value === null ? undefined : rateTip(data.coverage, 'prompts cite you') }),
     stripItem({ key: 'urls', label: 'Unique cited URLs', value: formatInteger(data.urls.value), delta: countDelta(data.urls.value, data.urls.previous), context: `pages of ${OWN_DOMAIN}` }),
     stripItem({ key: 'domains', label: 'Unique cited domains', value: formatInteger(data.domains.value), delta: countDelta(data.domains.value, data.domains.previous), context: 'in answers to your prompts' }),
@@ -254,10 +257,12 @@ function renderStrip(data) {
 }
 
 // -------------------------------------------------------------------------------------------------
-// Tabs: Cited pages and Gap analysis, in the route
+// Tabs: Cited pages and Gap analysis, in the route. They sit at the start of the table's toolbar, as the views of
+// Prompts and Internal links do, so they cost no row of their own above the table.
 
-const tabs = el('nav', 'h-tab flex items-end gap-6 border-b border-border');
-tabs.setAttribute('aria-label', 'Citations sections');
+const tabs = el('div', 'inline-flex shrink-0');
+tabs.setAttribute('role', 'tablist');
+tabs.setAttribute('aria-label', 'Citations views');
 const tabLinks = {
   pages: Object.assign(el('a', ''), { href: '#/citations' }),
   gaps: Object.assign(el('a', ''), { href: '#/citations/gaps' }),
@@ -265,14 +270,14 @@ const tabLinks = {
 tabs.append(tabLinks.pages, tabLinks.gaps);
 
 function renderTabs(gapCount) {
-  Object.entries(tabLinks).forEach(([key, link]) => {
+  Object.entries(tabLinks).forEach(([key, link], index) => {
     const on = state.tab === key;
-    link.className = `h-tab px-0.5 border-b-2 -mb-px flex items-center gap-2 ${on ? 'border-primary type-body-strong text-primary-text' : 'border-transparent type-body text-foreground-secondary hover:text-foreground'}`;
-    if (on) link.setAttribute('aria-current', 'page');
-    else link.removeAttribute('aria-current');
+    link.className = `inline-flex h-control-sm shrink-0 items-center justify-center gap-1.5 border px-2.5 select-none focus-visible:relative focus-visible:focus-ring-inset ${index === 0 ? 'rounded-l-md' : '-ml-px rounded-r-md'} ${on ? 'relative border-primary-border bg-primary-subtle type-body-strong text-primary-text' : 'border-border bg-surface type-body text-foreground-secondary hover:bg-surface-hover hover:text-foreground'}`;
+    link.setAttribute('role', 'tab');
+    link.setAttribute('aria-selected', String(on));
     link.replaceChildren(el('span', '', key === 'pages' ? 'Cited pages' : 'Gap analysis'));
     if (key === 'gaps' && gapCount !== null) {
-      const badge = el('span', `${NEUTRAL_BADGE} num`, formatInteger(gapCount));
+      const badge = el('span', 'inline-flex h-5 min-w-5 items-center justify-center rounded-sm bg-neutral-subtle px-1 type-label num text-neutral-text', formatInteger(gapCount));
       badge.setAttribute('aria-hidden', 'true');
       link.append(badge, el('span', 'sr-only', `, ${plural(gapCount, 'gap')}`));
     }
@@ -305,7 +310,10 @@ document.addEventListener('keydown', (event) => {
 });
 const barControls = el('div', 'flex flex-wrap items-center gap-3');
 const barRight = el('div', 'ml-auto flex items-center gap-3');
-panelBar.append(searchWrap, barControls, barRight);
+// A hairline keeps the views (what the table is) apart from the filters (what it shows)
+const barDivider = el('span', 'hidden h-5 border-l border-border md:block');
+barDivider.setAttribute('aria-hidden', 'true');
+panelBar.append(tabs, barDivider, searchWrap, barControls, barRight);
 
 const scroller = el('div', 'relative isolate min-h-0 flex-1 overflow-auto');
 const table = el('table', 'table-fixed border-separate border-spacing-0 type-table');
@@ -318,10 +326,10 @@ const empty = el('div', 'hidden flex-col items-center gap-2 px-4 py-12 text-cent
 scroller.append(table, empty);
 const footer = el('div', 'flex h-12 shrink-0 items-center gap-3 border-t border-border-subtle px-3');
 const footText = el('span', 'type-meta num');
-footer.append(footText);
+footer.append(footText, updated);
 panel.append(panelBar, scroller, footer);
 
-view.replaceChildren(toolbar, stripGroup, tabs, panel);
+view.replaceChildren(toolbar, stripGroup, panel);
 
 /**
  * The layer of a header cell. The pinned corner sits above the other headers and the pinned cells, so a table scrolled
@@ -454,8 +462,8 @@ function renderPages(rows, promptsById) {
   const headRow = el('tr');
   headRow.append(
     sortHeader('Page', 'page', sort, onSort, { className: 'left-0' }),
-    ...(showOwner ? [plainHeader('Owner')] : []),
-    sortHeader('Citations', 'citations', sort, onSort, { tip: 'Answers whose source list includes this URL' }),
+    ...(showOwner ? [plainHeader('Domain type')] : []),
+    sortHeader('Citations', 'citations', sort, onSort, { tip: 'Answers whose citation list includes this URL' }),
     sortHeader('Change', 'change', sort, onSort, { tip: `Against ${previousText()}. Counts are not tested for detectability` }),
     sortHeader('Prompts', 'prompts', sort, onSort, { tip: 'How many tracked prompts cite this page, and the one that cites it most' }),
     plainHeader('Platforms', { tip: 'Citations on each platform' }),
@@ -483,7 +491,7 @@ function renderPages(rows, promptsById) {
       if (showOwner) {
         const owner = el('td', CELL);
         const label = el('span', 'inline-flex items-center gap-2 min-w-0');
-        label.append(competitorDot(ownerToken(row)), el('span', 'truncate', row.owner === 'own' ? 'You' : row.owner === 'competitor' ? row.brand : 'Third-party'));
+        label.append(competitorDot(ownerToken(row)), el('span', 'truncate', row.owner === 'own' ? 'Your site' : row.owner === 'competitor' ? row.brand : 'Third-party'));
         owner.append(label);
         cells.push(owner);
       }
@@ -537,7 +545,7 @@ function renderPages(rows, promptsById) {
   const counts = Object.fromEntries(OWNERS.map((owner) => [owner.id, owner.id === 'all' ? rows.length : rows.filter((row) => row.owner === owner.id).length]));
   const ownerGroup = el('div', 'inline-flex max-w-full overflow-x-auto rounded-md border border-border bg-surface p-0.5');
   ownerGroup.setAttribute('role', 'group');
-  ownerGroup.setAttribute('aria-label', 'Whose pages');
+  ownerGroup.setAttribute('aria-label', 'Domain type');
   OWNERS.forEach((owner) => {
     const pressed = state.owner === owner.id;
     const button = el('button', `h-6 px-2 shrink-0 rounded-sm flex items-center gap-1.5 whitespace-nowrap ${pressed ? 'bg-primary-subtle text-primary-text type-body-strong' : 'type-body text-foreground-secondary hover:bg-surface-hover hover:text-foreground'}`);
@@ -556,7 +564,7 @@ function renderPages(rows, promptsById) {
   else if (visible.length === 0)
     showEmpty(
       'No pages match',
-      state.search !== '' ? `No ${state.owner === 'all' ? '' : `${OWNERS.find((owner) => owner.id === state.owner).label.toLowerCase()} `}page contains "${state.search}".` : `No ${OWNERS.find((owner) => owner.id === state.owner).label.toLowerCase()} pages are cited in ${scopeText()}.`,
+      state.search !== '' ? `No ${state.owner === 'all' ? '' : `${OWNERS.find((owner) => owner.id === state.owner).noun} `}page contains "${state.search}".` : `No ${OWNERS.find((owner) => owner.id === state.owner).noun} pages are cited in ${scopeText()}.`,
       { label: state.search !== '' ? 'Clear search' : 'Show all pages', run: () => (state.search !== '' ? clearSearch() : set({ owner: 'all' })) },
     );
   else showEmpty(null);
@@ -566,7 +574,6 @@ function renderPages(rows, promptsById) {
 // Gap analysis
 
 let gapOrder = [];
-const STATE_TEXT = { cited: 'Cited', mentioned: 'Mentioned only', not: 'Not cited', none: 'No answers' };
 
 const answersText = (n) => `${formatInteger(n)} answer${n === 1 ? '' : 's'}`;
 const platformName = (code) => PLATFORMS.find((platform) => platform.code === code).name;
@@ -580,19 +587,18 @@ function platformLine(code, cell) {
 }
 
 /**
- * A brand's state on a prompt. With one platform in scope it counts answers ("Cited 3/6"); over several it counts
- * platforms ("Cited on 2 of 4"), because a prompt is lost or won per platform. Only your own cell carries a tone:
- * green when cited and not lost anywhere, amber when cited but lost on a platform or only mentioned, red when a
- * competitor is cited and you are cited nowhere. Competitor cells stay neutral, so color always means your position.
+ * Whether a brand is cited for a prompt: a check when any answer in scope cites it, a dash when none does (a mention
+ * without a link is a dash). The counts per platform are in the tooltip. Only your own mark carries a tone: green when
+ * cited and lost nowhere, amber when cited but lost on another platform, red when a competitor is cited and you are
+ * not. Competitor marks stay neutral, so color means your position.
  */
 export function statePill(cell, { own, lost = 0 }) {
-  const multi = Object.keys(cell.perCode).length > 1;
-  const tone = (kind) => (own ? { positive: 'bg-positive-subtle text-positive-text', warning: 'bg-warning-subtle text-warning-text', negative: 'bg-negative-subtle text-negative-text' }[kind] : 'border border-neutral-border bg-neutral-subtle text-neutral-text');
-  let node;
-  if (cell.state === 'cited') node = el('span', `${BADGE} ${tone(lost > 0 ? 'warning' : 'positive')}`, multi ? `Cited on ${cell.citedOn} of ${cell.platforms}` : `Cited ${cell.k}/${cell.n}`);
-  else if (cell.state === 'mentioned') node = el('span', `${BADGE} ${own ? tone('warning') : 'border border-border text-foreground-secondary'}`, STATE_TEXT.mentioned);
-  else if (cell.state === 'not') node = own && lost > 0 ? el('span', `${BADGE} ${tone('negative')}`, STATE_TEXT.not) : el('span', 'type-table text-foreground-tertiary', STATE_TEXT.not);
-  else node = el('span', 'type-table text-foreground-tertiary', 'n/a');
+  const cited = cell.state === 'cited';
+  const ownTone = cited ? (lost > 0 ? 'text-warning-text' : 'text-positive-text') : lost > 0 ? 'text-negative-text' : 'text-foreground-tertiary';
+  const tone = own ? ownTone : cited ? 'text-foreground' : 'text-foreground-tertiary';
+  const node = el('span', `inline-flex size-6 items-center justify-center ${tone}`);
+  if (cell.state === 'none') node.append(el('span', 'type-table', 'n/a'));
+  else node.append(icon(cited ? 'check' : 'minus', 'size-icon'), el('span', 'sr-only', cited ? 'Cited' : 'Not cited'));
   node.dataset.tip = Object.entries(cell.perCode)
     .map(([code, entry]) => platformLine(code, entry))
     .join('. ');
@@ -614,13 +620,13 @@ function renderGaps(rows) {
   });
   gapOrder = visible.map((row) => row.id);
 
-  setColumns([null, 136, 144, ...competitors.map(() => 144), 184]);
+  setColumns([null, 136, 120, ...competitors.map(() => 120), 184]);
   const onSort = (next) => set({ gapSort: next });
   const headRow = el('tr');
   headRow.append(
     sortHeader('Prompt', 'prompt', sort, onSort, { className: 'left-0' }),
-    sortHeader('Topic', 'topic', sort, onSort),
-    sortHeader('You', 'you', sort, onSort, { tip: 'Whether answers to the prompt cite your site, with how many answers do' }),
+    sortHeader('Group', 'topic', sort, onSort),
+    sortHeader(OWN_NAME, 'you', sort, onSort, { tip: 'Whether answers to the prompt cite your site, with how many answers do' }),
     ...competitors.map((competitor) => {
       const th = sortHeader(competitor.name, `c:${competitor.id}`, sort, onSort, { tip: `Whether answers cite ${competitor.domain}` });
       th.querySelector('button').prepend(competitorDot(competitor.token));
@@ -666,15 +672,15 @@ function renderGaps(rows) {
   box.input.addEventListener('change', () => set({ gapsOnly: box.input.checked }));
   only.append(box.wrap, el('span', '', 'Only gaps'));
   barControls.replaceChildren(only);
-  const summary = el('p', 'type-meta num whitespace-nowrap');
+  const summary = el('p', 'type-meta num md:whitespace-nowrap');
   summary.append(el('span', 'type-body-strong text-foreground', formatInteger(gaps)), ` of ${plural(rows.length, 'prompt')} lost to a competitor on at least one platform`);
   barRight.replaceChildren(summary);
-  search.placeholder = 'Search prompts and topics';
+  search.placeholder = 'Search prompts and groups';
   footText.textContent = `${plural(visible.length, 'prompt')}${state.gapsOnly ? ' with a gap' : ''}`;
 
   if (competitors.length === 0) showEmpty('Choose competitors to compare', 'The gap analysis compares you with up to 5 tracked competitors.', { label: 'Choose competitors', run: () => competitorTrigger.click() });
   else if (rows.length === 0) showEmpty('No answers in this scope', `No prompt in ${scopeText()} has an answer yet.`, { label: 'Reset scope', run: () => reset.click() });
-  else if (visible.length === 0 && state.search !== '') showEmpty('No prompts match', `No prompt or topic contains "${state.search}".`, { label: 'Clear search', run: clearSearch });
+  else if (visible.length === 0 && state.search !== '') showEmpty('No prompts match', `No prompt or group contains "${state.search}".`, { label: 'Clear search', run: clearSearch });
   else if (visible.length === 0) showEmpty('No gaps in this scope', 'On every platform, the prompts that cite a selected competitor also cite you.', { label: 'Show all prompts', run: () => set({ gapsOnly: false }) });
   else showEmpty(null);
 }
