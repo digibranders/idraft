@@ -480,6 +480,8 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   // In the order of the list, as the table shows them
   const bulkActions: readonly PromptAction[] = actions.bar(
     [...rowsById.keys()].filter((promptId) => chosen.has(promptId)),
+    // On the Groups tab the prompts chosen are those of groups, and their file says so
+    tab === 'topics' ? 'groups' : 'prompts',
   );
 
   // The strip reads the prompts in scope (a search is no filter, so it does not narrow it, ADR-DS-022 decision 6)
@@ -716,7 +718,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
               icon: Download,
               group: 'copy' as const,
               disabledReason: listReason,
-              run: () => actions.exportPrompts(target.promptIds),
+              run: () => actions.exportPrompts(target.promptIds, 'groups'),
             },
           ]
         : []),
