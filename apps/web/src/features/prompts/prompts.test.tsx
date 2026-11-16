@@ -2291,17 +2291,20 @@ describe('Prompts: rate columns, Top platform, sorting and the metric switcher',
     // The average is over the platforms that have a rate, and its tooltip names them; the count behind each platform stays
     expect(cellsOf(table, 'Question number 1?')).toEqual(['SEO', 'Germany', '50%', '69%', '75% 6 of 8', '25% 2 of 8']);
     expect(cellsOf(table, 'Question number 2?')).toEqual(['SEO', 'Germany', '56%', '25%', '38% 3 of 8', '75% 3 of 4']);
-    // Two answers are too few for a rate: the answers there are, hatched, in place of a percent
+    // Two answers are too few for a rate: "Not enough data", hatched, in place of a percent; the count is in the tooltip
     expect(cellsOf(table, 'Question number 3?')).toEqual([
       'Paid search',
       'Germany',
-      '2 answers',
-      '2 answers',
-      '2 answers',
+      'Not enough data',
+      'Not enough data',
+      'Not enough data',
       'No answers',
     ]);
     const third = rowOf(table, 'Question number 3?');
-    expect(within(third).getAllByText('2 answers')[0]).toHaveClass('bg-insufficient');
+    expect(within(third).getAllByText('Not enough data')[0]).toHaveClass('bg-insufficient');
+    expect(within(third).getAllByRole('gridcell')[3]).toHaveAccessibleDescription(
+      'Too few valid answers for a rate: 2 of the 4 it needs.',
+    );
     // An equal weight percent gets the count of each engine, not a pooled count that would read as another rate
     const [, , , mention] = within(rowOf(table, 'Question number 1?')).getAllByRole('gridcell');
     expect(mention).toHaveAccessibleDescription(
@@ -2442,7 +2445,7 @@ describe('Prompts: rate columns, Top platform, sorting and the metric switcher',
     const at = (header: string): number => headers.indexOf(header) - 1;
     expect(cellsOf(tree, 'SEO')[at('Mention rate')]).toBe('53%');
     expect(cellsOf(tree, 'SEO')[at('Citation rate')]).toBe('47%');
-    expect(cellsOf(tree, 'Paid search')[at('Mention rate')]).toBe('2 answers');
+    expect(cellsOf(tree, 'Paid search')[at('Mention rate')]).toBe('Not enough data');
     expect(order(tree)).toEqual(['SEO', 'Paid search']);
     await user.click(within(tree).getByRole('button', { name: 'Group' }));
     expect(order(tree)).toEqual(['Paid search', 'SEO']);
@@ -2487,8 +2490,8 @@ describe('Prompts: rate columns, Top platform, sorting and the metric switcher',
       const mention = (name: string): string | null =>
         within(rowOf(tree, name))
           .getAllByRole('gridcell')
-          .find((cell) => /answers$|%$/.test(cell.textContent ?? ''))?.textContent ?? null;
-      expect(mention('Gamma')).toBe('2 answers');
+          .find((cell) => /Not enough data$|%$/.test(cell.textContent ?? ''))?.textContent ?? null;
+      expect(mention('Gamma')).toBe('Not enough data');
       expect(topicNames(tree)).toEqual(['Alpha', 'Beta', 'Gamma']);
       await user.click(within(tree).getByRole('button', { name: 'Mention rate' }));
       expect(topicNames(tree)).toEqual(['Beta', 'Alpha', 'Gamma']);

@@ -3,6 +3,7 @@
 import { useLocale, useTranslations } from 'next-intl';
 import { useMemo, type ReactElement } from 'react';
 
+import { HatchedPill } from './columns/metric-shared';
 import { useChangeWords, useComparedWindow, useCompare, type ComparedWindow } from './compare';
 import { CELL_OF_METRIC, countText, engineSortId, SORT_ID, type RateMetric } from './prompt-model';
 import { PlatformMark } from './platform-mark';
@@ -12,7 +13,6 @@ import { trendPoints } from './trend-model';
 import { col } from '@/components/app/data-table/columns';
 import type { CellTip, DataTableColumn } from '@/components/app/data-table/types';
 import { EngineLogo } from '@/components/app/engine/engine-logo';
-import { InsufficientPill } from '@/components/app/metric/insufficient-pill';
 import type { EngineSummary, ProjectEngine } from '@/lib/api/types';
 import { averageChangeOf, engineChangeOf, type RateChange } from '@/lib/compare/change-model';
 import { EMPTY_VALUE, formatDateRange, formatList, formatPercent, formatPointsDelta } from '@/lib/format';
@@ -74,6 +74,7 @@ export function useRateColumns<TRow>(
   } = {},
 ): RateColumns<TRow> {
   const t = useTranslations('prompts.columns');
+  const metrics = useTranslations('prompts.metrics');
   const shell = useTranslations('prompts.shell.columns');
   const rate = useTranslations('prompts.rate');
   const tc = useTranslations('prompts.compare');
@@ -157,7 +158,7 @@ export function useRateColumns<TRow>(
         ...base,
         cell: (row) => {
           const average = averageOf(row, metric);
-          if (average.state === 'insufficient') return <InsufficientPill answers={average.answers} tip={false} />;
+          if (average.state === 'insufficient') return <HatchedPill>{metrics('notEnough')}</HatchedPill>;
           if (average.state === 'none') return <Missing label={gapOf(row, average).label} />;
           // The percent keeps a room of its own so the icons of every row start at the same place
           return (
@@ -260,7 +261,22 @@ export function useRateColumns<TRow>(
       citation: rateColumn(SORT_ID.citation, 'cited', t('citationRate'), t('citationRateTip')),
       topEngine: topColumn,
     };
-  }, [engines, cellsOf, note, byPrompts, t, shell, rate, tc, words, changeWords, compare, comparedWindow, locale]);
+  }, [
+    engines,
+    cellsOf,
+    note,
+    byPrompts,
+    t,
+    metrics,
+    shell,
+    rate,
+    tc,
+    words,
+    changeWords,
+    compare,
+    comparedWindow,
+    locale,
+  ]);
 }
 
 const HEADER_KEY = { mention: 'engineMention', citation: 'engineCitation', sov: 'engineShareOfVoice' } as const;
@@ -281,6 +297,7 @@ export function useEngineRateColumns<TRow>(
   { defaultVisible, marks = false }: { defaultVisible?: boolean; marks?: boolean } = {},
 ): DataTableColumn<TRow>[] {
   const t = useTranslations('prompts.columns');
+  const metrics = useTranslations('prompts.metrics');
   const rate = useTranslations('prompts.rate');
   const words = useRateWords();
   return useMemo(
@@ -312,7 +329,7 @@ export function useEngineRateColumns<TRow>(
           ...base,
           cell: (row) => {
             const figure = figureOf(row);
-            if (figure.state === 'insufficient') return <InsufficientPill answers={figure.answers} tip={false} />;
+            if (figure.state === 'insufficient') return <HatchedPill>{metrics('notEnough')}</HatchedPill>;
             if (figure.state === 'none') return <Missing label={gapOf(row).label} />;
             const count = metric === 'sov' ? words.basis(figure) : countText(summaryOf(row)?.[key]);
             return (
@@ -345,6 +362,6 @@ export function useEngineRateColumns<TRow>(
           },
         };
       }),
-    [engines, cellsOf, metric, defaultVisible, marks, t, rate, words],
+    [engines, cellsOf, metric, defaultVisible, marks, t, metrics, rate, words],
   );
 }

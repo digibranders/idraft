@@ -58,9 +58,9 @@ describe('TopicsMobileList: the Groups tab on a phone (WB-TPE-17)', () => {
     // The average of the two engines, and the best engine with the answers behind its rate
     expect(seo).toHaveTextContent('56%');
     expect(seo).toHaveTextContent('Best on Gemini 75% (6 of 8 answers), 2 platforms');
-    // A rate over too few answers says its answers and never a percent
+    // A rate over too few answers says so and never a percent
     expect(tech).toHaveTextContent('No platform has a rate yet');
-    expect(tech).toHaveTextContent('3 answers');
+    expect(tech).toHaveTextContent('Not enough data');
     expect(tech).not.toHaveTextContent('%');
     // One engine with a rate is said as one engine
     expect(ads).toHaveTextContent('Best on ChatGPT 10% (1 of 10 answers), 1 platform');
