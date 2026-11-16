@@ -50,6 +50,13 @@ import {
 
 const toastsOf = (page: Page) => page.getByRole('region', { name: 'Notifications' });
 
+/** The progress of an open run: the words "Collecting answers" in a link whose name is "View run". */
+const progressLink = (page: Page) =>
+  page.getByRole('link', { name: 'View run', exact: true }).filter({ hasText: 'Collecting answers' });
+/** The notice for the degraded platform: the words "Gemini degraded" in a link named for the run it opens. */
+const degradedLink = (page: Page) =>
+  page.getByRole('link', { name: 'View run for Gemini' }).filter({ hasText: 'Gemini degraded' });
+
 test.describe('runs, costs and budgets', () => {
   test.beforeEach(async ({ page }) => {
     await page.clock.setFixedTime(TODAY);
@@ -69,19 +76,19 @@ test.describe('runs, costs and budgets', () => {
     await runUnderWay(page);
     await page.reload();
     await waitForContent(page);
-    await expect(page.getByRole('link', { name: 'Collecting answers' })).toBeVisible();
+    await expect(progressLink(page)).toBeVisible();
     await expect(collectionLine(page)).toHaveText('Running now');
 
     // The poll (every 10 s while a run is open) sees the end: the progress goes and the notice comes
     await runFinished(page);
-    await expect(page.getByRole('link', { name: 'Collecting answers' })).toHaveCount(0, { timeout: 25_000 });
-    await expect(page.getByRole('link', { name: 'Gemini degraded' })).toBeVisible();
+    await expect(progressLink(page)).toHaveCount(0, { timeout: 25_000 });
+    await expect(degradedLink(page)).toBeVisible();
     await expect(page.getByText(/^ChatGPT: .* valid/)).toHaveCount(0);
     await expect(page.getByText(/^Google AI Mode: .* valid/)).toHaveCount(0);
     await expect(collectionLine(page)).toContainText(/^Last run .*, [\d,]+ of [\d,]+ answers/);
 
     // The notice links to the run, which opens in the inspector of the Runs page
-    await page.getByRole('link', { name: 'Gemini degraded' }).click();
+    await degradedLink(page).click();
     await expect(page).toHaveURL(/\/ops\/runs\?inspect=run(%3A|:)/);
     await expect(runInspector(page)).toBeVisible();
   });
@@ -246,7 +253,7 @@ test.describe('runs, costs and budgets', () => {
         name: 'topics',
         address: PROMPTS_PAGE,
         ready: async (): Promise<void> => {
-          await expect(page.getByRole('link', { name: 'Gemini degraded' })).toBeVisible();
+          await expect(degradedLink(page)).toBeVisible();
         },
       },
       {

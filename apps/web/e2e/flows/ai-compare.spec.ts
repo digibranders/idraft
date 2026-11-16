@@ -74,7 +74,8 @@ test.describe('Compare with the previous period', () => {
     // The Mention column: a change beside the average of every topic row that has a previous period
     await expect.poll(() => countChanges(topicsGrid(page))).toBeGreaterThanOrEqual(3);
     // The first topic with a drawer: the three cards and the engine rows carry a change
-    const drawer = await openTopic(page, 'SEO');
+    // The Groups tab lists the groups that hold prompts (two levels: group, then its prompts), so the first row is one of them
+    const drawer = await openTopic(page, 'Technical SEO');
     for (const card of ['Mentioned', 'Cited', 'Share of voice']) {
       await expect(valueOf(drawer, card)).toContainText(/\d pts/);
     }
@@ -97,7 +98,7 @@ test.describe('Compare with the previous period', () => {
     await page.goto(inspectTopic(SEO));
     const drawer = drawerOf(page, 'SEO');
     await expect(drawer.getByRole('tablist', { name: 'Group sections' })).toBeVisible();
-    await expect(valueOf(drawer, 'Mentioned')).toContainText('avg of');
+    await expect(valueOf(drawer, 'Mentioned')).toContainText('average of');
     expect(await countChanges(drawer)).toBe(0);
 
     // Back on: the key comes and the changes return
@@ -119,7 +120,10 @@ test.describe('Compare with the previous period', () => {
     await expect(promptsGrid(page).getByRole('columnheader', { name: /^Trend/ })).toHaveCount(0);
     // No points in the cell and no line: the icon says the direction, the hover says the figures
     await expect(promptsGrid(page).getByRole('img', { name: /^Mention rate by week: / })).toHaveCount(0);
-    const cell = promptsGrid(page).getByRole('gridcell').filter({ has: icons }).first();
+    const cell = promptsGrid(page)
+      .getByRole('gridcell')
+      .filter({ has: page.locator('[data-slot="trend-icon"]') })
+      .first();
     expect(await cell.textContent()).toMatch(/^\d+%/);
     expect(await cell.locator('[aria-hidden="true"]').filter({ hasText: /pts/ }).count()).toBe(0);
     await cell.hover();
@@ -130,14 +134,14 @@ test.describe('Compare with the previous period', () => {
   test('Detectable changes only is in the URL, narrows Prompts, and survives a reload', async ({ page }) => {
     await openPrompts(page, 1280, ON, { detectable: true });
     await awaitChanges(page);
-    await expect(topicsGrid(page).getByText('Content Marketing', { exact: true })).toBeVisible();
+    await expect(topicsGrid(page).getByText('Blog Strategy', { exact: true })).toBeVisible();
     await addDetectableChip(page);
     await expect(page.getByRole('button', { name: /^Show: Detectable changes only/ })).toBeVisible();
 
     // Topics: Paid Search alone, the one topic whose change the interim test finds
     await expect(topicsGrid(page).getByText('Paid Search', { exact: true })).toBeVisible();
-    await expect(topicsGrid(page).getByText('Content Marketing', { exact: true })).toHaveCount(0);
-    await expect(topicsGrid(page).getByText('SEO', { exact: true })).toHaveCount(0);
+    await expect(topicsGrid(page).getByText('Blog Strategy', { exact: true })).toHaveCount(0);
+    await expect(topicsGrid(page).getByText('Technical SEO', { exact: true })).toHaveCount(0);
 
     // Prompts: its two prompts, and the strip counts them
     await page.getByRole('radio', { name: 'Prompts' }).click();

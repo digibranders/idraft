@@ -43,17 +43,18 @@ export const BUILTIN_CARD_IDS: readonly string[] = (SCREENS.ai_overview.builtin.
  * those the heading is only required to be there (`null`). Change an entry to a title when its package lands.
  */
 export const BUILTIN_CARD_TITLES: Readonly<Record<string, string | null>> = {
-  'visibility-split': 'Headline numbers',
-  'rate-trend': null,
-  'outcome-mix': null,
-  'share-of-voice': null,
-  'lost-to-competitor': null,
-  'topic-heatmap': null,
+  // The headline card is the group "Headline numbers" and draws the hero's title
+  'visibility-split': 'AI visibility rate',
+  'rate-trend': 'AI visibility rate over time',
+  'outcome-mix': 'Answer outcomes',
+  'share-of-voice': 'Share of voice',
+  'lost-to-competitor': 'Competitor gap',
+  'topic-heatmap': 'Groups by platform',
   'top-domains': 'Top cited domains',
   'position-distribution': 'Mention position',
   'sentiment-by-engine': 'Sentiment by platform',
-  'ai-referrals': 'AI referral traffic',
-  'fanout-top': null,
+  'ai-referrals': 'AI referral visits',
+  'fanout-top': 'Top fan-out queries',
 };
 
 /** What the eight tiles of the headline card are called, in order (preview `TILE_LAYOUT`). */
@@ -183,8 +184,17 @@ export async function numbersOf(page: Page): Promise<NumberCell[]> {
     .locator('div.bg-surface')
     .evaluateAll((tiles) =>
       tiles.map((tile) => {
-        const text = (selector: string): string =>
-          (tile.querySelector<HTMLElement>(selector)?.innerText ?? '').replace(/\s+/g, ' ').trim();
+        // The figure carries a screen reader sentence in a hidden span ("67%, Average of 2 platforms"): only what is drawn counts
+        const drawn = (node: Node): string =>
+          node instanceof HTMLElement && node.classList.contains('sr-only')
+            ? ''
+            : node.childNodes.length === 0
+              ? (node.textContent ?? '')
+              : Array.from(node.childNodes).map(drawn).join('');
+        const text = (selector: string): string => {
+          const found = tile.querySelector<HTMLElement>(selector);
+          return found === null ? '' : drawn(found).replace(/\s+/g, ' ').trim();
+        };
         return { label: text('span.type-label'), value: text('.type-metric'), note: text('span.type-micro') };
       }),
     );
@@ -202,7 +212,17 @@ export async function numberOf(page: Page, label: string): Promise<NumberCell> {
 
 /** The AI visibility rate of the hero, as drawn: "47%" or "n/a". */
 export async function heroValue(page: Page): Promise<string> {
-  return (await heroOf(page).locator('.type-metric').innerText()).trim();
+  // The figure carries a screen reader sentence in a hidden span: only what is drawn is the rate
+  return heroOf(page)
+    .locator('.type-metric')
+    .evaluate((node) =>
+      Array.from(node.childNodes)
+        .map((child) =>
+          child instanceof HTMLElement && child.classList.contains('sr-only') ? '' : (child.textContent ?? ''),
+        )
+        .join('')
+        .trim(),
+    );
 }
 
 const WHITESPACE = /\s+/g;

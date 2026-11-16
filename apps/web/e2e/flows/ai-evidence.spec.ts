@@ -69,6 +69,22 @@ async function openOldestAnswer(page: Page): Promise<Locator> {
   return viewerReady(page);
 }
 
+/** Opens, by its address, the newest answer of the prompt that has a link to the provider; fails when none of the last 28 days has. */
+async function openAnswerWithProviderLink(page: Page): Promise<Locator> {
+  const now = Date.now();
+  const today = Math.floor(now / DAY_MS);
+  for (let day = today; day > today - 28; day -= 1) {
+    const at = day * DAY_MS + 2 * 3_600_000;
+    if (![1, 4].includes(new Date(at).getUTCDay()) || at > now) continue;
+    const id = String(day * 10_000 + FIRST_PROMPT_INDEX * 10);
+    await page.goto(`${FYNIX_PROMPTS}?tab=prompts&inspect=${encodeURIComponent(`answer:${id}`)}`);
+    const viewer = await viewerReady(page);
+    const link = viewer.getByRole('link', { name: 'Open at the provider' });
+    if ((await link.count()) > 0) return link;
+  }
+  throw new Error('No answer of the last 28 days has a link to the provider');
+}
+
 /** Chooses an answer view. The label sits twice in the control (a hidden copy keeps the width), so the first is clicked. */
 async function chooseView(viewer: Locator, name: 'Evidence' | 'Formatted' | 'Raw'): Promise<void> {
   const views = viewer.getByRole('radiogroup', { name: 'Answer view' });
@@ -149,8 +165,10 @@ test.describe('The answer viewer', () => {
       (url) => !['localhost', '127.0.0.1'].includes(url.hostname),
       (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<title>provider</title>' }),
     );
-    const viewer = await openAnswer(page, 1280);
-    const link = viewer.getByRole('link', { name: 'Open at the provider' });
+    await openAnswer(page, 1280);
+    // The mock gives some answers no web address to open (an unusable one is left out), and which one is newest
+    // follows the clock: the runs are tried from the newest back until an answer has the link
+    const link = await openAnswerWithProviderLink(page);
     await expect(link).toHaveAttribute('target', '_blank');
     await expect(link).toHaveAttribute('rel', /noopener/);
     const href = await link.getAttribute('href');

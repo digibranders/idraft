@@ -67,7 +67,7 @@ export const OVERLAP_NOTE =
   /Groups overlap: a prompt in two groups counts in both, so the rows do not add up to the total\./;
 
 /** The columns of the heat map while both platforms of the Fynix mock are asked, AI Overview not collected yet. */
-export const BOTH_PLATFORM_COLUMNS = ['Group', 'Prompts', 'ChatGPT', 'Gemini', 'AI Overview', 'avg of 2'];
+export const BOTH_PLATFORM_COLUMNS = ['Group', 'Prompts', 'ChatGPT', 'Gemini', 'Google AI Overview', 'avg of 2'];
 
 /** The Platform and Group selects of the scope bar (`support/ai-overview.ts`), which the group cards' specs drive. */
 export { groupSelect, platformSelect };
