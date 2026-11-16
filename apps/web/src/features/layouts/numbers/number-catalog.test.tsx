@@ -168,7 +168,7 @@ describe('the number catalog', () => {
         .map((chip) => chip.textContent),
     ).toEqual(seoLabels);
 
-    const ai = within(dialog).getByRole('group', { name: 'AI, one engine each' });
+    const ai = within(dialog).getByRole('group', { name: 'AI, one platform each' });
     const aiTypes = NUMBER_TYPES.filter((type) => type.screens.includes('overview') && type.perEngine);
     for (const type of aiTypes) {
       const row = within(ai).getByRole('group', { name: type.label });

@@ -195,7 +195,7 @@ describe('CardOptionsPopover', () => {
     const popover = await openOptions(view, 'trend-gemini', 'Mention rate trend: Gemini');
     await view.user.click(within(popover).getByRole('radio', { name: 'AI Mode' }));
     await waitFor(() => {
-      expect(polite()).toBe('Mention rate trend: AI Mode: Engine AI Mode');
+      expect(polite()).toBe('Mention rate trend: AI Mode: Platform AI Mode');
     });
     expect(screen.getByRole('group', { name: 'Mention rate trend: AI Mode card' })).toBeInTheDocument();
     // The engine it left is free again
