@@ -4,10 +4,10 @@
  * state.journey. Which cards and rows exist is decided in il-journey-layout.js; this file draws them.
  */
 import { el } from './prompts-parts.js';
-import { BUTTON_SM, FIELD, icon, iconButton, popover, selectField, toast } from './perf-ui.js';
+import { BUTTON_SM, FIELD, icon, iconButton, popover, segmented, selectField, toast } from './perf-ui.js';
 import {
-  PLACEMENT_LABEL, SCOPE_WORD, depthWithoutAuto, equity, flags, ins, isLive, pageById, pages, pct, plural, refresh, scopeOf,
-  setFocus, state, statusBadge, tierBadge, tierCode, tierEdge, tierIdOf, tierLabel, tierPosition,
+  PLACEMENT_LABEL, SCOPE_WORD, depthWithoutAuto, equity, flags, ins, isLive, pageById, pages, pct, plural, refresh, routeFromHome, scopeOf,
+  setFocus, suggestedLinks, state, statusBadge, tierBadge, tierCode, tierEdge, tierIdOf, tierLabel, tierPosition,
 } from './il-model.js';
 import { openInspector } from './il-drawer.js';
 import { MAX_CARDS, backsOf, buildJourney, canOpen, depthText, linksOf, markerScope, treeRows } from './il-journey-layout.js';
@@ -15,8 +15,9 @@ import { MAX_CARDS, backsOf, buildJourney, canOpen, depthText, linksOf, markerSc
 const ZOOMS = [0.6, 0.8, 1, 1.2];
 const CANVAS_LABEL = 'Link journey canvas. The tree list shows the same journey as a table.';
 const GROUP_LABEL = { auto: 'Previous, next and related', template: 'Menu and footer' };
+const ICON_BUTTON = 'flex size-6 items-center justify-center rounded-sm border border-border bg-surface text-foreground-secondary hover:bg-surface-hover hover:text-foreground';
 const SMALL_BUTTON = 'h-badge px-1.5 rounded-sm border border-border bg-surface type-label text-foreground-secondary hover:bg-surface-hover flex items-center gap-1 whitespace-nowrap';
-const BACK_BUTTON = 'h-badge px-1.5 rounded-sm border border-primary-border bg-surface type-label text-primary-text hover:bg-primary-subtle aria-pressed:bg-primary-subtle flex items-center gap-1 whitespace-nowrap';
+const BACK_BUTTON = 'absolute bottom-2 right-2.5 flex items-center gap-1 rounded-sm px-1 type-label text-primary-text hover:underline aria-pressed:bg-primary-subtle whitespace-nowrap';
 const BOTH_BADGE = 'inline-flex h-badge items-center rounded-sm bg-primary-subtle px-1.5 type-label text-primary-text whitespace-nowrap';
 const FOCUS_RING = 'focus-visible:focus-ring';
 
@@ -24,6 +25,8 @@ let zoom = 1;
 let active = null;
 let hoverLoop = null;
 let tip = null;
+// A data-restore value to focus after the next render (the control that caused it was rebuilt)
+let restore = null;
 
 const reduceMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
 const j = () => state.journey;
@@ -85,7 +88,8 @@ const linkedAs = (edge) => (edge ? `${scopeOf(edge) === 'editorial' ? '' : `${SC
 
 function metaLine(item, scope, backs, both) {
   const page = pageById(item.id);
-  const line = el('span', 'flex flex-wrap items-center gap-x-1.5 gap-y-0.5 type-meta text-foreground-tertiary');
+  const reserve = backs.length === 0 ? '' : 'pr-10';
+  const line = el('span', `flex flex-wrap items-center gap-x-1.5 gap-y-0.5 type-meta text-foreground-tertiary ${reserve}`);
   line.append(el('span', 'text-foreground-secondary', tierCode(tierIdOf(page))), el('span', 'num', `${plural(ins(item.id, scope).length, 'linking page')}`));
   if (isLive(page)) line.append(el('span', 'num', pct(equity[item.id])));
   if (page.status !== 200) line.append(statusBadge(page));
@@ -109,7 +113,7 @@ function cardButton(item, scope, ctx) {
   if (item.dir) node.dataset.dir = item.dir;
   if (openable) node.setAttribute('aria-expanded', String(isOpen));
   node.setAttribute('aria-label', `${page.path}, ${tierLabel(tierIdOf(page))}, ${plural(ins(item.id, scope).length, 'linking page')}${item.edge ? `, linked as ${linkedAs(item.edge)}, ${PLACEMENT_LABEL[item.edge.placement].toLowerCase()}` : ', focus page'}`);
-  const top = el('span', 'flex items-center gap-1 min-w-0');
+  const top = el('span', 'flex items-center gap-1 min-w-0 pr-12');
   if (openable) top.append(icon(isOpen ? 'chevron-down' : 'chevron-right', 'size-icon-xs shrink-0 text-foreground-tertiary'));
   top.append(el('span', 'type-table text-foreground truncate', page.path));
   node.append(top, el('span', 'type-label text-foreground-secondary truncate', item.edge ? linkedAs(item.edge) : page.title), metaLine(item, scope, backs, both));
@@ -131,39 +135,45 @@ function groupButton(item) {
   node.type = 'button';
   Object.assign(node.dataset, { key: item.key, kind: 'group', parent: item.parentKey, dir: item.dir, scope: item.scope });
   node.setAttribute('aria-expanded', String(item.open));
-  node.append(
-    el('span', 'flex items-center gap-1'),
-    el('span', 'type-meta text-foreground-tertiary', `${plural(item.count, 'link')}, ${item.open ? 'shown as cards' : 'select to show'}`),
-  );
-  node.firstChild.append(icon(item.open ? 'chevron-down' : 'chevron-right', 'size-icon-xs shrink-0 text-foreground-tertiary'), el('span', 'type-label text-foreground', `${GROUP_LABEL[item.scope]}: ${plural(item.count, 'link')}`));
-  node.lastChild.textContent = item.open ? 'Shown as cards. Select to hide.' : 'Select to show them as cards.';
-  node.setAttribute('aria-label', `${GROUP_LABEL[item.scope]}: ${plural(item.count, 'link')}`);
+  const label = item.scope === 'both' ? `Both ways: ${plural(item.count, 'page')}` : `${GROUP_LABEL[item.scope]}: ${plural(item.count, 'link')}`;
+  const meta = item.scope === 'both' ? 'Also shown on the right, marked Both ways' : item.open ? 'Shown as cards. Select to hide.' : 'Select to show them as cards.';
+  node.append(el('span', 'flex items-center gap-1'), el('span', 'type-meta text-foreground-tertiary', meta));
+  node.firstChild.append(icon(item.open ? 'chevron-down' : 'chevron-right', 'size-icon-xs shrink-0 text-foreground-tertiary'), el('span', 'type-label text-foreground', label));
+  node.setAttribute('aria-label', `${label}. ${meta}`);
   return node;
 }
 
-function cardBar(item, backs) {
-  const bar = el('div', 'flex flex-wrap items-center gap-1.5');
-  const focus = el('button', `${SMALL_BUTTON} ${FOCUS_RING}`);
-  focus.type = 'button';
-  focus.dataset.focusId = item.id;
-  focus.setAttribute('aria-label', `Focus on ${pageById(item.id).path}`);
-  focus.append(icon('crosshair', 'size-icon-xs'), el('span', '', 'Focus'));
-  bar.append(focus);
+function toolButton(name, label, data) {
+  const button = el('button', `${ICON_BUTTON} ${FOCUS_RING}`);
+  button.type = 'button';
+  Object.assign(button.dataset, data, { tip: label });
+  button.setAttribute('aria-label', label);
+  button.append(icon(name, 'size-icon-xs'));
+  return button;
+}
+
+/** One card: the main button, a hover toolbar (Focus, Details) and the back-link marker, all siblings. */
+function cardWrap(item, scope, ctx) {
+  const { node, backs } = cardButton(item, scope, ctx);
+  const path = pageById(item.id).path;
+  const wrap = el('div', 'relative group');
+  const tools = el('div', 'absolute right-1 top-1 flex gap-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-within:opacity-100');
+  if (item.key !== 'f') tools.append(toolButton('crosshair', `Make ${path} the focus`, { focusId: item.id }));
+  tools.append(toolButton('panel-right-open', `Details of ${path}`, { details: item.id }));
+  wrap.append(node, tools);
   if (backs.length > 0) {
-    const pinned = j().pinned.has(item.key);
-    const loop = el('button', `${BACK_BUTTON} ${FOCUS_RING}`, `${item.dir === 'out' ? 'Links back' : 'Gets links back'}: ${backs.length}`);
+    const loop = el('button', `${BACK_BUTTON} ${FOCUS_RING}`);
     loop.type = 'button';
     loop.dataset.loop = item.key;
-    loop.setAttribute('aria-pressed', String(pinned));
-    bar.append(loop);
+    loop.setAttribute('aria-pressed', String(j().pinned.has(item.key)));
+    // Icon and count only, so the card's text keeps its width; the full words are the name and the tip
+    const words = item.dir === 'out' ? `Links back to ${plural(backs.length, 'earlier page')}` : `Gets links back from ${plural(backs.length, 'earlier page')}`;
+    loop.setAttribute('aria-label', words);
+    loop.dataset.tip = words;
+    loop.append(icon('corner-up-left', 'size-icon-xs'), el('span', 'num', String(backs.length)));
+    wrap.append(loop);
   }
-  const details = el('button', `${SMALL_BUTTON} ${FOCUS_RING}`);
-  details.type = 'button';
-  details.dataset.details = item.id;
-  details.setAttribute('aria-label', `Details of ${pageById(item.id).path}`);
-  details.append(icon('panel-right-open', 'size-icon-xs'), el('span', '', 'Details'));
-  bar.append(details);
-  return bar;
+  return wrap;
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -179,7 +189,28 @@ function edgeLook(link, targetId) {
   return { colour, dash };
 }
 
-const box = (node) => ({ l: node.offsetLeft, r: node.offsetLeft + node.offsetWidth, m: node.offsetTop + node.offsetHeight / 2, b: node.offsetTop + node.offsetHeight, c: node.offsetLeft + node.offsetWidth / 2 });
+// Position inside the canvas in unscaled pixels (cards sit in positioned wrappers, so offsetLeft would be relative to those)
+function boxIn(inner, node) {
+  const origin = inner.getBoundingClientRect();
+  const rect = node.getBoundingClientRect();
+  const left = (rect.left - origin.left) / zoom;
+  const top = (rect.top - origin.top) / zoom;
+  const width = rect.width / zoom;
+  const height = rect.height / zoom;
+  return { l: left, r: left + width, m: top + height / 2, b: top + height, c: left + width / 2 };
+}
+
+const CORNER = 8;
+
+/** Orthogonal edge with rounded corners: out of the source, down a shared spine, into the target. */
+function elbow(from, to) {
+  const spine = from.r + (to.l - from.r) / 2;
+  const dy = to.m - from.m;
+  const r = Math.min(CORNER, Math.abs(dy) / 2, Math.abs(spine - from.r), Math.abs(to.l - spine));
+  if (Math.abs(dy) < 1 || r < 1) return `M${from.r},${from.m} H${spine} V${to.m} H${to.l}`;
+  const sign = dy > 0 ? 1 : -1;
+  return `M${from.r},${from.m} H${spine - r} Q${spine},${from.m} ${spine},${from.m + sign * r} V${to.m - sign * r} Q${spine},${to.m} ${spine + r},${to.m} H${to.l}`;
+}
 
 function drawEdges() {
   if (!active || !live(active.inner)) return;
@@ -187,22 +218,26 @@ function drawEdges() {
   const byKey = (key) => inner.querySelector(`button.node[data-key="${CSS.escape(key)}"]`);
   svg.setAttribute('width', String(inner.scrollWidth));
   svg.setAttribute('height', String(inner.scrollHeight));
+  const edges = [];
   let paths = '<defs><marker id="il-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M1 1L9 5L1 9z" style="fill: var(--color-primary)"/></marker></defs>';
   inner.querySelectorAll('button.node[data-parent]').forEach((node) => {
     const parent = byKey(node.dataset.parent);
     if (!parent) return;
     const isIn = node.dataset.dir === 'in';
-    const a = box(parent);
-    const b = box(node);
+    const a = boxIn(inner, parent);
+    const b = boxIn(inner, node);
     const from = isIn ? b : a;
     const to = isIn ? a : b;
     const item = items.get(node.dataset.key);
-    const link = item?.edge ?? { placement: node.dataset.scope === 'auto' ? 'auto_generated' : 'navigation' };
+    const link = item?.edge ?? { placement: node.dataset.scope === 'auto' ? 'auto_generated' : node.dataset.scope === 'both' ? 'content' : 'navigation' };
     const target = item?.edge ? (isIn ? parent.dataset.id : node.dataset.id) : null;
     const { colour, dash } = edgeLook(link, target);
-    const dx = Math.max(30, (to.l - from.r) / 2);
-    paths += `<path d="M${from.r},${from.m} C${from.r + dx},${from.m} ${to.l - dx},${to.m} ${to.l},${to.m}" fill="none" stroke-width="1.5"${dash} style="stroke: ${colour}"/>`;
+    const status = target ? pageById(target).status : 200;
+    // Template and auto edges first, editorial next, redirect and broken last, so a colour shows on its own last segment
+    const rank = status === 301 || status >= 400 ? 2 : scopeOf(link) === 'editorial' ? 1 : 0;
+    edges.push({ rank, markup: `<path d="${elbow(from, to)}" fill="none" stroke-width="1.5"${dash} style="stroke: ${colour}"/>` });
   });
+  paths += edges.sort((x, y) => x.rank - y.rank).map((edge) => edge.markup).join('');
   inner.querySelectorAll('button.node.outline-dashed').forEach((node) => node.classList.remove('outline-2', 'outline-dashed', 'outline-primary', 'outline-offset-2'));
   const shown = new Set(j().pinned);
   if (hoverLoop) shown.add(hoverLoop);
@@ -210,12 +245,12 @@ function drawEdges() {
     const info = loops.get(key);
     const node = byKey(key);
     if (!info || !node) return;
-    const a = box(node);
+    const a = boxIn(inner, node);
     info.backs.forEach((back) => {
       const target = byKey(back.key);
       if (!target) return;
       target.classList.add('outline-2', 'outline-dashed', 'outline-primary', 'outline-offset-2');
-      const b = box(target);
+      const b = boxIn(inner, target);
       const from = info.dir === 'out' ? a : b;
       const to = info.dir === 'out' ? b : a;
       const y = Math.max(from.b, to.b) + 40;
@@ -232,17 +267,47 @@ function focusNote(scope) {
   const id = j().focus;
   const page = pageById(id);
   const editorial = ins(id, 'editorial').length;
-  const lines = [`Depth ${depthText(id)} from home.${isLive(page) ? ` ${plural(editorial, 'editorial link')} in.` : ''}`];
+  const box = el('div', 'flex flex-col gap-1');
+  const route = routeFromHome(id);
+  const line = el('div', 'flex flex-wrap items-center gap-x-1 gap-y-0.5 type-meta text-foreground-tertiary');
+  if (!route) line.append('Not reachable from the home page.');
+  else if (route.length === 1) line.append('This is the home page.');
+  else {
+    line.append(el('span', '', 'Route from home'));
+    route.forEach((step, index) => {
+      line.append(icon('chevron-right', 'size-icon-xs shrink-0'));
+      const path = pageById(step.id).path;
+      if (index === route.length - 1) line.append(el('span', 'text-foreground', path));
+      else {
+        const button = el('button', `rounded-sm px-0.5 text-link hover:underline ${FOCUS_RING}`, path);
+        button.type = 'button';
+        button.dataset.focusId = step.id;
+        line.append(button);
+      }
+    });
+    line.append(el('span', 'num ml-1 text-foreground-tertiary', plural(route.length - 1, 'click')));
+  }
+  box.append(line);
+  const suggested = suggestedLinks(id, 50).length;
+  if (suggested > 0) {
+    const button = el('button', `${SMALL_BUTTON} self-start ${FOCUS_RING}`, `Suggested links: ${suggested}`);
+    button.type = 'button';
+    button.dataset.details = id;
+    box.append(button);
+  }
+  const lines = [];
+  if (isLive(page)) lines.push(`${plural(editorial, 'editorial link')} in.`);
   if (page.status >= 400) lines.push('Not found: this page has no links out.');
   else if (page.redirect) lines.push('Redirect: it passes visitors and equity to its target.');
   if (flags(page).some((flag) => flag.key === 'orphan')) lines.push('Orphan: no page links here.');
-  else if (flags(page).some((flag) => flag.key === 'editorialOrphan')) lines.push(`Editorial orphan: no editorial links in.${scope === 'editorial' ? ' Choose All links as cards to see the menu and automatic links that reach it.' : ''}`);
+  else if (flags(page).some((flag) => flag.key === 'editorialOrphan')) lines.push(`Editorial orphan: no editorial links in.${scope === 'editorial' ? ' Choose All links to see the menu and automatic links that reach it.' : ''}`);
   else if (linksOf(id, 'out', 'all').length === 0 && page.status < 400) lines.push('This page has no links out.');
-  return el('p', 'type-meta text-foreground-tertiary', lines.join(' '));
+  if (lines.length > 0) box.append(el('p', 'type-meta text-foreground-tertiary', lines.join(' ')));
+  return box;
 }
 
 function column(label, nodes) {
-  const col = el('div', 'flex w-60 shrink-0 flex-col gap-2');
+  const col = el('div', 'flex w-64 shrink-0 flex-col gap-2');
   col.append(el('h3', 'type-label text-foreground-tertiary', label), ...nodes);
   return col;
 }
@@ -317,14 +382,7 @@ function buildCanvas() {
           return;
         }
         ctx.items.set(item.key, item);
-        const wrap = el('div', 'flex flex-col gap-1');
-        if (item.kind === 'group') wrap.append(groupButton(item));
-        else if (item.kind === 'stub') wrap.append(stubButton(item));
-        else {
-          const { node, backs } = cardButton(item, scope, ctx);
-          wrap.append(node, cardBar(item, backs));
-        }
-        nodes.push(wrap);
+        nodes.push(item.kind === 'group' ? groupButton(item) : item.kind === 'stub' ? stubButton(item) : cardWrap(item, scope, ctx));
       });
       return column(label(index), nodes);
     });
@@ -332,8 +390,8 @@ function buildCanvas() {
     const right = render(graph.out, (index) => `Step ${index + 1} out`);
     const focusItem = { kind: 'card', id: j().focus, key: 'f', path: [j().focus], keys: ['f'], dir: null, edge: null };
     ctx.items.set('f', focusItem);
-    const focusWrap = el('div', 'flex flex-col gap-1');
-    focusWrap.append(cardButton(focusItem, scope, ctx).node, focusNote(j().cards));
+    const focusWrap = el('div', 'flex flex-col gap-2');
+    focusWrap.append(cardWrap(focusItem, scope, ctx), focusNote(j().cards));
     const columns = [...left, column('Focus page', [focusWrap]), ...right];
     inner.replaceChildren(svg, ...columns);
     columns.forEach((col, index) => col.querySelectorAll('button.node').forEach((node) => {
@@ -437,12 +495,12 @@ function buildCanvas() {
       for (let next = col + step; next >= Math.min(...columns) && next <= Math.max(...columns); next += step) {
         const here = nodes.filter((node) => Number(node.dataset.col) === next);
         if (here.length > 0) {
-          go(here.reduce((best, node) => (Math.abs(node.offsetTop - current.offsetTop) < Math.abs(best.offsetTop - current.offsetTop) ? node : best)));
+          go(here.reduce((best, node) => (Math.abs(node.getBoundingClientRect().top - current.getBoundingClientRect().top) < Math.abs(best.getBoundingClientRect().top - current.getBoundingClientRect().top) ? node : best)));
           return;
         }
       }
     } else if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
-      const same = nodes.filter((node) => Number(node.dataset.col) === col).sort((a, b) => a.offsetTop - b.offsetTop);
+      const same = nodes.filter((node) => Number(node.dataset.col) === col).sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top);
       go(same[same.indexOf(current) + (event.key === 'ArrowDown' ? 1 : -1)]);
     } else if (event.key === 'f' || event.key === 'F') {
       event.preventDefault();
@@ -491,7 +549,7 @@ function treeTable() {
     body.replaceChildren(...rows.map((row) => treeRow(row, scope)));
     if (rows.length === 1) {
       const empty = el('tr');
-      const cell = el('td', 'px-3 py-6 type-body text-foreground-secondary', j().treeDir === 'out' ? 'This page has no links out in this scope. Choose All links as cards to include menu and automatic links.' : 'No page links here in this scope. Choose All links as cards to include menu and automatic links.');
+      const cell = el('td', 'px-3 py-6 type-body text-foreground-secondary', j().treeDir === 'out' ? 'This page has no links out in this scope. Choose All links to include menu and automatic links.' : 'No page links here in this scope. Choose All links to include menu and automatic links.');
       cell.colSpan = 7;
       empty.append(cell);
       body.append(empty);
@@ -549,11 +607,8 @@ function treeRow(row, scope) {
     lead.append(el('span', 'type-table text-foreground truncate', page.path));
     if (row.both) lead.append(el('span', BOTH_BADGE, 'Both ways'));
     if (row.level > 0) {
-      const focus = el('button', `ml-auto ${SMALL_BUTTON} opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 ${FOCUS_RING}`);
-      focus.type = 'button';
-      focus.dataset.focusId = row.id;
-      focus.setAttribute('aria-label', `Focus on ${page.path}`);
-      focus.append(icon('crosshair', 'size-icon-xs'), el('span', '', 'Focus'));
+      const focus = toolButton('crosshair', `Make ${page.path} the focus`, { focusId: row.id });
+      focus.classList.add('ml-auto', 'opacity-0', 'group-hover:opacity-100', 'focus-visible:opacity-100', 'group-focus-within:opacity-100');
       lead.append(focus);
     }
   }
@@ -586,10 +641,12 @@ function viewSwitch() {
     const node = el('button', `px-2.5 rounded-sm flex items-center gap-1.5 whitespace-nowrap type-body ${FOCUS_RING} ${on ? 'bg-surface border border-border-strong type-body-strong text-foreground' : 'text-foreground-secondary hover:text-foreground'}`);
     node.type = 'button';
     node.setAttribute('aria-pressed', String(on));
+    node.dataset.restore = `journey-view:${value}`;
     node.append(icon(name, 'size-icon-sm'), el('span', '', label));
     node.addEventListener('click', () => {
       if (j().view === value) return;
       j().view = value;
+      restore = `journey-view:${value}`;
       refresh();
     });
     group.append(node);
@@ -633,13 +690,24 @@ function focusPicker() {
   return trigger;
 }
 
-function toolbar() {
-  const bar = el('div', 'flex flex-wrap items-center gap-3 border-b border-border-subtle px-3 py-2');
-  bar.append(viewSwitch(), focusPicker(), selectField([['editorial', 'Editorial as cards, others grouped'], ['all', 'All links as cards']], j().cards, (value) => {
+function cardsSwitch() {
+  const group = segmented([['editorial', 'Editorial'], ['all', 'All links']], j().cards, (value) => {
+    if (j().cards === value) return;
     j().cards = value;
+    restore = `journey-cards:${value}`;
     [j().opened, j().more, j().groups, j().pinned, j().treeOpen].forEach((set) => set.clear());
     refresh();
-  }, 'Links shown as cards'));
+  }, 'Links shown as cards');
+  group.title = 'Links shown as cards';
+  group.querySelectorAll('button').forEach((node, index) => {
+    node.dataset.restore = `journey-cards:${['editorial', 'all'][index]}`;
+  });
+  return group;
+}
+
+function toolbar() {
+  const bar = el('div', 'flex flex-wrap items-center gap-3 border-b border-border-subtle px-3 py-2');
+  bar.append(viewSwitch(), focusPicker(), cardsSwitch());
   if (j().view === 'tree') {
     bar.append(selectField([['out', 'Links out'], ['in', 'Links in']], j().treeDir, (value) => {
       j().treeDir = value;
@@ -705,6 +773,8 @@ export function render(host) {
     panel.append(table.scroller);
   }
   host.append(panel);
+  if (restore) host.querySelector(`[data-restore="${restore}"]`)?.focus();
+  restore = null;
 }
 
 /** CSV rows of the tree list; null when the canvas is shown. */

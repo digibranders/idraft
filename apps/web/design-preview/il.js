@@ -1,4 +1,4 @@
-/* global document, window, location, setTimeout, URL */
+/* global document, window, location, setTimeout, clearTimeout, URL */
 /**
  * Internal links (route #/internal-links): the page shell of the mock. A row with the tabs (Pages, Links, Journey,
  * Tier flow) and the page actions (crawl in scope, Crawl now, Export, More), the summary strip, the crawl state
@@ -7,13 +7,13 @@
  */
 import { BUTTON_SM, icon, popover, toast } from './perf-ui.js';
 import { el } from './prompts-parts.js';
-import { crawls, currentCrawl, depth, flags, isLive, pages, plural, refresh, setRenderer, state, tierIdOf, tierPosition } from './il-model.js';
+import { crawls, currentCrawl, depth, flags, isLive, pages, plural, refresh, setRenderer, state, tierIdOf, tierPosition, writeQuery } from './il-model.js';
 import * as pagesTab from './il-pages.js';
 import * as linksTab from './il-links.js';
 import * as journeyTab from './il-journey.js';
 import * as flowTab from './il-flow.js';
 import { closeInspector, redrawInspector } from './il-drawer.js';
-import { openCrawlSettings, openImportTiers, openRules } from './il-dialogs.js';
+import { openAddWebsite, openCrawlSettings, openImportTiers, openRules } from './il-dialogs.js';
 import { mountSettings } from './il-settings.js';
 
 const view = document.querySelector('[data-view="internal-links"]');
@@ -138,20 +138,34 @@ function tabs() {
   return group;
 }
 
+function showUntiered() {
+  Object.assign(state, { worklist: null, search: '', filters: [{ field: 'tier', value: 'none', label: 'Tier: Untiered' }] });
+  state.selected.clear();
+  if (location.hash === '#/internal-links') refresh();
+  else location.hash = '#/internal-links';
+}
+
 function strip() {
   const live = pages.filter(isLive);
   const t1 = live.filter((page) => tierPosition(tierIdOf(page)) === 1);
   const reached = t1.filter((page) => depth[page.id] !== undefined);
+  const tiered = pages.filter((page) => tierIdOf(page)).length;
   const items = [
-    ['Pages', live.length.toLocaleString('en-US')],
+    ['Pages', pages.length.toLocaleString('en-US')],
+    ['Tiered', `${tiered.toLocaleString('en-US')} of ${pages.length.toLocaleString('en-US')}`, tiered < pages.length ? showUntiered : null],
     ['T1 pages', String(t1.length)],
     ['T1 average depth', reached.length ? (reached.reduce((sum, page) => sum + depth[page.id], 0) / reached.length).toFixed(1) : 'n/a'],
     ['No editorial links in', String(pages.filter((page) => flags(page).some((flag) => flag.key === 'editorialOrphan' || flag.key === 'orphan')).length)],
   ];
-  const wrap = el('div', 'flex h-control-sm items-center gap-4');
-  items.forEach(([label, value]) => {
-    const item = el('span', 'flex items-baseline gap-1.5');
-    item.append(el('span', 'type-meta text-foreground-secondary', label), el('span', 'type-body-strong num text-foreground', value));
+  const wrap = el('div', 'hidden h-control-sm items-center gap-4 md:flex');
+  items.forEach(([label, value, run]) => {
+    const item = el(run ? 'button' : 'span', 'flex items-baseline gap-1.5');
+    if (run) {
+      item.type = 'button';
+      item.title = 'Show the pages without a tier';
+      item.addEventListener('click', run);
+    }
+    item.append(el('span', 'type-meta text-foreground-secondary', label), el('span', `type-body-strong num ${run ? 'text-link underline' : 'text-foreground'}`, value));
     wrap.append(item);
   });
   return wrap;
@@ -247,18 +261,36 @@ function firstCrawlPanel() {
   bar.append(el('div', 'h-full w-2/5 bg-primary'));
   const body = el('div', 'p-4 flex flex-col gap-2');
   for (let index = 0; index < 8; index += 1) body.append(el('div', 'h-6 rounded-sm bg-surface-hover animate-skeleton-pulse'));
-  box.append(head, bar, body, el('p', 'px-4 py-2 border-t border-border-subtle type-meta', 'Tag your most important pages while you wait: tiers do not need a crawl, and rules apply to every page the crawl finds.'));
+  const lead = el('div', 'flex flex-col gap-2 px-4 py-3 border-b border-border-subtle');
+  const actions = el('div', 'flex flex-wrap items-center gap-2');
+  actions.append(smallButton('Set up tier rules', openRules), smallButton('Import tiers from CSV', openImportTiers));
+  lead.append(el('p', 'type-body text-foreground', 'Tag your most important pages while you wait. Tiers do not need a crawl, and rules apply to every page the crawl finds.'), actions);
+  box.append(head, bar, lead, body);
   return box;
 }
 
 // -------------------------------------------------------------------------------------------------
 
+let firstTimer = null;
+
 function render() {
+  writeQuery();
+  // The first crawl of a just-added website finishes by itself in the preview
+  if (state.review === 'first' && firstTimer === null) {
+    firstTimer = setTimeout(() => {
+      firstTimer = null;
+      if (state.review !== 'first') return;
+      state.review = 'ready';
+      refresh();
+      toast({ title: 'First crawl finished: 40 pages mapped', tone: 'success' });
+    }, 6000);
+  } else if (state.review !== 'first' && firstTimer !== null) {
+    clearTimeout(firstTimer);
+    firstTimer = null;
+  }
   const nodes = [pageRow()];
   if (state.review === 'nowebsite') {
-    nodes.push(emptyPanel('Add your website to map internal links', 'Internal links crawls the project\'s website, then shows how its pages link to each other. The first crawl starts as soon as a website is added.', [smallButton('Open project settings', () => {
-      location.hash = '#/settings/general';
-    })]));
+    nodes.push(emptyPanel('Add your website to map internal links', 'Internal links crawls the project\'s website, then shows how its pages link to each other. The first crawl starts as soon as a website is added.', [smallButton('Add website', openAddWebsite)]));
     view.replaceChildren(...nodes);
     return;
   }
@@ -299,6 +331,8 @@ window.addEventListener('preview-leave', (event) => {
   if (event.detail.from !== 'internal-links') return;
   appChrome(false);
   closeInspector();
+  // writeQuery put this page's query in the address; the next page must not inherit it
+  window.history.replaceState(null, '', location.pathname + location.hash);
 });
 if (location.hash.startsWith('#/internal-links')) {
   state.tab = location.hash.split('/')[2] || 'pages';

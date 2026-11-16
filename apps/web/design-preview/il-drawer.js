@@ -5,10 +5,10 @@
  * capped lists of linking pages and outlinks, and the flags with what they mean. It steps through the pages of the
  * Pages table in its order and closes with Escape. Exports `openInspector`, `closeInspector`, `redrawInspector`.
  */
-import { BUTTON_SM, BUTTON_PRIMARY, copyText, icon, iconButton, popover, selectField, toast } from './perf-ui.js';
+import { BUTTON_SM, BUTTON_PRIMARY, copyText, downloadCsv, icon, iconButton, popover, selectField, toast } from './perf-ui.js';
 import { el } from './prompts-parts.js';
-import { PLACEMENT_LABEL, allTags, depth, equity, flagBadge, flags, ins, links, outs, pageById, pct, refresh, resetToRule, setFocus, setTier, sourceText, state, tierBg, tierCode, tierIdOf, tierKeys, tierLabel, tierOf, tiers } from './il-model.js';
-import { shownPageIds } from './il-pages.js';
+import { PLACEMENT_LABEL, allTags, depth, equity, flagBadge, flags, ins, links, outs, pageById, pct, plural, refresh, resetToRule, routeFromHome, setFocus, setTier, sourceText, state, tierBg, tierCode, tierIdOf, tierKeys, tierLabel, tierOf, tiers, suggestedLinks, hasRelatedPages } from './il-model.js';
+import { newTagForm, shownPageIds } from './il-pages.js';
 
 const HOST_URL = 'https://eventussecurity.com';
 const LIST_LIMIT = 8;
@@ -27,6 +27,8 @@ const FLAG_TEXT = {
 const PLACEMENT_ORDER = ['content', 'auto_generated', 'navigation', 'footer', 'breadcrumb'];
 
 let host = null;
+// A data-restore value to focus after the next redraw of the same page (the control that caused it was rebuilt)
+let restoreKey = null;
 
 export function closeInspector() {
   state.open = null;
@@ -62,6 +64,7 @@ function tagChip(page, tag) {
   remove.append(icon('x', 'size-icon-xs'));
   remove.addEventListener('click', () => {
     page.tags = page.tags.filter((candidate) => candidate !== tag);
+    restoreKey = 'add-tag';
     refresh();
   });
   chip.append(tag, remove);
@@ -91,21 +94,25 @@ function tierSection(page) {
   page.tags.forEach((tag) => tags.append(tagChip(page, tag)));
   const add = el('button', `${BUTTON_SM} aria-expanded:bg-surface-selected`);
   add.type = 'button';
+  add.dataset.restore = 'add-tag';
   add.append(icon('plus', 'size-icon-sm text-foreground-tertiary'), el('span', '', 'Add tag'));
   popover(add, (panel, api) => {
     panel.classList.add('p-1', 'flex', 'flex-col');
+    const apply = (tag) => {
+      api.close();
+      page.tags = [...new Set([...page.tags, tag])];
+      restoreKey = 'add-tag';
+      refresh();
+    };
     const free = allTags().filter((tag) => !page.tags.includes(tag));
     if (free.length === 0) panel.append(el('p', 'px-2 py-2 type-meta', 'Every tag is already on this page.'));
     free.forEach((tag) => {
       const item = el('button', 'w-full min-h-9 px-2 rounded-md flex items-center type-body text-foreground text-left hover:bg-surface-hover focus-visible:bg-surface-hover', tag);
       item.type = 'button';
-      item.addEventListener('click', () => {
-        api.close();
-        page.tags = [...page.tags, tag];
-        refresh();
-      });
+      item.addEventListener('click', () => apply(tag));
       panel.append(item);
     });
+    newTagForm(panel, apply);
   }, { label: 'Add tag' });
   tags.append(add);
   return section('Tier', choose, source, tags);
@@ -116,18 +123,79 @@ function metricStrip(page) {
   const all = ins(page.id, 'all').length;
   const items = [
     ['Depth', depth[page.id] === undefined ? 'Not reachable' : String(depth[page.id]), null],
-    ['Linking pages', String(editorial), `of ${all} all`],
-    ['Equity share', pct(equity[page.id]), null],
-    ['Outlinks', String(outs(page.id, 'editorial').length), `of ${outs(page.id, 'all').length} all`],
+    ['Links in', String(editorial), `editorial, ${all} in all`],
+    ['Equity', pct(equity[page.id]), null],
+    ['Links out', String(outs(page.id, 'editorial').length), `editorial, ${outs(page.id, 'all').length} in all`],
   ];
   const row = el('dl', 'grid grid-cols-4 rounded-md border border-border');
   items.forEach(([label, value, note], index) => {
     const item = el('div', `flex min-w-0 flex-col px-2 py-2 ${index < items.length - 1 ? 'border-r border-border' : ''}`);
-    item.append(el('dt', 'type-label text-foreground-tertiary truncate', label), el('dd', 'type-body-strong num text-foreground', value));
+    item.append(el('dt', 'type-label text-foreground-tertiary', label), el('dd', 'type-body-strong num text-foreground break-words', value));
     if (note) item.append(el('dd', 'type-micro text-foreground-tertiary', note));
     row.append(item);
   });
   return row;
+}
+
+function stepButton(id) {
+  const node = el('button', 'rounded-md border border-border bg-surface px-1.5 py-0.5 type-table text-foreground hover:bg-surface-hover');
+  node.type = 'button';
+  node.textContent = pageById(id).path;
+  node.addEventListener('click', () => openInspector(id));
+  return node;
+}
+
+function routeSection(page) {
+  const route = routeFromHome(page.id);
+  if (!route) {
+    const all = ins(page.id, 'all');
+    const reason = all.length === 0 ? 'No page links to it.' : all.every((link) => link.rel === 'nofollow') ? 'Every link to it is nofollow.' : 'The pages that link to it cannot be reached from the home page either.';
+    return section('Route from home', muted(`Not reachable from the home page through followed links. ${reason}`));
+  }
+  if (route.length === 1) return section('Route from home', muted('This is the home page.'));
+  const line = el('div', 'flex flex-wrap items-center gap-1');
+  route.forEach((step, index) => {
+    if (index > 0) line.append(icon('chevron-right', 'size-icon-xs text-foreground-tertiary'));
+    line.append(index === route.length - 1 ? el('span', 'px-1.5 py-0.5 type-table text-foreground', pageById(step.id).path) : stepButton(step.id));
+  });
+  line.append(el('span', 'ml-1 type-meta num', plural(route.length - 1, 'click')));
+  return section('Route from home', line);
+}
+
+function suggestionsSection(page) {
+  const all = suggestedLinks(page.id, 100);
+  const shown = all.slice(0, 5);
+  const target = `${HOST_URL}${page.path}`;
+  const sentence = (item) => `Add a link on ${HOST_URL}${pageById(item.id).path} to ${target} with the anchor "${item.anchor}"`;
+  if (shown.length === 0) {
+    const live = page.status === 200 && page.indexable;
+    const none = !live ? 'Suggestions need a live, indexable page.' : hasRelatedPages(page.id) ? 'No suggestion: every related page already links here.' : 'No related pages found yet.';
+    return section('Suggested links', muted(none));
+  }
+  const list = el('ul', 'flex flex-col');
+  shown.forEach((item) => {
+    const row = el('li', 'flex items-start gap-2 py-1.5 border-b border-border-subtle');
+    const text = el('div', 'min-w-0 flex-1 flex flex-col items-start');
+    const open = el('button', 'max-w-full truncate type-table text-foreground text-left hover:text-primary-text');
+    open.type = 'button';
+    open.textContent = pageById(item.id).path;
+    open.addEventListener('click', () => openInspector(item.id));
+    text.append(open, el('span', 'type-meta', item.reasons.join('. ')), el('span', 'type-meta text-foreground', `Anchor: "${item.anchor}"`));
+    const copy = el('button', BUTTON_SM, 'Copy');
+    copy.type = 'button';
+    copy.setAttribute('aria-label', `Copy suggestion for ${pageById(item.id).path}`);
+    copy.addEventListener('click', () => copyText(sentence(item), 'Suggestion copied'));
+    row.append(text, copy);
+    list.append(row);
+  });
+  const exportButton = el('button', `${BUTTON_SM} self-start`);
+  exportButton.type = 'button';
+  exportButton.append(icon('download', 'size-icon-sm text-foreground-tertiary'), el('span', '', 'Export suggestions'));
+  exportButton.addEventListener('click', () => downloadCsv(`internal-links-suggestions-${page.id}.csv`, [
+    ['Source page', 'Target page', 'Anchor', 'Reasons'],
+    ...all.map((item) => [`${HOST_URL}${pageById(item.id).path}`, target, item.anchor, item.reasons.join('; ')]),
+  ]));
+  return section('Suggested links', list, exportButton, el('p', 'type-meta text-foreground-tertiary', 'Suggestions match topics and tags. Reading page text arrives with link opportunities.'));
 }
 
 function barList(rows, total) {
@@ -212,6 +280,8 @@ function body(page) {
   wrap.append(
     tierSection(page),
     metricStrip(page),
+    routeSection(page),
+    suggestionsSection(page),
     linkingSection(page),
     anchorsSection(page),
     pageList('Linking pages', ins(page.id, 'editorial'), (link) => link.from, page),
@@ -250,7 +320,7 @@ function draw() {
   const content = el('div', 'flex-1 min-h-0 overflow-auto px-4 py-4');
   content.dataset.body = '';
   content.append(body(page));
-  const foot = el('footer', 'px-4 py-3 border-t border-border flex flex-wrap gap-2');
+  const foot = el('footer', 'px-4 py-3 border-t border-border flex items-center gap-2');
   const journey = el('button', `${BUTTON_PRIMARY} h-control-sm px-2 gap-1.5`);
   journey.type = 'button';
   journey.append(icon('workflow', 'size-icon-sm'), el('span', '', 'Open in journey'));
@@ -263,10 +333,8 @@ function draw() {
   visit.target = '_blank';
   visit.rel = 'noopener noreferrer';
   visit.append(icon('external-link', 'size-icon-sm text-foreground-tertiary'), el('span', '', 'Visit page'));
-  const copy = el('button', BUTTON_SM);
-  copy.type = 'button';
-  copy.append(icon('copy', 'size-icon-sm text-foreground-tertiary'), el('span', '', 'Copy URL'));
-  copy.addEventListener('click', () => copyText(`${HOST_URL}${page.path}`, 'URL copied'));
+  const copy = iconButton('copy', 'Copy URL', () => copyText(`${HOST_URL}${page.path}`, 'URL copied'));
+  copy.classList.add('ml-auto', 'shrink-0');
   foot.append(journey, visit, copy);
   host.append(head, content, foot);
   host.addEventListener('keydown', (event) => {
@@ -275,6 +343,8 @@ function draw() {
   document.body.append(host);
   if (same) content.scrollTop = scroll;
   else host.querySelector('button')?.focus();
+  if (same && restoreKey) host.querySelector(`[data-restore="${restoreKey}"]`)?.focus({ preventScroll: true });
+  restoreKey = null;
 }
 
 window.addEventListener('preview-leave', closeInspector);

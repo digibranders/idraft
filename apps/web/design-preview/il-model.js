@@ -79,7 +79,8 @@ export const sourceText = (page) => {
   return 'No tier set and no rule matches';
 };
 /** Pages without a manual tier for which this rule is the first matching rule of the list (default: the saved rules). */
-export const rulePreviewCount = (rule, draftRules = rules) => pages.filter((page) => !page.manualTier && draftRules.find((candidate) => ruleMatches(candidate, page.path))?.id === rule.id).length;
+export const rulePreviewPages = (rule, draftRules = rules) => pages.filter((page) => !page.manualTier && draftRules.find((candidate) => ruleMatches(candidate, page.path))?.id === rule.id);
+export const rulePreviewCount = (rule, draftRules = rules) => rulePreviewPages(rule, draftRules).length;
 
 export function setTier(ids, tierId) {
   ids.forEach((id) => {
@@ -143,6 +144,8 @@ export const SCOPES = [
   ['template', 'Menu and footer links'],
   ['all', 'All links'],
 ];
+// Short names for the toolbar menus (Links tab, Tier flow): the same four words everywhere
+export const SCOPE_MENU = [['editorial', 'Editorial'], ['auto', 'Auto-generated'], ['template', 'Menu and footer'], ['all', 'All links']];
 export const scopeOf = (link) => (link.placement === 'content' ? 'editorial' : link.placement === 'auto_generated' ? 'auto' : 'template');
 export const SCOPE_WORD = { editorial: 'editorial', auto: 'auto-generated', template: 'menu and footer' };
 export const PLACEMENT_LABEL = { content: 'Content', auto_generated: 'Auto-generated', navigation: 'Navigation', footer: 'Footer', breadcrumb: 'Breadcrumb', header: 'Header', sidebar: 'Sidebar' };
@@ -301,6 +304,81 @@ export function pageCsvRows(list, scope) {
 export const currentCrawl = () => crawls.find((crawl) => crawl.id === state.crawl) ?? crawls[0];
 
 /**
+ * The shortest route from the home page over followed links (redirects followed), as
+ * [{ id, link }] from home to the page; `link` is the link that reached that step (null for home).
+ * Returns null when the page cannot be reached.
+ */
+export function routeFromHome(id) {
+  const previous = new Map([['home', null]]);
+  const queue = ['home'];
+  while (queue.length > 0 && !previous.has(id)) {
+    const current = queue.shift();
+    const page = pageById(current);
+    const next = page.redirect
+      ? [{ from: current, to: page.redirect, anchor: '301 redirect', placement: 'content', rel: 'follow' }]
+      : outs(current, 'all').filter((link) => link.rel !== 'nofollow');
+    next.forEach((link) => {
+      if (previous.has(link.to)) return;
+      previous.set(link.to, link);
+      queue.push(link.to);
+    });
+  }
+  if (!previous.has(id)) return null;
+  const route = [];
+  for (let step = id; step; step = previous.get(step)?.from ?? null) route.unshift({ id: step, link: previous.get(step) });
+  return route;
+}
+
+// Topics of the sample pages (the real feature reads them from page text and tracked keywords)
+const TOPICS = {
+  soc: ['SOC', 'monitoring'], mdr: ['MDR', 'SOC', 'monitoring'], vapt: ['VAPT', 'testing'], siem: ['SIEM', 'monitoring'], ir: ['incident response', 'ransomware'],
+  cloud: ['cloud'], iso: ['ISO 27001', 'compliance'], pci: ['PCI DSS', 'compliance', 'banking'], ot: ['OT', 'manufacturing', 'monitoring'], socin: ['SOC'],
+  pricing: ['pricing'], banking: ['banking', 'compliance'], health: ['healthcare', 'incident response'], mfg: ['manufacturing', 'OT', 'cloud'],
+  compare: ['SOC', 'MDR', 'pricing'], case: ['SOC', 'banking'], b1: ['SOC', 'monitoring'], b2: ['SOC', 'MDR'], b3: ['VAPT', 'testing', 'PCI DSS'],
+  b4: ['SIEM', 'monitoring'], b5: ['banking', 'compliance'], b6: ['incident response', 'ransomware'], b7: ['cloud'], b8: ['ISO 27001', 'compliance'],
+  b9: ['ransomware', 'incident response'], b10: ['ransomware'], webinar: ['SOC', 'monitoring'],
+};
+const words = (id) => new Set(TOPICS[id] ?? []);
+
+/**
+ * Pages that could link to `id` (live, indexable, reachable from home), scored by shared title words, shared tags
+ * and their own equity. With `skipLinked` the pages that already link to it by an editorial link are left out.
+ * The anchor is the most common editorial anchor today, or the target's title when no editorial link exists yet.
+ */
+function rankSources(id, skipLinked) {
+  const target = pageById(id);
+  if (!isLive(target) || !target.indexable) return [];
+  const editorial = ins(id, 'editorial');
+  const already = skipLinked ? new Set(editorial.map((link) => link.from)) : new Set();
+  const targetWords = words(id);
+  const counts = new Map();
+  editorial.forEach((link) => counts.set(link.anchor, (counts.get(link.anchor) ?? 0) + 1));
+  const anchor = [...counts].sort((a, b) => b[1] - a[1])[0]?.[0] ?? target.title;
+  return pages
+    .filter((page) => page.id !== id && isLive(page) && page.indexable && !already.has(page.id) && page.id !== 'thanks' && depth[page.id] !== undefined)
+    .map((page) => {
+      const shared = [...words(page.id)].filter((word) => targetWords.has(word));
+      const tags = page.tags.filter((tag) => target.tags.includes(tag));
+      const reasons = [];
+      if (shared.length) reasons.push(`Same topic: ${shared.slice(0, 2).join(', ')}`);
+      if (tags.length) reasons.push(`Same tag: ${tags.join(', ')}`);
+      if (equity[page.id] >= 0.02) reasons.push(`Strong page: ${pct(equity[page.id])} of equity`);
+      const score = (shared.length * 2 + tags.length * 1.5) * (1 + equity[page.id] * 20);
+      return { id: page.id, score, reasons, anchor };
+    })
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score);
+}
+
+/**
+ * Pages that could link to `id` but do not yet (no editorial link), each with the reasons and a suggested anchor.
+ * shortcut: the mock matches titles and tags only; the real feature (spec slice 3) reads page text and tracked keywords.
+ */
+export const suggestedLinks = (id, limit = 5) => rankSources(id, true).slice(0, limit);
+/** True when some page relates to `id`, whether or not it already links there (tells "nothing related" from "all linked"). */
+export const hasRelatedPages = (id) => rankSources(id, false).length > 0;
+
+/**
  * Opens the Journey on a page (and switches to its tab). The focus is kept in the address (spec 7.5) as a history
  * entry, so a link reproduces the view and Back returns to the previous focus.
  */
@@ -309,7 +387,7 @@ export function setFocus(id) {
   if (journey.focus === id && globalThis.location.hash === JOURNEY_HASH) return;
   journey.focus = id;
   clearJourney();
-  globalThis.history.pushState(null, '', `${globalThis.location.pathname}?focus=${encodeURIComponent(id)}${JOURNEY_HASH}`);
+  globalThis.history.pushState(null, '', `${globalThis.location.pathname}${buildQuery(JOURNEY_HASH)}${JOURNEY_HASH}`);
   // The preview router listens to hashchange, so the Journey tab shows even when the user came from another tab
   globalThis.dispatchEvent(new HashChangeEvent('hashchange'));
   refresh();
@@ -318,12 +396,93 @@ const JOURNEY_HASH = '#/internal-links/journey';
 const clearJourney = () => [state.journey.opened, state.journey.more, state.journey.groups, state.journey.pinned, state.journey.treeOpen].forEach((set) => set.clear());
 // Back and forward return to the previous focus without pushing a new entry
 globalThis.addEventListener?.('popstate', () => {
-  const id = new URLSearchParams(globalThis.location.search).get('focus');
-  if (globalThis.location.hash !== JOURNEY_HASH || !id || !byId.has(id) || id === state.journey.focus) return;
-  state.journey.focus = id;
+  const { location } = globalThis;
+  if (!location.hash.startsWith('#/internal-links')) return;
+  // The address is the view: start from the defaults so a query that is gone from this entry is gone from the view
+  Object.assign(state, { worklist: null, scope: 'editorial', sort: { key: 'tier', dir: 'asc' }, search: '', filters: [] });
+  Object.assign(state.links, { search: '', placement: '', pair: null, limit: 200 });
+  try {
+    readQuery();
+  } catch {
+    // A malformed address falls back to the default view
+  }
+  const id = new URLSearchParams(location.search).get('focus');
+  if (location.hash === JOURNEY_HASH && id && byId.has(id)) state.journey.focus = id;
   clearJourney();
   refresh();
 });
 const focusParam = new URLSearchParams(globalThis.location?.search ?? '').get('focus');
 if (focusParam && byId.has(focusParam)) state.journey.focus = focusParam;
 export const allTags = () => tagNames;
+
+/**
+ * Adds a tag name to the workspace list. A name that exists already (any letter case) returns the existing tag, so
+ * the caller puts it on the page without a duplicate in the list. @returns {{tag?: string, error?: string}}
+ */
+export function addTag(name) {
+  const tag = String(name).trim();
+  if (!tag) return { error: 'Enter a tag name.' };
+  const existing = tagNames.find((candidate) => candidate.toLowerCase() === tag.toLowerCase());
+  if (existing) return { tag: existing };
+  tagNames.push(tag);
+  return { tag };
+}
+
+// -------------------------------------------------------------------------------------------------
+// View state in the address: a reload or a shared link reproduces the view (spec 7.5)
+
+const FILTER_KEYS = ['tier', 'tag', 'status', 'indexable', 'flag'];
+const DEFAULT_SORT = 'tier.asc';
+
+function buildQuery(hash) {
+  const query = new URLSearchParams();
+  if (state.worklist) query.set('view', state.worklist);
+  if (state.scope !== 'editorial') query.set('scope', state.scope);
+  const sort = `${state.sort.key}.${state.sort.dir}`;
+  if (sort !== DEFAULT_SORT) query.set('sort', sort);
+  if (state.search) query.set('q', state.search);
+  if (state.filters.length > 0) query.set('f', state.filters.map((filter) => `${filter.field}:${encodeURIComponent(filter.value)}`).join(','));
+  if (state.links.search) query.set('lq', state.links.search);
+  if (state.links.placement) query.set('lp', state.links.placement);
+  const { pair } = state.links;
+  if (pair) query.set('pair', [pair.from ?? 'none', pair.to ?? 'none', pair.scope].join('.'));
+  if (hash === JOURNEY_HASH) query.set('focus', state.journey.focus);
+  const text = query.toString();
+  return text ? `?${text}` : '';
+}
+
+/** Rewrites the query string from the state, keeping the hash. Called at the start of every render. */
+export function writeQuery() {
+  const { location, history } = globalThis;
+  if (!location.hash.startsWith('#/internal-links')) return;
+  history.replaceState(history.state ?? null, '', `${location.pathname}${buildQuery(location.hash)}${location.hash}`);
+}
+
+function readQuery() {
+  const query = new URLSearchParams(globalThis.location?.search ?? '');
+  const view = query.get('view');
+  if (view && WORKLISTS.some((list) => list.key === view)) state.worklist = view;
+  const scope = query.get('scope');
+  if (scope && SCOPES.some(([key]) => key === scope)) state.scope = scope;
+  const [key, dir] = (query.get('sort') ?? '').split('.');
+  if (/^[a-zA-Z]+$/.test(key ?? '') && (dir === 'asc' || dir === 'desc')) state.sort = { key, dir };
+  state.search = query.get('q') ?? '';
+  state.filters = (query.get('f') ?? '').split(',').flatMap((part) => {
+    const at = part.indexOf(':');
+    const field = part.slice(0, at);
+    if (at < 1 || !FILTER_KEYS.includes(field)) return [];
+    const value = decodeURIComponent(part.slice(at + 1));
+    return [{ field, value, label: `${field}: ${value}` }];
+  });
+  state.links.search = query.get('lq') ?? '';
+  const placement = query.get('lp');
+  if (placement && PLACEMENT_LABEL[placement]) state.links.placement = placement;
+  const [from, to, pairScope] = (query.get('pair') ?? '').split('.');
+  const tierKey = (value) => (value === 'none' ? null : tierById(value) ? value : undefined);
+  if (from && to && SCOPES.some(([scopeKey]) => scopeKey === pairScope) && tierKey(from) !== undefined && tierKey(to) !== undefined) state.links.pair = { from: tierKey(from), to: tierKey(to), scope: pairScope };
+}
+try {
+  readQuery();
+} catch {
+  // A malformed address (bad percent encoding) falls back to the default view
+}

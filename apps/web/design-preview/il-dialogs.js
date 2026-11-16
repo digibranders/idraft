@@ -3,10 +3,10 @@
  * Internal links dialogs: Tier rules (spec 5.2), Import tiers from CSV (5.3) and Crawl settings (7.8).
  * Each one changes the model in il-model.js and asks the page to draw again.
  */
-import { BUTTON, button, checkRow, iconButton, toast } from './perf-ui.js';
-import { INPUT, PRIMARY_DISABLED, confirmDialog, field, openDialog } from './kw-dialog.js';
+import { BUTTON, button, checkRow, icon, iconButton, toast } from './perf-ui.js';
+import { INPUT, PRIMARY_DISABLED, confirmDialog, field, fieldError, openDialog } from './kw-dialog.js';
 import { el } from './prompts-parts.js';
-import { crawlSettings, crawls, parseTierCsv, pages, plural, refresh, rulePreviewCount, rules, setTier, tierCode, tierLabel, tierOf, tiers } from './il-model.js';
+import { crawlSettings, crawls, parseTierCsv, pages, plural, refresh, rulePreviewPages, rules, setTier, state, tierCode, tierLabel, tierOf, tiers } from './il-model.js';
 
 const SELECT = `${INPUT} pr-8`;
 const MATCH = [['exact', 'Path is'], ['prefix', 'Path starts with'], ['pattern', 'Path matches']];
@@ -46,7 +46,11 @@ export function openRules() {
     },
   });
   const list = el('ol', 'flex flex-col gap-3');
-  const previewText = (rule) => (rule.value ? `Matches ${plural(rulePreviewCount(rule, draft), 'page')}` : 'Enter a path to see matches');
+  const previewText = (rule) => (rule.value ? `Matches ${plural(rulePreviewPages(rule, draft).length, 'page')}` : 'Enter a path to see matches');
+  const openLists = new Set();
+  // Every row's count and path list depends on all the rules above it, so any change redraws them all
+  let updaters = [];
+  const updateAll = () => updaters.forEach((update) => update());
 
   const move = (index, delta) => {
     [draft[index], draft[index + delta]] = [draft[index + delta], draft[index]];
@@ -55,15 +59,37 @@ export function openRules() {
   const row = (rule, index) => {
     const item = el('li', 'flex flex-col gap-2 rounded-lg border border-border p-3');
     const line = el('div', 'flex flex-wrap items-start gap-2');
-    const preview = el('span', 'type-meta text-foreground-secondary num', previewText(rule));
+    const preview = el('button', 'self-start flex items-center gap-1 rounded-sm type-meta text-foreground-secondary num hover:text-foreground disabled:text-foreground-tertiary disabled:hover:text-foreground-tertiary');
+    preview.type = 'button';
+    const matches = el('ul', 'flex flex-col gap-0.5 pt-1');
+    const update = () => {
+      const matched = rulePreviewPages(rule, draft);
+      const open = openLists.has(rule.id) && rule.value && matched.length > 0;
+      preview.replaceChildren(el('span', '', previewText(rule)));
+      preview.disabled = !rule.value || matched.length === 0;
+      preview.setAttribute('aria-expanded', String(Boolean(open)));
+      if (!preview.disabled) preview.append(icon(open ? 'chevron-down' : 'chevron-right', 'size-icon-xs'));
+      matches.hidden = !open;
+      matches.replaceChildren(...matched.slice(0, 8).map((page) => el('li', 'type-meta text-foreground truncate', page.path)));
+      if (matched.length > 8) matches.append(el('li', 'type-meta text-foreground-tertiary', `and ${matched.length - 8} more`));
+    };
+    preview.addEventListener('click', () => {
+      if (!openLists.delete(rule.id)) openLists.add(rule.id);
+      update();
+    });
+    updaters.push(update);
     const input = el('input', `${INPUT} min-w-40 flex-1`);
     input.placeholder = '/services/';
     input.value = rule.value;
     input.setAttribute('aria-label', `Rule ${index + 1} path`);
     input.addEventListener('input', () => {
       rule.value = input.value.trim();
-      preview.textContent = previewText(rule);
-      if (errors.delete(rule.id)) item.querySelector('[data-error]')?.remove();
+      updateAll();
+      if (errors.delete(rule.id)) {
+        item.querySelector('[data-error]')?.remove();
+        input.removeAttribute('aria-describedby');
+        input.removeAttribute('aria-invalid');
+      }
     });
     const order = el('span', 'flex h-control w-6 shrink-0 items-center type-label text-foreground-tertiary num', String(index + 1));
     line.append(
@@ -74,10 +100,11 @@ export function openRules() {
     );
     line.children[1].append(select(MATCH, rule.match, `Rule ${index + 1} match type`, (value) => {
       rule.match = value;
-      preview.textContent = previewText(rule);
+      updateAll();
     }));
     line.children[3].append(select(tierOptions(), rule.tier, `Rule ${index + 1} tier`, (value) => {
       rule.tier = value;
+      updateAll();
     }));
     const up = iconButton('chevron-up', `Move rule ${index + 1} up`, () => move(index, -1));
     up.disabled = index === 0;
@@ -94,16 +121,21 @@ export function openRules() {
     item.append(line);
     const error = errors.get(rule.id);
     if (error) {
-      const message = el('p', 'type-meta text-negative-text pl-8', error);
+      const message = fieldError(error);
+      message.classList.add('pl-8');
       message.dataset.error = '';
-      message.setAttribute('role', 'alert');
+      message.id = `rule-error-${rule.id}`;
+      input.setAttribute('aria-describedby', message.id);
+      input.setAttribute('aria-invalid', 'true');
       item.append(message);
     }
     item.append(el('div', 'pl-8', ''));
-    item.lastChild.append(preview);
+    item.lastChild.append(preview, matches);
+    update();
     return item;
   };
   function draw() {
+    updaters = [];
     list.replaceChildren(...draft.map(row));
     if (draft.length === 0) list.append(el('li', 'rounded-lg border border-border-subtle bg-surface-subtle px-4 py-6 type-body text-foreground-secondary', 'No rules yet. Add a rule to tag pages by URL, for example everything under /services/.'));
   }
@@ -264,4 +296,61 @@ export function openCrawlSettings() {
     } }),
     button('Cancel', { className: BUTTON, onClick: frame.dismiss }),
   );
+}
+
+// -------------------------------------------------------------------------------------------------
+// Add website (spec 9: the first crawl starts when a website is added)
+
+const DOMAIN = /^(https?:\/\/)?([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}(:\d+)?(\/\S*)?$/i;
+
+export function openAddWebsite() {
+  const frame = openDialog({ title: 'Add website', description: 'The site Internal links maps for this project.', width: 'sm' });
+  const input = el('input', INPUT);
+  input.type = 'text';
+  input.placeholder = 'eventussecurity.com';
+  input.autocomplete = 'off';
+  input.required = true;
+  let mapNow = true;
+  const holder = el('div', 'flex flex-col gap-1');
+  const errorId = 'add-website-error';
+  const draw = (error) => {
+    input.setAttribute('aria-invalid', String(Boolean(error)));
+    holder.replaceChildren(field('Website', input));
+    if (error) {
+      const message = fieldError(error);
+      message.id = errorId;
+      input.setAttribute('aria-describedby', errorId);
+      holder.append(message);
+      input.focus();
+    } else input.removeAttribute('aria-describedby');
+  };
+  draw();
+  const submit = () => {
+    const value = input.value.trim();
+    if (!value) return draw('Enter the website address.');
+    if (!DOMAIN.test(value)) return draw('Enter a domain such as eventussecurity.com.');
+    frame.close();
+    if (mapNow) {
+      state.review = 'first';
+      refresh();
+      return;
+    }
+    state.review = 'ready';
+    refresh();
+    toast({ title: 'Website added', description: 'Internal links will map it on the next weekly crawl, or press Crawl now.', tone: 'success' });
+  };
+  input.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    submit();
+  });
+  frame.body.append(
+    holder,
+    checkRow("Map this site's internal links now", true, (on) => {
+      mapNow = on;
+    }),
+    el('p', 'type-meta text-foreground-tertiary -mt-2 pl-2', 'Crawls the site in the background. About $0.15 per 1,000 pages.'),
+  );
+  frame.footer.append(button('Add website', { className: PRIMARY_DISABLED, onClick: submit }), button('Cancel', { className: BUTTON, onClick: frame.dismiss }));
+  input.focus();
 }

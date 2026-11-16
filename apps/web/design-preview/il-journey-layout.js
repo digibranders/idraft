@@ -94,8 +94,16 @@ export function buildJourney(journey) {
         };
         if (dir === 'in' && parent.key === 'f') {
           // The first in-link column can be long: one heading and one cap per tier
+          // Pages that also sit in "Step 1 out" link both ways with the focus: one group card, opened on request
+          const bothWays = editorial.filter((link) => placed.get(link.from) === 'step 1 out');
+          const rest = editorial.filter((link) => !bothWays.includes(link));
+          if (bothWays.length > 0) {
+            const bothKey = 'in:f|both';
+            items.push({ kind: 'group', scope: 'both', count: bothWays.length, key: bothKey, open: groups.has(bothKey), parentKey: 'f', dir });
+            if (groups.has(bothKey)) emit(bothWays, bothKey);
+          }
           const byTier = new Map();
-          editorial.forEach((link) => {
+          rest.forEach((link) => {
             const position = tierPosition(tierIdOf(pageById(link.from))) || 99;
             byTier.set(position, (byTier.get(position) ?? []).concat(link));
           });

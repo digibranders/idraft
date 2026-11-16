@@ -4,10 +4,10 @@
  * toolbar, sticky header and first columns, select column, bulk bar, sort buttons and a footer line. A row opens the
  * page inspector (il-drawer.js). Exports `render(host)`, `exportRows()` and `shownPageIds()`.
  */
-import { checkRow, downloadCsv, icon, popover, selectField, toast, BUTTON_SM } from './perf-ui.js';
+import { checkRow, downloadCsv, icon, popover, toast, BUTTON_SM } from './perf-ui.js';
 import { el } from './prompts-parts.js';
 import {
-  WORKLISTS, allTags, depth, equity, flagBadge, flags, ins, links, number, outs, pageCsvRows, pages, pct, pageById, plural,
+  WORKLISTS, SCOPE_MENU, addTag, allTags, depth, equity, flagBadge, flags, ins, links, number, outs, pageCsvRows, pages, pct, pageById, plural,
   refresh, resetToRule, SCOPES, setFocus, setTier, sourceText, state, statusBadge, statusOf, tierBadge, tierBg, tierCode,
   tierIdOf, tierKeys, tierLabel, tierPosition, tiers, worklistCount,
 } from './il-model.js';
@@ -16,6 +16,7 @@ import { openInspector } from './il-drawer.js';
 const HOST_URL = 'https://eventussecurity.com';
 const CELL = 'border-b border-border-subtle px-3 align-middle';
 const PAGE_MIN = 300;
+const PAGE_STEP = 25;
 
 // id, label, width, sort key, header tooltip
 const COLUMNS = [
@@ -48,8 +49,24 @@ const EMPTY_WORKLIST = {
 };
 
 let typing = false;
+// Focus after a re-render: set before refresh(), used by the tab's render. A data-restore value, or `more:<index>`
+// for the first row a "Show more" button added.
+let restore = null;
+export const setRestore = (key) => {
+  restore = key;
+};
+export function applyRestore(root) {
+  const key = restore;
+  restore = null;
+  if (!key) return;
+  const node = key.startsWith('more:') ? root.querySelectorAll('tr[data-page]')[Number(key.slice(5))]?.querySelector('button, a') : root.querySelector(`[data-restore="${key}"]`);
+  node?.focus();
+}
 let lastPicked = null;
 let currentList = [];
+let shownList = [];
+let limit = PAGE_STEP;
+let viewKey = '';
 
 // -------------------------------------------------------------------------------------------------
 // Filters
@@ -291,6 +308,68 @@ function menuItem(panel, api, label, run, { checked, detail } = {}) {
   return node;
 }
 
+/** A compact toolbar button that opens a menu of radio items, instead of a native select. */
+export function menuSelect(prefix, options, value, onChange, label) {
+  const node = el('button', 'h-control-sm px-2 rounded-md border border-border bg-surface flex items-center gap-1.5 whitespace-nowrap type-body text-foreground-secondary hover:bg-surface-hover aria-expanded:bg-surface-selected');
+  node.type = 'button';
+  const current = options.find(([key]) => key === value)?.[1] ?? '';
+  // The name is the visible text (WCAG label in name); `label` only names the popover
+  node.setAttribute('aria-label', `${prefix}: ${current}`);
+  node.dataset.restore = `menu:${prefix}`;
+  node.append(el('span', '', `${prefix}: `), el('span', 'type-body-strong text-foreground -ml-1', current), icon('chevron-down', 'size-icon-sm text-foreground-tertiary'));
+  popover(node, (panel, api) => {
+    panel.classList.add('p-1', 'flex', 'flex-col');
+    options.forEach(([key, text]) => {
+      const item = el('button', ITEM);
+      item.type = 'button';
+      item.setAttribute('role', 'menuitemradio');
+      item.setAttribute('aria-checked', String(key === value));
+      item.append(el('span', 'flex-1 truncate', text), key === value ? icon('check', 'size-icon-sm text-primary-text') : el('span', 'size-4'));
+      item.addEventListener('click', () => {
+        api.close();
+        setRestore(`menu:${prefix}`);
+        onChange(key);
+      });
+      panel.append(item);
+    });
+  }, { label });
+  return node;
+}
+
+/** The "New tag" field of the Add tag popovers: creates the tag in the workspace list, then hands it to `apply`. */
+export function newTagForm(panel, apply) {
+  const form = el('div', 'flex flex-col gap-1 border-t border-border-subtle p-1 mt-1');
+  const row = el('div', 'flex items-center gap-1');
+  const input = el('input', 'h-control-sm min-w-0 flex-1 px-2 rounded-md border border-border bg-surface type-body text-foreground placeholder:text-foreground-tertiary');
+  input.type = 'text';
+  input.placeholder = 'New tag';
+  input.autocomplete = 'off';
+  input.setAttribute('aria-label', 'New tag');
+  const error = el('p', 'type-meta text-negative-text');
+  error.setAttribute('role', 'alert');
+  error.hidden = true;
+  const create = el('button', BUTTON_SM, 'Create');
+  create.type = 'button';
+  const submit = () => {
+    const result = addTag(input.value);
+    error.hidden = !result.error;
+    error.textContent = result.error ?? '';
+    if (result.tag) apply(result.tag);
+  };
+  create.addEventListener('click', submit);
+  input.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    submit();
+  });
+  input.addEventListener('input', () => {
+    error.hidden = true;
+  });
+  row.append(input, create);
+  form.append(row, error);
+  panel.append(form);
+}
+
 function filterMenu(trigger) {
   popover(trigger, (panel, api) => {
     const fields = () => {
@@ -381,30 +460,59 @@ function toolbar(items) {
   field.dataset.search = '';
   search.append(icon('search', 'size-icon-sm absolute left-2.5 text-foreground-tertiary pointer-events-none'), field);
   const count = el('span', 'type-meta num', plural(items.length, 'page'));
-  const views = [['', 'All pages'], ...WORKLISTS.map((list) => [list.key, `${list.label} (${worklistCount(list.key)})`])];
-  const view = selectField(views, state.worklist ?? '', (value) => {
-    state.worklist = value || null;
-    state.selected.clear();
-    refresh();
-  }, 'View');
-  const scope = selectField(SCOPES, state.scope, (value) => {
+  const scope = menuSelect('Links', SCOPE_MENU, state.scope, (value) => {
     state.scope = value;
     refresh();
   }, 'Link scope');
   const right = el('div', 'ml-auto flex flex-wrap items-center gap-2');
   right.append(toolButton('Columns', 'columns-3', columnsMenu));
-  bar.append(search, count, view, scope, filterRow(), right);
-  return bar;
+  bar.append(search, count, scope, filterRow(), right);
+  const wrap = el('div', '');
+  wrap.append(viewChips(), bar);
+  return wrap;
+}
+
+const CHIP = 'h-control-sm px-2 rounded-md border flex items-center gap-1.5 whitespace-nowrap';
+const CHIP_OFF = `${CHIP} border-border bg-surface type-body text-foreground-secondary hover:bg-surface-hover`;
+const CHIP_ON = `${CHIP} border-primary-border bg-primary-subtle type-body-strong text-primary-text`;
+
+/** The saved views as a visible row of chips with their counts; views with nothing in them are left out. */
+function viewChips() {
+  const row = el('div', 'flex flex-wrap items-center gap-2 px-3 pt-2');
+  row.setAttribute('role', 'group');
+  row.setAttribute('aria-label', 'View');
+  const chip = (key, label, count) => {
+    const active = (state.worklist ?? '') === key;
+    const node = el('button', active ? CHIP_ON : CHIP_OFF);
+    node.type = 'button';
+    node.setAttribute('aria-pressed', String(active));
+    node.dataset.restore = `chip:${key}`;
+    node.append(el('span', '', label));
+    if (count !== null) node.append(el('span', 'num', number(count)));
+    node.addEventListener('click', () => {
+      state.worklist = key || null;
+      setRestore(`chip:${key}`);
+      state.selected.clear();
+      refresh();
+    });
+    row.append(node);
+  };
+  chip('', 'All pages', null);
+  const counted = WORKLISTS.map((list) => [list, worklistCount(list.key)]);
+  counted.filter(([list, count]) => count > 0 || list.key === state.worklist).forEach(([list, count]) => chip(list.key, list.label, count));
+  if (counted.every(([, count]) => count === 0)) row.append(el('span', 'type-meta text-foreground-tertiary', 'No issues'));
+  return row;
 }
 
 function bulkBar(items) {
   const chosen = items.filter((page) => state.selected.has(page.id));
   const ids = chosen.map((page) => page.id);
-  const bar = el('div', 'flex flex-wrap items-center gap-2 px-3 py-2 border-b border-border-subtle bg-primary-subtle');
+  const bar = el('div', 'flex flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2 border-b border-border-subtle bg-primary-subtle');
   bar.append(el('span', 'type-body-strong text-primary-text', `${plural(chosen.length, 'page')} selected`));
-  const trigger = (label, iconName) => {
+  const trigger = (label, iconName, restoreKey) => {
     const node = el('button', `${BUTTON_SM} aria-expanded:bg-surface-selected`);
     node.type = 'button';
+    if (restoreKey) node.dataset.restore = restoreKey;
     node.append(icon(iconName, 'size-icon-sm text-foreground-tertiary'), el('span', '', label));
     bar.append(node);
     return node;
@@ -429,15 +537,19 @@ function bulkBar(items) {
       tierDone(`${plural(ids.length, 'page')} went back to the tier their rule gives.`);
     });
   }, { label: 'Set tier' });
-  const tagMenu = (label, iconName, add) => popover(trigger(label, iconName), (panel, api) => {
+  const tagMenu = (label, iconName, add) => popover(trigger(label, iconName, add ? 'add-tag' : 'remove-tag'), (panel, api) => {
     panel.classList.add('p-1', 'flex', 'flex-col');
-    allTags().forEach((tag) => menuItem(panel, api, tag, () => {
+    const apply = (tag) => {
+      api.close();
       chosen.forEach((page) => {
         page.tags = add ? [...new Set([...page.tags, tag])] : page.tags.filter((candidate) => candidate !== tag);
       });
+      setRestore(add ? 'add-tag' : 'remove-tag');
       refresh();
       toast({ title: add ? 'Tag added' : 'Tag removed', description: `${tag} ${add ? 'added to' : 'removed from'} ${plural(ids.length, 'page')}.`, tone: 'success' });
-    }));
+    };
+    allTags().forEach((tag) => menuItem(panel, { close: () => {} }, tag, () => apply(tag)));
+    if (add) newTagForm(panel, apply);
   }, { label });
   tagMenu('Add tag', 'tag', true);
   tagMenu('Remove tag', 'tags', false);
@@ -459,7 +571,33 @@ function bulkBar(items) {
     refresh();
   });
   bar.append(clear);
+  const note = allMatchingNote(items, chosen);
+  if (note) bar.append(note);
   return bar;
+}
+
+/** "All 25 shown pages are selected. Select all 40 matching", then "All 40 matching pages are selected. Clear selection". */
+function allMatchingNote(items, chosen) {
+  if (items.length <= shownList.length) return null;
+  const link = (label, run) => {
+    const node = el('button', 'type-body-strong text-link hover:underline', label);
+    node.type = 'button';
+    node.addEventListener('click', run);
+    return node;
+  };
+  const line = el('p', 'basis-full flex flex-wrap items-baseline gap-x-2 type-body text-primary-text');
+  if (chosen.length === items.length) {
+    line.append(`All ${number(items.length)} matching pages are selected.`, link('Clear selection', () => {
+      state.selected.clear();
+      refresh();
+    }));
+  } else if (shownList.every((id) => state.selected.has(id))) {
+    line.append(`All ${number(shownList.length)} shown pages are selected.`, link(`Select all ${number(items.length)} matching`, () => {
+      currentList.forEach((id) => state.selected.add(id));
+      refresh();
+    }));
+  } else return null;
+  return line;
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -468,6 +606,13 @@ function bulkBar(items) {
 export function render(host) {
   const items = visiblePages();
   currentList = items.map((page) => page.id);
+  // A new search, view, filter or link scope starts again at the first 25 rows
+  const key = JSON.stringify([state.search, state.worklist, state.filters]);
+  if (key !== viewKey) {
+    viewKey = key;
+    limit = PAGE_STEP;
+  }
+  shownList = currentList.slice(0, limit);
   // Selection only keeps pages that are still in the table
   state.selected.forEach((id) => {
     if (!currentList.includes(id)) state.selected.delete(id);
@@ -503,7 +648,8 @@ export function render(host) {
     const head = el('thead', '');
     const row = el('tr', 'h-row-header');
     const all = el('th', 'sticky top-0 left-0 z-(--z-sticky) border-b border-border bg-surface-subtle px-0 text-center font-normal');
-    const box = checkbox('Select all pages', chosen.length === items.length, chosen.length > 0 && chosen.length < items.length);
+    const shownChosen = shownList.filter((id) => state.selected.has(id)).length;
+    const box = checkbox('Select all shown pages', shownChosen === shownList.length, shownChosen > 0 && shownChosen < shownList.length);
     box.dataset.pick = 'all';
     all.append(box);
     const identity = el('th', 'sticky top-0 left-10 z-(--z-sticky) border-b border-border border-r border-r-border-subtle bg-surface-subtle px-3 text-left font-normal');
@@ -518,12 +664,24 @@ export function render(host) {
     row.append(all, identity, ...columns.map(headerCell));
     head.append(row);
     const body = el('tbody', '');
-    items.forEach((page) => body.append(pageRow(page, columns)));
+    items.slice(0, limit).forEach((page) => body.append(pageRow(page, columns)));
+    if (items.length > limit) {
+      const more = el('tr', 'bg-surface');
+      const cell = el('td', `${CELL} h-row`);
+      cell.colSpan = columns.length + 2;
+      const button = el('button', 'type-table text-link hover:underline', `Show ${Math.min(PAGE_STEP, items.length - limit)} more`);
+      button.type = 'button';
+      button.dataset.more = '';
+      cell.append(button);
+      more.append(cell);
+      body.append(more);
+    }
     table.append(widths, head, body);
     scroller.append(table);
   }
   const foot = el('div', 'px-4 py-2 border-t border-border-subtle type-meta');
-  foot.textContent = `${plural(items.length, 'page')}. Link counts use ${state.scope === 'all' ? 'every link' : `${SCOPES.find(([key]) => key === state.scope)[1].toLowerCase()}`}; depth and equity use every link.`;
+  const countText = items.length > limit ? `Showing ${number(limit)} of ${plural(items.length, 'page')}` : plural(items.length, 'page');
+  foot.textContent = `${countText}. Link counts use ${state.scope === 'all' ? 'every link' : `${SCOPES.find(([key]) => key === state.scope)[1].toLowerCase()}`}; depth and equity use every link.`;
   panel.append(scroller, foot);
   panel.addEventListener('click', onClick);
   panel.addEventListener('input', onInput);
@@ -535,6 +693,7 @@ export function render(host) {
     input.focus();
     input.setSelectionRange(input.value.length, input.value.length);
   }
+  applyRestore(panel);
 }
 
 function onInput(event) {
@@ -547,7 +706,9 @@ function onInput(event) {
 function pick(box, shift) {
   const target = box.dataset.pick;
   if (target === 'all') {
-    currentList.forEach((id) => (box.checked ? state.selected.add(id) : state.selected.delete(id)));
+    // Unticking clears the whole selection, including rows that "Select all matching" added beyond the shown ones
+    if (box.checked) shownList.forEach((id) => state.selected.add(id));
+    else state.selected.clear();
   } else if (shift && lastPicked && currentList.includes(lastPicked)) {
     const [from, to] = [currentList.indexOf(lastPicked), currentList.indexOf(target)].sort((a, b) => a - b);
     currentList.slice(from, to + 1).forEach((id) => (box.checked ? state.selected.add(id) : state.selected.delete(id)));
@@ -562,7 +723,11 @@ function onClick(event) {
   if (!target) return;
   if (target.matches('input[data-pick]')) return pick(target, event.shiftKey);
   const data = target.dataset;
-  if (data.sort) {
+  if (data.more !== undefined) {
+    setRestore(`more:${limit}`);
+    limit += PAGE_STEP;
+    refresh();
+  } else if (data.sort) {
     const same = state.sort.key === data.sort;
     const smaller = ['page', 'tier', 'depth', 'status'].includes(data.sort);
     state.sort = { key: data.sort, dir: same ? (state.sort.dir === 'asc' ? 'desc' : 'asc') : smaller ? 'asc' : 'desc' };

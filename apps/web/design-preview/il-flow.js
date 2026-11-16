@@ -5,8 +5,8 @@
  * The table is the accessible version; no chart library.
  */
 import { el } from './prompts-parts.js';
-import { selectField } from './perf-ui.js';
-import { SCOPES, SCOPE_WORD, equity, ins, number, pages, pct, plural, state, statusOf, tierBadge, tierCode, tierFlow, tierIdOf, tierLabel, tiers } from './il-model.js';
+import { SCOPE_MENU, SCOPE_WORD, equity, ins, number, pages, pct, plural, refresh, state, statusOf, tierBadge, tierCode, tierFlow, tierIdOf, tierLabel, tiers } from './il-model.js';
+import { applyRestore, menuSelect } from './il-pages.js';
 
 const PANEL = 'rounded-lg border border-border bg-surface';
 const CELL_PAD = 'px-3 py-2';
@@ -23,10 +23,12 @@ function summaryStrip(flow) {
   flow.strip.forEach((item) => {
     const cell = el('div', 'flex min-w-48 flex-1 flex-col gap-1.5 border-r border-border-subtle px-4 py-3 last:border-r-0');
     cell.setAttribute('role', 'listitem');
+    const badge = tierBadge(item.key);
+    badge.classList.add('self-start');
     cell.append(
-      tierBadge(item.key),
+      badge,
       el('p', 'type-body-strong num text-foreground', `${pct(item.equity)} of equity`),
-      el('p', 'type-meta text-foreground-secondary', `${plural(item.pages, 'page')}, ${item.depth === null ? 'depth n/a' : `average depth ${item.depth.toFixed(1)}`}`),
+      el('p', 'type-meta text-foreground-secondary', `from ${pct(item.pages / pages.length)} of pages, ${item.depth === null ? 'depth n/a' : `average depth ${item.depth.toFixed(1)}`}`),
     );
     strip.append(cell);
   });
@@ -157,9 +159,9 @@ export function render(host) {
   const note = el('p', 'type-body text-foreground-secondary', sentence(flow));
   const toolbar = el('div', 'flex flex-wrap items-center gap-3 border-b border-border px-4 py-3');
   toolbar.append(
-    selectField(SCOPES, state.scope, (value) => {
+    menuSelect('Links', SCOPE_MENU, state.scope, (value) => {
       state.scope = value;
-      render(host);
+      refresh();
     }, 'Link scope'),
     el('span', 'type-meta text-foreground-tertiary', 'Rows link to columns'),
   );
@@ -168,6 +170,7 @@ export function render(host) {
   matrix.append(toolbar, heatmap(flow));
   host.replaceChildren(el('div', 'flex flex-col gap-4', ''));
   host.firstChild.append(summaryStrip(flow), note, matrix, lostPanel());
+  applyRestore(host);
 }
 
 export function exportRows() {

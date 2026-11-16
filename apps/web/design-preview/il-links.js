@@ -3,10 +3,11 @@
  * the anchor, where the link sits, its rel and the state of its target. A Tier flow cell can narrow it to one pair of
  * tiers (`state.links.pair`). Exports `render(host)` and `exportRows()`.
  */
-import { icon, selectField } from './perf-ui.js';
+import { icon } from './perf-ui.js';
 import { el } from './prompts-parts.js';
-import { PLACEMENT_LABEL, SCOPES, SCOPE_WORD, links, pageById, plural, refresh, scopeOf, state, statusBadge, tierBadge, tierCode, tierIdOf } from './il-model.js';
+import { PLACEMENT_LABEL, SCOPE_MENU, SCOPE_WORD, links, pageById, plural, refresh, scopeOf, state, statusBadge, tierBadge, tierCode, tierIdOf } from './il-model.js';
 import { openInspector } from './il-drawer.js';
+import { applyRestore, menuSelect } from './il-pages.js';
 
 const CELL = 'border-b border-border-subtle px-3 align-middle';
 const COLUMNS = [
@@ -22,6 +23,7 @@ const COLUMNS = [
 ];
 
 let typing = false;
+const scopeName = (scope) => SCOPE_MENU.find(([key]) => key === scope)[1];
 
 const path = (id) => pageById(id).path;
 
@@ -151,17 +153,17 @@ export function render(host) {
   field.value = state.links.search;
   field.dataset.search = '';
   search.append(icon('search', 'size-icon-sm absolute left-2.5 text-foreground-tertiary pointer-events-none'), field);
-  const placements = [['', 'All placements'], ...Object.entries(PLACEMENT_LABEL).filter(([key]) => links.some((link) => link.placement === key))];
+  const placements = [['', 'All'], ...Object.entries(PLACEMENT_LABEL).filter(([key]) => links.some((link) => link.placement === key))];
   bar.append(
     search,
     el('span', 'type-meta num', plural(items.length, 'link')),
-    selectField(SCOPES, state.scope, (value) => {
+    menuSelect('Links', SCOPE_MENU, state.scope, (value) => {
       state.scope = value;
       if (state.links.pair) state.links.pair.scope = value;
       state.links.limit = 200;
       refresh();
     }, 'Link scope'),
-    selectField(placements, state.links.placement, (value) => {
+    menuSelect('Placement', placements, state.links.placement, (value) => {
       state.links.placement = value;
       state.links.limit = 200;
       refresh();
@@ -170,7 +172,7 @@ export function render(host) {
   if (state.links.pair) bar.append(pairChip());
   const scroller = el('div', 'overflow-x-auto');
   if (items.length === 0) {
-    scroller.append(emptyState('No links match', 'Change the search, the placement or the link scope.', 'Clear filters', () => {
+    scroller.append(emptyState('No links match', `Nothing matches ${scopeName(state.scope)} with this search and placement. Try Links: All links, Placement: All or another search.`, 'Clear filters', () => {
       Object.assign(state.links, { search: '', placement: '', pair: null, limit: 200 });
       state.scope = 'all';
       refresh();
@@ -195,7 +197,7 @@ export function render(host) {
     scroller.append(table);
   }
   const foot = el('div', 'flex flex-wrap items-center gap-3 px-4 py-2 border-t border-border-subtle type-meta');
-  foot.append(el('span', '', `${plural(items.length, 'link')}, one row per link. Template links repeat on every page.`));
+  foot.append(el('span', '', `${plural(items.length, 'link')} in ${state.links.pair ? 'this pair of tiers' : scopeName(state.scope)}, one row per link. Menu and footer links repeat on every page.`));
   if (items.length > shownCount) {
     const more = el('button', 'type-table text-link hover:underline', `Show ${Math.min(200, items.length - shownCount)} more`);
     more.type = 'button';
@@ -233,4 +235,5 @@ export function render(host) {
     field.focus();
     field.setSelectionRange(field.value.length, field.value.length);
   }
+  applyRestore(panel);
 }
