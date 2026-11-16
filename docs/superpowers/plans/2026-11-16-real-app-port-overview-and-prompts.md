@@ -99,7 +99,7 @@ order as in the mock.
 **O-shell** (Overview scope and screen). `ai-overview-screen.tsx`, `overview-context.tsx`, `scope/**` (except the two
 foundation files), `header/**`, `states/**`, `notices/**`, `data/**`, `drilldown/drill-links.ts`, e2e
 `ai-overview.spec.ts` and support. Platform single select with logos (AI Overview shown as not available), searchable
-Group select (flat or tree from the vocabulary), Compare, reset, URL, meta line, "N cards not drawn" note, empty
+Group select (flat or tree from the vocabulary), Compare, reset, URL, meta line, a reason inside every card that has nothing for the scope (no "N cards not drawn" note: the owner kept every card in its place on 2026-11-16), empty
 states, old `engine=a,b` links fall back to All.
 
 ### Wave 2 (parallel after wave 1 merges)
