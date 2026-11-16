@@ -246,7 +246,7 @@ export function groupPromptsCard(ctx) {
 // Citations
 
 const ROLE_BADGE = {
-  Own: 'h-badge inline-flex items-center px-2 rounded-sm bg-primary-subtle text-primary-text type-micro whitespace-nowrap',
+  'Your site': 'h-badge inline-flex items-center px-2 rounded-sm bg-primary-subtle text-primary-text type-micro whitespace-nowrap',
   Competitor: NEUTRAL_BADGE,
   'Third party': NEUTRAL_BADGE,
 };
@@ -256,7 +256,7 @@ export function domainsCard(ctx) {
   if (domains.rows.length === 0) return cardFrame({ key: 'sources.top_domains', title: 'Top cited domains', body: emptyBody('No citations yet', 'No answers cited a page in this scope.') });
   const rows = domains.rows.slice(0, 8).map((row) => {
     const badge = el('span', ROLE_BADGE[row.role], row.role);
-    return { label: row.domain, value: row.share, strong: row.role === 'Own', badge, barToken: row.role === 'Own' ? 'chart-1' : 'chart-bar-neutral', valueText: (v) => `${(v * 100).toFixed(1)}%` };
+    return { label: row.domain, value: row.share, strong: row.role === 'Your site', badge, barToken: row.role === 'Your site' ? 'chart-1' : 'chart-bar-neutral', valueText: (v) => `${(v * 100).toFixed(1)}%` };
   });
   return cardFrame({
     key: 'sources.top_domains',
@@ -268,10 +268,10 @@ export function domainsCard(ctx) {
 
 export function sourceTypesCard(ctx) {
   const domains = domainsFor(ctx.model);
-  if (domains.rows.length === 0) return cardFrame({ key: 'ai.citation_share_by_domain_type', title: 'Sources by type', body: emptyBody('No citations yet', 'No answers cited a page in this scope.') });
-  const host = chartHost(232, `Citation units by source type: ${domains.types.map((entry) => `${entry.type} ${((entry.units / domains.total) * 100).toFixed(0)}%`).join(', ')}`);
+  if (domains.rows.length === 0) return cardFrame({ key: 'ai.citation_share_by_domain_type', title: 'Citations by domain type', body: emptyBody('No citations yet', 'No answers cited a page in this scope.') });
+  const host = chartHost(232, `Citation units by domain type:${domains.types.map((entry) => `${entry.type} ${((entry.units / domains.total) * 100).toFixed(0)}%`).join(', ')}`);
   mountChart(host, () => treemapOption({ types: domains.types, total: domains.total }));
-  return cardFrame({ key: 'ai.citation_share_by_domain_type', title: 'Sources by type', meta: 'area is share of citation units', body: host });
+  return cardFrame({ key: 'ai.citation_share_by_domain_type', title: 'Citations by domain type', meta: 'area is share of citation units', body: host });
 }
 
 export function ownPagesCard(ctx) {
@@ -282,14 +282,14 @@ export function ownPagesCard(ctx) {
   return cardFrame({
     key: 'sources.own_pages',
     title: 'Your pages cited',
-    meta: `${formatInteger(domains.own)} units from ${domains.rows.find((row) => row.role === 'Own')?.domain}`,
+    meta: `${formatInteger(domains.own)} units from ${domains.rows.find((row) => row.role === 'Your site')?.domain}`,
     body: barList(rows, { always: true, valueText: (value) => `${Math.round(value * 100)}%` }),
   });
 }
 
 export function unlinkedCard(ctx) {
   const rows = unlinkedPrompts(ctx.model);
-  if (rows.length === 0) return cardFrame({ key: 'ai.unlinked_mentions', title: 'Unlinked brand mentions', body: emptyBody('No unlinked mentions', 'Every answer that names the brand also cites it, or there are too few answers.') });
+  if (rows.length === 0) return cardFrame({ key: 'ai.unlinked_mentions', title: 'Mentioned, not cited', body: emptyBody('No mentions without a citation', 'Every answer that mentions the brand also cites it, or there are too few answers.') });
   const link = el('a', 'type-body text-link hover:underline whitespace-nowrap', 'View prompts');
   link.href = '#/prompts/explorer';
   const list = el('ul', 'flex flex-col');
@@ -306,16 +306,16 @@ export function unlinkedCard(ctx) {
     li.append(meta);
     list.append(li);
   });
-  return cardFrame({ key: 'ai.unlinked_mentions', title: 'Unlinked brand mentions', meta: 'prompts that name you without citing you', tools: [link], body: list });
+  return cardFrame({ key: 'ai.unlinked_mentions', title: 'Mentioned, not cited', meta: 'prompts that mention you without citing you', tools: [link], body: list });
 }
 
 // -------------------------------------------------------------------------------------------------
 // Position and sentiment
 
 const POSITION_SEGMENTS = [
-  { label: 'Named first', token: 'seq-6' },
-  { label: 'Named second', token: 'seq-4' },
-  { label: 'Named third', token: 'seq-3' },
+  { label: 'Mentioned first', token: 'seq-6' },
+  { label: 'Mentioned second', token: 'seq-4' },
+  { label: 'Mentioned third', token: 'seq-3' },
   { label: 'Fourth or later', token: 'chart-bar-neutral' },
 ];
 
@@ -351,11 +351,11 @@ export function sentimentCard(ctx) {
     return { label: platformLabel(code), shares: [positive, neutral, negative, mixed], note: `${Math.round(cell.coverage * 100)}% of mentions classified` };
   });
   if (rows.every((row) => row.shares === null)) {
-    return cardFrame({ key: 'ai.sentiment_by_engine', title: 'Brand sentiment', body: emptyBody('Not classified on this platform', 'Sentiment is classified on ChatGPT and Gemini answers. Pick another platform to see it.') });
+    return cardFrame({ key: 'ai.sentiment_by_engine', title: 'Sentiment by platform', body: emptyBody('Not classified on this platform', 'Sentiment is classified on ChatGPT and Gemini answers. Pick another platform to see it.') });
   }
   return cardFrame({
     key: 'ai.sentiment_by_engine',
-    title: 'Brand sentiment',
+    title: 'Sentiment by platform',
     meta: 'tone of the mentions',
     tools: [sampleBadge()],
     body: stackedRows({ segments: SENTIMENT_SEGMENTS, rows, empty: 'Not classified' }),
@@ -369,20 +369,20 @@ export function referralCard(ctx) {
   const traffic = trafficFor(ctx.model);
   if (traffic.unavailable) return null;
   const lines = traffic.sources.map((source) => ({ name: source.name, token: ENGINE_TOKEN[source.code], values: source.series }));
-  const host = chartHost(200, `AI referral sessions by source over the last 8 weeks: ${traffic.sources.map((source) => `${source.name} ${formatInteger(source.sessions)}`).join(', ')}`);
-  mountChart(host, () => lineOption({ labels: WEEK_LABELS, lines, min: 0, format: (value) => formatInteger(value), tooltipFormat: (value) => (value === null ? 'No data' : formatInteger(value)) }));
+  const host = chartHost(200, `AI referral visits by platform over the last 8 weeks: ${traffic.sources.map((source) => `${source.name} ${formatInteger(source.sessions)}`).join(', ')}`);
+  mountChart(host, () => lineOption({ labels: WEEK_LABELS, lines, min: 0, format: (value) => formatInteger(value), tooltipFormat: (value) => (value === null ? 'n/a' : formatInteger(value)) }));
   const legend = el('div', 'mt-2 flex flex-wrap gap-x-4 gap-y-1');
   traffic.sources.forEach((source) => {
     const item = el('span', 'inline-flex items-center gap-1.5 type-meta num');
     const swatch = el('span', 'w-3 h-0.5 rounded-full');
     swatch.style.background = `var(--${ENGINE_TOKEN[source.code]})`;
-    item.append(swatch, `${source.name} · ${source.host} · ${formatInteger(source.sessions)} sessions`);
+    item.append(swatch, `${source.name} · ${source.host} · ${formatInteger(source.sessions)} visits`);
     legend.append(item);
   });
   const pages = el('table', 'w-full type-table');
   const head = el('thead');
   const headRow = el('tr', 'border-t border-border-subtle bg-surface-subtle h-row-header');
-  ['Landing page', 'Sessions', 'Key events'].forEach((text, index) => {
+  ['Landing page', 'Visits', 'Key events'].forEach((text, index) => {
     const th = el('th', `px-3 type-label whitespace-nowrap ${index === 0 ? 'pl-4 text-left' : 'text-right'} ${index === 2 ? 'pr-4' : ''}`, text);
     th.scope = 'col';
     headRow.append(th);
@@ -410,8 +410,8 @@ export function referralCard(ctx) {
   connect.append(icon('plug', 'size-icon-sm'), GA4_CONNECTED ? 'Manage GA4' : 'Connect GA4');
   return cardFrame({
     key: 'traffic.ai_referrals',
-    title: 'AI referral traffic',
-    meta: `${formatInteger(traffic.total)} sessions in 28 days`,
+    title: 'AI referral visits',
+    meta: `${formatInteger(traffic.total)} visits in 28 days`,
     tools: [sampleBadge('Sample until GA4 is connected'), connect],
     body: grid,
     flush: true,
@@ -424,7 +424,7 @@ export function fanoutCard(ctx) {
   const table = el('table', 'w-full type-table');
   const head = el('thead');
   const headRow = el('tr', 'border-t border-border-subtle bg-surface-subtle h-row-header');
-  ['Searched query', 'Answers', 'Prompts', 'Top cited'].forEach((text, index) => {
+  ['Fan-out query', 'Answers', 'Prompts', 'Top cited'].forEach((text, index) => {
     const th = el('th', `px-3 type-label whitespace-nowrap ${index === 0 ? 'pl-4 text-left' : 'text-right'} ${index === 3 ? 'pr-4 hidden md:table-cell' : ''}`, text);
     th.scope = 'col';
     headRow.append(th);
@@ -444,7 +444,7 @@ export function fanoutCard(ctx) {
   wrap.append(table);
   return cardFrame({
     key: 'ai.fanout_top',
-    title: 'Fan-out queries',
+    title: 'Top fan-out queries',
     meta: `ChatGPT only · ${fanout.meanQueries.toFixed(1)} searches per answer`,
     body: wrap,
     flush: true,
@@ -466,7 +466,7 @@ export function changesCard(ctx) {
     }
   });
   const leading = gapFor(model).filter((entry) => entry.lost > 0).sort((a, b) => b.lost - a.lost)[0];
-  if (leading) items.push({ level: 'change', text: `${leading.lost} prompts name ${leading.name} more often than you`, detail: `of ${leading.compared} compared` });
+  if (leading) items.push({ level: 'change', text: `${leading.lost} prompts mention ${leading.name} more often than you`, detail: `of ${leading.compared} compared` });
   const domains = domainsFor(model);
   const fresh = domains.rows.filter((row) => row.isNew);
   if (fresh.length > 0) items.push({ level: 'notice', text: `${fresh.length} new cited domains: ${fresh.map((row) => row.domain).join(', ')}`, detail: 'cited at least twice, none before' });
@@ -533,7 +533,7 @@ export function calendarCard() {
   wrap.append(table);
   return cardFrame({
     key: 'ops.answer_calendar',
-    title: 'Collection runs',
+    title: 'Run calendar',
     meta: `run ${RUNS.number}, weekly`,
     body: wrap,
   });

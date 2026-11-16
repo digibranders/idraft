@@ -21,7 +21,7 @@ export const orderText = (value) => (Math.round(value * 10) / 10).toFixed(1);
 export function valueText(cell) {
   if (!cell || cell.state === 'unavailable') return 'n/a';
   if (cell.state === 'insufficient') return 'n/a';
-  if (cell.state === 'none') return 'No data';
+  if (cell.state === 'none') return 'n/a';
   return MEASURES[cell.measure].unit === 'order' ? orderText(cell.value) : pct0(cell.value);
 }
 

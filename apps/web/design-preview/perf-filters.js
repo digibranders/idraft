@@ -148,7 +148,7 @@ export function build({ get, set, scope }) {
     });
     return trigger;
   };
-  const country = multi('Country', COUNTRIES, 'countries', true);
+  const country = multi('Location', COUNTRIES, 'countries', true);
   const device = multi('Device', DEVICES, 'devices', false);
 
   const type = selectField(SEARCH_TYPES.map((item) => [item.code, item.code === 'discover' ? 'Discover' : `${item.name} search`]), 'web', (value) => set({ type: value }), 'Search type');

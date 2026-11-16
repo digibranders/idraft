@@ -53,22 +53,22 @@ export function promptRateCell(prompt, metric, withChange) {
   const observed = scope.reduce((sum, code) => sum + prompt.engines[code].n, 0);
   const usable = scope.filter((code) => rateFor(prompt, code, metric) !== null);
   const pooled = pooledCounts(usable.map((code) => countsOf(prompt, code, metric)));
-  const names = usable.map((code) => engineOf(code).name).join(', ');
+  const names = usable.map((code) => engineOf(code).label).join(', ');
   // With one engine in scope the reason is that engine's own: AI Overview says whether a keyword is linked
   const only = scope.length === 1 ? absenceOf(prompt, scope[0]) : null;
-  let absent = only ? { text: only.text, tip: `${engineOf(scope[0]).name}: ${only.reason}` } : { text: 'n/a', tip: 'Not observed in this window' };
+  let absent = only ? { text: only.text, tip: `${engineOf(scope[0]).label}: ${only.reason}` } : { text: 'n/a', tip: 'No answers in this period' };
   // A metric that none of the engines in view classifies is not a missing observation: say so
   const unclassified = scope.every((code) => !measures(code, metric));
-  if (unclassified) absent = { text: 'n/a', tip: `${scope.map((code) => engineOf(code).name).join(', ')}: ${NOT_CLASSIFIED}` };
+  if (unclassified) absent = { text: 'n/a', tip: `${scope.map((code) => engineOf(code).label).join(', ')}: ${NOT_CLASSIFIED}` };
   return rateCell({
     value,
     change: withChange ? changeFor(prompt, scope, metric) : null,
     trend: withChange ? trendOf(prompt, scope) : null,
-    sample: `${formatSampleCount(pooled.k, pooled.n)} ${metric === 'sov' ? 'mentions' : 'obs'}`,
+    sample: `${formatSampleCount(pooled.k, pooled.n)} ${metric === 'sov' ? 'mentions' : 'answers'}`,
     tip: used === 1 ? `${names} only` : `Equal-weight average of ${names}`,
     gap: {
-      text: observed === 0 || unclassified ? absent.text : 'Insufficient',
-      tip: observed === 0 || unclassified ? absent.tip : `${plural(observed, 'observation')} in scope. A rate needs at least ${MIN_OBSERVATIONS} on an engine.`,
+      text: observed === 0 || unclassified ? absent.text : 'Not enough data',
+      tip: observed === 0 || unclassified ? absent.tip : `${plural(observed, 'answer')} in scope. A rate needs at least ${MIN_OBSERVATIONS} on a platform.`,
     },
   });
 }
@@ -79,7 +79,7 @@ export function updatedCell(updated, className, stale = false) {
   line.append(el('span', 'num', updated.text));
   if (stale) {
     const badge = el('span', 'h-badge inline-flex items-center px-2 rounded-sm bg-warning-subtle text-warning-text type-micro', 'Stale');
-    badge.dataset.tip = 'The latest weekly run has no valid observation for this prompt';
+    badge.dataset.tip = 'The latest weekly run has no valid answer for this prompt';
     line.append(badge);
   }
   cell.append(line);
@@ -117,10 +117,10 @@ export function topEngineCell(rates, className = '') {
     return cell;
   }
   const line = el('span', 'inline-flex min-w-0 items-center gap-2');
-  line.append(engineLogo(best.engine.name), el('span', 'block min-w-0 truncate', best.engine.name));
+  line.append(engineLogo(best.engine.name), el('span', 'block min-w-0 truncate', best.engine.label));
   cell.append(el('span', 'flex min-w-0', ''));
   cell.firstChild.append(line);
-  cell.dataset.tip = `${rates.map((entry) => `${entry.engine.name} ${entry.rate === null ? 'n/a' : percent0(entry.rate)}`).join(', ')}. The engine with the highest mention rate. A pointer, not a ranking.`;
+  cell.dataset.tip = `${rates.map((entry) => `${entry.engine.label} ${entry.rate === null ? 'n/a' : percent0(entry.rate)}`).join(', ')}. The platform with the highest mention rate. A pointer, not a ranking.`;
   return cell;
 }
 

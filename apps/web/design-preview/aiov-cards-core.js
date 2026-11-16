@@ -14,8 +14,8 @@ import { wilsonInterval } from './vendor/stats/index.js';
 
 const ENGINE_TOKEN = { chatgpt_web: 'chart-1', gemini_web: 'chart-2', google_ai_mode: 'chart-3', google_ai_overview: 'chart-4' };
 export const OUTCOME_SEGMENTS = [
-  { key: 'both', label: 'Named and linked', token: 'seq-6' },
-  { key: 'mentionedOnly', label: 'Named only (unlinked)', token: 'seq-4' },
+  { key: 'both', label: 'Mentioned and cited', token: 'seq-6' },
+  { key: 'mentionedOnly', label: 'Mentioned only', token: 'seq-4' },
   { key: 'citedOnly', label: 'Cited only', token: 'seq-3' },
   { key: 'neither', label: 'Neither', token: 'chart-bar-neutral' },
 ];
@@ -119,7 +119,7 @@ function splitBar(shares, counts) {
     const dot = el('span', 'size-2 shrink-0 rounded-2xs');
     dot.style.background = `var(--${segment.token})`;
     dot.setAttribute('aria-hidden', 'true');
-    item.append(dot, el('span', 'truncate text-foreground-secondary', segment.label.replace(' (unlinked)', '')), el('span', 'ml-auto num text-foreground', pct0(shares[index])));
+    item.append(dot, el('span', 'truncate text-foreground-secondary', segment.label), el('span', 'ml-auto num text-foreground', pct0(shares[index])));
     legend.append(item);
   });
   wrap.append(bar, legend);
@@ -136,7 +136,7 @@ export function headlineRow(ctx) {
   // The hero: a plain rate, with the four outcomes that make it up (decision D1)
   const visibility = model.shown('visibility');
   const hero = el('section', 'xl:col-span-4 min-w-0 bg-surface border border-border rounded-lg px-4 py-3.5 flex flex-col justify-between gap-3');
-  hero.setAttribute('aria-label', 'AI Visibility');
+  hero.setAttribute('aria-label', 'AI visibility rate');
   const title = el('h2', 'type-section-title', MEASURES.visibility.label);
   // The prompts that contribute: on one platform only those with a valid answer there (one denominator, R12)
   const contributing = ctx.scope.platform === 'all' ? model.prompts.length : aggregateFor(model, ctx.scope.platform).prompts;
@@ -154,7 +154,7 @@ export function headlineRow(ctx) {
   const spark = seriesFor(model, 'visibility', ctx.scope.platform);
   if (spark.some((point) => point !== null)) {
     const trend = el('div', 'w-28 shrink-0');
-    trend.append(sparkline(spark, { token: 'chart-1', height: 32, label: `AI Visibility over the last 8 weekly runs, latest ${valueText(visibility)}` }));
+    trend.append(sparkline(spark, { token: 'chart-1', height: 32, label: `AI visibility rate over the last 8 weekly runs, latest ${valueText(visibility)}` }));
     top.append(trend);
   }
   const outcomes = outcomesFor(model);
@@ -173,7 +173,7 @@ export function headlineRow(ctx) {
     sov: () => tileNode({ label: MEASURES.sov.label, info: MEASURE_INFO.sov, cell: cell('sov'), ctx, measure: 'sov', series: seriesFor(model, 'sov', ctx.scope.platform) }),
     citation: () => tileNode({ label: MEASURES.citation.label, info: MEASURE_INFO.citation, cell: cell('citation'), ctx, measure: 'citation', series: seriesFor(model, 'citation', ctx.scope.platform) }),
     position: () => tileNode({ label: 'Mention position', info: MEASURE_INFO.position, cell: cell('position'), ctx, measure: 'position', series: seriesFor(model, 'position', ctx.scope.platform) }),
-    recommendation: () => tileNode({ label: 'Recommendation', info: MEASURE_INFO.recommendation, cell: cell('recommendation'), ctx, measure: 'recommendation', series: seriesFor(model, 'recommendation', ctx.scope.platform) }),
+    recommendation: () => tileNode({ label: 'Recommendation rate', info: MEASURE_INFO.recommendation, cell: cell('recommendation'), ctx, measure: 'recommendation', series: seriesFor(model, 'recommendation', ctx.scope.platform) }),
     sentiment: () => {
       const sentiment = cell('sentiment');
       const node = tileNode({ label: 'Sentiment', info: MEASURE_INFO.sentiment, cell: sentiment, ctx, measure: 'sentiment', series: seriesFor(model, 'sentiment', ctx.scope.platform) });
@@ -249,7 +249,7 @@ export function trendCard(ctx) {
       const tbody = el('tbody');
       WEEK_LABELS.forEach((week, index) => {
         const row = el('tr', 'h-row-compact border-t border-border-subtle');
-        row.append(el('th', 'px-3 text-left font-normal text-foreground', week), ...lines.map((line) => el('td', 'px-3 text-right num', line.values[index] === null ? 'No data' : `${(line.values[index] * 100).toFixed(1)}%`)));
+        row.append(el('th', 'px-3 text-left font-normal text-foreground', week), ...lines.map((line) => el('td', 'px-3 text-right num', line.values[index] === null ? 'n/a' : `${(line.values[index] * 100).toFixed(1)}%`)));
         tbody.append(row);
       });
       table.append(head, tbody);

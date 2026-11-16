@@ -79,7 +79,7 @@ export function lineOption({ labels, lines, band, boundary, format = pctAxis, to
       ...(boundary && line === lines[0] ? { markLine: { silent: true, symbol: 'none', label: { show: false }, lineStyle: { type: [3, 3], color: charts.token('chart-reference'), width: 1 }, data: [{ xAxis: boundary }] } } : {}),
     }),
   );
-  const tip = tooltipFormat ?? ((value) => (value === null ? 'No data' : `${(value * 100).toFixed(1)}%`));
+  const tip = tooltipFormat ?? ((value) => (value === null ? 'n/a' : `${(value * 100).toFixed(1)}%`));
   return {
     animation: false,
     grid: { left: 44, right: 28, top: 8, bottom: 24, outerBoundsMode: 'none' },
@@ -100,7 +100,7 @@ export function shareAreaOption({ labels, layers }) {
     grid: { left: 44, right: 28, top: 8, bottom: 24, outerBoundsMode: 'none' },
     xAxis: { type: 'category', data: labels, boundaryGap: false, ...axes.x },
     yAxis: { type: 'value', min: 0, max: 1, interval: 0.25, ...axes.y, axisLabel: { ...axes.y.axisLabel, formatter: pctAxis } },
-    tooltip: charts.tooltipTheme((list) => list.map((param) => ({ color: param.color, name: param.seriesName, value: param.value === null ? 'No data' : `${(param.value * 100).toFixed(1)}%` }))),
+    tooltip: charts.tooltipTheme((list) => list.map((param) => ({ color: param.color, name: param.seriesName, value: param.value === null ? 'n/a' : `${(param.value * 100).toFixed(1)}%` }))),
     series: layers.map((layer) => ({
       name: layer.name,
       type: 'line',
@@ -120,7 +120,7 @@ export function treemapOption({ types, total }) {
   // The own site is chart-1 everywhere; the other source types take the remaining chart colors in order
   const others = ['chart-2', 'chart-3', 'chart-4', 'chart-5', 'chart-6', 'chart-other'];
   let next = 0;
-  const colorOf = (type) => (type === 'Own site' ? 'chart-1' : others[next++ % others.length]);
+  const colorOf = (type) => (type === 'Your site' ? 'chart-1' : others[next++ % others.length]);
   return {
     animation: false,
     tooltip: {

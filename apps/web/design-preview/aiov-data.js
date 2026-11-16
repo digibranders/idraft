@@ -13,7 +13,7 @@ import { COMPETITORS, ENGINES, OWN, PROMPTS, TOPIC_PARENT, WEEKS, clamp, seeded 
 // -------------------------------------------------------------------------------------------------
 // Scope: platform, group, branded
 
-export const PLATFORMS = ENGINES.map((engine) => ({ code: engine.code, name: engine.name, asked: engine.asked, recommendations: engine.recommendations }));
+export const PLATFORMS = ENGINES.map((engine) => ({ code: engine.code, name: engine.label ?? engine.name, asked: engine.asked, recommendations: engine.recommendations }));
 export const PLATFORM_CODES = PLATFORMS.map((platform) => platform.code);
 export const platformOf = (code) => PLATFORMS.find((platform) => platform.code === code);
 /** A group is a topic (`topic:Pricing`), one flat level as on the Prompts page. Every prompt has exactly one topic. */
@@ -138,21 +138,21 @@ function aggregate(prompts, code, period, key) {
 
 /** `better` says which direction is good, for the tone of a change. Position: a lower number is better. */
 export const MEASURES = {
-  visibility: { label: 'AI Visibility', short: 'Visibility', unit: 'ratio', better: 'up' },
+  visibility: { label: 'AI visibility rate', short: 'Visibility', unit: 'ratio', better: 'up' },
   mention: { label: 'Mention rate', short: 'Mention', unit: 'ratio', better: 'up' },
-  position: { label: 'Avg. mention position', short: 'Mention position', unit: 'order', better: 'down', noun: 'mentions' },
+  position: { label: 'Mention position', short: 'Mention position', unit: 'order', better: 'down', noun: 'mentions' },
   recommendation: { label: 'Recommendation rate', short: 'Recommendation', unit: 'ratio', better: 'up', sample: true },
-  rank: { label: 'Avg. recommendation position', short: 'Recommendation position', unit: 'order', better: 'down', noun: 'listed answers', sample: true },
+  rank: { label: 'Recommendation position', short: 'Recommendation position', unit: 'order', better: 'down', noun: 'listed answers', sample: true },
   sov: { label: 'Share of voice', short: 'Share of voice', unit: 'ratio', better: 'up', noun: 'brand mentions' },
-  citation: { label: 'Source citation rate', short: 'Citation', unit: 'ratio', better: 'up' },
-  sentiment: { label: 'Brand sentiment', short: 'Sentiment', unit: 'ratio', better: 'up', noun: 'classified mentions', sample: true },
-  unlinked: { label: 'Unlinked brand mention', short: 'Unlinked mention', unit: 'ratio', better: 'up' },
-  referral: { label: 'Referral traffic', short: 'Referrals', unit: 'count', better: 'up', sample: true },
-  domain: { label: 'Top domain cited', short: 'Top domain', unit: 'text', better: 'up' },
+  citation: { label: 'Citation rate', short: 'Citation', unit: 'ratio', better: 'up' },
+  sentiment: { label: 'Sentiment', short: 'Sentiment', unit: 'ratio', better: 'up', noun: 'judged mentions', sample: true },
+  unlinked: { label: 'Mentioned, not cited', short: 'Mentioned, not cited', unit: 'ratio', better: 'up' },
+  referral: { label: 'AI referral visits', short: 'AI referral visits', unit: 'count', better: 'up', sample: true },
+  domain: { label: 'Top cited domain', short: 'Top domain', unit: 'text', better: 'up' },
   prompts: { label: 'Total prompts tracked', short: 'Prompts', unit: 'count', better: 'up' },
 };
 
-const NOT_CLASSIFIED = 'not classified for this engine';
+const NOT_CLASSIFIED = 'not classified for this platform';
 
 // Sentiment and the order of mention have no collector yet: seeded shares around a typical split, per platform and group
 function sentimentOf(code, groupId) {
@@ -480,21 +480,21 @@ export function groupRows(scope, measure) {
 // Citations: domains, source types, own pages, unlinked mentions
 
 const DOMAINS = [
-  { domain: 'northwind.com', role: 'Own', type: 'Own site', weight: 0 },
-  { domain: 'g2.com', role: 'Third party', type: 'Review sites', weight: 9 },
-  { domain: 'capterra.com', role: 'Third party', type: 'Review sites', weight: 6.5 },
+  { domain: 'northwind.com', role: 'Your site', type: 'Your site', weight: 0 },
+  { domain: 'g2.com', role: 'Third party', type: 'Review site', weight: 9 },
+  { domain: 'capterra.com', role: 'Third party', type: 'Review site', weight: 6.5 },
   { domain: 'reddit.com', role: 'Third party', type: 'Community', weight: 7.5 },
-  { domain: 'techradar.com', role: 'Third party', type: 'Publishers', weight: 6 },
-  { domain: 'forbes.com', role: 'Third party', type: 'Publishers', weight: 5.2 },
-  { domain: 'zapier.com', role: 'Third party', type: 'Publishers', weight: 4.4 },
-  { domain: 'hubspot.com', role: 'Competitor', type: 'Competitor sites', weight: 8.2 },
-  { domain: 'pipedrive.com', role: 'Competitor', type: 'Competitor sites', weight: 4.6 },
-  { domain: 'salesforce.com', role: 'Competitor', type: 'Competitor sites', weight: 4.1 },
-  { domain: 'zoho.com', role: 'Competitor', type: 'Competitor sites', weight: 3 },
-  { domain: 'freshworks.com', role: 'Competitor', type: 'Competitor sites', weight: 2.2 },
+  { domain: 'techradar.com', role: 'Third party', type: 'Publisher', weight: 6 },
+  { domain: 'forbes.com', role: 'Third party', type: 'Publisher', weight: 5.2 },
+  { domain: 'zapier.com', role: 'Third party', type: 'Publisher', weight: 4.4 },
+  { domain: 'hubspot.com', role: 'Competitor', type: 'Competitor', weight: 8.2 },
+  { domain: 'pipedrive.com', role: 'Competitor', type: 'Competitor', weight: 4.6 },
+  { domain: 'salesforce.com', role: 'Competitor', type: 'Competitor', weight: 4.1 },
+  { domain: 'zoho.com', role: 'Competitor', type: 'Competitor', weight: 3 },
+  { domain: 'freshworks.com', role: 'Competitor', type: 'Competitor', weight: 2.2 },
   { domain: 'quora.com', role: 'Third party', type: 'Community', weight: 2.4 },
-  { domain: 'youtube.com', role: 'Third party', type: 'Video', weight: 3.2 },
-  { domain: 'wikipedia.org', role: 'Third party', type: 'Reference', weight: 2.1 },
+  { domain: 'youtube.com', role: 'Third party', type: 'Other', weight: 3.2 },
+  { domain: 'wikipedia.org', role: 'Third party', type: 'Other', weight: 2.1 },
 ];
 const PLATFORM_TILT = {
   chatgpt_web: { 'reddit.com': 1.5, 'g2.com': 1.3, 'quora.com': 1.4 },

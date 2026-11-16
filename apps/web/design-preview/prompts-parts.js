@@ -85,7 +85,7 @@ function keywordRow({ keyword, rank, overview, cited, linked = false }) {
   line.append(el('span', 'truncate', keyword));
   if (linked) {
     const badge = el('span', `${NEUTRAL_BADGE} shrink-0`, 'Linked');
-    badge.dataset.tip = 'The AI Overview of this prompt is read from the rank checks of this keyword';
+    badge.dataset.tip = 'The Google AI Overview of this prompt is taken from the rank checks of this keyword';
     line.append(badge);
   }
   name.append(line);

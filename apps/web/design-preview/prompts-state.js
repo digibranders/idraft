@@ -10,10 +10,10 @@ import { trendIcon } from './prompts-parts.js';
 export const VIEWS = {
   default: { label: 'Default', panel: ['Core'], branded: 'exclude' },
   branded: { label: 'Branded prompts', panel: [], branded: 'only' },
-  discovery: { label: 'Discovery panel', panel: ['Discovery'], branded: 'exclude' },
+  discovery: { label: 'Discovery schedule', panel: ['Discovery'], branded: 'exclude' },
 };
 /** The metric names of the select and of the engine columns. */
-export const METRIC_LABEL = { visibility: 'AI visibility', mention: 'Mention', citation: 'Citation', sov: 'Share of voice' };
+export const METRIC_LABEL = { visibility: 'AI visibility rate', mention: 'Mention', citation: 'Citation', sov: 'Share of voice' };
 export const BRANDED_LABEL = { exclude: 'Excluded', include: 'Included', only: 'Only' };
 
 export const state = {
@@ -69,7 +69,7 @@ export const scopePrompts = () => PROMPTS.filter(inScope);
 
 /** Says which prompts the numbers are about: "core, not branded". */
 export function scopeText() {
-  const panel = state.panel.length === 0 ? 'all panels' : state.panel.map((name) => name.toLowerCase()).join(' and ');
+  const panel = state.panel.length === 0 ? 'all schedules' : state.panel.map((name) => name.toLowerCase()).join(' and ');
   const branded = { exclude: 'not branded', include: 'branded included', only: 'branded only' }[state.branded];
   return `${panel}, ${branded}`;
 }

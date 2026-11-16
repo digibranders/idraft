@@ -7,7 +7,7 @@
 import { UNGROUPED, groupNames, store, usedCountries } from './kw-grouped-data.js';
 
 export const GROUP_LABELS = { order: 'Order of the groups' };
-export const ALL_COUNTRIES = 'All countries';
+export const ALL_COUNTRIES = 'All locations';
 
 /** The countries a new keyword is added to by default: the one the page shows, or the first of those in use. */
 export const addScope = () => (state.country === ALL_COUNTRIES ? usedCountries().slice(0, 1) : [state.country]);
@@ -17,7 +17,7 @@ export const addScope = () => (state.country === ALL_COUNTRIES ? usedCountries()
 // default view, `grouped` is where it exists: both views, only in the grouped one, or only in the flat one.
 
 /** What the Clicks column says it is, in its header. */
-export const CLICKS_TIP = 'Clicks from Google Search Console in the last 28 days, for this keyword in this country and on the devices chosen. Not an estimate.';
+export const CLICKS_TIP = 'Clicks from Google Search Console in the last 28 days, for this keyword in this location and on the devices chosen. Not an estimate.';
 
 // The mock has no Search Console behind it: the clicks of a keyword are made up from its volume and rank. In the app
 // they are read from Search Console (docs/18 section 4.9), and no estimate is shown.
@@ -26,7 +26,7 @@ const clickRate = (rank) => (rank <= 10 ? CLICK_RATE[rank - 1] : rank <= 20 ? 0.
 const DEVICE_SHARE = { desktop: 0.35, mobile: 0.65 };
 
 /** What the Impressions column says it is, in its header. */
-export const IMPRESSIONS_TIP = 'Impressions from Google Search Console in the last 28 days: how often this keyword showed a page of the site in results, in this country and on the devices chosen. Not an estimate.';
+export const IMPRESSIONS_TIP = 'Impressions from Google Search Console in the last 28 days: how often this keyword showed a page of the site in results, in this location and on the devices chosen. Not an estimate.';
 
 /** Illustrative impressions in 28 days: a keyword is seen even when it ranks far down, and more the higher it ranks. */
 export function impressions(keyword) {
@@ -40,16 +40,16 @@ export function clicks(keyword) {
 }
 
 export const COLUMNS = [
-  { id: 'country', label: 'Country', width: 120, on: true },
+  { id: 'country', label: 'Location', width: 120, on: true },
   { id: 'rank', label: 'Rank', width: 128, on: true, sort: 'rank' },
   { id: 'url', label: 'Ranking URL', width: 180, on: false },
   { id: 'volume', label: 'Volume', width: 96, on: true, sort: 'volume' },
   { id: 'clicks', label: 'Clicks', width: 112, on: true, sort: 'clicks', tip: CLICKS_TIP },
   { id: 'impressions', label: 'Impressions', width: 120, on: true, sort: 'impressions', tip: IMPRESSIONS_TIP },
-  { id: 'kd', label: 'KD', width: 72, on: true, sort: 'kd', not: 'groups' },
+  { id: 'kd', label: 'KD', width: 72, on: true, sort: 'kd', not: 'groups', tip: 'Keyword difficulty: how hard it is to rank in the top 10 on Google.' },
   { id: 'intent', label: 'Intent', width: 112, on: true, not: 'groups' },
   { id: 'features', label: 'SERP features', width: 128, on: true, not: 'groups' },
-  { id: 'aio', label: 'AI Overview', width: 112, on: true },
+  { id: 'aio', label: 'Google AI Overview', width: 160, on: true },
   { id: 'cpc', label: 'CPC (USD)', width: 112, on: true, sort: 'cpc' },
   { id: 'trend', label: 'Trend', width: 96, on: true, not: 'groups' },
   { id: 'priority', label: 'Priority', width: 100, on: false, sort: 'priority' },
@@ -98,10 +98,10 @@ export const columnsFor = (items = []) =>
 export const devicesIn = () => [state.device];
 export const isRank = (rank) => typeof rank === 'number';
 export const isTracked = (rank) => rank !== 'n';
-export const rankText = (rank) => (isRank(rank) ? String(rank) : { b: '>100', p: 'Pending', n: 'Not tracked' }[rank]);
+export const rankText = (rank) => (isRank(rank) ? String(rank) : { b: 'Beyond depth', p: 'Not collected yet', n: 'Not tracked' }[rank]);
 export const sum = (list) => list.reduce((total, value) => total + value, 0);
 export const plural = (count, noun) => `${count.toLocaleString('en-US')} ${count === 1 ? noun : noun.endsWith('y') ? `${noun.slice(0, -1)}ies` : `${noun}s`}`;
-export const volumeText = (value) => (value === 0 ? 'No data' : value.toLocaleString('en-US'));
+export const volumeText = (value) => (value === 0 ? 'Not collected yet' : value.toLocaleString('en-US'));
 
 /** Places gained since the previous check; positive is better. A rank that was beyond the depth counts as a gain. */
 export function gained(keyword, device) {
@@ -132,7 +132,7 @@ export function derived(keyword) {
   if (pending) aio = { kind: 'pending' };
   else if (features.includes('sparkles')) aio = ranked <= 3 ? { kind: 'cited', position: 1 + (seed % 3) } : { kind: 'present' };
   const day = 4 - (seed % 3);
-  const updated = pending ? 'Pending' : `Nov ${day}, ${String(2 + (seed % 6)).padStart(2, '0')}:${String(seed % 60).padStart(2, '0')}`;
+  const updated = pending ? 'Not collected yet' : `Nov ${day}, ${String(2 + (seed % 6)).padStart(2, '0')}:${String(seed % 60).padStart(2, '0')}`;
   const added = keyword.id.startsWith('new') ? 'Nov 4, 14:10' : 'Oct 31, 20:48';
   const slug = keyword.keyword.replace(/[^a-z0-9]+/g, '-');
   const url = pending || ranked === Infinity ? null : `https://eventussecurity.com/${slug}`;
@@ -196,18 +196,18 @@ export function monthly(keyword) {
 // Which keywords the page shows
 
 export const FILTER_FIELDS = {
-  country: { label: 'Country', multiple: true, values: () => usedCountries().map((name) => [name, name]) },
+  country: { label: 'Location', multiple: true, values: () => usedCountries().map((name) => [name, name]) },
   group: { label: 'Group', values: () => [...groupNames(), UNGROUPED].map((name) => [name, name]) },
   intent: { label: 'Intent', values: () => [['commercial', 'Commercial'], ['navigational', 'Navigational'], ['informational', 'Informational'], ['unknown', 'Unknown']] },
-  rank: { label: 'Rank', values: () => [['top3', 'Top 3'], ['top10', 'Top 10'], ['top20', 'Top 20'], ['top100', 'Top 100'], ['beyond', 'Over 100']] },
+  rank: { label: 'Rank', values: () => [['top3', 'Top 3'], ['top10', 'Top 10'], ['top20', 'Top 20'], ['top100', 'Top 100'], ['beyond', 'Beyond depth']] },
   volume: { label: 'Volume', values: () => [['100', '100 or more'], ['1000', '1,000 or more']] },
-  kd: { label: 'KD', values: () => [['30', '30 or less'], ['50', '50 or less']] },
+  kd: { label: 'Keyword difficulty', values: () => [['30', '30 or less'], ['50', '50 or less']] },
   moved: { label: 'Moved', values: () => [['up', 'Improved'], ['down', 'Declined']] },
 };
 
 function matchesFilter({ field, value }, keyword) {
   const devices = devicesIn();
-  // Countries are one choice among several: the keyword's country is in the chosen ones (see `shown`)
+  // Locations are one choice among several: the keyword's location is in the chosen ones (see `shown`)
   if (field === 'country') return true;
   if (field === 'group') return (keyword.group ?? UNGROUPED) === value;
   if (field === 'intent') return keyword.intent === value;
@@ -241,7 +241,7 @@ export const groupOf = (keyword) => keyword.group ?? UNGROUPED;
 
 export function tableRows(items) {
   const devices = devicesIn();
-  const header = ['Keyword', 'Country', `Rank (${state.device})`, 'Ranking URL', 'Volume', 'Clicks (28 days)', 'Impressions (28 days)', 'KD', 'CPC (USD)', 'Intent', 'Group', 'Updated'];
+  const header = ['Keyword', 'Location', `Rank (${state.device})`, 'Ranking URL', 'Volume', 'Clicks (28 days)', 'Impressions (28 days)', 'Keyword difficulty', 'CPC (USD)', 'Intent', 'Group', 'Updated'];
   const body = items.map((keyword) => [
     keyword.keyword,
     keyword.country,
@@ -261,7 +261,7 @@ export function tableRows(items) {
 
 export function kpiRows(items) {
   const m = measures(items);
-  return [['Country', state.country], ['Device', state.device === 'desktop' ? 'Desktop' : 'Mobile'], ['Keywords', m.tracked], ['Top 3', m.top3], ['Top 10', m.top10], ['Top 20', m.top20]];
+  return [['Location', state.country], ['Device', state.device === 'desktop' ? 'Desktop' : 'Mobile'], ['Keywords', m.tracked], ['Top 3', m.top3], ['Top 10', m.top10], ['Top 20', m.top20]];
 }
 
 const escapeXml = (value) => String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');

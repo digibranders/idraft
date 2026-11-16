@@ -44,7 +44,7 @@ scopeBar.setAttribute('aria-label', 'Scope');
 const platformSelect = createSelect({ name: 'Platform', options: platformOptions, get: () => state.platform, set: (id) => setScope({ platform: id }), width: 'min-w-52', triggerWidth: 'sm:w-60' });
 const groupSelect = createSelect({ name: 'Group', options: groupOptions, get: () => state.group, set: (id) => setScope({ group: id }), searchable: true, width: 'min-w-60', triggerWidth: 'sm:w-60' });
 const compareSelect = createSelect({
-  name: 'Compare',
+  name: 'Compare with',
   options: [
     { id: 'prev', label: 'vs previous period' },
     { id: 'off', label: 'No comparison' },
@@ -81,7 +81,7 @@ function safeBuild(def, ctx) {
   try {
     return def.build(ctx);
   } catch (error) {
-    console.error(`AI Overview card "${def.key}" failed`, error);
+    console.error(`AI visibility card "${def.key}" failed`, error);
     return cardFrame({ key: `error.${def.key}`, title: def.title, body: emptyBody('This card could not be drawn', 'Reload the preview. The error is in the console.') });
   }
 }
