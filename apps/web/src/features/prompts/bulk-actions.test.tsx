@@ -721,11 +721,11 @@ describe('the bulk bar of the Groups tab', () => {
   it('runs the prompts of a group through the same confirm, with the run named', async () => {
     const { user } = renderOn('editor', '');
     const tree = await topics();
-    await user.click(await within(tree).findByRole('checkbox', { name: 'Select SEO' }));
-    expect(within(bar()).getByText('1 group selected, 12 prompts')).toBeInTheDocument();
+    await user.click(await within(tree).findByRole('checkbox', { name: 'Select Technical SEO' }));
+    expect(within(bar()).getByText('1 group selected · 4 prompts')).toBeInTheDocument();
     await user.click(within(bar()).getByRole('button', { name: 'Run now' }));
-    const dialog = await screen.findByRole('alertdialog', { name: 'Run 12 prompts now?' });
-    expect(within(dialog).getByText(/This is one manual run of 12 prompts\./)).toBeInTheDocument();
+    const dialog = await screen.findByRole('alertdialog', { name: 'Run 4 prompts now?' });
+    expect(within(dialog).getByText(/This is one manual run of 4 prompts\./)).toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
     await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
   });

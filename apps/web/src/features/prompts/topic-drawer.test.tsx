@@ -94,19 +94,18 @@ describe('the topic drawer: opening', () => {
     expect(screen.queryByRole('button', { name: 'Add prompts' })).toBeNull();
   });
 
-  it('offers the prompts of an open parent in Show all, which opens the drawer on its Prompts tab with every one', async () => {
+  it('opens a group onto all of its prompts in the table, with no Show all row, and lists them in its Prompts tab', async () => {
     const { user } = renderWithProviders(promptsAs('viewer'));
     const tree = await treegrid();
-    await user.click(await within(tree).findByRole('button', { name: 'Expand SEO, 2 groups' }));
-    // The two topics under SEO and the row that offers its prompts, all at level 2
-    await waitFor(() => expect(tree.querySelectorAll('[role="row"][aria-level="2"]')).toHaveLength(3));
-    // A topic of eight or fewer has nothing to show more of
-    await user.click(within(tree).getByRole('button', { name: 'Expand Paid Search, 2 prompts' }));
-    expect(within(tree).queryByRole('button', { name: /^Show all \d+ prompts of Paid Search$/ })).toBeNull();
-    await user.click(within(tree).getByRole('button', { name: 'Show all 12 prompts of SEO' }));
-    const panel = await drawer('SEO');
-    expect(within(panel).getByRole('tab', { name: 'Prompts' })).toHaveAttribute('aria-selected', 'true');
-    expect(await within(panel).findAllByRole('listitem')).toHaveLength(12);
+    await user.click(await within(tree).findByRole('button', { name: 'Expand Technical SEO, 4 prompts' }));
+    await waitFor(() => expect(tree.querySelectorAll('[role="row"][aria-level="2"]')).toHaveLength(4));
+    expect(within(tree).queryByRole('button', { name: /^Show all/ })).toBeNull();
+    await user.click(within(tree).getByRole('button', { name: 'Open the group Technical SEO' }));
+    const panel = await drawer('Technical SEO');
+    // The tab says how many prompts it lists
+    await user.click(within(panel).getByRole('tab', { name: 'Prompts (4)' }));
+    expect(await within(panel).findByText('How do I run a technical SEO audit on a large site?')).toBeInTheDocument();
+    expect(within(panel).getByText('How long does a technical SEO migration take?')).toBeInTheDocument();
   });
 
   it('closes with Escape', async () => {
@@ -245,7 +244,7 @@ describe('the topic drawer: a prompt opened from a topic', () => {
     await waitFor(() => expect(within(screen.getByRole('complementary')).getByText('4 of 12')).toBeInTheDocument());
     await user.click(within(screen.getByRole('complementary')).getByRole('button', { name: 'Open the group SEO' }));
     const back = await drawer('SEO');
-    expect(within(back).getByRole('tab', { name: 'Prompts' })).toHaveAttribute('aria-selected', 'true');
+    expect(within(back).getByRole('tab', { name: /^Prompts/ })).toHaveAttribute('aria-selected', 'true');
   });
 
   it('gives no topic badge to a prompt opened from the Prompts tab', async () => {
@@ -274,20 +273,21 @@ describe('the topic drawer: a prompt opened from a topic', () => {
   });
 
   it('gives no topic badge to a prompt that arrives another way after one opened from a topic', async () => {
-    const { user } = renderOn('viewer', inspect(`topic:${seo}`, 'prompts'));
-    const panel = await drawer('SEO');
+    const { user } = renderOn('viewer', inspect(`topic:${MOCK_TERM_IDS.technicalSeo}`, 'prompts'));
+    const panel = await drawer('Technical SEO');
     const [item] = await within(panel).findAllByRole('listitem');
     await user.click(within(item ?? panel).getByRole('button'));
     const opened = await screen.findByRole('complementary');
-    expect(within(opened).getByRole('button', { name: 'Open the group SEO' })).toBeInTheDocument();
+    expect(within(opened).getByRole('button', { name: 'Open the group Technical SEO' })).toBeInTheDocument();
     // A row of the Prompts tab is a flat list: no topic, and the prompts of all the project step
     await user.click(screen.getByRole('radio', { name: 'Prompts' }));
     const table = await screen.findByRole('grid', { name: 'Prompts' });
     const outside = 'What is the best way to manage paid search on a small budget?';
     await user.click(await within(table).findByText(outside));
     const next = await screen.findByRole('complementary', { name: outside });
-    expect(within(next).queryByRole('button', { name: /^Open the group/ })).toBeNull();
-    expect(within(next).queryByText(/ of 12$/)).toBeNull();
+    // The prompt's group badge leads to its group, whichever way it was opened (PR-DRAWER-03); no list of the group steps
+    expect(within(next).getByRole('button', { name: 'Open the group Paid Search' })).toBeInTheDocument();
+    expect(within(next).queryByText(/ of 4$/)).toBeNull();
   });
 
   it('leaves the topic drawer tab out of the address of a prompt opened from a table row', async () => {

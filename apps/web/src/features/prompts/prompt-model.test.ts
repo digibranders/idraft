@@ -230,18 +230,24 @@ describe('the topic filter', () => {
     expect([...terms.keys()]).toEqual(['seo', 'technical']);
   });
 
-  it('offers the topics the prompts carry and every topic above them, in the tree order', () => {
+  it('offers every topic of the tree as one flat list in the tree order, named by its path', () => {
     const carried = collectTopicTerms([carrying(term('crawl', 'seo/technical-seo/crawling'))]);
-    expect(topicChoices(TREE, carried).map((choice) => [choice.termId, choice.name, choice.path])).toEqual([
-      ['seo', 'SEO', 'SEO'],
-      ['technical', 'Technical SEO', 'SEO / Technical SEO'],
-      ['crawl', 'Crawling', 'SEO / Technical SEO / Crawling'],
+    expect(topicChoices(TREE, carried).map((choice) => [choice.termId, choice.path])).toEqual([
+      ['seo', 'SEO'],
+      ['technical', 'SEO / Technical SEO'],
+      ['crawl', 'SEO / Technical SEO / Crawling'],
+      ['audit', 'SEO audit'],
+      ['paid', 'Paid search'],
     ]);
   });
 
   it('offers a carried topic the tree does not hold by what the prompt says of it, after the tree ones', () => {
     const carried = collectTopicTerms([carrying(term('loose', 'a/loose'), term('paid', 'paid'))]);
     expect(topicChoices(TREE, carried).map((choice) => [choice.termId, choice.name, choice.path])).toEqual([
+      ['seo', 'SEO', 'SEO'],
+      ['technical', 'Technical SEO', 'SEO / Technical SEO'],
+      ['crawl', 'Crawling', 'SEO / Technical SEO / Crawling'],
+      ['audit', 'SEO audit', 'SEO audit'],
       ['paid', 'Paid search', 'Paid search'],
       ['loose', 'loose', 'a/loose'],
     ]);
@@ -637,19 +643,19 @@ describe('the topic drawer', () => {
 
   it('puts the most mentioned prompt of the engine first, and a prompt with no rate last, keeping the order of equals', () => {
     const rows = [prompt('none', [], null), prompt('low', [], 0.25), prompt('high', [], 0.75), prompt('tie', [], 0.25)];
-    expect(ids(mostMentionedFirst(rows, 'chatgpt_web'))).toEqual(['high', 'low', 'tie', 'none']);
+    expect(ids(mostMentionedFirst(rows, ['chatgpt_web']))).toEqual(['high', 'low', 'tie', 'none']);
     // No engine leaves every prompt without a rate, and so in the order given
-    expect(ids(mostMentionedFirst(rows, undefined))).toEqual(['none', 'low', 'high', 'tie']);
+    expect(ids(mostMentionedFirst(rows, []))).toEqual(['none', 'low', 'high', 'tie']);
   });
 
   it('lists the prompts of a topic and of the topics below it, most mentioned first, and none for a topic the tree does not hold', () => {
     const summary = {
       prompts: [prompt('a', ['crawl'], 0.1), prompt('b', ['seo'], 0.6), prompt('c', [], 0.9)],
     } as unknown as PromptsSummary;
-    expect(ids(topicPrompts(summary, 'seo', tree, 'chatgpt_web'))).toEqual(['b', 'a']);
-    expect(ids(topicPrompts(summary, NO_TOPIC, tree, 'chatgpt_web'))).toEqual(['c']);
-    expect(topicPrompts(summary, 'elsewhere', tree, 'chatgpt_web')).toBeNull();
-    expect(topicPrompts(undefined, 'seo', tree, 'chatgpt_web')).toBeNull();
+    expect(ids(topicPrompts(summary, 'seo', tree, ['chatgpt_web']))).toEqual(['b', 'a']);
+    expect(ids(topicPrompts(summary, NO_TOPIC, tree, ['chatgpt_web']))).toEqual(['c']);
+    expect(topicPrompts(summary, 'elsewhere', tree, ['chatgpt_web'])).toBeNull();
+    expect(topicPrompts(undefined, 'seo', tree, ['chatgpt_web'])).toBeNull();
   });
 
   it('finds the summary row of a topic by its term id, and the row of no topic by its key', () => {

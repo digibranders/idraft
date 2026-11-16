@@ -199,20 +199,16 @@ describe('the prompt inspector: what it shows', () => {
     expect(within(inspector).queryByText(/never/i)).toBeNull();
   });
 
-  it('shows the group path as the badge when the prompt is opened from the Prompts tab', async () => {
+  it('shows the group by its name as the badge, with no path above it, and a way to its drawer (PR-DRAWER-03)', async () => {
     const stored = promptsOf(fynix.project_id).prompts.find((prompt) => prompt.prompt_id === first.prompt_id);
     if (stored === undefined) throw new Error('The stored prompt is missing');
     stored.term_ids = [MOCK_TERM_IDS.technicalSeo];
     renderOn('viewer', opened);
     const inspector = await panel();
-    // The tooltip keeps its own copy of the path for assistive technology: the badge is the one the keyboard reaches
-    await within(inspector).findByText('Technical SEO');
-    const badges = within(inspector)
-      .getAllByText('seo/technical-seo')
-      .filter((element) => element.getAttribute('tabindex') === '0');
-    expect(badges).toHaveLength(1);
-    // The topic stays a fact, by its name
-    expect(within(inspector).getByText('Technical SEO')).toBeInTheDocument();
+    // The badge and the fact of the prompt both say the name
+    expect((await within(inspector).findAllByText('Technical SEO')).length).toBeGreaterThanOrEqual(1);
+    expect(within(inspector).queryByText('seo/technical-seo')).toBeNull();
+    expect(within(inspector).queryByText('SEO / Technical SEO')).toBeNull();
   });
 
   it('lists the latest ten answers of the prompt on the History tab', async () => {
@@ -341,8 +337,8 @@ describe('the prompt inspector: opening and stepping', () => {
     expect(await within(inspector).findAllByText('Paid Search')).toHaveLength(2);
     expect(within(inspector).getByRole('button', { name: 'Open the group Paid Search' })).toBeInTheDocument();
     // A topic's name opens the topic's drawer, in the place of the prompt's
-    await user.click(within(tree).getByRole('button', { name: 'Open the group Content Marketing' }));
-    expect(await panel('Content Marketing')).toBeInTheDocument();
+    await user.click(within(tree).getByRole('button', { name: 'Open the group Technical SEO' }));
+    expect(await panel('Technical SEO')).toBeInTheDocument();
   });
 
   it('steps to the previous and the next prompt in the order of the Prompts table', async () => {

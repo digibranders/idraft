@@ -226,35 +226,40 @@ export function topicsSpanned(
 /** The topic key of the prompts without a topic, in the address (`topic:__none`) and in the table's row ids. */
 export const NO_TOPIC = '__none';
 
-/** The most prompts an opened topic lists in the table, before "Show all" (ADR-DS-022 decision 2). */
-export const TOPIC_ROW_PROMPTS = 8;
-
-/** The prompts the topic drawer's Overview lists. */
+/** The prompts the group drawer's Overview lists. */
 export const TOPIC_TOP_PROMPTS = 5;
 
-/** The mention rate of the prompts on the engine; one without a rate comes after every one that has. */
-const mentionedOn = (prompt: PromptSummaryRow, engineCode: string | undefined): number =>
-  prompt.engines.find((engine) => engine.engine_code === engineCode)?.mentioned.value ?? -1;
+/**
+ * The mention rate of a prompt over the platforms `codes`: the equal-weight average of those that have a rate; -1 for a
+ * prompt with none, which comes after every one that has (PR-TOPICS-09).
+ */
+const mentionedOver = (prompt: PromptSummaryRow, codes: readonly string[]): number => {
+  const rates = codes.flatMap((code) => {
+    const value = prompt.engines.find((engine) => engine.engine_code === code)?.mentioned.value;
+    return value === null || value === undefined ? [] : [value];
+  });
+  return rates.length === 0 ? -1 : rates.reduce((sum, rate) => sum + rate, 0) / rates.length;
+};
 
-/** The prompts, most mentioned on the engine first (a stable sort: equals keep their order). */
+/** The prompts, most mentioned first over the platforms `codes` (a stable sort: equals keep their order). */
 export const mostMentionedFirst = (
   prompts: readonly PromptSummaryRow[],
-  engineCode: string | undefined,
-): PromptSummaryRow[] => [...prompts].sort((a, b) => mentionedOn(b, engineCode) - mentionedOn(a, engineCode));
+  codes: readonly string[],
+): PromptSummaryRow[] => [...prompts].sort((a, b) => mentionedOver(b, codes) - mentionedOver(a, codes));
 
 /**
- * The prompts of a topic as its row lists them and its drawer does, most mentioned on `engineCode` first;
+ * The prompts of a group as its row lists them and its drawer does, most mentioned over the platforms `codes` first;
  * `null` while they cannot be told (no summary, or a topic the tree does not hold yet).
  */
 export function topicPrompts(
   summary: PromptsSummary | undefined,
   key: string,
   descendants: TopicDescendants,
-  engineCode: string | undefined,
+  codes: readonly string[],
 ): PromptSummaryRow[] | null {
   if (summary === undefined) return null;
   const members = topicMembers(key === NO_TOPIC ? null : key, summary.prompts, descendants);
-  return members === null ? null : mostMentionedFirst(members, engineCode);
+  return members === null ? null : mostMentionedFirst(members, codes);
 }
 
 /** The summary's row of a topic by its key: the term id, or `NO_TOPIC` for the prompts without one. */
@@ -303,20 +308,15 @@ export interface TopicChoice {
 }
 
 /**
- * The topics a filter offers: those the prompts carry and every topic above them, so a topic no prompt is
- * given itself can be chosen (the summary has a row for it). The tree's order first; a carried topic the tree
- * does not hold comes after, as the prompt describes it.
+ * The groups a filter offers, as the Overview's Group select does (preview commit 6f3e4a9c): every topic of the topic
+ * vocabularies as one flat list in the tree's order, with no parent rows or indent; a topic below another is named by
+ * its path (`path` of a top level topic is its name). A carried topic the tree does not hold (not read yet, or deleted)
+ * comes after, as the prompt describes it. Choosing a topic that has others below it keeps their groups too.
  */
 export function topicChoices(tree: readonly NamedTerm[], carried: ReadonlyMap<string, TopicTerm>): TopicChoice[] {
   const byId = new Map(tree.map((term) => [term.termId, term]));
-  const wanted = new Set<string>();
-  for (const id of carried.keys()) {
-    for (let at = byId.get(id); at !== undefined && !wanted.has(at.termId); at = byId.get(at.parentId ?? '')) {
-      wanted.add(at.termId);
-    }
-  }
   return [
-    ...tree.filter((term) => wanted.has(term.termId)).map(({ termId, name, path }) => ({ termId, name, path })),
+    ...tree.map(({ termId, name, path }) => ({ termId, name, path })),
     ...[...carried.values()]
       .filter((term) => !byId.has(term.term_id))
       .map((term) => ({ termId: term.term_id, name: term.name, path: term.path })),

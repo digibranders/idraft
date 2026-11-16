@@ -97,57 +97,46 @@ describe('selecting prompts on the Prompts tab', () => {
 });
 
 describe('selecting groups on the Groups tab', () => {
-  it('has a checkbox on every group row and one in the header', async () => {
+  it('has a checkbox on every group row and one in the header, and none on a parent that is no row', async () => {
     renderOn('viewer', '');
     const tree = await topics();
-    expect(await within(tree).findByRole('checkbox', { name: 'Select SEO' })).toBeInTheDocument();
-    expect(within(tree).getByRole('checkbox', { name: 'Select Content Marketing' })).toBeInTheDocument();
+    expect(await within(tree).findByRole('checkbox', { name: 'Select Technical SEO' })).toBeInTheDocument();
+    expect(within(tree).getByRole('checkbox', { name: 'Select Paid Search' })).toBeInTheDocument();
     expect(within(tree).getByRole('checkbox', { name: /^Select all \d+ groups loaded$/ })).toBeInTheDocument();
+    expect(within(tree).queryByRole('checkbox', { name: 'Select SEO' })).toBeNull();
+    expect(within(tree).queryByRole('checkbox', { name: 'Select No group' })).toBeNull();
   });
 
-  it('selects the prompts a group holds, a parent with those of its groups, and says so in the bar', async () => {
+  it('selects the prompts a group holds and says so in the bar, each prompt once', async () => {
     const { user } = renderOn('viewer', '');
     const tree = await topics();
     await user.click(await within(tree).findByRole('checkbox', { name: 'Select Paid Search' }));
-    expect(within(bar()).getByText('1 group selected, 2 prompts')).toBeInTheDocument();
-    await user.click(within(tree).getByRole('checkbox', { name: 'Select SEO' }));
-    expect(within(bar()).getByText('2 groups selected, 14 prompts')).toBeInTheDocument();
-  });
-
-  it('draws the groups below a ticked parent as ticked once it is opened, and a parent as partly ticked when one is left out', async () => {
-    const { user } = renderOn('viewer', '');
-    const tree = await topics();
-    await user.click(await within(tree).findByRole('checkbox', { name: 'Select SEO' }));
-    await user.click(within(tree).getByRole('button', { name: 'Expand SEO, 2 groups' }));
-    expect(within(tree).getByRole('checkbox', { name: 'Select Technical SEO' })).toBeChecked();
+    expect(within(bar()).getByText('1 group selected · 2 prompts')).toBeInTheDocument();
     await user.click(within(tree).getByRole('checkbox', { name: 'Select Technical SEO' }));
-    expect(within(tree).getByRole('checkbox', { name: 'Select SEO' })).toHaveAttribute('aria-checked', 'mixed');
-    expect(within(bar()).getByText('1 group selected, 8 prompts')).toBeInTheDocument();
+    expect(within(bar()).getByText('2 groups selected · 6 prompts')).toBeInTheDocument();
+    await user.click(within(tree).getByRole('checkbox', { name: 'Select Technical SEO' }));
+    expect(within(bar()).getByText('1 group selected · 2 prompts')).toBeInTheDocument();
   });
 
-  it('selects the prompt rows of an open group one by one, and counts them as prompts', async () => {
+  it('has no checkbox on the prompt rows of an open group: the group is what is chosen', async () => {
     const { user } = renderOn('viewer', '');
     const tree = await topics();
     await user.click(await within(tree).findByRole('button', { name: /^Expand Paid Search/ }));
-    await user.click(
-      within(tree).getByRole('checkbox', {
+    expect(within(tree).getByText('What is the best way to manage paid search on a small budget?')).toBeInTheDocument();
+    expect(
+      within(tree).queryByRole('checkbox', {
         name: 'Select What is the best way to manage paid search on a small budget?',
       }),
-    );
-    expect(within(bar()).getByText('1 selected')).toBeInTheDocument();
-    expect(within(tree).getByRole('checkbox', { name: 'Select Paid Search' })).toHaveAttribute('aria-checked', 'mixed');
+    ).toBeNull();
   });
 
-  it('empties the choice with Clear, also the prompts of a row that is closed', async () => {
+  it('keeps the choice of a group that is opened and closed, and empties it with Clear', async () => {
     const { user } = renderOn('viewer', '');
     const tree = await topics();
-    await user.click(await within(tree).findByRole('button', { name: /^Expand Paid Search/ }));
-    await user.click(
-      within(tree).getByRole('checkbox', {
-        name: 'Select What is the best way to manage paid search on a small budget?',
-      }),
-    );
+    await user.click(await within(tree).findByRole('checkbox', { name: 'Select Paid Search' }));
+    await user.click(within(tree).getByRole('button', { name: /^Expand Paid Search/ }));
     await user.click(within(tree).getByRole('button', { name: /^Collapse Paid Search/ }));
+    expect(within(bar()).getByText('1 group selected · 2 prompts')).toBeInTheDocument();
     await user.click(within(bar()).getByRole('button', { name: 'Clear selection' }));
     expect(screen.queryByRole('group', { name: /^Bulk actions/ })).toBeNull();
   });
@@ -156,14 +145,7 @@ describe('selecting groups on the Groups tab', () => {
     const { user } = renderOn('viewer', '');
     const tree = await topics();
     await user.click(await within(tree).findByRole('checkbox', { name: /^Select all \d+ groups loaded$/ }));
-    // SEO, Content Marketing and Paid Search: the prompts without a topic are chosen too, but are no topic
-    expect(within(bar()).getByText('3 groups selected, 23 prompts')).toBeInTheDocument();
-  });
-
-  it('does not count the prompts without a group as a group, and counts them as prompts', async () => {
-    const { user } = renderOn('viewer', '');
-    const tree = await topics();
-    await user.click(await within(tree).findByRole('checkbox', { name: 'Select No group' }));
-    expect(within(bar()).getByText('2 selected')).toBeInTheDocument();
+    // Technical SEO, Local SEO, Blog Strategy and Paid Search: the prompts given only a parent are in no group
+    expect(within(bar()).getByText('4 groups selected · 12 prompts')).toBeInTheDocument();
   });
 });

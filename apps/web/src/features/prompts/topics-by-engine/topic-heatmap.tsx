@@ -2,6 +2,7 @@
 
 import { usePathname, useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
+import { Search } from 'lucide-react';
 import { useEffect, useMemo, type ReactElement, type ReactNode } from 'react';
 
 import { drillHref, topicHref } from './drill';
@@ -13,6 +14,8 @@ import { heatmapCsv, type HeatCsvRow } from '@/components/app/chart/heat-bins';
 import { HeatmapGrid, type HeatCell, type HeatColumn, type HeatRow } from '@/components/app/chart/heatmap-grid';
 import { useRateTipWords } from '@/components/app/chart/use-rate-tip-words';
 import type { TableStatus } from '@/components/app/data-table/types';
+import { Input } from '@/components/ui/input';
+import { InputGroup } from '@/components/ui/input-group';
 import { Select } from '@/components/ui/select';
 import { CELL_OF_METRIC, type RateMetric } from '@/features/prompts/prompt-model';
 import type { ProjectEngine } from '@/lib/api/types';
@@ -33,11 +36,10 @@ export interface TopicHeatmapProps {
   density: Density;
   /** `empty`, `filtered-empty` and `error` are drawn from the nodes below, as the table draws them. */
   status: TableStatus;
-  /** A search is set: it does not narrow the heat map, and the heat map says so. */
-  searchIgnored: boolean;
-  /** The metric control, at the start of the row above the frame. */
-  toolbarStart: ReactNode;
-  /** The view switches, at its end. */
+  /** The table's search, which narrows the groups here too. */
+  search: string;
+  onSearchChange: (search: string) => void;
+  /** The view switches, at the end of the row above the frame. */
   toolbarEnd: ReactNode;
   errorState: ReactNode;
   emptyState: ReactNode;
@@ -45,6 +47,8 @@ export interface TopicHeatmapProps {
   /** The topics in the order drawn, a parent and then the topics below it: what the topic drawer steps through. */
   onTopicOrderChange?: ((keys: readonly string[]) => void) | undefined;
 }
+
+const SEARCH_MAX_LENGTH = 200;
 
 const ORDER_KEY = {
   prompts: 'orderPrompts',
@@ -97,15 +101,15 @@ const csvRows = (rows: readonly HeatRow[]): HeatCsvRow[] =>
     label: row.name,
     prompts: row.prompts,
     cells: row.cells.map(({ state, tip }) => ({ state, tip })),
-    children: row.children === undefined ? undefined : csvRows(row.children),
   }));
 
 /**
- * The Heat map view of the Topics tab (CH-04, WB-TPE-07): a row per topic, a column per engine shown for the chosen
- * metric and, from 2 engines, the equal weight average. A cell is the topic's value on the engine over the window with
- * its counts in its words, hatched under 4 answers and "n/a" with none; it is a link to the topic's prompts on that
- * engine, and the row's name a link to its Overview. The engines are never pooled but in the average, which says how
- * many took part. The topic rows overlap (a prompt in two topics counts in both), which the footnote says.
+ * The Heat map view of the Groups tab (CH-04, WB-TPE-07): a row per group, a column per platform shown for the chosen
+ * metric and, from 2 platforms, the equal weight average. A cell is the group's value on the platform over the window
+ * with its counts in its words, hatched under 4 answers and "n/a" with none; it is a link to the group's prompts on that
+ * platform, and the row's name a link to its Overview. The platforms are never pooled but in the average, which says
+ * how many took part. The group rows overlap (a prompt in two groups counts in both), which the footnote says. The
+ * search narrows the groups as it does the table.
  */
 export function TopicHeatmap({
   heads,
@@ -115,8 +119,8 @@ export function TopicHeatmap({
   onOrderChange,
   density,
   status,
-  searchIgnored,
-  toolbarStart,
+  search: searchText,
+  onSearchChange,
   toolbarEnd,
   errorState,
   emptyState,
@@ -125,6 +129,8 @@ export function TopicHeatmap({
 }: TopicHeatmapProps): ReactElement {
   const t = useTranslations('prompts.topicDrawer.heat');
   const prompts = useTranslations('prompts');
+  const groups = useTranslations('prompts.groupsTab');
+  const tableWords = useTranslations('dataTable');
   const locale = useLocale();
   const pathname = usePathname();
   const search = useSearchParams().toString();
@@ -142,18 +148,15 @@ export function TopicHeatmap({
       ),
     [heads, order, key, engines],
   );
-  const topicKeys = useMemo(
-    () => ordered.flatMap((head) => [head.key, ...head.children.map((child) => child.key)]),
-    [ordered],
-  );
+  const topicKeys = useMemo(() => ordered.map((head) => head.key), [ordered]);
   useEffect(() => onTopicOrderChange?.(topicKeys), [topicKeys, onTopicOrderChange]);
 
   const columns = useMemo((): HeatColumn[] => {
     const engineColumns = engines.map(({ engine }) => ({ id: engine.engine_code, label: engine.label }));
     return showsAverage(engines.length)
-      ? [...engineColumns, { id: 'average', label: t('average', { count: engines.length }) }]
+      ? [...engineColumns, { id: 'average', label: groups('heatAverage', { count: engines.length }) }]
       : engineColumns;
-  }, [engines, t]);
+  }, [engines, groups]);
 
   const rows = useMemo((): HeatRow[] => {
     const codes = engines.map(({ engine }) => engine.engine_code);
@@ -240,7 +243,6 @@ export function TopicHeatmap({
           ...input.values.map((value) => engineCell(head, value)),
           ...(showsAverage(engines.length) ? [averageCell(head, input.average, input.values)] : []),
         ],
-        children: head.children.length === 0 ? undefined : head.children.map(rowOf),
       };
     };
     return ordered.map(rowOf);
@@ -274,7 +276,20 @@ export function TopicHeatmap({
   );
   const toolbar = (
     <div className="flex flex-wrap items-center gap-2">
-      {toolbarStart}
+      {/* The search narrows the groups of the heat map as it does the table's (PR-TVIEW-05) */}
+      <InputGroup leadingIcon={Search} size="sm" className="w-64 max-w-full min-w-0">
+        <Input
+          size="sm"
+          // The group draws the border and the focus ring, so the field inside draws neither
+          variant="bare"
+          type="search"
+          value={searchText}
+          onValueChange={(next) => onSearchChange(next)}
+          placeholder={prompts('topics.search')}
+          maxLength={SEARCH_MAX_LENGTH}
+          aria-label={tableWords('search')}
+        />
+      </InputGroup>
       <div className="w-32 min-w-0 sm:w-44">
         <Select<HeatOrder>
           aria-label={t('orderLabel')}
@@ -288,7 +303,6 @@ export function TopicHeatmap({
       <div className="ml-auto flex min-w-0 flex-wrap items-center gap-1">{toolbarEnd}</div>
     </div>
   );
-  const note = searchIgnored ? <p className="type-meta">{t('searchIgnored')}</p> : null;
 
   // The states the screen words itself (its retry, its way to add prompts) are drawn as the table draws them
   const stateNodes: Partial<Record<TableStatus, ReactNode>> = {
@@ -300,7 +314,6 @@ export function TopicHeatmap({
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2">
       {toolbar}
-      {note}
       {stateBody ?? (
         <ChartFrame
           kind="html"

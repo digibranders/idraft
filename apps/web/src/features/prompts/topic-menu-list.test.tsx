@@ -34,7 +34,8 @@ const LIST = mswPath('/api/v1/workspaces/{workspace_id}/projects/{project_id}/pr
 const [fynix] = MOCK_PROJECTS;
 if (fynix === undefined) throw new Error('The Fynix project fixture is missing');
 
-const FIRST = 'Which SEO agency is best for a SaaS startup in Germany?';
+/** A prompt of the group Technical SEO, which holds four. */
+const FIRST = 'How do I run a technical SEO audit on a large site?';
 
 beforeEach(() => {
   vi.setSystemTime(NOW);
@@ -73,7 +74,7 @@ const active = () => promptsOf(fynix?.project_id ?? '').prompts.filter((prompt) 
 
 async function openSeoMenu(user: ProvidedRender['user']): Promise<void> {
   const tree = await screen.findByRole('treegrid', { name: 'Groups' });
-  await user.click(await within(tree).findByRole('button', { name: 'Actions for SEO' }));
+  await user.click(await within(tree).findByRole('button', { name: 'Actions for Technical SEO' }));
   await screen.findByRole('menu');
 }
 
@@ -113,12 +114,12 @@ describe('Run now from the menu of a group', () => {
     const { user } = renderOn('editor');
     await openSeoMenu(user);
     await user.click(screen.getByRole('menuitem', { name: 'Run now' }));
-    await user.click(await screen.findByRole('button', { name: 'Run 12 prompts' }));
-    expect((await screen.findAllByText(/^Run started: 12 prompts on \d platforms?$/)).length).toBeGreaterThan(0);
+    await user.click(await screen.findByRole('button', { name: 'Run 4 prompts' }));
+    expect((await screen.findAllByText(/^Run started: 4 prompts on \d platforms?$/)).length).toBeGreaterThan(0);
     expect((await screen.findAllByText(/^About \$/)).length).toBeGreaterThan(0);
-    // One request with the 12 prompts and the engines that are on, so what the API left out is read against them; none of the single prompt route
+    // One request with the 4 prompts and the engines that are on, so what the API left out is read against them; none of the single prompt route
     expect(bodies).toHaveLength(1);
-    expect(bodies[0]?.prompt_ids).toHaveLength(12);
+    expect(bodies[0]?.prompt_ids).toHaveLength(4);
     expect(bodies[0]?.engine_codes).toEqual(['chatgpt_web', 'gemini_web']);
     expect(singles).toEqual([]);
   });
@@ -144,9 +145,9 @@ describe('the menu of a group for prompts the list does not hold', () => {
     await user.click(screen.getByRole('menuitem', { name: 'Export CSV' }));
     expect(download).toHaveBeenCalledOnce();
     const text = await ((download.mock.calls[0]?.[0] as Blob | undefined)?.text() ?? Promise.resolve(''));
-    // The header and the SEO prompts of the list: 12 in the topic, one of them not in the list
-    expect(text.trim().split('\r\n')).toHaveLength(12);
-    expect((await screen.findAllByText('11 prompts exported')).length).toBeGreaterThan(0);
+    // The header and the prompts of the group in the list: 4 in the group, one of them not in the list
+    expect(text.trim().split('\r\n')).toHaveLength(4);
+    expect((await screen.findAllByText('3 prompts exported')).length).toBeGreaterThan(0);
     expect((await screen.findAllByText('1 prompt is not loaded yet.')).length).toBeGreaterThan(0);
   });
 
@@ -164,6 +165,6 @@ describe('the menu of a group for prompts the list does not hold', () => {
     const { user } = renderOn('editor');
     await openSeoMenu(user);
     await user.click(screen.getByRole('menuitem', { name: 'Run now' }));
-    expect(await screen.findByRole('alertdialog', { name: 'Run 11 prompts now?' })).toBeInTheDocument();
+    expect(await screen.findByRole('alertdialog', { name: 'Run 3 prompts now?' })).toBeInTheDocument();
   });
 });

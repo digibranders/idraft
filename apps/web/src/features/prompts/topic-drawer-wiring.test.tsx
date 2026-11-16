@@ -145,22 +145,22 @@ describe('the topic drawer: the header', () => {
   });
 
   it('says where the topic is in the Topics tab and steps with J and K', async () => {
-    const { user } = renderOn('viewer', inspect(MOCK_TERM_IDS.seo));
-    const panel = await drawer('SEO');
-    // The order is the one the table drew, which the drawer reads from the store the Topics tab fills
+    const { user } = renderOn('viewer', inspect(MOCK_TERM_IDS.technicalSeo));
+    const panel = await drawer('Technical SEO');
+    // The order is the one the table drew (the groups only), which the drawer reads from the store the Groups tab fills
     const place = await within(panel).findByText(/^\d+ of \d+$/);
     const [, at = '', total = ''] = /^(\d+) of (\d+)$/.exec(place.textContent ?? '') ?? [];
-    expect(Number(at)).toBeGreaterThan(1);
-    expect(Number(at)).toBeLessThan(Number(total));
+    expect(Number(total)).toBe(4);
+    expect(Number(at)).toBeGreaterThanOrEqual(1);
+    // The step wraps at the end
+    const next = Number(at) === Number(total) ? '1' : String(Number(at) + 1);
     await user.keyboard('j');
     await waitFor(() =>
-      expect(
-        within(screen.getByRole('complementary')).getByText(`${String(Number(at) + 1)} of ${total}`),
-      ).toBeVisible(),
+      expect(within(screen.getByRole('complementary')).getByText(`${next} of ${total}`)).toBeVisible(),
     );
-    expect(screen.queryByRole('complementary', { name: 'SEO' })).toBeNull();
+    expect(screen.queryByRole('complementary', { name: 'Technical SEO' })).toBeNull();
     await user.keyboard('k');
-    await drawer('SEO');
+    await drawer('Technical SEO');
     expect(within(screen.getByRole('complementary')).getByText(`${at} of ${total}`)).toBeVisible();
   });
 });
@@ -239,18 +239,19 @@ describe('the topic drawer: the Overview', () => {
 
 describe('the topic drawer: the tabs', () => {
   it('has Overview, Prompts, Competitors and Related, reached with the arrow keys', async () => {
-    const { user } = renderOn('viewer', inspect(MOCK_TERM_IDS.seo));
-    const panel = await drawer('SEO');
+    const { user } = renderOn('viewer', inspect(MOCK_TERM_IDS.technicalSeo));
+    const panel = await drawer('Technical SEO');
     const tabs = within(panel).getAllByRole('tab');
-    const place = (name: string): number => tabs.indexOf(within(panel).getByRole('tab', { name }));
-    expect(['Overview', 'Prompts', 'Competitors', 'Related'].map(place)).toEqual([0, 1, 2, 3]);
+    const place = (name: string | RegExp): number => tabs.indexOf(within(panel).getByRole('tab', { name }));
+    // The Prompts tab says how many prompts it lists (PR-DRAWER-11)
+    expect(['Overview', /^Prompts \(\d+\)$/, 'Competitors', 'Related'].map(place)).toEqual([0, 1, 2, 3]);
     tabs[0]?.focus();
     await user.keyboard('{ArrowRight}{ArrowRight}');
     expect(within(panel).getByRole('tab', { name: 'Competitors' })).toHaveAttribute('aria-selected', 'true');
     expect(await within(panel).findByRole('heading', { name: 'Competitors by platform' })).toBeInTheDocument();
     await user.keyboard('{ArrowRight}');
     expect(within(panel).getByRole('tab', { name: 'Related' })).toHaveAttribute('aria-selected', 'true');
-    expect(await within(panel).findByRole('heading', { name: 'Groups beside this one' })).toBeInTheDocument();
+    expect(await within(panel).findByRole('heading', { name: 'Related groups' })).toBeInTheDocument();
   });
 });
 
@@ -263,7 +264,7 @@ describe('the topic drawer: an engine row leads to that engine', () => {
     const panel = await drawer('SEO');
     await user.click(await within(panel).findByRole('link', { name: /^ChatGPT/ }));
     await waitFor(() => expect(new URLSearchParams(writes.at(-1)).get('eng')).toBe('chatgpt_web'));
-    expect(await within(panel).findByRole('tab', { name: 'Prompts', selected: true })).toBeInTheDocument();
+    expect(await within(panel).findByRole('tab', { name: /^Prompts/, selected: true })).toBeInTheDocument();
     expect(await within(panel).findByText('Platform: ChatGPT')).toBeInTheDocument();
     await user.click(within(panel).getByRole('button', { name: 'Close' }));
     await waitFor(() => expect(screen.queryByRole('complementary', { name: 'SEO' })).toBeNull());
@@ -363,7 +364,7 @@ describe('the topic drawer: topics without a row, and a topic without a topic', 
     expect(within(panel).getByRole('link', { name: /^ChatGPT/ })).toBeInTheDocument();
     expect(within(panel).getByText('2 prompts')).toBeInTheDocument();
     release();
-    await user.click(await within(panel).findByRole('tab', { name: 'Prompts' }));
+    await user.click(await within(panel).findByRole('tab', { name: /^Prompts/ }));
     // The Rates panel goes when the Prompts tab opens: wait for it, so the count is the Prompts list's alone
     await waitFor(() => expect(within(panel).getAllByRole('listitem')).toHaveLength(2));
   });
@@ -406,7 +407,7 @@ describe('the built rows of the topic drawer, confirmed through the real screen'
     if (top === null) throw new Error('The Top prompts card is missing');
     expect(await within(top).findAllByRole('listitem')).toHaveLength(5);
     await user.click(within(top).getByRole('button', { name: 'Show all 12 prompts' }));
-    expect(await within(panel).findByRole('tab', { name: 'Prompts', selected: true })).toBeInTheDocument();
+    expect(await within(panel).findByRole('tab', { name: /^Prompts/, selected: true })).toBeInTheDocument();
     expect(await within(panel).findAllByRole('listitem')).toHaveLength(12);
   });
 

@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 
 import { engine, head, weighted } from './cells-fixtures';
 import { heatInput, heatOrder, heatOrderText, parseHeatOrder, showsAverage } from './heat-model';
-import { NO_TOPIC } from '@/features/prompts/prompt-model';
 
 const CODES = ['chatgpt_web', 'gemini_web', 'google_ai_mode'];
 
@@ -22,22 +21,15 @@ describe('heatOrder: the order of the rows of the heat map', () => {
     topic('b', 'Beta', 5, [5, 8], [5, 8]),
     topic('a', 'Alpha', 5, [2, 8], [6, 8]),
     topic('big', 'Gamma', 9, [1, 8], [1, 8]),
-    head(NO_TOPIC, 'No group', { promptCount: 20, engines: [engine('chatgpt_web', { mentioned: weighted(8, 8, 2) })] }),
   ];
 
-  it('orders by prompts, then by name, and puts No topic last', () => {
-    expect(keys(heatOrder(heads, 'prompts', 'mentioned', CODES))).toEqual(['big', 'a', 'b', NO_TOPIC]);
+  it('orders by prompts, a tie by name', () => {
+    expect(keys(heatOrder(heads, 'prompts', 'mentioned', CODES))).toEqual(['big', 'a', 'b']);
   });
 
   it('orders by the average rate of the chosen metric, a topic without one last', () => {
     const none = topic('none', 'Delta', 7);
-    expect(keys(heatOrder([...heads, none], 'avg_rate', 'mentioned', CODES))).toEqual([
-      'b',
-      'a',
-      'big',
-      'none',
-      NO_TOPIC,
-    ]);
+    expect(keys(heatOrder([...heads, none], 'avg_rate', 'mentioned', CODES))).toEqual(['b', 'a', 'big', 'none']);
   });
 
   it('puts a measured average of 0 before a topic with no average', () => {
@@ -52,22 +44,7 @@ describe('heatOrder: the order of the rows of the heat map', () => {
   it('orders by the engine gap, a topic without one last', () => {
     // Alpha 25% to 75% is a gap of 50 points, Beta and Gamma have 0 points; Delta has one engine, so no gap
     const lone = topic('lone', 'Delta', 7, [4, 8]);
-    expect(keys(heatOrder([...heads, lone], 'engine_gap', 'mentioned', CODES))).toEqual([
-      'a',
-      'b',
-      'big',
-      'lone',
-      NO_TOPIC,
-    ]);
-  });
-
-  it('orders the children inside their parent and leaves them under it', () => {
-    const parent = {
-      ...topic('p', 'Parent', 4, [1, 8], [1, 8]),
-      children: [topic('c1', 'Child one', 1, [1, 8], [1, 8]), topic('c2', 'Child two', 3, [1, 8], [1, 8])],
-    };
-    const [ordered] = heatOrder([parent], 'prompts', 'mentioned', CODES);
-    expect(keys(ordered?.children ?? [])).toEqual(['c2', 'c1']);
+    expect(keys(heatOrder([...heads, lone], 'engine_gap', 'mentioned', CODES))).toEqual(['a', 'b', 'big', 'lone']);
   });
 });
 

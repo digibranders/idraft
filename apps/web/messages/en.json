@@ -5027,6 +5027,24 @@
         "imageAlt": "The latest {platform} answer to the prompt, as the page showed it",
         "close": "Close"
       }
+    },
+    "groupsTab": {
+      "selected": "{groups, plural, one {# group} other {# groups}} selected · {prompts, plural, one {# prompt} other {# prompts}}",
+      "overlap": "Groups overlap: a prompt in two groups counts in both, so the rows do not add up to the prompts in view.",
+      "overlapCount": "{count, plural, one {# prompt is} other {# prompts are}} in more than one group.",
+      "outsideCount": "{count, plural, one {# prompt is} other {# prompts are}} in no group listed here.",
+      "locationCount": "{count, number} locations",
+      "locationTip": "The location the prompts of this group are asked for",
+      "locationListTip": "The prompts of this group are asked for {locations}",
+      "locationNoneTip": "No location is known for the prompts of this group",
+      "searchOpensAll": "Every group is open while the search finds prompts",
+      "heatAverage": "Average of {count, number}",
+      "relatedTitle": "Related groups",
+      "relatedNote": "other groups in this scope",
+      "relatedEmptyTitle": "No other group is in this scope.",
+      "relatedEmptyReason": "Groups beside this one appear once the scope holds more than one group.",
+      "openGroupTip": "Open the group",
+      "tabPromptsCount": "Prompts ({count, number})"
     }
   },
   "aiOverview": {

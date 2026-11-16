@@ -98,17 +98,29 @@ function watchEntityReads(): { count: () => number } {
 }
 
 describe('the Groups tab: the views', () => {
-  it('opens on the List exactly as before', async () => {
+  it('opens on the List: the columns of the Groups tab, no Platform gap, the counts in the chooser', async () => {
     const reads = watchEntityReads();
     renderOn('');
     const table = await treegrid();
     await within(table).findByRole('button', { name: 'Open the group Paid Search' });
-    expect(headers(table).some((header) => header.startsWith('Platform gap'))).toBe(false);
-    // The count columns of the List are in the chooser's reach, and the By engine columns are not there
-    expect(headers(table)).toContain('ChatGPT mentioned');
-    expect(
-      headers(table).some((header) => header.startsWith('ChatGPT mention') && !header.startsWith('ChatGPT mentioned')),
-    ).toBe(false);
+    const shown = headers(table);
+    for (const header of ['Search volume', 'Mention rate', 'Citation rate', 'Recommendation rate', 'Share of voice']) {
+      expect(shown).toContain(header);
+    }
+    expect(shown).toContain('Brands');
+    // PR-TOPICS-20: no Prompts column, no Trend, no Intent, Cited links or Screenshot; Top platform and the counts wait
+    for (const header of [
+      'Prompts',
+      'Trend',
+      'Intent',
+      'Cited links',
+      'Screenshot',
+      'Top platform',
+      'ChatGPT mentioned',
+    ]) {
+      expect(shown).not.toContain(header);
+    }
+    expect(shown.some((header) => header.startsWith('Platform gap'))).toBe(false);
     expect(screen.getByRole('radio', { name: 'List' })).toBeChecked();
     expect(reads.count()).toBe(0);
   });
@@ -116,67 +128,46 @@ describe('the Groups tab: the views', () => {
   it('an unknown view is the List', async () => {
     renderOn('?view=bogus');
     const table = await treegrid();
-    await waitFor(() => expect(headers(table)).toContain('ChatGPT mentioned'));
+    await waitFor(() => expect(headers(table)).toContain('Citation rate'));
     expect(screen.getByRole('radio', { name: 'List' })).toBeChecked();
   });
 
-  it('shows the By engine columns for ?view=engines and the metric of ?metric=', async () => {
+  it('lists the groups only, each opening onto its prompts, with no parent row', async () => {
+    renderOn('');
+    const table = await treegrid();
+    await within(table).findByRole('button', { name: 'Open the group Paid Search' });
+    expect(within(table).queryByRole('button', { name: 'Open the group SEO' })).toBeNull();
+    expect(within(table).queryByRole('button', { name: 'Open the group Content Marketing' })).toBeNull();
+    expect(within(table).getByRole('button', { name: 'Open the group Technical SEO' })).toBeInTheDocument();
+  });
+
+  it('shows the By platform columns for ?view=engines: the group, Mention rate, each platform and the gap', async () => {
     renderOn('?view=engines');
     const table = await treegrid();
     await waitFor(() => expect(headers(table)).toContain('ChatGPT mention'));
     expect(headers(table)).toContain('Gemini mention');
-    expect(headers(table).some((header) => header.startsWith('Platform gap'))).toBe(true);
-    // The count columns wait in the chooser
-    expect(headers(table)).not.toContain('ChatGPT mentioned');
-    expect(screen.getByRole('radio', { name: 'By platform' })).toBeChecked();
-  });
-
-  it('keeps Citation rate, Top platform and Trend in the chooser of By platform, and shows them in the List', async () => {
-    const engines = renderOn('?view=engines');
-    const table = await treegrid();
-    await waitFor(() => expect(headers(table)).toContain('ChatGPT mention'));
     expect(headers(table)).toContain('Mention rate');
-    for (const header of ['Citation rate', 'Top platform', 'Trend']) expect(headers(table)).not.toContain(header);
-    engines.unmount();
-
-    renderOn('');
-    const list = await treegrid();
-    await waitFor(() => expect(headers(list)).toContain('ChatGPT mentioned'));
-    for (const header of ['Mention rate', 'Citation rate', 'Top platform', 'Trend'])
-      expect(headers(list)).toContain(header);
+    expect(headers(table).some((header) => header.startsWith('Platform gap'))).toBe(true);
+    for (const header of ['ChatGPT mentioned', 'Citation rate', 'Top platform', 'Trend']) {
+      expect(headers(table)).not.toContain(header);
+    }
+    expect(screen.getByRole('radio', { name: 'By platform' })).toBeChecked();
+    // No metric to choose: the platform columns show the mention rate
+    expect(screen.queryByRole('combobox', { name: 'Metric of the platform columns' })).toBeNull();
   });
 
-  it('reads ?metric= for the engine columns', async () => {
-    renderOn('?view=engines&metric=citation');
-    const table = await treegrid();
-    await waitFor(() => expect(headers(table)).toContain('ChatGPT citation'));
-    expect(headers(table)).not.toContain('ChatGPT mention');
-  });
-
-  it('the metric select writes ?metric and changes the columns', async () => {
+  it('the view switch writes ?view, keeps the other keys and puts the sort back on the Mention rate', async () => {
     const writes: string[] = [];
-    const { user } = renderOn('?view=engines', { onUrlUpdate: ({ queryString }) => writes.push(queryString) });
-    const table = await treegrid();
-    await user.click(await screen.findByRole('combobox', { name: 'Metric of the platform columns' }));
-    await user.click(await screen.findByRole('option', { name: 'Share of voice' }));
-    await waitFor(() => expect(headers(table)).toContain('ChatGPT SOV'));
-    expect(query(writes.at(-1)).get('metric')).toBe('sov');
-    expect(query(writes.at(-1)).get('view')).toBe('engines');
-  });
-
-  it('the view switch writes ?view and keeps the other keys', async () => {
-    const writes: string[] = [];
-    const { user } = renderOn('?density=compact&q=paid', {
+    const { user } = renderOn('?q=paid&sort=-citation', {
       onUrlUpdate: ({ queryString }) => writes.push(queryString),
     });
     await treegrid();
     await user.click(screen.getByRole('radio', { name: 'By platform' }));
     await waitFor(() => expect(query(writes.at(-1)).get('view')).toBe('engines'));
-    expect(query(writes.at(-1)).get('density')).toBe('compact');
     expect(query(writes.at(-1)).get('q')).toBe('paid');
+    expect(query(writes.at(-1)).get('sort')).toBeNull();
     await user.click(screen.getByRole('radio', { name: 'List' }));
     await waitFor(() => expect(query(writes.at(-1)).get('view')).toBeNull());
-    expect(query(writes.at(-1)).get('density')).toBe('compact');
   });
 
   it('sorts by the ChatGPT rate from ?sort=chatgpt_web_rate', async () => {
@@ -185,6 +176,15 @@ describe('the Groups tab: the views', () => {
     expect(await within(table).findByRole('columnheader', { name: /^ChatGPT mention/ })).toHaveAttribute(
       'aria-sort',
       'ascending',
+    );
+  });
+
+  it('falls back to the Mention rate when the sort is on a column the view does not show', async () => {
+    renderOn('?view=engines&sort=-citation');
+    const table = await treegrid();
+    expect(await within(table).findByRole('columnheader', { name: /^Mention rate/ })).toHaveAttribute(
+      'aria-sort',
+      'descending',
     );
   });
 
@@ -252,7 +252,7 @@ describe('the Groups tab: the views', () => {
     );
   });
 
-  it('an engine cell opens the drawer on the Prompts tab with ?eng=', async () => {
+  it('a platform cell opens the drawer on the Prompts tab with ?eng=', async () => {
     const writes: string[] = [];
     const { user } = renderOn('?view=engines', { onUrlUpdate: ({ queryString }) => writes.push(queryString) });
     const table = await treegrid();
@@ -263,11 +263,11 @@ describe('the Groups tab: the views', () => {
     expect(last.get('eng')).toBe('chatgpt_web');
     expect(last.get('view')).toBe('engines');
     const panel = await screen.findByRole('complementary', { name: 'Paid Search' });
-    expect(within(panel).getByRole('tab', { name: 'Prompts' })).toHaveAttribute('aria-selected', 'true');
+    expect(within(panel).getByRole('tab', { name: /^Prompts/ })).toHaveAttribute('aria-selected', 'true');
   });
 
-  it('a group opened onto its prompts shows each prompt with its value on every platform (child rows)', async () => {
-    const { user } = renderOn('?view=engines');
+  it('a group opened onto its prompts lists them as rows with no box, under the group', async () => {
+    const { user } = renderOn('');
     const table = await treegrid();
     await user.click(await within(table).findByRole('button', { name: 'Expand Paid Search, 2 prompts' }));
     const promptRows = within(table)
@@ -276,62 +276,18 @@ describe('the Groups tab: the views', () => {
     expect(promptRows.length).toBeGreaterThan(0);
     const [first] = promptRows;
     if (first === undefined) throw new Error('No prompt row');
-    // Each prompt row has a cell on both engines, as text and not as a button
-    expect(
-      within(first)
-        .getAllByRole('gridcell')
-        .some((cell) => /%|answer|n\/a|No answers/.test(cell.textContent ?? '')),
-    ).toBe(true);
-    expect(within(first).queryByRole('button', { name: /^Open the prompts of/ })).toBeNull();
+    // PR-TOPICS-10: a prompt row has no checkbox and no eight-prompt limit
+    expect(within(first).queryByRole('checkbox')).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Show all/ })).toBeNull();
   });
 
-  it('reads the entities once for the view and not in the List', async () => {
+  it('reads no entities: neither the List nor the By platform view asks for them', async () => {
     const reads = watchEntityReads();
     const { user } = renderOn('');
     await treegrid();
-    expect(reads.count()).toBe(0);
     await user.click(screen.getByRole('radio', { name: 'By platform' }));
-    await waitFor(() => expect(reads.count()).toBe(1));
-    // Coming back to the List asks nothing more
-    await user.click(screen.getByRole('radio', { name: 'List' }));
-    expect(reads.count()).toBe(1);
-  });
-
-  it('keeps the rows and shows the refetch state while the entities are read', async () => {
-    let release: () => void = () => undefined;
-    const gate = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    server.use(
-      http.get(SUMMARY_PATH, async ({ request }) => {
-        if (new URL(request.url).searchParams.get('rows') === 'topics') await gate;
-        return undefined;
-      }),
-    );
-    renderOn('?view=engines');
-    const table = await treegrid();
-    await within(table).findByRole('button', { name: 'Open the group Paid Search' });
-    expect(table).toHaveAttribute('aria-busy', 'true');
-    release();
-    await waitFor(() => expect(table).not.toHaveAttribute('aria-busy', 'true'));
-    expect(within(table).getByRole('button', { name: 'Open the group Paid Search' })).toBeInTheDocument();
-  });
-
-  it('says competitors could not be loaded and keeps the other columns', async () => {
-    server.use(
-      http.get(SUMMARY_PATH, ({ request }) =>
-        new URL(request.url).searchParams.get('rows') === 'topics'
-          ? HttpResponse.json({ status: 500, code: 'internal_error', title: 'Failed' }, { status: 500 })
-          : undefined,
-      ),
-    );
-    renderOn('?view=engines');
-    const table = await treegrid();
-    expect(
-      await screen.findByText('Competitors could not be loaded. The other columns are shown.'),
-    ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
-    expect(headers(table)).toContain('ChatGPT mention');
+    await screen.findByRole('columnheader', { name: /^Platform gap/ });
+    expect(reads.count()).toBe(0);
   });
 
   it('fills the group order store in drawn order and empties it on unmount', async () => {
@@ -340,24 +296,24 @@ describe('the Groups tab: the views', () => {
     await within(table).findByRole('button', { name: 'Open the group Paid Search' });
     await waitFor(() => expect(getTopicOrder(FYNIX_ID)).not.toBeNull());
     const order = getTopicOrder(FYNIX_ID) ?? [];
-    expect(order).toEqual(expect.arrayContaining(Object.values(MOCK_TERM_IDS).slice(0, 6)));
+    // Only the groups, in the order they are drawn: the parents (SEO, Content Marketing) are no rows
+    expect(order).toEqual(
+      expect.arrayContaining([MOCK_TERM_IDS.technicalSeo, MOCK_TERM_IDS.localSeo, MOCK_TERM_IDS.paidSearch]),
+    );
+    expect(order).not.toContain(MOCK_TERM_IDS.seo);
+    expect(order).not.toContain(MOCK_TERM_IDS.contentMarketing);
     expect(new Set(order).size).toBe(order.length);
-    // A topic comes straight after its parent and before the next top level topic
-    const place = (id: string): number => order.indexOf(id);
-    expect(place(MOCK_TERM_IDS.technicalSeo)).toBeGreaterThan(place(MOCK_TERM_IDS.seo));
-    expect(place(MOCK_TERM_IDS.localSeo)).toBeGreaterThan(place(MOCK_TERM_IDS.seo));
-    expect(place(MOCK_TERM_IDS.blogStrategy)).toBe(place(MOCK_TERM_IDS.contentMarketing) + 1);
-    // The top level rows are drawn in the order of the store
-    const tops = within(table)
+    const drawn = within(table)
       .getAllByRole('button', { name: /^Open the group / })
       .map((button) => button.getAttribute('aria-label')?.replace('Open the group ', ''));
-    const ids: Record<string, string> = {
-      SEO: MOCK_TERM_IDS.seo,
-      'Content Marketing': MOCK_TERM_IDS.contentMarketing,
+    const names: Record<string, string> = {
+      'Technical SEO': MOCK_TERM_IDS.technicalSeo,
+      'Local SEO': MOCK_TERM_IDS.localSeo,
       'Paid Search': MOCK_TERM_IDS.paidSearch,
     };
-    const drawn = tops.flatMap((name) => (name !== undefined && ids[name] !== undefined ? [place(ids[name])] : []));
-    expect(drawn).toEqual([...drawn].sort((a, b) => a - b));
+    expect(order.filter((id) => Object.values(names).includes(id))).toEqual(
+      drawn.flatMap((name) => (name !== undefined && names[name] !== undefined ? [names[name]] : [])),
+    );
     unmount();
     expect(getTopicOrder(FYNIX_ID)).toBeNull();
   });
@@ -372,24 +328,24 @@ describe('the Groups tab: the heat map, the export and the phone list', () => {
     }
   });
 
-  it('shows the heat map for ?view=heatmap, with the page switch and the metric of ?metric=', async () => {
-    renderOn('?view=heatmap&metric=citation');
-    const grid = await screen.findByRole('treegrid', { name: 'Citation by group and platform' });
+  it('shows the heat map for ?view=heatmap, with the page switch and the mention rate', async () => {
+    renderOn('?view=heatmap');
+    const grid = await screen.findByRole('grid', { name: 'Mention by group and platform' });
     expect(screen.getByRole('radio', { name: 'Heat map' })).toBeChecked();
     // The page's own switch stays, so the person can still reach the Prompts tab
     expect(screen.getByRole('radio', { name: 'Prompts' })).toBeInTheDocument();
     expect(await within(grid).findByRole('link', { name: /^Paid Search on ChatGPT/ })).toBeInTheDocument();
     expect(screen.queryByRole('treegrid', { name: 'Groups' })).toBeNull();
+    expect(screen.queryByRole('combobox', { name: 'Metric of the platform columns' })).toBeNull();
   });
 
   it('writes ?view=heatmap from the switch and ?sort from the order select, keeping the other keys', async () => {
     const writes: string[] = [];
-    const { user } = renderOn('?density=compact', { onUrlUpdate: ({ queryString }) => writes.push(queryString) });
+    const { user } = renderOn('?q=', { onUrlUpdate: ({ queryString }) => writes.push(queryString) });
     await treegrid();
     await user.click(screen.getByRole('radio', { name: 'Heat map' }));
-    await screen.findByRole('treegrid', { name: 'Mention by group and platform' });
+    await screen.findByRole('grid', { name: 'Mention by group and platform' });
     expect(query(writes.at(-1)).get('view')).toBe('heatmap');
-    expect(query(writes.at(-1)).get('density')).toBe('compact');
     await user.click(screen.getByRole('combobox', { name: 'Order rows by' }));
     await user.click(await screen.findByRole('option', { name: 'Average rate' }));
     await waitFor(() => expect(query(writes.at(-1)).get('sort')).toBe('avg_rate'));
@@ -399,21 +355,22 @@ describe('the Groups tab: the heat map, the export and the phone list', () => {
     await waitFor(() => expect(query(writes.at(-1)).get('sort')).toBeNull());
   });
 
-  it('says search does not narrow the heat map', async () => {
+  it('narrows the heat map by the search, as the table is narrowed', async () => {
     renderOn('?view=heatmap&q=paid');
-    const grid = await screen.findByRole('treegrid', { name: 'Mention by group and platform' });
-    expect(screen.getByText('Search does not narrow the heat map.')).toBeInTheDocument();
+    const grid = await screen.findByRole('grid', { name: 'Mention by group and platform' });
     await within(grid).findByRole('rowheader', { name: 'Paid Search' });
-    // Not narrowed: a topic that does not match the search is there
-    expect(within(grid).getByRole('rowheader', { name: 'SEO' })).toBeInTheDocument();
+    expect(within(grid).queryByRole('rowheader', { name: 'Technical SEO' })).toBeNull();
+    expect(screen.queryByText('Search does not narrow the heat map.')).toBeNull();
   });
 
   it('fills the group order store from the heat map', async () => {
     renderOn('?view=heatmap');
-    const grid = await screen.findByRole('treegrid', { name: 'Mention by group and platform' });
+    const grid = await screen.findByRole('grid', { name: 'Mention by group and platform' });
     await within(grid).findByRole('rowheader', { name: 'Paid Search' });
     await waitFor(() => expect(getTopicOrder(FYNIX_ID)).not.toBeNull());
-    expect(getTopicOrder(FYNIX_ID)).toEqual(expect.arrayContaining([MOCK_TERM_IDS.seo, MOCK_TERM_IDS.paidSearch]));
+    expect(getTopicOrder(FYNIX_ID)).toEqual(
+      expect.arrayContaining([MOCK_TERM_IDS.technicalSeo, MOCK_TERM_IDS.paidSearch]),
+    );
   });
 
   describe('Export by platform', () => {
@@ -435,20 +392,20 @@ describe('the Groups tab: the heat map, the export and the phone list', () => {
     afterEach(() => vi.restoreAllMocks());
 
     it('downloads the file and toasts the count', async () => {
-      const { user } = renderOn('?view=engines&metric=citation');
+      const { user } = renderOn('?view=engines');
       const table = await treegrid();
       await within(table).findByRole('button', { name: 'Open the group Paid Search' });
       await user.click(screen.getByRole('button', { name: 'Export by platform' }));
       expect(await screen.findByText(/^\d+ groups exported$/)).toBeInTheDocument();
-      expect(names).toEqual(['topics-by-engine-citation-2026-10-16-to-2026-11-12.csv']);
+      expect(names).toEqual(['groups-by-platform-mention-2026-10-16-to-2026-11-12.csv']);
       const [blob] = blobs;
       if (blob === undefined) throw new Error('No file was made');
       const text = await blob.text();
-      expect(text).toContain('Group,Parent group,Prompts,ChatGPT Citation (%)');
+      expect(text).toContain('Group,Prompts,ChatGPT Mention (%)');
       expect(text).toContain('Paid Search');
     });
 
-    /** Topic rows given by name, prompt count and mentions of 4 answers, each a top level topic of the mock vocabulary. */
+    /** Group rows given by name, prompt count and mentions of 4 answers, each a top level topic of the mock vocabulary. */
     function answerWith(
       rows: readonly (readonly [termId: string, name: string, promptCount: number, mentioned: number])[],
     ) {
@@ -484,7 +441,7 @@ describe('the Groups tab: the heat map, the export and the phone list', () => {
         .map((line) => line.split(',')[0] ?? '');
     };
 
-    it('writes the groups in the order of the API, the most prompts first, and not in the order of the rates', async () => {
+    it('writes the groups the most prompts first, and not in the order of the rates', async () => {
       // The rates run the other way: SEO is best and holds the fewest prompts
       answerWith([
         [MOCK_TERM_IDS.seo, 'SEO', 1, 4],
@@ -566,7 +523,7 @@ describe('the Groups tab: the heat map, the export and the phone list', () => {
       expect(await screen.findByRole('list', { name: /^Groups, \d+ results/ })).toBeInTheDocument();
       engines.unmount();
       renderOn('?view=heatmap');
-      expect(await screen.findByRole('treegrid', { name: 'Mention by group and platform' })).toBeInTheDocument();
+      expect(await screen.findByRole('grid', { name: 'Mention by group and platform' })).toBeInTheDocument();
       expect(screen.queryByRole('list', { name: /^Groups/ })).toBeNull();
     });
 

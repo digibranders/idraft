@@ -184,7 +184,12 @@ function TopicInspectorBody({
   const range = compared === null ? null : formatDateRange(compared.from, compared.to);
   const row = topicSummaryRow(summary, topicKey);
   const name = topicKey === NO_TOPIC ? words('columns.noTopic') : (row?.name ?? treeName ?? '');
-  const prompts = topicPrompts(summary, topicKey, descendants, engines[0]?.engine.engine_code);
+  const prompts = topicPrompts(
+    summary,
+    topicKey,
+    descendants,
+    engines.map((engine) => engine.engine.engine_code),
+  );
   const header = useTopicHeader({ topicKey, row, prompts });
   const missing = counts.status === 'ready' && row === undefined;
   const sectionStatus = (ready: InspectorSectionStatus = 'ready'): InspectorSectionStatus =>
@@ -305,7 +310,15 @@ function TopicInspectorBody({
     const context: TopicTabContext = { topicKey, summary, counts, engines, descendants, onOpenPrompt };
     const builtInTabs: TopicInspectorTab[] = [
       { id: 'overview', label: (translate) => translate('prompts.topicDrawer.tabOverview'), render: () => overview },
-      { id: 'prompts', label: (translate) => translate('prompts.topicDrawer.tabPrompts'), render: () => promptsPanel },
+      {
+        id: 'prompts',
+        // The tab says how many prompts it lists once they are known (PR-DRAWER-11: "Prompts (24)")
+        label: (translate) =>
+          prompts === null
+            ? translate('prompts.topicDrawer.tabPrompts')
+            : translate('prompts.groupsTab.tabPromptsCount', { count: prompts.length }),
+        render: () => promptsPanel,
+      },
     ];
     const tabs = topicTabs(builtInTabs, TOPIC_TAB_ENTRIES, context);
     body = (
