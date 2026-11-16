@@ -109,8 +109,8 @@ export function updatedCell(updated, className, stale = false) {
 export const promptUpdatedCell = (prompt, className) => updatedCell(updatedOf(prompt), className, prompt.stale);
 
 /**
- * PromptCell content (25 section 8.2): one line of text, the lock of a locked core panel, and the type badge
- * while the cell is wide enough for both (a container query: the cell narrows when the drawer docks).
+ * PromptCell content (25 section 8.2): one line of text and the type badge while the cell is wide enough for both
+ * (a container query: the cell narrows when the drawer docks). The locked core panel is shown in the inspector only.
  */
 export function promptLine(prompt) {
   const box = el('span', '@container block min-w-0');
@@ -120,13 +120,6 @@ export function promptLine(prompt) {
   text.dataset.keyCell = '';
   text.dataset.tip = prompt.text;
   line.append(text);
-  if (prompt.locked) {
-    const lock = icon('lock', 'size-icon-xs shrink-0 text-foreground-tertiary');
-    lock.setAttribute('aria-label', 'Locked core panel');
-    lock.setAttribute('role', 'img');
-    lock.removeAttribute('aria-hidden');
-    line.append(lock);
-  }
   if (prompt.branded) line.append(el('span', `${NEUTRAL_BADGE} shrink-0 group-aria-selected:bg-surface`, 'Branded'));
   line.append(el('span', `hidden @sm:inline-flex shrink-0 ${NEUTRAL_BADGE_LOOK} group-aria-selected:bg-surface`, TYPE_LABEL[prompt.type]));
   return box;
