@@ -2,7 +2,7 @@
 
 Status: Accepted (design-system v2)
 Last updated: 2026-09-29
-Visual source: [reference/visual-spec.md](reference/visual-spec.md) section 2. Implementation: [`tokens.css`](../../apps/web/src/styles/tokens.css). Verification: [`tokens.contrast.test.ts`](../../apps/web/src/lib/design/tokens.contrast.test.ts) (220 tests, 110 per theme). The web package suite (`pnpm --dir apps/web run test`: this file plus the formatter tests) passes with 241 of 241 tests on 2026-09-29.
+Visual source: [reference/visual-spec.md](reference/visual-spec.md) section 2. Implementation: [`tokens.css`](../../apps/web/src/styles/tokens.css). Verification: [`tokens.contrast.test.ts`](../../apps/web/src/lib/design/tokens.contrast.test.ts) (288 tests, 144 per theme). The web package suite (`pnpm --dir apps/web run test`: this file plus the formatter tests) passes with 241 of 241 tests on 2026-09-29.
 
 ## 1. Philosophy
 
@@ -281,8 +281,9 @@ Every row below is a test in `tokens.contrast.test.ts`, run for each theme. The 
 | Graphical marks on `surface`: `positive-solid`, `negative-solid`, `warning-solid`, `chart-1` to `chart-6`, `chart-other`, `chart-reference` | 3:1 | 11 |
 | `foreground` on each entity evidence highlight (18% of `chart-n` over `surface`) | 4.5:1 | 6 |
 | Categorical palette separation under normal vision and three color-vision simulations (section 7.1) | CIEDE2000 15 normal, 8 simulated | 1 |
+| Page tiers `tier-1` to `tier-8` and `tier-none` on `surface` and `surface-subtle` (section 7.4), and the order of the scale by contrast | 3:1 | 19 |
 
-Total: 110 tests per theme, 220 in the file.
+The file holds 288 tests, 144 per theme, on 2026-11-17 (the 220 recorded earlier had grown before the tier rows).
 
 Measured values (light): `foreground` on `surface` 17.8:1, `foreground-tertiary` on `surface` 5.4:1, `border-strong` on `surface` 3.6:1, `primary-foreground` on `primary` 5.0:1, `primary-text` on `surface-selected` 5.4:1, `neutral-text` on `neutral-subtle` 7.6:1. The lowest text pair is `negative-text` on `surface-selected` (4.69:1); the lowest non-text pair is `border-strong` on `surface-selected` (3.21:1).
 

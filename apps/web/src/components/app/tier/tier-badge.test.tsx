@@ -18,6 +18,14 @@ describe('TierBadge', () => {
     expect(badge).toHaveAttribute('title', 'T1 Money pages');
   });
 
+  it('gives a code-only badge its tier name as text a screen reader reads', () => {
+    renderWithProviders(<TierBadge tier={T1} />);
+    const badge = screen.getByText('T1').closest('[data-slot="tier-badge"]');
+    expect(badge).toHaveTextContent('T1 Money pages');
+    expect(badge?.querySelector('.sr-only')).toHaveTextContent('Money pages');
+    expect(badge).toHaveClass('shrink-0');
+  });
+
   it('shows the code and the name where names show (filters, the inspector)', () => {
     renderWithProviders(<TierBadge tier={T1} withName />);
     expect(screen.getByText('T1 Money pages')).toBeInTheDocument();

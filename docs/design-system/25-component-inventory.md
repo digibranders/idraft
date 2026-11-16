@@ -360,6 +360,7 @@ Paths are relative to `apps/web/src/`. `ui/` is `components/ui/`; `app/` is `com
 | CompetitorRankCell | SEO | `app/cells/competitor-rank-cell.tsx` | V1 | 24 §9.3 |
 | AIOverviewStatus | SEO | `app/seo/ai-overview-status.tsx` | V1 | 12 §6, 23 §7.1 |
 | SERPPreview | SEO | `app/seo/serp-preview.tsx` | V1 | 19 §12.3 |
+| TierBadge | SEO | `app/tier/tier-badge.tsx` | V1 | 02 §7.4 |
 | EngineBadge (observation class badge) | AI | `app/ai/engine-badge.tsx` | V1 | 14 §4 |
 | MentionStatus | AI | `app/ai/mention-status.tsx` | V1 | 23 §5 |
 | CitationStatus | AI | `app/ai/citation-status.tsx` | V1 | 12 §6 |
@@ -4081,7 +4082,7 @@ interface TierBadgeProps {
 
 - **Variants:** none (the color comes from the tier's position, `tier-colors.ts`).
 - **States:** none; never wraps.
-- **A11y:** plain text; the code or label is the meaning, the square is `aria-hidden`; a code-only badge has the label as its title.
+- **A11y:** plain text; the code or label is the meaning, the square is `aria-hidden`; a code-only badge carries the tier name as visually hidden text (a screen reader reads "T1 Money pages") and as its title (a mouse hint only). The badge keeps `type-label` and `px-1.5` as the reference screens draw it, and never shrinks in a flex row.
 - **Use:** tier cells of the Pages and Links tables, cards, the tier flow headers; `withName` in filters, tooltips, the inspector and settings.
 - **Not for:** a choice of tier (a `Select` of labels), counts.
 

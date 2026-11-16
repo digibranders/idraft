@@ -27,12 +27,14 @@ export function TierBadge({ tier, withName = false, className }: TierBadgeProps)
       data-slot="tier-badge"
       title={tier !== null && !withName ? label : undefined}
       className={cn(
-        'inline-flex h-badge items-center gap-1.5 rounded-sm border border-border bg-surface px-1.5 type-label whitespace-nowrap text-foreground',
+        'inline-flex h-badge shrink-0 items-center gap-1.5 rounded-sm border border-border bg-surface px-1.5 type-label whitespace-nowrap text-foreground',
         className,
       )}
     >
       <span data-tier-square="" aria-hidden="true" className={cn('size-2 shrink-0 rounded-xs', tierFill(tier))} />
       {withName || tier === null ? label : tier.code}
+      {/* The title is a mouse hint only: keyboard and screen reader users get the name from this text */}
+      {tier !== null && !withName ? <span className="sr-only"> {tier.name}</span> : null}
     </span>
   );
 }
