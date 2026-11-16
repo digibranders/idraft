@@ -23,7 +23,8 @@ export interface EngineLogoProps {
 export function EngineLogo({ engine, name, hidden = false, truncate = false }: EngineLogoProps): ReactElement {
   const label = truncate ? <Truncate text={name} /> : name;
   const mark = hidden ? null : <EngineMark engine={engine} />;
-  if (mark === null || engineMark(engine) === null) return <span className="inline-flex min-w-0 items-center">{label}</span>;
+  if (mark === null || engineMark(engine) === null)
+    return <span className="inline-flex min-w-0 items-center">{label}</span>;
   return (
     <span className="inline-flex min-w-0 items-center gap-2">
       {mark}
