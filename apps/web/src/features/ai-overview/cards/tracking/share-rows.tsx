@@ -21,7 +21,7 @@ export interface ShareCell {
   /** 0 to 1; a segment with no share is not drawn. */
   share: number;
   shareText: string;
-  /** The hover of the segment: "Mentioned first: 51%, 12 of 24 ordered answers". */
+  /** The hover of the segment: "Mentioned first: 51%, 12 of 24 answers that give your brand a place". */
   tip: string;
 }
 

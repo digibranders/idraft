@@ -7,7 +7,7 @@ export type OrderCountList = readonly [number, number, number, number];
 
 /**
  * `not_collected`: the backend sends no order counts for the platform, so no distribution can be drawn (a mean never
- * makes one). `too_few`: under `MIN_OBSERVATIONS` ordered answers, too few to say how the order falls. `ok`: four
+ * makes one). `too_few`: under `MIN_OBSERVATIONS` answers with a place, too few to say how the order falls. `ok`: four
  * shares that add up to 1.
  */
 export type OrderReading =
@@ -19,7 +19,7 @@ const NOT_COLLECTED: OrderReading = { state: 'not_collected', ordered: 0, counts
 
 /**
  * Where the own brand falls in the order of the brands named, on one platform, over the rows given: the order counts
- * of the rows added up, then shares of the ordered answers they count (one denominator for the shares and the mean).
+ * of the rows added up, then shares of the answers with a place they count (one denominator for the shares and the mean).
  * A row without order counts takes no part; when none has them the platform is `not_collected`.
  */
 export function orderDistribution(rows: readonly FactsRow[], code: string): OrderReading {

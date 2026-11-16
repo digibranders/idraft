@@ -83,7 +83,7 @@ describe('the mention position card', () => {
     expect(screen.queryByText(/^mean \d/)).not.toBeInTheDocument();
   });
 
-  it('keeps the line of a platform with fewer than 4 ordered answers as a chip and no bar', async () => {
+  it('keeps the line of a platform with fewer than 4 answers with a place as a chip and no bar', async () => {
     serve(
       platform('chatgpt_web', { position: POSITION }),
       platform('gemini_web', {

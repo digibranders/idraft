@@ -37,7 +37,7 @@ interface PlatformOrder {
  * OV-PT-01 and OV-PT-02: where the brand comes in the order of the brands named, as shares of the answers that name it
  * with a place, one bar per platform and never pooled. The shares come from the counts of answers by place (backend
  * request 2); until the API sends them the card says "Not collected yet", because a distribution cannot be made from a
- * mean. A platform with fewer than 4 ordered answers keeps its line with a chip and no bar.
+ * mean. A platform with fewer than 4 answers that give the brand a place keeps its line with a chip and no bar.
  */
 export default function PositionDistributionCard({ item, live }: CardProps): ReactElement {
   const t = useTranslations('aiOverview.sourcesTracking.position');
@@ -125,7 +125,16 @@ export default function PositionDistributionCard({ item, live }: CardProps): Rea
     })),
   ];
   const csv: CsvTable = {
-    header: ['platform', 'ordered_answers', 'mean_position', 'first', 'second', 'third', 'fourth_or_later', 'status'],
+    header: [
+      'platform',
+      'answers_with_place',
+      'mean_position',
+      'first',
+      'second',
+      'third',
+      'fourth_or_later',
+      'status',
+    ],
     rows: orders.map(({ code, reading }) => [
       safeText(nameOf(code)),
       reading.state === 'not_collected' ? null : reading.ordered,
