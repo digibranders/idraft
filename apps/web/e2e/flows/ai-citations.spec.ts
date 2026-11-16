@@ -60,7 +60,10 @@ test.describe('The Citations page', () => {
     for (const figure of STRIP_FIGURES) await expect(strip.getByRole('term').filter({ hasText: figure })).toBeVisible();
     const units = formatInteger(await scopeUnits(page));
     await expect(stripValue(page, 'Citation units')).toContainText(units);
-    await expect(stripValue(page, 'Your citation share')).toContainText(new RegExp(`\\d+ of ${units} units`));
+    // The counts behind the share are the tooltip text, which the value is described by
+    await expect(stripValue(page, 'Your citation share')).toHaveAccessibleDescription(
+      new RegExp(`\\d+ of ${units} citation units`),
+    );
 
     // The Domains table: the columns of DS 9.7, each domain with its role
     const table = domainsTable(page);

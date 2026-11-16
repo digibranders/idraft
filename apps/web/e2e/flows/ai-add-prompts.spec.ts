@@ -153,7 +153,7 @@ test.describe('Add prompts', () => {
     expect(writes.terms).toEqual([]);
     expect(writes.creates).toEqual([]);
     await page.getByRole('radio', { name: 'Groups' }).click();
-    await expect(topicsGrid(page).getByText('SEO', { exact: true })).toBeVisible();
+    await expect(topicsGrid(page).getByText('Technical SEO', { exact: true })).toBeVisible();
     await expect(topicsGrid(page).getByText(NEW_TOPIC, { exact: true })).toHaveCount(0);
   });
 
