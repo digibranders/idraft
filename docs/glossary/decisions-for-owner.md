@@ -34,15 +34,17 @@ and **D18** (whether group numbers add up). If those are wrong, the info text is
 
 ## Part 2. Confirm in one go
 
-All three models and the baseline agree on these. Say "confirmed" and they stay as written in `terms.md`.
+For these, no proposal chose a different word, and the baseline agrees or the baseline word is only replaced by a
+glossary word that all three share. Say "confirmed" and they stay as written in `terms.md`. Where a proposal differed
+on a detail of the same term (Query, Check), the detail is in D22, not here.
 
 | # | Term | Proposed |
 |---|---|---|
 | D2 | Where prompts are asked | **Platform** (never Engine); **Search engine** on the keyword side; **Model** is the version inside a platform. Votes O F C B agree; R: platform, model and engine tie in the market. Cost to choose Engine: about 400 visible strings, 38 test files, 31 preview occurrences. |
-| | Prompt, Keyword, Query | Prompt on the AI side; Keyword on the SEO side; Query only for Search Console. R: 13 of 14 AI tools say prompt. |
+| | Prompt and Keyword | Prompt on the AI side; Keyword on the SEO side. R: 13 of 14 AI tools say prompt. (The word for a Search Console query is in D22.) |
 | | Mention, Citation | The two counting words. R: the market uses both the same way. |
 | | Answer and Valid answer | Answer for one reply; Valid answer is the base of every rate; Failed answer is added. R: tools say "response" (5 of 14) or "answer", both fine; the app already says answer. |
-| | Run and Check | Run for a collection pass; Check for one keyword rank reading; Read is banned. |
+| | Run | Run for a scheduled collection pass; "Read" is not used for a check. (How a rank reading is named is in D22.) |
 | | Tag stays separate from Group | A tag has no tree and never adds up. R: the market splits topic (container) from tag (label). |
 | | Competitor, Brand, Your brand | Brand replaces Entity in visible text (see D12 for the one open part). |
 | | Tracked, Not tracked, Paused, Archived | Four states, one word each. |
@@ -105,11 +107,21 @@ how a keyword was added (the Keywords filter "Source"), and in the market the pa
 
 | Option | What users see | For | Against |
 |---|---|---|---|
-| **A. Source leaves the AI side** (recommended) | One page "Citations" with tabs Domains and Pages; "Cited domain" and "Cited page"; "Citation share"; the keyword filter becomes "Added from"; "Source" survives only in "Source: Google Analytics" footnotes | One word, one meaning. O F C agree. The nav item "Sources" has no strings yet (the page is not built), so folding it costs nothing. Keeps "Source" free for the "retrieved but not cited" metric (doc 16 C8, ChatGPT only) if it ever ships. `en.json` strings to review: 81 (citations 34, aiOverview 33, prompts 8, three others), listed in `application-keys/AK-02-source-leaves-ai-side.tsv` | R: "Sources" is the nav word at Peec, Semrush, AthenaHQ, SE Visible and Sistrix; users of those tools expect it. Citation beats source only by a small margin (8 tools to 5) |
-| B. Keep "Sources" for the AI side and rename only the keyword origin | Pages "Citations" and "Sources", or one page named Sources | Matches Peec, Semrush, SE Visible. Only 8 keyword strings change | Two nav items for the same data. "Source" stays vague between "pages used" and "pages cited" |
+| **A. Source leaves the AI side** (recommended) | Page "Citations" with tabs Domains and Pages; "Cited domain" and "Cited page"; "Citation share"; the keyword filter becomes "Added from"; "Source" survives only in "Source: Google Analytics" footnotes. The planned WP-61 page gets a name for its job (working name "Citation opportunities") | One word, one meaning. Keeps "Source" free for the "retrieved but not cited" metric (doc 16 C8, ChatGPT only) if it ships. `en.json` strings to review: 81 (citations 34, aiOverview 33, prompts 8, three others), listed in `application-keys/AK-02-source-leaves-ai-side.tsv` | R: "Sources" is the nav word at Peec, Semrush, AthenaHQ, SE Visible and Sistrix; users of those tools expect it. Citation beats source only by a small margin (8 tools to 5). The Sources page is not a duplicate of Citations (see below), so it needs its own name and that name is not decided |
+| B. Keep "Sources" as the name of the opportunities page, and rename only the keyword origin | Pages "Citations" and "Sources"; Source means "a website you could be cited on" | Matches Peec, Semrush, SE Visible. Only 8 keyword strings and the cited-website strings (AK-02) change where they say "source" for a citation | "Source" stays vague between "pages used" and "pages cited", and the Overview cards already say "source" for cited domains |
 | C. Keep both as today | | Zero cost | The ambiguity the owner is trying to remove |
 
-Votes: O A, F A, C A, R split, B C. "Added from" (O, C) was chosen over "Added by" (F) because "by" reads as a person.
+What the Sources page is: the route `/ai/sources` exists as a placeholder that shows the 404 page until work package
+WP-61 builds it (`src/app/[workspace]/[project]/ai/sources/page.tsx`, `lib/navigation/registry.ts`). WP-61 is not
+Citations again: its goal is "Publishers, Categories, Opportunities", the category override dialog, and source gap and
+overlap views on Competitors (`docs/ai-visibility/work-packages/WP-61-sources-page.md`). So the three models' advice
+"fold Sources into Citations" does not fit; what they agree on is only that the word "Source" should not name cited
+websites. Under A the nav item and the page title are renamed for the job, and the owner names it when WP-61 starts.
+
+Votes on the word "Source" leaving the AI side: O yes, F yes, C yes, R split (Peec, Semrush, AthenaHQ, SE Visible and
+Sistrix use Sources; Profound, Otterly, Ahrefs, Scrunch, Rankscale, Goodie, Writesonic and Similarweb use Citations), B
+no. On the names that replace it the proposals differ, see D22: tab names Websites (O), Domains and Pages (F), Cited
+sites and Cited pages (C). "Added from" (O, C) was chosen over "Added by" (F) because "by" reads as a person.
 
 Recommendation: **A**.
 
@@ -299,13 +311,29 @@ The app says "Date window" (the control), "window" (191 uses in 162 strings) and
 days" as the default. Recommendation: **Period** (F), because "window" reads as a browser window and "Compare with
 previous period" already uses it. Cost: 162 strings, all in `en.json`, mechanical.
 
+### D22. Smaller splits between the proposals
+
+Low user impact each. The recommendation is what `terms.md` uses; reverse any of them without touching the others.
+
+| Term | Opus | Fable | Codex | Recommendation and reason |
+|---|---|---|---|---|
+| A reading of a keyword rank (U9) | Check, "Check now" | Check, "Check now" | "Rank check" for the reading, "Run now" for the action; bans bare Check | **Check** and "Check now". The Keywords page has 154 uses and no one is confused there; "Run now" would make a rank check sound like an AI run. Codex's point stands if the Runs page ever lists both kinds: then say "Rank check" there |
+| A Search Console query (U3) | Query | Query | "Search query" | **Query**, on Pages and performance only, because Search Console shows "Queries". Use "Search Console query" in prose if it sits next to fan-out queries |
+| The compare control (P15) | Compare with, Previous period | Compare with, Previous period | "Comparison period"; bans Compare with | **Compare with** (a control starts with a verb); the value is "Previous period" |
+| Abbreviations SOV and KD (M5, M13, section 9) | Banned (do not translate) | Allowed in narrow column headers | Keep the full term outside narrow headers (allows in headers) | **Allowed in a narrow column header only**, tooltip carries the full term. The app uses both today. Opus's translation worry is real; translators may spell them out |
+| The kind of cited website (C8) | "Category" | "Domain type" | "Source type" | **Domain type**: it matches the Domains tab and avoids both Category (vague) and Source (banned). Fable's word |
+| Tab names on Citations (E3, E4) | Websites, Pages | Domains, Pages | Cited sites, Cited pages | **Domains** and **Pages** (existing, SEO users know "domain"). Opus and Codex chose plainer words for clients who do not say "domain" |
+| Client (B12) | Allowed only in examples | Never a level | A real term: an agency's customer, which may own several projects | **Not a product level**. Codex's version needs a client level above Project, which the product does not have. Revisit if agencies ask |
+| Snapshot of the Google page (U12) | Results page snapshot | Results page snapshot | SERP snapshot | **SERP snapshot** (see D14) |
+| The thing a schedule starts (U10) | Schedule | Schedule | "Prompt set" | **Schedule** (see D15) |
+
 ## Part 4. What the models disagreed on, in one table
 
 | Choice | O | F | C | R | Recommendation |
 |---|---|---|---|---|---|
 | Group or Topic | Group | Group | Group | Topic | Group (D1) |
 | Location or Country | Location | Location | Country on AI | tie | Location (D3) |
-| Source on AI side | removed | removed | removed | split | removed (D4) |
+| "Source" names cited websites | no | no | no | split | no; name the WP-61 page for its job (D4) |
 | Rank or Position | Rank | Position | Position | Position | Rank (D5) |
 | Taxonomy page | Labels | Group sets | Classification | none say taxonomy | Tag sets (D8) |
 | Detectable change | Clear change | Detectable | Detectable | | Detectable (D10) |
@@ -315,6 +343,13 @@ previous period" already uses it. Cost: 162 strings, all in `en.json`, mechanica
 | Panel | Schedule | Schedule | Prompt set | | Schedule (D15) |
 | Added from or by | from | by | from | | from (D4) |
 | AI visibility casing | sentence | sentence, plus "rate" | title case | | sentence, plus "rate" (D7) |
+| Rank reading | Check | Check | Rank check, Run now | | Check (D22) |
+| Search Console query | Query | Query | Search query | | Query (D22) |
+| Compare control | Compare with | Compare with | Comparison period | | Compare with (D22) |
+| SOV and KD | banned | allowed in headers | allowed in headers | | allowed in headers (D22) |
+| Cited website kind | Category | Domain type | Source type | | Domain type (D22) |
+| Citations tabs | Websites, Pages | Domains, Pages | Cited sites, Cited pages | | Domains, Pages (D22) |
+| Client | examples only | never a level | a real term | | not a level (D22) |
 
 ## Part 5. Limits of this work
 

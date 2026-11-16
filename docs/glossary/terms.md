@@ -1,8 +1,9 @@
 # idraft glossary: terms
 
-Status: PROPOSAL (2026-11-16). Not approved. Where a row says **Firm**, all three independent proposals (Opus, Fable,
-Codex) and the provisional words of the real app agree. Where it says **D1** to **D20**, the owner must decide; the
-options are in `decisions-for-owner.md`. The label shown is the recommendation.
+Status: PROPOSAL (2026-11-16). Not approved. Where a row says **Firm**, the label is recommended and none of the three
+independent proposals (Opus, Fable, Codex) chose a different word for that term. Where it says **D1** to **D22**, the
+owner must decide, or a proposal split on it; the options are in `decisions-for-owner.md`. The label shown is the
+recommendation, and that recommendation is the session's synthesis, not a vote result.
 
 Rules that apply to every row:
 
@@ -29,7 +30,8 @@ Columns: **ID**, **Label** (singular / plural), **Definition** (one sentence, st
 | A4 | Keywords | The SEO page that lists tracked keywords with their rank. | Not Prompts. | Rankings, Rank tracker (as a page name) | Navigation, page title | Safe | Firm |
 | A5 | Pages | The SEO page that shows how each page of your site performs in Google. | Not cited pages (see E4). | Landing pages (unless the URL is one) | Navigation | Safe | Firm |
 | A6 | Prompts | The AI visibility page that lists the prompts we ask and how your brand does on each. | Not Keywords. | Topics and prompts, Queries, Questions | Navigation, page title | Loanword in most languages | Firm |
-| A7 | Citations | The AI visibility page about what AI answers cite, with the tabs Domains and Pages. | Not two pages. | Sources (as page name) | Navigation, page title | See E1 | D4 |
+| A7 | Citations | The AI visibility page about what AI answers cite, with the tabs Domains and Pages. | Not the page of opportunities (A7b). | Sources (as page name) | Navigation, page title | See E2 | D4 |
+| A7b | Citation opportunities (working name) | The planned AI visibility page (work package WP-61, route `/ai/sources`) that shows which publishers and domain types answers cite, and where competitors are cited and you are not. | Not the Citations page: it is built on top of it. | Sources, Source intelligence | Navigation, once WP-61 ships | Name it for its job, then fix with the owner after the WP-61 scope is final | D4 |
 | A8 | Competitors | The AI visibility page that compares your brand with each competitor. | | Rivals | Navigation | Safe | Firm |
 | A9 | Reports / Integrations / Runs / Costs / Settings | The page names equal the plural of what they list. | | Engines, Topics, Panels, Taxonomy (see C6) | Navigation | Safe | Firm |
 | A10 | Matrix, Discover | Not defined in any spec read for this work. | | | Navigation | Name them before the application pass | D20 |
@@ -52,7 +54,7 @@ Columns: **ID**, **Label** (singular / plural), **Definition** (one sentence, st
 | P12 | All locations | The scope value that includes every location of the project. | Not worldwide. | All countries, Global, Worldwide | Scope pickers, top bar | Safe | D3 |
 | P13 | Depth / Beyond depth | How many Google results a check reads (top 10, 20, 50, 100). Beyond depth means your site was not in the results read. | Not "does not rank". | Unranked, Not ranking, Over 100 | Keywords filter and column | "Beyond depth" needs a gloss: not in the results read | Firm |
 | P14 | Period | The date range the numbers cover. | Not a run. | Window (in UI), Date window, Date range, Timeframe | Date control, info texts, Compare | Safe | D21 |
-| P15 | Compare with (control) / Previous period (value) | A control that shows the period just before the chosen one, of equal length, next to it. | Not a comparison with a competitor. | Compare period, Benchmark, Baseline, vs last period | Top bar | Safe | Firm |
+| P15 | Compare with (control) / Previous period (value) | A control that shows the period just before the chosen one, of equal length, next to it. | Not a comparison with a competitor. | Compare period, Benchmark, Baseline, vs last period | Top bar | Safe | D22 |
 
 ## 3. How keywords and prompts are organised
 
@@ -65,7 +67,7 @@ Columns: **ID**, **Label** (singular / plural), **Definition** (one sentence, st
 | C5 | Tag / Tags | A free label on a keyword or prompt. An item can have many. Tags do not form a tree and are never used for totals. | Not a group. No subtags. | Label (for this), Keyword label | Keyword rows, filters, bulk edit | Loanword in German and Dutch; French étiquette | Firm |
 | C6 | Tag set / Tag sets (settings page "Tags") | A named list of tags that belong together, for example Products, Services, Campaigns, Personas. Replaces "vocabulary" and "taxonomy". | Not a group. | Vocabulary, Taxonomy, Dimension, Facet, Classification | Settings page, tag pickers (shown as "Persona: Enterprise") | Safe | D8 |
 | C7 | Tag set type | What a tag set is for, chosen once when it is created: Product, Service, Campaign, Persona, Custom. Replaces "kind". | Not prompt type. | Kind | The create dialog only | Safe | D8, D19 |
-| C8 | Domain type / Domain types | The kind of website a citation goes to: Your site, Competitor, Review site, Publisher, Community, Other. Set by the app. | Not a group. | Category, Source type, Source category, Role | Citations cards and filters | Safe | D4 |
+| C8 | Domain type / Domain types | The kind of website a citation goes to: Your site, Competitor, Review site, Publisher, Community, Other. Set by the app. | Not a group. | Category, Source type, Source category, Role | Citations cards and filters | Safe | D22 |
 | C9 | Theme | The light or dark colour setting. | Never an organiser. | | User menu | Safe | Firm |
 
 ## 4. Units of work and data
@@ -74,13 +76,13 @@ Columns: **ID**, **Label** (singular / plural), **Definition** (one sentence, st
 |---|---|---|---|---|---|---|---|
 | U1 | Prompt / Prompts | The text the app sends to an AI platform on a schedule, written as a buyer would ask it. | Not a keyword. Not a fan-out query. | Query, Question (as a label), Search term | The AI visibility area | Loanword in most languages | Firm |
 | U2 | Keyword / Keywords | A search term whose Google rank the app tracks per location, device and language. | Not a prompt. Not a Search Console query. | Term, Search term, Phrase, Query | The SEO area | Safe | Firm |
-| U3 | Query / Queries | A search that people typed into Google, as Search Console reports it. | Not a tracked keyword. Not a fan-out query. | Search term | Page performance only | Follow Google's local Search Console wording | Firm |
+| U3 | Query / Queries | A search that people typed into Google, as Search Console reports it. | Not a tracked keyword. Not a fan-out query. | Search term | Page performance only | Follow Google's local Search Console wording | D22 |
 | U4 | Fan-out query / Fan-out queries (always both words) | A search an AI platform runs by itself while it builds an answer. First use on a page carries the gloss "searches the platform runs to build its answer". | Not our prompt. Not a Search Console query. | Query (alone, on AI screens), Subquery, Related search | Prompt detail, Overview card | No natural equivalent: keep "fan-out" and translate the gloss | D13 |
 | U5 | Answer / Answers | What one platform returned for one prompt in one location on one day. | Not a run. | Response, Observation, Result, Output, Reply, Reading | Every AI screen | Antwort, réponse, respuesta | Firm |
 | U6 | Valid answer / Valid answers | An answer that was collected in full and can be counted. It is the base of every AI rate. | Not an answer that mentions you; a valid answer may mention nobody. | Good answer, Usable answer, Successful response | Info texts, coverage, tooltips | Translate as "countable", not "correct" | Firm |
 | U7 | Failed answer / Failed answers | An answer the app could not collect or the platform refused. Left out of every rate. | Not a miss for your brand. | Invalid answer, Error, Missing answer | Runs, run calendar, coverage | Safe | Firm |
 | U8 | Run / Runs | One scheduled pass that asks a set of prompts or checks a set of keywords at a set time. | Not one answer or one check. | Job, Batch, Cycle, Wave, Crawl | Runs page, run calendar, "Run started" | Durchlauf, exécution. Not "race" | Firm |
-| U9 | Check / Checks (verb: Check now) | One reading of a keyword's rank at one location, device and language. | Not a run. Not used for AI answers. | Read, Reading, Lookup, Scan | Keywords, keyword detail, Costs | Prüfung, vérification | Firm |
+| U9 | Check / Checks (verb: Check now) | One reading of a keyword's rank at one location, device and language. | Not a run. Not used for AI answers. | Read, Reading, Lookup, Scan | Keywords, keyword detail, Costs | Prüfung, vérification | D22 |
 | U10 | Schedule / Schedules | The rule that says when runs happen and which prompts or keywords they cover. | Not a run. | Panel, Cadence, Plan | Project settings, run calendar | Safe | D15 |
 | U11 | Screenshot / Screenshots | A stored image of an AI answer as the platform showed it. | Not a snapshot. | Capture, Image | Answer detail | Loanword | Firm |
 | U12 | SERP snapshot / SERP snapshots | The stored copy of the Google results page from one check. | Not an image of an AI answer. | Snapshot (alone), Results page snapshot, SERP copy, Cache | Keyword detail tab | Use a word unlike the one for screenshot (German Momentaufnahme) | D14 |
@@ -93,8 +95,8 @@ Columns: **ID**, **Label** (singular / plural), **Definition** (one sentence, st
 |---|---|---|---|---|---|---|---|
 | E1 | Mention / Mentions (verb: mention, mentioned) | A brand's name appearing in the text of an answer. | Not a citation. A mention needs no link. | Named, Naming, Reference, Appearance, Brand hit | Every AI screen | Erwähnung, mention | D6 |
 | E2 | Citation / Citations (verb: cite, cited) | A page that an answer links to or lists as a source. One citation is one page in one answer, however often it repeats. | Not a mention. Not a quotation of your text. | Link (as the counted thing), Reference, Source, Backlink | Citations page, every AI metric | False friend in French and German (quotation). Use the local "reference to a source" and test it with a native SEO | D6 |
-| E3 | Cited domain / Cited domains (tab "Domains") | A website, identified by its registrable name (example.com), that answers cite. | Not a data source. Not how a keyword was added. | Source, Source domain, Reference | Citations tab Domains, competitor drawer | Safe | D4 |
-| E4 | Cited page / Cited pages (tab "Pages") | One URL that answers cite. | Not a page of your site unless it is marked "Your pages". | Source page, Source | Citations tab Pages | Safe | D4 |
+| E3 | Cited domain / Cited domains (tab "Domains") | A website, identified by its registrable name (example.com), that answers cite. | Not a data source. Not how a keyword was added. | Source, Source domain, Reference | Citations tab Domains, competitor drawer | Safe | D4, D22 |
+| E4 | Cited page / Cited pages (tab "Pages") | One URL that answers cite. | Not a page of your site unless it is marked "Your pages". | Source page, Source | Citations tab Pages | Safe | D4, D22 |
 | E5 | Link / Links | A hyperlink between two pages, as internal link tracking records it. In prose: "an answer links to a page". | Not a citation. | (none on the SEO side) | Internal links area | Safe | Firm |
 | E6 | Source (only as "Source: Google Analytics") | The provider a number comes from. | Not a cited website. Not how a keyword was added. | Used for cited sites; used for keyword origin | Footnotes of cards and exports | "Data source" | D4 |
 | E7 | Added from | How a keyword entered the project: By hand, CSV import, Paste, API, Search Console, Discovery. Replaces the Keywords filter "Source". | Not the person who added it. | Source, Origin | Keywords filter and column | Safe | D4 |
@@ -112,7 +114,7 @@ Columns: **ID**, **Label** (singular / plural), **Definition** (one sentence, st
 | M2 | SEO visibility | An estimate of how visible your tracked keywords are in Google, weighted by rank and by search volume. | Not a share of answers. Not comparable with M1. | Visibility (alone), Search visibility, Visibility index | SEO overview | Always carries the prefix | Firm |
 | M3 | Mention rate | The share of valid answers that mention your brand. | Not a count of mentions. | Brand mention rate, Mention frequency, Visibility | AI screens | Safe | Firm |
 | M4 | Citation rate | The share of valid answers that cite at least one page of your domains. | Not citation share. | Source citation rate, Domain citation rate, Link rate | AI screens | Follows E2 | Firm |
-| M5 | Share of voice (abbreviation SOV only in a narrow column) | Your part of the brand mentions among you and the tracked competitors. On the SEO side written "SEO share of voice". | Not mention rate: it changes when a competitor is added. | Voice share, Share of mentions, Mention share | Overview, Competitors, Keywords | Often left in English; French "part de voix" is established | D17 |
+| M5 | Share of voice (abbreviation SOV only in a narrow column) | Your part of the brand mentions among you and the tracked competitors. On the SEO side written "SEO share of voice". | Not mention rate: it changes when a competitor is added. | Voice share, Share of mentions, Mention share | Overview, Competitors, Keywords | Often left in English; French "part de voix" is established | D17, D22 |
 | M6 | Citation share | A domain's part of all citations in scope. For your domains, "Your citation share". | Not citation rate: the base is citations, not answers. | Source share, Domain share, Share of citations | Citations, Overview | Follows E2 | D4 |
 | M7 | Mention position (card "Average mention position"; never bare "Position" on an AI screen) | The order in which your brand is first mentioned in an answer, among the brands you track. 1 is first; lower is better. | Not a Google rank. Not a place in a numbered list inside an answer. | Position (alone), Rank, AI rank, Mention order, Prominence | Overview, prompt tables | Safe with the qualifier | D5 |
 | M8 | Rank / Ranks (best rank, average rank, Top 3) | Where your page appears in Google's organic results for a keyword, counted from the top. 1 is first. | Not a mention position. Not Search Console's average position. | Position (for tracked keywords), Ranking (as a noun), SERP position | Keywords, keyword detail, SEO overview | Safe | D5 |
@@ -120,7 +122,7 @@ Columns: **ID**, **Label** (singular / plural), **Definition** (one sentence, st
 | M10 | Recommendation rate | The share of valid answers that recommend your brand, not only mention it. | Not sentiment. A positive mention is not always a recommendation. | Endorsement rate, Top pick rate | AI screens | Safe | Firm |
 | M11 | Sentiment (values: Positive, Neutral, Negative, Mixed) | The tone of the text around a mention of your brand, shown as four shares. | Not one score. | Tone (in the explaining sentence only), Sentiment score, Favourability | AI screens | German also Tonalität | Firm |
 | M12 | Search volume (short: "Volume" in a column) | The data provider's estimate of average monthly Google searches for a keyword at a location. | Not clicks. Not impressions. Not available for prompts. | SV, Demand, Popularity | Keywords | Safe | Firm |
-| M13 | Keyword difficulty (abbreviation KD only in a narrow column) | The data provider's score from 0 to 100 for how hard it is to reach the first results for a keyword. | Not our calculation. Not a probability. | Difficulty (alone), Competition, SEO difficulty | Keywords | KD is understood by SEO users in most markets | Firm |
+| M13 | Keyword difficulty (abbreviation KD only in a narrow column) | The data provider's score from 0 to 100 for how hard it is to reach the first results for a keyword. | Not our calculation. Not a probability. | Difficulty (alone), Competition, SEO difficulty | Keywords | KD is understood by SEO users in most markets | D22 |
 | M14 | CPC | The average cost per click that advertisers pay for a keyword, in US dollars. | | Cost per click (spelled out only in the tooltip) | Keywords | Google Ads uses CPC in every language | Firm |
 | M15 | Impressions, Clicks | As Google Search Console defines them. | Not AI numbers. | Views, Visits (for clicks) | Pages, performance | Follow Google's local wording | Firm |
 | M16 | AI referral visits | Visits to your site that Google Analytics attributes to AI platforms. | Not clicks in an answer. | Referral traffic, Sessions (in plain text) | Overview card | Safe | Firm |
@@ -141,7 +143,7 @@ Columns: **ID**, **Label** (singular / plural), **Definition** (one sentence, st
 | B9 | Archived | Removed from lists and reports, not collected, history kept, can be restored. | Not deleted. Not paused. | Hidden, Removed, Retired | Projects, prompts, keywords | Safe | Firm |
 | B10 | Project / Projects | One brand and its site, with its keywords, prompts, competitors and schedules. | Not a workspace. Not a client. | Client, Site, Campaign, Property, Account | Everywhere | Safe | Firm |
 | B11 | Workspace / Workspaces | A team's account: its members and its projects. | Not a project. | Organisation, Team, Account, Agency | Sign-in, settings, switcher | Often kept in English | Firm |
-| B12 | Client | Not a product level. Allowed only in example text. | | Client (as a level, filter or page) | Role help text | Safe | Firm |
+| B12 | Client | Not a product level. Allowed only in example text. | | Client (as a level, filter or page) | Role help text | Safe | D22 |
 
 ## 8. Data states and statistics
 
@@ -160,7 +162,7 @@ Columns: **ID**, **Label** (singular / plural), **Definition** (one sentence, st
 
 | Allowed in a narrow column header, with the full term in the tooltip | Never allowed |
 |---|---|
-| SOV (Share of voice), KD (Keyword difficulty), CPC. SEO and AI always. SERP only inside "SERP feature" and "SERP snapshot" | AIO, AIV, SV, GEO, AEO, SGE, n/a anywhere but table cells |
+| SOV (Share of voice), KD (Keyword difficulty), CPC (decision D22: Opus bans SOV and KD). SEO and AI always. SERP only inside "SERP feature" and "SERP snapshot" | AIO, AIV, SV, GEO, AEO, SGE, n/a anywhere but table cells |
 
 ## 10. Info ("i") texts
 

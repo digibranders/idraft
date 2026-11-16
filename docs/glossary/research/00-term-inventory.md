@@ -108,7 +108,8 @@ the word. Preview counts are occurrences in `.js` and `index.html`. Docs counts 
 
 Navigation groups: **SEO** (Overview, Matrix, Keywords, Pages) and **AI Visibility** (Overview, Prompts, Citations,
 Sources, Competitors, Discover, Reports), then Integrations, Runs, Costs, Settings. Two items are both called
-"Overview". Both "Citations" and "Sources" exist. Keywords is the nav label of the route that is called "rankings" in
+"Overview". Both "Citations" and "Sources" exist: Citations is built; Sources is a 404 placeholder route for work
+package WP-61 (Publishers, Categories, Opportunities, source gap and overlap views), not a duplicate of Citations. Keywords is the nav label of the route that is called "rankings" in
 the code. Matrix and Discover are not defined in any spec I read; they are listed in `application-plan.md` as
 "decide before the pass".
 

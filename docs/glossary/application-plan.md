@@ -34,7 +34,7 @@ A wave is independent of the later ones, except where it says so.
 | W1 | The guard script and its test (section 2) | none | S | W0 |
 | W2 | Mechanical renames in `en.json`: AK-07 window to period, AK-05 and AK-06 empty states, AK-10 workload, trigger, panel, AK-11 casing, AK-12 Google AI Overview, AK-13 interim and read, AK-14 topic leftovers | D7, D9, D10, D11, D15, D21 | M | W1 |
 | W3 | Grammar-sensitive renames: AK-03 named to mentioned (and the outcome labels), AK-04 own to your or the brand name, AK-08 entity to brand, AK-01 country to location | D3, D6, D12, D16 | M | W2 |
-| W4 | Sources fold into Citations and the Keywords filter "Added from" (section 4.4) | D4 | M | W3 |
+| W4 | "Source" leaves the AI side, and the Keywords filter becomes "Added from" (section 4.4) | D4 | M | W3 |
 | W5 | Settings Taxonomy page to Tags (section 4.5) | D8, D19 | L | W2 |
 | W6 | Info texts: add keys, wire the "i" buttons (section 4.6) | D17, D18 | M | W3, W4 |
 | W7 | Design preview and `aiov-info.js` | all | M | W2 to W6 decided, not applied |
@@ -124,10 +124,13 @@ countries", with the helper "AI answers are collected at country level". `rankin
 carry one label. Check in the component whether they filter different things (a country against a city) and either
 merge them or name them "Location" and "City". Tests: the `rankings` and `prompts` filter tests assert both labels.
 
-### 4.4 Sources fold into Citations (D4)
+### 4.4 "Source" leaves the AI side (D4)
 
-1. `navigation.items.sources` and the `sources` namespace (0 strings) are removed from the navigation list in the
-   shell (the page has no content). The route, if it exists, redirects to Citations.
+1. The Sources page is not a duplicate of Citations: `src/app/[workspace]/[project]/ai/sources/page.tsx` is a 404
+   placeholder for work package WP-61 (Publishers, Categories, Opportunities, source gap and overlap views), and
+   `lib/navigation/registry.ts` marks it not live. Do not remove it. Change `navigation.items.sources` to the name the owner
+   gives that page (working name "Citation opportunities"), and leave the route and the key as they are. WP-61's
+   tab labels follow the glossary too: "Categories" becomes "Domain types".
 2. Citations tabs stay "Domains" and "Pages". Rename strings: "Third party sources" to "Third party domains" and
    "Competitor sources" to "Competitor domains" (`citations.views.*`); "Source share" to "Citation share"; the inspector type "Source" (`citations.inspectors.source.type`) to "Page";
    `citations.inspectors.domain.type` stays "Domain".
