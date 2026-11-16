@@ -17,6 +17,8 @@ export interface LegendItem {
   swatch?: LegendSwatch | undefined;
   /** Shown; `false` reads as turned off. */
   pressed: boolean;
+  /** The latest value, written after the name ("34%"). */
+  valueText?: string | undefined;
 }
 
 export interface ChartLegendProps {
@@ -79,6 +81,12 @@ export function ChartLegend({ title, items, onToggle }: ChartLegendProps): React
           <>
             <Swatch role={item.role} swatch={item.swatch ?? defaultSwatch(item.role)} />
             {item.name}
+            {item.valueText === undefined ? null : (
+              <>
+                {/* A space keeps "ChatGPT 34%" one phrase in the accessible name */}{' '}
+                <span className="num">{item.valueText}</span>
+              </>
+            )}
           </>
         );
         return (

@@ -74,12 +74,24 @@ describe('the trend card', () => {
     renderCard('cmp=off&metric=mention');
     await screen.findByRole('heading', { level: 2, name: 'Mention rate over time' });
     const legend = await screen.findByRole('list', { name: /Series in Mention rate over time/ });
+    // Under the chart, each line with its latest rate (the last week: 60% and 40%, their average 50%)
     expect(
       within(legend)
         .getAllByRole('listitem')
         .map((item) => item.textContent),
-    ).toEqual(expect.arrayContaining(['ChatGPT', 'Gemini', 'Average']));
+    ).toEqual(expect.arrayContaining(['ChatGPT 60%', 'Gemini 40%', 'Average 50%']));
     expect(screen.getByText('a line per platform, with their average')).toBeInTheDocument();
+  });
+
+  it('puts the legend under the chart, and takes it away with the chart in the Table view', async () => {
+    serve(platform('chatgpt_web', [4, 5, 6]), platform('gemini_web', [2, 3, 4]));
+    const { user } = renderCard('cmp=off&metric=mention');
+    const legend = await screen.findByRole('list', { name: /Series in Mention rate over time/ });
+    const canvas = screen.getByRole('img', { name: 'Mention rate over time' });
+    expect(canvas.compareDocumentPosition(legend) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Table' }).querySelector('svg')).not.toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Table' }));
+    expect(screen.queryByRole('list', { name: /Series in Mention rate over time/ })).not.toBeInTheDocument();
   });
 
   it('draws one platform alone, with its 95% interval and no Average', async () => {

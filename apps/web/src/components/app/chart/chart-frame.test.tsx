@@ -148,6 +148,36 @@ describe('ChartFrame', () => {
     expect(screen.getByRole('region', { name: HTML_BASE.title })).toBeInTheDocument();
   });
 
+  it('keeps the legend in the header and the Table button plain unless a card opts in', async () => {
+    renderWithProviders(frame());
+    const legend = await screen.findByRole('list', { name: /Series in Search volume by month/ });
+    expect(legend.closest('div[class*="flex-wrap"]')).toContainElement(screen.getByRole('heading', { level: 2 }));
+    expect(
+      within(legend)
+        .getAllByRole('listitem')
+        .map((item) => item.textContent),
+    ).toEqual(['Search volume', 'Previous year']);
+    expect(screen.getByRole('button', { name: 'Table' }).querySelector('svg')).toBeNull();
+  });
+
+  it('writes the latest values in a legend under the chart, and a table icon, when a card opts in', async () => {
+    const { user } = renderWithProviders(
+      <ChartFrame {...CATEGORY_BASE} status="ready" legendValues={{ volume: '34%', previous: 'n/a' }} tableIcon />,
+    );
+    const legend = await screen.findByRole('list', { name: /Series in/ });
+    expect(
+      within(legend)
+        .getAllByRole('listitem')
+        .map((item) => item.textContent),
+    ).toEqual(['Search volume 34%', 'Previous year n/a']);
+    const canvas = screen.getByRole('img', { name: CATEGORY_BASE.title });
+    expect(canvas.compareDocumentPosition(legend) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const table = screen.getByRole('button', { name: 'Table' });
+    expect(table.querySelector('svg')).not.toBeNull();
+    await user.click(table);
+    expect(screen.queryByRole('list', { name: /Series in/ })).not.toBeInTheDocument();
+  });
+
   it('offers patterns for bars only', () => {
     const { rerender } = renderWithProviders(frame('line'));
     expect(screen.queryByRole('button', { name: 'Patterns' })).toBeNull();
