@@ -298,7 +298,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
       },
       detectableField({ field: t('compare.detectable.field'), option: t('compare.detectable.option') }),
     ];
-  }, [t, summaryData, topicsUnknown, groupOptions, enabled, engines.data]);
+  }, [t, summaryData, topicsUnknown, optionsPending, groupOptions, enabled, engines.data]);
   // A filter of a shared link that does not read is left out, and the person is told (13 section 5)
   const [urlValues, setUrlValues] = useUrlFilters(fields, {
     onDropped: (dropped) =>
