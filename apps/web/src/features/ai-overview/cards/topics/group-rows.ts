@@ -1,5 +1,5 @@
 import type { TopicNode } from './model-types';
-import { leavesOf } from './topic-nodes';
+import { groupsOf } from './topic-nodes';
 import { topicEngineRows, type TopicEngineRow } from './topic-rows';
 import type { ScopeMetric } from '../../scope/scope-model';
 import type { EngineSummary, PromptSummaryRow } from '@/lib/api/types';
@@ -32,17 +32,6 @@ export const forMeasure = (engines: readonly EngineSummary[], measure: ScopeMetr
   measure === 'visibility'
     ? engines.map((engine) => ({ ...engine, mentioned: visibilityCell(engine.outcomes) }))
     : engines;
-
-/**
- * The groups of the nodes: the topics with a prompt that have no topic with a prompt below them, in the order of the
- * vocabulary tree. A topic the API lists with no prompt is no group, so a topic whose only sub-topics are empty is one.
- */
-export function groupsOf(nodes: readonly TopicNode[]): TopicNode[] {
-  const held = nodes
-    .filter((node) => node.promptCount > 0)
-    .map((node) => ({ ...node, children: node.children.filter((child) => child.promptCount > 0) }));
-  return leavesOf(held);
-}
 
 /** The groups of the nodes, in the order of the vocabulary tree, each with its value on every platform and their average. */
 export function groupRows(

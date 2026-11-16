@@ -14,7 +14,7 @@ import { promptHref, promptsTabHref, type LinkContext } from './links';
 import type { TopicData } from './model-types';
 import { TopicFootnote } from './topic-footnote';
 import { useGroupVersus } from './use-group-versus';
-import { useChosenGroupName } from './use-group-name';
+import { useChosenGroup } from './use-group-name';
 import { useTopicSummary } from './use-topic-reads';
 import { useOverview } from '../../overview-context';
 import { singlePlatform } from '../../scope/scope-model';
@@ -45,7 +45,8 @@ export function GroupPromptsCard({ live }: CardProps): ReactElement {
   const data: TopicData =
     read.tree.pending && (read.phase === 'ready' || read.phase === 'refetching') ? { ...read, phase: 'loading' } : read;
   const versus = useGroupVersus(live);
-  const group = useChosenGroupName() ?? '';
+  const chosen = useChosenGroup();
+  const group = chosen.name ?? '';
   const platform = singlePlatform(scope);
   const { engines } = data;
   const platformLabel = engines.length === 1 ? (engines[0]?.label ?? '') : null;
@@ -153,7 +154,9 @@ export function GroupPromptsCard({ live }: CardProps): ReactElement {
 
   const side = (
     <div className="border-t border-border-subtle p-4 @3xl:w-80 @3xl:shrink-0 @3xl:border-t-0 @3xl:border-l">
-      <h3 className="mb-1 type-label text-foreground-secondary">{t('versus.title', { group })}</h3>
+      <h3 className="mb-1 type-label text-foreground-secondary">
+        {chosen.pending ? t('versus.titleLoading') : t('versus.title', { group })}
+      </h3>
       {versus.data.phase === 'error' ? (
         <div className="flex flex-col items-start gap-2">
           <p className="type-meta">{t('versus.failed')}</p>
@@ -172,7 +175,7 @@ export function GroupPromptsCard({ live }: CardProps): ReactElement {
   return (
     <TopicCardFrame
       cardKey="ai.topic_heatmap"
-      title={prompts('title', { group })}
+      title={chosen.pending ? prompts('titleLoading') : prompts('title', { group })}
       meta={
         data.summary === undefined
           ? null

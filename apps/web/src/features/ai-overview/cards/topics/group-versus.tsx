@@ -127,10 +127,13 @@ export function GroupVersus({ group, rows, unavailable, counted }: GroupVersusPr
         const fill = row.average ? FILL_AVERAGE : (FILL[row.id] ?? FILL_OTHER);
         return (
           <li key={row.id} className="flex flex-col gap-1">
-            <Tooltip content={tip} purpose="label">
-              <div className="flex items-baseline justify-between gap-2">
+            {/* The icon has its own hover, so the row's tooltip is on the label and the rate, never around the icon */}
+            <div className="flex items-baseline justify-between gap-2">
+              <Tooltip content={tip} purpose="label">
                 <span className="truncate type-body text-foreground-secondary">{label}</span>
-                <span className="inline-flex items-center gap-1.5">
+              </Tooltip>
+              <span className="inline-flex items-center gap-1.5">
+                <Tooltip content={tip} purpose="label">
                   <span
                     className={cn(
                       'num type-body-strong',
@@ -139,10 +142,10 @@ export function GroupVersus({ group, rows, unavailable, counted }: GroupVersusPr
                   >
                     {row.group.value === null ? t('valueNone') : percent(row.group.value)}
                   </span>
-                  <GapIcon group={group} row={row} />
-                </span>
-              </div>
-            </Tooltip>
+                </Tooltip>
+                <GapIcon group={group} row={row} />
+              </span>
+            </div>
             {/* The bar is the group; the tick is all groups */}
             <div className="relative h-2" aria-hidden="true">
               {row.group.value === null ? null : (

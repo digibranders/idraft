@@ -189,7 +189,7 @@ function GroupsHeatmap({ item, live }: CardProps): ReactElement {
         />
       }
       body={<div onClickCapture={onClickCapture}>{grid('grid')}</div>}
-      table={grid('table')}
+      table={<div onClickCapture={onClickCapture}>{grid('table')}</div>}
       menu={{ fileName: heatFileName(measure), csv: model.csv }}
       exportBlock={{ id: item.id, build: () => ({ id: item.id, ...model.exportTable }) }}
     />

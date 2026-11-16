@@ -131,8 +131,8 @@ export function heatRows(
   const withAverage = showsAverage(engines.length);
 
   const engineCell = (name: string, key: string, value: EngineValue): HeatCell => {
-    // A cell with no answer has no group to open on that platform
-    const href = value.state === 'none' ? null : links.cell(key, value.code);
+    // A cell with no rate (hatched, or no answer) has no group to open on that platform: it is not a link (R2)
+    const href = value.state === 'ok' ? links.cell(key, value.code) : null;
     return {
       value: value.state === 'ok' ? value.value : null,
       answers: value.answers,
@@ -150,11 +150,12 @@ export function heatRows(
       answers: average.answers,
       state: average.state,
     };
-    const href = links.row(key) ?? undefined;
+    // A hatched or empty average has no rate to open a group for, as a hatched platform cell has none
     if (average.state === 'none') return { ...base, text: '', tip: words.averageNone(name, words.noAnswers) };
     if (average.state === 'insufficient') {
-      return { ...base, text: '', tip: words.averageNone(name, words.thin(average.answers)), href };
+      return { ...base, text: '', tip: words.averageNone(name, words.thin(average.answers)) };
     }
+    const href = links.row(key) ?? undefined;
     // The count of each platform that took part: a percent of equal weight beside one pooled count would read as another rate
     const taking = values.filter((value) => value.state === 'ok');
     const names = words.list(taking.map((value) => labelOf(value.code)));

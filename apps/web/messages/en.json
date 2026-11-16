@@ -6052,7 +6052,7 @@
           "tableValue": "Average rate",
           "context": "{count, plural, one {# prompt} other {# prompts}}",
           "ranking": "Groups are ranked by the equal weight average of the platforms that show a rate, and only from {min, number} groups with a rate.",
-          "tip": "{group}: {percent}, equal weight average of {platforms}"
+          "tip": "{group}: {percent}, equal weight average of {platforms}. {counts}"
         },
         "versus": {
           "title": "{group} vs all groups",
@@ -6079,7 +6079,8 @@
           "tablePlatform": "Platform",
           "gapAbove": "{group} is {points} above all groups: {ours} against {theirs}. Not tested for detectability.",
           "gapBelow": "{group} is {points} below all groups: {ours} against {theirs}. Not tested for detectability.",
-          "gapLevel": "{group} is level with all groups: {ours} against {theirs}. Not tested for detectability."
+          "gapLevel": "{group} is level with all groups: {ours} against {theirs}. Not tested for detectability.",
+          "titleLoading": "The chosen group vs all groups"
         },
         "prompts": {
           "title": "Prompts in {group}",
@@ -6096,13 +6097,14 @@
           "answers": "Answers",
           "tableCaption": "Prompts in {group}",
           "emptyTitle": "No prompt has a rate yet",
-          "emptyReason": "No prompt in this group has 4 valid answers in this window.",
-          "emptyReasonPlatform": "No prompt in this group has 4 valid answers on {platform} in this window.",
+          "emptyReason": "No prompt in this group has 4 valid answers in this period.",
+          "emptyReasonPlatform": "No prompt in this group has 4 valid answers on {platform} in this period.",
           "footnote": "Each rate is the equal weight average of the platforms in scope that show a rate for the prompt. Answers are the valid answers behind it.",
           "listed": "Prompts with fewer than 4 valid answers are not listed.",
           "tipSingle": "{percent}, {successes, number} of {answers, plural, one {# answer} other {# answers}}",
           "tipAverage": "{percent}, average of {platforms, plural, one {# platform} other {# platforms}} over {answers, plural, one {# answer} other {# answers}}",
-          "tipAnswers": "{percent}, {answers, plural, one {# answer} other {# answers}}"
+          "tipAnswers": "{percent}, {answers, plural, one {# answer} other {# answers}}",
+          "titleLoading": "Prompts in the chosen group"
         },
         "info": {
           "heatmap": {

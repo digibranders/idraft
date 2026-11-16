@@ -100,7 +100,8 @@ describe('the strongest and weakest groups', () => {
     expect(screen.getByText('AI visibility rate')).toBeInTheDocument();
     expect(screen.queryByText('ai visibility rate')).not.toBeInTheDocument();
     // Alpha has a rate on ChatGPT only (Gemini has 3 answers): its average is that platform alone
-    const tip = (await screen.findAllByText(/Alpha: 90%, equal weight average of ChatGPT$/)).length;
+    const tip = (await screen.findAllByText(/Alpha: 90%, equal weight average of ChatGPT\. ChatGPT 9 of 10 answers$/))
+      .length;
     expect(tip).toBeGreaterThan(0);
   });
 

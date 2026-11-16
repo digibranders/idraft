@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { CELL_OF_MEASURE, forMeasure, groupCoverage, groupRows, groupsOf, isCountedMeasure } from './group-rows';
+import { CELL_OF_MEASURE, forMeasure, groupCoverage, groupRows, isCountedMeasure } from './group-rows';
 import { engineCells, promptRow, topicRow } from './topic-card-test-kit';
-import { buildTopicNodes, topicDescendants } from './topic-nodes';
+import { buildTopicNodes, groupsOf, topicDescendants } from './topic-nodes';
 import type { PromptSummaryRow, TopicSummaryRow } from '@/lib/api/types';
 import { term } from '@/features/prompts/topics-by-engine/cells-fixtures';
 

@@ -1,3 +1,4 @@
+import { http, type RequestHandler } from 'msw';
 import { screen, waitFor, within } from '@testing-library/react';
 import type { ComponentType, ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -11,6 +12,7 @@ import type { PromptsSummary } from '@/lib/api/types';
 import { CARD_ID, cardInOverview } from '@/test/ai-overview-harness';
 import { axe } from '@/test/axe';
 import { stubViewport } from '@/test/customize-harness';
+import { gate } from '@/test/gate';
 import { server } from '@/test/msw';
 import { renderWithProviders } from '@/test/render';
 
@@ -112,10 +114,12 @@ function InfoCard(props: CardProps): ReactElement {
 interface Setup {
   summary?: PromptsSummary;
   searchParams?: string;
+  /** Handlers that answer before the ones of the card's data. */
+  extra?: RequestHandler[];
 }
 
-function render({ summary = SUMMARY, searchParams = '' }: Setup = {}) {
-  server.use(...vocabularyHandlers(TERMS), summaryHandler(summary));
+function render({ summary = SUMMARY, searchParams = '', extra = [] }: Setup = {}) {
+  server.use(...vocabularyHandlers(TERMS), summaryHandler(summary), ...extra);
   const urls: string[] = [];
   const view = renderWithProviders(
     cardInOverview({
@@ -283,6 +287,19 @@ describe('opening a group', () => {
 });
 
 describe('the prompts of the chosen group', () => {
+  it('does not call the group unknown while the vocabulary is still read', async () => {
+    const release = gate();
+    // A handler that returns nothing hands the request on to the one under it, once the gate is open
+    const held = http.get('*/api/v1/workspaces/:w/vocabularies', async () => {
+      await release.promise;
+    });
+    render({ searchParams: `topic=${PRICING}`, extra: [held] });
+    expect(await screen.findByRole('heading', { name: 'Prompts in the chosen group' })).toBeInTheDocument();
+    expect(screen.queryByText(/Unknown group/)).not.toBeInTheDocument();
+    release.open();
+    expect(await screen.findByRole('heading', { name: 'Prompts in CRM / Pricing' })).toBeInTheDocument();
+  });
+
   it('has the group in its title, up to its prompts by mention rate, and no prompt under 4 valid answers', async () => {
     render({ searchParams: `topic=${PRICING}` });
     expect(await screen.findByRole('heading', { name: 'Prompts in CRM / Pricing' })).toBeInTheDocument();

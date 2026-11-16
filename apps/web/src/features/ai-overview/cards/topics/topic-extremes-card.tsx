@@ -18,7 +18,7 @@ import { groupNames } from './heatmap-model';
 import type { TopicData } from './model-types';
 import { TopicFootnote } from './topic-footnote';
 import { useGroupVersus } from './use-group-versus';
-import { useChosenGroupName } from './use-group-name';
+import { useChosenGroup } from './use-group-name';
 import { useAllGroupsSummary } from './use-topic-reads';
 import { useOverview } from '../../overview-context';
 import { BarList, type ComparisonRow } from '@/components/app/chart/bar-list';
@@ -51,6 +51,8 @@ const percent = (value: number | null): string =>
 /** Strongest and weakest groups (OV-GRP-13, `ai.topic_extremes`), by the average over the platforms. */
 function GroupExtremes({ item, live }: CardProps): ReactElement {
   const t = useTranslations('aiOverview.topics.groups');
+  const heat = useTranslations('aiOverview.topics.heatmap');
+  const common = useTranslations('aiOverview.topics.common');
   const empties = useTopicEmpty();
   const { scope } = useOverview();
   const read = useAllGroupsSummary({ subscribed: live });
@@ -97,12 +99,22 @@ function GroupExtremes({ item, live }: CardProps): ReactElement {
 
   const tipOf = (entry: RankedGroup): string => {
     const taking = entry.row.values.filter((value) => value.state === 'ok');
+    const labelOf = (code: string): string => engines.find((engine) => engine.code === code)?.label ?? code;
+    // The answers behind each platform's rate, so the average is never read as a rate of pooled answers (R1)
+    const counts = taking.map((value) =>
+      heat('engineCount', {
+        engine: labelOf(value.code),
+        count:
+          value.successes !== null && isCountedMeasure(measure)
+            ? heat('countOf', { successes: value.successes, answers: value.answers })
+            : common('answerCount', { count: value.answers }),
+      }),
+    );
     return t('extremes.tip', {
       group: nameOf(entry),
       percent: percent(entry.value),
-      platforms: formatList(
-        taking.map((value) => engines.find((engine) => engine.code === value.code)?.label ?? value.code),
-      ),
+      platforms: formatList(taking.map((value) => labelOf(value.code))),
+      counts: formatList(counts),
     });
   };
   const rowOf = (entry: RankedGroup, own: boolean): ComparisonRow => {
@@ -207,12 +219,13 @@ function GroupAgainstAll({ live }: CardProps): ReactElement {
   const t = useTranslations('aiOverview.topics.groups');
   const { scope } = useOverview();
   const versus = useGroupVersus(live);
-  const group = useChosenGroupName() ?? '';
+  const chosen = useChosenGroup();
+  const group = chosen.name ?? '';
   const measureLabel = t(`measure.${scope.metric}`);
   return (
     <TopicCardFrame
       cardKey="ai.topic_extremes"
-      title={t('versus.title', { group })}
+      title={chosen.pending ? t('versus.titleLoading') : t('versus.title', { group })}
       meta={versus.data.summary === undefined ? null : t('versus.meta', { measure: measureLabel })}
       summary={t('versus.summary', { group, measure: measureLabel })}
       data={versus.data}

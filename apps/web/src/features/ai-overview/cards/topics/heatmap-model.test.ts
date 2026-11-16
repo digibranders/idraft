@@ -126,6 +126,7 @@ describe('the cells', () => {
     const [tech] = model(TOPICS).rows;
     expect(tech?.cells[1]).toMatchObject({ state: 'insufficient', text: '', answers: 3, value: null });
     expect(tech?.cells[1]?.tip).toContain('insufficient');
+    expect(tech?.cells[1]?.href).toBeUndefined();
   });
 
   it('are n/a with no answer, and the platform that is not collected says so and leads nowhere', () => {
@@ -138,6 +139,23 @@ describe('the cells', () => {
       tip: 'Technical SEO on AI Overview: not collected yet',
     });
     expect(tech?.cells[3]?.href).toBeUndefined();
+  });
+
+  it('are not links when they have no rate: a hatched average opens nothing either', () => {
+    const [row] = model([
+      topicRow('ads', 'Paid Search', 4, [
+        engineCells('chatgpt_web', {
+          mentioned: [2, 3],
+          outcomes: { both: [1, 3], named: [1, 3], cited: [0, 3], neither: [1, 3] },
+          prompts: 4,
+        }),
+        engineCells('gemini_web', { mentioned: [0, 0], prompts: 4 }),
+        engineCells('google_ai_mode', { mentioned: [0, 0], prompts: 4 }),
+      ]),
+    ]).rows;
+    expect(row?.cells.map((cell) => cell.href)).toEqual([undefined, undefined, undefined, undefined, undefined]);
+    // The group name still opens the group
+    expect(row?.href).toBe('/ai?topic=ads');
   });
 
   it('average the platforms that show a rate, once each, and say which took part', () => {
