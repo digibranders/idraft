@@ -31,7 +31,7 @@ import {
   detectableField,
   isDetectableOnly,
   keepPromptRows,
-  narrowSummary,
+  keepTopicRows,
   useCompare,
 } from './compare';
 import { PlatformSelect, withoutFullPlatformSet } from './engine-select';
@@ -239,6 +239,11 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   const topicsUnknown = vocabularies.pending || vocabularies.error;
   const fields = useMemo((): FilterField[] => {
     const choices = topicChoices(topicTree, topicTerms);
+    const inTree = new Set(topicTree.map((term) => term.termId));
+    // A topic the tree does not hold (not read yet, or deleted) is named as the prompt names it; two of one name are told
+    // apart by their paths
+    const nameCounts = new Map<string, number>();
+    for (const choice of choices) nameCounts.set(choice.name, (nameCounts.get(choice.name) ?? 0) + 1);
     return [
       {
         id: 'topic',
@@ -246,8 +251,15 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
         label: t('filters.topic'),
         multi: true,
         optionsLoading: optionsPending || topicsUnknown,
-        // One flat list: a group below another is named by its path, so two of one name differ
-        options: choices.map((choice) => ({ value: choice.termId, label: choice.path })),
+        // One flat list: a group of the tree below another is named by its path, so two of one name differ
+        options: choices.map((choice) => ({
+          value: choice.termId,
+          label: inTree.has(choice.termId)
+            ? choice.path
+            : (nameCounts.get(choice.name) ?? 0) > 1
+              ? t('filters.topicWithPath', { name: choice.name, path: choice.path })
+              : choice.name,
+        })),
       },
       {
         id: 'engine',
@@ -424,10 +436,17 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     topicPaths,
     locale,
   ]);
-  // The Topics views read the topic rows that changed by more than normal variation; the prompt rows stay whole
-  const topicsSummary = useMemo(
-    () =>
-      summaryData === undefined || detectableIds === null ? summaryData : narrowSummary(summaryData, codes, compare),
+  // The Groups views keep the groups whose topic row changed by more than normal variation. A group is told from the whole
+  // summary (a parent whose groups did not change must not become a group of all their prompts), so only the keys narrow
+  const detectableGroups = useMemo(
+    (): ReadonlySet<string> | null =>
+      summaryData === undefined || detectableIds === null
+        ? null
+        : new Set(
+            keepTopicRows(summaryData.topics, codes, compare).flatMap((row) =>
+              row.term_id === null ? [] : [row.term_id],
+            ),
+          ),
     [summaryData, detectableIds, codes, compare],
   );
 
@@ -1025,7 +1044,8 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
               range={range}
               includeBranded={includeBranded}
               country={country}
-              summary={topicsSummary}
+              summary={summaryData}
+              detectable={detectableGroups}
               engines={shown}
               descendants={descendants}
               tree={topicTree}

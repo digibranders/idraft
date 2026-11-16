@@ -30,6 +30,12 @@ export interface GroupsOfSummary {
   filtering: boolean;
   /** The platforms in view: the order of a group's prompts follows their mention rates. */
   codes: readonly string[];
+  /**
+   * With "Detectable changes only", the term ids of the topic rows that changed by more than normal variation. A group
+   * is told from the whole summary first, so a parent whose groups did not change is not promoted to a group holding
+   * all their prompts; the groups left out of this set are then dropped. `null` or left out keeps every group.
+   */
+  only?: ReadonlySet<string> | null | undefined;
 }
 
 /**
@@ -37,10 +43,18 @@ export interface GroupsOfSummary {
  * below them (`groupsOf`), narrowed to the group filter. A prompt in two groups is in both and a prompt given only a
  * parent that has groups below is in none, so the rows may overlap and may not hold every prompt (`groupCoverage`).
  */
-export function groupsOfSummary({ summary, tree, descendants, kept, filtering, codes }: GroupsOfSummary): Group[] {
+export function groupsOfSummary({
+  summary,
+  tree,
+  descendants,
+  kept,
+  filtering,
+  codes,
+  only,
+}: GroupsOfSummary): Group[] {
   const branches = buildTopicTree(summary.topics, tree, (termId) => !filtering || topicRowKept(termId, kept));
   return groupsOf(branches).flatMap((row): Group[] => {
-    if (row.term_id === null) return [];
+    if (row.term_id === null || (only != null && !only.has(row.term_id))) return [];
     const members = topicMembers(row.term_id, summary.prompts, descendants);
     return [
       {

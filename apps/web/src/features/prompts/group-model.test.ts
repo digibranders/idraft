@@ -61,6 +61,16 @@ describe('groupsOfSummary', () => {
     expect(only.map((group) => group.key)).toEqual(['ads']);
   });
 
+  it('narrows to the groups "Detectable changes only" keeps without promoting a parent to a group of all their prompts', () => {
+    // Only the parent's row changed: the groups below it did not, and the parent is still no group
+    expect(groupsOfSummary({ ...base, codes: [], only: new Set(['seo']) }).map((group) => group.key)).toEqual([]);
+    expect(groupsOfSummary({ ...base, codes: [], only: new Set(['tech', 'ads']) }).map((group) => group.key)).toEqual([
+      'tech',
+      'ads',
+    ]);
+    expect(groupsOfSummary({ ...base, codes: [], only: null })).toHaveLength(3);
+  });
+
   it('knows no prompts of a group the trees do not hold yet', () => {
     const unread = groupsOfSummary({ ...base, tree: [], descendants: new Map(), codes: [] });
     expect(unread.every((group) => group.members === null)).toBe(true);

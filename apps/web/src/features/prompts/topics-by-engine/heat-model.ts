@@ -55,7 +55,7 @@ export function heatOrder(
 }
 
 /** The name of the file the heat map's menu downloads, without its extension. */
-export const heatFileName = (metric: RateMetric): string => `topics-by-engine-heat-map-${metric}`;
+export const heatFileName = (metric: RateMetric): string => `groups-by-platform-heat-map-${metric}`;
 
 /** The order the `sort` of the address names: an id of the table's columns, or none, is the default (Prompts). */
 export function parseHeatOrder(sortText: string | null): HeatOrder {

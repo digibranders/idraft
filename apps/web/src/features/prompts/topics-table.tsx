@@ -95,6 +95,8 @@ export interface TopicsTableProps {
   filtering: boolean;
   /** A country of the top bar narrows the summary, so no group left is a match that found nothing, not no prompts. */
   countryChosen: boolean;
+  /** With "Detectable changes only", the term ids of the groups that changed by more than normal variation; else `null`. */
+  detectable: ReadonlySet<string> | null;
   /** The facts of every group and prompt row (position, sentiment, brands, volume); `undefined` until the API sends them. */
   facts: PromptFacts | undefined;
   /** The workspace and project of the table, for the Brands list that writes (Add as competitor). */
@@ -169,6 +171,7 @@ export function TopicsTable({
   kept,
   filtering,
   countryChosen,
+  detectable,
   facts,
   project,
   showLocation,
@@ -380,8 +383,10 @@ export function TopicsTable({
   const sorting = useMemo(() => effectiveSort(sort, DEFAULT_TOPIC_SORT, shownIds), [sort, shownIds]);
   const groups = useMemo(
     (): Group[] =>
-      summary === undefined ? [] : groupsOfSummary({ summary, tree, descendants, kept, filtering, codes }),
-    [summary, tree, descendants, kept, filtering, codes],
+      summary === undefined
+        ? []
+        : groupsOfSummary({ summary, tree, descendants, kept, filtering, codes, only: detectable }),
+    [summary, tree, descendants, kept, filtering, codes, detectable],
   );
   // The groups the search keeps, in the order of the sort; open or not, the prompts under a group keep theirs
   const found = useMemo(() => {

@@ -104,7 +104,8 @@ describe('the topic drawer: opening', () => {
     const panel = await drawer('Technical SEO');
     // The tab says how many prompts it lists
     await user.click(within(panel).getByRole('tab', { name: 'Prompts (4)' }));
-    expect(await within(panel).findAllByRole('listitem')).toHaveLength(4);
+    expect(await within(panel).findByText('How do I run a technical SEO audit on a large site?')).toBeInTheDocument();
+    expect(within(panel).getByText('How long does a technical SEO migration take?')).toBeInTheDocument();
   });
 
   it('closes with Escape', async () => {

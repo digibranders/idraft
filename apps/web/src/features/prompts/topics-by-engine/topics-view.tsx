@@ -100,7 +100,7 @@ export function TopicsView({ scope, range, includeBranded, country, ...table }: 
   const codes = engines.map((entry) => entry.engine.engine_code);
   /** The groups as plain heads: for the heat map, the phone list and the export. The search narrows them as the table's. */
   const headsFor = (searched: string | null): TopicHead[] =>
-    topicHeads({ summary, tree, descendants, kept, filtering, search: searched, locale });
+    topicHeads({ summary, tree, descendants, kept, filtering, search: searched, locale, only: table.detectable });
   const onHeatmap = view === 'heatmap';
   const heads = onHeatmap || phone ? headsFor(search) : [];
   /** Empty or filtered empty once the rows are in and there are none, as the table says it. */

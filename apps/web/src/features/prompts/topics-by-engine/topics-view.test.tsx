@@ -397,7 +397,7 @@ describe('the Groups tab: the heat map, the export and the phone list', () => {
       await within(table).findByRole('button', { name: 'Open the group Paid Search' });
       await user.click(screen.getByRole('button', { name: 'Export by platform' }));
       expect(await screen.findByText(/^\d+ groups exported$/)).toBeInTheDocument();
-      expect(names).toEqual(['topics-by-engine-mention-2026-10-16-to-2026-11-12.csv']);
+      expect(names).toEqual(['groups-by-platform-mention-2026-10-16-to-2026-11-12.csv']);
       const [blob] = blobs;
       if (blob === undefined) throw new Error('No file was made');
       const text = await blob.text();

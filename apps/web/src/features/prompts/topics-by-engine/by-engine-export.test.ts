@@ -109,7 +109,7 @@ describe('buildByEngineExport: the By platform view as a file', () => {
 
   it('names the file by metric and window', () => {
     expect(byEngineFileName('citation', { from: '2026-10-16', to: '2026-11-12' })).toBe(
-      'topics-by-engine-citation-2026-10-16-to-2026-11-12.csv',
+      'groups-by-platform-citation-2026-10-16-to-2026-11-12.csv',
     );
   });
 });

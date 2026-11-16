@@ -778,7 +778,7 @@ describe('Prompts: Mentioned and Cited per platform, filters and sort', () => {
       expect(within(table).queryByText('Question number 4?')).toBeNull();
     });
 
-    it('offers the groups as one flat list named by their paths, so two of one name differ (as the Overview Group select does)', async () => {
+    it('names two groups of the prompts that share a name by their paths, and others by name alone, while the tree does not hold them', async () => {
       serveList([
         withTerms(1, termOf(ids.toolsA, 'Tools', 'a/tools')),
         withTerms(2, termOf(ids.toolsB, 'Tools', 'b/tools')),
@@ -786,10 +786,25 @@ describe('Prompts: Mentioned and Cited per platform, filters and sort', () => {
       ]);
       const { user } = renderOnPrompts(promptsAs('viewer'), { searchParams: `?topic=${ids.toolsA}` });
       await grid();
-      await user.click(await screen.findByRole('button', { name: 'Group: a/tools. Edit filter' }));
-      expect(await screen.findByRole('checkbox', { name: 'a/tools' })).toBeChecked();
-      expect(screen.getByRole('checkbox', { name: 'b/tools' })).toBeInTheDocument();
-      expect(screen.getByRole('checkbox', { name: 'paid-search' })).toBeInTheDocument();
+      await user.click(await screen.findByRole('button', { name: 'Group: Tools (a/tools). Edit filter' }));
+      expect(await screen.findByRole('checkbox', { name: 'Tools (a/tools)' })).toBeChecked();
+      expect(screen.getByRole('checkbox', { name: 'Tools (b/tools)' })).toBeInTheDocument();
+      expect(screen.getByRole('checkbox', { name: 'Paid search' })).toBeInTheDocument();
+    });
+
+    it('offers the groups of the tree as one flat list named by their paths, as the Overview Group select does', async () => {
+      serveVocabulary([
+        treeNode(ids.seo, 'SEO', null, [treeNode(ids.technical, 'Technical SEO', ids.seo, [])]),
+        treeNode(ids.paid, 'Paid search', null, []),
+      ]);
+      serveList([withTerms(1, termOf(ids.technical, 'Technical SEO', 'seo/technical-seo'))]);
+      const { user } = renderOnPrompts(promptsAs('viewer'), { searchParams: `?topic=${ids.technical}` });
+      await grid();
+      await user.click(await screen.findByRole('button', { name: /^Group: .*Technical SEO\. Edit filter$/ }));
+      // Every topic of the tree, the parent and the one nobody carries included, one flat list in the tree's order
+      expect(await screen.findByRole('checkbox', { name: 'SEO' })).toBeInTheDocument();
+      expect(screen.getByRole('checkbox', { name: /Technical SEO$/ })).toBeChecked();
+      expect(screen.getByRole('checkbox', { name: 'Paid search' })).toBeInTheDocument();
     });
 
     it('keeps a group from the link while a later page of the list is on its way, and filters once it is in', async () => {
@@ -832,7 +847,8 @@ describe('Prompts: Mentioned and Cited per platform, filters and sort', () => {
       });
       const heading = await screen.findByRole('heading', { name: NO_MATCH_TITLE });
       const empty = heading.parentElement as HTMLElement;
-      expect(within(empty).getByText('Group: seo')).toBeInTheDocument();
+      // The prompt's SEO and the vocabulary's SEO are two topics of one name: the carried one says its path
+      expect(within(empty).getByText('Group: SEO (seo)')).toBeInTheDocument();
       // The fixture's country list has no Austria: the code stands for it
       expect(within(empty).getByText('Location: AT')).toBeInTheDocument();
       expect(await axe(container)).toHaveNoViolations();

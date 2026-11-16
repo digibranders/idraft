@@ -84,4 +84,4 @@ export function buildByEngineExport(
 
 /** The name of a file: the metric it holds and the window its counts are of. */
 export const byEngineFileName = (metric: RateMetric, range: DateRange): string =>
-  `topics-by-engine-${metric}-${range.from}-to-${range.to}.csv`;
+  `groups-by-platform-${metric}-${range.from}-to-${range.to}.csv`;

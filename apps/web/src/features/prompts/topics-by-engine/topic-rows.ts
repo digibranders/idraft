@@ -29,6 +29,8 @@ export interface TopicHeadsArgs {
   /** Finds a group by its name or by the text of one of its prompts; `null` or empty narrows nothing. */
   search: string | null;
   locale: string;
+  /** The groups "Detectable changes only" keeps (term ids); `null` keeps every group. */
+  only?: ReadonlySet<string> | null | undefined;
 }
 
 export function topicHeads({
@@ -39,9 +41,10 @@ export function topicHeads({
   filtering,
   search,
   locale,
+  only,
 }: TopicHeadsArgs): TopicHead[] {
   if (summary === undefined) return [];
-  const groups = groupsOfSummary({ summary, tree, descendants, kept, filtering, codes: [] });
+  const groups = groupsOfSummary({ summary, tree, descendants, kept, filtering, codes: [], only });
   return searchGroups(groups, search ?? '', locale).map(({ group }) => ({
     key: group.key,
     name: group.name,
