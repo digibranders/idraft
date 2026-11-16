@@ -26,10 +26,12 @@ type Zones = { numbers: boolean; cards: boolean; widths: boolean };
 const NUMBERS_ONLY: Zones = { numbers: true, cards: false, widths: false };
 const CARDS_ONLY: Zones = { numbers: false, cards: true, widths: false };
 const BOTH_WITH_WIDTHS: Zones = { numbers: true, cards: true, widths: true };
+/** The AI visibility screen: its headline card replaced the numbers strip. */
+const CARDS_WITH_WIDTHS: Zones = { numbers: false, cards: true, widths: true };
 
 const EXPECTED: ReadonlyArray<readonly [ScreenKey, string, Zones]> = [
   ['overview', 'Overview', BOTH_WITH_WIDTHS],
-  ['ai_overview', 'AI visibility', BOTH_WITH_WIDTHS],
+  ['ai_overview', 'AI visibility', CARDS_WITH_WIDTHS],
   ['rankings', 'Rankings', NUMBERS_ONLY],
   ['prompts', 'Prompts', NUMBERS_ONLY],
   ['citations', 'Citations', NUMBERS_ONLY],
