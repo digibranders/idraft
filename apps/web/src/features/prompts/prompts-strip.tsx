@@ -31,7 +31,6 @@ export interface PromptsStripProps {
   countsFailed: boolean;
 }
 
-/** The first slot, the prompts in view, and one slot for each platform: the room is fixed, whatever the data holds. */
 /** The platforms the product names, by API code, and the key of their name in the catalog. */
 const PLATFORM_NAMES = {
   chatgpt_web: 'chatgptWeb',
@@ -39,6 +38,7 @@ const PLATFORM_NAMES = {
   google_ai_mode: 'googleAiMode',
   google_ai_overview: 'googleAiOverview',
 } as const;
+/** The first slot, the prompts in view, and one slot for each platform: the room is fixed, whatever the data holds. */
 const GRID = 'minmax(6rem,0.6fr)';
 const PLATFORM_COLUMN = 'minmax(12.5rem,1fr)';
 
@@ -128,7 +128,8 @@ export function PromptsStrip({
   const compared = useComparedWindow();
   const loading = status === 'loading';
 
-  // The platforms of the product first, in their order; a platform the API names beyond them follows
+  // The platforms of the product first, in their order; a platform the API names beyond them follows, one slot each
+  // (there are as many slots as platforms, and the strip scrolls inside itself when they do not fit)
   const slots = useMemo(() => {
     const known: readonly string[] = ENGINE_ORDER;
     const more = engines.map((engine) => engine.engine.engine_code).filter((code) => !known.includes(code));
@@ -172,6 +173,7 @@ export function PromptsStrip({
     const visibility = visibilityOfPrompts(prompts, code);
     const { mentioned, cited, shareOfVoice } = engineRates(prompts, code);
     const parts = {
+      platform: name,
       visibility: shell('visibilityTip', { detail: detailOf(visibility) }),
       mentioned: t('tipRate', { metric: t('tipMentioned'), detail: detailOf(mentioned) }),
       cited: t('tipRate', { metric: t('tipCited'), detail: detailOf(cited) }),

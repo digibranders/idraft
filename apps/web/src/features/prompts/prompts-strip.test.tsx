@@ -182,7 +182,7 @@ describe('PromptsStrip slots', () => {
     const slot = (label: string): HTMLElement | null => chipOf(label).parentElement;
     expect(slot('ChatGPT')).not.toHaveClass('bg-surface-subtle');
     expect(slot('Gemini')).toHaveClass('bg-surface-subtle');
-    expect(chipOf('Gemini')).toHaveTextContent('not in the Platform select');
+    expect(chipOf('Gemini')).toHaveTextContent('not in the Platform filter');
   });
 
   it('says a platform that is not on is not collected, never a number', async () => {
@@ -199,7 +199,7 @@ describe('PromptsStrip slots', () => {
     const { user } = render(twice(DETECTABLE));
     await user.click(screen.getByRole('button', { name: 'About AI visibility' }));
     const popover = await screen.findByRole('dialog', { name: 'About AI visibility' });
-    expect(popover).toHaveTextContent("how often that platform's answers mention or cite your brand");
+    expect(popover).toHaveTextContent("how often that platform’s answers mention or cite your brand");
     expect(popover).toHaveTextContent('Each prompt counts once');
   });
 });

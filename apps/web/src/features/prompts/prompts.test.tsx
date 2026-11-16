@@ -1996,7 +1996,7 @@ describe('Prompts: the metric strip', () => {
     expect(gemini).toHaveTextContent(/^2 answers$/);
     expect(prompts).toHaveAccessibleDescription('Across 2 groups');
     expect(chatgpt).toHaveAccessibleDescription(
-      'AI visibility (named or cited): 9 of 12 answers. Mentioned: 8 of 12 answers. Cited: 6 of 12 answers. Over 3 prompts, each counted once. Share of voice: 8 answers that name a brand.',
+      'ChatGPT. AI visibility (named or cited): 9 of 12 answers. Mentioned: 8 of 12 answers. Cited: 6 of 12 answers. Over 3 prompts, each counted once. Share of voice: 8 answers that name a brand.',
     );
     // The two platforms this project has off keep their place, and say they are not collected, never a number
     expect(aiMode).toHaveTextContent(/^n\/a$/);
@@ -2017,7 +2017,7 @@ describe('Prompts: the metric strip', () => {
     for (let stops = 0; stops < 30 && document.activeElement !== chatgpt; stops += 1) await user.tab();
     expect(chatgpt).toHaveFocus();
     expect(
-      await screen.findByText(/^AI visibility \(named or cited\): 9 of 12 answers\./, {
+      await screen.findByText(/^ChatGPT\. AI visibility \(named or cited\): 9 of 12 answers\./, {
         selector: '[data-slot="tooltip"] span',
       }),
     ).toBeInTheDocument();
@@ -2073,7 +2073,7 @@ describe('Prompts: the metric strip', () => {
     expect(within(gemini).getByText('2 answers')).toHaveClass('bg-insufficient');
     expect(gemini).not.toHaveTextContent('%');
     expect(gemini).toHaveAccessibleDescription(
-      'AI visibility (named or cited): 1 of 2 answers, too few for a rate. Mentioned: 1 of 2 answers, too few for a rate. Cited: 0 of 2 answers, too few for a rate. Over 1 prompt, each counted once. Share of voice: no brand named.',
+      'Gemini. AI visibility (named or cited): 1 of 2 answers, too few for a rate. Mentioned: 1 of 2 answers, too few for a rate. Cited: 0 of 2 answers, too few for a rate. Over 1 prompt, each counted once. Share of voice: no brand named.',
     );
   });
 

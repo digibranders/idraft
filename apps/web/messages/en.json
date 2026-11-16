@@ -4863,13 +4863,13 @@
       },
       "strip": {
         "infoTitle": "AI visibility",
-        "infoWhat": "The percentage for each platform is its AI visibility: how often that platform's answers mention or cite your brand.",
+        "infoWhat": "The percentage for each platform is its AI visibility: how often that platform’s answers mention or cite your brand.",
         "infoHow": "The share of valid answers that name your brand, link to your site, or both. Each prompt counts once. Hover a figure for the counts behind it, with the mention, citation and share of voice figures.",
         "visibilityTip": "AI visibility (named or cited): {detail}",
-        "tip": "{visibility}. {mentioned}. {cited}. {prompts}. {shareOfVoice}.",
-        "tipNoPrompts": "{visibility}. {mentioned}. {cited}. {shareOfVoice}.",
-        "quietNote": ", not in the Platform select",
-        "quietTip": "Not in the Platform select, so the table leaves it out",
+        "tip": "{platform}. {visibility}. {mentioned}. {cited}. {prompts}. {shareOfVoice}.",
+        "tipNoPrompts": "{platform}. {visibility}. {mentioned}. {cited}. {shareOfVoice}.",
+        "quietNote": ", not in the Platform filter",
+        "quietTip": "Not in the Platform filter, so the table leaves it out.",
         "notCollectedTip": "{platform} is not collected for this project yet",
         "countsFailedTip": "The counts could not be read"
       },
