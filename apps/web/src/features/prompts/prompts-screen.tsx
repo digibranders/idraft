@@ -254,9 +254,19 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   const summaryData = summary.data?.data;
   // The groups of the scope, as the Groups tab lists them: a topic with a prompt and none with a prompt below it. The
   // vocabulary's other terms (an SEO group no prompt is in, a parent that has groups below it) are not groups here
+  // The groups the filter holds, read from the address like the Branded filter: the options are built from them
+  const [topicParam] = useQueryState('topic', parseAsString);
+  const chosenGroups = useMemo(
+    () => (topicParam === null ? [] : topicParam.split(',').map((id) => id.trim())),
+    [topicParam],
+  );
+  const carriedGroups = useMemo(
+    (): ReadonlyMap<string, string> => new Map([...topicTerms].map(([id, term]) => [id, term.name])),
+    [topicTerms],
+  );
   const groupOptions = useMemo(
-    () => groupChoices(summaryData?.topics ?? [], topicTree, topicPaths),
-    [summaryData, topicTree, topicPaths],
+    () => groupChoices(summaryData?.topics ?? [], topicTree, topicPaths, chosenGroups, carriedGroups),
+    [summaryData, topicTree, topicPaths, chosenGroups, carriedGroups],
   );
   const fields = useMemo((): FilterField[] => {
     return [
@@ -265,8 +275,9 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
         kind: 'enum',
         label: t('filters.topic'),
         multi: true,
-        // The groups are known when the summary and the trees are in; a value from a link is kept until then
-        optionsLoading: summaryData === undefined || topicsUnknown,
+        // The groups are known when the summary, the trees and every page of the prompts are in (a chosen group that
+        // has no prompt in this scope is found among them); a value from a link is kept until then
+        optionsLoading: summaryData === undefined || topicsUnknown || optionsPending,
         options: groupOptions.map((group) => ({ value: group.key, label: group.label, count: group.promptCount })),
       },
       {

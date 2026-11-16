@@ -742,17 +742,19 @@ describe('Prompts: Mentioned and Cited per platform, filters and sort', () => {
     expect(within(table).queryByText(FIRST_TEXT)).toBeNull();
   });
 
-  it('leaves out a filter of a link that names a parent with groups below it, which is no group, and says so', async () => {
+  it('keeps a filter of a link that names a parent a prompt carries, though the parent is no group of the list', async () => {
     const writes: string[] = [];
     renderOnPrompts(promptsAs('viewer'), {
       searchParams: `?topic=${MOCK_TERM_IDS.seo}`,
       onUrlUpdate: ({ queryString }) => writes.push(queryString),
     });
     const table = await grid();
+    // The prompt given SEO itself and those given a group below it
     expect(await within(table).findByText(FIRST_TEXT)).toBeInTheDocument();
-    await vi.waitFor(() => expect(writes.at(-1)).toBe('?tab=prompts'));
-    expect(screen.queryByRole('button', { name: /^Group: / })).toBeNull();
-    expect(await screen.findByText('A filter from the link was left out')).toBeInTheDocument();
+    expect(within(table).getByText('How do I run a technical SEO audit on a large site?')).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Group: SEO. Edit filter' })).toBeInTheDocument();
+    expect(screen.queryByText('A filter from the link was left out')).toBeNull();
+    expect(writes).toEqual([]);
   });
 
   it('matches any of several groups', async () => {
@@ -889,6 +891,26 @@ describe('Prompts: Mentioned and Cited per platform, filters and sort', () => {
       const table = await grid();
       expect(await within(table).findByText('Question number 2?')).toBeInTheDocument();
       expect(within(table).queryByText('Question number 1?')).toBeNull();
+      expect(screen.queryByText('A filter from the link was left out')).toBeNull();
+      expect(writes).toEqual([]);
+    });
+
+    it('keeps a group of the filter when a location leaves it with no prompt, and says no more than its name', async () => {
+      const writes: string[] = [];
+      serveList(
+        [
+          withTerms(1, termOf(ids.seo, 'SEO', 'seo')),
+          { ...withTerms(2, termOf(ids.paid, 'Paid search', 'paid-search')), country_iso: 'AT' },
+        ],
+        // The summary of Austria: only the group of its prompt
+        summaryOf([ids.paid, 'Paid search', 1]),
+      );
+      renderOnPrompts(promptsAs('viewer'), {
+        searchParams: `?topic=${ids.seo}&country=AT`,
+        onUrlUpdate: ({ queryString }) => writes.push(queryString),
+      });
+      expect(await screen.findByRole('button', { name: 'Group: SEO. Edit filter' })).toBeInTheDocument();
+      await settle();
       expect(screen.queryByText('A filter from the link was left out')).toBeNull();
       expect(writes).toEqual([]);
     });

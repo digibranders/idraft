@@ -133,6 +133,22 @@ describe('groupChoices', () => {
     ]);
   });
 
+  it('keeps a chosen group that has no prompt in this scope but that a prompt carries, with no prompts, after the others', () => {
+    const inThisLocation = SUMMARY.topics.filter((row) => row.term_id === 'ads');
+    const carried = new Map([
+      ['tech', 'Technical SEO'],
+      ['ads', 'Paid Search'],
+    ]);
+    expect(groupChoices(inThisLocation, TREE, paths, ['tech'], carried)).toEqual([
+      { key: 'ads', label: 'Paid Search', promptCount: 2 },
+      { key: 'tech', label: 'Technical SEO', promptCount: 0 },
+    ]);
+    // A chosen id no prompt carries is no group, and a chosen group already in scope is not listed twice
+    expect(groupChoices(inThisLocation, TREE, paths, ['missing', 'ads'], carried).map((choice) => choice.key)).toEqual([
+      'ads',
+    ]);
+  });
+
   it('has none while the summary has no topic rows', () => {
     expect(groupChoices([], TREE, paths)).toEqual([]);
   });
