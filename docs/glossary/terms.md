@@ -280,7 +280,7 @@ sentences move to the Sample data badge. The same text is used for the card, its
 
 **competitor.sources.theirs**
 - What it shows: The domains AI cites in answers that mention this competitor.
-- How it is counted: Each domain's share of the citations in those answers. Their own domain ranks high because their pages are cited more when they are mentioned.
+- How it is counted: Each domain's share of the citations in those answers. Their domain ranks high because their pages are cited more when they are mentioned.
 
 **competitor.sources.yours**
 - What it shows: The domains AI cites in answers that mention you.
