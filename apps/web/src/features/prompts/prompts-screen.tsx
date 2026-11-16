@@ -34,6 +34,8 @@ import {
   narrowSummary,
   useCompare,
 } from './compare';
+import { PlatformSelect } from './engine-select';
+import { usePromptFacts } from './facts';
 import { asRecordActions, type PromptAction } from './prompt-action';
 import { usePromptColumns, type PromptRow } from './prompt-columns';
 import { PromptInspector, type PromptCounts } from './prompt-inspector';
@@ -46,10 +48,8 @@ import {
   matchesTopics,
   NO_TOPIC,
   parseCountry,
-  parseMetric,
   parseTab,
   PROMPTS_TABS,
-  RATE_METRICS,
   topicChoices,
   topicDescendants,
   topicPrompts,
@@ -60,11 +60,11 @@ import {
   topicTermsOf,
   type DateRange,
   type PromptsTab,
-  type RateMetric,
   type TopicOrigin,
   type TopicTab,
 } from './prompt-model';
 import { enginesQuery, observationQuery, summaryQuery, usePromptList, type PromptScope } from './prompt-queries';
+import { PromptsControls } from './prompts-controls';
 import { PromptsCountryControl } from './prompts-scope';
 import { PromptsStrip } from './prompts-strip';
 import { PROMPT_ACTION_ENTRIES, withActionEntries } from './seams/actions';
@@ -98,7 +98,6 @@ import { IconButton } from '@/components/ui/icon-button';
 import { Menu, type MenuItemDef } from '@/components/ui/menu';
 import type { FocusHandle } from '@/components/ui/radio-group';
 import { SegmentedControl } from '@/components/ui/segmented-control';
-import { Select } from '@/components/ui/select';
 import { TextLink } from '@/components/ui/text-link';
 import { toast } from '@/components/ui/toast';
 import { Tooltip } from '@/components/ui/tooltip';
@@ -147,8 +146,8 @@ export interface PromptsScreenProps {
 /**
  * The URL's keys besides the filters': the tab (Topics has none), the country of the top bar and the tables'
  * state. They all stay when the tab changes, and so do the date range's own keys (`useDateRangeParams`). Each table
- * reads the sort ids it has and ignores the others (`SORT_ID` in prompt-model.ts); the columns and the metric of
- * the engine columns are the Prompts table's.
+ * reads the sort ids it has and ignores the others (`SORT_ID` in prompt-model.ts); the columns are the Prompts
+ * table's. `metric` is the Topics views' (the Prompts table's platform columns always show the mention rate).
  */
 const VIEW_STATE = {
   tab: parseAsString,
@@ -157,16 +156,18 @@ const VIEW_STATE = {
   sort: parseAsString,
   cols: parseAsString,
   density: parseAsString,
-  metric: parseAsString,
 };
 
-/** The weekly series, asked of the summary for the Trend column. Module level, so the query's key stays the same. */
+/** The weekly series, asked of the summary while comparing, for the line in the Mention rate cell. Module level, so the query's key stays the same. */
 const SERIES: readonly ['series'] = ['series'];
+const NO_INCLUDE: readonly [] = [];
 const NO_ENTITIES: readonly SummaryEntity[] = [];
 
 const promptRowId = (row: PromptRow): string => row.prompt.prompt_id;
 const NO_PROMPTS: ReadonlySet<string> = new Set();
 const nothing = (): void => undefined;
+/** The Platform filter's id: the Platform select shows its choice when it is one platform, so its chip is not drawn. */
+const PLATFORM_FIELD: readonly string[] = ['engine'];
 /** The id of the More actions item that copies the link. */
 const COPY_LINK = 'copy-link';
 /** The id of the More actions item that opens the newest AI run. */
@@ -321,19 +322,35 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     void setView({ country: null });
   }, [setValues, setView]);
   const includeBranded = enumValuesOf(values.branded).includes('include');
-  // Only the engines the Engine filter names, else every engine that is on
-  const shown = useMemo(() => {
-    const chosen = enumValuesOf(values.engine);
-    return chosen.length === 0 ? enabled : enabled.filter((engine) => chosen.includes(engine.engine.engine_code));
-  }, [enabled, values.engine]);
+  // Only the platforms the Platform filter names, else every platform that is on
+  const chosenPlatforms = useMemo(() => enumValuesOf(values.engine), [values.engine]);
+  const shown = useMemo(
+    () =>
+      chosenPlatforms.length === 0
+        ? enabled
+        : enabled.filter((engine) => chosenPlatforms.includes(engine.engine.engine_code)),
+    [enabled, chosenPlatforms],
+  );
+  // The Platform select is the filter's own control: one platform needs no chip, while a set of two or more keeps it
+  const platformChipHidden = chosenPlatforms.length > 0 && shown.length === 1;
+  const setPlatforms = useCallback(
+    (codes: readonly string[]): void =>
+      setValues(
+        codes.length === 0
+          ? Object.fromEntries(Object.entries(values).filter(([id]) => id !== 'engine'))
+          : { ...values, engine: { kind: 'enum', values: codes } },
+      ),
+    [setValues, values],
+  );
 
   // The table stays on the last counts while a new window, or the Branded filter, is read. The weekly series of the
-  // Trend column comes with them in the one read, which the strip and the drawers use too: a failed series cannot
-  // be told from a failed summary, and a summary without series (an older API) leaves the Trend cells blank
+  // line in the Mention rate cell comes with them in the one read, which the strip and the drawers use too, while the
+  // person compares: a failed series cannot be told from a failed summary, and a summary without series (an older API)
+  // leaves the line out
   const summary = useQuery({
     ...summaryQuery(scope, range, includeBranded, {
       ...(country === null ? {} : { country }),
-      include: SERIES,
+      include: compare ? SERIES : NO_INCLUDE,
       compare,
     }),
     enabled: enabled.length > 0,
@@ -473,8 +490,13 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     [summary.data, topicsUnknown, stripPrompts, descendants, topicIds, kept],
   );
 
-  const metric = parseMetric(view.metric);
-  const { columns, sortFields, searchText, rowName } = usePromptColumns(shown, metric, comparedWindow(summaryData));
+  // The facts of the columns that later packages build, from the one summary read (never a request for a row)
+  const facts = usePromptFacts(scope, range, includeBranded, { ...(country === null ? {} : { country }), compare });
+  const { columns, sortFields, searchText, rowName } = usePromptColumns(shown, 'mention', comparedWindow(summaryData), {
+    // The location of the top bar already says which, so a Location column repeats it on every row
+    showLocation: country === null,
+    facts: facts.data,
+  });
   const columnIds = useMemo(() => new Set(columns.map((column) => column.id)), [columns]);
   const sort = useMemo((): readonly SortKey[] => {
     const parsed = parseSort(view.sort, sortFields);
@@ -845,11 +867,9 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
 
   const showAdd = list.rows.length > 0 && add.entry !== null;
   let content: ReactNode;
-  // The filters belong to the table: the other states have nothing to filter
-  let statsSlot: ReactNode;
-  let filtersSlot: ReactNode;
-  let statusSlot: ReactNode;
-  let actionsSlot: ReactNode;
+  // The controls and the strip belong to the table: the other states have nothing to filter or sum up
+  let controls: ReactNode = null;
+  let strip: ReactNode = null;
   // A failed read in the background leaves the page as it is
   if (engines.isError && engines.data === undefined) {
     content = (
@@ -881,54 +901,59 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   } else {
     // Not under the empty states, nor before the engines are known (the chips are the engines)
     const stripStatus = waiting ? 'loading' : summary.isFetching || list.fetching ? 'refetching' : 'ready';
-    // The chips, then the filters: chips of the filters set wrap under them, and a bar without filters is one button
-    // On a phone: the chips on one line of their own (they scroll sideways when they do not fit), then the Filter
-    // button with the menu and Add prompts at the end of the same row. From 768 px it is one row, wrapping when full
-    statsSlot =
+    // Two rows in fixed places (the preview's): the controls at one height, then the strip. Row 1 has the Platform
+    // select and Compare at fixed widths, the filters in the room that is left, and the status, More and Add prompts
+    // at the right edge; on a phone the two selects share a line and the rest follows
+    strip =
       engines.data !== undefined && (waiting || rows.length > 0) ? (
         <PromptsStrip
           prompts={stripPrompts}
-          engines={shown}
+          engines={enabled}
+          inView={codes}
           topics={stripTopics}
           status={stripStatus}
           countsFailed={summaryFailed}
         />
       ) : null;
-    filtersSlot = (
-      <div className="flex items-center gap-2">
-        <FilterBar fields={fields} values={values} onChange={setValues} />
-        <CompareSelect window={comparedWindow(summaryData)} />
-      </div>
-    );
-    statusSlot = (
-      <div className="flex items-center gap-3">
-        <AiCollectionStatus
-          scope={scope}
-          workspaceSlug={workspaceSlug}
-          projectSlug={project.slug}
-          onFinished={() => void summary.refetch()}
-          variant="inline"
-        />
-        {updatedText === null ? null : (
-          <Tooltip content={windowCaption} purpose="label" side="bottom">
-            <span className="type-meta whitespace-nowrap">
-              <UpdatedRunLink
-                scope={scope}
-                workspaceSlug={workspaceSlug}
-                projectSlug={project.slug}
-                text={updatedText}
-              />
-            </span>
-          </Tooltip>
-        )}
-      </div>
-    );
-    actionsSlot = (
-      <>
-        {extraControls}
-        {moreMenu}
-        {showAdd ? add.entry : null}
-      </>
+    controls = (
+      <PromptsControls
+        platform={<PlatformSelect engines={enabled} chosen={chosenPlatforms} onChange={setPlatforms} />}
+        compare={<CompareSelect window={comparedWindow(summaryData)} />}
+        filters={
+          <FilterBar
+            fields={fields}
+            values={values}
+            onChange={setValues}
+            {...(platformChipHidden ? { hiddenChipFields: PLATFORM_FIELD } : {})}
+          />
+        }
+        trailing={
+          <>
+            <AiCollectionStatus
+              scope={scope}
+              workspaceSlug={workspaceSlug}
+              projectSlug={project.slug}
+              onFinished={() => void summary.refetch()}
+              variant="inline"
+            />
+            {updatedText === null ? null : (
+              <Tooltip content={windowCaption} purpose="label" side="bottom">
+                <span className="hidden type-meta whitespace-nowrap lg:inline">
+                  <UpdatedRunLink
+                    scope={scope}
+                    workspaceSlug={workspaceSlug}
+                    projectSlug={project.slug}
+                    text={updatedText}
+                  />
+                </span>
+              </Tooltip>
+            )}
+            {extraControls}
+            {moreMenu}
+            {showAdd ? add.entry : null}
+          </>
+        }
+      />
     );
     content = (
       <>
@@ -1035,22 +1060,8 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
                   void setView({ sort: sameSort(next, DEFAULT_PROMPT_SORT) ? null : formatSort(next) })
                 }
                 defaultSort={DEFAULT_PROMPT_SORT}
-                // The metric of the engine columns, then the view switch, as Rankings has its switch before the icons
-                toolbarEnd={
-                  <>
-                    <div className="w-44">
-                      <Select<RateMetric>
-                        aria-label={t('metric.label')}
-                        size="sm"
-                        value={metric}
-                        onValueChange={(next) => void setView({ metric: next === 'mention' ? null : next })}
-                        placeholder={t('metric.placeholder')}
-                        options={RATE_METRICS.map((value) => ({ value, label: t(`metric.${value}`) }))}
-                      />
-                    </div>
-                    {viewSwitch}
-                  </>
-                }
+                // The view switch, as Rankings has its switch before the icons
+                toolbarEnd={viewSwitch}
                 density={density}
                 onDensityChange={(next: Density) => void setView({ density: next === DEFAULT_DENSITY ? null : next })}
                 columnState={{
@@ -1232,13 +1243,9 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
           />
         </TopBarPortal>
         <div className="flex h-page-body min-h-page-body-min flex-col gap-3 px-3 pt-3 pb-5 md:px-4 lg:px-5">
-          <PageToolbar
-            title={t('title')}
-            stats={statsSlot}
-            filters={filtersSlot}
-            status={statusSlot}
-            actions={actionsSlot ?? emptyActions}
-          />
+          <PageToolbar title={t('title')} before={controls} actions={controls === null ? emptyActions : undefined}>
+            {strip}
+          </PageToolbar>
           {droppedWords === null ? null : <Banner tone="info" placement="region" message={droppedWords} />}
           {content}
         </div>

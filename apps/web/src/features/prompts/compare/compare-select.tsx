@@ -17,8 +17,9 @@ export interface CompareSelectProps {
 }
 
 /**
- * "Compare with" of Topics & Prompts (WB-TPF-06): the period before, or no comparison. Off stops the read of the
- * previous period and every change; the address says it as `cmp=off`. Same period last year and Custom are not offered (no data for them yet).
+ * "Compare with" of the Prompts page (WB-TPF-06): no comparison, which is where the page opens, or the period before.
+ * Off stops the read of the previous period and every change; the address says on as `cmp=previous`. Same period last
+ * year and Custom are not offered (no data for them yet).
  */
 export function CompareSelect({ window }: CompareSelectProps): ReactElement {
   const t = useTranslations('prompts.compare');
@@ -32,7 +33,7 @@ export function CompareSelect({ window }: CompareSelectProps): ReactElement {
   return (
     // The tooltip is for the eye; the combobox itself is described by the hidden text, so a screen reader hears it
     <Tooltip content={tip ?? t('label')} purpose="label" disabled={tip === null} side="bottom">
-      <div className="w-48 shrink-0">
+      <div className="min-w-0 md:w-48 md:shrink-0">
         <Select<Choice>
           aria-label={t('label')}
           {...(tip === null ? {} : { 'aria-describedby': describedBy })}
@@ -41,8 +42,8 @@ export function CompareSelect({ window }: CompareSelectProps): ReactElement {
           onValueChange={(next) => setCompare(next === 'previous')}
           placeholder={t('label')}
           options={[
-            { value: 'previous', label: t('previous') },
             { value: 'off', label: t('off') },
+            { value: 'previous', label: t('previous') },
           ]}
         />
         {tip === null ? null : (

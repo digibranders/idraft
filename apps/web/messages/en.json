@@ -4848,7 +4848,35 @@
     "fanout": {},
     "facets": {},
     "limits": {},
-    "evidence": {}
+    "evidence": {},
+    "shell": {
+      "platform": {
+        "label": "Platform",
+        "all": "All platforms",
+        "set": "{count, plural, one {# platform} other {# platforms}}",
+        "names": {
+          "chatgpt_web": "ChatGPT",
+          "gemini_web": "Gemini",
+          "google_ai_mode": "Google AI Mode",
+          "google_ai_overview": "Google AI Overview"
+        }
+      },
+      "strip": {
+        "infoTitle": "AI visibility",
+        "infoWhat": "The percentage for each platform is its AI visibility: how often that platform's answers mention or cite your brand.",
+        "infoHow": "The share of valid answers that name your brand, link to your site, or both. Each prompt counts once. Hover a figure for the counts behind it, with the mention, citation and share of voice figures.",
+        "visibilityTip": "AI visibility (named or cited): {detail}",
+        "tip": "{visibility}. {mentioned}. {cited}. {prompts}. {shareOfVoice}.",
+        "tipNoPrompts": "{visibility}. {mentioned}. {cited}. {shareOfVoice}.",
+        "quietNote": ", not in the Platform select",
+        "quietTip": "Not in the Platform select, so the table leaves it out",
+        "notCollectedTip": "{platform} is not collected for this project yet",
+        "countsFailedTip": "The counts could not be read"
+      },
+      "columns": {
+        "mentionTrendTip": "The change is against the comparison period, and the line is the rate of each week of the window (a week with no valid answer is a gap)"
+      }
+    }
   },
   "aiOverview": {
     "title": "AI visibility",

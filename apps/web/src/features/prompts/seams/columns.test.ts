@@ -12,6 +12,9 @@ const translate = createTranslator({ locale: 'en', messages });
 
 const context: PromptColumnContext = {
   engines: [],
+  scope: [],
+  single: null,
+  facts: undefined,
   metric: 'mention',
   t: translate,
   locale: 'en',

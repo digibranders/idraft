@@ -4,10 +4,10 @@ import { useLocale, useTranslations } from 'next-intl';
 import { useMemo } from 'react';
 
 import { useChangeWords, useComparedWindow, useCompare, type ComparedWindow } from './compare';
+import type { PromptFacts } from './facts';
 import { cellsOfPrompt, countText, engineSortId, SORT_ID, type RateMetric } from './prompt-model';
 import { ENGINE_COLUMN_WIDTH, useEngineRateColumns, useRateColumns } from './rate-columns';
 import { PROMPT_COLUMN_ENTRIES, withColumnEntries } from './seams/columns';
-import { useTrendColumn } from './trend-column';
 import { col, type UnknownValue } from '@/components/app/data-table/columns';
 import type { DataTableColumn } from '@/components/app/data-table/types';
 import { Badge } from '@/components/ui/badge';
@@ -108,17 +108,30 @@ export interface PromptColumns {
   rowName: (row: PromptRow) => string;
 }
 
+/** What the screen knows that decides the columns beyond the engines. */
+export interface PromptColumnOptions {
+  /** The top bar says All locations: only then has a row anything to say in a Location column. */
+  showLocation: boolean;
+  /** The facts of every row (`usePromptFacts`), for the columns that later packages register; `undefined` until read. */
+  facts: PromptFacts | undefined;
+}
+
+const DEFAULT_OPTIONS: PromptColumnOptions = { showLocation: true, facts: undefined };
+
 /**
- * The columns of the Prompts tab (ADR-DS-022 decision 9): Prompt, Topic, Country, Mention rate and Citation
- * rate (the average of the engines shown), Trend (the weekly mention rate), then each engine shown with the
- * value of `metric`. The counts of
- * Mentioned and Cited per engine wait in the column chooser.
+ * The columns of the Prompts tab, in the mock's order: Prompt, Group, Location (only while the top bar says All
+ * locations), Mention rate and Citation rate (the average of the platforms shown; the Mention rate cell draws the
+ * weekly line while the person compares), then each platform's mention rate and its Mentioned and Cited counts, which
+ * wait in the column chooser. Intent, Search volume, Avg position, Recommendation rate, Share of voice, Sentiment,
+ * Cited links, Brands and Screenshot are built by later packages and plug in through `seams/columns.ts`, which
+ * gives them the facts, the platform scope and the comparison.
  */
 export function usePromptColumns(
   engines: readonly ProjectEngine[],
   metric: RateMetric,
   /** The window the summary was compared with: the screen builds these columns above its provider of it. */
   comparedWindow?: ComparedWindow,
+  { showLocation, facts }: PromptColumnOptions = DEFAULT_OPTIONS,
 ): PromptColumns {
   const t = useTranslations('prompts');
   const root = useTranslations();
@@ -127,9 +140,8 @@ export function usePromptColumns(
   const changeWords = useChangeWords();
   const contextWindow = useComparedWindow();
   const compared = comparedWindow ?? contextWindow;
-  const { mention, citation } = useRateColumns(engines, cellsOfPrompt, { window: compared });
-  const trend = useTrendColumn(engines, cellsOfPrompt);
-  const engineRateColumns = useEngineRateColumns(engines, cellsOfPrompt, metric);
+  const { mention, citation } = useRateColumns(engines, cellsOfPrompt, { window: compared, trend: true });
+  const engineRateColumns = useEngineRateColumns(engines, cellsOfPrompt, metric, { defaultVisible: false });
   const countColumns = useEngineColumns(engines, cellsOfPrompt, { sortable: true, defaultVisible: false });
   return useMemo(() => {
     const builtIn: DataTableColumn<PromptRow>[] = [
@@ -170,20 +182,27 @@ export function usePromptColumns(
                 ),
               },
       },
-      col.text<PromptRow>(SORT_ID.country, (row) => row.country, {
-        header: t('columns.country'),
-        priority: 3,
-        width: 136,
-      }),
+      ...(showLocation
+        ? [
+            col.text<PromptRow>(SORT_ID.country, (row) => row.country, {
+              header: t('columns.country'),
+              priority: 3,
+              width: 136,
+            }),
+          ]
+        : []),
       mention,
       citation,
-      trend,
       ...engineRateColumns,
       ...countColumns,
     ];
     // Before the sort fields are read, so a sortable column of an entry is a valid `?sort=` id
+    const scope = engines.map((engine) => engine.engine.engine_code);
     const columns = withColumnEntries(builtIn, PROMPT_COLUMN_ENTRIES, {
       engines,
+      scope,
+      single: scope.length === 1 ? (scope[0] ?? null) : null,
+      facts,
       metric,
       t: root,
       locale,
@@ -203,12 +222,13 @@ export function usePromptColumns(
     locale,
     engines,
     metric,
+    showLocation,
+    facts,
     compare,
     compared,
     changeWords,
     mention,
     citation,
-    trend,
     engineRateColumns,
     countColumns,
   ]);

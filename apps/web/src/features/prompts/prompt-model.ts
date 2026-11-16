@@ -68,9 +68,10 @@ export const cellsOfPrompt = (row: PromptRow): readonly EngineSummary[] | undefi
  * The ids `?sort=` names (`-id` for descending, two keys at most). A value a column does not have, or a rate
  * that is insufficient, sorts after every row that has one, whichever way the sort runs.
  * - Prompts tab: `prompt`, `topic` and `country` (A to Z first); `mention` and `citation`, the average of the
- *   engines shown; `<engine_code>_rate`, the engine's value of the chosen metric; `<engine_code>_mentioned` and
+ *   engines shown; `<engine_code>_rate`, the engine's mention rate; `<engine_code>_mentioned` and
  *   `<engine_code>_cited`, its rate of Mentioned and Cited (the count columns of the chooser). All but the text
- *   columns sort high to low first.
+ *   columns sort high to low first. The ids from `intent` to `screenshot` belong to columns that later packages
+ *   register through `seams/columns.ts`: `links`, `brands` and `screenshot` open something and do not sort.
  * - Topics tab: `prompts` (how many prompts the topic holds), `mention`, `citation`, `top_engine` (by the
  *   engine's name, A to Z first), and `<engine_code>_mentioned` and `<engine_code>_cited`. The sort orders the
  *   topics; the prompts under an open topic keep their order, most mentioned first.
@@ -86,6 +87,15 @@ export const SORT_ID = {
   mention: 'mention',
   citation: 'citation',
   topEngine: 'top_engine',
+  intent: 'intent',
+  volume: 'volume',
+  position: 'position',
+  recommendation: 'recommendation',
+  shareOfVoice: 'sov',
+  sentiment: 'sentiment',
+  links: 'links',
+  brands: 'brands',
+  screenshot: 'screenshot',
 } as const;
 
 /** The id of an engine's column: the metric chosen (`rate`), or its count columns of Mentioned and Cited. */
