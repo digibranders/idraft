@@ -69,7 +69,13 @@ describe('enginePieceOf', () => {
 
   it('counts the ordered answers from the facts of the valid answers only', () => {
     const piece = enginePieceOf('p', 'chatgpt_web', answers);
-    expect(piece.position).toEqual({ rank_sum: 2, ordered_answers: 1, mentions: 2, answers: 3 });
+    expect(piece.position).toEqual({
+      rank_sum: 2,
+      ordered_answers: 1,
+      mentions: 2,
+      answers: 3,
+      by_order: { counts: [0, 1, 0, 0], rank_sum: 2 },
+    });
     expect(piece.observations).toBe(4);
     expect(piece.latest?.observation_id).toBe('3');
   });
@@ -98,7 +104,13 @@ describe('enginePieceOf', () => {
       answer('0', '2026-11-02T02:00:00Z', { mentioned: false, order: null, list: false }, false),
     ]);
     expect(piece.latest).toBeNull();
-    expect(piece.position).toEqual({ rank_sum: 0, ordered_answers: 0, mentions: 0, answers: 0 });
+    expect(piece.position).toEqual({
+      rank_sum: 0,
+      ordered_answers: 0,
+      mentions: 0,
+      answers: 0,
+      by_order: { counts: [0, 0, 0, 0], rank_sum: 0 },
+    });
   });
 });
 
@@ -112,7 +124,13 @@ describe('topicEngineFacts', () => {
       answer('3', '2026-11-09T02:00:00Z', { mentioned: false, order: null, list: false }),
     ]);
     const topic = topicEngineFacts('chatgpt_web', [a, b]);
-    expect(topic.position).toEqual({ rank_sum: 4, ordered_answers: 2, mentions: 2, answers: 3 });
+    expect(topic.position).toEqual({
+      rank_sum: 4,
+      ordered_answers: 2,
+      mentions: 2,
+      answers: 3,
+      by_order: { counts: [1, 0, 1, 0], rank_sum: 4 },
+    });
     expect(topic.latest?.observation_id).toBe('2');
     expect(topic.recommended?.pooled?.trials).toBe(3);
     expect(topic.recommended?.denominator).toBe(2);

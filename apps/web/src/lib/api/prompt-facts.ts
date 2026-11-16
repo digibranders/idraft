@@ -39,11 +39,26 @@ export interface LinkedKeywordVolume {
  * ranks of the mentions in an ordered list, `ordered_answers` of them, `mentions` of all valid answers that name the
  * brand, over `answers` valid answers. The mean position is `rank_sum / ordered_answers`, 1 being named first.
  */
+/** The places of the own brand among the brands an answer names, as counts that add up over prompts. */
+export interface OrderCounts {
+  /** First, second, third, and fourth or later. */
+  counts: readonly [number, number, number, number];
+  /** The sum of the places of those answers, 1 being named first; the mean is this over the answers counted. */
+  rank_sum: number;
+}
+
 export interface PositionCounts {
   rank_sum: number;
   ordered_answers: number;
   mentions: number;
   answers: number;
+  /**
+   * The order of the brands in the answers that name the own brand with a place (backend request 2 of
+   * `docs/ai-visibility/backend-requests-overview.md`): how many name it first, second, third, and fourth or later, and
+   * the sum of those places, so a mean and a distribution rest on the same answers. Optional: absent means the backend
+   * has not built it, and the Overview position card then says so; a distribution is never made up from the mean.
+   */
+  by_order?: OrderCounts;
 }
 
 /** Counts of the classified mentions of the own brand by tone, on one engine. They add up to its classified mentions. */

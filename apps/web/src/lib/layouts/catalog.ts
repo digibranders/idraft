@@ -526,7 +526,7 @@ const AI_OVERVIEW_CARDS: ReadonlyArray<CardTypeDefinition> = [
   aiCard(
     'sources.top_domains',
     'Top cited domains',
-    'Which domains answers cite most, and whose they are.',
+    'The domains answers cite most, with your site highlighted.',
     'ai',
     ['half', 'third'],
     {
@@ -546,8 +546,8 @@ const AI_OVERVIEW_CARDS: ReadonlyArray<CardTypeDefinition> = [
   ),
   aiCard(
     'sources.own_pages',
-    'Your pages AI platforms cite',
-    'Which of your pages answers cite, and how often.',
+    'Your pages cited',
+    'The pages of your domain that answers cite.',
     'ai',
     ['half', 'third'],
     { options: { rows: countOption('Rows', 'rows', ['5', '8', '10'], '8') } },
@@ -565,8 +565,8 @@ const AI_OVERVIEW_CARDS: ReadonlyArray<CardTypeDefinition> = [
   ]),
   aiCard(
     'ai.fanout_top',
-    'What ChatGPT searched',
-    'Which searches ChatGPT ran to build its answers.',
+    'Top fan-out queries',
+    'The fan-out queries ChatGPT ran to build its answers. ChatGPT only.',
     'ai',
     ['half', 'third', 'full'],
     { options: { rows: countOption('Rows', 'rows', ['5', '10'], '5') } },
@@ -601,7 +601,7 @@ const AI_OVERVIEW_CARDS: ReadonlyArray<CardTypeDefinition> = [
     'Visits from AI platforms and the pages they land on. Needs GA4.',
     'traffic',
     ['full', 'two_thirds'],
-    { addedOn: REDESIGN_RELEASE, integration: 'ga4' },
+    { addedOn: REDESIGN_RELEASE },
   ),
   aiCard(
     'ai.opportunities',
@@ -719,8 +719,8 @@ export const CARD_TYPES: ReadonlyArray<CardTypeDefinition> = [
   ),
   dashboardCard(
     'ai.citation_share_by_domain_type',
-    'Citation share by domain type',
-    'Whose pages AI answers cite: yours, competitors, publishers and others.',
+    'Citations by domain type',
+    'Citation units by domain type, as a treemap.',
     'ai',
     ['half', 'third'],
     AI,
@@ -782,7 +782,7 @@ export const CARD_TYPES: ReadonlyArray<CardTypeDefinition> = [
   dashboardCard(
     'activity.key_changes',
     'Key changes',
-    'Detectable changes and collection issues in the period, most urgent first.',
+    'Changes beyond normal variation and collection events.',
     'activity',
     // Two thirds stays for the project Overview; the AI visibility page also takes a third.
     ['half', 'third', 'two_thirds', 'full'],

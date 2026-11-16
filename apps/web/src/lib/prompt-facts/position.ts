@@ -53,7 +53,8 @@ export function positionOf(rows: readonly FactsRow[], scope: readonly string[]):
     const mean = counts.ordered_answers >= POSITION_MIN_LISTS ? counts.rank_sum / counts.ordered_answers : null;
     return { code, collected: parts.length > 0, counts, mean };
   });
-  const total = (key: keyof PositionCounts): number => engines.reduce((sum, engine) => sum + engine.counts[key], 0);
+  const total = (key: 'mentions' | 'ordered_answers' | 'answers'): number =>
+    engines.reduce((sum, engine) => sum + engine.counts[key], 0);
   const shared: PositionCountsOf = {
     mentions: total('mentions'),
     ordered_answers: total('ordered_answers'),

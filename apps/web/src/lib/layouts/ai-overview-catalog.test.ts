@@ -151,17 +151,14 @@ const NEW: readonly Row[] = [
     opt('role', ['all', 'third_party', 'competitor'], 'all'),
     rows(['5', '8', '10'], '8'),
   ]),
-  row('sources.own_pages', 'Your pages AI platforms cite', 'ai', 'H T', 1, [rows(['5', '8', '10'], '8')]),
+  row('sources.own_pages', 'Your pages cited', 'ai', 'H T', 1, [rows(['5', '8', '10'], '8')]),
   row('sources.new_lost', 'New and lost domains', 'ai', 'H T', 1),
   row('sources.diversity', 'Cited domain diversity', 'ai', 'H 2T', 1),
-  row('ai.fanout_top', 'What ChatGPT searched', 'ai', 'H T F', 1, [rows(['5', '10'], '5')]),
+  row('ai.fanout_top', 'Top fan-out queries', 'ai', 'H T F', 1, [rows(['5', '10'], '5')]),
   row('ai.unlinked_mentions', 'Mentioned, not cited', 'ai', 'H T', 1, [], { released: REDESIGN_RELEASED }),
   row('ai.position_distribution', 'Mention position', 'ai', 'H T F', 1, [], { released: REDESIGN_RELEASED }),
   row('ai.sentiment_by_engine', 'Sentiment by platform', 'ai', 'H T', 1, [], { released: REDESIGN_RELEASED }),
-  row('traffic.ai_referrals', 'AI referral visits', 'traffic', 'F 2T', 1, [], {
-    integration: 'ga4',
-    released: REDESIGN_RELEASED,
-  }),
+  row('traffic.ai_referrals', 'AI referral visits', 'traffic', 'F 2T', 1, [], { released: REDESIGN_RELEASED }),
   row('ai.opportunities', 'AI opportunities', 'ai', 'H T', 1, [rows(['4', '8'], '4')]),
   row('ops.answer_calendar', 'Answers collected', 'activity', 'F H', 1),
   row('ops.answer_status', 'Answer status by platform', 'activity', 'H 2T', 1),
@@ -369,14 +366,14 @@ describe('permissions and integrations', () => {
       expect(cardType(key)?.integration).toBeNull();
   });
 
-  it('needs the GA4 integration for the referral card and for no other card', () => {
+  it('keeps the referral card in every project, because it says itself that GA4 is not connected', () => {
     const type = cardType('traffic.ai_referrals');
     if (!type) throw new Error('traffic.ai_referrals is not in the catalog');
     expect(type.group).toBe('traffic');
     const capabilities = { channels: ['ai'] as const, permissions: [] as string[], integrations: [] as string[] };
-    expect(cardAvailability(type, capabilities).state).toBe('unavailable');
-    expect(cardAvailability(type, { ...capabilities, integrations: ['ga4'] }).state).toBe('available');
-    for (const other of CARD_TYPES) if (other.key !== type.key) expect(other.integration).toBeNull();
+    // A card the layout skipped would lose its place; the owner decision is that every card keeps it and says why
+    expect(cardAvailability(type, capabilities).state).toBe('available');
+    for (const other of CARD_TYPES) expect(other.integration).toBeNull();
   });
 });
 
