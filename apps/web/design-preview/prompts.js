@@ -416,32 +416,8 @@ function renderRows() {
   ui.syncActiveRow();
 }
 
-const SORT_LABEL = {
-  mention: 'Mention rate',
-  citation: 'Citation rate',
-  recommendation: 'Recommendation rate',
-  sov: 'Share of voice',
-  prompt: 'Prompt',
-  topic: 'Topic',
-  country: 'Location',
-  intent: 'Intent',
-  volume: 'Search volume',
-  position: 'Avg position',
-  sentiment: 'Sentiment',
-};
-
-/** "Sorted by Mention rate descending", beside the count, as the app's toolbar says it. */
-function sortNote() {
-  const { key, dir } = state.sort;
-  const label = key.includes(':') ? columnsOf().find((column) => column.key === key)?.label ?? key : SORT_LABEL[key];
-  return `Sorted by ${label} ${dir === 'asc' ? 'ascending' : 'descending'}`;
-}
-
 function renderFooter() {
-  const count = plural(state.rows.length, 'prompt');
-  $('[data-prompt-range]', view).textContent = count;
-  $('[data-prompt-count]', view).textContent = count;
-  $('[data-prompt-sort-note]', view).textContent = sortNote();
+  $('[data-prompt-range]', view).textContent = plural(state.rows.length, 'prompt');
 }
 
 /** Selection survives sorting, paging and filtering (12 section 14); rows a filter hides are reported, not dropped. */
