@@ -33,9 +33,12 @@ import { MIN_OBSERVATIONS } from '@/lib/stats';
 /** "Google AI Mode mention" in capitals with its sort arrow needs about 176 px. */
 export const ENGINE_COLUMN_WIDTH = 176;
 
-/** The preview's widths of the two rate columns (Mention rate wider while the person compares, for its change icon). */
+/**
+ * The preview's widths of the two rate columns (Mention rate wider while the person compares, for its change icon).
+ * The preview's 204 while comparing is 200 here: the table's column type (`volumeTrend`) holds no column past 200 px.
+ */
 const MENTION_WIDTH = 168;
-const MENTION_COMPARE_WIDTH = 204;
+const MENTION_COMPARE_WIDTH = 200;
 const CITATION_WIDTH = 136;
 
 /** What a cell says in place of a rate, and what its tooltip says about why. */
@@ -181,7 +184,7 @@ export function useRateColumns<TRow>(
         cellTip: (row) => {
           const average = averageOf(row, metric);
           if (average.state === 'insufficient') {
-            return { content: rate('insufficientTip', { count: average.answers, min: MIN_OBSERVATIONS }) };
+            return { content: metrics('notEnoughTip', { answers: average.answers, min: MIN_OBSERVATIONS }) };
           }
           if (average.state === 'none') return tipOf(gapOf(row, average));
           // The count of each engine that counts: a pooled count beside an equal weight percent would read as another rate
@@ -361,10 +364,10 @@ export function useEngineRateColumns<TRow>(
             const figure = figureOf(row);
             if (figure.state === 'insufficient') {
               return {
-                content: rate(metric === 'sov' ? 'insufficientShareTip' : 'insufficientTip', {
-                  count: figure.answers,
-                  min: MIN_OBSERVATIONS,
-                }),
+                content:
+                  metric === 'sov'
+                    ? rate('insufficientShareTip', { count: figure.answers, min: MIN_OBSERVATIONS })
+                    : metrics('notEnoughTip', { answers: figure.answers, min: MIN_OBSERVATIONS }),
               };
             }
             if (figure.state === 'none') return tipOf(gapOf(row));

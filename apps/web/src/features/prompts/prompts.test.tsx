@@ -2325,7 +2325,7 @@ describe('Prompts: rate columns, Top platform, sorting and the metric switcher',
     const third = rowOf(table, 'Question number 3?');
     expect(within(third).getAllByText('Not enough data')[0]).toHaveClass('bg-insufficient');
     expect(within(third).getAllByRole('gridcell')[3]).toHaveAccessibleDescription(
-      'Too few valid answers for a rate: 2 of the 4 it needs.',
+      '2 answers in scope. A rate needs at least 4 on a platform.',
     );
     // An equal weight percent gets the count of each engine, not a pooled count that would read as another rate
     const [, , , mention] = within(rowOf(table, 'Question number 1?')).getAllByRole('gridcell');

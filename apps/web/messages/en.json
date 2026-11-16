@@ -3919,7 +3919,6 @@
       "insufficient": "{count, plural, one {# answer} other {# answers}}",
       "insufficientInline": "too few answers ({count, number})",
       "insufficientShareTip": "Too few answers that mention a brand for a share: {count, number} of the {min, number} it needs.",
-      "insufficientTip": "Too few valid answers for a rate: {count, number} of the {min, number} it needs.",
       "basis": "{successes, number} of {answers, plural, one {# answer} other {# answers}}",
       "basisAnswers": "{answers, plural, one {# answer} other {# answers}}",
       "reason": "{reason, select, noAnswers {No answers} noneValid {None valid} other {No brand mentioned}}",
