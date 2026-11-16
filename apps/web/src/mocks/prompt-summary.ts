@@ -73,7 +73,7 @@ export function countsOf(rows: readonly Facts[]): Counts {
 }
 
 /** `numerator` of `denominator`, `value` null when there is nothing to divide by. */
-const cell = (numerator: number, denominator: number, observations: number): MetricCell => ({
+export const cell = (numerator: number, denominator: number, observations: number): MetricCell => ({
   value: denominator === 0 ? null : numerator / denominator,
   numerator,
   denominator,
@@ -103,7 +103,7 @@ export function promptCells(engineCode: string, counts: Counts): EngineSummary {
  * is the sum of those rates (not a count of answers), the denominator the number of such prompts, and `pooled`
  * the answers behind them.
  */
-function promptWeighted(
+export function promptWeighted(
   parts: readonly (readonly [successes: number, valid: number])[],
   observations: number,
 ): MetricCell {
