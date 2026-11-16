@@ -1,32 +1,14 @@
-import { act, screen, waitFor, within } from '@testing-library/react';
-import { http, HttpResponse, type RequestHandler } from 'msw';
-import { Suspense, type ReactElement } from 'react';
+import { screen, waitFor, within } from '@testing-library/react';
+import type { ComponentType, ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { engineCells, summaryHandler, summaryOf, topicRow, vocabularyHandlers } from './topic-card-test-kit';
 import TopicExtremesCard from './topic-extremes-card';
-import {
-  engineCells,
-  promptRow,
-  summaryHandler,
-  summaryOf,
-  topicRow,
-  vocabularyHandlers,
-  type TermSpec,
-} from './topic-card-test-kit';
-import { ExportProvider, useExportBlocks, type ExportRead } from '../../export/export-registry';
-import { OverviewProvider } from '../../overview-context';
+import { CardInfoProvider } from '@/components/app/chart/card-info';
 import type { CardProps } from '@/features/layouts';
-import { projectEngine } from '@/features/prompts/topics-by-engine/cells-fixtures';
 import type { PromptsSummary } from '@/lib/api/types';
-import { PermissionProvider } from '@/lib/permissions';
-import { membershipFactory } from '@/mocks/factories/identity';
-import { MOCK_WORKSPACE, mockUser } from '@/mocks/fixtures';
-import { mswPath } from '@/mocks/respond';
-import { SESSION_COOKIE } from '@/mocks/session';
-import { CARD_ID, cardInOverview, overviewProject, type OverviewWorld } from '@/test/ai-overview-harness';
-import { axe } from '@/test/axe';
+import { cardInOverview } from '@/test/ai-overview-harness';
 import { stubViewport } from '@/test/customize-harness';
-import { gate } from '@/test/gate';
 import { server } from '@/test/msw';
 import { renderWithProviders } from '@/test/render';
 
@@ -41,413 +23,165 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-const SUMMARY_PATH = mswPath('/api/v1/workspaces/:w/projects/:p/ai/prompts-summary');
-const TITLE = 'Strongest and weakest groups';
+const id = (place: number): string =>
+  `${String(place).repeat(8)}-${String(place).repeat(4)}-4${String(place).repeat(3)}-8${String(place).repeat(3)}-${String(place).repeat(12)}`;
+const NAMES = ['Alpha', 'Bravo', 'Charlie', 'Delta', 'Echo', 'Foxtrot'];
+const TERMS = NAMES.map((name, place) => ({ id: id(place + 1), name, parent: null }));
 
-const TERMS: TermSpec[] = ['t1', 't2', 't3', 't4', 't5', 't6'].map((id) => ({ id, name: id, parent: null }));
-type Pair = readonly [number, number];
+const outcomes = (k: number, n: number) =>
+  ({ both: [k, n], named: [0, n], cited: [0, n], neither: [n - k, n] }) as const;
 
-function row(id: string, name: string, prompts: number, counts: Record<string, Pair>) {
-  return topicRow(
-    id,
-    name,
-    prompts,
-    Object.entries(counts).map(([code, pair]) =>
-      engineCells(code, { mentioned: pair, cited: pair, sov: pair, prompts }),
-    ),
-  );
-}
+/** Group `place` has a visibility of 90%, 70%, 50%, 30%, 20% and 10% of 10 answers on ChatGPT and the same on Gemini. */
+const RATES = [9, 7, 5, 3, 2, 1];
+const group = (place: number, thinGemini = false) =>
+  topicRow(id(place + 1), NAMES[place] ?? '', place + 3, [
+    engineCells('chatgpt_web', {
+      mentioned: [RATES[place] ?? 0, 10],
+      outcomes: outcomes(RATES[place] ?? 0, 10),
+      prompts: place + 3,
+    }),
+    engineCells('gemini_web', {
+      mentioned: thinGemini ? [1, 3] : [RATES[place] ?? 0, 10],
+      outcomes: thinGemini ? outcomes(1, 3) : outcomes(RATES[place] ?? 0, 10),
+      prompts: place + 3,
+    }),
+  ]);
 
-// ChatGPT ranks SEO tools, Email, CRM and Pricing (Support has 2 prompts, Reports no answer).
-// Gemini ranks SEO tools, Email and CRM (Pricing has 3 answers).
-const SUMMARY: PromptsSummary = summaryOf({
-  topics: [
-    row('t1', 'SEO tools', 12, { chatgpt_web: [64, 136], gemini_web: [30, 100] }),
-    row('t2', 'Email', 8, { chatgpt_web: [40, 80], gemini_web: [4, 50] }),
-    row('t3', 'CRM', 6, { chatgpt_web: [10, 60], gemini_web: [28, 56] }),
-    row('t4', 'Pricing', 5, { chatgpt_web: [2, 40], gemini_web: [3, 3] }),
-    row('t5', 'Support', 2, { chatgpt_web: [9, 10], gemini_web: [5, 10] }),
-    row('t6', 'Reports', 4, { chatgpt_web: [0, 0], gemini_web: [0, 0] }),
-  ],
-  prompts: [
-    promptRow('p1', 'best seo tools', ['t1', 't2'], [engineCells('chatgpt_web', { mentioned: [3, 4] })]),
-    promptRow('p2', 'best crm', ['t3'], [engineCells('chatgpt_web', { mentioned: [1, 4] })]),
-  ],
-});
-
-const TWO_ENGINES = 'engine=chatgpt_web,gemini_web';
-
-/** No mock project has AI Mode on, so the three engines are served as the project's. */
-const THREE_ENGINES = http.get(mswPath('/api/v1/workspaces/:w/projects/:p/engines'), () =>
-  HttpResponse.json({
-    data: (['chatgpt_web', 'gemini_web', 'google_ai_mode'] as const).map((code) => projectEngine(code)),
-  }),
-);
-
-interface Setup {
-  options?: Record<string, string>;
-  searchParams?: string;
-  summary?: PromptsSummary | ((url: URL) => PromptsSummary | Response);
-  world?: OverviewWorld;
-  threeEngines?: boolean;
-  /** Holds the vocabulary read until it is released. */
-  vocabularies?: Promise<void>;
-}
-
-/** A vocabulary read that waits for `release`, then falls through to the served vocabularies. */
-const heldVocabularies = (release: Promise<void>): RequestHandler =>
-  http.get(mswPath('/api/v1/workspaces/:w/vocabularies'), async () => {
-    await release;
-    return undefined;
-  });
-
-function render({
-  options = {},
-  searchParams = TWO_ENGINES,
-  summary = SUMMARY,
-  world = 'fynix',
-  threeEngines = false,
-  vocabularies,
-}: Setup = {}) {
-  server.use(summaryHandler(summary), ...vocabularyHandlers(TERMS));
-  if (vocabularies !== undefined) server.use(heldVocabularies(vocabularies));
-  if (threeEngines) server.use(THREE_ENGINES);
-  return renderCard({ options, searchParams, world });
-}
-
-function renderCard({ options = {}, searchParams = TWO_ENGINES, world = 'fynix' }: Setup) {
-  function Card(props: CardProps): ReactElement {
-    return <TopicExtremesCard {...props} options={{ ...props.options, rows: '2', ...options }} />;
-  }
-  return renderWithProviders(cardInOverview({ type: 'ai.topic_extremes', Card, width: 'half', world }), {
-    searchParams,
-  });
-}
-
-const heading = (): Promise<HTMLElement> => screen.findByRole('heading', { level: 2, name: TITLE });
-const frameOf = async (): Promise<HTMLElement> => {
-  const section = (await heading()).closest('section');
-  if (section === null) throw new Error('The card has no frame');
-  return section;
+const SUMMARY: PromptsSummary = {
+  ...summaryOf({ topics: NAMES.map((_, place) => group(place)), prompts: [] }),
+  total: {
+    prompt_count: 40,
+    last_observed_at: null,
+    last_valid_at: null,
+    engines: [
+      engineCells('chatgpt_web', { mentioned: [40, 100], outcomes: outcomes(40, 100), prompts: 40 }),
+      engineCells('gemini_web', { mentioned: [30, 100], outcomes: outcomes(30, 100), prompts: 40 }),
+    ],
+  },
 };
-/** The list of one group of one engine, by the name the card gives it. */
-const listOf = (group: 'Strongest' | 'Weakest', engine: string): Promise<HTMLElement> =>
-  screen.findByRole('list', { name: new RegExp(`^${group} groups on ${engine}`) });
-const labelsOf = (list: HTMLElement): string[] =>
-  within(list)
-    .getAllByRole('listitem')
-    .map((item) => item.querySelector('[data-slot="bar-list-label"]')?.textContent ?? '');
 
-const failing = (): ReturnType<typeof HttpResponse.json> =>
-  HttpResponse.json(
-    { type: 'about:blank', title: 'Internal error', status: 500, code: 'internal_error', request_id: 'req_extremes' },
-    { status: 500, headers: { 'content-type': 'application/problem+json' } },
+function InfoCard(props: CardProps): ReactElement {
+  return (
+    <CardInfoProvider>
+      <TopicExtremesCard {...props} />
+    </CardInfoProvider>
   );
+}
 
-describe('TopicExtremesCard', () => {
-  it('one section per asked platform', async () => {
+function render({ summary = SUMMARY, searchParams = '' }: { summary?: PromptsSummary; searchParams?: string } = {}) {
+  server.use(...vocabularyHandlers(TERMS), summaryHandler(summary));
+  return renderWithProviders(
+    cardInOverview({ type: 'ai.topic_extremes', Card: InfoCard as ComponentType<CardProps>, width: 'third' }),
+    { searchParams },
+  );
+}
+
+const list = async (name: RegExp): Promise<HTMLElement> => screen.findByRole('list', { name });
+const labels = (items: HTMLElement): string[] =>
+  within(items)
+    .getAllByRole('listitem')
+    .map((item) => /^[A-Za-z]+/.exec(item.textContent)?.[0] ?? '');
+
+describe('the strongest and weakest groups', () => {
+  it('lists 3 a side for 6 groups, strongest high to low and weakest low to high, by the platform average', async () => {
     render();
-    await frameOf();
-    expect(await screen.findByRole('heading', { level: 3, name: 'ChatGPT' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { level: 3, name: 'Gemini' })).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { level: 3, name: 'Google AI Mode' })).not.toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Top and bottom groups' })).toBeInTheDocument();
+    const strongest = await list(/^Strongest groups by AI visibility rate/);
+    expect(labels(strongest)).toEqual(['Alpha', 'Bravo', 'Charlie']);
+    const weakest = await list(/^Weakest groups by AI visibility rate/);
+    expect(labels(weakest)).toEqual(['Foxtrot', 'Echo', 'Delta']);
+    expect(within(strongest).getAllByText('90%').length).toBeGreaterThan(0);
+    expect(within(strongest).getByText('3 prompts')).toBeInTheDocument();
   });
 
-  it('two lists side by side with the count of rows asked', async () => {
-    const { container } = render();
-    expect(labelsOf(await listOf('Strongest', 'ChatGPT'))).toEqual(['Email', 'SEO tools']);
-    expect(labelsOf(await listOf('Weakest', 'ChatGPT'))).toEqual(['Pricing', 'CRM']);
-    expect(labelsOf(await listOf('Strongest', 'Gemini'))).toEqual(['CRM', 'SEO tools']);
-    expect(labelsOf(await listOf('Weakest', 'Gemini'))).toEqual(['Email']);
-    // Side by side from the container's `@lg` width, stacked below it
-    expect(container.querySelector('[class*="@lg:grid-cols-2"]')).not.toBeNull();
+  it('names the measure as written in its meta and ranks the average of the platforms that show a rate', async () => {
+    render({ summary: { ...SUMMARY, topics: NAMES.map((_, place) => group(place, place === 0)) } });
+    await list(/^Strongest groups/);
+    expect(screen.getByText('AI visibility rate')).toBeInTheDocument();
+    expect(screen.queryByText('ai visibility rate')).not.toBeInTheDocument();
+    // Alpha has a rate on ChatGPT only (Gemini has 3 answers): its average is that platform alone
+    const tip = (await screen.findAllByText(/Alpha: 90%, equal weight average of ChatGPT\. ChatGPT 9 of 10 answers$/))
+      .length;
+    expect(tip).toBeGreaterThan(0);
   });
 
-  it('rows 3 asks for three groups in each list', async () => {
-    render({ options: { rows: '3' } });
-    expect(labelsOf(await listOf('Strongest', 'ChatGPT'))).toEqual(['Email', 'SEO tools', 'CRM']);
-    // Four topics are ranked on ChatGPT: the weakest list takes the one the strongest left
-    expect(labelsOf(await listOf('Weakest', 'ChatGPT'))).toEqual(['Pricing']);
+  it('reads the measure of the page', async () => {
+    render({ searchParams: 'metric=mention' });
+    await list(/^Strongest groups by Mention rate/);
   });
 
-  it('the too few answers count is in the footnote', async () => {
-    render();
-    const frame = await frameOf();
-    await listOf('Strongest', 'ChatGPT');
-    expect(within(frame).getByText(/ChatGPT: 2 groups have too few answers or prompts/)).toBeInTheDocument();
-    expect(within(frame).getByText(/Gemini: 3 groups have too few answers or prompts/)).toBeInTheDocument();
+  it('says there are not enough groups under 4 with a rate', async () => {
+    render({ summary: { ...SUMMARY, topics: [group(0), group(1), group(2)] } });
+    expect(await screen.findByText('Not enough groups')).toBeInTheDocument();
+    expect(screen.getByText('At least 4 groups with a rate are needed.')).toBeInTheDocument();
   });
 
-  it('every bar has k of n answers and prompts', async () => {
-    render();
-    const list = await listOf('Strongest', 'ChatGPT');
-    const items = within(list).getAllByRole('listitem');
-    expect(items[0]).toHaveTextContent(/Email: 50\.0%, 40 of 80 answers.*8 prompts/);
-    expect(items[1]).toHaveTextContent(/SEO tools: 47\.1%, 64 of 136 answers.*12 prompts/);
-    for (const item of items) {
-      expect(item).toHaveTextContent(/\d+ of \d+ answers/);
-      expect(item).toHaveTextContent(/\d+ prompts?/);
-    }
-  });
-
-  it('a row links to the group drawer on that platform', async () => {
-    render();
-    const list = await listOf('Strongest', 'Gemini');
-    const link = within(list).getAllByRole('link')[0];
-    const url = new URL(link?.getAttribute('href') ?? '', 'http://localhost');
-    expect(url.searchParams.get('inspect')).toBe('topic:t3');
-    expect(url.searchParams.get('itab')).toBe('prompts');
-    expect(url.searchParams.get('eng')).toBe('gemini_web');
-  });
-
-  it('a platform with no eligible group says why', async () => {
-    // All platforms: a link that names several platforms is All platforms, so the test names none
-    render({ searchParams: '', threeEngines: true });
-    expect(
-      await screen.findByText(/AI Mode has no group with at least 4 valid answers and 3 prompts/),
-    ).toBeInTheDocument();
-    expect(screen.queryByRole('list', { name: /groups on AI Mode/ })).not.toBeInTheDocument();
-    // ChatGPT still shows its lists
-    expect(labelsOf(await listOf('Strongest', 'ChatGPT'))).toHaveLength(2);
-  });
-
-  it('says so when no ranked group is above 0%', async () => {
-    render({
-      searchParams: 'engine=chatgpt_web',
-      summary: summaryOf({ topics: [row('t1', 'SEO tools', 4, { chatgpt_web: [0, 10] })] }),
-    });
-    expect(await screen.findByText('No ranked group is above 0% on ChatGPT.')).toBeInTheDocument();
-    expect(labelsOf(await listOf('Weakest', 'ChatGPT'))).toEqual(['SEO tools']);
-    expect(screen.queryByRole('list', { name: /^Strongest groups/ })).not.toBeInTheDocument();
-  });
-
-  it('says so when the strongest list took every ranked group', async () => {
-    render({
-      searchParams: 'engine=chatgpt_web',
-      summary: summaryOf({ topics: [row('t1', 'SEO tools', 4, { chatgpt_web: [5, 10] })] }),
-    });
-    expect(await screen.findByText('Every ranked group is already in the strongest list.')).toBeInTheDocument();
-    expect(labelsOf(await listOf('Strongest', 'ChatGPT'))).toEqual(['SEO tools']);
-    expect(screen.queryByRole('list', { name: /^Weakest groups/ })).not.toBeInTheDocument();
-  });
-
-  it('holds the card as loading while the vocabulary tree is pending, then shows the lists', async () => {
-    const release = gate();
-    let served = false;
-    render({
-      vocabularies: release.promise,
-      summary: () => {
-        served = true;
-        return SUMMARY;
-      },
-    });
-    const frame = await frameOf();
-    await waitFor(() => {
-      expect(served).toBe(true);
-    });
-    await new Promise((resolve) => setTimeout(resolve, 100));
-    expect(frame).toHaveAttribute('aria-busy', 'true');
-    expect(frame.querySelector('[data-slot="skeleton"]')).not.toBeNull();
-    expect(screen.queryByRole('list', { name: /groups on ChatGPT/ })).not.toBeInTheDocument();
-    release.open();
-    expect(labelsOf(await listOf('Strongest', 'ChatGPT'))).toHaveLength(2);
-  });
-
-  it('the overlap footnote', async () => {
-    render();
-    const frame = await frameOf();
-    await listOf('Strongest', 'ChatGPT');
-    expect(within(frame).getByText(/Groups overlap/)).toBeInTheDocument();
-    await waitFor(() => {
-      expect(within(frame).getByText(/1 prompt is in more than one group/)).toBeInTheDocument();
-    });
-    expect(within(frame).getByText(/Only the most specific groups are ranked/)).toBeInTheDocument();
-  });
-
-  it('metric share of voice says answers that name a brand', async () => {
-    render({ options: { metric: 'share_of_voice' } });
-    const list = await listOf('Strongest', 'ChatGPT');
-    expect(within(list).getAllByRole('listitem')[0]).toHaveTextContent(/valid answers name a tracked brand/);
-    expect(within(list).getAllByRole('listitem')[0]).not.toHaveTextContent(/40 of 80 answers/);
-  });
-
-  it('the Table form lists every ranked group with its platform and counts', async () => {
+  it('keeps the card info behind the i button', async () => {
     const { user } = render();
-    await listOf('Strongest', 'ChatGPT');
-    await user.click(screen.getByRole('button', { name: 'Table' }));
-    const grid = await screen.findByRole('table');
+    await list(/^Strongest groups/);
+    await user.click(await screen.findByRole('button', { name: 'About Top and bottom groups' }));
+    expect(await screen.findByText('The groups where your brand does best and worst.')).toBeInTheDocument();
+  });
+});
+
+describe('with one group chosen: the group against all groups', () => {
+  const GROUP = `topic=${id(1)}`;
+
+  it('is drawn in the same card with the group in its title, never a placeholder', async () => {
+    render({ searchParams: GROUP });
+    expect(await screen.findByRole('heading', { name: 'Alpha vs all groups' })).toBeInTheDocument();
+    expect(screen.queryByText('Strongest')).not.toBeInTheDocument();
+  });
+
+  it('has a block per platform and the average, with the rate of all groups', async () => {
+    render({ searchParams: GROUP });
+    const items = await screen.findAllByRole('listitem');
+    const names = items.map((item) => item.querySelector('span')?.textContent);
+    expect(names).toEqual(['ChatGPT', 'Gemini', 'Google AI Overview', 'Average']);
+    // Alpha 90% on ChatGPT against 40% of all groups
+    expect(await screen.findByText('All groups 40%')).toBeInTheDocument();
+    expect(screen.getByText('All groups 30%')).toBeInTheDocument();
+    expect(screen.getByText('Not collected yet')).toBeInTheDocument();
+  });
+
+  it('shows every platform whatever the page platform says', async () => {
+    render({ searchParams: `${GROUP}&engine=gemini_web` });
+    await screen.findByRole('heading', { name: 'Alpha vs all groups' });
+    expect(await screen.findAllByRole('listitem')).toHaveLength(4);
+  });
+
+  it('shows no rate for a platform under 4 valid answers in the group and says why', async () => {
+    render({ searchParams: GROUP, summary: { ...SUMMARY, topics: NAMES.map((_, place) => group(place, true)) } });
+    expect((await screen.findAllByText('Not enough data')).length).toBeGreaterThan(0);
+  });
+
+  it('shows the difference as a trend icon: ahead, behind or level, with the figures and the untested note in its words', async () => {
+    render({ searchParams: GROUP });
+    await screen.findByRole('heading', { name: 'Alpha vs all groups' });
+    // Alpha is 90% on ChatGPT against 40% of all groups
     expect(
-      within(grid)
+      await screen.findByText('Alpha is 50.0 pts above all groups: 90% against 40%. Not tested for detectability.'),
+    ).toBeInTheDocument();
+  });
+
+  it('has the counts of every rate in its tooltip text for screen readers', async () => {
+    render({ searchParams: GROUP });
+    await screen.findByRole('heading', { name: 'Alpha vs all groups' });
+    expect(await screen.findByText(/ChatGPT: 90%, 9 of 10 answers/)).toBeInTheDocument();
+  });
+
+  it('has a Table view with both rates and their counts', async () => {
+    const { user } = render({ searchParams: GROUP });
+    await screen.findByRole('heading', { name: 'Alpha vs all groups' });
+    await user.click(await screen.findByRole('button', { name: 'Table' }));
+    const table = await screen.findByRole('table', { name: 'Alpha against all groups' });
+    await waitFor(() => {
+      expect(within(table).getAllByRole('row').length).toBe(5);
+    });
+    expect(
+      within(table)
         .getAllByRole('columnheader')
-        .map((cell) => cell.textContent),
-    ).toEqual(['Platform', 'Group', 'Group', 'Value']);
-    expect(
-      within(grid).getByRole('row', { name: /ChatGPT Strongest Email 50\.0%, 40 of 80 answers/ }),
-    ).toBeInTheDocument();
-    expect(within(grid).getAllByRole('row')).toHaveLength(1 + 2 + 2 + 2 + 1);
-  });
-
-  it('has no axe violations', async () => {
-    const { container } = render();
-    await listOf('Strongest', 'ChatGPT');
-    expect(await axe(container)).toHaveNoViolations();
-  });
-
-  it('keyboard: the rows are links and Tab visits them in order', async () => {
-    const { user } = render();
-    const list = await listOf('Strongest', 'ChatGPT');
-    const links = within(list).getAllByRole('link');
-    for (let press = 0; press < 12 && document.activeElement !== links[0]; press += 1) await user.tab();
-    expect(links[0]).toHaveFocus();
-    await user.tab();
-    expect(links[1]).toHaveFocus();
-  });
-});
-
-describe('TopicExtremesCard states', () => {
-  it('loading is the skeleton at the frame height, with no list', async () => {
-    const release = gate();
-    server.use(
-      http.get(SUMMARY_PATH, async () => {
-        await release.promise;
-        return HttpResponse.json({ data: SUMMARY });
-      }),
-      ...vocabularyHandlers(TERMS),
-    );
-    renderCard({});
-    const frame = await frameOf();
-    expect(frame).toHaveAttribute('aria-busy', 'true');
-    expect(frame.querySelector('[style*="height: 240px"] [data-slot="skeleton"]')).not.toBeNull();
-    expect(screen.queryByRole('list')).not.toBeInTheDocument();
-    release.open();
-    await listOf('Strongest', 'ChatGPT');
-  });
-
-  it('no platform asked is an empty state with its action', async () => {
-    document.cookie = `${SESSION_COOKIE}=mock.active.${mockUser('admin').user_id}.${String(Date.now() + 600_000)}; Path=/; Secure`;
-    renderWithProviders(
-      <PermissionProvider membership={membershipFactory('admin')}>
-        <Suspense fallback={null}>
-          <OverviewProvider
-            workspaceId={MOCK_WORKSPACE.workspace_id}
-            workspaceSlug={MOCK_WORKSPACE.slug}
-            project={overviewProject('cleanstart')}
-          >
-            <TopicExtremesCard
-              item={{ id: CARD_ID, type: 'ai.topic_extremes', width: 'half', options: {} }}
-              options={{ metric: 'mention', rows: '5' }}
-              width="half"
-              mode="view"
-              live
-            />
-          </OverviewProvider>
-        </Suspense>
-      </PermissionProvider>,
-    );
-    expect(await screen.findByText('No platform is part of this view')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Turn on platforms' })).toBeInTheDocument();
-  });
-
-  it('no groups is an empty state with Open Prompts', async () => {
-    render({ summary: summaryOf({ topics: [], prompts: [], engineCodes: ['chatgpt_web'] }) });
-    const title = await screen.findByRole('heading', { name: 'No groups yet' });
-    const box = within(title.closest('[data-slot="empty-state"]') as HTMLElement);
-    expect(box.getByRole('link', { name: 'Open Prompts' })).toBeInTheDocument();
-  });
-
-  it('no valid answers names the platform and has one action', async () => {
-    render({
-      searchParams: 'engine=chatgpt_web',
-      summary: summaryOf({ topics: [row('t1', 'SEO tools', 4, { chatgpt_web: [0, 0] })] }),
-    });
-    const title = await screen.findByRole('heading', { name: 'No valid answers in these 28 days on ChatGPT' });
-    const box = within(title.closest('[data-slot="empty-state"]') as HTMLElement);
-    expect(box.getAllByRole('link')).toHaveLength(1);
-  });
-
-  it('an error shows the title, the request id and Retry that recovers', async () => {
-    let calls = 0;
-    const { user } = render({ summary: () => (calls++ === 0 ? failing() : SUMMARY) });
-    expect(await screen.findByText(`${TITLE} could not be read`)).toBeInTheDocument();
-    expect(screen.getByText(/req_extremes/)).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Try again' }));
-    expect(labelsOf(await listOf('Strongest', 'ChatGPT'))).toHaveLength(2);
-  });
-
-  it('refetching keeps the lists and shows the refetch bar', async () => {
-    const { queryClient } = render();
-    await listOf('Strongest', 'ChatGPT');
-    const release = gate();
-    server.use(
-      http.get(SUMMARY_PATH, async () => {
-        await release.promise;
-        return HttpResponse.json({ data: SUMMARY });
-      }),
-    );
-    act(() => {
-      void queryClient.invalidateQueries();
-    });
-    const frame = await frameOf();
-    await waitFor(() => {
-      expect(frame.querySelector('[data-slot="chart-refetch-bar"]')).not.toBeNull();
-    });
-    expect(screen.getByRole('list', { name: /^Strongest groups on ChatGPT/ })).toBeInTheDocument();
-    release.open();
-  });
-
-  it('a failed refresh keeps the lists and says these are the last figures', async () => {
-    const { queryClient } = render();
-    await listOf('Strongest', 'ChatGPT');
-    server.use(http.get(SUMMARY_PATH, () => failing(), { once: true }));
-    act(() => {
-      void queryClient.invalidateQueries();
-    });
-    expect(await screen.findByText('These are the last figures read')).toBeInTheDocument();
-    expect(screen.getByRole('list', { name: /^Strongest groups on ChatGPT/ })).toBeInTheDocument();
-  });
-
-  it('partial names a platform that has no valid answer in any group', async () => {
-    // All platforms: a link that names several platforms is All platforms, so the test names none
-    render({ searchParams: '', threeEngines: true });
-    await listOf('Strongest', 'ChatGPT');
-    expect(screen.getByText('Partial data: Google AI Mode has no valid answer in this period')).toBeInTheDocument();
-  });
-});
-
-describe('TopicExtremesCard export block', () => {
-  function renderExporting(): () => ExportRead {
-    let reader: () => ExportRead = () => ({ blocks: [], loading: 0 });
-    function Reader(): null {
-      reader = useExportBlocks();
-      return null;
-    }
-    function Card(props: CardProps): ReactElement {
-      return (
-        <ExportProvider>
-          <TopicExtremesCard {...props} options={{ ...props.options, rows: '2' }} />
-          <Reader />
-        </ExportProvider>
-      );
-    }
-    server.use(summaryHandler(SUMMARY), ...vocabularyHandlers(TERMS));
-    renderWithProviders(cardInOverview({ type: 'ai.topic_extremes', Card, width: 'half' }), {
-      searchParams: TWO_ENGINES,
-    });
-    return () => reader();
-  }
-
-  it('registers a block under the item id, with an empty cell and a status for an unknown, never 0', async () => {
-    const read = renderExporting();
-    await listOf('Strongest', 'ChatGPT');
-    const [block] = read().blocks;
-    expect(block?.id).toBe(CARD_ID);
-    expect(block?.header).toEqual(['engine', 'group', 'topic', 'rate_percent', 'answers', 'prompts', 'status']);
-    const rows = block?.rows ?? [];
-    expect(rows).toContainEqual(['chatgpt_web', 'strongest', 'Email', 50, 80, 8, 'ok']);
-    // Pricing on Gemini has 3 answers: no rate, the answers, and the reason in the status
-    expect(rows).toContainEqual(['gemini_web', 'not_ranked', 'Pricing', null, 3, 5, 'insufficient']);
-    // Reports has no answer at all
-    expect(rows).toContainEqual(['gemini_web', 'not_ranked', 'Reports', null, 0, 4, 'no_answers']);
-    expect(rows.filter((entry) => entry[3] === 0)).toEqual([]);
+        .map((header) => header.textContent),
+    ).toEqual(['Platform', 'This group', 'All groups']);
   });
 });

@@ -1,232 +1,252 @@
 'use client';
 
-import type { Route } from 'next';
 import { useTranslations } from 'next-intl';
-import type { ReactElement } from 'react';
+import { useMemo, type ReactElement } from 'react';
 
-import { useOverview } from '../../overview-context';
 import { TopicCardFrame, useTopicEmpty, type TopicEmpty } from './card-frame';
-import type { EngineValue } from './engine-values';
-import { EXTREMES_EXPORT_HEADER, extremesFileName, extremesModel, type RankedTopic } from './extremes-model';
-import { topicEngineHref } from './links';
-import { CELL_OF, MIN_PROMPTS_TO_RANK, type TopicData, type TopicMetric } from './model-types';
-import { countOf, metricOf } from './options';
+import {
+  EXTREMES_EXPORT_HEADER,
+  MIN_GROUPS_TO_RANK,
+  extremesExportRow,
+  extremesFileName,
+  extremesOf,
+  type RankedGroup,
+} from './extremes-model';
+import { groupRows, isCountedMeasure } from './group-rows';
+import { GroupVersus, GroupVersusTable } from './group-versus';
+import { groupNames } from './heatmap-model';
+import type { TopicData } from './model-types';
 import { TopicFootnote } from './topic-footnote';
-import { leavesOf, overlapCount } from './topic-nodes';
-import { exportCells } from './topic-rows';
-import { useTopicSummary } from './use-topic-reads';
-import { useTopicWords } from './use-topic-words';
+import { useGroupVersus } from './use-group-versus';
+import { useChosenGroup } from './use-group-name';
+import { useAllGroupsSummary } from './use-topic-reads';
+import { useOverview } from '../../overview-context';
 import { BarList, type ComparisonRow } from '@/components/app/chart/bar-list';
-import { EngineLogo } from '@/components/app/engine/engine-logo';
 import { PlainTable, type PlainColumn } from '@/components/app/table/plain-table';
 import type { CardProps } from '@/features/layouts';
 import { safeText, type CsvCell, type CsvTable } from '@/lib/csv/csv-write';
-import { EMPTY_VALUE, formatList } from '@/lib/format';
-import { MIN_OBSERVATIONS } from '@/lib/stats';
+import { EMPTY_VALUE, formatList, formatPercent } from '@/lib/format';
 
-const GROUPS = ['strongest', 'weakest'] as const;
-type Group = (typeof GROUPS)[number];
+/**
+ * The card of the `ai.topic_extremes` key: the strongest and weakest groups for All groups, and the chosen group
+ * against all groups when the page has one (OV-GRP-12, OV-OPEN-16). The second is part of this card and is not a
+ * catalog key of its own: a layout that hides this card hides it too.
+ */
+export default function TopicExtremesCard(props: CardProps): ReactElement {
+  const { scope } = useOverview();
+  return scope.topic === null ? <GroupExtremes {...props} /> : <GroupAgainstAll {...props} />;
+}
 
 interface TableRow {
   id: string;
-  engine: string;
   group: string;
-  topic: string;
+  side: string;
   value: string;
 }
 
-/** A rate is a count of answers unless the metric is share of voice or the count is not whole. */
-const isCounted = (metric: TopicMetric, value: EngineValue): boolean =>
-  metric !== 'share_of_voice' && value.successes !== null;
+/** A rate as the cards of the groups print it: a whole percent; an unknown rate is n/a, never 0%. */
+const percent = (value: number | null): string =>
+  value === null ? EMPTY_VALUE : formatPercent(value, { decimals: 0 });
 
-/** One row of the export: an unknown rate is an empty cell and its status says why, never 0. */
-function exportRow(code: string, group: string, topic: string, value: EngineValue): CsvCell[] {
-  const [rate, answers, status] = exportCells(value);
-  return [code, group, safeText(topic), rate, answers, value.prompts, status];
-}
-
-/** Strongest and weakest topics of every asked engine (CH-41, `ai.topic_extremes`). */
-export default function TopicExtremesCard({ item, options, live }: CardProps): ReactElement {
-  const t = useTranslations('aiOverview.topics.extremes');
-  const words = useTopicWords();
+/** Strongest and weakest groups (OV-GRP-13, `ai.topic_extremes`), by the average over the platforms. */
+function GroupExtremes({ item, live }: CardProps): ReactElement {
+  const t = useTranslations('aiOverview.topics.groups');
+  const heat = useTranslations('aiOverview.topics.heatmap');
+  const common = useTranslations('aiOverview.topics.common');
   const empties = useTopicEmpty();
-  const { workspaceSlug, project } = useOverview();
-  const read = useTopicSummary({ subscribed: live });
-  // The leaf topics depend on the vocabulary tree: until it is read, rows would be ranked beside their parents
+  const { scope } = useOverview();
+  const read = useAllGroupsSummary({ subscribed: live });
+  // The groups depend on the vocabulary tree: until it is read, rows would be ranked beside their parents
   const data: TopicData =
     read.tree.pending && (read.phase === 'ready' || read.phase === 'refetching') ? { ...read, phase: 'loading' } : read;
-  const metric = metricOf(options.metric ?? '');
-  const count = countOf(options.rows ?? '', 5);
-  const { engines, scope } = data;
-  const labels = engines.map((engine) => engine.label);
+  const measure = scope.metric;
+  const measureLabel = t(`measure.${measure}`);
+  const { nodes, engines } = data;
+  const rows = useMemo(
+    () =>
+      groupRows(
+        nodes,
+        engines.map((engine) => engine.code),
+        measure,
+      ),
+    [nodes, engines, measure],
+  );
+  const extremes = useMemo(() => extremesOf(rows), [rows]);
+  const names = useMemo(() => groupNames(rows.map((row) => row.node)), [rows]);
+  const nameOf = (entry: RankedGroup): string => names.get(entry.row.node.key) ?? entry.row.node.name;
+  const answered = rows.some((row) => row.values.some((value) => value.state !== 'none'));
 
-  const models = engines.map((engine) => ({
-    engine,
-    model: extremesModel(data.nodes, engine.code, CELL_OF[metric], count),
-  }));
-
+  const title = t('extremes.title');
   const empty = ((): TopicEmpty | null => {
-    if (leavesOf(data.nodes).length === 0) return empties.noTopics;
-    return models.some(({ model }) => model.answered) ? null : empties.noAnswers(labels, scope.range.days);
+    if (rows.length === 0) return empties.noTopics;
+    if (!answered) {
+      return empties.noAnswers(
+        engines.map((engine) => engine.label),
+        scope.range.days,
+      );
+    }
+    return extremes.enough
+      ? null
+      : { title: t('extremes.notEnoughTitle'), reason: t('extremes.notEnoughReason'), action: null };
   })();
 
-  const groupLabel = (group: Group): string => t(group);
-  const hrefOf = (code: string, entry: RankedTopic): Route | undefined =>
-    topicEngineHref({ workspaceSlug, projectSlug: project.slug, scope }, entry.row.node.key, code) ?? undefined;
+  const sides = [
+    { id: 'strongest', label: t('extremes.strongest'), own: true, entries: extremes.strongest },
+    { id: 'weakest', label: t('extremes.weakest'), own: false, entries: extremes.weakest },
+  ] as const;
+  // One scale for both lists, so one percent is one length
+  const max = Math.max(0, ...extremes.strongest.map((entry) => entry.value));
 
-  const rowOf = (code: string, entry: RankedTopic): ComparisonRow => {
-    const { value, row } = entry;
-    const counted = isCounted(metric, value);
-    const prompts = value.prompts ?? 0;
-    const tip = words.cellTip(value, counted);
+  const tipOf = (entry: RankedGroup): string => {
+    const taking = entry.row.values.filter((value) => value.state === 'ok');
+    const labelOf = (code: string): string => engines.find((engine) => engine.code === code)?.label ?? code;
+    // The answers behind each platform's rate, so the average is never read as a rate of pooled answers (R1)
+    const counts = taking.map((value) =>
+      heat('engineCount', {
+        engine: labelOf(value.code),
+        count:
+          value.successes !== null && isCountedMeasure(measure)
+            ? heat('countOf', { successes: value.successes, answers: value.answers })
+            : common('answerCount', { count: value.answers }),
+      }),
+    );
+    return t('extremes.tip', {
+      group: nameOf(entry),
+      percent: percent(entry.value),
+      platforms: formatList(taking.map((value) => labelOf(value.code))),
+      counts: formatList(counts),
+    });
+  };
+  const rowOf = (entry: RankedGroup, own: boolean): ComparisonRow => {
+    const name = nameOf(entry);
+    const tip = tipOf(entry);
     return {
-      id: `${code}:${row.node.key}`,
-      label: row.node.name,
-      own: false,
+      id: entry.row.node.key,
+      label: name,
+      own,
       value: {
         kind: 'value',
-        value: value.value ?? 0,
-        valueText: words.percent(value.value),
-        contextText: counted
-          ? t('context', { k: value.successes ?? 0, n: value.answers, prompts })
-          : t('contextShare', { n: value.answers, prompts }),
+        value: entry.value,
+        valueText: percent(entry.value),
+        contextText: t('extremes.context', { count: entry.row.node.promptCount }),
       },
-      accessibleText: `${row.node.name}: ${tip}`,
+      accessibleText: tip,
       tip,
-      href: hrefOf(code, entry),
     };
   };
 
-  const shown = models.flatMap(({ engine, model }) =>
-    GROUPS.flatMap((group) => model[group].map((entry) => ({ engine, group, entry }))),
+  const tableRows: TableRow[] = sides.flatMap((side) =>
+    side.entries.map((entry) => ({
+      id: `${side.id}:${entry.row.node.key}`,
+      group: nameOf(entry),
+      side: side.label,
+      value: tipOf(entry),
+    })),
   );
-  // One scale for every list of the card, so one percent is one length
-  const max = Math.max(0, ...shown.map(({ entry }) => entry.value.value ?? 0));
-
-  const tableRows: TableRow[] = shown.map(({ engine, group, entry }) => ({
-    id: `${engine.code}:${group}:${entry.row.node.key}`,
-    engine: engine.label,
-    group: groupLabel(group),
-    topic: entry.row.node.name,
-    value: words.cellTip(entry.value, isCounted(metric, entry.value)),
-  }));
-  const headers = {
-    engine: t('table.engine'),
-    group: t('table.group'),
-    topic: t('table.topic'),
-    value: t('table.value'),
-    context: t('table.context'),
-  };
-  const csv: CsvTable = {
-    header: [headers.engine, headers.group, headers.topic, headers.value],
-    rows: tableRows.map((row): CsvCell[] => [row.engine, row.group, safeText(row.topic), safeText(row.value)]),
-  };
   const columns: PlainColumn<TableRow>[] = [
-    { id: 'engine', header: headers.engine, cell: (row) => row.engine },
-    { id: 'group', header: headers.group, cell: (row) => row.group },
-    { id: 'topic', header: headers.topic, wrap: true, cell: (row) => row.topic },
-    { id: 'value', header: headers.value, wrap: true, cell: (row) => row.value },
+    { id: 'group', header: t('extremes.tableGroup'), wrap: true, cell: (row) => row.group },
+    { id: 'side', header: t('extremes.tableSide'), cell: (row) => row.side },
+    { id: 'value', header: t('extremes.tableValue'), wrap: true, cell: (row) => row.value },
   ];
-
-  const exportRows = (): CsvCell[][] =>
-    models.flatMap(({ engine, model }) => [
-      ...GROUPS.flatMap((group) =>
-        model[group].map((entry) => exportRow(engine.code, group, entry.row.node.name, entry.value)),
-      ),
-      ...model.unranked.flatMap((row) => {
-        const [value] = row.values;
-        return value === undefined ? [] : [exportRow(engine.code, 'not_ranked', row.node.name, value)];
-      }),
-    ]);
+  const csv: CsvTable = {
+    header: columns.map((column) => column.header),
+    rows: tableRows.map((row): CsvCell[] => [safeText(row.group), row.side, safeText(row.value)]),
+  };
 
   return (
     <TopicCardFrame
       cardKey="ai.topic_extremes"
-      title={t('title')}
-      meta={words.window(scope.range)}
-      summary={t('summary', { metric: words.metricLabel(metric), engines: formatList(labels) })}
+      title={title}
+      meta={data.summary === undefined ? null : t('extremes.meta', { measure: measureLabel })}
+      summary={t('extremes.summary', { measure: measureLabel })}
       data={data}
       empty={empty}
-      partialEngines={models.filter(({ model }) => model.rated === 0).map(({ engine }) => engine.label)}
+      partialEngines={[]}
+      info={{ what: t('info.extremes.what'), how: t('info.extremes.how') }}
       footnote={
         <TopicFootnote
-          overlapPrompts={data.promptsRead ? overlapCount(data.prompts, data.nodes) : null}
+          overlapPrompts={null}
           pooled={false}
           weighting="prompt"
-          extra={
-            <>
-              <span>{t('ranking', { answers: MIN_OBSERVATIONS, prompts: MIN_PROMPTS_TO_RANK })}</span>
-              {models
-                .filter(({ model }) => model.notRanked > 0)
-                .map(({ engine, model }) => (
-                  <span key={engine.code}> {t('notRanked', { engine: engine.label, count: model.notRanked })}</span>
-                ))}
-            </>
-          }
+          extra={t('extremes.ranking', { min: MIN_GROUPS_TO_RANK })}
         />
       }
-      menu={{ fileName: extremesFileName(metric), csv }}
+      menu={{ fileName: extremesFileName(measure), csv }}
       exportBlock={{
         id: item.id,
         build: () => ({
           id: item.id,
           header: EXTREMES_EXPORT_HEADER,
-          rows: exportRows(),
+          rows: extremes.all.map(extremesExportRow),
         }),
       }}
       body={
-        <div className="@container flex flex-col gap-5">
-          {models.map(({ engine, model }) => (
-            <div key={engine.code} className="flex flex-col gap-2">
-              <h3 className="type-body-strong">
-                <EngineLogo engine={engine.code} name={engine.label} />
-              </h3>
-              {model.strongest.length === 0 && model.weakest.length === 0 ? (
-                <p className="type-meta">
-                  {t('noneRanked', { engine: engine.label, answers: MIN_OBSERVATIONS, prompts: MIN_PROMPTS_TO_RANK })}
-                </p>
-              ) : (
-                <div className="grid gap-4 @lg:grid-cols-2">
-                  {GROUPS.map((group) => (
-                    <div key={group} className="flex min-w-0 flex-col gap-1">
-                      <h4 className="type-meta">{groupLabel(group)}</h4>
-                      {model[group].length === 0 ? (
-                        <p className="type-meta">
-                          {group === 'strongest' ? t('noStrongest', { engine: engine.label }) : t('noWeakest')}
-                        </p>
-                      ) : (
-                        <BarList
-                          mode="comparison"
-                          caption={t('listCaption', {
-                            group: groupLabel(group),
-                            engine: engine.label,
-                            metric: words.metricLabel(metric),
-                          })}
-                          labelHeader={headers.topic}
-                          valueHeader={headers.value}
-                          contextHeader={headers.context}
-                          rows={model[group].map((entry) => rowOf(engine.code, entry))}
-                          max={max}
-                          limit={count}
-                        />
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
+        <div className="@container flex flex-col gap-4">
+          {sides.map((side) => (
+            <div key={side.id} className="flex min-w-0 flex-col gap-1">
+              <h3 className="type-label text-foreground-secondary">{side.label}</h3>
+              <BarList
+                mode="comparison"
+                caption={t('extremes.listCaption', { side: side.label, measure: measureLabel })}
+                labelHeader={t('extremes.tableGroup')}
+                valueHeader={t('extremes.tableValue')}
+                contextHeader={t('extremes.context', { count: 2 })}
+                rows={side.entries.map((entry) => rowOf(entry, side.own))}
+                max={max}
+                limit={side.entries.length}
+              />
             </div>
           ))}
         </div>
       }
       table={
         <PlainTable<TableRow>
-          caption={t('tableCaption')}
+          caption={t('extremes.tableCaption')}
           columns={columns}
           rows={tableRows}
           rowKey={(row) => row.id}
           status="ready"
           errorState={null}
           emptyText={EMPTY_VALUE}
+        />
+      }
+    />
+  );
+}
+
+/** The chosen group against all groups, in the slot of the extremes (OV-GRP-12). */
+function GroupAgainstAll({ live }: CardProps): ReactElement {
+  const t = useTranslations('aiOverview.topics.groups');
+  const { scope } = useOverview();
+  const versus = useGroupVersus(live);
+  const chosen = useChosenGroup();
+  const group = chosen.name ?? '';
+  const measureLabel = t(`measure.${scope.metric}`);
+  return (
+    <TopicCardFrame
+      cardKey="ai.topic_extremes"
+      title={chosen.pending ? t('versus.titleLoading') : t('versus.title', { group })}
+      meta={versus.data.summary === undefined ? null : t('versus.meta', { measure: measureLabel })}
+      summary={t('versus.summary', { group, measure: measureLabel })}
+      data={versus.data}
+      empty={null}
+      partialEngines={[]}
+      info={{ what: t('info.versus.what'), how: t('info.versus.how') }}
+      footnote={<TopicFootnote overlapPrompts={null} pooled={false} weighting="prompt" />}
+      body={
+        <GroupVersus
+          group={group}
+          rows={versus.rows}
+          unavailable={versus.unavailable}
+          counted={isCountedMeasure(scope.metric)}
+        />
+      }
+      table={
+        <GroupVersusTable
+          group={group}
+          rows={versus.rows}
+          unavailable={versus.unavailable}
+          counted={isCountedMeasure(scope.metric)}
         />
       }
     />

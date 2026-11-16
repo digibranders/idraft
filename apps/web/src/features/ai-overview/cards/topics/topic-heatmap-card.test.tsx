@@ -1,20 +1,15 @@
-import { act, screen, waitFor, within } from '@testing-library/react';
-import { http, HttpResponse } from 'msw';
+import { http, type RequestHandler } from 'msw';
+import { screen, waitFor, within } from '@testing-library/react';
 import type { ComponentType, ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { engineCells, promptRow, summaryOf, summaryHandler, topicRow, vocabularyHandlers } from './topic-card-test-kit';
+import { forgetDrill } from './group-drill';
+import { engineCells, promptRow, summaryHandler, summaryOf, topicRow, vocabularyHandlers } from './topic-card-test-kit';
 import TopicHeatmapCard from './topic-heatmap-card';
-import messages from '../../../../../messages/en.json';
-import { ExportProvider, useExportBlocks, type ExportRead } from '../../export/export-registry';
+import { CardInfoProvider } from '@/components/app/chart/card-info';
 import type { CardProps } from '@/features/layouts';
-import { ENGINE_PARAM, parseEngineParam, parseView } from '@/features/prompts/topics-by-engine/drill';
-import { parseMetric, parseTab } from '@/features/prompts/prompt-model';
 import type { PromptsSummary } from '@/lib/api/types';
-import { parseInspectTarget } from '@/lib/inspector/placement';
-import { setAiSeeded } from '@/mocks/ai-seed';
-import { mswPath } from '@/mocks/respond';
-import { CARD_ID, cardInOverview, type OverviewWorld } from '@/test/ai-overview-harness';
+import { CARD_ID, cardInOverview } from '@/test/ai-overview-harness';
 import { axe } from '@/test/axe';
 import { stubViewport } from '@/test/customize-harness';
 import { gate } from '@/test/gate';
@@ -23,16 +18,14 @@ import { renderWithProviders } from '@/test/render';
 
 vi.mock('next/navigation', async () => (await import('@/test/next-navigation')).navigationModule);
 
-const SUMMARY_ROUTE = mswPath('/api/v1/workspaces/:w/projects/:p/ai/prompts-summary');
-
 beforeEach(() => {
   vi.setSystemTime(new Date('2026-11-12T12:00:00Z'));
   stubViewport();
+  forgetDrill();
 });
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
-  setAiSeeded(false);
 });
 
 const CRM = '11111111-1111-4111-8111-111111111111';
@@ -40,6 +33,7 @@ const PRICING = '22222222-2222-4222-8222-222222222222';
 const SECURITY = '33333333-3333-4333-8333-333333333333';
 const SUPPORT = '44444444-4444-4444-8444-444444444444';
 
+// CRM has Pricing below it: CRM is no row of its own, Pricing is
 const TERMS = [
   { id: CRM, name: 'CRM', parent: null },
   { id: PRICING, name: 'Pricing', parent: CRM },
@@ -47,72 +41,99 @@ const TERMS = [
   { id: SUPPORT, name: 'Support', parent: null },
 ];
 
+/** The four outcomes of `k` answers that name or cite the brand in `n`, the rest neither. */
+const outcomes = (k: number, n: number) =>
+  ({ both: [k, n], named: [0, n], cited: [0, n], neither: [n - k, n] }) as const;
+
 /**
- * Fynix asks ChatGPT and Gemini. Counts are `[k, n]` of valid answers; a topic cell weights prompts. CRM on ChatGPT is
- * the 47% of 136 answers over 17 prompts; Support on ChatGPT has 3 answers; the prompts without a topic have none.
+ * Fynix asks ChatGPT and Gemini. Counts are `[k, n]` of valid answers; a topic cell weights prompts. Security on
+ * ChatGPT is 80% of 10 answers over 9 prompts; Support on ChatGPT has 3 answers; the prompts without a group have none.
  */
 const TOPICS = [
   topicRow(CRM, 'CRM', 17, [
-    engineCells('chatgpt_web', { mentioned: [64, 136], cited: [20, 136], sov: [30, 80], prompts: 17 }),
-    engineCells('gemini_web', { mentioned: [30, 100], cited: [10, 100], sov: [10, 60], prompts: 17 }),
+    engineCells('chatgpt_web', { mentioned: [64, 136], outcomes: outcomes(70, 136), prompts: 17 }),
+    engineCells('gemini_web', { mentioned: [30, 100], outcomes: outcomes(40, 100), prompts: 17 }),
   ]),
   topicRow(PRICING, 'Pricing', 6, [
-    engineCells('chatgpt_web', { mentioned: [0, 0], cited: [0, 0], sov: [0, 0], prompts: 6 }),
-    engineCells('gemini_web', { mentioned: [12, 40], cited: [4, 40], sov: [5, 30], prompts: 6 }),
+    engineCells('chatgpt_web', { mentioned: [30, 60], cited: [6, 60], outcomes: outcomes(33, 60), prompts: 6 }),
+    engineCells('gemini_web', { mentioned: [12, 40], outcomes: outcomes(16, 40), prompts: 6 }),
   ]),
   topicRow(SECURITY, 'Security', 9, [
-    engineCells('chatgpt_web', { mentioned: [8, 10], cited: [3, 10], sov: [4, 9], prompts: 9 }),
-    engineCells('gemini_web', { mentioned: [18, 50], cited: [9, 50], sov: [6, 40], prompts: 9 }),
+    engineCells('chatgpt_web', { mentioned: [8, 10], outcomes: outcomes(9, 10), prompts: 9 }),
+    engineCells('gemini_web', { mentioned: [18, 50], outcomes: outcomes(20, 50), prompts: 9 }),
   ]),
   topicRow(SUPPORT, 'Support', 4, [
-    engineCells('chatgpt_web', { mentioned: [2, 3], cited: [1, 3], sov: [1, 3], prompts: 4 }),
-    engineCells('gemini_web', { mentioned: [8, 20], cited: [2, 20], sov: [3, 15], prompts: 4 }),
+    engineCells('chatgpt_web', { mentioned: [2, 3], outcomes: outcomes(2, 3), prompts: 4 }),
+    engineCells('gemini_web', { mentioned: [8, 20], outcomes: outcomes(10, 20), prompts: 4 }),
   ]),
-  topicRow(null, null, 3, [
-    engineCells('chatgpt_web', { mentioned: [0, 0], cited: [0, 0], sov: [0, 0], prompts: 3 }),
-    engineCells('gemini_web', { mentioned: [4, 10], cited: [1, 10], sov: [2, 8], prompts: 3 }),
-  ]),
+  topicRow(null, null, 3, []),
 ];
-/** One prompt is in two top level topics, one has no topic: the footnote says 1 prompt is in more than one. */
 const PROMPTS = [
-  promptRow('p1', 'Best CRM for startups', [CRM], []),
-  promptRow('p2', 'CRM with support', [CRM, SUPPORT], []),
-  promptRow('p3', 'Is it secure', [SECURITY], []),
-  promptRow('p4', 'Something else', [], []),
+  promptRow(
+    'p1',
+    'Best CRM for startups',
+    [PRICING],
+    [
+      engineCells('chatgpt_web', { mentioned: [9, 10], cited: [3, 10], outcomes: outcomes(9, 10) }),
+      engineCells('gemini_web', { mentioned: [2, 10], cited: [1, 10], outcomes: outcomes(3, 10) }),
+    ],
+  ),
+  promptRow(
+    'p2',
+    'CRM pricing compared',
+    [PRICING, SECURITY],
+    [engineCells('chatgpt_web', { mentioned: [1, 10], cited: [0, 10], outcomes: outcomes(1, 10) })],
+  ),
+  promptRow('p3', 'Thin prompt', [PRICING], [engineCells('chatgpt_web', { mentioned: [2, 3] })]),
+  promptRow('p4', 'Unfiled', [], []),
 ];
-const SUMMARY: PromptsSummary = summaryOf({ topics: TOPICS, prompts: PROMPTS });
 
-interface Setup {
-  summary?: PromptsSummary;
-  options?: Readonly<Record<string, string>>;
-  searchParams?: string;
-  world?: OverviewWorld;
-}
+/** The summary of every group: the groups with the total of all groups, for the group against all groups. */
+const SUMMARY: PromptsSummary = {
+  ...summaryOf({ topics: TOPICS, prompts: PROMPTS }),
+  total: {
+    prompt_count: 40,
+    last_observed_at: null,
+    last_valid_at: null,
+    engines: [
+      engineCells('chatgpt_web', { mentioned: [50, 100], outcomes: outcomes(60, 100), prompts: 40 }),
+      engineCells('gemini_web', { mentioned: [25, 100], outcomes: outcomes(30, 100), prompts: 40 }),
+    ],
+  },
+};
 
-function render({ summary = SUMMARY, options = {}, searchParams = '', world = 'fynix' }: Setup = {}) {
-  server.use(...vocabularyHandlers(TERMS), summaryHandler(summary));
-  function Card(props: CardProps): ReactElement {
-    return <TopicHeatmapCard {...props} options={{ ...props.options, ...options }} />;
-  }
-  return renderWithProviders(
-    cardInOverview({ type: 'ai.topic_heatmap', Card: Card as ComponentType<CardProps>, width: 'two_thirds', world }),
-    {
-      searchParams,
-    },
+/** The card as the screen draws it: its footnote behind the i button. */
+function InfoCard(props: CardProps): ReactElement {
+  return (
+    <CardInfoProvider>
+      <TopicHeatmapCard {...props} />
+    </CardInfoProvider>
   );
 }
 
-const TITLE = 'Mention rate by group and platform';
-const frame = async (title = TITLE): Promise<HTMLElement> => {
-  const heading = await screen.findByRole('heading', { name: title });
-  const section = heading.closest('section');
-  if (section === null) throw new Error('The card has no frame');
-  return section;
-};
-/** The grid with its rows, once the rows are drawn. */
+interface Setup {
+  summary?: PromptsSummary;
+  searchParams?: string;
+  /** Handlers that answer before the ones of the card's data. */
+  extra?: RequestHandler[];
+}
+
+function render({ summary = SUMMARY, searchParams = '', extra = [] }: Setup = {}) {
+  server.use(...vocabularyHandlers(TERMS), summaryHandler(summary), ...extra);
+  const urls: string[] = [];
+  const view = renderWithProviders(
+    cardInOverview({
+      type: 'ai.topic_heatmap',
+      Card: InfoCard as ComponentType<CardProps>,
+      width: 'full',
+    }),
+    { searchParams, onUrlUpdate: (event) => urls.push(event.queryString) },
+  );
+  return { ...view, urls };
+}
+
 const grid = async (): Promise<HTMLElement> =>
   waitFor(() => {
-    // The role is treegrid while a row has rows under it, and grid otherwise
     const found = document.querySelector<HTMLElement>('table[role="grid"], table[role="treegrid"]');
     if (found === null || within(found).queryAllByRole('rowheader').length === 0) throw new Error('no grid yet');
     return found;
@@ -127,535 +148,227 @@ const headers = async (): Promise<string[]> =>
     .map((header) => header.textContent);
 const cell = async (name: RegExp): Promise<HTMLElement> => within(await grid()).findByRole('gridcell', { name });
 const link = async (name: RegExp): Promise<HTMLElement> => within(await grid()).findByRole('link', { name });
-const queryOf = (href: string | null): URLSearchParams => new URL(href ?? '', 'http://localhost').searchParams;
+const queryOf = (urls: readonly string[]): URLSearchParams => new URLSearchParams(urls.at(-1) ?? '');
 
-describe('the grid', () => {
-  it('renders a row per top level group and a column per asked platform, then avg of 2 from two platforms', async () => {
+describe('the groups heat map', () => {
+  it('is one flat level of groups, in tree order, with no row for a group that has groups below it', async () => {
     render();
-    expect(await rowNames()).toEqual(['CRM', 'Security', 'Support', 'Prompts without a group']);
-    expect(await headers()).toEqual(['Group', 'Prompts', 'ChatGPT', 'Gemini', 'avg of 2']);
-    // The prompts column is the count of each topic
-    const crm = within(await grid())
-      .getByRole('rowheader', { name: 'CRM' })
-      .closest('tr');
-    expect(within(crm as HTMLElement).getByText('17')).toBeInTheDocument();
+    expect(await rowNames()).toEqual(['Pricing', 'Security', 'Support']);
   });
 
-  it('one asked platform has no average column', async () => {
+  it('has a column per platform in order, the Google AI Overview column and then the average of the two collected', async () => {
+    render();
+    expect(await headers()).toEqual(['Group', 'Prompts', 'ChatGPT', 'Gemini', 'Google AI Overview', 'avg of 2']);
+  });
+
+  it('has no average column from one platform', async () => {
     render({ searchParams: 'engine=chatgpt_web' });
-    expect(await headers()).toEqual(['Group', 'Prompts', 'ChatGPT']);
-    expect(screen.queryByRole('columnheader', { name: /avg of/ })).not.toBeInTheDocument();
+    // The page's platform does not narrow the columns: every platform is read
+    expect(await headers()).toEqual(['Group', 'Prompts', 'ChatGPT', 'Gemini', 'Google AI Overview', 'avg of 2']);
   });
 
-  it('a platform outside the platform filter is not a column', async () => {
-    render({ searchParams: 'engine=gemini_web' });
-    expect(await headers()).toEqual(['Group', 'Prompts', 'Gemini']);
-    expect(screen.queryByRole('columnheader', { name: 'ChatGPT' })).not.toBeInTheDocument();
-  });
-
-  it('a cell under 4 answers is hatched, says 3 ans and prints no percent', async () => {
+  it('says Google AI Overview is not collected yet in every row and never prints a rate there', async () => {
     render();
-    const thin = await link(/^Support on ChatGPT/);
-    const td = thin.closest('td');
-    expect(td).toHaveClass('bg-insufficient');
-    expect(td).toHaveTextContent('3 ans');
-    expect(td?.textContent).not.toContain('%');
-    // The name of the cell carries the answers and no percent either
-    expect(thin.getAttribute('aria-label')).not.toContain('%');
-    expect(thin.getAttribute('aria-label')).toContain('3 answers');
+    const overview = await cell(/^Security on Google AI Overview/);
+    expect(overview).toHaveTextContent('n/a');
+    expect(overview.getAttribute('aria-label')).toBe('Security on Google AI Overview: not collected yet');
+    expect(within(overview).queryByRole('link')).not.toBeInTheDocument();
   });
 
-  it('a cell with no answers says n/a and never 0%', async () => {
+  it('draws AI visibility from the outcome cells by default, with its counts in the cell name', async () => {
     render();
-    const none = await cell(/^Prompts without a group on ChatGPT/);
-    expect(none).toHaveTextContent('n/a');
-    expect(none.textContent).not.toContain('0%');
-    expect(none).not.toHaveClass('bg-insufficient');
-    // No answer has no prompts to open: it is no link
-    expect(within(none).queryByRole('link')).not.toBeInTheDocument();
+    const security = await link(/^Security on ChatGPT/);
+    expect(security).toHaveTextContent('90%');
+    expect(security.getAttribute('aria-label')).toMatch(/90\.0%, 9 of 10 answers/);
   });
 
-  it('every cell tip has k of n answers and the prompts (R1)', async () => {
+  it('hatches a cell under 4 answers, prints its count and no percent', async () => {
     render();
-    await grid();
-    const expected: [RegExp, RegExp][] = [
-      [/^CRM on ChatGPT/, /47\.1%, 64 of 136 answers.*17 prompts/],
-      [/^CRM on Gemini/, /30\.0%, 30 of 100 answers.*17 prompts/],
-      [/^Security on ChatGPT/, /80\.0%, 8 of 10 answers.*9 prompts/],
-      [/^Security on Gemini/, /36\.0%, 18 of 50 answers.*9 prompts/],
-      [/^Support on Gemini/, /40\.0%, 8 of 20 answers.*4 prompts/],
-      [/^Prompts without a group on Gemini/, /40\.0%, 4 of 10 answers.*3 prompts/],
-    ];
-    for (const [name, words] of expected) {
-      expect((await link(name)).getAttribute('aria-label')).toMatch(words);
-    }
+    const thin = (await cell(/^Support on ChatGPT/)).closest('td');
+    expect(thin).toHaveClass('bg-insufficient');
+    expect(thin).toHaveTextContent('3 ans');
+    expect(thin?.textContent).not.toContain('%');
   });
 
-  it('share of voice tip says answers that name a brand', async () => {
-    render({ options: { metric: 'share_of_voice' } });
-    await frame('Share of voice by group and platform');
-    const crm = await link(/^CRM on ChatGPT/);
-    expect(crm.getAttribute('aria-label')).toMatch(/80 valid answers name a tracked brand/);
-    expect(crm.getAttribute('aria-label')).toMatch(/17 prompts/);
-    expect(crm.getAttribute('aria-label')).not.toMatch(/ of 80 answers/);
-  });
-
-  it('the average cell says how many platforms took part and names them', async () => {
+  it('averages the platforms with a rate and names them in the cell', async () => {
     render();
-    const crm = await cell(/^CRM, avg of 2/);
-    expect(crm.getAttribute('aria-label')).toMatch(/64 of 136 answers/);
-    expect(crm.getAttribute('aria-label')).toMatch(/Equal weight average of ChatGPT and Gemini/);
-    expect(crm).toHaveTextContent('39%');
-    // One engine has a rate: it is that engine only, never an average of two
-    const support = await cell(/^Support, 1 platform/);
+    const security = await link(/^Security, avg of 2/);
+    expect(security.getAttribute('aria-label')).toMatch(/Equal weight average of ChatGPT and Gemini/);
+    const support = await link(/^Support, 1 platform/);
     expect(support.getAttribute('aria-label')).toMatch(/Gemini only/);
   });
 
-  it('level all opens a group in place and top shows no chevron', async () => {
-    const top = render();
+  it('has the four measures as tabs, Visibility first, and a tab writes the page key', async () => {
+    const { user, urls } = render();
     await grid();
-    expect(screen.queryByRole('button', { name: /^Expand/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole('rowheader', { name: 'Pricing' })).not.toBeInTheDocument();
-    top.unmount();
-
-    const all = render({ options: { level: 'all' } });
-    const expand = await screen.findByRole('button', { name: 'Expand CRM' });
-    expect(screen.queryByRole('rowheader', { name: 'Pricing' })).not.toBeInTheDocument();
-    await all.user.click(expand);
-    expect(await screen.findByRole('rowheader', { name: 'Pricing' })).toBeInTheDocument();
-    expect(await rowNames()).toEqual(['CRM', 'Pricing', 'Security', 'Support', 'Prompts without a group']);
-  });
-
-  it('a group filter in the scope narrows the rows to that group and the ones below', async () => {
-    render({ searchParams: `topic=${CRM}`, options: { level: 'all' } });
-    expect(await rowNames()).toEqual(['CRM']);
-    await userOpens('Expand CRM');
-    expect(await rowNames()).toEqual(['CRM', 'Pricing']);
-  });
-});
-
-/** Opens a row of the grid the way a person does. */
-async function userOpens(label: string): Promise<void> {
-  const button = await screen.findByRole('button', { name: label });
-  await act(async () => {
-    button.click();
-    await Promise.resolve();
-  });
-}
-
-describe('the cut', () => {
-  it('rows cuts to N groups and Show all names the total and keeps metric and sort in the link', async () => {
-    render({ options: { rows: '2', metric: 'share_of_voice', sort: 'rate' } });
-    await frame('Share of voice by group and platform');
-    // Security 58%, Support 40% (one engine), CRM 39%, then the prompts without a topic
-    const names = await rowNames();
-    expect(names).toHaveLength(2);
-    const all = await screen.findByRole('link', { name: 'Show all 4 groups' });
-    const query = queryOf(all.getAttribute('href'));
-    expect(query.get('view')).toBe('heatmap');
-    expect(parseView(query.get('view'))).toBe('heatmap');
-    expect(parseMetric(query.get('metric'))).toBe('sov');
-    expect(query.get('sort')).toBe('avg_rate');
-    expect(parseTab(query.get('tab'))).toBe('topics');
-  });
-
-  it('shows no Show all link when every group is shown', async () => {
-    render();
-    await grid();
-    expect(screen.queryByRole('link', { name: /^Show all/ })).not.toBeInTheDocument();
-  });
-
-  it('the Show all link is plain text away when the scope holds a platform that is off', async () => {
-    render({ options: { rows: '2' }, searchParams: 'engine=chatgpt_web,google_ai_mode' });
-    await grid();
-    expect(screen.queryByRole('link', { name: /^Show all/ })).not.toBeInTheDocument();
-  });
-});
-
-describe('the order', () => {
-  it('sort by prompts, rate and gap orders the rows and the no group row stays last', async () => {
-    // Prompts: CRM 17, Security 9, Support 4. Average rate: Security 58%, Support 40%, CRM 39%, no topic 40% (last).
-    // Gap: Security 44 points, CRM 17, Support has no gap, the no topic row stays last whatever its figures.
-    const expected = {
-      prompts: ['CRM', 'Security', 'Support', 'Prompts without a group'],
-      rate: ['Security', 'Support', 'CRM', 'Prompts without a group'],
-      gap: ['Security', 'CRM', 'Support', 'Prompts without a group'],
-    };
-    for (const [sort, names] of Object.entries(expected)) {
-      const view = render({ options: { sort } });
-      expect(await rowNames()).toEqual(names);
-      view.unmount();
-    }
-  });
-});
-
-describe('where a cell and a row lead', () => {
-  it('a cell links to the group drawer Prompts tab with eng, and the group name links to the drawer Overview', async () => {
-    render();
-    const crm = await link(/^CRM on Gemini/);
-    const query = queryOf(crm.getAttribute('href'));
-    expect(parseInspectTarget(query.get('inspect'))).toEqual({ type: 'topic', id: CRM });
-    expect(query.get('itab')).toBe('prompts');
-    expect(parseEngineParam(query.get(ENGINE_PARAM), ['chatgpt_web', 'gemini_web'])).toBe('gemini_web');
-
-    const name = within(await grid()).getByRole('link', { name: 'CRM' });
-    const drawer = queryOf(name.getAttribute('href'));
-    expect(parseInspectTarget(drawer.get('inspect'))).toEqual({ type: 'topic', id: CRM });
-    expect(drawer.get('itab')).toBeNull();
-    expect(drawer.get('eng')).toBeNull();
-  });
-
-  it('the prompts without a group open the drawer of the no group row', async () => {
-    render();
-    const query = queryOf((await link(/^Prompts without a group on Gemini/)).getAttribute('href'));
-    expect(parseInspectTarget(query.get('inspect'))).toEqual({ type: 'topic', id: '__none' });
-  });
-
-  it('a row name is plain text when the page cannot show the scope', async () => {
-    // A window of 92 days is longer than the Prompts page reads: no link, the number stays text
-    render({ searchParams: 'from=2026-08-13&to=2026-11-12' });
-    await grid();
-    expect(within(await grid()).queryAllByRole('link')).toHaveLength(0);
-  });
-
-  it('follows the link of a linked cell on Enter, and arrow keys move between cells', async () => {
-    const { user } = render();
-    const crmHeader = within(await grid()).getByRole('rowheader', { name: 'CRM' });
-    crmHeader.focus();
-    // Row header, then Prompts, then the first engine
-    await user.keyboard('{ArrowRight}{ArrowRight}');
-    const chatgpt = await link(/^CRM on ChatGPT/);
-    expect(chatgpt).toHaveFocus();
-    await user.keyboard('{ArrowRight}');
-    expect(await link(/^CRM on Gemini/)).toHaveFocus();
-    await user.keyboard('{ArrowDown}');
-    expect(await link(/^Security on Gemini/)).toHaveFocus();
-    const followed = vi.fn((event: Event) => event.preventDefault());
-    (await link(/^Security on Gemini/)).addEventListener('click', followed);
-    await user.keyboard('{Enter}');
-    expect(followed).toHaveBeenCalledOnce();
-  });
-});
-
-describe('words', () => {
-  it('has the title, the meta line with the groups, platforms, prompts and the window', async () => {
-    render();
-    const section = await frame();
-    await grid();
+    const tabs = screen.getByRole('radiogroup', { name: 'Metric' });
     expect(
-      within(section).getByText('4 groups, 2 platforms, 4 prompts, Oct 16 to Nov 12, 2026, 28 days'),
-    ).toBeInTheDocument();
+      within(tabs)
+        .getAllByRole('radio')
+        .map((radio) => radio.parentElement?.textContent ?? radio.getAttribute('aria-label')),
+    ).toHaveLength(4);
+    expect(within(tabs).getByRole('radio', { name: 'Visibility' })).toBeChecked();
+    await user.click(within(tabs).getByRole('radio', { name: 'Mention' }));
+    await waitFor(() => {
+      expect(queryOf(urls).get('metric')).toBe('mention');
+    });
+    // The meta says the label as written
+    expect(await screen.findByText('Mention rate')).toBeInTheDocument();
   });
 
-  it('the footnote names the bins, the prompt weighting, the average rule and that groups overlap', async () => {
+  it('writes the label of the measure as written, not in lower case', async () => {
     render();
-    const section = await frame();
     await grid();
-    const note = section.querySelector('[data-slot="chart-footnote"]');
-    const text = note?.textContent ?? section.textContent;
-    for (const bin of ['seq1', 'seq2', 'seq3', 'seq4', 'seq5', 'seq6', 'seq7'] as const) {
-      expect(text).toContain(messages.chart.heatmap.bins[bin]);
-    }
-    expect(text).toContain('Prompt weighted: each prompt counts once.');
-    expect(text).toMatch(/average column gives each platform that shows a rate the same weight/);
-    expect(text).toContain('Groups overlap: a prompt in two groups counts in both');
-    expect(text).toContain('1 prompt is in more than one group.');
-    expect(text).toContain('A rate under 4 valid answers shows its answer count and no percent.');
+    expect(await screen.findByText('AI visibility rate')).toBeInTheDocument();
+    expect(screen.queryByText('ai visibility rate')).not.toBeInTheDocument();
   });
 
-  it('the Table form prints each cell words', async () => {
+  it('reads the mention cells for the mention measure', async () => {
+    render({ searchParams: 'metric=mention' });
+    expect(await link(/^Security on ChatGPT/)).toHaveTextContent('80%');
+  });
+
+  it('keeps its info text behind the i button, and keeps the overlap footnote true', async () => {
     const { user } = render();
     await grid();
-    const words = (await link(/^CRM on ChatGPT/)).getAttribute('aria-label') ?? '';
-    await user.click(screen.getByRole('button', { name: 'Table' }));
-    expect(await screen.findByText(words)).toBeInTheDocument();
-    expect(screen.getByText(/^Prompts without a group on ChatGPT: No answers$/)).toBeInTheDocument();
+    await user.click(await screen.findByRole('button', { name: 'About Groups by platform' }));
+    const popover = await screen.findByRole('dialog', { name: 'About Groups by platform' });
+    expect(within(popover).getByText('How each group of prompts performs on each platform.')).toBeInTheDocument();
+    // A prompt can carry several groups for now: the text says so, and the footnote in the document counts them
+    expect(popover).toHaveTextContent('may add up to more than the total');
+    const frame = screen.getByRole('heading', { name: 'Groups by platform' }).closest('section');
+    expect(frame?.textContent).toContain('Groups overlap');
+    expect(frame?.textContent).toMatch(/1 prompt is in more than one group/);
+    expect(frame?.textContent).toMatch(/not collected yet/);
+  });
+
+  it('says why when there is no group', async () => {
+    render({ summary: summaryOf({ topics: [topicRow(null, null, 3, [])], prompts: [] }) });
+    expect(await screen.findByText('No groups yet')).toBeInTheDocument();
   });
 });
 
-describe('the Export menu', () => {
-  it('registers its table under the item id, with an empty cell and a status where a rate is unknown', async () => {
-    server.use(...vocabularyHandlers(TERMS), summaryHandler(SUMMARY));
-    let read: () => ExportRead = () => ({ blocks: [], loading: 0 });
-    function Reader(): null {
-      read = useExportBlocks();
-      return null;
-    }
-    function Card(props: CardProps): ReactElement {
-      return (
-        <ExportProvider>
-          <TopicHeatmapCard {...props} />
-          <Reader />
-        </ExportProvider>
-      );
-    }
-    renderWithProviders(
-      cardInOverview({ type: 'ai.topic_heatmap', Card: Card as ComponentType<CardProps>, width: 'two_thirds' }),
-    );
-    await grid();
-    const [block] = read().blocks;
-    expect(block?.id).toBe(CARD_ID);
-    expect(block?.header.slice(0, 6)).toEqual([
-      'topic',
-      'level',
-      'prompts',
-      'chatgpt_web_rate',
-      'chatgpt_web_answers',
-      'chatgpt_web_status',
-    ]);
-    const rows = new Map((block?.rows ?? []).map((row) => [row[0], row]));
-    expect(rows.get('CRM')?.slice(3, 6)).toEqual([47.06, 136, 'ok']);
-    expect(rows.get('Support')?.slice(3, 6)).toEqual([null, 3, 'insufficient']);
-    expect(rows.get('Prompts without a group')?.slice(3, 6)).toEqual([null, 0, 'no_answers']);
+describe('opening a group', () => {
+  it('a platform cell sets the group and the platform in one step, and the card becomes the prompts of the group', async () => {
+    const { user, urls } = render();
+    await user.click(await link(/^Security on Gemini/));
+    await waitFor(() => {
+      expect(queryOf(urls).get('topic')).toBe(SECURITY);
+    });
+    expect(queryOf(urls).get('engine')).toBe('gemini_web');
+    expect(await screen.findByRole('heading', { name: 'Prompts in Security' })).toBeInTheDocument();
   });
-});
 
-describe('what the card asks', () => {
-  it('asks the summary once with no include and no rows', async () => {
-    const asked: URL[] = [];
-    const listener = ({ request }: { request: Request }): void => {
-      const url = new URL(request.url);
-      if (url.pathname.endsWith('/ai/prompts-summary')) asked.push(url);
-    };
-    server.events.on('request:start', listener);
+  it('a group name and the average cell set the group and keep the platform', async () => {
+    const { user, urls } = render({ searchParams: 'engine=chatgpt_web' });
+    await user.click(within(await grid()).getByRole('link', { name: 'Security' }));
+    await waitFor(() => {
+      expect(queryOf(urls).get('topic')).toBe(SECURITY);
+    });
+    expect(queryOf(urls).get('engine')).toBe('chatgpt_web');
+  });
+
+  it('is also a link to the page with the same keys, so it opens in a new tab with the scope kept', async () => {
+    render({ searchParams: 'metric=mention&cmp=off' });
+    const href = (await link(/^Security on Gemini/)).getAttribute('href') ?? '';
+    const url = new URL(href, 'http://localhost');
+    expect(url.pathname).toMatch(/\/ai$/);
+    expect(url.searchParams.get('topic')).toBe(SECURITY);
+    expect(url.searchParams.get('engine')).toBe('gemini_web');
+    expect(url.searchParams.get('metric')).toBe('mention');
+    expect(url.searchParams.get('cmp')).toBe('off');
+  });
+
+  it('has no accessibility violation', async () => {
     render();
     await grid();
-    server.events.removeListener('request:start', listener);
-    expect(asked).toHaveLength(1);
-    for (const key of ['include', 'rows', 'compare']) expect(asked[0]?.searchParams.has(key)).toBe(false);
+    expect(await axe(document.body)).toHaveNoViolations();
   });
 });
 
-describe('states', () => {
-  it('loading is the frame skeleton at the card height', async () => {
+describe('the prompts of the chosen group', () => {
+  it('does not call the group unknown while the vocabulary is still read', async () => {
     const release = gate();
-    server.use(
-      ...vocabularyHandlers(TERMS),
-      http.get(SUMMARY_ROUTE, async () => {
-        await release.promise;
-        return HttpResponse.json({ data: SUMMARY });
-      }),
-    );
-    function Card(props: CardProps): ReactElement {
-      return <TopicHeatmapCard {...props} />;
-    }
-    renderWithProviders(
-      cardInOverview({ type: 'ai.topic_heatmap', Card: Card as ComponentType<CardProps>, width: 'two_thirds' }),
-    );
-    const section = await frame('Mention rate by group and platform');
-    expect(section).toHaveAttribute('aria-busy', 'true');
-    expect(section.querySelector('[style*="height: 280px"] [data-slot="skeleton"]')).not.toBeNull();
-    expect(screen.queryByRole('grid')).not.toBeInTheDocument();
+    // A handler that returns nothing hands the request on to the one under it, once the gate is open
+    const held = http.get('*/api/v1/workspaces/:w/vocabularies', async () => {
+      await release.promise;
+    });
+    render({ searchParams: `topic=${PRICING}`, extra: [held] });
+    expect(await screen.findByRole('heading', { name: 'Prompts in the chosen group' })).toBeInTheDocument();
+    expect(screen.queryByText(/Unknown group/)).not.toBeInTheDocument();
     release.open();
-    await grid();
+    expect(await screen.findByRole('heading', { name: 'Prompts in CRM / Pricing' })).toBeInTheDocument();
   });
 
-  it('no platform asked says so and offers Use all platforms', async () => {
-    render({ searchParams: 'engine=google_ai_mode' });
-    expect(await screen.findByText('No platform is part of this view')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Use all platforms' })).toBeInTheDocument();
-    expect(screen.queryByRole('grid')).not.toBeInTheDocument();
+  it('has the group in its title, up to its prompts by mention rate, and no prompt under 4 valid answers', async () => {
+    render({ searchParams: `topic=${PRICING}` });
+    expect(await screen.findByRole('heading', { name: 'Prompts in CRM / Pricing' })).toBeInTheDocument();
+    const table = await screen.findByRole('table', { name: 'Prompts in CRM / Pricing' });
+    const names = within(table)
+      .getAllByRole('rowheader')
+      .map((header) => header.textContent);
+    // 90% on ChatGPT and 20% on Gemini average 55%; the second prompt is 10%; the third has 3 answers
+    expect(names).toEqual(['Best CRM for startups', 'CRM pricing compared']);
+    expect(
+      within(table)
+        .getAllByRole('columnheader')
+        .map((header) => header.textContent),
+    ).toEqual(['Prompt', 'Visibility', 'Mention', 'Citation', 'Answers']);
+    expect(await screen.findByText('2 prompts with a rate, by mention rate')).toBeInTheDocument();
   });
 
-  it('no groups teaches how to get some, with one action', async () => {
-    render({ summary: summaryOf({ topics: [], prompts: [], engineCodes: ['chatgpt_web', 'gemini_web'] }) });
-    const state = (await screen.findByRole('heading', { name: 'No groups yet' })).closest('[data-slot="empty-state"]');
-    const box = within(state as HTMLElement);
-    expect(box.getByText(/Group prompts into groups/)).toBeInTheDocument();
-    expect([...box.queryAllByRole('link'), ...box.queryAllByRole('button')]).toHaveLength(1);
-    expect(box.getByRole('link', { name: 'Open Prompts' })).toBeInTheDocument();
+  it('opens a prompt on the Prompts page with the group and the platform carried', async () => {
+    render({ searchParams: `topic=${PRICING}&engine=chatgpt_web` });
+    const row = await screen.findByRole('link', { name: 'Best CRM for startups' });
+    const query = new URL(row.getAttribute('href') ?? '', 'http://localhost').searchParams;
+    expect(query.get('inspect')).toBe('prompt:p1');
+    expect(query.get('topic')).toBe(PRICING);
+    expect(query.get('engine')).toBe('chatgpt_web');
+    const all = await screen.findByRole('link', { name: 'View all 2 prompts' });
+    const allQuery = new URL(all.getAttribute('href') ?? '', 'http://localhost').searchParams;
+    expect(allQuery.get('tab')).toBe('prompts');
+    expect(allQuery.get('topic')).toBe(PRICING);
   });
 
-  it('no valid answers names the platforms and the days', async () => {
-    const silent = summaryOf({
-      topics: [
-        topicRow(CRM, 'CRM', 5, [
-          engineCells('chatgpt_web', { mentioned: [0, 0], prompts: 5 }),
-          engineCells('gemini_web', { mentioned: [0, 0], prompts: 5 }),
-        ]),
-      ],
-      prompts: [],
-    });
-    render({ summary: silent });
-    const title = await screen.findByRole('heading', {
-      name: 'No valid answers in these 28 days on ChatGPT and Gemini',
-    });
-    const box = within(title.closest('[data-slot="empty-state"]') as HTMLElement);
-    expect([...box.queryAllByRole('link'), ...box.queryAllByRole('button')]).toHaveLength(1);
-    expect(screen.queryByRole('grid')).not.toBeInTheDocument();
+  it('puts the group against all groups beside the prompts, every platform whatever the platform says', async () => {
+    render({ searchParams: `topic=${PRICING}&engine=chatgpt_web` });
+    expect(await screen.findByText('CRM / Pricing vs all groups')).toBeInTheDocument();
+    const list = await screen.findByRole('list', {}, { timeout: 4000 });
+    expect(list).toBeInTheDocument();
+    expect(await screen.findByText('Google AI Overview')).toBeInTheDocument();
+    expect(await screen.findByText('Not collected yet')).toBeInTheDocument();
+    expect(await screen.findAllByText(/^All groups \d+%/)).not.toHaveLength(0);
   });
 
-  it('error shows the card title and the request id, and Retry reads again', async () => {
-    let calls = 0;
-    server.use(
-      ...vocabularyHandlers(TERMS),
-      http.get(SUMMARY_ROUTE, () => {
-        calls += 1;
-        if (calls === 1) {
-          return HttpResponse.json(
-            {
-              type: 'about:blank',
-              title: 'Internal error',
-              status: 500,
-              code: 'internal_error',
-              request_id: 'req_heat_1',
-            },
-            { status: 500, headers: { 'content-type': 'application/problem+json' } },
-          );
-        }
-        return HttpResponse.json({ data: SUMMARY });
-      }),
-    );
-    function Card(props: CardProps): ReactElement {
-      return <TopicHeatmapCard {...props} />;
-    }
-    const { user } = renderWithProviders(
-      cardInOverview({ type: 'ai.topic_heatmap', Card: Card as ComponentType<CardProps>, width: 'two_thirds' }),
-    );
-    expect(await screen.findByText('Mention rate by group and platform could not be read')).toBeInTheDocument();
-    expect(screen.getByText(/req_heat_1/)).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: messages.common.retry }));
-    expect(await rowNames()).toContain('CRM');
-  });
-
-  it('refetching keeps the grid', async () => {
-    const { queryClient } = render();
-    await grid();
-    const release = gate();
-    server.use(
-      http.get(SUMMARY_ROUTE, async () => {
-        await release.promise;
-        return HttpResponse.json({ data: SUMMARY });
-      }),
-    );
-    void queryClient.invalidateQueries();
-    const section = await frame();
+  it('Back returns to all groups on the platform the person came from', async () => {
+    const { user, urls } = render();
+    await user.click(await link(/^Security on Gemini/));
+    await user.click(await screen.findByRole('button', { name: 'Back to all groups' }));
     await waitFor(() => {
-      expect(section.querySelector('[data-slot="chart-refetch-bar"]')).not.toBeNull();
+      expect(queryOf(urls).get('topic')).toBeNull();
     });
-    expect(await rowNames()).toContain('CRM');
-    release.open();
+    expect(queryOf(urls).get('engine')).toBeNull();
+    expect(await grid()).toBeInTheDocument();
+  });
+
+  it('Back keeps the platform of a link that came straight to the group', async () => {
+    const { user, urls } = render({ searchParams: `topic=${SECURITY}&engine=gemini_web` });
+    await user.click(await screen.findByRole('button', { name: 'Back to all groups' }));
     await waitFor(() => {
-      expect(section.querySelector('[data-slot="chart-refetch-bar"]')).toBeNull();
+      expect(queryOf(urls).get('topic')).toBeNull();
     });
+    expect(queryOf(urls).get('engine')).toBe('gemini_web');
   });
 
-  it('stale says these are the last figures read and keeps the grid', async () => {
-    const { queryClient } = render();
-    await grid();
-    server.use(
-      http.get(SUMMARY_ROUTE, () =>
-        HttpResponse.json(
-          {
-            type: 'about:blank',
-            title: 'Internal error',
-            status: 500,
-            code: 'internal_error',
-            request_id: 'req_heat_2',
-          },
-          { status: 500, headers: { 'content-type': 'application/problem+json' } },
-        ),
-      ),
-    );
-    void queryClient.invalidateQueries();
-    expect(await screen.findByText('These are the last figures read')).toBeInTheDocument();
-    expect(await rowNames()).toContain('CRM');
+  it('says why when no prompt of the group has a rate, with the way back', async () => {
+    render({ searchParams: `topic=${SUPPORT}`, summary: { ...SUMMARY, prompts: PROMPTS.slice(2, 3) } });
+    expect(await screen.findByText('No prompt has a rate yet')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Back to all groups' }).length).toBeGreaterThan(0);
   });
 
-  it('partial names a platform without a valid answer in any row', async () => {
-    const onlyGemini = summaryOf({
-      topics: [
-        topicRow(CRM, 'CRM', 5, [
-          engineCells('chatgpt_web', { mentioned: [0, 0], prompts: 5 }),
-          engineCells('gemini_web', { mentioned: [9, 10], prompts: 5 }),
-        ]),
-      ],
-      prompts: [],
-    });
-    render({ summary: onlyGemini });
-    expect(await screen.findByText('Partial data: ChatGPT has no valid answer in this period')).toBeInTheDocument();
-    expect(await rowNames()).toEqual(['CRM']);
-  });
-
-  it('holds the card as loading while the vocabulary tree is pending, then shows the grid', async () => {
-    const release = gate();
-    let served = false;
-    server.use(
-      ...vocabularyHandlers(TERMS),
-      summaryHandler(() => {
-        served = true;
-        return SUMMARY;
-      }),
-    );
-    // Added last so it matches first: held until released, then falls through to the served vocabularies
-    server.use(
-      http.get(mswPath('/api/v1/workspaces/:w/vocabularies'), async () => {
-        await release.promise;
-        return undefined;
-      }),
-    );
-    function Card(props: CardProps): ReactElement {
-      return <TopicHeatmapCard {...props} />;
-    }
-    renderWithProviders(
-      cardInOverview({ type: 'ai.topic_heatmap', Card: Card as ComponentType<CardProps>, width: 'two_thirds' }),
-    );
-    const section = await frame();
-    await waitFor(() => {
-      expect(served).toBe(true);
-    });
-    await new Promise((resolve) => setTimeout(resolve, 100));
-    expect(section).toHaveAttribute('aria-busy', 'true');
-    expect(section.querySelector('[data-slot="skeleton"]')).not.toBeNull();
-    expect(screen.queryByRole('grid')).not.toBeInTheDocument();
-    expect(screen.queryByRole('treegrid')).not.toBeInTheDocument();
-    release.open();
-    expect(await rowNames()).toEqual(['CRM', 'Security', 'Support', 'Prompts without a group']);
-  });
-});
-
-describe('the whole card', () => {
-  it('axe has no violations in the grid, the Table form and the opened levels', async () => {
-    const { container, user } = render({ options: { level: 'all' } });
-    await grid();
-    expect(await axe(container)).toHaveNoViolations();
-    await user.click(screen.getByRole('button', { name: 'Table' }));
-    await screen.findByText(/^CRM on ChatGPT/);
-    expect(await axe(container)).toHaveNoViolations();
-  });
-
-  it('Eventus: the seeded project draws its grid and every percent has its answers', async () => {
-    setAiSeeded(true);
-    function Card(props: CardProps): ReactElement {
-      return <TopicHeatmapCard {...props} />;
-    }
-    renderWithProviders(
-      cardInOverview({
-        type: 'ai.topic_heatmap',
-        Card: Card as ComponentType<CardProps>,
-        width: 'two_thirds',
-        world: 'eventus-security',
-      }),
-    );
-    // The mock's Eventus asks ChatGPT and Gemini; the three engine case is in heatmap-model.test.ts
-    expect(await headers()).toEqual(['Group', 'Prompts', 'ChatGPT', 'Gemini', 'avg of 2']);
-    const cells = within(await grid()).getAllByRole('gridcell');
-    expect(cells.length).toBeGreaterThan(10);
-    for (const one of cells) {
-      const label = one.getAttribute('aria-label') ?? within(one).queryByRole('link')?.getAttribute('aria-label') ?? '';
-      // A prompts count cell has no name of its own; every rate cell does, and no percent stands without answers
-      if (one.textContent?.includes('%') === true) expect(label).toMatch(/answers?/);
-    }
-  });
-
-  it('Fynix smoke: the mock project draws a grid with its own groups', async () => {
-    function Card(props: CardProps): ReactElement {
-      return <TopicHeatmapCard {...props} />;
-    }
-    renderWithProviders(
-      cardInOverview({ type: 'ai.topic_heatmap', Card: Card as ComponentType<CardProps>, width: 'two_thirds' }),
-    );
-    expect((await rowNames()).length).toBeGreaterThan(0);
-    expect(await headers()).toEqual(expect.arrayContaining(['ChatGPT', 'Gemini', 'avg of 2']));
+  it('has the card frame under the id the layout gave it', async () => {
+    render({ searchParams: `topic=${PRICING}` });
+    await screen.findByRole('heading', { name: 'Prompts in CRM / Pricing' });
+    expect(document.querySelector(`[data-layout-card="${CARD_ID}"]`)).not.toBeNull();
   });
 });

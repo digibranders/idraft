@@ -59,8 +59,18 @@ export interface WeekSpec {
   pool?: { weeks: number; reason?: PointPool['reason']; belowPrompts?: number };
 }
 
+/** The four outcomes of an answer, each `[k, n]` over the same valid answers (`both`: named and cited). */
+export interface OutcomeSpec {
+  both: Pair;
+  named: Pair;
+  cited: Pair;
+  neither: Pair;
+}
+
 export interface EngineSpec {
   mentioned: Pair;
+  /** The outcome cells, which AI visibility reads; left out they are empty cells. */
+  outcomes?: OutcomeSpec;
   cited?: Pair;
   sov?: Pair;
   /** Prompts weighted by each cell (a topic row); left out for a prompt row. */
@@ -106,12 +116,21 @@ export function engineCells(code: string, spec: EngineSpec): EngineSummary {
   const make = (pair: Pair | undefined, weight: number | undefined): MetricCell =>
     cell(...(pair ?? NONE), weight === undefined ? {} : { prompts: weight });
   const previous = spec.previous;
+  const { outcomes } = spec;
   return {
     engine_code: code,
     mentioned: make(spec.mentioned, prompts),
     cited: make(spec.cited, prompts),
     share_of_voice: make(spec.sov, prompts),
-    outcomes: OUTCOMES,
+    outcomes:
+      outcomes === undefined
+        ? OUTCOMES
+        : {
+            mentioned_and_cited: make(outcomes.both, prompts),
+            mentioned_only: make(outcomes.named, prompts),
+            cited_only: make(outcomes.cited, prompts),
+            neither: make(outcomes.neither, prompts),
+          },
     ...(previous === undefined
       ? {}
       : {

@@ -177,6 +177,17 @@ export function buildTopicNodes({
 export const leavesOf = (nodes: readonly TopicNode[]): TopicNode[] =>
   nodes.flatMap((node) => (node.key === NO_TOPIC ? [] : node.children.length > 0 ? [...node.children] : [node]));
 
+/**
+ * The groups of the nodes: the topics with a prompt that have no topic with a prompt below them, in the order of the
+ * vocabulary tree. A topic the API lists with no prompt is no group, so a topic whose only sub-topics are empty is one.
+ */
+export function groupsOf(nodes: readonly TopicNode[]): TopicNode[] {
+  const held = nodes
+    .filter((node) => node.promptCount > 0)
+    .map((node) => ({ ...node, children: node.children.filter((child) => child.promptCount > 0) }));
+  return leavesOf(held);
+}
+
 /** The top level rows, the row of no topic left out. */
 export const topLevelOf = (nodes: readonly TopicNode[]): TopicNode[] => nodes.filter((node) => node.key !== NO_TOPIC);
 
