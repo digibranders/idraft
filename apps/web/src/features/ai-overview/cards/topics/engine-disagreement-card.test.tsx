@@ -37,7 +37,7 @@ afterEach(() => {
 });
 
 const SUMMARY_PATH = mswPath('/api/v1/workspaces/:w/projects/:p/ai/prompts-summary');
-const TITLE = 'Named by one platform, not another';
+const TITLE = 'Mentioned by one platform, not another';
 
 const TERMS: TermSpec[] = [
   { id: 't1', name: 'SEO tools', parent: null },
@@ -117,7 +117,8 @@ const frameOf = async (): Promise<HTMLElement> => {
   if (section === null) throw new Error('The card has no frame');
   return section;
 };
-const tableOf = (): Promise<HTMLElement> => screen.findByRole('table', { name: /^Prompts one platform names/ });
+const tableOf = (): Promise<HTMLElement> =>
+  screen.findByRole('table', { name: /^Prompts where one platform mentions you/ });
 const rowsOf = async (): Promise<HTMLElement[]> =>
   within(await tableOf())
     .getAllByRole('row')
@@ -181,7 +182,7 @@ describe('EngineDisagreementCard', () => {
       }),
     });
     const title = await screen.findByRole('heading', {
-      name: 'No prompt is named by one platform and missed by another',
+      name: 'No prompt where one platform mentions you and another does not',
     });
     const box = within(title.closest('[data-slot="empty-state"]') as HTMLElement);
     expect(
@@ -221,7 +222,7 @@ describe('EngineDisagreementCard', () => {
         /1 prompt is left out because a platform has fewer than 4 valid answers to say it misses you/,
       ),
     ).toBeInTheDocument();
-    expect(within(frame).getByText(/names you in at least one answer/)).toBeInTheDocument();
+    expect(within(frame).getByText(/mentions you in at least one answer/)).toBeInTheDocument();
   });
 
   it('the overlap footnote', async () => {
@@ -238,7 +239,7 @@ describe('EngineDisagreementCard', () => {
     const { user } = render();
     await tableOf();
     await user.click(screen.getByRole('button', { name: 'Table' }));
-    const grid = await screen.findByRole('table', { name: /^Prompts one platform names/ });
+    const grid = await screen.findByRole('table', { name: /^Prompts where one platform mentions you/ });
     expect(
       within(grid)
         .getAllByRole('columnheader')
@@ -332,7 +333,7 @@ describe('EngineDisagreementCard states', () => {
   it('partial names a platform that has no valid answer on any prompt', async () => {
     render({ searchParams: '', threeEngines: true });
     await tableOf();
-    expect(screen.getByText('Partial data: AI Mode has no valid answer in this window')).toBeInTheDocument();
+    expect(screen.getByText('Partial data: Google AI Mode has no valid answer in this period')).toBeInTheDocument();
   });
 
   it('holds the card as loading while the vocabulary tree is pending, then shows the rows', async () => {

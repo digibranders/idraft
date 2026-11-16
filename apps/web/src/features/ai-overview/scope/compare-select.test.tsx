@@ -68,7 +68,7 @@ describe('CompareSelect', () => {
     await user.click(await trigger('No comparison'));
     const previous = await screen.findByRole('menuitemradio', { name: 'vs previous period' });
     expect(previous).toHaveAttribute('aria-disabled', 'true');
-    expect(screen.getByText('No days before this window')).toBeInTheDocument();
+    expect(screen.getByText('No days before this period')).toBeInTheDocument();
     expect(screen.getByRole('menuitemradio', { name: 'No comparison' })).toBeChecked();
   });
 

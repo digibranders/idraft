@@ -166,7 +166,7 @@ describe('the prompt movers card', () => {
     renderCard();
     await rowsList();
     const frame = await frameOf();
-    expect(frame).toHaveTextContent('2 prompts are left out: fewer than 4 valid answers in one of the windows.');
+    expect(frame).toHaveTextContent('2 prompts are left out: fewer than 4 valid answers in one of the periods.');
     expect(frame).toHaveTextContent('unpaired');
     expect(frame).toHaveTextContent('pooled counts');
     expect(within(frame).queryByText('Thin prompt')).not.toBeInTheDocument();
@@ -371,13 +371,13 @@ describe('the prompt movers card', () => {
     serve([{ ...UP, chatgpt: [1, 3] }], [UP_BEFORE]);
     renderCard();
     expect(await screen.findByText('No prompt can be compared')).toBeInTheDocument();
-    expect(screen.getByText('1 prompt has fewer than 4 valid answers in one of the windows.')).toBeInTheDocument();
+    expect(screen.getByText('1 prompt has fewer than 4 valid answers in one of the periods.')).toBeInTheDocument();
   });
 
   it('says the engine is not shown when the option names an engine that is off', async () => {
     serve([UP], [UP_BEFORE]);
     renderCard({ engine: 'google_ai_mode' });
-    expect(await screen.findByText('AI Mode is not shown on this page')).toBeInTheDocument();
+    expect(await screen.findByText('Google AI Mode is not shown on this page')).toBeInTheDocument();
   });
 
   it('shows its own error with Retry when the window before cannot be read, and Retry reads again', async () => {

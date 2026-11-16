@@ -550,8 +550,8 @@ describe('TopicTrendsCard states', () => {
   it('partial names a platform that has no valid answer in any group', async () => {
     render({ searchParams: 'engine=chatgpt_web,google_ai_mode', threeEngines: true });
     await charts();
-    expect(screen.getByText('Partial data: AI Mode has no valid answer in this window')).toBeInTheDocument();
-    expect(within(figureOf('CRM, AI Mode')).getAllByText('No weekly data').length).toBeGreaterThan(0);
+    expect(screen.getByText('Partial data: Google AI Mode has no valid answer in this period')).toBeInTheDocument();
+    expect(within(figureOf('CRM, Google AI Mode')).getAllByText('No weekly data').length).toBeGreaterThan(0);
   });
 });
 

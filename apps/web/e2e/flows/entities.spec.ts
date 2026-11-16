@@ -24,9 +24,9 @@ test.describe('entities, domains and taxonomy', () => {
     await expect(page).toHaveURL(/\/digibranders\/acme-studio(\/|$)/);
     await page.goto('/digibranders/acme-studio/settings/entities');
     await expect(
-      page.getByRole('table', { name: 'Own brand' }).getByRole('link', { name: 'Acme Studio' }),
+      page.getByRole('table', { name: 'Your brand' }).getByRole('link', { name: 'Acme Studio' }),
     ).toBeVisible();
-    await page.getByRole('table', { name: 'Own brand' }).getByRole('link', { name: 'Acme Studio' }).click();
+    await page.getByRole('table', { name: 'Your brand' }).getByRole('link', { name: 'Acme Studio' }).click();
     const aliases = page.getByRole('table', { name: 'Aliases' });
     await expect(aliases.getByRole('rowheader', { name: 'Acme', exact: true })).toBeVisible();
     await page.goto('/digibranders/acme-studio/settings/general');
@@ -58,14 +58,14 @@ test.describe('entities, domains and taxonomy', () => {
   test('an editor builds a topic and moves it', async ({ page }) => {
     await signIn(page, EDITOR);
     await page.goto('/digibranders/fynix/settings/taxonomy');
-    const tree = page.getByRole('tree', { name: 'Terms of Topics' });
+    const tree = page.getByRole('tree', { name: 'Tags of Topics' });
     await expect(tree).toBeVisible();
     await expectAccessible(page);
     await tree.getByRole('treeitem', { name: 'SEO', exact: true }).click();
     await page.getByRole('button', { name: 'Add under SEO' }).click();
-    const dialog = page.getByRole('dialog', { name: 'Add a term under SEO' });
+    const dialog = page.getByRole('dialog', { name: 'Add a tag under SEO' });
     await dialog.getByRole('textbox', { name: 'Name' }).fill('Enterprise SEO');
-    await dialog.getByRole('button', { name: 'Add term' }).click();
+    await dialog.getByRole('button', { name: 'Add tag' }).click();
     await expect(tree.getByRole('treeitem', { name: 'Enterprise SEO' })).toHaveAttribute('aria-level', '2');
     await page.getByRole('button', { name: 'Move to' }).click();
     const move = page.getByRole('dialog', { name: 'Move Enterprise SEO' });
@@ -78,13 +78,13 @@ test.describe('entities, domains and taxonomy', () => {
   test('an analyst sees entities, domains and taxonomy read-only', async ({ page }) => {
     await signIn(page, ANALYST);
     await page.goto('/digibranders/fynix/settings/entities');
-    await expect(page.getByText('Owners, admins and editors can change the entities of a project.')).toBeVisible();
+    await expect(page.getByText('Owners, admins and editors can change the brands of a project.')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Add competitor' })).toHaveCount(0);
     await page.goto('/digibranders/fynix/settings/domains');
-    await expect(page.getByRole('table', { name: 'Own brand' })).toBeVisible();
+    await expect(page.getByRole('table', { name: 'Your brand' })).toBeVisible();
     await expectAccessible(page);
     await page.goto('/digibranders/fynix/settings/taxonomy');
-    await expect(page.getByText('Owners, admins and editors can change the taxonomy.')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Add term' })).toHaveCount(0);
+    await expect(page.getByText('Owners, admins and editors can change the tags.')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Add tag' })).toHaveCount(0);
   });
 });

@@ -22,13 +22,15 @@ describe('the citation banner', () => {
   it('says Cited in 3 of 8 answers with the last answer and the own pages', () => {
     renderBanner();
     expect(
-      screen.getByText('Cited in 3 of 8 answers; last answer Nov 11, 09:05; 4 own pages cited'),
+      screen.getByText('Cited in 3 of 8 answers; last answer Nov 11, 09:05; 4 pages of yours cited'),
     ).toBeInTheDocument();
   });
 
   it('says one own page in the singular', () => {
     renderBanner({ cited: 1, answers: 1, ownPages: 1 });
-    expect(screen.getByText('Cited in 1 of 1 answer; last answer Nov 11, 09:05; 1 own page cited')).toBeInTheDocument();
+    expect(
+      screen.getByText('Cited in 1 of 1 answer; last answer Nov 11, 09:05; 1 page of yours cited'),
+    ).toBeInTheDocument();
   });
 
   it('uses the info tone when the own domain is cited and the neutral tone when it is not', () => {
@@ -43,7 +45,7 @@ describe('the citation banner', () => {
   it('says Cited in 0 of 8 answers, with no count of own pages, when it is not cited', () => {
     renderBanner({ cited: 0, ownPages: 0 });
     expect(screen.getByText('Cited in 0 of 8 answers; last answer Nov 11, 09:05')).toBeInTheDocument();
-    expect(screen.queryByText(/own page/)).toBeNull();
+    expect(screen.queryByText(/pages? of yours/)).toBeNull();
   });
 
   it('leaves the own pages out when their count is not known', () => {
@@ -53,7 +55,7 @@ describe('the citation banner', () => {
 
   it('says there is nothing to count with 0 answers, and draws no banner', () => {
     const { container } = renderBanner({ cited: 0, answers: 0, ownPages: 0 });
-    expect(screen.getByText('No answers in this window, so there is nothing to count.')).toBeInTheDocument();
+    expect(screen.getByText('No answers in this period, so there is nothing to count.')).toBeInTheDocument();
     expect(container.querySelector('[data-slot="banner"]')).toBeNull();
   });
 

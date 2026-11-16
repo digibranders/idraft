@@ -52,7 +52,7 @@ test.describe.configure({ timeout: 120_000 });
 const CARD_TITLES = [
   'What changed',
   'Mention rate by platform',
-  'Named and cited, by platform',
+  'Mentioned and cited, by platform',
   'Top cited domains',
   'Mention rate by group and platform',
   'Share of voice on ChatGPT',
@@ -113,7 +113,7 @@ test.describe('the AI visibility Overview', () => {
     const link = overviewLink(page);
     await expect(link).toHaveAttribute('href', '/digibranders/fynix/ai');
     await expect(
-      page.getByRole('navigation', { name: 'Primary' }).getByText('AI Visibility', { exact: true }),
+      page.getByRole('navigation', { name: 'Primary' }).getByText('AI visibility', { exact: true }),
     ).toBeVisible();
     await expect(link).not.toHaveAttribute('aria-current', 'page');
     await link.click();

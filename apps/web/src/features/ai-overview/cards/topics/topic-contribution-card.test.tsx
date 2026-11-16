@@ -288,7 +288,7 @@ describe('TopicContributionCard change view', () => {
     const frame = await frameOf();
     await listOf();
     expect(within(frame).getByText(/0\.8 points .* prompts added or left/)).toBeInTheDocument();
-    expect(within(frame).getByText(/3 prompts in both windows/)).toBeInTheDocument();
+    expect(within(frame).getByText(/3 prompts in both periods/)).toBeInTheDocument();
   });
 
   it('change view with compare off is an empty state with an action', async () => {

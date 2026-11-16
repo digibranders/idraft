@@ -45,7 +45,7 @@ afterEach(() => {
 describe('CitationList', () => {
   it('is an ordered list named for what it holds, one item for each citation, with its number, title and host', async () => {
     const { container } = renderList();
-    const list = screen.getByRole('list', { name: 'Sources cited in this answer' });
+    const list = screen.getByRole('list', { name: 'Citations in this answer' });
     expect(list.tagName).toBe('OL');
     const rows = within(list).getAllByRole('listitem');
     expect(rows).toHaveLength(3);
@@ -68,8 +68,8 @@ describe('CitationList', () => {
 
   it('gives each source its role as a word, own, competitor or third party', () => {
     renderList();
-    const list = screen.getByRole('list', { name: 'Sources cited in this answer' });
-    expect(within(list).getByText('Own')).toBeInTheDocument();
+    const list = screen.getByRole('list', { name: 'Citations in this answer' });
+    expect(within(list).getByText('Your site')).toBeInTheDocument();
     expect(within(list).getByText('Competitor')).toBeInTheDocument();
     expect(within(list).getByText('Third party')).toBeInTheDocument();
   });

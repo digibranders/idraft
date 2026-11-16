@@ -137,7 +137,7 @@ describe('the share trend', () => {
   it('gives the empty state when the platforms have no weekly figure', () => {
     renderWithProviders(<Trend data={dataOf([])} />);
     expect(screen.getByText('No weekly figures')).toBeInTheDocument();
-    expect(screen.getByText('The platforms have no citation in this window.')).toBeInTheDocument();
+    expect(screen.getByText('The platforms have no citation in this period.')).toBeInTheDocument();
     expect(screen.queryByTestId('echart-canvas')).toBeNull();
   });
 

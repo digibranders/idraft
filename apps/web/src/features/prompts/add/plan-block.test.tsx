@@ -138,7 +138,7 @@ describe('the plan block', () => {
 
   it('asks for a country and shows no estimate and no zero before one is chosen', () => {
     show(props({ needsCountry: true, plan: null, quota: null, prompts: 3 }));
-    expect(screen.getByText('Choose a country to check what is tracked.')).toBeInTheDocument();
+    expect(screen.getByText('Choose a location to check what is tracked.')).toBeInTheDocument();
     expect(screen.queryByText(/answers a month/)).toBeNull();
     expect(screen.queryByText(/Workspace prompts/)).toBeNull();
     expect(screen.queryByText(/\$/)).toBeNull();

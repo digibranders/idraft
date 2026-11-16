@@ -24,7 +24,7 @@ const CONTEXT: NumberContext = {
 };
 /** Every reason a number can have no reading for a read it needs. */
 const UNREAD = ['loading', 'error', 'idle', 'brandedOnly', 'oneAtATime', 'noEngine'] as const;
-const WINDOW_SENTENCE = 'Window: Oct 16 to Nov 12, 2026 (branded prompts excluded)';
+const WINDOW_SENTENCE = 'Period: Oct 16 to Nov 12, 2026 (branded prompts excluded)';
 const INTERIM = 'Unpaired test on pooled counts';
 
 const chatgpt = (metric: string): NumberItem => ({ id: 'n', metric, engine: 'chatgpt_web' });
@@ -108,9 +108,9 @@ describe('the numbers of the AI visibility catalog', () => {
       item: chatgpt('ai.share_of_voice'),
       reading: rate({ value: 0.27, k: null, n: 1412, unit: 'namingAnswers' }),
       value: '27%',
-      context: 'of 1,412 answers naming a tracked brand',
+      context: 'of 1,412 answers mentioning a tracked brand',
       tip: [
-        '1,412 valid answers name a tracked brand, 250 prompts each counted once, 62 answers not valid',
+        '1,412 valid answers mention a tracked brand, 250 prompts each counted once, 62 answers not valid',
         WINDOW_SENTENCE,
       ],
     },
@@ -127,11 +127,7 @@ describe('the numbers of the AI visibility catalog', () => {
       }),
       value: '9%',
       context: '1,676 of 18,420 citation units',
-      tip: [
-        '1,676 of 18,420 citation units come from your own pages',
-        WINDOW_SENTENCE,
-        'No comparison for this number',
-      ],
+      tip: ['1,676 of 18,420 citation units come from your pages', WINDOW_SENTENCE, 'No comparison for this number'],
     },
     {
       name: 'ai.fanout_presence_rate shows the answers that issued a fan-out query',
@@ -199,7 +195,7 @@ describe('what a number says when it has no rate', () => {
       read({ state: 'none', value: null, k: null, n: 0, unit: 'namingAnswers', invalid: 3, reason: 'noBrandNamed' }),
       chatgpt('ai.share_of_voice'),
     );
-    expect(display.value).toBe('No brand named');
+    expect(display.value).toBe('No brand mentioned');
   });
 
   it('shows n/a for a count of another read that has nothing, not zero', () => {
@@ -314,7 +310,7 @@ describe('the change since the previous window', () => {
   it('leaves the delta out and says so when a window has too few answers for a rate', () => {
     const display = show(read({ change: null }), chatgpt('ai.mention_rate'));
     expect(display.change).toBeNull();
-    expect(display.tip).toContain('No change shown: a window has too few valid answers for a rate');
+    expect(display.tip).toContain('No change shown: a period has too few valid answers for a rate');
   });
 
   it('says nothing about a change while the comparison is off', () => {
@@ -326,7 +322,7 @@ describe('the change since the previous window', () => {
   it('says the previous window could not be read, and shows no delta', () => {
     const display = show(read({ change: null }), chatgpt('ai.mention_rate'), { previousFailed: true });
     expect(display.change).toBeNull();
-    expect(display.tip).toContain('The previous window could not be read');
+    expect(display.tip).toContain('The previous period could not be read');
   });
 
   it('has no comparison for the citation share and the fan-out presence, and says so', () => {
@@ -412,11 +408,11 @@ describe('what a tip says while the reads of a changed scope are under way', () 
     const display = show(read(), chatgpt('ai.mention_rate'), { busy: true });
     expect(display.value).toBe('34%');
     expect(display.tip).toContain('612 of 1,800 valid answers');
-    expect(display.tip).not.toContain('Window:');
+    expect(display.tip).not.toContain('Period:');
     const insufficient = show(read({ state: 'insufficient', value: null, n: 3 }), chatgpt('ai.mention_rate'), {
       busy: true,
     });
-    expect(insufficient.tip).not.toContain('Window:');
+    expect(insufficient.tip).not.toContain('Period:');
   });
 });
 
@@ -427,7 +423,7 @@ describe('the wording of a tip', () => {
       chatgpt('ai.share_of_voice'),
     );
     expect(display.value).toBe('3 answers');
-    expect(display.tip).toContain('3 answers naming a tracked brand, too few for a rate (it needs 4)');
+    expect(display.tip).toContain('3 answers mentioning a tracked brand, too few for a rate (it needs 4)');
     expect(display.tip).not.toContain('valid answers');
   });
 

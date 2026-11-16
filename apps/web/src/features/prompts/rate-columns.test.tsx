@@ -109,7 +109,7 @@ describe('the Mention rate cell change', () => {
     const delta = screen.getByText('+5.0 pts');
     expect(delta).toHaveClass('text-foreground-secondary');
     expect(screen.getByTestId('cell').textContent).not.toMatch(/detectable|within normal variation/);
-    expect(screen.getByTestId('tip').textContent).not.toMatch(/Detectable|Within normal variation|Interim/);
+    expect(screen.getByTestId('tip').textContent).not.toMatch(/Detectable|Within normal variation|Provisional/);
     expect(screen.getByTestId('tip')).toHaveTextContent('This change is not tested because');
   });
 

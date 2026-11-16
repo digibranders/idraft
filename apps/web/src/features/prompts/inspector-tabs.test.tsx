@@ -401,7 +401,7 @@ describe('the Latest tab', () => {
     // No rank and no recommendation: only where the brand stands among the brands named
     expect(chatgpt.textContent).not.toMatch(/Rank|Recommended/);
     // The sources come in the order the answer cites them, each with its role
-    const sources = within(chatgpt).getByRole('list', { name: 'Top sources of this answer' });
+    const sources = within(chatgpt).getByRole('list', { name: 'Top cited domains of this answer' });
     expect(
       within(sources)
         .getAllByRole('listitem')
@@ -562,7 +562,7 @@ describe('the History tab', () => {
     );
     expect(
       within(inspector).getByText(
-        /Each point is the share of valid answers that name your brand over its week and the weeks before it, \d weeks in all at most/,
+        /Each point is the share of valid answers that mention your brand over its week and the weeks before it, \d weeks in all at most/,
       ),
     ).toBeInTheDocument();
     expect(within(inspector).queryByText(/computed in the browser/i)).toBeNull();
@@ -596,10 +596,12 @@ describe('the Competitors tab', () => {
     serveTwoAnswers();
     const { user } = renderOn('viewer', openedOn('competitors'));
     const inspector = await panel();
-    const table = await within(inspector).findByRole('table', { name: 'Brands named in the answers to this prompt' });
+    const table = await within(inspector).findByRole('table', {
+      name: 'Brands mentioned in the answers to this prompt',
+    });
     const rows = within(table).getAllByRole('row').slice(1);
     expect(rows[0]).toHaveTextContent('Fynix');
-    expect(rows[0]).toHaveTextContent('Own');
+    expect(rows[0]).toHaveTextContent('Your brand');
     expect(rows[0]).toHaveTextContent('2 of 2 answers');
     expect(rows[0]).toHaveTextContent('100%');
     expect(rows[1]).toHaveTextContent('Rankforge');
@@ -607,7 +609,9 @@ describe('the Competitors tab', () => {
     // The switch narrows the counts to one engine
     await user.click(within(inspector).getByRole('radio', { name: 'Gemini' }));
     expect(within(table).getAllByRole('row')[1]).toHaveTextContent('1 of 1 answer');
-    expect(within(inspector).getByText(/A mention is a tracked brand named in an answer/)).toBeInTheDocument();
+    expect(
+      within(inspector).getByText(/A mention is a tracked brand whose name appears in an answer/),
+    ).toBeInTheDocument();
   });
 
   it('says no competitor was named when the answers name none', async () => {
@@ -617,10 +621,10 @@ describe('the Competitors tab', () => {
     renderOn('viewer', openedOn('competitors'));
     const inspector = await panel();
     expect(
-      await within(inspector).findByText('No competitor was named in the answers of this window'),
+      await within(inspector).findByText('No competitor was mentioned in the answers of this period'),
     ).toBeInTheDocument();
     // The own brand stays in view, with its own count
-    const table = within(inspector).getByRole('table', { name: 'Brands named in the answers to this prompt' });
+    const table = within(inspector).getByRole('table', { name: 'Brands mentioned in the answers to this prompt' });
     expect(within(table).getAllByRole('row')).toHaveLength(2);
     expect(within(table).getByText('Fynix')).toBeInTheDocument();
   });
@@ -632,7 +636,9 @@ describe('the Competitors tab', () => {
     gemini.is_enabled = false;
     renderOn('viewer', openedOn('competitors'));
     const inspector = await panel();
-    const table = await within(inspector).findByRole('table', { name: 'Brands named in the answers to this prompt' });
+    const table = await within(inspector).findByRole('table', {
+      name: 'Brands mentioned in the answers to this prompt',
+    });
     // The list holds a Gemini answer too: it is no part of All
     expect(within(table).getAllByRole('row')[1]).toHaveTextContent('1 of 1 answer');
     expect(within(inspector).queryByRole('radio', { name: 'Gemini' })).toBeNull();
@@ -658,7 +664,7 @@ describe('the Stats tab', () => {
     expect(citation).toHaveTextContent('4 of 6 answers');
     expect(
       within(inspector).getByText(
-        'The interval is the 95 percent Wilson interval over the valid answers of this window.',
+        'The interval is the 95 percent Wilson interval over the valid answers of this period.',
       ),
     ).toBeInTheDocument();
     expect(within(inspector).queryByText(/server provides it/)).toBeNull();

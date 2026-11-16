@@ -219,7 +219,7 @@ afterEach(() => {
 });
 
 const panel = (name = 'Best CRM software'): Promise<HTMLElement> => screen.findByRole('complementary', { name });
-const strip = (): Promise<HTMLElement> => screen.findByRole('group', { name: 'Source summary' });
+const strip = (): Promise<HTMLElement> => screen.findByRole('group', { name: 'Page summary' });
 const engineTable = (): Promise<HTMLElement> =>
   screen.findByRole('table', { name: 'Citations of this page by platform' });
 /** The open tooltip: the popup a hover or focus opens. */
@@ -233,8 +233,8 @@ describe('the source inspector header', () => {
     expect(within(inspector).getByRole('heading', { level: 2, name: 'Best CRM software' })).toBeInTheDocument();
     expect(within(inspector).getByText('g2.com')).toBeInTheDocument();
     expect(within(inspector).getByText('Third party')).toBeInTheDocument();
-    expect(within(inspector).getByText('Category n/a')).toBeInTheDocument();
-    expect(within(inspector).getByText('Source')).toBeInTheDocument();
+    expect(within(inspector).getByText('Domain type n/a')).toBeInTheDocument();
+    expect(within(inspector).getByText('Page')).toBeInTheDocument();
     expect(within(inspector).getByText('3 of 12')).toBeInTheDocument();
     // The newest citation: 10 November, 08:00 UTC, 52 hours before NOW
     expect(within(inspector).getByText('Last cited 2d ago')).toBeInTheDocument();
@@ -274,7 +274,7 @@ describe('the source inspector header', () => {
       }),
     );
     renderWithProviders(<Harness />);
-    expect(await screen.findByRole('heading', { level: 2, name: 'Source 7' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 2, name: 'Page 7' })).toBeInTheDocument();
     held.open();
     expect(await screen.findByRole('heading', { level: 2, name: 'Best CRM software' })).toBeInTheDocument();
   });
@@ -413,7 +413,7 @@ describe('the trend', () => {
     });
     renderWithProviders(<Harness />);
     expect(await screen.findByText('No weekly figures')).toBeInTheDocument();
-    expect(screen.getByText('No answer in this window cites any source.')).toBeInTheDocument();
+    expect(screen.getByText('No answer in this period cites any page.')).toBeInTheDocument();
     expect(screen.queryByTestId('echart-canvas')).toBeNull();
   });
 });
@@ -455,7 +455,7 @@ describe('the platform table', () => {
     if (mode === null) throw new Error('The AI Mode row is missing');
     expect(within(mode).queryByText(/%/)).toBeNull();
     await user.hover(within(mode).getByText('n/a'));
-    await waitFor(() => expect(tooltip()).toHaveTextContent('AI Mode does not cite this page in this window.'));
+    await waitFor(() => expect(tooltip()).toHaveTextContent('AI Mode does not cite this page in this period.'));
   });
 
   it('says the citations of a platform are not known while the totals are not read', async () => {
@@ -505,29 +505,29 @@ describe('the source inspector states', () => {
       }),
     );
     const { user } = renderWithProviders(<Harness />);
-    const inspector = await screen.findByRole('complementary', { name: 'Source 7' });
-    expect(await within(inspector).findByText('This source could not be loaded.')).toBeInTheDocument();
-    expect(within(inspector).getByRole('heading', { level: 2, name: 'Source 7' })).toBeInTheDocument();
-    expect(within(inspector).queryByRole('group', { name: 'Source summary' })).toBeNull();
+    const inspector = await screen.findByRole('complementary', { name: 'Page 7' });
+    expect(await within(inspector).findByText('This cited page could not be loaded.')).toBeInTheDocument();
+    expect(within(inspector).getByRole('heading', { level: 2, name: 'Page 7' })).toBeInTheDocument();
+    expect(within(inspector).queryByRole('group', { name: 'Page summary' })).toBeNull();
     await user.click(within(inspector).getByRole('button', { name: 'Try again' }));
     expect(await within(inspector).findByText('300')).toBeInTheDocument();
-    expect(within(inspector).queryByText('This source could not be loaded.')).toBeNull();
+    expect(within(inspector).queryByText('This cited page could not be loaded.')).toBeNull();
   });
 
   it('says a page nothing cites is not cited, and draws no figure and no zero', async () => {
     serve({ citations: [] });
     renderWithProviders(<Harness />);
-    const inspector = await screen.findByRole('complementary', { name: 'Source 7' });
-    expect(await within(inspector).findByText('Not cited in this window')).toBeInTheDocument();
+    const inspector = await screen.findByRole('complementary', { name: 'Page 7' });
+    expect(await within(inspector).findByText('Not cited in this period')).toBeInTheDocument();
     expect(
       within(inspector).getByText(
-        'No answer read in this window cites this page. Choose a longer window or another platform.',
+        'No answer read in this period cites this page. Choose a longer period or another platform.',
       ),
     ).toBeInTheDocument();
-    expect(within(inspector).queryByRole('group', { name: 'Source summary' })).toBeNull();
+    expect(within(inspector).queryByRole('group', { name: 'Page summary' })).toBeNull();
     expect(within(inspector).queryByRole('table')).toBeNull();
     expect(within(inspector).queryByText('0')).toBeNull();
-    expect(within(inspector).queryByText('Category n/a')).toBeNull();
+    expect(within(inspector).queryByText('Domain type n/a')).toBeNull();
   });
 
   it('says n/a with the reason when the page is not among the 200 most cited pages of its domain', async () => {
@@ -576,9 +576,9 @@ describe('the source inspector states', () => {
 
   it('says a page the API refuses is not there, with no Retry', async () => {
     renderWithProviders(<Harness sourceId="not-a-number" />);
-    const inspector = await screen.findByRole('complementary', { name: 'Source not-a-number' });
+    const inspector = await screen.findByRole('complementary', { name: 'Page not-a-number' });
     expect(
-      await within(inspector).findByText('This source does not exist or you do not have access to it.'),
+      await within(inspector).findByText('This page does not exist or you do not have access to it.'),
     ).toBeInTheDocument();
     expect(within(inspector).queryByRole('button', { name: 'Try again' })).toBeNull();
   });
@@ -602,7 +602,7 @@ describe('the source inspector states', () => {
     expect(await strip()).toHaveAttribute('aria-busy', 'true');
     expect(screen.getByRole('heading', { level: 2, name: 'Best CRM software' })).toBeInTheDocument();
     held.open();
-    await waitFor(() => expect(screen.getByRole('group', { name: 'Source summary' })).not.toHaveAttribute('aria-busy'));
+    await waitFor(() => expect(screen.getByRole('group', { name: 'Page summary' })).not.toHaveAttribute('aria-busy'));
   });
 
   it('does not show the last source under the name of the next one while it reads', async () => {
@@ -617,7 +617,7 @@ describe('the source inspector states', () => {
     const view = renderWithProviders(<Harness />);
     await within(await strip()).findByText('300');
     view.rerender(<Harness sourceId="8" />);
-    expect(await screen.findByRole('heading', { level: 2, name: 'Source 8' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 2, name: 'Page 8' })).toBeInTheDocument();
     expect(within(await strip()).queryByText('300')).toBeNull();
     expect(screen.queryByText('Best CRM software')).toBeNull();
     held.open();
@@ -628,7 +628,7 @@ describe('the tabs', () => {
   it('lists Overview, Prompts and Answers, and a tab the address asks for that does not exist shows the Overview', async () => {
     renderWithProviders(<Harness tab="nonsense" />);
     const inspector = await panel();
-    const tabs = within(inspector).getByRole('tablist', { name: 'Source views' });
+    const tabs = within(inspector).getByRole('tablist', { name: 'Page tabs' });
     const listed = within(tabs).getAllByRole('tab');
     expect(listed).toHaveLength(3);
     expect(listed[0]).toHaveAccessibleName('Overview');
@@ -662,7 +662,7 @@ describe('the tabs', () => {
     const inspector = await panel();
     expect(await within(inspector).findByRole('heading', { level: 3, name: 'Last answers' })).toBeInTheDocument();
     const link = await within(inspector).findByRole('link', {
-      name: 'Open the evidence of the answer of Nov 10, 08:00, source 2',
+      name: 'Open the evidence of the answer of Nov 10, 08:00, citation 2',
     });
     expect(link).toHaveAttribute('href', '/digibranders/fynix/ai/prompts?inspect=answer%3A1001&cite=2');
   });

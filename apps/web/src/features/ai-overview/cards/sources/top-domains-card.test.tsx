@@ -194,7 +194,7 @@ describe('the top cited domains card', () => {
     const list = await barList();
     const items = within(list).getAllByRole('listitem');
     expect(within(at(items, 0)).getByText('Third party')).toBeInTheDocument();
-    expect(within(at(items, 1)).getByText('Own')).toBeInTheDocument();
+    expect(within(at(items, 1)).getByText('Your site')).toBeInTheDocument();
     expect(within(at(items, 3)).getByText('Competitor')).toBeInTheDocument();
   });
 
@@ -291,15 +291,15 @@ describe('the top cited domains card', () => {
       }),
     );
     renderCard('cmp=off&branded=only');
-    expect(await screen.findByText('Sources cannot be read for branded prompts alone')).toBeInTheDocument();
+    expect(await screen.findByText('Cited domains cannot be read for branded prompts alone')).toBeInTheDocument();
     expect(asked).not.toHaveBeenCalled();
   });
 
   it('says no answer cited a source in this window, with the answers collected, and no zero', async () => {
     serve(domainPage([], sourcesMeta({ units: 0, answers: 40, citing: 0, engines: ENGINES })));
     renderCard();
-    expect(await screen.findByText('No answer cited a source in this window')).toBeInTheDocument();
-    expect(screen.getByText('40 answers were collected in this window, and none cited a source.')).toBeInTheDocument();
+    expect(await screen.findByText('No answer cited a domain in this period')).toBeInTheDocument();
+    expect(screen.getByText('40 answers were collected in this period, and none cited a domain.')).toBeInTheDocument();
     expect(screen.queryByRole('list', { name: CAPTION })).not.toBeInTheDocument();
     expect(screen.queryByText(/0%/)).not.toBeInTheDocument();
   });
@@ -534,7 +534,7 @@ describe('the top cited domains card', () => {
       'Third party',
       formatList(['ChatGPT 1,200', 'Gemini 712']),
     ]);
-    expect(at(block?.rows ?? [], 1)[3]).toBe('Own');
+    expect(at(block?.rows ?? [], 1)[3]).toBe('Your site');
   });
 
   it('has nothing to export while the card loads or has failed', async () => {
@@ -613,7 +613,7 @@ async function openByRole(
   const view = renderCard(searchParams, options);
   await barList();
   await view.user.click(byRoleRadio());
-  await screen.findByRole('group', { name: options.role === 'third_party' ? 'Third party' : 'Own' });
+  await screen.findByRole('group', { name: options.role === 'third_party' ? 'Third party' : 'Your site' });
   return view;
 }
 
@@ -629,13 +629,13 @@ describe('the top cited domains card, By role view', () => {
         .map((radio) => radio.getAttribute('aria-checked')),
     ).toEqual(['true', 'false']);
     expect(within(group).getByRole('radio', { name: 'Ranked' })).toBeChecked();
-    expect(screen.queryByRole('group', { name: 'Own' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: 'Your site' })).not.toBeInTheDocument();
   });
 
   it('shows the three role sections in the order Own, Competitor, Third party, each with its role in text', async () => {
     serve(rolePage());
     const { container } = await openByRole();
-    expect(roleTitles(container)).toEqual(['Own', 'Competitor', 'Third party']);
+    expect(roleTitles(container)).toEqual(['Your site', 'Competitor', 'Third party']);
     expect(screen.queryByRole('list', { name: CAPTION })).not.toBeInTheDocument();
   });
 
@@ -653,7 +653,7 @@ describe('the top cited domains card, By role view', () => {
   it('lists the domains of the Ranked view under their role, in the order of the route, with their counts', async () => {
     serve(rolePage());
     await openByRole();
-    expect(labelsOf(roleList('Own'))).toEqual(['fynix.com']);
+    expect(labelsOf(roleList('Your site'))).toEqual(['fynix.com']);
     expect(labelsOf(roleList('Competitor'))).toEqual(['hubspot.com']);
     expect(labelsOf(roleList('Third party'))).toEqual(['g2.com', 'capterra.com']);
     for (const item of within(roleList('Third party')).getAllByRole('listitem')) {
@@ -679,7 +679,7 @@ describe('the top cited domains card, By role view', () => {
   it('says how many units of each role are in domains that are not listed, and adds up to the total of the scope', async () => {
     serve(rolePage());
     await openByRole();
-    expect(within(roleSection('Own')).getByText('1,500 units in domains not listed')).toBeInTheDocument();
+    expect(within(roleSection('Your site')).getByText('1,500 units in domains not listed')).toBeInTheDocument();
     expect(within(roleSection('Competitor')).getByText('1,500 units in domains not listed')).toBeInTheDocument();
     expect(within(roleSection('Third party')).getByText('9,808 units in domains not listed')).toBeInTheDocument();
   });
@@ -687,7 +687,7 @@ describe('the top cited domains card, By role view', () => {
   it('writes no remainder line for a role whose units are all in the listed domains', async () => {
     serve(rolePage({ own: 1500, competitor: 900, third_party: 16020 }));
     await openByRole();
-    expect(within(roleSection('Own')).queryByText(/not listed/)).not.toBeInTheDocument();
+    expect(within(roleSection('Your site')).queryByText(/not listed/)).not.toBeInTheDocument();
     expect(within(roleSection('Competitor')).queryByText(/not listed/)).not.toBeInTheDocument();
     expect(within(roleSection('Third party')).getByText('12,808 units in domains not listed')).toBeInTheDocument();
   });
@@ -708,8 +708,8 @@ describe('the top cited domains card, By role view', () => {
     serve({ ...base, data: base.data.filter((row) => row.domain_role !== 'own') });
     const { container } = await openByRole();
     expect(roleTotals(container)[0]).toBe('0.0% of citation units, 0 of 18,420 units');
-    expect(within(roleSection('Own')).getByText('No citation unit belongs to this role.')).toBeInTheDocument();
-    expect(within(roleSection('Own')).queryByRole('list')).not.toBeInTheDocument();
+    expect(within(roleSection('Your site')).getByText('No citation unit belongs to this role.')).toBeInTheDocument();
+    expect(within(roleSection('Your site')).queryByRole('list')).not.toBeInTheDocument();
   });
 
   it('says a role has units but no listed domain when the rows are cut', async () => {
@@ -729,12 +729,12 @@ describe('the top cited domains card, By role view', () => {
       within(roleList(name))
         .getAllByRole('listitem')
         .map((item) => item.querySelector('[data-slot="bar-list-bar"]')?.className ?? '');
-    for (const fill of fills('Own')) expect(fill).toContain('bg-chart-1');
+    for (const fill of fills('Your site')) expect(fill).toContain('bg-chart-1');
     for (const fill of [...fills('Competitor'), ...fills('Third party')]) expect(fill).not.toContain('bg-chart-1');
     expect(roleTitles(container).every((title) => title !== null && title !== '')).toBe(true);
     expect(
-      within(roleList('Own')).getByText(
-        'fynix.com, Own: 8.1% of citation units, 1,500 of 18,420 units, in 900 answers',
+      within(roleList('Your site')).getByText(
+        'fynix.com, Your site: 8.1% of citation units, 1,500 of 18,420 units, in 900 answers',
       ),
     ).toBeInTheDocument();
     expect(within(roleList('Competitor')).getByText(/^hubspot\.com, Competitor: 4\.9%/)).toBeInTheDocument();
@@ -768,7 +768,7 @@ describe('the top cited domains card, By role view', () => {
     expect(await screen.findByText('No comparison: the previous period could not be read')).toBeInTheDocument();
     const requests = seen.length;
     await user.click(byRoleRadio());
-    await screen.findByRole('group', { name: 'Own' });
+    await screen.findByRole('group', { name: 'Your site' });
     expect(seen).toHaveLength(requests);
     expect(window.location.search).toBe(before);
     // The rows keep their change column, so a missing comparison is said in this view too
@@ -785,7 +785,7 @@ describe('the top cited domains card, By role view', () => {
     await barList();
     expect(await screen.findByText('No comparison: the previous period has no answers')).toBeInTheDocument();
     await user.click(byRoleRadio());
-    await screen.findByRole('group', { name: 'Own' });
+    await screen.findByRole('group', { name: 'Your site' });
     expect(screen.getByText('No comparison: the previous period has no answers')).toBeInTheDocument();
   });
 
@@ -802,7 +802,7 @@ describe('the top cited domains card, By role view', () => {
     const { user } = renderCard('');
     await barList();
     await user.click(byRoleRadio());
-    await screen.findByRole('group', { name: 'Own' });
+    await screen.findByRole('group', { name: 'Your site' });
     expect(await within(roleList('Third party')).findByText('+1.5 pts')).toBeInTheDocument();
     expect(screen.queryByText(/^No comparison/)).not.toBeInTheDocument();
   });
@@ -819,11 +819,11 @@ describe('the top cited domains card, By role view', () => {
     await barList();
     screen.getByRole('radio', { name: 'Ranked' }).focus();
     await user.keyboard('{ArrowRight}');
-    expect(await screen.findByRole('group', { name: 'Own' })).toBeInTheDocument();
+    expect(await screen.findByRole('group', { name: 'Your site' })).toBeInTheDocument();
     expect(byRoleRadio()).toBeChecked();
     await user.keyboard('{ArrowLeft}');
     expect(await barList()).toBeInTheDocument();
-    expect(screen.queryByRole('group', { name: 'Own' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: 'Your site' })).not.toBeInTheDocument();
   });
 
   it('lists every domain and every remainder with its role in the Table view', async () => {
@@ -834,8 +834,8 @@ describe('the top cited domains card, By role view', () => {
     const rows = within(table).getAllByRole('row');
     expect(rows).toHaveLength(8);
     expect(at(rows, 0)).toHaveTextContent('RoleDomainShare of citation unitsCitation units');
-    expect(at(rows, 1)).toHaveTextContent('Ownfynix.com8.1%1,500 of 18,420 units');
-    expect(at(rows, 2)).toHaveTextContent('OwnDomains not listed1,500 units');
+    expect(at(rows, 1)).toHaveTextContent('Your sitefynix.com8.1%1,500 of 18,420 units');
+    expect(at(rows, 2)).toHaveTextContent('Your siteDomains not listed1,500 units');
     expect(at(rows, 3)).toHaveTextContent('Competitorhubspot.com4.9%900 of 18,420 units');
     expect(at(rows, 5)).toHaveTextContent('Third partyg2.com10.4%1,912 of 18,420 units');
     expect(at(rows, 7)).toHaveTextContent('Third partyDomains not listed9,808 units');
@@ -849,20 +849,20 @@ describe('the top cited domains card, By role view', () => {
     expect(block?.header).toEqual(['Role', 'Domain', 'Share of citation units', 'Citation units', 'Units by platform']);
     expect(block?.rows).toHaveLength(7);
     expect(at(block?.rows ?? [], 0)).toEqual([
-      'Own',
+      'Your site',
       'fynix.com',
       '8.1%',
       '1,500 of 18,420 units',
       formatList(['ChatGPT 1,500']),
     ]);
-    expect(at(block?.rows ?? [], 1)).toEqual(['Own', 'Domains not listed', null, '1,500 units', null]);
+    expect(at(block?.rows ?? [], 1)).toEqual(['Your site', 'Domains not listed', null, '1,500 units', null]);
     expect(at(block?.rows ?? [], 6)).toEqual(['Third party', 'Domains not listed', null, '9,808 units', null]);
   });
 
   it('describes the roles in the summary, with the units and answers they are counted in', async () => {
     serve(rolePage());
     await openByRole();
-    const list = formatList(['Own 16.3%', 'Competitor 13.0%', 'Third party 70.7%']);
+    const list = formatList(['Your site 16.3%', 'Competitor 13.0%', 'Third party 70.7%']);
     expect(
       screen.getByText(`Top cited domains by role, 18,420 citation units in 6,210 answers: ${list}.`),
     ).toBeInTheDocument();
@@ -873,7 +873,7 @@ describe('the top cited domains card, By role view', () => {
     const { queryClient, user } = renderCard();
     await barList();
     await user.click(byRoleRadio());
-    await screen.findByRole('group', { name: 'Own' });
+    await screen.findByRole('group', { name: 'Your site' });
     server.use(http.get(DOMAINS, () => failing('req-role')));
     void queryClient.refetchQueries({ queryKey: [] });
     expect(await screen.findByText('These are the last figures read')).toBeInTheDocument();
@@ -898,7 +898,7 @@ describe('the top cited domains card, By role view', () => {
     for (const target of targets) expect(target.closest('[inert]')).toBe(body);
     // The By role view adds no target outside the body either
     await user.click(within(body).getByRole('radio', { name: 'By role' }));
-    await within(body).findByRole('group', { name: 'Own' });
+    await within(body).findByRole('group', { name: 'Your site' });
     for (const target of body.querySelectorAll('button, a[href], [role="radio"]')) {
       expect(target.closest('[inert]')).toBe(body);
     }
@@ -917,7 +917,7 @@ describe('the top cited domains card, By role view', () => {
     }
     serve(rolePage());
     const { container } = await openByRole();
-    const box = roleList('Own').querySelector('li > :is(a, div)');
+    const box = roleList('Your site').querySelector('li > :is(a, div)');
     expect(box?.className.split(' ')).toContain(rowClass);
     expect(await axe(container)).toHaveNoViolations();
   });

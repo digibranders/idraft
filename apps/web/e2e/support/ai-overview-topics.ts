@@ -75,7 +75,7 @@ export const EXTRA_CARDS = [
   { menu: 'Group trends, one platform', title: 'Mention rate by group on ChatGPT' },
   { menu: 'Prompts by platform', title: 'Prompts by platform' },
   { menu: 'Prompts to look at', title: 'Prompts to look at' },
-  { menu: 'Cited as often as named?', title: 'Citation against mention by group on ChatGPT' },
+  { menu: 'Cited as often as mentioned?', title: 'Citation against mention by group on ChatGPT' },
 ] as const;
 /** The extra cards of `EXTRA_CARDS` that carry the topic footnote (the two prompt cards say nothing of overlap). */
 export const EXTRAS_WITH_FOOTNOTE = [EXTRA_CARDS[0], EXTRA_CARDS[3]] as const;

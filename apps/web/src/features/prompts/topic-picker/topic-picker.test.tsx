@@ -168,7 +168,7 @@ describe('Group picker', () => {
     await user.click(await screen.findByRole('option', { name: 'Services: SEO Audit' }));
     await user.click(await screen.findByRole('option', { name: 'Services: Link Building' }));
     await waitFor(() => expect(chosen()).toHaveLength(1));
-    expect(await visibleText('Pick one term of Services: it takes one.')).toBeInTheDocument();
+    expect(await visibleText('Pick one group of Services: it takes one.')).toBeInTheDocument();
     expect(screen.getByRole('toolbar', { name: 'Chosen groups and tags' })).toHaveTextContent(
       'Services: Link Building',
     );

@@ -150,7 +150,7 @@ describe('TopicExtremesCard', () => {
     await frameOf();
     expect(await screen.findByRole('heading', { level: 3, name: 'ChatGPT' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 3, name: 'Gemini' })).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { level: 3, name: 'AI Mode' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { level: 3, name: 'Google AI Mode' })).not.toBeInTheDocument();
   });
 
   it('two lists side by side with the count of rows asked', async () => {
@@ -408,7 +408,7 @@ describe('TopicExtremesCard states', () => {
   it('partial names a platform that has no valid answer in any group', async () => {
     render({ searchParams: 'engine=chatgpt_web,google_ai_mode', threeEngines: true });
     await listOf('Strongest', 'ChatGPT');
-    expect(screen.getByText('Partial data: AI Mode has no valid answer in this window')).toBeInTheDocument();
+    expect(screen.getByText('Partial data: Google AI Mode has no valid answer in this period')).toBeInTheDocument();
   });
 });
 

@@ -176,7 +176,7 @@ describe('the domain inspector header', () => {
     expect(within(inspector).getByRole('heading', { level: 2, name: 'g2.com' })).toBeInTheDocument();
     expect(await within(inspector).findByText('Third party')).toBeInTheDocument();
     expect(within(inspector).getByText('Competitor')).toBeInTheDocument();
-    expect(within(inspector).getByText('Category n/a')).toBeInTheDocument();
+    expect(within(inspector).getByText('Domain type n/a')).toBeInTheDocument();
     // The newest of the rows: 11 November, 08:00 UTC, 28 hours before NOW
     expect(within(inspector).getByText('Last cited 1d ago')).toBeInTheDocument();
     expect(within(inspector).getByText('Domain')).toBeInTheDocument();
@@ -187,8 +187,10 @@ describe('the domain inspector header', () => {
     serve(detailOf({ rows: [rowOf(), rowOf({ domain_role: 'competitor', role_entity_id: 'ent-1' })] }));
     const { user } = renderWithProviders(<Harness />);
     const inspector = await panel();
-    await user.hover(await within(inspector).findByText('Category n/a'));
-    await waitFor(() => expect(tooltip()).toHaveTextContent('Categories arrive with the Sources work.'));
+    await user.hover(await within(inspector).findByText('Domain type n/a'));
+    await waitFor(() =>
+      expect(tooltip()).toHaveTextContent('Domain types arrive with the Citation opportunities work.'),
+    );
   });
 
   it('has Copy link and View pages on the Pages tab in the More menu, the second a real link', async () => {
@@ -323,7 +325,7 @@ describe('the platform table', () => {
     if (mode === null) throw new Error('The AI Mode row is missing');
     expect(within(mode).queryByText(/%/)).toBeNull();
     await user.hover(within(mode).getByText('n/a'));
-    await waitFor(() => expect(tooltip()).toHaveTextContent('AI Mode has no citation in this window.'));
+    await waitFor(() => expect(tooltip()).toHaveTextContent('AI Mode has no citation in this period.'));
   });
 
   it('says a platform that asked and was never cited has 0 units and 0 answers, and no share', async () => {
@@ -385,7 +387,7 @@ describe('the platform table', () => {
     const [units] = unknown;
     if (units === undefined) throw new Error('The units cell is missing');
     await user.hover(units);
-    await waitFor(() => expect(tooltip()).toHaveTextContent('AI Mode has no answer in this window.'));
+    await waitFor(() => expect(tooltip()).toHaveTextContent('AI Mode has no answer in this period.'));
   });
 
   it('says the citations of a platform are not known when the read has no series for it', async () => {
@@ -445,16 +447,16 @@ describe('the domain inspector states', () => {
     serve(NOT_CITED);
     renderWithProviders(<Harness />);
     const inspector = await panel();
-    expect(await within(inspector).findByText('Not cited in this window')).toBeInTheDocument();
+    expect(await within(inspector).findByText('Not cited in this period')).toBeInTheDocument();
     expect(
       within(inspector).getByText(
-        'No answer read in this window cites g2.com. Choose a longer window or another platform.',
+        'No answer read in this period cites g2.com. Choose a longer period or another platform.',
       ),
     ).toBeInTheDocument();
     expect(within(inspector).queryByRole('group', { name: 'Domain summary' })).toBeNull();
     expect(within(inspector).queryByRole('table')).toBeNull();
     expect(within(inspector).queryByText('0')).toBeNull();
-    expect(within(inspector).queryByText('Category n/a')).toBeNull();
+    expect(within(inspector).queryByText('Domain type n/a')).toBeNull();
   });
 
   it('says a project the caller cannot see is not there', async () => {
@@ -648,7 +650,7 @@ describe('the Overview tab', () => {
     expect(titles).toEqual([
       'Share of citations by platform',
       'By platform',
-      'Named when cited',
+      'Mentioned when cited',
       'Search share of voice',
       'Not available yet',
     ]);

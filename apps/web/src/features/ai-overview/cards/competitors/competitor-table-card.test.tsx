@@ -256,13 +256,20 @@ describe('the competitor table card', () => {
     serve(summary([spec]));
     const { user } = renderCard('cmp=off&engine=chatgpt_web');
     const element = await table();
-    expect(cellAt(element, 'HubSpot', 'ChatGPT')).toHaveTextContent('<0.1%named in 1 of 2,001 answers');
+    expect(cellAt(element, 'HubSpot', 'ChatGPT')).toHaveTextContent('<0.1%mentioned in 1 of 2,001 answers');
     await user.click(screen.getByRole('button', { name: 'Table' }));
     const long = await screen.findByRole('table', { name: 'Mention rate by brand and platform, one row for each' });
     expect(long).toHaveTextContent('HubSpotChatGPT<0.1%');
     expect(document.body.innerHTML).not.toContain('0.0%');
     const [block] = sink.read().blocks;
-    expect(block?.rows).toContainEqual(['HubSpot', 'ChatGPT', '<0.1%', 'named in 1 of 2,001 answers', null, 'Read']);
+    expect(block?.rows).toContainEqual([
+      'HubSpot',
+      'ChatGPT',
+      '<0.1%',
+      'mentioned in 1 of 2,001 answers',
+      null,
+      'Read',
+    ]);
     expect(JSON.stringify(block?.rows)).not.toContain('0.0%');
   });
 
@@ -270,18 +277,18 @@ describe('the competitor table card', () => {
     serve(summary());
     renderCard('cmp=off', { metric: 'mention' });
     const mention = await table();
-    expect(cellAt(mention, 'HubSpot', 'ChatGPT')).toHaveTextContent('54%named in 65 of 120 answers');
-    expect(cellAt(mention, 'HubSpot', 'Gemini')).toHaveTextContent('50%named in 10 of 20 answers');
+    expect(cellAt(mention, 'HubSpot', 'ChatGPT')).toHaveTextContent('54%mentioned in 65 of 120 answers');
+    expect(cellAt(mention, 'HubSpot', 'Gemini')).toHaveTextContent('50%mentioned in 10 of 20 answers');
   });
 
-  it('prints share of voice with the answers naming a tracked brand when the metric option is share of voice', async () => {
+  it('prints share of voice with the answers mentioning a tracked brand when the metric option is share of voice', async () => {
     serve(summary());
     renderCard('cmp=off', { metric: 'share_of_voice' });
     expect(await screen.findByRole('heading', { name: SHARE_HEADING })).toBeInTheDocument();
     const element = await table(SHARE_TABLE);
-    expect(cellAt(element, 'HubSpot', 'ChatGPT')).toHaveTextContent('40%of 100 answers naming a tracked brand');
-    expect(cellAt(element, 'HubSpot', 'Gemini')).toHaveTextContent('30%of 20 answers naming a tracked brand');
-    expect(within(element).queryByText(/named in/)).not.toBeInTheDocument();
+    expect(cellAt(element, 'HubSpot', 'ChatGPT')).toHaveTextContent('40%of 100 answers mentioning a tracked brand');
+    expect(cellAt(element, 'HubSpot', 'Gemini')).toHaveTextContent('30%of 20 answers mentioning a tracked brand');
+    expect(within(element).queryByText(/mentioned in/)).not.toBeInTheDocument();
   });
 
   it('labels the average column equal weight, and takes the plain mean of the platforms whatever their answers', async () => {
@@ -436,8 +443,8 @@ describe('the competitor table card', () => {
     const cell = cellAt(element, 'Fynix', 'ChatGPT');
     const line = within(cell).getByText('25%').parentElement as HTMLElement;
     expect(line).toContainElement(within(cell).getByText('+16.7 pts'));
-    expect(line).not.toHaveTextContent(/named in/);
-    expect(cell).toHaveTextContent('named in 30 of 120 answers');
+    expect(line).not.toHaveTextContent(/mentioned in/);
+    expect(cell).toHaveTextContent('mentioned in 30 of 120 answers');
   });
 
   it('keeps k and n visible in every value cell, never only in a tooltip', async () => {
@@ -523,7 +530,7 @@ describe('the competitor table card', () => {
     expect(headers(long)).toEqual(['Brand', 'Platform', 'Mention rate', 'Answers', 'Change since the previous period']);
     // 3 brands, 2 engines and the average
     expect(bodyRows(long)).toHaveLength(9);
-    expect(long).toHaveTextContent('HubSpotChatGPT54%named in 65 of 120 answers');
+    expect(long).toHaveTextContent('HubSpotChatGPT54%mentioned in 65 of 120 answers');
 
     const [block] = sink.read().blocks;
     expect(block?.id).toBe('card-under-test');
@@ -539,7 +546,7 @@ describe('the competitor table card', () => {
       'HubSpot',
       'ChatGPT',
       '54%',
-      'named in 65 of 120 answers',
+      'mentioned in 65 of 120 answers',
       formatPointsDelta(65 / 120 - 66 / 120),
       'Read',
     ]);
@@ -676,7 +683,7 @@ describe('the competitor table card', () => {
     expect(headers(element)).toEqual(['Brand', 'ChatGPT', 'Gemini', AVERAGE]);
     for (const row of bodyRows(element)) {
       for (const value of within(row).getAllByRole('cell').slice(0, 2)) {
-        expect(value).toHaveTextContent(/\d+%named in [\d,]+ of [\d,]+ answers/);
+        expect(value).toHaveTextContent(/\d+%mentioned in [\d,]+ of [\d,]+ answers/);
       }
     }
   });

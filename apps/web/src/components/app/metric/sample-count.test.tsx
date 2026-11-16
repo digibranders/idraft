@@ -19,10 +19,10 @@ describe('SampleCount', () => {
     expect(container).toHaveTextContent(`612 of 1,296 ${shown}`);
   });
 
-  it('reads obs as observations to a screen reader', () => {
+  it('reads obs as data points to a screen reader', () => {
     renderWithProviders(<SampleCount k={612} n={1296} noun="observations" />);
     expect(screen.getByText('obs')).toHaveAttribute('aria-hidden', 'true');
-    expect(screen.getByText('observations')).toHaveClass('sr-only');
+    expect(screen.getByText('data points')).toHaveClass('sr-only');
   });
 
   it('shows n/a, never 0, for an unknown count', () => {

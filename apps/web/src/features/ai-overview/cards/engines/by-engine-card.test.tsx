@@ -54,7 +54,7 @@ describe('the AI by platform card', () => {
       within(table)
         .getAllByRole('columnheader')
         .map((header) => header.textContent),
-    ).toEqual(['Platform', 'Mention', 'Citation', 'Share of voice', 'Own citation']);
+    ).toEqual(['Platform', 'Mention', 'Citation', 'Share of voice', 'Your citations']);
     const rows = within(table).getAllByRole('row').slice(1);
     expect(rows.map((row) => within(row).getAllByRole('rowheader')[0]?.textContent)).toEqual(['ChatGPT', 'Gemini']);
   });
@@ -165,7 +165,7 @@ describe('the AI by platform card', () => {
     );
     render();
     const table = await tableOf();
-    expect(await screen.findByText('Partial data: the previous window could not be read')).toBeInTheDocument();
+    expect(await screen.findByText('Partial data: the previous period could not be read')).toBeInTheDocument();
     // No change is made up from a window that was not read
     expect(within(table).queryAllByText(/pts/)).toHaveLength(0);
   });

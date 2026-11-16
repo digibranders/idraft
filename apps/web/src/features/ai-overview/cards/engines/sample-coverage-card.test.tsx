@@ -109,7 +109,7 @@ describe('SampleCoverageCard', () => {
       'No valid answer: 1 of 3 prompts',
     ]);
     // Fynix has AI Mode off: no group for it
-    expect(screen.queryByRole('list', { name: 'Prompts by valid answers on AI Mode' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: 'Prompts by valid answers on Google AI Mode' })).not.toBeInTheDocument();
   });
 
   it('writes "2 of 3 prompts" at the end of the row, with no lone "of 3" line under the bar', async () => {

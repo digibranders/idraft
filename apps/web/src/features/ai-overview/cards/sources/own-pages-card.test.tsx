@@ -265,14 +265,14 @@ describe('the own pages card', () => {
       }),
     );
     renderCard('cmp=off&branded=only');
-    expect(await screen.findByText('Sources cannot be read for branded prompts alone')).toBeInTheDocument();
+    expect(await screen.findByText('Cited domains cannot be read for branded prompts alone')).toBeInTheDocument();
     expect(asked).not.toHaveBeenCalled();
   });
 
   it('says no answer cited your pages, with a link to the Prompts page, and no zero', async () => {
     serve(pagePage([], sourcesMeta({ units: 900, answers: 40, citing: 30, engines: ENGINES, byRole: { own: 0 } })));
     renderCard();
-    expect(await screen.findByText('No answer cited your pages in this window')).toBeInTheDocument();
+    expect(await screen.findByText('No answer cited your pages in this period')).toBeInTheDocument();
     const link = screen.getByRole('link', { name: 'Open prompts' });
     expect(new URL(link.getAttribute('href') ?? '', 'http://localhost').pathname).toBe(
       '/digibranders/fynix/ai/prompts',
@@ -285,14 +285,14 @@ describe('the own pages card', () => {
     seam.drill = () => null;
     serve(pagePage([], sourcesMeta({ units: 900, answers: 40, citing: 30, engines: ENGINES, byRole: { own: 0 } })));
     renderCard();
-    expect(await screen.findByText('No answer cited your pages in this window')).toBeInTheDocument();
+    expect(await screen.findByText('No answer cited your pages in this period')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Open prompts' })).not.toBeInTheDocument();
   });
 
   it('says no answer cited a source when no unit of any role was cited, and no valid answer when there is none', async () => {
     serve(pagePage([], sourcesMeta({ units: 0, answers: 40, citing: 0, engines: ENGINES, byRole: {} })));
     const { unmount } = renderCard();
-    expect(await screen.findByText('No answer cited a source in this window')).toBeInTheDocument();
+    expect(await screen.findByText('No answer cited a domain in this period')).toBeInTheDocument();
     unmount();
     serve(pagePage([], sourcesMeta({ units: 0, answers: 0, citing: 0, engines: ENGINES, byRole: {} })));
     renderCard();

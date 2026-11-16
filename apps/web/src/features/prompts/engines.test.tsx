@@ -132,12 +132,12 @@ describe('Project settings > Platforms', () => {
     expect(screen.getByRole('switch', { name: 'Google AI Mode' })).not.toBeChecked();
     expect(screen.getAllByText('About $0.25 a month for 24 active prompts, twice a week')).toHaveLength(3);
     expect(screen.getByText(/Turning a platform on starts scheduled spend/)).toBeInTheDocument();
-    const chatgptCountries = await screen.findByRole('toolbar', { name: 'Countries of ChatGPT' });
+    const chatgptCountries = await screen.findByRole('toolbar', { name: 'Locations of ChatGPT' });
     expect(await within(chatgptCountries).findByText('Germany')).toBeInTheDocument();
     expect(within(chatgptCountries).getByText('India')).toBeInTheDocument();
     // Each field of countries is named for its engine
     for (const engine of ['ChatGPT', 'Gemini', 'Google AI Mode']) {
-      expect(screen.getByText(`Countries of ${engine}`, { selector: 'label' })).toBeInTheDocument();
+      expect(screen.getByText(`Locations of ${engine}`, { selector: 'label' })).toBeInTheDocument();
     }
     expect(await axe(container)).toHaveNoViolations();
   });
@@ -243,7 +243,7 @@ describe('Project settings > Platforms', () => {
   it('saves the countries of an engine that is on as they change', async () => {
     const puts = recordPuts();
     const { user } = renderWithProviders(enginesAs('editor', fynix, 'DE'));
-    const chatgpt = await screen.findByRole('toolbar', { name: 'Countries of ChatGPT' });
+    const chatgpt = await screen.findByRole('toolbar', { name: 'Locations of ChatGPT' });
     await user.click(await within(chatgpt).findByRole('button', { name: 'Remove Germany' }));
     await waitFor(() => expect(puts).toEqual([{ location_ids: [2356], is_enabled: true }]));
   });
@@ -254,7 +254,7 @@ describe('Project settings > Platforms', () => {
     await user.click(await screen.findByRole('switch', { name: 'Gemini' }));
     await user.click(await screen.findByRole('button', { name: 'Turn on Gemini' }));
     await waitFor(() => expect(screen.getByRole('switch', { name: 'Gemini' })).toBeChecked());
-    const countries = await screen.findByRole('toolbar', { name: 'Countries of Gemini' });
+    const countries = await screen.findByRole('toolbar', { name: 'Locations of Gemini' });
     await user.click(within(countries).getByRole('button', { name: 'Remove United States' }));
     // Nothing is sent for an empty field, which says what is missing
     expect(await screen.findByText('Choose at least one country.')).toBeInTheDocument();
@@ -278,7 +278,7 @@ describe('Project settings > Platforms', () => {
       ),
     );
     const { user } = renderWithProviders(enginesAs('editor', fynix, 'DE'));
-    const chatgpt = await screen.findByRole('toolbar', { name: 'Countries of ChatGPT' });
+    const chatgpt = await screen.findByRole('toolbar', { name: 'Locations of ChatGPT' });
     await user.click(await within(chatgpt).findByRole('button', { name: 'Remove Germany' }));
     expect(await screen.findByText('One of the countries cannot be used. Choose another.')).toBeInTheDocument();
     await user.click(screen.getByRole('switch', { name: 'ChatGPT' }));
@@ -494,7 +494,7 @@ describe('Project settings > Platforms: class, Perplexity row and cost change su
   it('shows no summary for a change of countries, and none before any save', async () => {
     const puts = recordPuts();
     const { user } = renderWithProviders(enginesAs('editor', fynix, 'DE'));
-    const chatgpt = await screen.findByRole('toolbar', { name: 'Countries of ChatGPT' });
+    const chatgpt = await screen.findByRole('toolbar', { name: 'Locations of ChatGPT' });
     expect(costSummary()).toBeNull();
     await user.click(await within(chatgpt).findByRole('button', { name: 'Remove Germany' }));
     await waitFor(() => expect(puts).toEqual([{ location_ids: [2356], is_enabled: true }]));
@@ -691,7 +691,7 @@ describe('Project settings > Platforms: device of Google AI Mode', () => {
     stubAiMode(true, 'mobile', [2276, 2356]);
     const puts = recordPuts();
     const { user } = renderWithProviders(enginesAs('editor', fynix, 'DE'));
-    const countries = await screen.findByRole('toolbar', { name: 'Countries of Google AI Mode' });
+    const countries = await screen.findByRole('toolbar', { name: 'Locations of Google AI Mode' });
     await user.click(await within(countries).findByRole('button', { name: 'Remove Germany' }));
     await waitFor(() => expect(puts).toEqual([{ location_ids: [2356], is_enabled: true }]));
     await waitFor(() =>
@@ -779,7 +779,7 @@ describe('Project settings > Platforms: device of Google AI Mode', () => {
     stubAiMode(true, 'desktop', [2276, 2356], hold);
     const puts = recordPuts();
     const { user } = renderWithProviders(enginesAs('editor', fynix, 'DE'));
-    const countries = await screen.findByRole('toolbar', { name: 'Countries of Google AI Mode' });
+    const countries = await screen.findByRole('toolbar', { name: 'Locations of Google AI Mode' });
     const group = screen.getByRole('group', { name: DEVICE_LABEL });
     await user.click(await within(countries).findByRole('button', { name: 'Remove Germany' }));
     await waitFor(() => expect(puts).toHaveLength(1));

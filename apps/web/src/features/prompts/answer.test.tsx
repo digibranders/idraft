@@ -197,12 +197,12 @@ const serve = (answer: ObservationDetail): void =>
 describe('the answer viewer: what it shows', () => {
   it('shows the answer with the own brand and competitors marked, and the sources with their roles', async () => {
     const { container } = renderOn('viewer', opened(cited.id));
-    expect(await screen.findByLabelText(/^Fynix mention, own brand/)).toBeInTheDocument();
+    expect(await screen.findByLabelText(/^Fynix mention, your brand/)).toBeInTheDocument();
     expect(screen.getAllByLabelText(/mention, tracked brand/).length).toBeGreaterThan(0);
-    const sources = screen.getByRole('list', { name: 'Sources cited in this answer' });
-    expect(within(sources).getByText('Own')).toBeInTheDocument();
+    const sources = screen.getByRole('list', { name: 'Citations in this answer' });
+    expect(within(sources).getByText('Your site')).toBeInTheDocument();
     expect(within(sources).getByText('Third party')).toBeInTheDocument();
-    expect(screen.getByText('Ads in the answer are left out of the mentions and the sources.')).toBeInTheDocument();
+    expect(screen.getByText('Ads in the answer are left out of the mentions and the citations.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Download the raw answer' })).toBeNull();
     expect(await axe(container)).toHaveNoViolations();
   });
@@ -281,10 +281,10 @@ describe('the answer viewer: what it shows', () => {
     for (const mention of cited.answer.mentions) {
       const term = within(list).getByText(mention.name, { selector: 'dt' });
       const row = term.parentElement as HTMLElement;
-      expect(within(row).getByText(mention.role === 'own' ? 'Own' : 'Competitor')).toBeInTheDocument();
+      expect(within(row).getByText(mention.role === 'own' ? 'Your brand' : 'Competitor')).toBeInTheDocument();
       expect(
         within(row).getByText(
-          mention.mention_count === 1 ? 'Named once' : `Named ${String(mention.mention_count)} times`,
+          mention.mention_count === 1 ? 'Mentioned once' : `Mentioned ${String(mention.mention_count)} times`,
         ),
       ).toBeInTheDocument();
       if (mention.mention_order === null) expect(within(row).queryByText(/^Order /)).toBeNull();
@@ -307,8 +307,8 @@ describe('the answer viewer: what it shows', () => {
     renderOn('viewer', opened(product.id));
     const panel = await viewer();
     // Two mentions have the span, and one mark is drawn over it
-    const mark = await within(panel).findByLabelText(/^Fynix mention, own brand/);
-    expect(within(panel).getAllByLabelText(/^Fynix.* mention, own brand/)).toHaveLength(1);
+    const mark = await within(panel).findByLabelText(/^Fynix mention, your brand/);
+    expect(within(panel).getAllByLabelText(/^Fynix.* mention, your brand/)).toHaveLength(1);
     expect(mark.getAttribute('aria-label')).not.toMatch(/via/);
     expect(mark.textContent).toBe('Fynix Audit');
     expect((mark.closest('p') as HTMLElement).textContent).toBe(product.answer.answer_text);
@@ -333,7 +333,7 @@ describe('the answer viewer: what it shows', () => {
     );
     renderOn('viewer', opened('2000001'));
     const panel = await viewer();
-    expect(await within(panel).findByLabelText(/^Fynix mention, own brand/)).toBeInTheDocument();
+    expect(await within(panel).findByLabelText(/^Fynix mention, your brand/)).toBeInTheDocument();
     expect(within(panel).getByLabelText(/^Rankforge mention, tracked brand/)).toBeInTheDocument();
     expect(within(panel).getByLabelText(/^SEO Weekly mention, watched brand/)).toBeInTheDocument();
     expect(within(panel).getByLabelText(/^Zoomly mention, brand not tracked/)).toBeInTheDocument();
@@ -361,7 +361,7 @@ describe('the answer viewer: what it shows', () => {
       renderOn('viewer', opened('2000001'));
       const panel = await viewer();
       // The own brand needs no color; the text is whole and the competitor is plain text for now
-      const text = (await within(panel).findByLabelText(/^Fynix mention, own brand/)).closest('p') as HTMLElement;
+      const text = (await within(panel).findByLabelText(/^Fynix mention, your brand/)).closest('p') as HTMLElement;
       expect(text.textContent).toBe('Fynix and Rankforge lead.');
       expect(within(text).queryByLabelText(/^Rankforge mention/)).toBeNull();
       release();
@@ -380,7 +380,7 @@ describe('the answer viewer: what it shows', () => {
       );
       renderOn('viewer', opened('2000001'));
       const panel = await viewer();
-      const text = (await within(panel).findByLabelText(/^Fynix mention, own brand/)).closest('p') as HTMLElement;
+      const text = (await within(panel).findByLabelText(/^Fynix mention, your brand/)).closest('p') as HTMLElement;
       expect(await within(text).findByLabelText(/^Rankforge mention, tracked brand/)).toBeInTheDocument();
       expect(text.textContent).toBe('Fynix and Rankforge lead.');
       expect(within(panel).getByRole('heading', { name: 'Mentions' })).toBeInTheDocument();
@@ -432,7 +432,7 @@ describe('the answer viewer: what it shows', () => {
 
   it('links a source by its canonical address, not by the raw one the provider sent', async () => {
     renderOn('viewer', opened(cited.id));
-    const sources = await screen.findByRole('list', { name: 'Sources cited in this answer' });
+    const sources = await screen.findByRole('list', { name: 'Citations in this answer' });
     const own = cited.answer.citations.find((citation) => citation.domain_role === 'own');
     const link = within(sources).getByRole('link', { name: own?.title ?? '' });
     expect(link).toHaveAttribute('href', own?.url);
@@ -641,7 +641,7 @@ describe('the answer viewer: the raw answer', () => {
   it('shows no raw answer control to a viewer, who may not read it', async () => {
     renderOn('viewer', opened(cited.id));
     await viewer();
-    await screen.findByLabelText(/^Fynix mention, own brand/);
+    await screen.findByLabelText(/^Fynix mention, your brand/);
     expect(screen.queryByRole('button', { name: 'Download the raw answer' })).toBeNull();
   });
 });
@@ -700,7 +700,7 @@ describe('the answer viewer: answers with no text, or not read yet', () => {
     serve(detail({ facts: null, mentions: [] }));
     renderOn('viewer', opened('2000001'));
     expect(await screen.findByText('Mentions are not read yet')).toBeInTheDocument();
-    expect(screen.queryByText('No tracked brand is named')).toBeNull();
+    expect(screen.queryByText('No tracked brand is mentioned')).toBeNull();
     expect(screen.getByText('Being read')).toBeInTheDocument();
   });
 
@@ -725,8 +725,8 @@ describe('the answer viewer: answers with no text, or not read yet', () => {
       }),
     );
     renderOn('viewer', opened('2000001'));
-    expect(await screen.findByText('No tracked brand is named')).toBeInTheDocument();
-    expect(screen.getByText('No source cited')).toBeInTheDocument();
+    expect(await screen.findByText('No tracked brand is mentioned')).toBeInTheDocument();
+    expect(screen.getByText('No citation')).toBeInTheDocument();
     expect(screen.getByText('Neither')).toBeInTheDocument();
   });
 });
@@ -819,7 +819,7 @@ describe('the answer viewer: the evidence view, markers and entity toggles', () 
         }),
       ],
     });
-  const sources = (): HTMLElement => screen.getByRole('list', { name: 'Sources cited in this answer' });
+  const sources = (): HTMLElement => screen.getByRole('list', { name: 'Citations in this answer' });
 
   it('puts a marker named for its source after the cited address, and none for a source the text does not hold', async () => {
     serve(cited1());
@@ -868,7 +868,7 @@ describe('the answer viewer: the evidence view, markers and entity toggles', () 
   it('lists the entities the text marks, with how many marks each has, and nothing for an entity it does not mark', async () => {
     serve(cited1());
     renderOn('viewer', opened('2000001'));
-    const group = await screen.findByRole('group', { name: 'Entities' });
+    const group = await screen.findByRole('group', { name: 'Brands' });
     expect(within(group).getByRole('checkbox', { name: 'Fynix' })).toBeChecked();
     expect(within(group).getByRole('checkbox', { name: 'Rankforge' })).toHaveAccessibleDescription('1 mark');
     expect(within(group).getAllByRole('checkbox')).toHaveLength(2);
@@ -883,7 +883,7 @@ describe('the answer viewer: the evidence view, markers and entity toggles', () 
     expect(within(text).queryByLabelText(/^Rankforge mention/)).toBeNull();
     expect(text.textContent).toContain('Fynix and Rankforge lead.');
     // The own brand and the marker are untouched
-    expect(within(text).getByLabelText(/^Fynix mention, own brand/)).toBeInTheDocument();
+    expect(within(text).getByLabelText(/^Fynix mention, your brand/)).toBeInTheDocument();
     expect(within(text).getByRole('button', { name: 'Citation 1: a1.example' })).toBeInTheDocument();
     await user.click(within(panel).getByRole('checkbox', { name: 'Rankforge' }));
     expect(within(text).getByLabelText(/^Rankforge mention/)).toBeInTheDocument();
@@ -894,7 +894,7 @@ describe('the answer viewer: the evidence view, markers and entity toggles', () 
     renderOn('viewer', opened('2000001'));
     await viewer();
     await screen.findByText('Fynix and Rankforge lead.');
-    expect(screen.queryByRole('group', { name: 'Entities' })).toBeNull();
+    expect(screen.queryByRole('group', { name: 'Brands' })).toBeNull();
     expect(screen.queryByRole('button', { name: /^Citation 1/ })).toBeNull();
   });
 
@@ -1021,7 +1021,7 @@ describe('the answer viewer: the Formatted view', () => {
   it('renders the markdown as elements without marks, and keeps hostile markup as text', async () => {
     serve(detail({ answer_text: MARKDOWN, mentions: [mentionOf('Fynix', [[10, 15]], 'own')] }));
     const { user } = renderOn('viewer', opened('2000001'));
-    await screen.findByLabelText(/^Fynix mention, own brand/);
+    await screen.findByLabelText(/^Fynix mention, your brand/);
     await user.click(modeOf('Formatted'));
     expect(await screen.findByRole('heading', { level: 4, name: 'Compared' })).toBeInTheDocument();
     expect(screen.getAllByRole('listitem')).toHaveLength(2);
@@ -1030,7 +1030,7 @@ describe('the answer viewer: the Formatted view', () => {
     expect(screen.getByText(/^Fynix leads\. See/)).toHaveTextContent('and bad.');
     // No marks, no markers and no toggles in this view; a table stays text
     expect(within(await viewer()).queryByLabelText(/mention/)).toBeNull();
-    expect(screen.queryByRole('group', { name: 'Entities' })).toBeNull();
+    expect(screen.queryByRole('group', { name: 'Brands' })).toBeNull();
     expect((await viewer()).querySelector('table, script')).toBeNull();
     expect(document.querySelector('script')).toBeNull();
     expect(screen.getByText(/\| a \| b \|/)).toBeInTheDocument();
@@ -1040,11 +1040,11 @@ describe('the answer viewer: the Formatted view', () => {
   it('goes back to the marks when Evidence is chosen again, and says it is the view the viewer opens in', async () => {
     serve(detail({ answer_text: MARKDOWN, mentions: [mentionOf('Fynix', [[10, 15]], 'own')] }));
     const { user } = renderOn('viewer', opened('2000001'));
-    await screen.findByLabelText(/^Fynix mention, own brand/);
+    await screen.findByLabelText(/^Fynix mention, your brand/);
     expect(modeOf('Evidence')).toBeChecked();
     await user.click(modeOf('Formatted'));
     await user.click(modeOf('Evidence'));
-    expect(await screen.findByLabelText(/^Fynix mention, own brand/)).toBeInTheDocument();
+    expect(await screen.findByLabelText(/^Fynix mention, your brand/)).toBeInTheDocument();
   });
 
   it('shows no view control for an answer with no text', async () => {
@@ -1078,7 +1078,7 @@ describe('the answer viewer: the Raw view', () => {
   it('has no Raw mode for a viewer, who may not read it, and asks for nothing', async () => {
     renderOn('viewer', opened(cited.id));
     await viewer();
-    await screen.findByLabelText(/^Fynix mention, own brand/);
+    await screen.findByLabelText(/^Fynix mention, your brand/);
     expect(screen.getByRole('radio', { name: 'Formatted' })).toBeInTheDocument();
     expect(screen.queryByRole('radio', { name: 'Raw' })).toBeNull();
     expect(raws).toEqual([]);
@@ -1093,7 +1093,7 @@ describe('the answer viewer: the Raw view', () => {
       ),
     );
     const { user } = renderOn('analyst', opened(cited.id));
-    await screen.findByLabelText(/^Fynix mention, own brand/);
+    await screen.findByLabelText(/^Fynix mention, your brand/);
     expect(raws).toEqual([]);
     await openRaw(user);
     const raw = await screen.findByText(/"note":/);
@@ -1201,7 +1201,7 @@ describe('the answer viewer: going back to the marks, a new answer, and the prov
       mentions: [mentionOf('Fynix', [[0, 5]], 'own'), mentionOf('Rankforge', [[10, 19]], 'competitor')],
       citations: [citationOf(1, { first_char_offset: TEXT.indexOf(RAW_URL), raw_url: RAW_URL })],
     });
-  const sources = (): HTMLElement => screen.getByRole('list', { name: 'Sources cited in this answer' });
+  const sources = (): HTMLElement => screen.getByRole('list', { name: 'Citations in this answer' });
   const showInAnswer = (): HTMLElement => within(sources()).getByRole('button', { name: 'Show in answer, citation 1' });
 
   it('goes back to the marked text from Formatted on "Show in answer", and focuses the marker', async () => {
@@ -1326,7 +1326,7 @@ const COMPARISON = {
   },
 };
 const compareHeading = (): Promise<HTMLElement> =>
-  screen.findByRole('heading', { name: 'Change since the last answer that named the brand' });
+  screen.findByRole('heading', { name: 'Change since the last answer that mentioned the brand' });
 
 describe('the answer viewer: the provider link', () => {
   it('test_the_provider_link_is_http_or_https_only: a javascript address renders no link', async () => {
@@ -1468,13 +1468,13 @@ describe('the answer viewer: quoted passages', () => {
     expect(within(section).getAllByRole('listitem')).toHaveLength(1);
     expect(within(section).getByText('“The method counts every answer.”')).toBeInTheDocument();
     // The passage is shown once: the sources list does not repeat it
-    const sources = within(panel).getByRole('list', { name: 'Sources cited in this answer' });
+    const sources = within(panel).getByRole('list', { name: 'Citations in this answer' });
     expect(sources).not.toHaveTextContent('The method counts every answer.');
     expect(panel.querySelectorAll('blockquote')).toHaveLength(1);
     view.unmount();
     serve(detail({ citations: [citationOf(1)] }));
     renderOn('viewer', opened('2000001'));
-    await screen.findByRole('list', { name: 'Sources cited in this answer' });
+    await screen.findByRole('list', { name: 'Citations in this answer' });
     expect(screen.queryByRole('heading', { name: 'Quoted passages' })).toBeNull();
   });
 
@@ -1505,10 +1505,10 @@ describe('the answer viewer: sources, the ads note and the details, row by row',
       }),
     );
     renderOn('viewer', opened('2000001'));
-    const list = await screen.findByRole('list', { name: 'Sources cited in this answer' });
+    const list = await screen.findByRole('list', { name: 'Citations in this answer' });
     const items = within(list).getAllByRole('listitem');
     expect(items).toHaveLength(3);
-    const roles = ['Own', 'Competitor', 'Third party'];
+    const roles = ['Your site', 'Competitor', 'Third party'];
     items.forEach((item, at) => {
       expect(within(item).getByText(`a${String(at + 1)}.example`)).toBeInTheDocument();
       expect(within(item).getByText(roles[at] ?? '')).toBeInTheDocument();
@@ -1516,7 +1516,7 @@ describe('the answer viewer: sources, the ads note and the details, row by row',
   });
 
   it('says ads are left out in the Evidence and Formatted views, and not for an answer with no text (WB-ANS-05)', async () => {
-    const note = 'Ads in the answer are left out of the mentions and the sources.';
+    const note = 'Ads in the answer are left out of the mentions and the citations.';
     serve(detail({}));
     const view = renderOn('viewer', opened('2000001'));
     await screen.findByText(note);

@@ -54,7 +54,7 @@ describe('PromptsStrip change', () => {
     render(twice(DETECTABLE));
     const chip = chipOf('ChatGPT');
     expect(within(chip).getByText('+30.0 pts')).toHaveClass('text-positive-text');
-    expect(chip).toHaveTextContent('up 30.0 pts, detectable, interim test');
+    expect(chip).toHaveTextContent('up 30.0 pts, detectable, provisional');
   });
 
   it('keeps a change within normal variation neutral', () => {
@@ -63,7 +63,7 @@ describe('PromptsStrip change', () => {
     const delta = within(chip).getByText(/pts$/);
     expect(delta).toHaveClass('text-foreground-secondary');
     expect(delta).not.toHaveClass('text-positive-text');
-    expect(chip).toHaveTextContent('within normal variation, interim test');
+    expect(chip).toHaveTextContent('within normal variation, provisional');
   });
 
   it('makes no claim when the weighted points and the pooled answers move apart, says why, and stays neutral', async () => {
@@ -72,11 +72,11 @@ describe('PromptsStrip change', () => {
     const chip = chipOf('ChatGPT');
     expect(within(chip).getByText('+32.5 pts')).toHaveClass('text-foreground-secondary');
     expect(chip).toHaveTextContent('up 32.5 pts');
-    expect(chip.textContent).not.toMatch(/detectable|within normal variation|interim test/);
+    expect(chip.textContent).not.toMatch(/detectable|within normal variation|provisional/);
     await user.hover(chip);
     await waitFor(() => expect(tooltip()).toHaveTextContent('This change is not tested because'));
     expect(tooltip()?.textContent).not.toMatch(/weighted|pooled answers do not agree/);
-    expect(tooltip()?.textContent).not.toMatch(/Detectable change|Within normal variation|Interim test/);
+    expect(tooltip()?.textContent).not.toMatch(/Detectable change|Within normal variation|Provisional/);
   });
 
   it('shows no change for a chip under 4 answers in either period', () => {
@@ -96,7 +96,7 @@ describe('PromptsStrip change', () => {
     await waitFor(() => expect(tooltip()).toHaveTextContent('Previous 20%, 12 of 60 answers, over 2 prompts'));
     expect(tooltip()).toHaveTextContent('Previous period: Sep 18 to Oct 15');
     expect(tooltip()).toHaveTextContent('Detectable change');
-    expect(tooltip()).toHaveTextContent('Interim test');
+    expect(tooltip()).toHaveTextContent('Provisional');
     // The same style as the cell tips: a colon before the window, and no full stop at the end
     expect(tooltip()?.textContent).not.toMatch(/\.$/);
     // What the chip said before the change is still there

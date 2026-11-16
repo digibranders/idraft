@@ -160,11 +160,13 @@ describe('Add prompts: shell and fields', () => {
     );
     const { user } = renderWithProviders(asEditor());
     const dialog = await openDialog(user);
-    expect(await within(dialog).findByText('Countries could not be loaded.')).toBeInTheDocument();
+    expect(await within(dialog).findByText('Locations could not be loaded.')).toBeInTheDocument();
     failing = false;
     await user.click(within(dialog).getByRole('button', { name: 'Try again' }));
-    await waitFor(() => expect(within(dialog).queryByText('Countries could not be loaded.')).toBeNull());
-    await waitFor(() => expect(within(dialog).getByRole('combobox', { name: /Country/ })).toHaveTextContent('Germany'));
+    await waitFor(() => expect(within(dialog).queryByText('Locations could not be loaded.')).toBeNull());
+    await waitFor(() =>
+      expect(within(dialog).getByRole('combobox', { name: /Location/ })).toHaveTextContent('Germany'),
+    );
   });
 
   it('sends no prompt_type for "Set from wording" and the type when one is chosen', async () => {
@@ -244,7 +246,7 @@ describe('Add prompts: shell and fields', () => {
     // The warning is on the line, in the check list, which a warning does not open by itself
     await user.click(await within(dialog).findByRole('button', { name: /Check the list/ }));
     expect(
-      await within(dialog).findByText('Names Fynix but is marked not branded. Its answers will count in the rates.'),
+      await within(dialog).findByText('Mentions Fynix but is marked not branded. Its answers will count in the rates.'),
     ).toBeInTheDocument();
     expect(within(dialog).getByRole('heading', { level: 3, name: 'Warnings (1)' })).toBeInTheDocument();
   });

@@ -255,7 +255,7 @@ describe('the answer status card (CH-21)', () => {
       dailyResponse([quiet('2026-11-02'), quiet('2026-11-02', 'gemini_web')], { from: '2026-11-02', to: '2026-11-02' }),
     );
     render();
-    expect(await screen.findByRole('heading', { name: 'No collection in this window' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'No collection in this period' })).toBeInTheDocument();
     expect(screen.queryByTestId('echart-canvas')).not.toBeInTheDocument();
   });
 
@@ -267,7 +267,7 @@ describe('the answer status card (CH-21)', () => {
     });
     const { user } = await drawn();
     await user.click(screen.getByRole('button', { name: /^Gemini, / }));
-    expect(await screen.findByRole('heading', { name: 'Gemini was not asked in this window' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Gemini was not asked in this period' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /^ChatGPT, / }));
     await screen.findByTestId('echart-canvas');
   });

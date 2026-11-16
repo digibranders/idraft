@@ -272,14 +272,14 @@ describe('TopicCardFrame', () => {
     render({ props: () => ({ partialEngines: ['ChatGPT', 'Gemini'] }) });
     await heading();
     expect(
-      screen.getByText('Partial data: ChatGPT and Gemini have no valid answer in this window'),
+      screen.getByText('Partial data: ChatGPT and Gemini have no valid answer in this period'),
     ).toBeInTheDocument();
   });
 
   it('partial names one engine in the singular', async () => {
     render({ props: () => ({ partialEngines: ['Gemini'] }) });
     await heading();
-    expect(screen.getByText('Partial data: Gemini has no valid answer in this window')).toBeInTheDocument();
+    expect(screen.getByText('Partial data: Gemini has no valid answer in this period')).toBeInTheDocument();
   });
 
   it('stale wins over partial: one notice is shown and it is the older figures', async () => {

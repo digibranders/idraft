@@ -1,0 +1,93 @@
+key	current text
+settings.items.taxonomy	Taxonomy
+projectSettings.schedules.dialog.selectorModes.groups	Groups and terms
+projectSettings.schedules.dialog.selectorModeHints.groups	Only keywords in the groups or terms you choose. With both, a keyword needs both.
+projectSettings.schedules.dialog.removedTerm	Removed term
+projectSettings.schedules.dialog.terms	Terms
+projectSettings.schedules.dialog.termsPlaceholder	Choose terms
+projectSettings.schedules.dialog.termsEmpty	No term matches “{query}”
+projectSettings.schedules.dialog.termsChips	Chosen terms
+projectSettings.schedules.dialog.groupsOrTermsRequired	Choose at least one group or term.
+projectSettings.schedules.dialog.reading	Reading the groups and terms
+projectSettings.schedules.dialog.readFailed	The groups and terms could not be loaded, so they cannot be chosen yet.
+projectSettings.schedules.errors.daysNotApplicable	This schedule does not repeat on that kind of day.
+projectSettings.schedules.errors.termUnknown	A chosen term cannot be used in this project. Remove it and try again.
+dataRetention.tableCaption	Retention of raw data by kind
+dataRetention.empty	No kinds of raw data are listed.
+taxonomySettings.title	Taxonomy
+taxonomySettings.description	The vocabularies keywords and prompts are filed under: topics, products, markets and more. Workspace vocabularies are shared by every project.
+taxonomySettings.readOnly	Owners, admins and editors can change the taxonomy.
+taxonomySettings.sharedReadOnly	This vocabulary is shared by every project, and you can open only some of them. You can change the vocabularies of your projects.
+taxonomySettings.newVocabulary	New vocabulary
+taxonomySettings.noVocabularies	No vocabularies yet. Create one to start filing keywords and prompts.
+taxonomySettings.loadFailed	The vocabularies could not be loaded.
+taxonomySettings.termsLoadFailed	The terms could not be loaded.
+taxonomySettings.vocabulary	Vocabulary
+taxonomySettings.vocabularyMenu.delete	Delete vocabulary
+taxonomySettings.deleteVocabularyTitle	Delete the vocabulary {name}?
+taxonomySettings.deleteVocabularyConfirm	Delete vocabulary
+taxonomySettings.toolbar	Term actions
+taxonomySettings.addTerm	Add term
+taxonomySettings.addChild	Add under the selected term
+taxonomySettings.noTerms	No terms yet. Add one, or paste a list.
+taxonomySettings.treeLabel	Terms of {name}
+taxonomySettings.selectedAfterChange	The changed term is selected
+taxonomySettings.deleteTerm.title	Delete the term {name}?
+taxonomySettings.deleteTerm.description	Keywords and prompts filed under it lose this term.
+taxonomySettings.deleteTerm.descriptionWithChildren	{count, plural, one {The # term under it goes too.} other {The # terms under it go too.}} Keywords and prompts filed under them lose those terms.
+taxonomySettings.deleteTerm.confirm	Delete term
+taxonomySettings.deleteTerm.confirmWithChildren	Delete with its terms
+taxonomySettings.deleteTerm.hasChildren	{name} now has terms under it. Delete them too, or move them first.
+taxonomySettings.vocabularyDialog.createTitle	New vocabulary
+taxonomySettings.vocabularyDialog.createDescription	A list of terms to file keywords and prompts under.
+taxonomySettings.vocabularyDialog.kind	Kind
+taxonomySettings.vocabularyDialog.nameTaken	Another vocabulary has this name. Choose another.
+taxonomySettings.vocabularyDialog.reachWorkspaceLimited	Only members who can open every project create workspace vocabularies.
+taxonomySettings.vocabularyDialog.forbidden	Workspace vocabularies are shared by every project. Members limited to some projects change only their projects' vocabularies.
+taxonomySettings.vocabularyDialog.hierarchical	Terms nest
+taxonomySettings.vocabularyDialog.hierarchicalHint	A term can sit under another, such as CRM, then CRM for startups.
+taxonomySettings.vocabularyDialog.singleValued	One term each
+taxonomySettings.vocabularyDialog.singleValuedHint	A keyword or prompt holds at most one term of this vocabulary.
+taxonomySettings.vocabularyDialog.singleValuedViolation	Some keywords or prompts hold more than one term of this vocabulary. Remove the extra terms first.
+taxonomySettings.vocabularyDialog.create	Create vocabulary
+taxonomySettings.vocabularyDialog.failed	The vocabulary was not saved. Try again in a moment.
+taxonomySettings.vocabularyDialog.discardDescription	The vocabulary you started will not be saved.
+taxonomySettings.termDialog.addTitle	Add a term
+taxonomySettings.termDialog.addUnderTitle	Add a term under {parent}
+taxonomySettings.termDialog.nameTaken	A term with this name is already at this level.
+taxonomySettings.termDialog.add	Add term
+taxonomySettings.termDialog.gone	This term no longer exists.
+taxonomySettings.termDialog.moveDescription	The terms under it move with it.
+taxonomySettings.termDialog.cycle	{name} cannot move under one of its own terms.
+taxonomySettings.termDialog.moveDuplicate	A term named {name} is already there.
+taxonomySettings.termDialog.pasteTitle	Paste a list of terms
+taxonomySettings.termDialog.pasteLabel	Terms
+taxonomySettings.termDialog.pastePlaceholder	One term per line
+taxonomySettings.termDialog.pasteHint	One term per line. Lines that repeat are added once.
+taxonomySettings.termDialog.pasteHintPaths	One term per line. Write CRM/CRM for startups to place a term under another; missing parents are created.
+taxonomySettings.termDialog.pasteRequired	Enter at least one term.
+taxonomySettings.termDialog.pasteTooMany	Paste at most {max} terms at a time.
+taxonomySettings.termDialog.pasteTooLong	A term name has at most {max} characters. Shorten the longer ones and try again.
+taxonomySettings.termDialog.pasteDuplicate	Some of these terms already exist at their level. Remove them and try again.
+taxonomySettings.termDialog.pasteSubmit	Add terms
+taxonomySettings.termDialog.pastedNone	These terms are all there already, so none was added.
+taxonomySettings.termDialog.tooDeep	A term is at most {max} levels from the top. Choose a place higher up.
+taxonomySettings.termDialog.parentGone	The term to place it under no longer exists. Choose another place.
+taxonomySettings.termDialog.forbidden	Workspace vocabularies are shared by every project. Members limited to some projects change only their projects' vocabularies.
+runReasons.workloadUnavailable	This kind of data cannot be collected here
+rankings.bulk.tagsDialog.description	Adds the tags to each keyword, or takes them off. A vocabulary that takes one tag keeps the one added.
+rankings.import.tagsVocabulary	Vocabulary for tags
+rankings.import.topicVocabulary	Vocabulary for topics
+rankings.import.vocabularyPlaceholder	Choose a vocabulary
+rankings.import.vocabularyMissing	Choose the vocabulary these terms belong to.
+rankings.import.vocabularyNotAllowed	Choose a vocabulary of this project. Vocabularies shared by every project are for admins.
+rankings.import.vocabularyUnknown	This vocabulary is not available to this project. Choose another.
+rankings.import.vocabulariesLoading	Loading vocabularies
+rankings.import.vocabulariesFailed	The vocabularies could not be loaded.
+rankings.import.confirmForbidden	This import uses a vocabulary shared across the workspace. Choose a vocabulary of this project, or ask an admin.
+rankings.add.tagsHint	A vocabulary that takes one term keeps the last one chosen
+rankings.inspector.links.termsPlaceholder	Choose terms
+rankings.inspector.links.termsEmpty	No terms match “{query}”
+rankings.inspector.links.single	One term at most
+prompts.add.rejected.singleValuedVocabulary	the group belongs to a vocabulary that takes one term.
+prompts.add.topicPicker.single	Pick one term of {vocabulary}: it takes one.

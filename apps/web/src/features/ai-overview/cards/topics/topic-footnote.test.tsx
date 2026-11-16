@@ -27,11 +27,11 @@ describe('TopicFootnote', () => {
 
   it('says the pooled sentence only when a point is pooled', () => {
     const { rerender } = renderWithProviders(<TopicFootnote {...base} pooled={false} />);
-    expect(screen.queryByText(/together \(clipped to the window\)/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/together \(clipped to the period\)/)).not.toBeInTheDocument();
     rerender(<TopicFootnote {...base} pooled />);
     expect(
       screen.getByText(
-        'A group weekly point with fewer than 10 prompts answering that week shows the last 4 weeks together (clipped to the window); a prompt point always shows 4 weeks.',
+        'A group weekly point with fewer than 10 prompts answering that week shows the last 4 weeks together (clipped to the period); a prompt point always shows 4 weeks.',
       ),
     ).toBeInTheDocument();
   });

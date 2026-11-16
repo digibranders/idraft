@@ -316,7 +316,7 @@ describe('Add prompts: the plan', () => {
     const { user } = renderWithProviders(asEditor({ countryIso: null }));
     const dialog = await openDialog(user);
     await typeList(user, dialog, `${FIRST}\n${SECOND}`);
-    expect(await within(dialog).findByText('Choose a country to check what is tracked.')).toBeInTheDocument();
+    expect(await within(dialog).findByText('Choose a location to check what is tracked.')).toBeInTheDocument();
     expect(within(dialog).queryByText(/answers a month/)).toBeNull();
     expect(within(dialog).queryByText(/Workspace prompts/)).toBeNull();
     expect(within(dialog).queryByText(/\$/)).toBeNull();

@@ -38,7 +38,7 @@ test.describe('The prompt inspector, completed', () => {
     await expect(inspector.getByText(FIRST_TOPIC, { exact: true }).first()).toBeVisible();
 
     // Latest: each engine card names at most 3 cited domains, the rest behind "+N"
-    const sourceLists = inspector.getByRole('list', { name: 'Top sources of this answer' });
+    const sourceLists = inspector.getByRole('list', { name: 'Top cited domains of this answer' });
     await expect(sourceLists.first()).toBeVisible();
     for (const list of await sourceLists.all()) {
       const chips = await list.locator('[data-slot="domain-chip"]').count();

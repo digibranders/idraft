@@ -1074,9 +1074,9 @@ describe('Prompts: Mentioned and Cited per platform, filters and sort', () => {
       expect(within(table).queryByText(/^0 of 0$/)).toBeNull();
       // Prompt 4 has no answer on ChatGPT, nor have any on Gemini; prompt 5's two answers are all invalid
       expect(cellOf(table, 4, 'No answers')).toHaveAccessibleDescription(
-        'No answer in this window yet. Each prompt is asked twice a week.',
+        'No answer in this period yet. Each prompt is asked twice a week.',
       );
-      expect(cellOf(table, 5, 'n/a')).toHaveAccessibleDescription('2 answers in this window, none of them valid');
+      expect(cellOf(table, 5, 'n/a')).toHaveAccessibleDescription('2 answers in this period, none of them valid');
     });
 
     it('says how many of the answers were valid when some were not, and nothing when all were', async () => {
@@ -1103,7 +1103,7 @@ describe('Prompts: Mentioned and Cited per platform, filters and sort', () => {
       const loaded = await grid();
       await within(loaded).findByText('1 of 4');
       expect(cellOf(loaded, 2, 'No answers')).toHaveAccessibleDescription(
-        'No answer in this window yet. Each prompt is asked twice a week.',
+        'No answer in this period yet. Each prompt is asked twice a week.',
       );
     });
   });
@@ -1674,11 +1674,11 @@ describe('Prompts: the Groups tab', () => {
       expect(cellOf(rowOf(tree, 'Technical SEO'), '2 of 5')).toHaveAccessibleDescription('5 valid of 7 answers');
       // No valid answer is not a rate of 0, and no answer at all is said as such
       expect(cellOf(rowOf(tree, 'Paid search'), 'n/a')).toHaveAccessibleDescription(
-        '2 answers in this window, none of them valid',
+        '2 answers in this period, none of them valid',
       );
       expect(within(rowOf(tree, 'Paid search')).queryByText(/^0 of 0$/)).toBeNull();
       expect(cellOf(rowOf(tree, 'SEO'), 'No answers')).toHaveAccessibleDescription(
-        'No answer in this window yet. Each prompt is asked twice a week.',
+        'No answer in this period yet. Each prompt is asked twice a week.',
       );
     });
 
@@ -1953,7 +1953,7 @@ describe('Prompts: the metric strip', () => {
     expect(gemini).toHaveTextContent(/^2 answers$/);
     expect(prompts).toHaveAccessibleDescription('Across 2 groups');
     expect(chatgpt).toHaveAccessibleDescription(
-      'Mentioned: 8 of 12 answers. Cited: 6 of 12 answers. Over 3 prompts, each counted once. Share of voice: 8 answers that name a brand.',
+      'Mentioned: 8 of 12 answers. Cited: 6 of 12 answers. Over 3 prompts, each counted once. Share of voice: 8 answers that mention a brand.',
     );
     // The chips are in the page header's toolbar, with the Filter button, not a panel of their own
     expect(
@@ -2024,7 +2024,7 @@ describe('Prompts: the metric strip', () => {
     expect(within(gemini).getByText('2 answers')).toHaveClass('bg-insufficient');
     expect(gemini).not.toHaveTextContent('%');
     expect(gemini).toHaveAccessibleDescription(
-      'Mentioned: 1 of 2 answers, too few for a rate. Cited: 0 of 2 answers, too few for a rate. Over 1 prompt, each counted once. Share of voice: no brand named.',
+      'Mentioned: 1 of 2 answers, too few for a rate. Cited: 0 of 2 answers, too few for a rate. Over 1 prompt, each counted once. Share of voice: no brand mentioned.',
     );
   });
 
@@ -2267,7 +2267,7 @@ describe('Prompts: rate columns, Top platform, sorting and the metric switcher',
     expect(new URLSearchParams(writes.at(-1)).get('metric')).toBe('sov');
     // Three answers that name a brand are too few for a share, and the tip says so in those words
     expect(within(rowOf(table, 'Question number 2?')).getAllByRole('gridcell').at(-3)).toHaveAccessibleDescription(
-      'Too few answers that name a brand for a share: 3 of the 4 it needs.',
+      'Too few answers that mention a brand for a share: 3 of the 4 it needs.',
     );
     await user.click(screen.getByRole('button', { name: 'Columns' }));
     expect(await screen.findByRole('checkbox', { name: 'ChatGPT mentioned' })).not.toBeChecked();

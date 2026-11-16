@@ -1,0 +1,22 @@
+key	current text
+workloads.aiOverview	AI Overview
+rankings.groupInspector.cited	Cited in AI Overview
+rankings.features.types.aiOverview	AI Overview
+rankings.features.names.aiOverview	AI Overview
+rankings.aio.column	AI Overview
+rankings.aio.columnTooltip	Whether Google showed an AI Overview at the latest check, and whether it cites your site.
+rankings.aio.speech.cited	AI Overview present, cited at position {position}
+rankings.aio.speech.citedNoPosition	AI Overview present, cited
+rankings.aio.speech.notCited	AI Overview present, not cited
+rankings.aio.speech.absent	Not applicable, no AI Overview
+rankings.aio.states.absent	No AI Overview
+rankings.filters.aio	AI Overview
+rankings.rankHistory.eventMark.aioAppeared	An AI Overview appeared
+rankings.rankHistory.eventMark.aioDisappeared	The AI Overview disappeared
+rankings.rankHistory.eventKey.aio	AI Overview appeared or disappeared
+keywordDetail.strip.aio	AI Overview
+keywordDetail.events.kinds.aiCitation	AI Overview citation
+keywordDetail.events.types.aioAppeared	An AI Overview appeared
+keywordDetail.events.types.aioDisappeared	The AI Overview disappeared
+keywordDetail.events.types.aioCitationGained	Your site is now cited in the AI Overview
+keywordDetail.events.types.aioCitationLost	Your site is no longer cited in the AI Overview

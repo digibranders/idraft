@@ -106,7 +106,7 @@ describe('ComparisonLine: what can be said of the gap between the engines', () =
       [0, 8],
       [0, 8],
     ]);
-    expect(screen.getByText('No platform names the brand in this group.')).toBeVisible();
+    expect(screen.getByText('No platform mentions the brand in this group.')).toBeVisible();
   });
 
   it('says every engine is at the same rate', () => {

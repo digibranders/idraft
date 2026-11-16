@@ -448,7 +448,7 @@ describe('in the run inspector', () => {
     expect(await screen.findByText('Answers per platform did not load')).toBeInTheDocument();
     // The run's own sections stay
     expect(screen.getByRole('heading', { name: 'Summary' })).toBeInTheDocument();
-    expect(screen.getByText('Trigger')).toBeInTheDocument();
+    expect(screen.getByText('Started by')).toBeInTheDocument();
     // One error for the one read, not one per section (the detail read of this test fails too, in its own section)
     expect(screen.getAllByText('Answers per platform did not load')).toHaveLength(1);
     expect(screen.queryByRole('heading', { name: 'Missing answers' })).toBeNull();

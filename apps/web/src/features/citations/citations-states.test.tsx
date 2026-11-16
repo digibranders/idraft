@@ -53,21 +53,21 @@ describe('the states of the Domains and Pages tabs and of the screen', () => {
 
   it('answers without a citing one says how many were read', () => {
     renderWithProviders(<NoCiting answers={12} workspaceSlug="ws" projectSlug="proj" />);
-    expect(screen.getByRole('heading', { name: 'The answers cite no source' })).toBeInTheDocument();
-    expect(screen.getByText('12 answers were read in this window and none names a source.')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'The answers cite no domain' })).toBeInTheDocument();
+    expect(screen.getByText('12 answers were read in this period and none cites a domain.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Open Prompts' })).toHaveAttribute('href', '/ws/proj/ai/prompts');
   });
 
   it('says one answer in the singular', () => {
     renderWithProviders(<NoCiting answers={1} workspaceSlug="ws" projectSlug="proj" />);
-    expect(screen.getByText('1 answer was read in this window and none names a source.')).toBeInTheDocument();
+    expect(screen.getByText('1 answer was read in this period and none cites a domain.')).toBeInTheDocument();
   });
 
   it('filtered to nothing names the filters and offers Clear', async () => {
     const onClear = vi.fn();
     const { user } = renderWithProviders(filtered(onClear));
     expect(screen.getByRole('heading', { name: 'No domain or page matches these filters' })).toBeInTheDocument();
-    expect(screen.getByText('Role: Own')).toBeInTheDocument();
+    expect(screen.getByText('Role: Your site')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Clear filters' }));
     expect(onClear).toHaveBeenCalledOnce();
   });
@@ -107,7 +107,7 @@ describe('the states of the Domains and Pages tabs and of the screen', () => {
   it.each([
     ['no platform', <NoEngine key="e" workspaceSlug="ws" projectSlug="proj" />, /platforms you turn on/],
     ['no answers', <NoAnswers key="a" workspaceSlug="ws" projectSlug="proj" />, /asked twice a week/],
-    ['no citing answer', <NoCiting key="c" answers={3} workspaceSlug="ws" projectSlug="proj" />, /read in this window/],
+    ['no citing answer', <NoCiting key="c" answers={3} workspaceSlug="ws" projectSlug="proj" />, /read in this period/],
     ['filtered to nothing', filtered(), /clear a filter/],
   ])(
     'the empty state of the Domains and Pages tabs shows a title, a reason and an action: %s',

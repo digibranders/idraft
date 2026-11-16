@@ -573,7 +573,7 @@ describe('states', () => {
       prompts: [],
     });
     render({ summary: onlyGemini });
-    expect(await screen.findByText('Partial data: ChatGPT has no valid answer in this window')).toBeInTheDocument();
+    expect(await screen.findByText('Partial data: ChatGPT has no valid answer in this period')).toBeInTheDocument();
     expect(await rowNames()).toEqual(['CRM']);
   });
 

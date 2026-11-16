@@ -261,7 +261,7 @@ describe('The latest check', () => {
     openTab();
     const table = await grid();
     const cell = await within(table).findByRole('gridcell', { name: '4' });
-    expect(cell).toHaveAccessibleDescription('Position 7 counting the SERP features above it');
+    expect(cell).toHaveAccessibleDescription('Rank 7 counting the SERP features above it');
     expect(within(table).getByRole('gridcell', { name: '5' })).not.toHaveAccessibleDescription();
   });
 

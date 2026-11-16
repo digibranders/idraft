@@ -58,7 +58,7 @@ const ANY_COUNT = /\d[\d,]* (?:of [\d,]+ )?(?:answers?|prompts?|platforms?|domai
 const TABLE_WORDS: Record<(typeof FAMILY_TITLES)[number], RegExp> = {
   'What changed': ANY_COUNT,
   'Mention rate by platform': K_OF_N,
-  'Named and cited, by platform': K_OF_N,
+  'Mentioned and cited, by platform': K_OF_N,
   'Mention rate trend': K_OF_N,
   'Prompt movers': K_OF_N,
   'This period vs the last': K_OF_N,
@@ -75,7 +75,7 @@ test.describe('the platforms cards', () => {
     await signIn(page, EDITOR);
   });
 
-  test('Fynix: the built-in layout shows What changed, Rates by platform over time and Named and cited as real cards', async ({
+  test('Fynix: the built-in layout shows What changed, Rates by platform over time and Mentioned and cited as real cards', async ({
     page,
   }) => {
     await openOverview(page);
@@ -140,7 +140,7 @@ test.describe('the platforms cards', () => {
 
     await test.step('the comparison is on by default', async () => {
       for (const card of [trend, summary, byEngine, comparison]) await awaitCardReady(card);
-      await expect(trend).toContainText('The dashed line is the previous window, week for week.');
+      await expect(trend).toContainText('The dashed line is the previous period, week for week.');
       await expect(summary).not.toContainText(OFF_FACT);
       await expect(comparison.getByText('The comparison is off')).toHaveCount(0);
       // Without a change on show the check below would prove nothing
@@ -150,7 +150,7 @@ test.describe('the platforms cards', () => {
     await test.step('cmp=off takes the previous lines and every change away', async () => {
       await openOverview(page, 1280, '?cmp=off');
       for (const card of [trend, summary, byEngine, comparison]) await awaitCardReady(card);
-      await expect(trend).not.toContainText('The dashed line is the previous window');
+      await expect(trend).not.toContainText('The dashed line is the previous period');
       await expect(summary).toContainText(OFF_FACT);
       await expect(comparison.getByText('The comparison is off')).toBeVisible();
       expect(await countDeltas(byEngine)).toBe(0);

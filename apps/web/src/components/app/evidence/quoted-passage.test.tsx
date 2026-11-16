@@ -30,7 +30,7 @@ describe('QuotedPassage', () => {
     const { container } = renderWithProviders(
       <QuotedPassage items={[item(1), item(2, { quote: null }), item(3, { quote: 'Third passage' })]} lang="en" />,
     );
-    const list = screen.getByRole('list', { name: 'Passages the platform quoted from its sources' });
+    const list = screen.getByRole('list', { name: 'Passages the platform quoted from the cited pages' });
     const rows = within(list).getAllByRole('listitem');
     expect(rows).toHaveLength(2);
     expect(rows[0]).toHaveTextContent('site1.example');

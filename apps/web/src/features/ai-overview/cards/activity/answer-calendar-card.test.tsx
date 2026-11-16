@@ -337,7 +337,7 @@ describe('the answer collection calendar card (CH-20)', () => {
       dailyResponse([quiet('2026-11-02'), quiet('2026-11-02', 'gemini_web')], { from: '2026-11-02', to: '2026-11-02' }),
     );
     render();
-    expect(await screen.findByRole('heading', { name: 'No collection in this window' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'No collection in this period' })).toBeInTheDocument();
     expect(screen.queryByRole('table', { name: /^Collection calendar/ })).not.toBeInTheDocument();
   });
 
@@ -350,7 +350,7 @@ describe('the answer collection calendar card (CH-20)', () => {
     const { user } = render();
     await screen.findByRole('table', { name: /^Collection calendar for ChatGPT/ });
     await user.click(screen.getByRole('button', { name: /^Gemini, / }));
-    expect(await screen.findByRole('heading', { name: 'Gemini was not asked in this window' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Gemini was not asked in this period' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /^ChatGPT, / }));
     expect(await screen.findByRole('table', { name: /^Collection calendar for ChatGPT/ })).toBeInTheDocument();
   });
@@ -460,7 +460,7 @@ describe('the answer collection calendar card (CH-20)', () => {
 
   it('draws the collection of the seeded project from the mock API, and says nothing was collected for one with no run', async () => {
     const empty = render();
-    expect(await screen.findByRole('heading', { name: 'No collection in this window' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'No collection in this period' })).toBeInTheDocument();
     empty.unmount();
     setAiSeeded(true);
     render({ world: 'eventus-security' });

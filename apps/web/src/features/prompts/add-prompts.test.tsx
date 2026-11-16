@@ -168,7 +168,7 @@ describe('Add prompts', () => {
     await user.click(await within(dialog).findByRole('button', { name: /Check the list/ }));
     expect(
       await within(dialog).findByText(
-        'Names Fynix, so it counts as branded and stays out of the rates unless branded prompts are included.',
+        'Mentions Fynix, so it counts as branded and stays out of the rates unless branded prompts are included.',
       ),
     ).toBeInTheDocument();
     // AI Mode is off for Fynix: its length limit is not asked about
@@ -445,10 +445,10 @@ describe('Add prompts', () => {
     const { user } = renderWithProviders(asEditor());
     const dialog = await openDialog(user);
     // The country the project works in, among those every enabled engine asks in
-    expect(within(dialog).getByRole('combobox', { name: /Country/ })).toHaveTextContent('Germany');
+    expect(within(dialog).getByRole('combobox', { name: /Location/ })).toHaveTextContent('Germany');
     await user.click(within(dialog).getByRole('textbox', { name: 'Prompts' }));
     await user.paste('One more question?');
-    await user.click(within(dialog).getByRole('combobox', { name: /Country/ }));
+    await user.click(within(dialog).getByRole('combobox', { name: /Location/ }));
     await user.click(await screen.findByRole('option', { name: 'India' }));
     await user.click(within(dialog).getByRole('combobox', { name: /Group/ }));
     await user.click(await screen.findByRole('option', { name: 'Content Marketing' }));

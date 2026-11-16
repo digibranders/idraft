@@ -17,7 +17,7 @@ describe('ChangeInline', () => {
   it('colours a detectable change by its polarity and says it is detectable and interim', () => {
     renderWithProviders(<ChangeInline change={change(DETECTABLE)} />);
     expect(screen.getByText('+30.0 pts')).toHaveClass('text-positive-text');
-    expect(screen.getByText('up 30.0 pts, detectable, interim test')).toBeInTheDocument();
+    expect(screen.getByText('up 30.0 pts, detectable, provisional')).toBeInTheDocument();
   });
 
   it('colours a detectable fall by its polarity, the sign alone decides nothing', () => {
@@ -30,7 +30,7 @@ describe('ChangeInline', () => {
     const text = screen.getByText('+6.7 pts');
     expect(text).toHaveClass('text-foreground-secondary');
     expect(text).not.toHaveClass('text-positive-text');
-    expect(screen.getByText('up 6.7 pts, within normal variation, interim test')).toBeInTheDocument();
+    expect(screen.getByText('up 6.7 pts, within normal variation, provisional')).toBeInTheDocument();
   });
 
   it('keeps a change that cannot be tested neutral and says nothing about variation', () => {

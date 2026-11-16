@@ -57,7 +57,7 @@ describe('splitHost', () => {
 
 describe('DomainRoleBadge', () => {
   it.each([
-    ['own', 'Own'],
+    ['own', 'Your site'],
     ['competitor', 'Competitor'],
     ['third_party', 'Third party'],
   ] as const)('says %s in words, in the neutral look', (role, word) => {
@@ -77,10 +77,10 @@ describe('DomainCell text', () => {
     expect(container.querySelector('.sr-only')).toHaveTextContent('docs.hubspot.com');
   });
 
-  it('marks the own domain with the primary text color and the word Own', () => {
+  it('marks the own domain with the primary text color and the words Your site', () => {
     renderWithProviders(<DomainCell host="hubspot.com" registrable="hubspot.com" role="own" />);
     expect(screen.getByText('hubspot.com')).toHaveClass('text-primary-text');
-    expect(screen.getByText('Own')).toHaveClass('bg-neutral-subtle');
+    expect(screen.getByText('Your site')).toHaveClass('bg-neutral-subtle');
   });
 
   it('shows a competitor badge and no badge for a third party', () => {
@@ -91,7 +91,7 @@ describe('DomainCell text', () => {
     unmount();
     renderWithProviders(<DomainCell host="g2.com" registrable="g2.com" role="third_party" />);
     expect(screen.queryByText('Third party')).toBeNull();
-    expect(screen.queryByText('Own')).toBeNull();
+    expect(screen.queryByText('Your site')).toBeNull();
   });
 
   it('names the redirect flag in words', () => {

@@ -156,10 +156,10 @@ describe('stripItems', () => {
     expect(items.map((item) => item.label)).toEqual([
       'Citation units',
       'Distinct domains',
-      'Effective sources',
-      'Own citation share',
-      'New sources',
-      'Lost sources',
+      'Effective domains',
+      'Your citation share',
+      'New domains',
+      'Lost domains',
     ]);
     expect(items.map((item) => item.value)).toEqual(['18,420', '1,204', '86.3', '9.1%', '37', '12']);
     expect(items[0]?.context).toBe('4,812 answers, all platforms');
@@ -179,7 +179,7 @@ describe('stripItems', () => {
   });
 
   it('says in a tip what the distinct domains are, so its context wraps instead of clipping', () => {
-    expect(byId(readsOf(), scopeOf())['distinct']?.tip).toBe('1,204 registrable domains are cited in this window.');
+    expect(byId(readsOf(), scopeOf())['distinct']?.tip).toBe('1,204 registrable domains are cited in this period.');
   });
 
   it('own share ignores the role filter', () => {
@@ -277,7 +277,7 @@ describe('stripItems', () => {
     const own = byId(readsOf({ scope: ready(domainPage(none)) }))['own-share'];
     expect(own?.value).toBe('n/a');
     expect(own?.unknown).toEqual({ kind: 'not-applicable' });
-    expect(own?.tip).toBe('No citation unit in this window, so there is no share.');
+    expect(own?.tip).toBe('No citation unit in this period, so there is no share.');
     expect(byId(readsOf({ scope: ready(domainPage(none)) }))['units']?.value).toBe('0');
   });
 
@@ -299,7 +299,7 @@ describe('stripItems', () => {
     const effective = byId(readsOf({ diversity: ready(empty) }))['effective'];
     expect(effective?.value).toBe('n/a');
     expect(effective?.unknown).toEqual({ kind: 'not-applicable' });
-    expect(effective?.tip).toBe('No platform has a citation in this window, so there is nothing to average.');
+    expect(effective?.tip).toBe('No platform has a citation in this period, so there is nothing to average.');
   });
 
   it('new and lost use min support', () => {
@@ -307,7 +307,7 @@ describe('stripItems', () => {
       readsOf({ newSources: ready(changes('new', 37, 3)), lostSources: ready(changes('lost', 12, 3)) }),
     );
     expect(items['new']?.context).toBe('at least 3 units');
-    expect(items['lost']?.context).toBe('after 2 windows');
+    expect(items['lost']?.context).toBe('after 2 periods');
     expect([items['new']?.value, items['lost']?.value]).toEqual(['37', '12']);
   });
 

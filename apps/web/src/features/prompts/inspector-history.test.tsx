@@ -214,7 +214,7 @@ describe('the words of the chart follow the pool', () => {
     await screen.findByTestId('echart-canvas');
     expect(
       screen.getByText(
-        /over its week and the weeks before it, 4 weeks in all at most \(fewer where the date range opens\)/,
+        /over its week and the weeks before it, 4 weeks in all at most \(fewer where the period opens\)/,
       ),
     ).toBeInTheDocument();
     expect(document.getElementById(chartSummary())).toHaveTextContent(
@@ -238,7 +238,7 @@ describe('the words of the chart follow the pool', () => {
   it('claims no pooling when no point is pooled', async () => {
     renderHistory({ counts: withSeries });
     await screen.findByTestId('echart-canvas');
-    expect(screen.getByText(/name your brand in its own week\. The shaded band/)).toBeInTheDocument();
+    expect(screen.getByText(/mention your brand in its own week\. The shaded band/)).toBeInTheDocument();
     expect(screen.queryByText(/weeks before it/)).toBeNull();
     expect(document.getElementById(chartSummary())).toHaveTextContent(
       'each point over its own week, from Oct 19 to Oct 26.',
@@ -338,7 +338,7 @@ describe('the latest answers of the History tab', () => {
     });
     // The two oldest answers are past the cap
     for (const left of newestFirst.slice(10)) expect(screen.queryByText(when(left))).toBeNull();
-    expect(screen.getByText('The latest 10 answers of this window.')).toBeInTheDocument();
+    expect(screen.getByText('The latest 10 answers of this period.')).toBeInTheDocument();
   });
 
   it('says an answer that is not counted or still being read in words, never as a rate', () => {

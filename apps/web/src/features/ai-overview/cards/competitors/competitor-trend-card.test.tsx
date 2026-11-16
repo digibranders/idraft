@@ -222,7 +222,7 @@ describe('the competitor trend card (CH-06)', () => {
       'Week',
       'Brand',
       'Mention rate',
-      'Answers naming the brand',
+      'Answers mentioning the brand',
       'Valid answers',
       'Status',
     ]);
@@ -269,7 +269,9 @@ describe('the competitor trend card states', () => {
 
   it('tells assistive technology no figure for an engine that is not asked, and the figures for one that is', async () => {
     const { unmount } = renderCard(TYPE, CompetitorTrendCard, { engine: 'google_ai_mode', competitors: '3' });
-    const off = chartSummaryText(await screen.findByRole('heading', { level: 2, name: 'Mention rate on AI Mode' }));
+    const off = chartSummaryText(
+      await screen.findByRole('heading', { level: 2, name: 'Mention rate on Google AI Mode' }),
+    );
     expect(off).toBe('');
     expect(off).not.toMatch(/\d|too few/i);
     unmount();
@@ -280,7 +282,7 @@ describe('the competitor trend card states', () => {
 
   it('says the engine is not asked when the project has it off, with the way to turn it on', async () => {
     renderCard(TYPE, CompetitorTrendCard, { engine: 'google_ai_mode', competitors: '3' });
-    expect(await screen.findByText('AI Mode is not asked in this scope')).toBeInTheDocument();
+    expect(await screen.findByText('Google AI Mode is not asked in this scope')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Turn on platforms' })).toBeInTheDocument();
   });
 

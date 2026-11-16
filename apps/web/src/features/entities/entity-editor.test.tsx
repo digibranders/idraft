@@ -164,7 +164,7 @@ describe('Entity editor', () => {
     await user.click(await screen.findByRole('button', { name: 'Add alias' }));
     const dialog = await screen.findByRole('dialog', { name: 'Add an alias to Rankforge' });
     await user.type(within(dialog).getByRole('textbox', { name: 'Alias' }), ' RANKFORGE ');
-    expect(within(dialog).getByText(/^This is the entity's own name/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/^This is the brand's own name/)).toBeInTheDocument();
   });
 
   it('refuses a parent that would make a loop, on the parent field', async () => {
@@ -174,7 +174,7 @@ describe('Entity editor', () => {
     await user.click(await screen.findByRole('option', { name: 'Fynix Audit' }));
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
     expect(
-      await screen.findByText('This entity already sits under the one chosen. Choose another.'),
+      await screen.findByText('This brand already sits under the one chosen. Choose another.'),
     ).toBeInTheDocument();
   });
 
@@ -206,7 +206,7 @@ describe('Entity editor', () => {
 
   it('is read-only without entities:write', async () => {
     renderWithProviders(editorAs('analyst', 'Rankforge'));
-    expect(await screen.findByText('Owners, admins and editors can change entities.')).toBeInTheDocument();
+    expect(await screen.findByText('Owners, admins and editors can change brands.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Add alias' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Add domain' })).toBeNull();
     expect(screen.queryByRole('textbox', { name: 'Name' })).toBeNull();

@@ -304,7 +304,7 @@ describe('useByEngineColumns: the columns of the chooser', () => {
     renderWithProviders(<Harness rows={[MIXED]} entities={entities} />);
     expect(cellIn('Technical SEO', 'leader_chatgpt_web')).toHaveTextContent('Brightly 40%');
     const tip = tipOf(columnsOf({ rows: [], entities }), 'leader_chatgpt_web', MIXED);
-    expect(tip).toContain('Brightly: 40% share of voice on ChatGPT, 20 answers naming a brand.');
+    expect(tip).toContain('Brightly: 40% share of voice on ChatGPT, 20 answers mentioning a brand.');
     // The engine rate cell of the same engine gains the sentence beside its own
     expect(tipOf(columnsOf({ rows: [], entities }), 'chatgpt_web_rate', MIXED)).toContain(
       'Brightly: 40% share of voice',
@@ -332,13 +332,13 @@ describe('useByEngineColumns: the columns of the chooser', () => {
     });
     const named = rowsOf(quiet(12));
     renderWithProviders(<Harness rows={[MIXED]} entities={named} />);
-    expect(cellIn('Technical SEO', 'leader_chatgpt_web')).toHaveTextContent('None named');
+    expect(cellIn('Technical SEO', 'leader_chatgpt_web')).toHaveTextContent('None mentioned');
     expect(tipOf(columnsOf({ rows: [], entities: named }), 'leader_chatgpt_web', MIXED)).toContain(
-      'No tracked competitor is named in the answers of this group on ChatGPT.',
+      'No tracked competitor is mentioned in the answers of this group on ChatGPT.',
     );
     const few = rowsOf(quiet(2));
     expect(tipOf(columnsOf({ rows: [], entities: few }), 'leader_chatgpt_web', MIXED)).toContain(
-      'Too few answers that name a tracked brand on ChatGPT: 2 of the 4 it needs.',
+      'Too few answers that mention a tracked brand on ChatGPT: 2 of the 4 it needs.',
     );
     expect(tipOf(columnsOf({ rows: [], entities: NO_ENTITIES }), 'leader_chatgpt_web', MIXED)).toBe(
       'Competitors are loading.',

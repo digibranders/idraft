@@ -10,20 +10,20 @@ const noop = (): void => undefined;
 describe('ChangeEmpty', () => {
   it('New names the minimum and the days before it', () => {
     renderWithProviders(<ChangeEmpty kind="new" minSupport={5} days={28} noPrevious={false} onResetMinimum={noop} />);
-    expect(screen.getByRole('heading', { name: 'No new source' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'No new domain' })).toBeInTheDocument();
     expect(
       screen.getByText(
-        'No source reached 5 units in this window without being cited in the 28 days before it. Lower the minimum or choose another window.',
+        'No domain reached 5 units in this period without being cited in the 28 days before it. Lower the minimum or choose another period.',
       ),
     ).toBeInTheDocument();
   });
 
   it('Lost names the days of answers it needs behind the window', () => {
     renderWithProviders(<ChangeEmpty kind="lost" minSupport={2} days={276} noPrevious={false} onResetMinimum={noop} />);
-    expect(screen.getByRole('heading', { name: 'No lost source' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'No lost domain' })).toBeInTheDocument();
     expect(
       screen.getByText(
-        'A source is lost after it was cited in one window and not at all in the 2 windows after it, so a lost source needs 276 days of answers behind this window.',
+        'A domain is lost after it was cited in one period and not at all in the 2 periods after it, so a lost domain needs 276 days of answers behind this period.',
       ),
     ).toBeInTheDocument();
   });
@@ -53,7 +53,7 @@ describe('ChangeEmpty', () => {
       <ChangeEmpty kind="new" minSupport={2} days={28} noPrevious={false} onResetMinimum={() => undefined} />,
     );
     expect(screen.queryByRole('button')).toBeNull();
-    expect(screen.getByText(/Lower the minimum or choose another window\./)).toBeInTheDocument();
+    expect(screen.getByText(/Lower the minimum or choose another period\./)).toBeInTheDocument();
   });
 
   it('offers no action when the previous period has no answers, whatever the minimum', () => {
@@ -82,7 +82,7 @@ describe('ChangeFailed', () => {
         retrying={false}
       />,
     );
-    expect(screen.getByText('The lost sources could not be loaded.')).toBeInTheDocument();
+    expect(screen.getByText('The lost domains could not be loaded.')).toBeInTheDocument();
     expect(screen.getByText('The server did not answer. Try again in a moment.')).toBeInTheDocument();
     expect(screen.getByText('Error ID err-7')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Try again' }));
@@ -91,7 +91,7 @@ describe('ChangeFailed', () => {
 
   it('says the new sources for New', () => {
     renderWithProviders(<ChangeFailed kind="new" errorId={null} onRetry={() => undefined} retrying={false} />);
-    expect(screen.getByText('The new sources could not be loaded.')).toBeInTheDocument();
+    expect(screen.getByText('The new domains could not be loaded.')).toBeInTheDocument();
   });
 });
 
@@ -99,13 +99,13 @@ describe('CountFailed', () => {
   it('says which count could not be loaded and offers Try again', async () => {
     const onRetry = vi.fn();
     const { user } = renderWithProviders(<CountFailed kind="lost" onRetry={onRetry} retrying={false} />);
-    expect(screen.getByText('The count of lost sources could not be loaded.')).toBeInTheDocument();
+    expect(screen.getByText('The count of lost domains could not be loaded.')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Try again' }));
     expect(onRetry).toHaveBeenCalledOnce();
   });
 
   it('says new for New', () => {
     renderWithProviders(<CountFailed kind="new" onRetry={() => undefined} retrying={false} />);
-    expect(screen.getByText('The count of new sources could not be loaded.')).toBeInTheDocument();
+    expect(screen.getByText('The count of new domains could not be loaded.')).toBeInTheDocument();
   });
 });

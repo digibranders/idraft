@@ -118,8 +118,8 @@ describe('the Trend cell of a row', () => {
     renderWithProviders(
       <Trend row={{ cells: [summaryOf('chatgpt_web', [week('2026-10-12', null), week('2026-10-19', null)])] }} />,
     );
-    expect(screen.getByRole('img', { name: 'Mention rate by week: no answers in this window' })).toBeInTheDocument();
-    expect(screen.getByTestId('tip')).toHaveTextContent('No week of this window has a mention rate. |');
+    expect(screen.getByRole('img', { name: 'Mention rate by week: no answers in this period' })).toBeInTheDocument();
+    expect(screen.getByTestId('tip')).toHaveTextContent('No week of this period has a mention rate. |');
   });
 
   it('names a single week with a rate once', () => {
@@ -144,7 +144,7 @@ describe('the Trend cell of a row', () => {
   it('is headed Trend, explained in its header tooltip, and does not sort', () => {
     renderWithProviders(<Trend row={{ cells: undefined }} />);
     expect(screen.getByTestId('header')).toHaveTextContent('Trend');
-    expect(screen.getByTestId('header-tip')).toHaveTextContent(/for each week of the window/);
+    expect(screen.getByTestId('header-tip')).toHaveTextContent(/for each week of the period/);
     expect(screen.getByTestId('sortable')).toHaveTextContent('false');
   });
 });

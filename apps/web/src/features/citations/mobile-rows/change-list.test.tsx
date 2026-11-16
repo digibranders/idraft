@@ -115,8 +115,8 @@ afterEach(() => {
   restoreWideScreen();
 });
 
-const newList = (): Promise<HTMLElement> => screen.findByRole('list', { name: /^New sources, \d+ results?$/ });
-const lostList = (): Promise<HTMLElement> => screen.findByRole('list', { name: /^Lost sources, \d+ results?$/ });
+const newList = (): Promise<HTMLElement> => screen.findByRole('list', { name: /^New domains, \d+ results?$/ });
+const lostList = (): Promise<HTMLElement> => screen.findByRole('list', { name: /^Lost domains, \d+ results?$/ });
 const rowsOf = async (found: Promise<HTMLElement> = newList()): Promise<HTMLElement[]> =>
   within(await found).getAllByRole('button');
 
@@ -132,7 +132,7 @@ describe('the New and lost tab on a phone', () => {
     await user.click(screen.getByRole('radio', { name: /^Lost/ }));
     const [lost] = await rowsOf(lostList());
     expect(lost?.closest('li')).toHaveClass('h-14');
-    expect(screen.queryByRole('list', { name: /^New sources/ })).toBeNull();
+    expect(screen.queryByRole('list', { name: /^New domains/ })).toBeNull();
   });
 
   it('a new row says the domain, its units and the date it was first cited', async () => {
@@ -151,7 +151,7 @@ describe('the New and lost tab on a phone', () => {
     const [row] = await rowsOf(lostList());
     expect(row).toHaveTextContent(FADED);
     expect(row).toHaveTextContent('Units before it went quiet');
-    expect(row).toHaveTextContent('Third party, quiet for 2 windows');
+    expect(row).toHaveTextContent('Third party, quiet for 2 periods');
     expect(row?.textContent).not.toMatch(/first cited/);
   });
 
@@ -216,8 +216,8 @@ describe('the New and lost tab on a phone', () => {
       const { user } = renderTab();
       await newList();
       await user.click(screen.getByRole('radio', { name: 'Table' }));
-      expect(await screen.findByRole('grid', { name: 'New sources' })).toBeInTheDocument();
-      expect(screen.queryByRole('list', { name: /^New sources/ })).toBeNull();
+      expect(await screen.findByRole('grid', { name: 'New domains' })).toBeInTheDocument();
+      expect(screen.queryByRole('list', { name: /^New domains/ })).toBeNull();
       await user.click(screen.getByRole('radio', { name: 'List' }));
       expect(await newList()).toBeInTheDocument();
     });
@@ -264,7 +264,7 @@ describe('the New and lost tab on a phone', () => {
         }),
       );
       renderTab();
-      expect(await screen.findByRole('status', { name: 'Loading sources' })).toBeInTheDocument();
+      expect(await screen.findByRole('status', { name: 'Loading domains' })).toBeInTheDocument();
       expect(screen.queryByRole('progressbar')).toBeNull();
       act(() => held.open());
       await newList();
@@ -272,12 +272,12 @@ describe('the New and lost tab on a phone', () => {
 
     it('empty New names the minimum', async () => {
       renderTab('min=1000');
-      expect(await screen.findByRole('heading', { name: 'No new source' })).toBeInTheDocument();
+      expect(await screen.findByRole('heading', { name: 'No new domain' })).toBeInTheDocument();
     });
 
     it('empty Lost names the days it needs behind the window', async () => {
       renderTab('kind=lost&min=1000');
-      expect(await screen.findByRole('heading', { name: 'No lost source' })).toBeInTheDocument();
+      expect(await screen.findByRole('heading', { name: 'No lost domain' })).toBeInTheDocument();
     });
 
     it('a failed read shows the inline error with Try again and keeps the toolbar', async () => {
@@ -289,7 +289,7 @@ describe('the New and lost tab on a phone', () => {
         }),
       );
       const { user } = renderTab();
-      expect(await screen.findByText('The new sources could not be loaded.')).toBeInTheDocument();
+      expect(await screen.findByText('The new domains could not be loaded.')).toBeInTheDocument();
       expect(screen.getByRole('searchbox', { name: 'Search in table' })).toBeInTheDocument();
       failing = false;
       await user.click(screen.getByRole('button', { name: 'Try again' }));
@@ -301,9 +301,9 @@ describe('the New and lost tab on a phone', () => {
     restoreWideScreen();
     stubTablet();
     renderTab();
-    const table = await screen.findByRole('grid', { name: 'New sources' });
+    const table = await screen.findByRole('grid', { name: 'New domains' });
     await waitFor(() => expect(within(table).queryAllByRole('rowheader').length).toBeGreaterThan(0));
-    expect(screen.queryByRole('list', { name: /^New sources/ })).toBeNull();
+    expect(screen.queryByRole('list', { name: /^New domains/ })).toBeNull();
   });
 
   it.each(['new', 'lost'])('is axe clean for %s, in the light and the dark theme', async (kind) => {

@@ -138,7 +138,7 @@ describe('the period comparison card', () => {
     const list = await rowsList();
     const [chatgpt] = within(list).getAllByRole('listitem');
     expect(chatgpt).toHaveTextContent('no interval yet');
-    expect(chatgpt).toHaveTextContent('answers that name a brand');
+    expect(chatgpt).toHaveTextContent('answers that mention a brand');
     const frame = await frameOf();
     expect(frame.querySelectorAll('[data-slot="interval-whisker"]')).toHaveLength(0);
     expect(frame.querySelectorAll('[data-slot="interval-dot-current"]')).toHaveLength(0);

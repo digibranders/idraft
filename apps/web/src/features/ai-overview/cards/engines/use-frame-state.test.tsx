@@ -70,7 +70,7 @@ describe('useFrameState', () => {
     });
     expect(stateOf({ partialPrevious: true })).toEqual({
       status: 'ready',
-      notice: { kind: 'partial', text: 'Partial data: the previous window could not be read' },
+      notice: { kind: 'partial', text: 'Partial data: the previous period could not be read' },
     });
     expect(stateOf({ phase: 'refetching', stale: true }).notice?.kind).toBe('stale');
   });

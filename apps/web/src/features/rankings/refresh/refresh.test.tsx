@@ -593,11 +593,11 @@ describe('What the dialog refreshes', () => {
     await loadedGrid();
     await user.click(screen.getByRole('checkbox', { name: 'Select seo agency, United States' }));
     const dialog = await openRefresh(user);
-    const hint = 'A keyword is read at every location and language it is tracked in.';
+    const hint = 'A keyword is checked at every location and language it is tracked in.';
     expect(within(dialog).getByText(hint)).toBeInTheDocument();
     expect(
       within(dialog).getByText(
-        'The search box is left out. Each keyword is read at every location and language it is tracked in, whatever a filter says about them.',
+        'The search box is left out. Each keyword is checked at every location and language it is tracked in, whatever a filter says about them.',
       ),
     ).toBeInTheDocument();
   });

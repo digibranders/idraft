@@ -182,7 +182,7 @@ describe('TopicMoversCard', () => {
   it('says how many prompts are in both windows', async () => {
     renderCard();
     const items = await itemsOf();
-    expect(items[0]).toHaveTextContent('1 of 2 prompts in both windows');
+    expect(items[0]).toHaveTextContent('1 of 2 prompts in both periods');
     expect(items[1]).toHaveTextContent('same 3 prompts');
   });
 
@@ -369,7 +369,7 @@ describe('TopicMoversCard', () => {
         summaryOf({ topics: [row('t1', 'SEO tools', { chatgpt_web: [40, 100], gemini_web: [0, 0] })] }),
       ),
     });
-    expect(await screen.findByText('Partial data: Gemini has no valid answer in this window')).toBeInTheDocument();
+    expect(await screen.findByText('Partial data: Gemini has no valid answer in this period')).toBeInTheDocument();
   });
 
   it('the Table form has the change and its interval per row', async () => {

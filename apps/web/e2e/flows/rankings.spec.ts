@@ -76,8 +76,8 @@ test.describe('rankings', () => {
     await expect(page.getByRole('treegrid', { name: 'Tracked keywords' }).getByRole('rowheader').first()).toBeVisible();
     // The table opens on the project's own country, here Germany
     // The country control is in the top bar, beside the theme switch and Help, not in the table's toolbar
-    await expect(page.getByRole('banner').getByRole('combobox', { name: 'Country: Germany' })).toBeVisible();
-    await expect(page.getByRole('main').getByRole('combobox', { name: /^Country:/ })).toHaveCount(0);
+    await expect(page.getByRole('banner').getByRole('combobox', { name: 'Location: Germany' })).toBeVisible();
+    await expect(page.getByRole('main').getByRole('combobox', { name: /^Location:/ })).toHaveCount(0);
     await expectAccessible(page);
     // The counts below are of every country
     const grid = page.getByRole('grid', { name: 'Tracked keywords' });
@@ -372,13 +372,17 @@ test.describe('rankings', () => {
     page,
   }) => {
     await signIn(page, EDITOR);
-    const RANK = ['Rank', 'Volume', 'KD', 'CPC (USD)', 'AI Overview'];
+    const RANK = ['Rank', 'Volume', 'KD', 'CPC (USD)', 'Google AI Overview'];
     for (const [width, columns, room] of [
       [1280, RANK, 200],
       // Capital headers need wider columns (12-tables.md section 5), so the Keyword column is at its 200 px minimum here
-      [1440, [...RANK.slice(0, 4), 'Intent', 'SERP features', 'AI Overview', 'Group'], 200],
+      [1440, [...RANK.slice(0, 4), 'Intent', 'SERP features', 'Google AI Overview', 'Group'], 200],
       // Every column of the set shows: the Keyword column is at its 200 px minimum, and the others give up width
-      [1680, [...RANK.slice(0, 4), 'Intent', 'SERP features', 'AI Overview', 'Group', 'Tags', 'Updated', 'Added'], 200],
+      [
+        1680,
+        [...RANK.slice(0, 4), 'Intent', 'SERP features', 'Google AI Overview', 'Group', 'Tags', 'Updated', 'Added'],
+        200,
+      ],
     ] as const) {
       await page.setViewportSize({ width, height: 900 });
       await page.goto(KEYWORDS);
@@ -759,21 +763,21 @@ test.describe('rankings', () => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await signIn(page, EDITOR);
     await page.goto(KEYWORDS);
-    const control = page.getByRole('combobox', { name: /^Country: / });
+    const control = page.getByRole('combobox', { name: /^Location: / });
     await control.click();
-    await expect(page.getByRole('option')).toHaveText(['All countries', 'Germany', 'United States']);
+    await expect(page.getByRole('option')).toHaveText(['All locations', 'Germany', 'United States']);
     await page.keyboard.press('Escape');
 
     await page.getByRole('button', { name: 'Add keywords', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: 'Add keywords' });
     await dialog.getByRole('textbox', { name: 'Keywords' }).fill('seo dashboard\nrank tracker api');
     // The project's own country, Germany, is chosen; France joins it
-    await expect(dialog.getByRole('toolbar', { name: 'Chosen Countries' }).getByText('Germany')).toBeVisible();
-    await dialog.getByRole('combobox', { name: /^Countries/ }).fill('Fra');
+    await expect(dialog.getByRole('toolbar', { name: 'Chosen Locations' }).getByText('Germany')).toBeVisible();
+    await dialog.getByRole('combobox', { name: /^Locations/ }).fill('Fra');
     await page.getByRole('option', { name: 'France' }).click();
     // Leaving the field closes its list, which keeps the rest of the dialog out of reach while it is open
     await page.keyboard.press('Tab');
-    await expect(dialog.getByRole('toolbar', { name: 'Chosen Countries' }).getByText('France')).toBeVisible();
+    await expect(dialog.getByRole('toolbar', { name: 'Chosen Locations' }).getByText('France')).toBeVisible();
     await expect(dialog.getByText(/^2 keywords × 1 device × 2 countries = 4 checks a day$/)).toBeVisible();
     await expectAccessible(page);
     await dialog.getByRole('button', { name: 'Add 2 keywords' }).click();
@@ -782,7 +786,7 @@ test.describe('rankings', () => {
 
     // The control reads the countries in use again: France is there now
     await control.click();
-    await expect(page.getByRole('option')).toHaveText(['All countries', 'Germany', 'United States', 'France']);
+    await expect(page.getByRole('option')).toHaveText(['All locations', 'Germany', 'United States', 'France']);
   });
 
   test('metrics are refreshed from More actions, and the run is followed in the header', async ({ page }) => {
@@ -846,8 +850,8 @@ test.describe('rankings', () => {
     // The file's columns, read in the browser; the tags need the vocabulary they belong to
     await expect(dialog.getByText(/^Choose what each column of the file holds/)).toBeVisible();
     await expect(dialog.getByRole('combobox', { name: 'keyword' })).toContainText('Keyword');
-    await expect(dialog.getByText('Choose the vocabulary these terms belong to.')).toBeVisible();
-    await dialog.getByRole('combobox', { name: 'Vocabulary for tags' }).click();
+    await expect(dialog.getByText('Choose the tag set these tags belong to.')).toBeVisible();
+    await dialog.getByRole('combobox', { name: 'Tag set for tags' }).click();
     await page.getByRole('option', { name: 'Topics' }).click();
     await expectAccessible(page);
     await dialog.getByRole('button', { name: 'Continue' }).click();
@@ -939,27 +943,27 @@ test.describe('rankings', () => {
     // 2. At 1440 px SERP features, AI Overview and Trend columns show
     const grid = page.getByRole('grid', { name: 'Tracked keywords' });
     await expect(headerOf(grid, 'SERP features')).toBeVisible();
-    await expect(headerOf(grid, 'AI Overview')).toBeVisible();
+    await expect(headerOf(grid, 'Google AI Overview')).toBeVisible();
     await expect(headerOf(grid, 'Trend')).toBeVisible();
 
     // 3. Filter "AI Overview: Cited" and see only cited keywords
     await page.getByRole('button', { name: 'Add a filter' }).click();
-    await page.getByRole('dialog').getByRole('button', { name: 'AI Overview' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Google AI Overview' }).click();
     await page.getByRole('dialog').getByRole('checkbox', { name: 'Cited', exact: true }).click();
     await page.getByRole('dialog').getByRole('button', { name: 'Apply' }).click();
     await expect(page).toHaveURL(/[?&]aio=present_cited/);
-    await expect(page.getByRole('button', { name: 'AI Overview: Cited. Edit filter' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Google AI Overview: Cited. Edit filter' })).toBeVisible();
     // The rows are refetched after Apply: poll until every shown cell is a cited one (its "#N") rather than read them once.
     // A stale keyword's cell also carries its screen reader "stale" word before the position
     await expect
       .poll(async () => {
-        const aioCells = await columnOf(grid, 'AI Overview');
+        const aioCells = await columnOf(grid, 'Google AI Overview');
         return aioCells.length > 0 && aioCells.every((text) => /^(stale)?#\d+$/.test(text));
       })
       .toBe(true);
 
     // 4. Filter "SERP feature: Video"
-    await page.getByRole('button', { name: 'Remove filter AI Overview: Cited' }).click();
+    await page.getByRole('button', { name: 'Remove filter Google AI Overview: Cited' }).click();
     await page.getByRole('button', { name: 'Add a filter' }).click();
     await page.getByRole('dialog').getByRole('button', { name: 'SERP feature', exact: true }).click();
     await page.getByRole('dialog').getByRole('radio', { name: 'Video' }).click();

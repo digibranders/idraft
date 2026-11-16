@@ -409,11 +409,11 @@ describe('the banner, the lists and the answers in one tab', () => {
     renderTab();
     await domainsTable();
     expect(
-      await screen.findByText('Cited in 4 of 8 answers; last answer Nov 11, 09:05; 4 own pages cited'),
+      await screen.findByText('Cited in 4 of 8 answers; last answer Nov 11, 09:05; 4 pages of yours cited'),
     ).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Top domains' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Top pages' })).toBeInTheDocument();
-    expect(await screen.findByRole('table', { name: 'Own page cited in each answer' })).toBeInTheDocument();
+    expect(await screen.findByRole('table', { name: 'Your page cited in each answer' })).toBeInTheDocument();
   });
 
   it('puts the banner first in the tab, in the info tone when the own domain is cited', async () => {
@@ -442,7 +442,7 @@ describe('the banner, the lists and the answers in one tab', () => {
     expect(banner).toHaveTextContent('Cited in 0 of 8 answers; last answer Nov 11, 09:05');
     expect(banner.className).toContain('bg-surface-subtle');
     expect(
-      screen.getByText('Your domain is not cited in any of the 8 answers read. These sources are cited instead.'),
+      screen.getByText('Your site is not cited in any of the 8 answers read. These domains are cited instead.'),
     ).toBeInTheDocument();
     expect(screen.getByText('No page of yours is cited by this prompt.')).toBeInTheDocument();
   });
@@ -450,7 +450,7 @@ describe('the banner, the lists and the answers in one tab', () => {
   it('says there is nothing to count, with no banner, when the window has no answers', async () => {
     serve({ meta: metaOf({ answers: 0, answers_citing: 0, citation_units: 0, by_role: [] }) });
     const { container } = renderTab();
-    expect(await screen.findByText('No answers in this window, so there is nothing to count.')).toBeInTheDocument();
+    expect(await screen.findByText('No answers in this period, so there is nothing to count.')).toBeInTheDocument();
     expect(container.querySelector('[data-slot="banner"]')).toBeNull();
   });
 
@@ -471,7 +471,7 @@ describe('the banner, the lists and the answers in one tab', () => {
     expect(served.observations).toHaveLength(0);
     expect(served.citations).toHaveLength(0);
     await user.click(screen.getByRole('button', { name: 'Show' }));
-    await screen.findByRole('table', { name: 'Own page cited in each answer' });
+    await screen.findByRole('table', { name: 'Your page cited in each answer' });
     expect(served.observations[0]?.searchParams.get('filter[prompt_id]')).toBe('2000001');
     expect(served.citations[0]?.searchParams.get('filter[prompt_id]')).toBe('2000001');
     expect(served.citations[0]?.searchParams.get('from')).toBe(WINDOW.from);
@@ -481,7 +481,7 @@ describe('the banner, the lists and the answers in one tab', () => {
   it('passes include_branded to the citation list for a branded prompt, and no engine to it', async () => {
     const served = serve();
     const { user } = renderTab({ prompt: { is_branded: true } as unknown as Prompt });
-    await screen.findByRole('table', { name: 'Own page cited in each answer' });
+    await screen.findByRole('table', { name: 'Your page cited in each answer' });
     expect(served.citations[0]?.searchParams.get('include_branded')).toBe('true');
     await user.click(screen.getByRole('radio', { name: 'Gemini' }));
     await waitFor(() => {
@@ -493,14 +493,14 @@ describe('the banner, the lists and the answers in one tab', () => {
   it('shows the position of the own page in each answer', async () => {
     serve();
     renderTab();
-    expect(await screen.findByText('Source 2 of 2')).toBeInTheDocument();
+    expect(await screen.findByText('Citation 2 of 2')).toBeInTheDocument();
   });
 
   it('keeps the answers and says n/a for their citations when the citation list fails', async () => {
     serve({ failCitations: true });
     renderTab();
     expect(await screen.findByText('The citations of the answers could not be loaded.')).toBeInTheDocument();
-    const table = await screen.findByRole('table', { name: 'Own page cited in each answer' });
+    const table = await screen.findByRole('table', { name: 'Your page cited in each answer' });
     expect(within(table).getAllByText('n/a')).toHaveLength(2);
   });
 
@@ -518,7 +518,7 @@ describe('accessibility', () => {
     serve({ ownTotal: 4 });
     const { container } = renderTab();
     await domainsTable();
-    await screen.findByRole('table', { name: 'Own page cited in each answer' });
+    await screen.findByRole('table', { name: 'Your page cited in each answer' });
     expect(await axe(container)).toHaveNoViolations();
   });
 });

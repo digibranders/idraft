@@ -484,7 +484,7 @@ describe('PagesTab', () => {
     renderTab();
     const table = await loaded();
     await waitFor(() => expect(rowOf(table, 'The CRM guide')).toHaveTextContent('HubSpot'));
-    expect(rowOf(table, 'Page 1')).toHaveTextContent('None named');
+    expect(rowOf(table, 'Page 1')).toHaveTextContent('None mentioned');
     expect(rowOf(table, 'Elsewhere')).toHaveTextContent('Outside the 200 most cited domains');
   });
 
@@ -501,7 +501,7 @@ describe('PagesTab', () => {
     const words = 'Cited with could not be loaded. The other columns are complete.';
     await waitFor(() => expect(screen.getAllByText(words).some((line) => line.tagName === 'P')).toBe(true));
     expect(names(table)).toHaveLength(2);
-    expect(rowOf(table, 'The CRM guide')).not.toHaveTextContent('None named');
+    expect(rowOf(table, 'The CRM guide')).not.toHaveTextContent('None mentioned');
     failing = false;
     await user.click(screen.getByRole('button', { name: 'Try again' }));
     await waitFor(() => expect(rowOf(table, 'The CRM guide')).toHaveTextContent('HubSpot'));
@@ -579,7 +579,7 @@ describe('PagesTab', () => {
     const onClear = vi.fn();
     const { user } = renderTab('', {}, { values: { role: { kind: 'enum', values: ['own'] } }, onClear });
     expect(await screen.findByRole('heading', { name: 'No domain or page matches these filters' })).toBeInTheDocument();
-    expect(screen.getByText('Role: Own')).toBeInTheDocument();
+    expect(screen.getByText('Role: Your site')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Clear filters' }));
     expect(onClear).toHaveBeenCalledOnce();
   });
@@ -618,8 +618,8 @@ describe('PagesTab', () => {
   it('says the answers cite no source when answers were read and none names one', async () => {
     servePages([], { meta: { ...META, answers: 12, answers_citing: 0, citation_units: 0, by_role: [] } });
     renderTab();
-    expect(await screen.findByRole('heading', { name: 'The answers cite no source' })).toBeInTheDocument();
-    expect(screen.getByText('12 answers were read in this window and none names a source.')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'The answers cite no domain' })).toBeInTheDocument();
+    expect(screen.getByText('12 answers were read in this period and none cites a domain.')).toBeInTheDocument();
   });
 
   it('a filter that leaves no answer is not "No citations yet": it names the filter and offers Clear filters', async () => {
@@ -719,7 +719,7 @@ describe('PagesTab', () => {
     const table = await loaded();
     const own = rowOf(table, 'Pricing');
     expect(own).toHaveAttribute('data-tone', 'own');
-    expect(within(own).getByText('Own')).toBeInTheDocument();
+    expect(within(own).getByText('Your site')).toBeInTheDocument();
     expect(rowOf(table, 'Page 1')).not.toHaveAttribute('data-tone');
   });
 
@@ -744,7 +744,7 @@ describe('PagesTab', () => {
 
   it('shows the prompts with no own page above the table', async () => {
     renderTab();
-    const card = await screen.findByRole('region', { name: 'Prompts with no own page cited' });
+    const card = await screen.findByRole('region', { name: 'Prompts with none of your pages cited' });
     const table = await grid();
     expect(card.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
@@ -770,7 +770,7 @@ describe('PagesTab', () => {
     expect(held?.parentElement).toHaveClass('lg:overflow-y-auto');
     expect(held).toHaveClass('h-96', 'lg:h-auto', 'lg:flex-1');
     // The card is above the table, inside the same scrolling body
-    const card = await screen.findByRole('region', { name: 'Prompts with no own page cited' });
+    const card = await screen.findByRole('region', { name: 'Prompts with none of your pages cited' });
     expect(held?.parentElement).toContainElement(card);
   });
 

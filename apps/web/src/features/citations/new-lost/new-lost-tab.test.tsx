@@ -134,8 +134,8 @@ afterEach(() => {
   restoreWideScreen();
 });
 
-const newTable = (): Promise<HTMLElement> => screen.findByRole('grid', { name: 'New sources' });
-const lostTable = (): Promise<HTMLElement> => screen.findByRole('grid', { name: 'Lost sources' });
+const newTable = (): Promise<HTMLElement> => screen.findByRole('grid', { name: 'New domains' });
+const lostTable = (): Promise<HTMLElement> => screen.findByRole('grid', { name: 'Lost domains' });
 const names = (table: HTMLElement): string[] =>
   within(table)
     .queryAllByRole('rowheader')
@@ -182,7 +182,7 @@ describe('NewLostTab', () => {
     expect(unitsIn(rowOf(table, FADED))).toBeGreaterThanOrEqual(2);
     expect(within(table).getByRole('columnheader', { name: 'Units before it went quiet' })).toBeInTheDocument();
     expect(within(table).queryByRole('columnheader', { name: 'First cited' })).toBeNull();
-    expect(screen.queryByRole('grid', { name: 'New sources' })).toBeNull();
+    expect(screen.queryByRole('grid', { name: 'New domains' })).toBeNull();
   });
 
   it('writes the kind to the address, and New writes nothing', async () => {
@@ -221,22 +221,22 @@ describe('NewLostTab', () => {
   it('the rule is in MetricInfo and says Lost after 0 units in 2 following windows', async () => {
     const { user } = renderTab('kind=lost');
     await loaded(lostTable());
-    await user.click(screen.getByRole('button', { name: 'About New and lost sources' }));
+    await user.click(screen.getByRole('button', { name: 'About New and lost domains' }));
     expect(
-      await screen.findByText('Lost after 0 units in 2 following windows, having had at least 2 units before them.', {
+      await screen.findByText('Lost after 0 units in 2 following periods, having had at least 2 units before them.', {
         exact: false,
       }),
     ).toBeInTheDocument();
-    expect(screen.getByText('A source is new when it starts to be cited and lost when it stops.')).toBeInTheDocument();
+    expect(screen.getByText('A domain is new when it starts to be cited and lost when it stops.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Methodology' })).toHaveAttribute('href', '/methodology');
   });
 
   it('the rule of New names the minimum and the days before', async () => {
     const { user } = renderTab('min=3');
     await loaded();
-    await user.click(screen.getByRole('button', { name: 'About New and lost sources' }));
+    await user.click(screen.getByRole('button', { name: 'About New and lost domains' }));
     expect(
-      await screen.findByText('New: at least 3 citation units in this window and none in the 28 days before it.', {
+      await screen.findByText('New: at least 3 citation units in this period and none in the 28 days before it.', {
         exact: false,
       }),
     ).toBeInTheDocument();
@@ -245,7 +245,7 @@ describe('NewLostTab', () => {
   it('says how many days the lost list reads, and says nothing of it on New', async () => {
     const { user } = renderTab();
     await loaded();
-    const cost = /^Lost sources read 84 days of answers, three windows of 28 days, so this list can take a moment\.$/;
+    const cost = /^Lost domains read 84 days of answers, three periods of 28 days, so this list can take a moment\.$/;
     expect(screen.queryByText(cost)).toBeNull();
     await user.click(screen.getByRole('radio', { name: /^Lost/ }));
     expect(await screen.findByText(cost)).toBeInTheDocument();
@@ -281,16 +281,16 @@ describe('NewLostTab', () => {
     const table = await loaded();
     // New is whole, and says that the count of Lost could not be read
     expect(names(table)).toEqual([expect.stringContaining(NEWCOMER)]);
-    expect(await screen.findByText('The count of lost sources could not be loaded.')).toBeInTheDocument();
+    expect(await screen.findByText('The count of lost domains could not be loaded.')).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: 'Lost n/a' })).toBeInTheDocument();
     await user.click(screen.getByRole('radio', { name: /^Lost/ }));
-    expect(await screen.findByText('The lost sources could not be loaded.')).toBeInTheDocument();
+    expect(await screen.findByText('The lost domains could not be loaded.')).toBeInTheDocument();
     failing = false;
     await user.click(screen.getByRole('button', { name: 'Try again' }));
     const lost = await loaded(lostTable());
     expect(names(lost)).toEqual([expect.stringContaining(FADED)]);
-    expect(screen.queryByText('The lost sources could not be loaded.')).toBeNull();
-    expect(screen.queryByText('The count of lost sources could not be loaded.')).toBeNull();
+    expect(screen.queryByText('The lost domains could not be loaded.')).toBeNull();
+    expect(screen.queryByText('The count of lost domains could not be loaded.')).toBeNull();
   });
 
   it('a refresh that fails keeps the rows and says they are from the last read', async () => {
@@ -317,10 +317,10 @@ describe('NewLostTab', () => {
 
   it('empty New names the minimum', async () => {
     renderTab('min=1000');
-    expect(await screen.findByRole('heading', { name: 'No new source' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'No new domain' })).toBeInTheDocument();
     expect(
       screen.getByText(
-        'No source reached 1,000 units in this window without being cited in the 28 days before it. Lower the minimum or choose another window.',
+        'No domain reached 1,000 units in this period without being cited in the 28 days before it. Lower the minimum or choose another period.',
       ),
     ).toBeInTheDocument();
   });
@@ -328,7 +328,7 @@ describe('NewLostTab', () => {
   it('empty New offers to reset a raised minimum, and the reset puts the default back', async () => {
     const writes: string[] = [];
     const { user } = renderTab('min=1000', { onUrlUpdate: ({ queryString }) => writes.push(queryString) });
-    await screen.findByRole('heading', { name: 'No new source' });
+    await screen.findByRole('heading', { name: 'No new domain' });
     await user.click(screen.getByRole('button', { name: 'Reset the minimum to 2' }));
     await waitFor(() => expect(writes.at(-1)).toBeDefined());
     expect(writes.at(-1)).not.toContain('min=');
@@ -344,8 +344,8 @@ describe('NewLostTab', () => {
       }),
     );
     renderTab();
-    expect(await screen.findByRole('heading', { name: 'No new source' })).toBeInTheDocument();
-    expect(screen.getByText(/Lower the minimum or choose another window\./)).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'No new domain' })).toBeInTheDocument();
+    expect(screen.getByText(/Lower the minimum or choose another period\./)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Reset the minimum/ })).toBeNull();
   });
 
@@ -368,12 +368,12 @@ describe('NewLostTab', () => {
     const { user } = renderTab('min=3');
     expect(
       await screen.findByText(
-        'No source reached 3 units in this window without being cited in the 14 days before it. Lower the minimum or choose another window.',
+        'No domain reached 3 units in this period without being cited in the 14 days before it. Lower the minimum or choose another period.',
       ),
     ).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'About New and lost sources' }));
+    await user.click(screen.getByRole('button', { name: 'About New and lost domains' }));
     expect(
-      await screen.findByText('New: at least 3 citation units in this window and none in the 14 days before it.', {
+      await screen.findByText('New: at least 3 citation units in this period and none in the 14 days before it.', {
         exact: false,
       }),
     ).toBeInTheDocument();
@@ -381,10 +381,10 @@ describe('NewLostTab', () => {
 
   it('empty Lost names the days it needs behind the window', async () => {
     renderTab('kind=lost&min=1000');
-    expect(await screen.findByRole('heading', { name: 'No lost source' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'No lost domain' })).toBeInTheDocument();
     expect(
       screen.getByText(
-        'A source is lost after it was cited in one window and not at all in the 2 windows after it, so a lost source needs 84 days of answers behind this window.',
+        'A domain is lost after it was cited in one period and not at all in the 2 periods after it, so a lost domain needs 84 days of answers behind this period.',
       ),
     ).toBeInTheDocument();
   });
@@ -470,7 +470,7 @@ describe('NewLostTab', () => {
     expect(await screen.findByRole('heading', { name: 'No domain or page matches these filters' })).toBeInTheDocument();
     await user.clear(search);
     await user.type(search, 'radar');
-    await waitFor(() => expect(names(screen.getByRole('grid', { name: 'New sources' }))).toHaveLength(1));
+    await waitFor(() => expect(names(screen.getByRole('grid', { name: 'New domains' }))).toHaveLength(1));
   });
 
   describe('and the domain inspector', () => {

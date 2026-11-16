@@ -381,13 +381,13 @@ describe('TopicSmallMultiplesCard states', () => {
       searchParams: 'engine=chatgpt_web',
       threeEngines: true,
     });
-    expect(await screen.findByText('AI Mode is not part of this view')).toBeInTheDocument();
+    expect(await screen.findByText('Google AI Mode is not part of this view')).toBeInTheDocument();
     expect(screen.queryAllByTestId('echart-canvas')).toHaveLength(0);
     await user.click(screen.getByRole('button', { name: 'Use all platforms' }));
     await waitFor(() => {
-      expect(screen.queryByText('AI Mode is not part of this view')).not.toBeInTheDocument();
+      expect(screen.queryByText('Google AI Mode is not part of this view')).not.toBeInTheDocument();
     });
-    expect(await heading('Mention rate by group on AI Mode')).toBeInTheDocument();
+    expect(await heading('Mention rate by group on Google AI Mode')).toBeInTheDocument();
   });
 
   it('no groups is an empty state with Open Prompts', async () => {

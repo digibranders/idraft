@@ -82,7 +82,7 @@ describe('the rate trend card', () => {
     expect(await screen.findByRole('heading', { name: 'Mention rate by platform' })).toBeInTheDocument();
     expect(await screen.findByRole('img', { name: 'ChatGPT' })).toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'Gemini' })).toBeInTheDocument();
-    expect(screen.queryByRole('img', { name: 'AI Mode' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: 'Google AI Mode' })).not.toBeInTheDocument();
   });
 
   it('the Table view lists weeks with value, k of n and the prompts for each engine, and equals the tooltip words', async () => {
@@ -252,7 +252,7 @@ describe('the rate trend card', () => {
       await waitFor(() => {
         expect(ids()).toContain('chatgpt_web:previous');
       });
-      expect(summary()).toContain('against the previous window');
+      expect(summary()).toContain('against the previous period');
 
       const { release } = holdPrevious();
       await user.click(screen.getByRole('button', { name: 'Include branded' }));
@@ -260,7 +260,7 @@ describe('the rate trend card', () => {
       await waitFor(() => {
         expect(ids()).not.toContain('chatgpt_web:previous');
       });
-      expect(summary()).not.toContain('against the previous window');
+      expect(summary()).not.toContain('against the previous period');
       // The panels themselves stay
       expect(screen.getByRole('img', { name: 'ChatGPT' })).toBeInTheDocument();
 
@@ -268,7 +268,7 @@ describe('the rate trend card', () => {
       await waitFor(() => {
         expect(ids()).toContain('chatgpt_web:previous');
       });
-      expect(summary()).toContain('against the previous window');
+      expect(summary()).toContain('against the previous period');
     });
 
     it('keeps the previous window drawn while the same scope is read again', async () => {
@@ -283,12 +283,12 @@ describe('the rate trend card', () => {
       // A refetch of the same scope (a refocus) is still this scope's data: nothing the person sees is taken away
       await reached;
       expect(ids()).toContain('chatgpt_web:previous');
-      expect(summary()).toContain('against the previous window');
+      expect(summary()).toContain('against the previous period');
 
       release();
       await new Promise((resolve) => setTimeout(resolve, 50));
       expect(ids()).toContain('chatgpt_web:previous');
-      expect(summary()).toContain('against the previous window');
+      expect(summary()).toContain('against the previous period');
     });
   });
 
@@ -312,7 +312,7 @@ describe('the rate trend card', () => {
     expect(section).toHaveTextContent('Bands are 95% intervals');
     expect(section).toHaveTextContent('That mean can sit outside the interval of the pooled answers.');
     await waitFor(() => {
-      expect(section).toHaveTextContent('The dashed line is the previous window');
+      expect(section).toHaveTextContent('The dashed line is the previous period');
     });
   });
 

@@ -31,7 +31,7 @@ const BUILTIN = [
 ] as const;
 /** The titles of the built-in overview, in the same order. */
 const BUILTIN_TITLES = [
-  'Visibility and mention rate',
+  'SEO visibility and mention rate',
   'Rank distribution',
   'SEO and AI matrix',
   'Not classified',
@@ -464,13 +464,13 @@ test.describe('moving a card by keyboard', () => {
     await page.keyboard.press('Space');
     await said(
       page,
-      'Visibility and mention rate picked up. Use the arrow keys to move, Space to drop, Escape to put it back.',
+      'SEO visibility and mention rate picked up. Use the arrow keys to move, Space to drop, Escape to put it back.',
     );
     await dragListens(page);
     await page.keyboard.press('ArrowLeft');
-    await said(page, 'Visibility and mention rate is already first');
+    await said(page, 'SEO visibility and mention rate is already first');
     await page.keyboard.press('Escape');
-    await said(page, 'Visibility and mention rate put back');
+    await said(page, 'SEO visibility and mention rate put back');
   });
 
   test('the Tab walk in customize mode never lands in a card body', async ({ page }) => {

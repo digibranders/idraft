@@ -594,7 +594,7 @@ describe('DomainsTab', () => {
     const onClear = vi.fn();
     const { user } = renderTab('', {}, { values: { role: { kind: 'enum', values: ['own'] } }, onClear });
     expect(await screen.findByRole('heading', { name: 'No domain or page matches these filters' })).toBeInTheDocument();
-    expect(screen.getByText('Role: Own')).toBeInTheDocument();
+    expect(screen.getByText('Role: Your site')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Clear filters' }));
     expect(onClear).toHaveBeenCalledOnce();
   });
@@ -605,7 +605,7 @@ describe('DomainsTab', () => {
     const { user } = renderTab('', {}, { values: { topic: { kind: 'enum', values: ['t-security'] } }, onClear });
     expect(await screen.findByRole('heading', { name: 'No domain or page matches these filters' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'No citations yet' })).toBeNull();
-    expect(screen.queryByRole('heading', { name: 'The answers cite no source' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'The answers cite no domain' })).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Clear filters' }));
     expect(onClear).toHaveBeenCalledOnce();
   });
@@ -640,7 +640,7 @@ describe('DomainsTab', () => {
   it('says nothing of the minimum when the default leaves no row because nothing was cited', async () => {
     serveDomains([], { meta: { ...META, answers: 12, answers_citing: 0, citation_units: 0, by_role: [] } });
     renderTab();
-    expect(await screen.findByRole('heading', { name: 'The answers cite no source' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'The answers cite no domain' })).toBeInTheDocument();
     expect(screen.queryByText('Lower the fewest citation units to see more rows.')).toBeNull();
   });
 
@@ -657,8 +657,8 @@ describe('DomainsTab', () => {
   it('says the answers cite no source when answers were read and none names one', async () => {
     serveDomains([], { meta: { ...META, answers: 12, answers_citing: 0, citation_units: 0, by_role: [] } });
     renderTab();
-    expect(await screen.findByRole('heading', { name: 'The answers cite no source' })).toBeInTheDocument();
-    expect(screen.getByText('12 answers were read in this window and none names a source.')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'The answers cite no domain' })).toBeInTheDocument();
+    expect(screen.getByText('12 answers were read in this period and none cites a domain.')).toBeInTheDocument();
   });
 
   it('finds a listed domain by its name and says so when none matches', async () => {
@@ -767,7 +767,7 @@ describe('DomainsTab', () => {
     const table = await loaded();
     const own = rowOf(table, 'fynix.com');
     expect(own).toHaveAttribute('data-tone', 'own');
-    expect(within(own).getByText('Own')).toBeInTheDocument();
+    expect(within(own).getByText('Your site')).toBeInTheDocument();
     expect(rowOf(table, 'g2.com')).not.toHaveAttribute('data-tone');
   });
 

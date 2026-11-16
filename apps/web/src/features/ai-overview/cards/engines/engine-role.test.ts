@@ -37,7 +37,7 @@ describe('engineLabel', () => {
   it('reads the catalog and never the code', () => {
     expect(engineLabel('chatgpt_web')).toBe('ChatGPT');
     expect(engineLabel('gemini_web')).toBe('Gemini');
-    expect(engineLabel('google_ai_mode')).toBe('AI Mode');
+    expect(engineLabel('google_ai_mode')).toBe('Google AI Mode');
     expect(engineLabel('perplexity_web')).toBeNull();
   });
 });

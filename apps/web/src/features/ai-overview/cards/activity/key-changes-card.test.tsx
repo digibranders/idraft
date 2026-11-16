@@ -146,7 +146,7 @@ const render = (options: Parameters<typeof renderActivityCard>[2] = {}): ReturnT
 const RISE = '700 of 1,800 answers mention you on ChatGPT (38.9%), was 575 of 1,800 (31.9%)';
 const FALL = '575 of 1,800 answers cite you on ChatGPT (31.9%), was 700 of 1,800 (38.9%)';
 const FALL_FULL = 'ChatGPT citation rate fell to 31.9% (575 of 1,800 answers), from 38.9% (700 of 1,800 answers)';
-const NEW_SOURCES = 'New sources: 37 domains';
+const NEW_SOURCES = 'New cited domains: 37 domains';
 const RUN_ERRORS = '12 of 250 answers failed in the AI run, Nov 12, 02:10';
 
 const feed = (): Promise<HTMLElement> => screen.findByRole('heading', { name: 'Key changes' });
@@ -223,7 +223,7 @@ describe('the key changes card', () => {
     serve({ newSources: 0 });
     render();
     await screen.findByText(RISE);
-    expect(screen.queryByText(/New sources/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/New cited domain/)).not.toBeInTheDocument();
   });
 
   it('holds the changes with the comparison off: only the collection notices, and it says why', async () => {
@@ -231,7 +231,7 @@ describe('the key changes card', () => {
     render({ searchParams: `${WINDOW}&cmp=off` });
     await screen.findByText(RUN_ERRORS);
     expect(
-      screen.getByText(/Changes are not compared for this window: the comparison with the window before is off/),
+      screen.getByText(/Changes are not compared for this period: the comparison with the period before is off/),
     ).toBeInTheDocument();
     expect(screen.queryByText(/fell|rose/)).not.toBeInTheDocument();
     expect(screen.queryByText(NEW_SOURCES)).not.toBeInTheDocument();
@@ -242,7 +242,7 @@ describe('the key changes card', () => {
     serve({ summaries: { now: MOVED.now, before: windowOf([0, 0], [0, 0], [0, 0]) } });
     render();
     await screen.findByText(RUN_ERRORS);
-    expect(screen.getByText(/the window before has no valid answers/)).toBeInTheDocument();
+    expect(screen.getByText(/the period before has no valid answers/)).toBeInTheDocument();
     expect(screen.queryByText(/fell|rose/)).not.toBeInTheDocument();
   });
 
@@ -250,8 +250,8 @@ describe('the key changes card', () => {
     serve({ beforeAnswers: 0 });
     render();
     await screen.findByText(RISE);
-    expect(screen.queryByText(/New sources/)).not.toBeInTheDocument();
-    expect(screen.getByText('Not checked: new sources')).toBeInTheDocument();
+    expect(screen.queryByText(/New cited domain/)).not.toBeInTheDocument();
+    expect(screen.getByText('Not checked: new cited domains')).toBeInTheDocument();
   });
 
   it('lists the budget-blocked runs and the latest day with refused or failed answers of each engine', async () => {
@@ -323,7 +323,7 @@ describe('the key changes card', () => {
     );
     render();
     await screen.findByText(RUN_ERRORS);
-    expect(screen.getByText('Not checked: changes since the window before')).toBeInTheDocument();
+    expect(screen.getByText('Not checked: changes since the period before')).toBeInTheDocument();
     expect(screen.queryByText(/fell|rose/)).not.toBeInTheDocument();
   });
 
@@ -359,9 +359,9 @@ describe('the key changes card', () => {
     serve({ runs: [] });
     const { user } = render({ searchParams: `${WINDOW}&cmp=off` });
     expect(
-      await screen.findByRole('heading', { name: 'Changes are not compared for this window' }),
+      await screen.findByRole('heading', { name: 'Changes are not compared for this period' }),
     ).toBeInTheDocument();
-    expect(screen.getByText('The comparison with the window before is off.')).toBeInTheDocument();
+    expect(screen.getByText('The comparison with the period before is off.')).toBeInTheDocument();
     expect(screen.getByText('No collection issues were found in these 28 days.')).toBeInTheDocument();
     expect(screen.queryByText(/No detectable changes/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Changes within normal variation/)).not.toBeInTheDocument();
@@ -375,7 +375,7 @@ describe('the key changes card', () => {
     serve({ runs: [], daily: 'fail' });
     render({ searchParams: `${WINDOW}&cmp=off` });
     expect(
-      await screen.findByRole('heading', { name: 'Changes are not compared for this window' }),
+      await screen.findByRole('heading', { name: 'Changes are not compared for this period' }),
     ).toBeInTheDocument();
     expect(screen.getByText('Not checked: collection by day')).toBeInTheDocument();
     expect(screen.queryByText(/No collection issues were found/)).not.toBeInTheDocument();
@@ -385,9 +385,9 @@ describe('the key changes card', () => {
     serve({ runs: [], summaries: { now: MOVED.now, before: windowOf([0, 0], [0, 0], [0, 0]) } });
     render();
     expect(
-      await screen.findByRole('heading', { name: 'Changes are not compared for this window' }),
+      await screen.findByRole('heading', { name: 'Changes are not compared for this period' }),
     ).toBeInTheDocument();
-    expect(screen.getByText('The window before has no valid answers.')).toBeInTheDocument();
+    expect(screen.getByText('The period before has no valid answers.')).toBeInTheDocument();
     expect(screen.queryByText(/No detectable changes/)).not.toBeInTheDocument();
   });
 
@@ -406,7 +406,7 @@ describe('the key changes card', () => {
     render({ searchParams: `${WINDOW}&cmp=off` });
     await screen.findByText(RUN_ERRORS);
     expect(screen.getByRole('list', { name: 'Notices' })).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Changes are not compared for this window' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Changes are not compared for this period' })).not.toBeInTheDocument();
   });
 
   it('asks for the newest 100 runs, so a past window sees more than the latest few', async () => {

@@ -37,10 +37,10 @@ const MAKE_ROOM_FOR_ADDED = [
 /** The ten cards added through Add card: the name of the catalog (the dialog's button) and the title the card draws. */
 export const ADDED_CARDS = {
   ownPages: { catalog: 'Your pages AI platforms cite', title: 'Your pages AI platforms cite' },
-  roleShare: { catalog: 'Citation share by domain type', title: 'Citation share by source role and platform' },
+  roleShare: { catalog: 'Citation share by domain type', title: 'Citation share by domain type and platform' },
   fanout: { catalog: 'What ChatGPT searched', title: 'What ChatGPT searched' },
-  newLost: { catalog: 'New and lost sources', title: 'New and lost sources' },
-  diversity: { catalog: 'Source diversity', title: 'Source diversity over time' },
+  newLost: { catalog: 'New and lost domains', title: 'New and lost domains' },
+  diversity: { catalog: 'Cited domain diversity', title: 'Domain diversity over time' },
   collection: { catalog: 'Collection status', title: 'Collection status' },
   engines: { catalog: 'Platforms and schedule', title: 'Platforms and schedule' },
   spend: { catalog: 'AI spend', title: 'AI spend' },
