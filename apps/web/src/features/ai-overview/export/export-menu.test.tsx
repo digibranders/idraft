@@ -180,7 +180,7 @@ describe('the Export menu of the AI visibility page', () => {
     ]);
     expect(rowsOfBlock(first.rows, 'visibility-split')).toHaveLength(2);
     // The rows of the blocks are counted with the numbers, never the headers or the notes
-    const counted = first.rows.filter((row) => row[0] === 'numbers').length + 10 * 2;
+    const counted = first.rows.filter((row) => row[0] === 'numbers').length + 11 * 2;
     expect(await screen.findByText(`${counted} rows exported`)).toBeInTheDocument();
 
     // Hiding a card in customize mode takes it off the page, and its table out of the next file
@@ -206,7 +206,7 @@ describe('the Export menu of the AI visibility page', () => {
     expect(rows.filter((row) => row[0] === 'note').map((row) => row[1])).toEqual([
       NOTE_UNKNOWN,
       NOTE_POOLED,
-      '9 cards were still loading and left out.',
+      '10 cards were still loading and left out.',
     ]);
   });
 
