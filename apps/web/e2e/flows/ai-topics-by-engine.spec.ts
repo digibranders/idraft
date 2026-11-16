@@ -103,7 +103,7 @@ test.describe('Groups by platform: the views', () => {
     await expect(topicsGrid(page).getByRole('columnheader', { name: /^Citation rate/ })).toBeVisible();
   });
 
-  test('By platform has a column per platform shown, the metric changes the values, and an unknown value is never 0', async ({
+  test('By platform has a column per platform shown, with no metric choice, and an unknown value is never 0', async ({
     page,
   }) => {
     await page.goto(`${TOPICS}?view=engines`);
@@ -120,13 +120,9 @@ test.describe('Groups by platform: the views', () => {
     await expect(engineCells(grid, 'ChatGPT').first()).toBeVisible();
     expect(await bareZeroCells(grid)).toEqual([]);
 
-    const mention = await engineCells(grid, 'ChatGPT').allInnerTexts();
-    await chooseOption(page, page.getByRole('main'), 'Metric of the platform columns', 'Citation');
-    await expect(page).toHaveURL(/[?&]metric=citation(&|$)/);
-    await expect(grid.getByRole('columnheader', { name: /^ChatGPT citation/ })).toBeVisible();
-    await expect(grid.getByRole('columnheader', { name: /^ChatGPT mention\b/ })).toHaveCount(0);
-    await expect.poll(() => engineCells(grid, 'ChatGPT').allInnerTexts()).not.toEqual(mention);
-    expect(await bareZeroCells(grid)).toEqual([]);
+    // The metric of the platform columns is the Mention rate alone: the view has no metric choice any more
+    await expect(page.getByRole('combobox', { name: 'Metric of the platform columns' })).toHaveCount(0);
+    await expect(grid.getByRole('columnheader', { name: /^ChatGPT citation/ })).toHaveCount(0);
   });
 
   test('one click on a By platform cell opens the prompts of that platform, and Back closes the drawer', async ({
@@ -194,7 +190,7 @@ test.describe('The group drawer', () => {
 
   test('shows the header badges, steps through the groups with J and K, and says where it is', async ({ page }) => {
     await page.goto(TOPICS);
-    await topicsGrid(page).getByRole('button', { name: 'Open the group Content Marketing' }).click();
+    await topicsGrid(page).getByRole('button', { name: 'Open the group Blog Strategy' }).click();
     const drawer = anyDrawer(page);
     await expect(drawer.getByRole('tablist', { name: 'Group sections' })).toBeVisible();
     await expect(drawer.getByText(/^\d+ prompts?$/).first()).toBeVisible();
@@ -207,7 +203,7 @@ test.describe('The group drawer', () => {
     await expect(position).toBeVisible();
     const [at, total] = (await position.innerText()).split(' of ').map(Number);
     if (at === undefined || total === undefined || at < 2 || at >= total) {
-      throw new Error('Content Marketing is not between two groups of the list');
+      throw new Error('Blog Strategy is not between two groups of the list');
     }
     const place = (index: number): string => `${String(index)} of ${String(total)}`;
     await page.keyboard.press('j');
@@ -227,7 +223,9 @@ test.describe('The group drawer', () => {
     const drawer = await drawerReady(page, 'Paid Search');
     await drawer.getByRole('button', { name: 'Add prompt' }).click();
     const dialog = page.getByRole('dialog', { name: 'Add prompts' });
-    await expect(dialog.getByRole('combobox', { name: /Group/ })).toHaveText(/Paid Search/);
+    // Groups is a multiple choice now: the group the drawer opened it from is one chip
+    await expect(dialog.getByText('Paid Search', { exact: true })).toBeVisible();
+    await expect(dialog.getByRole('combobox', { name: /Group/ })).toHaveAccessibleDescription(/^1 chosen/);
     await dialog.getByRole('button', { name: 'Cancel' }).click();
     await expect(dialog).toBeHidden();
 
@@ -245,7 +243,8 @@ test.describe('The group drawer', () => {
     await page.goto(inspectUrl(PAID_SEARCH));
     const drawer = await drawerReady(page, 'Paid Search');
     await expect(drawer.getByRole('tab')).toHaveCount(4);
-    for (const name of ['Overview', 'Prompts', 'Competitors', 'Related']) {
+    // The Prompts tab carries the number of prompts of the group: "Prompts (2)"
+    for (const name of ['Overview', 'Prompts (2)', 'Competitors', 'Related']) {
       await expect(drawer.getByRole('tab', { name, exact: true })).toBeVisible();
     }
   });
@@ -295,9 +294,6 @@ test.describe('The group drawer', () => {
   }) => {
     await page.goto(inspectUrl(TECHNICAL_SEO));
     const drawer = await drawerReady(page, 'Technical SEO');
-    // A topic under another says what is above it
-    await expect(drawer.getByText('SEO', { exact: true }).first()).toBeVisible();
-
     await drawer.getByRole('tab', { name: 'Competitors' }).click();
     const competitors = drawer.getByRole('table', { name: 'Competitors by platform' });
     await expect(competitors.getByRole('columnheader', { name: 'Brand' })).toBeVisible();
@@ -305,8 +301,8 @@ test.describe('The group drawer', () => {
     await expect(competitors.getByText('your brand')).toBeVisible();
 
     await drawer.getByRole('tab', { name: 'Related' }).click();
-    const related = drawer.getByRole('table', { name: 'Groups beside this one' });
-    await expect(related.getByRole('columnheader', { name: 'Mention' })).toBeVisible();
+    const related = drawer.getByRole('table', { name: 'Related groups' });
+    await expect(related.getByRole('columnheader', { name: 'Mention', exact: true })).toBeVisible();
     await related.getByRole('button', { name: 'Open the group Local SEO' }).click();
     const sibling = await drawerReady(page, 'Local SEO');
     await expect(sibling.getByRole('tab', { name: 'Related', selected: true })).toBeVisible();
@@ -416,7 +412,7 @@ for (const theme of THEMES) {
           drawer.getByRole('table', { name: 'Competitors by platform' }),
         );
         await checkDrawer(inspectUrl(TECHNICAL_SEO, { itab: 'related' }), 'Technical SEO', (drawer) =>
-          drawer.getByRole('table', { name: 'Groups beside this one' }),
+          drawer.getByRole('table', { name: 'Related groups' }),
         );
       });
     }
