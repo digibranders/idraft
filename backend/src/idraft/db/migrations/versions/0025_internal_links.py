@@ -203,6 +203,8 @@ CREATE TABLE seo.crawl_pages (
     deep_only_through_auto   boolean NOT NULL DEFAULT false,
     PRIMARY KEY (run_id, url_id),
     FOREIGN KEY (run_id, workspace_id) REFERENCES seo.crawl_runs(id, workspace_id)
+        ON DELETE CASCADE,
+    FOREIGN KEY (project_id, workspace_id) REFERENCES core.projects(id, workspace_id)
         ON DELETE CASCADE
 );
 

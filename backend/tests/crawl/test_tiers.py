@@ -65,9 +65,10 @@ def test_rules_match_paths(match_type: MatchType, value: str, path: str, matches
 
 
 def test_a_pattern_with_many_stars_is_linear_on_a_path_that_cannot_match() -> None:
-    rule = _rule(1, MatchType.PATTERN, "/" + "*a" * 9 + "*b")
+    # The ending fits and the middle parts cannot all be found: the loop does the work.
+    rule = _rule(1, MatchType.PATTERN, "/" + "*a" * 9 + "*bb*b")
     started = time.perf_counter()
-    assert rule_matches(rule, "/" + "a" * 5000) is False
+    assert rule_matches(rule, "/" + "a" * 5000 + "b") is False
     assert time.perf_counter() - started < 0.5
 
 

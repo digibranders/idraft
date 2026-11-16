@@ -1902,6 +1902,9 @@ crawl_pages = Table(
     Column("is_editorial_orphan", Boolean, nullable=False, server_default=FetchedValue()),
     Column("deep_only_through_auto", Boolean, nullable=False, server_default=FetchedValue()),
     _run_key(),
+    ForeignKeyConstraint(
+        ["project_id", "workspace_id"], [projects.c.id, projects.c.workspace_id], ondelete="CASCADE"
+    ),
     schema="seo",
 )
 
