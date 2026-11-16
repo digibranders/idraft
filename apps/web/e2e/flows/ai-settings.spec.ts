@@ -95,7 +95,7 @@ test.describe('AI settings', () => {
     // Three engines are on now, and the estimate says how much the switch added to the month
     await expect(
       page.getByText(
-        /^Estimated cost change: about \$[\d,.]+ a month more\. Estimated total for 3 engines that are on: \$[\d,.]+ a month\. Estimate from the price book\.$/,
+        /^Estimated cost change: about \$[\d,.]+ a month more\. Estimated total for 3 platforms that are on: \$[\d,.]+ a month\. Estimate from the price book\.$/,
       ),
     ).toBeVisible();
 
