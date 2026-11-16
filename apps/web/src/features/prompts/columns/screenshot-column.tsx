@@ -72,6 +72,8 @@ export function screenshotColumn<TRow>(options: ScreenshotColumnOptions<TRow>): 
     headerTooltip: t('prompts.lists.headers.screenshotTip'),
     headerIcon: <PlatformMark code={platform.code} />,
     width: SCREENSHOT_WIDTH,
+    // The header with the platform mark and the button with the day need this much
+    minWidth: SCREENSHOT_WIDTH,
     sortable: false,
     hasControls: true,
     cell: (row): ReactElement => {

@@ -70,6 +70,8 @@ export function brandsColumn<TRow>(options: BrandsColumnOptions<TRow>): DataTabl
     header: t('prompts.lists.columns.brands'),
     headerTooltip: t('prompts.lists.headers.brandsTip'),
     width: BRANDS_WIDTH,
+    // The table scrolls sideways as the mock's does, rather than squeezing three names to a few letters
+    minWidth: BRANDS_WIDTH,
     sortable: false,
     hasControls: true,
     defaultVisible: options.defaultVisible,

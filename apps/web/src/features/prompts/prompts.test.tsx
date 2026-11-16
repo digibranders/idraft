@@ -2335,7 +2335,8 @@ describe('Prompts: rate columns, Top platform, sorting and the metric switcher',
       .getAllByRole('columnheader')
       .slice(1, -1)
       .map((header) => header.textContent?.replace(/\d$/, ''));
-    expect(headers).toEqual(['Prompt', 'Group', 'Mention rate', 'Citation rate']);
+    // Brands is the one column of the popover package that exists for every platform scope
+    expect(headers).toEqual(['Prompt', 'Group', 'Mention rate', 'Citation rate', 'Brands']);
   });
 
   it('adds Mention rate, Citation rate and Top platform to the Groups tab, which opens on the highest Mention rate', async () => {

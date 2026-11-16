@@ -25,7 +25,9 @@ function Harness(): ReactElement {
   );
 }
 
-const closed = (): void => expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+const closed = (): void => {
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+};
 
 describe('the list popover', () => {
   it('is named by its title and holds the subtitle, the rows and the note', async () => {

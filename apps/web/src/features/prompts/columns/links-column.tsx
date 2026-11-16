@@ -58,6 +58,8 @@ export function linksColumn<TRow>(options: LinksColumnOptions<TRow>): DataTableC
     headerTooltip: t('prompts.lists.headers.linksTip'),
     headerIcon: <PlatformMark code={code} />,
     width: LINKS_WIDTH,
+    // The table scrolls sideways as the mock's does, rather than squeezing a page address to a few letters
+    minWidth: LINKS_WIDTH,
     sortable: false,
     hasControls: true,
     cell: (row): ReactElement => {

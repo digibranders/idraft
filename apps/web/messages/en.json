@@ -4897,9 +4897,6 @@
         "screenshot": "Screenshot"
       },
       "answers": "{count, plural, one {# answer} other {# answers}}",
-      "popover": {
-        "close": "Close"
-      },
       "brands": {
         "title": "Brands mentioned in answers",
         "subtitle": "{label} · {platforms} · {answers}",
@@ -4917,7 +4914,6 @@
         "addLabel": "Add {name} to your competitors",
         "addTip": "Track it: it counts in share of voice and the competitor gap from the next run",
         "addLimitTip": "You track {count, number} brands, the most the project can follow. Remove one in Brands settings to add another.",
-        "adding": "Adding",
         "added": "Added",
         "addedTitle": "{name} added to your competitors",
         "addedBody": "It counts in share of voice and the competitor gap from the next run.",
@@ -4927,9 +4923,7 @@
         "tryAgain": "Try again in a moment.",
         "meanTip": "Mean over {count, plural, one {# prompt} other {# prompts}}, each prompt counting once",
         "averagedTip": ", averaged over the platforms",
-        "platformCountTip": "{platform} {k} of {n} answers",
-        "unknownRateTip": "Your brand has no rate in these answers yet",
-        "pinnedNotRanked": "Not ranked"
+        "platformCountTip": "{platform} {k} of {n} answers"
       },
       "links": {
         "title": "Pages cited in answers",
