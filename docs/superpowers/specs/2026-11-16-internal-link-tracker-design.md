@@ -15,7 +15,7 @@ Why it sells: no tool on the market combines hand-set tiers, a journey from any 
 | Job | Who | What they need |
 |---|---|---|
 | Tag a new client site by importance | SEO executive at an agency | Bulk select, URL rules and CSV import, done in under 10 minutes for 2,000 pages |
-| Check that money pages are well linked | SEO executive, SEO lead | T1 pages with few content links, deep pages and equity share, in one sorted list |
+| Check that money pages are well linked | SEO executive, SEO lead | T1 pages with few editorial links, deep pages and equity share, in one sorted list |
 | Follow a page's link journey | SEO executive | A left-to-right canvas from any page, grown one step at a time |
 | Explain the linking to a client | SEO lead, account manager | One number per tier ("T1 pages hold 31% of internal equity"), the tier flow matrix and a shareable link |
 | Find fixes | SEO executive, developer | Broken and redirected links, orphans and links to non-indexable pages, grouped by placement so template fixes come first |
@@ -31,9 +31,10 @@ Slice 1:
 - Links table (every link edge) with filters and CSV export.
 - Tiers: workspace tier settings, one tier per page, bulk tagging, URL rules and CSV import. Free tags through the existing taxonomy.
 - Page inspector.
-- Journey: canvas and tree list, sharing one focus page, placement switch and URL state.
+- Journey: canvas and tree list, sharing one focus page, link scope and URL state. Both sides grow step by step (links out to the right, links in to the left). Back links, pages seen elsewhere and two-way links are marked, not repeated (section 7.5).
+- Link scope everywhere: editorial, auto-generated (previous and next, related posts), template, all.
 - Tier flow matrix with equity share per tier.
-- Worklists: under-linked T1 pages, orphans, broken and redirected links, links to non-indexable pages.
+- Worklists: under-linked T1 pages, orphans, editorial orphans, deep only through previous and next, broken and redirected links, links to non-indexable pages.
 
 Later slices (named so nothing is lost):
 
@@ -56,10 +57,12 @@ Later slices (named so nothing is lost):
 |---|---|
 | Tier | One level per page from the workspace's tier list, or Untiered. T1 is the most important. Decided by the owner on 2026-11-16: one tier per page plus free tags |
 | Tags | Any number of free labels per page, as terms of a taxonomy vocabulary of kind `tag` (doc 04 section 5.3) |
-| Placement | Where a link sits on the source page: `content`, `navigation`, `header`, `footer`, `sidebar`, `breadcrumb` |
-| Linking pages | Unique pages that link to a page. Counts never use raw link totals. Every count comes in two forms: content links only, and all placements |
-| Equity share | Internal PageRank of a page as a share of the whole crawl (section 6.4). Shares add up per tier |
+| Placement | Where a link sits on the source page: `content`, `auto_generated`, `navigation`, `header`, `footer`, `sidebar`, `breadcrumb` |
+| Link scope | The three groups the screens filter by. **Editorial** is `content`: links a person placed in the body. **Auto-generated** is `auto_generated`: links the CMS writes per page, such as previous and next, related, recent and popular posts, and tag and category lists. **Template** is navigation, header, footer, sidebar and breadcrumb: the same links on many pages. "All" is the three together |
+| Linking pages | Unique pages that link to a page. Counts never use raw link totals. Every count follows the link scope in view, editorial by default |
+| Equity share | Internal PageRank of a page as a share of the whole crawl (section 6.4). Shares add up per tier. It always uses every followed link, whatever the scope in view, because search engines follow them all |
 | Click depth | Fewest clicks from the start page over followed links of any placement |
+| Editorial orphan | A crawled page that no editorial link reaches: it is found only through menus, previous and next, or related blocks |
 | Orphan | A URL found in the sitemap, or a page with Search Console clicks in the last 90 days, that no crawled page links to |
 | Crawl | One run of the crawler over a project's site. Every number on screen belongs to one crawl, the latest finished one unless the user picks another |
 
@@ -127,15 +130,23 @@ Cost: $0.00015 a page base and $0.0015 with JavaScript (verified on the pricing 
 
 1. Read `/on_page/pages` and `/on_page/links` (internal direction, all pages through `search_after_token`) and `/on_page/non_indexable`. Upsert URLs through the existing `core.urls` path with canonicalizer v1.
 2. Read raw HTML for each 200 page and store it zstd-compressed in R2, latest crawl only, so placement can be classified again if the classifier changes.
-3. Classify each link's placement from the HTML. Match the link by source page and `href` in document order, then walk its ancestors:
-   - `nav` or `role="navigation"` gives `navigation`
-   - `header` or `role="banner"` outside `main` and `article` gives `header`
-   - `footer` or `role="contentinfo"` outside `main` and `article` gives `footer`
-   - `aside` or `role="complementary"` gives `sidebar`
-   - an element marked as a breadcrumb (BreadcrumbList microdata, or `aria-label`, `class` or `id` containing "breadcrumb") gives `breadcrumb`
-   - otherwise `content`
+3. Classify each link's placement from the HTML. Match the link by source page and `href` in document order. The first rule that matches wins:
+   1. **Auto-generated by marker:** the link has `rel="prev"` or `rel="next"`, or an ancestor's `aria-label`, `class` or `id` names article navigation, post navigation, pagination, related, recent, popular, more posts or similar. Also when the link's accessible text starts with "Previous" or "Next" followed by a title. Gives `auto_generated`. This catches the pattern found on cleanstart.com on 2026-11-16: `<a rel="prev">` and `<a rel="next">` in a `<section aria-label="Article navigation">`, inside `main` but outside `article`, and not a `nav`. WordPress's `nav.post-navigation` is caught here too.
+   2. **Breadcrumb:** an element marked as a breadcrumb (BreadcrumbList microdata, or `aria-label`, `class` or `id` containing "breadcrumb") gives `breadcrumb`.
+   3. **Landmarks:**
+      - `nav` or `role="navigation"` gives `navigation`
+      - `header` or `role="banner"` outside `main` and `article` gives `header`
+      - `footer` or `role="contentinfo"` outside `main` and `article` gives `footer`
+      - `aside` or `role="complementary"` gives `sidebar`
+   4. **Outside the article:** when the page has exactly one `article` element, a link inside `main` but outside that `article` is not `content`. It goes to the template pass below, and stays `auto_generated` if no other rule claims it.
+   5. Otherwise `content`.
 
-   Second pass, template detection: a link (same target, same anchor) that appears outside `main` on at least 50% of the pages in its top-level folder is treated as `navigation` when the first pass said `content`. The spike measures accuracy on three real sites (section 10).
+   Second pass, template blocks. For every link, take the structural path of its nearest block container (tag names and stable class names, with list positions removed). Group the paths by top-level folder.
+   - If one container path appears on at least 50% of a folder's pages and links to the **same** targets on them, its links are `navigation`.
+   - If it links to **different** targets page by page, they are `auto_generated`. This catches related-post widgets that carry no marker.
+   - The pass only changes links that the first pass called `content` or left open by rule 4.
+
+   Jump links to the same page (`#section`) and links from a page to itself are dropped before classification. Buttons and script-only controls are not links and never count. The spike measures accuracy on real sites, cleanstart.com among them (section 10).
 4. Store the edges per crawl, deduplicated per (source, target, placement, anchor) with an occurrence count.
 
 ### 6.4 Metrics
@@ -149,8 +160,10 @@ All metrics are computed in the worker after ingest, per crawl:
   - 4xx and 5xx pages keep what they receive and pass nothing on; this is reported as equity lost to errors.
   - Equity share is a page's value divided by the sum over all crawled URLs.
   - It is computed with a sparse matrix (numpy and scipy; adding them is a plan task).
-- **Per page:** linking pages (content and all), linking pages per tier, internal outlinks (content and all), outlinks to T1, broken outlinks, links to redirects, links to non-indexable pages, top anchor, orphan flag.
-- **Tier flow:** for content and for all placements, the number of unique (source, target) pairs from tier to tier, and each tier's equity share, page count and average depth.
+- **Depth without auto-generated links:** the same search, leaving out `auto_generated` links. A page is flagged "Deep only through previous and next" when it cannot be reached this way, or sits more than 3 clicks deeper than its click depth. Example: an old post that is 12 clicks deep because "Next" is the only way in.
+- **Per page, per link scope** (editorial, auto-generated, template, all): linking pages, linking pages per tier and internal outlinks. Plus outlinks to T1, broken outlinks, links to redirects, links to non-indexable pages, top anchor, orphan flag and editorial orphan flag.
+- **Reciprocal pairs:** a flag per (source, target) edge when the target links back to the source in the same scope. The journey and the inspector use it ("Links both ways").
+- **Tier flow:** per link scope, the number of unique (source, target) pairs from tier to tier, and each tier's equity share, page count and average depth.
 
 ### 6.5 Tables
 
@@ -161,7 +174,7 @@ Migration names and exact columns are settled in the plan. Workspace isolation f
 | `crawl.runs` | Project, provider task id, trigger (`website_added`, `schedule`, `manual`, `ceiling_retry`), settings snapshot, ceiling, state, pages found, pages crawled, cost, times, error |
 | `crawl.pages` | Per run and URL: status code, redirect target, indexable flag and reason, canonical URL, title, in sitemap, depth, the per-page metrics of section 6.4 |
 | `crawl.links` | Per run: source URL id, target URL id, anchor (or image alt), kind (text or image), placement, rel, occurrences. Partitioned by run, with an index on (run, source) and (run, target). The last 4 runs are kept in full; older partitions are dropped |
-| `crawl.tier_flow` | Per run, placement scope and tier pair: link count. Per run and tier: equity share, pages, average depth. Recomputed on tier change |
+| `crawl.tier_flow` | Per run, link scope and tier pair: link count. Per run and tier: equity share, pages, average depth. Recomputed on tier change |
 | `core.page_tier_levels` | Per workspace: id, position (1 to 8), name, description |
 | `core.project_pages` | Per project and URL: tier id (nullable), tier source (`manual`, `rule`), rule id, set by, set at |
 | `core.tier_rules` | Per project: position, match type, value, tier id |
@@ -183,7 +196,7 @@ The page header shows the crawl in scope ("Crawled 14 Nov, 2,148 pages") with a 
 
 ### 7.2 Pages tab
 
-A `DataTable` with selection, the bulk bar, the `FilterBar` (tier, tag, status, indexable, placement scope, flags) and the column chooser. The placement scope is one chip, "Content links" (default) or "All links". It changes every link count on the screen.
+A `DataTable` with selection, the bulk bar, the `FilterBar` (tier, tag, status, indexable, link scope, flags) and the column chooser. The link scope is one chip with Editorial (default), Auto-generated, Template and All. It changes every link count on the screen, but never equity share or click depth.
 
 Default columns:
 
@@ -199,7 +212,20 @@ Default columns:
 
 In the chooser: tags, indexability reason, in sitemap, outlinks to T1, broken outlinks, links to redirects, links to non-indexable pages, top anchor, and GSC clicks and impressions when Search Console is connected (labeled as Google data, last 28 days).
 
+Flags include Orphan, Editorial orphan ("No editorial links in") and "Deep only through previous and next", next to the error flags.
+
 Rows open the page inspector. The path cell has "Open in journey".
+
+Saved worklists in slice 1:
+
+| Worklist | Rule |
+|---|---|
+| Under-linked T1 pages | T1 pages with fewer than 3 editorial linking pages, deeper than 3 clicks, or in the lowest quarter of equity share |
+| Orphans | No internal links in from any scope |
+| Editorial orphans | Linked only by menus, footers, previous and next, or related blocks |
+| Deep only through previous and next | The flag of section 6.4, mostly old blog posts |
+| Broken and redirected links | Links to 4xx, 5xx or through redirects, grouped by scope so template fixes come first |
+| Links to non-indexable pages | Targets that are noindex, canonicalised elsewhere or blocked |
 
 ### 7.3 Links tab
 
@@ -229,16 +255,27 @@ Standard 400 px inspector with these parts:
 
 ### 7.5 Journey tab
 
-The canvas and the tree list share one state: focus page, placement scope and opened cards. It is kept in the URL through the shared `nuqs` parsers, so a link reproduces the view.
+The canvas and the tree list share one state: focus page, link scope and opened cards on both sides. It is kept in the URL through the shared `nuqs` parsers, so a link reproduces the view.
 
 **Canvas** (`LinkCanvas`, a new application component):
 
-- **Layout:** columns left to right. Column 1 lists pages linking in to the focus page, grouped by tier with counts, at most 8 per tier with "+N more". Column 2 is the focus card. Column 3 lists the focus page's outlinks. Each further column holds the outlinks of the cards opened in the column before, grouped under their parent. Edges run from parent to child.
-- **Growing:** nothing opens by itself. Activating a card opens or closes its next step. At most 8 children show per card, then "+N more" adds the next 8. Children sort by tier, then by equity share.
-- **Repeats:** a page already on the canvas appears again as a dashed stub, "On the canvas at step 2", which cannot open. Loops cannot grow the canvas.
-- **Placement:** with "Content links" on, only content links draw. With it off, a page's non-content links collapse into one group card ("Navigation and footer: 9 links") that opens like any card. Content edges are solid, other placements dashed, links to redirects amber and broken targets red, with a legend.
-- **Card:** a left edge in the tier color, the path, the link's anchor and placement, then the tier code, linking pages and equity share. A status badge shows when the page is not 200.
-- **Tooltip** (house tooltip): title, tier name, status, depth, linking pages (content and all), equity share, this link's placement and rel.
+- **Layout:** the focus card sits in the middle column.
+  - **Right side, links out:** the next column holds the focus page's outlinks. Each further column holds the outlinks of the cards opened in the column before, grouped under their parent.
+  - **Left side, links in:** the column before the focus holds the pages that link in, grouped by tier with counts. Opening one of them adds a further column to the left with the pages that link to it, and so on. This is the backward journey: who feeds the pages that feed this one.
+  - Edges always point the way the link goes: from the linking page to the linked page.
+- **Growing:** nothing opens by itself. Activating a card opens or closes its next step, on either side. At most 8 children show per card (per tier on the first in-link column), then "+N more" adds the next 8. Children sort by tier, then by equity share. Step labels count from the focus: "Step 2 out", "Step 2 in".
+- **Three kinds of link.** When a card opens, each of its links is sorted into one of three kinds:
+  1. **New page:** the target is not on the canvas yet. It becomes a card in the next column.
+  2. **Back link:** the target is a card earlier on this card's own path back to the focus, whether 1 step back or 6. It never becomes a card or a new level. The card shows a marker instead, "Links back: 2 pages", with a count and no tier colour.
+     - Hover or focus the marker to draw dashed return arrows to those earlier cards and highlight them. Clicking pins the arrows until clicked again.
+     - The marker's tooltip lists each page with its tier, anchor and link scope. A back link to a T1 page is how a cluster supports its money page, so it is shown, not hidden.
+     - Return arrows are never drawn by default, because twenty pages linking home would cover the canvas.
+  3. **Seen elsewhere:** the target is on the canvas but not on this path, for example in a sibling branch. It shows as a dashed stub, "Already at step 1 out". The stub cannot open. Activating it scrolls to the original card and highlights it.
+  - On the left side the same rules apply with the direction reversed: an in-link from a page already on the canvas is a stub or a back-link marker, never a second card.
+- **Links both ways:** when a card's page and its parent link to each other in the scope in view, the card shows a "Links both ways" marker. On the first columns this means the page links to the focus and the focus links to it. That reciprocal pair is the shape topic clusters are built on.
+- **Link scope:** with Editorial in view (the default), only editorial links draw as cards. Each opened card's other links collapse into group cards, one per scope with a count, such as "Previous, next and related: 2 links" or "Menus and footer: 9 links". A group card opens like any card, and its children follow the same three kinds. Editorial edges are solid, auto-generated edges dotted and template edges dashed. Links to redirects are amber and broken targets red, with a legend.
+- **Card:** a left edge in the tier colour, the path, the link's anchor and scope, then the tier code, linking pages and equity share. A status badge shows when the page is not 200.
+- **Tooltip** (house tooltip): title, tier name, status, depth, linking pages (editorial and all), equity share, this link's placement and rel, and whether it links both ways.
 - **Re-center:** each card has "Focus", which makes it the new focus. The URL updates, so Back returns to the previous focus.
 - **Size:** the canvas holds at most 300 cards. Past that, opening is refused with a message pointing to the tree list or a tier filter.
 - **Viewport:** zoom in, zoom out and fit-to-view buttons (the non-drag alternative to pan and zoom). There is no minimap. Nothing animates on load; layout changes move in 150 ms and do not move under reduced motion.
@@ -248,12 +285,13 @@ The canvas and the tree list share one state: focus page, placement scope and op
 **Tree list:** `DataTable` in tree mode with lazy children from the neighbours endpoint.
 
 - Columns: Page, Tier, Anchor, Placement, Linking pages, Equity share, Status.
-- Repeats show "Listed above" and do not expand.
+- A direction switch (Links out, Links in) picks which side the tree follows.
+- A back link shows as a muted row, "Links back to /crm-software (step 0)", that does not expand. A page listed elsewhere in the tree shows "Listed above" and does not expand either. Reciprocal rows carry the "Links both ways" marker.
 - It is the canvas's text alternative and the better view for scanning anchors.
 
 **Empty and edge states:**
 
-- A focus page with no in-links says so and suggests turning off "Content links".
+- A focus page with no editorial in-links says so ("Editorial orphan") and offers the All scope to show the menu and auto-generated links that reach it.
 - A focus page that is a redirect shows one child: its target.
 - A focus page that is not in the crawl offers a search for crawled pages.
 
@@ -261,7 +299,7 @@ The canvas and the tree list share one state: focus page, placement scope and op
 
 - **Matrix:** an ECharts heatmap (already imported) with rows "from tier" and columns "to tier". Cells hold unique link counts, with a table alternative. Clicking a cell opens the Links tab filtered to that pair.
 - **Strip:** a `MetricStrip` with each tier's equity share, page count and average depth.
-- **Scope:** the placement chip applies here too.
+- **Scope:** the link scope chip applies here too.
 - **Untiered:** it shows as its own row and column, so untagged pages are visible rather than hidden.
 
 ### 7.7 Tier settings
@@ -286,7 +324,7 @@ Workspace settings section "Page tiers" as specified in section 5.1: a `DataTabl
 
 ## 8. API
 
-`{P}` is `/api/v1/projects/{project_id}`. Every list takes `run` (default `latest`), `placement` (`content` or `all`, default `content`), cursor paging and `format=csv` where export applies.
+`{P}` is `/api/v1/projects/{project_id}`. Every list takes `run` (default `latest`), `scope` (`editorial`, `auto_generated`, `template` or `all`, default `editorial`), cursor paging and `format=csv` where export applies.
 
 | Method and path | Purpose |
 |---|---|
@@ -294,7 +332,7 @@ Workspace settings section "Page tiers" as specified in section 5.1: a `DataTabl
 | `GET {P}/internal-links/pages` | Pages table (filters, sort, columns of section 7.2) |
 | `GET {P}/internal-links/pages/{url_id}` | Inspector payload |
 | `GET {P}/internal-links/edges` | Links table |
-| `GET {P}/internal-links/neighbors` | One journey step. Takes `url_id`, `direction` (`in` or `out`), `limit` (8), `offset`. Returns children with edge fields, tier, metrics and `has_children` |
+| `GET {P}/internal-links/neighbors` | One journey step, either side. Takes `url_id`, `direction` (`in` or `out`), `scope`, `limit` (8), `offset`. Returns the children in scope with edge fields, tier, metrics, `has_children` and `reciprocal`, plus a count per other scope for the group cards. The canvas decides "new", "back link" or "seen elsewhere" itself, because only it knows what is on screen |
 | `GET {P}/internal-links/tier-flow` | Matrix and per-tier strip |
 | `GET {P}/internal-links/worklists` | Counts for the saved views |
 | `PUT {P}/pages/tiers` | Bulk set or clear a tier: `{url_ids}` or `{filter}`, plus `{tier_id or null}` |
@@ -321,12 +359,12 @@ The project settings model gains `internal_links: {schedule, render_javascript, 
 
 ## 10. Spike first (one day)
 
-Run on one real client site and two public sites of different builds (WordPress, a JavaScript framework, a custom CMS) to measure:
+Run on cleanstart.com (a Next.js blog with `rel="prev"` and `rel="next"` article navigation), one WordPress site and one other CMS to measure:
 
 1. Crawl speed in pages per minute, and whether `max_crawl_pages` stops cleanly.
 2. Whether `store_raw_html` changes the price, and the call limits of `raw_html`.
 3. What `respect_sitemap` does to scope and orphan flags.
-4. Placement classifier accuracy against a hand check of 100 links per site. The target is 95% for `content` versus template links.
+4. Placement classifier accuracy against a hand check of 100 links per site. The target is 95% for editorial versus auto-generated versus template, with previous and next links found on every blog post that has them.
 5. Whether `/links` returns the anchor text and rel we expect for image links and redirects.
 
 The plan adjusts sections 6.1 to 6.3 from the results before the backend tasks start.
@@ -334,9 +372,9 @@ The plan adjusts sections 6.1 to 6.3 from the results before the backend tasks s
 ## 11. Testing
 
 - **Backend unit:**
-  - placement classifier on HTML fixtures (nav, header inside `main`, breadcrumbs, template detection)
+  - placement classifier on HTML fixtures: nav, header inside `main`, breadcrumbs, `rel="prev"` and `rel="next"` in an "Article navigation" section outside `article` (the cleanstart.com shape), WordPress `post-navigation`, an unmarked related-posts block, a template block with the same targets, same-page jump links
   - PageRank on small graphs with known answers (sums to 1, redirect pass-through, nofollow dropped, error sink)
-  - depth through redirects
+  - depth through redirects, depth without auto-generated links, the "deep only through previous and next" flag, editorial orphans, reciprocal pairs
   - rule matching and precedence
   - tier delete with move
   - ceiling logic
@@ -345,12 +383,13 @@ The plan adjusts sections 6.1 to 6.3 from the results before the backend tasks s
   - the API under tenancy and row-level security, including that one workspace cannot read another's tiers or crawls
 - **Web unit and axe:**
   - `TierBadge`, `LinkCard`, `LinkCanvas` (keyboard order, accessible names, refusal at 300 cards), bulk bar, tier settings dialogs, in both themes
+  - canvas link kinds: a link to an ancestor two steps back becomes a back-link marker and never a card; a link to a sibling branch becomes a stub; the left side follows the same rules; the return arrows draw on hover and focus and pin on click; "Links both ways" shows on reciprocal pairs
 - **Playwright flow:**
   - add a project with the checkbox ticked
   - see crawl progress (mocked)
   - tag 20 pages in bulk and by rule
   - see the tier flow change
-  - open the journey, expand two steps, re-center, switch to the tree list
+  - open the journey, expand two steps out and two steps in, see a back-link marker and its return arrow, re-center, switch to the tree list
   - reload and get the same view from the URL
 - Visual baselines for the four tabs and tier settings.
 
