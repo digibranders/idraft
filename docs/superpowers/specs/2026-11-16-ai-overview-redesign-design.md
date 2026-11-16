@@ -113,6 +113,13 @@ two parents) plus a deterministic layer for the measures the fixture lacks (join
 order, sentiment, domains, fan-out queries, referral sessions). No fixture file is changed. Theme tokens only, no new
 colours. Verified on the localhost origin in a background tab, in light and dark, at 1280, 1024, 768 and 390 pixels.
 
+## 7.1 Later: competitor analysis
+
+The Competitor gap card shows only counts, "They lead" and "You lead" per competitor (a prompt is led by the brand
+named in more of its answers). Seeing the prompts behind those counts is left for the Competitors page (WP-39) and the
+`opp=lost_to:<entity_id>` prompt filter of the existing plan (overview-and-charts.md, CH-05). The backend needs the
+per-competitor mentions per prompt for it. The counts stay plain numbers until then. Owner decision 2026-11-16.
+
 ## 8. Not decided yet
 
 - Whether "All platforms" averages AI Overview in for the metrics it supports (the mock includes it only for mention,
