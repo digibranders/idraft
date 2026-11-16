@@ -55,6 +55,8 @@ function Probe({ withFacts, row = ROW }: { withFacts: boolean; row?: PromptRow }
   const { columns, sortFields } = usePromptColumns([projectEngine('chatgpt_web')], 'mention', null, {
     showLocation: true,
     facts: withFacts ? FACTS : undefined,
+    project: { workspaceId: 'workspace', projectId: 'project' },
+    timeZone: 'UTC',
   });
   return (
     <>
