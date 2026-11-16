@@ -177,6 +177,33 @@ Smallest change: with `include=series,entities`, add `entities` to each `WeekCel
 20 entities. Pool the weeks the way the own series does and keep the `is_pooled` and `pool` fields. The web draws a rival
 line only from these points; it never draws a flat or invented line.
 
+## 11. Weekly cells for mention position, recommendation and sentiment
+
+What: the tiles Mention position, Recommendation rate and Sentiment of the headline card draw a 22 px line over the last
+weeks in the preview (OV-HEAD-14). The real tiles have no line.
+
+Today: `WeekCells` holds `mentioned`, `cited`, `share_of_voice` and the weekly visibility cell. It holds no mention order,
+no recommendation and no sentiment, so the web has nothing to draw and draws nothing (never a flat or invented line).
+
+Smallest change: with `include=series`, add to each `WeekCells`, per engine and for the weekly series of the total, the
+`mention_order` mean with its count of ordered answers, and, once item 4 lands, `recommended` and `sentiment` (the
+positive share) as `MetricCell`s over the same answers that item 4 counts. Pool the weeks as the other cells do and keep
+`is_pooled` and `pool`. A week with fewer than 4 valid answers keeps its counts and no rate.
+
+## 12. Run number and the last run of each platform
+
+What: the status line of the preview says `Updated Sep 28, 02:10 · run 48`, and the tooltip of the Runs tile says `Run 48,
+last Sep 28, 02:10` and, with a platform chosen, that platform's last run (OV-SHELL-07, OV-HEAD-16).
+
+Today: the `Run` resource (`GET {P}/runs`) has `run_id`, `status`, `created_at`, `completed_at`, `window_start` and
+`window_end`, and no run number and no platform. The web counts the collecting runs of the period and shows the time the
+newest finished, in the project zone; the freshness line is the newest answer, a different fact (an answer can come after
+the run began, so the two times can differ by hours).
+
+Smallest change: add `run_number` (an integer that counts the collecting runs of the project, oldest is 1) to `Run`, and
+`engine_codes` (the platforms the run asked) so a platform's last run is the newest run whose `engine_codes` holds it.
+The web then writes `Run 48` and the per-platform time. Until then the line and the tooltip carry no run number.
+
 ## What the web does until each item lands
 
 | Item | Card state until the backend lands |
@@ -190,3 +217,5 @@ line only from these points; it never draws a flat or invented line.
 | 8 | Groups show the most specific term of each prompt |
 | 9 | Calendar keeps the daily answer counts |
 | 10 | Share of voice over time and the competitor trend say "not collected yet" |
+| 11 | The three tiles have no line |
+| 12 | The status line and the Runs tile tooltip carry no run number and no per-platform time |
