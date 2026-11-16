@@ -493,7 +493,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   );
   // The groups the Groups tab lists (the same rule and the same filters), so the strip and the tab count alike. Without
   // the topic trees (still being read, or failed) a group cannot be told from the topic above it
-  const stripGroups = useMemo(
+  const groupsInScope = useMemo(
     () =>
       summaryData === undefined || topicsUnknown
         ? null
@@ -505,9 +505,10 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
             filtering: topicIds.length > 0,
             codes,
             only: detectableGroups,
-          }).length,
+          }),
     [summaryData, topicsUnknown, topicTree, descendants, kept, topicIds, codes, detectableGroups],
   );
+  const stripGroups = groupsInScope === null ? null : groupsInScope.length;
 
   // The facts of the columns that later packages build, from the one summary read (never a request for a row); absent
   // while the API does not send them, which those columns say as not collected yet
@@ -771,6 +772,35 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     }
     return summary.isFetching || list.fetching ? 'refetching' : 'ready';
   })();
+
+  // A drawer follows the scope (PR-DRAWER-16): when the location, the window or a filter changes under an open prompt or
+  // group and the new scope no longer holds it, the drawer closes once the counts of the new scope are in, instead of
+  // saying it has no counts or that the group does not exist. A drawer that came with the link is not judged until the
+  // scope changes, so a shared link to a prompt outside the filters still opens it
+  const scopeKey = [project.id, country, range.from, range.to, includeBranded, topicIds.join(','), detectableOnly].join(
+    '|',
+  );
+  const judgedScope = useRef(scopeKey);
+  const judgeDrawer = useRef(false);
+  useEffect(() => {
+    if (judgedScope.current === scopeKey) return;
+    judgedScope.current = scopeKey;
+    judgeDrawer.current = true;
+  }, [scopeKey]);
+  const scopeSettled = topicsStatus === 'ready' && !summary.isPlaceholderData;
+  const groupKeysInScope = useMemo(
+    () => (groupsInScope === null ? null : new Set(groupsInScope.map((group) => group.key))),
+    [groupsInScope],
+  );
+  const closeInspector = inspector.close;
+  useEffect(() => {
+    if (!judgeDrawer.current || !scopeSettled) return;
+    judgeDrawer.current = false;
+    const promptLeft = openPrompt !== null && !rowsById.has(openPrompt);
+    const groupLeft =
+      openTopic !== null && openTopic !== NO_TOPIC && groupKeysInScope !== null && !groupKeysInScope.has(openTopic);
+    if (promptLeft || groupLeft) closeInspector();
+  }, [scopeSettled, openPrompt, openTopic, rowsById, groupKeysInScope, closeInspector]);
 
   // The views of the page, in the toolbar of whichever table is shown, so the table is drawn again when the view
   // changes and the switch with it: the focus is put back on it when the change was made from it

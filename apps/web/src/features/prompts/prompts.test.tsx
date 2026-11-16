@@ -2738,6 +2738,37 @@ describe('Prompts: the compact header and the location in the top bar', () => {
     expect(badge.closest('[role="gridcell"]')).toHaveAccessibleDescription(long);
   });
 
+  it('closes an open prompt drawer when a new location leaves the prompt out', async () => {
+    const german = promptOf(1);
+    const austrian = { ...promptOf(2), country_iso: 'AT' };
+    server.use(
+      http.get(LIST_PATH, () => HttpResponse.json(pageOf([german, austrian], null))),
+      http.get(SUMMARY_PATH, () => HttpResponse.json(EMPTY_SUMMARY)),
+    );
+    const { user } = renderOnPrompts(withTopBar(promptsAs('viewer')), {
+      searchParams: `?inspect=${encodeURIComponent(`prompt:${german.prompt_id}`)}`,
+    });
+    await screen.findByRole('complementary');
+    await user.click(await countryControl());
+    await user.click(await screen.findByRole('option', { name: 'AT' }));
+    await vi.waitFor(() => expect(screen.queryByRole('complementary')).toBeNull());
+  });
+
+  it('opens a prompt drawer that a link names though the scope holds no such prompt, until the scope changes', async () => {
+    const german = promptOf(1);
+    const austrian = { ...promptOf(2), country_iso: 'AT' };
+    server.use(
+      http.get(LIST_PATH, () => HttpResponse.json(pageOf([german, austrian], null))),
+      http.get(SUMMARY_PATH, () => HttpResponse.json(EMPTY_SUMMARY)),
+    );
+    renderOnPrompts(withTopBar(promptsAs('viewer')), {
+      searchParams: `?country=AT&inspect=${encodeURIComponent(`prompt:${german.prompt_id}`)}`,
+    });
+    await screen.findByRole('complementary');
+    await settle();
+    expect(screen.getByRole('complementary')).toBeInTheDocument();
+  });
+
   it('passes the accessibility checks with the header, the switch and the top bar', async () => {
     serveObserved('2026-11-12T10:00:00Z');
     const { container } = renderWithProviders(withTopBar(promptsAs('editor')));
