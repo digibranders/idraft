@@ -159,6 +159,7 @@ export function DataTable<TRow extends RowData>({
   selection,
   rowTree,
   onToggleGroup,
+  groupRowOpens = false,
   toolbarEnd,
   compactToolbar = false,
   identityCap = false,
@@ -856,7 +857,7 @@ export function DataTable<TRow extends RowData>({
         if (actionsOf(rowActions, row).length > 0) setMenu({ kind: 'row', id: getRowId(row) });
       } else if (column?.kind === 'select' && selection !== undefined) {
         if (hasCheckbox(treeAt(current.row))) toggleRow(getRowId(row), false);
-      } else if (isGroup(treeAt(current.row))) onToggleGroup?.(row);
+      } else if (isGroup(treeAt(current.row)) && !groupRowOpens) onToggleGroup?.(row);
       else openRow(row, event);
     }
   };
@@ -1371,7 +1372,7 @@ export function DataTable<TRow extends RowData>({
                                 return;
                               }
                               if (!isRowClick(event)) return;
-                              if (groupTree === undefined) openRow(row, event);
+                              if (groupTree === undefined || groupRowOpens) openRow(row, event);
                               else onToggleGroup?.(row);
                             }}
                             onAuxClick={(event: MouseEvent<HTMLTableRowElement>) => {

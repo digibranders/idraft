@@ -238,6 +238,11 @@ export interface DataTableProps<TRow> {
   rowTree?: ((row: TRow) => RowTree | undefined) | undefined;
   /** Called to open or close a group row. */
   onToggleGroup?: ((row: TRow) => void) | undefined;
+  /**
+   * Opt in: a click or Enter on a group row opens it through `onRowOpen`, like any row (a topic row opens its
+   * drawer), and only the disclosure button and Right and Left Arrow toggle it. Off: the click and Enter toggle.
+   */
+  groupRowOpens?: boolean;
   /** A slot at the end of the toolbar, before density and columns: the view switch. */
   toolbarEnd?: ReactNode;
   /** Opt out of parts of the toolbar: `{ density: false, count: false, sortNote: false }`. Absent: every part is drawn. */

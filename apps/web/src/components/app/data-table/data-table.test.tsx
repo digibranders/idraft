@@ -1508,7 +1508,9 @@ describe('DataTable tree mode', () => {
     tree = TREE,
     visible = null,
     sortFallback,
+    groupRowOpens,
   }: {
+    groupRowOpens?: boolean;
     visible?: readonly string[] | null;
     sortFallback?: readonly SortKey[];
     sort?: readonly SortKey[];
@@ -1543,6 +1545,7 @@ describe('DataTable tree mode', () => {
           onRowOpen={onOpen}
           rowTree={(row) => tree[row.id]}
           onToggleGroup={toggle}
+          groupRowOpens={groupRowOpens}
           toolbarEnd={toolbarEnd}
           status="ready"
           errorState={<p>The keywords did not load.</p>}
@@ -1580,6 +1583,23 @@ describe('DataTable tree mode', () => {
     expect(child).toHaveAttribute('aria-setsize', '2');
     expect(child).not.toHaveAttribute('aria-expanded');
     expect(child).not.toHaveAttribute('data-group-row');
+  });
+
+  it('with groupRowOpens a click and Enter on a group row open it, and only the chevron and Right Arrow toggle it', async () => {
+    const { user } = renderWithProviders(<TreeHarness groupRowOpens />);
+    await user.click(screen.getByText('Group A'));
+    expect(onOpen).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: 'g1' }), 'inspector');
+    expect(toggle).not.toHaveBeenCalled();
+    onOpen.mockClear();
+    act(() => cellAt(0, 1).focus());
+    await user.keyboard('{Enter}');
+    expect(onOpen).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: 'g1' }), 'inspector');
+    expect(toggle).not.toHaveBeenCalled();
+    await user.keyboard('{ArrowLeft}');
+    expect(toggle).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: 'g1' }));
+    toggle.mockClear();
+    await user.click(screen.getByRole('button', { name: /^(Expand|Collapse) Group A/ }));
+    expect(toggle).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: 'g1' }));
   });
 
   it('draws the sort fallback while the sorted column is hidden, and leaves the rows in the order given', () => {
