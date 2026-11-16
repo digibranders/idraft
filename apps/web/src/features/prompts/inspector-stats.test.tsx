@@ -39,12 +39,16 @@ const countsOf = (engines: EngineSummary[]): PromptCounts => ({
   retrying: false,
 });
 
-/** The section of an engine, found by its heading. */
-const sectionOf = (label: string): HTMLElement => {
-  const section = screen.getByRole('heading', { name: label }).closest('section');
-  if (section === null) throw new Error(`The ${label} section is missing`);
+/** The table of a rate (its card), found by its heading. */
+const tableOf = (title: 'Mention rate' | 'Citation rate'): HTMLElement => {
+  const section = screen.getByRole('heading', { name: title }).closest('section');
+  if (section === null) throw new Error(`The ${title} table is missing`);
   return section;
 };
+
+/** The row of a platform in a table. */
+const rowOf = (title: 'Mention rate' | 'Citation rate', label: string): HTMLElement =>
+  within(tableOf(title)).getByRole('row', { name: new RegExp(label) });
 
 const RANGE = { from: '2026-09-01', to: '2026-09-28' };
 
@@ -54,46 +58,73 @@ function renderStats(engines: ProjectEngine[], rows: EngineSummary[]): ReturnTyp
   );
 }
 
-describe('the sample of each rate in the Stats tab', () => {
-  it('says the sample with SampleCount', () => {
-    renderStats([engine('chatgpt_web')], [summary('chatgpt_web', cell(5, 8), cell(2, 8))]);
-    const [mention, citation] = within(sectionOf('ChatGPT')).getAllByRole('listitem');
-    const sample = (mention as HTMLElement).querySelector('[data-slot="sample-count"]');
-    expect(sample).toHaveTextContent('5 of 8 answers');
-    expect((citation as HTMLElement).querySelector('[data-slot="sample-count"]')).toHaveTextContent('2 of 8 answers');
-  });
-
-  it('shows n/a and never "0 of 0" for a rate with no valid answer', () => {
-    renderStats([engine('chatgpt_web')], [summary('chatgpt_web', cell(0, 0), cell(0, 0))]);
-    const section = sectionOf('ChatGPT');
-    const samples = section.querySelectorAll('[data-slot="sample-count"]');
-    expect(samples).toHaveLength(2);
-    samples.forEach((sample) => {
-      expect(sample).toHaveTextContent(/^n\/a$/);
-    });
-    expect(section).not.toHaveTextContent('0 of 0');
-  });
-
-  it('shows the sample and no rate below the minimum of valid answers', () => {
-    renderStats([engine('chatgpt_web')], [summary('chatgpt_web', cell(1, 2), cell(2, 2))]);
-    const [mention] = within(sectionOf('ChatGPT')).getAllByRole('listitem');
-    expect(mention).toHaveTextContent('1 of 2 answers');
-    expect(mention).toHaveTextContent('Too few answers for a reliable rate');
-  });
-});
-
-describe('the aggregation of each engine in the Stats tab', () => {
-  it('names it once in every engine section, so no reader takes a rate for a pooled one', () => {
+describe('the two rate tables of the Stats tab', () => {
+  it('has one table for each rate with a row for each platform, never a pooled row', () => {
     renderStats(
       [engine('chatgpt_web'), engine('gemini_web')],
       [summary('chatgpt_web', cell(3, 6), cell(4, 6)), summary('gemini_web', cell(5, 8), cell(1, 8))],
     );
-    for (const label of ['ChatGPT', 'Gemini']) {
-      const section = sectionOf(label);
-      const line = `${label} only: rates count valid answers, each of this prompt counted once`;
-      expect(within(section).getAllByText(line)).toHaveLength(1);
+    for (const title of ['Mention rate', 'Citation rate'] as const) {
+      expect(within(tableOf(title)).getByText('95% interval')).toBeInTheDocument();
+      expect(
+        within(tableOf(title))
+          .getAllByRole('columnheader')
+          .map((header) => header.textContent),
+      ).toEqual(['Platform', 'Estimate', 'Interval', 'Sample']);
+      expect(within(tableOf(title)).getAllByRole('row')).toHaveLength(3);
     }
-    expect(screen.getAllByText(/rates count valid answers, each of this prompt counted once/)).toHaveLength(2);
+    expect(rowOf('Mention rate', 'ChatGPT')).toHaveTextContent('50%');
+    expect(rowOf('Mention rate', 'Gemini')).toHaveTextContent('63%');
+    expect(rowOf('Citation rate', 'ChatGPT')).toHaveTextContent('67%');
+    expect(rowOf('Citation rate', 'Gemini')).toHaveTextContent('13%');
+  });
+
+  it('says the sample of each rate with SampleCount', () => {
+    renderStats([engine('chatgpt_web')], [summary('chatgpt_web', cell(5, 8), cell(2, 8))]);
+    expect(rowOf('Mention rate', 'ChatGPT').querySelector('[data-slot="sample-count"]')).toHaveTextContent(
+      '5 of 8 answers',
+    );
+    expect(rowOf('Citation rate', 'ChatGPT').querySelector('[data-slot="sample-count"]')).toHaveTextContent(
+      '2 of 8 answers',
+    );
+  });
+
+  it('draws the interval of a rate with enough answers', () => {
+    renderStats([engine('chatgpt_web')], [summary('chatgpt_web', cell(5, 8), cell(2, 8))]);
+    expect(
+      within(rowOf('Mention rate', 'ChatGPT')).getByRole('img', { name: /^95% interval \d+% to \d+%$/ }),
+    ).toBeInTheDocument();
+  });
+
+  it('says "No valid answers" and never "0 of 0" or 0% for a rate with no valid answer', () => {
+    renderStats([engine('chatgpt_web')], [summary('chatgpt_web', cell(0, 0), cell(0, 0))]);
+    const line = rowOf('Mention rate', 'ChatGPT');
+    expect(line).toHaveTextContent('No valid answers');
+    expect(line).not.toHaveTextContent('0 of 0');
+    expect(line).not.toHaveTextContent('%');
+    expect(line.querySelector('[data-slot="sample-count"]')).toHaveTextContent(/^n\/a$/);
+  });
+
+  it('shows the count and no rate or interval below the minimum of valid answers', () => {
+    renderStats([engine('chatgpt_web')], [summary('chatgpt_web', cell(1, 2), cell(2, 2))]);
+    const line = rowOf('Mention rate', 'ChatGPT');
+    expect(line).toHaveTextContent('1 of 2 answers');
+    expect(line).toHaveTextContent('Not enough data');
+    expect(line).not.toHaveTextContent('%');
+    expect(within(line).queryByRole('img')).toBeNull();
+  });
+
+  it('says how a rate is made once, under the tables', () => {
+    renderStats([engine('chatgpt_web')], [summary('chatgpt_web', cell(3, 6), cell(4, 6))]);
+    expect(screen.getAllByText(/^A rate is successes over valid answers in the period/)).toHaveLength(1);
+  });
+
+  it('has no accessibility violation', async () => {
+    const { container } = renderStats(
+      [engine('chatgpt_web'), engine('gemini_web')],
+      [summary('chatgpt_web', cell(3, 6), cell(4, 6)), summary('gemini_web', cell(5, 8), cell(1, 2))],
+    );
+    expect(await axe(container)).toHaveNoViolations();
   });
 });
 
@@ -107,7 +138,7 @@ describe('the statistics of a rate, opened from the Stats tab', () => {
   it('opens the statistics of a rate and comes back', async () => {
     const { user, container } = both();
     const open = screen.getByRole('button', { name: 'Open statistics for Mention on Gemini' });
-    expect(open).toHaveTextContent('Open statistics');
+    expect(open).toHaveTextContent('Gemini');
     await user.click(open);
     const panel = container.querySelector<HTMLElement>('[data-slot="statistics-panel"]');
     if (panel === null) throw new Error('The statistics panel is not shown');
@@ -116,8 +147,8 @@ describe('the statistics of a rate, opened from the Stats tab', () => {
     expect(panel).toHaveTextContent('Gemini');
     expect(panel).toHaveTextContent('Sep 1 to Sep 28, 2026');
     expect(panel).toHaveTextContent('5 of 8 answers');
-    // One engine per panel: the list, and the other engine, are not on screen
-    expect(screen.queryByRole('list', { name: /Rates of/ })).toBeNull();
+    // One engine per panel: the tables, and the other engine, are not on screen
+    expect(screen.queryByRole('heading', { name: 'Mention rate', level: 3 })).toBeNull();
     expect(panel).not.toHaveTextContent('ChatGPT');
     const back = screen.getByRole('button', { name: 'Back to Stats' });
     expect(back).toHaveFocus();

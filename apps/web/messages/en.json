@@ -4638,15 +4638,7 @@
         "noneTrackedReason": "Add competitors to the project to see how often the answers mention them."
       },
       "stats": {
-        "caption": "Rates of {engine} with their 95% intervals",
-        "mention": "Mention",
-        "citation": "Citation",
-        "aggregation": "{engine} only: rates count valid answers, each of this prompt counted once",
         "intervalLabel": "95% interval {range}",
-        "tooFew": "Too few answers for a reliable rate",
-        "none": "No valid answers",
-        "method": "The interval is the 95 percent Wilson interval over the valid answers of this period.",
-        "openStatistics": "Open statistics",
         "openStatisticsLabel": "Open statistics for {metric} on {engine}",
         "metricMention": "Mention rate",
         "metricCitation": "Citation rate",
@@ -5045,6 +5037,25 @@
       "relatedEmptyReason": "Groups beside this one appear once the scope holds more than one group.",
       "openGroupTip": "Open the group",
       "tabPromptsCount": "Prompts ({count, number})"
+    },
+    "drawer": {
+      "stats": {
+        "mentionTitle": "Mention rate",
+        "citationTitle": "Citation rate",
+        "mentionName": "Mention",
+        "citationName": "Citation",
+        "mentionCaption": "Mention rate of this prompt on each platform with its 95% interval",
+        "citationCaption": "Citation rate of this prompt on each platform with its 95% interval",
+        "intervalNote": "95% interval",
+        "platform": "Platform",
+        "estimate": "Estimate",
+        "interval": "Interval",
+        "sample": "Sample",
+        "notEnough": "Not enough data",
+        "noValid": "No valid answers",
+        "footer": "A rate is successes over valid answers in the period, each replicate counting once. Intervals are Wilson score intervals on a shared scale of 0% to 100%. A rate needs at least 4 answers; below that the count is shown instead.",
+        "openHint": "Choose a platform name to open the statistics of that rate."
+      }
     }
   },
   "aiOverview": {

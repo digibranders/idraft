@@ -354,8 +354,8 @@ describe('the tabs of the prompt inspector', () => {
     // Stats: no list at all
     lists.length = 0;
     const stats = renderOn('viewer', openedOn('stats'));
-    await within(await panel()).findByRole('heading', { name: 'ChatGPT' });
-    await screen.findByText(/^The interval is the 95 percent Wilson interval/);
+    await within(await panel()).findByRole('heading', { name: 'Mention rate' });
+    await screen.findByText(/^A rate is successes over valid answers in the period/);
     expect(lists).toEqual([]);
     stats.unmount();
     // History: the window's list, once, and nothing of Latest
@@ -650,22 +650,17 @@ describe('the Stats tab', () => {
   it('says the estimate, the 95 percent interval, the sample and the method of each rate of each engine', async () => {
     renderOn('viewer', openedOn('stats'));
     const inspector = await panel();
-    const chatgpt = (await within(inspector).findByRole('heading', { name: 'ChatGPT' })).closest('section');
-    if (chatgpt === null) throw new Error('The ChatGPT card is missing');
-    const lines = await within(chatgpt).findByRole('list', { name: 'Rates of ChatGPT with their 95% intervals' });
-    const [mention, citation] = within(lines).getAllByRole('listitem');
+    const mention = (await within(inspector).findByRole('heading', { name: 'Mention rate' })).closest('section');
+    const citation = within(inspector).getByRole('heading', { name: 'Citation rate' }).closest('section');
+    if (mention === null || citation === null) throw new Error('A rate table is missing');
     // 3 of 6 mentioned and 4 of 6 cited, as the strip and the Prompts table say
-    expect(mention).toHaveTextContent('Mention');
-    expect(mention).toHaveTextContent('50%');
+    const chatgpt = within(mention).getByRole('row', { name: /ChatGPT/ });
+    expect(chatgpt).toHaveTextContent('50%');
+    expect(within(chatgpt).getByRole('img', { name: /^95% interval \d+% to \d+%$/ })).toBeInTheDocument();
+    expect(chatgpt).toHaveTextContent('3 of 6 answers');
+    expect(within(citation).getByRole('row', { name: /ChatGPT/ })).toHaveTextContent('4 of 6 answers');
     expect(
-      within(mention as HTMLElement).getByRole('img', { name: /^95% interval \d+% to \d+%$/ }),
-    ).toBeInTheDocument();
-    expect(mention).toHaveTextContent('3 of 6 answers');
-    expect(citation).toHaveTextContent('4 of 6 answers');
-    expect(
-      within(inspector).getByText(
-        'The interval is the 95 percent Wilson interval over the valid answers of this period.',
-      ),
+      within(inspector).getByText(/Intervals are Wilson score intervals on a shared scale of 0% to 100%/),
     ).toBeInTheDocument();
     expect(within(inspector).queryByText(/server provides it/)).toBeNull();
   });
@@ -674,10 +669,12 @@ describe('the Stats tab', () => {
     // A week holds two runs: two valid answers on an engine, under the four a rate needs
     renderOn('viewer', `${openedOn('stats')}&window=7`);
     const inspector = await panel();
-    const chatgpt = (await within(inspector).findByRole('heading', { name: 'ChatGPT' })).closest('section');
-    if (chatgpt === null) throw new Error('The ChatGPT card is missing');
-    expect((await within(chatgpt).findAllByText('Too few answers for a reliable rate')).length).toBe(2);
+    const mention = (await within(inspector).findByRole('heading', { name: 'Mention rate' })).closest('section');
+    if (mention === null) throw new Error('The Mention rate table is missing');
+    const chatgpt = await within(mention).findByRole('row', { name: /ChatGPT/ });
+    expect(chatgpt).toHaveTextContent('Not enough data');
     expect(within(chatgpt).queryByRole('img', { name: /^95% interval/ })).toBeNull();
-    expect(within(chatgpt).getAllByText(/^\d+ of 2 answers$/).length).toBe(2);
+    expect(chatgpt).toHaveTextContent(/\d+ of 2 answers/);
+    expect(chatgpt).not.toHaveTextContent('%');
   });
 });

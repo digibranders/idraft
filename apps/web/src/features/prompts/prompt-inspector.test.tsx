@@ -436,8 +436,9 @@ describe('the prompt inspector: opening and stepping', () => {
     );
     const next = screen.getByRole('complementary');
     expect(next.querySelector('[data-slot="statistics-panel"]')).toBeNull();
-    const lists = await within(next).findAllByRole('list', { name: /^Rates of / }, { timeout: LOAD_WAIT });
-    expect(lists).not.toHaveLength(0);
+    expect(
+      await within(next).findByRole('heading', { name: 'Mention rate', level: 3 }, { timeout: LOAD_WAIT }),
+    ).toBeInTheDocument();
   });
 
   it('does not carry a Run now still on its way to the prompt it steps to', async () => {
