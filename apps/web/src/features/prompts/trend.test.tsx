@@ -216,9 +216,9 @@ describe('the Trend column of the tables', () => {
     const headers = (await within(plain).findAllByRole('columnheader')).map((header) => header.textContent);
     expect(headers).not.toContain('Trend');
     await waitFor(() => expect(summaries.length).toBeGreaterThan(0));
-    // No comparison: no line, and the weeks are not asked for
+    // No comparison: no line. The weeks are asked for all the same, since the prompt's History tab reads them too
     expect(within(plain).queryAllByRole('img', { name: /^Mention rate by week: / })).toHaveLength(0);
-    expect(summaries.some((url) => /[?&]include=series(&|$)/.test(url))).toBe(false);
+    expect(summaries.every((url) => /[?&]include=series(&|$)/.test(url))).toBe(true);
     off.unmount();
 
     renderOn('?tab=prompts&cmp=previous');

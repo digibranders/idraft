@@ -1004,7 +1004,7 @@ describe('Prompts: Mentioned and Cited per platform, filters and sort', () => {
 
     it('reads a rate by its value, not its text, with no answers last either way', async () => {
       serve();
-      const up = renderOnPrompts(promptsAs('viewer'), { searchParams: '?sort=chatgpt_web_rate' });
+      const up = renderOnPrompts(promptsAs('viewer'), { searchParams: `?sort=chatgpt_web_rate&${PLATFORM_COLUMNS}` });
       expect(await order()).toEqual([
         'Question number 3?',
         'Question number 1?',
@@ -1014,7 +1014,7 @@ describe('Prompts: Mentioned and Cited per platform, filters and sort', () => {
         'Question number 5?',
       ]);
       up.unmount();
-      renderOnPrompts(promptsAs('viewer'), { searchParams: '?sort=-chatgpt_web_rate' });
+      renderOnPrompts(promptsAs('viewer'), { searchParams: `?sort=-chatgpt_web_rate&${PLATFORM_COLUMNS}` });
       expect(await order()).toEqual([
         'Question number 2?',
         'Question number 6?',
@@ -1025,13 +1025,23 @@ describe('Prompts: Mentioned and Cited per platform, filters and sort', () => {
       ]);
     });
 
+    it('keeps a sort on a column the chooser leaves out in the link, applies the default order, and applies it once the column is shown', async () => {
+      serve();
+      const hidden = renderOnPrompts(promptsAs('viewer'), { searchParams: '?sort=chatgpt_web_rate' });
+      // The default order: the highest Mention rate first, not the order of the hidden platform column
+      expect((await order())[0]).toBe('Question number 2?');
+      hidden.unmount();
+      renderOnPrompts(promptsAs('viewer'), { searchParams: `?sort=chatgpt_web_rate&${PLATFORM_COLUMNS}` });
+      expect((await order())[0]).toBe('Question number 3?');
+    });
+
     it('sorts rates a text order would get wrong: 5, 10, 25, 50 and 100 percent', async () => {
       // 2 of 40, 2 of 20, 2 of 8, 4 of 8, 4 of 4: each has the four answers a rate needs
       serve([counted(40, 2), counted(20, 2), counted(8, 2), counted(8, 4), counted(4, 4)]);
-      const up = renderOnPrompts(promptsAs('viewer'), { searchParams: '?sort=chatgpt_web_rate' });
+      const up = renderOnPrompts(promptsAs('viewer'), { searchParams: `?sort=chatgpt_web_rate&${PLATFORM_COLUMNS}` });
       expect(await order()).toEqual([1, 2, 3, 4, 5].map((n) => `Question number ${String(n)}?`));
       up.unmount();
-      renderOnPrompts(promptsAs('viewer'), { searchParams: '?sort=-chatgpt_web_rate' });
+      renderOnPrompts(promptsAs('viewer'), { searchParams: `?sort=-chatgpt_web_rate&${PLATFORM_COLUMNS}` });
       expect(await order()).toEqual([5, 4, 3, 2, 1].map((n) => `Question number ${String(n)}?`));
     });
 
@@ -2248,6 +2258,18 @@ describe('Prompts: rate columns, Top platform, sorting and the metric switcher',
     await user.click(screen.getByRole('checkbox', { name: 'ChatGPT mention' }));
     expect(within(table).getByRole('columnheader', { name: /^ChatGPT mention/ })).toBeInTheDocument();
     expect(cellsOf(table, 'Question number 1?').at(-1)).toBe('75% 6 of 8');
+  });
+
+  it('keeps a saved link that names the removed Trend column: the other columns it names still show', async () => {
+    serveRates();
+    renderOnPrompts(promptsAs('viewer'), { searchParams: '?cols=prompt,topic,mention,trend,citation' });
+    const table = await grid();
+    await within(table).findByText('Question number 1?');
+    const headers = within(table)
+      .getAllByRole('columnheader')
+      .slice(1, -1)
+      .map((header) => header.textContent?.replace(/\d$/, ''));
+    expect(headers).toEqual(['Prompt', 'Group', 'Mention rate', 'Citation rate']);
   });
 
   it('has no Location column while the top bar names a location, and no Trend column in either case', async () => {

@@ -158,9 +158,8 @@ const VIEW_STATE = {
   density: parseAsString,
 };
 
-/** The weekly series, asked of the summary while comparing, for the line in the Mention rate cell. Module level, so the query's key stays the same. */
+/** The weekly series, asked of the summary: the Trend column, the line in the Mention rate cell and the History tab read it. Module level, so the query's key stays the same. */
 const SERIES: readonly ['series'] = ['series'];
-const NO_INCLUDE: readonly [] = [];
 const NO_ENTITIES: readonly SummaryEntity[] = [];
 
 const promptRowId = (row: PromptRow): string => row.prompt.prompt_id;
@@ -341,13 +340,13 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     );
 
   // The table stays on the last counts while a new window, or the Branded filter, is read. The weekly series comes
-  // with them in the one read, which the strip and the drawers use too: for the Trend column of the Groups tab, and
-  // for the line in the Mention rate cell of the Prompts tab while the person compares. A failed series cannot be told from a failed summary, and a summary without series (an older API)
-  // leaves the line out
+  // with them in the one read, which the strip and the drawers use too, whatever the comparison: the Trend column of
+  // the Groups tab, the line in the Mention rate cell while comparing and the prompt's History tab read it. A failed
+  // series cannot be told from a failed summary, and a summary without series (an older API) leaves the line out
   const summary = useQuery({
     ...summaryQuery(scope, range, includeBranded, {
       ...(country === null ? {} : { country }),
-      include: compare || tab === 'topics' ? SERIES : NO_INCLUDE,
+      include: SERIES,
       compare,
     }),
     enabled: enabled.length > 0,
@@ -498,11 +497,18 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     facts: facts.data,
   });
   const columnIds = useMemo(() => new Set(columns.map((column) => column.id)), [columns]);
-  const sort = useMemo((): readonly SortKey[] => {
-    const parsed = parseSort(view.sort, sortFields);
-    return parsed.length === 0 ? DEFAULT_PROMPT_SORT : parsed;
-  }, [view.sort, sortFields]);
   const visible = useMemo(() => parseColumns(view.cols, columnIds, ['prompt']), [view.cols, columnIds]);
+  // A sort names a column that is on screen: one the chooser (or the scope) leaves out is kept in the link but not
+  // applied, so the table never orders by a column the person cannot see; it applies again when the column is shown
+  const sort = useMemo((): readonly SortKey[] => {
+    const onScreen = new Set(
+      visible === null
+        ? columns.filter((column) => column.defaultVisible !== false).map((column) => column.id)
+        : visible,
+    );
+    const parsed = parseSort(view.sort, new Set([...sortFields].filter((id) => onScreen.has(id))));
+    return parsed.length === 0 ? DEFAULT_PROMPT_SORT : parsed;
+  }, [view.sort, sortFields, visible, columns]);
   const density = parseDensity(view.density);
 
   // The inspector: a prompt opened from either tab, stepping in the order of the table on screen
