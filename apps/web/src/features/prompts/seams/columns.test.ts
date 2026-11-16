@@ -21,6 +21,8 @@ const context: PromptColumnContext = {
   compare: true,
   comparedWindow: null,
   changeWords: { tip: () => '', label: () => '', gap: () => '' },
+  project: { workspaceId: 'workspace', projectId: 'project' },
+  timeZone: 'UTC',
 };
 
 const column = (id: string): DataTableColumn<PromptRow> =>

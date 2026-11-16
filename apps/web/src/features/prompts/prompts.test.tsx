@@ -2346,6 +2346,7 @@ describe('Prompts: rate columns, Top platform, sorting and the metric switcher',
       'Recommendation rate',
       'Share of voice',
       'Sentiment',
+      'Brands',
     ]);
   });
 

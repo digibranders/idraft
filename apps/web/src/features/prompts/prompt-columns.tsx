@@ -8,6 +8,7 @@ import { useChangeWords, useComparedWindow, useCompare, type ComparedWindow } fr
 import type { PromptFacts } from './facts';
 import { cellsOfPrompt, countText, engineSortId, SORT_ID, type RateMetric } from './prompt-model';
 import { PlatformMark } from './platform-mark';
+import type { PromptScope } from './prompt-queries';
 import { ENGINE_COLUMN_WIDTH, useEngineRateColumns, useRateColumns } from './rate-columns';
 import { PROMPT_COLUMN_ENTRIES, withColumnEntries } from './seams/columns';
 import { col, type UnknownValue } from '@/components/app/data-table/columns';
@@ -123,12 +124,21 @@ export interface PromptColumnOptions {
   showLocation: boolean;
   /** The facts of every row (`usePromptFacts`), for the columns that later packages register; `undefined` until read. */
   facts: PromptFacts | undefined;
+  /** The workspace and project, for the cells that write or read on their own (Brands, Screenshot). */
+  project: PromptScope;
+  /** The project's time zone. */
+  timeZone: string;
 }
 
 /** The preview's Location column: 120 px, which holds "United Arab Emirates" cut with its ellipsis. */
 const LOCATION_WIDTH = 120;
 
-const DEFAULT_OPTIONS: PromptColumnOptions = { showLocation: true, facts: undefined };
+const DEFAULT_OPTIONS: PromptColumnOptions = {
+  showLocation: true,
+  facts: undefined,
+  project: { workspaceId: '', projectId: '' },
+  timeZone: 'UTC',
+};
 
 /**
  * The columns of the Prompts tab, in the mock's order: Prompt, Group, Location (only while the top bar says All
@@ -143,7 +153,7 @@ export function usePromptColumns(
   metric: RateMetric,
   /** The window the summary was compared with: the screen builds these columns above its provider of it. */
   comparedWindow?: ComparedWindow,
-  { showLocation, facts }: PromptColumnOptions = DEFAULT_OPTIONS,
+  { showLocation, facts, project, timeZone }: PromptColumnOptions = DEFAULT_OPTIONS,
 ): PromptColumns {
   const t = useTranslations('prompts');
   const shell = useTranslations('prompts.shell.columns');
@@ -226,6 +236,8 @@ export function usePromptColumns(
       compare,
       comparedWindow: compared,
       changeWords,
+      project,
+      timeZone,
     });
     return {
       columns,
@@ -245,6 +257,8 @@ export function usePromptColumns(
     compare,
     compared,
     changeWords,
+    project,
+    timeZone,
     mention,
     citation,
     engineRateColumns,

@@ -4894,12 +4894,12 @@
         "reason": {
           "noAnswers": "no answers in this period",
           "noLinkedKeyword": "no linked keyword. Google AI Overview is taken from the rank checks of a linked keyword",
-          "noOverview": "no Google AI Overview was shown for \"{keyword}\" in this period"
+          "noOverview": "no Google AI Overview was shown for “{keyword}” in this period"
         },
         "sentence": {
           "noAnswers": "No answers in this period.",
           "noLinkedKeyword": "No linked keyword. Google AI Overview is taken from the rank checks of a linked keyword.",
-          "noOverview": "No Google AI Overview was shown for \"{keyword}\" in this period."
+          "noOverview": "No Google AI Overview was shown for “{keyword}” in this period."
         }
       },
       "intent": {
@@ -4924,7 +4924,7 @@
       "volume": {
         "header": "Search volume",
         "tip": "Monthly searches of the keyword the prompt is linked to",
-        "promptTip": "Monthly searches of \"{keyword}\", the keyword this prompt is linked to",
+        "promptTip": "Monthly searches of “{keyword}”, the keyword this prompt is linked to",
         "groupTip": "Monthly searches of {keywords, plural, one {# linked keyword} other {# linked keywords}} across {prompts, plural, one {# prompt} other {# prompts}}, each keyword counted once",
         "groupMissingTip": "{missing, plural, one {# of them has} other {# of them have}} no volume yet, so the total is a lower bound",
         "noLinkTip": "No linked keyword. Volume is the monthly searches of the keyword a prompt is linked to.",
@@ -4961,6 +4961,71 @@
         "averageBasis": "Equal-weight average of {platforms}, each from its own classified mentions",
         "onlyBasis": "{platform}: {mentions, plural, one {# classified mention} other {# classified mentions}}",
         "cellTip": "{shares}. {basis}. Four shares, never one score."
+      }
+    },
+    "lists": {
+      "thisPrompt": "This prompt",
+      "noAnswersTip": "No answers in this period",
+      "notCollectedTip": "Not collected yet",
+      "headers": {
+        "brandsTip": "The brands the answers mention, most mentioned first. Opens the list.",
+        "linksTip": "The pages the platform cited in its answers, most cited first",
+        "screenshotTip": "The latest answer of the platform, as the page showed it"
+      },
+      "columns": {
+        "brands": "Brands",
+        "links": "Cited pages",
+        "screenshot": "Screenshot"
+      },
+      "answers": "{count, plural, one {# answer} other {# answers}}",
+      "brands": {
+        "title": "Brands mentioned in answers",
+        "subtitle": "{label} · {platforms} · {answers}",
+        "onlyPlatform": "{platform} only",
+        "averagePlatforms": "Equal-weight average of {platforms}",
+        "openLabel": "Brands mentioned in the answers for {label}: {count, plural, one {# brand} other {# brands}}. Open the list",
+        "note": "The share of answers that mention each brand. A brand marked Not a competitor is in the answers but not in your competitor list: add it to include it in share of voice and the competitor gap.",
+        "tooFewTip": "Too few answers to list the brands they mention",
+        "ownPresent": "Your brand is mentioned in these answers",
+        "ownAbsent": "Your brand is not mentioned in these answers",
+        "you": "You",
+        "notCompetitor": "Not a competitor",
+        "notCompetitorTip": "The answers mention it, but it is not in your competitor list, so share of voice and the competitor gap leave it out",
+        "add": "Add",
+        "addLabel": "Add {name} to your competitors",
+        "addTip": "Track it: it counts in share of voice and the competitor gap from the next run",
+        "addLimitTip": "{count, number} brands are tracked, the most the project can track. Remove one in Brands and aliases to add another.",
+        "added": "Added",
+        "addedTitle": "{name} added to your competitors",
+        "addedBody": "It counts in share of voice and the competitor gap from the next run.",
+        "undo": "Undo",
+        "addFailedTitle": "{name} could not be added to your competitors",
+        "undoFailedTitle": "{name} could not be taken off your competitors",
+        "tryAgain": "Try again in a moment.",
+        "meanTip": "Mean over {count, plural, one {# prompt} other {# prompts}}, each prompt counting once",
+        "averagedTip": ", averaged over the platforms",
+        "platformCountTip": "{platform} {k} of {n} answers"
+      },
+      "links": {
+        "title": "Pages cited in answers",
+        "subtitle": "{label} · {answers}",
+        "openLabel": "Pages cited in the answers for {label}: {count, plural, one {# page} other {# pages}}. Open the list",
+        "note": "How many of the answers cite each page, most cited first.",
+        "ownPresent": "Your site is cited in these answers",
+        "ownAbsent": "Your site is not cited in these answers",
+        "yourSite": "Your site",
+        "none": "None",
+        "noneTip": "None of {count, plural, one {# answer} other {# answers}} cited a page"
+      },
+      "shot": {
+        "title": "Answer screenshot",
+        "subtitle": "{platform} · {when}",
+        "openLabel": "Open the latest {platform} answer screenshot for {prompt}",
+        "noAnswer": "No answer",
+        "noAnswerTip": "No answer in this period yet",
+        "notCollectedTip": "No screenshot of the latest answer has been collected yet",
+        "imageAlt": "The latest {platform} answer to the prompt, as the page showed it",
+        "close": "Close"
       }
     }
   },

@@ -112,7 +112,7 @@ describe('volumeColumn', () => {
   it('is the grouped monthly searches of the linked keyword', () => {
     const shown = show(column, { facts: undefined, link: link('crm software', 1190) });
     expect(shown.text).toBe('1,190');
-    expect(shown.tip).toBe('Monthly searches of "crm software", the keyword this prompt is linked to');
+    expect(shown.tip).toBe('Monthly searches of “crm software”, the keyword this prompt is linked to');
     expect(column.header).toBe('Search volume');
     expect(shown.tip).not.toContain('Sample');
   });
@@ -206,7 +206,7 @@ describe('positionColumn', () => {
     });
     expect(show(aio, { facts: empty, link: link('best crm', 900) })).toMatchObject({
       text: 'None',
-      tip: 'No Google AI Overview was shown for "best crm" in this period.',
+      tip: 'No Google AI Overview was shown for “best crm” in this period.',
     });
   });
 
