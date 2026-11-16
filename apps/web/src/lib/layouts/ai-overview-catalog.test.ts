@@ -76,7 +76,7 @@ const row = (
 const EXISTING: readonly Row[] = [
   row('ai.mention_trend', null, 'ai', 'H 2T F', PER_ENGINE, [ENGINE]),
   row('ai.by_engine', null, 'ai', 'H 2T F', 1),
-  row('ai.citation_share_by_domain_type', null, 'ai', 'T H', 1),
+  row('ai.citation_share_by_domain_type', null, 'ai', 'H T', 1),
   // Two thirds stays for the project Overview; the AI visibility page also takes a third.
   row('activity.key_changes', null, 'activity', 'H T 2T F', 1, [rows(['5', '8'], '8')]),
   row('activity.collection_status', null, 'activity', 'T H', 1),

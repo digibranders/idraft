@@ -722,7 +722,7 @@ export const CARD_TYPES: ReadonlyArray<CardTypeDefinition> = [
     'Citation share by domain type',
     'Whose pages AI answers cite: yours, competitors, publishers and others.',
     'ai',
-    ['third', 'half'],
+    ['half', 'third'],
     AI,
     { addedOn: RELEASE, screens: OVERVIEW_AND_AI },
   ),
