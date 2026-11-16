@@ -132,6 +132,16 @@ forbidden_modules = [
 ]
 
 [[tool.importlinter.contracts]]
+name = "crawl is pure: no database, workers, entrypoints or I/O libraries"
+type = "forbidden"
+source_modules = ["idraft.crawl"]
+forbidden_modules = [
+  "idraft.api", "idraft.worker", "idraft.collectors", "idraft.providers", "idraft.db",
+  "idraft.storage", "idraft.config",
+  "sqlalchemy", "asyncpg", "redis", "httpx", "fastapi", "starlette",
+]
+
+[[tool.importlinter.contracts]]
 name = "providers never touch the database"
 type = "forbidden"
 source_modules = ["idraft.providers"]
@@ -159,7 +169,7 @@ forbidden_modules = ["idraft.api", "idraft.worker"]
 name = "the dev seed is reached only from the operator CLI"
 type = "forbidden"
 source_modules = [
-  "idraft.ai", "idraft.api", "idraft.collectors", "idraft.config", "idraft.db",
+  "idraft.ai", "idraft.api", "idraft.collectors", "idraft.config", "idraft.crawl", "idraft.db",
   "idraft.domain", "idraft.extraction", "idraft.keywords", "idraft.providers",
   "idraft.ranks", "idraft.storage", "idraft.vault", "idraft.worker",
 ]
