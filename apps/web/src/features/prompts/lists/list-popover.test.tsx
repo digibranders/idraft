@@ -4,6 +4,8 @@ import { describe, expect, it } from 'vitest';
 
 import { atTrackedLimit, nextCompetitorColor, sameBrand, TRACKED_LIMIT } from './competitor-model';
 import { ListPopover, ListRow } from './list-popover';
+import { Button } from '@/components/ui/button';
+import { Tooltip } from '@/components/ui/tooltip';
 import { renderWithProviders } from '@/test/render';
 
 function Harness(): ReactElement {
@@ -54,6 +56,40 @@ describe('the list popover', () => {
     await user.click(screen.getByRole('button', { name: 'Open the list' }));
     await screen.findByRole('dialog');
     fireEvent(window, new Event('resize'));
+    await waitFor(closed);
+  });
+
+  it('closes on the first Escape from a button whose tooltip is showing', async () => {
+    function WithTooltipButton(): ReactElement {
+      const [open, setOpen] = useState(false);
+      return (
+        <ListPopover
+          open={open}
+          onOpenChange={setOpen}
+          label="Open the list"
+          trigger={<span>Northwind</span>}
+          title="Brands mentioned in answers"
+          subtitle="This prompt"
+          note="A note"
+        >
+          <ListRow
+            place={1}
+            main={<span>Insightly</span>}
+            value={
+              <Tooltip content="Follow it as a competitor">
+                <Button size="sm">Add</Button>
+              </Tooltip>
+            }
+          />
+        </ListPopover>
+      );
+    }
+    const { user } = renderWithProviders(<WithTooltipButton />);
+    await user.click(screen.getByRole('button', { name: 'Open the list' }));
+    await screen.findByRole('dialog');
+    await user.tab();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Add' })).toHaveFocus());
+    await user.keyboard('{Escape}');
     await waitFor(closed);
   });
 

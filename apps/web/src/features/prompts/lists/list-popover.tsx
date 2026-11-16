@@ -84,6 +84,11 @@ export function ListPopover({
       style={{ maxHeight: 'min(34rem, var(--available-height))' }}
       // The popup renders in a portal, but a React click still bubbles to the row that holds the cell
       {...(grid ? { onClick: stop } : {})}
+      // One Escape closes the list even while a tooltip shows (a focused Add button opens its tooltip, and that tooltip
+      // would otherwise take the first press)
+      onKeyDownCapture={(event) => {
+        if (event.key === 'Escape' && !event.repeat) onOpenChange(false);
+      }}
       trigger={
         <button
           type="button"
