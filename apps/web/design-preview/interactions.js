@@ -1265,7 +1265,7 @@
   // Settings (24 section 6): sections, the dirty form with its SaveBar and cost notice, and project deletion
 
   const SETTINGS_LABELS = Object.fromEntries($$('[data-settings-link]').map((a) => [a.dataset.settingsLink, a.textContent.trim()]));
-  const BUILT_SECTIONS = new Set(['profile', 'security', 'preferences', 'general', 'engines']);
+  const BUILT_SECTIONS = new Set(['profile', 'security', 'preferences', 'general', 'engines', 'internal-links', 'page-tiers']);
   const NAV_ON = ['type-body-strong', 'text-primary-text', 'bg-surface-selected'];
   const NAV_OFF = ['type-body', 'text-foreground-secondary', 'hover:bg-surface-hover'];
   function setNavState(link, on) {
@@ -1533,9 +1533,9 @@
   // carry ?inspect= keep working. The old #/rankings address still opens it. Destinations that are not built say so
   // instead of navigating.
 
-  const VIEWS = { overview: 'Overview', ai: 'AI visibility', keywords: 'Keywords', pages: 'Pages', prompts: 'Prompts', settings: 'Settings' };
+  const VIEWS = { overview: 'Overview', ai: 'AI visibility', keywords: 'Keywords', pages: 'Pages', 'internal-links': 'Internal links', prompts: 'Prompts', settings: 'Settings' };
   // Pages with tabs keep the tab in the route: #/prompts (Topics), #/prompts/explorer
-  const PAGE_TABS = { pages: ['performance', 'landing'], prompts: ['topics', 'explorer'] };
+  const PAGE_TABS = { pages: ['performance', 'landing'], 'internal-links': ['pages', 'links', 'journey', 'flow'], prompts: ['topics', 'explorer'] };
   let route = { view: 'keywords', section: null };
 
   function parseRoute(hash) {
@@ -1568,7 +1568,7 @@
     $('[data-crumb-current]').textContent = label;
     $('[data-crumb-parent]').hidden = !settings;
     // Date range and location are hidden where they do not apply (11 section 4)
-    $$('[data-scope-control]').forEach((el) => (el.hidden = settings || next.view === 'pages'));
+    $$('[data-scope-control]').forEach((el) => (el.hidden = settings || next.view === 'pages' || next.view === 'internal-links'));
     document.title = `${settings ? `${label}, Settings` : label} · Design System Preview`;
     if (viewChanged) window.scrollTo(0, 0);
     // Pages built in their own script (prompts.js) show their tab from this

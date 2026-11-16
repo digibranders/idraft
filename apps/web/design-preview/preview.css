@@ -42,6 +42,7 @@
 @source "./kw-grouped-drawer.js";
 @source "./kw-grouped-pages.js";
 
+@source "./il*.js";
 /* Every table: all data at 12 px / 16 px and header labels in capitals (owner decisions of 2026-10-29).
    Unlayered on purpose: it wins over the type-* utilities that the mock-up cells carry. The app does this
    with the type-table and type-table-header tokens; the preview's hand-written markup is too varied for that. */
