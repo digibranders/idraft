@@ -246,6 +246,22 @@ In dark mode the band with the most emphasis (1 to 3) is the lightest, so "stron
 | `--div-pos-2` | `0.72 0.10 158` `#6BB88D` | `0.50 0.10 158` `#24744D` |
 | `--div-pos-3` | `0.52 0.11 158` `#1E7C50` | `0.72 0.13 158` `#51BD85` |
 
+### 7.4 Page tiers
+
+`--tier-1` to `--tier-8` and `--tier-none` color a page's tier in Internal links: the 4 px left edge of a link card and the square of a `TierBadge`. One cobalt sequential scale per theme, T1 the strongest contrast. Each reaches 3:1 on `surface` and `surface-subtle` in both themes (`tokens.contrast.test.ts`, `TIER_TOKENS`). The color is never the only cue: the badge always writes the code, and a card's name says its tier.
+
+| Token | Light | Dark |
+|---|---|---|
+| `--tier-1` | `0.38 0.150 262` `#0F3A90` | `0.85 0.065 262` `#B7CFF9` |
+| `--tier-2` | `0.43 0.155 262` `#1B49A3` | `0.80 0.085 262` `#A0BEF5` |
+| `--tier-3` | `0.48 0.160 262` `#2757B6` | `0.76 0.120 262` `#87B1FD` |
+| `--tier-4` | `0.52 0.150 262` `#3664BE` | `0.72 0.135 262` `#75A3F9` |
+| `--tier-5` | `0.56 0.135 262` `#4772C3` | `0.68 0.140 262` `#6796EE` |
+| `--tier-6` | `0.59 0.115 262` `#577CC1` | `0.64 0.130 262` `#608BDB` |
+| `--tier-7` | `0.62 0.095 262` `#6686C0` | `0.60 0.115 262` `#5A7FC5` |
+| `--tier-8` | `0.645 0.075 262` `#758EBC` | `0.565 0.095 262` `#5775AE` |
+| `--tier-none` | `0.600 0.010 256` `#7C8186` | `0.600 0.010 256` `#7C8186` |
+
 ## 8. Engines and entities in color
 
 - Engines (ChatGPT, Gemini, AI Mode, AI Overview) have **no brand colors** in the UI. They are shown as neutral badges with a text label ([14-badges-status.md](14-badges-status.md) section 4). In charts that split by engine, engines take the categorical palette in the fixed order ChatGPT, Gemini, AI Mode, AI Overview, then official API engines, and the legend always names them.

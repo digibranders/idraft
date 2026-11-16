@@ -4066,6 +4066,25 @@ interface SERPPreviewProps { position: number; title: string; url: DisplayUrl; s
 
 - **States:** container query: title and URL only in narrow containers. **A11y:** escaped text; external link through `ExternalLinkButton`. **Use:** Keyword Detail SERP snapshots, inspector SERP tab. **Not for:** lists of results to compare (table).
 
+### 14.15 TierBadge
+`components/app/tier/tier-badge.tsx` · V1 · [02 §7.4](02-color-system.md), internal link tracker spec 7.9
+
+Purpose: a page's tier: an outline badge with a 8 px square in the tier color and the code ("T1"), or the code and name ("T1 Money pages").
+
+```ts
+interface TierBadgeProps {
+  tier: { code: string; name: string } | null; // null is Untiered
+  withName?: boolean;                          // default false
+  className?: string;
+}
+```
+
+- **Variants:** none (the color comes from the tier's position, `tier-colors.ts`).
+- **States:** none; never wraps.
+- **A11y:** plain text; the code or label is the meaning, the square is `aria-hidden`; a code-only badge has the label as its title.
+- **Use:** tier cells of the Pages and Links tables, cards, the tier flow headers; `withName` in filters, tooltips, the inspector and settings.
+- **Not for:** a choice of tier (a `Select` of labels), counts.
+
 ## 15. AI components
 
 Mention and citation are separate facts everywhere: `MentionStatus` and `CitationStatus` (and `MentionRate` and `CitationRate`) are never merged into one component, value or color. Their joint distribution appears only as the four-outcome `OutcomeMixBar` (section 10.6). `EngineStatusGlyph` (section 15.24) draws one engine's latest status as one glyph, and its accessible name and tooltip always state both facts separately. Engine values are per engine; a cross-engine value is always labeled "Equal-weight average (n engines)". `ConfidenceIndicator` (section 9.5) and `SampleCount` (section 9.6) are shared with SEO and cost views and are not repeated here.

@@ -64,3 +64,23 @@ export const LABEL_PAIRS: readonly ContrastPair[] = [
   { foreground: 'info-text', background: 'info-subtle', required: 4.5, use: 'Info badge' },
   { foreground: 'neutral-text', background: 'neutral-subtle', required: 4.5, use: 'Neutral badge' },
 ];
+
+/**
+ * The page tier scale (internal links, spec 7.9): the 4 px card edge and the badge square are marks that are
+ * not text, so each tier reaches 3:1 on the surfaces a card or a badge sits on. The badge always pairs the
+ * color with its code, so the color never carries the meaning alone.
+ */
+export const TIER_TOKENS = [
+  'tier-1',
+  'tier-2',
+  'tier-3',
+  'tier-4',
+  'tier-5',
+  'tier-6',
+  'tier-7',
+  'tier-8',
+  'tier-none',
+] as const;
+
+/** The surfaces tier marks sit on: cards and badges on `surface`, the canvas on `surface-subtle`. */
+export const TIER_SURFACES = ['surface', 'surface-subtle'] as const;

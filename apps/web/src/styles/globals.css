@@ -145,6 +145,15 @@
   --color-seq-5: var(--seq-5);
   --color-seq-6: var(--seq-6);
   --color-seq-7: var(--seq-7);
+  --color-tier-1: var(--tier-1);
+  --color-tier-2: var(--tier-2);
+  --color-tier-3: var(--tier-3);
+  --color-tier-4: var(--tier-4);
+  --color-tier-5: var(--tier-5);
+  --color-tier-6: var(--tier-6);
+  --color-tier-7: var(--tier-7);
+  --color-tier-8: var(--tier-8);
+  --color-tier-none: var(--tier-none);
   --color-div-neg-3: var(--div-neg-3);
   --color-div-neg-2: var(--div-neg-2);
   --color-div-neg-1: var(--div-neg-1);

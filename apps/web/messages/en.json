@@ -7152,6 +7152,9 @@
   "savedViews": {},
   "commandPalette": {},
   "matrix": {},
+  "tierBadge": {
+    "untiered": "Untiered"
+  },
   "setupChecklist": {
     "label": "Project setup",
     "loading": "Checking setup",

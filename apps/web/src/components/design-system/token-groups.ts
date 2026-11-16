@@ -138,6 +138,11 @@ export const TOKEN_GROUPS: readonly TokenGroup[] = [
     ],
   },
   {
+    title: 'Page tiers',
+    note: 'Internal links: the edge of a link card and the square of a tier badge. 3:1 on surface and surface-subtle.',
+    tokens: ['tier-1', 'tier-2', 'tier-3', 'tier-4', 'tier-5', 'tier-6', 'tier-7', 'tier-8', 'tier-none'],
+  },
+  {
     title: 'Theme switch',
     note: 'The day and night track of the theme switch in the top bar.',
     tokens: ['theme-switch-day', 'theme-switch-night', 'theme-switch-sun', 'theme-switch-moon', 'theme-switch-knob'],

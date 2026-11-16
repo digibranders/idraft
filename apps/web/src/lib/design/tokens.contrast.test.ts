@@ -19,7 +19,14 @@ import {
 } from 'culori';
 import { describe, expect, it } from 'vitest';
 
-import { LABEL_PAIRS, NON_TEXT_TOKENS, TEXT_SURFACES, TEXT_TOKENS } from './contrast-requirements';
+import {
+  LABEL_PAIRS,
+  NON_TEXT_TOKENS,
+  TEXT_SURFACES,
+  TEXT_TOKENS,
+  TIER_SURFACES,
+  TIER_TOKENS,
+} from './contrast-requirements';
 
 const css = readFileSync(fileURLToPath(new URL('../../styles/tokens.css', import.meta.url)), 'utf8');
 
@@ -100,6 +107,18 @@ describe.each(Object.entries(themes))('%s theme', (_name, tokens) => {
     'chart-reference',
   ])('graphical mark %s meets 3:1 on surface', (mark) => {
     expect(wcagContrast(color(tokens, mark), color(tokens, 'surface'))).toBeGreaterThanOrEqual(3);
+  });
+
+  it.each(TIER_SURFACES.flatMap((bg) => TIER_TOKENS.map((tier) => [tier, bg] as const)))(
+    'page tier %s meets 3:1 on %s',
+    (tier, bg) => {
+      expect(wcagContrast(color(tokens, tier), color(tokens, bg))).toBeGreaterThanOrEqual(3);
+    },
+  );
+
+  it('orders the tier scale by contrast, T1 the strongest', () => {
+    const ratios = TIER_TOKENS.slice(0, 8).map((tier) => wcagContrast(color(tokens, tier), color(tokens, 'surface')));
+    expect([...ratios].sort((a, b) => b - a)).toEqual(ratios);
   });
 
   it.each([
