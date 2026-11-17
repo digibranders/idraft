@@ -10,6 +10,7 @@ from pydantic import (
     AfterValidator,
     BaseModel,
     Field,
+    PlainValidator,
     StringConstraints,
     field_validator,
     model_validator,
@@ -82,7 +83,29 @@ PageFlag = Literal[
     "has_broken_outlinks",
 ]
 PageWorklist = Literal["under_linked_t1", "orphans", "editorial_orphans", "deep_only_through_auto"]
-UrlId = Annotated[int, Field(gt=0, le=9_223_372_036_854_775_807)]
+INT64_MAX: Final = 9_223_372_036_854_775_807
+
+
+def parse_url_id(value: object) -> int:
+    """A `core.urls` id from the API: a string of digits (a JSON number loses digits above 2**53
+    in a browser), or a whole number from a caller that sends one. Positive and within int64."""
+    if isinstance(value, bool):
+        raise ValueError("an id is a positive whole number")
+    if isinstance(value, str):
+        if not (value.isascii() and value.isdigit() and not value.startswith("0")):
+            raise ValueError("an id is a positive whole number, sent as a string")
+        number = int(value)
+    elif isinstance(value, int):
+        number = value
+    else:
+        raise ValueError("an id is a positive whole number, sent as a string")
+    if not 0 < number <= INT64_MAX:
+        raise ValueError("an id is a positive whole number that fits 64 bits")
+    return number
+
+
+# Requests take the id as a string, like responses give it; the code works with the int.
+UrlId = Annotated[int, PlainValidator(parse_url_id, json_schema_input_type=str)]
 BULK_IDS_MAX: Final = 5_000
 BULK_MATCH_MAX: Final = 20_000
 TERMS_MAX: Final = 50

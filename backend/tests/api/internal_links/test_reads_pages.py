@@ -177,7 +177,9 @@ async def test_csv_follows_the_filter_and_defuses_formulas(
     assert response.headers["content-type"].startswith("text/csv")
     rows = list(csv.DictReader(io.StringIO(response.text)))
     assert {row["path"] for row in rows} == {"/", "/blog", "/blog/b", "/old", "/gone"}
-    assert rows[0].keys() >= {"url", "tier", "status_code", "click_depth", "equity_share"}
+    assert rows[0].keys() >= {"url", "tier", "status_code", "click_depth", "linking_pages"}
+    # The product never shows an equity share, so the export does not carry one either.
+    assert "equity_share" not in rows[0]
 
 
 async def test_csv_cells_that_a_spreadsheet_would_run_are_quoted_and_match_the_json_list(

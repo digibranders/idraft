@@ -12233,9 +12233,7 @@
             "anyOf": [
               {
                 "items": {
-                  "exclusiveMinimum": 0.0,
-                  "maximum": 9.223372036854776e+18,
-                  "type": "integer"
+                  "type": "string"
                 },
                 "maxItems": 5000,
                 "minItems": 1,
@@ -12286,9 +12284,7 @@
             "anyOf": [
               {
                 "items": {
-                  "exclusiveMinimum": 0.0,
-                  "maximum": 9.223372036854776e+18,
-                  "type": "integer"
+                  "type": "string"
                 },
                 "maxItems": 5000,
                 "minItems": 1,
@@ -12483,9 +12479,7 @@
             "anyOf": [
               {
                 "items": {
-                  "exclusiveMinimum": 0.0,
-                  "maximum": 9.223372036854776e+18,
-                  "type": "integer"
+                  "type": "string"
                 },
                 "maxItems": 5000,
                 "minItems": 1,
@@ -33592,9 +33586,7 @@
             "schema": {
               "anyOf": [
                 {
-                  "exclusiveMinimum": 0,
-                  "maximum": 9223372036854775807,
-                  "type": "integer"
+                  "type": "string"
                 },
                 {
                   "type": "null"
@@ -33610,9 +33602,7 @@
             "schema": {
               "anyOf": [
                 {
-                  "exclusiveMinimum": 0,
-                  "maximum": 9223372036854775807,
-                  "type": "integer"
+                  "type": "string"
                 },
                 {
                   "type": "null"
@@ -33782,10 +33772,8 @@
             "name": "url_id",
             "required": true,
             "schema": {
-              "exclusiveMinimum": 0,
-              "maximum": 9223372036854775807,
               "title": "Url Id",
-              "type": "integer"
+              "type": "string"
             }
           },
           {
@@ -34230,10 +34218,8 @@
             "name": "url_id",
             "required": true,
             "schema": {
-              "exclusiveMinimum": 0,
-              "maximum": 9223372036854775807,
               "title": "Url Id",
-              "type": "integer"
+              "type": "string"
             }
           },
           {
