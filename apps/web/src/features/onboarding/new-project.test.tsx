@@ -4,6 +4,7 @@ import { Suspense, type ReactElement } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { NewProjectForm } from './new-project-form';
+import messages from '../../../messages/en.json';
 import { LeaveGuardProvider } from '@/lib/navigation/use-leave-guard';
 import { MOCK_WORKSPACE, mockUser } from '@/mocks/fixtures';
 import { mswPath, problem } from '@/mocks/respond';
@@ -210,6 +211,78 @@ describe('New project', () => {
     ).toBeInTheDocument();
     expect(screen.queryByText('The project was not created. Try again in a moment.')).toBeNull();
     expect(router.replace).not.toHaveBeenCalled();
+  });
+
+  describe('map the internal links', () => {
+    const LABEL = 'Map this site’s internal links';
+
+    function captureBodies(): unknown[] {
+      const sent: unknown[] = [];
+      server.events.on('request:start', ({ request }) => {
+        if (request.method === 'POST' && request.url.endsWith('/projects')) {
+          void request
+            .clone()
+            .json()
+            .then((body: unknown) => sent.push(body));
+        }
+      });
+      return sent;
+    }
+
+    it('is off and disabled until a site is entered, and says what happens without promising a crawl', async () => {
+      const { user } = renderWithProviders(form());
+      const box = await screen.findByRole('checkbox', { name: LABEL });
+      expect(box).toHaveAttribute('aria-disabled', 'true');
+      expect(box).not.toBeChecked();
+      const hint = messages.onboarding.mapLinksHint;
+      expect(screen.getByText(hint)).toBeInTheDocument();
+      expect(hint).toMatch(/once crawls are switched on/);
+      expect(hint).not.toMatch(/will start|starts|starting|begins|will crawl/i);
+      await user.type(screen.getByRole('textbox', { name: 'Site' }), 'map-me.example');
+      expect(box).not.toHaveAttribute('aria-disabled', 'true');
+      expect(box).toBeChecked();
+    });
+
+    it('sends true by default and false when unticked', async () => {
+      const sent = captureBodies();
+      const { user } = renderWithProviders(form());
+      await user.type(await screen.findByLabelText('Name'), 'Map Me');
+      await user.type(screen.getByRole('textbox', { name: 'Site' }), 'map-me.example');
+      await user.click(screen.getByRole('button', { name: 'Create project' }));
+      await waitFor(() => expect(sent).toHaveLength(1));
+      expect(sent[0]).toMatchObject({ map_internal_links: true });
+      await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/digibranders/map-me'));
+      server.events.removeAllListeners('request:start');
+    });
+
+    it('sends false when the box is unticked', async () => {
+      const sent = captureBodies();
+      const { user } = renderWithProviders(form());
+      await user.type(await screen.findByLabelText('Name'), 'Skip Me');
+      await user.type(screen.getByRole('textbox', { name: 'Site' }), 'skip-me.example');
+      await user.click(screen.getByRole('checkbox', { name: LABEL }));
+      await user.click(screen.getByRole('button', { name: 'Create project' }));
+      await waitFor(() => expect(sent).toHaveLength(1));
+      expect(sent[0]).toMatchObject({ map_internal_links: false });
+      server.events.removeAllListeners('request:start');
+    });
+
+    it('opens the project without an error when no crawl was queued', async () => {
+      const { user } = renderWithProviders(form());
+      await user.type(await screen.findByLabelText('Name'), 'Quiet One');
+      await user.type(screen.getByRole('textbox', { name: 'Site' }), 'quiet-one.example');
+      await user.click(screen.getByRole('button', { name: 'Create project' }));
+      await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/digibranders/quiet-one'));
+      expect(screen.queryByText('The project was not created. Try again in a moment.')).toBeNull();
+    });
+
+    it('has no accessibility violations with the box ticked and disabled', async () => {
+      const { user, container } = renderWithProviders(form());
+      await screen.findByRole('checkbox', { name: LABEL });
+      expect(await axe(container)).toHaveNoViolations();
+      await user.type(screen.getByRole('textbox', { name: 'Site' }), 'map-me.example');
+      expect(await axe(container)).toHaveNoViolations();
+    });
   });
 
   it('says so when the workspace is suspended', async () => {

@@ -946,6 +946,8 @@
     "slugHint": "Used in links: {path}",
     "domain": "Site",
     "domainHint": "The domain of the site this project tracks, for example fynix.digital",
+    "mapLinks": "Map this site’s internal links",
+    "mapLinksHint": "We crawl the site and map how its pages link to each other, once crawls are switched on for your workspace. About $0.15 per 1,000 pages. You can start or change this later in Internal links.",
     "location": "Location",
     "locationHint": "Where rank checks search from. Choose a country, or a city for local results.",
     "locationUnknown": "Choose a location from the list.",

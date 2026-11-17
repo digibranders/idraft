@@ -6,7 +6,7 @@ import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { useForm, useWatch } from 'react-hook-form';
+import { Controller, useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 
 import { DomainInput } from '@/components/app/forms/domain-input';
@@ -17,6 +17,7 @@ import { useBrowserTimeZoneDefault, useSlugSuggestion, useSubmitOnce } from '@/c
 import { TimeZoneCombobox } from '@/components/app/forms/time-zone-combobox';
 import { DiscardChangesDialog } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { FormAlert } from '@/components/ui/form-alert';
 import { Input } from '@/components/ui/input';
 import { MultiSelect } from '@/components/ui/multi-select';
@@ -48,6 +49,7 @@ interface NewProjectValues {
   default_language_code: string;
   brand: string;
   aliases: readonly string[];
+  map_internal_links: boolean;
 }
 
 /** The API's limit on an entity's name. */
@@ -81,6 +83,7 @@ export function NewProjectForm({ workspaceId, workspaceSlug }: NewProjectFormPro
     () =>
       z
         .object({
+          map_internal_links: z.boolean(),
           name: z
             .string()
             .trim()
@@ -141,8 +144,12 @@ export function NewProjectForm({ workspaceId, workspaceSlug }: NewProjectFormPro
       default_language_code: NO_LANGUAGE,
       brand: '',
       aliases: [],
+      // Ticked by default (spec 6.2); the API's own default is false
+      map_internal_links: true,
     },
   });
+  // The box only counts once a site is entered: the API refuses true without a website
+  const hasSite = useWatch({ control: form.control, name: 'primary_domain' }).trim() !== '';
   // Leaving a started form asks first; once the project exists, opening it is not leaving
   const guard = useLeaveGuard(form.formState.isDirty && created === null);
   // The new project replaces this page in the history: Back does not return to an emptied form
@@ -176,8 +183,8 @@ export function NewProjectForm({ workspaceId, workspaceSlug }: NewProjectFormPro
           default_language_code: values.default_language_code === NO_LANGUAGE ? null : values.default_language_code,
           primary_domain: values.primary_domain.trim(),
           default_location_id: values.location?.location_id ?? null,
-          // The generated type wants the member; the "Map this site's internal links" checkbox sets it (Task 15)
-          map_internal_links: false,
+          // Creates the project either way; a crawl is queued only when crawls are switched on
+          map_internal_links: hasSite && values.map_internal_links,
           own_entity: {
             canonical_name: values.brand.trim(),
             domains: [values.primary_domain.trim()],
@@ -328,6 +335,20 @@ export function NewProjectForm({ workspaceId, workspaceSlug }: NewProjectFormPro
               size="lg"
               value={field.value}
               onValueChange={field.onChange}
+            />
+          )}
+        />
+        <Controller
+          control={form.control}
+          name="map_internal_links"
+          render={({ field }) => (
+            <Checkbox
+              name={field.name}
+              checked={hasSite && field.value}
+              disabled={!hasSite}
+              onCheckedChange={(checked) => field.onChange(checked)}
+              label={t('mapLinks')}
+              description={t('mapLinksHint')}
             />
           )}
         />
