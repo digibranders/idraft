@@ -74,6 +74,20 @@ describe('crawlView (spec 9)', () => {
     });
   });
 
+  it('does not know the state when the page is full and the latest crawl is not on it', () => {
+    const failed = Array.from({ length: 3 }, (_, index) => run({ run_id: `f${String(index)}`, state: 'failed' }));
+    expect(crawlView(true, failed, 'ready', true)).toEqual({ kind: 'unknown' });
+    // The same rows with no more behind them are the whole history: a failed first crawl
+    expect(crawlView(true, failed, 'ready', false)).toEqual({ kind: 'failed-first', run: failed[0] });
+    // The latest on the page is the latest, however much more there is
+    const latest = run({ run_id: 'l', is_latest: true });
+    expect(crawlView(true, [...failed, latest], 'ready', true)).toMatchObject({ kind: 'ready', latest });
+    // A crawl under way with more rows behind it is still a first crawl only if nothing older holds data
+    expect(crawlView(true, [run({ state: 'crawling', finished_at: null })], 'ready', true)).toEqual({
+      kind: 'unknown',
+    });
+  });
+
   it('keeps a crawl that stopped at its ceiling as the latest', () => {
     const latest = run({ state: 'stopped_at_ceiling', is_latest: true, pages_found: 2000 });
     expect(crawlView(true, [latest], 'ready')).toEqual({ kind: 'ready', latest, active: null, failed: null });

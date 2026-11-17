@@ -2,10 +2,12 @@ import { act, screen, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { CRAWL_POLL_MS } from './crawl-reads';
-import { LIVE_REGION_ID } from '@/lib/a11y/announcer';
+import { CRAWL_POLL_MS, seenCrawlKey } from './crawl-reads';
+import { announce, LIVE_REGION_ID } from '@/lib/a11y/announcer';
+import { CRAWL_SCREEN_LIMIT } from '@/lib/internal-links/queries';
 import type { CrawlRun } from '@/lib/internal-links/types';
-import { MOCK_RUN_ID } from '@/mocks/internal-links-world';
+import { MOCK_WORKSPACE } from '@/mocks/fixtures';
+import { EVENTUS, linksWorld, MOCK_RUN_ID } from '@/mocks/internal-links-world';
 import { mswPath } from '@/mocks/respond';
 import { axe } from '@/test/axe';
 import { EVENTUS_LINKS, FYNIX_LINKS, NO_WEBSITE, internalLinksAs } from '@/test/internal-links-harness';
@@ -39,6 +41,12 @@ vi.mock('./tabs', async (importOriginal) => {
   };
 });
 
+// The real announcer with a spy on it, so a test counts what the page says as well as what the region holds
+vi.mock('@/lib/a11y/announcer', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/a11y/announcer')>();
+  return { ...actual, announce: vi.fn(actual.announce) };
+});
+
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
   usePathname: () => '/digibranders/eventus-security/seo/internal-links',
@@ -70,14 +78,38 @@ const run = (over: Partial<CrawlRun>): CrawlRun => ({
   ...over,
 });
 
-/** The crawl list answers `runs`, newest first. */
+/** The crawl list answers `runs`, newest first, as many as the request's limit and `has_more` for the rest. */
 const answerWith = (runs: readonly CrawlRun[]): void => {
   server.use(
-    http.get(CRAWLS, () => HttpResponse.json({ data: runs, page: { has_more: false, limit: 10, next_cursor: null } })),
+    http.get(CRAWLS, ({ request }) => {
+      const limit = Number(new URL(request.url).searchParams.get('limit') ?? '100');
+      return HttpResponse.json({
+        data: runs.slice(0, limit),
+        page: { has_more: runs.length > limit, limit, next_cursor: null },
+      });
+    }),
   );
 };
 
-beforeEach(() => stubWideScreen());
+/** The mock world's own crawls of Eventus Security: what the real list handler pages, with `is_latest` set over all. */
+const seedWorld = (runs: readonly CrawlRun[]): void => {
+  linksWorld().crawls.set(EVENTUS.project_id, [...runs]);
+};
+
+/** Request counts of the mock server, by the end of the path. */
+function countRequests(): (suffix: string, method?: string) => number {
+  const seen: { path: string; method: string }[] = [];
+  server.events.on('request:start', ({ request }) =>
+    seen.push({ path: new URL(request.url).pathname, method: request.method }),
+  );
+  return (suffix, method = 'GET') =>
+    seen.filter((entry) => entry.path.endsWith(suffix) && entry.method === method).length;
+}
+
+beforeEach(() => {
+  stubWideScreen();
+  vi.mocked(announce).mockClear();
+});
 afterEach(() => {
   registry.real = false;
   server.events.removeAllListeners();
@@ -130,17 +162,48 @@ describe('the Internal links page (spec 7.1 and 9)', () => {
   it('offers the first crawl of a site never crawled, then shows its progress', async () => {
     const { user } = renderWithProviders(internalLinksAs('editor', FYNIX_LINKS));
     expect(await screen.findByRole('heading', { name: 'No crawl yet' })).toBeInTheDocument();
+    // No panel to switch: no tab list either
+    expect(screen.queryByRole('tablist')).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Crawl now' }));
     expect(await screen.findByRole('heading', { name: 'Mapping fynix.digital' })).toBeInTheDocument();
-    expect(screen.getByRole('progressbar', { name: 'Crawl progress' })).toBeInTheDocument();
+    const progress = screen.getByRole('progressbar', { name: 'Pages found against the crawl limit' });
+    expect(progress).toHaveAttribute('aria-valuemax', '2000');
     expect(screen.getByText(/Tag your most important pages while you wait/)).toBeInTheDocument();
+    expect(screen.queryByRole('tablist')).toBeNull();
     // The panel is the only place the crawl is named, and the header's button says it is crawling
     expect(await screen.findByRole('button', { name: 'Crawling' })).toHaveAttribute('aria-busy', 'true');
   });
 
-  it('disables Crawl now for a viewer, who cannot start runs', async () => {
-    renderWithProviders(internalLinksAs('viewer', EVENTUS_LINKS));
-    expect(await screen.findByRole('button', { name: 'Crawl now' })).toBeDisabled();
+  it('keeps Crawl now in the tab order for a viewer, with the reason on hover, and sends nothing when pressed', async () => {
+    const requests = countRequests();
+    const { user } = renderWithProviders(internalLinksAs('viewer', EVENTUS_LINKS));
+    const button = await screen.findByRole('button', { name: 'Crawl now' });
+    expect(button).toHaveAttribute('aria-disabled', 'true');
+    expect(button).not.toBeDisabled();
+    expect(button).toHaveAccessibleDescription('Your role cannot start crawls. Ask an admin of the workspace.');
+    await user.click(button);
+    expect(requests('/link-crawls', 'POST')).toBe(0);
+  });
+
+  it('does the same for the Crawl now of a site never crawled', async () => {
+    renderWithProviders(internalLinksAs('viewer', FYNIX_LINKS));
+    const button = await screen.findByRole('button', { name: 'Crawl now' });
+    expect(button).toHaveAttribute('aria-disabled', 'true');
+    expect(button).toHaveAccessibleDescription(/Your role cannot start crawls/);
+  });
+
+  it('offers Edit page tiers only to those who can change the tiers', async () => {
+    const owner = renderWithProviders(internalLinksAs('owner', EVENTUS_LINKS));
+    await owner.user.click(await screen.findByRole('button', { name: 'More actions' }));
+    expect(await screen.findByRole('menuitem', { name: /Edit page tiers/ })).toHaveAttribute(
+      'href',
+      '/digibranders/settings/tiers',
+    );
+    owner.unmount();
+    const editor = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    await editor.user.click(await screen.findByRole('button', { name: 'More actions' }));
+    expect(await screen.findByRole('menuitem', { name: 'Crawl settings' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /Edit page tiers/ })).toBeNull();
   });
 
   it('says so when the role cannot read the project', () => {
@@ -167,6 +230,96 @@ describe('the crawl states of the page (spec 9)', () => {
     expect(await screen.findByRole('heading', { name: 'The last crawl failed.' })).toBeInTheDocument();
     expect(screen.getByText(/eventussecurity.com refuses our crawler/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Try again' })).toBeEnabled();
+    expect(screen.queryByRole('tablist')).toBeNull();
+  });
+
+  it('keeps Try again in the tab order for a viewer, with the reason', async () => {
+    answerWith([run({ state: 'failed', error_code: 'site_blocked' })]);
+    renderWithProviders(internalLinksAs('viewer', EVENTUS_LINKS));
+    const button = await screen.findByRole('button', { name: 'Try again' });
+    expect(button).toHaveAttribute('aria-disabled', 'true');
+    expect(button).toHaveAccessibleDescription(/Your role cannot start crawls/);
+  });
+
+  // Every code the backend sets on a failed crawl (collectors/crawl_runs.py), and one it does not
+  it.each([
+    ['site_blocked', /refuses our crawler/],
+    ['site_unreachable', /could not be reached/],
+    ['budget_exceeded', /workspace budget for site crawls is used up/],
+    ['provider_error', /The crawl service reported an error/],
+    ['submit_unknown', /could not confirm that the crawl started/],
+    ['something_new', /The crawl failed\. Try again; if it fails again, contact support/],
+    [null, /The crawl failed\. Try again; if it fails again, contact support/],
+  ])('words a failed crawl with the code %s from the catalog, never from the provider text', async (code, words) => {
+    answerWith([
+      run({
+        state: 'failed',
+        error_code: code,
+        error_message: 'Provider said: task_post failed (secret-provider-detail)',
+      }),
+    ]);
+    const { container } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    expect(await screen.findByText(words)).toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/secret-provider-detail|task_post/);
+  });
+
+  it('words a newer failed crawl beside the last one from the catalog too, in one sentence with the date', async () => {
+    answerWith([
+      run({
+        run_id: 'f',
+        state: 'failed',
+        error_code: 'submit_unknown',
+        error_message: 'Provider said: secret-provider-detail',
+        created_at: '2026-11-16T03:00:00Z',
+      }),
+      run({ is_latest: true }),
+    ]);
+    const { container } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    expect(
+      await screen.findByText(/could not confirm that the crawl started.+You are seeing the crawl of Nov 14\./),
+    ).toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/secret-provider-detail/);
+  });
+
+  it('shows the last crawl and its data when ten newer crawls failed, because the screen reads more than ten', async () => {
+    const failed = Array.from({ length: 12 }, (_, index) =>
+      run({
+        run_id: `0192e4a0-5000-7000-8000-0000000000${String(index).padStart(2, '0')}`,
+        state: 'failed',
+        error_code: 'site_unreachable',
+        pages_found: 0,
+        pages_crawled: 0,
+        created_at: `2026-11-16T${String(23 - index).padStart(2, '0')}:00:00Z`,
+      }),
+    );
+    seedWorld([...failed, run({ is_latest: true, pages_found: 18, pages_crawled: 18 })]);
+    const requests: string[] = [];
+    server.events.on('request:start', ({ request }) => requests.push(request.url));
+    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    expect(await screen.findByText(/^Crawled .+, 18 pages$/)).toBeInTheDocument();
+    expect(screen.getByText('The last crawl failed.')).toBeInTheDocument();
+    expect(await screen.findByRole('group', { name: 'Crawl summary' })).toHaveTextContent('Pages18');
+    expect(screen.getByText('Panel of Pages')).toBeInTheDocument();
+    expect(screen.queryByText('Add your website to map internal links')).toBeNull();
+    expect(
+      requests.some((url) => url.includes('/link-crawls') && url.includes(`limit=${String(CRAWL_SCREEN_LIMIT)}`)),
+    ).toBe(true);
+  });
+
+  it('does not call it a failed first crawl when the page is full and the latest crawl is not on it', async () => {
+    const failed = Array.from({ length: CRAWL_SCREEN_LIMIT + 1 }, (_, index) =>
+      run({
+        run_id: `0192e4a0-5000-7000-8000-${String(index).padStart(12, '0')}`,
+        state: 'failed',
+        error_code: 'site_unreachable',
+        created_at: '2026-11-16T03:00:00Z',
+      }),
+    );
+    seedWorld([...failed, run({ is_latest: true })]);
+    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    expect(await screen.findByText('Internal links could not be loaded')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'The last crawl failed.' })).toBeNull();
+    expect(screen.queryByText('Panel of Pages')).toBeNull();
   });
 
   it('offers Crawl now again after a first crawl was cancelled', async () => {
@@ -187,17 +340,33 @@ describe('the crawl states of the page (spec 9)', () => {
     expect(screen.getByText('Panel of Pages')).toBeInTheDocument();
   });
 
-  it('reports a crawl under way above the last one, and disables Crawl now while it runs', async () => {
+  it('reports a crawl under way above the last one; Crawl now is busy, still enabled, and a press sends nothing', async () => {
     answerWith([
       run({ run_id: 'c', state: 'crawling', pages_found: 310, finished_at: null, created_at: '2026-11-16T03:00:00Z' }),
       run({ is_latest: true }),
     ]);
-    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    const requests = countRequests();
+    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
     expect(await screen.findByText(/Crawling now: 310 pages found so far/)).toBeInTheDocument();
     const button = screen.getByRole('button', { name: 'Crawling' });
     expect(button).toHaveAttribute('aria-busy', 'true');
+    expect(button).not.toBeDisabled();
+    expect(button).toHaveAccessibleDescription(/A crawl started .+\. One crawl runs at a time\./);
+    await user.click(button);
+    expect(requests('/link-crawls', 'POST')).toBe(0);
     // No live region of its own: the banner is plain text
     expect(screen.getByText(/Crawling now/).closest('[role]')).toBeNull();
+  });
+
+  it('lets a viewer read when the running crawl started', async () => {
+    answerWith([
+      run({ run_id: 'c', state: 'crawling', pages_found: 310, finished_at: null, created_at: '2026-11-16T03:00:00Z' }),
+      run({ is_latest: true }),
+    ]);
+    renderWithProviders(internalLinksAs('viewer', EVENTUS_LINKS));
+    const button = await screen.findByRole('button', { name: 'Crawling' });
+    expect(button).toHaveAttribute('aria-disabled', 'true');
+    expect(button).toHaveAccessibleDescription(/A crawl started .+\. One crawl runs at a time\./);
   });
 
   it('asks for a higher limit after a crawl stopped at its ceiling, once, and only for those who may crawl', async () => {
@@ -260,15 +429,16 @@ describe('a crawl that ends while the page is open', () => {
   );
   afterEach(() => vi.useRealTimers());
 
-  it('is announced once, and reads the links again for the new crawl', async () => {
-    const latest = run({ is_latest: true });
-    const running = run({ run_id: 'c', state: 'crawling', finished_at: null, created_at: '2026-11-16T03:00:00Z' });
+  const latest = run({ is_latest: true });
+  const running = run({ run_id: 'c', state: 'crawling', finished_at: null, created_at: '2026-11-16T03:00:00Z' });
+
+  it('is announced exactly once, reads the links again exactly once, and stops polling', async () => {
     answerWith([running, latest]);
-    const reads: string[] = [];
-    server.events.on('request:start', ({ request }) => reads.push(new URL(request.url).pathname));
+    const requests = countRequests();
     renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
     expect(await screen.findByText(/Crawling now/)).toBeInTheDocument();
-    const before = reads.filter((path) => path.endsWith('/internal-links/tier-flow')).length;
+    await screen.findByRole('group', { name: 'Crawl summary' });
+    const flowBefore = requests('/internal-links/tier-flow');
     answerWith([
       { ...running, state: 'ready', is_latest: true, pages_found: 52, finished_at: '2026-11-16T03:09:00Z' },
       { ...latest, is_latest: false },
@@ -277,15 +447,18 @@ describe('a crawl that ends while the page is open', () => {
     await waitFor(() =>
       expect(document.getElementById(LIVE_REGION_ID.polite)?.textContent).toBe('The crawl finished: 52 pages found.'),
     );
-    await waitFor(() =>
-      expect(reads.filter((path) => path.endsWith('/internal-links/tier-flow')).length).toBeGreaterThan(before),
-    );
+    await waitFor(() => expect(requests('/internal-links/tier-flow')).toBe(flowBefore + 1));
     expect(screen.queryByText(/Crawling now/)).toBeNull();
+    const crawlsAfter = requests('/link-crawls');
+    // Another poll interval: nothing is under way, so the list is not asked again, and nothing is said again
+    await act(() => vi.advanceTimersByTimeAsync(CRAWL_POLL_MS + 100));
+    expect(requests('/link-crawls')).toBe(crawlsAfter);
+    expect(requests('/internal-links/tier-flow')).toBe(flowBefore + 1);
+    expect(vi.mocked(announce)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(announce)).toHaveBeenCalledWith('The crawl finished: 52 pages found.', expect.anything());
   });
 
-  it('is announced as failed when it fails', async () => {
-    const latest = run({ is_latest: true });
-    const running = run({ run_id: 'c', state: 'crawling', finished_at: null, created_at: '2026-11-16T03:00:00Z' });
+  it('is announced as failed, once, when it fails', async () => {
     answerWith([running, latest]);
     renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
     expect(await screen.findByText(/Crawling now/)).toBeInTheDocument();
@@ -294,6 +467,55 @@ describe('a crawl that ends while the page is open', () => {
     await waitFor(() => expect(document.getElementById(LIVE_REGION_ID.polite)?.textContent).toBe('The crawl failed.'));
     expect(await screen.findByText('The last crawl failed.')).toBeInTheDocument();
     expect(screen.queryByText(/Crawling now/)).toBeNull();
+    await act(() => vi.advanceTimersByTimeAsync(CRAWL_POLL_MS + 100));
+    expect(vi.mocked(announce)).toHaveBeenCalledTimes(1);
+  });
+
+  it('is not announced when it was cancelled', async () => {
+    answerWith([running, latest]);
+    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    expect(await screen.findByText(/Crawling now/)).toBeInTheDocument();
+    answerWith([{ ...running, state: 'cancelled', finished_at: '2026-11-16T03:05:00Z' }, latest]);
+    await act(() => vi.advanceTimersByTimeAsync(CRAWL_POLL_MS + 100));
+    await waitFor(() => expect(screen.queryByText(/Crawling now/)).toBeNull());
+    expect(screen.queryByText('The last crawl failed.')).toBeNull();
+    expect(vi.mocked(announce)).not.toHaveBeenCalled();
+  });
+});
+
+describe('a crawl that finished while the page was not open', () => {
+  it('reads the links again when the latest crawl is not the one last seen, and not when it is', async () => {
+    const seenKey = seenCrawlKey({ workspaceId: MOCK_WORKSPACE.workspace_id, projectId: EVENTUS_LINKS.id });
+    // An earlier visit saw another crawl as the latest
+    const stale = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    stale.queryClient.setQueryData(seenKey, 'an-older-run');
+    const invalidated = vi.spyOn(stale.queryClient, 'invalidateQueries');
+    await screen.findByRole('group', { name: 'Crawl summary' });
+    await waitFor(() =>
+      expect(
+        invalidated.mock.calls.some(([filters]) => JSON.stringify(filters?.queryKey).includes('internal-links')),
+      ).toBe(true),
+    );
+    expect(stale.queryClient.getQueryData(seenKey)).toBe(MOCK_RUN_ID);
+    stale.unmount();
+    // An earlier visit saw this very crawl: nothing is stale
+    const same = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    same.queryClient.setQueryData(seenKey, MOCK_RUN_ID);
+    const quiet = vi.spyOn(same.queryClient, 'invalidateQueries');
+    await screen.findByRole('group', { name: 'Crawl summary' });
+    expect(quiet).not.toHaveBeenCalled();
+  });
+
+  it('only notes the latest crawl on a first visit, and reads nothing again', async () => {
+    const first = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    const invalidated = vi.spyOn(first.queryClient, 'invalidateQueries');
+    await screen.findByRole('group', { name: 'Crawl summary' });
+    expect(invalidated).not.toHaveBeenCalled();
+    expect(
+      first.queryClient.getQueryData(
+        seenCrawlKey({ workspaceId: MOCK_WORKSPACE.workspace_id, projectId: EVENTUS_LINKS.id }),
+      ),
+    ).toBe(MOCK_RUN_ID);
   });
 });
 

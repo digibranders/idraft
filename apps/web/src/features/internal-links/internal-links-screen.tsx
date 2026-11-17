@@ -4,19 +4,19 @@ import { Ban } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useCallback, useMemo, useState, type ReactElement, type ReactNode } from 'react';
 
+import { CrawlButton } from './crawl-button';
 import { CrawlHeader } from './crawl-header';
 import { crawlView, useCrawlNow, useCrawls, useWorkspaceTiers } from './crawl-reads';
 import { CrawlBanners, FirstCrawl, failedText, NeverCrawled, NoWebsite, SkeletonRows } from './crawl-states';
 import { SummaryStrip } from './summary-strip';
 import { activeLinksTab, LINKS_TABS, type LinksTabContext } from './tabs';
-import { useLinksState } from './url-state';
+import { inspectedPage, useLinksState } from './url-state';
 import { InspectorLayout } from '@/components/app/inspector/inspector-layout';
 import { useInspector } from '@/components/app/inspector/use-inspector';
 import { PageToolbar } from '@/components/app/page-toolbar';
 import { PAGE_CLASS } from '@/components/app/shell/page-header';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { InlineError } from '@/components/app/status/inline-error';
-import { Button } from '@/components/ui/button';
 import { Tabs, TabsPanel } from '@/components/ui/tabs';
 import { toast } from '@/components/ui/toast';
 import { announce } from '@/lib/a11y/announcer';
@@ -44,7 +44,8 @@ export interface InternalLinksScreenProps {
 
 /**
  * SEO > Internal links (spec 7, the mock `il.js`): the tabs with the page actions, the summary strip, the crawl
- * state banners, then the tab's own panel. Every number belongs to the latest finished crawl (decision W19).
+ * state banners, then the tab's own panel. Every number belongs to the latest finished crawl (decision W19). The tab
+ * list is drawn only where there is a panel to switch: with a crawl to read.
  */
 export function InternalLinksScreen(props: InternalLinksScreenProps): ReactNode {
   const t = useTranslations('internalLinks');
@@ -68,6 +69,7 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
   const scope = useMemo((): LinksScope => ({ workspaceId, projectId: project.id }), [workspaceId, project.id]);
   const host = project.host ?? '';
   const canCrawl = useCan('runs:trigger');
+  const canEditTiers = useCan('workspace:update');
   const { state, setSearch } = useLinksState();
   // The end of a crawl is spoken once, when the poll sees it: a cancel is the person's own act and is not
   const announceEnd = useCallback(
@@ -85,6 +87,7 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
     project.host !== null,
     crawls.data?.data,
     crawls.isError ? 'error' : crawls.isPending ? 'loading' : 'ready',
+    crawls.data?.page.has_more ?? false,
   );
   const crawl = useCrawlNow(scope, host);
 
@@ -93,16 +96,7 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
   const tiersHref = workspaceSettingsPath(workspaceSlug, 'tiers');
   const domainsHref = projectPath(workspaceSlug, project.slug, '/settings/domains');
   const inspector = useInspector();
-  // Task 9 reads the order for the inspector's Previous and Next: until then only the setter is used
-  const [, setOrderState] = useState<readonly string[]>([]);
-  // The table reports its order on every change of rows; an equal order keeps the state, so no render loop starts
-  const setOrder = useCallback(
-    (ids: readonly string[]) =>
-      setOrderState((current) =>
-        current.length === ids.length && current.every((id, place) => id === ids[place]) ? current : ids,
-      ),
-    [],
-  );
+  const inspected = inspectedPage(inspector.target);
   const [exportRun, setExportRun] = useState<(() => Promise<void>) | null>(null);
   const registerExport = useCallback((run: (() => Promise<void>) | null) => setExportRun(() => run), []);
   const onExport =
@@ -112,10 +106,14 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
           exportRun().catch(() => toast({ type: 'error', title: header('exportFailed') }));
         };
 
-  const crawlNowButton = (
-    <Button variant="primary" size="sm" loading={crawl.pending} disabled={!canCrawl} onClick={() => crawl.start()}>
-      {header('crawlNow')}
-    </Button>
+  const crawlButton = (label: string): ReactElement => (
+    <CrawlButton
+      label={label}
+      canCrawl={canCrawl}
+      pending={crawl.pending}
+      startedAgo={null}
+      onClick={() => crawl.start()}
+    />
   );
 
   const context: LinksTabContext = {
@@ -127,11 +125,8 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
     state,
     setSearch,
     tiers: tiers.data?.data ?? [],
-    inspect: {
-      open: (urlId) => inspector.open({ type: 'page', id: urlId }),
-      urlId: inspector.target?.type === 'page' ? inspector.target.id : null,
-      setOrder,
-    },
+    // A page the address names that is no url id is a page that does not exist: the tab shows not found for `invalid`
+    inspect: { open: (urlId) => inspector.open({ type: 'page', id: urlId }), ...inspected },
     openJourney: (urlId) =>
       setSearch({ tab: 'journey', focus: urlId, open: null, grp: null, more: null, topen: null }, { history: 'push' }),
     registerExport,
@@ -148,10 +143,11 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
       body = <SkeletonRows />;
       break;
     case 'error':
+    case 'unknown':
       body = (
         <InlineError
           title={states('loadFailed')}
-          reason={states('loadFailedReason')}
+          reason={view.kind === 'error' ? states('loadFailedReason') : states('unknownReason')}
           errorId={null}
           onRetry={() => void crawls.refetch()}
           retrying={crawls.isFetching}
@@ -160,7 +156,7 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
       );
       break;
     case 'never':
-      body = <NeverCrawled host={host} crawlNow={crawlNowButton} />;
+      body = <NeverCrawled host={host} crawlNow={crawlButton(header('crawlNow'))} />;
       break;
     case 'first':
       body = <FirstCrawl run={view.run} host={host} timeZone={project.timeZone} />;
@@ -171,17 +167,7 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
           title={states('failedLead')}
           reason={failedText(states, view.run, host)}
           headingLevel={2}
-          primaryAction={
-            <Button
-              variant="primary"
-              size="sm"
-              loading={crawl.pending}
-              disabled={!canCrawl}
-              onClick={() => crawl.start()}
-            >
-              {states('retry')}
-            </Button>
-          }
+          primaryAction={crawlButton(states('retry'))}
         />
       );
       break;
@@ -210,43 +196,52 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
   }
 
   const ready = view.kind === 'ready';
+  // The page actions belong to a crawl that is read or under way; the other states carry their own action
+  const actions =
+    view.kind === 'ready' || view.kind === 'first' ? (
+      <CrawlHeader
+        latest={view.kind === 'ready' ? view.latest : null}
+        active={view.kind === 'ready' ? view.active : view.run}
+        timeZone={project.timeZone}
+        canCrawl={canCrawl}
+        canEditTiers={canEditTiers}
+        crawlPending={crawl.pending}
+        onCrawlNow={() => crawl.start()}
+        onExport={ready ? onExport : null}
+        settingsHref={settingsHref}
+        tiersHref={tiersHref}
+      />
+    ) : null;
+  const toolbar = (tabs: ReactElement | undefined): ReactElement => (
+    <PageToolbar
+      title={t('title')}
+      tabs={tabs}
+      stats={ready ? <SummaryStrip scope={scope} untieredHref={withQuery(base, UNTIERED_QUERY)} /> : null}
+      actions={actions}
+    />
+  );
   return (
     <InspectorLayout inspector={null}>
       <div className={PAGE_CLASS}>
-        <Tabs
-          variant="segmented"
-          label={t('tabs.label')}
-          value={tab?.id ?? 'pages'}
-          // The tab is the one change of the page that makes a history entry
-          onValueChange={(next) => setSearch({ tab: next === 'pages' ? null : next }, { history: 'push' })}
-          items={LINKS_TABS.map((entry) => ({ value: entry.id, label: entry.label(t) }))}
-          renderList={(tabList) => (
-            <PageToolbar
-              title={t('title')}
-              tabs={tabList}
-              stats={ready ? <SummaryStrip scope={scope} untieredHref={withQuery(base, UNTIERED_QUERY)} /> : null}
-              actions={
-                // The empty states carry their own action; the header shows once there is a crawl to act on
-                view.kind === 'no-website' || view.kind === 'never' || view.kind === 'failed-first' ? null : (
-                  <CrawlHeader
-                    latest={view.kind === 'ready' ? view.latest : null}
-                    active={view.kind === 'ready' ? view.active : view.kind === 'first' ? view.run : null}
-                    timeZone={project.timeZone}
-                    canCrawl={canCrawl}
-                    crawlPending={crawl.pending}
-                    onCrawlNow={() => crawl.start()}
-                    onExport={ready ? onExport : null}
-                    settingsHref={settingsHref}
-                    tiersHref={tiersHref}
-                  />
-                )
-              }
-            />
-          )}
-          className="gap-3"
-        >
-          {body}
-        </Tabs>
+        {ready ? (
+          <Tabs
+            variant="segmented"
+            label={t('tabs.label')}
+            value={tab?.id ?? 'pages'}
+            // The tab is the one change of the page that makes a history entry
+            onValueChange={(next) => setSearch({ tab: next === 'pages' ? null : next }, { history: 'push' })}
+            items={LINKS_TABS.map((entry) => ({ value: entry.id, label: entry.label(t) }))}
+            renderList={toolbar}
+            className="gap-3"
+          >
+            {body}
+          </Tabs>
+        ) : (
+          <>
+            {toolbar(undefined)}
+            {body}
+          </>
+        )}
       </div>
     </InspectorLayout>
   );

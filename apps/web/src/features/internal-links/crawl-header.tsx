@@ -6,12 +6,12 @@ import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import type { ReactElement } from 'react';
 
+import { CrawlButton } from './crawl-button';
 import { isActive } from './crawl-reads';
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import { IconButton } from '@/components/ui/icon-button';
 import { Menu, type MenuItemDef } from '@/components/ui/menu';
-import { Tooltip } from '@/components/ui/tooltip';
 import { formatRelative, formatTableDate } from '@/lib/format';
 import type { CrawlRun } from '@/lib/internal-links/types';
 
@@ -20,6 +20,8 @@ export interface CrawlHeaderProps {
   active: CrawlRun | null;
   timeZone: string;
   canCrawl: boolean;
+  /** Whether the role may change the workspace's tiers (`workspace:update`); the link to them is left out without it. */
+  canEditTiers: boolean;
   crawlPending: boolean;
   onCrawlNow: () => void;
   onExport: (() => void) | null;
@@ -39,6 +41,7 @@ export function CrawlHeader({
   active,
   timeZone,
   canCrawl,
+  canEditTiers,
   crawlPending,
   onCrawlNow,
   onExport,
@@ -51,7 +54,17 @@ export function CrawlHeader({
   const moreItems: MenuItemDef[] = [
     ...extraItems,
     { id: 'crawl-settings', kind: 'link', label: t('crawlSettings'), link: <Link href={settingsHref} /> },
-    { id: 'edit-tiers', kind: 'link', label: t('editTiers'), detail: t('workspace'), link: <Link href={tiersHref} /> },
+    ...(canEditTiers
+      ? [
+          {
+            id: 'edit-tiers',
+            kind: 'link' as const,
+            label: t('editTiers'),
+            detail: t('workspace'),
+            link: <Link href={tiersHref} />,
+          },
+        ]
+      : []),
   ];
   const exportItems: MenuItemDef[] = [
     {
@@ -88,21 +101,14 @@ export function CrawlHeader({
         }
         items={exportItems}
       />
-      <Tooltip
-        content={running ? t('crawlingSince', { time: formatRelative(active.created_at, timeZone) }) : ''}
-        disabled={!running}
-      >
-        <Button
-          variant="primary"
-          size="sm"
-          icon={RefreshCw}
-          disabled={!canCrawl}
-          loading={running || crawlPending}
-          onClick={onCrawlNow}
-        >
-          {running ? t('crawling') : t('crawlNow')}
-        </Button>
-      </Tooltip>
+      <CrawlButton
+        label={running ? t('crawling') : t('crawlNow')}
+        icon={RefreshCw}
+        canCrawl={canCrawl}
+        pending={crawlPending}
+        startedAgo={running ? formatRelative(active.created_at, timeZone) : null}
+        onClick={onCrawlNow}
+      />
     </div>
   );
 }

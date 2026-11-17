@@ -18,8 +18,11 @@ export interface LinksTabContext {
   state: LinksState;
   setSearch: SetLinksSearch;
   tiers: readonly PageTier[];
-  /** The page inspector (`?inspect=page:<url_id>`). */
-  inspect: { open: (urlId: string) => void; urlId: string | null; setOrder: (urlIds: readonly string[]) => void };
+  /**
+   * The page inspector (`?inspect=page:<id>`): `urlId` is the open page's url id, `invalid` the text of an id the
+   * address names that the API would refuse (the tab shows not found for it). Neither when no page is open.
+   */
+  inspect: { open: (urlId: string) => void; urlId: string | null; invalid: string | null };
   /** Opens the Journey on a page (spec 7.2 "Open in journey"); the focus pushes a history entry. */
   openJourney: (urlId: string) => void;
   /** Hands the page's Export menu this tab's download, or `null` while it has none. */

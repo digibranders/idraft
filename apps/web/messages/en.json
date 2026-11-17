@@ -7289,7 +7289,8 @@
       "crawlBusy": "A crawl is already running",
       "crawlBudget": "The workspace budget for site crawls is used up, so the crawl did not start.",
       "crawlNoWebsite": "Add a website to the project first.",
-      "crawlFailed": "The crawl could not be started"
+      "crawlFailed": "The crawl could not be started",
+      "crawlNeedsRole": "Your role cannot start crawls. Ask an admin of the workspace."
     },
     "strip": {
       "label": "Crawl summary",
@@ -7311,18 +7312,19 @@
       "firstProgress": "{count, plural, one {# page} other {# pages}} found so far. Started {time}, when the website was added.",
       "firstProgressManual": "{count, plural, one {# page} other {# pages}} found so far. Started {time}.",
       "firstLead": "Tag your most important pages while you wait. Tiers do not need a crawl, and rules apply to every page the crawl finds.",
-      "progressLabel": "Crawl progress",
+      "progressLabel": "Pages found against the crawl limit",
       "runningLead": "Crawling now: {count, plural, one {# page} other {# pages}} found so far.",
       "runningText": "You are seeing the crawl of {date}. The tables switch to the new crawl when it finishes.",
       "failedLead": "The last crawl failed.",
       "failedSiteBlocked": "{host} refuses our crawler (robots.txt, a meta tag or a header), so nothing was crawled. Ask the site owner to allow the user agent “RSiteAuditor”.",
       "failedUnreachable": "{host} could not be reached, or its start page did not answer with a page.",
       "failedBudget": "The workspace budget for site crawls is used up, so the crawl did not run.",
-      "failedOther": "The crawl service failed. Try again; if it fails again, contact support.",
-      "failedShowing": "You are seeing the crawl of {date}.",
+      "failedProvider": "The crawl service reported an error. Try again; if it fails again, contact support.",
+      "failedSubmitUnknown": "We could not confirm that the crawl started, so it was stopped and not sent again. You can start a new crawl.",
+      "failedOther": "The crawl failed. Try again; if it fails again, contact support.",
+      "failedBanner": "{reason} You are seeing the crawl of {date}.",
       "endedFinished": "The crawl finished: {count, plural, one {# page} other {# pages}} found.",
       "endedFailed": "The crawl failed.",
-      "endedCancelled": "The crawl was cancelled.",
       "retry": "Try again",
       "ceilingLead": "Stopped at {count, plural, one {# page} other {# pages}}.",
       "ceilingText": "The site has far more URLs than its sitemap lists (filter pages that never end). The pages found so far are shown.",
@@ -7331,7 +7333,8 @@
       "hintText": "The start page may build its links with JavaScript. Turn on Render JavaScript in the crawl settings; it costs 10 times as much per page.",
       "hintAction": "Crawl settings",
       "loadFailed": "Internal links could not be loaded",
-      "loadFailedReason": "The crawl list did not load. Try again."
+      "loadFailedReason": "The crawl list did not load. Try again.",
+      "unknownReason": "The latest crawl is not among the most recent runs, so this page cannot tell what it holds yet. Try again."
     }
   },
   "setupChecklist": {

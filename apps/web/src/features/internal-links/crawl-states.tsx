@@ -17,12 +17,26 @@ import type { CrawlRun } from '@/lib/internal-links/types';
 
 type StatesTranslate = ReturnType<typeof useTranslations<'internalLinks.states'>>;
 
-/** The words of a failed crawl, by its error code (plan 02 "Errors and states"). */
+/**
+ * The words of a failed crawl, by its error code: every code the backend sets (`collectors/crawl_runs.py`), and a
+ * generic sentence for any other. The run's own `error_message` is never shown: for a provider error it is the
+ * provider's text.
+ */
 export function failedText(t: StatesTranslate, run: CrawlRun, host: string): string {
-  if (run.error_code === 'site_blocked') return t('failedSiteBlocked', { host });
-  if (run.error_code === 'site_unreachable') return t('failedUnreachable', { host });
-  if (run.error_code === 'budget_exceeded') return t('failedBudget');
-  return run.error_message ?? t('failedOther');
+  switch (run.error_code) {
+    case 'site_blocked':
+      return t('failedSiteBlocked', { host });
+    case 'site_unreachable':
+      return t('failedUnreachable', { host });
+    case 'budget_exceeded':
+      return t('failedBudget');
+    case 'provider_error':
+      return t('failedProvider');
+    case 'submit_unknown':
+      return t('failedSubmitUnknown');
+    default:
+      return t('failedOther');
+  }
 }
 
 export function NoWebsite({ settingsHref }: { settingsHref: Route }): ReactElement {
@@ -157,7 +171,7 @@ export function CrawlBanners({
           tone="negative"
           placement="region"
           lead={t('failedLead')}
-          message={`${failedText(t, failed, host)} ${t('failedShowing', { date: shown })}`}
+          message={t('failedBanner', { reason: failedText(t, failed, host), date: shown })}
           actions={
             canCrawl ? (
               <Button variant="secondary" size="sm" onClick={onRetry}>

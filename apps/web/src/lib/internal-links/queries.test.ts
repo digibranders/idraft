@@ -4,6 +4,7 @@ import {
   crawlKeys,
   crawlsQuery,
   CRAWL_LIMIT,
+  CRAWL_SCREEN_LIMIT,
   DEFAULT_EDGE_QUERY,
   DEFAULT_PAGE_QUERY,
   edgeParams,
@@ -122,6 +123,13 @@ describe('crawls and settings (the backend OpenAPI)', () => {
     const query = crawlsQuery(SCOPE);
     expect(query.queryKey).toEqual(['ws', 'w1', 'p', 'p1', 'link-crawls', { limit: CRAWL_LIMIT }]);
     expect(crawlKeys(SCOPE)).toEqual([['ws', 'w1', 'p', 'p1', 'link-crawls']]);
+  });
+
+  it('reads more crawls for the Internal links screen than the settings list does, under the same keys', () => {
+    expect(CRAWL_SCREEN_LIMIT).toBeGreaterThan(CRAWL_LIMIT);
+    const query = crawlsQuery(SCOPE, CRAWL_SCREEN_LIMIT);
+    expect(query.queryKey).toEqual(['ws', 'w1', 'p', 'p1', 'link-crawls', { limit: CRAWL_SCREEN_LIMIT }]);
+    expect(query.queryKey.slice(0, 5)).toEqual(crawlKeys(SCOPE)[0]);
   });
 
   it('makes a crawl that turns ready stale for the crawl list, every read of the links and the settings', () => {

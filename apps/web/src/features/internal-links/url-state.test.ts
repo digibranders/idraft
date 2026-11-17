@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseLinksSearch } from './url-state';
+import { inspectedPage, parseLinksSearch } from './url-state';
+
+describe('the page the inspector names', () => {
+  it('hands over a url id, keeps the text of one the API would refuse, and ignores other records', () => {
+    expect(inspectedPage(null)).toEqual({ urlId: null, invalid: null });
+    expect(inspectedPage({ type: 'page', id: '12' })).toEqual({ urlId: '12', invalid: null });
+    expect(inspectedPage({ type: 'page', id: '12x' })).toEqual({ urlId: null, invalid: '12x' });
+    expect(inspectedPage({ type: 'page', id: '0' })).toEqual({ urlId: null, invalid: '0' });
+    expect(inspectedPage({ type: 'keyword', id: 'abc' })).toEqual({ urlId: null, invalid: null });
+  });
+});
 
 describe('the address of Internal links (URL state table)', () => {
   it('reads the defaults from an empty address', () => {
@@ -15,6 +25,7 @@ describe('the address of Internal links (URL state table)', () => {
       source: null,
       target: null,
       focus: null,
+      invalid: { src: null, tgt: null, focus: null },
       journeyView: 'canvas',
       treeDir: 'out',
       open: new Set(),
@@ -63,12 +74,17 @@ describe('the address of Internal links (URL state table)', () => {
     });
   });
 
-  it('keeps an id only when the API would take it as a url id', () => {
+  it('keeps an id only when the API would take it as a url id, and remembers the text of one it refused', () => {
     expect(parseLinksSearch({ focus: '0', src: '007', tgt: '9223372036854775808' })).toMatchObject({
       focus: null,
       source: null,
       target: null,
+      invalid: { focus: '0', src: '007', tgt: '9223372036854775808' },
     });
+    expect(parseLinksSearch({ focus: '12', src: '3' }).invalid).toEqual({ focus: null, src: null, tgt: null });
+    // A key that is not in the address is not an invalid id: the page shows not found only for what was named
+    expect(parseLinksSearch({}).invalid).toEqual({ focus: null, src: null, tgt: null });
+    expect(parseLinksSearch({ src: '  ' }).invalid.src).toBe('  ');
     expect(parseLinksSearch({ src: '9223372036854775807', tgt: '12' })).toMatchObject({
       source: '9223372036854775807',
       target: '12',

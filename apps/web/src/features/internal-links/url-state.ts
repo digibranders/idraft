@@ -3,6 +3,7 @@
 import { parseAsString, useQueryStates } from 'nuqs';
 import { useCallback, useMemo } from 'react';
 
+import type { InspectorTarget } from '@/lib/inspector/placement';
 import { parseKeySet, parseMore } from '@/lib/internal-links/journey-codec';
 import type { Direction } from '@/lib/internal-links/journey-layout';
 import { checkUrlId, UrlIdError } from '@/lib/internal-links/queries';
@@ -68,10 +69,19 @@ export interface LinksState {
   sort: PageSort;
   q: string | null;
   lq: string | null;
-  /** The Links tab narrowed to the links from or to one page (the inspector's "View all in Links"). */
+  /**
+   * The Links tab narrowed to the links from or to one page (the inspector's "View all in Links"), and the
+   * Journey's focus: each a url id the API would take, or `null` when the address names none or names one that is
+   * not an id. A hand-edited id is no reason to fall back to the home page.
+   */
   source: string | null;
   target: string | null;
   focus: string | null;
+  /**
+   * The text of an id the address names and the API would refuse (`src`, `tgt`, `focus`), else `null`. The tab
+   * that reads the id shows not found for it (a page that does not exist), instead of reading it as no choice.
+   */
+  invalid: { src: string | null; tgt: string | null; focus: string | null };
   journeyView: 'canvas' | 'tree';
   treeDir: Direction;
   open: Set<string>;
@@ -85,18 +95,31 @@ const text = (value: string | null | undefined): string | null => {
   return trimmed === '' ? null : trimmed.slice(0, MAX_SEARCH_LENGTH);
 };
 
-/** The id when the API would take it as a url id, else `null`: an address that names no page falls back. */
-function urlIdOrNull(value: string | null | undefined): string | null {
-  if (value === null || value === undefined) return null;
+/**
+ * A url id the address names, as the id when the API would take it, as `invalid` with its text when it would
+ * refuse it, and as neither when the address names nothing (the key is missing or empty).
+ */
+function readUrlId(value: string | null | undefined): { id: string | null; invalid: string | null } {
+  if (value === null || value === undefined || value === '') return { id: null, invalid: null };
   try {
-    return checkUrlId(value);
+    return { id: checkUrlId(value), invalid: null };
   } catch (error) {
-    if (error instanceof UrlIdError) return null;
+    if (error instanceof UrlIdError) return { id: null, invalid: value };
     throw error;
   }
 }
 
+/** The page the inspector names (`?inspect=page:<id>`), in the same terms: a url id, or the text of one not an id. */
+export function inspectedPage(target: InspectorTarget | null): { urlId: string | null; invalid: string | null } {
+  if (target?.type !== 'page') return { urlId: null, invalid: null };
+  const { id, invalid } = readUrlId(target.id);
+  return { urlId: id, invalid };
+}
+
 export function parseLinksSearch(search: LinksSearch): LinksState {
+  const src = readUrlId(search.src);
+  const tgt = readUrlId(search.tgt);
+  const focus = readUrlId(search.focus);
   return {
     tab: TABS.find((tab) => tab === search.tab) ?? 'pages',
     scope: parseLinkScope(search.scope),
@@ -105,9 +128,10 @@ export function parseLinksSearch(search: LinksSearch): LinksState {
     sort: PAGE_SORTS.find((sort) => sort === search.sort) ?? DEFAULT_SORT,
     q: text(search.q),
     lq: text(search.lq),
-    source: urlIdOrNull(search.src),
-    target: urlIdOrNull(search.tgt),
-    focus: urlIdOrNull(search.focus),
+    source: src.id,
+    target: tgt.id,
+    focus: focus.id,
+    invalid: { src: src.invalid, tgt: tgt.invalid, focus: focus.invalid },
     journeyView: search.jv === 'tree' ? 'tree' : 'canvas',
     treeDir: search.dir === 'in' ? 'in' : 'out',
     open: parseKeySet(search.open),

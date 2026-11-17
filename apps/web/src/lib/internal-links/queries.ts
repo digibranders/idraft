@@ -46,8 +46,14 @@ export const edgesPath = (scope: LinksScope): `/api/v1/${string}` =>
 
 /** Rows a page of the Pages and Links tables asks for (decision W6). */
 export const PAGE_LIMIT = 100;
-/** The crawls the header and the settings list read. */
+/** The crawls the project settings list reads. */
 export const CRAWL_LIMIT = 10;
+/**
+ * The crawls the Internal links screen reads (the API takes up to 200). The screen finds the latest finished
+ * crawl among them (`is_latest`), and the API marks it apart from the page, so it must be read wide enough that a
+ * run of failed crawls does not push the latest one off it.
+ */
+export const CRAWL_SCREEN_LIMIT = 50;
 
 const pathOf = (scope: LinksScope): { workspace_id: string; project_id: string } => ({
   workspace_id: scope.workspaceId,
@@ -226,9 +232,9 @@ export const tierFlowQuery = (scope: LinksScope, linkScope: LinkScope): ApiQuery
 export const worklistsQuery = (scope: LinksScope): ApiQueryOptions<typeof WORKLISTS> =>
   apiQuery(WORKLISTS, { params: { path: pathOf(scope) } });
 
-/** The latest crawls, newest first. */
-export const crawlsQuery = (scope: LinksScope): ApiQueryOptions<typeof CRAWLS> =>
-  apiQuery(CRAWLS, { params: { path: pathOf(scope), query: { limit: CRAWL_LIMIT } } });
+/** The latest crawls, newest first: `limit` of them (`CRAWL_LIMIT` for a list, `CRAWL_SCREEN_LIMIT` for the screen). */
+export const crawlsQuery = (scope: LinksScope, limit: number = CRAWL_LIMIT): ApiQueryOptions<typeof CRAWLS> =>
+  apiQuery(CRAWLS, { params: { path: pathOf(scope), query: { limit } } });
 
 /**
  * The project's settings, which hold the internal links part (`internal_links`). The same request, and so the same
