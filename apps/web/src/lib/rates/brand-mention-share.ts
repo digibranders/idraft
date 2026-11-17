@@ -32,20 +32,15 @@ export const namingAnswersOf = (cell: MetricCell): number => (cell as ShareCell)
 const NOTE_OF = { notCollected: 'notCollected', capped: 'capped' } as const;
 
 /** The share cell of the counts, or an empty one that says why there are none. Keeps the answers the old cell counted. */
-function shareCellOf(read: BrandMentionRead, own: number | null, base: MetricCell): ShareCell {
-  const naming_answers = namingAnswersOf(base);
+function shareCellOf(read: BrandMentionRead, own: number | null, old: MetricCell | undefined): ShareCell {
+  // A block of a partial body (an older API, a test double) may hold no old cell: it has no answers to keep
+  const naming_answers = old === undefined ? 0 : namingAnswersOf(old);
+  const n_observations = old?.n_observations ?? 0;
   if (read.kind !== 'counts') {
-    return {
-      numerator: 0,
-      denominator: 0,
-      value: null,
-      n_observations: base.n_observations,
-      share_note: NOTE_OF[read.kind],
-      naming_answers,
-    };
+    return { numerator: 0, denominator: 0, value: null, n_observations, share_note: NOTE_OF[read.kind], naming_answers };
   }
   const { k, n } = own === null ? read.counts : { k: own, n: read.counts.n };
-  return { numerator: k, denominator: n, value: n > 0 ? k / n : null, n_observations: base.n_observations, naming_answers };
+  return { numerator: k, denominator: n, value: n > 0 ? k / n : null, n_observations, naming_answers };
 }
 
 const ownSetOf = (summary: PromptsSummary): ReadonlySet<string> =>
@@ -138,6 +133,10 @@ const CACHE = new WeakMap<PromptsSummary, WeakMap<object, PromptsSummary>>();
 const NO_SOURCE = {};
 
 function rewrite(summary: PromptsSummary, source: PromptsSummary | null | undefined): PromptsSummary {
+  // A body that holds no tracked set or no rows (an older API, a partial test body) has nothing to count from: as it is
+  if (!Array.isArray(summary.entities) || !Array.isArray(summary.prompts) || !Array.isArray(summary.topics)) {
+    return summary;
+  }
   const context: Context = { own: ownSetOf(summary), tracked: summary.entities.length };
   const topicOf = new Map((source?.topics ?? []).map((topic) => [topic.term_id, topic]));
   const total = summary.total ?? source?.total;

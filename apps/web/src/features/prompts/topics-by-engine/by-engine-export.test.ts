@@ -61,10 +61,9 @@ describe('buildByEngineExport: the By platform view as a file', () => {
     expect(row(table, 'SEO').slice(8)).toEqual([37.5, 'Gemini', 2]);
   });
 
-  it('leaves share of voice counts empty, never 0', () => {
+  it('writes the share of voice counts as brand mentions: the own mentions and all of them', () => {
     const table = buildByEngineExport([SEO], ENGINES, 'sov', LABELS);
-    // The rate and the valid answers (those that name a brand) are written, the count that counts is not
-    expect(row(table, 'SEO').slice(2, 8)).toEqual([25, null, 20, 40, null, 5]);
+    expect(row(table, 'SEO').slice(2, 8)).toEqual([25, 5, 20, 40, 2, 5]);
   });
 
   it('leaves an engine without answers empty and a rate with too few answers empty with its counts', () => {

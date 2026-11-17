@@ -50,6 +50,7 @@ import {
   matchesTopics,
   NO_TOPIC,
   parseCountry,
+  parseMetric,
   parseTab,
   SORT_ID,
   PROMPTS_TABS,
@@ -261,9 +262,11 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   });
   // Share of voice is a count of brand mentions (D17): the topic rows with their entity cells (the read the Groups tab and
   // its drawer ask for too, so one request) give the counts of the topic rows; the page's own read carries none
+  // Asked only while the metric of the Groups views and the drawer is Share of voice: no other figure needs it
+  const [metricParam] = useQueryState('metric', parseAsString);
   const brandCounts = useQuery({
     ...topicEntitiesQuery({ scope, range, includeBranded, brandedOnly, country }),
-    enabled: enabled.length > 0,
+    enabled: enabled.length > 0 && parseMetric(metricParam) === 'sov',
     placeholderData: keepPreviousData,
   });
   const summaryPage = summary.data?.data;
@@ -1051,7 +1054,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
           status={stripStatus}
           countsFailed={summaryFailed}
           ownEntityIds={ownEntityIdsOf(summaryData?.entities)}
-          trackedCount={summaryData?.entities.length}
+          trackedCount={Array.isArray(summaryData?.entities) ? summaryData.entities.length : undefined}
         />
       ) : null;
     controls = (

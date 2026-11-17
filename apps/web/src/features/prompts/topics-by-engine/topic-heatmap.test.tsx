@@ -73,11 +73,11 @@ describe('TopicHeatmap: the groups by platform as a heat map (CH-04)', () => {
     expect(within(grid).getByRole('columnheader', { name: 'Prompts' })).toBeInTheDocument();
   });
 
-  it('says answers and not a count of hits for share of voice', async () => {
+  it('says x of y brand mentions for share of voice, with no prompt weighted percent beside pooled counts', async () => {
     renderWithProviders(<TopicHeatmap {...props({ metric: 'sov' })} />);
     const grid = await screen.findByRole('grid', { name: 'Share of voice by group and platform' });
     expect(
-      within(grid).getByRole('link', { name: /^SEO on ChatGPT: 25\.0%, 20 answers, 2 prompts/ }),
+      within(grid).getByRole('link', { name: /^SEO on ChatGPT: 25\.0%, \d+ of 20 brand mentions/ }),
     ).toHaveTextContent('25%');
   });
 

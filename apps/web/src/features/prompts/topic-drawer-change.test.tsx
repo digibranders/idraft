@@ -222,8 +222,8 @@ describe('the topic drawer: change on the three cards', () => {
     await user.hover(stopOf(await valueOf('Share of voice')));
     await waitFor(() => expect(tooltip()).toHaveTextContent('Average of 2 platforms that have a rate in both periods'));
     expect(tooltip()?.textContent).not.toMatch(/pooled|tested/);
-    // No count of answers that count exists for share of voice: the answers are those that name a brand
-    expect(tooltip()).toHaveTextContent('Previous 40%, 140 answers mentioning a brand');
+    // Share of voice counts brand mentions: the previous figure is x of y brand mentions
+    expect(tooltip()?.textContent).toMatch(/Previous 40%, [\d,]+ of 140 brand mentions/);
     expect(tooltip()).toHaveTextContent('No test exists for share of voice');
   });
 

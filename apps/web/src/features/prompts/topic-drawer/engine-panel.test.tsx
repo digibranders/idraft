@@ -73,14 +73,14 @@ describe('EnginePanel: the By engine section of the drawer', () => {
     expect(screen.getByText(WEIGHTED_NOTE)).toBeInTheDocument();
   });
 
-  it('share of voice says answers naming a brand and never a count of successes', () => {
+  it('share of voice says x of y brand mentions, never answers', () => {
     render([chatgpt(), gemini()], '?metric=sov');
     const [first, second] = rows();
     expect(first).toHaveTextContent('40%');
-    expect(first).toHaveTextContent('5 answers mentioning a brand, 4 prompts');
+    expect(first).toHaveTextContent('2 of 5 brand mentions');
     expect(second).toHaveTextContent('25%');
-    expect(second).toHaveTextContent('4 answers mentioning a brand, 4 prompts');
-    expect(first?.textContent).not.toMatch(/\d+ of \d+/);
+    expect(second).toHaveTextContent(/\d+ of 4 brand mentions/);
+    expect(first?.textContent).not.toMatch(/answers/);
   });
 
   it('the metric control switches Mention, Citation and Share of voice and writes ?metric', async () => {
