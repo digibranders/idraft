@@ -98,6 +98,38 @@ describe('the Brands cell', () => {
     expect(screen.getByRole('img', { name: 'Your brand is not mentioned in these answers' })).toBeInTheDocument();
   });
 
+  it('keeps a competitor just added in the list when it is opened again: 0% with its counts, never hidden', async () => {
+    // The summary has read the new competitor's cell: 0 of the 12 answers name it
+    const tracked: TrackedEntity[] = [...TRACKED, { entity_id: 'added', name: 'Pipedrive', role: 'competitor' }];
+    const row = chatgptRow({
+      entities: [
+        entityCells('own', cellOf(6, 12)),
+        entityCells('rival', cellOf(4, 12)),
+        entityCells('added', cellOf(0, 12)),
+      ],
+    });
+    const { user } = renderWithProviders(<Cell rows={[row]} entities={tracked} />);
+    await user.click(opener());
+    const dialog = await screen.findByRole('dialog', { name: 'Brands mentioned in answers' });
+    const added = within(dialog)
+      .getAllByRole('listitem')
+      .find((item) => item.textContent.includes('Pipedrive'));
+    expect(added).toHaveTextContent(/^4Pipedrive0%0 of 12$/);
+    expect(within(dialog).queryByRole('button', { name: /^Add Pipedrive/ })).not.toBeInTheDocument();
+  });
+
+  it('shows n/a for a tracked competitor the summary holds no cell for yet', async () => {
+    const tracked: TrackedEntity[] = [...TRACKED, { entity_id: 'added', name: 'Pipedrive', role: 'competitor' }];
+    const { user } = renderWithProviders(<Cell rows={[chatgptRow()]} entities={tracked} />);
+    await user.click(opener());
+    const dialog = await screen.findByRole('dialog', { name: 'Brands mentioned in answers' });
+    const added = within(dialog)
+      .getAllByRole('listitem')
+      .find((item) => item.textContent.includes('Pipedrive'));
+    expect(added).toHaveTextContent(/Pipedrive.*n\/a/);
+    expect(added).not.toHaveTextContent('0%');
+  });
+
   it('renders nothing for a reading without a list: the column words it', () => {
     renderWithProviders(<Cell rows={[rowOf(engine('chatgpt_web', { valid: 2 }))]} />);
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
@@ -203,7 +235,12 @@ describe('Add as competitor', () => {
       screen.getByText('It counts in share of voice and the competitor gap from the next run.'),
     ).toBeInTheDocument();
     expect(calls).toEqual(['create', 'attach']);
-    expect(bodies[0]).toMatchObject({ entity_type: 'brand', canonical_name: 'Copper' });
+    // The name goes in as an alias too (decision 17), as the backend request says
+    expect(bodies[0]).toMatchObject({
+      entity_type: 'brand',
+      canonical_name: 'Copper',
+      aliases: [{ alias: 'Copper', match_mode: 'word_boundary', case_sensitive: false }],
+    });
     // Color 2: the own brand holds 1 and no competitor holds a color
     expect(bodies[1]).toMatchObject({
       entity_id: 'new-entity',

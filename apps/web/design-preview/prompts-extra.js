@@ -213,7 +213,8 @@ export function brandsOf(prompts, scope) {
   });
   const ranked = [...rows.values()]
     .map((row) => ({ name: row.name, own: row.own, tracked: row.tracked, swatch: row.swatch, k: row.k, n: row.n, counts: row.counts, rate: [...row.rates.values()].reduce((sum, rate) => sum + rate.sum / rate.count, 0) / row.rates.size }))
-    .filter((row) => row.rate > 0 || row.own)
+    // A brand the project follows stays in the list at a rate of 0 (shown as 0%, with its counts), never hidden
+    .filter((row) => row.rate > 0 || row.own || row.tracked)
     .sort((a, b) => b.rate - a.rate)
     .map((row, index) => ({ ...row, place: index + 1 }));
   const shown = ranked.slice(0, LIST_SIZE);

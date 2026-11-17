@@ -23,8 +23,12 @@ export interface BrandRow {
   own: boolean;
   /** A tracked entity (own or competitor). A brand that is not tracked can be added as a competitor. */
   tracked: boolean;
-  /** Equal-weight average over the engines in scope of each engine's prompt-weighted share of answers naming it. */
-  rate: number;
+  /**
+   * Equal-weight average over the engines in scope of each engine's prompt-weighted share of answers naming it; `null`
+   * for a tracked brand whose summary holds no cell on any engine in scope (just added, answers not read again yet):
+   * unknown, never 0.
+   */
+  rate: number | null;
   /** Set only for one prompt on one engine: a count of answers, which no average of rates has. */
   counts: BrandCount | null;
 }
@@ -57,7 +61,7 @@ export interface BrandsReading {
   answers: number;
   /** Rows (prompts) the list is over. */
   prompts: number;
-  /** Brands with a rate, before the cut. */
+  /** Brands in the list (the tracked ones at a rate of 0 or with none included), before the cut. */
   total: number;
 }
 
@@ -147,9 +151,12 @@ export function brandsOf(
       const { value } = averageOfEngines(rates);
       return { brand, rate: value, rates };
     })
-    .filter((entry): entry is { brand: Candidate; rate: number; rates: EngineRate[] } => entry.rate !== null)
-    .filter((entry) => entry.rate > 0 || entry.brand.own)
-    .sort((a, b) => b.rate - a.rate)
+    // A tracked brand is always listed, at 0 or with no rate yet; a brand nobody tracks only when it was named. The own
+    // brand with no rate is pinned under the list instead (`pinnedOwn`)
+    .filter((entry) =>
+      entry.rate === null ? entry.brand.tracked && !entry.brand.own : entry.rate > 0 || entry.brand.tracked,
+    )
+    .sort((a, b) => (b.rate ?? -1) - (a.rate ?? -1))
     .map(({ brand, rate }, index): BrandRow => ({
       place: index + 1,
       entityId: brand.entityId,

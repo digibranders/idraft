@@ -63,9 +63,17 @@ export function useCompetitors(project: PromptScope, enabled: boolean): Competit
   const add = async (name: string): Promise<AddedCompetitor> => {
     let entityId: string | null;
     try {
+      const brand = name.trim();
       const created = await create.mutateAsync({
         params: { path: { workspace_id: project.workspaceId } },
-        body: { entity_type: 'brand', is_ambiguous: false, canonical_name: name.trim(), aliases: [], domains: [] },
+        // The name is an alias too, as the backend request says (a word match in any case: the API's defaults)
+        body: {
+          entity_type: 'brand',
+          is_ambiguous: false,
+          canonical_name: brand,
+          aliases: [{ alias: brand, match_mode: 'word_boundary', case_sensitive: false }],
+          domains: [],
+        },
       });
       entityId = created.data.entity_id;
     } catch (error) {

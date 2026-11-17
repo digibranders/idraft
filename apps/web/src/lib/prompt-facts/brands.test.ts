@@ -75,13 +75,32 @@ describe('brandsOf', () => {
     expect(reading.shown).toHaveLength(LIST_SIZE);
     expect(reading.shown.some((brand) => brand.own)).toBe(false);
     expect(reading.own).toMatchObject({ name: 'Northwind', own: true });
-    expect(reading.total).toBe(13);
+    // The 12 others, Northwind, and HubSpot at 0 because the project tracks it
+    expect(reading.total).toBe(14);
     expect(brandsOf([rowOf(withBrands('chatgpt_web', 10, 9, 0, others))], ['chatgpt_web'], ENTITIES).own).toBeNull();
   });
 
-  it('keeps the own brand when it is named in no answer, and drops other brands that are not', () => {
+  it('keeps a tracked brand named in no answer, at 0 with its counts, and drops an untracked one that is not named', () => {
     const reading = brandsOf([rowOf(withBrands('chatgpt_web', 10, 0, 0, [['Copper', 0]]))], ['chatgpt_web'], ENTITIES);
-    expect(reading.shown.map((row) => row.name)).toEqual(['Northwind']);
+    expect(reading.shown.map((row) => [row.name, row.rate, row.counts])).toEqual([
+      ['Northwind', 0, { code: 'chatgpt_web', k: 0, n: 10 }],
+      ['HubSpot', 0, { code: 'chatgpt_web', k: 0, n: 10 }],
+    ]);
+  });
+
+  it('keeps a competitor added since the answers were read, with no rate rather than a 0 nobody measured', () => {
+    // The summary holds no cell of the new entity yet (the re-derive has not run): unknown, listed last
+    const added: TrackedEntity[] = [
+      ...ENTITIES,
+      { entity_id: '00000000-0000-4000-8000-000000000009', name: 'Copper', role: 'competitor' },
+    ];
+    const reading = brandsOf([rowOf(withBrands('chatgpt_web', 10, 3, 6))], ['chatgpt_web'], added);
+    expect(reading.shown.map((row) => [row.name, row.rate])).toEqual([
+      ['HubSpot', 0.6],
+      ['Northwind', 0.3],
+      ['Copper', null],
+    ]);
+    expect(reading.shown.at(-1)).toMatchObject({ tracked: true, counts: null });
   });
 
   it('keeps the own brand pinned with an unknown rate when no row holds a cell for it', () => {
