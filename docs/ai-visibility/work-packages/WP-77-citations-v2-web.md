@@ -23,12 +23,14 @@ Defaults used by WP-76 and this package. Ask the owner to confirm before step 0;
 |---|---|---|---|
 | D-1 | The preview's "Group" select: what is a group in the app? | The prompt's topic terms (the Topics vocabulary, a term or one under it). Label and copy stay "Group" and "All groups" as in the preview. | The app has no prompt group table; topics are how prompts are grouped. |
 | D-2 | What is a "run"? | Per prompt and engine: one collection run with a valid answer. "Last 4 runs" is each pair's last four; "the runs before" the four before those. | A manual run covers only the prompts someone picked, and two schedules split the prompts between them; a project-wide run number would make "Last run" a 5 prompt sample. |
-| D-3 | What does Citation growth compare? | Only the prompt and engine pairs answered in both windows. Rates compare all answers. | A prompt added last week must not read as growth. |
+| D-3 | What does Citation growth compare? | All answers, as the preview (copy unchanged). Alternative: only the prompt and engine pairs answered in both windows (`matched_*` in the response), with the how text "Total citations now minus before on the prompts answered in both windows, divided by before." | Exact match by default; the alternative stops a prompt added last week from reading as growth. |
 | D-4 | Platforms | The project's enabled engines: ChatGPT, Gemini, Google AI Mode today. Google AI Overview joins the select when its engine ships (WP-64). | The preview shows four; the app has three engines. |
 | D-5 | Old tabs and controls | Removed: Domains and New and lost tabs, the date range picker and country control in the top bar, saved views, More actions, min support, sort select, column chooser, density, branded and flag toggles, the domain and source inspectors. | They are not in the preview. The `ai/sources/*` routes stay (the Overview cards use them). |
 | D-6 | Cited pages volume | Server sorted, searched and paged, 200 rows per page; the next page loads when the table is scrolled to its end. Owner counts and the footer totals come from the response. | The preview filters every URL in the browser; a real third-party list is thousands of rows. |
 | D-7 | Default competitors | The first three tracked competitors in Settings order. | As the preview. |
 | D-8 | The planned Sources page | The `sources` navigation entry is removed; WP-61 is re-scoped by the coordinator (Publishers and Categories, if still wanted, live elsewhere). | The owner said one Citations page replaces Sources. |
+| D-9 | "Cited alongside" in the page drawer | Counted once per answer ("k of N" never exceeds N). | The preview counts each other URL, so a domain with two URLs in one answer counts twice and "k of N" can pass N. |
+| D-10 | A prompt with no topic | Group cell "No group" in tertiary, sorted last; the drawer shows no group badge; the closest page card says "No page of yours is cited for this group" and lists nothing. | The preview's prompts always have a group. |
 
 ## 3. Parity spec (the preview is the source of truth)
 
@@ -50,7 +52,7 @@ Line references are to `apps/web/design-preview/cit.js` (C) and `cit-inspector.j
 |---|---|---|
 | Platform select | Name "Platform"; options "All platforms" then each platform with its logo; menu `min-w-52`, trigger `sm:w-56` | Options from the enabled engines (D-4) |
 | Group select | Name "Group"; searchable; "All groups" then the groups; menu `min-w-60`, trigger `sm:w-52` | Options: the topic terms (D-1) |
-| Runs select | Name "Runs"; "Last 4 runs" note "28 days", "Last 2 runs" note "Sep 21 to Sep 28", "Last run" note "Sep 28"; menu `min-w-56`, trigger `sm:w-44` | Notes from `window.current` and `window.trend` slot dates of a `runs=4` read: 4 runs is the span in days ("N days"), 2 runs "first to last", 1 run its date, in the project's zone, `MMM d` |
+| Runs select | Name "Runs"; "Last 4 runs" note "28 days", "Last 2 runs" note "Sep 21 to Sep 28", "Last run" note "Sep 28"; menu `min-w-56`, trigger `sm:w-44` | From the `window.trend` slot dates of a `runs=4` read, in the project's zone: 4 runs "N days" with N = whole days from slot 4's first answer to slot 1's last answer plus the median days between consecutive slots (one run's length: four weekly runs give 28); 2 runs "<slot 2 last, MMM d> to <slot 1 last>"; 1 run "<slot 1 last>". With fewer slots than the choice, the note names the slots that exist |
 | Competitors | Trigger "Competitors:" then up to two names, "+N" for more, "None" when empty, chevron; `sm:w-60` | Same |
 | Competitors popover | Dialog "Competitors to compare"; head "Compare with" and "k of 5"; one row per tracked competitor: checkbox, color dot, name, domain at the right; rows past five disabled at 50% opacity; stays open after a change; foot "Up to 5 tracked competitors. Manage the list in Settings." (C 142 to 173) | Tracked list from the entities read (role competitor), color from `color_index`, domain from the entity's domains; the selection keeps the tracked order |
 | Reset | Icon button "Reset scope" (undo icon), invisible at the default scope on desktop, hidden below `lg` (C 175 to 181, 696 to 698) | Same |
@@ -68,14 +70,15 @@ One `dl`, `grid-cols-2`, `@xl:grid-cols-3`, `@5xl:grid-cols-6` by the strip's ow
 | coverage | Prompt coverage | same with `prompts_citing / prompts` | same | "average of K platforms" / "k of n prompts" | same with "prompts cite you" |
 | urls | Unique cited URLs | `own_urls` | neutral signed count, nothing when equal; tooltip "N before. Counts are not tested for detectability" | "pages of <own domain>" | none |
 | domains | Unique cited domains | `domains` | same | "in answers to your prompts" | none |
-| growth | Citation growth | `formatRelativeChange` of matched growth (D-3); "n/a" when previous is 0 | none | "+N vs the previous 4 runs" (signed difference; the run dates are dropped) | "N citations now, M in <previous text>." |
+| growth | Citation growth | `formatRelativeChange((citations - previous_citations) / previous_citations)`; "n/a" when previous is 0 | none | "+N vs the previous 4 runs" (signed difference, `previousText()` without its dates, C 255) | "N citations now, M in <previous text>." (the same counts as the value; under the D-3 alternative all three use `matched_*`) |
 
 The what and how texts are the `INFO` table (C 210 to 217), word for word, with the own domain from the project. `<previous text>`: "the previous 4 runs (Aug 10 to Aug 31)", "the 2 runs before (Sep 7 to Sep 14)", "the run before (Sep 21)", with the dates of the previous window's slots (C 99 to 104).
 
 ### 3.4 Tabs and table toolbar (C 259 to 330)
 
 - A segmented tablist "Citations views" at the start of the table toolbar: "Cited pages" and "Gap analysis"; the active one `border-primary-border bg-primary-subtle type-body-strong text-primary-text`; the gap tab shows a neutral count badge of `meta.gaps` (screen readers: ", N gaps"), absent when no competitor is chosen.
-- Then a hairline divider (`md` and up), search ("Search pages" / "Search prompts and groups", `/` focuses it, 200 characters), the tab's controls, and the tab's summary at the right.
+- Then a hairline divider (`md` and up), search (placeholder "Search pages" / "Search prompts and groups", `aria-label` "Search in table", `aria-keyshortcuts` "/", `/` focuses it, 200 characters), the tab's controls, and the tab's summary at the right.
+- Counted nouns use the preview's `plural()` everywhere: "1 citation", "2 citations", "1 answer", "to 1 competitor".
 - The panel is at least 384 px tall (`min-h-96`). Footer, 48 px: the tab's count text at the left, "Updated <latest answer, MMM d, HH:mm> · run <latest_run_number>" at the right.
 - Empty states replace the table: title, `max-w-reading` text, one button (C 381 to 394).
 
@@ -91,12 +94,14 @@ Owner filter, a pressed-button group "Domain type": "Your site", "Competitors", 
 | Change (sortable) | 88 | "Against <previous text>. Counts are not tested for detectability" | neutral signed count, else "No change" in tertiary |
 | Prompts (sortable) | flexible, at least 280 | "How many tracked prompts cite this page, and the one that cites it most" | count (32 px), the top prompt (truncates; tooltip "Cited most for: <text> (N×)"), then a chip "+N" or "Details" that opens the prompts popover |
 | Platforms | 196 (all) or 112 (one) | "Citations on each platform" | per engine: logo and count, 40% opacity at 0; tooltip "<engine>: N citations" |
-| Trend | 104 | "Citations in each of the last 8 weekly runs" | 96 px sparkline, 20 px high, owner color; label "Citations per run, oldest first: ..." |
+| Trend | 104 | "Citations in each of the last 8 weekly runs" | 96 px sparkline, 20 px high, owner color; label "Citations per run, oldest first: ...". A project with fewer than 8 slots draws the slots it has (`window.trend`), and the tip says "last N runs" |
 | Last cited (sortable) | 104 | none | `MMM d` of `last_cited_at`, "n/a" |
 
 Default sort: Citations descending; a header click sorts descending, a second click ascending. Ties: citations, then address.
 
 Prompts popover (C 416 to 444): dialog "Prompts that cite <path>", head "Cited for" and "N prompts · M citations", an ordered list of up to 10 prompts with "N×", foot link "Show all N prompts" (more than 10) or "Open the page details", which opens the page drawer on its Prompts tab. Width 384 px.
+
+Owner nouns of the empty states (C 26 to 31): Your site "your", Competitors "competitor", Third-party "third-party", All none. The preview's "No your page contains ..." reads badly: write "No page of your site contains ..." and "No pages of your site are cited in ..." for Your site (the one copy change to the preview, to confirm with the owner), the preview's wording for the others.
 
 Empty states: no rows at all "No citations in this scope" / "No answer in <scope text> cites a page. Choose more runs or another group." / Reset scope. No match: "No pages match" / 'No <owner noun> page contains "<q>".' or "No <owner noun> pages are cited in <scope text>." / Clear search or Show all pages. `<scope text>` is "<platform>, <group>, <runs label>".
 
@@ -123,14 +128,14 @@ Empty states: no competitor chosen "Choose competitors to compare" / "The gap an
 Header: title = page title; badges: owner badge (dot + "Your page" / competitor name / "Third-party") then the scope parts (platform, group, runs label); context "Cited page · i of n · N citations". Tabs: **Prompts** (default), **Overview**. J and K step through the table's order.
 
 - Prompts: card "Prompts that cite this page", meta "N prompts · cited in M answers"; compact table Prompt (button, opens the prompt inspector with this list for J and K, tooltip "<text>. Open its answers") / Platforms (logos, 25% opacity where 0; tooltip "<engine>: k of n answers" or "no answers"; width 96 or 80) / Cited ("k/n", tooltip "Cited in k of the prompt's N answers"; width 80, right). Empty "No prompt cites this page" / "Nothing in this scope. Choose more runs or another group."
-- Overview: Summary card (meta "change against the runs before"): Citations with signed change, Prompts, Last cited; then the address field with copy ("Address copied" toast, error toast "Could not copy the address" / "Copy it from the field instead.") and open in a new tab. "Citations per run" card (meta "last 8 weekly runs"): 56 px sparkline, axis first and last trend slot dates. "By platform" (meta "citations · share"): Platform / Citations / Share (0 decimals). "Cited alongside" (meta "domains in the same answers"): Domain with dot and "Your site" or "Competitor" badge / Answers "k of N" (tooltip "Cited in k of the N answers that cite this page"); empty "Cited alone" / "No other domain is cited in the answers that cite this page."
+- Overview: Summary card (meta "change against the runs before"): Citations with signed change, Prompts, Last cited; then the address field (link icon, the URL as cited, truncates) with a copy button (tooltip and label "Copy address", copies the full URL; toast "Address copied", error toast "Could not copy the address" / "Copy it from the field instead.") and an open button (tooltip "Open the page", label "Open the page in a new tab", opens it in a new tab with `noopener`). "Citations per run" card (meta "last 8 weekly runs"): 56 px sparkline, axis first and last trend slot dates. "By platform" (meta "citations · share"): Platform / Citations / Share (0 decimals). "Cited alongside" (meta "domains in the same answers"): Domain with dot and "Your site" or "Competitor" badge / Answers "k of N" (tooltip "Cited in k of the N answers that cite this page"); empty "Cited alone" / "No other domain is cited in the answers that cite this page."
 
 ### 3.8 Gap drawer, `gap-prompt` (I 209 to 331)
 
-Header: title = prompt text; badge = group; context "Prompt · i of n · lost on <engines>" or "not lost on any platform". Tabs: **Gap** (default), **By platform**.
+Header: title = prompt text; badge = group (none for a prompt with no group, D-10); context "Prompt · i of n · lost on <engines>" or "not lost on any platform". Tabs: **Gap** (default), **By platform**.
 
-- Gap: "Who is cited" (meta "N answers", tool button "Open answers" with message icon, opens the prompt inspector): Brand (dot + name; own first) / State (the mark, width 144) / Answers ("k of n"). "Pages competitors win with" (meta "what to answer better"), empty "No competitor page is cited" / "None of the selected competitors is cited for this prompt in this scope.". "Your closest page" (meta "update it before writing a new one"): own pages cited here ("Cited in some answers to this prompt"), else the closest pages ("Cited for other <group> prompts"); empty "No page of yours is cited for <group>" / "This prompt needs a page of its own. Start from the competitor pages above.". "Third-party pages in these answers" (meta "where to be listed"), empty "No third-party page" / "The answers cite no third-party page.". Page lists: dot, URL, optional note, engine logos (tooltip "Cited on <engines>"), "N×".
-- By platform: one row per engine, the marks of you (lost when the engine is in `lost_on`) and each competitor; scrolls sideways when wide.
+- Gap: "Who is cited" (meta "N answers", tool button "Open answers" with message icon, opens the prompt inspector): Brand (dot + name; own first) / State (the mark, width 144) / Answers ("k of n"). "Pages competitors win with" (meta "what to answer better"), empty "No competitor page is cited" / "None of the selected competitors is cited for this prompt in this scope.". "Your closest page" (meta "update it before writing a new one"): own pages cited here ("Cited in some answers to this prompt"), else the closest pages ("Cited for other <group> prompts"); empty "No page of yours is cited for <group>" / "This prompt needs a page of its own. Start from the competitor pages above.". "Third-party pages in these answers" (meta "where to be listed"), empty "No third-party page" / "The answers cite no third-party page.". Page lists: dot, URL, optional note, "N×". The competitor list's note is the competitor's name, and it and the third-party list show engine logos (tooltip "Cited on <engines>"); the closest page list shows no logos (I 218 to 238, 284, 294).
+- By platform: card "By platform", meta "answers that cite each brand"; columns Platform (logo and name, 128 px), <own brand> (112 px), each competitor (112 px); the marks of you (lost when the engine is in `lost_on`) and each competitor, each mark's tooltip only that engine's sentence; the table scrolls sideways when wide (I 306 to 330).
 
 ### 3.9 Responsive, keyboard, accessibility
 
@@ -143,6 +148,7 @@ Checked at 375, 768, 1024 and 1440 px, light and dark, with the drawer docked an
 - `apps/web/src/lib/navigation/registry.ts`: remove the `sources` entry (D-8) and update `registry.test.ts`.
 - `apps/web/messages/en.json`: replace the `citations` namespace with the strings of section 3.
 - e2e: replace `e2e/flows/ai-citations.spec.ts` and `ai-citations-inspectors.spec.ts` with one spec that walks both tabs, both drawers, the competitors popover and the phone width.
+- Gap tab requests: the web never calls `citation-gaps` with no competitor (the empty state shows instead); `comp=` with no ids means None, as the preview (C 46).
 - MSW: `src/mocks/handlers/citations-v2.ts` for the five routes, answering from a fixture generated from the preview's `cit-data.js` (section 5), so the app with mocks shows the preview's numbers.
 
 ## 5. How exact match is checked

@@ -18,7 +18,7 @@
 |---|---|---|
 | D-1 | What "Group" means | The prompt's topic terms (`filter[term]`, the term or one under it). There is no prompt group table. |
 | D-2 | What a "run" is | Per prompt and engine: one collection run that holds at least one valid, current, not superseded answer of that pair. Slot 1 is the pair's latest such run, slot 2 the one before, up to slot 8, within 183 days. An answer with no `collection_run_id` is its own run per UTC day. "Last N runs" is slots 1 to N of every pair; "the runs before" is slots N+1 to 2N. |
-| D-3 | What a change compares | Rates (Citation rate, Prompt coverage) compare all answers of the two windows. Citation growth compares only the prompt and engine pairs answered in both windows (`matched_*`), so a prompt added last week does not read as growth. Counts (unique URLs, unique domains, a page's Change) compare all answers. |
+| D-3 | What a change compares | Every change compares all answers of the two windows, as the preview does: Citation growth is `(citations - previous_citations) / previous_citations`. The route also returns `matched_*` (the pairs answered in both windows) so the owner can switch growth to them, which keeps a prompt added last week from reading as growth; that switch is web copy plus one formula. |
 | D-4 | Platforms | The engines of the request (`filter[engine_code_in]`), else every engine code (three today: `chatgpt_web`, `gemini_web`, `google_ai_mode`). Google AI Overview appears when its engine code exists (WP-64). |
 | D-5 | Who counts as cited | A brand is cited in an answer when the answer lists at least one citation unit of its role (own) or of its entity (competitor), flagged citations left out as in the sources lane. Mentioned comes from the fact row (`own_mentioned`, `competitor_mentions`). |
 
@@ -30,8 +30,16 @@
 4. **Citation rate.** Per engine: answers with at least one own unit over answers. The page shows the equal-weight average of the engines with answers (the web computes it with `@/lib/stats/rates.equalWeightAverage`); the route returns the counts.
 5. **Prompt coverage.** Per engine: prompts with at least one answer citing an own unit over prompts with an answer; averaged as above.
 6. **Unique cited URLs.** Distinct own URLs in the window. **Unique cited domains.** Distinct registrable domains of every unit in the window, own included.
-7. **Citation growth.** `(matched_citations - matched_previous_citations) / matched_previous_citations` over the pairs answered in both windows; `n/a` when the previous count is 0.
+7. **Citation growth.** `(citations - previous_citations) / previous_citations`; `n/a` when the previous count is 0. `matched_citations` and `matched_previous_citations` restrict both to the pairs answered in both windows (D-3 alternative).
 8. **Gap.** Decided per engine: a prompt is lost on an engine when it has answers there, none cites you, and at least one selected competitor is cited there. `gap` is the number of engines lost on.
+
+## Conventions for every task (from the plan review)
+
+- Ruff selects E, F, I, B, N and RUF with lines of 100. Run `ruff format` **before** `ruff check` in every commit step, whatever order a step's command shows.
+- Code blocks that say "append" show new imports next to the code for reading only: merge them into the file's top import block (E402, I001).
+- No `# type: ignore` anywhere. Narrow strings to the schema literals with two helpers in `citation_board_model.py`, used wherever a block below casts: `def role_of(value: str) -> DomainRole` (checks `value in ("own", "competitor", "third_party")`, raises `ValueError` otherwise, returns `cast(DomainRole, value)`), and `state_of(...) -> BrandState`.
+- No closure defined inside a loop that reads the loop's variables (B023): pass them as arguments.
+- Partitions: the `ai.*` tables are month partitions kept one month back (`ops.partitioned_tables.months_back`, default 1). A test with answers older than about 30 days first runs `UPDATE ops.partitioned_tables SET months_back = 3 WHERE parent IN ('ai.observations'::regclass, 'ai.observation_facts'::regclass, 'ai.citations'::regclass, 'ai.entity_mentions'::regclass)` and `SELECT ops.maintain_partitions()`.
 
 ## File structure
 
@@ -337,8 +345,9 @@ git commit -m "WP-76: Citations page response types"
 Append to the test file:
 
 ```python
+from collections.abc import Iterable
 from datetime import UTC, datetime, timedelta
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from idraft.api.ai.citation_board_model import Answer, Board, assign_slots
 
@@ -346,7 +355,10 @@ NOW = datetime(2026, 11, 16, 9, 0, tzinfo=UTC)
 P1, P2 = UUID(int=1), UUID(int=2)
 
 
-def ans(oid: int, prompt: UUID, run: str, days: float, engine: str = "chatgpt_web", **kw: object) -> Answer:
+def ans(
+    oid: int, prompt: UUID, run: str, days: float, engine: str = "chatgpt_web", *,
+    own_mentioned: bool = False, mentions: Iterable[UUID] = (),
+) -> Answer:
     return Answer(
         observation_id=oid,
         observed_at=NOW - timedelta(days=days),
@@ -354,8 +366,8 @@ def ans(oid: int, prompt: UUID, run: str, days: float, engine: str = "chatgpt_we
         engine_code=engine,
         run_id=None,
         run_key=run,
-        own_mentioned=bool(kw.get("own_mentioned", False)),
-        competitors_mentioned=frozenset(kw.get("mentions", ())),  # type: ignore[arg-type]
+        own_mentioned=own_mentioned,
+        competitors_mentioned=frozenset(mentions),
     )
 
 
@@ -520,7 +532,7 @@ git commit -m "WP-76: number each prompt and engine's runs into slots"
 - [ ] **Step 1: Write the failing tests**
 
 ```python
-from idraft.api.ai.citation_board_model import overview, run_window
+from idraft.api.ai.citation_board_model import Unit, overview, run_window
 
 OWN_A = "https://own.example/a"
 
@@ -771,7 +783,7 @@ def page_rows(board: Board, engines: Sequence[str], texts: Mapping[UUID, str], n
         rows.append(
             CitedPageRow(
                 url_id=url_id, url=u.url, host=u.host, registrable_domain=u.registrable_domain, path=u.path,
-                title=u.title, domain_role=u.domain_role, entity_id=u.entity_id, entity_name=name, color_index=color,  # type: ignore[arg-type]
+                title=u.title, domain_role=role_of(u.domain_role), entity_id=u.entity_id, entity_name=name, color_index=color,
                 citations=len(citing), previous_citations=before[url_id], prompts=len(by_prompt),
                 top_prompts=[PromptCount(prompt_id=p, text=texts.get(p, ""), citations=n) for p, n in top],
                 engines=[EngineUnits(engine_code=EngineCode(c), citation_units=sum(s.answer.engine_code == c for s in citing)) for c in engines],
@@ -788,7 +800,10 @@ def page_detail(board: Board, url_id: int, engines: Sequence[str], texts: Mappin
     if row is None:
         return None
     now = board.current()
-    cites = lambda s: any(u.url_id == url_id for u in board.units_of(s))  # noqa: E731
+
+    def cites(s: Slotted) -> bool:
+        return any(u.url_id == url_id for u in board.units_of(s))
+
     prompts = []
     for prompt_id in {s.answer.prompt_id for s in now if cites(s)}:
         mine = [s for s in now if s.answer.prompt_id == prompt_id]
@@ -817,7 +832,7 @@ def page_detail(board: Board, url_id: int, engines: Sequence[str], texts: Mappin
         prompts=prompts,
         alongside=[
             CitedAlongside(
-                registrable_domain=domain, domain_role=u.domain_role, entity_id=u.entity_id,  # type: ignore[arg-type]
+                registrable_domain=domain, domain_role=role_of(u.domain_role), entity_id=u.entity_id,
                 entity_name=names.get(u.entity_id, (None, None))[0] if u.entity_id else None,
                 color_index=names.get(u.entity_id, (None, None))[1] if u.entity_id else None,
                 answers=count,
@@ -843,7 +858,7 @@ git add backend/src/idraft/api/ai/citation_board_model.py backend/tests/api/ai/t
 git commit -m "WP-76: cited page rows and the page drawer"
 ```
 
-Reviewer note for this task: the two `# type: ignore[arg-type]` on `domain_role` are a smell. Replace them by narrowing with `cast(DomainRole, u.domain_role)` after asserting `u.domain_role in ROLES` (import `ROLES` from `source_repository`), and replace the `cites` lambda by a nested `def`. The tests stay as they are.
+Add the `role_of` helper (Conventions) to the model in this task, with `from typing import cast` and `DomainRole` from `idraft.api.schemas.ai_sources`, and a test that `role_of("watch")` raises `ValueError`.
 
 ---
 
@@ -921,7 +936,7 @@ Add `BrandCell, BrandOnPrompt, CitationGapDetail, CitationGapRow, CompetitorOnPr
 Topics = Mapping[UUID, tuple[UUID, str]]
 
 
-def state_of(cited: int, mentioned: int, answers: int) -> str:
+def state_of(cited: int, mentioned: int, answers: int) -> BrandState:
     if answers == 0:
         return "none"
     if cited > 0:
@@ -931,17 +946,41 @@ def state_of(cited: int, mentioned: int, answers: int) -> str:
 
 def _brand(cells: Mapping[str, tuple[int, int, int]], engines: Sequence[str]) -> BrandOnPrompt:
     per = [
-        EngineBrandCell(engine_code=EngineCode(c), cited=k, mentioned=m, answers=n, state=state_of(k, m, n))  # type: ignore[arg-type]
+        EngineBrandCell(engine_code=EngineCode(c), cited=k, mentioned=m, answers=n, state=state_of(k, m, n))
         for c in engines
         for k, m, n in (cells.get(c, (0, 0, 0)),)
     ]
     k, m, n = (sum(cell.cited for cell in per), sum(cell.mentioned for cell in per), sum(cell.answers for cell in per))
     return BrandOnPrompt(
-        total=BrandCell(cited=k, mentioned=m, answers=n, state=state_of(k, m, n)),  # type: ignore[arg-type]
+        total=BrandCell(cited=k, mentioned=m, answers=n, state=state_of(k, m, n)),
         engines=per,
         cited_on=sum(cell.answers > 0 and cell.cited > 0 for cell in per),
         platforms=sum(cell.answers > 0 for cell in per),
     )
+
+
+def _cells(
+    answers: Sequence[Slotted], engines: Sequence[str],
+    cited: Callable[[Slotted], bool], named: Callable[[Slotted], bool],
+) -> dict[str, tuple[int, int, int]]:
+    """(cited, mentioned, answers) per engine of one prompt's answers."""
+    out = {}
+    for code in engines:
+        on = [s for s in answers if s.answer.engine_code == code]
+        out[code] = (sum(map(cited, on)), sum(map(named, on)), len(on))
+    return out
+
+
+def _cites_own(board: Board) -> Callable[[Slotted], bool]:
+    return lambda s: any(u.domain_role == "own" for u in board.units_of(s))
+
+
+def _cites_entity(board: Board, entity: UUID) -> Callable[[Slotted], bool]:
+    return lambda s: any(u.domain_role == "competitor" and u.entity_id == entity for u in board.units_of(s))
+
+
+def _names_entity(entity: UUID) -> Callable[[Slotted], bool]:
+    return lambda s: entity in s.answer.competitors_mentioned
 
 
 def gap_rows(
@@ -952,27 +991,11 @@ def gap_rows(
     rows = []
     for prompt_id in sorted({s.answer.prompt_id for s in now}, key=lambda p: texts.get(p, "")):
         mine = [s for s in now if s.answer.prompt_id == prompt_id]
-
-        def cells(cited: Callable[[Slotted], bool], named: Callable[[Slotted], bool]) -> dict[str, tuple[int, int, int]]:
-            out = {}
-            for c in engines:
-                on = [s for s in mine if s.answer.engine_code == c]
-                out[c] = (sum(map(cited, on)), sum(map(named, on)), len(on))
-            return out
-
-        you = _brand(
-            cells(lambda s: any(u.domain_role == "own" for u in board.units_of(s)), lambda s: s.answer.own_mentioned), engines
-        )
+        you = _brand(_cells(mine, engines, _cites_own(board), lambda s: s.answer.own_mentioned), engines)
         rivals = [
             CompetitorOnPrompt(
                 entity_id=entity,
-                **_brand(
-                    cells(
-                        lambda s, e=entity: any(u.domain_role == "competitor" and u.entity_id == e for u in board.units_of(s)),
-                        lambda s, e=entity: e in s.answer.competitors_mentioned,
-                    ),
-                    engines,
-                ).model_dump(),
+                **_brand(_cells(mine, engines, _cites_entity(board, entity), _names_entity(entity)), engines).model_dump(),
             )
             for entity in competitors
         ]
@@ -1033,7 +1056,7 @@ def gap_detail(
     )
 ```
 
-Add `from collections.abc import Callable` to the imports. As in Task 4, the reviewer replaces each `# type: ignore[arg-type]` with a `cast` to the `Literal` after a membership check.
+Add `from collections.abc import Callable` and `BrandState` (from the schemas) to the top import block.
 
 - [ ] **Step 4: Run tests to verify they pass**
 
@@ -1084,7 +1107,7 @@ async def make_run(pg: PostgresServer, world: World, *, days_ago: float) -> uuid
         "INSERT INTO ops.collection_runs (workspace_id, project_id, workload, window_start, "
         "window_end, trigger, status, config_snapshot) VALUES ($1, $2, 'ai_prompt', "
         "now() - make_interval(secs => $3), now() - make_interval(secs => $3) + interval '1 hour', "
-        "'manual', 'succeeded', '{}'::jsonb) RETURNING id",
+        "'manual', 'completed', '{}'::jsonb) RETURNING id",
         world.project.workspace_id,
         world.project.id,
         days_ago * 86400.0,
@@ -1119,7 +1142,7 @@ async def run_answer(
     return observation_id
 ```
 
-Check the `ops.collection_runs` column list against `tables.py:344` before running: if a column without a default is missing from the insert (for example `schedule_id` constraints or `tasks_total`), add it with the value the 0004 migration requires. `fetchrow` and `execute` live in `tests/api/auth/support.py` (the sources tests import `execute` from there; check `fetchrow` is exported there too, else import it from where `sources_support.py` imports it).
+The run status CHECK (0004 line 100) allows `planned`, `running`, `completed`, `completed_with_errors`, `failed`, `cancelled` and `budget_blocked`; the `tasks_*` columns have defaults. Import `fetchrow` and `execute` from the module `sources_support.py` imports them from.
 
 - [ ] **Step 2: Write the failing repository tests**
 
@@ -1129,7 +1152,9 @@ Numbers are worked out by hand from the answers in each test."""
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from uuid import UUID
 
 import httpx
 import pytest
@@ -1137,19 +1162,20 @@ import pytest
 from idraft.api.ai import citation_board_repository as repository
 from idraft.api.ai.source_repository import SourceScope
 from idraft.api.resources import Resources
+from idraft.db.engine import workspace_transaction
 from tests.api.ai.citation_board_support import make_run, run_answer
 from tests.api.ai.sources_support import GUIDE, OWN, Cite, World, make_world
-from tests.api.auth.support import connection_as_owner  # see note below
-from tests.collectors.ai_support import add_prompt
+from tests.api.auth.support import execute
+from tests.collectors.ai_support import Prompt, add_prompt
 from tests.conftest import PostgresServer
 
 
-def scope_of(world: World, prompt_ids: tuple[object, ...]) -> SourceScope:
+def scope_of(world: World, prompt_ids: tuple[UUID, ...], *, days: int = repository.LOOKBACK_DAYS) -> SourceScope:
     now = datetime.now(UTC)
     return SourceScope(
         workspace_id=world.project.workspace_id, project_id=world.project.id,
-        since=now - timedelta(days=repository.LOOKBACK_DAYS), until=now + timedelta(seconds=1),
-        engine_codes=("chatgpt_web", "gemini_web", "google_ai_mode"), prompt_ids=prompt_ids,  # type: ignore[arg-type]
+        since=now - timedelta(days=days), until=now + timedelta(seconds=1),
+        engine_codes=("chatgpt_web", "gemini_web", "google_ai_mode"), prompt_ids=prompt_ids,
     )
 
 
@@ -1158,10 +1184,11 @@ async def test_lookback_answers_carry_their_run_and_mentions(resources: Resource
     prompt = await add_prompt(migrated, world.project, "Best managed SOC providers?")
     run = await make_run(migrated, world, days_ago=1)
     await run_answer(migrated, world, prompt, run=run, days_ago=1, cites=[world.own_cite()], own_mentioned=True, mentions=[world.rival])
-    await run_answer(migrated, world, prompt, run=None, days_ago=200)  # outside the lookback
+    # Outside a 5 day lookback, inside the partitions the test database keeps
+    await run_answer(migrated, world, prompt, run=None, days_ago=20)
 
-    async with connection_as_owner(resources, world) as db:
-        answers = await repository.lookback_answers(db, scope_of(world, (prompt.id,)))
+    async with workspace_transaction(resources.sessions, world.project.workspace_id, user_id=world.owner.user_id) as db:
+        answers = await repository.lookback_answers(db, scope_of(world, (prompt.id,), days=5))
 
     (only,) = answers
     assert (only.run_id, only.run_key, only.own_mentioned) == (run, str(run), True)
@@ -1174,16 +1201,16 @@ async def test_units_are_one_per_url_per_answer_and_skip_flagged_citations(resou
     run = await make_run(migrated, world, days_ago=1)
     oid = await run_answer(migrated, world, prompt, run=run, days_ago=1, cites=[world.own_cite(), world.own_cite(), Cite(GUIDE)])
     await execute(migrated, "UPDATE ai.citations SET flags = ARRAY['unresolved_redirect'] WHERE observation_id = $1 AND raw_url = $2", oid, GUIDE)
+    scope = replace(scope_of(world, (prompt.id,)), excluded_flags=("unresolved_redirect",))
 
-    async with connection_as_owner(resources, world) as db:
-        scope = scope_of(world, (prompt.id,))
-        answers = await repository.lookback_answers(db, replace(scope, excluded_flags=("unresolved_redirect",)))
-        units = await repository.units_of(db, replace(scope, excluded_flags=("unresolved_redirect",)), answers)
+    async with workspace_transaction(resources.sessions, world.project.workspace_id, user_id=world.owner.user_id) as db:
+        answers = await repository.lookback_answers(db, scope)
+        units = await repository.units_of(db, scope, answers)
 
     assert [(u.url, u.domain_role) for u in units[oid]] == [(OWN, "own")]
 ```
 
-Note on the database session: the sources tests call the routes over HTTP and never open a session themselves. If no helper like `connection_as_owner` exists, test the repository through the routes in Task 8 instead and drop these two tests; do not add a session helper to shared test support. Check with `grep -rn "workspace_transaction" backend/tests | head`. If a test opens a `workspace_transaction` from `resources.sessions`, follow that pattern here (`from idraft.db.session import workspace_transaction`; `async with workspace_transaction(resources.sessions, world.project.workspace_id, user_id=world.owner.user_id) as db:`). Add `from dataclasses import replace` and `from tests.api.auth.support import execute` to the imports.
+The session pattern is the one of `tests/collectors/test_gsc_sync.py:241`. `world.owner.user_id`: check the `Caller` field name in the members support and use it.
 
 - [ ] **Step 3: Run tests to verify they fail**
 
@@ -1340,7 +1367,10 @@ async def run_number(db: AsyncSession, workspace_id: UUID, project_id: UUID, run
     r = collection_runs.c
     start = select(r.window_start).where(r.id == run_id, r.workspace_id == workspace_id).scalar_subquery()
     count = await db.scalar(
-        select(func.count()).where(r.workspace_id == workspace_id, r.project_id == project_id, r.workload == "ai_prompt", r.window_start <= start)
+        select(func.count()).where(
+            r.workspace_id == workspace_id, r.project_id == project_id, r.workload == "ai_prompt",
+            r.status.in_(("completed", "completed_with_errors")), r.window_start <= start,
+        )
     )
     return int(count or 0) or None
 ```
@@ -1352,7 +1382,7 @@ Column names to check against `tables.py` before running: `entities.c.canonical_
 - [ ] **Step 5: Run tests to verify they pass**
 
 Run: `cd backend && uv run pytest tests/api/ai/test_citation_board_routes.py -n 0 --no-cov -q`
-Expected: `2 passed` (or 0 collected if Step 2's note moved them to Task 8)
+Expected: `2 passed`
 
 - [ ] **Step 6: Commit**
 
@@ -1380,11 +1410,11 @@ lane, so a table and its `meta` agree while an answer is being ingested."""
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncIterator, Callable, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import ClassVar
+from typing import Any, ClassVar
 from uuid import UUID
 
 from sqlalchemy import text
@@ -1399,15 +1429,13 @@ from idraft.api.pagination import OffsetPageInfo, OffsetParams
 from idraft.api.problems import NotFoundError, ProblemError
 from idraft.api.schemas.ai_citation_board import (
     CitationGapDetail, CitationGapList, CitationGapsMeta, CitationOverview, CitedPageDetail,
-    CitedPagePage, CitedPageRow, CitedPageSort, CitedPagesMeta, OwnerCounts, RunWindow,
+    CitedPagePage, CitedPageRow, CitedPageSort, CitedPagesMeta, GapCompetitor, OwnerCounts,
+    RunWindow,
 )
+from idraft.api.ranks.repository import project_zone
 from idraft.api.workspaces.access import WorkspaceAccess
-from idraft.db.session import workspace_transaction
+from idraft.db.engine import workspace_transaction
 from idraft.domain.ai_engines import EngineCode
-
-# The import paths of `project_zone` and `workspace_transaction`: take them from the imports at
-# the top of `idraft/api/ai/sources.py`, which uses both.
-from idraft.api.ai.summary_repository import project_zone
 
 
 class CompetitorNotTrackedError(ProblemError):
@@ -1433,7 +1461,7 @@ class Loaded:
 
 
 class CitationBoardService:
-    SORT_KEYS: ClassVar = {
+    SORT_KEYS: ClassVar[dict[str, Callable[[CitedPageRow], Any]]] = {
         "citations": lambda r: r.citations,
         "change": lambda r: r.citations - r.previous_citations,
         "prompts": lambda r: r.prompts,
@@ -1539,7 +1567,7 @@ class CitationBoardService:
         ids = {u.entity_id for units in loaded.board.units.values() for u in units if u.entity_id is not None}
         return await repository.entity_names(db, access.workspace_id, project_id, ids)
 
-    async def _selected(self, db: AsyncSession, access: WorkspaceAccess, project_id: UUID, ids: Sequence[UUID]):  # noqa: ANN202
+    async def _selected(self, db: AsyncSession, access: WorkspaceAccess, project_id: UUID, ids: Sequence[UUID]) -> list[GapCompetitor]:
         tracked = {c.entity_id: c for c in await repository.tracked_competitors(db, access.workspace_id, project_id)}
         unknown = [str(i) for i in ids if i not in tracked]
         if unknown:
@@ -1547,11 +1575,16 @@ class CitationBoardService:
         return [tracked[i] for i in ids]
 
     async def _topics(self, db: AsyncSession, access: WorkspaceAccess, loaded: Loaded) -> dict[UUID, list[tuple[UUID, str]]]:
+        """Each prompt's topic terms in path order (D-1): only the `topic` vocabularies, so a market
+        or product term is never the Group and never makes two prompts neighbours."""
         records = await terms_of(db, access.workspace_id, loaded.texts.keys())
-        return {prompt: [(r.id, r.name) for r in rs] for prompt, rs in records.items()}
+        return {
+            prompt: [(r.term_id, r.name) for r in rs if r.vocabulary_kind == "topic"]
+            for prompt, rs in records.items()
+        }
 ```
 
-Give `_selected` its real return type (`list[GapCompetitor]`) and drop the `noqa`; type the lambdas of `SORT_KEYS` as `dict[str, Callable[[CitedPageRow], Any]]`. Fix the two import paths flagged in the comment by copying them from `sources.py`. `terms_of` returns `TermRecord`s whose id field is `id` (taxonomy repository) or `term_id` (keywords links): use the one `prompt_repository.terms_of` returns.
+`prompt_repository.terms_of` returns `idraft.keywords.links.TermRecord` (`term_id`, `vocabulary_id`, `vocabulary_kind`, `name`, `path`, `is_single_valued`). `project_zone` returns `ProjectZone(timezone, deep_check_weekday)`.
 
 - [ ] **Step 2: Type check and import contracts**
 
@@ -1588,7 +1621,7 @@ async def _get(world: World, api: httpx.AsyncClient, *path: str, **params: objec
 
 
 @pytest.fixture
-async def two_runs(resources: Resources, migrated: PostgresServer) -> tuple[World, object, object]:
+async def two_runs(resources: Resources, migrated: PostgresServer) -> tuple[World, Prompt, Prompt]:
     """Prompt A: run 2 (1 day ago) cites the own page and the guide on ChatGPT and only the rival
     on Gemini; run 1 (8 days ago) cites the own page on ChatGPT. Prompt B: run 2 only, names the
     rival without a link."""
@@ -1603,7 +1636,7 @@ async def two_runs(resources: Resources, migrated: PostgresServer) -> tuple[Worl
     return world, a, b
 
 
-async def test_the_overview_counts_the_last_run_against_the_run_before(api: httpx.AsyncClient, two_runs: tuple[World, object, object]) -> None:
+async def test_the_overview_counts_the_last_run_against_the_run_before(api: httpx.AsyncClient, two_runs: tuple[World, Prompt, Prompt]) -> None:
     world, _, _ = two_runs
     body = (await _get(world, api, "citation-overview", runs=1)).json()
 
@@ -1616,7 +1649,7 @@ async def test_the_overview_counts_the_last_run_against_the_run_before(api: http
     assert (chatgpt["answers"], chatgpt["answers_citing"], chatgpt["prompts"], chatgpt["prompts_citing"]) == (2, 1, 2, 1)
 
 
-async def test_cited_pages_filter_by_role_search_and_count_owners(api: httpx.AsyncClient, two_runs: tuple[World, object, object]) -> None:
+async def test_cited_pages_filter_by_role_search_and_count_owners(api: httpx.AsyncClient, two_runs: tuple[World, Prompt, Prompt]) -> None:
     world, _, _ = two_runs
     body = (await _get(world, api, "cited-pages", runs=1, **{"filter[domain_role_in]": "own"})).json()
 
@@ -1626,34 +1659,34 @@ async def test_cited_pages_filter_by_role_search_and_count_owners(api: httpx.Asy
     assert (await _get(world, api, "cited-pages", runs=1, q="guide.example")).json()["page"]["total"] == 1
 
 
-async def test_the_gap_analysis_marks_the_gemini_loss(api: httpx.AsyncClient, two_runs: tuple[World, object, object]) -> None:
+async def test_the_gap_analysis_marks_the_gemini_loss(api: httpx.AsyncClient, two_runs: tuple[World, Prompt, Prompt]) -> None:
     world, a, b = two_runs
     body = (await _get(world, api, "citation-gaps", runs=1, **{"filter[competitor_id_in]": str(world.rival)})).json()
 
     rows = {row["prompt_id"]: row for row in body["data"]}
-    assert rows[str(a.id)]["lost_on"] == ["gemini_web"]  # type: ignore[attr-defined]
-    assert rows[str(b.id)]["competitors"][0]["total"]["state"] == "mentioned"  # type: ignore[attr-defined]
+    assert rows[str(a.id)]["lost_on"] == ["gemini_web"]
+    assert rows[str(b.id)]["competitors"][0]["total"]["state"] == "mentioned"
     assert (body["meta"]["prompts"], body["meta"]["gaps"]) == (2, 1)
 
 
-async def test_an_untracked_competitor_is_refused(api: httpx.AsyncClient, two_runs: tuple[World, object, object]) -> None:
+async def test_an_untracked_competitor_is_refused(api: httpx.AsyncClient, two_runs: tuple[World, Prompt, Prompt]) -> None:
     world, _, _ = two_runs
     response = await _get(world, api, "citation-gaps", **{"filter[competitor_id_in]": str(world.own)})
 
     assert problem(response) == (422, "competitor_not_tracked")
 
 
-async def test_a_page_not_cited_in_the_window_is_not_found(api: httpx.AsyncClient, two_runs: tuple[World, object, object]) -> None:
+async def test_a_page_not_cited_in_the_window_is_not_found(api: httpx.AsyncClient, two_runs: tuple[World, Prompt, Prompt]) -> None:
     world, _, _ = two_runs
     assert (await _get(world, api, "cited-pages", "999999999", runs=1)).status_code == 404
 
 
-async def test_runs_other_than_1_2_or_4_are_refused(api: httpx.AsyncClient, two_runs: tuple[World, object, object]) -> None:
+async def test_runs_other_than_1_2_or_4_are_refused(api: httpx.AsyncClient, two_runs: tuple[World, Prompt, Prompt]) -> None:
     world, _, _ = two_runs
     assert (await _get(world, api, "citation-overview", runs=3)).status_code == 422
 ```
 
-Give the fixture's tuple real types (`Prompt` from `tests.collectors.ai_support`) instead of `object` and drop the `type: ignore` comments. Use the `problem` helper's real return shape (check `tests/api/entities/support.py`).
+`problem(response)` returns `(status, code)` as the sources tests use it (`NOT_FOUND = (404, "not_found")` in `test_sources_prompts.py`).
 
 - [ ] **Step 2: Run tests to verify they fail**
 
@@ -1667,6 +1700,7 @@ Expected: FAIL, 404 on every route (the router is not included).
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Annotated
 from uuid import UUID
 
@@ -1737,7 +1771,7 @@ async def citation_overview(project_id: UUID, access: ReadData, board: Board, qu
 async def cited_pages(
     project_id: UUID, access: ReadData, board: Board, query: Query_, page: Offset,
     role: Annotated[DomainRole | None, Query(alias="filter[domain_role_in]")] = None,
-    q: Annotated[str | None, AfterValidator(lambda v: None if v is None else printable(v)), Query(max_length=200)] = None,
+    q: Annotated[Annotated[str, AfterValidator(printable)] | None, Query(max_length=200)] = None,
     sort: CitedPageSort = "-citations",
 ) -> CitedPagePage:
     return await board.pages(access, project_id, query, role=role, q=q, sort=sort, page=page)
@@ -1758,10 +1792,10 @@ async def citation_gaps(project_id: UUID, access: ReadData, board: Board, query:
 
 @router.get("/citation-gaps/{prompt_id}", summary="One prompt of the gap analysis", description=WINDOW)
 async def citation_gap(project_id: UUID, access: ReadData, board: Board, query: Query_, competitors: Competitors, prompt_id: UUID) -> CitationGapDetail:
-    return await board.gap_detail(access, project_id, replace(query, competitor_ids=tuple(competitors)))
+    return await board.gap_detail(access, project_id, replace(query, competitor_ids=tuple(competitors)), prompt_id)
 ```
 
-Add `from dataclasses import replace`. In `citation_gap` pass `prompt_id` to `gap_detail` (`board.gap_detail(access, project_id, replace(...), prompt_id)`). The `role` parameter keeps the sources lane's alias with one value; check `printable`'s signature in `schemas/common.py` (it may already accept `None`). Declare the problem responses the way `source_routes.py` does if `test_openapi.py` asks every operation to document problem+json (follow the error it prints).
+The `role` parameter keeps the sources lane's alias with one value (the page filters one role or none). The problem responses need no declaration: the default problem response is added to every operation globally. The web never calls the gap routes with no competitor; `filter[competitor_id_in]` is required (1 to 5).
 
 Wire it:
 - `resources.py`, beside line 79: `ai_citation_board: CitationBoardService` (import from `idraft.api.ai.citation_board`).
@@ -1820,7 +1854,7 @@ Expected: pass.
 
 - [ ] **Step 2: Write the as-built note**
 
-Add a paragraph **As built (WP-76, Citations page).** to docs/19 naming the five routes, the run slot rule (D-2), the 183 day lookback, the matched-pairs growth (D-3), the per-engine gap rule, the `competitor_not_tracked` problem, and that the rates are returned as counts for the client's equal-weight average. ASCII only, no dashes.
+Add a paragraph **As built (WP-76, Citations page).** to docs/19 naming the five routes, the run slot rule (D-2), the 183 day lookback, growth over all answers with the matched counts beside it (D-3), the per-engine gap rule, the `competitor_not_tracked` problem, and that the rates are returned as counts for the client's equal-weight average. ASCII only, no dashes.
 
 - [ ] **Step 3: Run the full backend checks**
 
@@ -1851,4 +1885,4 @@ A fresh Sonnet reviewer reads this plan, the package diff and the preview's `cit
 ## Self-review
 
 - Spec coverage: strip (Task 3), cited pages with prompts (Task 4, 8), page drawer (Task 4), gap rows and drawer (Task 5), runs filter (Task 2, 8), platforms and group filters (Task 8 `board_query`), competitors up to five (Task 8), gap count badge (`meta.gaps`), footer freshness and run number (`window.latest_answer_at`, `latest_run_number`), performance (Task 9).
-- Known soft spots left for the per-task reviewer: the `type: ignore` casts in Tasks 4 and 5, the column names flagged in Task 6, the import paths flagged in Task 7, and whether a repository test can open a session (Task 6 note). Each is named where it occurs with the check to run.
+- Review of 2026-11-17 (Sonnet, against the repo): import paths, the run status value, the test session pattern, the missing `Unit` import, the route's missing `prompt_id`, lint (B023, E402, ordering of format and check), the typing of casts and `SORT_KEYS`, topic-only terms and partitions are fixed above. Every hand-worked number in the tests was re-derived and holds.
