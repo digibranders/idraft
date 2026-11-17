@@ -1398,6 +1398,56 @@ answers still count in `meta.answers`. The toggles `include_unresolved_redirects
 default changes the numbers of requests that were already answered (before, every flag counted) and is the one constant
 `FLAGGED_COUNTED_BY_DEFAULT` in `source_routes.py`; it is open question O1 of the plan, approved by the coordinator and
 for the owner to confirm. `citations` and `fanout-queries` keep every citation whatever its flags and take no toggle.
+
+**As built (AI visibility WP-76, 2026-11-17): Citations page.** Five read routes serve the Citations page, all
+`data:read`, no table and no migration (code `backend/src/idraft/api/ai/citation_board_routes.py`, `citation_board.py`,
+`citation_board_model.py`, `citation_board_repository.py`, `schemas/ai_citation_board.py`; plan
+`docs/superpowers/plans/2026-11-17-ai-wp-76-citations-v2-api.md`). Built: `GET {P}/ai/citation-overview` (the six measures
+of the strip and the same measures for the runs before), `GET {P}/ai/cited-pages` (one row per cited page, with the
+prompts behind it), `GET {P}/ai/cited-pages/{url_id}` (the page drawer), `GET {P}/ai/citation-gaps` (one row per prompt:
+you and the selected competitors) and `GET {P}/ai/citation-gaps/{prompt_id}` (the gap drawer). They share these
+parameters: `runs` (1, 2 or 4, default 4; any other value is `422`), `filter[engine_code_in]` (default every engine
+code), `filter[term]` (the term or one under it; the Group column of the gap table is the prompt's first topic term, so
+a prompt with no topic term has `topic` null, decision D-1), `include_branded` (default false) and the two flag toggles
+of the sources lane, `include_unresolved_redirects` and `include_engine_internal` (default false). The two gap routes
+also require `filter[competitor_id_in]`, 1 to 5 competitors the project tracks: a repeated id is dropped, the order is
+kept, and an id the project does not track is `422 competitor_not_tracked` with `entity_ids`. The cited pages list also
+takes `filter[domain_role_in]` (one role), `q` (part of the address or the title, at most 200 characters, case is
+ignored), `sort` (`citations`, `change`, `prompts`, `last_cited` or `page`, each with a leading `-` for descending;
+default `-citations`; ties fall to most citations, then the address) and offset paging (`offset`, `limit` default 50 and
+at most 200). `meta.owners` counts the pages of each role (`own`, `competitor`, `third_party`) and `all`, whatever
+`filter[domain_role_in]` and `q` say, so the role tabs keep their numbers.
+
+**What a run is (D-2).** Per prompt and engine, a run is one collection run that holds at least one counted answer (the
+answers of the sources lane: valid, current, not superseded, of active prompts, branded ones only with
+`include_branded`). Slot 1 is the pair's latest run, slot 2 the one before, up to slot 8, within a 183 day lookback. An
+answer with no collection run is its own run per UTC day. "The last N runs" is slots 1 to N of every pair, and the
+change compares slots N+1 to 2N, so a manual run of five prompts is slot 1 of those five pairs only. Every response
+has `window` with the slots of both windows (first and last answer time and answer count per slot), the answers and
+prompts of the current window, the latest answer time and the number of the latest run. **Counts, not percentages.**
+The rates are returned as counts, so the client can take the equal-weight average of the engines (the preview's rule):
+per engine, `answers` and `answers_citing`, `prompts` and `prompts_citing`, and the same four for the previous
+window. Growth is over all answers of the two windows (D-3): `citations` and `previous_citations` are your citation
+units in each window, and `matched_citations`, `matched_previous_citations` and `matched_pairs` count only the pairs
+answered in both windows, beside it, so the client can choose which to show. `own_urls`, `domains` and their
+`previous_` values are distinct own URLs and distinct registrable domains of every unit, own included. A citation unit
+is one canonical URL in one answer (doc 16 C2); flagged citations are left out as in the sources lane.
+
+**Who counts as cited (D-5).** A brand is cited in an answer when the answer lists at least one citation unit of its
+role (you: `own`) or of its entity (a competitor). Mentioned comes from the fact row (`own_mentioned`,
+`competitor_mentions`), not from the citations. Each brand on a prompt has a `total` and one cell per engine of the
+request, in code order, with `cited`, `mentioned`, `answers` and a `state` (`cited`, `mentioned`, `not` or `none`). The
+gap is decided per engine: a prompt is lost on an engine when it has answers there, none of them cites you, and at
+least one selected competitor is cited there. `lost_on` lists those engines, `lost_to` the competitors cited on them
+and `gap` is the number of engines lost on; rows are sorted by `gap`, then `lost_to`, then competitor answers, then
+text. The gap drawer adds the competitor, own and third party pages of the prompt, and the closest own pages, taken from
+the other prompts that share one of its topic terms.
+
+**Reads and errors.** Each request reads the lookback answers once (measured at 0.2 to 1 s for a full project of 3,300 answers and 33,000 citation rows; the test allows 15 s, the sources budget) and counts in
+memory, in one repeatable read snapshot, so a table and its `meta` agree. A project that is not found is `404`; so is a
+page that none of the current window's answers cites and a prompt with no current answer there. A request for a
+competitor the project does not track is `422` before that check, and a gap route without `filter[competitor_id_in]`,
+or with more than five, is `422 validation_failed`.
 Ingest never sets `engine_internal` today, so `include_engine_internal` changes no number until it does; only
 `unresolved_redirect` moves them. Fan-out: `include=topics` adds to each row `topics`, `[{ term_id, observations }]`
 (BE-TOPICS-12), the topic terms tagged directly on the prompts whose counted answers issued the query (terms of a
