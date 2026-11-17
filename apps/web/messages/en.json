@@ -7468,7 +7468,7 @@
       "loadFailedReason": "The server returned an error. Your scope is unchanged.",
       "retry": "Try again",
       "noEngineTitle": "No platform is on",
-      "noEngineReason": "Turn on a platform in AI engines settings to collect answers."
+      "noEngineReason": "Turn on a platform in the project settings to collect answers."
     },
     "pages": {
       "caption": "Cited pages",

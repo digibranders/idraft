@@ -149,13 +149,13 @@ describe('the your pages cited card', () => {
     expect(await screen.findByText('None of your pages was cited')).toBeInTheDocument();
   });
 
-  it('links each page to the source inspector on the Pages tab of Citations, with the scope', async () => {
+  it('links each page to its drawer on the Cited pages tab of Citations', async () => {
     serve();
     renderCard();
     const link = await screen.findByRole('link', { name: '/pricing' });
     const href = new URL(link.getAttribute('href') ?? '', 'http://localhost');
     expect(href.pathname).toBe('/digibranders/fynix/ai/citations');
-    expect(href.searchParams.get('tab')).toBe('pages');
+    expect(href.searchParams.get('inspect')).toMatch(/^cited-page:\d+$/);
   });
 
   it('registers every page for the export with address, title and units by platform', async () => {

@@ -2482,7 +2482,6 @@
               "ai_benchmark",
               "extraction_llm",
               "first_party",
-              "site_crawl",
               "all"
             ],
             "title": "Workload",

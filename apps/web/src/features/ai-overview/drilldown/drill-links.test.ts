@@ -350,8 +350,14 @@ describe('a scope the destination cannot express gives null, never a link that s
     expect(drillHref('citations', scopeOf({ branded: 'only' }), { term: TOPIC }, PROJECT)).toBeNull();
   });
 
-  it.each(['citations', 'competitors', 'sources'] as const)('%s: a comparison with last year', (kind) => {
-    expect(drillHref(kind, scopeOf({ compareKind: 'previous_year' }), {}, PROJECT)).toBeNull();
+  it('competitors: a comparison with last year', () => {
+    expect(drillHref('competitors', scopeOf({ compareKind: 'previous_year' }), {}, PROJECT)).toBeNull();
+  });
+
+  it('citations carries no comparison, so a comparison with last year still has a link', () => {
+    expect(drillHref('citations', scopeOf({ compareKind: 'previous_year' }), {}, PROJECT)).toBe(
+      '/acme/eventus/ai/citations',
+    );
   });
 
   it('citations does not read the country, so a country scope has no link', () => {
