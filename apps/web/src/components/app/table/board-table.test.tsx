@@ -1,6 +1,7 @@
-import { render, screen, within } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import type { ReactElement } from 'react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { BoardTable, type BoardColumn } from './board-table';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -99,5 +100,80 @@ describe('BoardTable', () => {
   it('is accessible', async () => {
     const { container } = setup();
     expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('stretches a header tip over the whole cell and leaves headers without one alone', () => {
+    setup();
+    expect(screen.getByRole('button', { name: 'Citations' })).toHaveClass('after:absolute', 'after:inset-0');
+    expect(screen.getByRole('button', { name: 'Page' })).not.toHaveClass('after:absolute');
+    const cell = screen.getByRole('columnheader', { name: /Citations/ });
+    expect(cell).toHaveClass('sticky');
+    expect(cell).not.toHaveClass('relative');
+  });
+});
+
+/** An IntersectionObserver the test drives by hand. */
+class StubObserver {
+  static all: StubObserver[] = [];
+  disconnected = false;
+  constructor(private readonly callback: IntersectionObserverCallback) {
+    StubObserver.all.push(this);
+  }
+  observe(): void {}
+  disconnect(): void {
+    this.disconnected = true;
+  }
+  /** What a real observer does on observe: it reports the sentinel's state once. */
+  report(isIntersecting: boolean): void {
+    act(() => {
+      this.callback([{ isIntersecting } as IntersectionObserverEntry], this as unknown as IntersectionObserver);
+    });
+  }
+}
+
+describe('BoardTable paging', () => {
+  beforeEach(() => {
+    StubObserver.all = [];
+    vi.stubGlobal('IntersectionObserver', StubObserver);
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function paged(rows: readonly Row[], onEndReached: () => void): ReactElement {
+    return (
+      <TooltipProvider delay={0}>
+        <BoardTable<Row>
+          caption="Cited pages"
+          columns={COLUMNS}
+          rows={rows}
+          rowId={(row) => row.id}
+          rowLabel={(row) => `Open ${row.name}`}
+          onOpen={vi.fn()}
+          activeId={null}
+          sort={{ key: 'citations', dir: 'desc' }}
+          onSortChange={vi.fn()}
+          onEndReached={onEndReached}
+        />
+      </TooltipProvider>
+    );
+  }
+
+  it('asks for the next page when the sentinel is in view, and again after the rows change (D-6)', () => {
+    const onEndReached = vi.fn();
+    const { rerender } = render(paged(ROWS, onEndReached));
+    const first = StubObserver.all.at(-1);
+    first?.report(false);
+    expect(onEndReached).not.toHaveBeenCalled();
+    first?.report(true);
+    expect(onEndReached).toHaveBeenCalledTimes(1);
+
+    // The page that loaded did not push the sentinel out of view, so only a fresh observation can ask again
+    rerender(paged([...ROWS, { id: 'c', name: 'Gamma', count: 1 }], onEndReached));
+    expect(first?.disconnected).toBe(true);
+    const second = StubObserver.all.at(-1);
+    expect(second).not.toBe(first);
+    second?.report(true);
+    expect(onEndReached).toHaveBeenCalledTimes(2);
   });
 });

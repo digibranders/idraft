@@ -78,6 +78,8 @@ function HeaderCell<TRow>({
   const active = sortKey !== undefined && sort.key === sortKey;
   // The pinned corner sits above the other headers and the pinned cells (C 334 to 338)
   const layer = pinned ? 'left-0 z-(--z-sticky)' : 'z-(--z-table-header)';
+  // The preview's tip covers the whole header (C 318 to 380): the trigger's pseudo-element reaches the sticky `th`
+  const reach = column.tip === undefined ? undefined : 'after:absolute after:inset-0';
   const label = (
     <>
       {column.headerLead}
@@ -86,11 +88,11 @@ function HeaderCell<TRow>({
   );
   const content =
     sortKey === undefined ? (
-      <span className="flex min-w-0 items-center gap-1.5">{label}</span>
+      <span className={cn('flex min-w-0 items-center gap-1.5', reach)}>{label}</span>
     ) : (
       <button
         type="button"
-        className="flex min-w-0 items-center gap-1 rounded-sm outline-none focus-visible:focus-ring"
+        className={cn('flex min-w-0 items-center gap-1 rounded-sm outline-none focus-visible:focus-ring', reach)}
         onClick={() => onSortChange({ key: sortKey, dir: active && sort.dir === 'desc' ? 'asc' : 'desc' })}
       >
         {label}
@@ -157,7 +159,8 @@ export function BoardTable<TRow>({
     );
     observer.observe(target);
     return () => observer.disconnect();
-  }, []);
+    // A new page can leave the sentinel inside the margin: observing again delivers a fresh initial entry
+  }, [rows.length]);
   const minWidth = columns.reduce((sum, column) => sum + (column.width ?? flexMin), 0);
   const [identity, ...rest] = columns;
   return (
