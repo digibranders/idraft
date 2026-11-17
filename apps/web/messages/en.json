@@ -464,7 +464,7 @@
       "rankings": "Keywords",
       "keywords": "Keywords",
       "pages": "Pages",
-      "aiOverview": "Overview",
+      "aiOverview": "AI visibility",
       "prompts": "Prompts",
       "citations": "Citations",
       "sources": "Citation opportunities",
@@ -1736,7 +1736,8 @@
     "pageSize": "Rows per page",
     "pageSizeValue": "{size} per page",
     "chooser": {
-      "columnWidth": "{column} column width"
+      "columnWidth": "{column} column width",
+      "resetWidth": "Reset"
     }
   },
   "chart": {
@@ -3868,6 +3869,7 @@
     "emptyFiltered": "No prompts match",
     "emptyFilteredReason": "Change the search or the filters to see more prompts.",
     "clearFilters": "Clear filters",
+    "resetFilters": "Reset filters",
     "columns": {
       "prompt": "Prompt",
       "topic": "Group",
@@ -4945,20 +4947,20 @@
         "onlyPlatform": "{platform} only",
         "averagePlatforms": "Equal-weight average of {platforms}",
         "openLabel": "Brands mentioned in the answers for {label}: {count, plural, one {# brand} other {# brands}}. Open the list",
-        "note": "The share of answers that mention each brand. A brand marked Not a competitor is in the answers but not in your competitor list: add it to include it in share of voice and the competitor gap.",
+        "note": "The share of answers that mention each brand. A brand marked Not a competitor is in the answers but not in your competitor list: add it to include it in share of voice and the Lost to competitor card.",
         "tooFewTip": "Too few answers to list the brands they mention",
         "ownPresent": "Your brand is mentioned in these answers",
         "ownAbsent": "Your brand is not mentioned in these answers",
         "you": "You",
         "notCompetitor": "Not a competitor",
-        "notCompetitorTip": "The answers mention it, but it is not in your competitor list, so share of voice and the competitor gap leave it out",
+        "notCompetitorTip": "The answers mention it, but it is not in your competitor list, so share of voice and the Lost to competitor card leave it out",
         "add": "Add",
         "addLabel": "Add {name} to your competitors",
-        "addTip": "Track it: it counts in share of voice and the competitor gap from the next run",
+        "addTip": "Track it: it counts in share of voice and the Lost to competitor card from the next run",
         "addLimitTip": "{count, number} brands are tracked, the most the project can track. Remove one in Brands and aliases to add another.",
         "added": "Added",
         "addedTitle": "{name} added to your competitors",
-        "addedBody": "It counts in share of voice and the competitor gap from the next run.",
+        "addedBody": "It counts in share of voice and the Lost to competitor card from the next run.",
         "undo": "Undo",
         "addFailedTitle": "{name} could not be added to your competitors",
         "undoFailedTitle": "{name} could not be taken off your competitors",
@@ -5097,7 +5099,7 @@
     }
   },
   "aiOverview": {
-    "title": "AI visibility",
+    "title": "AI visibility overview",
     "noAccessTitle": "You cannot see AI visibility for this project",
     "noAccessReason": "Viewing it needs read access to the project’s data. Ask an admin of this workspace.",
     "moreActions": "More actions",
@@ -5629,8 +5631,7 @@
       "outcomeSplit": {
         "emptyNoPromptsTitle": "No prompts in this scope",
         "emptyNoPromptsReason": "No prompt matches the filters of this page. Widen them to see answers.",
-        "title": "Answer outcomes",
-        "metaAll": "by platform",
+        "title": "Outcome split by platform",
         "caption": "Share of valid answers by outcome, one bar per platform",
         "partBoth": "Mentioned and cited",
         "partMentionedOnly": "Mentioned only",
@@ -5648,7 +5649,7 @@
         "summaryPlatform": "{platform}: {parts}.",
         "summaryPart": "{name} {share}",
         "footnote": "Each prompt counts once: a share is the mean of the shares of the prompts. A platform with fewer than 4 valid answers is left out. Answers that were not valid are left out.",
-        "fileName": "answer-outcomes",
+        "fileName": "outcome-split-by-platform",
         "info": {
           "what": "What happens to your brand in each platform's answers.",
           "how": "Each valid answer is mentioned and cited, mentioned only, cited only, or neither. The four shares add up to 100%. Mentioned only means your brand is mentioned and none of your pages is cited."
@@ -5935,8 +5936,8 @@
         "unknownValue": "n/a"
       },
       "scopeGap": {
-        "title": "Competitor gap",
-        "subject": "the competitor gap",
+        "title": "Lost to competitor",
+        "subject": "Lost to competitor",
         "meta": "prompts, on the same answers",
         "caption": "Prompts where each competitor leads and where you lead",
         "competitor": "Competitor",
@@ -5951,11 +5952,11 @@
         "emptyTitle": "Not enough data",
         "emptyReason": "Too few answers on this platform.",
         "noAnswersReason": "No valid answers in this scope yet.",
-        "summary": "Competitor gap, in prompts: {list}.",
+        "summary": "Lost to competitor, in prompts: {list}.",
         "summaryRow": "{name} leads {they, number} and you lead {you, number} of {compared, number}",
         "tooFewNote": "{count, plural, one {# prompt has} other {# prompts have}} fewer than {min} valid answers and is not compared.",
         "moreRows": "{count, plural, one {# more competitor is} other {# more competitors are}} in the table view.",
-        "fileName": "competitor-gap",
+        "fileName": "lost-to-competitor",
         "info": {
           "what": "Where each competitor is mentioned more often than you, and where you are mentioned more often than them.",
           "how": "Counted in prompts, each once. On one platform, a brand leads a prompt when it is mentioned in at least 2 more answers than the other and the prompt has at least 4 valid answers on that platform. On All platforms the rule runs on each platform and is combined without pooling answers: a brand leads a prompt when it leads on at least one platform and the other brand leads on none. A closer result is mostly noise and is not counted. Click a name or a number to see the prompts."
@@ -6350,7 +6351,7 @@
           "sov": "Share of voice"
         },
         "extremes": {
-          "title": "Top and bottom groups",
+          "title": "Strongest and weakest groups",
           "meta": "{measure}",
           "strongest": "Strongest",
           "weakest": "Weakest",
@@ -6921,7 +6922,7 @@
       }
     },
     "headline": {
-      "label": "Headline numbers",
+      "label": "AI visibility rate (headline)",
       "keyNumbers": "Key numbers",
       "hero": "AI visibility rate",
       "notAvailable": "n/a",
@@ -7079,7 +7080,7 @@
         "pointTip": "{value}, {count, plural, one {# answer} other {# answers}}",
         "info": {
           "what": "How your mention rate and theirs change week by week.",
-          "how": "One point for each weekly run. With Compare on, the weeks are the previous {days, plural, one {# day} other {# days}} and then the current {days, plural, one {# day} other {# days}}, as on the trend of the page."
+          "how": "One point for each weekly run. {compare, select, true {{weeks, plural, =0 {The weeks are} one {The # week is} other {The # weeks are}} the previous {days, plural, one {# day} other {# days}} and the current {days, plural, one {# day} other {# days}}.} other {The weeks are the current {days, plural, one {# day} other {# days}}.}}"
         }
       },
       "platforms": {

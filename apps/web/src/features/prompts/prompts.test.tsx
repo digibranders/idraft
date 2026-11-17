@@ -1052,10 +1052,9 @@ describe('Prompts: Mentioned and Cited per platform, filters and sort', () => {
       searchParams: `?topic=${idOf(3, 1)}&country=AT`,
     });
     expect(await screen.findByRole('heading', { name: NO_MATCH_TITLE })).toBeInTheDocument();
-    // The filter bar has the same button, above the empty state's
-    const clears = screen.getAllByRole('button', { name: 'Clear filters' });
-    expect(clears).toHaveLength(2);
-    await user.click(clears[1] as HTMLElement);
+    // The filter bar has its own button, Reset filters, above the empty state's Clear filters
+    expect(screen.getAllByRole('button', { name: 'Reset filters' })).toHaveLength(1);
+    await user.click(screen.getByRole('button', { name: 'Clear filters' }));
     const table = await grid();
     expect(await within(table).findByText('Question number 1?')).toBeInTheDocument();
     expect(within(table).getByText('Question number 2?')).toBeInTheDocument();
@@ -2924,7 +2923,7 @@ describe('Prompts: the Platform select and the controls row', () => {
     expect(await platform()).toHaveTextContent('All platforms');
   });
 
-  it('takes a Platform filter that names every platform that is on for All platforms: no chip, no Clear filters, and the address drops it', async () => {
+  it('takes a Platform filter that names every platform that is on for All platforms: no chip, no Reset filters, and the address drops it', async () => {
     const writes: string[] = [];
     renderOnPrompts(promptsAs('viewer'), {
       searchParams: '?engine=chatgpt_web,gemini_web',
@@ -2934,7 +2933,7 @@ describe('Prompts: the Platform select and the controls row', () => {
     await vi.waitFor(() => expect(writes.length).toBeGreaterThan(0));
     expect(lastEngine(writes)).toBeNull();
     expect(screen.queryByRole('button', { name: /^Platform:/ })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Clear filters' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Reset filters' })).toBeNull();
   });
 
   it('puts the status, the update time, More actions and Add prompts at the right edge of the row', async () => {

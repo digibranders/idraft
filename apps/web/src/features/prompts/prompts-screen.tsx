@@ -1034,6 +1034,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
             onChange={setValues}
             nowrap
             compact
+            clearLabel={t('resetFilters')}
             {...(platformChipHidden ? { hiddenChipFields: PLATFORM_FIELD } : {})}
           />
         }

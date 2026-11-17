@@ -166,7 +166,7 @@ export default function OutcomeMixCard({ item, live }: CardProps): ReactElement 
       keepHeaderWhenEmpty
       variant="panel"
       title={title}
-      meta={single === null ? t('metaAll') : nameOf(single)}
+      meta={single === null ? null : nameOf(single)}
       info={{ what: t('info.what'), how: t('info.how') }}
       footnote={t('footnote')}
       height={240}

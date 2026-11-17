@@ -54,7 +54,7 @@ function renderCard(searchParams: string) {
   return renderWithProviders(cardInOverview({ type: 'ai.outcome_mix', Card, width: 'third' }), { searchParams });
 }
 
-describe('the answer outcomes card', () => {
+describe('the outcome split card', () => {
   it('draws a 100% bar for each platform of the scope, with the answers and the four exact shares', async () => {
     serve(platform('chatgpt_web', 50, [6, 5, 4, 35]), platform('gemini_web', 20, [2, 2, 2, 14]));
     renderCard('cmp=off');
@@ -64,7 +64,7 @@ describe('the answer outcomes card', () => {
     const row = bar.closest('[data-slot="outcome-row"]') as HTMLElement;
     expect(within(row).getByText('50 answers')).toBeInTheDocument();
     expect(within(row).getByText('ChatGPT')).toBeInTheDocument();
-    expect(screen.getByText('by platform')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Outcome split by platform' })).toBeInTheDocument();
     expect(
       screen.getAllByRole('img').filter((node) => node.getAttribute('aria-label')?.includes('Neither')),
     ).toHaveLength(2);

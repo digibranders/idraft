@@ -151,7 +151,7 @@ export function ColumnChooser({
             focusableWhenDisabled
             onClick={width.onReset}
           >
-            {t('resetWidth')}
+            {t('chooser.resetWidth')}
           </Button>
         </div>
       )}

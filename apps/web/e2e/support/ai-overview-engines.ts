@@ -50,7 +50,7 @@ export const BUILTIN_FAMILY = {
 } as const;
 
 /** The headings of the two cards: the trend is titled by the Metric of the page, AI visibility until it is changed. */
-export const BUILTIN_TITLES = ['AI visibility rate over time', 'Answer outcomes'] as const;
+export const BUILTIN_TITLES = ['AI visibility rate over time', 'Outcome split by platform'] as const;
 
 /** A card by the exact text of its heading; several cards share words, so a substring would not do. */
 export const cardByHeading = (page: Page, title: string): Locator =>

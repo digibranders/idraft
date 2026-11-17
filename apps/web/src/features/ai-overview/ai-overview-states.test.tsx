@@ -23,7 +23,7 @@ const NOW = new Date('2026-11-12T12:00:00Z');
 const ENGINES = mswPath('/api/v1/workspaces/:w/projects/:p/engines');
 const SUMMARY = mswPath('/api/v1/workspaces/:w/projects/:p/ai/prompts-summary');
 const SCHEDULES = mswPath('/api/v1/workspaces/:w/projects/:p/schedules');
-const HEADLINE = 'Headline numbers';
+const HEADLINE = 'AI visibility rate (headline)';
 const CARDS = 'AI visibility cards';
 
 beforeEach(() => {
