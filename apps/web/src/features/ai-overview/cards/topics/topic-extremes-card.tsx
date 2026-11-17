@@ -55,7 +55,7 @@ function GroupExtremes({ item, live }: CardProps): ReactElement {
   const common = useTranslations('aiOverview.topics.common');
   const empties = useTopicEmpty();
   const { scope } = useOverview();
-  const read = useAllGroupsSummary({ subscribed: live });
+  const read = useAllGroupsSummary({ counts: scope.metric === 'sov', subscribed: live });
   // The groups depend on the vocabulary tree: until it is read, rows would be ranked beside their parents
   const data: TopicData =
     read.tree.pending && (read.phase === 'ready' || read.phase === 'refetching') ? { ...read, phase: 'loading' } : read;

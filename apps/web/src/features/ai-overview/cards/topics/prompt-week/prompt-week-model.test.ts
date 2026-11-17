@@ -176,10 +176,10 @@ describe('the cells', () => {
     expect(hasAnyAnswer(none)).toBe(false);
   });
 
-  it('share of voice has no count of successes and says so', () => {
+  it('share of voice counts brand mentions, x of y, and says so', () => {
     const series: WeekSpec[] = [{ weekStart: W4, prompts: 1, mentioned: [5, 8], sov: [3, 6], pool: { weeks: 4 } }];
     const [row] = promptWeekGrid(input([prompt('x', 'Share', [CRM], series)], { metric: 'share_of_voice' })).rows;
-    expect(row?.cells[0]).toMatchObject({ k: null, n: 6, thin: false });
+    expect(row?.cells[0]).toMatchObject({ k: 3, n: 6, thin: false });
   });
 });
 

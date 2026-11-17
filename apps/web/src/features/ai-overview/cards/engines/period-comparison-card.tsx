@@ -83,9 +83,9 @@ export default function PeriodComparisonCard({ item, options, live }: CardProps)
   const chart = useTranslations('chart');
   const metaOf = useCardMeta();
   const density = useCardDensity();
-  const data = useCardData({ previous: 'required', subscribed: live });
-  const { scope, aggregates } = data;
   const metric = metricOf(options.metric);
+  const data = useCardData({ previous: 'required', counts: metric === 'share_of_voice', subscribed: live });
+  const { scope, aggregates } = data;
 
   const comparison = useMemo(
     () => (aggregates === null ? [] : buildComparison({ aggregates, metric })),

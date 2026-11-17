@@ -39,7 +39,7 @@ const WORDS: PromptWeekWords = {
   date: (iso) => formatChartDate(iso),
   pooledTitle: (weeks, date) => `${String(weeks)} weeks to ${date}`,
   weekTitle: (date) => `Week of ${date}`,
-  share: (percent, answers) => `${percent}, ${String(answers)} answers name a brand`,
+  share: (percent, mentions, all) => `${percent}, ${String(mentions)} of ${String(all)} brand mentions`,
   subject: (prompt, title, value) => `${prompt}, ${title}: ${value}`,
 };
 
@@ -185,7 +185,7 @@ describe('the grid', () => {
       />,
     );
     const tip = cell(/^Share prompt, 4 weeks to Oct 26/).getAttribute('aria-label') ?? '';
-    expect(tip).toContain('50.0%, 6 answers name a brand');
+    expect(tip).toContain('50.0%, 3 of 6 brand mentions');
     expect(tip).not.toContain('of 6 answers');
   });
 

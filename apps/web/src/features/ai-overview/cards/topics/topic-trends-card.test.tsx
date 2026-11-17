@@ -318,12 +318,10 @@ describe('TopicTrendsCard', () => {
     ).toBeInTheDocument();
   });
 
-  it('metric share of voice says the answers that name a brand and draws no band', async () => {
+  it('metric share of voice says x of y brand mentions and draws no band', async () => {
     render({ options: { metric: 'share_of_voice' } });
     await charts();
-    expect(
-      within(figureOf('SEO tools, ChatGPT')).getByText(/40 valid answers name a tracked brand/),
-    ).toBeInTheDocument();
+    expect(within(figureOf('SEO tools, ChatGPT')).getByText(/of 40 brand mentions/)).toBeInTheDocument();
     const series = drawnOf('t1:chatgpt_web').option.series as { id: string }[];
     expect(series.some((entry) => entry.id.endsWith(':band'))).toBe(false);
   });

@@ -101,7 +101,7 @@ export default function HeadlineCard({ item, live }: CardProps): ReactElement {
   const common = useTranslations('aiOverview.engines.common');
   const shell = useTranslations('aiOverview.shell');
   const { workspaceId, project, scope, enabledEngines } = useOverview();
-  const data = useCardData({ previous: 'none', include: ['facts', 'series'], subscribed: live });
+  const data = useCardData({ previous: 'none', include: ['facts', 'series'], counts: true, subscribed: live });
   const infoOf = useInfoOf();
   const unavailable = useScopeUnavailable(t('label'));
   const { tree } = useTopicTree();

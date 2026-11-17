@@ -47,7 +47,7 @@ function GroupsHeatmap({ item, live }: CardProps): ReactElement {
   const words = useTopicWords();
   const empties = useTopicEmpty();
   const { scope, setScope } = useOverview();
-  const loaded = useAllGroupsSummary({ subscribed: live });
+  const loaded = useAllGroupsSummary({ counts: scope.metric === 'sov', subscribed: live });
   // Without the vocabulary trees every topic is a top level row: the card waits for them, so rows do not regroup
   const data: TopicData =
     loaded.tree.pending && (loaded.phase === 'ready' || loaded.phase === 'refetching')

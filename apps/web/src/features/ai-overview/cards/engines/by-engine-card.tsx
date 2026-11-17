@@ -207,7 +207,7 @@ export default function ByEngineCard({ item, live }: CardProps): ReactElement {
   const common = useTranslations('aiOverview.engines.common');
   const meta = useCardMeta();
   const drill = useCardDrill();
-  const data = useCardData({ previous: 'optional', sources: true, subscribed: live });
+  const data = useCardData({ previous: 'optional', sources: true, counts: true, subscribed: live });
   const { scope, aggregates } = data;
 
   // The sources of the last scope are not read for this one: the citation column says "not read" until they arrive

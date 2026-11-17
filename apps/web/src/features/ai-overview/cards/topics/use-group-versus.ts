@@ -30,8 +30,13 @@ export function useGroupVersus(live: boolean): GroupVersus {
   const t = useTranslations('aiOverview.topics.groups.versus');
   const shell = useTranslations('aiOverview.shell');
   const { scope } = useOverview();
-  const data = useAllGroupsSummary({ subscribed: live, include: ['total'], rows: 'topics' });
   const measure = scope.metric;
+  const data = useAllGroupsSummary({
+    subscribed: live,
+    include: ['total'],
+    rows: 'topics',
+    counts: measure === 'sov',
+  });
   const average = t('average');
   const { nodes, engines, summary } = data;
   const rows = useMemo(() => {

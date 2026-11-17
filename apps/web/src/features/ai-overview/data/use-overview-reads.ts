@@ -46,7 +46,15 @@ export interface ReadOptions {
   subscribed?: boolean | undefined;
 }
 
-export type SummaryReadOptions = SummaryOptions & ReadOptions;
+export type SummaryReadOptions = SummaryOptions &
+  ReadOptions & {
+    /**
+     * The card shows share of voice, which counts brand mentions (D17): the read also asks the topic rows and the total
+     * with their entity cells, one small read for each window. Left out, the read is the page's own and share of voice
+     * has no counts in it ("not collected"), so a card that shows none of it asks nothing more.
+     */
+    counts?: boolean | undefined;
+  };
 export type SourcesReadOptions = SourcesOptions & ReadOptions;
 
 /** `idle` when the read has nothing to ask; otherwise `run`, or `paused` while it is not subscribed. */
@@ -98,7 +106,7 @@ export function useOverviewEngines(project: ProjectRef): OverviewEngines {
 function useSummary(
   input: OverviewReadInput,
   period: 'current' | 'previous',
-  { subscribed = true, ...options }: SummaryReadOptions,
+  { subscribed = true, counts: wantsCounts = false, ...options }: SummaryReadOptions,
 ): Read<PromptsSummary> {
   const { project, scope, enabledEngines } = input;
   const runs = askedEngines(input).length > 0 && (period === 'current' || comparisonWindow(scope) !== null);
@@ -112,7 +120,7 @@ function useSummary(
   // Share of voice is a count of brand mentions (D17): the read of the topic rows and the total with their entity cells
   // is small, where the prompt rows with entity cells are megabytes, so it is the one extra read of every window whose
   // own read carries no entity cells
-  const needsCounts = !(options.include ?? []).includes('entities');
+  const needsCounts = wantsCounts && !(options.include ?? []).includes('entities');
   const counts = useQuery({
     ...overviewSummaryQuery(
       project,

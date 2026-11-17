@@ -127,7 +127,12 @@ export default function RateTrendCard({ item, live }: CardProps): ReactElement {
   const common = useTranslations('aiOverview.engines.common');
   const tipWords = useRateTipWords();
   const { scope, setScope } = useOverview();
-  const data = useCardData({ previous: 'optional', include: ['series'], subscribed: live });
+  const data = useCardData({
+    previous: 'optional',
+    include: ['series'],
+    counts: scope.metric === 'sov',
+    subscribed: live,
+  });
   const metricKey = KEY[scope.metric];
   const weekMetric = weekMetricOf(scope.metric);
   const title = t(`title${metricKey}`);

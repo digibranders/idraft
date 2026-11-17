@@ -25,6 +25,8 @@ export interface CardDataOptions {
   include?: SummaryOptions['include'];
   /** Read the citation units by role, which the own citation share of each engine is made from. */
   sources?: boolean;
+  /** The card shows share of voice: also read the brand mention counts it is made from (`SummaryReadOptions.counts`). */
+  counts?: boolean;
   /**
    * The card passes the `live` of its `CardProps`. While `false` (customize mode) no read of the card asks anything:
    * it shows what it already has for the scope, and a card with nothing yet stays `loading`, as it is not "no engine".
@@ -78,6 +80,7 @@ export function useCardData({
   previous: need,
   include,
   sources = false,
+  counts = false,
   subscribed = true,
 }: CardDataOptions): CardData {
   const { workspaceId, workspaceSlug, project, scope, enabledEngines, engines, canManageEngines, canViewRuns } =
@@ -87,7 +90,7 @@ export function useCardData({
   const periodScope = useMemo(() => (need === 'none' ? { ...scope, compare: false } : scope), [need, scope]);
   const periods = readPeriods(
     { project: ref, scope: periodScope, enabledEngines },
-    include === undefined ? { subscribed } : { include, subscribed },
+    include === undefined ? { subscribed, counts } : { include, subscribed, counts },
   );
   // With no engine named the sources read does not run: a card that did not ask for it costs no request
   const sourcesInput: OverviewReadInput = { project: ref, scope, enabledEngines: sources ? enabledEngines : [] };

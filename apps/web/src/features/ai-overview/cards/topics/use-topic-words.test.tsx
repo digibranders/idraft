@@ -59,15 +59,24 @@ describe('useTopicWords', () => {
     );
   });
 
-  it('a share of voice tip says answers that name a brand', () => {
-    const tip = words().cellTip(value({ value: 0.25, answers: 8, successes: null, prompts: null }), false);
-    expect(tip).toBe('25.0%, 8 valid answers name a tracked brand');
-    expect(tip).not.toContain(' of ');
+  it('a share of voice tip says x of y brand mentions', () => {
+    const tip = words().cellTip(value({ value: 0.25, answers: 8, successes: 2, prompts: null }), false);
+    expect(tip).toBe('25.0%, 2 of 8 brand mentions');
   });
 
-  it('a share of voice tip with prompts says them once', () => {
-    const tip = words().cellTip(value({ value: 0.25, answers: 1, successes: null, prompts: 2 }), false);
-    expect(tip).toBe('25.0%, 1 valid answer names a tracked brand, 2 prompts, each counts once');
+  it('a share of voice tip never puts a prompt weighted percent beside the pooled counts', () => {
+    const tip = words().cellTip(value({ value: 0.25, answers: 8, successes: 2, prompts: 2 }), false);
+    expect(tip).toBe('25.0%, 2 of 8 brand mentions');
+    expect(tip).not.toContain('prompt');
+  });
+
+  it('a share of voice cell without counts says why: not collected, or cut by the cap', () => {
+    const none = { state: 'none' as const, value: null, answers: 0, successes: null, prompts: null };
+    expect(words().cellTip(value({ ...none, reason: 'notCollected' }), false)).toBe('Not collected yet');
+    expect(words().cellTip(value({ ...none, reason: 'capped' }), false)).toContain('More than 20 tracked brands');
+    expect(words().cellTip(value({ state: 'insufficient', value: null, answers: 3, successes: 1 }), false)).toBe(
+      '3 brand mentions, too few for a share',
+    );
   });
 
   it('metric labels', () => {

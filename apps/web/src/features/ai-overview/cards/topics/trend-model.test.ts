@@ -54,7 +54,8 @@ const RATE_TIP: RateTipWords = {
 };
 const WORDS: TrendWords = {
   rateTip: RATE_TIP,
-  share: (value, answers) => `${String(Math.round(value * 100))}% share, ${String(answers)} answers name a brand`,
+  share: (value, mentions, all) =>
+    `${String(Math.round(value * 100))}% share, ${String(mentions)} of ${String(all)} brand mentions`,
   pooledTo: (weeks, to) => `${String(weeks)} weeks to ${to}`,
 };
 
@@ -184,13 +185,13 @@ describe('buildTrend', () => {
     expect(weekLabels(['2026-10-12', W1, '2027-01-04'])).toEqual(['Oct 12, 2026', 'Oct 19', 'Jan 4, 2027']);
   });
 
-  it('share of voice has no count and no band, and says the answers that name a brand', () => {
+  it('share of voice counts brand mentions and has no band, and says x of y brand mentions', () => {
     const point = trendOf(3, 'share_of_voice').rows[1]?.cells[0]?.points?.[1];
-    expect(point?.k).toBeNull();
+    expect(point?.k).not.toBeNull();
     const drawn = chartPoint(point ?? null, 'share_of_voice', WORDS);
     expect(drawn?.band).toBeNull();
-    expect(drawn?.tip).toContain('answers name a brand');
-    expect(drawn?.tip).not.toContain('of 50 answers');
+    expect(drawn?.tip).toContain('brand mentions');
+    expect(drawn?.tip).not.toContain('answers');
     expect(pointText(point ?? null, 'share_of_voice', WORDS)).toBe(drawn?.tip);
   });
 });

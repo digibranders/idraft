@@ -37,7 +37,11 @@ export default function TopicTrendsCard({ item, options, live }: CardProps): Rea
   const chart = useTranslations('chart');
   const words = useTopicWords();
   const empties = useTopicEmpty();
-  const read = useTopicSummary({ ...READ.topicSeries, subscribed: live });
+  const read = useTopicSummary({
+    ...READ.topicSeries,
+    counts: metricOf(options.metric ?? '') === 'share_of_voice',
+    subscribed: live,
+  });
   // The top level topics depend on the vocabulary tree: until it is read, a subtopic would stand among them
   const data: TopicData =
     read.tree.pending && (read.phase === 'ready' || read.phase === 'refetching') ? { ...read, phase: 'loading' } : read;
