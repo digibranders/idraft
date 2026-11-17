@@ -165,10 +165,10 @@ function ShareOfVoiceSpecimen({ density }: DensityProps): ReactElement {
         kind="html"
         variant="panel"
         title="Share of voice vs competitors"
-        meta="ChatGPT, last 28 days, 1,412 answers naming a tracked brand"
+        meta="ChatGPT, last 28 days, 1,412 brand mentions"
         footnote="Tracked set: your brand and 5 competitors. Pipedrive was added Sep 14 and Notion Oct 5, so earlier shares were taken against fewer brands. Excludes branded prompts."
         height={180}
-        summary="HubSpot is named in 466 of 1,412 answers that name a tracked brand, idraft.ai in 312, Zapier in 198, Pipedrive in 171, Salesforce in 150 and Notion in 115."
+        summary="HubSpot has 466 of 1,412 brand mentions, idraft.ai 312, Zapier 198, Pipedrive 171, Salesforce 150 and Notion 115."
         status="ready"
         body={<BarList {...bars} />}
         table={<BarListTable {...bars} />}
@@ -200,14 +200,14 @@ function CardInfoSpecimen({ density }: DensityProps): ReactElement {
           kind="html"
           variant="panel"
           title="Share of voice, footnote behind the info button"
-          meta="ChatGPT, last 28 days, 1,412 answers naming a tracked brand"
+          meta="ChatGPT, last 28 days, 1,412 brand mentions"
           footnote="Tracked set: your brand and 5 competitors. Excludes branded prompts."
           info={{
             what: 'How much of the brand talk in answers is about you, compared with your competitors.',
             how: 'Your mentions divided by all mentions of you and the tracked competitors. Adding a competitor lowers every other share.',
           }}
           height={140}
-          summary="HubSpot is named in 466 of 1,412 answers that name a tracked brand, idraft.ai in 312 and Zapier in 198."
+          summary="HubSpot has 466 of 1,412 brand mentions, idraft.ai 312 and Zapier 198."
           status="ready"
           body={<BarList {...bars} />}
           table={<BarListTable {...bars} />}

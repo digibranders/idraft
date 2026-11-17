@@ -36,6 +36,15 @@ export function countsText(cell, noun) {
   return `${formatInteger(cell.counts.k)} of ${formatInteger(cell.counts.n)} ${unit}`;
 }
 
+/**
+ * The counts behind a share of voice (D17): "x of y brand mentions" for one platform; for an average of platforms each
+ * platform's own x of y, never one pooled count beside the percent (R3).
+ */
+export function shareCountsText(cell) {
+  if (cell?.code !== 'all') return countsText(cell);
+  return `average of ${cell.used} platforms, each counting once. Brand mentions: ${cell.platformCounts.map((part) => `${engineName(part.code)} ${formatInteger(part.k)} of ${formatInteger(part.n)}`).join(' and ')}`;
+}
+
 /** Why a rate is not shown: the count that fell under the floor of 4 (R2), never a made-up zero (R6). */
 export function insufficientText(cell) {
   const n = cell?.counts?.n ?? cell?.observations;
@@ -51,8 +60,10 @@ export function insufficientText(cell) {
 export const gapIcon = (difference, say, detectable) => trendIcon({ value: detectable === true ? difference : 0, detectable: detectable === true }, { say });
 
 /** The sentence of a gap's hover: "Pricing is 10 pts below all groups", with the two figures and the verdict. */
-export function gapSentence(subject, difference, other, ours, theirs, detectable) {
+export function gapSentence(subject, difference, other, ours, theirs, detectable, tested = true) {
   const points = `${(Math.abs(difference) * 100).toFixed(1)}`;
+  // Share of voice has no test: the figures and the plain fact that the gap is not tested
+  if (!tested) return `${subject} ${subject === 'You' ? 'are' : 'is'} ${difference === 0 ? 'level with' : `${points} pts ${difference > 0 ? 'above' : 'below'}`} ${other}: ${pct0(ours)} against ${pct0(theirs)}. Not tested for detectability.`;
   if (detectable !== true || difference === 0) return `${subject} ${subject === 'You' ? 'are' : 'is'} level with ${other}: the difference of ${points} pts is not detectable, small sample: ${pct0(ours)} against ${pct0(theirs)}.`;
   return `${subject} ${subject === 'You' ? 'are' : 'is'} ${points} pts ${difference > 0 ? 'above' : 'below'} ${other}: ${pct0(ours)} against ${pct0(theirs)}. Detectable: its 95% interval excludes zero.`;
 }

@@ -10,7 +10,7 @@ import { MEASURES, PLATFORMS, RUNS, WEEK_LABELS, aggregateFor, entitiesFor, gapF
 import { chartHost, lineOption, MARKER_PATHS, MARKER_SHAPES, mountChart, shareAreaOption } from './aiov-charts.js';
 import { HEAT_METRICS, setScope } from './aiov-controls.js';
 import { CARD_INFO, MEASURE_INFO } from './aiov-info.js';
-import { barList, cardFrame, countsText, el, emptyBody, engineName, icon, infoButton, insufficient, insufficientText, pct0, plural, platformLabel, sparkline, stackedRows, valueText } from './aiov-parts.js';
+import { barList, cardFrame, countsText, el, emptyBody, engineName, icon, infoButton, insufficient, insufficientText, pct0, plural, platformLabel, shareCountsText, sparkline, stackedRows, valueText } from './aiov-parts.js';
 import { wilsonInterval } from './vendor/stats/index.js';
 
 const ENGINE_TOKEN = { chatgpt_web: 'chart-1', gemini_web: 'chart-2', google_ai_mode: 'chart-3', google_ai_overview: 'chart-4' };
@@ -48,7 +48,11 @@ const TILE_LAYOUT = ['mention', 'sov', 'citation', 'position', 'recommendation',
  */
 function detailOf(cell, ctx) {
   if (cell.state !== 'ok') return cell.state === 'unavailable' ? cell.reason ?? '' : insufficientText(cell) === 'Too few' ? 'Too few answers for a rate' : `${insufficientText(cell)}, too few for a rate`;
-  if (ctx.scope.platform === 'all') return `Average of ${cell.used} platforms: ${cell.platforms.map((code) => engineName(code)).join(', ')}`;
+  if (ctx.scope.platform === 'all') {
+    // Share of voice names each platform's own counts: an average of shares has no pooled count (R3)
+    if (cell.measure === 'sov') return shareCountsText(cell).replace(/^a/, 'A');
+    return `Average of ${cell.used} platforms: ${cell.platforms.map((code) => engineName(code)).join(', ')}`;
+  }
   return countsText(cell);
 }
 

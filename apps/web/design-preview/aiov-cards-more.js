@@ -27,7 +27,7 @@ import {
 import { chartHost, lineOption, mountChart, treemapOption } from './aiov-charts.js';
 import { HEAT_METRICS, setScope } from './aiov-controls.js';
 import { segmented } from './aiov-cards-core.js';
-import { NEUTRAL_BADGE, barList, cardFrame, countsText, el, emptyBody, engineName, gapIcon, gapSentence, heatBin, icon, insufficientText, orderText, pct0, plural, platformLabel, sampleBadge, stackedRows } from './aiov-parts.js';
+import { NEUTRAL_BADGE, barList, cardFrame, countsText, el, emptyBody, engineName, gapIcon, gapSentence, heatBin, icon, insufficientText, orderText, pct0, plural, platformLabel, sampleBadge, shareCountsText, stackedRows } from './aiov-parts.js';
 
 const ENGINE_TOKEN = { chatgpt_web: 'chart-1', gemini_web: 'chart-2', google_ai_mode: 'chart-3', google_ai_overview: 'chart-4' };
 const HEAT_COLUMNS = ['chatgpt_web', 'gemini_web', 'google_ai_overview', 'google_ai_mode'];
@@ -54,7 +54,8 @@ function heatCell(cell, onClick, label) {
   const button = el('button', `w-full h-8 rounded-xs type-table-strong num ${bin >= 5 ? 'text-surface' : 'text-foreground'} hover:outline hover:outline-2 hover:outline-primary`, pct0(cell.value));
   button.type = 'button';
   button.style.background = `var(--seq-${bin})`;
-  const detail = cell.code === 'all' ? `average of ${cell.used} platforms` : countsText(cell);
+  // Share of voice names the counts of each platform of the average (R3): x of y brand mentions, never one pooled count
+  const detail = cell.measure === 'sov' ? shareCountsText(cell) : cell.code === 'all' ? `average of ${cell.used} platforms` : countsText(cell);
   button.dataset.tip = `${label}: ${pct0(cell.value)}${detail ? `, ${detail}` : ''}`;
   button.setAttribute('aria-label', `${label}: ${pct0(cell.value)}. Open this group`);
   button.addEventListener('click', onClick);
@@ -150,15 +151,17 @@ function versusList(ctx) {
     const against = row.b?.state === 'ok' ? `All groups ${pct0(row.b.value)}` : 'All groups: no rate';
     const difference = ok && row.b?.state === 'ok' ? row.a.value - row.b.value : null;
     // The same test as every change icon, on the counts of both (an average on the platforms' counts added up)
-    const detectable = difference === null ? null : isDetectableDifference(row.a.counts, row.b.counts);
+    // Brand mentions are not independent trials of one rate: share of voice has no test, its gap is never coloured
+    const tested = measure !== 'sov';
+    const detectable = difference === null ? null : tested ? isDetectableDifference(row.a.counts, row.b.counts) : false;
     return {
       label: row.label,
       value: ok ? row.a.value : null,
       all: row.b?.state === 'ok' ? row.b.value : null,
       token: row.token,
       note: ok ? against : 'Too few answers',
-      tip: `${row.label}: ${ok ? pct0(row.a.value) : 'too few valid answers (fewer than 4)'}. ${against}.`,
-      icon: difference === null ? null : gapIcon(difference, gapSentence(groupName(ctx.scope.group), difference, 'all groups', row.a.value, row.b.value, detectable), detectable),
+      tip: `${row.label}: ${ok ? `${pct0(row.a.value)}${tested ? '' : `, ${shareCountsText(row.a)}`}` : `too few valid ${tested ? 'answers' : 'brand mentions'} (fewer than 4)`}. ${against}.`,
+      icon: difference === null ? null : gapIcon(difference, gapSentence(groupName(ctx.scope.group), difference, 'all groups', row.a.value, row.b.value, detectable, tested), detectable),
     };
   });
   // One scale for every row, so the bars and the ticks can be compared

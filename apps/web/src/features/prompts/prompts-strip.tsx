@@ -146,11 +146,10 @@ export function PromptsStrip({
   }, [engines]);
 
   /** One rate in the tooltip: the counts behind it, or why there is none. */
-  const detailOf = (figure: RateFigure, ofBrandNamed = false): string => {
+  const detailOf = (figure: RateFigure): string => {
     const basis = words.basis(figure);
     if (basis === null) return t('tipReason', { reason: figure.reason ?? 'noAnswers' });
-    const counted = ofBrandNamed ? t('tipShareBasis', { basis }) : basis;
-    return figure.state === 'insufficient' ? t('tipInsufficient', { basis: counted }) : counted;
+    return figure.state === 'insufficient' ? t('tipInsufficient', { basis }) : basis;
   };
 
   /**

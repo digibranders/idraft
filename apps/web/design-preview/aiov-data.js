@@ -206,7 +206,8 @@ function cellOf(measure, code, scopeCtx) {
   const value = cur[measure];
   if (value === null) return { ...info, state: cur.observations > 0 ? 'insufficient' : 'none', counts: cur.counts[measure] };
   const previous = prev[measure];
-  const detectable = previous !== null && isDetectableChange(cur.counts[measure], prev.counts[measure]);
+  // Brand mentions are not independent trials of one rate: share of voice is never tested, so its change is never coloured
+  const detectable = measure !== 'sov' && previous !== null && isDetectableChange(cur.counts[measure], prev.counts[measure]);
   return { ...info, state: 'ok', value, previous, change: previous === null ? null : { value: value - previous, detectable }, counts: cur.counts[measure], previousCounts: prev.counts[measure] };
 }
 
@@ -226,7 +227,7 @@ function averageOf(cells, codes) {
   const counts = pooledCounts(used.map((cell) => cell.counts));
   const ratio = MEASURES[measure].unit === 'ratio';
   // Detectable only from the pooled counts of both periods (R5); a measure without previous counts is not tested
-  const testable = ratio && previous !== null && used.every((cell) => cell.previousCounts);
+  const testable = ratio && measure !== 'sov' && previous !== null && used.every((cell) => cell.previousCounts);
   const detectable = testable ? isDetectableChange(counts, pooledCounts(used.map((cell) => cell.previousCounts))) : null;
   return {
     measure,
@@ -234,6 +235,8 @@ function averageOf(cells, codes) {
     state: 'ok',
     used: used.length,
     platforms: used.map((cell) => cell.code),
+    // x of y of each platform that took part: an average of shares has no pooled count of its own, so its tip names each (R3)
+    platformCounts: used.map((cell) => ({ code: cell.code, k: cell.counts.k, n: cell.counts.n })),
     value,
     previous,
     change: previous === null ? null : { value: value - previous, detectable },

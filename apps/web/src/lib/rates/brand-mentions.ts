@@ -13,13 +13,13 @@ const mentionsOf = (cell: MetricCell): number => cell.pooled?.successes ?? cell.
 /** The mentions of one entity cell, for a figure that needs one brand's count. */
 export const entityMentions = mentionsOf;
 
-/** The API lists the entity cells of an engine for at most this many tracked brands, the own ones first (backend request 14). */
+/** The API lists the entity cells of an engine for at most this many tracked brands, the own ones first (backend request 24). */
 export const ENTITY_CELL_CAP = 20;
 
 /**
  * What the entity cells of one engine say of the brand mentions: the counts, or why there are none. `notCollected`: the
  * read carries no entity cells, or none of them is the own brand's. `capped`: the cells are at the cap and the read
- * names more tracked brands than they hold, so y would be too small (the API states no total, request 14).
+ * names more tracked brands than they hold, so y would be too small (the API states no total, request 24).
  */
 export type BrandMentionRead = { kind: 'counts'; counts: Counts } | { kind: 'notCollected' } | { kind: 'capped' };
 

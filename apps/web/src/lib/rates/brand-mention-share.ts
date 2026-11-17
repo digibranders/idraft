@@ -25,7 +25,7 @@ export const shareNoteOf = (cell: MetricCell): ShareNote | undefined => (cell as
 /**
  * The valid answers that name a tracked brand: what the Lost to competitor card needs to tell a prompt no brand is named
  * in. Without the field (a cell the API sends as it is) it is the cell's denominator, which is the same count until
- * backend request 13 lands and then needs the field of request 14.
+ * backend request 13 lands and then needs the field of request 24.
  */
 export const namingAnswersOf = (cell: MetricCell): number => (cell as ShareCell).naming_answers ?? cell.denominator;
 

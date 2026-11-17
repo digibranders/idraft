@@ -228,12 +228,40 @@ Until it lands the web derives the share from `entities[].mentioned` where it ha
 the competitor drawer, the Prompts page cells) and writes "Not collected yet" for the whole figure where it has not
 (a read without `include=entities`, the weekly lines). It never writes a percent without its counts.
 
-Not yet moved to the count share (they still read the old cell and say so in their tooltips until this item lands, then
-they switch with no web change to the cell): the headline tile and the by-platform, trend, location and period
-comparison cards of the Overview, Share of voice over time, the group cards (heat map, extremes, movers, versus), the
-share-of-voice metric of the group drawer and its Competitors tab, and the Groups tab platform columns and heat map
-for that metric. Done: the Overview competitor cards, the competitor drawer, the Prompts page Share of voice column
-(prompts and groups) and the strip tooltip. Each is listed in the report of the statistics package of 2026-11-17.
+Every reader of share of voice now reads one definition (2026-11-17, package "finish share of voice"): the web rewrites
+the `share_of_voice` cell of each block that carries `entities` from the `entities[].mentioned` counts
+(`apps/web/src/lib/rates/brand-mention-share.ts`: numerator the own mentions, denominator all tracked-brand mentions, no
+`pooled`), and marks a block that has no entity cells as not collected. The Overview headline tile, the by-platform,
+trend, location and period comparison cards, Share of voice over time and its rank, the group cards, the group drawer, the
+Groups tab and the Prompts page all read that cell. When this item lands the file goes and the cell is read as the API
+sends it; nothing else in the web changes.
+
+The cards that show share of voice ask one extra read for it: the topic rows and the `total` with `include=entities`
+(small, where the prompt rows with entity cells are megabytes), once for each window. Weekly lines need
+`include=series,entities` on that read (item 10).
+
+## 24. Entity cell total and the count of answers that name a tracked brand
+
+(Numbered 24: 14 to 23 are taken in this folder and in the Prompts page requests.)
+
+What: two figures the web cannot get from the cells.
+
+1. A project can track more brands than the 20 entity cells an engine carries (item 13). `summary.entities` lists the
+   whole tracked set, so the web can see the cut (the cells are at 20 and the set is longer) but not how many mentions
+   the missing brands have, so y of "x of y brand mentions" would be too small. The web shows no percent then (it says
+   "More than 20 tracked brands") until the API sends the sum.
+2. The Lost to competitor card (`ai.opportunities`, row "No tracked brand mentioned") counts the prompts with a valid
+   answer that names no tracked brand. It used the denominator of the old `share_of_voice` cell (the valid answers that
+   name a tracked brand), which the count share (item 13) no longer holds.
+
+Smallest change: add to `EngineSummary`, `WeekCells` and `SummaryTotal` engines `entities_mentions_total` (integer, the
+sum of `mentioned` over every tracked entity of the set, not only the cells listed) and `named_answers` (integer, the
+valid answers that name at least one tracked brand). The web then divides by the total instead of the sum of the cells,
+and reads the second figure for the Lost to competitor card.
+
+Until it lands: a block with 20 cells of a longer set has no share of voice (its cell says `capped`, the words say "More
+than 20 tracked brands"); the Lost to competitor card keeps its figure through the old denominator that the web keeps
+beside the rewritten cell (`naming_answers`), which is right only while the API still sends the old cell.
 
 ## What the web does until each item lands
 
@@ -251,3 +279,4 @@ for that metric. Done: the Overview competitor cards, the competitor drawer, the
 | 11 | The three tiles have no line |
 | 12 | The status line and the Runs tile tooltip carry no run number and no per-platform time |
 | 13 | Share of voice is derived from the entity mention cells; where there are none it says "Not collected yet" |
+| 24 | Over 20 tracked brands there is no share of voice ("More than 20 tracked brands"); the Lost to competitor card keeps the old denominator |

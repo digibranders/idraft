@@ -104,6 +104,35 @@ describe('the tiles', () => {
     expect(sov.basis).toMatchObject({ kind: 'counts', noun: 'brandMentions' });
   });
 
+  it('share of voice says not collected, or cut by the cap, and never a percent without its counts', () => {
+    const prompts = [prompt('p1', 'chatgpt_web', [10, 5, 5, 20])];
+    const noted = (note: 'notCollected' | 'capped'): PromptSummaryRow[] =>
+      prompts.map((row) => ({
+        ...row,
+        engines: row.engines.map((entry) => ({ ...entry, share_of_voice: { ...entry.share_of_voice, share_note: note } })),
+      }));
+    expect(readTile({ prompts: noted('notCollected') }, ONE, 'sov')).toEqual({ state: 'notCollected' });
+    expect(readTile({ prompts: noted('capped') }, ONE, 'sov')).toEqual({ state: 'capped' });
+    // Every platform of All platforms lacks the counts for the same reason
+    expect(readTile({ prompts: noted('notCollected') }, ALL, 'sov')).toEqual({ state: 'notCollected' });
+    // The other tiles do not follow it
+    expect(readTile({ prompts: noted('notCollected') }, ONE, 'mention').state).toBe('ok');
+  });
+
+  it('All platforms says each platform own x of y brand mentions, with no pooled count', () => {
+    const prompts = [
+      promptRow('p1', [cells('chatgpt_web', [10, 5, 5, 20]), cells('gemini_web', [4, 6, 2, 8])]),
+    ];
+    const read = ok(readTile({ prompts }, ALL, 'sov'));
+    expect(read.basis).toMatchObject({
+      kind: 'average',
+      parts: [
+        { code: 'chatgpt_web', k: 15, n: 40 },
+        { code: 'gemini_web', k: 10, n: 20 },
+      ],
+    });
+  });
+
   it('a platform with fewer than 4 answers has no value, and says how many it has', () => {
     const prompts = [prompt('p1', 'chatgpt_web', [1, 0, 1, 0])];
     expect(readTile({ prompts }, ONE, 'mention')).toEqual({ state: 'insufficient', n: 2, noun: 'answers' });
