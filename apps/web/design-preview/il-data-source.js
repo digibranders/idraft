@@ -1,3 +1,4 @@
+/* global window, URLSearchParams */
 /**
  * Internal links mock: where its data comes from. By default the real crawl of eventussecurity.com
  * (`il-data-real.js`, built by tools/build-il-data-real.mjs from a DataForSEO crawl). Add `?data=sample` to the

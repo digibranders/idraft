@@ -1,3 +1,4 @@
+/* global URLSearchParams, HashChangeEvent */
 /**
  * Internal links: the state and the maths every tab of the mock shares (spec sections 4, 5 and 6.4). Link scope,
  * tiers from manual choices and URL rules, click depth with and without auto-generated links, equity share
@@ -237,7 +238,7 @@ export const equity = {};
 export function recompute() {
   const metrics = metricsFor(activeN());
   [[depth, metrics.depth], [depthWithoutAuto, metrics.depthWithoutAuto], [equity, metrics.equity]].forEach(([target, source]) => {
-    Object.keys(target).forEach((key) => delete target[key]);
+    Object.keys(target).forEach((key) => Reflect.deleteProperty(target, key));
     Object.assign(target, source);
   });
 }
@@ -530,7 +531,7 @@ export function opportunities() {
 }
 /** Sets 'accepted' or 'dismissed'; null makes the opportunity open again. Callers refresh() afterwards. */
 export function setOpportunityStatus(key, status) {
-  if (status === null) delete state.opportunityStatus[key];
+  if (status === null) Reflect.deleteProperty(state.opportunityStatus, key);
   else state.opportunityStatus[key] = status;
 }
 export function opportunityCounts() {

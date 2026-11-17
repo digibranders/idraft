@@ -1,3 +1,4 @@
+/* global process, console, URL */
 /**
  * Builds `il-data-real.js` (the Internal links mock's real crawl of eventussecurity.com) from the export of
  * `backend/spikes/s18_export.py` (the read API's own answers, kept in a git-ignored folder).
