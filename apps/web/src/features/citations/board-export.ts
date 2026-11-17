@@ -63,6 +63,7 @@ export function gapsCsv(
   const labelOf = (code: string): string => engines.find((engine) => engine.code === code)?.label ?? code;
   const nameOf = (id: string): string => competitors.find((competitor) => competitor.id === id)?.name ?? id;
   return {
+    // The brand names are the project's own and its competitors': they can start with a formula character
     header: [
       t('download.prompt'),
       t('download.group'),
@@ -74,7 +75,7 @@ export function gapsCsv(
       ]),
       t('download.lostOn'),
       t('download.lostTo'),
-    ],
+    ].map(safeText),
     rows: rows.map((row) => [
       text(row.text),
       text(row.topic?.name ?? t('toolbar.noGroup')),
@@ -85,7 +86,7 @@ export function gapsCsv(
         return [cell === undefined ? null : state(cell.cited), cell?.cited ?? null];
       }),
       row.lost_on.map(labelOf).join(', '),
-      row.lost_to.map(nameOf).join(', '),
+      text(row.lost_to.map(nameOf).join(', ')),
     ]),
   };
 }

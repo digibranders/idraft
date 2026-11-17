@@ -45,6 +45,11 @@ describe('the words of the Citations scope', () => {
     expect(scopeText({ platform: 'ChatGPT', group: 'Pricing', runs: 2 }, t)).toBe('ChatGPT, Pricing, Last 2 runs');
   });
 
+  it('counts the pages footer in the plural, with grouped thousands (C 561)', () => {
+    expect(t('pages.footer', { pages: 1, citations: 1 })).toBe('1 page · 1 citation');
+    expect(t('pages.footer', { pages: 26, citations: 1234 })).toBe('26 pages · 1,234 citations');
+  });
+
   it('writes the footer freshness (C 189)', () => {
     expect(updatedText({ latest_answer_at: LATEST, latest_run_number: 48 }, ZONE, t)).toBe(
       'Updated Sep 28, 02:15 · run 48',

@@ -138,6 +138,43 @@ describe('the Cited pages tab', () => {
     }
   });
 
+  it('keeps the sort when Show all pages leaves an owner with no pages (C 568)', async () => {
+    const requested: string[] = [];
+    const path = mswPath('/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/cited-pages');
+    const emptyWindow = {
+      runs: 4,
+      timezone: 'Europe/Berlin',
+      current: [],
+      previous: [],
+      trend: [],
+      answers: 8,
+      prompts: 2,
+      latest_answer_at: null,
+      latest_run_number: null,
+    };
+    server.use(
+      http.get(path, ({ request }) => {
+        const sort = new URL(request.url).searchParams.get('sort') ?? '';
+        requested.push(sort);
+        // Sorted by change, the owner has no page: the other owners still have some
+        if (sort !== '-change') return undefined;
+        return HttpResponse.json({
+          data: [],
+          meta: { citations: 0, owners: { own: 0, competitor: 3, third_party: 4, all: 7 }, window: emptyWindow },
+          page: { offset: 0, limit: 200, total: 0 },
+        });
+      }),
+    );
+    const { user, props } = setup();
+    await screen.findByRole('table', { name: 'Cited pages' });
+    await user.click(screen.getByRole('button', { name: 'Change' }));
+    await user.click(await screen.findByRole('button', { name: 'Show all pages' }));
+    expect(props.onOwnerChange).toHaveBeenCalledWith('all');
+    // The old behaviour sorted by citations again, which asks for the default order and brings the table back
+    expect(screen.getByRole('heading', { name: 'No pages match' })).toBeVisible();
+    expect(requested.at(-1)).toBe('-change');
+  });
+
   it('resets the sort when the owner changes (C 555)', async () => {
     const { user, props } = setup();
     await screen.findByRole('table', { name: 'Cited pages' });

@@ -167,7 +167,8 @@ export function PagesTab(props: PagesTabProps): ReactElement {
             size="sm"
             onClick={() => {
               if (searching) props.onSearchChange('');
-              else changeOwner('all');
+              // Not changeOwner: only the owner group resets the sort (C 555), this link keeps it (C 568)
+              else onOwnerChange('all');
             }}
           >
             {searching ? t('pages.clearSearch') : t('pages.showAll')}
@@ -205,7 +206,7 @@ export function PagesTab(props: PagesTabProps): ReactElement {
       footerText={
         read.total === null || read.meta === undefined
           ? null
-          : t('pages.footer', { pages: read.total, citations: formatInteger(read.meta.citations) })
+          : t('pages.footer', { pages: read.total, citations: read.meta.citations })
       }
       updated={runWindow === undefined ? null : updatedText(runWindow, timeZone, t)}
     >

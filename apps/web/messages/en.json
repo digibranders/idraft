@@ -7955,7 +7955,7 @@
       "moreLabel": "Prompts that cite {path}, {count, plural, one {# prompt} other {# prompts}}",
       "platformTip": "{engine}: {count, plural, one {# citation} other {# citations}}",
       "trendLabel": "Citations per run, oldest first: {values}",
-      "footer": "{pages, plural, one {# page} other {# pages}} · {citations} citations",
+      "footer": "{pages, plural, one {# page} other {# pages}} · {citations, plural, one {# citation} other {# citations}}",
       "emptyTitle": "No citations in this scope",
       "emptyReason": "No answer in {scope} cites a page. Choose more runs or another group.",
       "resetScope": "Reset scope",

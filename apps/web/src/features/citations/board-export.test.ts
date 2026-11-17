@@ -94,4 +94,37 @@ describe('the Citations CSV', () => {
     ]);
     expect(table.rows[0]).toEqual(['Best CRM?', 'No group', 'Not cited', 0, 'Cited', 2, 'ChatGPT', 'HubSpot']);
   });
+
+  it('writes a competitor or brand name a spreadsheet would read as a formula as text', () => {
+    const cell = { answers: 4, cited: 0, mentioned: 0, state: 'not' as const };
+    const brand = {
+      total: cell,
+      engines: [{ ...cell, engine_code: 'chatgpt_web' as const }],
+      platforms: 1,
+      cited_on: 0,
+    };
+    const row: CitationGapRow = {
+      prompt_id: 'p1',
+      text: 'Best CRM?',
+      topic: null,
+      you: brand,
+      competitors: [{ ...brand, entity_id: 'c1' }],
+      gap: 1,
+      lost_on: ['chatgpt_web'],
+      lost_to: ['c1'],
+      competitor_answers: 2,
+    };
+    const table = gapsCsv([row], [{ id: 'c1', name: '=x', colorIndex: 2, domain: null }], '@me', ENGINES, t);
+    expect(table.header).toEqual([
+      'Prompt',
+      'Group',
+      "'@me state",
+      "'@me citing answers",
+      "'=x state",
+      "'=x citing answers",
+      'Lost on',
+      'Lost to',
+    ]);
+    expect(table.rows[0]?.at(-1)).toBe("'=x");
+  });
 });
