@@ -131,6 +131,13 @@ Properties:
   short one. This is the accepted effect of the count share; the earlier equal split per answer (`1 / |M_o|`, averaged
   over answers that mention at least one tracked brand) is replaced and is not exported.
 - SOV over all tracked entities sums to 100% by construction.
+- **By week** (Share of voice over time, its rank, the rate trend with the metric Share of voice): each weekly point is the
+  same count share over the mentions of that week (or of the weeks a pooled point holds, which the point says), one brand
+  and one week at a time, from the per-brand weekly cells (`include=series,entities`). A week with no tracked-brand mention
+  is n/a, never 0; a week under 4 mentions says how few it has and has no percent. All platforms is the average of the
+  platforms' weekly shares (R3), each platform's x of y in the tooltip. With more than 20 tracked brands the weekly cells
+  stop at 20, so there is no percent and no layer until the API sends the sum of mentions of the whole set (backend
+  request 24).
 - **SOV depends on the tracked competitor set.** Adding a competitor lowers everyone else's SOV. This is inherent to any share metric. Mitigations: the UI shows the entity set and the date each competitor was added; competitor additions create a version boundary; and "SOV including untracked mentions" (using `ai.entity_candidates` counts per observation, Phase 13) is offered as an alternative denominator.
 - We do not use Profound-style formulas that divide response counts by mention counts (mixed units; `research/07-commercial-competitors.md` section 4.3).
 
