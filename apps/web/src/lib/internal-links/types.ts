@@ -2,8 +2,7 @@ import type { Schemas } from '@/lib/api/types';
 
 /**
  * The internal links types of the generated client (the backend OpenAPI), under their API names. Import from
- * here, so a rename in the OpenAPI document breaks one file. The crawl runs and the internal links settings
- * are not in the OpenAPI yet: see `pending-contract.ts`.
+ * here, so a rename in the OpenAPI document breaks one file.
  */
 export type PageRow = Schemas['PageRow'];
 export type PageRowPage = Schemas['PageRowPage'];
@@ -21,6 +20,13 @@ export type TierRef = Schemas['TierRef'];
 export type TierRuleView = Schemas['TierRuleView'];
 export type TierImportResult = Schemas['TierImportResult'];
 export type PageFilter = Schemas['PageFilter'];
+export type CrawlRun = Schemas['CrawlRun'];
+export type CrawlRunPage = Schemas['CrawlRunPage'];
+export type CrawlState = CrawlRun['state'];
+export type CrawlTrigger = CrawlRun['trigger'];
+export type InternalLinksSettings = Schemas['InternalLinksSettings'];
+export type InternalLinksSettingsPatch = Schemas['InternalLinksSettingsPatch'];
+export type CrawlSchedule = InternalLinksSettings['schedule'];
 
 /** The workspace and project every read is under. */
 export interface LinksScope {

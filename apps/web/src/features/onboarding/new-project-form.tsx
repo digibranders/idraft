@@ -176,6 +176,8 @@ export function NewProjectForm({ workspaceId, workspaceSlug }: NewProjectFormPro
           default_language_code: values.default_language_code === NO_LANGUAGE ? null : values.default_language_code,
           primary_domain: values.primary_domain.trim(),
           default_location_id: values.location?.location_id ?? null,
+          // The generated type wants the member; the "Map this site's internal links" checkbox sets it (Task 15)
+          map_internal_links: false,
           own_entity: {
             canonical_name: values.brand.trim(),
             domains: [values.primary_domain.trim()],

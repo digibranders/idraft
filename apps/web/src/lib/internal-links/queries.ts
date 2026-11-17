@@ -14,8 +14,7 @@ import type {
 
 /**
  * The reads of Internal links (the backend OpenAPI), as `apiQuery` options. Every key starts with the project,
- * so `internalLinksKeys` reaches them after a write. The crawl list and the project's internal links settings
- * are not in the OpenAPI yet and have no query here (`pending-contract.ts`).
+ * so `internalLinksKeys` reaches them after a write, and `crawlKeys` reaches the crawl list.
  */
 
 const W = '/api/v1/workspaces/{workspace_id}';
@@ -27,6 +26,8 @@ const EDGES = `${P}/internal-links/edges` as const;
 const NEIGHBORS = `${P}/internal-links/neighbors` as const;
 const FLOW = `${P}/internal-links/tier-flow` as const;
 const WORKLISTS = `${P}/internal-links/worklists` as const;
+const CRAWLS = `${P}/link-crawls` as const;
+const SETTINGS = `${P}/settings` as const;
 const RULES = `${P}/tier-rules` as const;
 const TIERS = `${W}/page-tiers` as const;
 
@@ -36,6 +37,8 @@ export const edgesPath = (scope: LinksScope): `/api/v1/${string}` =>
 
 /** Rows a page of the Pages and Links tables asks for (decision W6). */
 export const PAGE_LIMIT = 100;
+/** The crawls the header and the settings list read. */
+export const CRAWL_LIMIT = 10;
 
 const pathOf = (scope: LinksScope): { workspace_id: string; project_id: string } => ({
   workspace_id: scope.workspaceId,
@@ -210,11 +213,27 @@ export const tierFlowQuery = (scope: LinksScope, linkScope: LinkScope): ApiQuery
 export const worklistsQuery = (scope: LinksScope): ApiQueryOptions<typeof WORKLISTS> =>
   apiQuery(WORKLISTS, { params: { path: pathOf(scope) } });
 
+/** The latest crawls, newest first. */
+export const crawlsQuery = (scope: LinksScope): ApiQueryOptions<typeof CRAWLS> =>
+  apiQuery(CRAWLS, { params: { path: pathOf(scope), query: { limit: CRAWL_LIMIT } } });
+
+/**
+ * The project's settings, which hold the internal links part (`internal_links`). The same request, and so the same
+ * cache entry, as the keyword defaults section reads.
+ */
+export const linkSettingsQuery = (scope: LinksScope): ApiQueryOptions<typeof SETTINGS> =>
+  apiQuery(SETTINGS, { params: { path: pathOf(scope) } });
+
 export const tierRulesQuery = (scope: LinksScope): ApiQueryOptions<typeof RULES> =>
   apiQuery(RULES, { params: { path: pathOf(scope) } });
 
 export const pageTiersQuery = (workspaceId: string): ApiQueryOptions<typeof TIERS> =>
   apiQuery(TIERS, { params: { path: { workspace_id: workspaceId } } });
+
+/** What a crawl request or cancel makes stale: the crawl list. */
+export const crawlKeys = (scope: LinksScope): QueryKey[] => [
+  [...projectKey(scope.workspaceId, scope.projectId), 'link-crawls'],
+];
 
 /**
  * What a tier, rule or tag change makes stale (spec 6.6): every read of the project's internal links, its rules,

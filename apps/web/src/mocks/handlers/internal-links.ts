@@ -1,9 +1,12 @@
 import { HttpResponse, type HttpHandler } from 'msw';
 
 import { projectCaller, workspaceCaller } from './access';
+import { booleanError, isRecord, notAnObject } from './rules';
 import {
+  cancelCrawl,
   crawledPage,
   crawledPages,
+  crawlsOf,
   edgeRows,
   freshId,
   hasFinishedCrawl,
@@ -13,6 +16,7 @@ import {
   otherScopes,
   pageRow,
   pageTierViews,
+  requestCrawl,
   ruleMatches,
   ruleView,
   statusClassOf,
@@ -20,7 +24,7 @@ import {
   tierRef,
   worklists,
 } from '../internal-links-world';
-import { invalid, invalidField, mock, noContent, problem } from '../respond';
+import { invalid, invalidField, mock, noContent, problem, unknownMembers } from '../respond';
 import { csvLines } from '@/lib/csv/csv-write';
 import type { Problem } from '@/lib/api/types';
 import { parseLinkScope, type LinkScope } from '@/lib/internal-links/scopes';
@@ -31,9 +35,9 @@ import type { PageFilter, PageRow, TierImportResult } from '@/lib/internal-links
 /**
  * The backend OpenAPI's internal links routes, answered from `internal-links-world.ts` (decision W21). Requests are
  * checked as the API checks them where a screen depends on it (membership, permission, unknown query, `no_crawl`,
- * `tier_limit`, `tier_in_use`); bodies are typed by the generated schema and trusted beyond their shape. The crawl
- * runs and the internal links settings have no handler: their routes are not in the OpenAPI yet (see
- * `pending-contract.ts` and the crawl functions of the world).
+ * `tier_limit`, `tier_in_use`, `crawl_in_progress`, `no_website`); bodies are typed by the generated schema and
+ * trusted beyond their shape. The internal links settings are part of the project settings, in
+ * `term-assignments.ts`.
  */
 
 const W = '/api/v1/workspaces/{workspace_id}';
@@ -435,6 +439,58 @@ export const internalLinkHandlers: HttpHandler[] = [
       world.tags.set(id, tags);
     }
     return HttpResponse.json({ data: { matched: ids.length, added, removed } });
+  }),
+
+  // ---------------------------------------------------------------------------------------------
+  // Crawls (backend docs section 4.8)
+
+  mock('get', `${P}/link-crawls`, ({ request, cookies, params }) => {
+    const caller = projectCaller(request, cookies, params.workspace_id, params.project_id, {
+      permission: 'data:read',
+      query: ['cursor', 'limit'],
+    });
+    if (caller instanceof Response) return caller;
+    return HttpResponse.json(cursorPage(caller.url, crawlsOf(caller.project.project_id)));
+  }),
+
+  mock('post', `${P}/link-crawls`, async ({ request, cookies, params }) => {
+    const caller = projectCaller(request, cookies, params.workspace_id, params.project_id, {
+      permission: 'runs:trigger',
+    });
+    if (caller instanceof Response) return caller;
+    const body: unknown = await request.json().catch(() => undefined);
+    if (!isRecord(body)) return invalid(request, [notAnObject()]);
+    const errors = [...unknownMembers(body, ['higher_limit']), ...booleanError(body.higher_limit, 'higher_limit')];
+    if (errors.length > 0) return invalid(request, errors);
+    const started = requestCrawl(caller.project.project_id, {
+      hasWebsite: caller.project.primary_domain !== null,
+      higherLimit: body.higher_limit === true,
+    });
+    if (started.ok) return HttpResponse.json({ data: started.run }, { status: 202 });
+    if (started.code === 'crawl_in_progress') return problem(request, 'crawl_in_progress', { run_id: started.runId });
+    if (started.code === 'no_stopped_crawl') {
+      return invalidField(request, 'higher_limit', 'no_stopped_crawl', 'No crawl stopped at its ceiling.');
+    }
+    return problem(request, 'no_website');
+  }),
+
+  mock('get', `${P}/link-crawls/{run_id}`, ({ request, cookies, params }) => {
+    const caller = projectCaller(request, cookies, params.workspace_id, params.project_id, {
+      permission: 'data:read',
+    });
+    if (caller instanceof Response) return caller;
+    const run = crawlsOf(caller.project.project_id).find((candidate) => candidate.run_id === params.run_id);
+    return run === undefined ? problem(request, 'not_found') : HttpResponse.json({ data: run });
+  }),
+
+  mock('post', `${P}/link-crawls/{run_id}/cancel`, ({ request, cookies, params }) => {
+    const caller = projectCaller(request, cookies, params.workspace_id, params.project_id, {
+      permission: 'runs:trigger',
+    });
+    if (caller instanceof Response) return caller;
+    const ended = cancelCrawl(caller.project.project_id, String(params.run_id));
+    if (ended.ok) return HttpResponse.json({ data: ended.run });
+    return problem(request, ended.code);
   }),
 
   // ---------------------------------------------------------------------------------------------

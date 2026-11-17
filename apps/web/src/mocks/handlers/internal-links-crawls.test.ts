@@ -1,0 +1,196 @@
+import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
+
+import { MOCK_WORKSPACE } from '../fixtures';
+import { EVENTUS } from '../internal-links-world';
+import { mockBrowser } from '@/test/mock-api';
+
+const W = `/api/v1/workspaces/${MOCK_WORKSPACE.workspace_id}`;
+const P = `${W}/projects/${EVENTUS.project_id}`;
+const RUN = z.object({ run_id: z.string(), state: z.string(), trigger: z.string() });
+const RUNS = z.object({ data: z.array(RUN), page: z.object({ has_more: z.boolean() }) });
+const ONE = z.object({ data: RUN });
+const PROJECT = z.object({ data: z.object({ project_id: z.string() }) });
+
+describe('the crawl routes of the mock API', () => {
+  it('lists the crawls of a project, newest first', async () => {
+    const answer = await mockBrowser('viewer').call('GET', `${P}/link-crawls?limit=10`);
+    expect(answer.status).toBe(200);
+    expect(RUNS.parse(answer.body)).toMatchObject({ data: [{ state: 'ready' }], page: { has_more: false } });
+  });
+
+  it('starts a crawl, and answers the one under way to a second request', async () => {
+    const browser = mockBrowser('editor');
+    const started = await browser.call('POST', `${P}/link-crawls`, {});
+    expect(started.status).toBe(202);
+    const run = ONE.parse(started.body).data;
+    expect(run).toMatchObject({ state: 'queued', trigger: 'manual' });
+    const again = await browser.call('POST', `${P}/link-crawls`, {});
+    expect(again.status).toBe(409);
+    expect(again.code).toBe('crawl_in_progress');
+    expect(again.body.run_id).toBe(run.run_id);
+    const listed = RUNS.parse((await browser.call('GET', `${P}/link-crawls`)).body);
+    expect(listed.data.map((row) => row.run_id)).toContain(run.run_id);
+  });
+
+  it('lets a viewer read crawls but not start or cancel one', async () => {
+    const viewer = mockBrowser('viewer');
+    expect((await viewer.call('POST', `${P}/link-crawls`, {})).status).toBe(403);
+    const [finished] = RUNS.parse((await viewer.call('GET', `${P}/link-crawls`)).body).data;
+    expect((await viewer.call('POST', `${P}/link-crawls/${finished?.run_id ?? ''}/cancel`)).status).toBe(403);
+    expect((await viewer.call('GET', `${P}/link-crawls/${finished?.run_id ?? ''}`)).status).toBe(200);
+  });
+
+  it('refuses an unknown query, and a body with an unknown member', async () => {
+    const browser = mockBrowser('editor');
+    expect((await browser.call('GET', `${P}/link-crawls?state=ready`)).status).toBe(422);
+    expect((await browser.call('POST', `${P}/link-crawls`, { force: true })).status).toBe(422);
+  });
+
+  it('refuses a higher limit while no crawl stopped at its ceiling', async () => {
+    const answer = await mockBrowser('editor').call('POST', `${P}/link-crawls`, { higher_limit: true });
+    expect(answer.status).toBe(422);
+    expect(answer.code).toBe('validation_failed');
+    expect(JSON.stringify(answer.body)).toContain('no_stopped_crawl');
+  });
+
+  it('reads one crawl, and answers not_found for one it does not have', async () => {
+    const browser = mockBrowser('viewer');
+    const [finished] = RUNS.parse((await browser.call('GET', `${P}/link-crawls`)).body).data;
+    const one = await browser.call('GET', `${P}/link-crawls/${finished?.run_id ?? ''}`);
+    expect(ONE.parse(one.body).data.run_id).toBe(finished?.run_id);
+    const missing = await browser.call('GET', `${P}/link-crawls/0192e4a0-9000-7000-8000-0000000000ff`);
+    expect(missing.code).toBe('not_found');
+    const other = `${W}/projects/0192d1a8-9a01-7b44-8c2d-1f0e9d8c7b01/link-crawls/${finished?.run_id ?? ''}`;
+    expect((await browser.call('GET', other)).status).toBe(404);
+  });
+
+  it('cancels a queued crawl at once, and refuses to cancel it twice or to cancel a finished one', async () => {
+    const browser = mockBrowser('editor');
+    const run = ONE.parse((await browser.call('POST', `${P}/link-crawls`, {})).body).data;
+    const cancelled = await browser.call('POST', `${P}/link-crawls/${run.run_id}/cancel`);
+    expect(ONE.parse(cancelled.body).data).toMatchObject({ run_id: run.run_id, state: 'cancelled' });
+    const again = await browser.call('POST', `${P}/link-crawls/${run.run_id}/cancel`);
+    expect(again.status).toBe(409);
+    expect(again.code).toBe('invalid_state_transition');
+    const [, finished] = RUNS.parse((await browser.call('GET', `${P}/link-crawls`)).body).data;
+    expect((await browser.call('POST', `${P}/link-crawls/${finished?.run_id ?? ''}/cancel`)).code).toBe(
+      'invalid_state_transition',
+    );
+  });
+
+  it('answers no_website for a project without a website, and queues the first crawl of a mapped new project', async () => {
+    const browser = mockBrowser('owner');
+    const bare = PROJECT.parse((await browser.call('POST', `${W}/projects`, { name: 'Bare', slug: 'bare-site' })).body)
+      .data.project_id;
+    const refused = await browser.call('POST', `${W}/projects/${bare}/link-crawls`, {});
+    expect(refused.status).toBe(422);
+    expect(refused.code).toBe('no_website');
+
+    const site = { name: 'Mapped', primary_domain: 'example.com' };
+    const mapped = PROJECT.parse(
+      (await browser.call('POST', `${W}/projects`, { ...site, slug: 'mapped-site', map_internal_links: true })).body,
+    ).data.project_id;
+    const plain = PROJECT.parse((await browser.call('POST', `${W}/projects`, { ...site, slug: 'plain-site' })).body)
+      .data.project_id;
+    const ticked = RUNS.parse((await browser.call('GET', `${W}/projects/${mapped}/link-crawls`)).body).data;
+    expect(ticked).toMatchObject([{ state: 'queued', trigger: 'website_added' }]);
+    expect(RUNS.parse((await browser.call('GET', `${W}/projects/${plain}/link-crawls`)).body).data).toEqual([]);
+
+    const noSite = PROJECT.parse(
+      (await browser.call('POST', `${W}/projects`, { name: 'No site', slug: 'no-site', map_internal_links: true }))
+        .body,
+    ).data.project_id;
+    expect(RUNS.parse((await browser.call('GET', `${W}/projects/${noSite}/link-crawls`)).body).data).toEqual([]);
+  });
+});
+
+const SETTINGS = z.object({
+  data: z.object({
+    seo: z.object({ default_device: z.string() }).optional(),
+    internal_links: z.object({
+      schedule: z.string(),
+      render_javascript: z.boolean(),
+      allowed_subdomains: z.array(z.string()),
+    }),
+  }),
+});
+
+describe('the internal links part of the project settings', () => {
+  it('defaults to weekly without JavaScript', async () => {
+    const answer = await mockBrowser('viewer').call('GET', `${P}/settings`);
+    expect(SETTINGS.parse(answer.body).data.internal_links).toEqual({
+      schedule: 'weekly',
+      render_javascript: false,
+      allowed_subdomains: [],
+    });
+  });
+
+  it('changes the internal links part and keeps the seo part, and one patch can change both', async () => {
+    const browser = mockBrowser('editor');
+    await browser.call('PATCH', `${P}/settings`, { seo: { default_device: 'mobile' } });
+    const links = await browser.call('PATCH', `${P}/settings`, {
+      internal_links: { schedule: 'monthly', allowed_subdomains: ['Blog.EventusSecurity.com'] },
+    });
+    expect(SETTINGS.parse(links.body).data).toMatchObject({
+      seo: { default_device: 'mobile' },
+      internal_links: {
+        schedule: 'monthly',
+        render_javascript: false,
+        allowed_subdomains: ['blog.eventussecurity.com'],
+      },
+    });
+    const both = await browser.call('PATCH', `${P}/settings`, {
+      seo: { default_device: 'both' },
+      internal_links: { render_javascript: true },
+    });
+    expect(SETTINGS.parse(both.body).data).toMatchObject({
+      seo: { default_device: 'both' },
+      internal_links: { schedule: 'monthly', render_javascript: true },
+    });
+    expect(SETTINGS.parse((await browser.call('GET', `${P}/settings`)).body).data.internal_links.schedule).toBe(
+      'monthly',
+    );
+  });
+
+  it('refuses what the API refuses', async () => {
+    const browser = mockBrowser('editor');
+    const bad: unknown[] = [
+      {},
+      { seo: null },
+      { internal_links: null },
+      { internal_links: {} },
+      { internal_links: { schedule: null } },
+      { internal_links: { schedule: 'daily' } },
+      { internal_links: { render_javascript: 'sometimes' } },
+      { internal_links: { allowed_subdomains: ['a b'] } },
+      { internal_links: { allowed_subdomains: [''] } },
+      {
+        internal_links: {
+          allowed_subdomains: Array.from({ length: 11 }, (_, n) => `s${String(n)}.eventussecurity.com`),
+        },
+      },
+      { internal_links: { allowed_subdomains: ['blog.other.com'] } },
+      { internal_links: { allowed_subdomains: ['noteventussecurity.com'] } },
+      { internal_links: { cadence: 'weekly' } },
+    ];
+    for (const body of bad) {
+      const answer = await browser.call('PATCH', `${P}/settings`, body);
+      expect([JSON.stringify(body), answer.status, answer.code]).toEqual([
+        JSON.stringify(body),
+        422,
+        'validation_failed',
+      ]);
+    }
+  });
+
+  it('lets a viewer read the settings and not change them', async () => {
+    const answer = await mockBrowser('viewer').call('PATCH', `${P}/settings`, { internal_links: { schedule: 'off' } });
+    expect(answer.status).toBe(403);
+  });
+
+  it('still takes the seo part alone', async () => {
+    const answer = await mockBrowser('editor').call('PATCH', `${P}/settings`, { seo: { default_device: 'both' } });
+    expect(answer.status).toBe(200);
+  });
+});

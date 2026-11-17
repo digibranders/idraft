@@ -4,11 +4,9 @@ import { inScope, scopeOf, type EdgeScope, type LinkScope, type Placement } from
 import type {
   CrawlRun,
   CrawlTrigger,
+  EdgeRow,
   InternalLinksSettings,
   InternalLinksSettingsPatch,
-} from '@/lib/internal-links/pending-contract';
-import type {
-  EdgeRow,
   Neighbor,
   PageRow,
   PageTier,
@@ -25,8 +23,8 @@ import type {
  * as every handler's state is (`state.ts`).
  *
  * The API payloads carry `equity_share` (nothing here computes it: null, or 0 for a tier), and no screen reads it.
- * The crawl runs and the settings are typed by `pending-contract.ts` and have functions here, not routes, until the
- * backend OpenAPI holds them.
+ * The crawl runs and the settings are functions here (`crawlsOf`, `requestCrawl`, `cancelCrawl`, `settingsOf`,
+ * `changeSettings`), which the handlers of `handlers/internal-links.ts` answer from.
  */
 
 const eventus = MOCK_PROJECTS.find((project) => project.slug === 'eventus-security');
@@ -181,6 +179,8 @@ interface World {
   tags: Map<string, Set<string>>;
   /** Crawls by project, newest first. */
   crawls: Map<string, CrawlRun[]>;
+  /** When a crawling run was asked to stop (epoch ms), by run id: the worker ends it a moment later. */
+  cancels: Map<string, number>;
   settings: Map<string, InternalLinksSettings>;
   nextId: number;
 }
@@ -212,6 +212,7 @@ function seed(): World {
     manual: new Map(MANUAL_SEED.map(([id, position]) => [id, { tier_id: tierId(position), set_at: FINISHED }])),
     tags: new Map(),
     crawls: new Map([[EVENTUS.project_id, [finishedRun()]]]),
+    cancels: new Map(),
     settings: new Map(),
     nextId: 1,
   };
@@ -227,8 +228,8 @@ function finishedRun(): CrawlRun {
     pages_crawled: PAGES.length,
     sitemap_pages: 14,
     render_javascript: false,
-    estimated_cost_usd: '0.30',
-    cost_usd: '0.30',
+    estimated_cost_usd: '0.300000',
+    cost_usd: '0.300000',
     stop_reason: null,
     error_code: null,
     error_message: null,
@@ -593,16 +594,35 @@ export function worklists(): Worklists {
 }
 
 // -------------------------------------------------------------------------------------------------
-// Crawls and settings (pending-contract.ts types; no route in the OpenAPI yet)
+// Crawls and settings
 
+const QUEUED_MS = 3000;
 const PROGRESS_MS = 8000;
+/** A crawling run asked to stop ends this long after the request, as the worker ends it at its next tick. */
+const CANCEL_MS = 2000;
+const DEFAULT_CEILING = 2000;
+const HIGHER_CEILING = 4000;
+/** About $0.15 per 1,000 pages, ten times as much with JavaScript rendered (spec 6.2). */
+const MICRO_USD_PER_PAGE = 150;
+const RENDER_FACTOR = 10;
+const MICRO = 1_000_000;
+
+/** The API's money text: dollars with six decimals, from whole millionths (no float arithmetic on money). */
+const usdText = (microUsd: number): string =>
+  `${String(Math.floor(microUsd / MICRO))}.${String(microUsd % MICRO).padStart(6, '0')}`;
 
 /** The crawls of a project with their mocked progress: a crawl started here runs 8 seconds, then is ready. */
 export function crawlsOf(projectId: string, now = Date.now()): CrawlRun[] {
   const runs = world.crawls.get(projectId) ?? [];
   const advanced = runs.map((run): CrawlRun => {
     if (run.state !== 'queued' && run.state !== 'crawling') return run;
+    const asked = world.cancels.get(run.run_id);
+    if (asked !== undefined && now - asked >= CANCEL_MS) {
+      return { ...run, state: 'cancelled', finished_at: new Date(asked + CANCEL_MS).toISOString() };
+    }
     const elapsed = now - Date.parse(run.created_at);
+    // A run waits in the queue first, long enough for a screen to show it and for Cancel to end it at once
+    if (elapsed < QUEUED_MS) return run;
     // A website added in this session has no fixture to finish with: it keeps crawling
     if (projectId !== EVENTUS.project_id || elapsed < PROGRESS_MS) {
       return {
@@ -613,11 +633,14 @@ export function crawlsOf(projectId: string, now = Date.now()): CrawlRun[] {
       };
     }
     return {
-      ...finishedRun(),
-      run_id: run.run_id,
-      trigger: run.trigger,
-      created_at: run.created_at,
-      finished_at: new Date(now).toISOString(),
+      ...run,
+      state: 'ready',
+      pages_found: PAGES.length,
+      pages_crawled: PAGES.length,
+      sitemap_pages: 14,
+      cost_usd: run.estimated_cost_usd,
+      submitted_at: run.created_at,
+      finished_at: new Date(Date.parse(run.created_at) + PROGRESS_MS).toISOString(),
     };
   });
   const latestDone = advanced.findIndex((run) => run.state === 'ready' || run.state === 'stopped_at_ceiling');
@@ -627,34 +650,79 @@ export function crawlsOf(projectId: string, now = Date.now()): CrawlRun[] {
 export type CrawlRequest =
   | { ok: true; run: CrawlRun }
   | { ok: false; code: 'no_website' }
-  | { ok: false; code: 'crawl_in_progress'; runId: string };
+  | { ok: false; code: 'crawl_in_progress'; runId: string }
+  | { ok: false; code: 'no_stopped_crawl' };
 
-/** What `POST .../link-crawls` will do (backend plan 02): refuse a project without a website or with a crawl under way. */
+const isUnderWay = (run: CrawlRun): boolean =>
+  run.state === 'queued' || run.state === 'crawling' || run.state === 'processing';
+
+/**
+ * What `POST .../link-crawls` does (backend `api/internal_links/crawls.py`): refuses a project without a website,
+ * a crawl while one is under way, and a higher limit while no crawl stopped at its ceiling. A budget refusal
+ * (`budget_exceeded`) is not mocked: the mock world has no site crawl budget. `trigger` is `website_added` for the
+ * crawl a new project queues.
+ */
 export function requestCrawl(
   projectId: string,
-  { hasWebsite, higherLimit, now = Date.now() }: { hasWebsite: boolean; higherLimit: boolean; now?: number },
+  {
+    hasWebsite,
+    higherLimit,
+    trigger,
+    now = Date.now(),
+  }: { hasWebsite: boolean; higherLimit: boolean; trigger?: CrawlTrigger; now?: number },
 ): CrawlRequest {
   if (!hasWebsite) return { ok: false, code: 'no_website' };
-  const running = crawlsOf(projectId, now).find(
-    (run) => run.state === 'queued' || run.state === 'crawling' || run.state === 'processing',
-  );
+  const runs = crawlsOf(projectId, now);
+  const running = runs.find(isUnderWay);
   if (running !== undefined) return { ok: false, code: 'crawl_in_progress', runId: running.run_id };
-  const trigger: CrawlTrigger = higherLimit ? 'ceiling_retry' : 'manual';
+  if (higherLimit && !runs.some((run) => run.state === 'stopped_at_ceiling')) {
+    return { ok: false, code: 'no_stopped_crawl' };
+  }
+  const ceiling = higherLimit ? HIGHER_CEILING : DEFAULT_CEILING;
+  const render = settingsOf(projectId).render_javascript;
+  const estimate = ceiling * MICRO_USD_PER_PAGE * (render ? RENDER_FACTOR : 1);
   const run: CrawlRun = {
     ...finishedRun(),
     run_id: freshId(),
-    trigger,
+    trigger: trigger ?? (higherLimit ? 'ceiling_retry' : 'manual'),
     state: 'queued',
+    ceiling,
     pages_found: 0,
     pages_crawled: 0,
+    sitemap_pages: null,
+    render_javascript: render,
+    estimated_cost_usd: usdText(estimate),
     cost_usd: null,
     is_latest: false,
     created_at: new Date(now).toISOString(),
     submitted_at: null,
     finished_at: null,
-    requested_by: OWNER_REF,
+    requested_by: trigger === 'website_added' ? null : OWNER_REF,
   };
   world.crawls.set(projectId, [run, ...(world.crawls.get(projectId) ?? [])]);
+  return { ok: true, run };
+}
+
+export type CancelResult = { ok: true; run: CrawlRun } | { ok: false; code: 'not_found' | 'invalid_state_transition' };
+
+/**
+ * What `POST .../link-crawls/{run_id}/cancel` does (backend docs section 4.8): a queued crawl ends `cancelled` at
+ * once; a crawling one is asked to stop and still answers `crawling`; any other state is `invalid_state_transition`.
+ */
+export function cancelCrawl(projectId: string, runId: string, now = Date.now()): CancelResult {
+  const stored = world.crawls.get(projectId) ?? [];
+  const run = crawlsOf(projectId, now).find((candidate) => candidate.run_id === runId);
+  if (run === undefined) return { ok: false, code: 'not_found' };
+  if (run.state === 'queued') {
+    const ended: CrawlRun = { ...run, state: 'cancelled', finished_at: new Date(now).toISOString() };
+    world.crawls.set(
+      projectId,
+      stored.map((candidate) => (candidate.run_id === runId ? ended : candidate)),
+    );
+    return { ok: true, run: ended };
+  }
+  if (run.state !== 'crawling') return { ok: false, code: 'invalid_state_transition' };
+  if (!world.cancels.has(runId)) world.cancels.set(runId, now);
   return { ok: true, run };
 }
 

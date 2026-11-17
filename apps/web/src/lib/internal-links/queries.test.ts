@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  crawlKeys,
+  crawlsQuery,
+  CRAWL_LIMIT,
   DEFAULT_EDGE_QUERY,
   DEFAULT_PAGE_QUERY,
   edgeParams,
   internalLinksKeys,
+  linkSettingsQuery,
   neighborsQuery,
   pageDetailQuery,
   pageFilterOf,
@@ -95,5 +99,17 @@ describe('url ids (the API takes numbers, the answers give strings)', () => {
     expect(() => neighborsQuery(SCOPE, { urlId: 'x', direction: 'out', linkScope: 'editorial', offset: 0 })).toThrow(
       UrlIdError,
     );
+  });
+});
+
+describe('crawls and settings (the backend OpenAPI)', () => {
+  it('reads the latest crawls under the project, and crawlKeys reaches them', () => {
+    const query = crawlsQuery(SCOPE);
+    expect(query.queryKey).toEqual(['ws', 'w1', 'p', 'p1', 'link-crawls', { limit: CRAWL_LIMIT }]);
+    expect(crawlKeys(SCOPE)).toEqual([['ws', 'w1', 'p', 'p1', 'link-crawls']]);
+  });
+
+  it('reads the internal links settings from the project settings, the key the keyword defaults use', () => {
+    expect(linkSettingsQuery(SCOPE).queryKey).toEqual(['ws', 'w1', 'p', 'p1', 'settings', {}]);
   });
 });
