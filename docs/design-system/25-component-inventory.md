@@ -881,8 +881,7 @@ interface PopoverProps {
 - **Use:** anything interactive under 400 px tall that belongs to a control.
 - **Not for:** record detail (`Inspector`), multi-step tasks (`Dialog`), commands (`Menu`), opening a dialog (close the popover first).
 
-> As built (WP-77): widths `narrow` (256 px) and `wide` (384 px), both capped by the available width, and paddings `menu` (4 px) and `none` (the sections pad themselves), for the Citations competitors and prompts pickers. Those two paddings also drop the 12 px gap between sections (the sections sit flush, as the preview's do); `list` and `text` keep it. An optional `sideOffset` (px, default 4) sets the distance from the trigger; the competitors picker uses 8.
-
+> As built (WP-77): widths `narrow` (256 px) and `wide` (384 px), both capped by the available width, and paddings `menu` (4 px) and `none` (the sections pad themselves), for the Citations competitors and prompts pickers. Those two paddings also drop the 12 px gap between sections (the sections sit flush, as the preview's do); `list` and `text` keep it.
 ### 3.24 PreviewCard
 `ui/preview-card.tsx` · V1 · [16 §6.3](16-drawers-dialogs-popovers.md)
 

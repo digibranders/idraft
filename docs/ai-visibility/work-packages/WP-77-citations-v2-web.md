@@ -207,7 +207,7 @@ Branch `claude/ai-wp-77-citations-v2-web-481cad`. The plan is `docs/superpowers/
 
 ### 9.2 House components (owner approved)
 
-Added: `BoardTable` (12-tables.md section 20), `TrendIcon`, `PressedGroup`. Extended through documented variants: `Select` (prefix, option display and note, popup width), `Popover` (narrow and wide widths, menu and none paddings that also drop the section gap, `sideOffset`), `EntitySwatch` (dot), `EngineLogo` (hidden name, contained in its cell), `SparklineCell` (size, entity colour, end dot, fill), `MetricStrip` (line), `TabNav` (segmented), `EmptyState` (table and card), `InspectorSection` (meta, flush, title size, stacked action), `Inspector` (`hideMoreActions`), `Badge` (`badgeVariants` exported). The additions and variants are documented in the design system documents (07, 12, 13, 16, 17, 23 and 25); specimens were added to `/design-system` in the task that built each, and the list of specimens was not re-audited for this note.
+Added: `BoardTable` (12-tables.md section 20), `TrendIcon`, `PressedGroup`. Extended through documented variants: `Select` (prefix, option display and note, popup width), `Popover` (narrow and wide widths, menu and none paddings that also drop the section gap), `EntitySwatch` (dot), `EngineLogo` (hidden name, contained in its cell), `SparklineCell` (size, entity colour, end dot, fill), `MetricStrip` (line), `TabNav` (segmented), `EmptyState` (table and card), `InspectorSection` (meta, flush, title size, stacked action), `Inspector` (`hideMoreActions`), `Badge` (`badgeVariants` exported). The additions and variants are documented in the design system documents (07, 12, 13, 16, 17, 23 and 25); specimens were added to `/design-system` in the task that built each, and the list of specimens was not re-audited for this note.
 
 ### 9.3 Differences from the preview
 
@@ -237,7 +237,7 @@ Remaining differences from the preview, none fixed in this package:
   - 200 rows per page of Cited pages against the preview's all 278 (the server pages the rows, D-6).
   - The error state for a mock id that no fixture row has.
   - Data names (fixture names are mapped by position onto the requesting project).
-- Unverified after the fix: the competitors popover's 4 px offset (app 104 px, preview 108 px from the top) is set with `sideOffset={8}` from the measured numbers, and has not been measured again.
+- Second browser pass (2026-11-17, same method, head c52215e8): the prompts popover, drawer table headers, the "Who is cited" card, the page drawer overflow, the drawer headers, Export and Reset scope all matched the preview. The competitors popover sat 8 px from its trigger against the preview's 4 px (an earlier reading of the offset was reversed); the extra `sideOffset` prop was removed again, so it now uses the default 4 px and was not measured a third time. Known remaining 1 px: the prompts popover list starts about 1.2 px lower than in the preview (header content 21 px against 20 px). The Reset scope button is disabled at the default scope in the app and always enabled in the preview.
 
 ### 9.4 Open points and how each was resolved
 

@@ -31,8 +31,6 @@ export interface PopoverProps extends Omit<
   width?: PopoverWidth | undefined;
   side?: 'bottom' | 'top' | 'left' | 'right' | undefined;
   align?: 'start' | 'center' | 'end' | undefined;
-  /** Distance from the trigger in px. Default 4; the Citations competitors picker sits 8 px away, as the preview's does. */
-  sideOffset?: number | undefined;
   open?: boolean | undefined;
   onOpenChange?: ((open: boolean) => void) | undefined;
   children: ReactNode;
@@ -77,7 +75,6 @@ export function Popover({
   width = 'content',
   side = 'bottom',
   align = 'start',
-  sideOffset = 4,
   open,
   onOpenChange,
   children,
@@ -95,7 +92,7 @@ export function Popover({
         <PopoverPrimitive.Positioner
           side={side}
           align={align}
-          sideOffset={sideOffset}
+          sideOffset={4}
           collisionPadding={8}
           collisionAvoidance={POPUP_COLLISION}
           className="z-(--z-dropdown)"

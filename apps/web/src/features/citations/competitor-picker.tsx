@@ -54,7 +54,6 @@ export function CompetitorPicker({
       width="narrow"
       padding="menu"
       align="start"
-      sideOffset={8}
       trigger={
         <button
           type="button"
