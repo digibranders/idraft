@@ -127,6 +127,8 @@ _REASONS: Final = frozenset(
     {"robots_txt", "meta_tag", "http_header", "attribute", "too_many_redirects"}
 )
 _REFUSED: Final = frozenset({401, 403})
+# A refused start page ends the crawl as `site_blocked` only when fewer pages than this were served.
+BLOCKED_SERVED_MIN: Final = 3
 _BLOCKED_MESSAGE: Final = "The start page refuses the crawler."
 _FAILED_MESSAGE: Final = "The crawl could not be read; the previous crawl is still shown."
 _log = structlog.get_logger(__name__)
@@ -433,8 +435,19 @@ async def _pages(
             )
         ).scalar_one_or_none()
         if status in _REFUSED:
-            await _fail(db, run, code="site_blocked", message=_BLOCKED_MESSAGE)
-            return True
+            served: int = (
+                await db.execute(
+                    select(func.count()).where(
+                        crawl_pages.c.run_id == run.id, crawl_pages.c.status_code == 200
+                    )
+                )
+            ).scalar_one()
+            # A start page can answer 403 to the crawler's one spelling of it while the site
+            # serves hundreds of pages (eventussecurity.com did): only a crawl that was served
+            # next to nothing is a blocked one.
+            if served < BLOCKED_SERVED_MIN:
+                await _fail(db, run, code="site_blocked", message=_BLOCKED_MESSAGE)
+                return True
         await _checkpoint(
             db,
             run,

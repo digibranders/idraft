@@ -295,13 +295,38 @@ async def test_ingest_carries_on_from_its_checkpoint(
 
 
 @pytest.mark.parametrize("status", [401, 403])
-async def test_a_start_page_that_refuses_the_crawler_fails_the_crawl_and_keeps_its_phase(
+async def test_a_start_page_that_refuses_the_crawler_does_not_fail_a_crawl_that_found_pages(
     migrated: PostgresServer, worker_db: Sessions, status: int
 ) -> None:
+    """Real data (eventussecurity.com): the start page and a fifth of the pages answered 403 and
+    318 pages were served. The crawl is kept: the refused pages are stored as broken."""
     on_page = synthetic_site()
     on_page.page_items[0] = on_page.page_items[0].model_copy(
         update={"status_code": status, "resource_type": "broken"}
     )
+    task = (await _crawled(migrated, worker_db, on_page)).task
+
+    await _ingest(worker_db, on_page, None, task)
+
+    run = await fetchrow(
+        migrated, "SELECT state, error_code FROM seo.crawl_runs WHERE id = $1", task.run_id
+    )
+    assert (run["state"], run["error_code"]) == ("ready", None)
+    start = (await _pages(migrated, task.run_id))["/"]
+    assert (start["status_code"], start["resource_type"]) == (status, "broken")
+
+
+@pytest.mark.parametrize("status", [401, 403])
+async def test_a_start_page_that_refuses_the_crawler_fails_the_crawl_and_keeps_its_phase(
+    migrated: PostgresServer, worker_db: Sessions, status: int
+) -> None:
+    on_page = synthetic_site()
+    # A site that refuses the crawler refuses every page it is asked for.
+    on_page.page_items = [
+        item.model_copy(update={"status_code": status, "resource_type": "broken"})
+        for item in on_page.page_items
+        if item.status_code == 200
+    ]
     task = (await _crawled(migrated, worker_db, on_page)).task
 
     await _ingest(worker_db, on_page, None, task)
