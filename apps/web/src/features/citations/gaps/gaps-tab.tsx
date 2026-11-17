@@ -22,6 +22,8 @@ export interface GapsTabProps {
   read: BoardRead<CitationGapList>;
   /** The selected competitors, in the tracked order: one column each. */
   competitors: readonly TrackedCompetitor[];
+  /** The read of the tracked competitors: "Choose competitors" shows only once it has loaded. */
+  competitorsRead: BoardRead<unknown>;
   ownName: string;
   engines: readonly BoardEngine[];
   gapsOnly: boolean;
@@ -43,7 +45,7 @@ export interface GapsTabProps {
 /** Gap analysis (C 573 to 686): you against up to five tracked competitors, per prompt; the gap is per engine. */
 export function GapsTab(props: GapsTabProps): ReactElement {
   const t = useTranslations('citations');
-  const { read, competitors, engines, gapsOnly, search, onOrderChange } = props;
+  const { read, competitors, competitorsRead, engines, gapsOnly, search, onOrderChange } = props;
   const [sort, setSort] = useState<BoardSort>(GAP_SORT_DEFAULT);
   const rows = useMemo(() => read.data?.data ?? [], [read.data]);
   const visible = useMemo(
@@ -152,8 +154,24 @@ export function GapsTab(props: GapsTabProps): ReactElement {
       </p>
     );
 
+  const failed = (read: BoardRead<unknown>): ReactElement => (
+    <InlineError
+      title={t('board.loadFailedTitle')}
+      reason={t('board.loadFailedReason')}
+      errorId={read.errorId}
+      onRetry={read.retry}
+      retrying={read.retrying}
+      retryLabel={t('board.retry')}
+    />
+  );
+
   let body: ReactNode;
-  if (competitors.length === 0) {
+  // The tracked competitors are read first: until they are known, "none chosen" is not an answer
+  if (competitorsRead.status === 'loading') {
+    body = <BoardTableSkeleton columns={columns} />;
+  } else if (competitorsRead.status === 'error') {
+    body = failed(competitorsRead);
+  } else if (competitors.length === 0) {
     body = (
       <EmptyState
         variant="table"
@@ -170,16 +188,7 @@ export function GapsTab(props: GapsTabProps): ReactElement {
   } else if (read.status === 'loading') {
     body = <BoardTableSkeleton columns={columns} />;
   } else if (read.status === 'error') {
-    body = (
-      <InlineError
-        title={t('board.loadFailedTitle')}
-        reason={t('board.loadFailedReason')}
-        errorId={read.errorId}
-        onRetry={read.retry}
-        retrying={read.retrying}
-        retryLabel={t('board.retry')}
-      />
-    );
+    body = failed(read);
   } else if (rows.length === 0) {
     body = (
       <EmptyState

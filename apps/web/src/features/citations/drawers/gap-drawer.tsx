@@ -316,7 +316,10 @@ function GapCards({
           pages={pagesOf(
             closest,
             () => ({ own: true, colorIndex: null }),
-            () => (ownHere ? t('gapDrawer.ownHere') : t('gapDrawer.closestNote', { group: group ?? '' })),
+            // A prompt with no group has no group to name: no note rather than "Cited for other  prompts"
+            ownHere || group !== null
+              ? () => (ownHere ? t('gapDrawer.ownHere') : t('gapDrawer.closestNote', { group: group ?? '' }))
+              : null,
             false,
           )}
         />

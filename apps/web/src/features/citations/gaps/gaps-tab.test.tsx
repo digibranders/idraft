@@ -87,6 +87,7 @@ function setup(overrides: Partial<GapsTabProps> = {}) {
       retrying: false,
     },
     competitors: [{ id: 'c1', name: 'HubSpot', colorIndex: 2, domain: 'hubspot.com' }],
+    competitorsRead: readOf({ data: undefined }),
     ownName: 'Fynix',
     engines: [{ code: 'chatgpt_web', label: 'ChatGPT' }],
     gapsOnly: true,
@@ -149,6 +150,21 @@ describe('the gap analysis tab', () => {
     expect(screen.getByRole('heading', { name: 'Choose competitors to compare' })).toBeVisible();
     await user.click(screen.getByRole('button', { name: 'Choose competitors' }));
     expect(props.onChooseCompetitors).toHaveBeenCalled();
+  });
+
+  it('shows the skeleton, not the empty state, while the tracked competitors load', () => {
+    const { container } = setup({ competitors: [], competitorsRead: readOf({ status: 'loading', data: undefined }) });
+    expect(screen.queryByRole('heading', { name: 'Choose competitors to compare' })).not.toBeInTheDocument();
+    expect(container.querySelector('[aria-hidden="true"] table')).not.toBeNull();
+  });
+
+  it('shows the error, not the empty state, when the tracked competitors fail to load, and retries it', async () => {
+    const competitorsRead = readOf({ status: 'error', data: undefined });
+    const { user } = setup({ competitors: [], competitorsRead });
+    expect(screen.queryByRole('heading', { name: 'Choose competitors to compare' })).not.toBeInTheDocument();
+    expect(screen.getByText('Could not load citations')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(competitorsRead.retry).toHaveBeenCalledTimes(1);
   });
 
   it('says no prompt matches a search, and no gap with Only gaps on', async () => {

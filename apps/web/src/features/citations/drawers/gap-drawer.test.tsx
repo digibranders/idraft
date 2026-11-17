@@ -1,11 +1,12 @@
-import { screen, within } from '@testing-library/react';
-import { http } from 'msw';
+import { screen, waitFor, within } from '@testing-library/react';
+import { http, HttpResponse } from 'msw';
 import { z } from 'zod';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { GapDrawer, type GapDrawerProps } from './gap-drawer';
 import type { TrackedCompetitor } from '../board-reads';
 import { InspectorLayout } from '@/components/app/inspector/inspector-layout';
+import type { CitationGapDetail } from '@/lib/citations/board-queries';
 import { CITATIONS_FIXTURE } from '@/mocks/citations-v2-fixture';
 import { MOCK_PROJECTS, MOCK_WORKSPACE, mockUser } from '@/mocks/fixtures';
 import { mswPath, problem } from '@/mocks/respond';
@@ -79,6 +80,69 @@ function setup(overrides: Partial<GapDrawerProps> = {}) {
   };
 }
 
+const cell = (answers: number, cited: number) => ({
+  answers,
+  cited,
+  mentioned: cited,
+  state: cited > 0 ? ('cited' as const) : ('not' as const),
+});
+const brand = (answers: number, cited: number) => ({
+  total: cell(answers, cited),
+  engines: [{ ...cell(answers, cited), engine_code: 'chatgpt_web' as const }],
+  platforms: 1,
+  cited_on: cited > 0 ? 1 : 0,
+});
+const page = (urlId: number, entityId: string | null = null) => ({
+  url_id: urlId,
+  url: `https://example.com/page-${String(urlId)}`,
+  citations: 2,
+  engines: ['chatgpt_web' as const],
+  entity_id: entityId,
+});
+
+/** A gap detail the tests shape: no page in any list and a prompt in the group Pricing, unless said otherwise. */
+function detailOf(overrides: Partial<CitationGapDetail> & { topic?: { term_id: string; name: string } | null } = {}) {
+  const { topic = { term_id: 't1', name: 'Pricing' }, ...lists } = overrides;
+  const detail: CitationGapDetail = {
+    answers: 4,
+    own_pages: [],
+    competitor_pages: [],
+    closest_pages: [],
+    third_party_pages: [],
+    row: {
+      prompt_id: PROMPT_ID,
+      text: 'Best CRM?',
+      topic,
+      you: brand(4, 0),
+      competitors: tracked.slice(0, 3).map((competitor) => ({ ...brand(4, 2), entity_id: competitor.id })),
+      gap: 1,
+      lost_on: ['chatgpt_web'],
+      lost_to: tracked.slice(0, 3).map((competitor) => competitor.id),
+      competitor_answers: 2,
+    },
+    window: {
+      runs: 4,
+      timezone: 'Europe/Berlin',
+      current: [],
+      previous: [],
+      trend: [],
+      answers: 4,
+      prompts: 1,
+      latest_answer_at: '2026-09-28T00:10:00.000Z',
+      latest_run_number: 48,
+    },
+    ...lists,
+  };
+  return detail;
+}
+const answerWith = (detail: CitationGapDetail): void => server.use(http.get(GAP, () => HttpResponse.json(detail)));
+/** The card a heading titles. */
+const cardOf = (drawer: HTMLElement, title: string): HTMLElement => {
+  const section = within(drawer).getByRole('heading', { name: title }).closest('section');
+  if (section === null) throw new Error(`No card is titled ${title}`);
+  return section;
+};
+
 describe('the gap drawer (I 209 to 331)', () => {
   it('heads the prompt with its group, the scope and where it is lost, on the Gap tab', async () => {
     const { container } = setup();
@@ -138,6 +202,81 @@ describe('the gap drawer (I 209 to 331)', () => {
     unmount();
     setup({ promptId: '00000000-0000-4000-8000-000000000000', tab: 'platforms' });
     expect(await screen.findByText('No answer in this scope')).toBeVisible();
+  });
+
+  it('says why each page list is empty, with the group named', async () => {
+    answerWith(detailOf());
+    setup();
+    const drawer = await screen.findByRole('complementary');
+    const rivals = await within(drawer).findByRole('heading', { name: 'No competitor page is cited' });
+    expect(rivals).toBeVisible();
+    expect(
+      within(drawer).getByText('None of the selected competitors is cited for this prompt in this scope.'),
+    ).toBeVisible();
+    expect(within(drawer).getByRole('heading', { name: 'No page of yours is cited for Pricing' })).toBeVisible();
+    expect(
+      within(drawer).getByText('This prompt needs a page of its own. Start from the competitor pages above.'),
+    ).toBeVisible();
+    expect(within(drawer).getByRole('heading', { name: 'No third-party page' })).toBeVisible();
+    expect(within(drawer).getByText('The answers cite no third-party page.')).toBeVisible();
+  });
+
+  it('says "this group" when the prompt has no group, and shows no group badge', async () => {
+    answerWith(detailOf({ topic: null }));
+    setup();
+    const drawer = await screen.findByRole('complementary');
+    expect(
+      await within(drawer).findByRole('heading', { name: 'No page of yours is cited for this group' }),
+    ).toBeVisible();
+    expect(within(drawer).queryByText('Pricing')).toBeNull();
+  });
+
+  it('shows the group as a badge when the prompt has one', async () => {
+    answerWith(detailOf());
+    setup();
+    const drawer = await screen.findByRole('complementary');
+    expect(await within(drawer).findByText('Pricing')).toBeVisible();
+  });
+
+  it('notes each competitor page with the competitor that owns it', async () => {
+    const [first, second] = tracked;
+    if (first === undefined || second === undefined) throw new Error('The fixture needs two competitors');
+    answerWith(detailOf({ competitor_pages: [page(1, first.id), page(2, second.id)] }));
+    setup();
+    const drawer = await screen.findByRole('complementary');
+    await within(drawer).findByText('example.com/page-1', { exact: false });
+    const card = cardOf(drawer, 'Pages competitors win with');
+    const items = within(card).getAllByRole('listitem');
+    expect(items).toHaveLength(2);
+    expect(within(items[0] as HTMLElement).getByText(first.name)).toBeVisible();
+    expect(within(items[1] as HTMLElement).getByText(second.name)).toBeVisible();
+  });
+
+  it('notes the closest pages "Cited for other Pricing prompts" when the prompt has no page of yours here', async () => {
+    answerWith(detailOf({ closest_pages: [page(3)] }));
+    setup();
+    const drawer = await screen.findByRole('complementary');
+    const card = await waitFor(() => cardOf(drawer, 'Your closest page'));
+    expect(await within(card).findByText('Cited for other Pricing prompts')).toBeVisible();
+  });
+
+  it('notes your pages "Cited in some answers to this prompt" when the prompt has some here', async () => {
+    answerWith(detailOf({ own_pages: [page(4)], closest_pages: [page(3)] }));
+    setup();
+    const drawer = await screen.findByRole('complementary');
+    const card = await waitFor(() => cardOf(drawer, 'Your closest page'));
+    expect(await within(card).findByText('Cited in some answers to this prompt')).toBeVisible();
+    expect(within(card).getAllByRole('listitem')).toHaveLength(1);
+    expect(within(card).queryByText(/Cited for other/)).toBeNull();
+  });
+
+  it('never notes a closest page with an empty group', async () => {
+    answerWith(detailOf({ topic: null, closest_pages: [page(3)] }));
+    setup();
+    const drawer = await screen.findByRole('complementary');
+    const card = await waitFor(() => cardOf(drawer, 'Your closest page'));
+    expect(await within(card).findByText('example.com/page-3', { exact: false })).toBeVisible();
+    expect(within(card).queryByText(/Cited for other/)).toBeNull();
   });
 
   it('says the prompt could not be loaded, with one Try again', async () => {

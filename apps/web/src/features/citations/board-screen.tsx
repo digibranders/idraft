@@ -72,7 +72,7 @@ function BoardContent({ workspaceId, workspaceSlug, project, tab, promptDrawer }
   const t = useTranslations('citations');
   const source = useMemo(() => ({ workspaceId, projectId: project.id }), [workspaceId, project.id]);
   const { engines, read: enginesRead } = useBoardEngines(source);
-  const { tracked, ownName } = useTracked(source);
+  const { tracked, ownName, read: trackedRead } = useTracked(source);
   const { terms, ids: termIds } = useTopicTerms(source);
   const options = useMemo(
     () => ({
@@ -317,6 +317,7 @@ function BoardContent({ workspaceId, workspaceSlug, project, tab, promptDrawer }
       <GapsTab
         read={gaps}
         competitors={selected}
+        competitorsRead={trackedRead}
         ownName={ownName ?? project.name}
         engines={scopeEngines}
         gapsOnly={state.gapsOnly}

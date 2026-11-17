@@ -1,4 +1,5 @@
 import { screen, waitFor, within } from '@testing-library/react';
+import { delay, http } from 'msw';
 import type { OnUrlUpdateFunction } from 'nuqs/adapters/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -9,8 +10,10 @@ import { PermissionProvider } from '@/lib/permissions';
 import { CITATIONS_FIXTURE } from '@/mocks/citations-v2-fixture';
 import { membershipFactory } from '@/mocks/factories/identity';
 import { MOCK_PROJECTS, MOCK_WORKSPACE, mockUser } from '@/mocks/fixtures';
+import { mswPath, problem } from '@/mocks/respond';
 import { SESSION_COOKIE } from '@/mocks/session';
 import { axe } from '@/test/axe';
+import { server } from '@/test/msw';
 import { restoreWideScreen, stubWideScreen } from '@/test/rankings-harness';
 import { renderWithProviders, type ProvidedRenderOptions } from '@/test/render';
 
@@ -29,6 +32,7 @@ vi.mock('@/lib/csv/csv-write', async (importOriginal) => ({
 
 const [fynix] = MOCK_PROJECTS;
 if (fynix === undefined) throw new Error('The fixture projects are missing');
+const ENTITIES = mswPath(`/api/v1/workspaces/${MOCK_WORKSPACE.workspace_id}/projects/${fynix.project_id}/entities`);
 const PROMPT_DRAWER = <aside aria-label="Prompt inspector stub" />;
 const PROPS: CitationsScreenProps = {
   workspaceId: MOCK_WORKSPACE.workspace_id,
@@ -183,6 +187,26 @@ describe('the Citations screen', () => {
     expect(await screen.findByRole('heading', { name: 'Choose competitors to compare' })).toBeVisible();
     await user.click(screen.getByRole('button', { name: 'Choose competitors' }));
     expect(await screen.findByRole('dialog', { name: 'Competitors to compare' })).toBeVisible();
+  });
+
+  it('shows no empty state on the gap analysis while the tracked competitors load, then the table', async () => {
+    // The handler answers nothing after the wait, so the default one answers
+    server.use(
+      http.get(ENTITIES, async () => {
+        await delay(150);
+      }),
+    );
+    render('editor', {}, { tab: 'gaps' });
+    expect(screen.queryByRole('heading', { name: 'Choose competitors to compare' })).toBeNull();
+    expect(await screen.findByRole('table', { name: 'Gap analysis' })).toBeVisible();
+    expect(screen.queryByRole('heading', { name: 'Choose competitors to compare' })).toBeNull();
+  });
+
+  it('shows the error with Try again, not the empty state, when the tracked competitors fail to load', async () => {
+    server.use(http.get(ENTITIES, ({ request }) => problem(request, 'internal_error')));
+    render('editor', {}, { tab: 'gaps' });
+    expect(await screen.findByRole('button', { name: 'Try again' })).toBeVisible();
+    expect(screen.queryByRole('heading', { name: 'Choose competitors to compare' })).toBeNull();
   });
 
   it('exports every cited page the API has for the owner and the search', async () => {
