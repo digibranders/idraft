@@ -305,7 +305,16 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
             label={t('tabs.label')}
             value={tab?.id ?? 'pages'}
             // The tab is the one change of the page that makes a history entry
-            onValueChange={(next) => setSearch({ tab: next === 'pages' ? null : next }, { history: 'push' })}
+            onValueChange={(next) =>
+              // The inspector opened from the journey belongs to it: it closes with the tab
+              setSearch(
+                {
+                  tab: next === 'pages' ? null : next,
+                  ...(state.tab === 'journey' ? { inspect: null, itab: null } : {}),
+                },
+                { history: 'push' },
+              )
+            }
             items={LINKS_TABS.map((entry) => ({ value: entry.id, label: entry.label(t) }))}
             renderList={toolbar}
             className="gap-3"
