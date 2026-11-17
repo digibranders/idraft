@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { GapsTab, type GapsTabProps } from './gaps-tab';
@@ -61,6 +61,19 @@ const LIST: CitationGapList = {
     window: WINDOW,
   },
 };
+
+const tooltip = (): HTMLElement | null => document.querySelector<HTMLElement>('[data-slot="tooltip"]');
+
+const readOf = (overrides: Partial<GapsTabProps['read']>): GapsTabProps['read'] => ({
+  status: 'ready',
+  data: LIST,
+  refetching: false,
+  notFound: false,
+  errorId: null,
+  retry: vi.fn(),
+  retrying: false,
+  ...overrides,
+});
 
 function setup(overrides: Partial<GapsTabProps> = {}) {
   const props: GapsTabProps = {
@@ -156,5 +169,75 @@ describe('the gap analysis tab', () => {
     expect(screen.getByRole('heading', { name: 'No gaps in this scope' })).toBeVisible();
     await user.click(screen.getByRole('button', { name: 'Show all prompts' }));
     expect(props.onGapsOnlyChange).toHaveBeenCalledWith(false);
+  });
+
+  it('shows the skeleton and no table while the first read loads', () => {
+    const { container } = setup({ read: readOf({ status: 'loading', data: undefined }) });
+    expect(screen.queryByRole('table', { name: 'Gap analysis' })).not.toBeInTheDocument();
+    expect(container.querySelector('[aria-hidden="true"] table')).not.toBeNull();
+  });
+
+  it('shows the error and retries from its button', async () => {
+    const read = readOf({ status: 'error', data: undefined });
+    const { user } = setup({ read });
+    expect(screen.getByText('Could not load citations')).toBeVisible();
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(read.retry).toHaveBeenCalledTimes(1);
+  });
+
+  it('says there are no answers, and resets the scope (C 682)', async () => {
+    const { user, props } = setup({ read: readOf({ data: { ...LIST, data: [] } }) });
+    expect(screen.getByRole('heading', { name: 'No answers in this scope' })).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Reset scope' }));
+    expect(props.onResetScope).toHaveBeenCalledTimes(1);
+  });
+
+  it('clears the search from the empty state (C 683)', async () => {
+    const { user, props } = setup({ search: 'zzz' });
+    await user.click(screen.getByRole('button', { name: 'Clear search' }));
+    expect(props.onSearchChange).toHaveBeenCalledWith('');
+  });
+
+  it('re-orders the rows on a header click and reports the order for J and K (C 621)', async () => {
+    const { user, props } = setup({ gapsOnly: false });
+    const table = screen.getByRole('table', { name: 'Gap analysis' });
+    const order = (): (string | null)[] =>
+      within(table)
+        .getAllByRole('row')
+        .slice(1)
+        .map((row) => row.querySelector('button')?.textContent ?? null);
+    expect(order()).toEqual(['Best CRM?', 'CRM for startups']);
+    expect(props.onOrderChange).toHaveBeenLastCalledWith(['p1', 'p2']);
+    await user.click(within(table).getByRole('button', { name: 'Prompt' }));
+    expect(order()).toEqual(['CRM for startups', 'Best CRM?']);
+    expect(props.onOrderChange).toHaveBeenLastCalledWith(['p2', 'p1']);
+    expect(within(table).getByRole('columnheader', { name: /Prompt/ })).toHaveAttribute('aria-sort', 'descending');
+  });
+
+  it('gives a competitor header its tip and its colour dot, and your header none (C 631)', async () => {
+    const { user } = setup();
+    const table = screen.getByRole('table', { name: 'Gap analysis' });
+    const header = within(table).getByRole('columnheader', { name: /HubSpot/ });
+    expect(header.querySelector('[data-color-index="2"]')).not.toBeNull();
+    expect(within(table).getByRole('columnheader', { name: /Fynix/ }).querySelector('[data-color-index]')).toBeNull();
+    await user.hover(within(header).getByRole('button', { name: 'HubSpot' }));
+    await waitFor(() => expect(tooltip()).toHaveTextContent('Whether answers cite hubspot.com'));
+  });
+
+  it('reads a mention without a link as Not cited, with the mark tones of C 596 to 598', () => {
+    const [first, second] = LIST.data;
+    if (first === undefined || second === undefined) throw new Error('The fixture needs two rows');
+    const mentioned = { ...brand(4, 0), total: { answers: 4, cited: 0, mentioned: 2, state: 'mentioned' as const } };
+    setup({
+      gapsOnly: false,
+      read: readOf({ data: { ...LIST, data: [first, { ...second, you: mentioned }] } }),
+    });
+    // In row order: your lost mark, HubSpot's cited mark, your mention, HubSpot's not cited mark
+    const notCited = screen.getAllByText('Not cited');
+    expect(notCited).toHaveLength(3);
+    expect(notCited[0]?.parentElement).toHaveClass('text-negative-text');
+    expect(notCited[1]?.parentElement).toHaveClass('text-foreground-tertiary');
+    expect(screen.getByText('Cited').parentElement).toHaveClass('text-foreground');
   });
 });
