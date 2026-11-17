@@ -101,6 +101,8 @@ On 2026-11-17 the owner asked for everything in the real app, so slices 2 and 3 
 - Plan 04, backend slices 2 and 3: `2026-11-17-internal-links-04-backend-slices-2-3.md` (17 tasks). Migration 0026, the `crawl_enrich` job (changes between crawls, the alert record, anchor counts, mentions), Search Console clicks per page, the changes, opportunities, tier suggestion and path finder APIs, rank, citation and anchor extras on the pages list and the inspector, and the contract for the web.
 - Plan 05, web slices 2 and 3: `2026-11-17-internal-links-05-web-slices-2-3.md` (21 tasks). The canvas rework to the mock of 2026-11-17 (the "Task 4b" of the session notes: pan and zoom, minimap, focus card, one journey at a time, growth that keeps the place, the By tier layout), the crawl picker and the two line header, the Changes, Opportunities and Path finder screens, the new Pages and inspector parts, and the client summary.
 
+Level of detail: plan 04 is in full step form. Plan 05 tasks 1 to 4, 8 and 10 are in full step form; tasks 5 to 7 and 9 have full code for new files and edit instructions for existing ones; tasks 12 to 20 are outlines that the Opus planning session expands when the plan 03 screens they build on (inspector, Links tab, Journey tab, settings, bulk bar) are merged.
+
 Order:
 
 ```

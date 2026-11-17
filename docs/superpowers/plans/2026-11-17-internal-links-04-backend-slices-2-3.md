@@ -399,8 +399,13 @@ async def test_an_alert_names_a_run_of_its_own_workspace(migrated: PostgresServe
     first = await seed_tenant(migrated, "alert-a")
     second = await seed_tenant(migrated, "alert-b")
     async with connection(migrated) as db:
+        # A new run of the first workspace (the seeded one already has its alert).
         run = await db.fetchval(
-            "SELECT id FROM seo.crawl_runs WHERE workspace_id = $1 LIMIT 1", first.workspace_id
+            "INSERT INTO seo.crawl_runs (workspace_id, project_id, trigger, state, target_host, "
+            "settings, ceiling) VALUES ($1, $2, 'manual', 'failed', 'example.com', '{}', 2000) "
+            "RETURNING id",
+            first.workspace_id,
+            first.project_id,
         )
         with pytest.raises(asyncpg.ForeignKeyViolationError):
             await db.execute(
@@ -2772,7 +2777,7 @@ Expected: FAIL (no `crawl_mentions` rows: the phase does not exist yet).
 In `crawl_enrich.py`:
 
 1. Change the end of `_anchors`: `enrich_state="done", enrich_phase="done"` becomes `enrich_state="running", enrich_phase="mentions"` (the comment above it goes).
-2. Add these imports: `from idraft.crawl.mentions import PhraseSet, find_mentions, index_phrases, visible_text`, `from idraft.collectors.crawl_ingest import html_key`, `from idraft.storage.raw import ObjectStore, RawStorageError, decompress`, `from idraft.db.tables import crawl_mentions, crawl_pages, urls`.
+2. Add these imports: `from sqlalchemy.dialects.postgresql import insert as upsert`, `from idraft.crawl.mentions import PhraseSet, find_mentions, index_phrases, visible_text`, `from idraft.collectors.crawl_ingest import html_key`, `from idraft.storage.raw import ObjectStore, RawStorageError, decompress`, `from idraft.db.tables import crawl_mentions, crawl_pages, urls`.
 3. Add the constants and the phase before `_STEPS`:
 
 ```python
@@ -2897,7 +2902,8 @@ async def _mentions(
                 )
             )
         if found:
-            await db.execute(crawl_mentions.insert(), found)
+            # A retried step may meet rows it already wrote: the primary key makes that harmless
+            await db.execute(upsert(crawl_mentions).values(found).on_conflict_do_nothing())
         last = sources[-1].url_id if sources else run.offset
         finished = len(sources) < MENTION_PAGES_PER_STEP
         await db.execute(
@@ -2913,7 +2919,7 @@ async def _mentions(
     return True
 ```
 
-Add `BigInteger` to the sqlalchemy import and register the phase: `_STEPS = {"changes": _changes, "anchors": _anchors, "mentions": _mentions}`. A page with a mention that appears in two steps cannot happen: sources advance by `url_id`, and the primary key `(run_id, source_url_id, target_url_id)` guards a retried step (delete of the run's rows happens only at offset 0, so retry the first step; for a later step a retry would insert twice: change the insert to `postgresql.insert(crawl_mentions).on_conflict_do_nothing()` and import `from sqlalchemy.dialects.postgresql import insert as upsert`).
+Add `BigInteger` to the sqlalchemy import and register the phase: `_STEPS = {"changes": _changes, "anchors": _anchors, "mentions": _mentions}`.
 
 - [ ] **Step 4: Run the mention test and the earlier enrich tests**
 
@@ -3941,11 +3947,12 @@ async def test_pages_that_moved_most_come_with_their_numbers(
     )
 
     rows = response.json()["data"]
+    # Both moved by two; the tie is broken by path.
     assert [(row["page"]["path"], row["editorial_in_delta"]) for row in rows] == [
-        ("/pricing", -2),
         ("/blog/b", 2),
+        ("/pricing", -2),
     ]
-    assert rows[0]["editorial_in"] == 0
+    assert rows[1]["editorial_in"] == 0
 
 
 async def test_a_member_of_another_workspace_gets_not_found(
@@ -4009,7 +4016,7 @@ Create `backend/src/idraft/api/schemas/internal_links_extra.py`:
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
@@ -4113,32 +4120,11 @@ class AlertSettings(BaseModel):
     )
     threshold: int = Field(default=1, ge=1, le=50, description="Lost links that raise an alert.")
     channel: AlertChannel = "app"
-
-
-__all__ = [
-    "AlertChannel",
-    "AlertSettings",
-    "ChangeAlert",
-    "ChangeLink",
-    "ChangeLinkMeta",
-    "ChangeLinkPage",
-    "ChangePage",
-    "ChangesSummary",
-    "ChangesSummaryResponse",
-    "DeliveryState",
-    "LostPriority",
-    "MovedPage",
-    "MovedPageList",
-    "MovedPageMeta",
-    "date",
-]
 ```
-
-Remove `"date"` from `__all__` and `date` from the import (it is unused in this task; Task 12 needs nothing from it either).
 
 - [ ] **Step 4: The alert settings in the project settings**
 
-In `api/schemas/operations.py`: import `AlertSettings` as `LostLinkAlerts` from `idraft.api.schemas.internal_links_extra`, add to `InternalLinksSettings`:
+In `api/schemas/operations.py`: import `AlertSettings` and `AlertChannel` from `idraft.api.schemas.internal_links_extra`, add to `InternalLinksSettings`:
 
 ```python
     alerts: AlertSettings = Field(
@@ -4147,7 +4133,7 @@ In `api/schemas/operations.py`: import `AlertSettings` as `LostLinkAlerts` from 
     )
 ```
 
-(import it by its own name: `from idraft.api.schemas.internal_links_extra import AlertSettings`.) Add the patch model next to `InternalLinksSettingsPatch`:
+Add the patch model next to `InternalLinksSettingsPatch`:
 
 ```python
 class AlertSettingsPatch(Patch):
@@ -4193,7 +4179,6 @@ Priority and the "lost to important tiers" counts, as in the mock."""
 from __future__ import annotations
 
 from contextlib import AbstractAsyncContextManager
-from dataclasses import dataclass
 from typing import Any, Final, Literal
 from uuid import UUID
 
@@ -4295,12 +4280,6 @@ _MOVED = text(
     LIMIT :limit
     """
 )
-
-
-@dataclass(frozen=True, slots=True)
-class LinkChangeList:
-    page: ChangeLinkPage
-    rows: list[ChangeLink]
 
 
 def _page(url_id: int, url: str, path: str, tier_id: UUID | None, tiers: Tiers) -> ChangePage:
@@ -4571,7 +4550,7 @@ class ChangeService:
             )
 ```
 
-(`Tiers` is exported from `reads.py` as the dataclass of that name. Drop the unused `LinkChangeList` dataclass and the `dataclass` import.)
+(`Tiers` is exported from `reads.py` as the dataclass of that name.)
 
 - [ ] **Step 6: The routes and the wiring**
 
@@ -4742,9 +4721,9 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from idraft.api.resources import Resources
 from idraft.collectors.crawl_enrich import CrawlEnrichTask, enrich_run
-from tests.api.auth.support import Workspace, execute, fetch, make_workspace
+from tests.api.auth.support import Workspace, execute, make_workspace
 from tests.api.entities.support import member
-from tests.api.internal_links.support_changes import two_crawls
+from tests.api.internal_links.support_changes import track_keyword, two_crawls
 from tests.api.keywords.support import keyword_project, project_url
 from tests.conftest import PostgresServer
 from tests.db.support import connection, insert_prompt
@@ -4765,47 +4744,6 @@ async def _setup(
         deadline=time.monotonic() + 120,
     )
     return workspace, project, newer, ids, tiers
-
-
-async def _track(
-    pg: PostgresServer,
-    workspace: Workspace,
-    project: uuid.UUID,
-    text: str,
-    target: int,
-    rank: int | None,
-    change: int | None,
-    volume: int | None,
-) -> None:
-    row = await fetch(
-        pg,
-        "WITH k AS (INSERT INTO seo.keywords (workspace_id, text, normalized_text, language_code) "
-        "VALUES ($1, $4, $4, 'en') RETURNING id, language_code), "
-        "t AS (INSERT INTO seo.tracked_keywords (workspace_id, project_id, keyword_id, "
-        "location_id, language_code, device, target_url_id) SELECT $1, $2, k.id, "
-        "(SELECT default_location_id FROM core.projects WHERE id = $2), 'en', 'desktop', $3 "
-        "FROM k RETURNING id, keyword_id, location_id) "
-        "INSERT INTO seo.tracked_keyword_state (tracked_keyword_id, workspace_id, project_id, "
-        "current_rank, rank_change) SELECT t.id, $1, $2, $5, $6 FROM t RETURNING tracked_keyword_id",
-        workspace.id,
-        project,
-        target,
-        text,
-        rank,
-        change,
-    )
-    assert row
-    if volume is not None:
-        await execute(
-            pg,
-            "INSERT INTO seo.keyword_metric_snapshots (workspace_id, keyword_id, location_id, "
-            "language_code, source, fetched_at, search_volume) "
-            "SELECT $1, t.keyword_id, t.location_id, 'en', 'dataforseo_labs', now(), $2 "
-            "FROM seo.tracked_keywords t WHERE t.id = $3",
-            workspace.id,
-            volume,
-            row[0]["tracked_keyword_id"],
-        )
 
 
 async def test_extras_are_absent_unless_asked_for(
@@ -4847,8 +4785,12 @@ async def test_tracked_keywords_rank_and_volume_come_from_the_keyword_tables(
 ) -> None:
     workspace, project, _, ids, _ = await _setup(migrated, worker_db)
     viewer = await member(resources, migrated, workspace, "viewer")
-    await _track(migrated, workspace, project, "pricing plans", ids["/pricing"], 4, 2, 2900)
-    await _track(migrated, workspace, project, "soc cost", ids["/pricing"], None, None, 700)
+    await track_keyword(
+        migrated, workspace, project, "pricing plans", ids["/pricing"], rank=4, change=2, volume=2900
+    )
+    await track_keyword(
+        migrated, workspace, project, "soc cost", ids["/pricing"], rank=None, change=None, volume=700
+    )
 
     response = await api.get(
         project_url(workspace, project, "internal-links", "pages"),
@@ -5008,6 +4950,64 @@ async def insert_citation(
         )
 
 
+
+- [ ] **Step 1b: The seed for a tracked keyword with a rank and a volume**
+
+Append to `backend/tests/api/internal_links/support_changes.py` (add `from tests.api.auth.support import fetchrow` to its imports):
+
+```python
+async def track_keyword(
+    pg: PostgresServer,
+    workspace: Workspace,
+    project_id: uuid.UUID,
+    text: str,
+    target_url_id: int,
+    *,
+    rank: int | None,
+    change: int | None,
+    volume: int | None,
+) -> None:
+    """A tracked keyword of a page with its current rank and change, and its search volume as
+    the keyword list reads it (`seo.keyword_metrics_current`, source `dataforseo_labs`, which
+    needs a snapshot row)."""
+    row = await fetchrow(
+        pg,
+        "WITH k AS (INSERT INTO seo.keywords (workspace_id, text, normalized_text, "
+        "language_code) VALUES ($1, $4, $4, 'en') RETURNING id), "
+        "t AS (INSERT INTO seo.tracked_keywords (workspace_id, project_id, keyword_id, "
+        "location_id, language_code, device, target_url_id) SELECT $1, $2, k.id, "
+        "(SELECT default_location_id FROM core.projects WHERE id = $2), 'en', 'desktop', $3 "
+        "FROM k RETURNING id, keyword_id, location_id), "
+        "s AS (INSERT INTO seo.tracked_keyword_state (tracked_keyword_id, workspace_id, "
+        "project_id, current_rank, rank_change) SELECT t.id, $1, $2, $5, $6 FROM t "
+        "RETURNING tracked_keyword_id) "
+        "SELECT t.keyword_id, t.location_id FROM t",
+        workspace.id,
+        project_id,
+        target_url_id,
+        text,
+        rank,
+        change,
+    )
+    if volume is None:
+        return
+    await execute(
+        pg,
+        "WITH snap AS (INSERT INTO seo.keyword_metric_snapshots (workspace_id, keyword_id, "
+        "location_id, language_code, source, fetched_at, search_volume, is_material_change) "
+        "VALUES ($1, $2, $3, 'en', 'dataforseo_labs', now(), $4, false) RETURNING id) "
+        "INSERT INTO seo.keyword_metrics_current (keyword_id, location_id, language_code, "
+        "source, workspace_id, snapshot_id, search_volume, fetched_at) "
+        "SELECT $2, $3, 'en', 'dataforseo_labs', $1, snap.id, $4, now() FROM snap",
+        workspace.id,
+        row["keyword_id"],
+        row["location_id"],
+        volume,
+    )
+```
+
+(`Workspace` comes from `tests.api.auth.support` as in the other helpers of the file.)
+
 - [ ] **Step 2: Run and see them fail**
 
 ```bash
@@ -5018,7 +5018,7 @@ Expected: FAIL (`KeyError: 'extras'`).
 
 - [ ] **Step 3: The models**
 
-Append to `schemas/internal_links_extra.py`:
+Add these classes to `schemas/internal_links.py`, above `PageRow` (the row and the detail refer to them, so they live in the same module and need no forward reference); add `from datetime import date, datetime` to its imports:
 
 ```python
 class PageChange(BaseModel):
@@ -5092,7 +5092,7 @@ class PageDetailExtras(BaseModel):
     gsc: GscPage
 ```
 
-In `schemas/internal_links.py`: add to `PageRow` the member `extras: PageExtras | None = None` and to `PageDetail` the member `extras: PageDetailExtras` (import both from `internal_links_extra`; `internal_links_extra` imports `PlacementName`, `TierRef`, `UrlIdText` from `internal_links`, so import the two classes inside a `TYPE_CHECKING`-free way by moving nothing: Pydantic needs them at runtime, so define `PageRow.extras` as a forward reference string `"PageExtras | None"` and call `PageRow.model_rebuild()` at the bottom of `internal_links_extra.py` after the classes exist). Extend the literals: `RowFlag` gains `"generic_anchors"`, `PageFlag` gains `"generic_anchors"`, `PageWorklist` gains `"lost_links_top"` and `"weak_outlinks"`, `PageSort` gains `"change"` and `"-change"`, and `Worklists` gains `lost_links_top: int` and `weak_outlinks: int`.
+In the same module add to `PageRow` the member `extras: PageExtras | None = None` and to `PageDetail` the member `extras: PageDetailExtras`. Extend the literals: `RowFlag` gains `"generic_anchors"`, `PageFlag` gains `"generic_anchors"`, `PageWorklist` gains `"lost_links_top"` and `"weak_outlinks"`, `PageSort` gains `"change"` and `"-change"`, and `Worklists` gains `lost_links_top: int` and `weak_outlinks: int`.
 
 - [ ] **Step 4: The extras module**
 
@@ -5116,7 +5116,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from idraft.api.internal_links.page_filter import PageScope
 from idraft.api.keywords.gsc_repository import scope_of
-from idraft.api.schemas.internal_links_extra import (
+from idraft.api.schemas.internal_links import (
     AnchorDetail,
     AnchorSummary,
     AnchorText,
@@ -5368,7 +5368,7 @@ async def gsc_of(db: AsyncSession, scope: PageScope, ids: Sequence[int]) -> dict
 
 - [ ] **Step 5: Use them in the list and the detail**
 
-In `reads.py`: import the functions from `extras` and `PageExtras`, `PageDetailExtras`. In `LinkReadService.pages`, add the parameter `include: Sequence[str] = ()`; after `rows = rows[:limit]` and before `return PageList(...)`:
+In `reads.py`: import the functions from `extras`, and `PageExtras`, `PageDetailExtras` from `idraft.api.schemas.internal_links` (the import block that already names `PageRow`). In `LinkReadService.pages`, add the parameter `include: Sequence[str] = ()`; after `rows = rows[:limit]` and before `return PageList(...)`:
 
 ```python
             page_rows_out = await _page_rows(db, scope, view, tiers, rows)
@@ -6284,6 +6284,7 @@ from idraft.db.engine import workspace_transaction
 from tests.api.auth.support import Workspace, execute, fetch, make_workspace
 from tests.api.entities.support import member, problem
 from tests.api.internal_links.support import SeedLink, seed_crawl, seed_tiers
+from tests.api.internal_links.support_changes import track_keyword
 from tests.api.keywords.support import keyword_project, project_url
 from tests.collectors.gsc_support import FakeSearchConsole, make_property
 from tests.conftest import PostgresServer
@@ -6294,7 +6295,7 @@ PAGES = [("/", 200), ("/a", 200), ("/b", 200), ("/c", 200), ("/d", 200)]
 async def _site(
     pg: PostgresServer, resources: Resources
 ) -> tuple[Workspace, uuid.UUID, dict[str, int], list[uuid.UUID]]:
-    """A crawl of five live pages; one rule makes every page but "/" a T3 page (by rule, so a
+    """A crawl of five live pages; one rule makes every page a T3 page (by rule, so a
     suggestion may change it)."""
     workspace = await make_workspace(pg)
     project = await keyword_project(pg, workspace)
@@ -6306,7 +6307,7 @@ async def _site(
     await execute(
         pg,
         "INSERT INTO core.tier_rules (workspace_id, project_id, position, match_type, value, "
-        "tier_id) VALUES ($1, $2, 1, 'pattern', '/?*', $3)",
+        "tier_id) VALUES ($1, $2, 1, 'prefix', '/', $3)",
         workspace.id,
         project,
         tiers[2],
@@ -6368,22 +6369,8 @@ async def test_without_search_console_a_ranking_keyword_still_suggests_a_tier(
 ) -> None:
     workspace, project, ids, _ = await _site(migrated, resources)
     viewer = await member(resources, migrated, workspace, "viewer")
-    await fetch(
-        migrated,
-        "WITH k AS (INSERT INTO seo.keywords (workspace_id, text, normalized_text, language_code) "
-        "VALUES ($1, 'big topic', 'big topic', 'en') RETURNING id), "
-        "t AS (INSERT INTO seo.tracked_keywords (workspace_id, project_id, keyword_id, location_id, "
-        "language_code, device, target_url_id) SELECT $1, $2, k.id, "
-        "(SELECT default_location_id FROM core.projects WHERE id = $2), 'en', 'desktop', $3 FROM k "
-        "RETURNING id, keyword_id, location_id), "
-        "s AS (INSERT INTO seo.tracked_keyword_state (tracked_keyword_id, workspace_id, project_id, "
-        "current_rank) SELECT t.id, $1, $2, 3 FROM t RETURNING 1) "
-        "INSERT INTO seo.keyword_metric_snapshots (workspace_id, keyword_id, location_id, "
-        "language_code, source, fetched_at, search_volume) SELECT $1, t.keyword_id, t.location_id, "
-        "'en', 'dataforseo_labs', now(), 5000 FROM t RETURNING 1",
-        workspace.id,
-        project,
-        ids["/b"],
+    await track_keyword(
+        migrated, workspace, project, "big topic", ids["/b"], rank=3, change=None, volume=5000
     )
 
     response = await api.get(
@@ -6845,14 +6832,14 @@ async def test_the_route_over_any_link_can_be_shorter_than_the_editorial_one(
 
     response = await api.get(
         project_url(workspace, project, "internal-links", "paths"),
-        params={"url_id": ids["/blog/a"]},
+        params={"url_id": ids["/blog/b"]},
         headers=viewer.headers,
     )
 
     data = response.json()["data"]
-    assert data["target"]["path"] == "/blog/a"
-    # "/" links to /blog by the menu, and /blog links to /blog/a in its text.
-    assert [step["page"]["path"] for step in data["any"]["steps"]] == ["/", "/blog", "/blog/a"]
+    assert data["target"]["path"] == "/blog/b"
+    # "/" links to /blog by the menu, and /blog links to /blog/b in its text.
+    assert [step["page"]["path"] for step in data["any"]["steps"]] == ["/", "/blog", "/blog/b"]
     assert data["any"]["clicks"] == 2
     # Editorial links only: "/" has none, so the page cannot be reached that way.
     assert data["editorial"] is None
@@ -6869,7 +6856,7 @@ async def test_each_step_names_the_link_that_reached_it(
 
     response = await api.get(
         project_url(workspace, project, "internal-links", "paths"),
-        params={"url_id": ids["/blog/a"]},
+        params={"url_id": ids["/blog/b"]},
         headers=viewer.headers,
     )
 
@@ -6880,7 +6867,7 @@ async def test_each_step_names_the_link_that_reached_it(
         "navigation",
         "template",
     )
-    assert (steps[2]["anchor"], steps[2]["scope"]) == ("Post A", "editorial")
+    assert (steps[2]["anchor"], steps[2]["scope"]) == ("Post B", "editorial")
 
 
 async def test_a_redirect_is_one_step_to_its_target(
