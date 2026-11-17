@@ -27,6 +27,8 @@ let hoverLoop = null;
 // Key of the card under the pointer or keyboard focus; its path to the focus page is lit
 let hoverKey = null;
 let tip = null;
+// Key of the card whose info panel the user opened with its "i" button; it stays until a click elsewhere, Escape or a pan
+let pinnedTip = null;
 // Cards the user selected on the canvas (keys), and where the user moved cards, kept for the session
 const selection = new Set();
 const offsets = new Map();
@@ -44,6 +46,7 @@ const live = (node) => node?.isConnected;
 function hideTip() {
   tip?.remove();
   tip = null;
+  pinnedTip = null;
 }
 
 function showTip(anchor, rows, title, subtitle) {
@@ -138,7 +141,7 @@ function cardButton(item, scope, ctx) {
   if (item.dir) node.dataset.dir = item.dir;
   if (openable) node.setAttribute('aria-expanded', String(isOpen));
   node.setAttribute('aria-label', `${page.path}, ${tierLabel(tierIdOf(page))}, ${plural(ins(item.id, scope).length, 'linking page')}${item.edge ? `, linked as ${linkedAs(item.edge)}, ${PLACEMENT_LABEL[item.edge.placement].toLowerCase()}` : ', focus page'}${both ? ', links both ways' : ''}`);
-  const top = el('span', 'flex items-center gap-1 min-w-0 pr-12');
+  const top = el('span', 'flex items-center gap-1 min-w-0 pr-2');
   if (openable) top.append(icon(isOpen ? 'chevron-down' : 'chevron-right', 'size-icon-xs shrink-0 text-foreground-tertiary'));
   top.append(el('span', 'type-table text-foreground truncate', page.path));
   node.append(top, subLine(item, scope, backs, both));
@@ -184,9 +187,9 @@ function cardWrap(item, scope, ctx) {
   const { node, backs } = cardButton(item, scope, ctx);
   const path = pageById(item.id).path;
   const wrap = el('div', 'relative group');
-  const tools = el('div', 'absolute right-1 top-1 flex gap-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-within:opacity-100');
+  const tools = el('div', 'absolute right-1 top-1 flex gap-0.5 rounded-sm bg-surface opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-within:opacity-100');
   if (item.key !== 'f') tools.append(toolButton('crosshair', `Make ${path} the focus`, { focusId: item.id }));
-  tools.append(toolButton('panel-right-open', `Details of ${path}`, { details: item.id }));
+  tools.append(toolButton('info', `Info about ${path}`, { info: item.key }), toolButton('panel-right-open', `Details of ${path}`, { details: item.id }));
   wrap.append(node, tools);
   if (backs.length > 0) {
     const loop = el('button', `${BACK_BUTTON} ${FOCUS_RING}`);
@@ -611,6 +614,25 @@ function buildCanvas() {
     renderBar();
   }
 
+  // ---- Info panel: opened by a card's "i" button, closed by the button again, a click elsewhere, Escape or a pan
+  function toggleCardTip(key) {
+    if (pinnedTip === key) {
+      hideTip();
+      return;
+    }
+    const node = keyed(inner, key);
+    const item = ctx.items.get(key);
+    if (!node || !item) return;
+    cardTip(node, item);
+    pinnedTip = key;
+    const away = (event) => {
+      if (event.target.closest?.(`[data-info="${CSS.escape(key)}"]`)) return;
+      hideTip();
+      document.removeEventListener('pointerdown', away, true);
+    };
+    document.addEventListener('pointerdown', away, true);
+  }
+
   // ---- Card positions (kept per focus page for the session)
   function paintOffsets() {
     inner.querySelectorAll('button.node').forEach((node) => {
@@ -757,7 +779,8 @@ function buildCanvas() {
     if (target.classList.contains('node')) clearSelection();
     if (target.dataset.focusId) {
       setFocus(target.dataset.focusId);
-    } else if (target.dataset.details) openInspector(target.dataset.details);
+    } else if (target.dataset.info) toggleCardTip(target.dataset.info);
+    else if (target.dataset.details) openInspector(target.dataset.details);
     else if (target.dataset.loop) {
       const key = target.dataset.loop;
       if (j().pinned.has(key)) j().pinned.delete(key);
@@ -903,12 +926,13 @@ function buildCanvas() {
       paintFocusMode();
     }
     if (event.type === 'focusin' && node) bringIntoView([nodeBox(node)], 180);
+    // A card's info panel opens from its "i" button, never on hover, so moving over the canvas stays calm
+    if (pinnedTip) return;
     if (loop) loopTip(loop, loopKey);
     else if (edge) edgeTip(event, edge);
-    else if (node && node.dataset.id) cardTip(node, ctx.items.get(node.dataset.key));
   };
   const hoverOff = () => {
-    hideTip();
+    if (!pinnedTip) hideTip();
     if (hoverLoop || hoverKey) {
       hoverLoop = null;
       hoverKey = null;
@@ -966,6 +990,7 @@ function buildCanvas() {
     else if (event.key === '0') fitView();
     else if (event.key === '1') actualSize();
     else if (event.key === 'Home') centreOnFocus();
+    else if (event.key === 'Escape' && pinnedTip) hideTip();
     else if (event.key === 'Escape' && !help.classList.contains('hidden')) {
       help.classList.add('hidden');
       help.classList.remove('block');

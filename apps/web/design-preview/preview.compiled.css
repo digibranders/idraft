@@ -1847,9 +1847,6 @@
   .pr-10 {
     padding-right: calc(var(--spacing) * 10);
   }
-  .pr-12 {
-    padding-right: calc(var(--spacing) * 12);
-  }
   .pb-1 {
     padding-bottom: var(--spacing);
   }
