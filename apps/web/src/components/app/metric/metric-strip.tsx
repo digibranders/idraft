@@ -127,15 +127,13 @@ export function MetricStrip({ size, label, groups, status, nowrap = false }: Met
             const tipped = item.tip !== undefined && status !== 'loading';
             const unknown = item.unknown !== null && item.unknown !== undefined;
             return (
-              <div key={item.id} className="flex h-control min-w-0 items-center gap-2 bg-surface px-3">
-                {/* The whole slot shows the tooltip, so the name is a way in too */}
-                <Tooltip content={item.tip ?? ''} detail={item.detail} purpose="label" disabled={!tipped}>
-                  <dt className="min-w-0 flex-1 truncate type-meta text-foreground-secondary">{item.label}</dt>
-                </Tooltip>
+              <div key={item.id} className="relative flex h-control min-w-0 items-center gap-2 bg-surface px-3">
+                <dt className="min-w-0 flex-1 truncate type-meta text-foreground-secondary">{item.label}</dt>
+                {/* The figure's ::after covers the slot, so the mouse anywhere on it reaches this tooltip */}
                 <Tooltip content={item.tip ?? ''} detail={item.detail} purpose="label" disabled={!tipped}>
                   <dd
                     {...(tipped ? { tabIndex: 0, 'aria-label': item.spoken } : {})}
-                    className="flex shrink-0 items-center gap-1.5 rounded-sm outline-none focus-visible:focus-ring-inset"
+                    className="flex shrink-0 items-center gap-1.5 rounded-sm outline-none after:absolute after:inset-0 focus-visible:focus-ring-inset"
                   >
                     {status === 'loading' ? (
                       <span className="flex w-10 items-center">
