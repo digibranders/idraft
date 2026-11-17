@@ -16,8 +16,11 @@ import {
   pagesQuery,
   tierRulesQuery,
   pageTiersQuery,
+  checkUrlId,
+  crawlFinishedKeys,
+  edgesPath,
+  pagesPath,
   UrlIdError,
-  urlIdNumber,
 } from './queries';
 
 const SCOPE = { workspaceId: 'w1', projectId: 'p1' };
@@ -72,33 +75,45 @@ describe('the pages query (the backend OpenAPI)', () => {
   });
 });
 
-describe('url ids (the API takes numbers, the answers give strings)', () => {
-  it('reads a plain positive integer', () => {
-    expect(urlIdNumber('111')).toBe(111);
-    expect(urlIdNumber('9007199254740991')).toBe(Number.MAX_SAFE_INTEGER);
+describe('url ids (the API takes digit strings of at most int64)', () => {
+  it('passes a positive int64 on as the same string, however large', () => {
+    expect(checkUrlId('111')).toBe('111');
+    expect(checkUrlId('9007199254740993')).toBe('9007199254740993');
+    expect(checkUrlId('9223372036854775807')).toBe('9223372036854775807');
   });
 
-  it('refuses text that is not an id', () => {
-    for (const bad of ['0', '-1', '01', '1.5', '1e3', ' 7', 'abc', '']) {
-      expect(() => urlIdNumber(bad)).toThrow(new UrlIdError(`Not a url id: ${bad}`));
+  it('refuses an id above int64, by value and not by length', () => {
+    expect(() => checkUrlId('9223372036854775808')).toThrow(UrlIdError);
+    expect(() => checkUrlId('9999999999999999999')).toThrow(UrlIdError);
+    expect(() => checkUrlId('100000000000000000000')).toThrow(UrlIdError);
+  });
+
+  it('refuses text that is not a positive whole number without a leading zero', () => {
+    for (const bad of ['0', '00', '01', '-1', '+1', ' 7', '7 ', '', '1.5', '1e3', 'abc', '１２']) {
+      expect(() => checkUrlId(bad)).toThrow(new UrlIdError(`Not a url id: ${bad}`));
     }
   });
 
-  it('refuses an id that a number cannot hold exactly, instead of sending a different page', () => {
-    expect(() => urlIdNumber('9007199254740993')).toThrow(UrlIdError);
-    expect(() => urlIdNumber('9223372036854775807')).toThrow('too large');
-  });
-
-  it('is what every request with an id uses', () => {
-    expect(edgeParams({ ...DEFAULT_EDGE_QUERY, source: '12', target: '34' })).toMatchObject({
-      'filter[source]': 12,
-      'filter[target]': 34,
+  it('is what every request with an id uses, and each sends the string', () => {
+    expect(edgeParams({ ...DEFAULT_EDGE_QUERY, source: '12', target: '9223372036854775807' })).toMatchObject({
+      'filter[source]': '12',
+      'filter[target]': '9223372036854775807',
     });
-    expect(() => edgeParams({ ...DEFAULT_EDGE_QUERY, source: '9007199254740993' })).toThrow(UrlIdError);
-    expect(() => pageDetailQuery(SCOPE, '9007199254740993', 'editorial')).toThrow(UrlIdError);
+    expect(pageDetailQuery(SCOPE, '9007199254740993', 'editorial').queryKey).toContain('9007199254740993');
+    expect(
+      neighborsQuery(SCOPE, { urlId: '9007199254740993', direction: 'out', linkScope: 'editorial', offset: 0 })
+        .queryKey,
+    ).toContainEqual(expect.objectContaining({ url_id: '9007199254740993' }));
+    expect(() => edgeParams({ ...DEFAULT_EDGE_QUERY, source: '9223372036854775808' })).toThrow(UrlIdError);
+    expect(() => pageDetailQuery(SCOPE, '0', 'editorial')).toThrow(UrlIdError);
     expect(() => neighborsQuery(SCOPE, { urlId: 'x', direction: 'out', linkScope: 'editorial', offset: 0 })).toThrow(
       UrlIdError,
     );
+  });
+
+  it('names the two CSV downloads with their ids filled in', () => {
+    expect(pagesPath(SCOPE)).toBe('/api/v1/workspaces/w1/projects/p1/internal-links/pages');
+    expect(edgesPath(SCOPE)).toBe('/api/v1/workspaces/w1/projects/p1/internal-links/edges');
   });
 });
 
@@ -107,6 +122,14 @@ describe('crawls and settings (the backend OpenAPI)', () => {
     const query = crawlsQuery(SCOPE);
     expect(query.queryKey).toEqual(['ws', 'w1', 'p', 'p1', 'link-crawls', { limit: CRAWL_LIMIT }]);
     expect(crawlKeys(SCOPE)).toEqual([['ws', 'w1', 'p', 'p1', 'link-crawls']]);
+  });
+
+  it('makes a crawl that turns ready stale for the crawl list, every read of the links and the settings', () => {
+    expect(crawlFinishedKeys(SCOPE)).toEqual([
+      ['ws', 'w1', 'p', 'p1', 'link-crawls'],
+      ...internalLinksKeys(SCOPE),
+      ['ws', 'w1', 'p', 'p1', 'settings'],
+    ]);
   });
 
   it('reads the internal links settings from the project settings, the key the keyword defaults use', () => {

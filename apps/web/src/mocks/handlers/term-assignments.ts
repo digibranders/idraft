@@ -78,24 +78,42 @@ function linksErrors(links: Readonly<Record<string, unknown>>, host: string | un
     errors.push(bodyError('internal_links.allowed_subdomains', 'too_long', 'At most 10 hosts.'));
   }
   hosts.forEach((entry: unknown, index) => {
-    const path = `internal_links.allowed_subdomains.${String(index)}`;
-    const name = typeof entry === 'string' ? entry.toLowerCase() : '';
-    if (name === '' || /\s/.test(name)) errors.push(bodyError(path, 'invalid_host', 'Not a host name.'));
-    // A host of the project's site: its own domain or a subdomain of it, never a look-alike
-    else if (host === undefined || !(name === host || name.endsWith(`.${host}`))) {
-      errors.push(bodyError(path, 'not_a_subdomain', 'Not a subdomain of the project website.'));
+    const name = typeof entry === 'string' ? entry.trim() : '';
+    if (name === '' || /\s/.test(name)) {
+      errors.push(bodyError(`internal_links.allowed_subdomains.${String(index)}`, 'invalid_host', 'Not a host name.'));
     }
   });
-  return errors;
+  if (errors.length > 0) return errors;
+  // A host of the project's site, with or without www., or under it; never a look-alike (backend is_site_host)
+  const bare = host?.toLowerCase().replace(/^www\./, '');
+  const strangers = hostsOf(hosts).filter(
+    (name) => bare === undefined || (name !== bare && !name.endsWith(`.${bare}`)),
+  );
+  return strangers.length === 0 ? errors : [notASiteHost(strangers, bare)];
 }
 
-/** The checked `internal_links` patch as the typed patch: hosts in lower case. */
+/** The backend's one error for hosts that are not the site: the field, `not_a_site_host`, the hosts named. */
+const notASiteHost = (strangers: readonly string[], bare: string | undefined): ValidationItem =>
+  bodyError(
+    'internal_links.allowed_subdomains',
+    'not_a_site_host',
+    bare === undefined
+      ? 'The project has no website yet, so it has no subdomains.'
+      : `Each host must be the project's website or a subdomain of it (${bare}): ${strangers.join(', ')}.`,
+  );
+
+/** Allowed subdomains as the API writes them: lower case, each one once, in the order given. */
+const hostsOf = (entries: readonly unknown[]): string[] => [
+  ...new Set(entries.map((entry) => String(entry).trim().toLowerCase())),
+];
+
+/** The checked `internal_links` patch as the typed patch. */
 function settingsPatchOf(links: Readonly<Record<string, unknown>>): InternalLinksSettingsPatch {
   const { schedule, render_javascript: render, allowed_subdomains: hosts } = links;
   return {
     ...(isOneOf(schedule, internalLinksSettingsScheduleValues) ? { schedule } : {}),
     ...(typeof render === 'boolean' ? { render_javascript: render } : {}),
-    ...(Array.isArray(hosts) ? { allowed_subdomains: hosts.map((entry) => String(entry).toLowerCase()) } : {}),
+    ...(Array.isArray(hosts) ? { allowed_subdomains: hostsOf(hosts) } : {}),
   };
 }
 

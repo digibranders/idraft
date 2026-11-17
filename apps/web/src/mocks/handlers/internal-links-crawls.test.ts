@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 
 import { MOCK_WORKSPACE } from '../fixtures';
@@ -11,6 +11,16 @@ const RUN = z.object({ run_id: z.string(), state: z.string(), trigger: z.string(
 const RUNS = z.object({ data: z.array(RUN), page: z.object({ has_more: z.boolean() }) });
 const ONE = z.object({ data: RUN });
 const PROJECT = z.object({ data: z.object({ project_id: z.string() }) });
+
+// The mock crawl moves with the clock (queued for 3 s, then crawling): the clock stands still, so a request
+// right after another sees a queued crawl however slow the machine is
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-11-17T09:00:00Z'));
+});
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe('the crawl routes of the mock API', () => {
   it('lists the crawls of a project, newest first', async () => {
@@ -151,6 +161,37 @@ describe('the internal links part of the project settings', () => {
     expect(SETTINGS.parse((await browser.call('GET', `${P}/settings`)).body).data.internal_links.schedule).toBe(
       'monthly',
     );
+  });
+
+  it('keeps each allowed host once, in lower case, and takes the site with its www form', async () => {
+    const browser = mockBrowser('editor');
+    const answer = await browser.call('PATCH', `${P}/settings`, {
+      internal_links: {
+        allowed_subdomains: [
+          'Blog.EventusSecurity.com',
+          'blog.eventussecurity.com',
+          'WWW.eventussecurity.com',
+          'eventussecurity.com',
+        ],
+      },
+    });
+    expect(SETTINGS.parse(answer.body).data.internal_links.allowed_subdomains).toEqual([
+      'blog.eventussecurity.com',
+      'www.eventussecurity.com',
+      'eventussecurity.com',
+    ]);
+  });
+
+  it('names the field and the code of a host that is not on the site, once for all of them', async () => {
+    const browser = mockBrowser('editor');
+    const answer = await browser.call('PATCH', `${P}/settings`, {
+      internal_links: { allowed_subdomains: ['blog.other.com', 'noteventussecurity.com', 'shop.eventussecurity.com'] },
+    });
+    expect([answer.status, answer.code]).toEqual([422, 'validation_failed']);
+    expect(answer.body.errors).toEqual([
+      expect.objectContaining({ path: 'internal_links.allowed_subdomains', code: 'not_a_site_host' }),
+    ]);
+    expect(JSON.stringify(answer.body)).toContain('blog.other.com, noteventussecurity.com');
   });
 
   it('refuses what the API refuses', async () => {

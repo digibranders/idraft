@@ -1,5 +1,6 @@
 import { apiQuery, type ApiQueryOptions } from '@/lib/api/query';
 import { projectKey, workspaceKey, type QueryKey } from '@/lib/api/keys';
+import type { paths } from '@/lib/api/schema';
 import { READ_LIMIT, type Direction } from './journey-layout';
 import type { LinkScope, Placement } from './scopes';
 import type {
@@ -31,6 +32,14 @@ const SETTINGS = `${P}/settings` as const;
 const RULES = `${P}/tier-rules` as const;
 const TIERS = `${W}/page-tiers` as const;
 
+/** The query parameters the generated client takes for the two lists. */
+type PagesParams = NonNullable<paths[typeof PAGES]['get']['parameters']['query']>;
+type EdgesParams = NonNullable<paths[typeof EDGES]['get']['parameters']['query']>;
+
+/** The pages list path with its ids filled in, for the CSV download (decision W13). */
+export const pagesPath = (scope: LinksScope): `/api/v1/${string}` =>
+  `/api/v1/workspaces/${scope.workspaceId}/projects/${scope.projectId}/internal-links/pages`;
+
 /** The edges list path with its ids filled in, for the CSV download (decision W13). */
 export const edgesPath = (scope: LinksScope): `/api/v1/${string}` =>
   `/api/v1/workspaces/${scope.workspaceId}/projects/${scope.projectId}/internal-links/edges`;
@@ -45,26 +54,22 @@ const pathOf = (scope: LinksScope): { workspace_id: string; project_id: string }
   project_id: scope.projectId,
 });
 
-/** A url id the API cannot be sent, or that is no id at all. */
+/** A text that is not a url id the API takes. */
 export class UrlIdError extends Error {
   override readonly name = 'UrlIdError';
 }
 
+const INT64_MAX = 9223372036854775807n;
+
 /**
- * A `core.urls` id for the API. The answers give the 64-bit id as a string, but the generated client types
- * every request id (`url_id`, `filter[source]`, `filter[target]`, `url_ids`) as a number, so this is the one
- * place a string id becomes a number. An id a number cannot hold exactly is refused, never rounded to another
- * page's id. Every request that carries an id goes through here.
+ * A `core.urls` id for the API: a positive whole number of at most int64, as digits without a leading zero
+ * (the server refuses anything else with a 422). Ids travel as strings both ways, and the limit is compared
+ * as a BigInt, so no id is rounded to another page's. Every request that carries an id goes through here
+ * (`url_id`, `filter[source]`, `filter[target]`, bulk `url_ids`).
  */
-export function urlIdNumber(urlId: string): number {
-  if (!/^[1-9][0-9]*$/.test(urlId)) throw new UrlIdError(`Not a url id: ${urlId}`);
-  const id = Number(urlId);
-  if (!Number.isSafeInteger(id)) {
-    throw new UrlIdError(
-      `Url id ${urlId} is too large for the API client (at most ${String(Number.MAX_SAFE_INTEGER)})`,
-    );
-  }
-  return id;
+export function checkUrlId(urlId: string): string {
+  if (!/^[1-9][0-9]*$/.test(urlId) || BigInt(urlId) > INT64_MAX) throw new UrlIdError(`Not a url id: ${urlId}`);
+  return urlId;
 }
 
 export interface PageQuery {
@@ -96,7 +101,7 @@ export const DEFAULT_PAGE_QUERY: PageQuery = {
 };
 
 /** The query values of the pages list; anything unset is left out, as the address leaves it out. */
-export function pageParams(query: PageQuery) {
+export function pageParams(query: PageQuery): PagesParams {
   return {
     scope: query.scope,
     sort: query.sort,
@@ -128,8 +133,12 @@ export function pageFilterOf(query: PageQuery): PageFilter {
 export const pagesQuery = (scope: LinksScope, query: PageQuery): ApiQueryOptions<typeof PAGES> =>
   apiQuery(PAGES, { params: { path: pathOf(scope), query: pageParams(query) } });
 
+/**
+ * One page, the inspector. Throws `UrlIdError` for an id that is no url id: a screen that reads the id from the
+ * address validates it first (`checkUrlId`) and shows not found, instead of letting the builder throw.
+ */
 export const pageDetailQuery = (scope: LinksScope, urlId: string, linkScope: LinkScope): ApiQueryOptions<typeof PAGE> =>
-  apiQuery(PAGE, { params: { path: { ...pathOf(scope), url_id: urlIdNumber(urlId) }, query: { scope: linkScope } } });
+  apiQuery(PAGE, { params: { path: { ...pathOf(scope), url_id: checkUrlId(urlId) }, query: { scope: linkScope } } });
 
 export interface EdgeQuery {
   scope: LinkScope;
@@ -163,7 +172,8 @@ export const DEFAULT_EDGE_QUERY: EdgeQuery = {
   limit: PAGE_LIMIT,
 };
 
-export function edgeParams(query: EdgeQuery) {
+/** The query values of the edges list. Throws `UrlIdError` for a `source` or `target` that is no url id. */
+export function edgeParams(query: EdgeQuery): EdgesParams {
   return {
     scope: query.scope,
     limit: query.limit,
@@ -172,8 +182,8 @@ export function edgeParams(query: EdgeQuery) {
     ...(query.tagIds.length === 0 ? {} : { 'filter[tag]': [...query.tagIds] }),
     ...(query.placements.length === 0 ? {} : { 'filter[placement]': [...query.placements] }),
     ...(query.targetStatus.length === 0 ? {} : { 'filter[target_status]': [...query.targetStatus] }),
-    ...(query.source === null ? {} : { 'filter[source]': urlIdNumber(query.source) }),
-    ...(query.target === null ? {} : { 'filter[target]': urlIdNumber(query.target) }),
+    ...(query.source === null ? {} : { 'filter[source]': checkUrlId(query.source) }),
+    ...(query.target === null ? {} : { 'filter[target]': checkUrlId(query.target) }),
     ...(query.worklist === null ? {} : { 'filter[worklist]': query.worklist }),
     ...(query.qSource === null ? {} : { q_source: query.qSource }),
     ...(query.qTarget === null ? {} : { q_target: query.qTarget }),
@@ -184,7 +194,10 @@ export function edgeParams(query: EdgeQuery) {
 export const edgesQuery = (scope: LinksScope, query: EdgeQuery): ApiQueryOptions<typeof EDGES> =>
   apiQuery(EDGES, { params: { path: pathOf(scope), query: edgeParams(query) } });
 
-/** One page of `READ_LIMIT` neighbors (decision W7). */
+/**
+ * One page of `READ_LIMIT` neighbors (decision W7). Throws `UrlIdError` for an id that is no url id: a screen that
+ * reads the focus from the address validates it first (`checkUrlId`) and shows not found.
+ */
 export const neighborsQuery = (
   scope: LinksScope,
   {
@@ -198,7 +211,7 @@ export const neighborsQuery = (
     params: {
       path: pathOf(scope),
       query: {
-        url_id: urlIdNumber(urlId),
+        url_id: checkUrlId(urlId),
         direction,
         scope: linkScope,
         limit: READ_LIMIT,
@@ -230,7 +243,9 @@ export const tierRulesQuery = (scope: LinksScope): ApiQueryOptions<typeof RULES>
 export const pageTiersQuery = (workspaceId: string): ApiQueryOptions<typeof TIERS> =>
   apiQuery(TIERS, { params: { path: { workspace_id: workspaceId } } });
 
-/** What a crawl request or cancel makes stale: the crawl list. */
+/**
+ * What a crawl request or cancel makes stale: the crawl list. A crawl that turns ready needs `crawlFinishedKeys`.
+ */
 export const crawlKeys = (scope: LinksScope): QueryKey[] => [
   [...projectKey(scope.workspaceId, scope.projectId), 'link-crawls'],
 ];
@@ -247,3 +262,13 @@ export function internalLinksKeys(scope: LinksScope): QueryKey[] {
     [...workspaceKey(scope.workspaceId), 'page-tiers'],
   ];
 }
+
+/**
+ * What a crawl turning ready makes stale: the crawl list, every read of the links (a new crawl is the latest one)
+ * and the project settings document (which holds the internal links settings).
+ */
+export const crawlFinishedKeys = (scope: LinksScope): QueryKey[] => [
+  ...crawlKeys(scope),
+  ...internalLinksKeys(scope),
+  [...projectKey(scope.workspaceId, scope.projectId), 'settings'],
+];

@@ -1,7 +1,7 @@
 import { HttpResponse, type HttpHandler } from 'msw';
 
 import { projectCaller, workspaceCaller } from './access';
-import { booleanError, isRecord, notAnObject } from './rules';
+import { bodyError, booleanError, isRecord, notAnObject, nullErrors, queryError } from './rules';
 import {
   cancelCrawl,
   crawledPage,
@@ -26,7 +26,8 @@ import {
 } from '../internal-links-world';
 import { invalid, invalidField, mock, noContent, problem, unknownMembers } from '../respond';
 import { csvLines } from '@/lib/csv/csv-write';
-import type { Problem } from '@/lib/api/types';
+import type { Problem, ValidationItem } from '@/lib/api/types';
+import { textLength } from '@/lib/text/length';
 import { parseLinkScope, type LinkScope } from '@/lib/internal-links/scopes';
 import { parseTierCsv } from '@/lib/internal-links/tier-csv';
 import { MAX_TIERS } from '@/lib/internal-links/tiers';
@@ -70,11 +71,46 @@ const EDGE_QUERY = [
 ];
 const SITE = 'https://eventussecurity.com';
 
+// `_PAGE_CSV_HEADER` and `_EDGE_CSV_HEADER` of backend/src/idraft/api/internal_links/reads.py
+const PAGE_CSV_HEADER = [
+  'url',
+  'path',
+  'title',
+  'tier',
+  'status_code',
+  'indexable',
+  'click_depth',
+  'linking_pages',
+  'linking_pages_all',
+  'outlinks',
+  'in_sitemap',
+  'top_anchor',
+  'flags',
+];
+const EDGE_CSV_HEADER = [
+  'source_url',
+  'source_tier',
+  'target_url',
+  'target_tier',
+  'anchor',
+  'placement',
+  'scope',
+  'rel',
+  'target_status',
+  'target_indexable',
+  'occurrences',
+];
+/** The server writes a tier as "T1 Money pages", and a boolean as Python spells it. */
+const tierLabel = (tier: { code: string; name: string } | null): string =>
+  tier === null ? '' : `${tier.code} ${tier.name}`;
+const pythonBool = (value: boolean): string => (value ? 'True' : 'False');
+
 const listOf = (url: URL, key: string): string[] =>
   (url.searchParams.get(key) ?? '').split(',').filter((value) => value !== '');
 const scopeOf = (url: URL): LinkScope => parseLinkScope(url.searchParams.get('scope'));
+// The server ends lines with LF (csv_export.py); the web's writer ends them with CRLF
 const csv = (rows: readonly (readonly (string | number)[])[], name: string): HttpResponse<string> =>
-  new HttpResponse(csvLines(rows), {
+  new HttpResponse(csvLines(rows).replaceAll('\r\n', '\n'), {
     headers: { 'content-type': 'text/csv', 'content-disposition': `attachment; filename="${name}.csv"` },
   });
 
@@ -167,14 +203,33 @@ function sortRows(rows: PageRow[], sort: string): PageRow[] {
   });
 }
 
+/** A `core.urls` id as the API takes it: a positive int64 as digits, no leading zero (backend test_url_id_strings). */
+const isUrlId = (value: string): boolean => /^[1-9][0-9]*$/.test(value) && BigInt(value) <= 9223372036854775807n;
+
+const urlIdError = (location: 'path' | 'query' | 'body', path: string): ValidationItem => ({
+  location,
+  path,
+  code: 'value_error',
+  message: 'Not a url id: a whole number from 1 to 9223372036854775807, as digits without a leading zero.',
+});
+
 interface Selection {
-  url_ids?: number[] | null | undefined;
+  url_ids?: string[] | null | undefined;
   filter?: PageFilter | null | undefined;
 }
 
-/** The pages a bulk body names: its ids, or its filter on the latest crawl; a body that names neither is a 422. */
+/**
+ * The pages a bulk body names: its ids (one the crawl does not hold is left out), or its filter on the latest
+ * crawl; an id that is no url id, or a body that names neither, is a 422.
+ */
 function selected(request: Request, body: Selection): string[] | HttpResponse<Problem> {
-  if (body.url_ids !== undefined && body.url_ids !== null) return body.url_ids.map(String);
+  if (body.url_ids !== undefined && body.url_ids !== null) {
+    const bad = body.url_ids.flatMap((id, index) =>
+      isUrlId(id) ? [] : [urlIdError('body', `url_ids.${String(index)}`)],
+    );
+    if (bad.length > 0) return invalid(request, bad);
+    return [...new Set(body.url_ids)].filter((id) => crawledPage(id) !== undefined);
+  }
   if (body.filter === undefined || body.filter === null) {
     return invalidField(request, 'url_ids', 'missing', 'Give url_ids or filter.');
   }
@@ -184,6 +239,26 @@ function selected(request: Request, body: Selection): string[] | HttpResponse<Pr
     .filter((row) => pageMatches(row, criteria))
     .map((row) => row.url_id);
 }
+
+const TIER_NAME_MIN = 1;
+const TIER_NAME_MAX = 60;
+const TIER_DESCRIPTION_MAX = 200;
+
+/** A tier text as the API's `TierName` and `TierDescription` read it: trimmed, length counted in characters, no control characters. */
+function tierTextErrors(value: unknown, path: string, { min, max }: { min: number; max: number }): ValidationItem[] {
+  if (value === undefined) return [];
+  if (typeof value !== 'string') return [bodyError(path, 'string_type', 'Input should be a valid string')];
+  const text = value.trim();
+  if (textLength(text) < min) return [bodyError(path, 'string_too_short', `At least ${String(min)} character.`)];
+  if (textLength(text) > max) return [bodyError(path, 'string_too_long', `At most ${String(max)} characters.`)];
+  if (/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u.test(text)) {
+    return [bodyError(path, 'value_error', 'Must not contain control characters.')];
+  }
+  return [];
+}
+
+/** A checked tier text, trimmed; empty for a member left out. */
+const tierText = (value: unknown): string => (typeof value === 'string' ? value.trim() : '');
 
 type ImportedPath = { path: string } | { code: 'invalid_url' | 'other_site' };
 
@@ -209,14 +284,21 @@ export const internalLinkHandlers: HttpHandler[] = [
   mock('post', `${W}/page-tiers`, async ({ request, cookies, params }) => {
     const caller = workspaceCaller(request, cookies, params.workspace_id, { permission: 'workspace:update' });
     if (caller instanceof Response) return caller;
-    const body = await request.json();
-    if (body.name.trim() === '') return invalidField(request, 'name', 'string_too_short', 'Enter a name.');
+    const body: unknown = await request.json().catch(() => undefined);
+    if (!isRecord(body)) return invalid(request, [notAnObject()]);
+    const errors = [
+      ...unknownMembers(body, ['name', 'description']),
+      ...('name' in body ? [] : [bodyError('name', 'missing', 'Field required')]),
+      ...tierTextErrors(body.name, 'name', { min: TIER_NAME_MIN, max: TIER_NAME_MAX }),
+      ...tierTextErrors(body.description, 'description', { min: 0, max: TIER_DESCRIPTION_MAX }),
+    ];
+    if (errors.length > 0) return invalid(request, errors);
     const world = linksWorld();
     if (world.tiers.length >= MAX_TIERS) return problem(request, 'tier_limit');
     world.tiers.push({
       tier_id: freshId(),
-      name: body.name.trim(),
-      description: body.description,
+      name: tierText(body.name),
+      description: tierText(body.description),
       updated_at: new Date().toISOString(),
     });
     const created = pageTierViews().at(-1);
@@ -230,9 +312,20 @@ export const internalLinkHandlers: HttpHandler[] = [
     if (caller instanceof Response) return caller;
     const tier = linksWorld().tiers.find((candidate) => candidate.tier_id === params.tier_id);
     if (tier === undefined) return problem(request, 'not_found');
-    const body = await request.json();
-    if (body.name !== undefined) tier.name = body.name.trim();
-    if (body.description !== undefined) tier.description = body.description;
+    const body: unknown = await request.json().catch(() => undefined);
+    if (!isRecord(body)) return invalid(request, [notAnObject()]);
+    const errors = [
+      ...unknownMembers(body, ['name', 'description']),
+      ...(Object.keys(body).length === 0 ? [bodyError('', 'value_error', 'Give a name or a description.')] : []),
+      ...nullErrors(body, ['name', 'description']),
+      ...(body.name === null ? [] : tierTextErrors(body.name, 'name', { min: TIER_NAME_MIN, max: TIER_NAME_MAX })),
+      ...(body.description === null
+        ? []
+        : tierTextErrors(body.description, 'description', { min: 0, max: TIER_DESCRIPTION_MAX })),
+    ];
+    if (errors.length > 0) return invalid(request, errors);
+    if (body.name !== undefined) tier.name = tierText(body.name);
+    if (body.description !== undefined) tier.description = tierText(body.description);
     tier.updated_at = new Date().toISOString();
     const view = pageTierViews().find((candidate) => candidate.tier_id === tier.tier_id);
     return view === undefined ? problem(request, 'internal_error') : HttpResponse.json({ data: view });
@@ -250,6 +343,13 @@ export const internalLinkHandlers: HttpHandler[] = [
     const moveTo = caller.url.searchParams.get('move_to');
     if ((view.page_count > 0 || view.rule_count > 0) && moveTo === null) {
       return problem(request, 'tier_in_use', { page_count: view.page_count, rule_count: view.rule_count });
+    }
+    // As the backend orders them (tier_levels.py): the tier itself is a 422, a tier of no workspace a 404
+    if (moveTo === view.tier_id) {
+      return invalid(request, [queryError('move_to', 'move_to_self', 'Move to another tier or `none`.')]);
+    }
+    if (moveTo !== null && moveTo !== 'none' && !world.tiers.some((tier) => tier.tier_id === moveTo)) {
+      return problem(request, 'not_found');
     }
     const target = moveTo === 'none' ? null : moveTo;
     for (const [id, manual] of world.manual) {
@@ -512,17 +612,24 @@ export const internalLinkHandlers: HttpHandler[] = [
       caller.url.searchParams.get('sort') ?? 'path',
     );
     if (caller.url.searchParams.get('format') === 'csv') {
-      // No equity column: the web never shows it (decision W4), so this mock export leaves it out
+      // The server's columns in the server's order (`_PAGE_CSV_HEADER` of reads.py); it has no equity column
       return csv(
         [
-          ['url', 'tier', 'status_code', 'click_depth', 'linking_pages', 'outlinks'],
+          PAGE_CSV_HEADER,
           ...rows.map((row) => [
             row.url,
-            row.tier?.code ?? '',
+            row.path,
+            row.title ?? '',
+            tierLabel(row.tier),
             row.status_code ?? '',
+            pythonBool(row.is_indexable),
             row.click_depth ?? '',
             row.linking_pages,
+            row.linking_pages_all,
             row.outlinks,
+            pythonBool(row.in_sitemap),
+            row.top_anchor ?? '',
+            row.flags.join(' '),
           ]),
         ],
         'pages',
@@ -540,8 +647,10 @@ export const internalLinkHandlers: HttpHandler[] = [
       query: ['run', 'scope'],
     });
     if (caller instanceof Response) return caller;
+    const id = String(params.url_id);
+    if (!isUrlId(id)) return invalid(request, [urlIdError('path', 'url_id')]);
     if (!hasFinishedCrawl(caller.project.project_id)) return problem(request, 'no_crawl');
-    const page = crawledPage(String(params.url_id));
+    const page = crawledPage(id);
     if (page === undefined) return problem(request, 'not_found');
     const view = scopeOf(caller.url);
     const row = pageRow(page, view);
@@ -572,6 +681,11 @@ export const internalLinkHandlers: HttpHandler[] = [
       query: EDGE_QUERY,
     });
     if (caller instanceof Response) return caller;
+    const badIds = ['filter[source]', 'filter[target]'].flatMap((name) => {
+      const given = caller.url.searchParams.get(name);
+      return given === null || isUrlId(given) ? [] : [urlIdError('query', name)];
+    });
+    if (badIds.length > 0) return invalid(request, badIds);
     if (!hasFinishedCrawl(caller.project.project_id)) return problem(request, 'no_crawl');
     const url = caller.url;
     const view = scopeOf(url);
@@ -598,10 +712,23 @@ export const internalLinkHandlers: HttpHandler[] = [
         row.target.path.includes(url.searchParams.get('q_target') ?? ''),
     );
     if (url.searchParams.get('format') === 'csv') {
+      // The server's columns in the server's order (`_EDGE_CSV_HEADER` of reads.py)
       return csv(
         [
-          ['source_url', 'target_url', 'anchor', 'placement'],
-          ...rows.map((row) => [row.source.url, row.target.url, row.anchor, row.placement]),
+          EDGE_CSV_HEADER,
+          ...rows.map((row) => [
+            row.source.url,
+            tierLabel(row.source.tier),
+            row.target.url,
+            tierLabel(row.target.tier),
+            row.anchor,
+            row.placement,
+            row.scope,
+            row.rel.join(' '),
+            row.target.status_code ?? '',
+            row.target.is_indexable === null ? '' : pythonBool(row.target.is_indexable),
+            row.occurrences,
+          ]),
         ],
         'links',
       );
@@ -618,9 +745,10 @@ export const internalLinkHandlers: HttpHandler[] = [
       query: ['url_id', 'direction', 'run', 'scope', 'limit', 'offset'],
     });
     if (caller instanceof Response) return caller;
-    if (!hasFinishedCrawl(caller.project.project_id)) return problem(request, 'no_crawl');
     const url = caller.url;
     const id = url.searchParams.get('url_id') ?? '';
+    if (!isUrlId(id)) return invalid(request, [urlIdError('query', 'url_id')]);
+    if (!hasFinishedCrawl(caller.project.project_id)) return problem(request, 'no_crawl');
     const page = crawledPage(id);
     if (page === undefined) return problem(request, 'not_found');
     const direction = url.searchParams.get('direction') === 'in' ? 'in' : 'out';

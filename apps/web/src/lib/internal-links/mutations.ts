@@ -1,8 +1,8 @@
 import { apiMutation } from '@/lib/api/query';
 
 /**
- * The writes of Internal links (the backend OpenAPI). The variables carry url ids as numbers (`urlIdNumber` in
- * `queries.ts` makes them).
+ * The writes of Internal links (the backend OpenAPI). The variables carry url ids as strings; build each id
+ * with `checkUrlId` (`queries.ts`), which refuses what the server would.
  */
 const W = '/api/v1/workspaces/{workspace_id}';
 // Literal strings, so each path below keeps its literal type for the typed client

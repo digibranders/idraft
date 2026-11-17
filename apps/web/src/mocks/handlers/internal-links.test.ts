@@ -27,11 +27,14 @@ describe('the internal links mock API', () => {
     expect(rows.find((row) => row.path === '/blog/soc-vs-mdr')?.tier?.code).toBe('T3');
   });
 
-  it('answers ids as strings and takes them as numbers', async () => {
+  it('answers ids as strings and takes them as strings, leaving out an id the crawl does not hold', async () => {
     const browser = mockBrowser('editor');
     const tiers = TIERS.parse((await browser.call('GET', `${W}/page-tiers`)).body).data;
     const t4 = tiers.find((tier) => tier.code === 'T4')?.tier_id;
-    const set = await browser.call('PUT', `${P}/pages/tiers`, { url_ids: [111], tier_id: t4 });
+    const set = await browser.call('PUT', `${P}/pages/tiers`, {
+      url_ids: ['111', '9223372036854775807'],
+      tier_id: t4,
+    });
     expect(set.body).toEqual({ data: { matched: 1, changed: 1 } });
     const blog = ROWS.parse((await browser.call('GET', `${P}/internal-links/pages?q=%2Fblog&sort=path&limit=100`)).body)
       .data[0];
@@ -40,6 +43,22 @@ describe('the internal links mock API', () => {
     );
     const detail = await browser.call('GET', `${P}/internal-links/pages/111?scope=editorial`);
     expect(detail.status).toBe(200);
+  });
+
+  it('refuses a request id that is not a positive int64 digit string, as the API does', async () => {
+    const browser = mockBrowser('editor');
+    const tiers = TIERS.parse((await browser.call('GET', `${W}/page-tiers`)).body).data;
+    const t4 = tiers.find((tier) => tier.code === 'T4')?.tier_id;
+    for (const bad of ['0', '01', '-1', 'abc', ' 7', '', '1.5', '9223372036854775808']) {
+      const body = { url_ids: [bad], tier_id: t4 };
+      expect([bad, (await browser.call('PUT', `${P}/pages/tiers`, body)).code]).toEqual([bad, 'validation_failed']);
+      const path = `${P}/internal-links/pages/${encodeURIComponent(bad)}`;
+      if (bad !== '') expect([bad, (await browser.call('GET', path)).status]).toEqual([bad, 422]);
+    }
+    const edges = await browser.call('GET', `${P}/internal-links/edges?filter[source]=9223372036854775807`);
+    expect(edges.status).toBe(200);
+    expect((await browser.call('GET', `${P}/internal-links/edges?filter[target]=0`)).status).toBe(422);
+    expect((await browser.call('GET', `${P}/internal-links/neighbors?url_id=007&direction=in`)).status).toBe(422);
   });
 
   it('selects pages by filter, and a body with neither ids nor filter is refused', async () => {
@@ -105,13 +124,67 @@ describe('the internal links mock API', () => {
     expect(good.body).toMatchObject({ data: { applied: true, accepted: 1, pending: [{ line: 3, url: '/nowhere' }] } });
   });
 
-  it('keeps equity out of the CSV downloads', async () => {
+  it('answers the CSV downloads with the server columns in the server order, and no equity', async () => {
     const browser = mockBrowser('viewer');
     const pages = await browser.call('GET', `${P}/internal-links/pages?format=csv`);
     const links = await browser.call('GET', `${P}/internal-links/edges?format=csv`);
     expect(pages.status).toBe(200);
-    expect(pages.body.text).toEqual(expect.stringContaining('linking_pages'));
-    expect(links.body.text).toEqual(expect.stringContaining('source_url'));
+    expect(pages.headers.get('content-type')).toContain('text/csv');
+    const pageLines = String(pages.body.text).trimEnd().split('\n');
+    const linkLines = String(links.body.text).trimEnd().split('\n');
+    // _PAGE_CSV_HEADER and _EDGE_CSV_HEADER of backend/src/idraft/api/internal_links/reads.py
+    expect(pageLines[0]).toBe(
+      'url,path,title,tier,status_code,indexable,click_depth,linking_pages,linking_pages_all,outlinks,in_sitemap,top_anchor,flags',
+    );
+    expect(linkLines[0]).toBe(
+      'source_url,source_tier,target_url,target_tier,anchor,placement,scope,rel,target_status,target_indexable,occurrences',
+    );
+    expect(pageLines.length).toBeGreaterThan(1);
+    expect(linkLines.length).toBeGreaterThan(1);
     expect(JSON.stringify([pages.body, links.body]).toLowerCase()).not.toContain('equity');
+    // The tier is its label, as the server writes it, and a row has as many cells as the header
+    expect(pageLines.find((line) => line.startsWith('https://eventussecurity.com/pricing,'))).toContain(
+      ',T1 Money pages,',
+    );
+    for (const line of pageLines.slice(1)) expect(line.split(',').length).toBeGreaterThanOrEqual(13);
+  });
+
+  it('refuses a move_to that is the tier itself, or no tier of the workspace, before moving anything', async () => {
+    const browser = mockBrowser('admin');
+    const [first] = TIERS.parse((await browser.call('GET', `${W}/page-tiers`)).body).data;
+    const id = first?.tier_id ?? '';
+    const self = await browser.call('DELETE', `${W}/page-tiers/${id}?move_to=${id}`);
+    expect([self.status, self.code]).toEqual([422, 'validation_failed']);
+    expect(JSON.stringify(self.body)).toContain('move_to_self');
+    const stranger = await browser.call('DELETE', `${W}/page-tiers/${id}?move_to=0192e4a0-2000-7000-8000-0000000000ff`);
+    expect([stranger.status, stranger.code]).toEqual([404, 'not_found']);
+    const after = TIERS.parse((await browser.call('GET', `${W}/page-tiers`)).body).data;
+    expect(after.map((tier) => tier.tier_id)).toContain(id);
+    expect(after[0]?.page_count).toBe(first?.page_count);
+    // Moving to Untiered or to another tier still works
+    expect((await browser.call('DELETE', `${W}/page-tiers/${id}?move_to=none`)).status).toBe(204);
+  });
+
+  it('applies the tier name and description rules of the API to create and rename', async () => {
+    const browser = mockBrowser('admin');
+    const tier = (name: unknown, description: unknown = '') =>
+      browser.call('POST', `${W}/page-tiers`, { name, description });
+    expect((await tier('   ')).code).toBe('validation_failed');
+    expect((await tier('x'.repeat(61))).code).toBe('validation_failed');
+    expect((await tier('Ok', 'y'.repeat(201))).code).toBe('validation_failed');
+    expect((await tier('Bad\u0007name')).code).toBe('validation_failed');
+    expect((await tier(7)).code).toBe('validation_failed');
+    const made = await tier('  Landing pages  ', '  Paid landing pages  ');
+    expect(made.body).toMatchObject({ data: { name: 'Landing pages', description: 'Paid landing pages' } });
+    const id = z.object({ data: z.object({ tier_id: z.string() }) }).parse(made.body).data.tier_id;
+    const patch = (body: unknown) => browser.call('PATCH', `${W}/page-tiers/${id}`, body);
+    expect((await patch({})).code).toBe('validation_failed');
+    expect((await patch({ name: null })).code).toBe('validation_failed');
+    expect((await patch({ name: '' })).code).toBe('validation_failed');
+    expect((await patch({ description: 'z'.repeat(201) })).code).toBe('validation_failed');
+    expect((await patch({ colour: 'red' })).code).toBe('validation_failed');
+    expect((await patch({ name: ' Pages ', description: '' })).body).toMatchObject({
+      data: { name: 'Pages', description: '' },
+    });
   });
 });
