@@ -79,7 +79,7 @@ function cappedSummary(): PromptsSummary {
 function withoutBrandCells(summary: PromptsSummary): PromptsSummary {
   const total = summary.total;
   if (total === undefined || total === null) throw new Error('The fixture has no total');
-  const strip = ({ entities: _entities, ...rest }: WeekCells): WeekCells => rest;
+  const strip = (week: WeekCells): WeekCells => ({ ...week, entities: [] });
   const engines = total.engines.map((entry) => ({ ...entry, series: entry.series?.map(strip) ?? [] }));
   return { ...summary, total: { ...total, engines } };
 }
@@ -171,6 +171,14 @@ describe('the share of voice over time card writes x of y brand mentions', () =>
     expect(block?.rows).toContainEqual(['2026-10-19', 'Fynix', 40, 80, 200, null, null, 'ok']);
     expect(block?.rows).toContainEqual(['2026-11-02', 'Fynix', 31.8, 84, 264, null, '2026-10-19 to 2026-11-09', 'ok']);
     expect(block?.rows).toContainEqual(['2026-10-26', 'Fynix', null, 1, 3, null, null, 'insufficient']);
+  });
+
+  it('exports the counts of the one platform that has data under All platforms, as for one platform', async () => {
+    serveWorld(weeklySummary(), entityRows());
+    const { user } = renderCard('ai.sov_over_time', SovOverTimeCard, {}, { searchParams: ALL_PLATFORMS });
+    await screen.findByTestId('echart-canvas');
+    const [block] = await readExport(user);
+    expect(block?.rows).toContainEqual(['2026-10-19', 'Fynix', 40, 80, 200, null, null, 'ok']);
   });
 
   it('exports each platform of an average, which has no count of its own', async () => {

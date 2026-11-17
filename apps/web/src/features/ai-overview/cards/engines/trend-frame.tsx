@@ -28,6 +28,7 @@ import type { EngineCode } from '@/lib/api/types';
 import {
   formatBusinessDate,
   formatChartDate,
+  formatDateRange,
   formatPercent,
   formatPointsDelta,
   formatTableDateTime,
@@ -151,6 +152,7 @@ export function TrendFrame({
     () => ({
       rate: tipWords,
       share: (value, k, n) => t('shareTip', { value: formatPercent(value), k, n }),
+      pooledRange: (weeks, from, to) => t('pooledRange', { weeks, range: formatDateRange(from, to) }),
       partial: t('partialWeek'),
     }),
     [tipWords, t],

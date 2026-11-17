@@ -22,7 +22,7 @@ import type { EngineCode } from '@/lib/api/types';
 import type { CategorySeries, CategoryValue } from '@/lib/charts/category-chart';
 import { rateBandOption, type RateBandPoint } from '@/lib/charts/rate-band-chart';
 import type { ChartTokens } from '@/lib/design/read-tokens';
-import { formatBusinessDate, formatChartDate, formatList, formatPercent } from '@/lib/format';
+import { formatBusinessDate, formatChartDate, formatDateRange, formatList, formatPercent } from '@/lib/format';
 import { visibilityOfPrompts } from '@/lib/rates/visibility-model';
 
 /** The message suffix of each metric of the page scope: `titleMention`, `tabShareOfVoice`. */
@@ -168,6 +168,7 @@ export default function RateTrendCard({ item, live }: CardProps): ReactElement {
     () => ({
       rate: tipWords,
       share: (value, k, n) => t('shareTip', { value: formatPercent(value), k, n }),
+      pooledRange: (weeks, from, to) => t('pooledRange', { weeks, range: formatDateRange(from, to) }),
       partial: trendWords('partialWeek'),
     }),
     [tipWords, t, trendWords],
@@ -321,6 +322,7 @@ export default function RateTrendCard({ item, live }: CardProps): ReactElement {
         'prompts',
         'interval_low_percent',
         'interval_high_percent',
+        'weeks_held',
         'status',
       ],
       rows: trend.weeks.flatMap((entry, index) =>
@@ -337,6 +339,8 @@ export default function RateTrendCard({ item, live }: CardProps): ReactElement {
             point?.prompts ?? null,
             point?.band == null ? null : percentNumber(point.band.low),
             point?.band == null ? null : percentNumber(point.band.high),
+            // The days a pooled point holds, as the API's `pool` says them (Share of voice: the total's own points)
+            point?.pooledRange == null ? null : `${point.pooledRange.from} to ${point.pooledRange.to}`,
             point === undefined || point.n === 0 ? 'no_answers' : point.thin ? 'insufficient' : 'ok',
           ];
         }),

@@ -169,25 +169,13 @@ run rows. Offset the weeks the way the summary series does.
 
 What: share of voice over time (stacked area) and the competitor trend need one weekly value per tracked brand.
 
-Status 2026-11-17: delivered by the server, read by the web. `WeekCells.entities` (`backend/src/idraft/api/schemas/ai.py`) is
-filled with `include=series,entities`: the `EntityCells` (`entity_id`, `mentioned`, `share_of_voice`) of each tracked entity of
-the engine's `entities` (the own ones first, at most 20) over the weeks the point holds, its own week or, when `is_pooled`,
-the weeks of `pool`; weighted as the point's own cells are (Mentioned prompt weighted in a topic, total or country row); no
-`previous`. The web draws a rival line only from these points; it never draws a flat or invented line. Share of voice over
-time, its rank, the competitor trend and the rate trend (metric Share of voice) ask for them (`include=series,entities` with
-`total` and `rows=none`). The one other reader of weekly share of voice, the sparkline of the headline tile, gets the
-cells through the extra counts read of item 13, not through a read of its own.
+Today: the weekly series holds the own brand only (`WeekCells` has `mentioned`, `cited`, `share_of_voice`, no entities;
+inventory `overview-and-charts.md` section 0 finding 5, need N3).
 
-What is still missing is not request 10 any more, it is carried by two other requests:
-
-1. The weekly `share_of_voice` cell, and each weekly entity's, is still the old equal split. The web writes the count share
-   itself from the weekly `entities[].mentioned` (one mention one weight, x of y brand mentions per brand and week).
-   Request 13 asks for the count share in these cells too.
-2. With more than 20 tracked brands the weekly cells stop at 20 (own ones first), so y of "x of y brand mentions" is too
-   small. `WeekCells` has no `entities_mentions_total` (request 24), so the web says "More than 20 tracked brands" and draws
-   no percent, no layer and no rank until it does.
-
-Nothing else is asked: the order of the cells after the own ones is not relied on, and `previous` is not needed.
+Smallest change: with `include=series,entities`, add `entities` to each `WeekCells`: the same `EntityCells`
+(`entity_id`, `mentioned`, `share_of_voice`) the window cells already have, for the tracked set in the response, at most
+20 entities. Pool the weeks the way the own series does and keep the `is_pooled` and `pool` fields. The web draws a rival
+line only from these points; it never draws a flat or invented line.
 
 ## 11. Weekly cells for mention position, recommendation and sentiment
 
@@ -249,9 +237,8 @@ Groups tab and the Prompts page all read that cell. When this item lands the fil
 sends it; nothing else in the web changes.
 
 The cards that show share of voice ask one extra read for it: the topic rows and the `total` with `include=entities`
-(small, where the prompt rows with entity cells are megabytes), once for each window. The cards that draw share of voice
-week by week (Share of voice over time, its rank, the competitor trend, and the rate trend while its metric is Share of
-voice) read the `total` with `include=series,entities` and `rows=none` instead (item 10, delivered by the server).
+(small, where the prompt rows with entity cells are megabytes), once for each window. Weekly lines need
+`include=series,entities` on that read (item 10).
 
 ## 24. Entity cell total and the count of answers that name a tracked brand
 
@@ -278,18 +265,18 @@ beside the rewritten cell (`naming_answers`), which is right only while the API 
 
 ## What the web does until each item lands
 
-| Item | Card state until the backend lands                                                                                                                                                                 |
-| ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1    | Headline and trend compute AI Visibility from the outcome cells; no change in behaviour when the key lands                                                                                         |
-| 2, 3 | Position card says "not collected yet"; the mean and its average are hidden                                                                                                                        |
-| 4    | Sentiment and recommendation tiles and card say "not collected yet"                                                                                                                                |
-| 5    | Traffic card says GA4 is not connected                                                                                                                                                             |
-| 6    | Competitor drawer Sources tab says "not collected yet"                                                                                                                                             |
-| 7    | Platform select lists AI Overview as not available                                                                                                                                                 |
-| 8    | Groups show the most specific term of each prompt                                                                                                                                                  |
-| 9    | Calendar keeps the daily answer counts                                                                                                                                                             |
-| 10   | Delivered: the weekly cards read `include=series,entities`; they say "Not collected yet" only where a read carries no weekly brand cell, and "More than 20 tracked brands" at the cap (request 24) |
-| 11   | The three tiles have no line                                                                                                                                                                       |
-| 12   | The status line and the Runs tile tooltip carry no run number and no per-platform time                                                                                                             |
-| 13   | Share of voice is derived from the entity mention cells; where there are none it says "Not collected yet"                                                                                          |
-| 24   | Over 20 tracked brands there is no share of voice ("More than 20 tracked brands"); the Lost to competitor card keeps the old denominator                                                           |
+| Item | Card state until the backend lands |
+|---|---|
+| 1 | Headline and trend compute AI Visibility from the outcome cells; no change in behaviour when the key lands |
+| 2, 3 | Position card says "not collected yet"; the mean and its average are hidden |
+| 4 | Sentiment and recommendation tiles and card say "not collected yet" |
+| 5 | Traffic card says GA4 is not connected |
+| 6 | Competitor drawer Sources tab says "not collected yet" |
+| 7 | Platform select lists AI Overview as not available |
+| 8 | Groups show the most specific term of each prompt |
+| 9 | Calendar keeps the daily answer counts |
+| 10 | Share of voice over time and the competitor trend say "not collected yet" |
+| 11 | The three tiles have no line |
+| 12 | The status line and the Runs tile tooltip carry no run number and no per-platform time |
+| 13 | Share of voice is derived from the entity mention cells; where there are none it says "Not collected yet" |
+| 24 | Over 20 tracked brands there is no share of voice ("More than 20 tracked brands"); the Lost to competitor card keeps the old denominator |

@@ -64,6 +64,8 @@ export interface TrendPoint {
   thin: boolean;
   /** The weeks the point pools, only when it holds more than its own week. */
   pooledWeeks: number | null;
+  /** The first and last day the API's `pool` says the point covers; `null` unless the point is the `total`'s and pools. */
+  pooledRange: { from: string; to: string } | null;
   /** The window cuts the week: part of its days are outside it. */
   partial: boolean;
 }
@@ -106,6 +108,7 @@ interface Parts {
   n: number;
   prompts: number | null;
   pooledWeeks: number | null;
+  pooledRange: { from: string; to: string } | null;
 }
 
 const sum = (values: readonly number[]): number => values.reduce((total, value) => total + value, 0);
@@ -116,13 +119,17 @@ const isWhole = (value: number): boolean => Number.isInteger(value) && value >= 
 const isPartialWeek = (weekStart: string, range: TrendInput['range']): boolean =>
   weekStart < range.from || addDays(weekStart, 6) > range.to;
 
-const GAP: Parts = { value: null, k: null, n: 0, prompts: null, pooledWeeks: null };
+const GAP: Parts = { value: null, k: null, n: 0, prompts: null, pooledWeeks: null, pooledRange: null };
 
 /** The weeks a point pools, when that is more than its own week. */
 const poolOf = (week: WeekCells): number | null => {
   const weeks = week.is_pooled ? (week.pool?.weeks ?? 1) : 1;
   return weeks > 1 ? weeks : null;
 };
+
+/** The days those weeks cover, in the words of the API's `pool`; `null` when the point holds only its own week. */
+const rangeOf = (week: WeekCells): Parts['pooledRange'] =>
+  poolOf(week) === null || week.pool == null ? null : { from: week.pool.window.from, to: week.pool.window.to };
 
 /** A point from its parts: the interval and the thin state come from the counts and from nothing else. */
 function pointOf(weekStart: string, parts: Parts, metric: WeekMetric, range: TrendInput['range']): TrendPoint {
@@ -151,7 +158,7 @@ function promptsPart(cells: readonly { week: WeekCells; cell: MetricCell }[], me
   if (metric === 'share_of_voice') {
     // One mention one weight: the numerators are the own brand's mentions, the denominators every tracked brand's
     const k = sum(counts.map((count) => count.k));
-    return { value: k / n, k, n, prompts: null, pooledWeeks };
+    return { value: k / n, k, n, prompts: null, pooledWeeks, pooledRange: null };
   }
   if (counts.some((count) => !isWhole(count.k) || !isWhole(count.n) || count.k > count.n)) return GAP;
   return {
@@ -160,21 +167,30 @@ function promptsPart(cells: readonly { week: WeekCells; cell: MetricCell }[], me
     n,
     prompts: counts.filter((count) => count.n >= 1).length,
     pooledWeeks,
+    pooledRange: null,
   };
 }
 
 /** The point of a total row: its cell is prompt weighted, so its counts are in `pooled`. */
 function totalPart(week: WeekCells, cell: MetricCell, metric: WeekMetric): Parts {
   const pooledWeeks = poolOf(week);
+  const pooledRange = rangeOf(week);
   if (metric === 'share_of_voice') {
     return cell.denominator > 0
-      ? { value: cell.value, k: cell.numerator, n: cell.denominator, prompts: null, pooledWeeks }
+      ? { value: cell.value, k: cell.numerator, n: cell.denominator, prompts: null, pooledWeeks, pooledRange }
       : GAP;
   }
   const n = cell.pooled?.trials ?? cell.denominator;
   const k = cell.pooled?.successes ?? cell.numerator;
   if (!isWhole(n) || n === 0 || !isWhole(k) || k > n) return GAP;
-  return { value: cell.value, k, n, prompts: cell.pooled === null ? week.prompts : cell.denominator, pooledWeeks };
+  return {
+    value: cell.value,
+    k,
+    n,
+    prompts: cell.pooled === null ? week.prompts : cell.denominator,
+    pooledWeeks,
+    pooledRange,
+  };
 }
 
 const cellOf = (week: WeekCells, metric: WeekMetric): MetricCell =>
@@ -291,16 +307,25 @@ export interface TrendWords {
   rate: RateTipWords;
   /** "50%, 4 of 8 brand mentions". */
   share: (value: number, k: number, n: number) => string;
+  /** "4 weeks together (Oct 19 to Nov 9, 2026)": the weeks a pooled point holds, in the words of the API's `pool`. */
+  pooledRange: (weeks: number, from: string, to: string) => string;
   /** "partial week". */
   partial: string;
 }
 
 export function tipOf(point: TrendPoint, metric: WeekMetric, words: TrendWords): string {
-  const { value, k, n, prompts, band, thin, pooledWeeks } = point;
+  const { value, k, n, prompts, band, thin, pooledWeeks, pooledRange } = point;
   const pooled = pooledWeeks ?? undefined;
   const text =
     metric === 'share_of_voice' && !thin && value !== null && k !== null
-      ? [words.share(value, k, n), pooled === undefined ? null : words.rate.pooled(pooled)]
+      ? [
+          words.share(value, k, n),
+          pooled === undefined
+            ? null
+            : pooledRange === null
+              ? words.rate.pooled(pooled)
+              : words.pooledRange(pooled, pooledRange.from, pooledRange.to),
+        ]
           .filter((part): part is string => part !== null)
           .join(', ')
       : rateTipText({ value, k, n, prompts: prompts ?? undefined, band, thin, pooledWeeks: pooled }, words.rate);

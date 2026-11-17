@@ -49,6 +49,7 @@ const WORDS: RateTipWords = {
 const TREND_WORDS: TrendWords = {
   rate: WORDS,
   share: (value, k, n) => `${String(Math.round(value * 100))}%, ${String(k)} of ${String(n)} brand mentions`,
+  pooledRange: (weeks, from, to) => `${String(weeks)} weeks together (${from} to ${to})`,
   partial: 'partial week',
 };
 

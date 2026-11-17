@@ -146,7 +146,7 @@ function stackedAreaOption(
         const detail =
           row.detail === null
             ? ''
-            : `<div style="max-width:280px;margin:0 0 4px 16px;font-size:12px;line-height:16px;color:${escapeHtml(tokens.foregroundSecondary)}">${escapeHtml(row.detail)}</div>`;
+            : `<div style="max-width:380px;margin:0 0 4px 16px;font-size:12px;line-height:16px;color:${escapeHtml(tokens.foregroundSecondary)}">${escapeHtml(row.detail)}</div>`;
         return [`${tipRowHtml(entry.color ?? tokens.other, name, row.text, tokens)}${detail}`];
       });
     return `${tipTitleHtml(tip.title)}${rows.join('')}<div style="margin-top:4px;color:${escapeHtml(tokens.foregroundSecondary)}">${escapeHtml(tip.footer)}</div>`;
@@ -155,7 +155,9 @@ function stackedAreaOption(
   return {
     ...base,
     yAxis: { ...record(base.yAxis), min: 0, max: 1, interval: 0.25 },
-    tooltip: { ...record(base.tooltip), formatter },
+    // Six brands with the counts of each platform are taller than the 240 px chart: the tooltip hangs on the page (still kept
+    // inside the window by `confine`), not in the chart
+    tooltip: { ...record(base.tooltip), formatter, appendToBody: true },
     series: [...layers, ...(boundary === null ? [] : [boundary])],
   };
 }
@@ -293,14 +295,12 @@ export default function SovOverTimeCard({ item, live }: CardProps): ReactElement
   const cellText = useCallback(
     (seriesId: string, index: number): string | null => {
       const point = points[index];
-      if (point === undefined) return null;
-      // A week with no tracked-brand mention at all is n/a, not 0; one with 1 to 3 says how few
-      if (point.state === 'none') return t('cellNone');
-      if (point.state !== 'ok') return tooFew(point.answers);
+      // Only a week with a share has words here: the Table view and the CSV leave the cell of a week without one to the
+      // frame (no value), and the tooltip says why (`n/a` for no brand mention at all, how few for 1 to 3)
       const value = series.find((entry) => entry.id === seriesId)?.values[index];
-      return typeof value === 'number' ? valueText(point, seriesId, value) : null;
+      return point === undefined || typeof value !== 'number' ? null : valueText(point, seriesId, value);
     },
-    [points, series, tooFew, valueText, t],
+    [points, series, valueText],
   );
 
   const summaryText = useMemo((): string => {
@@ -359,7 +359,7 @@ export default function SovOverTimeCard({ item, live }: CardProps): ReactElement
           const counts = entry.id === OTHER_ID ? point.otherCounts : (share?.counts ?? null);
           const mentions = entry.id === OTHER_ID ? point.otherNumerator : (share?.numerator ?? null);
           // A week with no tracked-brand mention is n/a, and an average has no count of its own: each platform's are listed
-          const counted = point.state !== 'none' && !average;
+          const counted = point.state !== 'none' && counts === null;
           return [
             point.weekStart,
             entry.name,

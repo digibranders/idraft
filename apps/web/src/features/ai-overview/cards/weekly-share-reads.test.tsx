@@ -14,6 +14,8 @@ import { stubViewport } from '@/test/customize-harness';
 import { server } from '@/test/msw';
 import {
   entityRows,
+  POOLED_WEEKS,
+  readExport,
   renderCard,
   serveEntities,
   tooltipText,
@@ -142,6 +144,25 @@ describe('the rate trend with the metric Share of voice', () => {
     );
   });
 
+  it('says which weeks a pooled point holds, in the words of the API pool, in the tooltip and the export', async () => {
+    serveRecording(weeklySummary({ weeks: POOLED_WEEKS }));
+    const { user } = renderCard(
+      'ai.rate_trend_by_engine',
+      RateTrendCard,
+      {},
+      { searchParams: 'cmp=off&metric=sov&engine=chatgpt_web' },
+    );
+    await screen.findByTestId('echart-canvas');
+    // The week of Nov 2 is the fourth point (the leading week of Oct 12 has no answer but is on the axis)
+    expect(tooltipText(3)).toContain('31.8%, 84 of 264 brand mentions, 4 weeks together (Oct 19 to Nov 9, 2026)');
+    expect(tooltipText(4)).not.toContain('together');
+    const [block] = await readExport(user);
+    expect(block?.header).toContain('weeks_held');
+    expect(block?.rows).toContainEqual(
+      expect.arrayContaining(['2026-11-02', 'ChatGPT', 31.8, 84, 264, '2026-10-19 to 2026-11-09']),
+    );
+  });
+
   it('says More than 20 tracked brands, with no line, when the weekly cells stop at 20 of a longer set', async () => {
     const names = Array.from({ length: 21 }, (_, index) => (index === 0 ? 'Fynix' : `Rival ${String(index)}`));
     const summary = weeklySummary({ names });
@@ -163,7 +184,7 @@ describe('the rate trend with the metric Share of voice', () => {
     const summary = weeklySummary();
     const total = summary.total;
     if (total === undefined || total === null) throw new Error('The fixture has no total');
-    const bare = ({ entities: _entities, ...rest }: WeekCells): WeekCells => rest;
+    const bare = (week: WeekCells): WeekCells => ({ ...week, entities: [] });
     const engines = total.engines.map((entry) => ({ ...entry, series: entry.series?.map(bare) ?? [] }));
     serveRecording({ ...summary, total: { ...total, engines } });
     renderCard('ai.rate_trend_by_engine', RateTrendCard, {}, { searchParams: 'cmp=off&metric=sov' });
