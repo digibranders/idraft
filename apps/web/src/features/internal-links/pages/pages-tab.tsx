@@ -304,6 +304,7 @@ export function PagesTab({ context }: { context: LinksTabContext }): ReactElemen
         searchPlaceholder={t('pages.search')}
         rowName={(row) => row.path}
         onRowOpen={openRow}
+        onRowOrderChange={context.inspect.setOrder}
         activeRowId={context.inspect.urlId}
         selection={
           canWrite

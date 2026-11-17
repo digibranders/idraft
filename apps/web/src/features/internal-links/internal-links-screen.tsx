@@ -16,6 +16,7 @@ import {
   NoWebsite,
   SkeletonRows,
 } from './crawl-states';
+import { PageInspector, PageNotFoundInspector } from './inspector/page-inspector';
 import { UNTIERED_QUERY } from './pages/page-filters';
 import { SummaryStrip } from './summary-strip';
 import { activeLinksTab, LINKS_TABS, type LinksTabContext } from './tabs';
@@ -104,6 +105,10 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
   const domainsHref = projectPath(workspaceSlug, project.slug, '/settings/domains');
   const inspector = useInspector();
   const inspected = inspectedPage(inspector.target);
+  // The rows the open tab shows, in order: the inspector's "12 of 986" and its J and K step through them
+  const [order, setOrder] = useState<readonly string[]>([]);
+  const canWrite = useCan('projects:write');
+  const at = inspector.position(order);
   const [exportRun, setExportRun] = useState<(() => Promise<void>) | null>(null);
   const registerExport = useCallback((run: (() => Promise<void>) | null) => setExportRun(() => run), []);
   // One download at a time: a second press while the file is being made would start the same file again
@@ -157,7 +162,7 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
     setSearch,
     tiers: tiers.data?.data ?? [],
     // A page the address names that is no url id is a page that does not exist: the tab shows not found for `invalid`
-    inspect: { open: (urlId) => inspector.open({ type: 'page', id: urlId }), ...inspected },
+    inspect: { open: (urlId) => inspector.open({ type: 'page', id: urlId }), setOrder, ...inspected },
     openJourney: (urlId) =>
       setSearch({ tab: 'journey', focus: urlId, open: null, grp: null, more: null, topen: null }, { history: 'push' }),
     registerExport,
@@ -262,8 +267,35 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
       actions={actions}
     />
   );
+  let inspectorHost: ReactElement | null = null;
+  if (inspector.target?.type === 'page' && ready) {
+    inspectorHost =
+      inspected.urlId === null ? (
+        <PageNotFoundInspector key={inspector.target.id} onClose={inspector.close} />
+      ) : (
+        <PageInspector
+          key={inspected.urlId}
+          context={context}
+          urlId={inspected.urlId}
+          canWrite={canWrite}
+          positionText={at === null ? null : t('inspector.position', { index: at.index + 1, count: at.count })}
+          navigation={
+            at === null
+              ? null
+              : {
+                  onPrevious: () => inspector.step('previous', order),
+                  onNext: () => inspector.step('next', order),
+                  atFirst: at.index === 0,
+                  atLast: at.index === at.count - 1,
+                }
+          }
+          onStep={(direction) => inspector.step(direction, order)}
+          onClose={inspector.close}
+        />
+      );
+  }
   return (
-    <InspectorLayout inspector={null}>
+    <InspectorLayout inspector={inspectorHost}>
       <div className={PAGE_CLASS}>
         {ready ? (
           <Tabs
