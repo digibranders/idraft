@@ -14,7 +14,8 @@ const NS = 'http://www.w3.org/2000/svg';
 
 const clamp = (value, low, high) => Math.min(high, Math.max(low, value));
 const reduced = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
-const ease = (t) => 1 - (1 - t) ** 3;
+// Ease in and out, so a move starts gently and the eye can follow it (an ease-out starts with its biggest step)
+const ease = (t) => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2);
 
 /**
  * @param {{host: HTMLElement, content: HTMLElement, canPan: (event: PointerEvent) => boolean, onView?: (view: {x: number, y: number, k: number}) => void}} options
@@ -62,7 +63,8 @@ export function createViewport({ host, content, canPan, onView }) {
     const from = { x: v.x, y: v.y, k: v.k };
     const start = performance.now();
     const tick = (now) => {
-      const t = Math.min(1, (now - start) / ms);
+      // The frame's timestamp can be a hair before `start`, which would otherwise run the move backwards for a frame
+      const t = clamp((now - start) / ms, 0, 1);
       const e = ease(t);
       v.x = from.x + (to.x - from.x) * e;
       v.y = from.y + (to.y - from.y) * e;

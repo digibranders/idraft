@@ -290,7 +290,7 @@ The canvas and the tree list share one state: focus page, link scope and opened 
   - **View controls** (bottom left, a toolbar named "Canvas view"): zoom out, the percentage (activating it returns to 100%), zoom in, Fit everything, Centre on the focus page, Reset card positions, Legend and controls (the gestures and keys, and what the line styles and box styles mean). There is no permanent legend row under the canvas: it took too much height.
   - **Minimap** (bottom right, hidden below 640 px): every card and the part in view; press or drag on it to move the view.
   - **First view:** the whole journey when it is readable at 70% or more; otherwise the focus page at 85%, so the first thing seen is never a blur. The last view of a journey is restored when the page re-renders, for example after a tier change.
-  - **Growing never loses the place:** after a card opens, the view pans the least it takes to show the card and its new children.
+  - **Growing never loses the place** (decided 2026-11-17, after the layout jumped on every click): when a card opens or closes, the card the user pressed stays exactly where it is on screen, every other card glides from its old place to its new one (300 ms, ease in and out), new cards fade in, the lines follow frame by frame, and the view pans the least it takes to show the card and its new children, all as one movement. Nothing teleports. Under reduced motion all of it is instant.
   - **Dot grid** behind the cards moves and scales with the view, so panning always reads as movement.
   - Moves animate over 150 to 320 ms and are instant under reduced motion.
 - **Selecting and moving:**

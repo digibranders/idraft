@@ -1,4 +1,4 @@
-/* global CSS, ResizeObserver, document, window, requestAnimationFrame, setTimeout */
+/* global CSS, ResizeObserver, document, window, requestAnimationFrame, setTimeout, performance */
 /**
  * Internal links, Journey tab (spec 7.5): the link journey as a canvas of cards, as a tree list and as a path finder. All share
  * state.journey. Which cards and rows exist is decided in il-journey-layout.js; this file draws them.
@@ -489,13 +489,6 @@ function buildCanvas() {
     const b = nodeBox(node);
     viewport.animate(viewport.centreTarget((b.l + b.r) / 2, (b.t + b.b) / 2, k), 320);
   }
-  function revealFamily(key) {
-    const node = keyed(inner, key);
-    if (!node) return;
-    const kids = [...inner.querySelectorAll(`button.node[data-parent="${CSS.escape(key)}"]`)];
-    bringIntoView([nodeBox(node), ...kids.map(nodeBox)], 240);
-  }
-
   // ---- View controls
   const fitView = () => viewport.animate(viewport.fitTarget(ctx.bounds, { pad: 56, maxK: 1 }), 320);
   const centreOnFocus = () => {
@@ -712,9 +705,73 @@ function buildCanvas() {
     return changed;
   }
 
+  // World position of every card, by key
+  function snapshot() {
+    const map = new Map();
+    inner.querySelectorAll('button.node').forEach((node) => map.set(node.dataset.key, nodeBox(node)));
+    return map;
+  }
+
+  /** Redraws the lines on every frame for `ms`, so they follow cards that are gliding to their new places. */
+  function followEdges(ms) {
+    const end = performance.now() + ms;
+    const tick = () => {
+      if (!live(inner)) return;
+      drawEdges();
+      if (performance.now() < end) requestAnimationFrame(tick);
+      else refreshBoxes();
+    };
+    drawEdges();
+    requestAnimationFrame(tick);
+  }
+
+  /**
+   * After the cards are rebuilt: keep the card the user pressed exactly where it was on screen, let every other card glide
+   * from its old place to its new one, fade the new cards in, and pan only as far as it takes to show the new links.
+   * (Rebuilding moves things: a new column on the left pushes everything right, and children land between siblings.)
+   */
+  function settle(before, anchorKey) {
+    const after = snapshot();
+    const k = viewport.v.k;
+    let ax = 0;
+    let ay = 0;
+    const from = anchorKey ? before.get(anchorKey) : null;
+    const to = anchorKey ? after.get(anchorKey) : null;
+    if (from && to) {
+      ax = to.l - from.l;
+      ay = to.t - from.t;
+      if (ax !== 0 || ay !== 0) viewport.set(viewport.v.x - ax * k, viewport.v.y - ay * k);
+    }
+    const calm = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    if (!calm) {
+      inner.querySelectorAll('button.node').forEach((node) => {
+        const key = node.dataset.key;
+        const target = movable(node);
+        const was = before.get(key);
+        const now = after.get(key);
+        if (!was) {
+          target.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 240, delay: 80, easing: 'ease-out', fill: 'backwards' });
+          return;
+        }
+        const dx = was.l - now.l + ax;
+        const dy = was.t - now.t + ay;
+        if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return;
+        target.animate([{ translate: `${dx}px ${dy}px` }, { translate: '0px 0px' }], { duration: 300, easing: 'cubic-bezier(0.65, 0, 0.35, 1)' });
+      });
+    }
+    followEdges(calm ? 0 : 340);
+    if (anchorKey && after.has(anchorKey)) {
+      const kids = [...inner.querySelectorAll(`button.node[data-parent="${CSS.escape(anchorKey)}"]`)].map((node) => after.get(node.dataset.key));
+      bringIntoView([after.get(anchorKey), ...kids].filter(Boolean), 300);
+    }
+  }
+
   function rebuild(refocusKey) {
     hideTip();
     hoverKey = null;
+    // Finish any glide still running, so the "before" positions are the settled ones
+    inner.getAnimations?.({ subtree: true }).forEach((animation) => animation.finish());
+    const before = inner.querySelector('button.node') ? snapshot() : null;
     ctx.loops = new Map();
     ctx.items = new Map();
     let graph = buildJourney({ focus: j().focus, cards: j().cards, opened: j().opened, more: j().more, groups: j().groups });
@@ -763,12 +820,14 @@ function buildCanvas() {
     paintSelection();
     renderBar();
     syncControls();
-    requestAnimationFrame(() => {
-      if (!live(inner)) return;
-      refreshBoxes();
-      drawEdges();
-      if (refocusKey) revealFamily(refocusKey);
-    });
+    if (before && live(inner)) settle(before, refocusKey);
+    else {
+      requestAnimationFrame(() => {
+        if (!live(inner)) return;
+        refreshBoxes();
+        drawEdges();
+      });
+    }
     if (refocusKey) keyed(inner, refocusKey)?.focus({ preventScroll: true });
   }
 
