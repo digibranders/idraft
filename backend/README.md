@@ -103,6 +103,8 @@ The worker calls DataForSEO only when `DATAFORSEO_LOGIN` and `DATAFORSEO_PASSWOR
 
 `RESOLVE_UNKNOWN_SUBMISSIONS` stays off until spike S-01 confirms that DataForSEO's `id_list` returns our tags. With it off, a submission whose answer was lost ends after 72 hours and is charged its estimate; with it on, it is looked for once it is 15 minutes old, within one reconciler pass (5 minutes) of that.
 
+`CRAWLS_ENABLED` (default `false`) switches on site crawls for the internal link tracker: the `crawl` tick, which posts queued crawls (DataForSEO charges On-Page when a task is posted, by the page ceiling), starts the weekly crawls of projects with a website and reads finished ones, and the `crawl_ingest` job. With it off the worker registers neither, so no crawl is queued, posted or read, whatever the credentials. Turn it on only once the adapter's payloads are checked against the real API and the cost estimate against the invoice. Ingest itself never posts and never spends.
+
 No test calls the real API: the adapter's tests answer from synthetic fixtures in `tests/fixtures/dataforseo/`, which the spikes replace with captured answers.
 
 ### Locations

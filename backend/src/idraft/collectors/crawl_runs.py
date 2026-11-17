@@ -18,10 +18,11 @@ Every statement names the workspace or the run: the worker bypasses row-level se
 
 from __future__ import annotations
 
+import time
 from collections.abc import Awaitable, Callable, Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Any, Final, Literal
 from uuid import UUID
@@ -56,6 +57,16 @@ KEEP_RUNS: Final = 4
 FEW_PAGES: Final = 3
 INGEST_JOB: Final = "crawl_ingest"
 QUEUE_ATTEMPTS: Final = 3
+# A post begun this recently may still be in flight in another tick (a tick that outlived its
+# lock): it is left alone. A crawl marked sent for longer has an outcome that was never written.
+POST_GRACE: Final = timedelta(minutes=10)
+# A tick takes no new post after this many seconds, well inside its lock, so that two ticks
+# rarely overlap at all.
+POST_BUDGET: Final = 30.0
+# A crawl that waited this long to be sent (the crawls were switched off, or the provider was
+# out) is cancelled, not sent late: a pile of them must not all be paid for on the day crawls
+# come back.
+QUEUED_MAX_AGE: Final = timedelta(days=3)
 _BLOCKED: Final = frozenset({"forbidden_robots", "forbidden_meta_tag", "forbidden_http_header"})
 _UNREACHABLE: Final = frozenset(
     {"site_unreachable", "invalid_page_status_code", "too_many_redirects"}
@@ -68,6 +79,8 @@ _MESSAGES: Final = {
     "site_blocked": "The site refuses the crawler (robots.txt, a meta tag or a header).",
     "site_unreachable": "The site could not be reached.",
     "no_estimate": "The crawl has no cost estimate.",
+    "site_gone": "The project or its website changed before the crawl was sent.",
+    "too_old": "The crawl waited too long to be sent.",
 }
 Trigger = Literal["website_added", "schedule", "manual", "ceiling_retry"]
 K = ProviderErrorKind
@@ -364,7 +377,8 @@ async def _queue_scheduled(sessions: async_sessionmaker[AsyncSession], now: date
 
 
 # "lost": another tick or a person moved the crawl while its post was in flight.
-PostOutcome = Literal["posted", "failed", "cancelled", "waiting", "lost", "none"]
+# "inflight": a post begun a moment ago, in another tick, so it is skipped.
+PostOutcome = Literal["posted", "failed", "cancelled", "waiting", "lost", "inflight", "none"]
 
 
 async def _post_one(
@@ -392,6 +406,10 @@ async def _post_one(
             await _finish(db, run, "cancelled", now=now)
             return "cancelled"
         if run.submitted_at is not None:
+            if run.submitted_at >= now - POST_GRACE:
+                # Begun a moment ago, so it is probably in flight in another tick; if it is
+                # not, it is failed once it is older than the grace.
+                return "inflight"
             # A post was begun and its outcome never written: it may have been charged.
             await _finish(
                 db,
@@ -402,6 +420,9 @@ async def _post_one(
                 message=_MESSAGES["submit_unknown"],
             )
             return "failed"
+        if not await _site_is_live(db, run):
+            await _finish(db, run, "cancelled", now=now, message=_MESSAGES["site_gone"])
+            return "cancelled"
         if run.estimated_cost_usd is None:
             # Without an estimate the budget cannot be judged: stop, never skip it.
             await _finish(
@@ -434,8 +455,61 @@ async def _post_one(
         await db.execute(
             update(crawl_runs)
             .where(crawl_runs.c.workspace_id == run.workspace_id, crawl_runs.c.id == run.id)
-            .values(submitted_at=now)
+            # The database's clock, as every tick reads `submitted_at` against it: a tick
+            # running on a clock that is off must not make a begun post look old.
+            .values(submitted_at=func.now())
         )
+    recorded: dict[str, str] = {}
+    try:
+        return await _send(sessions, on_page, run, now, recorded)
+    except Exception as failure:
+        # A post paid for and not recorded is found again only by its task id: keep it.
+        _log.error(
+            "crawl post failed",
+            run_id=str(run.id),
+            task_id=recorded.get("task_id"),
+            error=type(failure).__name__,
+        )
+        raise
+
+
+async def _site_is_live(db: AsyncSession, run: Row[Any]) -> bool:
+    """The crawl's project is active and not deleted, its workspace is active, and the project's
+    website is still the host the crawl was queued for."""
+    site = (
+        await db.execute(
+            select(
+                projects.c.status,
+                projects.c.deleted_at,
+                workspaces.c.status.label("workspace_status"),
+                domains.c.host,
+            )
+            .select_from(
+                projects.join(workspaces, workspaces.c.id == projects.c.workspace_id).outerjoin(
+                    domains, domains.c.id == projects.c.primary_domain_id
+                )
+            )
+            .where(projects.c.workspace_id == run.workspace_id, projects.c.id == run.project_id)
+        )
+    ).one_or_none()
+    return (
+        site is not None
+        and site.deleted_at is None
+        and site.status == "active"
+        and site.workspace_status == "active"
+        and site.host == run.target_host
+    )
+
+
+async def _send(
+    sessions: async_sessionmaker[AsyncSession],
+    on_page: OnPageApi,
+    run: Row[Any],
+    now: datetime,
+    recorded: dict[str, str],
+) -> PostOutcome:
+    """Send the crawl `_post_one` chose and record what came of it. `recorded` gets the task id
+    as soon as the provider has given one."""
     order = CrawlOrder(
         host=run.target_host,
         max_crawl_pages=run.ceiling,
@@ -468,6 +542,7 @@ async def _post_one(
                 message=_MESSAGES["submit_unknown"] if unknown else failure.error.message,
             )
         return "failed" if ended else "lost"
+    recorded["task_id"] = posted.task_id
     cost = posted.cost_usd if posted.cost_usd is not None else run.estimated_cost_usd
     async with sessions() as db, db.begin():
         moved: UUID | None = (
@@ -667,6 +742,24 @@ async def _retire(sessions: async_sessionmaker[AsyncSession], now: datetime) -> 
     return dropped
 
 
+async def _expire_queued(sessions: async_sessionmaker[AsyncSession], now: datetime) -> int:
+    """Cancel crawls that have been queued longer than `QUEUED_MAX_AGE` and were never begun."""
+    async with sessions() as db, db.begin():
+        ended = (
+            await db.execute(
+                update(crawl_runs)
+                .where(
+                    crawl_runs.c.state == "queued",
+                    crawl_runs.c.submitted_at.is_(None),
+                    crawl_runs.c.created_at < now - QUEUED_MAX_AGE,
+                )
+                .values(state="cancelled", error_message=_MESSAGES["too_old"], finished_at=now)
+                .returning(crawl_runs.c.id)
+            )
+        ).all()
+    return len(ended)
+
+
 async def crawl_tick(
     sessions: async_sessionmaker[AsyncSession],
     on_page: OnPageApi | None,
@@ -679,25 +772,34 @@ async def crawl_tick(
     counts: dict[str, int] = dict.fromkeys(
         ("posted", "failed", "progressed", "finished", "cancelled", "ingest_sent", "flows"), 0
     )
+    started = time.monotonic()
+    counts["cancelled"] += await _expire_queued(sessions, now)
     queued = await _queue_scheduled(sessions, now)
     if on_page is not None:
         seen: set[UUID] = set()
         for _ in range(TICK_LIMIT):
-            chosen = len(seen)
+            if time.monotonic() - started >= POST_BUDGET:
+                break
+            before = set(seen)
             try:
                 outcome = await _post_one(sessions, on_page, now, seen)
             except Exception as failure:
-                # If its post began, the crawl is marked sent and ends `submit_unknown` on the
-                # next tick; if not, nothing was sent. Either way it is passed over for the
-                # rest of this tick. A failure before any crawl was chosen (the database is
-                # away) would repeat, so the posts stop.
-                _log.error("crawl post failed", error=type(failure).__name__)
-                if len(seen) == chosen:
+                # If its post began, the crawl is marked sent and is failed `submit_unknown` by
+                # a tick that finds it older than the grace; if not, nothing was sent. Either
+                # way it is passed over for the rest of this tick. A failure before any crawl
+                # was chosen (the database is away) would repeat, so the posts stop.
+                chosen = seen - before
+                _log.error(
+                    "crawl post failed",
+                    error=type(failure).__name__,
+                    run_id=None if not chosen else str(next(iter(chosen))),
+                )
+                if not chosen:
                     break
                 continue
             if outcome in ("none", "waiting"):
                 break
-            if outcome != "lost":
+            if outcome not in ("lost", "inflight"):
                 counts[outcome] += 1
         for run in await _rows(sessions, crawl_runs.c.state == "crawling"):
             with _isolated("progress", run.id):

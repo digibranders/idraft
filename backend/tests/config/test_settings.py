@@ -97,9 +97,14 @@ def test_the_worker_reads_its_provider_and_bucket(monkeypatch: pytest.MonkeyPatc
     bare = Settings()
     assert (bare.dataforseo_credentials, bare.raw_storage_configured) == (None, False)
     assert (bare.r2_raw_bucket, bare.resolve_unknown_submissions) == ("seo-raw", False)
+    # Site crawls spend money when posted: off unless asked for, even with credentials.
+    assert bare.crawls_enabled is False
 
     _set(monkeypatch, {**BASE_ENV, **PROVIDERS_ENV, "RESOLVE_UNKNOWN_SUBMISSIONS": "true"})
     settings = Settings()
+    assert settings.crawls_enabled is False
+    _set(monkeypatch, {**BASE_ENV, **PROVIDERS_ENV, "CRAWLS_ENABLED": "true"})
+    assert Settings().crawls_enabled is True
 
     assert settings.dataforseo_credentials == ("api@example.com", "dfs-secret")
     assert settings.raw_storage_configured

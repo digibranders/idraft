@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import uuid
 from collections.abc import AsyncIterator
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
@@ -9,9 +10,11 @@ from decimal import Decimal
 
 import httpx
 import pytest
-from pydantic import SecretStr
+from pydantic import BaseModel, SecretStr
 from redis.asyncio import Redis
 
+from idraft.collectors.crawl_ingest import IngestOutcome
+from idraft.collectors.crawl_runs import INGEST_JOB, CrawlIngestTask, queue_run
 from idraft.collectors.fetching import FETCH_JOB, FetchTask
 from idraft.collectors.provider_accounts import (
     balance_key,
@@ -37,6 +40,7 @@ from idraft.worker.queues import Queues
 from idraft.worker.ticks import Tick
 from tests.api.auth.support import execute, fetch
 from tests.collectors import gsc_support
+from tests.collectors.crawl_support import FakeOnPage, clear_crawls, site_project
 from tests.collectors.support import (
     FakeProvider,
     FakeWorkload,
@@ -463,3 +467,123 @@ async def test_a_property_goes_from_the_tick_through_the_queue_to_stored_numbers
 async def _pulled(pg: PostgresServer, integration_id: object) -> bool:
     state = (await gsc_support.integration_row(pg, integration_id))["backfill_state"]  # type: ignore[arg-type]
     return bool(state.get("gsc", {}).get("complete"))
+
+
+def _with_credentials(
+    context: WorkerContext, http: httpx.AsyncClient, **changes: object
+) -> WorkerContext:
+    settings = context.settings.model_copy(
+        update={
+            "dataforseo_login": SecretStr("owner@example.com"),
+            "dataforseo_password": SecretStr("password"),
+            "installation_id": "test",
+            **changes,
+        }
+    )
+    return replace(context, settings=settings, http=http)
+
+
+class _WrongMessage(BaseModel):
+    """Not the ingest job's message."""
+
+
+async def _ingest_job_is_registered(context: WorkerContext) -> bool:
+    """A message of the wrong type is a `TypeError` where the job is registered and a `KeyError`
+    where it is not; nothing is sent either way."""
+    try:
+        await context.queues.enqueue(INGEST_JOB, _WrongMessage(), dedupe_key="probe")
+    except KeyError:
+        return False
+    except TypeError:
+        return True
+    raise AssertionError("a message of the wrong type was sent")
+
+
+async def test_site_crawls_are_off_by_default_even_with_credentials(
+    context: WorkerContext,
+) -> None:
+    asked: list[httpx.Request] = []
+
+    def nothing_may_be_asked(request: httpx.Request) -> httpx.Response:
+        asked.append(request)
+        return httpx.Response(500)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(nothing_may_be_asked)) as http:
+        configured = _with_credentials(context, http)
+        ticks = {tick.name for tick in assemble(configured)}
+
+    assert "crawl" not in ticks
+    assert not await _ingest_job_is_registered(configured)
+    assert asked == []
+
+
+async def test_the_crawl_tick_runs_every_minute_and_without_credentials_posts_nothing(
+    context: WorkerContext, migrated: PostgresServer
+) -> None:
+    await clear_crawls(migrated)
+    workspace, project = await site_project(migrated)
+    async with context.sessions() as db, db.begin():
+        run_id = await queue_run(
+            db,
+            workspace_id=workspace.id,
+            project_id=project,
+            trigger="manual",
+            requested_by=None,
+            now=datetime.now(UTC),
+        )
+    enabled = replace(
+        context, settings=context.settings.model_copy(update={"crawls_enabled": True})
+    )
+    ticks = {tick.name: tick for tick in assemble(enabled)}
+
+    assert (ticks["crawl"].interval, ticks["crawl"].lock_ttl) == (
+        timedelta(seconds=60),
+        timedelta(seconds=55),
+    )
+    await ticks["crawl"].action()
+
+    run = (
+        await fetch(
+            migrated, "SELECT state, submitted_at FROM seo.crawl_runs WHERE id = $1", run_id
+        )
+    )[0]
+    assert (run["state"], run["submitted_at"]) == ("queued", None)
+    # With nothing to post, nothing is read either: no ingest job.
+    assert not await _ingest_job_is_registered(enabled)
+    await clear_crawls(migrated)
+
+
+async def test_a_worker_reads_one_crawl_at_a_time(
+    context: WorkerContext, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    running = 0
+    peak = 0
+
+    async def ingest(*_: object, **__: object) -> IngestOutcome:
+        nonlocal running, peak
+        running += 1
+        peak = max(peak, running)
+        await asyncio.sleep(0.05)
+        running -= 1
+        return IngestOutcome(phase=None, steps=0)
+
+    monkeypatch.setattr(assembly, "ingest_run", ingest)
+    handler = assembly.ingest_handler(context, FakeOnPage())
+    tasks = [CrawlIngestTask(workspace_id=uuid.uuid4(), run_id=uuid.uuid4()) for _ in range(3)]
+
+    await asyncio.gather(*(handler(task) for task in tasks))
+
+    assert peak == 1
+
+
+async def test_the_ingest_job_is_registered_with_the_tick_where_credentials_exist(
+    context: WorkerContext,
+) -> None:
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda _: httpx.Response(500))
+    ) as http:
+        configured = _with_credentials(context, http, crawls_enabled=True)
+        ticks = {tick.name: tick for tick in assemble(configured)}
+
+    assert ticks["crawl"].lock_ttl == timedelta(seconds=55)
+    assert await _ingest_job_is_registered(configured)

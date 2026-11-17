@@ -3,9 +3,12 @@ needs (a website on example.com)."""
 
 from __future__ import annotations
 
+import json
 import uuid
 from dataclasses import dataclass, field
 from decimal import Decimal
+
+import httpx
 
 from idraft.providers.contract import ProviderCallError, ProviderError
 from idraft.providers.dataforseo.on_page import (
@@ -22,6 +25,7 @@ from tests.api.auth.support import Workspace, execute, make_workspace
 from tests.api.internal_links.support import set_website
 from tests.api.keywords.support import keyword_project
 from tests.conftest import PostgresServer
+from tests.providers.dataforseo.support import Api, as_json, envelope, task_answer
 
 
 def summary(
@@ -56,6 +60,9 @@ class FakeOnPage:
     )
     post_error: ProviderError | None = None
     html_error: ProviderError | None = None
+    # By page URL: one page's raw HTML or links that fail while the others are fine.
+    html_errors: dict[str, ProviderError] = field(default_factory=dict)
+    links_errors: dict[str, ProviderError] = field(default_factory=dict)
     cost: Decimal | None = Decimal("0.3")
     batch: int = 2
     posted: list[CrawlOrder] = field(default_factory=list)
@@ -89,12 +96,16 @@ class FakeOnPage:
 
     async def links_from(self, task_id: str, page_url: str) -> list[LinkItem]:
         self.calls.append(f"links {page_url}")
+        if page_url in self.links_errors:
+            raise ProviderCallError(self.links_errors[page_url])
         return self.links.get(page_url, [])
 
     async def raw_html(self, task_id: str, url: str) -> str | None:
         self.calls.append(f"html {url}")
         if self.html_error is not None:
             raise ProviderCallError(self.html_error)
+        if url in self.html_errors:
+            raise ProviderCallError(self.html_errors[url])
         return self.html.get(url)
 
     async def force_stop(self, task_id: str) -> None:
@@ -115,3 +126,172 @@ async def site_project(pg: PostgresServer) -> tuple[Workspace, uuid.UUID]:
     project = await keyword_project(pg, workspace)
     await set_website(pg, project)
     return workspace, project
+
+
+SITE = "https://example.com"
+_NAV = (
+    '<header><nav><a href="/">Home</a><a href="/pricing">Pricing</a>'
+    '<a href="/blog">Blog</a></nav></header>'
+)
+_FOOTER = '<footer><a href="/privacy">Privacy</a></footer>'
+
+
+def page_html(
+    main: str, *, article: bool = False, prev: str | None = None, next_: str | None = None
+) -> str:
+    """A page of the synthetic site: menu, main content, previous and next as on
+    cleanstart.com (a section labelled "Article navigation" outside the article), footer."""
+    body = f"<article>{main}</article>" if article else main
+    steps = [
+        f'<a rel="{rel}" href="{href}">{label}: {href}</a>'
+        for rel, label, href in (("prev", "Previous", prev), ("next", "Next", next_))
+        if href is not None
+    ]
+    joined = "".join(steps)
+    section = f'<section aria-label="Article navigation">{joined}</section>' if steps else ""
+    return f"<html><body>{_NAV}<main>{body}{section}</main>{_FOOTER}</body></html>"
+
+
+def page_item(
+    path: str, status: int = 200, *, location: str | None = None, sitemap: bool = False
+) -> PageItem:
+    return PageItem(
+        url=f"{SITE}{path}",
+        status_code=status,
+        resource_type="redirect" if location else ("broken" if status >= 400 else "html"),
+        location=location,
+        title=path,
+        canonical=None,
+        from_sitemap=sitemap,
+    )
+
+
+def synthetic_site() -> FakeOnPage:
+    """Eleven pages. `/blog/d` is reached only through "Next" (deep only through previous and
+    next, and an editorial orphan); `/orphan` is in the sitemap and linked from nowhere, and
+    its HTML is missing (placement unknown); `/old` redirects to `/pricing`; `/gone` is 404."""
+    html = {
+        f"{SITE}/": page_html('<p><a href="/blog/a">Read our guide</a></p>'),
+        # Another container than the home page's paragraph: two pages of four sharing one
+        # block of one changing link would be a template block to plan 01's pass.
+        f"{SITE}/pricing": page_html('<div class="intro"><a href="/blog/c">How it works</a></div>'),
+        f"{SITE}/blog": page_html(
+            '<ul><li><a href="/blog/a">A</a></li><li><a href="/blog/b">B</a></li></ul>'
+        ),
+        f"{SITE}/blog/a": page_html(
+            '<p><a href="/pricing">See plans</a></p>', article=True, next_="/blog/b"
+        ),
+        f"{SITE}/blog/b": page_html(
+            "<p>No links here.</p>", article=True, prev="/blog/a", next_="/blog/c"
+        ),
+        f"{SITE}/blog/c": page_html(
+            '<p><a href="/old">Old page</a> and <a href="/gone">a gone page</a></p>',
+            article=True,
+            prev="/blog/b",
+            next_="/blog/d",
+        ),
+        f"{SITE}/blog/d": page_html("<p>The end.</p>", article=True, prev="/blog/c"),
+        f"{SITE}/privacy": page_html("<p>Privacy.</p>"),
+    }
+    pages = [
+        page_item("/", sitemap=True),
+        page_item("/pricing", sitemap=True),
+        page_item("/blog"),
+        page_item("/blog/a"),
+        page_item("/blog/b"),
+        page_item("/blog/c"),
+        page_item("/blog/d"),
+        page_item("/privacy"),
+        page_item("/orphan", sitemap=True),
+        page_item("/old", 301, location=f"{SITE}/pricing"),
+        page_item("/gone", 404),
+    ]
+    return FakeOnPage(
+        page_items=pages,
+        html=html,
+        summaries=[summary(finished=True, crawled=len(pages))],
+        non_indexable_items=[NonIndexableItem(url=f"{SITE}/privacy", reason="meta_tag")],
+    )
+
+
+E2E_TASK = "11161234-1535-0216-0000-e2e000000001"
+
+
+def _raw_page(item: PageItem) -> dict[str, object]:
+    """A page as DataForSEO's `pages` answer holds it (the fields `OnPage` reads)."""
+    return {
+        "resource_type": item.resource_type,
+        "status_code": item.status_code,
+        "location": item.location,
+        "url": item.url,
+        "meta": {"title": item.title, "canonical": item.canonical},
+        "checks": {"from_sitemap": item.from_sitemap},
+    }
+
+
+def _asked(request: httpx.Request) -> dict[str, object]:
+    (asked,) = json.loads(request.content)
+    assert asked["id"] == E2E_TASK, "a call about a task the stand-in never posted"
+    return dict(asked)
+
+
+def serve(site: FakeOnPage, api: Api) -> None:
+    """The site's crawl as DataForSEO answers it, for the real adapter: the post, a finished
+    summary, pages a batch at a time with a token, the non-indexable pages, and each page's raw
+    HTML (a page with no HTML in `site.html` answers with none, as an expired one does)."""
+    # A float: the answer is JSON, and the client reads the number back as a decimal.
+    post = task_answer(task_id=E2E_TASK, cost=0.3, status_code=20100)
+    api.answer("POST", "/v3/on_page/task_post", envelope([post]))
+    finished = {
+        "crawl_progress": "finished",
+        "crawl_status": {"pages_in_queue": 0, "pages_crawled": len(site.page_items)},
+        "crawl_stop_reason": "empty_queue",
+        "domain_info": {"extended_crawl_status": "no_errors", "checks": {"sitemap": True}},
+    }
+    api.answer(
+        "GET",
+        f"/v3/on_page/summary/{E2E_TASK}",
+        envelope([task_answer(task_id=E2E_TASK, result=[finished])]),
+    )
+
+    def answer(result: dict[str, object]) -> httpx.Response:
+        return as_json(envelope([task_answer(task_id=E2E_TASK, result=[result])]))
+
+    def pages(request: httpx.Request) -> httpx.Response:
+        token = _asked(request).get("search_after_token")
+        start = int(str(token or 0))
+        end = start + site.batch
+        return answer(
+            {
+                "total_items_count": len(site.page_items),
+                "items": [_raw_page(item) for item in site.page_items[start:end]],
+                "search_after_token": str(end) if end < len(site.page_items) else None,
+            }
+        )
+
+    def non_indexable(request: httpx.Request) -> httpx.Response:
+        start = int(str(_asked(request)["offset"]))
+        items = site.non_indexable_items
+        return answer(
+            {
+                "total_items_count": len(items),
+                "items": [
+                    {"reason": item.reason, "url": item.url}
+                    for item in items[start : start + site.batch]
+                ],
+            }
+        )
+
+    def raw_html(request: httpx.Request) -> httpx.Response:
+        html = site.html.get(str(_asked(request)["url"]))
+        return answer({"items": None if html is None else {"html": html}})
+
+    def links(request: httpx.Request) -> httpx.Response:
+        # Only a page with no HTML is read link by link, and the stand-in knows no links for it.
+        _asked(request)
+        return answer({"total_items_count": 0, "items": []})
+
+    api.on("POST", "/v3/on_page/pages", pages)
+    api.on("POST", "/v3/on_page/non_indexable", non_indexable)
+    api.on("POST", "/v3/on_page/raw_html", raw_html)
+    api.on("POST", "/v3/on_page/links", links)

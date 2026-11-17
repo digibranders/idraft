@@ -27,7 +27,7 @@ from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.collectors.crawl_store import apply_rules, tiers_changed
 from idraft.crawl.tiers import DEFAULT_TIERS, MAX_TIERS, tier_code
 from idraft.db.engine import workspace_transaction
-from idraft.db.tables import page_tier_levels, project_pages, tier_rules
+from idraft.db.tables import page_tier_levels, project_pages, projects, tier_rules
 
 _levels = page_tier_levels
 
@@ -102,15 +102,49 @@ async def list_levels(db: AsyncSession, workspace_id: UUID) -> list[TierLevel]:
     ]
 
 
-async def _locked(db: AsyncSession, workspace_id: UUID) -> list[TierLevel]:
+async def _lock_workspace(db: AsyncSession, workspace_id: UUID) -> None:
     # A row lock on no rows locks nothing, so a workspace with no tier needs a lock of its own.
     await db.execute(
         select(func.pg_advisory_xact_lock(func.hashtextextended(str(workspace_id), 0)))
     )
+
+
+async def _locked(db: AsyncSession, workspace_id: UUID) -> list[TierLevel]:
+    await _lock_workspace(db, workspace_id)
     await db.execute(
         select(_levels.c.id).where(_levels.c.workspace_id == workspace_id).with_for_update()
     )
     return await list_levels(db, workspace_id)
+
+
+async def _projects_on_tier(db: AsyncSession, workspace_id: UUID, tier_id: UUID) -> list[UUID]:
+    """The projects with a page or a rule on the tier, in id order."""
+    result = await db.execute(
+        select(tier_rules.c.project_id)
+        .where(tier_rules.c.workspace_id == workspace_id, tier_rules.c.tier_id == tier_id)
+        .union(
+            select(project_pages.c.project_id).where(
+                project_pages.c.workspace_id == workspace_id,
+                project_pages.c.tier_id == tier_id,
+            )
+        )
+    )
+    found: list[UUID] = list(result.scalars())
+    return sorted(found)
+
+
+async def _lock_projects(db: AsyncSession, workspace_id: UUID, project_ids: Sequence[UUID]) -> None:
+    """Lock project rows in id order, as `get_project(for_update=True)` does (FOR NO KEY UPDATE).
+    The crawl worker takes a project row, then its crawl, then the pages and the tier rows; a
+    tier delete that took the tier rows first and the pages after would wait for the worker
+    while the worker waited for it. So a delete takes the project rows before any tier row."""
+    if project_ids:
+        await db.execute(
+            select(projects.c.id)
+            .where(projects.c.workspace_id == workspace_id, projects.c.id.in_(project_ids))
+            .order_by(projects.c.id)
+            .with_for_update(of=projects, key_share=True)
+        )
 
 
 def _one(levels: Sequence[TierLevel], tier_id: UUID) -> TierLevel:
@@ -201,6 +235,9 @@ class TierLevelService:
         to Untiered, manual pages become manual Untiered and the rules are deleted (a rule names
         a tier), which deletes their rule rows. A tier nothing uses needs no `move_to`."""
         async with self._transaction(access) as db:
+            await _lock_workspace(db, access.workspace_id)
+            locked = await _projects_on_tier(db, access.workspace_id, tier_id)
+            await _lock_projects(db, access.workspace_id, locked)
             levels = await _locked(db, access.workspace_id)
             gone = _one(levels, tier_id)
             used = gone.page_count > 0 or gone.rule_count > 0
@@ -210,22 +247,10 @@ class TierLevelService:
                 raise _query_error("move_to", "move_to_self", "Move to another tier or `none`.")
             target = _one(levels, move_to).tier_id if isinstance(move_to, UUID) else None
             workspace = access.workspace_id
-            touched: set[UUID] = set(
-                (
-                    await db.execute(
-                        select(tier_rules.c.project_id)
-                        .where(
-                            tier_rules.c.workspace_id == workspace, tier_rules.c.tier_id == tier_id
-                        )
-                        .union(
-                            select(project_pages.c.project_id).where(
-                                project_pages.c.workspace_id == workspace,
-                                project_pages.c.tier_id == tier_id,
-                            )
-                        )
-                    )
-                ).scalars()
-            )
+            # With the tier rows locked nothing can be put on the tier any more, so this is the
+            # list read before them, unless a page or rule was added in between: lock those too.
+            touched = await _projects_on_tier(db, workspace, tier_id)
+            await _lock_projects(db, workspace, [id_ for id_ in touched if id_ not in locked])
             await db.execute(
                 update(project_pages)
                 .where(
@@ -262,7 +287,7 @@ class TierLevelService:
                 .where(_levels.c.workspace_id == workspace, _levels.c.position > gone.position)
                 .values(position=_levels.c.position - 1, updated_at=func.now())
             )
-            for project_id in sorted(touched):
+            for project_id in touched:
                 await close_rule_positions(db, workspace, project_id)
                 await apply_rules(db, workspace_id=workspace, project_id=project_id)
                 await tiers_changed(db, workspace_id=workspace, project_id=project_id)

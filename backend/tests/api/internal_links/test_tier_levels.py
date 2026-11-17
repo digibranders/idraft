@@ -4,11 +4,17 @@ from __future__ import annotations
 
 import asyncio
 import uuid
+from collections.abc import AsyncIterator
 
+import asyncpg
 import httpx
 import pytest
+from pydantic import SecretStr
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from idraft.api.resources import Resources
+from idraft.config.settings import Settings
+from idraft.db.engine import create_engine, create_session_factory
 from tests.api.auth.support import Workspace, execute, fetch, fetchrow, make_workspace
 from tests.api.entities.support import Caller, member, problem
 from tests.api.internal_links.support import (
@@ -20,7 +26,28 @@ from tests.api.internal_links.support import (
     url_id,
 )
 from tests.api.keywords.support import keyword_project, project_url
-from tests.conftest import PostgresServer
+from tests.collectors.crawl_support import clear_crawls, synthetic_site
+from tests.collectors.test_crawl_ingest import _crawled, _ingest, _state, _step_until
+from tests.conftest import BASE_URL, PostgresServer
+
+
+@pytest.fixture
+async def crawl_worker(
+    migrated: PostgresServer, redis_url: str
+) -> AsyncIterator[async_sessionmaker[AsyncSession]]:
+    """Sessions as `app_worker`, the role the crawl worker connects with."""
+    settings = Settings(
+        process_role="worker",
+        app_origin=BASE_URL,
+        database_url=SecretStr(migrated.url("app_worker")),
+        redis_url=SecretStr(redis_url),
+        db_pool_size=6,
+        log_level="critical",
+        app_env="test",
+    )
+    engine = create_engine(settings)
+    yield create_session_factory(engine)
+    await engine.dispose()
 
 
 async def test_any_member_reads_the_tiers_with_codes_labels_and_counts(
@@ -390,3 +417,100 @@ async def test_deleting_a_tier_to_untiered_drops_its_rules_and_the_flow_follows(
         run,
     )
     assert [(c["from_tier_id"], c["to_tier_id"], c["links"]) for c in cells] == [(t3, None, 1)]
+
+
+async def test_a_tier_delete_waits_for_the_project_rows_before_it_locks_the_tiers(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    owner = await member(resources, migrated, workspace, "owner")
+    project = await keyword_project(migrated, workspace)
+    _, t2, *_ = await seed_tiers(migrated, workspace)
+    await execute(
+        migrated,
+        "INSERT INTO core.tier_rules (workspace_id, project_id, position, match_type, value, "
+        "tier_id) VALUES ($1, $2, 1, 'prefix', '/x/', $3)",
+        workspace.id,
+        project,
+        t2,
+    )
+    # The crawl worker holds a project row while it flips a crawl in and applies the rules.
+    holder = await asyncpg.connect(migrated.url())
+    try:
+        await holder.execute("BEGIN")
+        await holder.execute(
+            "SELECT id FROM core.projects WHERE id = $1 FOR NO KEY UPDATE", project
+        )
+        deleting = asyncio.ensure_future(
+            api.delete(tiers_url(workspace, t2), params={"move_to": "none"}, headers=owner.headers)
+        )
+        await asyncio.sleep(1.0)
+        waiting = not deleting.done()
+        # While it waits it holds no tier row: a worker that needs one is not stuck behind it.
+        probe = await asyncpg.connect(migrated.url())
+        try:
+            await probe.execute("BEGIN")
+            await probe.fetch(
+                "SELECT id FROM core.page_tier_levels WHERE workspace_id = $1 FOR UPDATE NOWAIT",
+                workspace.id,
+            )
+        finally:
+            await probe.execute("ROLLBACK")
+            await probe.close()
+    finally:
+        await holder.execute("ROLLBACK")
+        await holder.close()
+
+    answer = await deleting
+    assert waiting
+    assert answer.status_code == 204, answer.text
+
+
+async def test_a_tier_delete_and_a_crawl_flipping_in_end_in_one_state_and_never_deadlock(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    crawl_worker: async_sessionmaker[AsyncSession],
+) -> None:
+    await clear_crawls(migrated)
+    for _ in range(3):
+        on_page = synthetic_site()
+        crawled = await _crawled(migrated, crawl_worker, on_page)
+        owner = await member(resources, migrated, crawled.workspace, "owner")
+        _, t2, t3, _ = await seed_tiers(migrated, crawled.workspace)
+        await execute(
+            migrated,
+            "INSERT INTO core.tier_rules (workspace_id, project_id, position, match_type, value, "
+            "tier_id) VALUES ($1, $2, 1, 'prefix', '/blog', $3)",
+            crawled.workspace.id,
+            crawled.project,
+            t2,
+        )
+        await _step_until(
+            migrated, crawl_worker, on_page, crawled.task, lambda _, phase: phase == "metrics"
+        )
+
+        _, deleted = await asyncio.gather(
+            _ingest(crawl_worker, on_page, None, crawled.task),
+            api.delete(
+                tiers_url(crawled.workspace, t2), params={"move_to": str(t3)}, headers=owner.headers
+            ),
+        )
+        for _ in range(3):
+            if (await _state(migrated, crawled.task.run_id))[0] == "ready":
+                break
+            await _ingest(crawl_worker, on_page, None, crawled.task)
+
+        assert deleted.status_code == 204, deleted.text
+        assert (await _state(migrated, crawled.task.run_id))[0] == "ready"
+        rows = await fetch(
+            migrated,
+            "SELECT DISTINCT tier_id FROM core.project_pages WHERE project_id = $1",
+            crawled.project,
+        )
+        assert [row["tier_id"] for row in rows] == [t3]
+        await execute(
+            migrated,
+            "UPDATE core.projects SET primary_domain_id = NULL WHERE id = $1",
+            crawled.project,
+        )

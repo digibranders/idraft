@@ -6,6 +6,8 @@ the process in `app.py` stays the same as parts are added.
 
 from __future__ import annotations
 
+import asyncio
+import time
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
@@ -18,6 +20,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from idraft.collectors.ai_prompt import AiPromptWorkload
 from idraft.collectors.ai_prompt_ingest import ingest as ingest_ai_answers
 from idraft.collectors.costs import DAILY_DAYS, HOURLY_DAYS, roll_up_costs
+from idraft.collectors.crawl_ingest import PASS_TIME, ingest_run
+from idraft.collectors.crawl_runs import INGEST_JOB, CrawlIngestTask, crawl_tick
 from idraft.collectors.dispatcher import SubmitBatch, dispatch
 from idraft.collectors.fetching import FETCH_JOB, FetchTask, fetch_task, poll_ready
 from idraft.collectors.gsc_limits import GscLimiter
@@ -49,6 +53,7 @@ from idraft.collectors.submission import submit_batch
 from idraft.config.settings import Settings
 from idraft.providers.dataforseo.client import ALL_CALLS, FAMILY_LIMITS, DataForSeoClient
 from idraft.providers.dataforseo.locations import fetch_locations
+from idraft.providers.dataforseo.on_page import OnPage, OnPageApi
 from idraft.providers.dataforseo.provider import CODE as DATAFORSEO
 from idraft.providers.dataforseo.provider import DataForSeo
 from idraft.providers.google.client import GoogleClient
@@ -97,6 +102,12 @@ GSC_PLAN_LOCK = timedelta(seconds=55)
 # with that base keep one call (at most 30 + 60 + 120 seconds of waiting) well inside a pass.
 GSC_ATTEMPTS = 4
 GSC_BACKOFF_SECONDS = 30.0
+# Crawls of sites for the internal link tracker (plan 02 Task 9): once a minute. 55 seconds is the
+# most a lock can last under a 60 second interval (a tick's lock must expire before its next run).
+# A tick of 50 posts and 50 summaries in a row can take longer when the provider is slow; a tick
+# that outlives its lock may then run twice, which the crawl states guard (`crawl_tick`).
+CRAWL_EVERY = timedelta(seconds=60)
+CRAWL_LOCK = timedelta(seconds=55)
 _log = structlog.get_logger(__name__)
 
 
@@ -110,6 +121,60 @@ def dataforseo_client(
     login, password = credentials
     gate = RedisCallGate(redis, DATAFORSEO, all_calls=ALL_CALLS, families=FAMILY_LIMITS)
     return DataForSeoClient(http, gate, login=login, password=password)
+
+
+def crawl_provider(context: WorkerContext) -> OnPage | None:
+    """On-Page with the account's client; None without DataForSEO credentials, when crawls are
+    queued and never posted."""
+    client = dataforseo_client(context.settings, context.http, context.redis)
+    return None if client is None else OnPage(client)
+
+
+def ingest_handler(
+    context: WorkerContext, on_page: OnPageApi
+) -> Callable[[CrawlIngestTask], Awaitable[None]]:
+    """The `crawl_ingest` job: one pass over one crawl. A worker reads one crawl at a time (the
+    step that reads a crawl's graph holds it in memory whole), so the handlers of the process
+    wait for each other; the pass's time starts when it begins to read, not when it queued."""
+    one_at_a_time = asyncio.Semaphore(1)
+
+    async def crawl_ingest(task: CrawlIngestTask) -> None:
+        async with one_at_a_time:
+            outcome = await ingest_run(
+                context.sessions,
+                on_page,
+                context.raw_store,
+                task,
+                deadline=time.monotonic() + PASS_TIME.total_seconds(),
+            )
+        _log.info("crawl ingest pass", run_id=str(task.run_id), **asdict(outcome))
+
+    return crawl_ingest
+
+
+def crawl_ticks(context: WorkerContext) -> list[Tick]:
+    """The crawl tick and its `crawl_ingest` job, or nothing: unless `crawls_enabled` is set,
+    no crawl is queued, posted or read, whatever else is configured. Without DataForSEO
+    credentials the tick queues crawls and posts none, and there is no ingest job."""
+    if not context.settings.crawls_enabled:
+        _log.info("site crawls not registered", reason="CRAWLS_ENABLED is off")
+        return []
+    on_page = crawl_provider(context)
+    if on_page is not None:
+        context.queues.register("process", INGEST_JOB, ingest_handler(context, on_page))
+
+    async def send_crawl_ingest(task: CrawlIngestTask) -> bool:
+        if on_page is None:
+            return False
+        return await context.queues.enqueue(INGEST_JOB, task, dedupe_key=task.dedupe_key)
+
+    async def crawls() -> None:
+        now = await database_time(context.sessions)
+        report = await crawl_tick(context.sessions, on_page, send_crawl_ingest, now=now)
+        if not report.quiet:
+            _log.info("crawl tick", **asdict(report))
+
+    return [Tick(name="crawl", interval=CRAWL_EVERY, action=crawls, lock_ttl=CRAWL_LOCK)]
 
 
 def production_registry(context: WorkerContext) -> Registry:
@@ -432,6 +497,7 @@ def assemble(context: WorkerContext, registry: Registry | None = None) -> Sequen
 
     return (
         *gsc_ticks,
+        *crawl_ticks(context),
         Tick(name="planner", interval=PLANNER_EVERY, action=plan, lock_ttl=PLANNER_LOCK),
         Tick(name="dispatcher", interval=DISPATCHER_EVERY, action=send, lock_ttl=DISPATCHER_LOCK),
         Tick(name="ready_poll", interval=POLL_EVERY, action=poll, lock_ttl=POLL_LOCK),
