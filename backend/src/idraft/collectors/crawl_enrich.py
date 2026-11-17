@@ -129,11 +129,33 @@ async def _read_run(
     )
 
 
-async def _locked(db: AsyncSession, run: _Run) -> bool:
-    """One pass at a time per crawl: a transaction lock, gone with the transaction."""
+class _MovedError(Exception):
+    """A pass that found the ground moved under it (a partition dropped while it read): its
+    transaction is rolled back and the pass ends without counting a failure."""
+
+
+async def _claim(db: AsyncSession, run: _Run) -> bool:
+    """Whether this transaction may write the phase the pass read. One pass at a time per
+    crawl (a transaction lock), and the crawl's row is locked and compared with what the step
+    read, so a pass that was overtaken, or that met a crawl enriched meanwhile, writes
+    nothing."""
     key = func.hashtextextended(literal(f"{ENRICH_JOB}:{run.id}"), 0)
     got: bool = (await db.execute(select(func.pg_try_advisory_xact_lock(key)))).scalar_one()
-    return got
+    if not got:
+        return False
+    row = (
+        await db.execute(
+            select(crawl_runs.c.enrich_state, crawl_runs.c.enrich_phase, crawl_runs.c.enrich_offset)
+            .where(crawl_runs.c.workspace_id == run.workspace_id, crawl_runs.c.id == run.id)
+            .with_for_update()
+        )
+    ).one_or_none()
+    return (
+        row is not None
+        and row.enrich_state in ("pending", "running")
+        and (row.enrich_phase or "changes") == run.phase
+        and row.enrich_offset == run.offset
+    )
 
 
 # ------------------------------------------------------------------------------------------
@@ -194,7 +216,7 @@ _LINK_CHANGES = """
     FROM (SELECT * FROM now_pairs n WHERE NOT EXISTS (
             SELECT 1 FROM before_pairs b
             WHERE b.source_url_id = n.source_url_id AND b.target_url_id = n.target_url_id)
-          LIMIT :cap) n
+          ORDER BY n.source_url_id, n.target_url_id LIMIT :cap) n
     UNION ALL
     SELECT CAST(:run_id AS uuid), CAST(:workspace_id AS uuid), 'lost', :scope,
            b.source_url_id, b.target_url_id, b.placement, left(b.anchor, 500),
@@ -202,13 +224,22 @@ _LINK_CHANGES = """
     FROM (SELECT * FROM before_pairs b WHERE NOT EXISTS (
             SELECT 1 FROM now_pairs n
             WHERE n.source_url_id = b.source_url_id AND n.target_url_id = b.target_url_id)
-          LIMIT :cap) b
+          ORDER BY b.source_url_id, b.target_url_id LIMIT :cap) b
 """
 _STILL_ANY_SCOPE = """(SELECT l.placement FROM seo.crawl_links l
         WHERE l.run_id = CAST(:run_id AS uuid) AND l.workspace_id = CAST(:workspace_id AS uuid)
           AND l.source_url_id = b.source_url_id AND l.target_url_id = b.target_url_id
         ORDER BY CASE l.scope WHEN 'editorial' THEN 0 WHEN 'auto_generated' THEN 1 ELSE 2 END, l.id
         LIMIT 1)"""
+_NEWER_CRAWL = text(
+    """
+    SELECT 1 FROM seo.crawl_runs n
+    WHERE n.workspace_id = CAST(:workspace_id AS uuid) AND n.project_id = CAST(:project_id AS uuid)
+      AND n.state IN ('ready', 'stopped_at_ceiling')
+      AND (n.created_at, n.id) > (CAST(:created_at AS timestamptz), CAST(:run_id AS uuid))
+    LIMIT 1
+    """
+)
 _LOST_TO_TOP = text(
     """
     SELECT count(*) FROM seo.crawl_link_changes lc
@@ -250,6 +281,21 @@ async def _evaluate_alert(db: AsyncSession, run: _Run) -> None:
         )
     ).scalar_one()
     settings = alert_settings((stored or {}).get("internal_links"))
+    # Only the project's latest crawl raises an alert: an older one (met when old crawls are
+    # enriched after the migration, or after a newer crawl) would say what is no longer news.
+    newer = (
+        await db.execute(
+            _NEWER_CRAWL,
+            {
+                "project_id": str(run.project_id),
+                "workspace_id": str(run.workspace_id),
+                "run_id": str(run.id),
+                "created_at": run.created_at,
+            },
+        )
+    ).first()
+    if newer is not None:
+        return
     count: int = (
         await db.execute(
             _LOST_TO_TOP,
@@ -263,8 +309,10 @@ async def _evaluate_alert(db: AsyncSession, run: _Run) -> None:
     ).scalar_one()
     if not alert_due(count, settings):
         return
+    # A rerun keeps the alert it raised before, so a delivery happens once (decision D4).
     await db.execute(
-        crawl_alerts.insert().values(
+        upsert(crawl_alerts)
+        .values(
             run_id=run.id,
             workspace_id=run.workspace_id,
             project_id=run.project_id,
@@ -274,6 +322,7 @@ async def _evaluate_alert(db: AsyncSession, run: _Run) -> None:
             channel=settings.channel,
             delivery_state=deliver_alert(settings),
         )
+        .on_conflict_do_nothing()
     )
 
 
@@ -282,9 +331,9 @@ async def _changes(
 ) -> bool:
     async with sessions() as db, db.begin():
         await db.execute(_LONG_STATEMENT_TIMEOUT)
-        if not await _locked(db, run):
+        if not await _claim(db, run):
             return False
-        for table in (crawl_link_changes, crawl_page_changes, crawl_alerts):
+        for table in (crawl_link_changes, crawl_page_changes):
             await db.execute(
                 delete(table).where(
                     table.c.run_id == run.id, table.c.workspace_id == run.workspace_id
@@ -305,6 +354,19 @@ async def _changes(
                     await db.execute(
                         _link_change_statement(scope), {**both, "scope": scope, "cap": CHANGES_MAX}
                     )
+                # Retention may have dropped a partition while the diff read it: a missing
+                # side would read as every link lost or added.
+                dropped = (
+                    await db.execute(
+                        select(func.count()).where(
+                            crawl_runs.c.workspace_id == run.workspace_id,
+                            crawl_runs.c.id.in_((run.id, previous.id)),
+                            crawl_runs.c.links_dropped_at.is_not(None),
+                        )
+                    )
+                ).scalar_one()
+                if dropped:
+                    raise _MovedError
         await _evaluate_alert(db, run)
         await db.execute(
             update(crawl_runs)
@@ -344,7 +406,7 @@ async def _anchors(
 ) -> bool:
     async with sessions() as db, db.begin():
         await db.execute(_LONG_STATEMENT_TIMEOUT)
-        if not await _locked(db, run):
+        if not await _claim(db, run):
             return False
         if run.links_kept:
             await db.execute(
@@ -491,7 +553,7 @@ async def _mentions(
                 }
             )
     async with sessions() as db, db.begin():
-        if not await _locked(db, run):
+        if not await _claim(db, run):
             return False
         if run.offset == 0:
             await db.execute(
@@ -533,6 +595,8 @@ async def _failed_pass(sessions: async_sessionmaker[AsyncSession], run: _Run) ->
                 crawl_runs.c.workspace_id == run.workspace_id,
                 crawl_runs.c.id == run.id,
                 crawl_runs.c.enrich_state.in_(("pending", "running")),
+                # A pass that was overtaken must not count against the phase now under way.
+                func.coalesce(crawl_runs.c.enrich_phase, "changes") == run.phase,
             )
             .values(
                 enrich_failures=crawl_runs.c.enrich_failures + 1,
@@ -557,10 +621,17 @@ async def enrich_run(
     steps = 0
     while True:
         run = await _read_run(sessions, task)
-        if run is None or run.phase not in _STEPS:
-            return EnrichOutcome(phase=None if run is None else run.phase, steps=steps)
+        if run is None:
+            return EnrichOutcome(phase=None, steps=steps)
+        if run.phase not in _STEPS:
+            # A phase this code does not know (a rollback): counted, so it ends as `failed`
+            # instead of being sent every minute for good.
+            await _failed_pass(sessions, run)
+            return EnrichOutcome(phase=run.phase, steps=steps, failed=True)
         try:
             applied = await _STEPS[run.phase](sessions, store, run)
+        except _MovedError:
+            return EnrichOutcome(phase=run.phase, steps=steps, busy=True)
         except Exception as failure:
             _log.error(
                 "crawl enrich step failed",

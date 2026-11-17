@@ -5,9 +5,11 @@ from __future__ import annotations
 
 import time
 import uuid
+from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from idraft.collectors import crawl_enrich
 from idraft.collectors.crawl_enrich import CrawlEnrichTask, enrich_run
 from tests.api.auth.support import execute, fetch, make_workspace
 from tests.api.internal_links.support import seed_crawl
@@ -265,3 +267,44 @@ async def test_a_crawl_whose_predecessor_lost_its_links_still_gets_page_changes(
         migrated, "SELECT url_id FROM seo.crawl_page_changes WHERE run_id = $1", newer
     )
     assert {row["url_id"] for row in pages} == {ids["/pricing"], ids["/blog/b"]}
+
+
+async def test_an_overtaken_pass_writes_nothing_and_does_not_reopen_a_finished_crawl(
+    migrated: PostgresServer, worker_db: Sessions
+) -> None:
+    workspace = await make_workspace(migrated)
+    project = await keyword_project(migrated, workspace)
+    _, newer, _, _ = await two_crawls(migrated, workspace, project)
+    await _enrich(worker_db, workspace.id, newer)
+    # A second pass that read the crawl at its first phase, before the first pass finished.
+    stale = crawl_enrich._Run(
+        id=newer,
+        workspace_id=workspace.id,
+        project_id=project,
+        created_at=datetime.now(UTC),
+        phase="changes",
+        offset=0,
+        links_kept=True,
+    )
+
+    applied = await crawl_enrich._changes(worker_db, None, stale)
+
+    assert not applied
+    state = await fetch(
+        migrated, "SELECT enrich_state, enrich_phase FROM seo.crawl_runs WHERE id = $1", newer
+    )
+    assert (state[0]["enrich_state"], state[0]["enrich_phase"]) == ("done", "done")
+
+
+async def test_only_the_latest_crawl_raises_an_alert(
+    migrated: PostgresServer, worker_db: Sessions
+) -> None:
+    workspace = await make_workspace(migrated)
+    project = await keyword_project(migrated, workspace)
+    _, newer, _, _ = await two_crawls(migrated, workspace, project)
+    await seed_crawl(migrated, workspace, project, [("/", 200)])
+
+    await _enrich(worker_db, workspace.id, newer)
+
+    assert not await fetch(migrated, "SELECT 1 FROM seo.crawl_alerts WHERE run_id = $1", newer)
+    assert await fetch(migrated, "SELECT 1 FROM seo.crawl_link_changes WHERE run_id = $1", newer)
