@@ -35,6 +35,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from idraft.collectors import budget
 from idraft.collectors.crawl_store import ACTIVE_STATES, DATA_STATES, recompute_tier_flow
 from idraft.crawl.ceiling import crawl_ceiling, retry_ceiling
+from idraft.crawl.hosts import is_site_host
 from idraft.crawl.schedule import CrawlSchedule, crawl_due
 from idraft.db.tables import (
     crawl_runs,
@@ -54,6 +55,7 @@ KEEP_RUNS: Final = 4
 # A crawl with JavaScript off that found this few pages suggests turning it on (spec 9).
 FEW_PAGES: Final = 3
 INGEST_JOB: Final = "crawl_ingest"
+QUEUE_ATTEMPTS: Final = 3
 _BLOCKED: Final = frozenset({"forbidden_robots", "forbidden_meta_tag", "forbidden_http_header"})
 _UNREACHABLE: Final = frozenset(
     {"site_unreachable", "invalid_page_status_code", "too_many_redirects"}
@@ -116,6 +118,11 @@ class NoSiteError(Exception):
 
 class NoStoppedCrawlError(Exception):
     """A higher limit was asked for, and the latest crawl did not stop at its ceiling."""
+
+
+class CrawlSlotError(Exception):
+    """The project's crawl slot kept changing hands while a crawl was queued: the insert
+    conflicted with a crawl that had ended by the time it was read, three times running."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -217,32 +224,38 @@ async def queue_run(
     else:
         ceiling = crawl_ceiling(None if previous is None else previous.sitemap_pages)
     price = await crawl_price(db, javascript=settings.render_javascript, on=now.date())
-    run_id: UUID | None = (
-        await db.execute(
-            upsert(crawl_runs)
-            .values(
-                workspace_id=workspace_id,
-                project_id=project_id,
-                trigger=trigger,
-                target_host=site.host,
-                settings={
-                    "render_javascript": settings.render_javascript,
-                    "allowed_subdomains": list(settings.allowed_subdomains),
-                    "schedule": settings.schedule.value,
-                },
-                ceiling=ceiling,
-                estimated_cost_usd=price * ceiling,
-                requested_by=requested_by,
-            )
-            .on_conflict_do_nothing(
-                index_elements=[crawl_runs.c.project_id],
-                index_where=crawl_runs.c.state.in_(ACTIVE_STATES),
-            )
-            .returning(crawl_runs.c.id)
+    insert_run = (
+        upsert(crawl_runs)
+        .values(
+            workspace_id=workspace_id,
+            project_id=project_id,
+            trigger=trigger,
+            target_host=site.host,
+            settings={
+                "render_javascript": settings.render_javascript,
+                # The primary domain may have changed since the subdomains were saved.
+                "allowed_subdomains": [
+                    name for name in settings.allowed_subdomains if is_site_host(site.host, name)
+                ],
+                "schedule": settings.schedule.value,
+            },
+            ceiling=ceiling,
+            estimated_cost_usd=price * ceiling,
+            requested_by=requested_by,
         )
-    ).scalar_one_or_none()
-    if run_id is None:
-        active: UUID = (
+        .on_conflict_do_nothing(
+            index_elements=[crawl_runs.c.project_id],
+            index_where=crawl_runs.c.state.in_(ACTIVE_STATES),
+        )
+        .returning(crawl_runs.c.id)
+    )
+    # Cancel and the worker end a crawl without the project lock, so the crawl that made the
+    # insert conflict can be gone when it is read: the slot is free, and the insert is repeated.
+    for _ in range(QUEUE_ATTEMPTS):
+        run_id: UUID | None = (await db.execute(insert_run)).scalar_one_or_none()
+        if run_id is not None:
+            return run_id
+        active: UUID | None = (
             await db.execute(
                 select(crawl_runs.c.id).where(
                     crawl_runs.c.workspace_id == workspace_id,
@@ -250,9 +263,10 @@ async def queue_run(
                     crawl_runs.c.state.in_(ACTIVE_STATES),
                 )
             )
-        ).scalar_one()
-        raise CrawlBusyError(active)
-    return run_id
+        ).scalar_one_or_none()
+        if active is not None:
+            raise CrawlBusyError(active)
+    raise CrawlSlotError(f"no crawl slot for project {project_id} after {QUEUE_ATTEMPTS} tries")
 
 
 async def _finish(

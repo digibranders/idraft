@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from typing import Any
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -97,6 +99,62 @@ async def test_the_first_crawl_is_a_probe_and_the_next_follows_the_sitemap(
     await execute(migrated, "UPDATE seo.crawl_runs SET state = 'ready' WHERE id = $1", retry)
     with pytest.raises(NoStoppedCrawlError):
         await _queue(worker_db, workspace.id, project, "ceiling_retry")
+
+
+async def test_a_crawl_that_ends_right_after_the_conflict_leaves_the_slot_free(
+    migrated: PostgresServer, worker_db: Sessions, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Cancel and the worker take no project lock: the crawl that made the insert conflict can end
+    before the busy path reads it. The slot is then free, and the insert is tried again."""
+    workspace, project = await site_project(migrated)
+    first = await _queue(worker_db, workspace.id, project)
+
+    async with worker_db() as db, db.begin():
+        real = db.execute
+        ended = False
+
+        async def execute_then_end_the_first(statement: Any, *args: Any, **kwargs: Any) -> Any:
+            nonlocal ended
+            result = await real(statement, *args, **kwargs)
+            if not ended and getattr(statement, "is_insert", False):
+                ended = True
+                await execute(
+                    migrated, "UPDATE seo.crawl_runs SET state = 'cancelled' WHERE id = $1", first
+                )
+            return result
+
+        monkeypatch.setattr(db, "execute", execute_then_end_the_first)
+        second = await queue_run(
+            db,
+            workspace_id=workspace.id,
+            project_id=project,
+            trigger="manual",
+            requested_by=None,
+            now=NOW,
+        )
+
+    assert second != first
+    assert (await _run(migrated, second))["state"] == "queued"
+    assert (await _run(migrated, first))["state"] == "cancelled"
+
+
+async def test_a_crawl_started_for_a_site_keeps_only_subdomains_under_that_site(
+    migrated: PostgresServer, worker_db: Sessions
+) -> None:
+    """The primary domain can change after the subdomains were saved."""
+    workspace, project = await site_project(migrated)
+    stored = {"internal_links": {"allowed_subdomains": ["blog.other.com", "blog.example.com"]}}
+    await execute(
+        migrated,
+        "UPDATE core.projects SET settings = $2::jsonb WHERE id = $1",
+        project,
+        json.dumps(stored),
+    )
+
+    run_id = await _queue(worker_db, workspace.id, project)
+
+    settings = json.loads((await _run(migrated, run_id))["settings"])  # type: ignore[arg-type]
+    assert settings["allowed_subdomains"] == ["blog.example.com"]
 
 
 async def test_a_due_project_is_queued_in_its_night_slot(
