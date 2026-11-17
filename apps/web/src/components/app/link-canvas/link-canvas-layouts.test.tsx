@@ -1,4 +1,5 @@
 import { act, fireEvent, screen, within } from '@testing-library/react';
+import { Profiler, type ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { LinkCanvas, type CanvasFocus, type LaneTier, type LinkCanvasProps } from './link-canvas';
@@ -120,6 +121,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
   // `animate` is not in jsdom: tests that stub it remove it again
   Reflect.deleteProperty(HTMLElement.prototype, 'animate');
+  Reflect.deleteProperty(HTMLElement.prototype, 'getAnimations');
 });
 
 describe('LinkCanvas, the By tier layout (spec 7.5 "Two layouts")', () => {
@@ -469,5 +471,195 @@ describe('LinkCanvas, growth that keeps the place (spec 7.5)', () => {
       for (const callback of frames.splice(0)) callback(100);
     });
     expect(lineTo()).not.toBe(first);
+  });
+
+  it('does not render the canvas or the cards again for a frame of a glide: the lines are written to the page', async () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => frames.push(callback));
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+    reduceMotion(false);
+    withAnimate();
+    geometry.tops.set('o:2', 200);
+    geometry.tops.set('o:3', 0);
+    const commits = vi.fn();
+    const props: LinkCanvasProps<JourneyNeighbor> = {
+      layout: closed,
+      focus: FOCUS,
+      view: { x: 0, y: 0, scale: 1 },
+      onViewChange: vi.fn(),
+      pinned: new Set(),
+      onTogglePin: vi.fn(),
+      onToggleCard: vi.fn(),
+      onToggleGroup: vi.fn(),
+      onMore: vi.fn(),
+      onRefocus: vi.fn(),
+      onDetails: vi.fn(),
+      onRetry: vi.fn(),
+      onFull: vi.fn(),
+      onShowLinks: vi.fn(),
+    };
+    const tree = (layout: typeof closed): ReactElement => (
+      <Profiler id="canvas" onRender={commits}>
+        <LinkCanvas {...props} layout={layout} />
+      </Profiler>
+    );
+    const { rerender, user, container } = renderWithProviders(tree(closed));
+    await user.click(card('/pricing'));
+    geometry.tops.set('o:3', 30);
+    const gliding = wrapperOf(card('/blog'));
+    const real = window.getComputedStyle.bind(window);
+    let shift = '0px -30px';
+    vi.spyOn(window, 'getComputedStyle').mockImplementation((element: Element, pseudo?: string | null) => {
+      const style = real(element, pseudo);
+      return element === gliding
+        ? new Proxy(style, {
+            get: (target, key) => (key === 'translate' ? shift : (Reflect.get(target, key) as unknown)),
+          })
+        : style;
+    });
+    rerender(tree(opened()));
+    const lines = (): string =>
+      [...container.querySelectorAll('svg path[marker-end]')].map((line) => line.getAttribute('d')).join(' ');
+    const first = lines();
+    const rendered = commits.mock.calls.length;
+    shift = '0px -10px';
+    act(() => {
+      for (const callback of frames.splice(0)) callback(100);
+    });
+    // The line moved, and nothing was rendered for it
+    expect(lines()).not.toBe(first);
+    expect(commits.mock.calls.length).toBe(rendered);
+  });
+
+  it('presses a card while the page has a CSS animation that never ends, such as a loading row', async () => {
+    reduceMotion(false);
+    withAnimate();
+    const infinite = {
+      finish: () => {
+        throw new DOMException('Cannot finish an infinite animation', 'InvalidStateError');
+      },
+      cancel: vi.fn(),
+    };
+    Object.defineProperty(HTMLElement.prototype, 'getAnimations', { value: () => [infinite], configurable: true });
+    const onToggleCard = vi.fn();
+    const { user } = canvas({ layout: closed, onToggleCard });
+    await user.click(card('/pricing'));
+    expect(onToggleCard).toHaveBeenCalledWith('o:2');
+    // It is not ours to finish or cancel
+    expect(infinite.cancel).not.toHaveBeenCalled();
+  });
+
+  it('finishes the animations of a growth that is still playing when the next press comes, and only those', async () => {
+    reduceMotion(false);
+    const made: { finish: ReturnType<typeof vi.fn> }[] = [];
+    animate.mockReset();
+    animate.mockImplementation(() => {
+      const animation = { finished: new Promise<void>(() => undefined), finish: vi.fn(), cancel: vi.fn() };
+      made.push(animation);
+      return animation;
+    });
+    Object.defineProperty(HTMLElement.prototype, 'animate', { value: animate, configurable: true });
+    geometry.tops.set('o:2', 200);
+    geometry.tops.set('o:3', 0);
+    const css = { finish: vi.fn(), cancel: vi.fn() };
+    Object.defineProperty(HTMLElement.prototype, 'getAnimations', { value: () => [css], configurable: true });
+    const { props, rerender, user } = canvas({ layout: closed });
+    await user.click(card('/pricing'));
+    geometry.tops.set('o:3', 30);
+    rerender(<LinkCanvas {...props} layout={opened()} />);
+    expect(made.length).toBeGreaterThan(0);
+    await user.click(card('/pricing'));
+    for (const animation of made) expect(animation.finish).toHaveBeenCalled();
+    expect(css.finish).not.toHaveBeenCalled();
+  });
+
+  it('forgets a press that changed nothing, so a later change of layout plays no growth', async () => {
+    reduceMotion(false);
+    withAnimate();
+    let now = 1000;
+    vi.spyOn(performance, 'now').mockImplementation(() => now);
+    geometry.tops.set('o:2', 200);
+    geometry.tops.set('o:3', 0);
+    const onViewChange = vi.fn();
+    const { props, rerender, user } = canvas({ layout: closed, onViewChange });
+    await user.click(card('/pricing'));
+    onViewChange.mockClear();
+    animate.mockClear();
+    // Seconds later something else changes the layout (a refetch): the old press is not played on it
+    now += 5000;
+    geometry.tops.set('o:2', 260);
+    geometry.tops.set('o:3', 30);
+    rerender(<LinkCanvas {...props} onViewChange={onViewChange} layout={opened()} />);
+    expect(animate).not.toHaveBeenCalled();
+    expect(onViewChange).not.toHaveBeenCalled();
+  });
+});
+
+describe('LinkCanvas, selection and moved cards across layouts', () => {
+  const tierProps = { layoutMode: 'tier', tiers: TIERS } as const;
+  const shiftClick = async (user: ReturnType<typeof canvas>['user'], element: HTMLElement): Promise<void> => {
+    await user.keyboard('{Shift>}');
+    await user.click(element);
+    await user.keyboard('{/Shift}');
+  };
+  const bar = (): HTMLElement | null => screen.queryByRole('region', { name: 'Selected cards' });
+
+  it('drops the selection and the moved cards when the layout is switched', async () => {
+    const { props, rerender, user } = canvas();
+    await shiftClick(user, card('/pricing'));
+    expect(bar()).not.toBeNull();
+    fireEvent.pointerDown(card('/blog'), { pointerId: 1, clientX: 100, clientY: 100, button: 0, pointerType: 'mouse' });
+    fireEvent.pointerMove(document, { pointerId: 1, clientX: 140, clientY: 100 });
+    fireEvent.pointerUp(document, { pointerId: 1, clientX: 140, clientY: 100 });
+    expect(wrapperOfCard('/blog').style.transform).not.toBe('');
+    rerender(<LinkCanvas {...props} layoutMode="tier" tiers={TIERS} />);
+    expect(bar()).toBeNull();
+    expect(wrapperOfCard('/blog').style.transform).toBe('');
+  });
+
+  it('drops a selected card when its lane is turned off, so the bar never acts on a page that is not shown', async () => {
+    const onSetTier = vi.fn();
+    const { props, rerender, user } = canvas({ ...tierProps, onSetTier });
+    await shiftClick(user, card('/pricing'));
+    expect(bar()).not.toBeNull();
+    rerender(<LinkCanvas {...props} {...tierProps} onSetTier={onSetTier} hiddenLanes={new Set([1])} />);
+    expect(bar()).toBeNull();
+    expect(onSetTier).not.toHaveBeenCalled();
+  });
+
+  it('does not offer a card that a page reached twice shows only once as a selection', () => {
+    canvas(tierProps, { open: new Set(['o:2', 'o:3']) });
+    // One card for /blog/post: the selection and the moves can only be of what is on the canvas
+    expect(screen.getAllByRole('button', { name: /^\/blog\/post,/ })).toHaveLength(1);
+  });
+
+  const wrapperOfCard = (path: string): HTMLElement => {
+    const wrapper = card(path).closest<HTMLElement>('[data-card]');
+    if (wrapper === null) throw new Error('No wrapper');
+    return wrapper;
+  };
+
+  it('keeps every card and line of a tier the workspace does not list (deleted, or still loading)', () => {
+    const { container } = canvas({ layoutMode: 'tier', tiers: [{ position: 3, code: 'T3', name: 'Content pages' }] });
+    // /pricing is T1 and the tiers prop has no T1: its lane, card and line are still there
+    expect(within(lane(container, 1)).getByRole('button', { name: /^\/pricing,/ })).toBeInTheDocument();
+    expect(container.querySelectorAll('svg path.stroke-positive-text').length).toBeGreaterThan(0);
+  });
+
+  it('draws the line to a group of links in the colours of its scope, never as a direction', () => {
+    const groupLookup: ListLookup<JourneyNeighbor> = (request) =>
+      request.urlId === '1' && request.direction === 'out'
+        ? {
+            status: 'ready',
+            items: [node('3', '/blog', 'T3', { scope: 'template' })],
+            total: 1,
+            otherScopes: [{ scope: 'template', pages: 1 }],
+          }
+        : { status: 'ready', items: [], total: 0, otherScopes: [] };
+    const { container } = canvas({ ...tierProps, layout: buildJourney(base, groupLookup) });
+    const groupButton = screen.queryByRole('button', { name: /Menu and footer/ });
+    expect(groupButton).not.toBeNull();
+    expect(container.querySelectorAll('svg path.stroke-info-text')).toHaveLength(0);
+    expect(container.querySelectorAll('svg path.stroke-border-strong[stroke-dasharray]').length).toBeGreaterThan(0);
   });
 });

@@ -26,8 +26,8 @@ export interface GrowthHost {
   getView: () => View;
   size: Size;
   onViewChange: (view: View) => void;
-  /** Draws the lines again: called on every frame while cards glide. */
-  onFrame: () => void;
+  /** Draws the lines again: called on every frame while cards glide, and with `final` once they are in their places. */
+  onFrame: (final: boolean) => void;
 }
 
 export interface GrowthHandle {
@@ -73,9 +73,20 @@ export function useGrowth(host: GrowthHost): GrowthHandle {
   const gliding = useRef(new Map<string, HTMLElement>());
   const frame = useRef<number | null>(null);
   const cancelView = useRef<(() => void) | null>(null);
+  // The animations this hook started and that are still playing
+  const own = useRef(new Set<Animation>());
   useLayoutEffect(() => {
     latest.current = host;
   });
+  const play = useCallback((element: HTMLElement, frames: Keyframe[], options: KeyframeAnimationOptions): Animation => {
+    const animation = element.animate(frames, options);
+    own.current.add(animation);
+    const done = (): void => {
+      own.current.delete(animation);
+    };
+    void animation.finished.then(done, done);
+    return animation;
+  }, []);
 
   const stop = useCallback((): void => {
     if (frame.current !== null) cancelAnimationFrame(frame.current);
@@ -93,9 +104,19 @@ export function useGrowth(host: GrowthHost): GrowthHandle {
       // A growth still playing is finished first, so the places measured now are the settled ones
       stop();
       for (const ghost of root.querySelectorAll('[data-ghost]')) ghost.remove();
-      if (typeof root.getAnimations === 'function') {
-        for (const animation of root.getAnimations({ subtree: true })) animation.finish();
+      // Only what this hook started: a CSS animation of the page (a loading row pulses for ever) cannot be finished
+      for (const animation of own.current) {
+        try {
+          animation.finish();
+        } catch {
+          try {
+            animation.cancel();
+          } catch {
+            // Already gone
+          }
+        }
       }
+      own.current.clear();
       const clones = new Map<string, HTMLElement>();
       // Ghosts are only made where the browser can fade them
       if (!reducedMotion() && typeof root.animate === 'function') {
@@ -109,7 +130,7 @@ export function useGrowth(host: GrowthHost): GrowthHandle {
         boxes: latest.current.measure(),
         clones,
         entered: new Set(),
-        expires: Date.now() + GIVE_UP_MS,
+        expires: performance.now() + GIVE_UP_MS,
       };
     },
     [stop],
@@ -148,14 +169,15 @@ export function useGrowth(host: GrowthHost): GrowthHandle {
           if (t === 1) tweening = null;
         }
       }
-      latest.current.onFrame();
+      latest.current.onFrame(false);
       if (elapsed < FOLLOW_MS || tweening !== null) {
         frame.current = requestAnimationFrame(tick);
         return;
       }
       frame.current = null;
       gliding.current.clear();
-      latest.current.onFrame();
+      // The last drawing is the real one: the canvas is told, and the cards are in their places
+      latest.current.onFrame(true);
     };
     frame.current = requestAnimationFrame(tick);
   }, []);
@@ -164,6 +186,13 @@ export function useGrowth(host: GrowthHost): GrowthHandle {
     const before = pending.current;
     const current = latest.current;
     if (before === null || before.layout === current.layout) return;
+    // A press that changed nothing is forgotten once the time to wait for lists has passed: a later change of layout (a
+    // refetch, another focus page) is not what it asked for
+    const late = performance.now() > before.expires;
+    if (late && current.settled) {
+      pending.current = null;
+      return;
+    }
     const root = current.root.current;
     if (root === null) {
       pending.current = null;
@@ -175,7 +204,7 @@ export function useGrowth(host: GrowthHost): GrowthHandle {
     for (const key of plan.enter) before.entered.add(key);
     const calm = reducedMotion();
     let next = plan.pan.dx === 0 && plan.pan.dy === 0 ? view : panBy(view, plan.pan.dx, plan.pan.dy);
-    const done = current.settled || Date.now() > before.expires;
+    const done = current.settled || late;
     // The card and its new links are brought into view by one pan, once every list has arrived
     let reveal: View | null = null;
     if (done) {
@@ -203,13 +232,15 @@ export function useGrowth(host: GrowthHost): GrowthHandle {
         const element = elements.get(key);
         if (element === undefined) continue;
         gliding.current.set(key, element);
-        element.animate([{ translate: `${shift.dx}px ${shift.dy}px` }, { translate: '0px 0px' }], {
+        play(element, [{ translate: `${shift.dx}px ${shift.dy}px` }, { translate: '0px 0px' }], {
           duration: GLIDE_MS,
           easing: GLIDE_EASING,
         });
       }
       for (const key of plan.enter) {
-        elements.get(key)?.animate([{ opacity: 0 }, { opacity: 1 }], {
+        const element = elements.get(key);
+        if (element === undefined) continue;
+        play(element, [{ opacity: 0 }, { opacity: 1 }], {
           duration: FADE_IN_MS,
           delay: 80,
           easing: 'ease-out',
@@ -241,12 +272,13 @@ export function useGrowth(host: GrowthHost): GrowthHandle {
         });
         root.append(ghost);
         const gone = (): void => ghost.remove();
-        void ghost
-          .animate([{ opacity: 1 }, { opacity: 0 }], { duration: GHOST_MS, easing: 'ease-in' })
-          .finished.then(gone, gone);
+        void play(ghost, [{ opacity: 1 }, { opacity: 0 }], { duration: GHOST_MS, easing: 'ease-in' }).finished.then(
+          gone,
+          gone,
+        );
       }
       if (gliding.current.size > 0 || reveal !== null) {
-        current.onFrame();
+        current.onFrame(false);
         follow(reveal === null ? null : { from: next, to: reveal });
       }
     } else if (reveal !== null) {
@@ -256,7 +288,7 @@ export function useGrowth(host: GrowthHost): GrowthHandle {
     before.clones = new Map();
     before.layout = current.layout;
     if (done) pending.current = null;
-  }, [host.layout, follow]);
+  }, [host.layout, follow, play]);
 
   return { begin, shiftOf };
 }

@@ -7245,6 +7245,7 @@
     "lanes": {
       "label": "Tiers shown",
       "focusLocked": "The lane of the focus page stays on",
+      "untieredNote": "The Untiered lane shows only when an untiered page is in view",
       "empty": "No {tier} page in view",
       "pages": "{count, plural, one {# page} other {# pages}}"
     },

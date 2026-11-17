@@ -184,6 +184,48 @@ describe('tierLayout', () => {
     expect(result.lanes.find((lane) => lane.pos === 1)).toMatchObject({ count: 1 });
   });
 
+  it('gives a lane to a page whose tier the workspace does not list, so no card or line is lost', () => {
+    const result = tierLayout({
+      layout: layout([card('o:2', '2', 'T6', 'f')]),
+      focus: FOCUS,
+      tiers,
+      hidden: none,
+    });
+    expect(result.lanes.map((lane) => lane.pos)).toContain(6);
+    expect(result.cardsByLane.get(6)?.map((item) => item.key)).toEqual(['o:2']);
+    expect(result.lines).toHaveLength(1);
+    expect(result.lines[0]?.direction).toBe('down');
+  });
+
+  it('marks the line to a group, and no other', () => {
+    const group: JourneyItem<N> = {
+      kind: 'group',
+      key: 'g:o:f:template',
+      scope: 'template',
+      count: 2,
+      open: false,
+      parentKey: 'f',
+      dir: 'out',
+    };
+    const stub: JourneyItem<N> = {
+      kind: 'stub',
+      key: 'o:5.2',
+      urlId: '2',
+      node: node('2', 'T1'),
+      parentKey: 'o:5',
+      dir: 'out',
+      at: { dir: 'out', step: 1 },
+    };
+    const result = tierLayout({
+      layout: layout([card('o:2', '2', 'T1', 'f'), card('o:5', '5', 'T2', 'f'), group, stub]),
+      focus: FOCUS,
+      tiers,
+      hidden: none,
+    });
+    expect(result.lines.filter((line) => line.group).map((line) => line.to)).toEqual(['g:o:f:template']);
+    expect(result.lines.find((line) => line.from === 'o:5' && line.to === 'o:2')?.group).toBe(false);
+  });
+
   it('shows the Untiered lane only when an untiered page is in view', () => {
     const without = tierLayout({ layout: layout([card('o:2', '2', 'T1', 'f')]), focus: FOCUS, tiers, hidden: none });
     expect(without.lanes.map((lane) => lane.pos)).not.toContain(99);

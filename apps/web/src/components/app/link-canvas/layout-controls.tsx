@@ -55,6 +55,7 @@ export function LaneChips({
 }): ReactElement {
   const t = useTranslations('linkCanvas');
   const reason = useId();
+  const untieredNote = useId();
   // The order of the lanes, left to right: Untiered, then the lowest tier up to T1
   const chips = [
     { position: UNTIERED_POSITION, code: t('untiered'), label: t('untiered') },
@@ -73,7 +74,7 @@ export function LaneChips({
             size="sm"
             aria-pressed={locked || !hidden.has(chip.position)}
             aria-label={chip.label}
-            aria-describedby={locked ? reason : undefined}
+            aria-describedby={locked ? reason : chip.position === UNTIERED_POSITION ? untieredNote : undefined}
             disabled={locked}
             onClick={() => onToggle(chip.position)}
           >
@@ -83,6 +84,9 @@ export function LaneChips({
       })}
       <span id={reason} className="sr-only">
         {t('lanes.focusLocked')}
+      </span>
+      <span id={untieredNote} className="sr-only">
+        {t('lanes.untieredNote')}
       </span>
     </div>
   );

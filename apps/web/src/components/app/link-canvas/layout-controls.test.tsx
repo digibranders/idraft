@@ -41,6 +41,13 @@ describe('LaneChips', () => {
     expect(screen.getByRole('button', { name: 'Untiered' })).toHaveAttribute('aria-pressed', 'true');
   });
 
+  it('says that the Untiered lane shows only when an untiered page is in view', () => {
+    renderWithProviders(<LaneChips tiers={TIERS} hidden={new Set()} focusPosition={1} onToggle={vi.fn()} />);
+    expect(screen.getByRole('button', { name: 'Untiered' })).toHaveAccessibleDescription(
+      'The Untiered lane shows only when an untiered page is in view',
+    );
+  });
+
   it('reports the position of the tier that was pressed, and 99 for Untiered', async () => {
     const onToggle = vi.fn();
     const { user } = renderWithProviders(

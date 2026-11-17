@@ -10,6 +10,8 @@ export interface TierLine<N extends JourneyNeighbor> {
   status: number | null;
   /** The link the line is, for its hover tip; `null` for the line to a group card, which stands for many links. */
   link: N | null;
+  /** A line to a group card: it stands for many links, so it has no direction to show. */
+  group: boolean;
 }
 
 export type TierCard<N extends JourneyNeighbor> = Extract<JourneyItem<N>, { kind: 'card' }>;
@@ -83,9 +85,11 @@ export function tierLayout<N extends JourneyNeighbor>({
     const pos = laneOfTier(item.node.tier);
     counts.set(pos, (counts.get(pos) ?? 0) + 1);
   }
+  // A page whose tier the workspace does not list (deleted, or the tiers are still loading) still gets its lane
+  const inViewLanes = cards.map((item) => laneOfTier(item.node.tier));
   const lanes = laneSet({
-    tiers,
-    inView: new Set(cards.map((item) => laneOfTier(item.node.tier))),
+    tiers: [...tiers, ...inViewLanes],
+    inView: new Set(inViewLanes),
     focusLane: focus.position,
     hidden,
     counts,
@@ -121,6 +125,7 @@ export function tierLayout<N extends JourneyNeighbor>({
       scope,
       status: statusOfKey(to),
       link: item.kind === 'card' ? link : null,
+      group: item.kind === 'group',
     });
   };
 

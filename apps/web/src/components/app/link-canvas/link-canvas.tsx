@@ -324,6 +324,7 @@ const EdgeLayer = memo(function EdgeLayer({
       {edges.lines.map((line) => (
         <g key={line.id}>
           <path
+            data-edge={line.id}
             d={line.d}
             fill="none"
             strokeWidth={1.5}
@@ -332,13 +333,14 @@ const EdgeLayer = memo(function EdgeLayer({
             className={STROKE[line.look.tone]}
           />
           {line.start === null ? null : (
-            <circle cx={line.start.x} cy={line.start.y} r={3} className={FILL[line.look.tone]} />
+            <circle data-dot={line.id} cx={line.start.x} cy={line.start.y} r={3} className={FILL[line.look.tone]} />
           )}
           {line.facts === null ? null : (
             // A wide invisible stroke to hover: the line itself is 1.5 px
             <path
               d={line.d}
               data-line={line.id}
+              data-edge={line.id}
               fill="none"
               stroke="transparent"
               strokeWidth={12}
@@ -352,6 +354,7 @@ const EdgeLayer = memo(function EdgeLayer({
       {edges.arrows.map((arrow) => (
         <path
           key={arrow.id}
+          data-arrow={arrow.id}
           d={arrow.d}
           fill="none"
           strokeWidth={1.5}
@@ -363,6 +366,26 @@ const EdgeLayer = memo(function EdgeLayer({
     </svg>
   );
 });
+
+/** Writes the drawing's lines, dots and return arrows to the page, without a render (a glide moves them every frame). */
+function paintEdges(root: HTMLElement, lines: readonly DrawnEdge[], arrows: readonly DrawnEdge[]): void {
+  const byId = new Map(lines.map((line) => [line.id, line]));
+  for (const element of root.querySelectorAll('[data-edge]')) {
+    const line = byId.get(element.getAttribute('data-edge') ?? '');
+    if (line !== undefined && element.getAttribute('d') !== line.d) element.setAttribute('d', line.d);
+  }
+  for (const element of root.querySelectorAll('[data-dot]')) {
+    const start = byId.get(element.getAttribute('data-dot') ?? '')?.start;
+    if (start === undefined || start === null) continue;
+    element.setAttribute('cx', String(start.x));
+    element.setAttribute('cy', String(start.y));
+  }
+  const arrowById = new Map(arrows.map((arrow) => [arrow.id, arrow]));
+  for (const element of root.querySelectorAll('[data-arrow]')) {
+    const arrow = arrowById.get(element.getAttribute('data-arrow') ?? '');
+    if (arrow !== undefined && element.getAttribute('d') !== arrow.d) element.setAttribute('d', arrow.d);
+  }
+}
 
 const sameEdges = (a: DrawnEdges, b: DrawnEdges): boolean =>
   a.layout === b.layout &&
@@ -536,9 +559,14 @@ export function LinkCanvas<N extends JourneyNeighbor>({
   // Page cards can be selected and moved (stubs, groups and "+N more" are not pages to act on)
   const selectable = useMemo(() => {
     const keys = new Set<string>([FOCUS_KEY]);
+    // By tier: only the cards on the canvas, never one in a lane that is off or one a page's first card stands for
+    if (tiered !== null) {
+      for (const cards of tiered.cardsByLane.values()) for (const card of cards) keys.add(card.key);
+      return keys;
+    }
     for (const [key, item] of byKey) if (item.kind === 'card') keys.add(key);
     return keys;
-  }, [byKey]);
+  }, [byKey, tiered]);
   // A selection belongs to its focus page, and loses the cards that are no longer on the canvas
   const selected = useMemo(
     () => (selection.focus === focus.urlId ? withoutKeys(selection.keys, selectable) : NO_KEYS),
@@ -550,6 +578,13 @@ export function LinkCanvas<N extends JourneyNeighbor>({
   // not selected, not moved, and Reset card positions is off when nothing that is shown was moved
   if (selection.focus !== focus.urlId || selection.keys !== selected)
     setSelection({ focus: focus.urlId, keys: selected });
+  // Positions and a selection made in one layout mean nothing in the other: the switch starts them anew
+  const [modeSeen, setModeSeen] = useState(layoutMode);
+  if (modeSeen !== layoutMode) {
+    setModeSeen(layoutMode);
+    setMoved(new Map());
+    setSelection({ focus: focus.urlId, keys: NO_KEYS });
+  }
   if (offsets !== storedOffsets) {
     setMoved((current) => {
       const next = new Map(current);
@@ -581,121 +616,137 @@ export function LinkCanvas<N extends JourneyNeighbor>({
 
   // Edges are measured from the cards as laid out, in world pixels, from offset geometry: a zoom or a pan changes none
   // of it, so they are not measured again for either
-  const draw = useCallback((): void => {
-    const root = inner.current;
-    if (root === null) return;
-    const elements = new Map<string, HTMLElement>();
-    for (const element of root.querySelectorAll<HTMLElement>('[data-node]')) {
-      const key = element.getAttribute('data-key');
-      if (key !== null) elements.set(key, element);
-    }
-    // A moved card is drawn by a transform, and a gliding one by an animation: offset geometry sees neither, so the
-    // offset and the glide are added here (the lines follow the cards frame by frame)
-    const boxOf = (key: string): Box | null => {
-      const element = elements.get(key);
-      if (element === undefined) return null;
-      const box = offsetBox(element, root);
-      const moved = offsets.get(key);
-      const glide = growthRef.current?.shiftOf(key) ?? null;
-      const dx = (moved?.dx ?? 0) + (glide?.dx ?? 0);
-      const dy = (moved?.dy ?? 0) + (glide?.dy ?? 0);
-      return dx === 0 && dy === 0 ? box : { ...box, left: box.left + dx, top: box.top + dy };
-    };
-    const cards: MinimapCard[] = [];
-    for (const key of elements.keys()) {
-      const box = boxOf(key);
-      if (box !== null) cards.push({ key, ...box });
-    }
-    const statusOf = (key: string): number | null => {
-      if (key === FOCUS_KEY) return focus.statusCode;
-      const item = byKey.get(key);
-      return item?.kind === 'card' || item?.kind === 'stub' ? item.node.status_code : null;
-    };
-    // Curves leaving one card lean apart (the fan), so each needs its place among the children of its parent
-    const children = new Map<string, number>();
-    for (const item of byKey.values()) children.set(item.parentKey, (children.get(item.parentKey) ?? 0) + 1);
-    const placed = new Map<string, number>();
-    const lines: DrawnEdge[] = [];
-    const lineFactsOf = (node: N): LineFacts => ({
-      anchor: node.anchor,
-      type: node.placement === null ? t('redirectTarget') : t(`placement.${PLACEMENT_KEY[node.placement]}`),
-      attribute: node.rel.length === 0 ? t('follow') : node.rel.join(' '),
-    });
-    if (tiered !== null) {
-      // By tier: every link between cards on the canvas, from lane to lane (a page reached twice is two lines)
-      for (const line of tiered.lines) {
-        const index = placed.get(line.from) ?? 0;
-        placed.set(line.from, index + 1);
-        const from = boxOf(line.from);
-        const to = boxOf(line.to);
-        if (from === null || to === null) continue;
-        const drawn = tierRoute(from, to, index);
-        const look = tierLook(line.direction, line.status);
-        lines.push({
-          id: `${line.from}>${line.to}`,
-          d: drawn.d,
-          look,
-          start: drawn.start,
-          facts: line.link === null ? null : lineFactsOf(line.link),
-        });
+  // `frameOnly` is a frame of a glide: the lines are written to the page and the canvas is not rendered for them
+  const draw = useCallback(
+    (frameOnly = false): void => {
+      const root = inner.current;
+      if (root === null) return;
+      const elements = new Map<string, HTMLElement>();
+      for (const element of root.querySelectorAll<HTMLElement>('[data-node]')) {
+        const key = element.getAttribute('data-key');
+        if (key !== null) elements.set(key, element);
       }
-    } else {
-      for (const [key, item] of byKey) {
-        const index = placed.get(item.parentKey) ?? 0;
-        placed.set(item.parentKey, index + 1);
-        const parent = boxOf(item.parentKey);
-        const child = boxOf(key);
-        if (parent === null || child === null) continue;
-        const inbound = item.dir === 'in';
-        const look =
-          item.kind === 'group'
-            ? edgeLook(item.scope === 'both' ? null : item.scope, null)
-            : edgeLook(item.node.scope, inbound ? statusOf(item.parentKey) : item.node.status_code);
-        const drawn = inbound
-          ? curvePath(child, parent, index, children.get(item.parentKey))
-          : curvePath(parent, child, index, children.get(item.parentKey));
-        lines.push({
-          id: key,
-          d: drawn.d,
-          look,
-          start: drawn.start,
-          facts: item.kind === 'card' ? lineFactsOf(item.node) : null,
-        });
+      // A moved card is drawn by a transform, and a gliding one by an animation: offset geometry sees neither, so the
+      // offset and the glide are added here (the lines follow the cards frame by frame)
+      // Each card is measured once for a drawing (the style of a gliding card is read once a frame, not once a line)
+      const measured = new Map<string, Box | null>();
+      const boxOf = (key: string): Box | null => {
+        const known = measured.get(key);
+        if (known !== undefined) return known;
+        const element = elements.get(key);
+        let found: Box | null = null;
+        if (element !== undefined) {
+          const box = offsetBox(element, root);
+          const moved = offsets.get(key);
+          const glide = growthRef.current?.shiftOf(key) ?? null;
+          const dx = (moved?.dx ?? 0) + (glide?.dx ?? 0);
+          const dy = (moved?.dy ?? 0) + (glide?.dy ?? 0);
+          found = dx === 0 && dy === 0 ? box : { ...box, left: box.left + dx, top: box.top + dy };
+        }
+        measured.set(key, found);
+        return found;
+      };
+      const cards: MinimapCard[] = [];
+      for (const key of elements.keys()) {
+        const box = boxOf(key);
+        if (box !== null) cards.push({ key, ...box });
       }
-    }
-    lines.sort((a, b) => a.look.rank - b.look.rank);
-    const arrows: DrawnEdge[] = [];
-    for (const key of shownBacks) {
-      const item = byKey.get(key);
-      const from = boxOf(key);
-      if (item?.kind !== 'card' || from === null) continue;
-      for (const back of item.backs) {
-        const to = boxOf(tiered?.alias.get(back.key) ?? back.key);
-        if (to === null) continue;
-        const d = item.dir === 'out' ? returnArrowPath(from, to) : returnArrowPath(to, from);
-        arrows.push({
-          id: `${key}>${back.key}`,
-          d,
-          look: { tone: 'editorial', dash: '6 4', rank: 2 },
-          start: null,
-          facts: null,
-        });
+      const statusOf = (key: string): number | null => {
+        if (key === FOCUS_KEY) return focus.statusCode;
+        const item = byKey.get(key);
+        return item?.kind === 'card' || item?.kind === 'stub' ? item.node.status_code : null;
+      };
+      // Curves leaving one card lean apart (the fan), so each needs its place among the children of its parent
+      const children = new Map<string, number>();
+      for (const item of byKey.values()) children.set(item.parentKey, (children.get(item.parentKey) ?? 0) + 1);
+      const placed = new Map<string, number>();
+      const lines: DrawnEdge[] = [];
+      const lineFactsOf = (node: N): LineFacts => ({
+        anchor: node.anchor,
+        type: node.placement === null ? t('redirectTarget') : t(`placement.${PLACEMENT_KEY[node.placement]}`),
+        attribute: node.rel.length === 0 ? t('follow') : node.rel.join(' '),
+      });
+      if (tiered !== null) {
+        // By tier: every link between cards on the canvas, from lane to lane (a page reached twice is two lines)
+        for (const line of tiered.lines) {
+          const index = placed.get(line.from) ?? 0;
+          placed.set(line.from, index + 1);
+          const from = boxOf(line.from);
+          const to = boxOf(line.to);
+          if (from === null || to === null) continue;
+          const drawn = tierRoute(from, to, index);
+          // A line to a group stands for many links, with no one page to say up or down: it looks as in By step
+          const look = line.group ? edgeLook(line.scope, null) : tierLook(line.direction, line.status);
+          lines.push({
+            id: `${line.from}>${line.to}`,
+            d: drawn.d,
+            look,
+            start: drawn.start,
+            facts: line.link === null ? null : lineFactsOf(line.link),
+          });
+        }
+      } else {
+        for (const [key, item] of byKey) {
+          const index = placed.get(item.parentKey) ?? 0;
+          placed.set(item.parentKey, index + 1);
+          const parent = boxOf(item.parentKey);
+          const child = boxOf(key);
+          if (parent === null || child === null) continue;
+          const inbound = item.dir === 'in';
+          const look =
+            item.kind === 'group'
+              ? edgeLook(item.scope === 'both' ? null : item.scope, null)
+              : edgeLook(item.node.scope, inbound ? statusOf(item.parentKey) : item.node.status_code);
+          const drawn = inbound
+            ? curvePath(child, parent, index, children.get(item.parentKey))
+            : curvePath(parent, child, index, children.get(item.parentKey));
+          lines.push({
+            id: key,
+            d: drawn.d,
+            look,
+            start: drawn.start,
+            facts: item.kind === 'card' ? lineFactsOf(item.node) : null,
+          });
+        }
       }
-    }
-    // The size of the columns (offset size, in world pixels), not the scroll size: the SVG layer must not hold the area open
-    const next: DrawnEdges = {
-      lines,
-      arrows,
-      cards,
-      width: root.offsetWidth,
-      height: root.offsetHeight,
-      layout,
-      focusId: focus.urlId,
-      mode: layoutMode,
-    };
-    // A hover or a pin that changes nothing on screen must not render the canvas again
-    setEdges((current) => (sameEdges(current, next) ? current : next));
-  }, [byKey, shownBacks, layout, focus.urlId, focus.statusCode, offsets, t, tiered, layoutMode]);
+      lines.sort((a, b) => a.look.rank - b.look.rank);
+      const arrows: DrawnEdge[] = [];
+      for (const key of shownBacks) {
+        const item = byKey.get(key);
+        const from = boxOf(key);
+        if (item?.kind !== 'card' || from === null) continue;
+        for (const back of item.backs) {
+          const to = boxOf(tiered?.alias.get(back.key) ?? back.key);
+          if (to === null) continue;
+          const d = item.dir === 'out' ? returnArrowPath(from, to) : returnArrowPath(to, from);
+          arrows.push({
+            id: `${key}>${back.key}`,
+            d,
+            look: { tone: 'editorial', dash: '6 4', rank: 2 },
+            start: null,
+            facts: null,
+          });
+        }
+      }
+      // The page is told directly while cards glide, and the state catches up with the last drawing
+      paintEdges(root, lines, arrows);
+      if (frameOnly) return;
+      // The size of the columns (offset size, in world pixels), not the scroll size: the SVG layer must not hold the area open
+      const next: DrawnEdges = {
+        lines,
+        arrows,
+        cards,
+        width: root.offsetWidth,
+        height: root.offsetHeight,
+        layout,
+        focusId: focus.urlId,
+        mode: layoutMode,
+      };
+      // A hover or a pin that changes nothing on screen must not render the canvas again
+      setEdges((current) => (sameEdges(current, next) ? current : next));
+    },
+    [byKey, shownBacks, layout, focus.urlId, focus.statusCode, offsets, t, tiered, layoutMode],
+  );
 
   useLayoutEffect(() => {
     draw();
@@ -725,7 +776,7 @@ export function LinkCanvas<N extends JourneyNeighbor>({
     getView: useStable(() => viewNow.current),
     size,
     onViewChange,
-    onFrame: useStable(draw),
+    onFrame: useStable((final: boolean): void => draw(!final)),
   });
   useLayoutEffect(() => {
     growthRef.current = growth;
