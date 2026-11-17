@@ -41,11 +41,31 @@ export function failedText(t: StatesTranslate, run: CrawlRun, host: string): str
 
 /**
  * Crawls are not switched on yet (the API's `503 crawls_disabled`). A condition, not a failure: a neutral banner,
- * no error styling and no role. The press that learned it said it once through `announce()`.
+ * no error styling and no role. The press that learned it said it once through `announce()`; a later press that
+ * meets it again (Check again, a Try again, a higher limit) answers with a toast, not a second announcement. Check again starts
+ * the crawl once more: it is the way out when the deployment switches crawls on while the page is open.
  */
-export function CrawlsOffNotice(): ReactElement {
+export function CrawlsOffNotice({
+  onCheckAgain,
+  pending,
+}: {
+  onCheckAgain: () => void;
+  pending: boolean;
+}): ReactElement {
   const t = useTranslations('internalLinks.states');
-  return <Banner tone="neutral" placement="region" lead={t('crawlsOffLead')} message={t('crawlsOffText')} />;
+  return (
+    <Banner
+      tone="neutral"
+      placement="region"
+      lead={t('crawlsOffLead')}
+      message={t('crawlsOffText')}
+      actions={
+        <Button variant="secondary" size="sm" loading={pending} onClick={onCheckAgain}>
+          {t('crawlsOffRetry')}
+        </Button>
+      }
+    />
+  );
 }
 
 export function NoWebsite({ settingsHref }: { settingsHref: Route }): ReactElement {

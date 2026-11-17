@@ -7393,7 +7393,8 @@
       "crawlNoWebsite": "Add a website to the project first.",
       "crawlFailed": "The crawl could not be started",
       "crawlNeedsRole": "Your role cannot start crawls. Ask an admin of the workspace.",
-      "crawlsOff": "Crawls are not switched on yet. Your workspace admin or the idraft team will turn them on."
+      "crawlsOff": "Crawls are not switched on yet. The idraft team will turn them on.",
+      "crawlsStillOff": "Crawls are still switched off."
     },
     "strip": {
       "label": "Crawl summary",
@@ -7429,7 +7430,8 @@
       "endedFinished": "The crawl finished: {count, plural, one {# page} other {# pages}} found.",
       "endedFailed": "The crawl failed.",
       "crawlsOffLead": "Crawls are not switched on yet.",
-      "crawlsOffText": "Your workspace admin or the idraft team will turn them on. Nothing was started.",
+      "crawlsOffText": "The idraft team will turn them on. Nothing was started.",
+      "crawlsOffRetry": "Check again",
       "retry": "Try again",
       "ceilingLead": "Stopped at {count, plural, one {# page} other {# pages}}.",
       "ceilingText": "The site has far more URLs than its sitemap lists (filter pages that never end). The pages found so far are shown.",

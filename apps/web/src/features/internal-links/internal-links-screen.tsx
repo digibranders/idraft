@@ -133,7 +133,9 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
         };
 
   // Only someone who may crawl can have pressed Crawl now, so only they are told crawls are not switched on yet
-  const notice = crawl.crawlsOff && canCrawl ? <CrawlsOffNotice /> : null;
+  // It is a child of the page's own column (`gap-3`) or of the tabs' (`gap-3`), so its spacing comes from the layout
+  const notice =
+    crawl.crawlsOff && canCrawl ? <CrawlsOffNotice pending={crawl.pending} onCheckAgain={() => crawl.start()} /> : null;
   const crawlButton = (label: string): ReactElement => (
     <CrawlButton
       label={label}

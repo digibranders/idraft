@@ -668,9 +668,9 @@ const isUnderWay = (run: CrawlRun): boolean =>
 /**
  * What `POST .../link-crawls` does (backend `api/internal_links/crawls.py`): refuses everything while crawls are
  * switched off (checked first, nothing queued, so a project created with `map_internal_links` queues no crawl
- * either), a project without a website, a crawl while one is under way, and a higher limit while no crawl stopped at its ceiling. A budget refusal
- * (`budget_exceeded`) is not mocked: the mock world has no site crawl budget. `trigger` is `website_added` for the
- * crawl a new project queues.
+ * either), a project without a website, a crawl while one is under way, and a higher limit while no crawl stopped
+ * at its ceiling. A budget refusal (`budget_exceeded`) is not mocked: the mock world has no site crawl budget.
+ * `trigger` is `website_added` for the crawl a new project queues.
  */
 export function requestCrawl(
   projectId: string,

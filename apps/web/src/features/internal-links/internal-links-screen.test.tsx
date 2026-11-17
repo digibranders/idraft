@@ -422,7 +422,8 @@ describe('the crawl states of the page (spec 9)', () => {
 
 describe('crawls that are not switched on yet (503 crawls_disabled)', () => {
   const LEAD = 'Crawls are not switched on yet.';
-  const REASON = /Crawls are not switched on yet\. Your workspace admin or the idraft team will turn them on\./;
+  const REASON = /Crawls are not switched on yet\. The idraft team will turn them on\./;
+  const STILL_OFF = 'Crawls are still switched off.';
   const failedFirst = (): void => answerWith([run({ state: 'failed', error_code: 'site_blocked' })]);
 
   afterEach(() => setCrawlsEnabled(true));
@@ -518,11 +519,108 @@ describe('crawls that are not switched on yet (503 crawls_disabled)', () => {
     expect((await screen.findAllByText('Crawl started')).length).toBeGreaterThan(0);
   });
 
-  it('is learned from the first 503 only: a start that succeeds shows no notice', async () => {
-    renderWithProviders(internalLinksAs('editor', FYNIX_LINKS));
-    const button = await screen.findByRole('button', { name: 'Crawl now' });
+  it('shows no notice while crawls are on: a start succeeds and the panel moves on', async () => {
+    const { user } = renderWithProviders(internalLinksAs('editor', FYNIX_LINKS));
+    await user.click(await screen.findByRole('button', { name: 'Crawl now' }));
+    expect(await screen.findByRole('heading', { name: 'Mapping fynix.digital' })).toBeInTheDocument();
     expect(screen.queryByText(LEAD)).toBeNull();
-    expect(button).toBeEnabled();
+  });
+
+  it('offers Check again in the notice: still off says so in a toast, on again starts the crawl and clears it', async () => {
+    setCrawlsEnabled(false);
+    const requests = countRequests();
+    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    await user.click(await screen.findByRole('button', { name: 'Crawl now' }));
+    await screen.findByText(LEAD);
+    expect(requests('/link-crawls', 'POST')).toBe(1);
+    await user.click(screen.getByRole('button', { name: 'Check again' }));
+    expect((await screen.findAllByText(STILL_OFF)).length).toBeGreaterThan(0);
+    expect(requests('/link-crawls', 'POST')).toBe(2);
+    expect(screen.getByText(LEAD)).toBeInTheDocument();
+    // Said once, when it was learned: the second answer is a toast, not a second announcement
+    expect(vi.mocked(announce)).toHaveBeenCalledTimes(1);
+    setCrawlsEnabled(true);
+    await user.click(screen.getByRole('button', { name: 'Check again' }));
+    await waitFor(() => expect(screen.queryByText(LEAD)).toBeNull());
+    expect((await screen.findAllByText('Crawl started')).length).toBeGreaterThan(0);
+    expect(await screen.findByRole('button', { name: 'Crawling' })).toBeInTheDocument();
+  });
+
+  it('gives the same toast, never a silent press, for the Try again of a failed crawl and a higher limit', async () => {
+    setCrawlsEnabled(false);
+    seedWorld([
+      run({ run_id: 'f', state: 'failed', error_code: 'site_blocked', created_at: '2026-11-16T03:00:00Z' }),
+      run({ is_latest: true, state: 'stopped_at_ceiling', stop_reason: 'ceiling' }),
+    ]);
+    const requests = countRequests();
+    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    await user.click(await screen.findByRole('button', { name: 'Crawl now' }));
+    await screen.findByText(LEAD);
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    await waitFor(() => expect(requests('/link-crawls', 'POST')).toBe(2));
+    expect((await screen.findAllByText(STILL_OFF)).length).toBeGreaterThan(0);
+    await user.click(screen.getByRole('button', { name: 'Crawl again with a higher limit' }));
+    await waitFor(() => expect(requests('/link-crawls', 'POST')).toBe(3));
+    await waitFor(() => expect(screen.getAllByText(STILL_OFF).length).toBeGreaterThan(1));
+  });
+
+  it('keeps Check again for those who may crawl only', async () => {
+    setCrawlsEnabled(false);
+    renderWithProviders(internalLinksAs('viewer', EVENTUS_LINKS));
+    await screen.findByRole('button', { name: 'Crawl now' });
+    expect(screen.queryByRole('button', { name: 'Check again' })).toBeNull();
+  });
+
+  it('is kept for the whole session, for every project: crawls are on or off for the deployment', async () => {
+    setCrawlsEnabled(false);
+    const requests = countRequests();
+    const shown = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    await shown.user.click(await screen.findByRole('button', { name: 'Crawl now' }));
+    await screen.findByText(LEAD);
+    // Leave the page and come back, as a person does inside the app: the cache stays, so the state does too
+    shown.rerender(<div />);
+    expect(screen.queryByText(LEAD)).toBeNull();
+    shown.rerender(internalLinksAs('editor', EVENTUS_LINKS));
+    expect(await screen.findByText(LEAD)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Crawl now' })).toHaveAttribute('aria-disabled', 'true');
+    // Another project of the same session: no request is made to find out
+    shown.rerender(<div />);
+    shown.rerender(internalLinksAs('editor', FYNIX_LINKS));
+    expect(await screen.findByText(LEAD)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Crawl now' })).toHaveAttribute('aria-disabled', 'true');
+    expect(requests('/link-crawls', 'POST')).toBe(1);
+  });
+
+  it('is not carried over a page reload: a fresh cache asks again', async () => {
+    setCrawlsEnabled(false);
+    const first = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    await first.user.click(await screen.findByRole('button', { name: 'Crawl now' }));
+    await screen.findByText(LEAD);
+    first.unmount();
+    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    expect(await screen.findByRole('button', { name: 'Crawl now' })).toBeEnabled();
+    expect(screen.queryByText(LEAD)).toBeNull();
+  });
+
+  it('treats another 503 and a network error as failures: the generic toast, no notice, Crawl now enabled', async () => {
+    server.use(
+      http.post(CRAWLS, () =>
+        HttpResponse.json(
+          { type: 'about:blank', title: 'The data provider is paused', status: 503, code: 'provider_paused' },
+          { status: 503, headers: { 'content-type': 'application/problem+json' } },
+        ),
+      ),
+    );
+    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    await user.click(await screen.findByRole('button', { name: 'Crawl now' }));
+    expect((await screen.findAllByText('The crawl could not be started')).length).toBeGreaterThan(0);
+    expect(screen.queryByText(LEAD)).toBeNull();
+    expect(screen.getByRole('button', { name: 'Crawl now' })).toBeEnabled();
+    server.use(http.post(CRAWLS, () => HttpResponse.error()));
+    await user.click(screen.getByRole('button', { name: 'Crawl now' }));
+    await waitFor(() => expect(screen.getAllByText('The crawl could not be started').length).toBeGreaterThan(2));
+    expect(screen.queryByText(LEAD)).toBeNull();
+    expect(screen.getByRole('button', { name: 'Crawl now' })).toBeEnabled();
   });
 
   it('leaves the other refusals as they were: a toast, and Crawl now stays enabled', async () => {

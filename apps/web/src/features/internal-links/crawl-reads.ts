@@ -132,9 +132,11 @@ export const useWorkspaceTiers = (workspaceId: string): UseQueryResult<TierList>
   useQuery(pageTiersQuery(workspaceId));
 
 /**
- * Whether the API answered `503 crawls_disabled` to a start. It is learned from that answer alone (no request asks
- * beforehand) and kept in the query cache, so it holds while the app stays open and goes with a page reload; a start
- * that succeeds clears it.
+ * Whether the API answered `503 crawls_disabled` to a start. The switch (the worker setting CRAWLS_ENABLED) is for the
+ * whole deployment, so the key has no project or workspace in it: one answer holds for every project until the page
+ * is reloaded. It is learned from that answer alone (no request asks beforehand) and kept in the query cache, so it
+ * holds while the app stays open and goes with a page reload; a start that succeeds clears it, and the notice's Check
+ * again is a start, so the person is never stuck with it.
  */
 export const crawlsOffKey: QueryKey = ['internal-links-crawls-off'];
 
@@ -164,10 +166,14 @@ export function useCrawlNow(
           toast({ type: 'info', title: t('crawlStarted'), description: t('crawlStartedText', { host }) });
         },
         onError: (error) => {
-          // Not a failure: crawls are not switched on yet. The page shows a notice; no toast, no error
+          // Not a failure: crawls are not switched on yet. The first answer sets the state, shows the notice and says
+          // it once; any later press that meets it again (Check again, a retry, a higher limit) says so in a toast
           if (isApiProblem(error, 'crawls_disabled')) {
-            queryClient.setQueryData(crawlsOffKey, true);
-            announce(t('crawlsOff'), { key: 'internal-links-crawls-off' });
+            if (queryClient.getQueryData(crawlsOffKey) === true) toast({ type: 'info', title: t('crawlsStillOff') });
+            else {
+              queryClient.setQueryData(crawlsOffKey, true);
+              announce(t('crawlsOff'), { key: 'internal-links-crawls-off' });
+            }
           } else if (isApiProblem(error, 'crawl_in_progress')) toast({ type: 'info', title: t('crawlBusy') });
           else if (isApiProblem(error, 'budget_exceeded'))
             toast({ type: 'error', title: t('crawlFailed'), description: t('crawlBudget') });
