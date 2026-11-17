@@ -13,31 +13,10 @@ import { Icon } from '@/components/ui/icon';
 import { LinkButton } from '@/components/ui/link-button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatRelative, formatTableDate } from '@/lib/format';
+import { failedText } from '@/lib/internal-links/crawl-failure';
 import type { CrawlRun } from '@/lib/internal-links/types';
 
-type StatesTranslate = ReturnType<typeof useTranslations<'internalLinks.states'>>;
-
-/**
- * The words of a failed crawl, by its error code: every code the backend sets (`collectors/crawl_runs.py`), and a
- * generic sentence for any other. The run's own `error_message` is never shown: for a provider error it is the
- * provider's text.
- */
-export function failedText(t: StatesTranslate, run: CrawlRun, host: string): string {
-  switch (run.error_code) {
-    case 'site_blocked':
-      return t('failedSiteBlocked', { host });
-    case 'site_unreachable':
-      return t('failedUnreachable', { host });
-    case 'budget_exceeded':
-      return t('failedBudget');
-    case 'provider_error':
-      return t('failedProvider');
-    case 'submit_unknown':
-      return t('failedSubmitUnknown');
-    default:
-      return t('failedOther');
-  }
-}
+export { failedText };
 
 /**
  * Crawls are not switched on yet (the API's `503 crawls_disabled`). A condition, not a failure: a neutral banner,

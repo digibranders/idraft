@@ -57,9 +57,11 @@ describe('SettingsFrame', () => {
       '/digibranders/fynix/settings/engines',
       '/digibranders/fynix/settings/schedules',
       '/digibranders/fynix/settings/retention',
+      '/digibranders/fynix/settings/links',
       '/digibranders/fynix/settings/workspace',
       '/digibranders/fynix/settings/members',
       '/digibranders/fynix/settings/budgets',
+      '/digibranders/fynix/settings/tiers',
       // Inside a project they open in that project's shell
       '/digibranders/fynix/costs',
       '/digibranders/fynix/ops/runs',
@@ -90,6 +92,22 @@ describe('SettingsFrame', () => {
     expect(within(nav).getByRole('link', { name: 'Schedules' })).not.toHaveAttribute('aria-current');
   });
 
+  it('marks Internal links and Page tiers as the section on screen on their own pages', () => {
+    location.pathname = '/digibranders/fynix/settings/links';
+    const first = renderWithProviders(frame('fynix'));
+    expect(
+      within(screen.getByRole('navigation', { name: 'Settings sections' })).getByRole('link', {
+        name: 'Internal links',
+      }),
+    ).toHaveAttribute('aria-current', 'page');
+    first.unmount();
+    location.pathname = '/digibranders/settings/tiers';
+    renderWithProviders(frame(null));
+    expect(
+      within(screen.getByRole('navigation', { name: 'Settings sections' })).getByRole('link', { name: 'Page tiers' }),
+    ).toHaveAttribute('aria-current', 'page');
+  });
+
   it('outside a project leaves the project group out and links to the workspace settings routes', () => {
     location.pathname = '/digibranders/settings/security';
     renderWithProviders(frame(null));
@@ -102,6 +120,7 @@ describe('SettingsFrame', () => {
       '/digibranders/settings/workspace',
       '/digibranders/settings/members',
       '/digibranders/settings/budgets',
+      '/digibranders/settings/tiers',
       // No project is open: the workspace's own routes, which pick a project when the member can open one
       '/digibranders/costs',
       '/digibranders/ops/runs',
@@ -118,8 +137,8 @@ describe('SettingsFrame', () => {
       within(nav)
         .getAllByRole('link')
         .map((link) => link.textContent)
-        .slice(-4),
-    ).toEqual(['Members and roles', 'Budgets and usage', 'Costs', 'Operations']);
+        .slice(-5),
+    ).toEqual(['Members and roles', 'Budgets and usage', 'Page tiers', 'Costs', 'Operations']);
     expect(within(nav).getByRole('link', { name: 'Budgets and usage' })).toHaveAttribute('aria-current', 'page');
     expect(within(nav).getByRole('link', { name: 'Members and roles' })).not.toHaveAttribute('aria-current');
   });
@@ -127,9 +146,9 @@ describe('SettingsFrame', () => {
   it('lists Costs and Operations after Budgets and usage, Costs only for a member who may read costs', () => {
     // A viewer reads data but not costs; a billing member reads costs but not data
     for (const [role, expected] of [
-      ['editor', ['Budgets and usage', 'Costs', 'Operations']],
-      ['viewer', ['Budgets and usage', 'Operations']],
-      ['billing', ['Budgets and usage', 'Costs']],
+      ['editor', ['Budgets and usage', 'Page tiers', 'Costs', 'Operations']],
+      ['viewer', ['Budgets and usage', 'Page tiers', 'Operations']],
+      ['billing', ['Budgets and usage', 'Page tiers', 'Costs']],
     ] as const) {
       const { unmount } = renderWithProviders(frame('fynix', role));
       const nav = screen.getByRole('navigation', { name: 'Settings sections' });
