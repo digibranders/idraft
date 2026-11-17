@@ -47,11 +47,12 @@ from tests.api.internal_links.support import (
     seed_tiers,
     set_counts,
     set_website,
+    url_id,
 )
 from tests.api.keywords.support import LOCATION, ensure_locations
 from tests.api.test_route_access import PATH_PARAMETER
 from tests.api.workspaces.support import make_project
-from tests.collectors.ai_support import add_prompt, seed_extraction, seed_observation
+from tests.collectors.ai_support import Prompt, add_prompt, seed_extraction, seed_observation
 from tests.collectors.support import Project
 from tests.conftest import PostgresServer
 from tests.db.support import insert_prompt, seed_rank
@@ -299,6 +300,7 @@ BODIES: dict[tuple[str, str], dict[str, Any]] = {
     # WP-68 llm-advanced
     # WP-69 first-party-signals
     # WP-70 geo-readiness
+    # WP-76 citations-v2-api
     # Internal links tracker (plan 02): tiers, rules, tiers and tags on pages. The tier is the
     # spare one nothing uses, so deleting it succeeds.
     ("POST", _W + "/page-tiers"): {"name": "Planted tier"},
@@ -447,6 +449,14 @@ QUERIES: dict[tuple[str, str], dict[str, str]] = {
     # WP-68 llm-advanced
     # WP-69 first-party-signals
     # WP-70 geo-readiness
+    # WP-76 citations-v2-api
+    # The gap reads take 1 to 5 competitors the project tracks (`competitor_id`).
+    ("GET", _W + "/projects/{project_id}/ai/citation-gaps"): {
+        "filter[competitor_id_in]": "{competitor_id}"
+    },
+    ("GET", _W + "/projects/{project_id}/ai/citation-gaps/{prompt_id}"): {
+        "filter[competitor_id_in]": "{competitor_id}"
+    },
     # Internal links tracker (plan 02): the journey step needs the focus page.
     ("GET", _W + "/projects/{project_id}/internal-links/neighbors"): {
         "url_id": "{url_id}",
@@ -984,6 +994,61 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str, fake: Fa
 
     # WP-70 geo-readiness
 
+    # WP-76 citations-v2-api
+    # A competitor the project tracks, for the gap reads.
+    rival = await fetchrow(
+        pg,
+        "INSERT INTO core.entities (workspace_id, entity_type, canonical_name) "
+        "VALUES ($1, 'brand', 'Citation rival') RETURNING id",
+        workspace.id,
+    )
+    await execute(
+        pg,
+        "INSERT INTO core.project_entities (project_id, entity_id, workspace_id, role) "
+        "VALUES ($1, $2, $3, 'competitor')",
+        project_id,
+        rival["id"],
+        workspace.id,
+    )
+    more_ids["competitor_id"] = str(rival["id"])
+    # The seeded answer also cites the project's pricing page (the `url_id` of the internal links
+    # block below), so the cited page detail has a page of the tenant's own to show.
+    await execute(
+        pg,
+        "INSERT INTO ai.citations (observation_id, observed_at, citation_index, workspace_id, "
+        "project_id, engine_code, url_id, domain_id, raw_url, citation_kind, domain_role) "
+        "SELECT $1, c.observed_at, 2, c.workspace_id, c.project_id, c.engine_code, u.id, "
+        "u.domain_id, u.canonical_url, 'source_list', 'third_party' FROM ai.citations c, "
+        "core.urls u WHERE c.observation_id = $1 AND c.citation_index = 1 AND u.id = $2",
+        observation_id,
+        await url_id(pg, f"https://example.com/{label}-pricing"),
+    )
+    # An answer of the prompt of the path routes, counted under the derivation of the one above,
+    # so the gap drawer of `prompt_id` has an answer to show.
+    version = await fetchrow(
+        pg, "SELECT current_version_id FROM ai.prompts WHERE id = $1", prompt_id
+    )
+    gap_answer = await seed_observation(
+        pg,
+        Project(workspace.id, project_id),
+        Prompt(prompt_id, version["current_version_id"]),
+        object_key=f"{ai_key}.gap",
+        sha256=digest(ai_answer + b".gap"),
+    )
+    await execute(
+        pg,
+        "INSERT INTO ai.observation_facts (observation_id, observed_at, derivation_id, "
+        "workspace_id, project_id, observed_date, engine_code, observation_class, prompt_id, "
+        "prompt_version_id, replicate_index, is_valid, own_mentioned, own_domain_cited, "
+        "own_citation_count, total_citation_count, tracked_entities_mentioned, "
+        "had_structured_list) SELECT e.id, e.observed_at, f.derivation_id, f.workspace_id, "
+        "f.project_id, e.observed_date, e.engine_code, e.observation_class, e.prompt_id, "
+        "e.prompt_version_id, 1, true, false, false, 0, 0, 0, false FROM ai.observations e "
+        "CROSS JOIN ai.observation_facts f WHERE e.id = $1 AND f.observation_id = $2",
+        gap_answer,
+        observation_id,
+    )
+
     # Internal links tracker (plan 02): the workspace's tiers and a spare one nothing uses, a
     # finished crawl of the project's site with two linked pages of the tenant's own (their
     # paths carry the label, so a response that shows them shows the tenant), a rule, a page with
@@ -1323,6 +1388,7 @@ _TENANT_ROWS = {
     # WP-68 llm-advanced
     # WP-69 first-party-signals
     # WP-70 geo-readiness
+    # WP-76 citations-v2-api
 }
 
 
