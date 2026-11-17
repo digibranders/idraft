@@ -879,10 +879,13 @@ async def test_a_post_that_fails_unexpectedly_is_not_sent_again(
     # A post begun a moment ago may still be in flight in another tick: it is left alone.
     await crawl_tick(worker_db, on_page, _Sent(), now=NOW)
     assert (await _run(migrated, run_id))["state"] == "queued"
+    # Aged against the tick's own `now`: NOW is fixed when the module loads, and a long run of
+    # the whole suite leaves it far behind the database clock.
     await execute(
         migrated,
-        "UPDATE seo.crawl_runs SET submitted_at = now() - interval '11 minutes' WHERE id = $1",
+        "UPDATE seo.crawl_runs SET submitted_at = $2 WHERE id = $1",
         run_id,
+        NOW - timedelta(minutes=11),
     )
     await crawl_tick(worker_db, on_page, _Sent(), now=NOW)
 
