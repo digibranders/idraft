@@ -3,9 +3,12 @@ needs (a website on example.com)."""
 
 from __future__ import annotations
 
+import json
 import uuid
 from dataclasses import dataclass, field
 from decimal import Decimal
+
+import httpx
 
 from idraft.providers.contract import ProviderCallError, ProviderError
 from idraft.providers.dataforseo.on_page import (
@@ -22,6 +25,7 @@ from tests.api.auth.support import Workspace, execute, make_workspace
 from tests.api.internal_links.support import set_website
 from tests.api.keywords.support import keyword_project
 from tests.conftest import PostgresServer
+from tests.providers.dataforseo.support import Api, as_json, envelope, task_answer
 
 
 def summary(
@@ -208,3 +212,86 @@ def synthetic_site() -> FakeOnPage:
         summaries=[summary(finished=True, crawled=len(pages))],
         non_indexable_items=[NonIndexableItem(url=f"{SITE}/privacy", reason="meta_tag")],
     )
+
+
+E2E_TASK = "11161234-1535-0216-0000-e2e000000001"
+
+
+def _raw_page(item: PageItem) -> dict[str, object]:
+    """A page as DataForSEO's `pages` answer holds it (the fields `OnPage` reads)."""
+    return {
+        "resource_type": item.resource_type,
+        "status_code": item.status_code,
+        "location": item.location,
+        "url": item.url,
+        "meta": {"title": item.title, "canonical": item.canonical},
+        "checks": {"from_sitemap": item.from_sitemap},
+    }
+
+
+def _asked(request: httpx.Request) -> dict[str, object]:
+    (asked,) = json.loads(request.content)
+    assert asked["id"] == E2E_TASK, "a call about a task the stand-in never posted"
+    return dict(asked)
+
+
+def serve(site: FakeOnPage, api: Api) -> None:
+    """The site's crawl as DataForSEO answers it, for the real adapter: the post, a finished
+    summary, pages a batch at a time with a token, the non-indexable pages, and each page's raw
+    HTML (a page with no HTML in `site.html` answers with none, as an expired one does)."""
+    # A float: the answer is JSON, and the client reads the number back as a decimal.
+    post = task_answer(task_id=E2E_TASK, cost=0.3, status_code=20100)
+    api.answer("POST", "/v3/on_page/task_post", envelope([post]))
+    finished = {
+        "crawl_progress": "finished",
+        "crawl_status": {"pages_in_queue": 0, "pages_crawled": len(site.page_items)},
+        "crawl_stop_reason": "empty_queue",
+        "domain_info": {"extended_crawl_status": "no_errors", "checks": {"sitemap": True}},
+    }
+    api.answer(
+        "GET",
+        f"/v3/on_page/summary/{E2E_TASK}",
+        envelope([task_answer(task_id=E2E_TASK, result=[finished])]),
+    )
+
+    def answer(result: dict[str, object]) -> httpx.Response:
+        return as_json(envelope([task_answer(task_id=E2E_TASK, result=[result])]))
+
+    def pages(request: httpx.Request) -> httpx.Response:
+        token = _asked(request).get("search_after_token")
+        start = int(str(token or 0))
+        end = start + site.batch
+        return answer(
+            {
+                "total_items_count": len(site.page_items),
+                "items": [_raw_page(item) for item in site.page_items[start:end]],
+                "search_after_token": str(end) if end < len(site.page_items) else None,
+            }
+        )
+
+    def non_indexable(request: httpx.Request) -> httpx.Response:
+        start = int(str(_asked(request)["offset"]))
+        items = site.non_indexable_items
+        return answer(
+            {
+                "total_items_count": len(items),
+                "items": [
+                    {"reason": item.reason, "url": item.url}
+                    for item in items[start : start + site.batch]
+                ],
+            }
+        )
+
+    def raw_html(request: httpx.Request) -> httpx.Response:
+        html = site.html.get(str(_asked(request)["url"]))
+        return answer({"items": None if html is None else {"html": html}})
+
+    def links(request: httpx.Request) -> httpx.Response:
+        # Only a page with no HTML is read link by link, and the stand-in knows no links for it.
+        _asked(request)
+        return answer({"total_items_count": 0, "items": []})
+
+    api.on("POST", "/v3/on_page/pages", pages)
+    api.on("POST", "/v3/on_page/non_indexable", non_indexable)
+    api.on("POST", "/v3/on_page/raw_html", raw_html)
+    api.on("POST", "/v3/on_page/links", links)
