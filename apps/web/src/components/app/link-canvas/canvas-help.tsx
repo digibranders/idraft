@@ -30,6 +30,13 @@ const LINES = [
   ['back', 'border-dashed border-primary'],
 ] as const;
 
+/** What the colours of a line mean in the By tier layout, after the ones above (which still apply to redirects and broken pages). */
+const TIER_LINES = [
+  ['up', 'border-positive-text'],
+  ['down', 'border-info-text'],
+  ['side', 'border-dashed border-foreground-tertiary'],
+] as const;
+
 const BOXES = [
   ['focus', 'border-primary bg-surface ring-1 ring-primary-border'],
   ['page', 'border-border-strong bg-surface'],
@@ -43,7 +50,7 @@ const BOXES = [
  * The legend and the controls of the canvas (spec 7.5 "Legend and controls"): the gestures and keys, then what the
  * lines and boxes mean. It replaces the legend row that used to sit under the canvas.
  */
-export function CanvasHelp({ id }: { id?: string | undefined }): ReactElement {
+export function CanvasHelp({ id, tier = false }: { id?: string | undefined; tier?: boolean }): ReactElement {
   const t = useTranslations('linkCanvas.help');
   const lines = useTranslations('linkCanvas.legend');
   return (
@@ -66,7 +73,7 @@ export function CanvasHelp({ id }: { id?: string | undefined }): ReactElement {
       <p className="mt-3 mb-2 type-body-strong text-foreground">{t('legendTitle')}</p>
       <div className="flex flex-col gap-2 type-meta text-foreground-secondary">
         <ul aria-label={t('lines')} className="flex flex-wrap items-center gap-x-4 gap-y-1">
-          {LINES.map(([key, line]) => (
+          {(tier ? [...LINES, ...TIER_LINES] : LINES).map(([key, line]) => (
             <li key={key} className="inline-flex items-center gap-1.5">
               <span aria-hidden="true" className={cn('w-6 border-t-2', line)} />
               {lines(key)}

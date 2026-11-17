@@ -381,6 +381,95 @@ describe('the Journey tab: Set tier on the canvas', () => {
   });
 });
 
+describe('the Journey tab: the By tier layout', () => {
+  const laneHeads = (area: HTMLElement): string[] =>
+    within(area)
+      .getAllByRole('heading', { level: 3 })
+      .map((head) => head.textContent ?? '')
+      .filter((text) => /^T\d |^Untiered$/.test(text));
+
+  it('is By step unless the address says tier, with no lane chips', async () => {
+    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: 'tab=journey&focus=103' });
+    const area = await canvas();
+    expect(screen.getByRole('radio', { name: 'By step' })).toBeChecked();
+    await within(area).findByRole('heading', { name: 'Step 1 out' });
+    expect(screen.queryByRole('group', { name: 'Tiers shown' })).toBeNull();
+  });
+
+  it('writes jl for the switch and takes it out again for By step', async () => {
+    const { seen, onUrlUpdate } = addresses();
+    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
+      searchParams: 'tab=journey&focus=103',
+      onUrlUpdate,
+    });
+    await canvas();
+    await user.click(screen.getByRole('radio', { name: 'By tier' }));
+    await waitFor(() => expect(seen.at(-1)).toContain('jl=tier'));
+    expect(screen.getByRole('radio', { name: 'By tier' })).toBeChecked();
+    const lanes = laneHeads(await canvas());
+    expect(lanes.length).toBeGreaterThanOrEqual(4);
+    // T1 is on the right
+    expect(lanes.at(-1)).toMatch(/^T1 /);
+    await user.click(screen.getByRole('radio', { name: 'By step' }));
+    await waitFor(() => expect(seen.at(-1)).not.toContain('jl='));
+    await within(await canvas()).findByRole('heading', { name: 'Step 1 out' });
+  });
+
+  it('reads the layout and the lanes turned off from the address', async () => {
+    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
+      searchParams: 'tab=journey&focus=103&jl=tier&jt=4',
+    });
+    const area = await canvas();
+    await waitFor(() => expect(laneHeads(area).length).toBeGreaterThanOrEqual(3));
+    expect(laneHeads(area).some((head) => head.startsWith('T4 '))).toBe(false);
+    expect(screen.getByRole('button', { name: /^T4 / })).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('turns a lane off and on with its chip, in the address, and keeps the lane of the focus page on', async () => {
+    const { seen, onUrlUpdate } = addresses();
+    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
+      searchParams: 'tab=journey&focus=103&jl=tier',
+      onUrlUpdate,
+    });
+    const area = await canvas();
+    await waitFor(() => expect(laneHeads(area).length).toBeGreaterThanOrEqual(4));
+    const chips = within(screen.getByRole('group', { name: 'Tiers shown' })).getAllByRole('button');
+    // Exactly the focus page's chip is locked
+    expect(chips.filter((chip) => chip.hasAttribute('disabled'))).toHaveLength(1);
+    const free = chips.find(
+      (chip) => !chip.hasAttribute('disabled') && /^T\d /.test(chip.getAttribute('aria-label') ?? ''),
+    );
+    if (free === undefined) throw new Error('No free chip');
+    const name = free.getAttribute('aria-label') ?? '';
+    await user.click(free);
+    await waitFor(() => expect(seen.at(-1)).toMatch(/jt=\d/));
+    await waitFor(() => expect(laneHeads(area)).not.toContain(name));
+    expect(screen.getByRole('button', { name })).toHaveAttribute('aria-pressed', 'false');
+    await user.click(screen.getByRole('button', { name }));
+    await waitFor(() => expect(seen.at(-1)).not.toContain('jt='));
+    await waitFor(() => expect(laneHeads(area)).toContain(name));
+  });
+
+  it('shows the switch and the chips on the canvas only', async () => {
+    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
+      searchParams: 'tab=journey&focus=103&jl=tier',
+    });
+    await canvas();
+    await user.click(screen.getByRole('radio', { name: 'Tree list' }));
+    await screen.findByRole('table', { name: 'Link journey as a tree' });
+    expect(screen.queryByRole('radio', { name: 'By tier' })).toBeNull();
+    expect(screen.queryByRole('group', { name: 'Tiers shown' })).toBeNull();
+  });
+
+  it('never shows an equity share', async () => {
+    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
+      searchParams: 'tab=journey&focus=103&jl=tier&open=o%3A108',
+    });
+    await canvas();
+    expect(document.body.innerHTML.toLowerCase()).not.toContain('equity');
+  });
+});
+
 describe('the Journey tab: equity', () => {
   it('never shows an equity share, even when the API sends one', async () => {
     const EQUITY = 0.4321;

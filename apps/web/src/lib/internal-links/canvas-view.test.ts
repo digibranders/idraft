@@ -11,7 +11,9 @@ import {
   panBy,
   revealMinimum,
   stepZoom,
+  tierFirstView,
   toScreen,
+  unionOf,
   toWorld,
   zoomAt,
   type View,
@@ -136,5 +138,40 @@ describe('canvas view', () => {
     expect(moved.y).toBe(0);
     expect(moved.x).toBe(VIEWPORT.width - 24 - (1100 + 100));
     expect(toScreen(moved, { x: 1200, y: 100 }).x).toBe(VIEWPORT.width - 24);
+  });
+
+  it('joins boxes into the box that holds them all', () => {
+    expect(
+      unionOf([
+        { left: 10, top: 20, width: 30, height: 40 },
+        { left: 100, top: 0, width: 10, height: 10 },
+      ]),
+    ).toEqual({ left: 10, top: 0, width: 100, height: 60 });
+    expect(unionOf([])).toEqual({ left: 0, top: 0, width: 0, height: 0 });
+  });
+});
+
+describe('the first view of the By tier layout (spec 7.5 "Two layouts")', () => {
+  const lanes = { left: 3000, top: 0, width: 600, height: 900 };
+
+  it('shows every lane when that stays at 50 percent or more', () => {
+    const content = { left: 0, top: 0, width: 1500, height: 500 };
+    expect(tierFirstView(content, lanes, VIEWPORT, 56)).toEqual(fitView(content, VIEWPORT, 56));
+  });
+
+  it('shows the lanes nearest T1 at 50 percent when the whole would be smaller', () => {
+    const content = { left: 0, top: 0, width: 4000, height: 900 };
+    const view = tierFirstView(content, lanes, VIEWPORT, 56);
+    expect(view.scale).toBe(0.5);
+    // The T1 side is on the screen, with the margin to spare on the right
+    expect(toScreen(view, { x: 3600, y: 300 }).x).toBeLessThanOrEqual(VIEWPORT.width - 56 + 0.001);
+    expect(toScreen(view, { x: 3000, y: 300 }).x).toBeGreaterThanOrEqual(0);
+  });
+
+  it('centres the nearest lanes when they fit with room to spare', () => {
+    const content = { left: 0, top: 0, width: 4000, height: 300 };
+    const near = { left: 3000, top: 0, width: 400, height: 300 };
+    const view = tierFirstView(content, near, VIEWPORT, 56);
+    expect(toScreen(view, { x: 3200, y: 150 })).toEqual({ x: 500, y: 300 });
   });
 });

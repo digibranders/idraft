@@ -5,7 +5,10 @@ import {
   formatMore,
   MAX_ADDRESS_KEYS,
   MAX_ADDRESS_LENGTH,
+  formatLanes,
   parseKeySet,
+  parseLanes,
+  parseLayoutMode,
   parseMore,
 } from './journey-codec';
 
@@ -42,5 +45,29 @@ describe('the journey in the address (spec 7.5)', () => {
     ]);
     expect(formatMore(more)).toBe('m:o|f*2,m:i|f|t1*1');
     expect(formatMore(new Map())).toBeNull();
+  });
+});
+
+describe('the tier lanes turned off in the address (jt)', () => {
+  it('reads tier positions 1 to 8 and 99 for Untiered, once each, in ascending order', () => {
+    expect([...parseLanes('4,2,99,2')]).toEqual([2, 4, 99]);
+    expect([...parseLanes(null)]).toEqual([]);
+    expect([...parseLanes('')]).toEqual([]);
+  });
+
+  it('drops anything that is not a position, never throws', () => {
+    expect([...parseLanes('0,9,x,3.5,-1,1e1, 3 ,100')]).toEqual([3]);
+  });
+
+  it('writes a comma list, or nothing when no lane is off', () => {
+    expect(formatLanes(new Set([99, 2]))).toBe('2,99');
+    expect(formatLanes(new Set())).toBeNull();
+  });
+
+  it('reads and writes the layout, with step as the default', () => {
+    expect(parseLayoutMode('tier')).toBe('tier');
+    expect(parseLayoutMode('step')).toBe('step');
+    expect(parseLayoutMode('grid')).toBe('step');
+    expect(parseLayoutMode(null)).toBe('step');
   });
 });

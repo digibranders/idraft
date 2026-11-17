@@ -12,7 +12,14 @@ import { LinkCanvas, type LinkCanvasProps } from '@/components/app/link-canvas/l
 import { EmptyState } from '@/components/app/status/empty-state';
 import { toast } from '@/components/ui/toast';
 import type { View } from '@/lib/internal-links/canvas-view';
-import { formatKeySet, formatMore, parseKeySet, parseMore } from '@/lib/internal-links/journey-codec';
+import {
+  formatKeySet,
+  formatLanes,
+  formatMore,
+  parseKeySet,
+  parseLanes,
+  parseMore,
+} from '@/lib/internal-links/journey-codec';
 import { buildJourney, pruneJourney } from '@/lib/internal-links/journey-layout';
 import {
   clampJourney,
@@ -82,6 +89,13 @@ export function JourneyCanvas({
   const { scope, state, setSearch, tiers, inspect } = context;
   const canWrite = useCan('projects:write');
   const { lookup, useLoad, retry, retryFailed } = useNeighborLookup(scope);
+  // The lanes turned off, as text for the same reason as the opened sets: a write that leaves them alone changes nothing here
+  const lanesText = formatLanes(state.hiddenLanes) ?? '';
+  const hiddenLanes = useMemo(() => parseLanes(lanesText), [lanesText]);
+  const laneTiers = useMemo(
+    () => tiers.map((tier) => ({ position: tier.position, code: tier.code, name: tier.name })),
+    [tiers],
+  );
   const [pinned, setPinned] = useState<ReadonlySet<string>>(NO_PINS);
   const [tierIds, setTierIds] = useState<readonly string[] | null>(null);
   const bulk = usePageBulk(scope, DEFAULT_PAGE_QUERY, noop);
@@ -190,6 +204,9 @@ export function JourneyCanvas({
         onFull={() => toast({ type: 'info', title: t('full'), description: t('fullText') })}
         onShowLinks={showTheirLinks}
         onSetTier={canWrite ? openTierDialog : undefined}
+        layoutMode={state.layout}
+        tiers={laneTiers}
+        hiddenLanes={hiddenLanes}
       />
       {isolated ? (
         <EmptyState variant="inline" title={t('noLinksTitle')} reason={t('noLinksReason')} headingLevel={3} />

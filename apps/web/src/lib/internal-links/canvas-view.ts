@@ -105,6 +105,37 @@ export function firstView(content: Box, focus: Box, viewport: Size, margin: numb
   return centerOn(whole, focus, viewport, FOCUS_SCALE);
 }
 
+/** The box that holds every box given (all zero for none). */
+export function unionOf(boxes: readonly Box[]): Box {
+  if (boxes.length === 0) return { left: 0, top: 0, width: 0, height: 0 };
+  const left = Math.min(...boxes.map((box) => box.left));
+  const top = Math.min(...boxes.map((box) => box.top));
+  const right = Math.max(...boxes.map((box) => box.left + box.width));
+  const bottom = Math.max(...boxes.map((box) => box.top + box.height));
+  return { left, top, width: right - left, height: bottom - top };
+}
+
+/** The By tier layout is readable down to this zoom; below it only the lanes nearest T1 are shown. */
+export const TIER_MIN_SCALE = 0.5;
+
+/**
+ * The first view of the By tier layout (spec 7.5 "Two layouts"): every lane when that stays at 50 percent or more,
+ * otherwise the lanes nearest T1 (`near`, the right end of the content) at 50 percent, centred, or against the right
+ * margin when they are wider than the viewport.
+ */
+export function tierFirstView(content: Box, near: Box, viewport: Size, margin: number = FIT_MARGIN): View {
+  const whole = fitView(content, viewport, margin);
+  if (whole.scale >= TIER_MIN_SCALE) return whole;
+  const scale = TIER_MIN_SCALE;
+  const centred = centerOn(whole, near, viewport, scale);
+  const x =
+    near.width * scale > viewport.width - margin * 2
+      ? viewport.width - margin - (near.left + near.width) * scale
+      : centred.x;
+  const y = near.height * scale > viewport.height - margin * 2 ? margin - near.top * scale : centred.y;
+  return { scale, x, y };
+}
+
 /** Pans the least it takes to show `box` (world coordinates) inside the viewport with `margin`; the same object when it shows. */
 export function revealMinimum(view: View, box: Box, viewport: Size, margin: number = 24): View {
   const left = box.left * view.scale + view.x;

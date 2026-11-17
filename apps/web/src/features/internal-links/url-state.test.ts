@@ -28,6 +28,8 @@ describe('the address of Internal links (URL state table)', () => {
       invalid: { src: null, tgt: null, focus: null },
       journeyView: 'canvas',
       treeDir: 'out',
+      layout: 'step',
+      hiddenLanes: new Set(),
       open: new Set(),
       groups: new Set(),
       more: new Map(),
@@ -72,6 +74,15 @@ describe('the address of Internal links (URL state table)', () => {
       focus: null,
       worklist: null,
     });
+  });
+
+  it('reads the layout and the lanes turned off, and falls back to By step with every lane on', () => {
+    expect(parseLinksSearch({ jl: 'tier', jt: '4,99' })).toMatchObject({
+      layout: 'tier',
+      hiddenLanes: new Set([4, 99]),
+    });
+    expect(parseLinksSearch({ jl: 'rows', jt: 'x,0' })).toMatchObject({ layout: 'step', hiddenLanes: new Set() });
+    expect(parseLinksSearch({})).toMatchObject({ layout: 'step', hiddenLanes: new Set() });
   });
 
   it('keeps an id only when the API would take it as a url id, and remembers the text of one it refused', () => {

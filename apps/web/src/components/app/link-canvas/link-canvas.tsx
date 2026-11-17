@@ -26,6 +26,7 @@ import { INFO_TOGGLE_ATTRIBUTE, type InfoFacts } from './info-panel';
 import { LinkCard, type LinkCardPageProps } from './link-card';
 import { Minimap, type MinimapCard } from './minimap';
 import { SelectionBar } from './selection-bar';
+import { useGrowth, type GrowthHandle } from './use-growth';
 import { ViewControls } from './view-controls';
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
@@ -49,11 +50,20 @@ import {
   fitView,
   revealMinimum,
   stepZoom,
+  tierFirstView,
+  unionOf,
   zoomAt,
   type Size,
   type View,
 } from '@/lib/internal-links/canvas-view';
-import { COLUMN_GAP, curvePath } from '@/lib/internal-links/journey-curves';
+import type { LayoutMode } from '@/lib/internal-links/journey-codec';
+import {
+  COLUMN_GAP,
+  curvePath,
+  directionLook,
+  tierRoute,
+  type DirectionTone,
+} from '@/lib/internal-links/journey-curves';
 import { edgeLook, returnArrowPath, type Box, type EdgeLook } from '@/lib/internal-links/journey-geometry';
 import {
   FOCUS_KEY,
@@ -65,7 +75,8 @@ import {
   type ListRequest,
 } from '@/lib/internal-links/journey-layout';
 import { PLACEMENT_KEY, SCOPE_KEY } from '@/lib/internal-links/scopes';
-import type { TierNameLike } from '@/lib/internal-links/tiers';
+import { tierLayout } from '@/lib/internal-links/tier-layout';
+import { tierPosition, UNTIERED_POSITION, type TierNameLike } from '@/lib/internal-links/tiers';
 import { cn } from '@/lib/utils';
 /** The page the journey is centered on, from the inspector read of the feature. */
 export interface CanvasFocus {
@@ -79,6 +90,13 @@ export interface CanvasFocus {
   linksOut: number;
   statusCode: number | null;
   clickDepth: number | null;
+}
+
+/** A tier of the workspace, for the lanes of the By tier layout. */
+export interface LaneTier {
+  position: number;
+  code: string;
+  name: string;
 }
 
 export interface LinkCanvasHandle {
@@ -116,6 +134,12 @@ export interface LinkCanvasProps<N extends JourneyNeighbor> {
   onShowLinks: (keys: readonly string[]) => void;
   /** The selected pages' url ids for the host's tier menu; leave it out for a person who cannot write, and the bar has no Set tier. */
   onSetTier?: ((urlIds: readonly string[]) => void) | undefined;
+  /** By step (columns of clicks, the default) or By tier (one lane per tier). Only where the cards stand and how lines are coloured change. */
+  layoutMode?: LayoutMode | undefined;
+  /** The workspace's tiers, for the lanes (names and positions). */
+  tiers?: readonly LaneTier[] | undefined;
+  /** The lanes turned off, by tier position (99 is Untiered); the focus page's own lane stays on. */
+  hiddenLanes?: ReadonlySet<number> | undefined;
   ref?: Ref<LinkCanvasHandle>;
 }
 
@@ -139,10 +163,17 @@ interface LineFacts {
   attribute: string;
 }
 
+/** How a line looks: the tones of By step, and the three directions of By tier. */
+interface LineLook {
+  tone: EdgeLook['tone'] | DirectionTone;
+  dash: string | null;
+  rank: 0 | 1 | 2;
+}
+
 interface DrawnEdge {
   id: string;
   d: string;
-  look: EdgeLook;
+  look: LineLook;
   /** The dot at the source end, and where the arrowhead stands (lines only). */
   start: { x: number; y: number } | null;
   facts: LineFacts | null;
@@ -153,19 +184,35 @@ const DRAG_START = 5;
 const NO_OFFSETS: ReadonlyMap<string, Offset> = new Map();
 const NO_KEYS: ReadonlySet<string> = new Set();
 
-const STROKE: Readonly<Record<EdgeLook['tone'], string>> = {
+const STROKE: Readonly<Record<LineLook['tone'], string>> = {
   editorial: 'stroke-foreground-tertiary',
   muted: 'stroke-border-strong',
   redirect: 'stroke-warning-text',
   broken: 'stroke-negative-text',
+  // By tier: green up a tier, blue down a tier, grey dashed inside one (the mock's FLOW_UP and FLOW_DOWN)
+  up: 'stroke-positive-text',
+  down: 'stroke-info-text',
+  side: 'stroke-foreground-tertiary',
 };
-const FILL: Readonly<Record<EdgeLook['tone'], string>> = {
+const FILL: Readonly<Record<LineLook['tone'], string>> = {
   editorial: 'fill-foreground-tertiary',
   muted: 'fill-border-strong',
   redirect: 'fill-warning-text',
   broken: 'fill-negative-text',
+  up: 'fill-positive-text',
+  down: 'fill-info-text',
+  side: 'fill-foreground-tertiary',
 };
-const TONES = Object.keys(STROKE) as readonly EdgeLook['tone'][];
+const TONES = Object.keys(STROKE) as readonly LineLook['tone'][];
+const NO_TIERS: readonly LaneTier[] = [];
+const NO_LANES: ReadonlySet<number> = new Set();
+
+/** A By tier line's look: the direction colours it; amber and red win; a redirect or a broken target is drawn last. */
+function tierLook(direction: Parameters<typeof directionLook>[0], status: number | null): LineLook {
+  const look = directionLook(direction, status);
+  const rank = look.tone === 'redirect' || look.tone === 'broken' ? 2 : look.tone === 'side' ? 0 : 1;
+  return { ...look, rank };
+}
 
 /** How long an activated card may wait for the rebuild its activation causes (the host may answer after a request). */
 const RESTORE_MS = 2000;
@@ -200,6 +247,7 @@ interface DrawnEdges {
   /** What the drawing was made for: the layout and the focus page it measured. */
   layout: unknown;
   focusId: string | null;
+  mode: LayoutMode;
 }
 
 /** A card's rectangle in world pixels from its offset geometry, which a zoom does not change (`root` is the world). */
@@ -319,6 +367,7 @@ const EdgeLayer = memo(function EdgeLayer({
 const sameEdges = (a: DrawnEdges, b: DrawnEdges): boolean =>
   a.layout === b.layout &&
   a.focusId === b.focusId &&
+  a.mode === b.mode &&
   a.width === b.width &&
   a.height === b.height &&
   a.lines.length === b.lines.length &&
@@ -360,6 +409,9 @@ export function LinkCanvas<N extends JourneyNeighbor>({
   onFull,
   onShowLinks,
   onSetTier,
+  layoutMode = 'step',
+  tiers = NO_TIERS,
+  hiddenLanes = NO_LANES,
   ref,
 }: LinkCanvasProps<N>): ReactElement {
   const t = useTranslations('linkCanvas');
@@ -372,6 +424,8 @@ export function LinkCanvas<N extends JourneyNeighbor>({
   // How the last input reached the canvas: only the keyboard pans a focused card into view
   const modality = useRef<'keyboard' | 'pointer'>('keyboard');
   const inner = useRef<HTMLDivElement>(null);
+  // The growth handle, for the drawing of the lines (which reads where gliding cards are) made before the hook runs
+  const growthRef = useRef<GrowthHandle | null>(null);
   // The card that was activated, the keys that can take focus back (itself, then what it hung under), the layout it
   // was activated on and when: focus returns once the layout is rebuilt, and not for a zoom or a hover
   const restore = useRef<PendingRestore<N> | null>(null);
@@ -387,6 +441,7 @@ export function LinkCanvas<N extends JourneyNeighbor>({
     height: 0,
     layout: null,
     focusId: null,
+    mode: 'step',
   });
   const [height, setHeight] = useState(MIN_HEIGHT + 120);
   const [width, setWidth] = useState(DEFAULT_WIDTH);
@@ -433,6 +488,21 @@ export function LinkCanvas<N extends JourneyNeighbor>({
     [t],
   );
 
+  // By tier: the lanes, the cards in them (a page once) and every line, from the same layout By step reads
+  const focusPosition = tierPosition(focus.tier);
+  const tiered = useMemo(
+    () =>
+      layoutMode === 'tier'
+        ? tierLayout({
+            layout,
+            focus: { urlId: focus.urlId, position: focusPosition, statusCode: focus.statusCode },
+            tiers: tiers.map((tier) => tier.position),
+            hidden: hiddenLanes,
+          })
+        : null,
+    [layoutMode, layout, focus.urlId, focusPosition, focus.statusCode, tiers, hiddenLanes],
+  );
+
   // Every keyed item, the paths by url id (for the column heads), and the cards whose back links show
   const { byKey, pathOf, stops, hasFailed } = useMemo(() => {
     const keyed = new Map<string, Extract<JourneyItem<N>, { kind: 'card' | 'stub' | 'group' }>>();
@@ -450,8 +520,17 @@ export function LinkCanvas<N extends JourneyNeighbor>({
         if (item.kind === 'failed') failed = true;
       }
     }
+    // By tier shows a page once and no stubs: only what is on the canvas can hold the tab stop
+    if (tiered !== null) {
+      nodeKeys.clear();
+      nodeKeys.add(FOCUS_KEY);
+      for (const cards of tiered.cardsByLane.values()) for (const card of cards) nodeKeys.add(card.key);
+      for (const extras of tiered.extrasByLane.values()) {
+        for (const extra of extras) if (extra.kind === 'group' || extra.kind === 'more') nodeKeys.add(extra.key);
+      }
+    }
     return { byKey: keyed, pathOf: paths, stops: nodeKeys, hasFailed: failed };
-  }, [layout, focus.urlId, focus.path]);
+  }, [layout, focus.urlId, focus.path, tiered]);
   // The tab stop stays where focus last was; when that node is gone it falls back to the focus page
   const tabKey = stops.has(activeKey) ? activeKey : FOCUS_KEY;
   // Page cards can be selected and moved (stubs, groups and "+N more" are not pages to act on)
@@ -493,11 +572,12 @@ export function LinkCanvas<N extends JourneyNeighbor>({
     const keys = new Set<string>();
     for (const key of shownBacks) {
       const item = byKey.get(key);
-      if (item?.kind === 'card') for (const back of item.backs) keys.add(back.key);
+      // A page that is one card in By tier: its earlier card is the one on the canvas
+      if (item?.kind === 'card') for (const back of item.backs) keys.add(tiered?.alias.get(back.key) ?? back.key);
     }
     if (flashKey !== null) keys.add(flashKey);
     return keys;
-  }, [shownBacks, byKey, flashKey]);
+  }, [shownBacks, byKey, flashKey, tiered]);
 
   // Edges are measured from the cards as laid out, in world pixels, from offset geometry: a zoom or a pan changes none
   // of it, so they are not measured again for either
@@ -509,13 +589,17 @@ export function LinkCanvas<N extends JourneyNeighbor>({
       const key = element.getAttribute('data-key');
       if (key !== null) elements.set(key, element);
     }
-    // A moved card is drawn by a transform, which offset geometry does not see: its offset is added here
+    // A moved card is drawn by a transform, and a gliding one by an animation: offset geometry sees neither, so the
+    // offset and the glide are added here (the lines follow the cards frame by frame)
     const boxOf = (key: string): Box | null => {
       const element = elements.get(key);
       if (element === undefined) return null;
       const box = offsetBox(element, root);
-      const shift = offsets.get(key);
-      return shift === undefined ? box : { ...box, left: box.left + shift.dx, top: box.top + shift.dy };
+      const moved = offsets.get(key);
+      const glide = growthRef.current?.shiftOf(key) ?? null;
+      const dx = (moved?.dx ?? 0) + (glide?.dx ?? 0);
+      const dy = (moved?.dy ?? 0) + (glide?.dy ?? 0);
+      return dx === 0 && dy === 0 ? box : { ...box, left: box.left + dx, top: box.top + dy };
     };
     const cards: MinimapCard[] = [];
     for (const key of elements.keys()) {
@@ -532,32 +616,52 @@ export function LinkCanvas<N extends JourneyNeighbor>({
     for (const item of byKey.values()) children.set(item.parentKey, (children.get(item.parentKey) ?? 0) + 1);
     const placed = new Map<string, number>();
     const lines: DrawnEdge[] = [];
-    for (const [key, item] of byKey) {
-      const index = placed.get(item.parentKey) ?? 0;
-      placed.set(item.parentKey, index + 1);
-      const parent = boxOf(item.parentKey);
-      const child = boxOf(key);
-      if (parent === null || child === null) continue;
-      const inbound = item.dir === 'in';
-      const look =
-        item.kind === 'group'
-          ? edgeLook(item.scope === 'both' ? null : item.scope, null)
-          : edgeLook(item.node.scope, inbound ? statusOf(item.parentKey) : item.node.status_code);
-      const drawn = inbound
-        ? curvePath(child, parent, index, children.get(item.parentKey))
-        : curvePath(parent, child, index, children.get(item.parentKey));
-      const facts: LineFacts | null =
-        item.kind === 'card'
-          ? {
-              anchor: item.node.anchor,
-              type:
-                item.node.placement === null
-                  ? t('redirectTarget')
-                  : t(`placement.${PLACEMENT_KEY[item.node.placement]}`),
-              attribute: item.node.rel.length === 0 ? t('follow') : item.node.rel.join(' '),
-            }
-          : null;
-      lines.push({ id: key, d: drawn.d, look, start: drawn.start, facts });
+    const lineFactsOf = (node: N): LineFacts => ({
+      anchor: node.anchor,
+      type: node.placement === null ? t('redirectTarget') : t(`placement.${PLACEMENT_KEY[node.placement]}`),
+      attribute: node.rel.length === 0 ? t('follow') : node.rel.join(' '),
+    });
+    if (tiered !== null) {
+      // By tier: every link between cards on the canvas, from lane to lane (a page reached twice is two lines)
+      for (const line of tiered.lines) {
+        const index = placed.get(line.from) ?? 0;
+        placed.set(line.from, index + 1);
+        const from = boxOf(line.from);
+        const to = boxOf(line.to);
+        if (from === null || to === null) continue;
+        const drawn = tierRoute(from, to, index);
+        const look = tierLook(line.direction, line.status);
+        lines.push({
+          id: `${line.from}>${line.to}`,
+          d: drawn.d,
+          look,
+          start: drawn.start,
+          facts: line.link === null ? null : lineFactsOf(line.link),
+        });
+      }
+    } else {
+      for (const [key, item] of byKey) {
+        const index = placed.get(item.parentKey) ?? 0;
+        placed.set(item.parentKey, index + 1);
+        const parent = boxOf(item.parentKey);
+        const child = boxOf(key);
+        if (parent === null || child === null) continue;
+        const inbound = item.dir === 'in';
+        const look =
+          item.kind === 'group'
+            ? edgeLook(item.scope === 'both' ? null : item.scope, null)
+            : edgeLook(item.node.scope, inbound ? statusOf(item.parentKey) : item.node.status_code);
+        const drawn = inbound
+          ? curvePath(child, parent, index, children.get(item.parentKey))
+          : curvePath(parent, child, index, children.get(item.parentKey));
+        lines.push({
+          id: key,
+          d: drawn.d,
+          look,
+          start: drawn.start,
+          facts: item.kind === 'card' ? lineFactsOf(item.node) : null,
+        });
+      }
     }
     lines.sort((a, b) => a.look.rank - b.look.rank);
     const arrows: DrawnEdge[] = [];
@@ -566,7 +670,7 @@ export function LinkCanvas<N extends JourneyNeighbor>({
       const from = boxOf(key);
       if (item?.kind !== 'card' || from === null) continue;
       for (const back of item.backs) {
-        const to = boxOf(back.key);
+        const to = boxOf(tiered?.alias.get(back.key) ?? back.key);
         if (to === null) continue;
         const d = item.dir === 'out' ? returnArrowPath(from, to) : returnArrowPath(to, from);
         arrows.push({
@@ -587,14 +691,45 @@ export function LinkCanvas<N extends JourneyNeighbor>({
       height: root.offsetHeight,
       layout,
       focusId: focus.urlId,
+      mode: layoutMode,
     };
     // A hover or a pin that changes nothing on screen must not render the canvas again
     setEdges((current) => (sameEdges(current, next) ? current : next));
-  }, [byKey, shownBacks, layout, focus.urlId, focus.statusCode, offsets, t]);
+  }, [byKey, shownBacks, layout, focus.urlId, focus.statusCode, offsets, t, tiered, layoutMode]);
 
   useLayoutEffect(() => {
     draw();
   }, [draw]);
+
+  // Where every card stands, in world pixels, with the place the person moved it to (a glide is not in it: that is a
+  // card's settled place)
+  const measureCards = (): Map<string, Box> => {
+    const boxes = new Map<string, Box>();
+    const root = inner.current;
+    if (root === null) return boxes;
+    for (const element of root.querySelectorAll<HTMLElement>('[data-node][data-key]')) {
+      const key = element.dataset.key;
+      if (key === undefined) continue;
+      const box = offsetBox(element, root);
+      const moved = offsets.get(key);
+      boxes.set(key, moved === undefined ? box : { ...box, left: box.left + moved.dx, top: box.top + moved.dy });
+    }
+    return boxes;
+  };
+  // After the drawing above, so that a growth's first frame is the last word on where the lines go
+  const growth = useGrowth({
+    root: inner,
+    layout,
+    settled: !layout.pending,
+    measure: useStable(measureCards),
+    getView: useStable(() => viewNow.current),
+    size,
+    onViewChange,
+    onFrame: useStable(draw),
+  });
+  useLayoutEffect(() => {
+    growthRef.current = growth;
+  });
 
   // Focus survives a rebuild: the card that was activated takes it back, or the card it hung under when it is gone
   // (a "+N more" that showed the last pages, a card that closed with its parent)
@@ -656,20 +791,30 @@ export function LinkCanvas<N extends JourneyNeighbor>({
 
   // The first view of each focus page, once the journey has a size and no list is still loading (spec 7.5 "First view")
   useEffect(() => {
-    if (firstFor.current === focus.urlId) return;
-    // The host holds the person's own view of this page: it is not replaced
-    if (holdsView) {
-      firstFor.current = focus.urlId;
+    // One first view for each focus page and layout: switching the layout is a new picture, and is fitted again
+    const first = `${focus.urlId}|${layoutMode}`;
+    if (firstFor.current === first) return;
+    // The host holds the person's own view of this page: it is not replaced (a layout switch later on does replace it)
+    if (holdsView && firstFor.current?.startsWith(`${focus.urlId}|`) !== true) {
+      firstFor.current = first;
       return;
     }
     if (layout.pending || edges.width === 0) return;
-    // The drawing must be of this journey: right after a refocus it can still be the last page's
-    if (edges.layout !== layout || edges.focusId !== focus.urlId) return;
+    // The drawing must be of this journey and layout: right after a refocus it can still be the last page's
+    if (edges.layout !== layout || edges.focusId !== focus.urlId || edges.mode !== layoutMode) return;
     const box = edges.cards.find((card) => card.key === FOCUS_KEY);
     if (box === undefined) return;
-    firstFor.current = focus.urlId;
+    firstFor.current = first;
+    if (layoutMode === 'tier') {
+      // The lanes nearest T1 are the last in the row
+      const root = inner.current;
+      const lanes = [...(root?.querySelectorAll<HTMLElement>('[data-lane]') ?? [])].slice(-2);
+      const near = root === null ? content : unionOf(lanes.map((lane) => offsetBox(lane, root)));
+      onViewChange(tierFirstView(content, lanes.length === 0 ? content : near, size, JOURNEY_MARGIN));
+      return;
+    }
     onViewChange(firstView(content, box, size, JOURNEY_MARGIN));
-  }, [layout, edges, content, size, focus.urlId, holdsView, onViewChange]);
+  }, [layout, layoutMode, edges, content, size, focus.urlId, holdsView, onViewChange]);
 
   useEffect(() => {
     if (flashKey === null) return undefined;
@@ -758,6 +903,8 @@ export function LinkCanvas<N extends JourneyNeighbor>({
       return;
     }
     hold(restore, [key, under, FOCUS_KEY], layout);
+    // The pressed card keeps its place on the screen; a "+N more" goes with the press, so the card it hangs under keeps it
+    growth.begin(byKey.has(key) ? key : under);
     run();
   };
 
@@ -1259,6 +1406,85 @@ export function LinkCanvas<N extends JourneyNeighbor>({
   const focusLinking = t('linkingPages', { count: focus.linkingPages });
   const direction = (dir: Direction, step: number): string => t(dir === 'out' ? 'stepOut' : 'stepIn', { step });
 
+  /** "T3 Content pages", or the word for Untiered. */
+  const laneLabel = (position: number): string => {
+    if (position === UNTIERED_POSITION) return t('untiered');
+    const tier = tiers.find((candidate) => candidate.position === position);
+    return tier === undefined ? `T${String(position)}` : `${tier.code} ${tier.name}`;
+  };
+
+  /** The focus card and the notes under it: in the focus column of By step, in the focus lane of By tier. */
+  const renderFocus = (at: number): ReactElement => (
+    <div className="flex flex-col gap-2">
+      <LinkCard
+        kind="card"
+        nodeKey={FOCUS_KEY}
+        parentKey={null}
+        column={at}
+        urlId={focus.urlId}
+        name={t('focusName', { path: focus.path, tier: tierLong(focus.tier), linking: focusLinking })}
+        highlighted={highlighted.has(FOCUS_KEY)}
+        path={focus.path}
+        line={focus.title ?? ''}
+        tier={focus.tier}
+        tierText={tierText(focus.tier)}
+        linkingText={t('cardIn', { count: focus.linkingPages })}
+        status={statusBadge(focus.statusCode, t('notCrawled'))}
+        bothWaysText={null}
+        focus
+        focusFacts={{
+          out: t('focusOut', { count: focus.linksOut }),
+          depth:
+            focus.clickDepth === null
+              ? t('focusDepthNone')
+              : focus.clickDepth === 0
+                ? t('focusDepthHome')
+                : t('focusDepth', { count: focus.clickDepth }),
+        }}
+        open={null}
+        description={describe(
+          focus.tier,
+          focus.statusCode,
+          focus.clickDepth,
+          focus.linkingPages,
+          focus.linkingPagesAll,
+          null,
+          false,
+        )}
+        selected={selected.has(FOCUS_KEY)}
+        offset={offsets.get(FOCUS_KEY) ?? null}
+        onDragStart={dragStart}
+        info={{
+          facts: factsOf(
+            focus.path,
+            focus.tier,
+            focus.statusCode,
+            focus.clickDepth,
+            focus.linkingPages,
+            focus.linkingPagesAll,
+            null,
+          ),
+          label: t('info.open', { path: focus.path }),
+          buttonLabel: t('info.open', { path: focus.path }),
+          open: infoKey === FOCUS_KEY,
+          onToggle: toggleInfo,
+          onClose: closeInfo,
+        }}
+        tools={{
+          focusLabel: null,
+          onFocusPage: none,
+          detailsLabel: t('details', { path: focus.path }),
+          onDetails: toolDetails,
+        }}
+        back={null}
+        tabStop={FOCUS_KEY === tabKey}
+        onActivate={activate}
+        onKeyDown={cardKeyDown}
+      />
+      {focusNote}
+    </div>
+  );
+
   const onViewportKey = (event: KeyboardEvent<HTMLDivElement>): void => {
     if (event.key === '0') fit();
     else if (event.key === 'Home') centerFocus();
@@ -1293,7 +1519,8 @@ export function LinkCanvas<N extends JourneyNeighbor>({
           <div
             ref={inner}
             role="presentation"
-            className="relative flex w-max items-start p-4"
+            // Lanes share one height so each reads as a band; the columns of steps start at the top
+            className={cn('relative flex w-max p-4', tiered === null ? 'items-start' : 'items-stretch')}
             style={{ columnGap: COLUMN_GAP }}
             onKeyDownCapture={() => {
               modality.current = 'keyboard';
@@ -1315,86 +1542,53 @@ export function LinkCanvas<N extends JourneyNeighbor>({
             }}
           >
             <EdgeLayer edges={edges} markerId={markerId} onLine={showLine} onLineLeave={hideLine} />
-            {left.map((side, index) => column(direction('in', side.step), index, columnItems(side.items, index)))}
-            {column(
-              t('focusColumn'),
-              focusColumn,
-              <div className="flex flex-col gap-2">
-                <LinkCard
-                  kind="card"
-                  nodeKey={FOCUS_KEY}
-                  parentKey={null}
-                  column={focusColumn}
-                  urlId={focus.urlId}
-                  name={t('focusName', { path: focus.path, tier: tierLong(focus.tier), linking: focusLinking })}
-                  highlighted={highlighted.has(FOCUS_KEY)}
-                  path={focus.path}
-                  line={focus.title ?? ''}
-                  tier={focus.tier}
-                  tierText={tierText(focus.tier)}
-                  linkingText={t('cardIn', { count: focus.linkingPages })}
-                  status={statusBadge(focus.statusCode, t('notCrawled'))}
-                  bothWaysText={null}
-                  focus
-                  focusFacts={{
-                    out: t('focusOut', { count: focus.linksOut }),
-                    depth:
-                      focus.clickDepth === null
-                        ? t('focusDepthNone')
-                        : focus.clickDepth === 0
-                          ? t('focusDepthHome')
-                          : t('focusDepth', { count: focus.clickDepth }),
-                  }}
-                  open={null}
-                  description={describe(
-                    focus.tier,
-                    focus.statusCode,
-                    focus.clickDepth,
-                    focus.linkingPages,
-                    focus.linkingPagesAll,
-                    null,
-                    false,
-                  )}
-                  selected={selected.has(FOCUS_KEY)}
-                  offset={offsets.get(FOCUS_KEY) ?? null}
-                  onDragStart={dragStart}
-                  info={{
-                    facts: factsOf(
-                      focus.path,
-                      focus.tier,
-                      focus.statusCode,
-                      focus.clickDepth,
-                      focus.linkingPages,
-                      focus.linkingPagesAll,
-                      null,
-                    ),
-                    label: t('info.open', { path: focus.path }),
-                    buttonLabel: t('info.open', { path: focus.path }),
-                    open: infoKey === FOCUS_KEY,
-                    onToggle: toggleInfo,
-                    onClose: closeInfo,
-                  }}
-                  tools={{
-                    focusLabel: null,
-                    onFocusPage: none,
-                    detailsLabel: t('details', { path: focus.path }),
-                    onDetails: toolDetails,
-                  }}
-                  back={null}
-                  tabStop={FOCUS_KEY === tabKey}
-                  onActivate={activate}
-                  onKeyDown={cardKeyDown}
-                />
-                {focusNote}
-              </div>,
-              true,
-            )}
-            {layout.out.map((side, index) =>
-              column(
-                direction('out', side.step),
-                focusColumn + 1 + index,
-                columnItems(side.items, focusColumn + 1 + index),
-              ),
+            {tiered === null ? (
+              <>
+                {left.map((side, index) => column(direction('in', side.step), index, columnItems(side.items, index)))}
+                {column(t('focusColumn'), focusColumn, renderFocus(focusColumn), true)}
+                {layout.out.map((side, index) =>
+                  column(
+                    direction('out', side.step),
+                    focusColumn + 1 + index,
+                    columnItems(side.items, focusColumn + 1 + index),
+                  ),
+                )}
+              </>
+            ) : (
+              tiered.lanes.map((lane, index) => {
+                const label = laneLabel(lane.pos);
+                return (
+                  <div
+                    key={`lane-${String(lane.pos)}`}
+                    data-lane={String(lane.pos)}
+                    className={cn(
+                      'flex w-fit min-w-60 shrink-0 flex-col gap-2 rounded-lg border border-dashed p-2',
+                      lane.isFocus ? 'border-primary-border bg-primary-subtle' : 'border-border',
+                    )}
+                  >
+                    <div className="flex items-baseline gap-2">
+                      <h3
+                        className={cn('type-label', lane.isFocus ? 'text-primary-text' : 'text-foreground-secondary')}
+                      >
+                        {label}
+                      </h3>
+                      <span className="num type-meta text-foreground-tertiary">
+                        {t('lanes.pages', { count: lane.count })}
+                      </span>
+                    </div>
+                    {lane.empty ? (
+                      <p className="type-meta text-foreground-tertiary">
+                        {t('lanes.empty', {
+                          tier: lane.pos === UNTIERED_POSITION ? t('untiered').toLowerCase() : `T${String(lane.pos)}`,
+                        })}
+                      </p>
+                    ) : null}
+                    {lane.isFocus ? renderFocus(index) : null}
+                    {(tiered.cardsByLane.get(lane.pos) ?? []).map((item) => renderCard(item, index))}
+                    {(tiered.extrasByLane.get(lane.pos) ?? []).map((item) => renderItem(item, index, 0))}
+                  </div>
+                );
+              })
             )}
           </div>
         </CanvasViewport>
@@ -1421,7 +1615,7 @@ export function LinkCanvas<N extends JourneyNeighbor>({
           // Between the top row and the toolbar, so the panel covers neither
           <div className="pointer-events-none absolute inset-x-3 top-16 bottom-16 flex items-end">
             <div className="pointer-events-auto max-h-full max-w-full">
-              <CanvasHelp id={helpId} />
+              <CanvasHelp id={helpId} tier={layoutMode === 'tier'} />
             </div>
           </div>
         ) : null}

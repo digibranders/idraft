@@ -43,7 +43,7 @@ const GLIDE_MIN = 0.4;
 const GLIDE_START = 4;
 
 /** The operating system's setting and the app's own (`data-motion` on the root, 21-motion.md). */
-const reducedMotion = (): boolean =>
+export const reducedMotion = (): boolean =>
   (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false) ||
   document.documentElement.dataset.motion === 'reduced';
 

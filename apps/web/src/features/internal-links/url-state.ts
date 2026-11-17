@@ -4,7 +4,13 @@ import { parseAsString, useQueryStates } from 'nuqs';
 import { useCallback, useMemo } from 'react';
 
 import type { InspectorTarget } from '@/lib/inspector/placement';
-import { parseKeySet, parseMore } from '@/lib/internal-links/journey-codec';
+import {
+  parseKeySet,
+  parseLanes,
+  parseLayoutMode,
+  parseMore,
+  type LayoutMode,
+} from '@/lib/internal-links/journey-codec';
 import type { Direction } from '@/lib/internal-links/journey-layout';
 import { checkUrlId, UrlIdError } from '@/lib/internal-links/queries';
 import { parseLinkScope, type LinkScope } from '@/lib/internal-links/scopes';
@@ -30,6 +36,8 @@ export type LinksKey =
   | 'tgt'
   | 'focus'
   | 'jv'
+  | 'jl'
+  | 'jt'
   | 'dir'
   | 'open'
   | 'grp'
@@ -87,6 +95,10 @@ export interface LinksState {
   invalid: { src: string | null; tgt: string | null; focus: string | null };
   journeyView: 'canvas' | 'tree';
   treeDir: Direction;
+  /** The canvas layout (`jl`): By step unless the address says `tier`. */
+  layout: LayoutMode;
+  /** The tier lanes turned off in By tier (`jt`), as tier positions; 99 is Untiered. */
+  hiddenLanes: Set<number>;
   open: Set<string>;
   groups: Set<string>;
   more: Map<string, number>;
@@ -139,6 +151,8 @@ export function parseLinksSearch(search: LinksSearch): LinksState {
     invalid: { src: src.invalid, tgt: tgt.invalid, focus: focus.invalid },
     journeyView: search.jv === 'tree' ? 'tree' : 'canvas',
     treeDir: search.dir === 'in' ? 'in' : 'out',
+    layout: parseLayoutMode(search.jl),
+    hiddenLanes: parseLanes(search.jt),
     open: parseKeySet(search.open),
     groups: parseKeySet(search.grp),
     more: parseMore(search.more),
@@ -158,6 +172,8 @@ const PARSERS = {
   tgt: parseAsString,
   focus: parseAsString,
   jv: parseAsString,
+  jl: parseAsString,
+  jt: parseAsString,
   dir: parseAsString,
   open: parseAsString,
   grp: parseAsString,

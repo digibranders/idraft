@@ -7232,7 +7232,21 @@
       "template": "Menu and footer link",
       "redirect": "Through a redirect",
       "broken": "Broken target",
-      "back": "Back link (shown on hover or when pinned)"
+      "back": "Back link (shown on hover or when pinned)",
+      "up": "Up a tier",
+      "down": "Down a tier",
+      "side": "Same tier"
+    },
+    "layout": {
+      "label": "Layout",
+      "step": "By step",
+      "tier": "By tier"
+    },
+    "lanes": {
+      "label": "Tiers shown",
+      "focusLocked": "The lane of the focus page stays on",
+      "empty": "No {tier} page in view",
+      "pages": "{count, plural, one {# page} other {# pages}}"
     },
     "controls": {
       "label": "Canvas view",

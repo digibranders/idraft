@@ -62,3 +62,24 @@ export const formatMore = (more: ReadonlyMap<string, number>): string | null => 
   const fit = fitting([...more].map(([key, count]) => `${key}*${String(count)}`));
   return fit.length === 0 ? null : fit.join(',');
 };
+
+export type LayoutMode = 'step' | 'tier';
+
+/** `jl`: By tier only for the value `tier`; anything else, or nothing, is By step. */
+export const parseLayoutMode = (value: string | null | undefined): LayoutMode => (value === 'tier' ? 'tier' : 'step');
+
+/** A tier position (1 to 8) or 99 for Untiered. */
+const LANE = /^(?:[1-8]|99)$/;
+
+/** `jt`: the tier lanes turned off, as tier positions. Unknown parts are dropped, so at most nine values come back. */
+export function parseLanes(text: string | null | undefined): Set<number> {
+  const found = new Set<number>();
+  for (const part of (text ?? '').split(',')) {
+    const value = part.trim();
+    if (LANE.test(value)) found.add(Number(value));
+  }
+  return new Set([...found].sort((a, b) => a - b));
+}
+
+export const formatLanes = (lanes: ReadonlySet<number>): string | null =>
+  lanes.size === 0 ? null : [...lanes].sort((a, b) => a - b).join(',');

@@ -12,6 +12,7 @@ import { readPageRows } from './page-reads';
 import { TreeList } from './tree-list';
 import { ScopeMenu } from '../scope-menu';
 import type { LinksTabContext } from '../tabs';
+import { LaneChips, LayoutSwitch } from '@/components/app/link-canvas/layout-controls';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { InlineError } from '@/components/app/status/inline-error';
 import { Button } from '@/components/ui/button';
@@ -21,9 +22,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { announce } from '@/lib/a11y/announcer';
 import { isApiProblem } from '@/lib/api/problem';
 import type { View } from '@/lib/internal-links/canvas-view';
-import { formatKeySet } from '@/lib/internal-links/journey-codec';
+import { formatKeySet, formatLanes } from '@/lib/internal-links/journey-codec';
 import type { Direction } from '@/lib/internal-links/journey-layout';
 import { DEFAULT_PAGE_QUERY, pageDetailQuery, pagesQuery } from '@/lib/internal-links/queries';
+import { tierPosition } from '@/lib/internal-links/tiers';
 import { withQuery } from '@/lib/routes/paths';
 
 /** A load that takes this long is spoken once. */
@@ -102,6 +104,10 @@ export function JourneyTab({ context }: { context: LinksTabContext }): ReactElem
       />
       <FocusPicker scope={scope} path={loaded?.path ?? t('focus')} onPick={refocus} />
       <ScopeMenu scope={state.scope} onChange={(next) => setSearch({ scope: next === 'editorial' ? null : next })} />
+      {state.journeyView === 'canvas' ? (
+        // The layout is how the canvas stands; the tree list has one layout
+        <LayoutSwitch value={state.layout} onChange={(next) => setSearch({ jl: next === 'step' ? null : next })} />
+      ) : null}
       {state.journeyView === 'tree' ? (
         <Select<Direction>
           value={state.treeDir}
@@ -204,6 +210,23 @@ export function JourneyTab({ context }: { context: LinksTabContext }): ReactElem
     return () => window.clearTimeout(timer);
   }, [waiting, t]);
 
+  // By tier: one chip for each tier turns its lane off or on; the lane of the focus page stays on
+  const laneChips =
+    state.layout === 'tier' && state.journeyView === 'canvas' && loaded !== null ? (
+      <div className="border-b border-border-subtle px-3 py-2">
+        <LaneChips
+          tiers={context.tiers}
+          hidden={state.hiddenLanes}
+          focusPosition={tierPosition(loaded.tier)}
+          onToggle={(position) => {
+            const next = new Set(state.hiddenLanes);
+            if (!next.delete(position)) next.add(position);
+            setSearch({ jt: formatLanes(next) });
+          }}
+        />
+      </div>
+    ) : null;
+
   return (
     <section
       ref={section}
@@ -215,6 +238,7 @@ export function JourneyTab({ context }: { context: LinksTabContext }): ReactElem
         {t('heading')}
       </h2>
       {toolbar}
+      {laneChips}
       {body}
     </section>
   );

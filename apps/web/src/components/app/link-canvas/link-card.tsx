@@ -188,6 +188,8 @@ function LinkCardView(props: LinkCardProps): ReactElement {
   const { back, tools, info, focusFacts } = props;
   return (
     <div
+      // The part that moves when the person moves the card, and the part a growth glides and fades
+      data-card=""
       className={cn('group relative', props.focus ? 'w-72' : 'w-60')}
       style={props.offset === null ? undefined : { transform: `translate(${props.offset.dx}px, ${props.offset.dy}px)` }}
     >
