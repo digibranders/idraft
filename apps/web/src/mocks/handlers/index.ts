@@ -4,6 +4,7 @@ import { authHandlers } from './auth';
 import { entityHandlers } from './entities';
 import { costHandlers } from './costs';
 import { integrationHandlers } from './integrations';
+import { internalLinkHandlers } from './internal-links';
 import { invitationHandlers } from './invitations';
 import { keywordGroupHandlers } from './keyword-groups';
 import { keywordImportHandlers } from './keyword-imports';
@@ -195,6 +196,8 @@ export const handlers: readonly HttpHandler[] = [
   ...commandPaletteHandlers,
   // WP-55 recommendations
   ...recommendationHandlers,
+  // Internal links (plan 03)
+  ...internalLinkHandlers,
   ...pendingHandlers,
 ];
 

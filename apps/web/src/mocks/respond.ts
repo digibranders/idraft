@@ -95,6 +95,10 @@ const PROBLEMS = {
   duplicate: [409, 'Already exists'],
   last_owner: [409, 'The workspace needs an owner'],
   invalid_state_transition: [409, 'Not possible in this state'],
+  // Internal links (backend api/internal_links/problems.py)
+  no_crawl: [404, 'The site has no finished crawl yet'],
+  tier_limit: [422, 'A workspace has at most 8 tiers'],
+  tier_in_use: [422, 'Pages or rules use this tier'],
   entity_in_use: [409, 'Entity is in use'],
   cannot_remove_primary_own: [409, 'The primary own entity cannot be removed'],
   has_children: [409, 'Term has children'],
