@@ -115,6 +115,39 @@ describe('SparklineCell', () => {
     expect(canvas).toHaveStyle({ width: '64px', height: `${String(height)}px` });
   });
 
+  it('draws at a given size in an entity colour and without the end dot (WP-77)', () => {
+    const ratio = window.devicePixelRatio || 1;
+    const read = vi.spyOn(tokens, 'readColorToken').mockReturnValue('');
+    render(
+      <SparklineCell
+        values={[1, 3, 2]}
+        label="Citations per run, oldest first: 1, 3, 2"
+        width={96}
+        height={20}
+        entity={{ own: false, colorIndex: 3 }}
+        endDot={false}
+      />,
+    );
+    const canvas = screen.getByRole('img');
+    expect(canvas).toHaveAttribute('width', String(96 * ratio));
+    expect(canvas).toHaveStyle({ width: '96px', height: '20px' });
+    expect(read).toHaveBeenCalledWith('--chart-3');
+    expect(contextSpies.arc).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [{ own: true, colorIndex: null }, '--chart-1'],
+    [{ own: true, colorIndex: 4 }, '--chart-1'],
+    [{ own: false, colorIndex: 6 }, '--chart-6'],
+    [{ own: false, colorIndex: null }, '--chart-other'],
+    [{ own: false, colorIndex: 9 }, '--chart-other'],
+  ] as const)('draws entity %o in %s, ahead of the tone', (entity, token) => {
+    const read = vi.spyOn(tokens, 'readColorToken').mockReturnValue('');
+    render(<SparklineCell values={[1, 2, 3]} label="Trend" tone="positive" entity={entity} />);
+    expect(read).toHaveBeenCalledWith(token);
+    expect(read).not.toHaveBeenCalledWith('--positive-solid');
+  });
+
   it('sizes the empty line to the density as well', () => {
     render(<SparklineCell values={[null]} label="Trend: none" density="compact" />);
     expect(screen.getByRole('img', { name: 'Trend: none' })).toHaveStyle({ width: '64px', height: '16px' });

@@ -303,6 +303,13 @@ export function MetricPartsSection(): ReactNode {
             <EngineLogo engine="chatgpt_web" name="ChatGPT" hidden />
           </span>
         </SpecimenRow>
+        <SpecimenRow label="Name for screen readers only (WP-77)">
+          {ENGINES.map((engine) => (
+            <span key={engine.code} className="type-body">
+              <EngineLogo engine={engine.code} name={engine.name} nameDisplay="visually-hidden" />
+            </span>
+          ))}
+        </SpecimenRow>
         <SpecimenRow label="Unknown code">
           <span className="type-body">
             <EngineLogo engine={UNKNOWN_ENGINE.code} name={UNKNOWN_ENGINE.name} />

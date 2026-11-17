@@ -2,8 +2,15 @@ import { render, screen } from '@testing-library/react';
 import { Check } from 'lucide-react';
 import { describe, expect, it } from 'vitest';
 
-import { Badge, type BadgeProps } from './badge';
+import { Badge, badgeVariants, type BadgeProps } from './badge';
 import { axe } from '@/test/axe';
+
+describe('badgeVariants', () => {
+  it('gives a control a badge look without the badge element (the Prompts chip of Cited pages)', () => {
+    expect(badgeVariants({ variant: 'outline', tone: 'neutral' })).toContain('h-badge');
+    expect(badgeVariants({ variant: 'outline', tone: 'neutral' })).toContain('border-border');
+  });
+});
 
 describe('Badge', () => {
   it('is a neutral tinted 22 px label by default, never a pill', () => {

@@ -764,6 +764,8 @@ interface BadgeProps {
 - **Use:** engine, intent, prompt type, panel, role, Estimate, Stale, New, Lost. Categorical metadata is always neutral. At most 2 per cell and 3 per row in Compact density.
 - **Not for:** interactive tags (`Tag`, `FilterChip`), lifecycle states with icons (`StatusBadge`), counts in navigation (sidebar count), pills (`rounded-full` is not allowed on text).
 
+> As built (WP-77): `badgeVariants` is exported, so a control can take a badge's look without the non-interactive element. The Prompts chip of Cited pages ("+30", "Details") is a `button` with `badgeVariants({ variant: 'outline', tone: 'neutral' })`, `num` and its own hover and focus ring.
+
 ### 3.18 Tag
 `ui/tag.tsx` · V1 · [14 §2](14-badges-status.md), [10 §6.4](10-forms.md)
 
@@ -3003,6 +3005,8 @@ interface SparklineCellProps {
 - **Variants:** density (height). **States:** data, gaps, empty (1 px dashed `border` line).
 - **A11y:** `role="img"` with `summary`; canvas not focusable. **Use:** `col.sparkline`, metric strip on Overview. **Not for:** anything with axes (`ChartFrame`); red or green lines (never).
 
+> As built (WP-77): four optional props on the component in `sparkline-cell.tsx`. `width` (pixels, 64 by default; the Citations Trend column draws 96) and `height` (pixels, overrides `density`; the page drawer's trend is 56). `entity` (`{ own, colorIndex }`) draws in the entity's colour as `EntitySwatch` does: `chart-1` for the own brand, `chart-N` for its color index, `chart-other` past six or without one; it overrides `tone`. `endDot` (default true) turns off the dot on the last point, which the Citations preview's sparklines do not have.
+
 ### 8.11 EngineCell
 `app/cells/engine-cell.tsx` · V1 · [12 §6](12-tables.md)
 
@@ -4136,6 +4140,8 @@ interface EngineBadgeProps {
 // app/ai/engine-logo.tsx: the vendor mark, 16 px, decorative because the engine name is always beside it
 interface EngineLogoProps { engine: EngineCode; hidden?: boolean }
 ```
+
+> As built (WP-77): `EngineLogo` takes `nameDisplay?: 'visible' | 'visually-hidden'` (default `visible`). With `visually-hidden` the mark is the only thing on screen and the name is an `sr-only` span, for a column of marks that would repeat the names (Citations Platforms and Lost on); the cell's tooltip names the engine. Without a mark the name stays visible.
 
 - **Variants:** none (neutral subtle; class badge neutral outline). **States:** none.
 - **A11y:** text; class badge read after the engine name. **Use:** headers, cells, evidence headers, legends. **Not for:** chart colors (engines take categorical colors in fixed order only inside engine charts). `EngineLogo` rules (source, size, the monochrome OpenAI mark, the shared Google mark, where it may appear) are in [07 §5](07-icons.md).

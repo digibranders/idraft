@@ -69,6 +69,17 @@ describe('EngineLogo', () => {
     expect(mode?.getAttribute('src')).not.toBe(gemini?.getAttribute('src'));
   });
 
+  it('can keep the name for screen readers only, beside a mark that is read as the name (WP-77)', () => {
+    renderWithProviders(<EngineLogo engine="chatgpt_web" name="ChatGPT" nameDisplay="visually-hidden" />);
+    expect(screen.getByText('ChatGPT')).toHaveClass('sr-only');
+    expect(screen.getByRole('presentation')).toBeInTheDocument();
+  });
+
+  it('never replaces a mark with nothing: without one the hidden name stays visible', () => {
+    renderWithProviders(<EngineLogo engine="perplexity_web" name="Perplexity" nameDisplay="visually-hidden" />);
+    expect(screen.getByText('Perplexity')).not.toHaveClass('sr-only');
+  });
+
   it('truncates the name when asked, without losing the full text', () => {
     renderWithProviders(<EngineLogo engine="chatgpt_web" name="ChatGPT" truncate />);
     expect(screen.getByText('ChatGPT')).toHaveAttribute('data-truncate');

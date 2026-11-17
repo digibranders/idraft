@@ -3,7 +3,8 @@ import type { ReactNode } from 'react';
 
 import { SpecimenGroup, SpecimenRow } from './specimen';
 import { EvidenceHighlight } from '@/components/app/evidence/evidence-highlight';
-import { Badge } from '@/components/ui/badge';
+import { Badge, badgeVariants } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 export function BadgesSection(): ReactNode {
   return (
@@ -13,6 +14,17 @@ export function BadgesSection(): ReactNode {
           <Badge>Commercial</Badge>
           <Badge variant="outline">Core panel</Badge>
           <Badge variant="text">Question</Badge>
+        </SpecimenRow>
+        <SpecimenRow label="button with a badge's look (WP-77)">
+          <button
+            type="button"
+            className={cn(
+              badgeVariants({ variant: 'outline', tone: 'neutral' }),
+              'num outline-none hover:bg-surface-hover hover:text-foreground focus-visible:focus-ring',
+            )}
+          >
+            +30
+          </button>
         </SpecimenRow>
         <SpecimenRow label="positive">
           <Badge tone="positive" icon={Check}>
