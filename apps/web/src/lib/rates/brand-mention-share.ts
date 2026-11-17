@@ -13,21 +13,39 @@ import type { EngineSummary, EntityCells, MetricCell, PromptsSummary, WeekCells 
 /** Why a share of voice cell has no counts. */
 export type ShareNote = 'notCollected' | 'capped';
 
-/** A share of voice cell of the web: a `MetricCell` that may say why it has no counts. */
-export type ShareCell = MetricCell & { share_note?: ShareNote };
+/**
+ * A share of voice cell of the web: a `MetricCell` that may say why it has no counts, and keeps the valid answers that name
+ * a tracked brand (the denominator of the old cell), which the count share no longer holds.
+ */
+export type ShareCell = MetricCell & { share_note?: ShareNote; naming_answers?: number };
 
 /** Why the cell has no counts; `undefined` for a cell that has them. */
 export const shareNoteOf = (cell: MetricCell): ShareNote | undefined => (cell as ShareCell).share_note;
+
+/**
+ * The valid answers that name a tracked brand: what the Lost to competitor card needs to tell a prompt no brand is named
+ * in. Without the field (a cell the API sends as it is) it is the cell's denominator, which is the same count until
+ * backend request 13 lands and then needs the field of request 14.
+ */
+export const namingAnswersOf = (cell: MetricCell): number => (cell as ShareCell).naming_answers ?? cell.denominator;
 
 const NOTE_OF = { notCollected: 'notCollected', capped: 'capped' } as const;
 
 /** The share cell of the counts, or an empty one that says why there are none. Keeps the answers the old cell counted. */
 function shareCellOf(read: BrandMentionRead, own: number | null, base: MetricCell): ShareCell {
+  const naming_answers = namingAnswersOf(base);
   if (read.kind !== 'counts') {
-    return { numerator: 0, denominator: 0, value: null, n_observations: base.n_observations, share_note: NOTE_OF[read.kind] };
+    return {
+      numerator: 0,
+      denominator: 0,
+      value: null,
+      n_observations: base.n_observations,
+      share_note: NOTE_OF[read.kind],
+      naming_answers,
+    };
   }
   const { k, n } = own === null ? read.counts : { k: own, n: read.counts.n };
-  return { numerator: k, denominator: n, value: n > 0 ? k / n : null, n_observations: base.n_observations };
+  return { numerator: k, denominator: n, value: n > 0 ? k / n : null, n_observations: base.n_observations, naming_answers };
 }
 
 const ownSetOf = (summary: PromptsSummary): ReadonlySet<string> =>

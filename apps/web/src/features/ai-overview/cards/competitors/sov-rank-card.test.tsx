@@ -65,7 +65,8 @@ const unpooled = (shares: readonly (readonly number[])[], from = 0): WeekSpec[] 
     start: STARTS[from + index] ?? '2026-11-16',
     answers: numerators.reduce((total, value) => total + value, 0),
     numerators,
-    mentions: { n: 100, ks: [10, 10, 10] },
+    // Share of voice is the brand mentions of the week: each brand's mentions are its numerator
+    mentions: { n: 100, ks: numerators },
   }));
 
 describe('the share of voice rank card (CH-29)', () => {
@@ -113,7 +114,7 @@ describe('the share of voice rank card (CH-29)', () => {
 
   it('pools the trailing four weeks itself when no point is pooled, and the first thin week is a gap', async () => {
     const weeks: WeekSpec[] = [
-      { start: '2026-10-19', answers: 3, numerators: [1, 1.5, 0.5], mentions: { n: 3, ks: [1, 1, 1] } },
+      { start: '2026-10-19', answers: 3, numerators: [1, 2, 0], mentions: { n: 3, ks: [1, 2, 0] } },
       ...unpooled(
         [
           [40, 35, 25],
@@ -128,7 +129,7 @@ describe('the share of voice rank card (CH-29)', () => {
     const data = lines();
     expect(data[id(1)]).toEqual([null, 1, 2]);
     expect(data[id(2)]).toEqual([null, 2, 1]);
-    expect(screen.getByText(/ranked on the answers of the last 4 weeks together/)).toBeInTheDocument();
+    expect(screen.getByText(/ranked on the brand mentions of the last 4 weeks together/)).toBeInTheDocument();
   });
 
   it('draws tied brands at the same rank and the next one below the tie', async () => {
@@ -165,18 +166,19 @@ describe('the share of voice rank card (CH-29)', () => {
     const words = tooltipText(2);
     expect(words).toContain('Week of Nov 2');
     expect(words).toContain('HubSpot|Rank 1, 45%');
-    expect(words).toContain('Fynix|Rank 2, 30%');
-    expect(words).toContain('120 answers mentioning a tracked brand');
+    // The week's brand mentions: 84, 120 and 60 of 264
+    expect(words).toContain('Fynix|Rank 2, 32%');
+    expect(words).toContain('264 brand mentions among all tracked brands');
     expect(words.indexOf('HubSpot')).toBeLessThan(words.indexOf('Fynix'));
-    expect(tooltipText(1)).toContain('Too few answers mention a tracked brand (3): this week has no rank');
+    expect(tooltipText(1)).toContain('Too few brand mentions (3): this week has no rank');
     expect(tooltipText(1)).not.toMatch(/Rank \d/);
   });
 
   it('says in the footer how many weeks a pooled point holds, and nothing of weeks on a plain point', async () => {
     serveWorld(weeklySummary({ weeks: POOLED_WEEKS }), entityRows());
     await drawRanks();
-    expect(tooltipText(2)).toContain('120 answers mentioning a tracked brand, 4 weeks together');
-    expect(tooltipText(3)).toContain('100 answers mentioning a tracked brand');
+    expect(tooltipText(2)).toContain('264 brand mentions among all tracked brands, 4 weeks together');
+    expect(tooltipText(3)).toContain('200 brand mentions among all tracked brands');
     expect(tooltipText(3)).not.toContain('together');
   });
 
@@ -232,8 +234,8 @@ describe('the share of voice rank card (CH-29)', () => {
     const { user } = await drawRanks();
     const [block] = await readExport(user);
     expect(block?.id).toBe('card-under-test');
-    expect(block?.header).toEqual(['Week', 'Brand', 'Rank', 'Share of voice', 'Answers mentioning a tracked brand']);
-    expect(block?.rows).toContainEqual(['2026-10-19', 'Fynix', 1, 40, 100]);
+    expect(block?.header).toEqual(['Week', 'Brand', 'Rank', 'Share of voice', 'Brand mentions of all tracked brands']);
+    expect(block?.rows).toContainEqual(['2026-10-19', 'Fynix', 1, 40, 200]);
     expect(block?.rows).toContainEqual(['2026-10-26', 'Fynix', null, null, 3]);
   });
 

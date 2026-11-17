@@ -10,6 +10,7 @@ import {
   type TrackedSet,
 } from './types';
 import type { EngineSummary, PromptsSummary } from '@/lib/api/types';
+import { namingAnswersOf } from '@/lib/rates/brand-mention-share';
 import { rateState } from '@/lib/stats';
 
 /**
@@ -93,7 +94,9 @@ export function opportunityRows(
     promptsInScope += 1;
     if (valid.some((entry) => entry.outcomes.mentioned_only.numerator >= 1)) counts.named_not_cited += 1;
     if (valid.some((entry) => entry.outcomes.cited_only.numerator >= 1)) counts.cited_not_named += 1;
-    if (valid.some((entry) => validAnswers(entry) > entry.share_of_voice.denominator)) counts.nobody_named += 1;
+    if (valid.some((entry) => validAnswers(entry) > namingAnswersOf(entry.share_of_voice))) {
+      counts.nobody_named += 1;
+    }
     const lostHere = new Set(valid.flatMap((entry) => lostCompetitors(entry, competitors)));
     for (const entityId of lostHere) lost.set(entityId, (lost.get(entityId) ?? 0) + 1);
   }
