@@ -109,6 +109,7 @@ const PROBLEMS = {
   too_many_subjects: [422, 'Too many subjects'],
   nothing_to_run: [422, 'Nothing left to ask'],
   competitor_limit: [422, 'Competitor limit reached'],
+  competitor_not_tracked: [422, 'Competitor is not tracked'],
   cycle_detected: [422, 'Would make a cycle'],
   too_many_matches: [422, 'Too many matches'],
   window_too_large: [422, 'The window is too large'],

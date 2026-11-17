@@ -34,6 +34,8 @@ import { compareHandlers } from './compare';
 import { citationHandlers } from './citations';
 // WP-22 citation-details
 import { citationDetailHandlers } from './citation-details';
+// WP-77 citations-v2
+import { citationBoardHandlers } from './citations-v2';
 // WP-24 fanout
 import { fanoutHandlers } from './fanout';
 // WP-26 evidence
@@ -137,6 +139,8 @@ export const handlers: readonly HttpHandler[] = [
   ...citationHandlers,
   // WP-22 citation-details
   ...citationDetailHandlers,
+  // WP-77 citations-v2
+  ...citationBoardHandlers,
   // WP-24 fanout
   ...fanoutHandlers,
   // WP-26 evidence
