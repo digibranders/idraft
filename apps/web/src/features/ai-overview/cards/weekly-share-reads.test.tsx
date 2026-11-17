@@ -159,7 +159,7 @@ describe('the rate trend with the metric Share of voice', () => {
     const [block] = await readExport(user);
     expect(block?.header).toContain('weeks_held');
     expect(block?.rows).toContainEqual(
-      expect.arrayContaining(['2026-11-02', 'ChatGPT', 31.8, 84, 264, '2026-10-19 to 2026-11-09']),
+      expect.arrayContaining(['2026-11-02', 'ChatGPT', 31.82, 84, 264, '2026-10-19 to 2026-11-09']),
     );
   });
 
