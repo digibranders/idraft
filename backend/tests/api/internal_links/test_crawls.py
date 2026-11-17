@@ -16,6 +16,7 @@ from idraft.api.pagination import encode_cursor
 from idraft.api.resources import Resources
 from idraft.collectors.crawl_runs import queue_run
 from tests.api.auth.support import execute, fetch, fetchrow, make_workspace
+from tests.api.conftest import AppFactory
 from tests.api.entities.support import member, problem
 from tests.api.internal_links.support import audit_rows, seed_crawl, set_website
 from tests.api.keywords.support import keyword_project, project_url
@@ -475,6 +476,61 @@ async def test_the_box_ticked_without_a_website_queues_nothing(
         json={"name": "Site", "slug": "no-site", "map_internal_links": True},
         headers=owner.headers,
     )
+
+    assert response.status_code == 201, response.text
+    assert (
+        await fetch(migrated, "SELECT 1 FROM seo.crawl_runs WHERE workspace_id = $1", workspace.id)
+        == []
+    )
+
+
+async def test_crawl_now_is_refused_while_site_crawls_are_off(
+    client_for: AppFactory, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    project = await keyword_project(migrated, workspace)
+    await set_website(migrated, project)
+    url = project_url(workspace, project, "link-crawls")
+    async with client_for(crawls_enabled=False) as api:
+        resources = api._transport.app.state.resources  # type: ignore[attr-defined]
+        owner = await member(resources, migrated, workspace, "owner")
+        viewer = await member(resources, migrated, workspace, "viewer")
+        stranger = await member(resources, migrated, await make_workspace(migrated), "owner")
+
+        refused = await api.post(url, json={}, headers=owner.headers)
+        retried = await api.post(url, json={"higher_limit": True}, headers=owner.headers)
+        listed = await api.get(url, headers=owner.headers)
+        viewed = await api.post(url, json={}, headers=viewer.headers)
+        strange = await api.post(url, json={}, headers=stranger.headers)
+
+    assert problem(refused) == (503, "crawls_disabled")
+    assert problem(retried) == (503, "crawls_disabled")
+    assert (listed.status_code, listed.json()["data"]) == (200, [])
+    assert (viewed.status_code, strange.status_code) == (403, 404)
+    assert (
+        await fetch(migrated, "SELECT 1 FROM seo.crawl_runs WHERE project_id = $1", project) == []
+    )
+    assert await audit_rows(migrated, workspace, "link_crawl.requested") == []
+
+
+async def test_a_new_project_with_the_box_ticked_queues_no_crawl_while_site_crawls_are_off(
+    client_for: AppFactory, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    async with client_for(crawls_enabled=False) as api:
+        resources = api._transport.app.state.resources  # type: ignore[attr-defined]
+        owner = await member(resources, migrated, workspace, "owner")
+
+        response = await api.post(
+            f"/api/v1/workspaces/{workspace.id}/projects",
+            json={
+                "name": "Site",
+                "slug": "site-off",
+                "primary_domain": "example.com",
+                "map_internal_links": True,
+            },
+            headers=owner.headers,
+        )
 
     assert response.status_code == 201, response.text
     assert (

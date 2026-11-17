@@ -90,7 +90,8 @@ async def list_crawls(
     "",
     status_code=202,
     summary="Crawl now",
-    description="Queues a crawl of the project's website. One crawl per project runs at a time "
+    description="Queues a crawl of the project's website. `503 crawls_disabled` while site crawls "
+    "are not switched on, and nothing is queued. One crawl per project runs at a time "
     "(`409 crawl_in_progress` with its `run_id`). `422 no_website` without a website; `422 "
     "budget_exceeded` (with `budget_id`) when the crawl would pass a budget, and nothing is "
     "queued. `higher_limit` crawls again after a crawl stopped at its ceiling, with twice the "
