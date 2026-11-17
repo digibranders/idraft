@@ -1,10 +1,11 @@
 'use client';
 
-import { useMutation, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
+import { skipToken, useMutation, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
 import { useEffect, useRef } from 'react';
 
 import { toast } from '@/components/ui/toast';
+import { announce } from '@/lib/a11y/announcer';
 import type { QueryKey } from '@/lib/api/keys';
 import { isApiProblem } from '@/lib/api/problem';
 import type { ApiResponse } from '@/lib/api/query';
@@ -130,14 +131,27 @@ export function useCrawls(
 export const useWorkspaceTiers = (workspaceId: string): UseQueryResult<TierList> =>
   useQuery(pageTiersQuery(workspaceId));
 
+/**
+ * Whether the API answered `503 crawls_disabled` to a start. It is learned from that answer alone (no request asks
+ * beforehand) and kept in the query cache, so it holds while the app stays open and goes with a page reload; a start
+ * that succeeds clears it.
+ */
+export const crawlsOffKey: QueryKey = ['internal-links-crawls-off'];
+
 /** Crawl now (and Crawl again with a higher limit): one crawl at a time. */
 export function useCrawlNow(
   scope: LinksScope,
   host: string,
-): { start: (higherLimit?: boolean) => void; pending: boolean } {
+): { start: (higherLimit?: boolean) => void; pending: boolean; crawlsOff: boolean } {
   const t = useTranslations('internalLinks.header');
   const queryClient = useQueryClient();
   const mutation = useMutation(startCrawlMutation);
+  const { data: crawlsOff } = useQuery({
+    queryKey: crawlsOffKey,
+    queryFn: skipToken,
+    initialData: false,
+    staleTime: Infinity,
+  });
   const start = (higherLimit = false): void => {
     mutation.mutate(
       {
@@ -146,10 +160,15 @@ export function useCrawlNow(
       },
       {
         onSuccess: () => {
+          queryClient.setQueryData(crawlsOffKey, false);
           toast({ type: 'info', title: t('crawlStarted'), description: t('crawlStartedText', { host }) });
         },
         onError: (error) => {
-          if (isApiProblem(error, 'crawl_in_progress')) toast({ type: 'info', title: t('crawlBusy') });
+          // Not a failure: crawls are not switched on yet. The page shows a notice; no toast, no error
+          if (isApiProblem(error, 'crawls_disabled')) {
+            queryClient.setQueryData(crawlsOffKey, true);
+            announce(t('crawlsOff'), { key: 'internal-links-crawls-off' });
+          } else if (isApiProblem(error, 'crawl_in_progress')) toast({ type: 'info', title: t('crawlBusy') });
           else if (isApiProblem(error, 'budget_exceeded'))
             toast({ type: 'error', title: t('crawlFailed'), description: t('crawlBudget') });
           else if (isApiProblem(error, 'no_website'))
@@ -163,5 +182,5 @@ export function useCrawlNow(
       },
     );
   };
-  return { start, pending: mutation.isPending };
+  return { start, pending: mutation.isPending, crawlsOff: crawlsOff === true };
 }

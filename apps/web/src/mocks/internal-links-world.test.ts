@@ -8,6 +8,7 @@ import {
   hasFinishedCrawl,
   linksWorld,
   requestCrawl,
+  setCrawlsEnabled,
   settingsOf,
 } from './internal-links-world';
 
@@ -51,6 +52,22 @@ describe('the crawls of the mock world', () => {
       code: 'crawl_in_progress',
       runId: first.run_id,
     });
+  });
+
+  it('refuses every crawl while crawls are switched off, before any other check, and queues nothing', () => {
+    setCrawlsEnabled(false);
+    const refused = { ok: false, code: 'crawls_disabled' };
+    expect(requestCrawl(EVENTUS.project_id, { hasWebsite: true, higherLimit: false })).toEqual(refused);
+    expect(requestCrawl(EVENTUS.project_id, { hasWebsite: true, higherLimit: true })).toEqual(refused);
+    expect(requestCrawl(FYNIX, { hasWebsite: false, higherLimit: false })).toEqual(refused);
+    expect(crawlsOf(EVENTUS.project_id)).toHaveLength(1);
+    expect(crawlsOf(FYNIX)).toEqual([]);
+    setCrawlsEnabled(true);
+    expect(start()).toMatchObject({ state: 'queued' });
+  });
+
+  it('has crawls switched on in a fresh world', () => {
+    expect(requestCrawl(FYNIX, { hasWebsite: true, higherLimit: false })).toMatchObject({ ok: true });
   });
 
   it('takes the trigger of the caller, as a new project does', () => {

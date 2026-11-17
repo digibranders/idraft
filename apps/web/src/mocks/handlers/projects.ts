@@ -323,7 +323,8 @@ export const projectHandlers: HttpHandler[] = [
     const next: WorkspaceChanges = { ...changes, created: [...(changes.created ?? []), created] };
     const project = projectList(next, workspaceId).find((candidate) => candidate.project_id === created.project_id);
     if (!project) throw new Error('The created project is missing from the list');
-    // A ticked box with a website queues the first crawl with the project (backend D14); without a website nothing is queued
+    // A ticked box with a website queues the first crawl with the project (backend D14); without a website nothing is queued, and
+    // nothing is queued while crawls are switched off either (`requestCrawl` refuses; the project is created all the same)
     if (body.map_internal_links === true && project.primary_domain !== null) {
       requestCrawl(project.project_id, { hasWebsite: true, higherLimit: false, trigger: 'website_added' });
     }

@@ -7,7 +7,7 @@ import { announce, LIVE_REGION_ID } from '@/lib/a11y/announcer';
 import { CRAWL_SCREEN_LIMIT } from '@/lib/internal-links/queries';
 import type { CrawlRun } from '@/lib/internal-links/types';
 import { MOCK_WORKSPACE } from '@/mocks/fixtures';
-import { EVENTUS, linksWorld, MOCK_RUN_ID } from '@/mocks/internal-links-world';
+import { EVENTUS, linksWorld, MOCK_RUN_ID, setCrawlsEnabled } from '@/mocks/internal-links-world';
 import { mswPath } from '@/mocks/respond';
 import { axe } from '@/test/axe';
 import { EVENTUS_LINKS, FYNIX_LINKS, NO_WEBSITE, internalLinksAs } from '@/test/internal-links-harness';
@@ -417,6 +417,145 @@ describe('the crawl states of the page (spec 9)', () => {
     const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
     await user.click(await screen.findByRole('button', { name: 'Crawl now' }));
     expect(await screen.findByText('A crawl is already running')).toBeInTheDocument();
+  });
+});
+
+describe('crawls that are not switched on yet (503 crawls_disabled)', () => {
+  const LEAD = 'Crawls are not switched on yet.';
+  const REASON = /Crawls are not switched on yet\. Your workspace admin or the idraft team will turn them on\./;
+  const failedFirst = (): void => answerWith([run({ state: 'failed', error_code: 'site_blocked' })]);
+
+  afterEach(() => setCrawlsEnabled(true));
+
+  it('asks nothing before the first press, then shows a quiet notice and no error toast', async () => {
+    setCrawlsEnabled(false);
+    const requests = countRequests();
+    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    const button = await screen.findByRole('button', { name: 'Crawl now' });
+    expect(screen.queryByText(LEAD)).toBeNull();
+    expect(button).toBeEnabled();
+    expect(requests('/link-crawls', 'POST')).toBe(0);
+    await user.click(button);
+    expect(await screen.findByText(LEAD)).toBeInTheDocument();
+    expect(screen.queryByText('The crawl could not be started')).toBeNull();
+    expect(screen.queryByText('Crawl started')).toBeNull();
+    // A notice, not an alert: nothing in it is styled or announced as an error
+    expect(screen.getByText(LEAD).closest('[role]')).toBeNull();
+    expect(screen.getByText(LEAD).closest('[data-slot="banner"]')?.className).not.toMatch(/negative/);
+    expect(requests('/link-crawls', 'POST')).toBe(1);
+    // Crawl now is disabled with the reason, still focusable, and a press sends nothing
+    const after = screen.getByRole('button', { name: 'Crawl now' });
+    expect(after).toHaveAttribute('aria-disabled', 'true');
+    expect(after).not.toBeDisabled();
+    expect(after).toHaveAccessibleDescription(REASON);
+    after.focus();
+    expect(after).toHaveFocus();
+    await user.click(after);
+    expect(requests('/link-crawls', 'POST')).toBe(1);
+  });
+
+  it('is said once, politely, when it is learned', async () => {
+    setCrawlsEnabled(false);
+    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    await user.click(await screen.findByRole('button', { name: 'Crawl now' }));
+    await screen.findByText(LEAD);
+    expect(vi.mocked(announce)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(announce)).toHaveBeenCalledWith(expect.stringMatching(REASON), expect.anything());
+  });
+
+  it('shows it in the panel of a site never crawled, where Crawl now waits', async () => {
+    setCrawlsEnabled(false);
+    const requests = countRequests();
+    const { user } = renderWithProviders(internalLinksAs('editor', FYNIX_LINKS));
+    await user.click(await screen.findByRole('button', { name: 'Crawl now' }));
+    expect(await screen.findByText(LEAD)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'No crawl yet' })).toBeInTheDocument();
+    const after = screen.getByRole('button', { name: 'Crawl now' });
+    expect(after).toHaveAttribute('aria-disabled', 'true');
+    expect(after).toHaveAccessibleDescription(REASON);
+    await user.click(after);
+    expect(requests('/link-crawls', 'POST')).toBe(1);
+    expect(screen.queryByText('The crawl could not be started')).toBeNull();
+  });
+
+  it('does the same for the Try again of a first crawl that failed', async () => {
+    setCrawlsEnabled(false);
+    failedFirst();
+    const requests = countRequests();
+    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    await user.click(await screen.findByRole('button', { name: 'Try again' }));
+    expect(await screen.findByText(LEAD)).toBeInTheDocument();
+    const after = screen.getByRole('button', { name: 'Try again' });
+    expect(after).toHaveAttribute('aria-disabled', 'true');
+    expect(after).toHaveAccessibleDescription(REASON);
+    await user.click(after);
+    expect(requests('/link-crawls', 'POST')).toBe(1);
+  });
+
+  it('keeps the role reason for a viewer, who never sees the notice', async () => {
+    setCrawlsEnabled(false);
+    renderWithProviders(internalLinksAs('viewer', EVENTUS_LINKS));
+    const button = await screen.findByRole('button', { name: 'Crawl now' });
+    expect(button).toHaveAccessibleDescription(/Your role cannot start crawls/);
+    expect(screen.queryByText(LEAD)).toBeNull();
+  });
+
+  it('is cleared by the next start that succeeds', async () => {
+    setCrawlsEnabled(false);
+    // A failed newer crawl beside the last one: its Try again stays reachable, so a later start can succeed
+    seedWorld([
+      run({ run_id: 'f', state: 'failed', error_code: 'site_blocked', created_at: '2026-11-16T03:00:00Z' }),
+      run({ is_latest: true }),
+    ]);
+    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    await user.click(await screen.findByRole('button', { name: 'Crawl now' }));
+    await screen.findByText(LEAD);
+    expect(screen.getByRole('button', { name: 'Crawl now' })).toHaveAttribute('aria-disabled', 'true');
+    setCrawlsEnabled(true);
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    await waitFor(() => expect(screen.queryByText(LEAD)).toBeNull());
+    expect(await screen.findByRole('button', { name: 'Crawling' })).toBeInTheDocument();
+    expect((await screen.findAllByText('Crawl started')).length).toBeGreaterThan(0);
+  });
+
+  it('is learned from the first 503 only: a start that succeeds shows no notice', async () => {
+    renderWithProviders(internalLinksAs('editor', FYNIX_LINKS));
+    const button = await screen.findByRole('button', { name: 'Crawl now' });
+    expect(screen.queryByText(LEAD)).toBeNull();
+    expect(button).toBeEnabled();
+  });
+
+  it('leaves the other refusals as they were: a toast, and Crawl now stays enabled', async () => {
+    server.use(
+      http.post(CRAWLS, () =>
+        HttpResponse.json(
+          { type: 'about:blank', title: 'The project has no website to crawl', status: 422, code: 'no_website' },
+          { status: 422, headers: { 'content-type': 'application/problem+json' } },
+        ),
+      ),
+    );
+    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    await user.click(await screen.findByRole('button', { name: 'Crawl now' }));
+    // A toast is also copied into the live region: more than one match
+    expect((await screen.findAllByText('The crawl could not be started')).length).toBeGreaterThan(0);
+    expect(screen.queryByText(LEAD)).toBeNull();
+    expect(screen.getByRole('button', { name: 'Crawl now' })).toBeEnabled();
+  });
+
+  it.each([
+    ['light', 'ready'],
+    ['dark', 'ready'],
+    ['light', 'never crawled'],
+    ['dark', 'never crawled'],
+  ])('has no axe violations with the notice in the %s theme (%s)', async (theme, state) => {
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+    setCrawlsEnabled(false);
+    const { container, user } = renderWithProviders(
+      internalLinksAs('editor', state === 'ready' ? EVENTUS_LINKS : FYNIX_LINKS),
+    );
+    await user.click(await screen.findByRole('button', { name: 'Crawl now' }));
+    await screen.findByText(LEAD);
+    expect(await axe(container)).toHaveNoViolations();
   });
 });
 

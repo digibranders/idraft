@@ -182,6 +182,8 @@ interface World {
   /** When a crawling run was asked to stop (epoch ms), by run id: the worker ends it a moment later. */
   cancels: Map<string, number>;
   settings: Map<string, InternalLinksSettings>;
+  /** The worker setting CRAWLS_ENABLED: on by default here, so the dev mock keeps its simulated crawl. */
+  crawlsEnabled: boolean;
   nextId: number;
 }
 
@@ -214,6 +216,7 @@ function seed(): World {
     crawls: new Map([[EVENTUS.project_id, [finishedRun()]]]),
     cancels: new Map(),
     settings: new Map(),
+    crawlsEnabled: true,
     nextId: 1,
   };
 }
@@ -647,8 +650,14 @@ export function crawlsOf(projectId: string, now = Date.now()): CrawlRun[] {
   return advanced.map((run, index) => ({ ...run, is_latest: index === latestDone }));
 }
 
+/** Switches site crawls on or off, as the worker setting does; a reset of the mocks switches them on again. */
+export function setCrawlsEnabled(enabled: boolean): void {
+  world.crawlsEnabled = enabled;
+}
+
 export type CrawlRequest =
   | { ok: true; run: CrawlRun }
+  | { ok: false; code: 'crawls_disabled' }
   | { ok: false; code: 'no_website' }
   | { ok: false; code: 'crawl_in_progress'; runId: string }
   | { ok: false; code: 'no_stopped_crawl' };
@@ -657,8 +666,9 @@ const isUnderWay = (run: CrawlRun): boolean =>
   run.state === 'queued' || run.state === 'crawling' || run.state === 'processing';
 
 /**
- * What `POST .../link-crawls` does (backend `api/internal_links/crawls.py`): refuses a project without a website,
- * a crawl while one is under way, and a higher limit while no crawl stopped at its ceiling. A budget refusal
+ * What `POST .../link-crawls` does (backend `api/internal_links/crawls.py`): refuses everything while crawls are
+ * switched off (checked first, nothing queued, so a project created with `map_internal_links` queues no crawl
+ * either), a project without a website, a crawl while one is under way, and a higher limit while no crawl stopped at its ceiling. A budget refusal
  * (`budget_exceeded`) is not mocked: the mock world has no site crawl budget. `trigger` is `website_added` for the
  * crawl a new project queues.
  */
@@ -671,6 +681,7 @@ export function requestCrawl(
     now = Date.now(),
   }: { hasWebsite: boolean; higherLimit: boolean; trigger?: CrawlTrigger; now?: number },
 ): CrawlRequest {
+  if (!world.crawlsEnabled) return { ok: false, code: 'crawls_disabled' };
   if (!hasWebsite) return { ok: false, code: 'no_website' };
   const runs = crawlsOf(projectId, now);
   const running = runs.find(isUnderWay);

@@ -23,6 +23,8 @@ export interface CrawlHeaderProps {
   /** Whether the role may change the workspace's tiers (`workspace:update`); the link to them is left out without it. */
   canEditTiers: boolean;
   crawlPending: boolean;
+  /** The API said crawls are not switched on yet: Crawl now waits, with that reason. */
+  crawlsOff?: boolean | undefined;
   onCrawlNow: () => void;
   onExport: (() => void) | null;
   /** A download is being made: Export waits for it, and says so. */
@@ -45,6 +47,7 @@ export function CrawlHeader({
   canCrawl,
   canEditTiers,
   crawlPending,
+  crawlsOff = false,
   onCrawlNow,
   onExport,
   exporting = false,
@@ -113,6 +116,7 @@ export function CrawlHeader({
         icon={RefreshCw}
         canCrawl={canCrawl}
         pending={crawlPending}
+        crawlsOff={crawlsOff}
         startedAgo={running ? formatRelative(active.created_at, timeZone) : null}
         onClick={onCrawlNow}
       />

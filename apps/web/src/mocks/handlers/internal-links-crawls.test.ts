@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 
 import { MOCK_WORKSPACE } from '../fixtures';
-import { EVENTUS } from '../internal-links-world';
+import { EVENTUS, setCrawlsEnabled } from '../internal-links-world';
 import { mockBrowser } from '@/test/mock-api';
 
 const W = `/api/v1/workspaces/${MOCK_WORKSPACE.workspace_id}`;
@@ -41,6 +41,35 @@ describe('the crawl routes of the mock API', () => {
     expect(again.body.run_id).toBe(run.run_id);
     const listed = RUNS.parse((await browser.call('GET', `${P}/link-crawls`)).body);
     expect(listed.data.map((row) => row.run_id)).toContain(run.run_id);
+  });
+
+  it('answers 503 crawls_disabled while crawls are off: nothing is queued, a viewer or stranger is refused first', async () => {
+    setCrawlsEnabled(false);
+    const editor = mockBrowser('editor');
+    const refused = await editor.call('POST', `${P}/link-crawls`, {});
+    expect(refused.status).toBe(503);
+    expect(refused.code).toBe('crawls_disabled');
+    expect(refused.body.title).toBe('Site crawls are not switched on yet');
+    // Before the other checks, as the API does: a higher limit with no stopped crawl is not a 422 here
+    expect((await editor.call('POST', `${P}/link-crawls`, { higher_limit: true })).code).toBe('crawls_disabled');
+    expect((await mockBrowser('viewer').call('POST', `${P}/link-crawls`, {})).status).toBe(403);
+    const stranger = `${W}/projects/0192e4a0-9000-7000-8000-0000000000ff/link-crawls`;
+    expect((await editor.call('POST', stranger, {})).status).toBe(404);
+    // Reading still works, and nothing was queued
+    const listed = RUNS.parse((await editor.call('GET', `${P}/link-crawls`)).body).data;
+    expect(listed).toMatchObject([{ state: 'ready' }]);
+    setCrawlsEnabled(true);
+    expect((await editor.call('POST', `${P}/link-crawls`, {})).status).toBe(202);
+  });
+
+  it('creates a mapped project and queues no crawl while crawls are off', async () => {
+    setCrawlsEnabled(false);
+    const browser = mockBrowser('owner');
+    const body = { name: 'Mapped', slug: 'mapped-off', primary_domain: 'example.com', map_internal_links: true };
+    const created = await browser.call('POST', `${W}/projects`, body);
+    expect(created.status).toBe(201);
+    const id = PROJECT.parse(created.body).data.project_id;
+    expect(RUNS.parse((await browser.call('GET', `${W}/projects/${id}/link-crawls`)).body).data).toEqual([]);
   });
 
   it('lets a viewer read crawls but not start or cancel one', async () => {

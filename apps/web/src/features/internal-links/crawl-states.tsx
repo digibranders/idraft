@@ -39,6 +39,15 @@ export function failedText(t: StatesTranslate, run: CrawlRun, host: string): str
   }
 }
 
+/**
+ * Crawls are not switched on yet (the API's `503 crawls_disabled`). A condition, not a failure: a neutral banner,
+ * no error styling and no role. The press that learned it said it once through `announce()`.
+ */
+export function CrawlsOffNotice(): ReactElement {
+  const t = useTranslations('internalLinks.states');
+  return <Banner tone="neutral" placement="region" lead={t('crawlsOffLead')} message={t('crawlsOffText')} />;
+}
+
 export function NoWebsite({ settingsHref }: { settingsHref: Route }): ReactElement {
   const t = useTranslations('internalLinks.states');
   return (

@@ -567,6 +567,7 @@ export const internalLinkHandlers: HttpHandler[] = [
       higherLimit: body.higher_limit === true,
     });
     if (started.ok) return HttpResponse.json({ data: started.run }, { status: 202 });
+    if (started.code === 'crawls_disabled') return problem(request, 'crawls_disabled');
     if (started.code === 'crawl_in_progress') return problem(request, 'crawl_in_progress', { run_id: started.runId });
     if (started.code === 'no_stopped_crawl') {
       return invalidField(request, 'higher_limit', 'no_stopped_crawl', 'No crawl stopped at its ceiling.');

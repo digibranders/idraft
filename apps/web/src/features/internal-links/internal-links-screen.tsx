@@ -7,7 +7,15 @@ import { useCallback, useMemo, useRef, useState, type ReactElement, type ReactNo
 import { CrawlButton } from './crawl-button';
 import { CrawlHeader } from './crawl-header';
 import { crawlView, useCrawlNow, useCrawls, useWorkspaceTiers } from './crawl-reads';
-import { CrawlBanners, FirstCrawl, failedText, NeverCrawled, NoWebsite, SkeletonRows } from './crawl-states';
+import {
+  CrawlBanners,
+  CrawlsOffNotice,
+  FirstCrawl,
+  failedText,
+  NeverCrawled,
+  NoWebsite,
+  SkeletonRows,
+} from './crawl-states';
 import { UNTIERED_QUERY } from './pages/page-filters';
 import { SummaryStrip } from './summary-strip';
 import { activeLinksTab, LINKS_TABS, type LinksTabContext } from './tabs';
@@ -124,11 +132,14 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
             });
         };
 
+  // Only someone who may crawl can have pressed Crawl now, so only they are told crawls are not switched on yet
+  const notice = crawl.crawlsOff && canCrawl ? <CrawlsOffNotice /> : null;
   const crawlButton = (label: string): ReactElement => (
     <CrawlButton
       label={label}
       canCrawl={canCrawl}
       pending={crawl.pending}
+      crawlsOff={crawl.crawlsOff}
       startedAgo={null}
       onClick={() => crawl.start()}
     />
@@ -174,24 +185,33 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
       );
       break;
     case 'never':
-      body = <NeverCrawled host={host} crawlNow={crawlButton(header('crawlNow'))} />;
+      body = (
+        <>
+          {notice}
+          <NeverCrawled host={host} crawlNow={crawlButton(header('crawlNow'))} />
+        </>
+      );
       break;
     case 'first':
       body = <FirstCrawl run={view.run} host={host} timeZone={project.timeZone} />;
       break;
     case 'failed-first':
       body = (
-        <EmptyState
-          title={states('failedLead')}
-          reason={failedText(states, view.run, host)}
-          headingLevel={2}
-          primaryAction={crawlButton(states('retry'))}
-        />
+        <>
+          {notice}
+          <EmptyState
+            title={states('failedLead')}
+            reason={failedText(states, view.run, host)}
+            headingLevel={2}
+            primaryAction={crawlButton(states('retry'))}
+          />
+        </>
       );
       break;
     case 'ready':
       body = (
         <>
+          {notice}
           <CrawlBanners
             latest={view.latest}
             active={view.active}
@@ -224,6 +244,7 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
         canCrawl={canCrawl}
         canEditTiers={canEditTiers}
         crawlPending={crawl.pending}
+        crawlsOff={crawl.crawlsOff}
         onCrawlNow={() => crawl.start()}
         onExport={ready ? onExport : null}
         exporting={exporting}
