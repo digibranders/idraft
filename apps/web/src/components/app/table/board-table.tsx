@@ -4,6 +4,7 @@ import { ArrowDownWideNarrow, ArrowUpNarrowWide } from 'lucide-react';
 import { useEffect, useRef, type ReactElement, type ReactNode } from 'react';
 
 import { Icon } from '@/components/ui/icon';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
@@ -251,6 +252,55 @@ export function BoardTable<TRow>({
         </tbody>
       </table>
       <div ref={end} aria-hidden="true" className="h-px" />
+    </div>
+  );
+}
+
+const SKELETON_WIDTHS = [72, 56, 80, 64, 48, 72, 56, 64] as const;
+
+/** The table while its first rows load (17 section 3): the real headers, eight rows of pulsing bars. */
+export function BoardTableSkeleton({
+  columns,
+  rows = 8,
+  flexMin = DEFAULT_FLEX_MIN,
+}: {
+  columns: readonly Pick<BoardColumn<unknown>, 'id' | 'header' | 'width'>[];
+  rows?: number | undefined;
+  flexMin?: number | undefined;
+}): ReactElement {
+  const minWidth = columns.reduce((sum, column) => sum + (column.width ?? flexMin), 0);
+  return (
+    <div className="relative isolate min-h-0 flex-1 overflow-hidden" aria-hidden="true">
+      <table
+        className="table-fixed border-separate border-spacing-0 type-table"
+        style={{ width: '100%', minWidth: `${String(minWidth)}px` }}
+      >
+        <colgroup>
+          {columns.map((column) => (
+            <col key={column.id} style={column.width === null ? undefined : { width: `${String(column.width)}px` }} />
+          ))}
+        </colgroup>
+        <thead>
+          <tr>
+            {columns.map((column) => (
+              <th key={column.id} scope="col" className={cn(HEADER, 'z-(--z-table-header)')}>
+                <span className="truncate type-table-header">{column.header}</span>
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {Array.from({ length: rows }, (_, row) => (
+            <tr key={row} className="h-row">
+              {columns.map((column, index) => (
+                <td key={column.id} className={CELL}>
+                  <Skeleton shape="text-13" widthPct={SKELETON_WIDTHS[(row + index) % SKELETON_WIDTHS.length] ?? 64} />
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

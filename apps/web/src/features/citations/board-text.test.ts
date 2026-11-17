@@ -1,7 +1,7 @@
 import { createTranslator } from 'next-intl';
 import { describe, expect, it } from 'vitest';
 
-import { previousText, runsNote, scopeText } from './board-text';
+import { previousText, runsNote, scopeText, updatedText } from './board-text';
 import messages from '../../../messages/en.json';
 import type { Schemas } from '@/lib/api/types';
 
@@ -43,5 +43,13 @@ describe('the words of the Citations scope', () => {
 
   it('writes the scope of the empty states (C 106 to 108)', () => {
     expect(scopeText({ platform: 'ChatGPT', group: 'Pricing', runs: 2 }, t)).toBe('ChatGPT, Pricing, Last 2 runs');
+  });
+
+  it('writes the footer freshness (C 189)', () => {
+    expect(updatedText({ latest_answer_at: LATEST, latest_run_number: 48 }, ZONE, t)).toBe(
+      'Updated Sep 28, 02:15 · run 48',
+    );
+    expect(updatedText({ latest_answer_at: LATEST, latest_run_number: null }, ZONE, t)).toBe('Updated Sep 28, 02:15');
+    expect(updatedText({ latest_answer_at: null, latest_run_number: null }, ZONE, t)).toBeNull();
   });
 });

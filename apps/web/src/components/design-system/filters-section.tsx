@@ -4,6 +4,7 @@ import { useState, type ReactNode } from 'react';
 
 import { SpecimenGroup } from './specimen';
 import { FilterBar } from '@/components/app/filters/filter-bar';
+import { PressedGroup, type PressedGroupItem } from '@/components/app/filters/pressed-group';
 import type { FilterField, FilterValues } from '@/components/app/filters/types';
 import { TEXT_OPERATORS } from '@/lib/filters/filter-values';
 import { formatInteger } from '@/lib/format';
@@ -83,6 +84,20 @@ function SampleBar({
   );
 }
 
+type SampleOwner = 'own' | 'competitor' | 'third' | 'all';
+
+const OWNER_ITEMS: readonly PressedGroupItem<SampleOwner>[] = [
+  { value: 'own', label: 'Your site', count: formatInteger(13) },
+  { value: 'competitor', label: 'Competitors', count: formatInteger(141) },
+  { value: 'third', label: 'Third-party', count: formatInteger(124) },
+  { value: 'all', label: 'All', count: formatInteger(278) },
+];
+
+function SamplePressedGroup(): ReactNode {
+  const [owner, setOwner] = useState<SampleOwner>('own');
+  return <PressedGroup label="Domain type" value={owner} items={OWNER_ITEMS} onValueChange={setOwner} />;
+}
+
 export function FiltersSection(): ReactNode {
   return (
     <>
@@ -105,6 +120,12 @@ export function FiltersSection(): ReactNode {
         <div className="w-96 max-w-full">
           <SampleBar initial={APPLIED} nowrap />
         </div>
+      </SpecimenGroup>
+      <SpecimenGroup
+        title="PressedGroup"
+        note="13 section 10. A few kinds of one table's rows, each with its count, one pressed. It sits in the table's toolbar and resets the table's sort."
+      >
+        <SamplePressedGroup />
       </SpecimenGroup>
     </>
   );

@@ -183,3 +183,7 @@ All shortcuts are listed in the keyboard help dialog (`?`) and documented in [20
 ## 9. Saved views and filters
 
 Saved views ([12-tables.md](12-tables.md) section 11) store the full filter state. When a saved view is active, chips that differ from the view are marked with a 6 px `primary` dot at the chip's leading edge and the view menu shows "(edited)". This is the only place the accent marks filter state in the filter bar. The engine status legend (section 2) shows the table's cobalt glyphs as a key, not as state.
+
+## 10. Pressed group
+
+`PressedGroup` (WP-77): a few kinds of one table's rows, each with its count, one pressed (the Cited pages "Domain type": Your site, Competitors, Third-party, All). It changes the rows, not the scope, so it sits in the table's toolbar, not the filter bar. Three to five kinds; more become a `Select`. Changing it resets the table's sort. The counts are the rows of each kind whatever the search, so a kind never reads zero because of a search it did not cause.

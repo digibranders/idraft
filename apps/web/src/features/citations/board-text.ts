@@ -1,7 +1,7 @@
 import type { useTranslations } from 'next-intl';
 
-import { formatTableDate } from '@/lib/format';
-import type { RunSlot, RunsChoice } from '@/lib/citations/board-queries';
+import { formatInteger, formatTableDate, formatTableDateTime } from '@/lib/format';
+import type { RunSlot, RunWindow, RunsChoice } from '@/lib/citations/board-queries';
 
 /** The translator of `citations`, as `useTranslations('citations')` and `createTranslator` give it. */
 export type CitationsTranslate = ReturnType<typeof useTranslations<'citations'>>;
@@ -92,6 +92,20 @@ export function previousText(
 
 export const runsLabel = (runs: RunsChoice, t: CitationsTranslate): string =>
   runs === 1 ? t('toolbar.runs1') : runs === 2 ? t('toolbar.runs2') : t('toolbar.runs4');
+
+/** "Updated Sep 28, 02:15 · run 48" (C 189): the latest answer in scope and the project's run number. */
+export function updatedText(
+  window: Pick<RunWindow, 'latest_answer_at' | 'latest_run_number'>,
+  timeZone: string,
+  t: CitationsTranslate,
+): string | null {
+  const latest = window.latest_answer_at;
+  if (latest === null) return null;
+  const time = formatTableDateTime(latest, timeZone, new Date(latest));
+  return window.latest_run_number === null
+    ? t('board.updatedNoRun', { time })
+    : t('board.updated', { time, run: formatInteger(window.latest_run_number) });
+}
 
 /** "<platform>, <group>, <runs label>" of the empty states (C 106 to 108). */
 export const scopeText = (

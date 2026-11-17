@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { BoardTable, type BoardColumn } from './board-table';
+import { BoardTable, BoardTableSkeleton, type BoardColumn } from './board-table';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { axe } from '@/test/axe';
 
@@ -130,6 +130,15 @@ class StubObserver {
     });
   }
 }
+
+describe('BoardTableSkeleton', () => {
+  it('draws the real headers over eight rows of pulsing bars, hidden from assistive technology', () => {
+    const { container } = render(<BoardTableSkeleton columns={[{ id: 'a', header: 'Page', width: 280 }]} />);
+    expect(container.querySelectorAll('th')).toHaveLength(1);
+    expect(container.querySelectorAll('tbody tr')).toHaveLength(8);
+    expect(container.firstElementChild).toHaveAttribute('aria-hidden', 'true');
+  });
+});
 
 describe('BoardTable paging', () => {
   beforeEach(() => {

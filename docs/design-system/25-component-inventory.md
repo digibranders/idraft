@@ -268,6 +268,7 @@ Paths are relative to `apps/web/src/`. `ui/` is `components/ui/`; `app/` is `com
 | AddFilterButton (FieldPicker) | Filters | `app/filters/add-filter-button.tsx` | V1 | 13 §2 |
 | FilterEditor | Filters | `app/filters/filter-editor.tsx` | V1 | 13 §3 |
 | FilterSheet | Filters | `app/filters/filter-sheet.tsx` | V1 | 19 §4.2 |
+| PressedGroup | Filters | `app/filters/pressed-group.tsx` | WP-77 | 13 §10, 25 §6.8 |
 | DataTable | Data: tables | `app/data-table/data-table.tsx` | V1 | 12 |
 | DataTableToolbar | Data: tables | `app/data-table/toolbar.tsx` | V1 | 12 §1 |
 | BulkActionBar | Data: tables | `app/data-table/bulk-action-bar.tsx` | V1 | 12 §14 |
@@ -2520,6 +2521,23 @@ interface FilterSheetProps { open: boolean; onOpenChange: (open: boolean) => voi
 - **Variants:** none (44 px rows, nested views with back buttons). **States:** clean, staged, counting (`aria-busy`, previous number kept).
 - **A11y:** modal sheet; closing discards staged changes without confirmation. **Use:** mobile layout. **Not for:** desktop.
 
+### 6.8 PressedGroup
+`app/filters/pressed-group.tsx` · WP-77 · [13 §10](13-filters-search.md)
+
+Purpose: a filter of one table's rows by a few kinds, each with its count, one pressed (the Cited pages "Domain type"). It changes the rows, not the scope.
+
+```ts
+interface PressedGroupProps<TValue extends string> {
+  label: string;                    // names the group: "Domain type"
+  value: TValue;
+  items: ReadonlyArray<{ value: TValue; label: string; count?: string }>;   // count preformatted
+  onValueChange: (value: TValue) => void;
+}
+```
+
+- **Variants:** none (24 px buttons in one `rounded-md` border with 2 px padding; the pressed one is `primary-subtle` with `primary-text` and `type-body-strong`, the others `type-body` in `foreground-secondary`). **States:** pressed, unpressed, hover, focus (inset ring), narrow (scrolls sideways).
+- **A11y:** a `group` named by `label`; each button is a toggle (`aria-pressed`) named "<label> <count>". **Use:** in a table panel's toolbar, three to five kinds. **Not for:** screen scope (`FilterBar`), view switches (`TabNav`, `SegmentedControl`), more than five kinds (`Select`).
+
 ## 7. Data: tables
 
 [12-tables.md](12-tables.md) is the specification; [20-accessibility.md](20-accessibility.md) §6 is binding on its keyboard and ARIA behavior; [19-responsive-behavior.md](19-responsive-behavior.md) §6 owns column priorities.
@@ -2745,7 +2763,8 @@ interface BoardTableProps<TRow> {
 }
 ```
 
-- **Variants:** none. **States:** rows, sorted header, open row (`data-active`), hover, busy. Loading skeleton rows, the error and the empty state (`EmptyState variant="table"`) are the screen's.
+- **Variants:** none. **States:** rows, sorted header, open row (`data-active`), hover, busy. The error and the empty state (`EmptyState variant="table"`) are the screen's.
+- **`BoardTableSkeleton`** (same file, `{ columns: ReadonlyArray<{ id, header, width }>, rows?: number (8), flexMin?: number }`): the loading state, the real headers over eight rows of pulsing `Skeleton` bars at the table's own widths; the whole is `aria-hidden`, the panel around it says "Loading".
 - **A11y:** a plain `table` with a visually hidden caption; `aria-sort` on every sortable header; the first cell's button is named by `rowLabel` and is the keyboard way in; a click on the row opens it too, except on a `data-cell-action` element; header and cell tooltips are descriptions or labels of their cells (`Tooltip`).
 - **Use:** boards whose rows open the right inspector and are compared, not edited or selected. **Not for:** record lists with selection, bulk actions, saved views or paging by button (`DataTable`).
 
