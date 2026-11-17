@@ -3,8 +3,10 @@ Numbers are worked out by hand from the answers in each test."""
 
 from __future__ import annotations
 
+import time
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from typing import Any
 from uuid import UUID, uuid4
 
 import httpx
@@ -15,10 +17,11 @@ from idraft.api.ai.source_repository import SourceScope
 from idraft.api.resources import Resources
 from idraft.db.engine import workspace_transaction
 from tests.api.ai.citation_board_support import make_run, run_answer
-from tests.api.ai.sources_support import GUIDE, OWN, RIVAL, Cite, World, make_world
-from tests.api.auth.support import execute
+from tests.api.ai.sources_support import GUIDE, OWN, RIVAL, Cite, World, full_project, make_world
+from tests.api.auth.support import execute, fetch
 from tests.api.entities.support import problem
 from tests.collectors.ai_support import Prompt, add_prompt
+from tests.collectors.rank_support import _entity
 from tests.conftest import PostgresServer
 
 
@@ -429,3 +432,77 @@ async def test_a_manual_run_on_one_engine_moves_only_that_engines_slots(
     assert (body["citations"], body["previous_citations"]) == (2, 1)
     assert (body["matched_citations"], body["matched_previous_citations"]) == (2, 1)
     assert body["matched_pairs"] == 2
+
+
+async def test_a_full_project_reads_the_citations_page_fast_without_statistics(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    """The base plan at capacity (150 prompts, three engines, eight answers each) with each
+    answer in its own run, so every prompt and engine has eight runs, and three competitors. No
+    ANALYZE, as in the sources timing test: 15 s is the hard limit for every route."""
+    world = await full_project(resources, migrated)
+    # full_project answers are 3 days apart: answer n of every pair is run n, not a weekly run
+    runs = [await make_run(migrated, world, days_ago=3 * n) for n in range(8)]
+    await execute(
+        migrated,
+        "UPDATE ai.observations o SET collection_run_id = ($2::uuid[])[1 + "
+        "round(extract(epoch FROM now() - o.observed_at) / 259200)::int] WHERE o.project_id = $1",
+        world.project.id,
+        runs,
+    )
+    competitors = [
+        world.rival,
+        await _entity(migrated, world.project, "Rival Two", "rivaltwo.com", "competitor"),
+        await _entity(migrated, world.project, "Rival Three", "rivalthree.com", "competitor"),
+    ]
+    # Each answer cites ten consecutive pages of 50: one page in 25 for each of the four brands
+    # makes about two in five answers cite each brand
+    page_ids = [
+        row["url_id"]
+        for row in await fetch(
+            migrated,
+            "SELECT DISTINCT url_id FROM ai.citations WHERE project_id = $1 ORDER BY url_id",
+            world.project.id,
+        )
+    ]
+    for offset, (role, entity) in enumerate(
+        [("own", world.own), *(("competitor", rival) for rival in competitors)]
+    ):
+        await execute(
+            migrated,
+            "UPDATE ai.citations SET domain_role = $2, role_entity_id = $3 "
+            "WHERE project_id = $1 AND url_id = ANY($4::bigint[])",
+            world.project.id,
+            role,
+            entity,
+            page_ids[1 + 5 * offset :: 25],
+        )
+    chosen = {"filter[competitor_id_in]": ",".join(str(rival) for rival in competitors)}
+
+    async def timed(*path: object, **params: object) -> dict[str, Any]:
+        started = time.perf_counter()
+        response = await _get(world, api, *path, **params)
+        took = time.perf_counter() - started
+        assert response.status_code == 200, response.text
+        assert took < 15, (path, took)
+        body: dict[str, Any] = response.json()
+        return body
+
+    overview = await timed("citation-overview", runs=4)
+    pages = await timed("cited-pages", runs=4)
+    await timed("cited-pages", runs=4, limit=200)
+    await timed("cited-pages", runs=1)
+    await timed("cited-pages", runs=4, **{"filter[domain_role_in]": "own"})
+    gaps = await timed("citation-gaps", runs=4, **chosen)
+    await timed("citation-gaps", runs=1, **chosen)
+    page = await timed("cited-pages", pages["data"][0]["url_id"], runs=4)
+    lost = next(row for row in gaps["data"] if row["gap"] > 0)
+    gap = await timed("citation-gaps", lost["prompt_id"], runs=4, **chosen)
+
+    assert overview["citations"] > 0
+    assert overview["window"]["answers"] > 0
+    assert pages["page"]["total"] == 50
+    assert gaps["meta"]["prompts"] == 150
+    assert gaps["meta"]["gaps"] > 0
+    assert page["prompts"]
+    assert gap["answers"] > 0

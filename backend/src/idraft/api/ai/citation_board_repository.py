@@ -13,7 +13,7 @@ from datetime import timedelta
 from typing import Final
 from uuid import UUID
 
-from sqlalchemy import and_, func, select, tuple_
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from idraft.api.ai.citation_board_model import Answer, Unit
@@ -35,7 +35,10 @@ from idraft.db.tables import (
 
 # Eight weekly runs take 56 days; twice the slots of a monthly schedule still fit.
 LOOKBACK_DAYS: Final = 183
-# asyncpg takes at most 32,767 parameters; two per answer key.
+# asyncpg takes at most 32,767 parameters; one per answer. The ids alone pick the rows (one
+# sequence, `observed_at` is already bounded by `citation_bounds`): a tuple IN of (id, observed_at)
+# pairs became a BitmapOr of thousands of index scans once the table had statistics, with a plan
+# that took seconds to build and to JIT compile.
 _KEYS_PER_QUERY: Final = 4000
 
 _O, _C, _D, _U = ai_observations.c, ai_citations.c, domains.c, urls.c
@@ -114,7 +117,6 @@ async def units_of(
             since=min(a.observed_at for a in chunk),
             until=max(a.observed_at for a in chunk) + timedelta(microseconds=1),
         )
-        keys = [(a.observation_id, a.observed_at) for a in chunk]
         rows = await db.execute(
             select(
                 _C.observation_id,
@@ -130,7 +132,9 @@ async def units_of(
             .select_from(
                 ai_citations.join(urls, _U.id == _C.url_id).join(domains, _D.id == _C.domain_id)
             )
-            .where(*citation_bounds(bounded), tuple_(_C.observation_id, _C.observed_at).in_(keys))
+            .where(
+                *citation_bounds(bounded), _C.observation_id.in_([a.observation_id for a in chunk])
+            )
             .group_by(
                 _C.observation_id,
                 _C.url_id,
