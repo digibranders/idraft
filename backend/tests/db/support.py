@@ -76,6 +76,13 @@ TENANT_TABLES: dict[str, str] = {
     "seo.crawl_links": "workspace_id",
     "seo.crawl_tier_flow": "workspace_id",
     "seo.crawl_tier_stats": "workspace_id",
+    "seo.crawl_link_changes": "workspace_id",
+    "seo.crawl_page_changes": "workspace_id",
+    "seo.crawl_alerts": "workspace_id",
+    "seo.crawl_mentions": "workspace_id",
+    "core.link_opportunity_decisions": "workspace_id",
+    "core.tier_suggestion_dismissals": "workspace_id",
+    "fp.gsc_page_daily": "workspace_id",
 }
 
 
@@ -497,6 +504,13 @@ async def seed_search_console(
         workspace_id,
         project_id,
     )
+    await db.execute(
+        "INSERT INTO fp.gsc_page_daily (integration_id, metric_date, url_id, workspace_id, "
+        "project_id, clicks, impressions) VALUES ($1, current_date, 1, $2, $3, 1, 2)",
+        integration_id,
+        workspace_id,
+        project_id,
+    )
     return integration_id
 
 
@@ -690,6 +704,52 @@ async def seed_internal_links(
         run_id,
         workspace_id,
         tier_id,
+    )
+    await db.execute(
+        "INSERT INTO seo.crawl_link_changes (run_id, workspace_id, change, scope, source_url_id, "
+        "target_url_id, placement) VALUES ($1, $2, 'lost', 'editorial', $3, $3, 'content')",
+        run_id,
+        workspace_id,
+        url_id,
+    )
+    await db.execute(
+        "INSERT INTO seo.crawl_page_changes (run_id, workspace_id, url_id, is_new) "
+        "VALUES ($1, $2, $3, true)",
+        run_id,
+        workspace_id,
+        url_id,
+    )
+    await db.execute(
+        "INSERT INTO seo.crawl_alerts (run_id, workspace_id, project_id, lost_links, "
+        "max_position, threshold, channel, delivery_state) "
+        "VALUES ($1, $2, $3, 1, 2, 1, 'app', 'shown_in_app')",
+        run_id,
+        workspace_id,
+        project_id,
+    )
+    await db.execute(
+        "INSERT INTO seo.crawl_mentions (run_id, workspace_id, source_url_id, target_url_id, "
+        "phrase, context, origin) VALUES ($1, $2, $3, $3, 'managed soc', 'A managed SOC.', "
+        "'keyword')",
+        run_id,
+        workspace_id,
+        url_id,
+    )
+    await db.execute(
+        "INSERT INTO core.link_opportunity_decisions (project_id, workspace_id, source_url_id, "
+        "target_url_id, status, decided_by) VALUES ($1, $2, $3, $3, 'accepted', $4)",
+        project_id,
+        workspace_id,
+        url_id,
+        owner_id,
+    )
+    await db.execute(
+        "INSERT INTO core.tier_suggestion_dismissals (project_id, workspace_id, url_id, "
+        "dismissed_by) VALUES ($1, $2, $3, $4)",
+        project_id,
+        workspace_id,
+        url_id,
+        owner_id,
     )
     return run_id
 
