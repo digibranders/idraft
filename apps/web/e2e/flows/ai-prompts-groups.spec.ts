@@ -107,7 +107,7 @@ test.describe('the Groups tab', () => {
     const toasts = toastsOf(page);
     await expect(toasts.getByText('Copper added to your competitors')).toBeVisible();
     await expect(
-      toasts.getByText(/^It counts in share of voice and the competitor gap from the next run\./),
+      toasts.getByText(/^It counts in share of voice and the Lost to competitor card from the next run\./),
     ).toBeVisible();
     // The row says it is added, and the Add button is gone
     await expect(list.getByRole('button', { name: 'Add Copper to your competitors' })).toHaveCount(0);

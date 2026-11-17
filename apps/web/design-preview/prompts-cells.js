@@ -16,11 +16,12 @@ const { $, icon, engineLogo } = window.PreviewUI;
 export const CELL = 'border-b border-border-subtle px-3';
 
 /**
- * MetricCell in Compact density, the default (12 section 6): the rate and its change beside it on one line, so the row
- * stays 32 px; the sample ("612 of 1,296 obs") and which engines an average covers are in the tooltip. Left aligned
- * like every table column. `value` null renders InsufficientData with `gap.text` and `gap.tip`.
+ * MetricCell in Compact density, the default (12 section 6): the rate and its trend arrow on one line, so the row stays
+ * 32 px; the sample ("612 of 1,296 obs") and which engines an average covers are in the tooltip. Left aligned like
+ * every table column. `value` null renders InsufficientData with `gap.text` and `gap.tip`. The arrow is comparison: it
+ * shows only when the person chose to compare. The `trend` (the weekly rates of the window) is in its hover.
  */
-export function rateCell({ value, change, sample, tip, gap }) {
+export function rateCell({ value, change, trend, sample, tip, gap }) {
   const cell = el('td', CELL);
   if (value === null) {
     const pill = insufficient(gap.text);
@@ -28,13 +29,10 @@ export function rateCell({ value, change, sample, tip, gap }) {
     cell.append(pill);
     return cell;
   }
-  const line = el('span', 'inline-flex items-baseline gap-1 whitespace-nowrap');
-  line.append(el('span', 'num', percent0(value)));
-  const delta = deltaNode(change, 1);
-  if (delta) {
-    delta.classList.add('type-meta');
-    line.append(delta);
-  }
+  const line = el('span', 'inline-flex items-baseline gap-1.5 whitespace-nowrap');
+  line.append(el('span', 'num min-w-7', percent0(value)));
+  const arrow = deltaNode(change, { value, sample, trend });
+  if (arrow) line.append(arrow);
   cell.append(line);
   cell.dataset.tip = tip ? `${sample}. ${tip}` : sample;
   return cell;
@@ -55,43 +53,25 @@ export function promptRateCell(prompt, metric, withChange) {
   const observed = scope.reduce((sum, code) => sum + prompt.engines[code].n, 0);
   const usable = scope.filter((code) => rateFor(prompt, code, metric) !== null);
   const pooled = pooledCounts(usable.map((code) => countsOf(prompt, code, metric)));
-  const names = usable.map((code) => engineOf(code).name).join(', ');
+  const names = usable.map((code) => engineOf(code).label).join(', ');
   // With one engine in scope the reason is that engine's own: AI Overview says whether a keyword is linked
   const only = scope.length === 1 ? absenceOf(prompt, scope[0]) : null;
-  let absent = only ? { text: only.text, tip: `${engineOf(scope[0]).name}: ${only.reason}` } : { text: 'n/a', tip: 'Not observed in this window' };
+  let absent = only ? { text: only.text, tip: `${engineOf(scope[0]).label}: ${only.reason}` } : { text: 'n/a', tip: 'No answers in this period' };
   // A metric that none of the engines in view classifies is not a missing observation: say so
   const unclassified = scope.every((code) => !measures(code, metric));
-  if (unclassified) absent = { text: 'n/a', tip: `${scope.map((code) => engineOf(code).name).join(', ')}: ${NOT_CLASSIFIED}` };
+  if (unclassified) absent = { text: 'n/a', tip: `${scope.map((code) => engineOf(code).label).join(', ')}: ${NOT_CLASSIFIED}` };
   return rateCell({
     value,
     change: withChange ? changeFor(prompt, scope, metric) : null,
-    sample: `${formatSampleCount(pooled.k, pooled.n)} ${metric === 'sov' ? 'mentions' : 'obs'}`,
+    trend: withChange ? trendOf(prompt, scope) : null,
+    sample: `${formatSampleCount(pooled.k, pooled.n)} ${metric === 'sov' ? 'mentions' : 'answers'}`,
     tip: used === 1 ? `${names} only` : `Equal-weight average of ${names}`,
     gap: {
-      text: observed === 0 || unclassified ? absent.text : 'Insufficient',
-      tip: observed === 0 || unclassified ? absent.tip : `${plural(observed, 'observation')} in scope. A rate needs at least ${MIN_OBSERVATIONS} on an engine.`,
+      text: observed === 0 || unclassified ? absent.text : 'Not enough data',
+      tip: observed === 0 || unclassified ? absent.tip : `${plural(observed, 'answer')} in scope. A rate needs at least ${MIN_OBSERVATIONS} on a platform.`,
     },
   });
 }
-
-/** A sparkline of weekly rates (0 to 1). Null points are gaps. An empty series renders "n/a". */
-export function sparkCell(points, className) {
-  const cell = el('td', `${className} ${CELL}`);
-  if (points.length === 0) {
-    cell.append(el('span', 'text-foreground-tertiary', 'n/a'));
-    return cell;
-  }
-  const canvas = el('canvas');
-  canvas.dataset.spark = points.map((point) => (point === null ? '' : Math.round(point * 100))).join(',');
-  canvas.dataset.kind = 'rate';
-  canvas.setAttribute('role', 'img');
-  const latest = points.at(-1);
-  canvas.setAttribute('aria-label', `Mention rate over 8 weeks${latest === null ? '' : `, now ${percent0(latest)}`}`);
-  cell.append(canvas);
-  return cell;
-}
-
-export const promptTrendCell = (prompt, className) => sparkCell(trendOf(prompt, scopeCodes()), className);
 
 export function updatedCell(updated, className, stale = false) {
   const cell = el('td', `${className} ${CELL} whitespace-nowrap text-foreground-tertiary`);
@@ -99,7 +79,7 @@ export function updatedCell(updated, className, stale = false) {
   line.append(el('span', 'num', updated.text));
   if (stale) {
     const badge = el('span', 'h-badge inline-flex items-center px-2 rounded-sm bg-warning-subtle text-warning-text type-micro', 'Stale');
-    badge.dataset.tip = 'The latest weekly run has no valid observation for this prompt';
+    badge.dataset.tip = 'The latest weekly run has no valid answer for this prompt';
     line.append(badge);
   }
   cell.append(line);
@@ -109,8 +89,8 @@ export function updatedCell(updated, className, stale = false) {
 export const promptUpdatedCell = (prompt, className) => updatedCell(updatedOf(prompt), className, prompt.stale);
 
 /**
- * PromptCell content (25 section 8.2): one line of text, the lock of a locked core panel, and the type badge
- * while the cell is wide enough for both (a container query: the cell narrows when the drawer docks).
+ * PromptCell content (25 section 8.2): one line of text and the type badge while the cell is wide enough for both
+ * (a container query: the cell narrows when the drawer docks). The locked core panel is shown in the inspector only.
  */
 export function promptLine(prompt) {
   const box = el('span', '@container block min-w-0');
@@ -120,13 +100,6 @@ export function promptLine(prompt) {
   text.dataset.keyCell = '';
   text.dataset.tip = prompt.text;
   line.append(text);
-  if (prompt.locked) {
-    const lock = icon('lock', 'size-icon-xs shrink-0 text-foreground-tertiary');
-    lock.setAttribute('aria-label', 'Locked core panel');
-    lock.setAttribute('role', 'img');
-    lock.removeAttribute('aria-hidden');
-    line.append(lock);
-  }
   if (prompt.branded) line.append(el('span', `${NEUTRAL_BADGE} shrink-0 group-aria-selected:bg-surface`, 'Branded'));
   line.append(el('span', `hidden @sm:inline-flex shrink-0 ${NEUTRAL_BADGE_LOOK} group-aria-selected:bg-surface`, TYPE_LABEL[prompt.type]));
   return box;
@@ -144,10 +117,10 @@ export function topEngineCell(rates, className = '') {
     return cell;
   }
   const line = el('span', 'inline-flex min-w-0 items-center gap-2');
-  line.append(engineLogo(best.engine.name), el('span', 'block min-w-0 truncate', best.engine.name));
+  line.append(engineLogo(best.engine.name), el('span', 'block min-w-0 truncate', best.engine.label));
   cell.append(el('span', 'flex min-w-0', ''));
   cell.firstChild.append(line);
-  cell.dataset.tip = `${rates.map((entry) => `${entry.engine.name} ${entry.rate === null ? 'n/a' : percent0(entry.rate)}`).join(', ')}. The engine with the highest mention rate. A pointer, not a ranking.`;
+  cell.dataset.tip = `${rates.map((entry) => `${entry.engine.label} ${entry.rate === null ? 'n/a' : percent0(entry.rate)}`).join(', ')}. The platform with the highest mention rate. A pointer, not a ranking.`;
   return cell;
 }
 
@@ -158,7 +131,7 @@ const HEADER = 'sticky top-0 z-(--z-table-header) border-b border-border bg-surf
  * A sortable column header (12 section 7). `sort` is the { key, dir } in force and `attr` the data attribute
  * the table listens for, so each table keeps its own sort. The arrow shows on the column that sorts.
  */
-export function sortHeaderCell({ key, label, className = '', sort, attr, tip }) {
+export function sortHeaderCell({ key, label, className = '', sort, attr, tip, logo }) {
   const active = sort.key === key;
   const th = el('th', `${HEADER} ${className}`.trim());
   th.scope = 'col';
@@ -167,6 +140,8 @@ export function sortHeaderCell({ key, label, className = '', sort, attr, tip }) 
   const button = el('button', 'flex min-w-0 items-center gap-1 rounded-sm');
   button.type = 'button';
   button.dataset[attr] = key;
+  // The mark of the engine a column belongs to, as everywhere an engine is named
+  if (logo) button.append(engineLogo(logo));
   button.append(el('span', `truncate type-table-header${active ? ' text-foreground' : ''}`, label));
   if (active) button.append(icon(sort.dir === 'asc' ? 'arrow-up-narrow-wide' : 'arrow-down-wide-narrow', 'size-icon-sm shrink-0 text-foreground'));
   th.append(el('span', 'relative flex min-w-0 items-center gap-1'));
@@ -174,11 +149,12 @@ export function sortHeaderCell({ key, label, className = '', sort, attr, tip }) 
   return th;
 }
 
-export function plainHeaderCell(label, className = '', tip) {
+export function plainHeaderCell(label, className = '', tip, logo) {
   const th = el('th', `${HEADER} ${className}`.trim());
   th.scope = 'col';
   if (tip) th.dataset.tip = tip;
   th.append(el('span', 'flex min-w-0 items-center gap-1'));
+  if (logo) th.firstChild.append(engineLogo(logo));
   th.firstChild.append(el('span', 'truncate type-table-header', label));
   return th;
 }
@@ -226,7 +202,9 @@ export function wireColumnChooser({ popover, columns, shown, change, reset, iden
         input.value = column.key;
         input.checked = column.locked === true || shown().has(column.key);
         if (column.locked) input.disabled = true;
-        row.append(wrap, el('span', `truncate${column.locked ? ' text-foreground-disabled' : ''}`, column.label));
+        row.append(wrap);
+        if (column.engine) row.append(engineLogo(column.engine));
+        row.append(el('span', `truncate${column.locked ? ' text-foreground-disabled' : ''}`, column.label));
         return row;
       }),
     );

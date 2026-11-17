@@ -37,9 +37,6 @@ function writeUrl() {
   if (state.group !== DEFAULTS.group) params.set('group', state.group);
   if (!state.compare) params.set('cmp', 'off');
   if (state.metric !== DEFAULTS.metric) params.set('metric', state.metric);
-  // The preview's taxonomy switch is not part of the scope but must survive a change of it
-  const taxonomy = new URLSearchParams(location.search).get('taxonomy');
-  if (taxonomy) params.set('taxonomy', taxonomy);
   const query = params.toString();
   history.replaceState(null, '', `${location.pathname}${query ? `?${query}` : ''}${location.hash}`);
 }
@@ -54,11 +51,12 @@ export function setScope(patch) {
 // -------------------------------------------------------------------------------------------------
 // A single select: a trigger and a listbox popup, optionally with a search field
 
-const TRIGGER = 'h-control px-3 w-full sm:w-auto min-w-0 max-w-full rounded-md border border-border bg-surface flex items-center gap-2 whitespace-nowrap type-body text-foreground hover:bg-surface-hover aria-expanded:bg-surface-hover';
+const TRIGGER = 'h-control px-3 w-full min-w-0 max-w-full rounded-md border border-border bg-surface flex items-center gap-2 whitespace-nowrap type-body text-foreground hover:bg-surface-hover aria-expanded:bg-surface-hover';
 const OPTION = 'group w-full h-control-sm px-2 rounded-md flex items-center gap-2 whitespace-nowrap type-body text-foreground text-left outline-none hover:bg-surface-hover focus-visible:bg-surface-hover';
 
-export function createSelect({ name, options, get, set, searchable = false, width = 'min-w-56' }) {
-  const trigger = el('button', TRIGGER);
+/** `triggerWidth` fixes the width of the button from 640 px up, so a longer choice never resizes it or moves its neighbours. */
+export function createSelect({ name, options, get, set, searchable = false, width = 'min-w-56', triggerWidth = 'sm:w-auto' }) {
+  const trigger = el('button', `${TRIGGER} ${triggerWidth}`);
   trigger.type = 'button';
   trigger.setAttribute('aria-haspopup', 'listbox');
   trigger.setAttribute('aria-expanded', 'false');
@@ -80,7 +78,7 @@ export function createSelect({ name, options, get, set, searchable = false, widt
   };
   const refresh = () => {
     const current = options.find((option) => option.id === get()) ?? options[0];
-    trigger.replaceChildren(el('span', 'text-foreground-secondary', `${name}:`), labelOf(current), icon('chevron-down', 'size-icon-sm shrink-0 text-foreground-tertiary'));
+    trigger.replaceChildren(el('span', 'text-foreground-secondary', `${name}:`), labelOf(current), icon('chevron-down', 'size-icon-sm shrink-0 ml-auto text-foreground-tertiary'));
     trigger.setAttribute('aria-label', `${name}: ${current.label}`);
     buttons.forEach(({ button, option }) => button.setAttribute('aria-selected', String(option.id === current.id)));
   };
@@ -93,12 +91,10 @@ export function createSelect({ name, options, get, set, searchable = false, widt
     panel.insertBefore(search, list);
   }
   options.forEach((option) => {
-    const button = el('button', `${OPTION} ${option.indent ? 'pl-6' : ''}`);
+    const button = el('button', OPTION);
     button.type = 'button';
     button.setAttribute('role', 'option');
     button.dataset.value = option.id;
-    // Indentation is visual only, so the group a topic belongs to is in its name
-    if (option.parent) button.setAttribute('aria-label', `${option.label}, in ${option.parent}`);
     const check = el('span', 'size-icon-sm shrink-0 text-primary-text invisible group-aria-selected:visible');
     check.setAttribute('aria-hidden', 'true');
     check.append(icon('check', 'size-icon-sm'));
@@ -129,4 +125,4 @@ export function createSelect({ name, options, get, set, searchable = false, widt
 }
 
 export const platformOptions = [{ id: 'all', label: 'All platforms' }, ...PLATFORMS.map((platform) => ({ id: platform.code, label: platform.name, logo: platform.name }))];
-export const groupOptions = GROUPS.map((group) => ({ id: group.id, label: group.label, indent: group.kind === 'topic' && Boolean(group.parent), parent: group.kind === 'topic' ? group.parent : undefined, note: group.kind === 'parent' ? 'group' : undefined }));
+export const groupOptions = GROUPS.map((group) => ({ id: group.id, label: group.label }));

@@ -83,12 +83,12 @@ const EXISTING: readonly Row[] = [
 ];
 
 const NEW: readonly Row[] = [
-  row('ai.visibility_split', 'Headline numbers', 'ai', 'F', 1, [], { released: REDESIGN_RELEASED }),
+  row('ai.visibility_split', 'AI visibility rate (headline)', 'ai', 'F', 1, [], { released: REDESIGN_RELEASED }),
   row('ai.change_summary', 'What changed', 'activity', 'F 2T', 1, [opt('facts', ['3', '5'], '5')]),
-  row('ai.rate_trend_by_engine', 'Rates by platform over time', 'ai', '2T F H', PER_VISIBILITY_METRIC, [
+  row('ai.rate_trend_by_engine', 'Rate by platform over time', 'ai', '2T F H', PER_VISIBILITY_METRIC, [
     VISIBILITY_METRIC,
   ]),
-  row('ai.outcome_mix', 'Mentioned and cited', 'ai', 'T H', 1),
+  row('ai.outcome_mix', 'Outcome split by platform', 'ai', 'T H', 1),
   row('ai.answer_funnel', 'From answer to citation', 'ai', 'T H', 1),
   // The three competitor cards follow the page scope, so they have no engine option and one instance.
   row('ai.share_of_voice', 'Share of voice', 'ai', 'H T', 1, [rows(['5', '10'], '10')]),
@@ -100,7 +100,7 @@ const NEW: readonly Row[] = [
     opt('metric', ['mention', 'share_of_voice'], 'mention'),
     rows(['5', '10'], '5'),
   ]),
-  row('ai.lost_to_competitor', 'Competitor gap', 'ai', 'H F', 1, [rows(['5', '10'], '5')]),
+  row('ai.lost_to_competitor', 'Lost to competitor', 'ai', 'H F', 1, [rows(['5', '10'], '5')]),
   row('ai.co_mentions', 'Who we are mentioned with', 'ai', 'H 2T', PER_ENGINE, [ENGINE]),
   row('ai.sov_over_time', 'Share of voice over time', 'ai', 'H 2T F', 1),
   row('ai.sov_rank', 'Share of voice rank', 'ai', 'H 2T', PER_ENGINE, [ENGINE]),

@@ -27,7 +27,7 @@ const ids = () => COMPETITORS.map(competitorId);
 const indexOf = (id) => ids().indexOf(id);
 const scope = () => ({ ...state });
 
-/** Competitors in the order of the Competitor gap card (most prompts led by them first), for stepping. */
+/** Competitors in the order of the Lost to competitor card (most prompts led by them first), for stepping. */
 function order() {
   const { competitors } = leadsFor(buildModel(scope()));
   return [...competitors].sort((a, b) => b.lost - a.lost).map((competitor) => competitor.id);
@@ -121,9 +121,9 @@ function fillOverview(model, index) {
   }
   const rows = [
     // The counts behind each rate are in the tooltips (R1): pooled answers, while the rate is prompt-weighted
-    { label: 'Mention rate', own: data.own.mention, rival: data.rival.mention, ownCounts: { k: data.own.answers, n: data.own.observations }, rivalCounts: { k: data.rival.answers, n: data.rival.observations }, tip: 'Share of valid answers that name the brand. Each prompt counts once.', ownTip: countsOf(model.average.mention.counts?.n, data.own.answers, 'answers'), rivalTip: countsOf(model.average.mention.counts?.n, data.rival.answers, 'answers') },
+    { label: 'Mention rate', own: data.own.mention, rival: data.rival.mention, ownCounts: { k: data.own.answers, n: data.own.observations }, rivalCounts: { k: data.rival.answers, n: data.rival.observations }, tip: 'Share of valid answers that mention the brand. Each prompt counts once.', ownTip: countsOf(model.average.mention.counts?.n, data.own.answers, 'answers'), rivalTip: countsOf(model.average.mention.counts?.n, data.rival.answers, 'answers') },
     { label: 'Share of voice', own: data.own.sov, rival: data.rival.sov, ownCounts: { k: data.own.answers, n: data.own.answersOfTracked }, rivalCounts: { k: data.rival.answers, n: data.rival.answersOfTracked }, tip: 'Share of tracked-brand mentions, within the tracked set.', ownTip: countsOf(data.own.answersOfTracked, data.own.answers, 'brand mentions'), rivalTip: countsOf(data.rival.answersOfTracked, data.rival.answers, 'brand mentions') },
-    { label: 'Source share', own: data.sourceShare.own, rival: data.sourceShare.rival, ownCounts: data.sourceShare.ownCounts, rivalCounts: data.sourceShare.rivalCounts, decimals: 1, tip: 'Share of citation units that are pages of the brand’s own domain.' },
+    { label: 'Citation share', own: data.sourceShare.own, rival: data.sourceShare.rival, ownCounts: data.sourceShare.ownCounts, rivalCounts: data.sourceShare.rivalCounts, decimals: 1, tip: 'Share of citation units that are pages of the brand’s domain.' },
   ];
   const summary = cardFrame({
     key: 'competitor.summary',
@@ -230,7 +230,7 @@ function fillPrompts(model, index) {
     const chip = el('button', `h-control-sm px-2.5 self-start rounded-md border type-body whitespace-nowrap ${view.absent ? 'border-primary-border bg-primary-subtle text-primary-text type-body-strong' : 'border-border bg-surface text-foreground hover:bg-surface-hover'}`, `You are absent ${absentCount}`);
     chip.type = 'button';
     chip.setAttribute('aria-pressed', String(view.absent));
-    chip.dataset.tip = `${rival.name} is named and you are not named at all: the plan’s “lost to” prompts`;
+    chip.dataset.tip = `${rival.name} is mentioned and you are not mentioned at all: the plan’s “lost to” prompts`;
     chip.addEventListener('click', () => {
       view.absent = !view.absent;
       fillPrompts(model, index);
@@ -332,11 +332,11 @@ function fillSources(model, index) {
   const data = sourcesBehind(model, index);
   const target = panel('comp-sources');
   if (data.theirs.length === 0) {
-    target.replaceChildren(cardFrame({ key: 'competitor.sources', title: 'Sources', body: emptyBody('No citations in this scope', 'No answer in this scope cited a page, so there is nothing to compare.') }));
+    target.replaceChildren(cardFrame({ key: 'competitor.sources', title: 'Cited domains', body: emptyBody('No citations in this scope', 'No answer in this scope cited a page, so there is nothing to compare.') }));
     return;
   }
-  const theirs = cardFrame({ key: 'competitor.sources.theirs', title: `When ${rival.name} is named`, meta: 'top domains cited', body: sourceList('theirs', data.theirs, rival.token), flush: true });
-  const yours = cardFrame({ key: 'competitor.sources.yours', title: 'When you are named', meta: 'top domains cited', body: sourceList('yours', data.yours, 'chart-1'), flush: true });
+  const theirs = cardFrame({ key: 'competitor.sources.theirs', title: `When ${rival.name} is mentioned`, meta: 'top domains cited', body: sourceList('theirs', data.theirs, rival.token), flush: true });
+  const yours = cardFrame({ key: 'competitor.sources.yours', title: 'When you are mentioned', meta: 'top domains cited', body: sourceList('yours', data.yours, 'chart-1'), flush: true });
   const only = el('div', 'px-4 pb-4 flex flex-col gap-3');
   only.append(el('p', 'type-body text-foreground-secondary', `The top 8 of the two lists share ${pct0(data.overlap)} of their domains (Jaccard overlap).`));
   const chips = el('div', 'flex flex-wrap gap-1.5');

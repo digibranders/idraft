@@ -293,7 +293,10 @@ function TrendCard({
     variant: 'inspector' as const,
     title: t('trend.title'),
     meta: t('trend.meta'),
-    info: { what: t('trend.info.what'), how: t('trend.info.how', { days: scope.range.days }) },
+    info: {
+      what: t('trend.info.what'),
+      how: t('trend.info.how', { days: scope.range.days, weeks: weeks.length, compare: String(scope.compare) }),
+    },
     height: 180 as const,
     summary: t('trend.label', { name: competitor.name, count: weeks.length }),
     categories,

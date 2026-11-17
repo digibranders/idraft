@@ -43,10 +43,10 @@ const clamp = (value, low, high) => Math.min(high, Math.max(low, value));
  * (16 section 1, rule 5: no surface is not a miss).
  */
 const ENGINES = [
-  { code: 'chatgpt_web', name: 'ChatGPT', unit: 'responses', recommendations: true, asked: true },
-  { code: 'gemini_web', name: 'Gemini', unit: 'responses', recommendations: true, asked: true },
-  { code: 'google_ai_mode', name: 'AI Mode', unit: 'observations', recommendations: false, asked: true },
-  { code: 'google_ai_overview', name: 'AI Overview', unit: 'AI Overviews', recommendations: false, asked: false },
+  { code: 'chatgpt_web', name: 'ChatGPT', label: 'ChatGPT', unit: 'answers', recommendations: true, asked: true },
+  { code: 'gemini_web', name: 'Gemini', label: 'Gemini', unit: 'answers', recommendations: true, asked: true },
+  { code: 'google_ai_mode', name: 'AI Mode', label: 'Google AI Mode', unit: 'answers', recommendations: false, asked: true },
+  { code: 'google_ai_overview', name: 'AI Overview', label: 'Google AI Overview', unit: 'Google AI Overviews', recommendations: false, asked: false },
 ];
 /** The engines a prompt is sent to. A manual run and the panel sizing are about these. */
 const ASKED_ENGINES = ENGINES.filter((engine) => engine.asked);
@@ -54,16 +54,16 @@ const OVERVIEW = 'google_ai_overview';
 const engineOf = (code) => ENGINES.find((engine) => engine.code === code);
 /** Whether an engine has this metric at all. When not, its cells say why instead of showing a number. */
 const measures = (code, metric) => metric !== 'recommendation' || engineOf(code).recommendations;
-const NOT_CLASSIFIED = 'not classified for this engine';
+const NOT_CLASSIFIED = 'not classified for this platform';
 
 /**
  * Why a prompt has no observation on an engine, as a short cell text and a sentence. An asked engine did
  * not answer in the window; AI Overview has two different reasons, and they call for different actions.
  */
 function absenceOf(prompt, code) {
-  if (engineOf(code).asked) return { text: 'n/a', note: 'not observed', reason: 'not observed in this window' };
-  if (!prompt.linked) return { text: 'n/a', note: 'no linked keyword', reason: 'no linked keyword. AI Overview is read from the rank checks of a linked keyword' };
-  return { text: 'No AIO', note: 'no AI Overview', reason: `Google showed no AI Overview for "${linkedKeywordOf(prompt).keyword}" in this window` };
+  if (engineOf(code).asked) return { text: 'n/a', note: 'no answers', reason: 'no answers in this period' };
+  if (!prompt.linked) return { text: 'n/a', note: 'no linked keyword', reason: 'no linked keyword. Google AI Overview is taken from the rank checks of a linked keyword' };
+  return { text: 'None', note: 'no Google AI Overview', reason: `no Google AI Overview was shown for "${linkedKeywordOf(prompt).keyword}" in this period` };
 }
 /** The same reason as a sentence of its own. */
 const absenceSentence = (prompt, code) => {
@@ -82,13 +82,13 @@ const COMPETITORS = [
 ];
 
 const METRICS = {
-  mention: { label: 'Mention rate', short: 'Mention', group: 'Mention rate by engine' },
-  citation: { label: 'Citation rate', short: 'Citation', group: 'Citation rate by engine' },
-  recommendation: { label: 'Recommendation rate', short: 'Recommendation', group: 'Recommendation rate by engine' },
-  sov: { label: 'Share of voice', short: 'Share of voice', group: 'Share of voice by engine' },
+  mention: { label: 'Mention rate', short: 'Mention', group: 'Mention rate by platform' },
+  citation: { label: 'Citation rate', short: 'Citation', group: 'Citation rate by platform' },
+  recommendation: { label: 'Recommendation rate', short: 'Recommendation', group: 'Recommendation rate by platform' },
+  sov: { label: 'Share of voice', short: 'Share of voice', group: 'Share of voice by platform' },
 };
 
-const TYPE_LABEL = { recommendation: 'Recommendation', comparison: 'Comparison', how_to: 'How-to', question: 'Question', definition: 'Definition' };
+const TYPE_LABEL = { recommendation: 'Recommendation', comparison: 'Comparison', how_to: 'How-to', question: 'Question', definition: 'Definition', local: 'Local', transactional: 'Transactional', other: 'Other' };
 const TOPIC_PARENT = {
   Startups: 'CRM',
   'Small business': 'CRM',
@@ -799,7 +799,7 @@ const KEYWORD_FACTS = {
   'crm for small business': { rank: '4', overview: 'Cited #2', cited: true },
   'sales pipeline software': { rank: '8', overview: 'Not cited', cited: false },
   'crm tools for startups': { rank: '5', overview: 'Cited #4', cited: true },
-  'startup crm': { rank: '>20', overview: 'No AI Overview', cited: false },
+  'startup crm': { rank: '>20', overview: 'No Google AI Overview', cited: false },
   'best sales crm': { rank: '11', overview: 'Not cited', cited: false },
 };
 
@@ -816,7 +816,7 @@ function keywordFacts(keyword) {
   const rank = 1 + Math.floor(random() * 24);
   const shown = random() < 0.6;
   const cited = shown && random() < 0.45;
-  return { keyword, rank: rank > 20 ? '>20' : String(rank), overview: !shown ? 'No AI Overview' : cited ? `Cited #${1 + Math.floor(random() * 4)}` : 'Not cited', cited };
+  return { keyword, rank: rank > 20 ? '>20' : String(rank), overview: !shown ? 'No Google AI Overview' : cited ? `Cited #${1 + Math.floor(random() * 4)}` : 'Not cited', cited };
 }
 
 /**
@@ -828,7 +828,7 @@ function linkedKeywordOf(prompt) {
   const pool = TOPIC_KEYWORDS[prompt.topic];
   const keyword = prompt.id === 'p1' ? pool[0] : pool[Math.floor(seeded(prompt.seed + 7)() * pool.length)];
   const counts = prompt.engines[OVERVIEW];
-  const overview = counts.n === 0 ? 'No AI Overview' : counts.citation > 0 ? `Cited in ${counts.citation} of ${counts.n}` : `Not cited in ${counts.n}`;
+  const overview = counts.n === 0 ? 'No Google AI Overview' : counts.citation > 0 ? `Cited in ${counts.citation} of ${counts.n}` : `Not cited in ${counts.n}`;
   return { keyword, rank: keywordFacts(keyword).rank, overview, cited: counts.citation > 0, linked: true };
 }
 

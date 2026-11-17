@@ -140,23 +140,23 @@ const NUMBER_DATA = {
   'seo.average_rank': { value: '9.1', delta: '↑0.4', tone: 'neutral', context: '612 ranked', href: '#/keywords' },
   'seo.est_clicks': { value: '18.4K', delta: '+3.1%', tone: 'neutral', context: 'estimate, per month', href: '#/keywords' },
   'seo.aio_citation_rate': { value: '38.2%', delta: '+0.4 pts', tone: 'neutral', context: '157 of 411 checks', href: '#/keywords' },
-  'seo.share_of_voice': { value: '18.2%', delta: '+0.6 pts', tone: 'neutral', context: 'among 5 tracked entities', href: '#/competitors' },
-  'ai.mention_rate|chatgpt_web': { value: '34%', delta: '+2.1 pts', tone: 'neutral', context: '612 of 1,800 responses', href: '#/prompts' },
-  'ai.mention_rate|gemini_web': { value: '29%', delta: '−0.8 pts', tone: 'neutral', context: '376 of 1,296 responses', href: '#/prompts' },
-  'ai.mention_rate|google_ai_mode': { value: '41%', delta: '−6.0 pts', tone: 'neg', context: '398 of 980 observations', href: '#/prompts' },
-  'ai.mention_rate|google_ai_overview': { value: '16%', delta: '+0.3 pts', tone: 'neutral', context: '62 of 384 AI Overviews', href: '#/prompts' },
-  'ai.citation_rate|chatgpt_web': { value: '21%', delta: '+3.4 pts', tone: 'pos', context: '378 of 1,800 responses', href: '#/prompts' },
-  'ai.citation_rate|gemini_web': { value: '14%', delta: '+0.2 pts', tone: 'neutral', context: '181 of 1,296 responses', href: '#/prompts' },
-  'ai.citation_rate|google_ai_mode': { value: '33%', delta: '−1.1 pts', tone: 'neutral', context: '323 of 980 observations', href: '#/prompts' },
-  'ai.citation_rate|google_ai_overview': { value: '41%', delta: '+0.5 pts', tone: 'neutral', context: '158 of 384 AI Overviews', href: '#/prompts' },
-  'ai.recommendation_rate|chatgpt_web': { value: '18%', delta: '+0.9 pts', tone: 'neutral', context: '324 of 1,800 responses', href: '#/prompts' },
-  'ai.recommendation_rate|gemini_web': { value: '15%', delta: '−0.4 pts', tone: 'neutral', context: '194 of 1,296 responses', href: '#/prompts' },
-  'ai.recommendation_rate|google_ai_mode': { value: 'n/a', context: 'not classified for this engine', href: '#/prompts' },
-  'ai.recommendation_rate|google_ai_overview': { value: 'n/a', context: 'not classified for this engine', href: '#/prompts' },
-  'ai.share_of_voice|chatgpt_web': { value: '27%', delta: '+1.0 pts', tone: 'neutral', context: '1,204 responses with a tracked entity', href: '#/prompts' },
-  'ai.share_of_voice|gemini_web': { value: '24%', delta: '−0.5 pts', tone: 'neutral', context: '842 responses with a tracked entity', href: '#/prompts' },
-  'ai.share_of_voice|google_ai_mode': { value: '31%', delta: '−2.2 pts', tone: 'neutral', context: '711 observations with a tracked entity', href: '#/prompts' },
-  'ai.share_of_voice|google_ai_overview': { value: '22%', delta: '+0.1 pts', tone: 'neutral', context: '251 AI Overviews with a tracked entity', href: '#/prompts' },
+  'seo.share_of_voice': { value: '18.2%', delta: '+0.6 pts', tone: 'neutral', context: 'among 5 tracked brands', href: '#/competitors' },
+  'ai.mention_rate|chatgpt_web': { value: '34%', delta: '+2.1 pts', tone: 'neutral', context: '612 of 1,800 answers', href: '#/prompts' },
+  'ai.mention_rate|gemini_web': { value: '29%', delta: '−0.8 pts', tone: 'neutral', context: '376 of 1,296 answers', href: '#/prompts' },
+  'ai.mention_rate|google_ai_mode': { value: '41%', delta: '−6.0 pts', tone: 'neg', context: '398 of 980 answers', href: '#/prompts' },
+  'ai.mention_rate|google_ai_overview': { value: '16%', delta: '+0.3 pts', tone: 'neutral', context: '62 of 384 Google AI Overviews', href: '#/prompts' },
+  'ai.citation_rate|chatgpt_web': { value: '21%', delta: '+3.4 pts', tone: 'pos', context: '378 of 1,800 answers', href: '#/prompts' },
+  'ai.citation_rate|gemini_web': { value: '14%', delta: '+0.2 pts', tone: 'neutral', context: '181 of 1,296 answers', href: '#/prompts' },
+  'ai.citation_rate|google_ai_mode': { value: '33%', delta: '−1.1 pts', tone: 'neutral', context: '323 of 980 answers', href: '#/prompts' },
+  'ai.citation_rate|google_ai_overview': { value: '41%', delta: '+0.5 pts', tone: 'neutral', context: '158 of 384 Google AI Overviews', href: '#/prompts' },
+  'ai.recommendation_rate|chatgpt_web': { value: '18%', delta: '+0.9 pts', tone: 'neutral', context: '324 of 1,800 answers', href: '#/prompts' },
+  'ai.recommendation_rate|gemini_web': { value: '15%', delta: '−0.4 pts', tone: 'neutral', context: '194 of 1,296 answers', href: '#/prompts' },
+  'ai.recommendation_rate|google_ai_mode': { value: 'n/a', context: 'not classified for this platform', href: '#/prompts' },
+  'ai.recommendation_rate|google_ai_overview': { value: 'n/a', context: 'not classified for this platform', href: '#/prompts' },
+  'ai.share_of_voice|chatgpt_web': { value: '27%', delta: '+1.0 pts', tone: 'neutral', context: '1,204 answers with a tracked brand', href: '#/prompts' },
+  'ai.share_of_voice|gemini_web': { value: '24%', delta: '−0.5 pts', tone: 'neutral', context: '842 answers with a tracked brand', href: '#/prompts' },
+  'ai.share_of_voice|google_ai_mode': { value: '31%', delta: '−2.2 pts', tone: 'neutral', context: '711 answers with a tracked brand', href: '#/prompts' },
+  'ai.share_of_voice|google_ai_overview': { value: '22%', delta: '+0.1 pts', tone: 'neutral', context: '251 Google AI Overviews with a tracked brand', href: '#/prompts' },
 };
 const numberKey = (number) => (number.engine ? `${number.metric}|${number.engine}` : number.metric);
 const numberLabel = (number) => {
@@ -180,10 +180,10 @@ const MOVERS = [
 
 const SHARE_OF_VOICE = {
   seo: { note: 'Search, 986 keywords', rows: [['Northwind (you)', 18.2], ['HubSpot', 24.0], ['Pipedrive', 9.6], ['Zoho', 6.1], ['Attio', 4.4]] },
-  chatgpt_web: { note: '1,204 responses', rows: [['Northwind (you)', 27], ['HubSpot', 33], ['Pipedrive', 12], ['Zoho', 8], ['Attio', 6]] },
-  gemini_web: { note: '842 responses', rows: [['Northwind (you)', 24], ['HubSpot', 36], ['Pipedrive', 11], ['Zoho', 9], ['Attio', 5]] },
-  google_ai_mode: { note: '711 observations', rows: [['Northwind (you)', 31], ['HubSpot', 29], ['Pipedrive', 14], ['Zoho', 7], ['Attio', 6]] },
-  google_ai_overview: { note: '251 AI Overviews', rows: [['Northwind (you)', 22], ['HubSpot', 31], ['Pipedrive', 13], ['Zoho', 9], ['Attio', 5]] },
+  chatgpt_web: { note: '1,204 answers', rows: [['Northwind (you)', 27], ['HubSpot', 33], ['Pipedrive', 12], ['Zoho', 8], ['Attio', 6]] },
+  gemini_web: { note: '842 answers', rows: [['Northwind (you)', 24], ['HubSpot', 36], ['Pipedrive', 11], ['Zoho', 9], ['Attio', 5]] },
+  google_ai_mode: { note: '711 answers', rows: [['Northwind (you)', 31], ['HubSpot', 29], ['Pipedrive', 14], ['Zoho', 7], ['Attio', 6]] },
+  google_ai_overview: { note: '251 Google AI Overviews', rows: [['Northwind (you)', 22], ['HubSpot', 31], ['Pipedrive', 13], ['Zoho', 9], ['Attio', 5]] },
 };
 
 const TREND = {
@@ -1104,7 +1104,7 @@ function createCustomizer(screen) {
     });
     seo.append(el('p', 'type-label', 'SEO'), seoChips);
     const ai = el('div', 'flex flex-col gap-2');
-    ai.append(el('p', 'type-label', 'AI, one engine each'));
+    ai.append(el('p', 'type-label', 'AI, one platform each'));
     available.filter((type) => type.perEngine).forEach((type) => {
       const row = el('div', 'flex flex-col gap-1.5');
       const chips = el('div', 'flex flex-wrap gap-1.5');

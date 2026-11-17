@@ -32,7 +32,7 @@ function rateLine(label, value, change, note) {
   if (value === null) dd.append(el('span', 'text-foreground-tertiary', 'n/a'));
   else {
     dd.append(el('span', 'num type-body-strong', percent0(value)), ' ', el('span', 'type-label text-foreground-tertiary', note));
-    const delta = deltaNode(change, 1);
+    const delta = deltaNode(change);
     if (delta) {
       delta.classList.add('type-meta');
       dd.append(delta);
@@ -44,7 +44,7 @@ function rateLine(label, value, change, note) {
 
 function fillNumbers(topic) {
   const scope = scopeCodes();
-  const note = scope.length > 1 ? `avg of ${scope.length}` : '';
+  const note = scope.length > 1 ? `average of ${scope.length}` : '';
   const sov = groupAverage(topic.prompts, scope, 'sov');
   $('[data-topic-kv]', inspector).replaceChildren(
     rateLine('Mentioned', topic.mention.value, topic.mentionChange, note),
@@ -57,8 +57,8 @@ function fillNumbers(topic) {
 function engineRow(topic, engine) {
   const { rate, pooled } = groupRate(topic.prompts, engine.code, 'mention');
   const row = el('li', 'h-9 flex items-center gap-3');
-  const label = el('span', 'w-28 shrink-0 flex items-center gap-2 min-w-0 type-body text-foreground');
-  label.append(engineLogo(engine.name), el('span', 'truncate', engine.name));
+  const label = el('span', 'w-36 shrink-0 flex items-center gap-2 min-w-0 type-body text-foreground');
+  label.append(engineLogo(engine.name), el('span', 'truncate', engine.label));
   const track = el('span', 'flex-1 h-2 rounded-full bg-neutral-subtle overflow-hidden');
   track.setAttribute('aria-hidden', 'true');
   const fill = el('span', 'block h-full rounded-full bg-primary');
@@ -68,7 +68,7 @@ function engineRow(topic, engine) {
     label,
     track,
     el('span', `w-10 shrink-0 text-right type-table num${rate === null ? ' text-foreground-tertiary' : ''}`, rate === null ? 'n/a' : percent0(rate)),
-    el('span', 'w-20 shrink-0 text-right type-meta num', pooled.n === 0 ? 'no data' : formatSampleCount(pooled.k, pooled.n)),
+    el('span', 'w-20 shrink-0 text-right type-meta num', pooled.n === 0 ? 'no answers' : formatSampleCount(pooled.k, pooled.n)),
   );
   return row;
 }
@@ -185,7 +185,7 @@ function fillSearch(topic) {
 function fillOverview(topic) {
   fillNumbers(topic);
   fillSearch(topic);
-  $('[data-topic-trend-note]', inspector).textContent = `mention rate, ${scopeCodes().length > 1 ? `avg of ${scopeCodes().length} engines` : scopeEngines()[0].name}`;
+  $('[data-topic-trend-note]', inspector).textContent = `mention rate, ${scopeCodes().length > 1 ? `average of ${scopeCodes().length} platforms` : scopeEngines()[0].label}`;
   $('[data-topic-engines]', inspector).replaceChildren(...scopeEngines().map((engine) => engineRow(topic, engine)));
   $('[data-topic-top-prompts]', inspector).replaceChildren(...host.promptsOf(topic).slice(0, 5).map((prompt) => promptRow(prompt, true)));
 }
@@ -203,9 +203,9 @@ function fillPrompts(topic) {
 function fillCompetitors(topic) {
   const engines = scopeEngines();
   const headRow = el('tr', 'text-left border-t border-border-subtle bg-surface-subtle');
-  headRow.append(el('th', 'pl-4 h-row-compact type-label whitespace-nowrap', 'Entity'));
+  headRow.append(el('th', 'pl-4 h-row-compact type-label whitespace-nowrap', 'Brand'));
   engines.forEach((engine, i) => {
-    const th = el('th', `${i === engines.length - 1 ? 'pr-4 ' : ''}h-row-compact type-label whitespace-nowrap`, engine.name);
+    const th = el('th', `${i === engines.length - 1 ? 'pr-4 ' : ''}h-row-compact type-label whitespace-nowrap`, engine.label);
     th.dataset.keepCase = '';
     headRow.append(th);
   });
@@ -236,8 +236,8 @@ function fillCompetitors(topic) {
 function fillRelated(topic) {
   // Topics are one level, so the related ones are the other topics of the scope, the largest first
   const related = host.topics().filter((other) => other.id !== topic.id).sort((a, b) => b.prompts.length - a.prompts.length).slice(0, 5);
-  $('[data-topic-related-note]', inspector).textContent = 'other topics in this scope';
-  const none = el('td', 'px-4 type-meta', 'No other topic is in this scope.');
+  $('[data-topic-related-note]', inspector).textContent = 'other groups in this scope';
+  const none = el('td', 'px-4 type-meta', 'No other group is in this scope.');
   none.colSpan = 3;
   $('[data-topic-related]', inspector).replaceChildren(
     ...(related.length === 0
@@ -262,7 +262,7 @@ function fillRelated(topic) {
 function context(topic) {
   const at = host.order().indexOf(topic.id);
   const position = at === -1 ? 'not in this list' : `${at + 1} of ${host.order().length}`;
-  $('[data-inspector-context]', inspector).textContent = `Topic · ${position} · Updated ${topic.updated.text}`;
+  $('[data-inspector-context]', inspector).textContent = `Group · ${position} · Updated ${topic.updated.text}`;
 }
 
 function fillTopic(id) {
@@ -298,8 +298,8 @@ export function refreshTopicInspector() {
 export function initTopicInspector(page) {
   host = page;
   ui.registerInspectorType('topic', {
-    noun: 'topic',
-    back: 'Topics',
+    noun: 'group',
+    back: 'Groups',
     width: 440,
     defaultTab: 'topic-overview',
     has: (id) => topicOf(id) !== undefined,

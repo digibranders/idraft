@@ -59,12 +59,12 @@ prompts.` is cut off at the panel edge (PR-TABLE-08). A search that finds nothin
 - Strip info text has an ASCII apostrophe in `that platform's answers` where the preview has U+2019 (PR-STRIP-09), and the
   popover is 360 px (the preview 288) and named `About AI visibility rate` (PR-STRIP-08).
 - The Filter button and the chips are 36 px high, the chip remove button 24 px (the preview 32 and 28) (PR-TOOLBAR-04,
-  PR-FILTER-02). The shared filter bar says `Clear filters` where the preview says `Reset filters` (PR-FILTER-09), and
+  PR-FILTER-02). The Prompts filter group now says `Reset filters` as the preview does (PR-FILTER-09, owner decision 2026-11-17), and
   `Show: Detectable changes only` is an editor with a radio, not a toggling menu item (PR-FILTER-04, PR-FILTER-05, PR-OPEN-01).
 - Row 1 wraps at 768 px (More actions and Add prompts drop to a second line), the preview keeps one line (PR-TOOLBAR-02,
   PR-RESP-04). The real row also carries the `Gemini degraded` status badge.
-- Column chooser is 360 px (the preview 280), puts a column that is turned off below the others, and its reset button says
-  `Reset width` (PR-COLS-01, 02, 07). `ChatGPT mention` is 152 px (the preview 176) (PR-PCOLS-12).
+- Column chooser is 360 px (the preview 280), puts a column that is turned off below the others, and its reset button now says
+  `Reset` as in the preview (PR-COLS-01, 02, 07). `ChatGPT mention` is 152 px (the preview 176) (PR-PCOLS-12).
 - Row button is named `Actions for ...` (the preview `More actions for ...`) and is always visible (PR-TOPICS-14,
   PR-TABLE-11); the header checkbox is `Select all 65 prompts loaded` and the last header `Actions` (PR-PCOLS-01,
   PR-TABLE-06).

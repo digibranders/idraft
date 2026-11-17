@@ -85,7 +85,7 @@ const labels = (items: HTMLElement): string[] =>
 describe('the strongest and weakest groups', () => {
   it('lists 3 a side for 6 groups, strongest high to low and weakest low to high, by the platform average', async () => {
     render();
-    expect(await screen.findByRole('heading', { name: 'Top and bottom groups' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Strongest and weakest groups' })).toBeInTheDocument();
     const strongest = await list(/^Strongest groups by AI visibility rate/);
     expect(labels(strongest)).toEqual(['Alpha', 'Bravo', 'Charlie']);
     const weakest = await list(/^Weakest groups by AI visibility rate/);
@@ -119,7 +119,7 @@ describe('the strongest and weakest groups', () => {
   it('keeps the card info behind the i button', async () => {
     const { user } = render();
     await list(/^Strongest groups/);
-    await user.click(await screen.findByRole('button', { name: 'About Top and bottom groups' }));
+    await user.click(await screen.findByRole('button', { name: 'About Strongest and weakest groups' }));
     expect(await screen.findByText('The groups where your brand does best and worst.')).toBeInTheDocument();
   });
 });

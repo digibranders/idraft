@@ -54,15 +54,35 @@ is not connected (OV-TRF-01 to OV-TRF-03).
 
 Differences that the owner may want to look at (all `differs`, none a defect):
 
-- OV-LAY-01: the catalog titles of three cards and the descriptions of five cards differ from the preview, and the Add
+- OV-LAY-01: the descriptions of five cards differ from the preview (the titles were aligned, see below), and the Add
   card dialog groups the cards as SEO, AI, Cross-channel, Activity and Traffic.
 - OV-LAY-04 to OV-LAY-06: the Start from menu has no description line for the presets.
 - OV-TREND-10: the Table switch of a card stays when the scope changes (the preview rebuilds the card).
 - OV-GRP-04, OV-GRP-05: the heat map uses the design system's seven bins (edges 10, 20, 35, 50 and 70%), not the preview's
   edges, and prints `3 ans` in a thin cell.
 - OV-KEY-01: the shared Select opens on ArrowDown and does not wrap.
-- OV-SHELL-02: the breadcrumb says `Overview`, the preview says `AI visibility`; glossary A3 says "AI visibility
-  overview". The owner has not chosen.
+- OV-SHELL-02: decided by the owner 2026-11-17 and done in `port/dec-wording`: breadcrumb and sidebar item `AI visibility`,
+  page title (h1, tab title) `AI visibility overview`, in the preview and the real app.
+- OV-LAY-01, titles: decided 2026-11-17 and done: the five card titles are the glossary's everywhere (see the register row).
+
+Wording that is not from the glossary and stays, for the owner to approve (decision 11, `port/dec-wording`):
+
+- Heat map info "how" (`aiOverview.topics.groups.info.heatmap.how`): says a prompt can be in more than one group, so the groups
+  may add up to more than the total; the glossary says every prompt is in one group. The real data allows several groups.
+- Lost to competitor info "how" (`aiOverview.competitors.scopeGap.info.how`): the All platforms rule (a brand leads when it leads
+  on one platform and the other leads on none) has no glossary sentence.
+- Citations by domain type info "how" (`aiOverview.sourcesTracking.domainTypes.infoHow`): says the areas are grouped by who owns
+  the domain, and that finer types are not classified yet (OV-CIT-03); the glossary lists all six domain types.
+- Run calendar info "how" (`aiOverview.activity.calendar.info.how`): says each cell is one day; the glossary says one weekly
+  run. It stays until the weekly run log exists (OV-CAL-01), because the glossary sentence would be wrong for a daily cell.
+- Rate by platform over time and Key changes info: the glossary text with the number of days as a variable
+  (`{days}`), not the fixed 28.
+- `aiOverview.headline.facts.*` (the tile tooltip `The platforms in this scope do not classify this measure`, the
+  `Not enough data: a position needs at least 4 answers that give your brand a place` family and the note `Not classified`):
+  glossary S4 and S6 give the pattern, not these sentences.
+
+Replaced by the glossary text in the same pass: the competitor drawer trend "how" now says the weeks are the previous and the
+current period (`aiOverview.competitorDrawer.trend.info.how`).
 
 ## 3. Preview changes after the register header not yet in the real app
 

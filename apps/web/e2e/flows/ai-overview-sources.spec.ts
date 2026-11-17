@@ -229,7 +229,7 @@ test.describe('the source, fan-out, activity and operations cards, as an editor'
     await expect(domainInspector(page, 'searchenginejournal.com')).toBeVisible();
 
     await page.goBack();
-    await expect(page.getByRole('heading', { level: 1, name: 'AI visibility' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'AI visibility overview' })).toBeVisible();
     await expect(page).toHaveURL(/\/ai\?cmp=off$/);
     const back = await awaitCard(page, TOP_DOMAINS_TITLE);
     await expect(back).toContainText(/citation units/);
@@ -294,7 +294,7 @@ test.describe('the source, fan-out, activity and operations cards, as an editor'
     await expect(page).toHaveURL(/[?&]tab=new-lost(&|$)/);
     await expect(page).toHaveURL(/[?&]kind=new(&|$)/);
     await page.goBack();
-    await expect(page.getByRole('heading', { level: 1, name: 'AI visibility' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'AI visibility overview' })).toBeVisible();
   });
 
   test('the key changes feed names its groups and links no row to Citations when the page cannot show the scope', async ({

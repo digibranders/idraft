@@ -43,12 +43,12 @@ export const BUILTIN_CARD_IDS: readonly string[] = (SCREENS.ai_overview.builtin.
  * those the heading is only required to be there (`null`). Change an entry to a title when its package lands.
  */
 export const BUILTIN_CARD_TITLES: Readonly<Record<string, string | null>> = {
-  // The headline card is the group "Headline numbers" and draws the hero's title
+  // The headline card is the group "AI visibility rate (headline)" and draws the hero's title
   'visibility-split': 'AI visibility rate',
   'rate-trend': 'AI visibility rate over time',
-  'outcome-mix': 'Answer outcomes',
+  'outcome-mix': 'Outcome split by platform',
   'share-of-voice': 'Share of voice',
-  'lost-to-competitor': 'Competitor gap',
+  'lost-to-competitor': 'Lost to competitor',
   'topic-heatmap': 'Groups by platform',
   'top-domains': 'Top cited domains',
   'position-distribution': 'Mention position',
@@ -72,10 +72,11 @@ export const HEADLINE_TILE_LABELS = [
 // -------------------------------------------------------------------------------------------------
 // Locators
 
-export const pageHeading = (page: Page): Locator => page.getByRole('heading', { level: 1, name: 'AI visibility' });
+export const pageHeading = (page: Page): Locator =>
+  page.getByRole('heading', { level: 1, name: 'AI visibility overview' });
 /** The headline card: the AI visibility hero and the eight key numbers (`ai.visibility_split`). */
 export const headlineGroup = (page: Page): Locator =>
-  page.getByRole('group', { name: 'Headline numbers', exact: true });
+  page.getByRole('group', { name: 'AI visibility rate (headline)', exact: true });
 /** The hero of the headline: its title, the rate, the project value of a group and the split of the four outcomes. */
 export const heroOf = (page: Page): Locator => headlineGroup(page).getByRole('region', { name: 'AI visibility rate' });
 /** The strip of the eight tiles of the headline. */
@@ -114,10 +115,10 @@ export async function expectResetHidden(page: Page): Promise<void> {
 export const headlineError = (page: Page): Locator =>
   cardById(page, 'visibility-split')
     .locator('[data-slot="inline-error"]')
-    .filter({ hasText: 'Could not load Headline numbers' });
-/** The primary navigation's link to the Overview of the AI visibility group. */
+    .filter({ hasText: 'Could not load AI visibility rate (headline)' });
+/** The primary navigation's link to the Overview of the AI visibility group: the item reads "AI visibility". */
 export const overviewLink = (page: Page): Locator =>
-  page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Overview', exact: true });
+  page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'AI visibility', exact: true });
 
 // -------------------------------------------------------------------------------------------------
 // Opening and waiting

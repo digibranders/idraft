@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils';
 
 /**
  * The tokens of the four outcomes: `seq-6`, `seq-4`, `seq-3` and the neutral bar, as the preview draws them and as the
- * Answer outcomes card does for the same four (`OutcomeBars`), so a segment has one colour on the whole page
+ * Outcome split card does for the same four (`OutcomeBars`), so a segment has one colour on the whole page
  * (OV-HEAD-06, OV-HEAD-20). Set as a custom property, the token being the only place the colour is named.
  */
 const FILL: Readonly<Record<Segment, { backgroundColor: string }>> = {
