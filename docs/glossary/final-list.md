@@ -30,7 +30,7 @@ Rules: sentence case; capitals only for product names and for SEO and AI. A bann
 | Device, Language | Locale |
 | Location ("Country" and "City" only as levels in help text and pickers); All locations | Country as a field label, Region, Market, Geo, Worldwide |
 | Depth, Beyond depth | Unranked, Over 100 |
-| Period; Compare with (values: "vs previous period", "No comparison") | Window, Date window, Date range, Benchmark |
+| Period; Compare with (values: "vs previous period", "vs same period last year", "No comparison") | Window, Date window, Date range, Benchmark |
 
 ## How keywords and prompts are organised
 

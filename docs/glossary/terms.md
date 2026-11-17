@@ -56,7 +56,7 @@ Columns: **ID**, **Label** (singular / plural), **Definition** (one sentence, st
 | P12 | All locations | The scope value that includes every location of the project. | Not worldwide. | All countries, Global, Worldwide | Scope pickers, top bar | Safe | D3 |
 | P13 | Depth / Beyond depth | How many Google results a check reads (top 10, 20, 50, 100). Beyond depth means your site was not in the results read. | Not "does not rank". | Unranked, Not ranking, Over 100 | Keywords filter and column | "Beyond depth" needs a gloss: not in the results read | Firm |
 | P14 | Period | The date range the numbers cover. | Not a run. | Window (in UI), Date window, Date range, Timeframe | Date control, info texts, Compare | Safe | D21 |
-| P15 | Compare with (control) / "vs previous period" and "No comparison" (values, as built on Overview, Prompts and Citations) | A control that shows the period just before the chosen one, of equal length, next to it. | Not a comparison with a competitor. | Compare period, Benchmark, Baseline, vs last period | Top bar | Safe | D22 |
+| P15 | Compare with (control) / "vs previous period", "vs same period last year" and "No comparison" (values; Overview and Prompts have all three since owner decision 15, 2026-11-17, Citations the first and last) | A control that shows the period just before the chosen one, of equal length, next to it, or the same dates a year earlier. | Not a comparison with a competitor. | Compare period, Benchmark, Baseline, vs last period | Top bar | Safe | D22 |
 
 ## 3. How keywords and prompts are organised
 

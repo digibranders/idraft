@@ -28,7 +28,7 @@ export function overviewQuery(scope: OverviewScope, group: string, platform: str
   put('win', win);
   put('from', from);
   put('to', to);
-  put('cmp', cmpParam(scope.compare));
+  put('cmp', cmpParam(scope.compare, scope.compareKind));
   put('country', scope.country);
   put(ENGINE_KEY, platform);
   put(TOPIC_KEY, group);

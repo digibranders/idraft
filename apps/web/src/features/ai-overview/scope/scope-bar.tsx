@@ -111,7 +111,7 @@ export function ScopeBar(): ReactElement {
         onChange={(topicId) => setScope({ topic: topicId })}
         className="w-full sm:w-60"
       />
-      <CompareSelect scope={scope} onCompareChange={(compare) => setScope({ compare })} />
+      <CompareSelect scope={scope} onCompareChange={setScope} />
       {/* Always in its place, invisible (and out of the tab order) while the scope is the default, so it never moves the row */}
       <IconButton
         icon={Undo2}

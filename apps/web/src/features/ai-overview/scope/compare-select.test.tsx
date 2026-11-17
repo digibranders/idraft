@@ -17,7 +17,7 @@ afterEach(() => {
 /** The select as the page wires it: the scope from the URL, the choice written back with `setScope`. */
 function Wired(): ReactElement {
   const { scope, setScope } = useOverviewScope({ project: { timeZone: 'Europe/Berlin' } });
-  return <CompareSelect scope={scope} onCompareChange={(compare) => setScope({ compare })} />;
+  return <CompareSelect scope={scope} onCompareChange={setScope} />;
 }
 
 const trigger = (name: RegExp | string): Promise<HTMLElement> => screen.findByRole('button', { name });
@@ -45,6 +45,32 @@ describe('CompareSelect', () => {
       expect(screen.getByRole('menu').contains(document.activeElement)).toBe(true);
     });
     await user.click(again);
+    await waitFor(() => {
+      expect(updates.at(-1)).toBe('');
+    });
+  });
+
+  it('offers vs same period last year: it writes cmp=year and names the dates a year earlier', async () => {
+    const updates: string[] = [];
+    const { user } = renderWithProviders(<Wired />, { onUrlUpdate: (event) => updates.push(event.queryString) });
+    await user.click(await trigger('Compare with: vs previous period'));
+    await user.click(await screen.findByRole('menuitemradio', { name: 'vs same period last year' }));
+    await waitFor(() => {
+      expect(updates.at(-1)).toBe('?cmp=year');
+    });
+    await user.click(await trigger('Compare with: vs same period last year'));
+    expect(await screen.findByText('Oct 17 to Nov 13, 2026 against Oct 17 to Nov 13, 2025')).toBeInTheDocument();
+    expect(screen.getByRole('menuitemradio', { name: 'vs same period last year' })).toBeChecked();
+  });
+
+  it('reads cmp=year from a link and back to the period before with the first choice', async () => {
+    const updates: string[] = [];
+    const { user } = renderWithProviders(<Wired />, {
+      searchParams: 'cmp=year',
+      onUrlUpdate: (event) => updates.push(event.queryString),
+    });
+    await user.click(await trigger('Compare with: vs same period last year'));
+    await user.click(await screen.findByRole('menuitemradio', { name: 'vs previous period' }));
     await waitFor(() => {
       expect(updates.at(-1)).toBe('');
     });

@@ -45,7 +45,7 @@ export function CitationsTab({ context }: CitationsTabProps): ReactElement {
       ? null
       : t('scope', { answers: meta.answers, engines: engine === ALL_ENGINES ? 'all' : 'one' }),
     engine === ALL_ENGINES ? null : t('scopeEngine', { engine: context.labelOf(engine) }),
-    meta !== undefined && (meta.previous_answers ?? 0) === 0 ? t('noPrevious') : null,
+    meta !== undefined && (meta.previous_answers ?? 0) === 0 ? t('noPrevious', { kind: reads.compareMode }) : null,
     staleAt === null ? null : t('stale', { date: formatTableDateTime(staleAt, context.timeZone) }),
   ].filter((note): note is string => note !== null);
   return (

@@ -1,7 +1,7 @@
 import type { Route } from 'next';
 
 import { MAX_RANGE_DAYS, writeRangeParams } from '@/components/app/date-range/range-model';
-import { cmpParam } from '@/lib/compare/compare-model';
+import { CMP_YEAR, cmpParam } from '@/lib/compare/compare-model';
 import { formatInspectTarget, type InspectorTarget } from '@/lib/inspector/placement';
 import { NAVIGATION, type NavKey } from '@/lib/navigation/registry';
 import { projectPath, withQuery } from '@/lib/routes/paths';
@@ -92,15 +92,24 @@ interface Destination {
   compare: 'previous-turns-on' | 'off-turns-off';
 }
 
-/** The Prompts and Citations pages have one Branded choice, `include`; excluded is the default and is not written. */
+/** The Citations page and the others have one Branded choice, `include`; excluded is the default and is not written. */
 const BRANDED_INCLUDE: Destination['branded'] = { excluded: null, included: 'include' };
+/** The Prompts page has `Only` too (`branded=only`: the branded prompts alone). */
+const BRANDED_PROMPTS: Destination['branded'] = { ...BRANDED_INCLUDE, only: 'only' };
+
+/** The `cmp` that makes `page` open as the Overview is: the period before, last year, or no comparison. */
+function cmpOf(page: Destination['compare'], scope: OverviewScope): string | null {
+  if (page === 'off-turns-off') return cmpParam(scope.compare);
+  if (!scope.compare) return null;
+  return scope.compareKind === 'previous_year' ? CMP_YEAR : 'previous';
+}
 
 // competitors and sources are not built: their keys are to be checked against the pages when they are
 const DESTINATIONS: Readonly<Record<DrillKind, Destination>> = {
-  prompts: { nav: 'prompts', scoped: true, country: true, branded: BRANDED_INCLUDE, compare: 'previous-turns-on' },
-  topic: { nav: 'prompts', scoped: true, country: true, branded: BRANDED_INCLUDE, compare: 'previous-turns-on' },
-  topicDrawer: { nav: 'prompts', scoped: true, country: true, branded: BRANDED_INCLUDE, compare: 'previous-turns-on' },
-  prompt: { nav: 'prompts', scoped: true, country: true, branded: BRANDED_INCLUDE, compare: 'previous-turns-on' },
+  prompts: { nav: 'prompts', scoped: true, country: true, branded: BRANDED_PROMPTS, compare: 'previous-turns-on' },
+  topic: { nav: 'prompts', scoped: true, country: true, branded: BRANDED_PROMPTS, compare: 'previous-turns-on' },
+  topicDrawer: { nav: 'prompts', scoped: true, country: true, branded: BRANDED_PROMPTS, compare: 'previous-turns-on' },
+  prompt: { nav: 'prompts', scoped: true, country: true, branded: BRANDED_PROMPTS, compare: 'previous-turns-on' },
   citations: { nav: 'citations', scoped: true, country: false, branded: BRANDED_INCLUDE, compare: 'off-turns-off' },
   competitors: { nav: 'competitors', scoped: true, country: true, branded: BRANDED_INCLUDE, compare: 'off-turns-off' },
   sources: { nav: 'sources', scoped: true, country: true, branded: BRANDED_INCLUDE, compare: 'off-turns-off' },
@@ -154,6 +163,8 @@ export function drillHref(
 
   const branded = destination.branded[scope.branded];
   if (branded === undefined || (scope.country !== null && !destination.country)) return null;
+  // A comparison with last year is one the Prompts page alone can express: the others would show the period before
+  if (scope.compare && scope.compareKind === 'previous_year' && destination.compare === 'off-turns-off') return null;
   // The object a drawer opens: a topic term (the scope's topic when none is given) or a prompt
   const target: InspectorTarget | null =
     kind === 'topicDrawer'
@@ -171,10 +182,7 @@ export function drillHref(
   put('win', win);
   put('from', from);
   put('to', to);
-  put(
-    'cmp',
-    destination.compare === 'previous-turns-on' ? (scope.compare ? 'previous' : null) : cmpParam(scope.compare),
-  );
+  put('cmp', cmpOf(destination.compare, scope));
   put('country', scope.country);
   const engines = extra.engine === undefined ? scope.engines : [extra.engine];
   put('engine', engines === null ? null : engines.join(','));

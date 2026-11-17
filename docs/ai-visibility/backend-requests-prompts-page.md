@@ -148,3 +148,14 @@ its neutral placeholder square and every project mark its first letter.
 
 The web side is one function, `faviconUrl(host)` in `apps/web/src/lib/favicon.ts`: it answers `null` today and returns this
 route's path when the route exists. No component changes. Until then the placeholder is the product's answer, not a fault.
+
+## Comparison with last year on the sources routes (request 23, 2026-11-17)
+
+Owner decision 15 adds `vs same period last year` (`cmp=year`) to the Overview and the Prompts page. The summary routes take
+`compare=previous_year`, but `GET .../ai/sources/domains` and `.../ai/sources/pages` take `compare=none|previous_period` only
+(and `.../ai/sources/changes` has no compare at all). Until they take `previous_year`, the Overview's source cards and the prompt
+drawer's Citations tab read no comparison while last year is chosen, and say so.
+
+| #   | What the web would call                                                                  | What the backend does                                                                                                         |
+| --- | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| 23  | `compare=previous_year` on `ai/sources/domains` and `ai/sources/pages`, and the same for `ai/sources/changes` | The same dates a year earlier (29 February becomes 28 February), as the summary does, with `meta.compare_window` and `previous` on each row. |

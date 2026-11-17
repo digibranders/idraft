@@ -9,7 +9,8 @@ import { el, icon } from './aiov-parts.js';
 
 const ui = window.PreviewUI;
 
-export const DEFAULTS = { platform: 'all', group: 'all', branded: 'exclude', compare: true, metric: 'visibility' };
+// `compareKind` is what the comparison is with: the period before, or (`cmp=year`) the same dates a year earlier
+export const DEFAULTS = { platform: 'all', group: 'all', branded: 'exclude', compare: true, compareKind: 'previous', metric: 'visibility' };
 export const state = { ...DEFAULTS };
 const listeners = new Set();
 export const subscribe = (listener) => listeners.add(listener);
@@ -28,6 +29,7 @@ export function readUrl() {
   // The page has no branded filter: branded prompts are never in these numbers (inventory R10)
   state.branded = DEFAULTS.branded;
   state.compare = params.get('cmp') !== 'off';
+  state.compareKind = params.get('cmp') === 'year' ? 'year' : 'previous';
   state.metric = HEAT_METRICS.includes(metric) ? metric : DEFAULTS.metric;
 }
 
@@ -36,6 +38,7 @@ function writeUrl() {
   if (state.platform !== DEFAULTS.platform) params.set('platform', state.platform);
   if (state.group !== DEFAULTS.group) params.set('group', state.group);
   if (!state.compare) params.set('cmp', 'off');
+  else if (state.compareKind === 'year') params.set('cmp', 'year');
   if (state.metric !== DEFAULTS.metric) params.set('metric', state.metric);
   // The preview's taxonomy switch is not part of the scope but must survive a change of it
   const taxonomy = new URLSearchParams(location.search).get('taxonomy');

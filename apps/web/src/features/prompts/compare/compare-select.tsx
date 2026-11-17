@@ -3,6 +3,7 @@
 import { useTranslations } from 'next-intl';
 import { useId, type ReactElement } from 'react';
 
+import { useShownMode } from './compared-window';
 import { useCompare, type CompareMode } from './use-compare';
 import { Select } from '@/components/ui/select';
 import { Tooltip } from '@/components/ui/tooltip';
@@ -24,11 +25,13 @@ export interface CompareSelectProps {
 export function CompareSelect({ window }: CompareSelectProps): ReactElement {
   const t = useTranslations('prompts.compare');
   const { compare, mode, setCompare, setMode } = useCompare();
+  // The window is the one of the rows on screen, so the tip names what they were compared with
+  const shown = useShownMode();
   const describedBy = useId();
   const tip = compare
     ? window === null
       ? null
-      : t('windowTip', { kind: mode, range: formatDateRange(window.from, window.to) })
+      : t('windowTip', { kind: shown, range: formatDateRange(window.from, window.to) })
     : t('offTip');
   return (
     // The tooltip is for the eye; the combobox itself is described by the hidden text, so a screen reader hears it

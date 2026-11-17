@@ -3,11 +3,10 @@
 import { parseAsString, useQueryState } from 'nuqs';
 import { useCallback } from 'react';
 
-import type { CompareKind } from '@/lib/compare/compare-model';
+import { CMP_YEAR as COMPARE_YEAR, compareKindOf, type CompareKind } from '@/lib/compare/compare-model';
 
 /** The values of `cmp` that turn the comparison on: the period before, or the same dates a year earlier. */
 const COMPARE_PREVIOUS = 'previous';
-const COMPARE_YEAR = 'year';
 
 /** What the comparison is with, as the words say it: the select's choices, the tips and the empty states. */
 export type CompareMode = 'previous' | 'year';
@@ -42,7 +41,7 @@ export function useCompare(): CompareState {
   return {
     compare: value === COMPARE_PREVIOUS || value === COMPARE_YEAR,
     mode,
-    kind: mode === 'year' ? 'previous_year' : 'previous_period',
+    kind: compareKindOf(value),
     setCompare,
     setMode,
   };

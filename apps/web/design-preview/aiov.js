@@ -44,15 +44,16 @@ const compareSelect = createSelect({
   name: 'Compare',
   options: [
     { id: 'prev', label: 'vs previous period' },
+    { id: 'year', label: 'vs same period last year' },
     { id: 'off', label: 'No comparison' },
   ],
-  get: () => (state.compare ? 'prev' : 'off'),
-  set: (id) => setScope({ compare: id === 'prev' }),
+  get: () => (!state.compare ? 'off' : state.compareKind === 'year' ? 'year' : 'prev'),
+  set: (id) => setScope({ compare: id !== 'off', compareKind: id === 'year' ? 'year' : 'previous' }),
   width: 'min-w-52',
 });
 const reset = el('button', 'h-control px-3 rounded-md type-body text-foreground-secondary hover:bg-surface-hover hover:text-foreground whitespace-nowrap', 'Reset scope');
 reset.type = 'button';
-reset.addEventListener('click', () => setScope({ platform: 'all', group: 'all', branded: 'exclude', compare: true, metric: 'visibility' }));
+reset.addEventListener('click', () => setScope({ platform: 'all', group: 'all', branded: 'exclude', compare: true, compareKind: 'previous', metric: 'visibility' }));
 scopeBar.append(platformSelect.trigger, groupSelect.trigger, compareSelect.trigger, reset);
 
 const note = el('p', 'type-meta');
@@ -88,7 +89,7 @@ function render() {
   const names = platformsIn(scope).length;
   meta.textContent = `Updated ${RUNS.last} · run ${RUNS.number} · ${plural(model.prompts.length, 'prompt')} · ${scope.platform === 'all' ? `${names} platforms` : engineName(scope.platform)}${scope.group === 'all' ? '' : ` · ${scope.group.split(':')[1]}`}`;
   [platformSelect, groupSelect, compareSelect].forEach((select) => select.refresh());
-  reset.hidden = state.platform === 'all' && state.group === 'all' && state.compare && state.metric === 'visibility';
+  reset.hidden = state.platform === 'all' && state.group === 'all' && state.compare && state.compareKind === 'previous' && state.metric === 'visibility';
   custom.updateBar();
 
   grid.replaceChildren();

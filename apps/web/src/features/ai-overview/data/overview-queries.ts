@@ -87,6 +87,13 @@ export function comparisonWindow(scope: OverviewScope): DateWindow | null {
 }
 
 /**
+ * Whether the sources reads can compare: the sources routes take `compare=previous_period` only (backend request 23
+ * asks for `previous_year`), so a comparison with the same dates a year earlier is not read there.
+ */
+export const sourcesComparable = (scope: OverviewScope): boolean =>
+  comparisonWindow(scope) !== null && scope.compareKind === 'previous_period';
+
+/**
  * Whether the sources and fan-out reads can answer the branded choice. They have `include_branded` and no
  * `branded_only`, so "branded only" cannot be asked of them: those reads do not run for it, and the number says so.
  */
@@ -187,7 +194,7 @@ export function overviewSourcesQuery(
         limit: 1,
         ...namedEngineFilter(read),
         ...scopeFilters(scope),
-        ...compareParams(comparisonWindow(scope) !== null),
+        ...compareParams(sourcesComparable(scope)),
         ...(include.length === 0 ? {} : { include: [...include].sort() }),
       },
     },

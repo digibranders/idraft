@@ -24,6 +24,7 @@ import { useAddPrompts } from './add/use-add-prompts';
 import { AiCollectionStatus } from './ai-collection-status';
 import { AnswerInspector } from './answer-inspector';
 import {
+  ComparedModeProvider,
   ComparedWindowProvider,
   CompareSelect,
   comparedRowCount,
@@ -204,7 +205,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   // The market of the top bar: every country unless the address names one
   const country = parseCountry(view.country);
   // The period before: on unless the address says `cmp=off` (D-03). Scope like the country, so Clear filters leaves it
-  const { compare, kind: compareKind, setCompare } = useCompare();
+  const { compare, kind: compareKind, mode: compareMode, setCompare } = useCompare();
   // The range of every query of the page, from the picker's keys (`win`, `from`, `to`; `window` of older links).
   // `today` is a day of the project's zone, the one place the clock is read; it turns at that zone's midnight
   const today = useZoneDay(project.timeZone);
@@ -256,6 +257,9 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     placeholderData: keepPreviousData,
   });
   const summaryData = summary.data?.data;
+  // The rows held while the read for a new choice loads were compared with the old one: the words keep saying so
+  const [shownMode, setShownMode] = useState(compareMode);
+  if (!summary.isPlaceholderData && shownMode !== compareMode) setShownMode(compareMode);
   // The groups of the scope, as the Groups tab lists them: a topic with a prompt and none with a prompt below it. The
   // vocabulary's other terms (an SEO group no prompt is in, a parent that has groups below it) are not groups here
   // The groups the filter holds, read from the address like the Branded filter: the options are built from them
@@ -1356,31 +1360,33 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
 
   return (
     <ComparedWindowProvider value={comparedWindow(summaryData)}>
-      <InspectorLayout inspector={promptInspector ?? answerInspector ?? topicInspector}>
-        <TopBarPortal>
-          <DateRangePicker
-            value={picked.value}
-            onValueChange={picked.onValueChange}
-            today={today}
-            timeZone={project.timeZone}
-          />
-          <PromptsCountryControl
-            country={country}
-            isos={countryIsos}
-            nameOf={nameOfCountry}
-            onCountryChange={(iso) => void setView({ country: iso })}
-          />
-        </TopBarPortal>
-        <div className="flex h-page-body min-h-page-body-min flex-col gap-3 px-3 pt-3 pb-5 md:px-4 lg:px-5">
-          <PageToolbar title={t('title')} before={controls} actions={controls === null ? emptyActions : undefined}>
-            {strip}
-          </PageToolbar>
-          {droppedWords === null ? null : <Banner tone="info" placement="region" message={droppedWords} />}
-          {content}
-        </div>
-        {actions.dialogs}
-        {add.dialog}
-      </InspectorLayout>
+      <ComparedModeProvider value={shownMode}>
+        <InspectorLayout inspector={promptInspector ?? answerInspector ?? topicInspector}>
+          <TopBarPortal>
+            <DateRangePicker
+              value={picked.value}
+              onValueChange={picked.onValueChange}
+              today={today}
+              timeZone={project.timeZone}
+            />
+            <PromptsCountryControl
+              country={country}
+              isos={countryIsos}
+              nameOf={nameOfCountry}
+              onCountryChange={(iso) => void setView({ country: iso })}
+            />
+          </TopBarPortal>
+          <div className="flex h-page-body min-h-page-body-min flex-col gap-3 px-3 pt-3 pb-5 md:px-4 lg:px-5">
+            <PageToolbar title={t('title')} before={controls} actions={controls === null ? emptyActions : undefined}>
+              {strip}
+            </PageToolbar>
+            {droppedWords === null ? null : <Banner tone="info" placement="region" message={droppedWords} />}
+            {content}
+          </div>
+          {actions.dialogs}
+          {add.dialog}
+        </InspectorLayout>
+      </ComparedModeProvider>
     </ComparedWindowProvider>
   );
 }

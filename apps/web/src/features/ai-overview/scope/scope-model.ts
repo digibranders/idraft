@@ -1,5 +1,6 @@
-import { addDays, daysInclusive, type BusinessDate } from '@/components/app/date-range/business-date';
+import { addDays, addMonths, daysInclusive, type BusinessDate } from '@/components/app/date-range/business-date';
 import type { DateRangeValue, ResolvedRange } from '@/components/app/date-range/range-model';
+import type { CompareKind } from '@/lib/compare/compare-model';
 
 /**
  * The scope of the AI visibility Overview (WP-33 plan section 3.2): the one value every read and every card
@@ -34,7 +35,9 @@ export interface OverviewScope {
   rangeValue: DateRangeValue;
   /** Whether the previous window is read and shown (`cmp=off` turns it off). */
   compare: boolean;
-  /** The window just before `range`, as long as it; present even when `compare` is off. */
+  /** What the comparison is with (`cmp=year` is the same dates a year earlier); the period before otherwise. */
+  compareKind: CompareKind;
+  /** The window `compare` reads: just before `range`, as long as it, or the same dates a year earlier; present even when off. */
   previous: DateWindow;
   /** An ISO 3166 alpha-2 code, or `null` for every country. */
   country: string | null;
@@ -51,6 +54,8 @@ export interface OverviewScope {
 export interface ScopePatch {
   range?: DateRangeValue;
   compare?: boolean;
+  /** What the comparison is with; left out it is the period before. Choosing it turns the comparison on. */
+  compareKind?: CompareKind;
   country?: string | null;
   /** `null` or an empty list is every enabled engine. */
   engines?: readonly string[] | null;
@@ -68,6 +73,16 @@ export function previousWindow(from: BusinessDate, to: BusinessDate): DateWindow
   if (days < 1) throw new RangeError(`previousWindow: "${to}" is before "${from}"`);
   return { from: addDays(from, -days), to: addDays(from, -1) };
 }
+
+/** The same dates a year earlier, the rule of `compare=previous_year` (29 February becomes 28 February). */
+export const previousYearWindow = (from: BusinessDate, to: BusinessDate): DateWindow => ({
+  from: addMonths(from, -12),
+  to: addMonths(to, -12),
+});
+
+/** The window a comparison of `kind` reads. */
+export const comparedWindowOf = (kind: CompareKind, from: BusinessDate, to: BusinessDate): DateWindow =>
+  kind === 'previous_year' ? previousYearWindow(from, to) : previousWindow(from, to);
 
 /** Two capital letters, the form `filter[country_iso]` takes. Anything else reads as every country. */
 export const parseCountry = (value: string | null): string | null =>
@@ -154,6 +169,7 @@ export function normalizeEngines(
  */
 export const RESET_PATCH = {
   compare: true,
+  compareKind: 'previous_period',
   engines: null,
   topic: null,
   branded: 'excluded',
@@ -166,8 +182,12 @@ export const RESET_PATCH = {
  * top bar owns, and a default window does not count (19 section 4.1).
  */
 export function changedFilterCount(scope: OverviewScope): number {
-  return [!scope.compare, scope.engines !== null, scope.topic !== null, scope.branded !== 'excluded'].filter(Boolean)
-    .length;
+  return [
+    !scope.compare || scope.compareKind !== 'previous_period',
+    scope.engines !== null,
+    scope.topic !== null,
+    scope.branded !== 'excluded',
+  ].filter(Boolean).length;
 }
 
 /** Whether "Reset scope" has anything to put back: a filter, or the measure the trend and the heat map draw. */

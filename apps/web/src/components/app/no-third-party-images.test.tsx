@@ -8,7 +8,8 @@ import { ProjectMark } from './shell/project-mark';
 import { renderWithProviders } from '@/test/render';
 
 /** A cited domain must never be sent to a third party: no image of the app may point at a host outside it. */
-const isFirstParty = (src: string): boolean => src.startsWith('/') || src.startsWith('data:') || src.startsWith('blob:');
+const isFirstParty = (src: string): boolean =>
+  src.startsWith('/') || src.startsWith('data:') || src.startsWith('blob:');
 
 describe('images that name a cited domain', () => {
   it('draw no image at all until the app has an icon route of its own, only the placeholder', () => {

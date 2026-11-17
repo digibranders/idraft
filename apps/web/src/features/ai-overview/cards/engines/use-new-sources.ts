@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 
 import type { NewSourcesCount } from './facts-model';
-import { askedEngines, brandedAskable, comparisonWindow } from '../../data/overview-queries';
+import { askedEngines, brandedAskable, sourcesComparable } from '../../data/overview-queries';
 import { mapRead, useRead, type Read } from '../../data/read-state';
 import type { ReadOptions } from '../../data/use-overview-reads';
 import { useOverview } from '../../overview-context';
@@ -33,7 +33,7 @@ const countOf = (page: Schemas['SourceChangePage']): NewSourcesCount => ({
 export function useNewSources({ subscribed = true }: ReadOptions = {}): Read<NewSourcesCount> {
   const { workspaceId, project, scope, enabledEngines } = useOverview();
   const asked = askedEngines({ scope, enabledEngines });
-  const runs = asked.length > 0 && brandedAskable(scope) && comparisonWindow(scope) !== null;
+  const runs = asked.length > 0 && brandedAskable(scope) && sourcesComparable(scope);
   const query = useQuery({
     ...apiQuery(CHANGES, {
       params: {

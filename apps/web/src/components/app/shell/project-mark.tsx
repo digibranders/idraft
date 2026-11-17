@@ -26,7 +26,11 @@ export interface ProjectMarkProps {
 export function ProjectMark({ name, domain = null, size = 'sm' }: ProjectMarkProps): ReactElement {
   const src = domain === null ? null : faviconUrl(domain);
   // A new icon starts again from the letter; with no icon address (none yet) the letter is all there is
-  return src === null ? <Letter name={name} size={size} /> : <WebsiteIcon key={src} name={name} src={src} size={size} />;
+  return src === null ? (
+    <Letter name={name} size={size} />
+  ) : (
+    <WebsiteIcon key={src} name={name} src={src} size={size} />
+  );
 }
 
 function Letter({ name, size }: Readonly<{ name: string; size: keyof typeof TILE }>): ReactElement {
