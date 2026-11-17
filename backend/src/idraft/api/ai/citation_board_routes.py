@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, Path, Query
 from pydantic import AfterValidator
 
 from idraft.api.ai.citation_board import BoardQuery, CitationBoardService
+from idraft.api.ai.citation_board_model import RUN_CHOICES
 from idraft.api.ai.source_routes import PROJECT, Flags, ReadData
 from idraft.api.pagination import Commas, Offset
 from idraft.api.resources import Resources, get_resources
@@ -36,7 +37,7 @@ Board = Annotated[CitationBoardService, Depends(get_board)]
 
 
 def _run_choice(value: int) -> int:
-    if value not in (1, 2, 4):
+    if value not in RUN_CHOICES:
         raise ValueError("runs is 1, 2 or 4")
     return value
 

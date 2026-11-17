@@ -1398,6 +1398,21 @@ answers still count in `meta.answers`. The toggles `include_unresolved_redirects
 default changes the numbers of requests that were already answered (before, every flag counted) and is the one constant
 `FLAGGED_COUNTED_BY_DEFAULT` in `source_routes.py`; it is open question O1 of the plan, approved by the coordinator and
 for the owner to confirm. `citations` and `fanout-queries` keep every citation whatever its flags and take no toggle.
+Ingest never sets `engine_internal` today, so `include_engine_internal` changes no number until it does; only
+`unresolved_redirect` moves them. Fan-out: `include=topics` adds to each row `topics`, `[{ term_id, observations }]`
+(BE-TOPICS-12), the topic terms tagged directly on the prompts whose counted answers issued the query (terms of a
+`topic` vocabulary of the project or of the whole workspace, so workspace-wide topic vocabularies count; a term of
+another kind or of another project never), the most answers first, then by term id, at most 10, read in one statement
+for the page (an empty list when none is tagged, the key absent without `include`). The 16 KB bound of
+`provider_extras` (BE-FANOUT-03) now cuts the other lists (ads, brand entities) before the fan-out queries: the queries
+are cut only when the other lists are empty, for answers collected from now on (stored answers are not rewritten); how
+many stored answers were cut is `meta.answers_truncated`, and the read only query that counts them in production is in
+`docs/ops/ai-fanout-cut-measure.md` (not run yet). Not built: the `-trend` sort, categories (`filter[category_in]`,
+`category` and `category_source` on rows, `sources/categories`: WP-60), the unbounded fan-out table (WP-57; the 16 KB
+bound still limits the list), the marking of `engine_internal` at ingest, `ai.daily_domain_citations`, fan-out
+`group_by` and `filter[matched]`, `filter[citation_kind_in]`, `filter[referral_tag]`, `filter[role_entity_id]`,
+`filter[domain_id]`, overlap, retrieved-not-cited and influential pages. This supersedes the Not built statements of
+sections 3.7.7 to 3.7.9 about the source reads, changes, diversity, domain detail and the include and toggle parameters.
 
 **As built (AI visibility WP-76, 2026-11-17): Citations page.** Five read routes serve the Citations page, all
 `data:read`, no table and no migration (code `backend/src/idraft/api/ai/citation_board_routes.py`, `citation_board.py`,
@@ -1448,21 +1463,6 @@ memory, in one repeatable read snapshot, so a table and its `meta` agree. A proj
 page that none of the current window's answers cites and a prompt with no current answer there. A request for a
 competitor the project does not track is `422` before that check, and a gap route without `filter[competitor_id_in]`,
 or with more than five, is `422 validation_failed`.
-Ingest never sets `engine_internal` today, so `include_engine_internal` changes no number until it does; only
-`unresolved_redirect` moves them. Fan-out: `include=topics` adds to each row `topics`, `[{ term_id, observations }]`
-(BE-TOPICS-12), the topic terms tagged directly on the prompts whose counted answers issued the query (terms of a
-`topic` vocabulary of the project or of the whole workspace, so workspace-wide topic vocabularies count; a term of
-another kind or of another project never), the most answers first, then by term id, at most 10, read in one statement
-for the page (an empty list when none is tagged, the key absent without `include`). The 16 KB bound of
-`provider_extras` (BE-FANOUT-03) now cuts the other lists (ads, brand entities) before the fan-out queries: the queries
-are cut only when the other lists are empty, for answers collected from now on (stored answers are not rewritten); how
-many stored answers were cut is `meta.answers_truncated`, and the read only query that counts them in production is in
-`docs/ops/ai-fanout-cut-measure.md` (not run yet). Not built: the `-trend` sort, categories (`filter[category_in]`,
-`category` and `category_source` on rows, `sources/categories`: WP-60), the unbounded fan-out table (WP-57; the 16 KB
-bound still limits the list), the marking of `engine_internal` at ingest, `ai.daily_domain_citations`, fan-out
-`group_by` and `filter[matched]`, `filter[citation_kind_in]`, `filter[referral_tag]`, `filter[role_entity_id]`,
-`filter[domain_id]`, overlap, retrieved-not-cited and influential pages. This supersedes the Not built statements of
-sections 3.7.7 to 3.7.9 about the source reads, changes, diversity, domain detail and the include and toggle parameters.
 
 #### 3.7.8 Extraction and re-derivation (Phase 8)
 

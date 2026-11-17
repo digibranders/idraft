@@ -20,6 +20,7 @@ from tests.api.ai.citation_board_support import make_run, run_answer
 from tests.api.ai.sources_support import GUIDE, OWN, RIVAL, Cite, World, full_project, make_world
 from tests.api.auth.support import execute, fetch
 from tests.api.entities.support import problem
+from tests.api.keywords.support import project_url
 from tests.collectors.ai_support import Prompt, add_prompt
 from tests.collectors.rank_support import _entity
 from tests.conftest import PostgresServer
@@ -385,6 +386,95 @@ async def test_one_engine_filter_leaves_the_other_engines_out_of_every_row(
     ).json()
     assert [e["engine_code"] for e in overview["engines"]] == ["chatgpt_web"]
     assert overview["window"]["answers"] == 2
+
+
+SECRET = "https://secret.tenantb.io/soc"
+BOARD_TAILS = [
+    ("citation-overview",),
+    ("cited-pages",),
+    ("cited-pages", "{url_id}"),
+    ("citation-gaps",),
+    ("citation-gaps", "{prompt_id}"),
+]
+
+
+@pytest.fixture
+async def another_workspace(resources: Resources, migrated: PostgresServer) -> tuple[World, Prompt]:
+    """A second workspace with one answer on one prompt that cites the same own page as the
+    first workspace's world (one `core.urls` row, so one url_id) and a page nobody else cites."""
+    other = await make_world(resources, migrated)
+    prompt = await add_prompt(migrated, other.project, "Best managed SOC providers?")
+    run = await make_run(migrated, other, days_ago=1)
+    cites = [other.own_cite(), Cite(SECRET)]
+    await run_answer(migrated, other, prompt, run=run, days_ago=1, cites=cites)
+    return other, prompt
+
+
+@pytest.mark.parametrize("tail", BOARD_TAILS, ids="/".join)
+async def test_another_workspaces_member_and_project_are_not_found_on_every_route(
+    api: httpx.AsyncClient,
+    two_runs: tuple[World, Prompt, Prompt],
+    another_workspace: tuple[World, Prompt],
+    tail: tuple[str, ...],
+) -> None:
+    """An owner of another workspace reading this project, and this workspace's owner reading
+    another workspace's project through this workspace's path, are `404`: the project is looked
+    up before anything is read, and each project has answers, so a leak would be a `200`."""
+    world, a, _ = two_runs
+    other, theirs = another_workspace
+    listed = await _get(world, api, "cited-pages", runs=1, **{"filter[domain_role_in]": "own"})
+    url_id = listed.json()["data"][0]["url_id"]
+
+    def params(of: World) -> dict[str, str]:
+        # Only the gap routes take the competitors; the others refuse the parameter
+        gaps = {"filter[competitor_id_in]": str(of.rival)} if tail[0] == "citation-gaps" else {}
+        return {"runs": "1", **gaps}
+
+    outsider = await api.get(
+        world.url("ai", *(p.format(url_id=url_id, prompt_id=a.id) for p in tail)),
+        params=params(world),
+        headers=other.owner.headers,
+    )
+    reaching = await api.get(
+        project_url(
+            world.workspace,
+            other.project.id,
+            "ai",
+            *(p.format(url_id=url_id, prompt_id=theirs.id) for p in tail),
+        ),
+        params=params(other),
+        headers=world.owner.headers,
+    )
+
+    assert problem(outsider) == (404, "not_found")
+    assert problem(reaching) == (404, "not_found")
+
+
+async def test_another_workspaces_answers_are_never_counted_or_shown(
+    api: httpx.AsyncClient,
+    two_runs: tuple[World, Prompt, Prompt],
+    another_workspace: tuple[World, Prompt],
+) -> None:
+    """The first workspace's numbers are those of the fixture alone and its bodies hold nothing
+    of the second; the second counts its one answer and its two pages."""
+    world, _, _ = two_runs
+    other, _ = another_workspace
+
+    mine = [await _get(world, api, route, runs=1) for route in ("citation-overview", "cited-pages")]
+    theirs = await _get(other, api, "citation-overview", runs=1)
+    their_pages = await _get(other, api, "cited-pages", runs=1)
+
+    assert mine[0].json()["window"]["answers"] == 3
+    assert all("tenantb.io" not in response.text for response in mine)
+    body = theirs.json()
+    assert (body["window"]["answers"], body["citations"], body["own_urls"], body["domains"]) == (
+        1,
+        1,
+        1,
+        2,
+    )
+    assert their_pages.json()["page"]["total"] == 2
+    assert "example.org" not in theirs.text + their_pages.text
 
 
 @pytest.mark.parametrize(("runs", "own_citations"), [(1, 1), (2, 2), (4, 2)])
