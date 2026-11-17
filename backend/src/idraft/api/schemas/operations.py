@@ -326,6 +326,7 @@ class Budget(BaseModel):
         "ai_benchmark",
         "extraction_llm",
         "first_party",
+        "site_crawl",
         "all",
     ]
     period: Literal["month"]
