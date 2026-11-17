@@ -31,6 +31,9 @@ apps/web/next-env.d.ts
 # worktrees of this repository
 .claude/worktrees/
 
+# real API responses exported by backend/spikes/s18_export.py
+backend/spikes/raw/
+
 # os and editors
 .DS_Store
 .idea/
