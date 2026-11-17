@@ -137,10 +137,16 @@ _FOOTER = '<footer><a href="/privacy">Privacy</a></footer>'
 
 
 def page_html(
-    main: str, *, article: bool = False, prev: str | None = None, next_: str | None = None
+    main: str,
+    *,
+    article: bool = False,
+    prev: str | None = None,
+    next_: str | None = None,
+    canonical: str | None = None,
 ) -> str:
     """A page of the synthetic site: menu, main content, previous and next as on
-    cleanstart.com (a section labelled "Article navigation" outside the article), footer."""
+    cleanstart.com (a section labelled "Article navigation" outside the article), footer. With
+    `canonical`, a head naming it as the page's canonical address."""
     body = f"<article>{main}</article>" if article else main
     steps = [
         f'<a rel="{rel}" href="{href}">{label}: {href}</a>'
@@ -149,7 +155,8 @@ def page_html(
     ]
     joined = "".join(steps)
     section = f'<section aria-label="Article navigation">{joined}</section>' if steps else ""
-    return f"<html><body>{_NAV}<main>{body}{section}</main>{_FOOTER}</body></html>"
+    head = "" if canonical is None else f'<head><link rel="canonical" href="{canonical}"></head>'
+    return f"<html>{head}<body>{_NAV}<main>{body}{section}</main>{_FOOTER}</body></html>"
 
 
 def page_item(
