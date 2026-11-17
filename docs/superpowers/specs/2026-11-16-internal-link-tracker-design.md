@@ -260,6 +260,7 @@ The canvas and the tree list share one state: focus page, link scope and opened 
 **Canvas** (`LinkCanvas`, a new application component):
 
 - **Layout:** the focus card sits in the middle column.
+  - **The focus card stands out** (decided 2026-11-17) so nobody has to hunt for it: a wider column (288 px against 240), a 2 px primary border with a soft primary halo behind it, a larger path, a third line ("N out" and "N clicks from home"), and a primary "Focus page" badge as the column heading. When the card is out of view, a "Back to the focus page" button appears in the top left of the canvas.
   - **Right side, links out:** the next column holds the focus page's outlinks. Each further column holds the outlinks of the cards opened in the column before, grouped under their parent.
   - **Left side, links in:** the column before the focus holds the pages that link in, grouped by tier with counts. Opening one of them adds a further column to the left with the pages that link to it, and so on. This is the backward journey: who feeds the pages that feed this one.
   - Edges always point the way the link goes: from the linking page to the linked page. Each link is its own smooth curve that leaves the source level and arrives at the target level, with a small dot at the source and an arrowhead at the target, in the line colour. Curves fan out from a card with many links, so every line can be followed (a shared vertical trunk, tried first, drew them on top of each other). Columns are 112 px apart to give the curves room.

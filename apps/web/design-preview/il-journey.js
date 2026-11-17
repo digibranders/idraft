@@ -6,7 +6,7 @@
 import { el } from './prompts-parts.js';
 import { BUTTON_SM, FIELD, icon, popover, segmented, selectField, toast } from './perf-ui.js';
 import {
-  PLACEMENT_LABEL, SCOPE_WORD, activePages, depthWithoutAuto, findPaths, flags, ins, isLive, pageById, plural, refresh, routeFromHome, scopeOf,
+  PLACEMENT_LABEL, SCOPE_WORD, activePages, depthWithoutAuto, findPaths, flags, ins, isLive, outs, pageById, plural, refresh, routeFromHome, scopeOf,
   setFocus, setTier, suggestedLinks, state, statusBadge, tierBadge, tierBg, tierCode, tierEdge, tierIdOf, tierLabel, tierPosition, tiers,
 } from './il-model.js';
 import { openInspector } from './il-drawer.js';
@@ -133,8 +133,8 @@ function cardButton(item, scope, ctx) {
   const both = !isFocus && backs.some((back) => back.id === item.path[item.path.length - 2]);
   const openable = !isFocus && !item.last && canOpen(item);
   const isOpen = j().opened.has(item.key);
-  const look = isFocus ? 'border-primary-border ring-1 ring-primary-border' : 'border-border-strong';
-  const node = el('button', `node relative w-full text-left rounded-md border border-l-4 ${tierEdge(tierIdOf(page))} ${look} ${isOpen ? 'bg-primary-subtle' : 'bg-surface hover:bg-surface-hover'} px-2.5 py-1.5 flex flex-col ${FOCUS_RING}`);
+  const look = isFocus ? 'border-2 border-primary' : 'border-border-strong';
+  const node = el('button', `node relative w-full text-left rounded-md border border-l-4 ${tierEdge(tierIdOf(page))} ${look} ${isOpen ? 'bg-primary-subtle' : 'bg-surface hover:bg-surface-hover'} ${isFocus ? 'px-3 py-2' : 'px-2.5 py-1.5'} flex flex-col ${FOCUS_RING}`);
   node.type = 'button';
   Object.assign(node.dataset, { key: item.key, id: item.id, kind: 'card' });
   if (item.parentKey) node.dataset.parent = item.parentKey;
@@ -143,9 +143,19 @@ function cardButton(item, scope, ctx) {
   node.setAttribute('aria-label', `${page.path}, ${tierLabel(tierIdOf(page))}, ${plural(ins(item.id, scope).length, 'linking page')}${item.edge ? `, linked as ${linkedAs(item.edge)}, ${PLACEMENT_LABEL[item.edge.placement].toLowerCase()}` : ', focus page'}${both ? ', links both ways' : ''}`);
   const top = el('span', 'flex items-center gap-1 min-w-0 pr-2');
   if (openable) top.append(icon(isOpen ? 'chevron-down' : 'chevron-right', 'size-icon-xs shrink-0 text-foreground-tertiary'));
-  top.append(el('span', 'type-table text-foreground truncate', page.path));
+  top.append(el('span', `${isFocus ? 'type-body-strong' : 'type-table'} text-foreground truncate`, page.path));
   node.append(top, subLine(item, scope, backs, both));
+  if (isFocus) node.append(focusFacts(item, scope));
   return { node, backs };
+}
+
+/** The focus card's third line: how many links it has out and how far it is from the home page. */
+function focusFacts(item, scope) {
+  const steps = depthText(item.id);
+  const where = steps === 'Not reachable' ? 'Not reachable from home' : steps === '0' ? 'This is the home page' : `${plural(Number(steps), 'click')} from home`;
+  const line = el('span', 'mt-0.5 flex items-center gap-3 type-meta text-foreground-tertiary');
+  line.append(el('span', 'num', `${outs(item.id, scope).length} out`), el('span', '', where));
+  return line;
 }
 
 function stubButton(item) {
@@ -190,6 +200,12 @@ function cardWrap(item, scope, ctx) {
   const tools = el('div', 'absolute right-1 top-1 flex gap-0.5 rounded-sm bg-surface opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-within:opacity-100');
   if (item.key !== 'f') tools.append(toolButton('crosshair', `Make ${path} the focus`, { focusId: item.id }));
   tools.append(toolButton('info', `Info about ${path}`, { info: item.key }), toolButton('panel-right-open', `Details of ${path}`, { details: item.id }));
+  if (item.key === 'f') {
+    // A soft halo behind the focus card, so it reads as the centre of the canvas at any zoom
+    const halo = el('span', 'pointer-events-none absolute -inset-1.5 rounded-lg');
+    halo.style.background = 'color-mix(in srgb, var(--color-primary) 14%, transparent)';
+    wrap.append(halo);
+  }
   wrap.append(node, tools);
   if (backs.length > 0) {
     const loop = el('button', `${BACK_BUTTON} ${FOCUS_RING}`);
@@ -366,9 +382,12 @@ function focusNote(scope) {
   return box;
 }
 
-function column(label, nodes) {
-  const col = el('div', 'flex w-60 shrink-0 flex-col gap-1.5');
-  col.append(el('h3', 'w-fit bg-surface-subtle pr-1 type-label text-foreground-tertiary', label), ...nodes);
+function column(label, nodes, focus = false) {
+  const col = el('div', `flex ${focus ? 'w-72' : 'w-60'} shrink-0 flex-col gap-1.5`);
+  const heading = focus
+    ? el('h3', 'inline-flex h-badge w-fit items-center rounded-sm bg-primary-subtle px-1.5 type-label text-primary-text', label)
+    : el('h3', 'w-fit bg-surface-subtle pr-1 type-label text-foreground-tertiary', label);
+  col.append(heading, ...nodes);
   return col;
 }
 
@@ -451,6 +470,7 @@ function buildCanvas() {
     ctx.boxes = boxes;
     if (boxes.length > 0) ctx.bounds = unionOf(boxes);
     minimap.setBoxes(boxes);
+    syncControls();
   }
   function scheduleEdges() {
     if (edgeFrame) return;
@@ -542,7 +562,19 @@ function buildCanvas() {
     zoomOut.disabled = viewport.v.k <= MIN_K + 0.001;
     zoomIn.disabled = viewport.v.k >= MAX_K - 0.001;
     resetLayout.disabled = !hasOffsets();
+    const f = ctx.boxes.find((box) => box.focus);
+    const { w, h } = viewport.size();
+    const { x, y, k } = viewport.v;
+    const seen = !f || (f.r * k + x > 0 && f.l * k + x < w && f.b * k + y > 0 && f.t * k + y < h);
+    focusChip.style.display = seen ? 'none' : 'inline-flex';
   }
+
+  // ---- A way back to the focus page whenever it is out of view
+  const focusChip = el('button', `${BUTTON_SM} absolute left-3 top-3 bg-surface-elevated shadow-popover ${FOCUS_RING}`);
+  focusChip.type = 'button';
+  focusChip.style.display = 'none';
+  focusChip.append(icon('crosshair', 'size-icon-sm text-primary-text'), el('span', '', 'Back to the focus page'));
+  focusChip.addEventListener('click', centreOnFocus);
 
   // ---- Selection
   const bar = el('div', 'absolute left-1/2 top-3 hidden -translate-x-1/2 items-center gap-2 rounded-md border border-border bg-surface-elevated p-1 pl-3 shadow-popover');
@@ -719,7 +751,7 @@ function buildCanvas() {
     ctx.items.set('f', focusItem);
     const focusWrap = el('div', 'flex flex-col gap-2');
     focusWrap.append(cardWrap(focusItem, scope, ctx), focusNote(j().cards));
-    const columns = [...left, column('Focus page', [focusWrap]), ...right];
+    const columns = [...left, column('Focus page', [focusWrap], true), ...right];
     inner.replaceChildren(svg, ...columns);
     columns.forEach((col, index) => col.querySelectorAll('button.node').forEach((node) => {
       node.dataset.col = String(index);
@@ -1002,7 +1034,7 @@ function buildCanvas() {
     event.preventDefault();
   });
 
-  stage.append(controls, help, minimap.root, bar);
+  stage.append(controls, help, minimap.root, bar, focusChip);
   ctx.rebuild = rebuild;
   rebuild(null);
   return ctx;
