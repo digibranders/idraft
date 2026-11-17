@@ -115,6 +115,18 @@ export interface SummaryOptions {
   rows?: 'topics' | 'none';
 }
 
+/**
+ * The read of the cards that draw share of voice week by week (Share of voice over time, its rank, the competitor trend,
+ * and the rate trend while its metric is Share of voice): the `total` with a point per week, each point with the cells of
+ * every tracked brand (`include=series,entities`, at most 20 brands, own ones first, pooled weeks as the point's `pool`
+ * says, no `previous`). `total` is there because `rows=none` leaves out every row, and the weekly points of the whole
+ * scope are the `total`'s. No other card asks for it: the prompt rows with weekly entity cells are megabytes.
+ */
+export const WEEKLY_SHARE_READ = {
+  include: ['entities', 'series', 'total'],
+  rows: 'none',
+} as const satisfies SummaryOptions;
+
 /** `GET {P}/ai/prompts-summary` for a window of the scope: Mentioned, Cited and the rest per prompt, topic and engine. */
 export function overviewSummaryQuery(
   project: ProjectRef,

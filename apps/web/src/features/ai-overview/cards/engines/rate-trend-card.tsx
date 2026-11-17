@@ -5,11 +5,12 @@ import { useCallback, useMemo, type ReactElement } from 'react';
 
 import { engineLabel, engineRole } from './engine-role';
 import { percentNumber } from './percent';
-import { buildPlatformTrend, weekMetricOf, type PlatformTrend } from './platform-trend';
-import { tipOf, type TrendPoint, type TrendWords, type WeekMetric } from './trend-model';
+import { buildPlatformTrend, weekMetricOf, type AveragePoint, type PlatformTrend } from './platform-trend';
+import { tipOf, weeklyShareNote, type TrendPoint, type TrendWords, type WeekMetric } from './trend-model';
 import { useCardData } from './use-card-data';
 import { useCardExport } from './use-card-seams';
 import { useFrameState } from './use-frame-state';
+import { WEEKLY_SHARE_READ } from '../../data/overview-queries';
 import { useOverview } from '../../overview-context';
 import { SCOPE_METRICS, singlePlatform, type ScopeMetric } from '../../scope/scope-model';
 import { useScopeUnavailable } from '../../states/scope-unavailable';
@@ -61,12 +62,29 @@ function seriesOf(trend: PlatformTrend, label: (code: EngineCode) => string, ave
   ];
 }
 
+/**
+ * The words of an Average point: how many platforms it is of and, for Share of voice, the x of y brand mentions of each
+ * (R3), because an average of shares has no count of its own: "Average of 2 platforms. Brand mentions: ChatGPT 8 of 20
+ * and Gemini 6 of 15".
+ */
+function averageTip(
+  point: AveragePoint,
+  metric: WeekMetric,
+  t: Translate,
+  label: (code: EngineCode) => string,
+): string {
+  if (metric !== 'share_of_voice' || point.counts.length === 0) return t('averageTip', { count: point.platforms });
+  const counts = formatList(point.counts.map(({ code, k, n }) => t('platformCount', { platform: label(code), k, n })));
+  return t('averageShareTip', { count: point.platforms, counts });
+}
+
 /** The tooltip words of every point: a gap has none, a thin point says its answers, an Average says how many platforms. */
 function pointsOf(
   trend: PlatformTrend,
   words: TrendWords,
   metric: WeekMetric,
   t: Translate,
+  label: (code: EngineCode) => string,
   banded: boolean,
 ): Record<string, (RateBandPoint | null)[]> {
   const platforms = trend.platforms.map((entry): [string, (RateBandPoint | null)[]] => [
@@ -86,7 +104,12 @@ function pointsOf(
             trend.average.map((point) =>
               point.value === null
                 ? null
-                : { value: point.value, band: null, thin: false, tip: t('averageTip', { count: point.platforms }) },
+                : {
+                    value: point.value,
+                    band: null,
+                    thin: false,
+                    tip: averageTip(point, metric, t, label),
+                  },
             ),
           ],
         ];
@@ -127,10 +150,11 @@ export default function RateTrendCard({ item, live }: CardProps): ReactElement {
   const common = useTranslations('aiOverview.engines.common');
   const tipWords = useRateTipWords();
   const { scope, setScope } = useOverview();
+  // Share of voice is drawn from the weekly cells of every tracked brand (the one read of its kind); the other metrics
+  // from the weekly points of the prompt rows, as before. The two reads have distinct keys, so the cache never mixes them.
   const data = useCardData({
     previous: 'optional',
-    include: ['series'],
-    counts: scope.metric === 'sov',
+    ...(scope.metric === 'sov' ? WEEKLY_SHARE_READ : { include: ['series'] as const }),
     subscribed: live,
   });
   const metricKey = KEY[scope.metric];
@@ -169,8 +193,8 @@ export default function RateTrendCard({ item, live }: CardProps): ReactElement {
   );
   const series = useMemo(() => (trend === null ? [] : seriesOf(trend, label, t('average'))), [trend, label, t]);
   const points = useMemo(
-    () => (trend === null ? {} : pointsOf(trend, words, weekMetric, t, single)),
-    [trend, words, weekMetric, t, single],
+    () => (trend === null ? {} : pointsOf(trend, words, weekMetric, t, label, single)),
+    [trend, words, weekMetric, t, label, single],
   );
   const categories = useMemo(
     () =>
@@ -212,9 +236,18 @@ export default function RateTrendCard({ item, live }: CardProps): ReactElement {
     if (data.phase === 'empty') return { title: t('emptyNoPromptsTitle'), reason: t('emptyNoPromptsReason') };
     if (!ready || trend === null) return null;
     if (!trend.collected) {
-      const reason = t(weekMetric === 'share_of_voice' ? 'notCollectedShareReason' : 'notCollectedReason');
+      // More than 20 tracked brands is its own reason: the weekly cells stop at 20 and y would be too small (request 24)
+      const capped =
+        weekMetric === 'share_of_voice' && currentData !== undefined && weeklyShareNote(currentData) === 'capped';
+      const reason = t(
+        capped
+          ? 'cappedShareReason'
+          : weekMetric === 'share_of_voice'
+            ? 'notCollectedShareReason'
+            : 'notCollectedReason',
+      );
       return {
-        title: t('notCollectedTitle'),
+        title: capped ? t('cappedTitle') : t('notCollectedTitle'),
         reason:
           windowValues.length === 0
             ? reason

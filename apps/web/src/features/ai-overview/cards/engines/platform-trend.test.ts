@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { buildPlatformTrend, weekMetricOf } from './platform-trend';
+import { weeklyShareNote } from './trend-model';
 import { at, cell, engine, share, summaryOf, week } from '../competitors/model/summary-fixtures';
 import type { EngineCode, MetricCell, PromptsSummary, WeekCells } from '@/lib/api/types';
 
@@ -57,6 +58,19 @@ describe('buildPlatformTrend', () => {
     // (40% + 1%) / 2, where a pooled ratio would be 5 of 110
     expect(at(trend.average ?? [], 0).value).toBeCloseTo(0.205);
     expect(at(trend.average ?? [], 0).platforms).toBe(2);
+  });
+
+  it('keeps the x of y of each platform behind an Average point, and none for a platform left out of the week', () => {
+    const current = summaryOfSeries({
+      chatgpt_web: [point('2026-10-19', 4, 10), point('2026-10-26', 5, 10)],
+      gemini_web: [point('2026-10-19', 1, 100), point('2026-10-26', 1, 3)],
+    });
+    const average = buildPlatformTrend(input(current, { metric: 'share_of_voice' })).average ?? [];
+    expect(at(average, 0).counts).toEqual([
+      { code: 'chatgpt_web', k: 4, n: 10 },
+      { code: 'gemini_web', k: 1, n: 100 },
+    ]);
+    expect(at(average, 1).counts).toEqual([{ code: 'chatgpt_web', k: 5, n: 10 }]);
   });
 
   it('leaves a thin point (fewer than 4 answers) out of the Average, and has no average of nothing', () => {
@@ -127,5 +141,25 @@ describe('buildPlatformTrend', () => {
       expect(trend.collected).toBe(true);
       expect(at(at(trend.platforms, 0).points, 1).value).toBeCloseTo(0.7);
     });
+  });
+});
+
+describe('weeklyShareNote', () => {
+  const marked = (note: 'capped' | 'notCollected'): MetricCell => ({ ...share(0, 0), share_note: note }) as MetricCell;
+  const withPoints = (...notes: ('capped' | 'notCollected' | null)[]): PromptsSummary =>
+    summaryOfSeries({
+      chatgpt_web: notes.map((note, index) =>
+        week(`2026-10-${String(19 + index * 7)}`, { share: note === null ? share(3, 10) : marked(note) }),
+      ),
+    });
+
+  it('says why no week has its counts: cut at 20 brands, or not collected', () => {
+    expect(weeklyShareNote(withPoints('capped', 'capped'))).toBe('capped');
+    expect(weeklyShareNote(withPoints('notCollected', 'notCollected'))).toBe('notCollected');
+  });
+
+  it('says nothing when a week has its counts, and when there is no week', () => {
+    expect(weeklyShareNote(withPoints('notCollected', null))).toBeUndefined();
+    expect(weeklyShareNote(withPoints())).toBeUndefined();
   });
 });

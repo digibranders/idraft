@@ -1,6 +1,8 @@
 import { entityTotals } from './entity-totals';
 import {
+  CAPPED,
   UNREAD,
+  unreadWhy,
   type EngineEntityTotals,
   type MentionFigure,
   type TrackedEntity,
@@ -49,10 +51,9 @@ export function shareAcrossPlatforms(
   set: TrackedSet,
   average: boolean,
 ): ScopeShareRead {
-  const read = codes
-    .map((code) => entityTotals(summary, code, set))
-    .filter((totals): totals is EngineEntityTotals => totals.status === 'read');
-  if (read.length === 0) return UNREAD;
+  const totalsOf = codes.map((code) => entityTotals(summary, code, set));
+  const read = totalsOf.filter((totals): totals is EngineEntityTotals => totals.status === 'read');
+  if (read.length === 0) return unreadWhy(...totalsOf) === 'capped' ? CAPPED : UNREAD;
   const rated = read.filter((totals) => totals.state === 'ok');
   const answers = Math.max(...read.map((totals) => totals.brandMentions));
   const validAnswers = read.reduce((total, totals) => total + totals.validAnswers, 0);

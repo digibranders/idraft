@@ -1,4 +1,5 @@
 import {
+  CAPPED,
   UNREAD,
   type EngineEntityTotals,
   type EntityFigures,
@@ -152,9 +153,10 @@ export function entityTotals(summary: PromptsSummary, engineCode: string, set: T
     cells.length >= ENTITY_CELL_CAP && set.entities.length > cells.length;
   const total = summary.total?.engines.find((engine) => engine.engine_code === engineCode);
   if (total !== undefined && hasEntities(total))
-    return capped(total.entities) ? UNREAD : fromTotal(total, total.entities, set);
+    return capped(total.entities) ? CAPPED : fromTotal(total, total.entities, set);
   const rows = engineRows(summary, engineCode).filter(hasEntities);
-  return rows.length === 0 || rows.some((row) => capped(row.entities)) ? UNREAD : fromRows(rows, set);
+  if (rows.some((row) => capped(row.entities))) return CAPPED;
+  return rows.length === 0 ? UNREAD : fromRows(rows, set);
 }
 
 /**

@@ -8,10 +8,18 @@ import { SHAPE_OPTIONS, useTrackedSet } from './data/use-competitor-reads';
 import { entityTotals } from './model/entity-totals';
 import { colorSlots } from './model/tracked-set';
 import { trimIdleShares } from './model/trim-weeks';
-import type { EngineEntityTotals, EntityFigures, RankedWeek, TrackedSet } from './model/types';
+import {
+  isUnreadable,
+  unreadWhy,
+  type EngineEntityTotals,
+  type EntityFigures,
+  type RankedWeek,
+  type TrackedSet,
+  type Unreadable,
+} from './model/types';
 import { rankSeries, weeklyShares } from './model/weekly-series';
 import { useCardEngine } from './parts/card-engine';
-import { frameSummary, useFrameState, type DataSituation, type FrameState, type ReadFacts } from './parts/frame-state';
+import { frameSummary, useFrameState, type DataSituation, type FrameState } from './parts/frame-state';
 import { TrackedFootnote } from './parts/tracked-footnote';
 import { rankAxisOption, type RankTip } from './rank-axis';
 import { loadingBodyHeight } from './skeletons';
@@ -24,7 +32,7 @@ import type { PromptsSummary } from '@/lib/api/types';
 import type { ChartBoundary } from '@/lib/charts/boundaries';
 import type { CategorySeries } from '@/lib/charts/category-chart';
 import type { ChartTokens } from '@/lib/design/read-tokens';
-import { formatChartDate, formatInteger, formatList, formatPercent } from '@/lib/format';
+import { formatChartDate, formatDateRange, formatInteger, formatList, formatPercent } from '@/lib/format';
 import { MIN_OBSERVATIONS } from '@/lib/stats';
 
 /**
@@ -63,11 +71,11 @@ function rankModel(
   summary: PromptsSummary | undefined,
   set: TrackedSet | null,
   engineCode: string,
-): RankModel | 'unread' | null {
+): RankModel | Unreadable | null {
   if (summary === undefined || set === null) return null;
   const totals = entityTotals(summary, engineCode, set);
   const weekly = weeklyShares(summary, engineCode, set);
-  if (totals.status !== 'read' || weekly.status !== 'read') return 'unread';
+  if (totals.status !== 'read' || weekly.status !== 'read') return { unread: unreadWhy(totals, weekly) };
   const slots = colorSlots(set);
   const slotOf = (figures: EntityFigures): number | undefined => slots.get(figures.entity.entityId);
   const own = totals.entities.find((figures) => figures.entity.role === 'own');
@@ -135,14 +143,23 @@ export default function SovRankCard({ item, options, live }: CardProps): ReactEl
   const summary = read.data;
   const set = useTrackedSet(summary);
   const model = useMemo(() => rankModel(summary, set, engine.code), [summary, set, engine.code]);
-  const ready = model !== null && model !== 'unread' ? model : null;
+  const ready = model !== null && !isUnreadable(model) ? model : null;
   const weeks = useMemo(() => ready?.weeks ?? [], [ready]);
   const drawn = useMemo(() => ready?.drawn ?? [], [ready]);
 
+  // The rank, the share and the brand mentions it is made of (D17): "Rank 1, 24%, 40 of 160 brand mentions"
   const rowText = useCallback(
-    (rank: number, share: number | null): string => t('row', { rank, share: share === null ? '' : formatShare(share) }),
+    (rank: number, share: number | null, mentions: { k: number; n: number } | null): string =>
+      share === null || mentions === null
+        ? t('row', { rank, share: share === null ? '' : formatShare(share) })
+        : t('rowCounts', { rank, share: formatShare(share), k: mentions.k, n: mentions.n }),
     [t],
   );
+  const mentionsOf = useCallback((week: RankedWeek, entityId: string): { k: number; n: number } | null => {
+    const entity = week.entities.find((entry) => entry.entityId === entityId);
+    // A week with no tracked-brand mention has no counts (n/a, not 0); a thin one keeps them, they are what it says
+    return entity === undefined || week.answers === 0 ? null : { k: entity.numerator, n: week.answers };
+  }, []);
   const categories = useMemo(() => weeks.map((week) => formatChartDate(week.weekStart)), [weeks]);
   const series = useMemo(
     (): CategorySeries[] =>
@@ -162,7 +179,14 @@ export default function SovRankCard({ item, options, live }: CardProps): ReactEl
   const tips = useMemo(
     (): RankTip[] =>
       weeks.map((week) => {
-        const title = t('weekTitle', { date: formatChartDate(week.weekStart) });
+        const title =
+          week.pool !== null && week.pool.weeks > 1
+            ? t('weekTitlePooled', {
+                date: formatChartDate(week.weekStart),
+                weeks: week.pool.weeks,
+                range: formatDateRange(week.pool.from, week.pool.to),
+              })
+            : t('weekTitle', { date: formatChartDate(week.weekStart) });
         const rows = drawn.flatMap(({ figures }) => {
           const rank = rankOf(week, figures.entity.entityId);
           return rank === null
@@ -171,12 +195,21 @@ export default function SovRankCard({ item, options, live }: CardProps): ReactEl
                 {
                   seriesId: figures.entity.entityId,
                   rank,
-                  text: rowText(rank, shareOf(week, figures.entity.entityId)),
+                  text: rowText(
+                    rank,
+                    shareOf(week, figures.entity.entityId),
+                    mentionsOf(week, figures.entity.entityId),
+                  ),
                 },
               ];
         });
         if (week.entities.every((entity) => entity.rank === null)) {
-          return { title, rows, footer: t('footerGap', { answers: week.answers }) };
+          // No brand mention at all is n/a, not 0; 1 to 3 says how few
+          return {
+            title,
+            rows,
+            footer: week.answers === 0 ? t('footerNone') : t('footerGap', { answers: week.answers }),
+          };
         }
         return {
           title,
@@ -187,7 +220,7 @@ export default function SovRankCard({ item, options, live }: CardProps): ReactEl
               : t('footerAnswers', { answers: week.answers }),
         };
       }),
-    [weeks, drawn, t, rowText, shareOf],
+    [weeks, drawn, t, rowText, shareOf, mentionsOf],
   );
   const boundaries = useMemo(
     (): ChartBoundary[] =>
@@ -214,9 +247,11 @@ export default function SovRankCard({ item, options, live }: CardProps): ReactEl
     (seriesId: string, index: number): string | null => {
       const week = weeks[index];
       const rank = week === undefined ? null : rankOf(week, seriesId);
-      return week === undefined || rank === null ? null : rowText(rank, shareOf(week, seriesId));
+      return week === undefined || rank === null
+        ? null
+        : rowText(rank, shareOf(week, seriesId), mentionsOf(week, seriesId));
     },
-    [weeks, rowText, shareOf],
+    [weeks, rowText, shareOf, mentionsOf],
   );
 
   const summaryText = useMemo((): string => {
@@ -236,8 +271,6 @@ export default function SovRankCard({ item, options, live }: CardProps): ReactEl
     });
   }, [drawn, weeks, engine.label, t]);
 
-  const readFacts: ReadFacts =
-    model === 'unread' ? { status: 'error', errorId: read.errorId, stale: false, refetch: read.refetch } : read;
   const situation: DataSituation =
     ready !== null && ready.totals.validAnswers === 0
       ? { kind: 'no_answers' }
@@ -246,7 +279,7 @@ export default function SovRankCard({ item, options, live }: CardProps): ReactEl
         : { kind: 'ready' };
   const base = useFrameState({
     subject: t('subject'),
-    read: readFacts,
+    read,
     previous: null,
     previousEmpty: false,
     engine,
@@ -254,29 +287,48 @@ export default function SovRankCard({ item, options, live }: CardProps): ReactEl
   });
   const settled = base.status === 'ready' || base.status === 'refetching';
   const frame: FrameState =
-    settled && set !== null && set.entities.length < MIN_BRANDS
-      ? { status: 'empty', empty: { title: t('needsBrandsTitle'), reason: t('needsBrandsReason') } }
-      : settled && ready !== null && ready.weeksRanked < 2
-        ? {
-            status: 'empty',
-            empty: { title: t('needsWeeksTitle'), reason: t('needsWeeksReason', { engine: engine.label }) },
-          }
-        : base;
+    settled && isUnreadable(model)
+      ? // A good read with no per-brand weekly counts is not an error: say why, keep the place
+        { status: 'empty', empty: { title: t(`${model.unread}.title`), reason: t(`${model.unread}.reason`) } }
+      : settled && set !== null && set.entities.length < MIN_BRANDS
+        ? { status: 'empty', empty: { title: t('needsBrandsTitle'), reason: t('needsBrandsReason') } }
+        : settled && ready !== null && ready.weeksRanked < 2
+          ? {
+              status: 'empty',
+              empty: { title: t('needsWeeksTitle'), reason: t('needsWeeksReason', { engine: engine.label }) },
+            }
+          : base;
 
   useCardExport(item.id, () => {
     if (ready === null || (frame.status !== 'ready' && frame.status !== 'refetching')) return null;
     return {
       id: item.id,
-      header: [t('weekColumn'), t('exportBrand'), t('exportRank'), t('exportShare'), t('exportAnswers')],
+      header: [
+        t('weekColumn'),
+        t('exportBrand'),
+        t('exportRank'),
+        t('exportShare'),
+        t('exportMentions'),
+        t('exportAnswers'),
+        t('exportPooled'),
+        t('exportState'),
+      ],
       rows: weeks.flatMap((week) =>
         drawn.map(({ figures }) => {
-          const share = shareOf(week, figures.entity.entityId);
+          const entityId = figures.entity.entityId;
+          const share = shareOf(week, entityId);
+          const mentions = mentionsOf(week, entityId);
+          const pooled = week.pool !== null && week.pool.weeks > 1 ? `${week.pool.from} to ${week.pool.to}` : null;
           return [
             week.weekStart,
             figures.entity.name,
-            rankOf(week, figures.entity.entityId),
+            rankOf(week, entityId),
             share === null ? null : Math.round(share * 1000) / 10,
-            week.answers,
+            // A week with no tracked-brand mention is n/a, not 0
+            mentions?.k ?? null,
+            week.answers === 0 ? null : week.answers,
+            pooled,
+            week.answers === 0 ? 'none' : share === null ? 'insufficient' : 'ok',
           ];
         }),
       ),

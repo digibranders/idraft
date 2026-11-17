@@ -9,7 +9,14 @@ import { shareAcrossPlatforms, type ScopeShareRead } from './model/scope-share';
 import { weeklySharesAcross } from './model/scope-weekly';
 import { colorSlots } from './model/tracked-set';
 import { trimIdleShares } from './model/trim-weeks';
-import type { FoldedPoint, TrackedEntity, TrackedSet, WeeklyPoint } from './model/types';
+import {
+  isUnreadable,
+  unreadWhy,
+  type FoldedPoint,
+  type TrackedEntity,
+  type TrackedSet,
+  type Unreadable,
+} from './model/types';
 import { foldOthers } from './model/weekly-series';
 import { useCardPlatforms } from './parts/card-engine';
 import { frameSummary, useFrameState, type DataSituation, type FrameState } from './parts/frame-state';
@@ -26,6 +33,7 @@ import { escapeHtml, type CategorySeries } from '@/lib/charts/category-chart';
 import { tipRowHtml, tipTitleHtml } from '@/lib/charts/tooltip-row';
 import type { ChartTokens } from '@/lib/design/read-tokens';
 import { formatChartDate, formatDateRange, formatList, formatPercent } from '@/lib/format';
+import { engineLabel } from '@/lib/layouts';
 import { MIN_OBSERVATIONS } from '@/lib/stats';
 
 /**
@@ -57,8 +65,6 @@ interface WeeksModel {
   /** The names of the tracked brands with no colour slot, folded into "Other tracked". */
   others: readonly string[];
   points: readonly FoldedPoint[];
-  /** The weekly points as read, for the answers of a week. */
-  raw: readonly WeeklyPoint[];
   weeksWithAnswers: number;
   weeksDrawn: number;
 }
@@ -68,11 +74,11 @@ function weeksModel(
   set: TrackedSet | null,
   codes: readonly string[],
   average: boolean,
-): WeeksModel | 'unread' | null {
+): WeeksModel | Unreadable | null {
   if (summary === undefined || set === null || codes.length === 0) return null;
   const shares = shareAcrossPlatforms(summary, codes, set, average);
   const weekly = weeklySharesAcross(summary, codes, set);
-  if (shares.status !== 'read' || weekly.status !== 'read') return 'unread';
+  if (shares.status !== 'read' || weekly.status !== 'read') return { unread: unreadWhy(shares, weekly) };
   const slots = colorSlots(set);
   const brands = [...slots.entries()].flatMap(([entityId, slot]) => {
     const entity = set.entities.find((candidate) => candidate.entityId === entityId);
@@ -85,16 +91,15 @@ function weeksModel(
     brands,
     others: set.entities.filter((entity) => !slots.has(entity.entityId)).map((entity) => entity.name),
     points: drawn.map((point) => foldOthers(point, set)),
-    raw: drawn,
     weeksWithAnswers: drawn.filter((point) => point.answers > 0).length,
     weeksDrawn: drawn.filter((point) => point.state === 'ok').length,
   };
 }
 
-/** What the tooltip of one week says: the shares best first, or why the week has none. */
+/** What the tooltip of one week says: the shares best first, each with its brand mentions, or why the week has none. */
 interface WeekTip {
   title: string;
-  rows: readonly { seriesId: string; value: number }[];
+  rows: readonly { seriesId: string; value: number; text: string; detail: string | null }[];
   footer: string;
 }
 
@@ -137,7 +142,12 @@ function stackedAreaOption(
         const entry = shown.find((candidate) => candidate.id === row.seriesId);
         if (entry === undefined) return [];
         const name = entry.id === ownId ? youLabel(entry.name ?? '') : (entry.name ?? '');
-        return [tipRowHtml(entry.color ?? tokens.other, name, formatShare(row.value), tokens)];
+        // The counts of each platform of an average are long: a line of their own under the row, wrapped, not cut
+        const detail =
+          row.detail === null
+            ? ''
+            : `<div style="max-width:280px;margin:0 0 4px 16px;font-size:12px;line-height:16px;color:${escapeHtml(tokens.foregroundSecondary)}">${escapeHtml(row.detail)}</div>`;
+        return [`${tipRowHtml(entry.color ?? tokens.other, name, row.text, tokens)}${detail}`];
       });
     return `${tipTitleHtml(tip.title)}${rows.join('')}<div style="margin-top:4px;color:${escapeHtml(tokens.foregroundSecondary)}">${escapeHtml(tip.footer)}</div>`;
   };
@@ -162,9 +172,8 @@ export default function SovOverTimeCard({ item, live }: CardProps): ReactElement
     () => weeksModel(summary, set, platforms.codes, platforms.average),
     [summary, set, platforms.codes, platforms.average],
   );
-  const ready = model !== null && model !== 'unread' ? model : null;
+  const ready = model !== null && !isUnreadable(model) ? model : null;
   const points = useMemo(() => ready?.points ?? [], [ready]);
-  const raw = useMemo(() => ready?.raw ?? [], [ready]);
   const brands = useMemo(() => ready?.brands ?? [], [ready]);
   const otherName = t('other');
   const average = platforms.average;
@@ -206,21 +215,62 @@ export default function SovOverTimeCard({ item, live }: CardProps): ReactElement
       : own;
   }, [ready, brands, points, otherName]);
   const ownId = brands.find((brand) => brand.slot === 1)?.entity.entityId ?? null;
+  /**
+   * One brand's share of a week with the brand mentions behind it (D17): "24%, 40 of 160 brand mentions" for one
+   * platform, and for All platforms the average with the x of y of each platform that has a share that week (R3).
+   * "Other tracked" adds the mentions of the brands it folds.
+   */
+  const countsOf = useCallback(
+    (point: FoldedPoint, seriesId: string): { count: number; list: string } | null => {
+      const counts =
+        seriesId === OTHER_ID
+          ? point.otherCounts
+          : (point.entities.find((candidate) => candidate.entityId === seriesId)?.counts ?? null);
+      if (!average || counts === null || counts.length === 0) return null;
+      const list = formatList(
+        counts.map((part) => t('platformCount', { platform: engineLabel(part.code), k: part.k, n: part.n })),
+      );
+      return { count: counts.length, list };
+    },
+    [average, t],
+  );
+  const valueText = useCallback(
+    (point: FoldedPoint, seriesId: string, value: number): string => {
+      const share = formatShare(value);
+      const platforms = countsOf(point, seriesId);
+      if (platforms !== null) return t('cellAverage', { value: share, count: platforms.count, counts: platforms.list });
+      const entry = point.entities.find((candidate) => candidate.entityId === seriesId);
+      const mentions = seriesId === OTHER_ID ? point.otherNumerator : (entry?.numerator ?? null);
+      return mentions === null ? share : t('cell', { value: share, k: mentions, answers: point.answers });
+    },
+    [countsOf, t],
+  );
+  /** The tooltip row of a brand: its share and, for one platform, its x of y; an average gets its platforms' counts below. */
+  const rowOf = useCallback(
+    (point: FoldedPoint, seriesId: string, value: number): { text: string; detail: string | null } => {
+      const platforms = countsOf(point, seriesId);
+      return platforms === null
+        ? { text: valueText(point, seriesId, value), detail: null }
+        : { text: formatShare(value), detail: t('tipCounts', { counts: platforms.list }) };
+    },
+    [countsOf, valueText, t],
+  );
   const tips = useMemo(
     (): WeekTip[] =>
       points.map((point, index) => {
         const title = weekTitle(point);
+        if (point.state === 'none') return { title, rows: [], footer: t('tooltipNone') };
         if (point.state !== 'ok') return { title, rows: [], footer: tooFew(point.answers) };
         return {
           title,
           rows: series.flatMap((entry) => {
             const value = entry.values[index];
-            return typeof value === 'number' ? [{ seriesId: entry.id, value }] : [];
+            return typeof value === 'number' ? [{ seriesId: entry.id, value, ...rowOf(point, entry.id, value) }] : [];
           }),
           footer: average ? t('tooltipAverage') : t('tooltipAnswersOne', { answers: point.answers }),
         };
       }),
-    [points, series, weekTitle, tooFew, average, t],
+    [points, series, weekTitle, tooFew, rowOf, average, t],
   );
   const boundaries = useMemo(
     (): ChartBoundary[] =>
@@ -244,17 +294,13 @@ export default function SovOverTimeCard({ item, live }: CardProps): ReactElement
     (seriesId: string, index: number): string | null => {
       const point = points[index];
       if (point === undefined) return null;
+      // A week with no tracked-brand mention at all is n/a, not 0; one with 1 to 3 says how few
+      if (point.state === 'none') return t('cellNone');
       if (point.state !== 'ok') return tooFew(point.answers);
       const value = series.find((entry) => entry.id === seriesId)?.values[index];
-      if (typeof value !== 'number') return null;
-      if (average) return t('cellAverage', { value: formatShare(value) });
-      // One brand's mentions of the week over all tracked-brand mentions; "Other tracked" has no single count
-      const mentions = point.entities.find((entry) => entry.entityId === seriesId)?.numerator;
-      return mentions === undefined
-        ? t('cellNoCount', { value: formatShare(value), answers: point.answers })
-        : t('cell', { value: formatShare(value), k: mentions, answers: point.answers });
+      return typeof value === 'number' ? valueText(point, seriesId, value) : null;
     },
-    [points, series, tooFew, average, t],
+    [points, series, tooFew, valueText, t],
   );
 
   const summaryText = useMemo((): string => {
@@ -282,9 +328,10 @@ export default function SovOverTimeCard({ item, live }: CardProps): ReactElement
   const frame: FrameState =
     platforms.codes.length === 0
       ? { status: 'empty', empty: unavailable }
-      : active && model === 'unread'
-        ? // A good read with no per-brand weekly cells (backend request 10) is not an error: say so, keep the place
-          { status: 'empty', empty: { title: t('notCollected.title'), reason: t('notCollected.reason') } }
+      : active && isUnreadable(model)
+        ? // A good read with no per-brand weekly cells is not an error: say so, keep the place. More than 20 tracked
+          // brands is its own reason: the API lists the cells of the first 20 only (backend request 24)
+          { status: 'empty', empty: { title: t(`${model.unread}.title`), reason: t(`${model.unread}.reason`) } }
         : active && ready !== null && ready.weeksWithAnswers >= 2 && ready.weeksDrawn === 0
           ? { status: 'empty', empty: { title: t('emptyTitle'), reason: t('emptyReason') } }
           : active && ready !== null && ready.weeksWithAnswers < 2
@@ -295,16 +342,36 @@ export default function SovOverTimeCard({ item, live }: CardProps): ReactElement
     if (ready === null || (frame.status !== 'ready' && frame.status !== 'refetching')) return null;
     return {
       id: item.id,
-      header: [t('weekColumn'), t('exportBrand'), t('exportShare'), t('exportAnswers'), t('exportState')],
+      header: [
+        t('weekColumn'),
+        t('exportBrand'),
+        t('exportShare'),
+        t('exportMentions'),
+        t('exportAnswers'),
+        t('exportPlatforms'),
+        t('exportPooled'),
+        t('exportState'),
+      ],
       rows: points.flatMap((point, index) =>
         series.map((entry) => {
           const value = entry.values[index];
+          const share = point.entities.find((candidate) => candidate.entityId === entry.id);
+          const counts = entry.id === OTHER_ID ? point.otherCounts : (share?.counts ?? null);
+          const mentions = entry.id === OTHER_ID ? point.otherNumerator : (share?.numerator ?? null);
+          // A week with no tracked-brand mention is n/a, and an average has no count of its own: each platform's are listed
+          const counted = point.state !== 'none' && !average;
           return [
             point.weekStart,
             entry.name,
             typeof value === 'number' ? Math.round(value * 1000) / 10 : null,
-            // An average has no single count: each platform's answers are its own
-            average ? null : (raw[index]?.answers ?? null),
+            counted ? mentions : null,
+            counted ? point.answers : null,
+            average && counts !== null
+              ? counts
+                  .map((part) => t('platformCount', { platform: engineLabel(part.code), k: part.k, n: part.n }))
+                  .join('; ')
+              : null,
+            point.pool !== null && point.pool.weeks > 1 ? `${point.pool.from} to ${point.pool.to}` : null,
             point.state,
           ];
         }),

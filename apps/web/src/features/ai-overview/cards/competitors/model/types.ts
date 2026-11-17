@@ -93,6 +93,11 @@ export interface EngineEntityTotals {
 /** The summary does not carry what is asked: not asked for (`include`), not listed, or the rows were left out. */
 export interface Unread {
   status: 'unread';
+  /**
+   * Why a share of voice has no counts: `capped` when the cells stop at 20 of a longer tracked set, so y would be too
+   * small (backend request 24); left out, the cells are not collected (not asked for, or not sent).
+   */
+  reason?: 'capped';
 }
 
 export type EntityTotals = EngineEntityTotals | Unread;
@@ -112,6 +117,11 @@ export interface WeeklyEntityShare {
   numerator: number;
   /** `null` when fewer than 4 answers name a tracked brand in the point. */
   value: number | null;
+  /**
+   * Only on a point that is the average of platforms (All platforms): x of y brand mentions of each platform that has
+   * a share that week, the counts behind the average (R3). An average has no count of its own, so `numerator` is 0.
+   */
+  counts?: { code: string; k: number; n: number }[];
 }
 
 /** One weekly point of share of voice: every tracked brand, one denominator. */
@@ -136,6 +146,10 @@ export interface FoldedPoint {
   entities: WeeklyEntityShare[];
   /** The summed share of "Other tracked"; `null` when no brand is folded or the point has no share. */
   other: number | null;
+  /** x of "Other tracked": the folded brands' mentions added up; `null` with no share, and for an average of platforms. */
+  otherNumerator: number | null;
+  /** For an average of platforms: the folded brands' mentions of each platform; `null` otherwise. */
+  otherCounts: { code: string; k: number; n: number }[] | null;
 }
 
 /** The weekly mention rate of one brand: `k` of `n` answers, from the point's pooled counts. */
@@ -167,6 +181,8 @@ export interface RankedWeek {
   answers: number;
   /** The weeks pooled behind the shares; `null` when the week stands alone. */
   poolWeeks: number | null;
+  /** The weeks and days the API pooled behind the point (ranked as read); `null` when the client pooled or nothing was. */
+  pool: PoolNote | null;
   entities: RankedEntity[];
 }
 
@@ -239,3 +255,17 @@ export interface CoMentionMatrix {
 export type CoMentionRead = CoMentionMatrix | Unread;
 
 export const UNREAD: Unread = { status: 'unread' };
+
+/** No share of voice because the tracked set is longer than the 20 cells the API lists: "More than 20 tracked brands". */
+export const CAPPED: Unread = { status: 'unread', reason: 'capped' };
+
+/** The one reason the cards word: capped, or else not collected. */
+export const unreadWhy = (...reads: readonly { status: string; reason?: 'capped' }[]): 'capped' | 'notCollected' =>
+  reads.some((read) => read.status === 'unread' && read.reason === 'capped') ? 'capped' : 'notCollected';
+
+/** What a weekly card holds when the read has no per-brand weekly counts: the reason it words (`capped` or `notCollected`). */
+export interface Unreadable {
+  unread: 'capped' | 'notCollected';
+}
+
+export const isUnreadable = (model: object | null): model is Unreadable => model !== null && 'unread' in model;

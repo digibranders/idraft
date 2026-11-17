@@ -124,3 +124,33 @@ describe('the share of voice card follows the page scope', () => {
     expect(await screen.findByText('No competitor is tracked')).toBeInTheDocument();
   });
 });
+
+describe('the share of voice card says why it has no share', () => {
+  it('says Not collected yet when the read carries no cell for a tracked brand', async () => {
+    serve(engine('chatgpt_web', { mentioned: weighted(25, 120, [0.3]), share: share(25, 100) }));
+    renderCard('cmp=off&engine=chatgpt_web');
+    expect(await screen.findByText('Not collected yet')).toBeInTheDocument();
+    expect(screen.queryByText(/No valid answers/)).not.toBeInTheDocument();
+  });
+
+  it('says More than 20 tracked brands when the cells stop at 20 of a longer set', async () => {
+    const many: SummaryEntity[] = Array.from({ length: 21 }, (_, index) =>
+      index === 0 ? own() : competitor(index + 1, `Rival ${String(index)}`),
+    );
+    const cells = many.slice(0, 20).map((entity) => entityCells(entity, weighted(5, 120, [0.3]), share(5, 100)));
+    server.use(
+      http.get(SUMMARY, () =>
+        HttpResponse.json({
+          data: summaryOf({
+            entities: many,
+            total: [
+              engine('chatgpt_web', { mentioned: weighted(5, 120, [0.3]), share: share(5, 100), entities: cells }),
+            ],
+          }),
+        }),
+      ),
+    );
+    renderCard('cmp=off&engine=chatgpt_web');
+    expect(await screen.findByText('More than 20 tracked brands')).toBeInTheDocument();
+  });
+});

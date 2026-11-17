@@ -6,7 +6,7 @@ import type { ReactElement } from 'react';
 import { SHAPE_OPTIONS, useTrackedSet } from './data/use-competitor-reads';
 import { shareAcrossPlatforms, type ScopeShareRead } from './model/scope-share';
 import { colorSlots } from './model/tracked-set';
-import type { TrackedSet } from './model/types';
+import { unreadWhy, type TrackedSet } from './model/types';
 import { useCardPlatforms } from './parts/card-engine';
 import { CompetitorBars, type CompetitorBarRow } from './parts/competitor-bars';
 import { frameSummary, useFrameState, type DataSituation, type FrameState } from './parts/frame-state';
@@ -72,9 +72,19 @@ export default function ShareOfVoiceCard({ item, options, live }: CardProps): Re
   const frame: FrameState =
     platforms.codes.length === 0
       ? { status: 'empty', empty: unavailable }
-      : tooFew && (base.status === 'ready' || base.status === 'refetching')
-        ? { status: 'empty', empty: { title: t('emptyTitle'), reason: t('emptyReason') } }
-        : base;
+      : share?.status === 'unread' &&
+          (base.status === 'ready' || base.status === 'refetching' || base.status === 'empty')
+        ? // No counts to read a share from: not collected, or more than 20 tracked brands (backend request 24)
+          {
+            status: 'empty',
+            empty: {
+              title: t(`${unreadWhy(share)}.title`),
+              reason: t(`${unreadWhy(share)}.reason`),
+            },
+          }
+        : tooFew && (base.status === 'ready' || base.status === 'refetching')
+          ? { status: 'empty', empty: { title: t('emptyTitle'), reason: t('emptyReason') } }
+          : base;
 
   const read = share?.status === 'read' && share.state === 'ok' ? share : null;
   const slots = set === null ? null : colorSlots(set);

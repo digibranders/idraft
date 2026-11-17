@@ -165,9 +165,9 @@ describe('the share of voice rank card (CH-29)', () => {
     await drawRanks();
     const words = tooltipText(2);
     expect(words).toContain('Week of Nov 2');
-    expect(words).toContain('HubSpot|Rank 1, 45%');
-    // The week's brand mentions: 84, 120 and 60 of 264
-    expect(words).toContain('Fynix|Rank 2, 32%');
+    // The week's brand mentions are 84, 120 and 60 of 264, written beside each share (D17)
+    expect(words).toContain('HubSpot|Rank 1, 45%, 120 of 264 brand mentions');
+    expect(words).toContain('Fynix|Rank 2, 32%, 84 of 264 brand mentions');
     expect(words).toContain('264 brand mentions among all tracked brands');
     expect(words.indexOf('HubSpot')).toBeLessThan(words.indexOf('Fynix'));
     expect(tooltipText(1)).toContain('Too few brand mentions (3): this week has no rank');
@@ -223,7 +223,9 @@ describe('the share of voice rank card (CH-29)', () => {
     const { user } = await drawRanks();
     await user.click(screen.getByRole('button', { name: 'Table' }));
     const table = screen.getByRole('table', { name: TITLE });
-    expect(within(table).getByRole('row', { name: /Oct 19/ })).toHaveTextContent('Rank 1, 40%');
+    expect(within(table).getByRole('row', { name: /Oct 19/ })).toHaveTextContent(
+      'Rank 1, 40%, 80 of 200 brand mentions',
+    );
     const gap = within(table).getByRole('row', { name: /Oct 26/ });
     expect(gap).toHaveTextContent('No data');
     expect(gap).not.toHaveTextContent('Rank');
@@ -234,9 +236,19 @@ describe('the share of voice rank card (CH-29)', () => {
     const { user } = await drawRanks();
     const [block] = await readExport(user);
     expect(block?.id).toBe('card-under-test');
-    expect(block?.header).toEqual(['Week', 'Brand', 'Rank', 'Share of voice', 'Brand mentions of all tracked brands']);
-    expect(block?.rows).toContainEqual(['2026-10-19', 'Fynix', 1, 40, 200]);
-    expect(block?.rows).toContainEqual(['2026-10-26', 'Fynix', null, null, 3]);
+    expect(block?.header).toEqual([
+      'Week',
+      'Brand',
+      'Rank',
+      'Share of voice',
+      'Brand mentions',
+      'Brand mentions of all tracked brands',
+      'Weeks held',
+      'Status',
+    ]);
+    // x of y brand mentions beside the share; a thin week keeps its counts and has no share or rank
+    expect(block?.rows).toContainEqual(['2026-10-19', 'Fynix', 1, 40, 80, 200, null, 'ok']);
+    expect(block?.rows).toContainEqual(['2026-10-26', 'Fynix', null, null, 1, 3, null, 'insufficient']);
   });
 
   it('has no serious accessibility violation when it is ready', async () => {

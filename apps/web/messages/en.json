@@ -5627,12 +5627,16 @@
         "weekOf": "Week of {date}",
         "weekOfPrevious": "Week of {date}, previous period",
         "averageTip": "Average of {count, plural, one {# platform} other {# platforms}}",
+        "averageShareTip": "Average of {count, plural, one {# platform} other {# platforms}}, each counting once. Brand mentions: {counts}",
+        "platformCount": "{platform} {k, number} of {n, number}",
         "shareTip": "{value}, {k, number} of {n, number} brand mentions",
         "emptyTitle": "Not enough data",
         "emptyReason": "These prompts have fewer than 4 valid answers on this platform.",
         "notCollectedTitle": "Not collected yet",
         "notCollectedReason": "AI visibility is not collected week by week yet. Choose Mention, Citation or Share of voice to see a trend.",
         "notCollectedShareReason": "The mentions of each tracked brand are not collected week by week yet, so no share of voice line is drawn. Choose Mention or Citation to see a trend.",
+        "cappedTitle": "More than 20 tracked brands",
+        "cappedShareReason": "The API lists the mentions of the first 20 tracked brands, so the share of voice cannot be read and no line is drawn. Choose Mention or Citation to see a trend.",
         "notCollectedWindow": "Over the period: {list}.",
         "weeksTitle": "A trend needs two weeks of answers",
         "weeksReason": "At least two weeks of this scope need valid answers. Widen the period or wait for the next run.",
@@ -5782,7 +5786,15 @@
         "summaryOwn": "You {own} ({ownCount}) in this period.",
         "summaryUnknown": "Mention rate by week on {engine}. This period has too few answers for a comparison.",
         "needsWeeksTitle": "A trend needs two weeks of answers",
-        "needsWeeksReason": "At least two weeks of this period need valid answers on {engine}. Widen the period or wait for the next run."
+        "needsWeeksReason": "At least two weeks of this period need valid answers on {engine}. Widen the period or wait for the next run.",
+        "notCollected": {
+          "title": "Not collected yet",
+          "reason": "The weekly mentions of each tracked brand are not collected yet, so no line is drawn."
+        },
+        "capped": {
+          "title": "More than 20 tracked brands",
+          "reason": "The API lists the mentions of the first 20 tracked brands, so the brands cannot be compared and no line is drawn."
+        }
       },
       "sovRank": {
         "title": "Share of voice rank on {engine}",
@@ -5791,12 +5803,18 @@
         "weekColumn": "Week",
         "weekTitle": "Week of {date}",
         "boundaryAdded": "{name} added",
+        "weekTitlePooled": "Week of {date}, {weeks, plural, one {# week} other {# weeks}} together ({range})",
         "row": "Rank {rank, number}, {share}",
+        "rowCounts": "Rank {rank, number}, {share}, {k, number} of {n, number} brand mentions",
         "cellNone": "No rank: too few answers",
         "exportBrand": "Brand",
         "exportRank": "Rank",
         "exportShare": "Share of voice",
+        "exportMentions": "Brand mentions",
         "exportAnswers": "Brand mentions of all tracked brands",
+        "exportPooled": "Weeks held",
+        "exportState": "Status",
+        "footerNone": "n/a: no brand mentions this week",
         "footerAnswers": "{answers, plural, one {# brand mention} other {# brand mentions}} among all tracked brands",
         "footerPooled": "{answers, plural, one {# brand mention} other {# brand mentions}} among all tracked brands, {weeks, plural, one {# week} other {# weeks}} together",
         "footerGap": "Too few brand mentions ({answers, number}): this week has no rank",
@@ -5809,7 +5827,15 @@
         "needsBrandsTitle": "A rank needs at least 3 tracked brands",
         "needsBrandsReason": "Add competitors in Settings > Brands and aliases. With fewer than 3 tracked brands there is little to put in order.",
         "needsWeeksTitle": "A trend needs two weeks of answers",
-        "needsWeeksReason": "At least two weeks of this period need ranked answers on {engine}. Widen the period or wait for the next run."
+        "needsWeeksReason": "At least two weeks of this period need ranked answers on {engine}. Widen the period or wait for the next run.",
+        "notCollected": {
+          "title": "Not collected yet",
+          "reason": "The weekly share of voice of each tracked brand is not collected yet, so no rank is drawn."
+        },
+        "capped": {
+          "title": "More than 20 tracked brands",
+          "reason": "The API lists the mentions of the first 20 tracked brands, so the share of each brand cannot be read and no rank is drawn."
+        }
       },
       "coMentions": {
         "title": "Who we are mentioned with on {engine}",
@@ -5902,6 +5928,14 @@
         "emptyTitle": "Not enough data",
         "emptyReason": "Too few answers on this platform.",
         "noAnswersReason": "No valid answers in this scope yet.",
+        "notCollected": {
+          "title": "Not collected yet",
+          "reason": "The mentions of each tracked brand are not collected yet, so no share of voice is drawn."
+        },
+        "capped": {
+          "title": "More than 20 tracked brands",
+          "reason": "The API lists the mentions of the first 20 tracked brands, so the share of each brand cannot be read."
+        },
         "moreRows": "{count, plural, one {# more brand is} other {# more brands are}} in the table view.",
         "fileName": "share-of-voice",
         "statusHeader": "Status",
@@ -5954,14 +5988,20 @@
         "boundaryAdded": "{name} added",
         "exportBrand": "Brand",
         "exportShare": "Share of voice",
+        "exportMentions": "Brand mentions",
         "exportAnswers": "Brand mentions of all tracked brands",
+        "exportPlatforms": "Brand mentions of each platform",
+        "exportPooled": "Weeks held",
         "exportState": "Status",
         "tooltipAnswersOne": "{answers, plural, one {Of # brand mention among all tracked brands that week} other {Of # brand mentions among all tracked brands that week}}",
         "tooltipAverage": "Average of the platforms that have enough brand mentions that week",
+        "tooltipNone": "n/a: no brand mentions that week",
         "tooFew": "Too few brand mentions that week: {answers, plural, one {# brand mention} other {# brand mentions}}, fewer than {min, number}",
         "cell": "{value}, {k, number} of {answers, number} brand mentions",
-        "cellNoCount": "{value}, of {answers, plural, one {# brand mention} other {# brand mentions}}",
-        "cellAverage": "{value}, average of the platforms with enough brand mentions",
+        "cellNone": "n/a",
+        "platformCount": "{platform} {k, number} of {n, number}",
+        "tipCounts": "Brand mentions: {counts}",
+        "cellAverage": "{value}, average of {count, plural, one {# platform} other {# platforms}}, each counting once. Brand mentions: {counts}",
         "footnoteOthers": "Other tracked: {count, plural, one {# brand} other {# brands}} ({names}).",
         "footnoteColumns": "Each week adds up to 100% of the brand mentions of all tracked brands. A week with fewer than {min, number} brand mentions on a platform leaves that platform out.",
         "footnotePooled": "A week with fewer than 10 prompts answering shows the last 4 weeks together, clipped to the period.",
@@ -5979,6 +6019,10 @@
         "notCollected": {
           "title": "Not collected yet",
           "reason": "The weekly share of voice of each tracked brand is not collected yet, so no layer is drawn."
+        },
+        "capped": {
+          "title": "More than 20 tracked brands",
+          "reason": "The API lists the mentions of the first 20 tracked brands, so the share of each brand cannot be read and no layer is drawn."
         }
       }
     },

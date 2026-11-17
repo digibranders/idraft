@@ -45,6 +45,8 @@ export interface PlatformSeries {
 export interface AveragePoint {
   value: number | null;
   platforms: number;
+  /** x of y of each platform that has a rate that week, the counts behind the average (an average has none of its own). */
+  counts: { code: EngineCode; k: number; n: number }[];
 }
 
 export interface PlatformTrend {
@@ -115,15 +117,19 @@ export function buildPlatformTrend({
     }),
   }));
   const platforms = series.filter((entry) => entry.points.some(drawn));
-  const rated = (point: TrendPoint | undefined): number[] =>
-    point !== undefined && drawn(point) && rateState(point.n) === 'ok' && point.value !== null ? [point.value] : [];
   const averaged =
     average && platforms.length > 1
       ? weeks.map((_, index): AveragePoint => {
-          const values = platforms.flatMap((entry) => rated(entry.points[index]));
+          const rated = platforms.flatMap((entry) => {
+            const point = entry.points[index];
+            return point !== undefined && drawn(point) && rateState(point.n) === 'ok' && point.value !== null
+              ? [{ code: entry.code, value: point.value, k: point.k, n: point.n }]
+              : [];
+          });
           return {
-            value: values.length === 0 ? null : values.reduce((total, value) => total + value, 0) / values.length,
-            platforms: values.length,
+            value: rated.length === 0 ? null : rated.reduce((total, part) => total + part.value, 0) / rated.length,
+            platforms: rated.length,
+            counts: rated.flatMap(({ code, k, n }) => (k === null ? [] : [{ code, k, n }])),
           };
         })
       : null;

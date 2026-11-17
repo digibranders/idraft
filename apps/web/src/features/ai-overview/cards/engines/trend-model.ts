@@ -6,7 +6,7 @@ import { addDays } from '@/components/app/date-range/business-date';
 import type { EngineCode, EngineSummary, MetricCell, ProjectEngine, PromptsSummary, WeekCells } from '@/lib/api/types';
 import type { WeekWithVisibility } from '@/lib/api/week-visibility';
 import type { RateBandPoint } from '@/lib/charts/rate-band-chart';
-import { shareNoteOf } from '@/lib/rates/brand-mention-share';
+import { shareNoteOf, type ShareNote } from '@/lib/rates/brand-mention-share';
 import { rateTipText, type RateTipWords } from '@/lib/charts/rate-tip';
 import type { CsvCell } from '@/lib/csv/csv-write';
 import { promptWeightedRate, rateState, wilsonInterval, type Interval, type RateState } from '@/lib/stats';
@@ -191,13 +191,23 @@ const totalSeries = (summary: PromptsSummary, code: EngineCode): readonly WeekCe
 
 /**
  * Whether the summary has weekly points and none of them carries its share of voice as brand-mention counts (no entity
- * cells in the weeks). The weekly entity cells are not in production until backend request 10: the line is then "not
- * collected", never drawn from the old sum of shares.
+ * cells in the weeks, or cut at 20 brands). The server sends the weekly entity cells with `include=series,entities`; a
+ * read without them is "not collected", never drawn from the old sum of shares.
  */
 export function weeklyShareNotCollected(summary: PromptsSummary): boolean {
+  return weeklyShareNote(summary) !== undefined;
+}
+
+/**
+ * Why no week of the summary has its share of voice as brand-mention counts: `capped` when the weekly cells stop at 20 of
+ * a longer tracked set (the share would be over too few mentions: "More than 20 tracked brands"), else `notCollected`;
+ * `undefined` when some week has its counts, or there is no week.
+ */
+export function weeklyShareNote(summary: PromptsSummary): ShareNote | undefined {
   const engines = [...(summary.total?.engines ?? []), ...summary.prompts.flatMap((prompt) => prompt.engines)];
-  const points = engines.flatMap((engine) => engine.series ?? []);
-  return points.length > 0 && points.every((week) => shareNoteOf(week.share_of_voice) !== undefined);
+  const notes = engines.flatMap((engine) => engine.series ?? []).map((week) => shareNoteOf(week.share_of_voice));
+  if (notes.length === 0 || notes.some((note) => note === undefined)) return undefined;
+  return notes.includes('capped') ? 'capped' : 'notCollected';
 }
 
 /** The weeks of an engine's series over the prompt rows, oldest first. */
