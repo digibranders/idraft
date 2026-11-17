@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { countByTier, MAX_CSV_CHARS, MAX_CSV_ROWS, parseTierCsv } from './tier-csv';
+import { countByTier, MAX_CSV_CHARS, MAX_CSV_ROWS, parseTierCsv, requestBytes } from './tier-csv';
 
 const TIERS = [
   { tier_id: 't1', code: 'T1', name: 'Money pages' },
@@ -126,6 +126,42 @@ describe('parseTierCsv, strict (the API contract of the import)', () => {
     expect(parseTierCsv(`url,tier\n${body}`, TIERS, strict).errors).toEqual([
       { line: MAX_CSV_ROWS + 2, code: 'too_many_rows', value: '' },
     ]);
+  });
+
+  it('takes a blank first line as the header the API reads, so it is a missing header', () => {
+    expect(parseTierCsv(`\nurl,tier\n${SITE}/a,T1`, TIERS, strict).errors).toEqual([
+      { line: 1, code: 'missing_header', value: '' },
+    ]);
+    expect(parseTierCsv(`  \nurl,tier\n${SITE}/a,T1`, TIERS, strict).errors).toEqual([
+      { line: 1, code: 'missing_header', value: '' },
+    ]);
+  });
+
+  it('lets the last column of a repeated header name win, as the API does', () => {
+    expect(parseTierCsv(`url,tier,url\n${SITE}/ignored,T1,${SITE}/kept`, TIERS, strict).rows).toEqual([
+      { line: 2, url: `${SITE}/kept`, tierId: 't1' },
+    ]);
+    expect(parseTierCsv(`tier,url,tier\nT9,${SITE}/a,T2`, TIERS, strict).rows).toEqual([
+      { line: 2, url: `${SITE}/a`, tierId: 't2' },
+    ]);
+  });
+
+  it('skips a line with nothing in any cell, as the API does', () => {
+    expect(parseTierCsv(`url,tier\n,\n  ,  \n${SITE}/a,T1`, TIERS, strict)).toEqual({
+      rows: [{ line: 4, url: `${SITE}/a`, tierId: 't1' }],
+      errors: [],
+    });
+  });
+
+  it('refuses a request body over the 1 MB the API takes, counted in bytes with the JSON around the text', () => {
+    // 4-byte characters: under the character cap, over the byte cap
+    const heavy = `url,tier\n${'😀'.repeat(300_000)}`;
+    expect(heavy.length).toBeLessThan(MAX_CSV_CHARS);
+    expect(parseTierCsv(heavy, TIERS, strict)).toEqual({
+      rows: [],
+      errors: [{ line: 1, code: 'body_too_large', value: '' }],
+    });
+    expect(requestBytes('a"b\n')).toBe(new TextEncoder().encode('{"csv":"a\\"b\\n"}').length);
   });
 
   it('refuses text over the size the API takes before reading it', () => {

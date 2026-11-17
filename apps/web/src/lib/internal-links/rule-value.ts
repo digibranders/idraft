@@ -1,4 +1,6 @@
-import type { MatchType } from './rule-changes';
+import type { TierRuleView } from './types';
+
+type MatchType = TierRuleView['match_type'];
 
 /** A project holds at most this many rules (`RULES_MAX` of the backend). */
 export const MAX_RULES = 500;

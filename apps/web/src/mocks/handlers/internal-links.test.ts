@@ -147,6 +147,74 @@ describe('the internal links mock API', () => {
     });
   });
 
+  it('checks a rule path with the API grammar, and the 500 rule cap, with the reason in errors', async () => {
+    const browser = mockBrowser('editor');
+    const tier = TIERS.parse((await browser.call('GET', `${W}/page-tiers`)).body).data[0];
+    const tier_id = tier?.tier_id ?? '';
+    const refused = async (match_type: string, value: string): Promise<unknown> => {
+      const answer = await browser.call('POST', `${P}/tier-rules`, { match_type, value, tier_id });
+      expect(answer.status).toBe(422);
+      return answer.body;
+    };
+    expect(await refused('prefix', 'pricing')).toMatchObject({
+      errors: [{ path: 'value', code: 'starts_with_slash' }],
+    });
+    expect(await refused('exact', '/a*')).toMatchObject({ errors: [{ path: 'value', code: 'star_in_exact' }] });
+    expect(await refused('prefix', '/a*')).toMatchObject({ errors: [{ path: 'value', code: 'star_in_prefix' }] });
+    expect(await refused('pattern', `/${'a*'.repeat(11)}`)).toMatchObject({
+      errors: [{ path: 'value', code: 'too_many_stars' }],
+    });
+    // The detail is the generic count, the reason is in the field error, as the API sends it
+    const bad = await browser.call('POST', `${P}/tier-rules`, { match_type: 'exact', value: 'x', tier_id });
+    expect(bad.body).toMatchObject({ errors: [{ message: 'A rule matches a path, which starts with `/`.' }] });
+    // A patch is checked against the type the rule ends with
+    const rules = z.object({ data: z.array(z.object({ rule_id: z.string(), match_type: z.string() })) });
+    const first = rules
+      .parse((await browser.call('GET', `${P}/tier-rules`)).body)
+      .data.find((rule) => rule.match_type === 'prefix');
+    const patched = await browser.call('PATCH', `${P}/tier-rules/${first?.rule_id ?? ''}`, { value: '/x*' });
+    expect(patched.status).toBe(422);
+
+    for (let count = 2; count < 500; count += 1) {
+      expect(
+        (await browser.call('POST', `${P}/tier-rules`, { match_type: 'exact', value: `/p${String(count)}`, tier_id }))
+          .status,
+      ).toBe(201);
+    }
+    const over = await browser.call('POST', `${P}/tier-rules`, { match_type: 'exact', value: '/over', tier_id });
+    expect(over.body).toMatchObject({
+      errors: [{ path: 'position', code: 'rule_limit', message: 'At most 500 rules.' }],
+    });
+  });
+
+  it('takes the site and its www form in an import, and refuses other hosts as other_site', async () => {
+    const browser = mockBrowser('editor');
+    const csv = [
+      'url,tier',
+      'https://www.eventussecurity.com/pricing,T1',
+      'http://eventussecurity.com/about,T3',
+      'https://blog.eventussecurity.com/x,T1',
+      'https://other.example/x,T1',
+    ].join('\n');
+    const answer = await browser.call('POST', `${P}/pages/tiers/import`, { csv });
+    expect(answer.body).toMatchObject({
+      data: {
+        applied: false,
+        errors: [
+          { line: 4, code: 'other_site' },
+          { line: 5, code: 'other_site' },
+        ],
+      },
+    });
+  });
+
+  it('answers a request body over 1 MB with 413 before reading it', async () => {
+    const answer = await mockBrowser('editor').call('POST', `${P}/pages/tiers/import`, {
+      csv: `url,tier\n${'😀'.repeat(300_000)}`,
+    });
+    expect(answer.status).toBe(413);
+  });
+
   it('answers the CSV downloads with the server columns in the server order, and no equity', async () => {
     const browser = mockBrowser('viewer');
     const pages = await browser.call('GET', `${P}/internal-links/pages?format=csv`);

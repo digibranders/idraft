@@ -5,10 +5,10 @@ import { ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useId, useMemo, useRef, useState, type ReactElement } from 'react';
 
+import { reasonOf } from './problem-reason';
 import { ruleChanges, type DraftRule, type MatchType } from './rule-changes';
-import { checkRuleValue, MAX_RULES, type RuleValueProblem } from './rule-value';
-import { TierBadge } from '@/components/app/tier/tier-badge';
 import { InlineError } from '@/components/app/status/inline-error';
+import { TierBadge } from '@/components/app/tier/tier-badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogBody, DialogClose, DialogFooter, DialogHeader } from '@/components/ui/dialog';
 import { FormAlert } from '@/components/ui/form-alert';
@@ -17,10 +17,11 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from '@/components/ui/toast';
-import { isApiProblem } from '@/lib/api/problem';
+import { announce } from '@/lib/a11y/announcer';
 import { useDebouncedValue } from '@/lib/dom/use-debounced-value';
 import { createRuleMutation, deleteRuleMutation, updateRuleMutation } from '@/lib/internal-links/mutations';
 import { internalLinksKeys, tierRulePreviewQuery, tierRulesQuery } from '@/lib/internal-links/queries';
+import { checkRuleValue, MAX_RULES, type RuleValueProblem } from '@/lib/internal-links/rule-value';
 import type { LinksScope, PageTier, TierRuleView } from '@/lib/internal-links/types';
 
 const MATCHES: readonly MatchType[] = ['exact', 'prefix', 'pattern'];
@@ -35,30 +36,53 @@ const PROBLEM_KEY = {
   too_many_stars: 'tooManyStars',
 } as const satisfies Record<RuleValueProblem, string>;
 
-/** What the API said when it said something (a problem's detail, else its title), else nothing. */
-const reasonOf = (error: unknown): string => (isApiProblem(error) ? (error.detail ?? error.string('title') ?? '') : '');
+/** The saved rules as one comparable text: a change by anyone else, in any field or in the order, changes it. */
+const signature = (rules: readonly TierRuleView[]): string =>
+  JSON.stringify(
+    [...rules]
+      .sort((a, b) => a.position - b.position)
+      .map((rule) => [rule.rule_id, rule.match_type, rule.value, rule.tier.tier_id]),
+  );
+
+/** The draft with the rules it started from: the snapshot says what a save has to find unchanged. */
+interface Draft {
+  rows: DraftRule[];
+  snapshot: readonly TierRuleView[];
+}
 
 /**
- * "Matches N pages" of one draft rule (decision W16), asked 300 ms after the person stops typing and only for a
- * path the API would accept. It counts against the saved rules, as the API does; the draft's other rules are not
- * in it. No sample paths: the API has none (gap G5).
+ * "Matches N pages" of one rule (decision W16). A count costs a request that reads the whole crawl, so it is asked
+ * only for a rule the person edited, added, focused or asked about, 300 ms after they stop typing and only for a
+ * path the API would accept; the others offer "Count pages". It counts against the saved rules, as the API does:
+ * the draft's other rules are not in it. No sample paths: the API has none (gap G5).
  */
 function RulePreview({
   scope,
   rule,
   position,
+  counting,
+  onCount,
 }: {
   scope: LinksScope;
   rule: Pick<DraftRule, 'matchType' | 'value' | 'ruleId'>;
   position: number;
+  counting: boolean;
+  onCount: () => void;
 }): ReactElement {
   const t = useTranslations('internalLinks.rules');
   const value = useDebouncedValue(rule.value.trim(), PREVIEW_DELAY);
-  const askable = checkRuleValue(rule.matchType, value) === null;
+  const askable = counting && checkRuleValue(rule.matchType, value) === null;
   const preview = useQuery({
     ...tierRulePreviewQuery(scope, { matchType: rule.matchType, value, position, ruleId: rule.ruleId }),
     enabled: askable,
   });
+  if (!counting) {
+    return (
+      <Button variant="ghost" size="sm" aria-label={t('countLabel', { position })} onClick={onCount}>
+        {t('count')}
+      </Button>
+    );
+  }
   let text = t('enterPath');
   if (askable) {
     if (preview.isError) text = t('previewFailed');
@@ -69,7 +93,17 @@ function RulePreview({
 }
 
 /** The rules as plain text, for a member who may read them and not change them. */
-function ReadOnlyRules({ scope, rules }: { scope: LinksScope; rules: readonly TierRuleView[] }): ReactElement {
+function ReadOnlyRules({
+  scope,
+  rules,
+  counted,
+  onCount,
+}: {
+  scope: LinksScope;
+  rules: readonly TierRuleView[];
+  counted: ReadonlySet<string>;
+  onCount: (key: string) => void;
+}): ReactElement {
   const t = useTranslations('internalLinks.rules');
   if (rules.length === 0) return <p className="type-body text-foreground-secondary">{t('emptyReadOnly')}</p>;
   return (
@@ -87,6 +121,8 @@ function ReadOnlyRules({ scope, rules }: { scope: LinksScope; rules: readonly Ti
               scope={scope}
               rule={{ matchType: rule.match_type, value: rule.value, ruleId: rule.rule_id }}
               position={rule.position}
+              counting={counted.has(rule.rule_id)}
+              onCount={() => onCount(rule.rule_id)}
             />
           </div>
         </li>
@@ -97,9 +133,11 @@ function ReadOnlyRules({ scope, rules }: { scope: LinksScope; rules: readonly Ti
 
 /**
  * Tier rules (spec 5.2, mock `openRules`): ordered rows of match type, path and tier, saved together as the calls
- * `ruleChanges` works out (decision W15). A save that stops halfway says so, stays open and keeps the draft; the
- * rules it did save are read again, so saving once more sends only what is left. Without `canWrite` the rules are
- * read only.
+ * `ruleChanges` works out (decision W15). The draft keeps the rules it started from. A save reads the rules again
+ * first: if anyone changed them meanwhile, nothing is sent, the draft is dropped and the person is told, so a stale
+ * draft never removes or overwrites a teammate's rule. A save that stops halfway says so, stays open and keeps the
+ * draft; the rules it did save are read again, so saving once more sends only what is left. Without `canWrite` the
+ * rules are read only.
  */
 export function RulesDialog({
   open,
@@ -124,7 +162,8 @@ export function RulesDialog({
   const baseId = useId();
   const counter = useRef(0);
   // `null` until the person edits: the saved rules are shown as they are
-  const [draftState, setDraftState] = useState<DraftRule[] | null>(null);
+  const [draftState, setDraftState] = useState<Draft | null>(null);
+  const [counted, setCounted] = useState<ReadonlySet<string>>(new Set());
   const [errors, setErrors] = useState<ReadonlyMap<string, string>>(new Map());
   const [failure, setFailure] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -140,22 +179,33 @@ export function RulesDialog({
       })),
     [savedRules],
   );
-  const rows = draftState ?? base;
+  const rows = draftState?.rows ?? base;
+  const known = useMemo(
+    () => new Set((draftState?.snapshot ?? savedRules ?? []).map((rule) => rule.rule_id)),
+    [draftState, savedRules],
+  );
   const setDraft = (change: (current: DraftRule[]) => DraftRule[]): void =>
-    setDraftState((current) => change(current ?? base));
+    setDraftState((current) => ({
+      rows: change(current?.rows ?? base),
+      snapshot: current?.snapshot ?? savedRules ?? [],
+    }));
+  const touch = (key: string): void =>
+    setCounted((current) => (current.has(key) ? current : new Set(current).add(key)));
   const close = (next: boolean): void => {
     // A save under way finishes first: closing would hide a failure the person has to read
     if (!next && saving) return;
     if (!next) {
       setDraftState(null);
+      setCounted(new Set());
       setErrors(new Map());
       setFailure(null);
     }
     onOpenChange(next);
   };
-  const changes = savedRules === undefined ? null : ruleChanges(savedRules, rows);
+  const changes = savedRules === undefined ? null : ruleChanges(savedRules, rows, known);
   const dirty = changes !== null && changes.deletes.length + changes.patches.length + changes.creates.length > 0;
   const edit = (key: string, change: Partial<DraftRule>): void => {
+    touch(key);
     setErrors((current) => {
       if (!current.has(key)) return current;
       const next = new Map(current);
@@ -175,41 +225,65 @@ export function RulesDialog({
   const addRule = (): void => {
     counter.current += 1;
     const key = `new-${String(counter.current)}`;
+    touch(key);
     setDraft((current) => [
       ...current,
       { key, ruleId: null, matchType: 'prefix', value: '/', tierId: tiers[0]?.tier_id ?? '' },
     ]);
   };
+  const refresh = (): void => {
+    for (const queryKey of internalLinksKeys(scope)) void queryClient.invalidateQueries({ queryKey });
+  };
 
   const save = async (): Promise<void> => {
-    if (saving || changes === null) return;
+    if (saving || changes === null || saved.isFetching) return;
     const problems = new Map<string, string>();
     for (const rule of rows) {
       const problem = checkRuleValue(rule.matchType, rule.value);
       if (problem !== null) problems.set(rule.key, t(PROBLEM_KEY[problem]));
     }
     setErrors(problems);
-    if (problems.size > 0) return;
+    if (problems.size > 0) {
+      // The first path to fix takes focus, and the count is spoken: the messages beside the fields are not live
+      const first = rows.find((rule) => problems.has(rule.key));
+      if (first !== undefined) document.getElementById(`${baseId}-path-${first.key}`)?.focus();
+      announce(t('invalidAnnounce', { count: problems.size }), { key: 'internal-links-rules' });
+      return;
+    }
     setSaving(true);
     setFailure(null);
+    // The rules as they are now: if anyone changed them since the draft began, saving blind could undo their work
+    const fresh = await saved.refetch();
+    const current = fresh.data?.data;
+    const snapshot = draftState?.snapshot ?? savedRules ?? [];
+    if (current === undefined) {
+      setFailure(t('loadFailedSave'));
+      setSaving(false);
+      return;
+    }
+    if (signature(current) !== signature(snapshot)) {
+      setFailure(t('changedMeanwhile'));
+      setDraftState(null);
+      setCounted(new Set());
+      setSaving(false);
+      return;
+    }
+    const work = ruleChanges(current, rows, known);
+    // The rules created so far by key: a second save must patch them, not create them again
+    const created = new Map<string, string>();
     let step: { removing: true } | { position: number } = { removing: true };
     try {
-      for (const ruleId of changes.deletes)
-        await remove.mutateAsync({ params: { path: { ...path, rule_id: ruleId } } });
-      for (const patch of changes.patches) {
-        step = { position: patch.body.position ?? 0 };
+      for (const ruleId of work.deletes) await remove.mutateAsync({ params: { path: { ...path, rule_id: ruleId } } });
+      for (const patch of work.patches) {
+        step = { position: patch.body.position ?? rows.findIndex((rule) => rule.ruleId === patch.ruleId) + 1 };
         await update.mutateAsync({ params: { path: { ...path, rule_id: patch.ruleId } }, body: patch.body });
       }
-      for (const body of changes.creates) {
+      const newRows = rows.filter((rule) => rule.ruleId === null);
+      for (const [index, body] of work.creates.entries()) {
         step = { position: body.position };
         const answer = await create.mutateAsync({ params: { path }, body });
-        // The rule exists now: a second save must patch it, not create it again
-        const created = changes.creates.indexOf(body);
-        const key = rows.filter((rule) => rule.ruleId === null)[created]?.key;
-        if (key !== undefined)
-          setDraft((current) =>
-            current.map((rule) => (rule.key === key ? { ...rule, ruleId: answer.data.rule_id } : rule)),
-          );
+        const key = newRows[index]?.key;
+        if (key !== undefined) created.set(key, answer.data.rule_id);
       }
       toast({ type: 'success', title: t('saved'), description: t('savedText', { count: rows.length }) });
       setSaving(false);
@@ -217,9 +291,18 @@ export function RulesDialog({
     } catch (error) {
       const lead = 'removing' in step ? t('failedRemove') : t('failed', { position: step.position });
       setFailure([lead, reasonOf(error), t('failedHint')].filter((part) => part !== '').join(' '));
+      // What the failed save did is part of the rules now: the draft starts from them, so saving again sends the rest
+      const again = await saved.refetch();
+      setDraftState({
+        rows: rows.map((rule) => {
+          const ruleId = created.get(rule.key);
+          return ruleId === undefined ? rule : { ...rule, ruleId };
+        }),
+        snapshot: again.data?.data ?? current,
+      });
       setSaving(false);
     } finally {
-      for (const queryKey of internalLinksKeys(scope)) void queryClient.invalidateQueries({ queryKey });
+      refresh();
     }
   };
 
@@ -231,7 +314,7 @@ export function RulesDialog({
         <Skeleton shape="block" height="row" />
       </div>
     );
-  } else if (saved.isError) {
+  } else if (saved.isError && savedRules === undefined) {
     body = (
       <InlineError
         title={t('loadFailed')}
@@ -243,7 +326,7 @@ export function RulesDialog({
       />
     );
   } else if (!canWrite) {
-    body = <ReadOnlyRules scope={scope} rules={saved.data.data} />;
+    body = <ReadOnlyRules scope={scope} rules={savedRules ?? []} counted={counted} onCount={touch} />;
   } else {
     body = (
       <>
@@ -270,11 +353,13 @@ export function RulesDialog({
                       className="w-40"
                     />
                     <Input
+                      id={`${baseId}-path-${rule.key}`}
                       aria-label={t('path', { position })}
                       aria-invalid={error === undefined ? undefined : true}
                       aria-describedby={error === undefined ? undefined : `${baseId}-${rule.key}`}
                       value={rule.value}
                       onValueChange={(value) => edit(rule.key, { value })}
+                      onFocus={() => touch(rule.key)}
                       size="sm"
                       autoComplete="off"
                       spellCheck={false}
@@ -316,7 +401,13 @@ export function RulesDialog({
                         {error}
                       </span>
                     )}
-                    <RulePreview scope={scope} rule={rule} position={position} />
+                    <RulePreview
+                      scope={scope}
+                      rule={rule}
+                      position={position}
+                      counting={counted.has(rule.key)}
+                      onCount={() => touch(rule.key)}
+                    />
                   </div>
                 </li>
               );
@@ -366,7 +457,12 @@ export function RulesDialog({
       <DialogFooter
         primary={
           canWrite ? (
-            <Button variant="primary" loading={saving} disabled={!dirty} onClick={() => void save()}>
+            <Button
+              variant="primary"
+              loading={saving}
+              disabled={!dirty || saved.isFetching}
+              onClick={() => void save()}
+            >
               {t('save')}
             </Button>
           ) : (

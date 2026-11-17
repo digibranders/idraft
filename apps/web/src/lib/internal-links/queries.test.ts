@@ -19,6 +19,7 @@ import {
   pagesQuery,
   tierFlowQuery,
   tierRulesQuery,
+  tierRulePreviewQuery,
   pageTiersQuery,
   checkUrlId,
   crawlFinishedKeys,
@@ -76,6 +77,20 @@ describe('the pages query (the backend OpenAPI)', () => {
     expect(startsWith(pagesQuery(SCOPE, DEFAULT_PAGE_QUERY).queryKey, reads)).toBe(true);
     expect(startsWith(tierRulesQuery(SCOPE).queryKey, rules)).toBe(true);
     expect(startsWith(pageTiersQuery('w1').queryKey, tiers)).toBe(true);
+  });
+
+  it('keys a rule preview under the rules, one key per rule as typed', () => {
+    const startsWith = (key: readonly unknown[], prefix: readonly unknown[] | undefined): boolean =>
+      prefix !== undefined && prefix.every((part, index) => key[index] === part);
+    const input = { matchType: 'prefix' as const, value: '/a/', position: 1, ruleId: null };
+    const key = tierRulePreviewQuery(SCOPE, input).queryKey;
+    // A rule change refreshes it through the rules prefix, and it stays out of the pages reads
+    expect(startsWith(key, internalLinksKeys(SCOPE)[1])).toBe(true);
+    expect(startsWith(key, internalLinksKeys(SCOPE)[0])).toBe(false);
+    expect(tierRulePreviewQuery(SCOPE, { ...input, value: '/b/' }).queryKey).not.toEqual(key);
+    expect(tierRulePreviewQuery(SCOPE, { ...input, position: 2 }).queryKey).not.toEqual(key);
+    expect(tierRulePreviewQuery(SCOPE, { ...input, ruleId: 'r1' }).queryKey).not.toEqual(key);
+    expect(tierRulePreviewQuery(SCOPE, { ...input }).queryKey).toEqual(key);
   });
 
   it('keys the tier flow under the reads that a tier change or a finished crawl makes stale', () => {

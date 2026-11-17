@@ -1,4 +1,4 @@
-import { queryOptions } from '@tanstack/react-query';
+import { queryOptions, type UseQueryOptions } from '@tanstack/react-query';
 
 import { api, unwrap } from '@/lib/api/client';
 import { apiQuery, type ApiQueryOptions } from '@/lib/api/query';
@@ -16,6 +16,7 @@ import type {
   PageSort,
   PageWorklist,
   StatusClass,
+  TierRulePreview,
 } from './types';
 
 /**
@@ -299,7 +300,10 @@ export interface RulePreviewInput {
  * Pages the latest crawl holds that a rule matches, and how many of them it would decide. A POST that only reads,
  * so it is a query: its key sits under `tier-rules` and a rule change refreshes it.
  */
-export const tierRulePreviewQuery = (scope: LinksScope, input: RulePreviewInput) =>
+export const tierRulePreviewQuery = (
+  scope: LinksScope,
+  input: RulePreviewInput,
+): UseQueryOptions<TierRulePreview, Error, TierRulePreview, unknown[]> =>
   queryOptions({
     queryKey: [...projectKey(scope.workspaceId, scope.projectId), 'tier-rules', 'preview', input],
     queryFn: ({ signal }) =>

@@ -5,6 +5,12 @@ export const MAX_CSV_ROWS = 20_000;
 /** The API takes a CSV body of at most this many characters (`CSV_MAX` of the backend schema). */
 export const MAX_CSV_CHARS = 900_000;
 
+/** The API refuses a request body over this many bytes (1 MiB), 413 before it reads the text. */
+export const MAX_BODY_BYTES = 1_048_576;
+
+/** The size of the request body that carries `text`, as it is sent. */
+export const requestBytes = (text: string): number => new TextEncoder().encode(JSON.stringify({ csv: text })).length;
+
 export interface CsvTier {
   tier_id: string;
   code: string;
@@ -20,7 +26,14 @@ export interface CsvTierRow {
 
 export interface CsvTierError {
   line: number;
-  code: 'unknown_tier' | 'missing_column' | 'too_many_rows' | 'invalid_url' | 'missing_header' | 'too_large';
+  code:
+    | 'unknown_tier'
+    | 'missing_column'
+    | 'too_many_rows'
+    | 'invalid_url'
+    | 'missing_header'
+    | 'too_large'
+    | 'body_too_large';
   /** The tier text that did not match; empty for the other codes. */
   value: string;
 }
@@ -65,6 +78,9 @@ export function parseTierCsv(
 ): { rows: CsvTierRow[]; errors: CsvTierError[] } {
   const strict = options.strict === true;
   if (text.length > MAX_CSV_CHARS) return { rows: [], errors: [{ line: 1, code: 'too_large', value: '' }] };
+  // Characters can weigh up to four bytes, and the request wraps the text in JSON: the body is what the API caps
+  if (requestBytes(text) > MAX_BODY_BYTES)
+    return { rows: [], errors: [{ line: 1, code: 'body_too_large', value: '' }] };
   // A code or Untiered is looked up before a name or a label; a name two tiers share names none
   const byCode = new Map<string, string>();
   const byName = new Map<string, string | null>();
@@ -87,17 +103,24 @@ export function parseTierCsv(
     // A line is one record: a quote left open means a cell that runs over a line break, which the Check refuses
     const open = (raw.match(/"/g)?.length ?? 0) % 2 === 1;
     const cells = open ? [raw] : parseCsv(raw)[0];
-    if (cells === undefined) continue;
+    // The API reads the first record as the header, blank or not: a blank first line is a missing header
+    if (cells === undefined) {
+      if (strict && index === 0) return { rows: [], errors: [{ line, code: 'missing_header', value: '' }] };
+      continue;
+    }
     // The header is the first line with anything on it
     const first = !started;
     started = true;
     if (first && strict) {
       const names = cells.map((cell) => cell.trim().toLowerCase());
-      urlAt = names.indexOf('url');
-      tierAt = names.indexOf('tier');
+      // A name the header repeats belongs to its last column, as in the API
+      urlAt = names.lastIndexOf('url');
+      tierAt = names.lastIndexOf('tier');
       if (urlAt < 0 || tierAt < 0) return { rows: [], errors: [{ line, code: 'missing_header', value: '' }] };
       continue;
     }
+    // The API skips a line with nothing in any cell
+    if (strict && !open && cells.every((cell) => cell.trim() === '')) continue;
     if (first && isHeader(cells)) continue;
     counted += 1;
     if (counted > MAX_CSV_ROWS) {

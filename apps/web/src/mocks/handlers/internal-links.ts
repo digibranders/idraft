@@ -29,7 +29,8 @@ import { csvLines } from '@/lib/csv/csv-write';
 import type { Problem, ValidationItem } from '@/lib/api/types';
 import { textLength } from '@/lib/text/length';
 import { parseLinkScope, type LinkScope } from '@/lib/internal-links/scopes';
-import { MAX_CSV_CHARS, parseTierCsv } from '@/lib/internal-links/tier-csv';
+import { checkRuleValue, MAX_RULES } from '@/lib/internal-links/rule-value';
+import { MAX_BODY_BYTES, MAX_CSV_CHARS, parseTierCsv, requestBytes } from '@/lib/internal-links/tier-csv';
 import { MAX_TIERS } from '@/lib/internal-links/tiers';
 import type { PageFilter, PageRow, TierImportResult } from '@/lib/internal-links/types';
 
@@ -69,7 +70,16 @@ const EDGE_QUERY = [
   'q_source',
   'q_target',
 ];
-const SITE = 'https://eventussecurity.com';
+/** The hosts an import takes as the site: its bare and `www.` forms (`site_hosts` of the backend, no subdomains set). */
+const SITE_HOSTS: ReadonlySet<string> = new Set(['eventussecurity.com', 'www.eventussecurity.com']);
+/** The messages of the API for an import line it refuses (`parse_tier_csv` of the backend), by code. */
+const IMPORT_MESSAGES = {
+  invalid_url: 'Not an http or https URL.',
+  other_site: 'Not a page of this site.',
+  unknown_tier: 'No tier is called that.',
+  missing_column: 'The first line names `url` and `tier`.',
+  too_many_rows: 'At most 20000 rows.',
+} as const;
 
 // `_PAGE_CSV_HEADER` and `_EDGE_CSV_HEADER` of backend/src/idraft/api/internal_links/reads.py
 const PAGE_CSV_HEADER = [
@@ -264,11 +274,31 @@ type ImportedPath = { path: string } | { code: 'invalid_url' | 'other_site' };
 
 function importedPath(text: string): ImportedPath {
   try {
-    const url = new URL(text, SITE);
-    return url.origin === SITE ? { path: url.pathname } : { code: 'other_site' };
+    const url = new URL(text);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return { code: 'invalid_url' };
+    return SITE_HOSTS.has(url.hostname) ? { path: url.pathname } : { code: 'other_site' };
   } catch {
     return { code: 'invalid_url' };
   }
+}
+
+/** The words of the API for a rule path it refuses (`_RULE_MESSAGES` of the backend), by code. */
+const RULE_MESSAGES = {
+  empty: 'String should have at least 1 character',
+  starts_with_slash: 'A rule matches a path, which starts with `/`.',
+  too_long: 'At most 500 characters.',
+  star_in_exact: '`*` is for pattern rules; an exact rule matches one path.',
+  star_in_prefix: '`*` is for pattern rules; a prefix rule matches the start of a path.',
+  too_many_stars: 'At most 10 `*` in a pattern.',
+} as const;
+
+/** A `422` for a rule value the API would refuse, with the reason in the field error and a count in the detail. */
+function ruleValueProblem(request: Request, matchType: string, value: unknown): HttpResponse<Problem> | null {
+  if (typeof value !== 'string' || (matchType !== 'exact' && matchType !== 'prefix' && matchType !== 'pattern')) {
+    return null;
+  }
+  const found = checkRuleValue(matchType, value);
+  return found === null ? null : invalidField(request, 'value', found, RULE_MESSAGES[found]);
 }
 
 export const internalLinkHandlers: HttpHandler[] = [
@@ -384,7 +414,10 @@ export const internalLinkHandlers: HttpHandler[] = [
         { path: 'tier_id', code: 'unknown_tier', message: 'Not a tier of this workspace.', location: 'body' },
       ]);
     }
+    const refused = ruleValueProblem(request, body.match_type, body.value);
+    if (refused !== null) return refused;
     const world = linksWorld();
+    if (world.rules.length >= MAX_RULES) return invalidField(request, 'position', 'rule_limit', 'At most 500 rules.');
     const rule = {
       rule_id: freshId(),
       match_type: body.match_type,
@@ -407,6 +440,9 @@ export const internalLinkHandlers: HttpHandler[] = [
     const rule = world.rules[index];
     if (rule === undefined) return problem(request, 'not_found');
     const body = await request.json();
+    // The value is checked against the type the rule ends up with
+    const refused = ruleValueProblem(request, body.match_type ?? rule.match_type, body.value ?? rule.value);
+    if (refused !== null) return refused;
     const next = {
       ...rule,
       ...(body.match_type === undefined ? {} : { match_type: body.match_type }),
@@ -486,20 +522,21 @@ export const internalLinkHandlers: HttpHandler[] = [
     });
     if (caller instanceof Response) return caller;
     const { csv: text } = await request.json();
-    // The API caps the body (CSV_MAX) and answers 422 over it
+    // The API refuses a body over 1 MiB with 413 before it reads it, and a text over CSV_MAX with 422
+    if (typeof text === 'string' && requestBytes(text) > MAX_BODY_BYTES) return problem(request, 'payload_too_large');
     if (typeof text === 'string' && text.length > MAX_CSV_CHARS) {
       return invalidField(request, 'csv', 'string_too_long', 'Over 900,000 characters.');
     }
     // The API wants a header naming url and tier, and an absolute http(s) address on every row
     const parsed = parseTierCsv(text, pageTierViews(), { strict: true });
     const errors: TierImportResult['errors'] = parsed.errors.flatMap((error) =>
-      error.code === 'too_large'
+      error.code === 'too_large' || error.code === 'body_too_large'
         ? []
         : [
             {
               line: error.line,
               code: error.code === 'missing_header' ? ('missing_column' as const) : error.code,
-              message: `Line ${String(error.line)}: ${error.code}.`,
+              message: IMPORT_MESSAGES[error.code === 'missing_header' ? 'missing_column' : error.code],
             },
           ],
     );
@@ -509,7 +546,7 @@ export const internalLinkHandlers: HttpHandler[] = [
     for (const row of parsed.rows) {
       const where = importedPath(row.url);
       if ('code' in where) {
-        errors.push({ line: row.line, code: where.code, message: `Line ${String(row.line)}: ${where.code}.` });
+        errors.push({ line: row.line, code: where.code, message: IMPORT_MESSAGES[where.code] });
         continue;
       }
       const id = byPath.get(where.path);

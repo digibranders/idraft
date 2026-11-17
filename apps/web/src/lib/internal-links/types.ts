@@ -18,6 +18,7 @@ export type Worklists = Schemas['Worklists'];
 export type PageTier = Schemas['PageTier'];
 export type TierRef = Schemas['TierRef'];
 export type TierRuleView = Schemas['TierRuleView'];
+export type TierRulePreview = Schemas['TierRulePreview'];
 export type TierImportResult = Schemas['TierImportResult'];
 export type PageFilter = Schemas['PageFilter'];
 export type CrawlRun = Schemas['CrawlRun'];

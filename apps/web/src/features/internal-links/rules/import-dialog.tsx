@@ -6,11 +6,13 @@ import { useState, type ReactElement } from 'react';
 
 import { TierBadge } from '@/components/app/tier/tier-badge';
 import { Button } from '@/components/ui/button';
+import { reasonOf } from './problem-reason';
 import { Dialog, DialogBody, DialogClose, DialogFooter, DialogHeader } from '@/components/ui/dialog';
 import { Field, FieldDescription, FieldLabel } from '@/components/ui/field';
 import { FormAlert } from '@/components/ui/form-alert';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/components/ui/toast';
+import { announce } from '@/lib/a11y/announcer';
 import { isApiProblem } from '@/lib/api/problem';
 import { importTiersMutation } from '@/lib/internal-links/mutations';
 import { internalLinksKeys } from '@/lib/internal-links/queries';
@@ -19,6 +21,10 @@ import type { LinksScope, PageTier, TierImportResult } from '@/lib/internal-link
 
 /** Lines and rows the dialog lists; the count of the rest is said. The API takes up to 20,000 rows. */
 const SHOWN = 20;
+const ECHO = 40;
+
+/** A tier text from the file as it is echoed back: a pasted cell can be long. */
+const boundedEcho = (value: string): string => (value.length > ECHO ? `${value.slice(0, ECHO)}…` : value);
 
 interface Checked {
   rows: CsvTierRow[];
@@ -54,7 +60,7 @@ export function ImportDialog({
   const errorText = (error: CsvTierError): string => {
     switch (error.code) {
       case 'unknown_tier':
-        return t('unknownTier', { line: error.line, value: error.value });
+        return t('unknownTier', { line: error.line, value: boundedEcho(error.value) });
       case 'missing_column':
         return t('missingColumn', { line: error.line });
       case 'missing_header':
@@ -65,13 +71,30 @@ export function ImportDialog({
         return t('tooManyRows', { line: error.line });
       case 'too_large':
         return t('tooLarge');
+      case 'body_too_large':
+        return t('bodyTooLarge');
     }
   };
   const ready = checked !== null && checked.rows.length > 0 && checked.errors.length === 0;
   const counts = checked === null ? [] : [...countByTier(checked.rows)];
-  const lines = checked === null ? [] : checked.errors.map(errorText);
+  // Only the lines that are shown are turned into text: a text of 20,000 bad lines costs 20 messages, not 20,000
+  const lines = checked === null ? [] : checked.errors.slice(0, SHOWN).map(errorText);
   const refusedLines =
-    refused === null ? [] : refused.map((error) => t('serverLine', { line: error.line, message: error.message }));
+    refused === null
+      ? []
+      : refused.slice(0, SHOWN).map((error) => t('serverLine', { line: error.line, message: error.message }));
+
+  const check = (): void => {
+    const result = parseTierCsv(text, tiers, { strict: true });
+    setChecked(result);
+    // The result is spoken once, here: the alert that shows the lines is not a live region
+    if (result.errors.length > 0) {
+      announce(`${t('errorsTitle', { count: result.errors.length })}. ${t('errorsText')}`, {
+        key: 'internal-links-import',
+      });
+    } else if (result.rows.length === 0) announce(t('nothing'), { key: 'internal-links-import' });
+    else announce(t('readyTitle', { count: result.rows.length }), { key: 'internal-links-import' });
+  };
 
   const reset = (): void => {
     setText('');
@@ -120,8 +143,16 @@ export function ImportDialog({
           onOpenChange(false);
         },
         onError: (error) => {
-          const reason = isApiProblem(error) ? (error.detail ?? error.string('title') ?? '') : '';
-          setFailure([t('failed'), reason].filter((part) => part !== '').join(' '));
+          // A 413 and the other 4xx answers are refusals before anything is written; a lost connection or a 5xx may
+          // have come after the API committed, and the text says so
+          const status = isApiProblem(error) ? error.status : null;
+          const lead =
+            status === 413
+              ? t('tooBigForServer')
+              : status !== null && status >= 400 && status < 500
+                ? t('refusedNothing')
+                : t('failed');
+          setFailure([lead, status === 413 ? '' : reasonOf(error)].filter((part) => part !== '').join(' '));
         },
       },
     );
@@ -147,15 +178,15 @@ export function ImportDialog({
           <div className="flex flex-col gap-2">
             <FormAlert message={t('serverErrors')} />
             <ul className="flex flex-col gap-1 pl-4 type-body text-foreground">
-              {refusedLines.slice(0, SHOWN).map((line, index) => (
+              {refusedLines.map((line, index) => (
                 <li key={`${String(refused[index]?.line)}-${String(index)}`} className="list-disc">
                   {line}
                 </li>
               ))}
             </ul>
-            {refusedLines.length > SHOWN ? (
+            {refused.length > SHOWN ? (
               <p className="type-meta text-foreground-secondary">
-                {t('errorsMore', { count: refusedLines.length - SHOWN })}
+                {t('errorsMore', { count: refused.length - SHOWN })}
               </p>
             ) : null}
           </div>
@@ -171,12 +202,7 @@ export function ImportDialog({
           />
           <FieldDescription>{t('hint')}</FieldDescription>
         </Field>
-        <Button
-          variant="secondary"
-          size="sm"
-          className="mt-2 self-start"
-          onClick={() => setChecked(parseTierCsv(text, tiers, { strict: true }))}
-        >
+        <Button variant="secondary" size="sm" className="mt-2 self-start" onClick={check}>
           {t('check')}
         </Button>
         {checked === null ? null : checked.rows.length === 0 && checked.errors.length === 0 ? (
@@ -185,17 +211,20 @@ export function ImportDialog({
           <div className="mt-3 flex flex-col gap-3">
             {checked.errors.length === 0 ? null : (
               <div className="flex flex-col gap-2">
-                <FormAlert message={`${t('errorsTitle', { count: checked.errors.length })}. ${t('errorsText')}`} />
+                <FormAlert
+                  live={false}
+                  message={`${t('errorsTitle', { count: checked.errors.length })}. ${t('errorsText')}`}
+                />
                 <ul className="flex flex-col gap-1 pl-4 type-body text-foreground">
-                  {lines.slice(0, SHOWN).map((line, index) => (
+                  {lines.map((line, index) => (
                     <li key={`${String(checked.errors[index]?.line)}-${String(index)}`} className="list-disc">
                       {line}
                     </li>
                   ))}
                 </ul>
-                {lines.length > SHOWN ? (
+                {checked.errors.length > SHOWN ? (
                   <p className="type-meta text-foreground-secondary">
-                    {t('errorsMore', { count: lines.length - SHOWN })}
+                    {t('errorsMore', { count: checked.errors.length - SHOWN })}
                   </p>
                 ) : null}
               </div>
