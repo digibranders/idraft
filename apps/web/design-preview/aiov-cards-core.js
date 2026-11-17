@@ -218,12 +218,37 @@ export function segmented(items, current, onPick, label) {
   return group;
 }
 
+/**
+ * Puts the weekly counts of Share of voice on the lines of the trend card: a platform's value is its own x over y (n/a under 4 brand
+ * mentions), the Average's is the mean of the platforms that have a share. Replaces each line's values; returns, for each line name,
+ * the words of each week (`{ text, detail, cell }`, see `sovWeekText`), `null` for a week with no share.
+ */
+function sovTrendNotes(model, lines) {
+  const weeks = sovWeeks(model, entitiesFor(model));
+  const notes = {};
+  for (const line of lines) {
+    const weekly = weeks.map((week) => {
+      if (line.code === 'all') return { value: week.shares[0], words: week.shares[0] === null ? null : sovWeekText(week, 0, week.shares[0], true) };
+      const part = week.platforms.find((platform) => platform.code === line.code);
+      if (part === undefined || part.y < 4) return { value: null, words: null };
+      const value = part.counts[0] / part.y;
+      return { value, words: sovWeekText({ platforms: [part] }, 0, value, false) };
+    });
+    line.values = weekly.map((entry) => entry.value);
+    notes[line.name] = weekly.map((entry) => entry.words);
+  }
+  return notes;
+}
+
 export function trendCard(ctx) {
   const { model, scope } = ctx;
   const measure = scope.metric;
   const codes = model.codes;
   const lines = codes.map((code) => ({ name: engineName(code), code, token: scope.platform === 'all' ? ENGINE_TOKEN[code] : 'chart-1', values: seriesFor(model, measure, code) })).filter((line) => line.values.some((value) => value !== null));
   if (scope.platform === 'all') lines.push({ name: 'Average', code: 'all', token: 'chart-other', dashed: true, width: 1.5, values: seriesFor(model, measure, 'all') });
+  // Share of voice is counted (D17): each platform's week is its own x of y brand mentions and the Average is the mean of those
+  // shares (R3), the same weekly counts as Share of voice over time, so the two cards agree. `notes[line name][week]` says them.
+  const notes = measure === 'sov' ? sovTrendNotes(model, lines) : null;
   const one = scope.platform !== 'all' ? model.cells[measure][scope.platform] : null;
   let band = null;
   if (one?.state === 'ok' && lines[0]) {
@@ -254,7 +279,7 @@ export function trendCard(ctx) {
       const tbody = el('tbody');
       WEEK_LABELS.forEach((week, index) => {
         const row = el('tr', 'h-row-compact border-t border-border-subtle');
-        row.append(el('th', 'px-3 text-left font-normal text-foreground', week), ...lines.map((line) => el('td', 'px-3 text-right num', line.values[index] === null ? 'n/a' : `${(line.values[index] * 100).toFixed(1)}%`)));
+        row.append(el('th', 'px-3 text-left font-normal text-foreground', week), ...lines.map((line) => el('td', 'px-3 text-right num', line.values[index] === null ? 'n/a' : notes?.[line.name]?.[index]?.cell ?? `${(line.values[index] * 100).toFixed(1)}%`)));
         tbody.append(row);
       });
       table.append(head, tbody);
@@ -262,7 +287,12 @@ export function trendCard(ctx) {
     }
     const host = chartHost(284, `${MEASURES[measure].label} over the last 8 weekly runs, ${lines.map((line) => line.name).join(', ')}`);
     body.append(host);
-    dispose = mountChart(host, () => lineOption({ labels: WEEK_LABELS, lines, band, boundary: ctx.compare ? WEEK_LABELS[4] : undefined, markers: true }));
+    // With Share of voice a tooltip row says the x of y brand mentions behind the percent, and the Average's row a line with each platform's
+    const tooltipRows = notes === null ? undefined : (list) => list.filter((param) => param.seriesId?.startsWith('line-')).map((param) => {
+      const words = notes[param.seriesName]?.[param.dataIndex];
+      return { color: param.color, name: param.seriesName, value: param.value === null ? 'n/a' : words?.text ?? `${(param.value * 100).toFixed(1)}%`, detail: words?.detail };
+    });
+    dispose = mountChart(host, () => lineOption({ labels: WEEK_LABELS, lines, band, boundary: ctx.compare ? WEEK_LABELS[4] : undefined, markers: true, tooltipRows }));
     const legend = el('div', 'flex flex-wrap gap-x-4 gap-y-1');
     lines.forEach((line, position) => {
       const item = el('span', 'inline-flex items-center gap-1.5 type-meta num');

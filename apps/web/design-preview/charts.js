@@ -131,7 +131,7 @@
               `<span class="type-table text-foreground-secondary">${escape(name)}</span>` +
               `<span class="ml-auto pl-6 type-table num text-foreground">${escape(value)}</span></div>` +
               // A row may carry a detail line of its own (the brand mentions of each platform of an average), wrapped under it
-              (detail ? `<div class="type-meta text-foreground-secondary pl-4 pb-1 max-w-72 whitespace-normal">${escape(detail)}</div>` : ''),
+              (detail ? `<div class="type-meta text-foreground-secondary pl-4 pb-1 whitespace-normal" style="max-width:384px">${escape(detail)}</div>` : ''),
           )
           .join('');
         const title = escape(list[0]?.axisValueLabel ?? '');

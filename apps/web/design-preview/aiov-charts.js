@@ -117,12 +117,18 @@ export function shareAreaOption({ labels, layers }) {
     grid: { left: 44, right: 28, top: 8, bottom: 24, outerBoundsMode: 'none' },
     xAxis: { type: 'category', data: labels, boundaryGap: false, ...axes.x },
     yAxis: { type: 'value', min: 0, max: 1, interval: 0.25, ...axes.y, axisLabel: { ...axes.y.axisLabel, formatter: pctAxis } },
-    tooltip: charts.tooltipTheme((list) =>
-      list.map((param) => {
-        const note = layers[param.seriesIndex]?.notes?.[param.dataIndex];
-        return { color: param.color, name: param.seriesName, value: param.value === null ? 'n/a' : note?.text ?? `${(param.value * 100).toFixed(1)}%`, detail: note?.detail };
-      }),
-    ),
+    // Six brands with the counts of each platform are taller than the 240 px chart: the tooltip hangs on the page, not in the chart
+    tooltip: {
+      ...charts.tooltipTheme((list) =>
+        list.map((param) => {
+          const note = layers[param.seriesIndex]?.notes?.[param.dataIndex];
+          return { color: param.color, name: param.seriesName, value: param.value === null ? 'n/a' : note?.text ?? `${(param.value * 100).toFixed(1)}%`, detail: note?.detail };
+        }),
+      ),
+      // On the page and kept inside the window (the tooltip theme confines it to the chart otherwise)
+      confine: true,
+      appendToBody: true,
+    },
     series: layers.map((layer) => ({
       name: layer.name,
       type: 'line',
