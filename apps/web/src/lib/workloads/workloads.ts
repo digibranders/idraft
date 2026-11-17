@@ -19,6 +19,7 @@ export const WORKLOAD_KEYS = {
   extraction_llm: 'extractionLlm',
   keyword_research: 'keywordResearch',
   first_party: 'firstParty',
+  site_crawl: 'siteCrawl',
 } as const satisfies Record<CostWorkload, string>;
 
 /** Whether an API workload code is one this client has a name for. */
