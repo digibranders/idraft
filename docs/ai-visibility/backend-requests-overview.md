@@ -228,6 +228,13 @@ Until it lands the web derives the share from `entities[].mentioned` where it ha
 the competitor drawer, the Prompts page cells) and writes "Not collected yet" for the whole figure where it has not
 (a read without `include=entities`, the weekly lines). It never writes a percent without its counts.
 
+Not yet moved to the count share (they still read the old cell and say so in their tooltips until this item lands, then
+they switch with no web change to the cell): the headline tile and the by-platform, trend, location and period
+comparison cards of the Overview, Share of voice over time, the group cards (heat map, extremes, movers, versus), the
+share-of-voice metric of the group drawer and its Competitors tab, and the Groups tab platform columns and heat map
+for that metric. Done: the Overview competitor cards, the competitor drawer, the Prompts page Share of voice column
+(prompts and groups) and the strip tooltip. Each is listed in the report of the statistics package of 2026-11-17.
+
 ## What the web does until each item lands
 
 | Item | Card state until the backend lands |

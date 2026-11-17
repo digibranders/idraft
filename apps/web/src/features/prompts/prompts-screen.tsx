@@ -1032,7 +1032,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
           topics={stripGroups}
           status={stripStatus}
           countsFailed={summaryFailed}
-          ownEntityIds={ownEntityIdsOf(summaryData?.data.entities)}
+          ownEntityIds={ownEntityIdsOf(summaryData?.entities)}
         />
       ) : null;
     controls = (
