@@ -6,12 +6,12 @@ import type { ReactElement } from 'react';
 
 import { useCitedPage, type BoardEngine, type BoardRead } from '../board-reads';
 import { slotDay, type CitationsTranslate } from '../board-text';
-import { BrandLabel, DRAWER_ROW, DrawerTable, type DrawerColumn } from './drawer-parts';
+import { BrandLabel, DRAWER_ROW, DrawerCard, DrawerTable, type DrawerColumn } from './drawer-parts';
 import { EngineLogo } from '@/components/app/engine/engine-logo';
 import { EntitySwatch } from '@/components/app/entity/entity-swatch';
 import { Inspector } from '@/components/app/inspector/inspector';
 import type { InspectorNavigation } from '@/components/app/inspector/inspector-header';
-import { InspectorSection, type InspectorSectionStatus } from '@/components/app/inspector/inspector-section';
+import type { InspectorSectionStatus } from '@/components/app/inspector/inspector-section';
 import { InspectorPanel, InspectorTabs } from '@/components/app/inspector/inspector-tabs';
 import { DEFAULT_INSPECTOR_TAB } from '@/components/app/inspector/use-inspector';
 import { SparklineCell } from '@/components/app/sparkline/sparkline-cell';
@@ -174,7 +174,7 @@ function PromptsCard({ read, engines, scopeText, onOpenPrompt }: PageDrawerProps
     { id: 'cited', label: t('pageDrawer.columnCited'), className: 'w-20 text-right' },
   ];
   return (
-    <InspectorSection
+    <DrawerCard
       title={t('pageDrawer.promptsTitle')}
       meta={
         detail === undefined
@@ -250,7 +250,7 @@ function PromptsCard({ read, engines, scopeText, onOpenPrompt }: PageDrawerProps
           );
         })}
       </DrawerTable>
-    </InspectorSection>
+    </DrawerCard>
   );
 }
 
@@ -292,7 +292,7 @@ function OverviewCards({ read, engines, scopeText, timeZone }: PageDrawerProps &
   ];
   return (
     <>
-      <InspectorSection title={t('pageDrawer.summaryTitle')} meta={t('pageDrawer.summaryMeta')} status={sectionStatus}>
+      <DrawerCard title={t('pageDrawer.summaryTitle')} meta={t('pageDrawer.summaryMeta')} status={sectionStatus}>
         {page === undefined ? null : (
           <>
             <dl className="grid grid-cols-3 gap-3">
@@ -329,8 +329,8 @@ function OverviewCards({ read, engines, scopeText, timeZone }: PageDrawerProps &
             </div>
           </>
         )}
-      </InspectorSection>
-      <InspectorSection
+      </DrawerCard>
+      <DrawerCard
         title={t('pageDrawer.trendTitle')}
         meta={trend.length >= 8 ? t('pageDrawer.trendMeta') : t('pageDrawer.trendMetaShort', { count: trend.length })}
         status={sectionStatus}
@@ -351,8 +351,8 @@ function OverviewCards({ read, engines, scopeText, timeZone }: PageDrawerProps &
             </div>
           </div>
         )}
-      </InspectorSection>
-      <InspectorSection
+      </DrawerCard>
+      <DrawerCard
         title={t('pageDrawer.platformsTitle')}
         meta={t('pageDrawer.platformsMeta')}
         status={sectionStatus}
@@ -376,8 +376,8 @@ function OverviewCards({ read, engines, scopeText, timeZone }: PageDrawerProps &
             })}
           </DrawerTable>
         )}
-      </InspectorSection>
-      <InspectorSection
+      </DrawerCard>
+      <DrawerCard
         title={t('pageDrawer.alongsideTitle')}
         meta={t('pageDrawer.alongsideMeta')}
         status={sectionStatus === 'ready' && alongside.length === 0 ? 'empty' : sectionStatus}
@@ -422,7 +422,7 @@ function OverviewCards({ read, engines, scopeText, timeZone }: PageDrawerProps &
             ))}
           </DrawerTable>
         )}
-      </InspectorSection>
+      </DrawerCard>
     </>
   );
 }

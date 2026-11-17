@@ -95,9 +95,10 @@ function InspectorSpecimen(): ReactNode {
                     <p className="num type-body">{`${formatInteger(open.volume)} searches a month`}</p>
                   </InspectorSection>
                   <InspectorSection title="Changes" icon={History} status="loading" />
-                  {/* WP-77: no icon, a meta after the title, a flush body whose rows draw their own edges */}
+                  {/* WP-77: no icon, a section-size title with a meta that wraps, a flush body whose rows draw their own edges */}
                   <InspectorSection
-                    title="Related keywords"
+                    title="Related keywords that cite this page"
+                    titleSize="section"
                     meta={`${formatInteger(RELATED.length)} keywords · cited in 76 answers`}
                     status="ready"
                     flush
@@ -116,6 +117,7 @@ function InspectorSpecimen(): ReactNode {
                   </InspectorSection>
                   <InspectorSection
                     title="Cited alongside"
+                    titleSize="section"
                     meta="domains in the same answers"
                     status="empty"
                     flush

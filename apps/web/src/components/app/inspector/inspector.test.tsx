@@ -260,6 +260,50 @@ describe('InspectorSection', () => {
     expect(screen.getByRole('table', { name: 't' }).parentElement?.className ?? '').not.toContain('px-4');
   });
 
+  it('wraps a meta to a second line instead of cutting it, as the preview header does', () => {
+    renderWithProviders(
+      <InspectorSection title="Prompts that cite this page" meta="31 prompts · cited in 76 answers" status="ready" />,
+    );
+    const meta = screen.getByText('31 prompts · cited in 76 answers');
+    expect(meta).not.toHaveClass('truncate');
+    expect(meta).toHaveClass('wrap-anywhere');
+    const title = screen.getByRole('heading', { level: 3, name: 'Prompts that cite this page' });
+    expect(title).not.toHaveClass('truncate');
+    expect(title.parentElement).toHaveClass('flex-wrap');
+    expect(title.parentElement?.parentElement).toHaveClass('min-h-12', 'py-3');
+    expect(title.parentElement?.parentElement).not.toHaveClass('h-12');
+  });
+
+  it('keeps a header without a meta one 48 px line that cuts a long title', () => {
+    renderWithProviders(<InspectorSection title="Demand" icon={FileText} status="ready" />);
+    const title = screen.getByRole('heading', { level: 3, name: 'Demand' });
+    expect(title).toHaveClass('truncate', 'type-subsection-title');
+    expect(title.parentElement?.parentElement).toHaveClass('h-12');
+  });
+
+  it('draws the title in section size when asked, and stays an h3', () => {
+    renderWithProviders(<InspectorSection title="Summary" titleSize="section" status="ready" />);
+    const title = screen.getByRole('heading', { level: 3, name: 'Summary' });
+    expect(title).toHaveClass('type-section-title');
+    expect(title).not.toHaveClass('type-subsection-title');
+  });
+
+  it('draws a flush empty state with no padding of its own, and pads a flush skeleton and error', () => {
+    const { rerender } = renderWithProviders(
+      <InspectorSection title="Cited alongside" status="empty" flush empty={<p>Cited alone</p>} />,
+    );
+    expect(screen.getByText('Cited alone').parentElement?.className ?? '').not.toContain('px-4');
+    rerender(<InspectorSection title="Cited alongside" status="error" flush error={<p>Failed</p>} />);
+    expect(screen.getByText('Failed').parentElement).toHaveClass('px-4', 'pb-4');
+    rerender(<InspectorSection title="Cited alongside" status="loading" flush />);
+    expect(document.querySelector('section > div:last-child')).toHaveClass('px-4', 'pb-4');
+  });
+
+  it('pads an empty state of a card that is not flush', () => {
+    renderWithProviders(<InspectorSection title="Settings" status="empty" empty={<p>Nothing yet</p>} />);
+    expect(screen.getByText('Nothing yet').parentElement).toHaveClass('px-4', 'pb-4');
+  });
+
   it('still draws its icon and a padded body without them', () => {
     renderWithProviders(
       <InspectorSection title="Demand" icon={FileText} status="ready">

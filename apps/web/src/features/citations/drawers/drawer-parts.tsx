@@ -4,6 +4,7 @@ import type { ReactElement, ReactNode } from 'react';
 
 import { EngineLogo } from '@/components/app/engine/engine-logo';
 import { EntitySwatch } from '@/components/app/entity/entity-swatch';
+import { InspectorSection, type InspectorSectionProps } from '@/components/app/inspector/inspector-section';
 import { Tooltip } from '@/components/ui/tooltip';
 import type { EngineCode } from '@/lib/api/types';
 import { displayUrl } from '@/lib/format';
@@ -60,6 +61,11 @@ export function DrawerTable({
 }
 
 export const DRAWER_ROW = 'h-row-compact border-t border-border-subtle';
+
+/** A card of either drawer: the preview draws every drawer card title in section size (aiov-parts.js `cardFrame`). */
+export function DrawerCard(props: InspectorSectionProps): ReactElement {
+  return <InspectorSection titleSize="section" {...props} />;
+}
 
 export interface DrawerPage {
   urlId: number;

@@ -16,7 +16,15 @@ export interface InspectorSectionProps {
   icon?: LucideIcon | undefined;
   /** A short fact after the title, in meta type: "31 prompts · cited in 76 answers" (aiov-parts.js `cardFrame`). */
   meta?: string | undefined;
-  /** The ready body has no padding, for a table or a list whose rows draw their own 16 px edges. */
+  /**
+   * The title's size, still an `h3`. `default` is `type-subsection-title` (14/20); `section` is `type-section-title`
+   * (16/24), which the Citations drawers use for every card (aiov-parts.js `cardFrame`).
+   */
+  titleSize?: 'default' | 'section' | undefined;
+  /**
+   * The ready and empty bodies have no padding, for a table or a list whose rows draw their own 16 px edges and an
+   * empty state that pads itself. A skeleton and an error keep the 16 px edges.
+   */
   flush?: boolean | undefined;
   /** At most one control, right-aligned: "View all", a `Select`, a badge or Edit. */
   action?: ReactNode;
@@ -39,6 +47,7 @@ export function InspectorSection({
   title,
   icon,
   meta,
+  titleSize = 'default',
   flush,
   action,
   status,
@@ -53,16 +62,30 @@ export function InspectorSection({
       // A flush table's header band runs to the card's edge, so the 8 px corners clip it
       className={cn('rounded-lg border border-border bg-surface', flush === true && 'overflow-hidden')}
     >
-      <div className="flex h-12 items-center gap-2 px-4">
+      {/* With a meta the header wraps as the preview's does (min 48 px, 12 px above and below, no cut text); without one it stays a 48 px line */}
+      <div className={cn('flex items-center gap-2 px-4', meta === undefined ? 'h-12' : 'min-h-12 py-3')}>
         {icon === undefined ? null : <Icon icon={icon} size="default" className="shrink-0 text-foreground-tertiary" />}
-        <div className="flex min-w-0 flex-1 items-baseline gap-2">
-          <h3 className="min-w-0 truncate type-subsection-title">{title}</h3>
-          {meta === undefined ? null : <span className="min-w-0 truncate num type-meta">{meta}</span>}
+        <div
+          className={cn(
+            'min-w-0 flex-1',
+            meta === undefined ? 'flex items-baseline gap-2' : 'flex flex-wrap items-baseline gap-x-2 gap-y-0',
+          )}
+        >
+          <h3
+            className={cn(
+              'min-w-0',
+              meta === undefined ? 'truncate' : 'wrap-anywhere',
+              titleSize === 'section' ? 'type-section-title' : 'type-subsection-title',
+            )}
+          >
+            {title}
+          </h3>
+          {meta === undefined ? null : <span className="min-w-0 num type-meta wrap-anywhere">{meta}</span>}
         </div>
         {action === undefined || action === null ? null : <div className="shrink-0">{action}</div>}
       </div>
-      {/* Only the ready body is flush: a skeleton, an error and an empty state keep the 16 px edges */}
-      <div className={flush === true && status === 'ready' ? undefined : 'px-4 pb-4'}>
+      {/* A flush card pads only a skeleton and an error: a table, a list and an empty state draw their own edges */}
+      <div className={flush === true && (status === 'ready' || status === 'empty') ? undefined : 'px-4 pb-4'}>
         {status === 'loading'
           ? (skeleton ?? (
               <div className="flex flex-col gap-2">

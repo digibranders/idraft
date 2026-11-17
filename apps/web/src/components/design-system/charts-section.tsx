@@ -766,6 +766,22 @@ export function ChartsSection(): ReactNode {
             </span>
           ))}
         </div>
+        {/* WP-77: the page drawer's trend, in a box as wide as a drawer card */}
+        <div className="flex flex-col gap-2">
+          <div className="w-100 max-w-full rounded-lg border border-border bg-surface p-4">
+            <SparklineCell
+              values={OWN_RATE}
+              label="Citations per run, oldest first: 28, 30, 31, 33, 34, 36, 38, 40"
+              width="fill"
+              height={56}
+              entity={{ own: true, colorIndex: null }}
+              endDot={false}
+            />
+          </div>
+          <span className="type-meta">
+            fill, 56 px high: takes the width of its box and draws again when the box changes (WP-77)
+          </span>
+        </div>
       </SpecimenGroup>
     </div>
   );

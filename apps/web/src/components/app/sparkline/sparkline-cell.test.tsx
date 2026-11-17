@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SparklineCell } from './sparkline-cell';
 import * as tokens from '@/lib/design/read-tokens';
+import { WideResizeObserver } from '@/test/rankings-harness';
 
 describe('SparklineCell', () => {
   const contextSpies = {
@@ -153,6 +154,21 @@ describe('SparklineCell', () => {
     const box = screen.getByRole('img', { name: 'Trend: 1, 2, 3' });
     expect(box).toHaveClass('w-full');
     expect(box).toHaveStyle({ height: '56px' });
+  });
+
+  it('draws the canvas at the measured width of its parent once it has one', () => {
+    const ratio = window.devicePixelRatio || 1;
+    vi.stubGlobal('ResizeObserver', WideResizeObserver);
+    try {
+      render(<SparklineCell values={[1, 2, 3]} label="Trend: 1, 2, 3" width="fill" height={56} />);
+      const canvas = document.querySelector('canvas');
+      expect(canvas).toHaveAttribute('width', String(1600 * ratio));
+      expect(canvas).toHaveAttribute('height', String(56 * ratio));
+      expect(canvas).toHaveStyle({ width: '1600px', height: '56px' });
+      expect(contextSpies.stroke).toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('sizes the empty line to the density as well', () => {
