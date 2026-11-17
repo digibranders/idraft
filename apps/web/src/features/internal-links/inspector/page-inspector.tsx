@@ -108,7 +108,13 @@ export function PageInspector({
   const flagLabel = (key: FlagKey): string => words(`flags.${key}`);
   const viewAll = (filter: 'src' | 'tgt'): void =>
     context.setSearch(
-      { tab: 'links', src: filter === 'src' ? urlId : null, tgt: filter === 'tgt' ? urlId : null },
+      {
+        tab: 'links',
+        src: filter === 'src' ? urlId : null,
+        tgt: filter === 'tgt' ? urlId : null,
+        inspect: null,
+        itab: null,
+      },
       { history: 'push' },
     );
   const copyUrl = (): void => {
@@ -168,7 +174,7 @@ export function PageInspector({
                     variant="link"
                     size="sm"
                     disabled={bulk.pending}
-                    onClick={() => void bulk.resetToRule(target)}
+                    onClick={() => void bulk.resetToRule(target, 'key')}
                   >
                     {t('resetToRule')}
                   </Button>
@@ -185,13 +191,21 @@ export function PageInspector({
                     {...(canWrite
                       ? {
                           removeLabel: t('removeTag', { tag: tag.name }),
-                          onRemove: () => void bulk.changeTag(target, { termId: tag.term_id, name: tag.name }, false),
+                          onRemove: () =>
+                            void bulk.changeTag(target, { termId: tag.term_id, name: tag.name }, false, 'key'),
                         }
                       : {})}
                   />
                 ))}
                 {canWrite ? (
-                  <Button variant="secondary" size="sm" onClick={() => setTagMode('add')}>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      bulk.clearError();
+                      setTagMode('add');
+                    }}
+                  >
                     {t('addTag')}
                   </Button>
                 ) : null}
@@ -367,7 +381,7 @@ export function PageInspector({
         pending={bulk.pending}
         alert={bulk.error}
         onApply={async (tag, add) => {
-          const done = await bulk.changeTag(target, tag, add);
+          const done = await bulk.changeTag(target, tag, add, 'dialog');
           if (done) setTagMode(null);
           return done;
         }}

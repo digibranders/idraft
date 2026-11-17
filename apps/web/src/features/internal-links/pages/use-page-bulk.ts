@@ -50,8 +50,13 @@ export interface PageBulk {
   clearError: () => void;
   /** Each answers whether the change was made. */
   setTier: (target: BulkTarget, tier: PageTier | null, via: BulkSource) => Promise<boolean>;
-  resetToRule: (target: BulkTarget) => Promise<boolean>;
-  changeTag: (target: BulkTarget, tag: { termId: string; name: string }, add: boolean) => Promise<boolean>;
+  resetToRule: (target: BulkTarget, via: BulkSource) => Promise<boolean>;
+  changeTag: (
+    target: BulkTarget,
+    tag: { termId: string; name: string },
+    add: boolean,
+    via: BulkSource,
+  ) => Promise<boolean>;
 }
 
 /**
@@ -123,17 +128,17 @@ export function usePageBulk(scope: LinksScope, query: PageQuery, done: () => voi
           description: said(changed, t('tierSetText', { count: changed, tier: tier?.label ?? t('untiered') })),
         }),
       ),
-    resetToRule: (target) =>
+    resetToRule: (target, via) =>
       run(
         target,
-        'dialog',
+        via,
         async (selection) => (await reset.mutateAsync({ params: { path }, body: selection })).data.changed,
         (changed) => ({ title: t('resetDone'), description: said(changed, t('resetDoneText', { count: changed })) }),
       ),
-    changeTag: (target, tag, add) =>
+    changeTag: (target, tag, add, via) =>
       run(
         target,
-        'dialog',
+        via,
         async (selection) => {
           const answer = await tags.mutateAsync({
             params: { path },

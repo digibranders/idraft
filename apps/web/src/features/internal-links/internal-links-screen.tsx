@@ -30,6 +30,7 @@ import { InlineError } from '@/components/app/status/inline-error';
 import { Tabs, TabsPanel } from '@/components/ui/tabs';
 import { toast } from '@/components/ui/toast';
 import { announce } from '@/lib/a11y/announcer';
+import { useInspectorStepping } from '@/lib/inspector/use-inspector-stepping';
 import { isApiProblem } from '@/lib/api/problem';
 import type { CrawlRun, LinksScope } from '@/lib/internal-links/types';
 import { useCan } from '@/lib/permissions';
@@ -108,7 +109,14 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
   // The rows the open tab shows, in order: the inspector's "12 of 986" and its J and K step through them
   const [order, setOrder] = useState<readonly string[]>([]);
   const canWrite = useCan('projects:write');
-  const at = inspector.position(order);
+  const inspectorWords = useTranslations('internalLinks.inspector');
+  const stepping = useInspectorStepping({
+    inspector,
+    type: 'page',
+    order,
+    typeLabel: inspectorWords('typeLabel'),
+    typeNoun: inspectorWords('typeNoun'),
+  });
   const [exportRun, setExportRun] = useState<(() => Promise<void>) | null>(null);
   const registerExport = useCallback((run: (() => Promise<void>) | null) => setExportRun(() => run), []);
   // One download at a time: a second press while the file is being made would start the same file again
@@ -164,7 +172,10 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
     // A page the address names that is no url id is a page that does not exist: the tab shows not found for `invalid`
     inspect: { open: (urlId) => inspector.open({ type: 'page', id: urlId }), setOrder, ...inspected },
     openJourney: (urlId) =>
-      setSearch({ tab: 'journey', focus: urlId, open: null, grp: null, more: null, topen: null }, { history: 'push' }),
+      setSearch(
+        { tab: 'journey', focus: urlId, open: null, grp: null, more: null, topen: null, inspect: null, itab: null },
+        { history: 'push' },
+      ),
     registerExport,
     hrefOf: (path) => projectPath(workspaceSlug, project.slug, path),
   };
@@ -278,18 +289,9 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
           context={context}
           urlId={inspected.urlId}
           canWrite={canWrite}
-          positionText={at === null ? null : t('inspector.position', { index: at.index + 1, count: at.count })}
-          navigation={
-            at === null
-              ? null
-              : {
-                  onPrevious: () => inspector.step('previous', order),
-                  onNext: () => inspector.step('next', order),
-                  atFirst: at.index === 0,
-                  atLast: at.index === at.count - 1,
-                }
-          }
-          onStep={(direction) => inspector.step(direction, order)}
+          positionText={stepping.positionText}
+          navigation={stepping.navigation}
+          onStep={stepping.onStep}
           onClose={inspector.close}
         />
       );

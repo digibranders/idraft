@@ -134,6 +134,10 @@ export function PagesTab({ context }: { context: LinksTabContext }): ReactElemen
     noteRun(run);
   }, [run, noteRun]);
 
+  // Leaving the tab takes its rows with it: another tab's inspector must not step through a list it does not show
+  const { setOrder } = context.inspect;
+  useEffect(() => () => setOrder([]), [setOrder]);
+
   const [table, setTable] = useQueryStates(TABLE_KEYS, { history: 'replace' });
   const columns = useMemo(
     () => pageColumns(t, { tiers, scope: state.scope, openJourney: context.openJourney }),
@@ -304,7 +308,7 @@ export function PagesTab({ context }: { context: LinksTabContext }): ReactElemen
         searchPlaceholder={t('pages.search')}
         rowName={(row) => row.path}
         onRowOpen={openRow}
-        onRowOrderChange={context.inspect.setOrder}
+        onRowOrderChange={setOrder}
         activeRowId={context.inspect.urlId}
         selection={
           canWrite
@@ -370,7 +374,7 @@ export function PagesTab({ context }: { context: LinksTabContext }): ReactElemen
         pending={bulk.pending}
         alert={bulk.error}
         onSetTier={(tier) => bulk.setTier(target, tier, 'dialog')}
-        onReset={() => bulk.resetToRule(target)}
+        onReset={() => bulk.resetToRule(target, 'dialog')}
       />
       <BulkTagDialog
         mode={tagDialog}
@@ -381,7 +385,7 @@ export function PagesTab({ context }: { context: LinksTabContext }): ReactElemen
         taxonomyHref={context.hrefOf(TAXONOMY_PATH)}
         pending={bulk.pending}
         alert={bulk.error}
-        onApply={(tag, add) => bulk.changeTag(target, tag, add)}
+        onApply={(tag, add) => bulk.changeTag(target, tag, add, 'dialog')}
       />
     </div>
   );

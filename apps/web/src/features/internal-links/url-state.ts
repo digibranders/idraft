@@ -34,7 +34,10 @@ export type LinksKey =
   | 'open'
   | 'grp'
   | 'more'
-  | 'topen';
+  | 'topen'
+  // The inspector's own keys: a write that leaves the page's list (Open in journey) closes the inspector with it
+  | 'inspect'
+  | 'itab';
 export type LinksSearch = Readonly<Partial<Record<LinksKey, string | null | undefined>>>;
 
 const TABS: readonly LinksTabId[] = ['pages', 'links', 'journey', 'flow'];
@@ -160,6 +163,8 @@ const PARSERS = {
   grp: parseAsString,
   more: parseAsString,
   topen: parseAsString,
+  inspect: parseAsString,
+  itab: parseAsString,
 } satisfies Record<LinksKey, typeof parseAsString>;
 
 export type SetLinksSearch = (

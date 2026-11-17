@@ -44,7 +44,7 @@ function NeighborRows({
   if (read.isError) {
     return (
       <li className="flex flex-wrap items-baseline gap-x-2">
-        <span className="type-meta text-foreground-secondary">{t('moreFailed')}</span>
+        <span className="type-meta text-foreground-secondary">{t(offset === 0 ? 'listFailed' : 'moreFailed')}</span>
         <Button variant="link" size="sm" onClick={() => void read.refetch()}>
           {common('retry')}
         </Button>
@@ -77,8 +77,8 @@ function NeighborRows({
 }
 
 /**
- * The linking pages or the outlinks of the open page (mock `pageList`): the neighbors read, `READ_LIMIT` at a time,
- * with Show more while the page read says there are more, and View all in Links for the whole list.
+ * The linking pages or the outlinks of the open page (mock `pageList`): the neighbors read, `READ_LIMIT` (50, the
+ * most the API gives for one read) at a time, with Show more while the page read says there are more, and View all in Links for the whole list.
  */
 export function NeighborSection({ total, title, onViewAll, ...read }: NeighborSectionProps): ReactElement {
   const t = useTranslations('internalLinks.inspector');
