@@ -325,12 +325,12 @@ export function sovCard(ctx) {
   if (entities[0].sov === null) return cardFrame({ key: 'ai.share_of_voice', title: 'Share of voice', body: emptyBody('No rate yet', 'Too few answers on this platform.') });
   const rows = [...entities]
     .sort((a, b) => (b.sov ?? 0) - (a.sov ?? 0))
-    .map((entity) => ({ label: entityLabel(entity), onClick: entity.own ? undefined : (opener) => ctx.openCompetitor?.(entity.name.toLowerCase(), opener), value: entity.sov, strong: entity.own, token: entity.token, barToken: entity.own ? 'chart-1' : 'chart-bar-neutral', tip: `${entity.name}: ${formatInteger(entity.answers)} of ${formatInteger(entity.answersOfTracked)} brand mentions` }));
+    .map((entity) => ({ label: entityLabel(entity), onClick: entity.own ? undefined : (opener) => ctx.openCompetitor?.(entity.name.toLowerCase(), opener), value: entity.sov, strong: entity.own, token: entity.token, barToken: entity.own ? 'chart-1' : 'chart-bar-neutral', note: ctx.scope.platform === 'all' ? undefined : `${formatInteger(entity.answers)} of ${formatInteger(entity.answersOfTracked)}`, tip: ctx.scope.platform === 'all' ? `${entity.name}: ${pct0(entity.sov)}, average of ${entity.platforms} platforms, each counting once. Brand mentions: ${entity.platformCounts.map((entry) => `${engineName(entry.code)} ${formatInteger(entry.k)} of ${formatInteger(entry.n)}`).join(' and ')}` : `${entity.name}: ${formatInteger(entity.answers)} of ${formatInteger(entity.answersOfTracked)} brand mentions` }));
   const total = entities[0].answersOfTracked;
   return cardFrame({
     key: 'ai.share_of_voice',
     title: 'Share of voice',
-    meta: ctx.scope.platform === 'all' ? `avg of ${entities[0].platforms} platforms` : `of ${formatInteger(total)} brand mentions`,
+    meta: ctx.scope.platform === 'all' ? `average of ${entities[0].platforms} platforms` : `of ${formatInteger(total)} brand mentions`,
     body: barList(rows),
   });
 }

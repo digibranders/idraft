@@ -75,6 +75,7 @@ import { TopicInspector } from './topic-inspector';
 import { selectionKeyOf } from './selection-model';
 import { DRAWER_ENTRY_KEYS } from './topics-by-engine/drill';
 import { TopicsView } from './topics-by-engine/topics-view';
+import { ownEntityIdsOf } from './columns/metric-shared';
 import type { TopicMenuTarget } from './topics-table';
 import { DateRangePicker } from '@/components/app/date-range/date-range-picker';
 import { droppedMessageKey } from '@/components/app/date-range/range-model';
@@ -1031,6 +1032,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
           topics={stripGroups}
           status={stripStatus}
           countsFailed={summaryFailed}
+          ownEntityIds={ownEntityIdsOf(summaryData?.data.entities)}
         />
       ) : null;
     controls = (

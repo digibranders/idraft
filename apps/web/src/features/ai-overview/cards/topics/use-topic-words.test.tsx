@@ -54,7 +54,9 @@ describe('useTopicWords', () => {
 
   it('a counted cell tip says k of n answers, the interval and the prompts', () => {
     const tip = words().cellTip(value({}), true);
-    expect(tip).toBe('50.0%, 5 of 10 answers, 24% to 76%, 3 prompts, each counts once');
+    expect(tip).toBe(
+      '50.0%, average of 3 prompts, each counting once. All answers pooled: 50.0%, 5 of 10 answers, 24% to 76%',
+    );
   });
 
   it('a share of voice tip says answers that name a brand', () => {

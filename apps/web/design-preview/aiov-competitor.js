@@ -43,6 +43,15 @@ const dot = (token) => {
 /** "612 of 1,800 answers", or nothing when a count is missing. */
 const countsOf = (total, part, noun) => (typeof total === 'number' && typeof part === 'number' ? `${formatInteger(part)} of ${formatInteger(total)} ${noun}` : undefined);
 
+/** A prompt-weighted rate is the mean of the prompts' rates: its tip says so, and the pooled answers carry their own percent. */
+const pooledTip = (total, part, noun) => (typeof total === 'number' && typeof part === 'number' && total > 0 ? `Average of the prompts, each counting once. Answers pooled: ${pct0(part / total)}, ${countsOf(total, part, noun)}` : undefined);
+
+/** Share of voice: x of y brand mentions of one platform; an average of platforms has each platform's counts, never a pooled one. */
+const shareTip = (entity) =>
+  entity.platformCounts.length === 1
+    ? countsOf(entity.platformCounts[0].n, entity.platformCounts[0].k, 'brand mentions')
+    : `Average of ${entity.platformCounts.length} platforms, each counting once. Brand mentions: ${entity.platformCounts.map((entry) => `${engineName(entry.code)} ${countsOf(entry.n, entry.k, '')}`.trim()).join(' and ')}`;
+
 const GAP_TONE = { up: 'text-positive-text', down: 'text-negative-text', flat: 'text-foreground-secondary' };
 
 /**
@@ -121,8 +130,8 @@ function fillOverview(model, index) {
   }
   const rows = [
     // The counts behind each rate are in the tooltips (R1): pooled answers, while the rate is prompt-weighted
-    { label: 'Mention rate', own: data.own.mention, rival: data.rival.mention, ownCounts: { k: data.own.answers, n: data.own.observations }, rivalCounts: { k: data.rival.answers, n: data.rival.observations }, tip: 'Share of valid answers that mention the brand. Each prompt counts once.', ownTip: countsOf(model.average.mention.counts?.n, data.own.answers, 'answers'), rivalTip: countsOf(model.average.mention.counts?.n, data.rival.answers, 'answers') },
-    { label: 'Share of voice', own: data.own.sov, rival: data.rival.sov, ownCounts: { k: data.own.answers, n: data.own.answersOfTracked }, rivalCounts: { k: data.rival.answers, n: data.rival.answersOfTracked }, tip: 'Share of tracked-brand mentions, within the tracked set.', ownTip: countsOf(data.own.answersOfTracked, data.own.answers, 'brand mentions'), rivalTip: countsOf(data.rival.answersOfTracked, data.rival.answers, 'brand mentions') },
+    { label: 'Mention rate', own: data.own.mention, rival: data.rival.mention, ownCounts: { k: data.own.answers, n: data.own.observations }, rivalCounts: { k: data.rival.answers, n: data.rival.observations }, tip: 'Share of valid answers that mention the brand. Each prompt counts once.', ownTip: pooledTip(model.average.mention.counts?.n, data.own.answers, 'answers'), rivalTip: pooledTip(model.average.mention.counts?.n, data.rival.answers, 'answers') },
+    { label: 'Share of voice', own: data.own.sov, rival: data.rival.sov, ownCounts: { k: data.own.answers, n: data.own.answersOfTracked }, rivalCounts: { k: data.rival.answers, n: data.rival.answersOfTracked }, tip: 'Share of tracked-brand mentions, within the tracked set.', ownTip: shareTip(data.own), rivalTip: shareTip(data.rival) },
     { label: 'Citation share', own: data.sourceShare.own, rival: data.sourceShare.rival, ownCounts: data.sourceShare.ownCounts, rivalCounts: data.sourceShare.rivalCounts, decimals: 1, tip: 'Share of citation units that are pages of the brand’s domain.' },
   ];
   const summary = cardFrame({

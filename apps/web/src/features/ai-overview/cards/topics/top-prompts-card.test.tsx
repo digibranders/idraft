@@ -164,11 +164,11 @@ describe('which prompts', () => {
 });
 
 describe('a row', () => {
-  it('has the percent with avg of N engines, and the counts of each engine in its words', async () => {
+  it('has the percent with average of N engines, and the counts of each engine in its words', async () => {
     renderCard({ options: { show: 'most_named' } });
     const alpha = await itemOf('Alpha prompt');
     expect(alpha).toHaveTextContent(/85(\.\d)?%/);
-    expect(alpha).toHaveTextContent('avg of 2 platforms');
+    expect(alpha).toHaveTextContent('average of 2 platforms');
     expect(alpha).toHaveTextContent('ChatGPT 90 of 100 answers');
     expect(alpha).toHaveTextContent('Gemini 80 of 100 answers');
     // One engine has a rate: it is that engine alone, never an average of two
@@ -193,7 +193,7 @@ describe('a row', () => {
   it('largest change says before and now with their answers, and how many engines took part', async () => {
     renderCard({ options: { show: 'largest_change' } });
     const alpha = await itemOf('Alpha prompt');
-    expect(alpha).toHaveTextContent('avg of 2 platforms');
+    expect(alpha).toHaveTextContent('average of 2 platforms');
     expect(alpha).toHaveTextContent(/35(\.\d)?%, 70 of 200 answers/);
     expect(alpha).toHaveTextContent(/85(\.\d)?%, 170 of 200 answers/);
     expect(alpha).toHaveTextContent('ChatGPT and Gemini');

@@ -271,9 +271,13 @@ describe('TopicSmallMultiplesCard', () => {
     render();
     await charts();
     expect(
-      within(figureOf('SEO tools (12 prompts)')).getByText(/Nov 9: 25\.0%, 10 of 40 answers.*5 prompts/),
+      within(figureOf('SEO tools (12 prompts)')).getByText(
+        /Nov 9: 25\.0%, average of 5 prompts.*All answers pooled: 25\.0%, 10 of 40 answers/,
+      ),
     ).toBeInTheDocument();
-    expect(within(figureOf('CRM (6 prompts)')).getByText(/Nov 9: 40\.0%, 8 of 20 answers/)).toBeInTheDocument();
+    expect(
+      within(figureOf('CRM (6 prompts)')).getByText(/Nov 9: 40\.0%.*All answers pooled: 40\.0%, 8 of 20 answers/),
+    ).toBeInTheDocument();
   });
 
   it('a group with no series says no weekly data in text, never a line at 0', async () => {

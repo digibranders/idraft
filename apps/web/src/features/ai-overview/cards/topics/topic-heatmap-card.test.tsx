@@ -158,13 +158,13 @@ describe('the groups heat map', () => {
 
   it('has a column per platform in order, the Google AI Overview column and then the average of the two collected', async () => {
     render();
-    expect(await headers()).toEqual(['Group', 'Prompts', 'ChatGPT', 'Gemini', 'Google AI Overview', 'avg of 2']);
+    expect(await headers()).toEqual(['Group', 'Prompts', 'ChatGPT', 'Gemini', 'Google AI Overview', 'average of 2']);
   });
 
   it('has no average column from one platform', async () => {
     render({ searchParams: 'engine=chatgpt_web' });
     // The page's platform does not narrow the columns: every platform is read
-    expect(await headers()).toEqual(['Group', 'Prompts', 'ChatGPT', 'Gemini', 'Google AI Overview', 'avg of 2']);
+    expect(await headers()).toEqual(['Group', 'Prompts', 'ChatGPT', 'Gemini', 'Google AI Overview', 'average of 2']);
   });
 
   it('says Google AI Overview is not collected yet in every row and never prints a rate there', async () => {
@@ -192,7 +192,7 @@ describe('the groups heat map', () => {
 
   it('averages the platforms with a rate and names them in the cell', async () => {
     render();
-    const security = await link(/^Security, avg of 2/);
+    const security = await link(/^Security, average of 2/);
     expect(security.getAttribute('aria-label')).toMatch(/Equal weight average of ChatGPT and Gemini/);
     const support = await link(/^Support, 1 platform/);
     expect(support.getAttribute('aria-label')).toMatch(/Gemini only/);

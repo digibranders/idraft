@@ -284,7 +284,7 @@ describe('stripItems', () => {
   it('effective sources is the platform average and the tip lists each platform with its units', () => {
     const effective = byId(readsOf())['effective'];
     expect(effective?.value).toBe('86.3');
-    expect(effective?.context).toBe('avg of 2 platforms');
+    expect(effective?.context).toBe('average of 2 platforms');
     expect(effective?.tip).toBe(
       'ChatGPT 90.0, over 9,000 units and Gemini 82.6, over 9,420 units. Each platform is counted alone and the platforms are averaged with equal weight.',
     );

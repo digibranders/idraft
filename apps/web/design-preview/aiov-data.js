@@ -304,6 +304,7 @@ export function entitiesFor(model) {
     const total = own + competitors.reduce((a, b) => a + b, 0);
     const rate = (pick) => promptWeightedRate(rows.map((row) => ({ k: pick(row), n: row.n })));
     return {
+      code,
       total,
       observations,
       shares: [own / total, ...competitors.map((count) => count / total)],
@@ -322,6 +323,8 @@ export function entitiesFor(model) {
     // The valid answers behind the mention rate, for the test of a gap
     observations: used.reduce((sum, entry) => sum + entry.observations, 0),
     platforms: used.length,
+    // x of y brand mentions of each platform that took part: an average of shares has no pooled count of its own (R3)
+    platformCounts: used.map((entry) => ({ code: entry.code, k: entry.counts[index], n: entry.total })),
   }));
 }
 

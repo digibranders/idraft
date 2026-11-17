@@ -14,7 +14,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip } from '@/components/ui/tooltip';
 import type { ProjectEngine } from '@/lib/api/types';
 import { EMPTY_VALUE, formatDateRange, formatInteger } from '@/lib/format';
+import { brandMentionCountsOver } from '@/lib/rates/brand-mentions';
 import { engineRates, type RateFigure, type StripPrompt } from '@/lib/rates/strip-model';
+import { rateState } from '@/lib/stats';
 import { visibilityOfPrompts } from '@/lib/rates/visibility-model';
 import { cn } from '@/lib/utils';
 
@@ -30,6 +32,8 @@ export interface PromptsStripProps {
   status: 'loading' | 'ready' | 'refetching';
   /** The counts could not be read: every figure is unknown, and the page's banner says why. */
   countsFailed: boolean;
+  /** The own brand's entities, for the brand-mention counts of share of voice; `undefined` until the read has them. */
+  ownEntityIds?: ReadonlySet<string> | undefined;
 }
 
 /** The platforms the product names, by API code, and the key of their name in the catalog. */
@@ -118,6 +122,7 @@ export function PromptsStrip({
   topics,
   status,
   countsFailed,
+  ownEntityIds,
 }: PromptsStripProps): ReactElement {
   const t = useTranslations('prompts.strip');
   const shell = useTranslations('prompts.shell.strip');
@@ -143,6 +148,19 @@ export function PromptsStrip({
     if (basis === null) return t('tipReason', { reason: figure.reason ?? 'noAnswers' });
     const counted = ofBrandNamed ? t('tipShareBasis', { basis }) : basis;
     return figure.state === 'insufficient' ? t('tipInsufficient', { basis: counted }) : counted;
+  };
+
+  /**
+   * Share of voice in the tooltip (D17): x of y brand mentions of the platform, counted from the entity cells; without
+   * them it is not collected yet, never a percent or a count made from the old sum of shares.
+   */
+  const shareDetail = (code: string): string => {
+    const counts = ownEntityIds === undefined ? null : brandMentionCountsOver(prompts, code, ownEntityIds);
+    if (counts === null) return t('tipNotCollected');
+    if (counts.n === 0) return t('tipReason', { reason: 'noAnswers' });
+    return rateState(counts.n) === 'ok'
+      ? t('tipShareCounts', { k: counts.k, n: counts.n })
+      : t('tipShareThin', { n: counts.n });
   };
 
   // A platform that is not on has no label from the API: the product's own names stand in
@@ -172,13 +190,13 @@ export function PromptsStrip({
       );
     }
     const visibility = visibilityOfPrompts(prompts, code);
-    const { mentioned, cited, shareOfVoice } = engineRates(prompts, code);
+    const { mentioned, cited } = engineRates(prompts, code);
     const parts = {
       platform: name,
       visibility: shell('visibilityTip', { detail: detailOf(visibility) }),
       mentioned: t('tipRate', { metric: t('tipMentioned'), detail: detailOf(mentioned) }),
       cited: t('tipRate', { metric: t('tipCited'), detail: detailOf(cited) }),
-      shareOfVoice: t('tipRate', { metric: t('tipShareOfVoice'), detail: detailOf(shareOfVoice, true) }),
+      shareOfVoice: t('tipRate', { metric: t('tipShareOfVoice'), detail: shareDetail(code) }),
     };
     // Each side counts its own prompts (a prompt added since has no earlier figure), and the tip says how many
     const change = compare && !loading ? visibilityChangeOf(prompts, code) : null;

@@ -26,3 +26,21 @@ export function brandMentionCounts(engine: EngineSummary | undefined, ownIds: Re
 /** The share of voice of those counts, or `null` under 4 brand mentions (R2). */
 export const shareOfCounts = (counts: Counts): number | null =>
   rateState(counts.n) === 'ok' ? counts.k / counts.n : null;
+
+/**
+ * x of y brand mentions of one engine over several prompts (the strip): the prompts' counts added up, one mention one
+ * weight. `{ k: 0, n: 0 }` when no prompt has the engine (no answers), `null` when one has it without entity cells.
+ */
+export function brandMentionCountsOver(
+  prompts: readonly { engines: readonly EngineSummary[] }[],
+  engineCode: string,
+  ownIds: ReadonlySet<string>,
+): Counts | null {
+  const cells = prompts.flatMap((prompt) => prompt.engines.filter((engine) => engine.engine_code === engineCode));
+  const counts = cells.map((cell) => brandMentionCounts(cell, ownIds));
+  if (counts.some((entry) => entry === null)) return null;
+  return counts.reduce<Counts>((total, entry) => ({ k: total.k + (entry?.k ?? 0), n: total.n + (entry?.n ?? 0) }), {
+    k: 0,
+    n: 0,
+  });
+}

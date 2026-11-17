@@ -69,9 +69,9 @@ export function platformLabel(code, { strong = false } = {}) {
   return wrap;
 }
 
-/** "avg of 3" beside a value that is an equal-weight average (R3). */
+/** "average of 3" beside a value that is an equal-weight average (R3). */
 export const averageBadge = (used) => {
-  const badge = el('span', NEUTRAL_BADGE, `avg of ${used}`);
+  const badge = el('span', NEUTRAL_BADGE, `average of ${used}`);
   badge.dataset.tip = 'The equal-weight average of the platforms that have this measure. Platforms are never pooled';
   return badge;
 };

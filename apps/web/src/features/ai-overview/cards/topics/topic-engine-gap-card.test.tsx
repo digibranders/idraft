@@ -148,7 +148,7 @@ describe('TopicEngineGapCard', () => {
     const billing = items[4];
     expect(billing).toHaveTextContent(/Billing: 10 points between ChatGPT and Gemini, within normal variation/);
     // Every engine's value comes with its counts
-    expect(items[0]).toHaveTextContent(/ChatGPT: 50\.0%, 40 of 80 answers.*Gemini: 8\.0%, 4 of 50 answers/);
+    expect(items[0]).toHaveTextContent(/ChatGPT: 50\.0%.*40 of 80 answers.*Gemini: 8\.0%.*4 of 50 answers/);
   });
 
   it('a group with a thin platform says its answers and the verdict is too few answers', async () => {
@@ -287,8 +287,8 @@ describe('TopicEngineGapCard', () => {
         .getAllByRole('cell')
         .map((cell) => cell.textContent),
     ).toEqual([
-      '50.0%, 40 of 80 answers, 39% to 61%, 8 prompts, each counts once',
-      '8.0%, 4 of 50 answers, 3% to 19%, 8 prompts, each counts once',
+      '50.0%, average of 8 prompts, each counting once. All answers pooled: 50.0%, 40 of 80 answers, 39% to 61%',
+      '8.0%, average of 8 prompts, each counting once. All answers pooled: 8.0%, 4 of 50 answers, 3% to 19%',
       '42 points',
       'detectable difference',
     ]);
