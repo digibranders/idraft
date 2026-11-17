@@ -17,6 +17,7 @@ export interface CanvasViewportProps {
   /** The accessible name of the region. */
   label: string;
   view: View;
+  /** Called at most once a frame while a gesture runs, and once more when it ends, so the last view is always reported. */
   onViewChange: (view: View) => void;
   /** The size of the region in pixels (the canvas measures it and passes it back). */
   size: Size;
@@ -29,6 +30,8 @@ export interface CanvasViewportProps {
 const KEY_STEP = 40;
 const KEY_STEP_BIG = 160;
 const WHEEL_ZOOM = 0.0015;
+/** A wheel in lines (Firefox) counts this many pixels a line. */
+const LINE_PIXELS = 16;
 /** The dot grid spacing at 100 percent. */
 const GRID = 24;
 /** A fast drag glides to a stop (spec 7.5 "Pan"); not under reduced motion. */
@@ -54,6 +57,9 @@ interface Drag {
  * The pannable, zoomable viewport of the canvas (spec 7.5 "Viewport", mock `il-canvas.js`): drag the empty background,
  * wheel or two finger scroll to pan, Ctrl or Cmd with the wheel or a pinch to zoom toward the cursor, Space and drag, and
  * the keys when the empty canvas has focus. The children are the world; they move by one transform and nothing scrolls.
+ *
+ * Every gesture builds on the view it last produced (not on the prop, which only catches up after a render), and the
+ * host hears of it at most once a frame.
  */
 export function CanvasViewport({
   label,
@@ -65,11 +71,17 @@ export function CanvasViewport({
   className,
 }: CanvasViewportProps): ReactElement {
   const region = useRef<HTMLDivElement>(null);
+  // The view a gesture continues from: the last one made here, or the one the host set
   const latest = useRef(view);
+  // A view made here that the host has not heard of yet, the frame that will tell it, and the views already told
+  const pending = useRef<View | null>(null);
+  const frame = useRef<number | null>(null);
+  const told = useRef(new WeakSet<View>());
   const emit = useRef(onViewChange);
+  const room = useRef(size);
   useEffect(() => {
-    latest.current = view;
     emit.current = onViewChange;
+    room.current = size;
   });
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const drag = useRef<Drag | null>(null);
@@ -81,12 +93,48 @@ export function CanvasViewport({
     if (glide.current !== null) cancelAnimationFrame(glide.current);
     glide.current = null;
   };
+  const flush = (): void => {
+    if (frame.current !== null) cancelAnimationFrame(frame.current);
+    frame.current = null;
+    const next = pending.current;
+    pending.current = null;
+    if (next === null) return;
+    told.current.add(next);
+    emit.current(next);
+  };
+  /** The view is `next` from now on; the host hears of it now, or with the next frame. */
+  const commit = (next: View, now = false): void => {
+    latest.current = next;
+    pending.current = next;
+    if (now) flush();
+    else
+      frame.current ??= requestAnimationFrame(() => {
+        frame.current = null;
+        flush();
+      });
+  };
+
   useEffect(
     () => () => {
       if (glide.current !== null) cancelAnimationFrame(glide.current);
+      if (frame.current !== null) cancelAnimationFrame(frame.current);
+      glide.current = null;
+      frame.current = null;
+      pending.current = null;
     },
     [],
   );
+
+  // A view the host sets (a button, a fit) replaces the one a gesture was building, and stops a glide
+  useEffect(() => {
+    if (told.current.has(view) || latest.current === view) return;
+    if (glide.current !== null) cancelAnimationFrame(glide.current);
+    glide.current = null;
+    if (frame.current !== null) cancelAnimationFrame(frame.current);
+    frame.current = null;
+    pending.current = null;
+    latest.current = view;
+  }, [view]);
 
   const local = (clientX: number, clientY: number): { x: number; y: number } => {
     const rect = region.current?.getBoundingClientRect();
@@ -101,11 +149,11 @@ export function CanvasViewport({
       event.preventDefault();
       if (glide.current !== null) cancelAnimationFrame(glide.current);
       glide.current = null;
-      const rect = element.getBoundingClientRect();
-      const unit = event.deltaMode === 1 ? 16 : 1;
+      const unit = event.deltaMode === 2 ? room.current.height : event.deltaMode === 1 ? LINE_PIXELS : 1;
       if (event.ctrlKey || event.metaKey) {
+        const rect = element.getBoundingClientRect();
         const factor = Math.exp(-event.deltaY * unit * WHEEL_ZOOM);
-        emit.current(
+        commit(
           zoomAt(latest.current, latest.current.scale * factor, {
             x: event.clientX - rect.left,
             y: event.clientY - rect.top,
@@ -113,13 +161,17 @@ export function CanvasViewport({
         );
         return;
       }
-      emit.current(panBy(latest.current, -event.deltaX * unit, -event.deltaY * unit));
+      commit(panBy(latest.current, -event.deltaX * unit, -event.deltaY * unit));
     };
     element.addEventListener('wheel', onWheel, { passive: false });
     return () => element.removeEventListener('wheel', onWheel);
+    // commit only reads refs, so one listener serves for the life of the element
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>): void => {
+    // A press, a tap on a card or a second finger takes hold of a glide
+    stopGlide();
     const onCard =
       (event.target as HTMLElement).closest('[data-node], button, a, input, [data-canvas-control]') !== null;
     pointers.current.set(event.pointerId, local(event.clientX, event.clientY));
@@ -128,12 +180,12 @@ export function CanvasViewport({
       if (a !== undefined && b !== undefined) {
         pinch.current = { distance: Math.hypot(a.x - b.x, a.y - b.y), scale: latest.current.scale };
         drag.current = null;
+        for (const id of pointers.current.keys()) region.current?.setPointerCapture?.(id);
       }
       return;
     }
     if (onCard && !space.current) return;
     if (event.button !== 0 && event.pointerType === 'mouse') return;
-    stopGlide();
     const point = local(event.clientX, event.clientY);
     drag.current = { x: point.x, y: point.y, vx: 0, vy: 0, t: performance.now() };
     region.current?.setPointerCapture?.(event.pointerId);
@@ -148,9 +200,7 @@ export function CanvasViewport({
       if (a === undefined || b === undefined) return;
       const distance = Math.hypot(a.x - b.x, a.y - b.y);
       const centre = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-      onViewChange(
-        zoomAt(latest.current, pinch.current.scale * (distance / Math.max(pinch.current.distance, 1)), centre),
-      );
+      commit(zoomAt(latest.current, pinch.current.scale * (distance / Math.max(pinch.current.distance, 1)), centre));
       return;
     }
     const start = drag.current;
@@ -160,15 +210,24 @@ export function CanvasViewport({
     const now = performance.now();
     const dt = Math.max(now - start.t, 1);
     drag.current = { x: point.x, y: point.y, vx: (dx / dt) * 16, vy: (dy / dt) * 16, t: now };
-    onViewChange(panBy(latest.current, dx, dy));
+    commit(panBy(latest.current, dx, dy));
   };
 
   const end = (event: ReactPointerEvent<HTMLDivElement>): void => {
     pointers.current.delete(event.pointerId);
     if (pointers.current.size < 2) pinch.current = null;
+    // The last view of the gesture is always reported
+    flush();
+    const [remaining] = pointers.current.values();
+    if (remaining !== undefined) {
+      // One finger of a pinch lifted: the other carries on as a pan from where it is, so the view does not jump
+      drag.current = { x: remaining.x, y: remaining.y, vx: 0, vy: 0, t: performance.now() };
+      return;
+    }
     const last = drag.current;
     drag.current = null;
-    if (last === null || reducedMotion()) return;
+    // A gesture the system cancelled (a call, a palm) carries nothing on
+    if (last === null || event.type === 'pointercancel' || reducedMotion()) return;
     let { vx, vy } = last;
     if (Math.hypot(vx, vy) < GLIDE_START) return;
     const tick = (): void => {
@@ -178,14 +237,14 @@ export function CanvasViewport({
         glide.current = null;
         return;
       }
-      emit.current(panBy(latest.current, vx, vy));
+      commit(panBy(latest.current, vx, vy), true);
       glide.current = requestAnimationFrame(tick);
     };
     glide.current = requestAnimationFrame(tick);
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
-    // Cards keep their own arrows (20-accessibility.md 7.1); these keys act on the empty canvas
+    // Cards keep their own arrows (20-accessibility.md 7.1) and a field keeps its own keys: these act on the empty canvas
     if (event.target !== event.currentTarget) return;
     if (event.altKey || event.ctrlKey || event.metaKey) return;
     if (event.key === ' ') {
@@ -195,6 +254,7 @@ export function CanvasViewport({
     }
     const big = event.shiftKey ? KEY_STEP_BIG : KEY_STEP;
     const current = latest.current;
+    const middle = { x: size.width / 2, y: size.height / 2 };
     let next: View | null = null;
     if (event.key === 'ArrowLeft') next = panBy(current, big, 0);
     else if (event.key === 'ArrowRight') next = panBy(current, -big, 0);
@@ -202,13 +262,14 @@ export function CanvasViewport({
     else if (event.key === 'ArrowDown') next = panBy(current, 0, -big);
     else if (event.key === '+' || event.key === '=') next = stepZoom(current, 1, size);
     else if (event.key === '-') next = stepZoom(current, -1, size);
-    else if (event.key === '1') next = zoomAt(current, 1, { x: size.width / 2, y: size.height / 2 });
+    else if (event.key === '1') next = zoomAt(current, 1, middle);
     if (next === null) {
       onKey?.(event);
       return;
     }
     event.preventDefault();
-    onViewChange(next);
+    stopGlide();
+    commit(next, true);
   };
 
   const cell = GRID * view.scale;

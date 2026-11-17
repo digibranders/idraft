@@ -2,8 +2,9 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { LinkCanvas, type CanvasFocus, type LinkCanvasProps } from './link-canvas';
+import { tierEdge } from '@/components/app/tier/tier-colors';
 import { SingleKeysContext } from '@/lib/a11y/use-shortcut';
-import type { View } from '@/lib/internal-links/canvas-view';
+import { firstView, type View } from '@/lib/internal-links/canvas-view';
 import {
   buildJourney,
   cardKey,
@@ -13,6 +14,27 @@ import {
 } from '@/lib/internal-links/journey-layout';
 import { axe } from '@/test/axe';
 import { renderWithProviders } from '@/test/render';
+
+// A card renders its edge colour, so the calls count how often cards are rendered
+vi.mock('@/components/app/tier/tier-colors', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/components/app/tier/tier-colors')>();
+  return { ...actual, tierEdge: vi.fn(actual.tierEdge) };
+});
+
+// jsdom has no layout: the world and the cards get the sizes a test gives them (offset sizes, which a zoom never changes)
+const geometry = { world: [900, 300], card: [100, 40], left: 0 };
+function stubGeometry(): void {
+  const isWorld = (element: HTMLElement): boolean => element.getAttribute('role') === 'presentation';
+  vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockImplementation(function (this: HTMLElement) {
+    return isWorld(this) ? (geometry.world[0] ?? 0) : (geometry.card[0] ?? 0);
+  });
+  vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(function (this: HTMLElement) {
+    return isWorld(this) ? (geometry.world[1] ?? 0) : (geometry.card[1] ?? 0);
+  });
+  vi.spyOn(HTMLElement.prototype, 'offsetLeft', 'get').mockImplementation(function (this: HTMLElement) {
+    return isWorld(this) ? 0 : geometry.left;
+  });
+}
 
 function node(id: string, path: string, code: string | null, over: Partial<JourneyNeighbor> = {}): JourneyNeighbor {
   return {
@@ -79,7 +101,13 @@ function canvas(over: Partial<LinkCanvasProps<JourneyNeighbor>> = {}, state: Par
   return { props, ...renderWithProviders(<LinkCanvas {...props} />) };
 }
 
-afterEach(() => document.documentElement.classList.remove('dark'));
+afterEach(() => {
+  document.documentElement.classList.remove('dark');
+  vi.restoreAllMocks();
+  geometry.world = [900, 300];
+  geometry.card = [100, 40];
+  geometry.left = 0;
+});
 
 describe('LinkCanvas (spec 7.5)', () => {
   it('names the canvas region after its text alternative', () => {
@@ -289,7 +317,7 @@ describe('LinkCanvas, behaviour found in review', () => {
 
   it('has the view toolbar, and the map is off until its button is pressed', async () => {
     const { user } = canvas();
-    expect(screen.getByRole('toolbar', { name: 'Canvas view' })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Canvas view' })).toBeInTheDocument();
     expect(screen.queryByRole('img', { name: 'Map of the journey' })).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Show the map' }));
     expect(screen.getByRole('img', { name: 'Map of the journey' })).toBeInTheDocument();
@@ -320,26 +348,156 @@ describe('LinkCanvas, behaviour found in review', () => {
     expect(onViewChange).toHaveBeenCalledTimes(2);
   });
 
-  it('reveals a card that takes focus outside the view, and leaves a visible one alone', () => {
+  it('reveals a card that the keyboard takes outside the view, and leaves a visible one alone', async () => {
+    stubGeometry();
+    const onViewChange = vi.fn();
+    const { user } = canvas({ onViewChange, view: { x: -10000, y: 0, scale: 1 } });
+    onViewChange.mockClear();
+    screen.getByRole('button', { name: /focus page$/ }).focus();
+    await user.keyboard('{ArrowRight}');
+    expect(screen.getByRole('button', { name: /^\/pricing, T1/ })).toHaveFocus();
+    // The card is at the left of a world that sits 10000 px to the left: the least pan brings it 24 px inside
+    expect((onViewChange.mock.lastCall?.[0] as View).x).toBe(24 - 0);
+  });
+
+  it('leaves the view alone for a card that is in view', async () => {
+    stubGeometry();
+    const onViewChange = vi.fn();
+    const { user } = canvas({ onViewChange, view: { x: 100, y: 100, scale: 1 } });
+    onViewChange.mockClear();
+    screen.getByRole('button', { name: /focus page$/ }).focus();
+    await user.keyboard('{ArrowRight}');
+    expect(onViewChange).not.toHaveBeenCalled();
+  });
+
+  it('does not move the view for a card the mouse focused', () => {
+    stubGeometry();
     const onViewChange = vi.fn();
     canvas({ onViewChange, view: { x: -10000, y: 0, scale: 1 } });
     onViewChange.mockClear();
-    screen.getByRole('button', { name: /^\/pricing, T1/ }).focus();
-    expect(onViewChange).toHaveBeenCalledTimes(1);
+    const card = screen.getByRole('button', { name: /^\/pricing, T1/ });
+    fireEvent.pointerDown(card, { pointerId: 1 });
+    card.focus();
+    expect(onViewChange).not.toHaveBeenCalled();
+  });
+
+  it('measures the card that takes focus when it does, not from the last drawing', async () => {
+    stubGeometry();
+    const onViewChange = vi.fn();
+    const { user } = canvas({ onViewChange, view: { x: 0, y: 0, scale: 1 } });
+    onViewChange.mockClear();
+    // The page moved since the last drawing (a card opened above it): the card is now far to the right
+    geometry.left = 9000;
+    screen.getByRole('button', { name: /focus page$/ }).focus();
+    await user.keyboard('{ArrowRight}');
+    expect(onViewChange).toHaveBeenCalled();
+  });
+
+  it('does not measure the cards again when only the zoom changes', () => {
+    stubGeometry();
+    const { props, rerender } = canvas();
+    // Drawing reads the offset geometry, which a zoom does not change; the screen rectangles would change with it
+    const rects = vi.spyOn(Element.prototype, 'getBoundingClientRect');
+    const offsets = vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get');
+    rects.mockClear();
+    offsets.mockClear();
+    rerender(<LinkCanvas {...props} view={{ x: 10, y: 10, scale: 0.5 }} />);
+    rerender(<LinkCanvas {...props} view={{ x: 20, y: 20, scale: 1.5 }} />);
+    expect(rects).not.toHaveBeenCalled();
+    expect(offsets).not.toHaveBeenCalled();
+  });
+
+  it('does not render the cards again when the view pans, even with new handlers from the host', () => {
+    const { props, rerender } = canvas();
+    const rendered = vi.mocked(tierEdge).mock.calls.length;
+    expect(rendered).toBeGreaterThan(0);
+    for (let step = 1; step <= 5; step += 1) {
+      rerender(
+        <LinkCanvas
+          {...props}
+          view={{ x: step * 10, y: step, scale: 1 }}
+          onToggleCard={vi.fn()}
+          onToggleGroup={vi.fn()}
+          onMore={vi.fn()}
+          onRefocus={vi.fn()}
+          onDetails={vi.fn()}
+          onRetry={vi.fn()}
+          onFull={vi.fn()}
+          onTogglePin={vi.fn()}
+        />,
+      );
+    }
+    expect(vi.mocked(tierEdge).mock.calls.length).toBe(rendered);
+  });
+
+  it('still calls the latest handlers of the host from a card that was not rendered again', async () => {
+    const first = vi.fn();
+    const second = vi.fn();
+    const { props, rerender, user } = canvas({ onToggleCard: first });
+    rerender(<LinkCanvas {...props} onToggleCard={second} view={{ x: 5, y: 5, scale: 1 }} />);
+    await user.click(screen.getByRole('button', { name: /^\/pricing, T1/ }));
+    expect(first).not.toHaveBeenCalled();
+    expect(second).toHaveBeenCalledWith(cardKey('out', ['2']));
+  });
+
+  it('turns the zoom buttons off at the limits', () => {
+    const { props, rerender } = canvas({ view: { x: 0, y: 0, scale: 2 } });
+    expect(screen.getByRole('button', { name: 'Zoom in' })).toHaveAttribute('aria-disabled', 'true');
+    rerender(<LinkCanvas {...props} view={{ x: 0, y: 0, scale: 0.25 }} />);
+    expect(screen.getByRole('button', { name: 'Zoom out' })).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.getByRole('button', { name: 'Zoom in' })).not.toHaveAttribute('aria-disabled', 'true');
+  });
+
+  it('centres the view on the point of the map that was pressed', async () => {
+    stubGeometry();
+    const onViewChange = vi.fn();
+    const { user } = canvas({ onViewChange });
+    await user.click(screen.getByRole('button', { name: 'Show the map' }));
+    onViewChange.mockClear();
+    const map = screen.getByRole('img', { name: 'Map of the journey' });
+    // The world is 900 by 300: the map scale is 176 over 900, and 90 px across is about 460 world px
+    fireEvent.pointerDown(map, { pointerId: 1, clientX: 90, clientY: 30 });
+    const view = onViewChange.mock.lastCall?.[0] as View;
+    const scale = Math.min(176 / 900, 112 / 300);
+    expect(view.scale).toBe(1);
+    expect(view.x).toBeCloseTo(500 - 90 / scale, 6);
+    expect(view.y).toBeCloseTo(348 - 30 / scale, 6);
   });
 
   it('sets the first view once per focus page, when the journey has a size', () => {
-    const size = vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(900);
-    const tall = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(300);
+    stubGeometry();
     const onViewChange = vi.fn();
     const { props, rerender } = canvas({ onViewChange });
     expect(onViewChange).toHaveBeenCalledTimes(1);
     rerender(<LinkCanvas {...props} onViewChange={onViewChange} pinned={new Set(['x'])} />);
     expect(onViewChange).toHaveBeenCalledTimes(1);
-    rerender(<LinkCanvas {...props} onViewChange={onViewChange} focus={{ ...FOCUS, urlId: '9' }} />);
+  });
+
+  it('sets the first view of a new focus page from its own journey, not from the one before', () => {
+    stubGeometry();
+    const onViewChange = vi.fn();
+    const { props, rerender } = canvas({ onViewChange });
+    expect(onViewChange).toHaveBeenCalledTimes(1);
+    // The neighbour's lists are already read: its journey is ready at once, and a lot wider
+    geometry.world = [2000, 300];
+    const neighbour = buildJourney({ ...base, focus: '2' }, lookup);
+    rerender(
+      <LinkCanvas
+        {...props}
+        onViewChange={onViewChange}
+        layout={neighbour}
+        focus={{ ...FOCUS, urlId: '2', path: '/pricing' }}
+      />,
+    );
     expect(onViewChange).toHaveBeenCalledTimes(2);
-    size.mockRestore();
-    tall.mockRestore();
+    const focusBox = { left: 0, top: 0, width: 100, height: 40 };
+    const expected = firstView(
+      { left: 0, top: 0, width: 2000, height: 300 },
+      focusBox,
+      { width: 1000, height: 696 },
+      56,
+    );
+    expect(onViewChange.mock.lastCall?.[0]).toEqual(expected);
   });
 
   it('never draws an equity share', () => {

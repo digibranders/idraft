@@ -7,6 +7,8 @@ import { renderWithProviders } from '@/test/render';
 const base = () => ({
   percent: 85,
   minimap: false,
+  atMin: false,
+  atMax: false,
   onZoomOut: vi.fn(),
   onZoomIn: vi.fn(),
   onActualSize: vi.fn(),
@@ -16,10 +18,10 @@ const base = () => ({
 });
 
 describe('ViewControls', () => {
-  it('is a toolbar named Canvas view with every control a person can press', async () => {
+  it('is a group named Canvas view with every control a person can press', async () => {
     const props = base();
     const { user } = renderWithProviders(<ViewControls {...props} />);
-    expect(screen.getByRole('toolbar', { name: 'Canvas view' })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Canvas view' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Zoom out' }));
     await user.click(screen.getByRole('button', { name: 'Zoom in' }));
     await user.click(screen.getByRole('button', { name: 'Fit everything' }));
@@ -42,5 +44,27 @@ describe('ViewControls', () => {
     expect(props.onToggleMinimap).toHaveBeenCalledTimes(1);
     rerender(<ViewControls {...props} minimap />);
     expect(screen.getByRole('button', { name: 'Hide the map' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('turns the map button off where the map is not drawn (under 640 px)', () => {
+    renderWithProviders(<ViewControls {...base()} />);
+    const toggle = screen.getByRole('button', { name: 'Show the map' });
+    expect(toggle.className).toContain('hidden');
+    expect(toggle.className).toContain('sm:inline-flex');
+  });
+
+  it('disables zoom in at 200 percent and zoom out at 25 percent, keeping them focusable, and the percent works', async () => {
+    const props = { ...base(), atMax: true, percent: 200 };
+    const { user, rerender } = renderWithProviders(<ViewControls {...props} />);
+    const zoomIn = screen.getByRole('button', { name: 'Zoom in' });
+    expect(zoomIn).toHaveAttribute('aria-disabled', 'true');
+    await user.click(zoomIn);
+    expect(props.onZoomIn).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Zoom out' })).not.toHaveAttribute('aria-disabled', 'true');
+    await user.click(screen.getByRole('button', { name: '200%, return to 100%' }));
+    expect(props.onActualSize).toHaveBeenCalled();
+    rerender(<ViewControls {...props} atMax={false} atMin percent={25} />);
+    expect(screen.getByRole('button', { name: 'Zoom out' })).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.getByRole('button', { name: 'Zoom in' })).not.toHaveAttribute('aria-disabled', 'true');
   });
 });

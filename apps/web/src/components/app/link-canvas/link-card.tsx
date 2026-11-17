@@ -1,7 +1,7 @@
 'use client';
 
 import { ChevronDown, ChevronRight, CornerUpLeft, Crosshair, PanelRightOpen } from 'lucide-react';
-import type { KeyboardEvent, ReactElement } from 'react';
+import { memo, type KeyboardEvent, type ReactElement } from 'react';
 
 import { tierEdge } from '@/components/app/tier/tier-colors';
 import { Badge } from '@/components/ui/badge';
@@ -24,7 +24,8 @@ export interface CanvasNodeData {
   highlighted: boolean;
   /** The one node of the canvas in the Tab order (the others are reached with the arrow keys); its tools and marker follow it. */
   tabStop: boolean;
-  onActivate: () => void;
+  /** Handlers take what they act on, so the canvas can hand every card the same functions and a card can be memoised. */
+  onActivate: (nodeKey: string) => void;
   onKeyDown: (event: KeyboardEvent<HTMLButtonElement>) => void;
 }
 
@@ -44,14 +45,19 @@ export interface LinkCardPageProps extends CanvasNodeData {
   /** `null`: the card cannot open. */
   open: boolean | null;
   tip: { content: string; detail: string };
-  tools: { focusLabel: string | null; onFocusPage: () => void; detailsLabel: string; onDetails: () => void };
+  tools: {
+    focusLabel: string | null;
+    onFocusPage: (urlId: string) => void;
+    detailsLabel: string;
+    onDetails: (urlId: string) => void;
+  };
   back: {
     count: number;
     label: string;
     pressed: boolean;
     tip: { content: string; detail: string };
-    onToggle: () => void;
-    onShow: (shown: boolean) => void;
+    onToggle: (nodeKey: string) => void;
+    onShow: (nodeKey: string, shown: boolean) => void;
   } | null;
 }
 
@@ -87,11 +93,25 @@ function dataOf(props: CanvasNodeData): Record<string, string> {
   };
 }
 
+/** Equal by value, and by identity for functions: a card whose text and state did not change is not drawn again. */
+function same(a: unknown, b: unknown): boolean {
+  if (Object.is(a, b)) return true;
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false;
+  const left = Object.entries(a);
+  return (
+    left.length === Object.keys(b).length &&
+    left.every(([key, value]) => same(value, Object.getOwnPropertyDescriptor(b, key)?.value))
+  );
+}
+
 /**
  * One node of the link canvas (spec 7.5 and 7.9, 25 section 14.16): a page card with a left edge in its tier color,
- * a dashed stub for a page already on the canvas, or a group card that stands for the links of another scope.
+ * a dashed stub for a page already on the canvas, or a group card that stands for the links of another scope. A pan or
+ * a zoom of the canvas does not draw the cards again (the canvas can hold 300).
  */
-export function LinkCard(props: LinkCardProps): ReactElement {
+export const LinkCard = memo(LinkCardView, (previous, next) => same(previous, next));
+
+function LinkCardView(props: LinkCardProps): ReactElement {
   if (props.kind === 'group') {
     return (
       <button
@@ -100,7 +120,7 @@ export function LinkCard(props: LinkCardProps): ReactElement {
         tabIndex={props.tabStop ? 0 : -1}
         aria-label={props.name}
         aria-expanded={props.open}
-        onClick={props.onActivate}
+        onClick={() => props.onActivate(props.nodeKey)}
         onKeyDown={props.onKeyDown}
         className={cn(
           BASE,
@@ -123,7 +143,7 @@ export function LinkCard(props: LinkCardProps): ReactElement {
         {...dataOf(props)}
         tabIndex={props.tabStop ? 0 : -1}
         aria-label={props.name}
-        onClick={props.onActivate}
+        onClick={() => props.onActivate(props.nodeKey)}
         onKeyDown={props.onKeyDown}
         className={cn(
           BASE,
@@ -148,7 +168,7 @@ export function LinkCard(props: LinkCardProps): ReactElement {
           tabIndex={props.tabStop ? 0 : -1}
           aria-label={props.name}
           aria-expanded={props.open === null ? undefined : props.open}
-          onClick={props.onActivate}
+          onClick={() => props.onActivate(props.nodeKey)}
           onKeyDown={props.onKeyDown}
           className={cn(
             BASE,
@@ -192,7 +212,7 @@ export function LinkCard(props: LinkCardProps): ReactElement {
             variant="secondary"
             label={tools.focusLabel}
             tabIndex={props.tabStop ? 0 : -1}
-            onClick={tools.onFocusPage}
+            onClick={() => tools.onFocusPage(props.urlId ?? '')}
           />
         )}
         <IconButton
@@ -201,7 +221,7 @@ export function LinkCard(props: LinkCardProps): ReactElement {
           variant="secondary"
           label={tools.detailsLabel}
           tabIndex={props.tabStop ? 0 : -1}
-          onClick={tools.onDetails}
+          onClick={() => tools.onDetails(props.urlId ?? '')}
         />
       </div>
       {back === null ? null : (
@@ -211,11 +231,11 @@ export function LinkCard(props: LinkCardProps): ReactElement {
             tabIndex={props.tabStop ? 0 : -1}
             aria-label={back.label}
             aria-pressed={back.pressed}
-            onClick={back.onToggle}
-            onMouseEnter={() => back.onShow(true)}
-            onMouseLeave={() => back.onShow(false)}
-            onFocus={() => back.onShow(true)}
-            onBlur={() => back.onShow(false)}
+            onClick={() => back.onToggle(props.nodeKey)}
+            onMouseEnter={() => back.onShow(props.nodeKey, true)}
+            onMouseLeave={() => back.onShow(props.nodeKey, false)}
+            onFocus={() => back.onShow(props.nodeKey, true)}
+            onBlur={() => back.onShow(props.nodeKey, false)}
             className="absolute right-3 bottom-2 flex items-center gap-1 rounded-sm px-1 type-label whitespace-nowrap text-primary-text hover:underline focus-visible:focus-ring aria-pressed:bg-primary-subtle"
           >
             <Icon icon={CornerUpLeft} size="xs" />

@@ -39,7 +39,7 @@ export function Minimap({ label, content, cards, shown, onMove }: MinimapProps):
       data-canvas-control=""
       width={WIDTH}
       height={HEIGHT}
-      className="hidden rounded-md border border-border bg-surface shadow-popover sm:block"
+      className="hidden touch-none rounded-md border border-border bg-surface shadow-popover sm:block"
       onPointerDown={(event) => {
         event.currentTarget.setPointerCapture?.(event.pointerId);
         onMove(toWorld(event));

@@ -8,6 +8,7 @@ import {
   useId,
   useImperativeHandle,
   useLayoutEffect,
+  memo,
   useMemo,
   useRef,
   useState,
@@ -26,6 +27,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { announce } from '@/lib/a11y/announcer';
 import { SingleKeysContext } from '@/lib/a11y/use-shortcut';
 import {
+  MAX_SCALE,
+  MIN_SCALE,
   centerOn,
   firstView,
   fitView,
@@ -152,13 +155,109 @@ function hold<N extends JourneyNeighbor>(
 interface DrawnEdges {
   lines: DrawnEdge[];
   arrows: DrawnEdge[];
-  /** Every card in world coordinates: the map, the first view and the reveal read them. */
+  /** Every card in world coordinates: the map and the first view read them. */
   cards: MinimapCard[];
   width: number;
   height: number;
+  /** What the drawing was made for: the layout and the focus page it measured. */
+  layout: unknown;
+  focusId: string | null;
 }
 
+/** A card's rectangle in world pixels from its offset geometry, which a zoom does not change (`root` is the world). */
+function offsetBox(element: HTMLElement, root: HTMLElement): Box {
+  let left = 0;
+  let top = 0;
+  let node: HTMLElement | null = element;
+  while (node !== null && node !== root) {
+    left += node.offsetLeft;
+    top += node.offsetTop;
+    node = node.offsetParent instanceof HTMLElement ? node.offsetParent : null;
+  }
+  return { left, top, width: element.offsetWidth, height: element.offsetHeight };
+}
+
+const focusVisible = (element: Element): boolean => {
+  try {
+    return element.matches(':focus-visible');
+  } catch {
+    return false;
+  }
+};
+
+/** A function with one identity for the life of the component that always runs the latest one given. */
+function useStable<A extends unknown[], R>(fn: (...args: A) => R): (...args: A) => R {
+  const latest = useRef(fn);
+  useLayoutEffect(() => {
+    latest.current = fn;
+  });
+  return useCallback((...args: A) => latest.current(...args), []);
+}
+
+const none = (): void => undefined;
+
+/** The lines, dots and arrowheads, drawn again only when the drawing changes (a pan or a zoom leaves it alone). */
+const EdgeLayer = memo(function EdgeLayer({ edges, markerId }: { edges: DrawnEdges; markerId: string }): ReactElement {
+  return (
+    <svg
+      aria-hidden="true"
+      className="pointer-events-none absolute top-0 left-0"
+      width={edges.width}
+      height={edges.height}
+    >
+      <defs>
+        <marker id={markerId} viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M1 1L9 5L1 9z" className="fill-primary" />
+        </marker>
+        {/* Every curve arrives horizontally, so the arrowhead needs no more than orient auto */}
+        {TONES.map((tone) => (
+          <marker
+            key={tone}
+            id={`${markerId}-${tone}`}
+            viewBox="0 0 10 10"
+            refX="9"
+            refY="5"
+            markerWidth="7"
+            markerHeight="7"
+            orient="auto"
+          >
+            <path d="M1 1L9 5L1 9z" className={FILL[tone]} />
+          </marker>
+        ))}
+      </defs>
+      {edges.lines.map((line) => (
+        <g key={line.id}>
+          <path
+            d={line.d}
+            fill="none"
+            strokeWidth={1.5}
+            strokeDasharray={line.look.dash ?? undefined}
+            markerEnd={`url(#${markerId}-${line.look.tone})`}
+            className={STROKE[line.look.tone]}
+          />
+          {line.start === null ? null : (
+            <circle cx={line.start.x} cy={line.start.y} r={3} className={FILL[line.look.tone]} />
+          )}
+        </g>
+      ))}
+      {edges.arrows.map((arrow) => (
+        <path
+          key={arrow.id}
+          d={arrow.d}
+          fill="none"
+          strokeWidth={1.5}
+          strokeDasharray="6 4"
+          markerEnd={`url(#${markerId})`}
+          className="stroke-primary"
+        />
+      ))}
+    </svg>
+  );
+});
+
 const sameEdges = (a: DrawnEdges, b: DrawnEdges): boolean =>
+  a.layout === b.layout &&
+  a.focusId === b.focusId &&
   a.width === b.width &&
   a.height === b.height &&
   a.lines.length === b.lines.length &&
@@ -205,6 +304,8 @@ export function LinkCanvas<N extends JourneyNeighbor>({
   const scroller = useRef<HTMLDivElement>(null);
   // The focus page the first view was last set for: one first view per focus page
   const firstFor = useRef<string | null>(null);
+  // How the last input reached the canvas: only the keyboard pans a focused card into view
+  const modality = useRef<'keyboard' | 'pointer'>('keyboard');
   const inner = useRef<HTMLDivElement>(null);
   // The card that was activated, the keys that can take focus back (itself, then what it hung under), the layout it
   // was activated on and when: focus returns once the layout is rebuilt, and not for a zoom or a hover
@@ -213,7 +314,15 @@ export function LinkCanvas<N extends JourneyNeighbor>({
   const [flashKey, setFlashKey] = useState<string | null>(null);
   // One tab stop for the whole canvas: the card that last had focus (the focus page at first)
   const [activeKey, setActiveKey] = useState(FOCUS_KEY);
-  const [edges, setEdges] = useState<DrawnEdges>({ lines: [], arrows: [], cards: [], width: 0, height: 0 });
+  const [edges, setEdges] = useState<DrawnEdges>({
+    lines: [],
+    arrows: [],
+    cards: [],
+    width: 0,
+    height: 0,
+    layout: null,
+    focusId: null,
+  });
   const [height, setHeight] = useState(MIN_HEIGHT + 120);
   const [width, setWidth] = useState(DEFAULT_WIDTH);
   // The map is off until its button is pressed (owner decision, 2026-11-17)
@@ -267,26 +376,19 @@ export function LinkCanvas<N extends JourneyNeighbor>({
     return keys;
   }, [shownBacks, byKey, flashKey]);
 
-  // Edges are measured from the cards as laid out, in world pixels: the screen rectangles divided by the scale
-  const scale = view.scale;
+  // Edges are measured from the cards as laid out, in world pixels, from offset geometry: a zoom or a pan changes none
+  // of it, so they are not measured again for either
   const draw = useCallback((): void => {
     const root = inner.current;
     if (root === null) return;
-    const origin = root.getBoundingClientRect();
-    const elements = new Map<string, Element>();
-    for (const element of root.querySelectorAll('[data-node]')) {
+    const elements = new Map<string, HTMLElement>();
+    for (const element of root.querySelectorAll<HTMLElement>('[data-node]')) {
       const key = element.getAttribute('data-key');
       if (key !== null) elements.set(key, element);
     }
     const boxOf = (key: string): Box | null => {
-      const rect = elements.get(key)?.getBoundingClientRect();
-      if (rect === undefined) return null;
-      return {
-        left: (rect.left - origin.left) / scale,
-        top: (rect.top - origin.top) / scale,
-        width: rect.width / scale,
-        height: rect.height / scale,
-      };
+      const element = elements.get(key);
+      return element === undefined ? null : offsetBox(element, root);
     };
     const cards: MinimapCard[] = [];
     for (const key of elements.keys()) {
@@ -333,10 +435,18 @@ export function LinkCanvas<N extends JourneyNeighbor>({
       }
     }
     // The size of the columns (offset size, in world pixels), not the scroll size: the SVG layer must not hold the area open
-    const next = { lines, arrows, cards, width: root.offsetWidth, height: root.offsetHeight };
+    const next: DrawnEdges = {
+      lines,
+      arrows,
+      cards,
+      width: root.offsetWidth,
+      height: root.offsetHeight,
+      layout,
+      focusId: focus.urlId,
+    };
     // A hover or a pin that changes nothing on screen must not render the canvas again
     setEdges((current) => (sameEdges(current, next) ? current : next));
-  }, [byKey, shownBacks, scale, focus.statusCode]);
+  }, [byKey, shownBacks, layout, focus.urlId, focus.statusCode]);
 
   useLayoutEffect(() => {
     draw();
@@ -383,7 +493,13 @@ export function LinkCanvas<N extends JourneyNeighbor>({
     () => ({ left: 0, top: 0, width: edges.width, height: edges.height }),
     [edges.width, edges.height],
   );
-  const boxOfKey = (key: string): Box | undefined => edges.cards.find((card) => card.key === key);
+  const nodesOf = (): HTMLElement[] => [...(inner.current?.querySelectorAll<HTMLElement>('[data-node]') ?? [])];
+  // A card's place now, read from the page (a card that just opened is not in the last drawing)
+  const boxOfKey = (key: string): Box | undefined => {
+    const root = inner.current;
+    const element = nodesOf().find((candidate) => candidate.dataset.key === key);
+    return root === null || element === undefined ? undefined : offsetBox(element, root);
+  };
   const fit = (): void => onViewChange(fitView(content, size, JOURNEY_MARGIN));
   const centerFocus = (): void => {
     const box = boxOfKey(FOCUS_KEY);
@@ -393,11 +509,13 @@ export function LinkCanvas<N extends JourneyNeighbor>({
   // The first view of each focus page, once the journey has a size and no list is still loading (spec 7.5 "First view")
   useEffect(() => {
     if (layout.pending || edges.width === 0 || firstFor.current === focus.urlId) return;
+    // The drawing must be of this journey: right after a refocus it can still be the last page's
+    if (edges.layout !== layout || edges.focusId !== focus.urlId) return;
     const box = edges.cards.find((card) => card.key === FOCUS_KEY);
     if (box === undefined) return;
     firstFor.current = focus.urlId;
     onViewChange(firstView(content, box, size, JOURNEY_MARGIN));
-  }, [layout.pending, edges.width, edges.cards, content, size, focus.urlId, onViewChange]);
+  }, [layout, edges, content, size, focus.urlId, onViewChange]);
 
   useEffect(() => {
     if (flashKey === null) return undefined;
@@ -407,7 +525,6 @@ export function LinkCanvas<N extends JourneyNeighbor>({
 
   useImperativeHandle(ref, () => ({ fit, centerFocus }));
 
-  const nodesOf = (): HTMLElement[] => [...(inner.current?.querySelectorAll<HTMLElement>('[data-node]') ?? [])];
   const focusKey = (key: string): void => {
     for (const element of nodesOf()) if (element.dataset.key === key) element.focus();
   };
@@ -460,9 +577,13 @@ export function LinkCanvas<N extends JourneyNeighbor>({
   const findOriginal = (urlId: string): void => {
     const original = nodesOf().find((element) => element.dataset.kind === 'card' && element.dataset.url === urlId);
     if (original === undefined) return;
-    // The focus handler of the canvas pans the original into view
     original.focus({ preventScroll: true });
     setFlashKey(original.dataset.key ?? null);
+    // The press that asked for it may have been the mouse's, which does not pan on focus: pan to it here
+    const box = boxOfKey(original.dataset.key ?? '');
+    if (box === undefined) return;
+    const next = revealMinimum(view, box, size, REVEAL_MARGIN);
+    if (next !== view) onViewChange(next);
   };
 
   /** `under` is the card the activated one hangs under: where focus goes when the activated one is gone afterwards. */
@@ -474,6 +595,19 @@ export function LinkCanvas<N extends JourneyNeighbor>({
     hold(restore, [key, under, FOCUS_KEY], layout);
     run();
   };
+
+  // One function each for every card, so a card that did not change is not drawn again when the canvas pans or zooms
+  const activate = useStable((key: string): void => {
+    const item = byKey.get(key);
+    if (item?.kind === 'group') opening(item.open, () => onToggleGroup(key), key, item.parentKey);
+    else if (item?.kind === 'stub') findOriginal(item.urlId);
+    else if (item?.kind === 'card' && item.canOpen) opening(item.open, () => onToggleCard(key), key, item.parentKey);
+  });
+  const toolRefocus = useStable((urlId: string): void => onRefocus(urlId));
+  const toolDetails = useStable((urlId: string): void => onDetails(urlId));
+  const togglePin = useStable((key: string): void => onTogglePin(key));
+  const showBack = useStable((key: string, shown: boolean): void => setHoverKey(shown ? key : null));
+  const cardKeyDown = useStable(onKeyDown);
 
   const linkedAs = (node: N): string => {
     if (node.anchor === null) return node.title ?? '';
@@ -567,8 +701,8 @@ export function LinkCanvas<N extends JourneyNeighbor>({
             meta={meta}
             open={item.open}
             tabStop={item.key === tabKey}
-            onActivate={() => opening(item.open, () => onToggleGroup(item.key), item.key, item.parentKey)}
-            onKeyDown={onKeyDown}
+            onActivate={activate}
+            onKeyDown={cardKeyDown}
           />
         );
       }
@@ -589,8 +723,8 @@ export function LinkCanvas<N extends JourneyNeighbor>({
             tier={item.node.tier}
             note={t('stubLine', { at })}
             tabStop={item.key === tabKey}
-            onActivate={() => findOriginal(item.urlId)}
-            onKeyDown={onKeyDown}
+            onActivate={activate}
+            onKeyDown={cardKeyDown}
           />
         );
       }
@@ -686,9 +820,9 @@ export function LinkCanvas<N extends JourneyNeighbor>({
         )}
         tools={{
           focusLabel: t('makeFocus', { path: node.path }),
-          onFocusPage: () => onRefocus(item.urlId),
+          onFocusPage: toolRefocus,
           detailsLabel: t('details', { path: node.path }),
-          onDetails: () => onDetails(item.urlId),
+          onDetails: toolDetails,
         }}
         back={
           backCount === 0
@@ -701,15 +835,13 @@ export function LinkCanvas<N extends JourneyNeighbor>({
                   content: t(item.dir === 'out' ? 'backTipOut' : 'backTipIn'),
                   detail: [...backRows, t('backTipHint')].join(' '),
                 },
-                onToggle: () => onTogglePin(item.key),
-                onShow: (shown) => setHoverKey(shown ? item.key : null),
+                onToggle: togglePin,
+                onShow: showBack,
               }
         }
         tabStop={item.key === tabKey}
-        onActivate={() => {
-          if (item.canOpen) opening(item.open, () => onToggleCard(item.key), item.key, item.parentKey);
-        }}
-        onKeyDown={onKeyDown}
+        onActivate={activate}
+        onKeyDown={cardKeyDown}
       />
     );
   };
@@ -754,78 +886,26 @@ export function LinkCanvas<N extends JourneyNeighbor>({
             role="presentation"
             className="relative flex w-max items-start p-4"
             style={{ columnGap: COLUMN_GAP }}
+            onKeyDownCapture={() => {
+              modality.current = 'keyboard';
+            }}
+            onPointerDownCapture={() => {
+              modality.current = 'pointer';
+            }}
             onFocus={(event) => {
               const key = event.target.closest<HTMLElement>('[data-node]')?.dataset.key;
               if (key === undefined) return;
               setActiveKey(key);
-              // A card reached by the keyboard is brought into view by the least pan that shows it
+              // A card the keyboard reaches is brought into view by the least pan that shows it; one the mouse
+              // pressed is where the pointer already is, and the view stays put under it
+              if (modality.current === 'pointer' && !focusVisible(event.target)) return;
               const box = boxOfKey(key);
               if (box === undefined) return;
               const next = revealMinimum(view, box, size, REVEAL_MARGIN);
               if (next !== view) onViewChange(next);
             }}
           >
-            <svg
-              aria-hidden="true"
-              className="pointer-events-none absolute top-0 left-0"
-              width={edges.width}
-              height={edges.height}
-            >
-              <defs>
-                <marker
-                  id={markerId}
-                  viewBox="0 0 10 10"
-                  refX="8"
-                  refY="5"
-                  markerWidth="7"
-                  markerHeight="7"
-                  orient="auto"
-                >
-                  <path d="M1 1L9 5L1 9z" className="fill-primary" />
-                </marker>
-                {/* Every curve arrives horizontally, so the arrowhead needs no more than orient auto */}
-                {TONES.map((tone) => (
-                  <marker
-                    key={tone}
-                    id={`${markerId}-${tone}`}
-                    viewBox="0 0 10 10"
-                    refX="9"
-                    refY="5"
-                    markerWidth="7"
-                    markerHeight="7"
-                    orient="auto"
-                  >
-                    <path d="M1 1L9 5L1 9z" className={FILL[tone]} />
-                  </marker>
-                ))}
-              </defs>
-              {edges.lines.map((line) => (
-                <g key={line.id}>
-                  <path
-                    d={line.d}
-                    fill="none"
-                    strokeWidth={1.5}
-                    strokeDasharray={line.look.dash ?? undefined}
-                    markerEnd={`url(#${markerId}-${line.look.tone})`}
-                    className={STROKE[line.look.tone]}
-                  />
-                  {line.start === null ? null : (
-                    <circle cx={line.start.x} cy={line.start.y} r={3} className={FILL[line.look.tone]} />
-                  )}
-                </g>
-              ))}
-              {edges.arrows.map((arrow) => (
-                <path
-                  key={arrow.id}
-                  d={arrow.d}
-                  fill="none"
-                  strokeWidth={1.5}
-                  strokeDasharray="6 4"
-                  markerEnd={`url(#${markerId})`}
-                  className="stroke-primary"
-                />
-              ))}
-            </svg>
+            <EdgeLayer edges={edges} markerId={markerId} />
             {left.map((side, index) => column(direction('in', side.step), index, columnItems(side.items, index)))}
             {column(
               t('focusColumn'),
@@ -860,14 +940,14 @@ export function LinkCanvas<N extends JourneyNeighbor>({
                   )}
                   tools={{
                     focusLabel: null,
-                    onFocusPage: () => undefined,
+                    onFocusPage: none,
                     detailsLabel: t('details', { path: focus.path }),
-                    onDetails: () => onDetails(focus.urlId),
+                    onDetails: toolDetails,
                   }}
                   back={null}
                   tabStop={FOCUS_KEY === tabKey}
-                  onActivate={() => undefined}
-                  onKeyDown={onKeyDown}
+                  onActivate={none}
+                  onKeyDown={cardKeyDown}
                 />
                 {focusNote}
               </div>,
@@ -885,6 +965,8 @@ export function LinkCanvas<N extends JourneyNeighbor>({
           <ViewControls
             percent={Math.round(view.scale * 100)}
             minimap={minimap}
+            atMin={view.scale <= MIN_SCALE}
+            atMax={view.scale >= MAX_SCALE}
             onZoomOut={() => onViewChange(stepZoom(view, -1, size))}
             onZoomIn={() => onViewChange(stepZoom(view, 1, size))}
             onActualSize={() => onViewChange(zoomAt(view, 1, middle))}
