@@ -87,7 +87,8 @@ export function CompetitorPicker({
             <div
               key={competitor.id}
               className={cn(
-                'flex h-control-sm items-center gap-2 rounded-md px-2 type-body text-foreground',
+                // The checkbox's label stretches over the row (its ::after), so a click anywhere on it toggles
+                'relative flex h-control-sm items-center gap-2 rounded-md px-2 type-body text-foreground',
                 disabled ? 'opacity-50' : 'hover:bg-surface-hover',
               )}
             >
@@ -96,6 +97,7 @@ export function CompetitorPicker({
                 disabled={disabled}
                 label={competitor.name}
                 labelDisplay="visually-hidden"
+                className="*:after:absolute *:after:inset-0"
                 onCheckedChange={(next) => toggle(competitor.id, next)}
               />
               <EntitySwatch colorIndex={competitor.colorIndex} own={false} shape="dot" />

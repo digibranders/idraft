@@ -47,9 +47,15 @@ interface GroupChoice {
 const PLATFORM_POPUP = cn('min-w-52');
 const RUNS_POPUP = cn('min-w-56');
 
+// The preview's TRIGGER states (aiov-controls.js), shared by the Select and Combobox triggers
+const TRIGGER_STATES = cn('whitespace-nowrap hover:bg-surface-hover aria-expanded:bg-surface-hover');
+const PLATFORM_TRIGGER = cn(TRIGGER_STATES, 'w-full min-w-0 sm:w-56');
+const RUNS_TRIGGER = cn(TRIGGER_STATES, 'w-full min-w-0 sm:w-44');
+
 const TRIGGER = cn(
   inputVariants({ variant: 'outline', size: 'md' }),
-  'flex w-full max-w-full min-w-0 items-center gap-2 text-left whitespace-nowrap hover:bg-surface-hover aria-expanded:bg-surface-hover',
+  'flex w-full max-w-full min-w-0 items-center gap-2 text-left',
+  TRIGGER_STATES,
 );
 
 /**
@@ -106,7 +112,7 @@ export function ScopeToolbar(props: ScopeToolbarProps): ReactElement {
           onValueChange={(platform) => onChange({ platform })}
           options={platformOptions}
           popupClassName={PLATFORM_POPUP}
-          className="w-full min-w-0 sm:w-56"
+          className={PLATFORM_TRIGGER}
         />
         <Combobox<GroupChoice>
           value={group}
@@ -140,7 +146,7 @@ export function ScopeToolbar(props: ScopeToolbarProps): ReactElement {
           }}
           options={runOptions}
           popupClassName={RUNS_POPUP}
-          className="w-full min-w-0 sm:w-44"
+          className={RUNS_TRIGGER}
         />
         <CompetitorPicker
           tracked={tracked ?? []}

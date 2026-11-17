@@ -59,6 +59,18 @@ describe('the Citations toolbar', () => {
     expect(within(scope).getByRole('combobox', { name: 'Runs: Last 4 runs' })).toBeVisible();
   });
 
+  it('gives every trigger the hover and open states of the preview', () => {
+    setup();
+    const scope = screen.getByRole('group', { name: 'Scope' });
+    for (const name of ['Platform: All platforms', 'Group: All groups', 'Runs: Last 4 runs']) {
+      expect(within(scope).getByRole('combobox', { name })).toHaveClass(
+        'whitespace-nowrap',
+        'hover:bg-surface-hover',
+        'aria-expanded:bg-surface-hover',
+      );
+    }
+  });
+
   it('notes the runs choices with their dates (C 116)', async () => {
     const { user } = setup();
     await user.click(screen.getByRole('combobox', { name: 'Runs: Last 4 runs' }));
@@ -90,8 +102,16 @@ describe('the Citations toolbar', () => {
     });
     const dialog = await screen.findByRole('dialog', { name: 'Competitors to compare' });
     expect(within(dialog).getByText('2 of 5')).toBeInTheDocument();
-    await user.click(within(dialog).getByRole('checkbox', { name: 'Pipedrive' }));
+    const pipedrive = within(dialog).getByRole('checkbox', { name: 'Pipedrive' });
+    // The label's ::after covers the row, so a click anywhere on it toggles (jsdom cannot click a pseudo-element):
+    // the Checkbox's wrapper hands the classes to its label, and the row is the positioning context
+    const checkbox = pipedrive.closest('[data-slot="checkbox"]');
+    expect(checkbox).toHaveClass('*:after:absolute', '*:after:inset-0');
+    expect(checkbox?.querySelector('label')).toContainElement(pipedrive);
+    expect(checkbox?.parentElement).toHaveClass('relative');
+    await user.click(pipedrive);
     expect(onChange).toHaveBeenCalledWith({ competitors: ['c1', 'c2', 'c3'] });
+    expect(onPickerOpenChange).not.toHaveBeenCalledWith(false);
     expect(within(dialog).getByText('Up to 5 tracked competitors. Manage the list in Settings.')).toBeInTheDocument();
   });
 
