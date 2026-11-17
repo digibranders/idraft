@@ -854,6 +854,9 @@
   .w-0\.5 {
     width: calc(var(--spacing) * 0.5);
   }
+  .w-1 {
+    width: var(--spacing);
+  }
   .w-1\/2 {
     width: calc(1 / 2 * 100%);
   }
@@ -880,6 +883,9 @@
   }
   .w-6 {
     width: calc(var(--spacing) * 6);
+  }
+  .w-7 {
+    width: calc(var(--spacing) * 7);
   }
   .w-7\/9 {
     width: calc(7 / 9 * 100%);

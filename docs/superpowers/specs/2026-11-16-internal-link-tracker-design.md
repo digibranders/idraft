@@ -286,7 +286,7 @@ The canvas and the tree list share one state: focus page, link scope and opened 
 - **Viewport:** a real pannable, zoomable canvas (decided 2026-11-17, built in the mock as `il-canvas.js`), not a scrolling area.
   - **Pan:** drag the empty background, two-finger scroll on a trackpad, wheel, or Space and drag. A fast drag glides to a stop (not under reduced motion). On touch, one finger pans from anywhere.
   - **Zoom:** pinch, or Ctrl or Cmd and scroll, toward the cursor; 25% to 200%, continuous. On touch, two fingers pinch and pan together. Buttons zoom in 25% steps around the centre.
-  - **View controls** (bottom left, a toolbar named "Canvas view"): zoom out, the percentage (activating it returns to 100%), zoom in, Fit everything, Centre on the focus page, Reset card positions, Canvas controls (a short list of the gestures and keys).
+  - **View controls** (bottom left, a toolbar named "Canvas view"): zoom out, the percentage (activating it returns to 100%), zoom in, Fit everything, Centre on the focus page, Reset card positions, Legend and controls (the gestures and keys, and what the line styles and box styles mean). There is no permanent legend row under the canvas: it took too much height.
   - **Minimap** (bottom right, hidden below 640 px): every card and the part in view; press or drag on it to move the view.
   - **First view:** the whole journey when it is readable at 70% or more; otherwise the focus page at 85%, so the first thing seen is never a blur. The last view of a journey is restored when the page re-renders, for example after a tier change.
   - **Growing never loses the place:** after a card opens, the view pans the least it takes to show the card and its new children.

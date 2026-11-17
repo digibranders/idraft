@@ -7,7 +7,7 @@ import { el } from './prompts-parts.js';
 import { BUTTON_SM, FIELD, icon, popover, segmented, selectField, toast } from './perf-ui.js';
 import {
   PLACEMENT_LABEL, SCOPE_WORD, activePages, depthWithoutAuto, findPaths, flags, ins, isLive, pageById, plural, refresh, routeFromHome, scopeOf,
-  setFocus, setTier, suggestedLinks, state, statusBadge, tierBadge, tierCode, tierEdge, tierIdOf, tierLabel, tierPosition, tiers,
+  setFocus, setTier, suggestedLinks, state, statusBadge, tierBadge, tierBg, tierCode, tierEdge, tierIdOf, tierLabel, tierPosition, tiers,
 } from './il-model.js';
 import { openInspector } from './il-drawer.js';
 import { MAX_K, MIN_K, createMinimap, createViewport } from './il-canvas.js';
@@ -526,11 +526,11 @@ function buildCanvas() {
   });
   const help = el('div', 'absolute bottom-14 left-3 hidden max-h-[calc(100%-5rem)] w-[28rem] max-w-[calc(100%-1.5rem)] overflow-auto rounded-lg border border-border bg-surface-elevated p-3 shadow-popover');
   help.setAttribute('role', 'region');
-  help.setAttribute('aria-label', 'Canvas controls');
+  help.setAttribute('aria-label', 'Legend and controls');
   const helpList = el('dl', 'grid grid-cols-[minmax(0,12rem)_1fr] gap-x-4 gap-y-1.5 type-meta');
   SHORTCUTS.forEach(([keys, what]) => helpList.append(el('dt', 'text-foreground', keys), el('dd', 'text-foreground-secondary', what)));
-  help.append(el('p', 'mb-2 type-body-strong text-foreground', 'Moving around the canvas'), helpList);
-  const helpButton = control('circle-help', 'Canvas controls', () => {
+  help.append(el('p', 'mb-2 type-body-strong text-foreground', 'Moving around the canvas'), helpList, el('p', 'mb-2 mt-3 type-body-strong text-foreground', 'What the lines and boxes mean'), legend());
+  const helpButton = control('circle-help', 'Legend and controls', () => {
     const open = help.classList.toggle('hidden') === false;
     helpButton.setAttribute('aria-expanded', String(open));
     help.classList.toggle('block', open);
@@ -652,11 +652,11 @@ function buildCanvas() {
   }
 
   // The canvas takes the rest of the window below its toolbar, so a tall window shows more of the journey and
-  // the page does not end in an empty band. The legend line under it (about 48 px) and the page's bottom
+  // the page does not end in an empty band. The page's bottom
   // padding stay in view. A small window keeps a usable minimum and the page scrolls.
   ctx.fitHeight = () => {
     if (!stage.isConnected) return;
-    const room = window.innerHeight - stage.getBoundingClientRect().top - 48 - 24;
+    const room = window.innerHeight - stage.getBoundingClientRect().top - 24;
     stage.style.height = `${Math.max(440, Math.round(room))}px`;
   };
 
@@ -1317,20 +1317,46 @@ function toolbar() {
   return bar;
 }
 
+/** Two rows under the canvas: what the lines mean, then what the boxes mean. */
 function legend() {
-  const foot = el('div', 'flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border-subtle px-4 py-2 type-meta text-foreground-secondary');
+  const foot = el('div', 'flex flex-col gap-1.5 type-meta text-foreground-secondary');
+  const row = (name) => {
+    const node = el('div', 'flex flex-wrap items-center gap-x-4 gap-y-1');
+    node.append(el('span', 'w-12 type-label text-foreground-tertiary', name));
+    foot.append(node);
+    return node;
+  };
+  const lines = row('Lines');
   [
     ['Editorial', 'border-foreground-tertiary'],
-    ['Auto-generated (previous, next, related)', 'border-border-strong border-dotted'],
-    ['Menu and footer link', 'border-border-strong border-dashed'],
-    ['Through a redirect', 'border-warning-text'],
-    ['Broken target', 'border-negative-text'],
-    ['Back link (shown on hover or when pinned)', 'border-primary border-dashed'],
+    ['Auto-generated', 'border-border-strong border-dotted'],
+    ['Menu and footer', 'border-border-strong border-dashed'],
+    ['Redirect', 'border-warning-text'],
+    ['Broken', 'border-negative-text'],
+    ['Back link', 'border-primary border-dashed'],
   ].forEach(([text, line]) => {
     const item = el('span', 'inline-flex items-center gap-1.5');
     item.append(el('span', `w-6 border-t-2 ${line}`), text);
-    foot.append(item);
+    lines.append(item);
   });
+  const boxes = row('Boxes');
+  [
+    ['Focus page', 'border-primary-border ring-1 ring-primary-border bg-surface', ''],
+    ['Page', 'border-border-strong bg-surface', ''],
+    ['Opened', 'border-border-strong bg-primary-subtle', ''],
+    ['Already shown (dashed)', 'border-dashed border-border-strong bg-surface', ''],
+    ['Link group', 'border-border-strong bg-surface-subtle', ''],
+    ['Selected', 'border-border-strong bg-surface', '0 0 0 2px var(--color-primary)'],
+  ].forEach(([text, look, shadow]) => {
+    const item = el('span', 'inline-flex items-center gap-1.5');
+    const sample = el('span', `h-4 w-7 rounded-sm border ${look}`);
+    if (shadow) sample.style.boxShadow = shadow;
+    item.append(sample, text);
+    boxes.append(item);
+  });
+  const edge = el('span', 'inline-flex items-center gap-1.5');
+  edge.append(...tiers.map((tier) => el('span', `h-4 w-1 rounded-sm ${tierBg(tier.id)}`)), 'Left edge is the tier');
+  boxes.append(edge);
   return foot;
 }
 
@@ -1346,7 +1372,7 @@ export function render(host) {
   let canvas = null;
   if (j().view === 'canvas') {
     canvas = buildCanvas();
-    panel.append(canvas.stage, legend());
+    panel.append(canvas.stage);
   }
   else if (j().view === 'path') panel.append(pathFinder());
   else {
