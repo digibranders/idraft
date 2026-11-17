@@ -1858,7 +1858,8 @@
     "aiOverview": "Google AI Overview",
     "extractionLlm": "Extraction LLM",
     "keywordResearch": "Keyword research",
-    "firstParty": "First-party data"
+    "firstParty": "First-party data",
+    "siteCrawl": "Site crawl"
   },
   "runReasons": {
     "missedWindow": "The scheduled window passed before the run could be planned, so nothing was collected for it",

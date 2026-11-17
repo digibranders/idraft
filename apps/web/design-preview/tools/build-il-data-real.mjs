@@ -39,12 +39,14 @@ const idOf = (row) => (row.path === '/' && new URL(row.url).host === HOST ? 'hom
 const byUrlId = new Map(rows.map((row) => [row.url_id, row]));
 const byUrl = new Map(rows.map((row) => [row.url, row]));
 
+const DASHES = new RegExp(`[${String.fromCharCode(0x2013, 0x2014)}]`, 'g');
 const pages = rows.map((row) => {
   const redirect = row.redirect_url ? byUrl.get(row.redirect_url) : null;
   return {
     id: idOf(row),
     path: row.path,
-    title: row.title ?? '',
+    // The repository bans en and em dashes in source text (src/test/source-text.test.ts); crawled titles use them
+    title: (row.title ?? '').replace(DASHES, '-'),
     manualTier: null,
     status: row.status_code ?? 0,
     indexable: row.is_indexable !== false,
