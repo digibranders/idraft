@@ -156,6 +156,8 @@ Example (`/<workspace>/<project>` prefix, then the project route from [11-naviga
 
 Table and page search use one component, `SearchInput` (`components/ui/search-input.tsx`), specified in [10-forms.md](10-forms.md) section 17, which owns its anatomy: 32 px (`sm`, `w-60`) in table toolbars and 36 px (`md`, `w-90`) on pages; 1 px `border` control outline (the visible label or placeholder and the leading icon identify it, [20-accessibility.md](20-accessibility.md) section 3.2, rule 6); leading `Search` icon, 14 px (`sm`) or 16 px (`md`), in `foreground-muted`; placeholder naming the object ("Search keywords"); trailing `Kbd` hint `/` while empty and not focused; clear button (`X`, `icon-xs`, 24 px target, name "Clear search") while not empty. Escape clears the text first, then blurs.
 
+As built (WP-77): the Citations board panel ([23 §2.10](23-application-patterns.md)) draws its table search as an `InputGroup` of a `bare` `Input` (32 px, `w-64`, `maxLength` 200, `aria-label` "Search in table", `aria-keyshortcuts="/"`), after the view tabs and a hairline. `/` focuses it through `useShortcut` (a single-key shortcut, so Settings > Preferences turns it off), and the value is written to `q` on each keystroke by history replace. Cited pages sends it to the server after 250 ms; Gap analysis filters in the browser.
+
 Matching rules: case-insensitive, diacritic-insensitive, matches anywhere in the string for table search; command palette ranks prefix matches above substring matches above fuzzy matches.
 
 ## 7. Keyboard shortcuts for filtering and search

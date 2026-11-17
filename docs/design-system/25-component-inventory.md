@@ -278,6 +278,7 @@ Paths are relative to `apps/web/src/`. `ui/` is `components/ui/`; `app/` is `com
 | TableFooter | Data: tables | `app/data-table/table-footer.tsx` | V1 | 12 §1 |
 | NewResultsNotice | Data: tables | `app/data-table/new-results-notice.tsx` | V1 | 20 §10.4 |
 | DataTableList | Data: tables | `app/data-table/data-table-list.tsx` | V1 | 19 §6.7 |
+| BoardTable | Data: tables | `app/table/board-table.tsx` | WP-77 | 12 §20, 25 §7.10a |
 | SimpleTable | Data: tables | `app/data-table/simple-table.tsx` | V1 | 12 §15 |
 | KeyValueTable | Data: tables | `app/data-table/key-value-table.tsx` | V1 | 19 §12.3 |
 | Column helpers `col.*` | Data: tables | `app/data-table/columns.ts` | V1 | 12 §5 |
@@ -1212,10 +1213,10 @@ interface TabsPanelProps<TValue extends string> { value: TValue; children: Slot 
 Purpose: route tabs rendered as a `<nav>` of links with underline styling.
 
 ```ts
-interface TabNavProps { label: string; items: ReadonlyArray<{ href: string; label: string; count?: string; current: boolean }> }
+interface TabNavProps { label: string; items: ReadonlyArray<{ href: string; label: string; count?: string; current: boolean; badge?: { text: string; spoken: string } }>; variant?: 'underline' | 'segmented' }
 ```
 
-- **Variants:** none (identical to underline tabs).
+- **Variants:** `underline` (default). `segmented` (WP-77): two to four route tabs as a joined pair, 32 px (`h-control-sm`), at the start of a table's toolbar. The current tab is `primary-subtle` with a `primary-border` outline and `primary-text` in `type-body-strong`; the others are `surface` with a `border` outline. `badge` draws a neutral count after the label and its `spoken` text is what a screen reader hears in its place (", 61 gaps"). The segmented variant has no `unavailable` tab.
 - **States:** current (`aria-current="page"`), hover, focus.
 - **A11y:** navigation landmark named by `label`; links; Tab and Enter.
 - **Use:** Integrations sources, Discover tabs, SEO Keywords sub-routes.
@@ -2719,6 +2720,33 @@ interface DataTableListProps<TRow> {
 
 > As built (WP-10): `apps/web/src/components/app/data-table/data-table-list.tsx`. `DataTableList` is generic over `TRow extends RowData`; rows are exactly 56 px (`LIST_ROW_HEIGHT`, the divider is drawn inside the box) and windowed with an aria-hidden spacer; a server-mode pager replaces windowing when the table pages on the server. `DataTableListSort` is the sort button and sheet, and announces each change ("Sorted by Rank, ascending"); `ListTableSwitch` and `useListMode` offer the List and Table switch when the device is not touch-primary. J and K step rows only from a grid, not from the list. A phone hard load shows the table for one frame before the list.
 
+### 7.10a BoardTable
+`app/table/board-table.tsx` · WP-77 · [12 §20](12-tables.md)
+
+Purpose: the table of an analysis board (Citations): fixed widths, a pinned first column whose content is the row's button, descending-first sorting, a callback at the end of the scroll. It draws no toolbar, count, density or column chooser.
+
+```ts
+interface BoardTableProps<TRow> {
+  caption: string;                  // names the table for assistive technology
+  columns: readonly BoardColumn<TRow>[];   // { id, header, headerLead?, tip?, width: number | null, sortKey?, cell, cellClassName?, cellTip? }
+  rows: readonly TRow[];
+  rowId: (row: TRow) => string;
+  rowLabel: (row: TRow) => string;  // "Open northwind.com/pricing"
+  identityTip?: (row: TRow) => { content: string; detail?: string } | undefined;
+  onOpen: (row: TRow, opener: HTMLElement) => void;
+  activeId: string | null;          // the row open in the inspector
+  sort: { key: string; dir: 'asc' | 'desc' };
+  onSortChange: (next: BoardSort) => void;
+  flexMin?: number;                 // 280
+  onEndReached?: () => void;        // 240 px before the end of the scroll
+  busy?: boolean;                   // aria-busy while new rows are read
+}
+```
+
+- **Variants:** none. **States:** rows, sorted header, open row (`data-active`), hover, busy. Loading skeleton rows, the error and the empty state (`EmptyState variant="table"`) are the screen's.
+- **A11y:** a plain `table` with a visually hidden caption; `aria-sort` on every sortable header; the first cell's button is named by `rowLabel` and is the keyboard way in; a click on the row opens it too, except on a `data-cell-action` element; header and cell tooltips are descriptions or labels of their cells (`Tooltip`).
+- **Use:** boards whose rows open the right inspector and are compared, not edited or selected. **Not for:** record lists with selection, bulk actions, saved views or paging by button (`DataTable`).
+
 ### 7.11 SimpleTable
 `app/data-table/simple-table.tsx` · V1 · [12 §15](12-tables.md), [20 §6.1](20-accessibility.md)
 
@@ -3518,7 +3546,7 @@ Purpose: says what is missing, why, and the one action that changes it.
 
 ```ts
 interface EmptyStateProps {
-  variant?: 'region' | 'inline';    // inline: inspector sections, strip slots, small panels
+  variant?: 'region' | 'inline' | 'table';    // inline: inspector sections, strip slots, small panels; table (WP-77): the body of a BoardTable panel
   icon?: LucideIcon;                // object glyph, 20 px; omitted inline
   title: string;                    // a fact: "No keywords tracked yet"
   reason: string;                   // exactly one sentence with real numbers, times or names
@@ -3529,7 +3557,7 @@ interface EmptyStateProps {
 }
 ```
 
-- **Variants:** `variant` 2 values. **States:** empty, filtered empty, no permission (names the permission and who can grant it), not found, feature not available yet, no observations yet (with compact `CollectionProgress` when a run is in progress).
+- **Variants:** `variant` 3 values (`table`, WP-77: no icon, centered, 48 px above and below, the reason in `type-meta` at reading width, one button; [17 §2.1](17-empty-loading-error-states.md)). **States:** empty, filtered empty, no permission (names the permission and who can grant it), not found, feature not available yet, no observations yet (with compact `CollectionProgress` when a run is in progress).
 - **A11y:** heading level fits the region; action names the fix. **Use:** any region whose query succeeded with nothing to show (copy catalogue 17 §2.3). **Not for:** errors (`InlineError`), loading (skeletons), illustrations (never).
 
 ### 11.2 StatusBadge

@@ -165,6 +165,25 @@ export function ButtonSpecimens(): ReactNode {
           />
         </div>
       </SpecimenGroup>
+
+      <SpecimenGroup
+        title="Route tabs, segmented"
+        note="25 section 3.39, WP-77. Two to four route tabs as a joined pair at the start of a table toolbar; the count badge is read as words."
+      >
+        <TabNav
+          variant="segmented"
+          label="Citations views"
+          items={[
+            { href: '/design-system', label: 'Cited pages', current: true },
+            {
+              href: '/design-system',
+              label: 'Gap analysis',
+              current: false,
+              badge: { text: '61', spoken: ', 61 gaps' },
+            },
+          ]}
+        />
+      </SpecimenGroup>
     </>
   );
 }

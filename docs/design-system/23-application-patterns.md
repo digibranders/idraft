@@ -168,6 +168,18 @@ The line strip (`MetricStrip size="line"`) is for boards whose table must start 
 | Keyboard | The figure is the tab stop; its name is the label, the value and the whole tooltip |
 | Loading | A 40 px bar in place of the figure; the labels stay |
 
+### 2.10 Analysis board panel (WP-77)
+
+The table of an analysis board (Citations) sits in one panel under the line strip (section 2.9): `rounded-lg`, 1 px `border`, `surface`, at least 384 px tall (`min-h-96`), so a phone, where the strip takes the screen, still shows rows and the page scrolls.
+
+| Part | Spec |
+|---|---|
+| Toolbar | At least 48 px, wrapping, 12 px between items: the views (`TabNav variant="segmented"`), a hairline (from `md`), the search ([13 §6](13-filters-search.md)), the tab's controls, and the tab's summary pushed to the right |
+| Body | The `BoardTable` ([12 §20](12-tables.md)), its skeleton rows, its `EmptyState variant="table"` or its error. The static `RefetchBar` sits under the header while new rows are read |
+| Footer | 48 px: the tab's count text at the left (`type-meta num`), "Updated <time> · run <n>" at the right |
+
+The views are route tabs, not a tablist: each is a page of its own (`aria-current="page"`). The hairline keeps the views (what the table is) apart from the filters (what it shows).
+
 ## 3. Page header: PageHeader
 
 ### 3.1 Anatomy

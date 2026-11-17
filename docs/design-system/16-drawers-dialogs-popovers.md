@@ -483,6 +483,7 @@ Content rules:
 - Never the only place for information needed to complete a task. On touch devices tooltips do not appear, so anything essential is also in the inspector.
 - Icon-only controls: the tooltip text equals the `aria-label` and adds the shortcut ("Close inspector (Esc)").
 - Truncated cells: the tooltip shows the full value ([12-tables.md](12-tables.md)).
+- Board tables ([12 §20](12-tables.md), WP-77): a sortable or described header shows its definition on `bottom`; the row's button shows "<title> (<url>)" with a lighter second line; a cell tooltip repeats what the cell shows (`purpose="label"`), so it is not announced twice.
 - Values: a tooltip may add detail to a value ("95% interval 31% to 37%, Wilson on pooled counts"); it is attached with `aria-describedby`.
 - Disabled controls stay focusable and their tooltip states the reason ([08-interaction-states.md](08-interaction-states.md) section 1).
 

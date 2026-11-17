@@ -36,4 +36,34 @@ describe('TabNav', () => {
     const { container } = renderWithProviders(<TabNav label="Data sources" items={items} />);
     expect(await axe(container)).toHaveNoViolations();
   });
+
+  describe('segmented variant (WP-77)', () => {
+    const segmented: readonly TabNavItem[] = [
+      { href: '/digibranders/fynix/ai/citations' as Route, label: 'Cited pages', current: true },
+      {
+        href: '/digibranders/fynix/ai/citations/gaps' as Route,
+        label: 'Gap analysis',
+        current: false,
+        badge: { text: '61', spoken: ', 61 gaps' },
+      },
+    ];
+
+    it('draws route tabs as a joined pair with a count badge that is read as words (C 263 to 285)', () => {
+      renderWithProviders(<TabNav variant="segmented" label="Citations views" items={segmented} />);
+      const current = screen.getByRole('link', { name: 'Cited pages' });
+      expect(current).toHaveAttribute('aria-current', 'page');
+      expect(current.className).toContain('bg-primary-subtle');
+      const gaps = screen.getByRole('link', { name: /Gap analysis/ });
+      expect(gaps).not.toHaveAttribute('aria-current');
+      expect(gaps).toHaveTextContent('Gap analysis61, 61 gaps');
+      expect(gaps.querySelector('[aria-hidden="true"]')).toHaveTextContent('61');
+    });
+
+    it('has no accessibility violations', async () => {
+      const { container } = renderWithProviders(
+        <TabNav variant="segmented" label="Citations views" items={segmented} />,
+      );
+      expect(await axe(container)).toHaveNoViolations();
+    });
+  });
 });
