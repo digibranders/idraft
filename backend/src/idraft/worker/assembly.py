@@ -326,6 +326,7 @@ def gsc_context(context: WorkerContext) -> SyncContext | None:
         ),
         cipher=EnvelopeCipher({1: settings.secrets_key}),
         limiter=GscLimiter(),
+        page_totals=True,
     )
 
 
