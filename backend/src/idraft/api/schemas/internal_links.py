@@ -17,6 +17,7 @@ from pydantic import (
 
 from idraft.api.pagination import CursorPageInfo
 from idraft.api.schemas.common import Body, Patch, UserRef, printable, refuse_null
+from idraft.api.schemas.metrics import Usd
 
 TierName = Annotated[
     str,
@@ -463,3 +464,47 @@ class Worklists(BaseModel):
 
 class WorklistsResponse(BaseModel):
     data: Worklists
+
+
+CrawlState = Literal[
+    "queued", "crawling", "processing", "ready", "stopped_at_ceiling", "failed", "cancelled"
+]
+CrawlTrigger = Literal["website_added", "schedule", "manual", "ceiling_retry"]
+
+
+class CrawlRun(BaseModel):
+    run_id: UUID
+    trigger: CrawlTrigger
+    state: CrawlState
+    ceiling: int = Field(description="The safety stop: the crawl ends at this many pages.")
+    pages_found: int = Field(description="Crawled and still queued, while it runs.")
+    pages_crawled: int
+    sitemap_pages: int | None
+    render_javascript: bool
+    estimated_cost_usd: Usd | None
+    cost_usd: Usd | None
+    stop_reason: str | None
+    error_code: str | None
+    error_message: str | None
+    hints: list[Literal["render_javascript"]]
+    is_latest: bool = Field(description="The crawl `run=latest` reads.")
+    created_at: datetime
+    submitted_at: datetime | None
+    finished_at: datetime | None
+    requested_by: UserRef | None
+
+
+class CrawlRunPage(BaseModel):
+    data: list[CrawlRun]
+    page: CursorPageInfo
+
+
+class CrawlRunResponse(BaseModel):
+    data: CrawlRun
+
+
+class CrawlCreate(Body):
+    higher_limit: bool = Field(
+        default=False,
+        description="Crawl again with a higher limit after a crawl stopped at its ceiling.",
+    )

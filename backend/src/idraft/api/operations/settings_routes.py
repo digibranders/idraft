@@ -46,8 +46,9 @@ async def get_settings(
 @router.patch(
     "",
     summary="Change the project's settings",
-    description="A JSON merge patch of `seo`: members left out keep their value. The `seo` "
-    "defaults apply to tracked keywords created after the change.",
+    description="A JSON merge patch of `seo` and `internal_links`: parts and members left out "
+    "keep their value. The `seo` defaults apply to tracked keywords created after the change. "
+    "`internal_links.allowed_subdomains` must be the project's website or hosts under it.",
 )
 async def update_settings(
     project_id: UUID,

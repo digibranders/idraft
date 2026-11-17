@@ -521,6 +521,17 @@ EXPECTED: dict[tuple[str, str], str] = {
     ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/worklists"): (
         "data:read"
     ),
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/link-crawls"): "data:read",
+    ("POST", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/link-crawls"): (
+        "runs:trigger"
+    ),
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/link-crawls/{run_id}"): (
+        "data:read"
+    ),
+    (
+        "POST",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/link-crawls/{run_id}/cancel",
+    ): "runs:trigger",
     ("PATCH", "/api/v1/workspaces/{workspace_id}/budgets/{budget_id}"): "budgets:manage",
     ("DELETE", "/api/v1/workspaces/{workspace_id}/budgets/{budget_id}"): "budgets:manage",
     ("GET", "/api/v1/workspaces/{workspace_id}/costs/forecast"): "costs:read",

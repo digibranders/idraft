@@ -52,6 +52,11 @@ async def test_a_new_project_has_the_default_settings(
             "visibility_weight_scheme": "uniform",
             "visibility_volume_mode": "annual_average",
         },
+        "internal_links": {
+            "schedule": "weekly",
+            "render_javascript": False,
+            "allowed_subdomains": [],
+        },
         "entity_config_version": 1,
     }
 
