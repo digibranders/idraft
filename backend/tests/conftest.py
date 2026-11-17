@@ -232,6 +232,7 @@ def app_settings(migrated: PostgresServer, redis_url: str) -> Settings:
         totp_encryption_key=TEST_TOTP_KEY,
         secrets_encryption_key=TEST_SECRETS_KEY,
         breached_password_check=False,
+        crawls_enabled=True,
     )
 
 

@@ -2449,7 +2449,7 @@ Sensitive action without a fresh session:
 | `POST {P}/pages/tiers/import` | projects:write | `TierImportRequest {csv up to 1 MB}` | `TierImportResponse {accepted, pending, errors, applied}`; nothing applies while `errors` is not empty |
 | `PUT {P}/pages/tags` | projects:write | `PageTagChange {url_ids or filter, add, remove}` | `TagChangeResponse {matched, added, removed}` |
 | `GET {P}/link-crawls` | data:read | `cursor`, `limit` (50, max 200) | `CrawlRunPage`, newest first |
-| `POST {P}/link-crawls` | runs:trigger | `CrawlCreate {higher_limit}` | 202 `CrawlRunResponse`; 409 `crawl_in_progress` (`run_id`); 422 `no_website`; 422 `budget_exceeded` (`budget_id`); 422 `validation_failed` `no_stopped_crawl` |
+| `POST {P}/link-crawls` | runs:trigger | `CrawlCreate {higher_limit}` | 202 `CrawlRunResponse`; 503 `crawls_disabled` while site crawls are off (nothing is queued); 409 `crawl_in_progress` (`run_id`); 422 `no_website`; 422 `budget_exceeded` (`budget_id`); 422 `validation_failed` `no_stopped_crawl` |
 | `GET {P}/link-crawls/{run_id}` | data:read | none | `CrawlRunResponse` |
 | `POST {P}/link-crawls/{run_id}/cancel` | runs:trigger | none | `CrawlRunResponse`; a queued crawl ends `cancelled` at once, a crawling one is asked to stop; 409 `invalid_state_transition` otherwise |
 | `GET {P}/internal-links/pages` | data:read | `run`, `scope`, `filter[tier]`, `filter[tag]`, `filter[status]`, `filter[indexable]`, `filter[flags]`, `filter[worklist]`, `q`, `sort`, `cursor`, `limit`, `format` (`json`, `csv`) | `PageRowPage`, or `text/csv` |
@@ -2460,6 +2460,8 @@ Sensitive action without a fresh session:
 | `GET {P}/internal-links/worklists` | data:read | `run` | `WorklistsResponse` |
 | `PATCH {P}/settings` | projects:write | `ProjectSettingsPatch {seo?, internal_links?}`, at least one | `ProjectSettingsResponse` with `internal_links {schedule, render_javascript, allowed_subdomains}` |
 | `POST {W}/projects` | projects:write | `ProjectCreate` gains `map_internal_links` (default false) | unchanged; a ticked box queues the first crawl in the same transaction |
+
+While site crawls are off (the `crawls_enabled` setting), Crawl now answers 503 `crawls_disabled` and project create queues no crawl, whatever `map_internal_links` says; reads stay open.
 
 CSV files hold at most 100,000 rows. Full field lists are in `backend/openapi/v1.json` and in docs/superpowers/plans/2026-11-16-internal-links-02-backend-slice-1.md, section "API contract".
 

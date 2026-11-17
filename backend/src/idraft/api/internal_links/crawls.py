@@ -27,6 +27,7 @@ from idraft.api.ai.engine_service import live_project
 from idraft.api.internal_links.problems import (
     BudgetExceededError,
     CrawlInProgressError,
+    CrawlsDisabledError,
     NoWebsiteError,
 )
 from idraft.api.pagination import (
@@ -146,8 +147,11 @@ def _after(cursor: str, scope: dict[str, object]) -> tuple[datetime, UUID]:
 
 
 class CrawlService:
-    def __init__(self, *, sessions: async_sessionmaker[AsyncSession]) -> None:
+    def __init__(self, *, sessions: async_sessionmaker[AsyncSession], enabled: bool) -> None:
+        """`enabled` is the `crawls_enabled` setting. Without it the worker never posts or expires
+        a queued crawl, so Crawl now is refused rather than leave one holding the project's slot."""
         self._sessions = sessions
+        self._enabled = enabled
 
     def _transaction(self, access: WorkspaceAccess) -> AbstractAsyncContextManager[AsyncSession]:
         return workspace_transaction(self._sessions, access.workspace_id, user_id=access.user_id)
@@ -209,6 +213,8 @@ class CrawlService:
         trigger: Trigger = "ceiling_retry" if higher_limit else "manual"
         async with self._transaction(access) as db:
             await live_project(db, access, project_id, lock=True)
+            if not self._enabled:
+                raise CrawlsDisabledError("Site crawls are not switched on yet.")
             try:
                 run_id = await queue_run(
                     db,

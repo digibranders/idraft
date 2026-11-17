@@ -879,12 +879,65 @@ async def test_a_post_that_fails_unexpectedly_is_not_sent_again(
     # A post begun a moment ago may still be in flight in another tick: it is left alone.
     await crawl_tick(worker_db, on_page, _Sent(), now=NOW)
     assert (await _run(migrated, run_id))["state"] == "queued"
+    # Aged against the tick's own `now`: NOW is fixed when the module loads, and a long run of
+    # the whole suite leaves it far behind the database clock.
     await execute(
         migrated,
-        "UPDATE seo.crawl_runs SET submitted_at = now() - interval '11 minutes' WHERE id = $1",
+        "UPDATE seo.crawl_runs SET submitted_at = $2 WHERE id = $1",
         run_id,
+        NOW - timedelta(minutes=11),
     )
     await crawl_tick(worker_db, on_page, _Sent(), now=NOW)
 
     row = await _run(migrated, run_id)
     assert (row["state"], row["error_code"]) == ("failed", "submit_unknown")
+
+
+async def test_a_post_begun_nine_minutes_ago_is_left_alone_and_one_of_eleven_is_failed(
+    migrated: PostgresServer, worker_db: Sessions
+) -> None:
+    """The grace window has two sides: a post that may still be in flight is never failed, one
+    that cannot be is failed and never sent again."""
+    workspace, project = await site_project(migrated)
+    run_id = await _queue(worker_db, workspace.id, project)
+    on_page = FakeOnPage()
+    now = datetime.now(UTC)
+
+    await execute(
+        migrated,
+        "UPDATE seo.crawl_runs SET submitted_at = $2 WHERE id = $1",
+        run_id,
+        now - timedelta(minutes=9),
+    )
+    await crawl_tick(worker_db, on_page, _Sent(), now=now)
+    assert (await _run(migrated, run_id))["state"] == "queued"
+
+    await execute(
+        migrated,
+        "UPDATE seo.crawl_runs SET submitted_at = $2 WHERE id = $1",
+        run_id,
+        now - timedelta(minutes=11),
+    )
+    await crawl_tick(worker_db, on_page, _Sent(), now=now)
+    row = await _run(migrated, run_id)
+    assert (row["state"], row["error_code"]) == ("failed", "submit_unknown")
+    assert on_page.posted == []
+
+
+async def test_a_stale_queued_crawl_whose_post_has_begun_is_not_expired(
+    migrated: PostgresServer, worker_db: Sessions
+) -> None:
+    """Expiry only takes crawls never begun: one another tick is posting must not be cancelled
+    under it."""
+    workspace, project = await site_project(migrated)
+    run_id = await _queue(worker_db, workspace.id, project)
+    await execute(
+        migrated,
+        "UPDATE seo.crawl_runs SET created_at = now() - interval '4 days', submitted_at = now() "
+        "WHERE id = $1",
+        run_id,
+    )
+
+    await crawl_tick(worker_db, None, _Sent(), now=datetime.now(UTC))
+
+    assert (await _run(migrated, run_id))["state"] == "queued"

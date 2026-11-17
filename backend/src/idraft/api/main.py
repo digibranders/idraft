@@ -237,7 +237,7 @@ def create_app(
                     sessions=sessions, throttle=throttle, registration=settings.registration
                 ),
                 members=MemberService(sessions=sessions),
-                projects=ProjectService(sessions=sessions),
+                projects=ProjectService(sessions=sessions, crawls_enabled=settings.crawls_enabled),
                 entities=EntityService(sessions=sessions),
                 project_entities=ProjectEntityService(sessions=sessions),
                 taxonomy=TaxonomyService(sessions=sessions),
@@ -268,7 +268,7 @@ def create_app(
                 tier_levels=TierLevelService(sessions=sessions),
                 page_tiers=PageTierService(sessions=sessions),
                 link_reads=LinkReadService(sessions=sessions),
-                crawls=CrawlService(sessions=sessions),
+                crawls=CrawlService(sessions=sessions, enabled=settings.crawls_enabled),
                 invitations=InvitationService(
                     sessions=sessions,
                     throttle=throttle,

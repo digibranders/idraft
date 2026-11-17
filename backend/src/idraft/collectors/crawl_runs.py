@@ -60,8 +60,9 @@ QUEUE_ATTEMPTS: Final = 3
 # A post begun this recently may still be in flight in another tick (a tick that outlived its
 # lock): it is left alone. A crawl marked sent for longer has an outcome that was never written.
 POST_GRACE: Final = timedelta(minutes=10)
-# A tick takes no new post after this many seconds, well inside its lock, so that two ticks
-# rarely overlap at all.
+# A tick takes no new post after this many seconds. The check runs between posts, and one post
+# can take about two minutes (the client's timeouts), so a tick can still outlive its lock: the
+# grace above is what makes that safe.
 POST_BUDGET: Final = 30.0
 # A crawl that waited this long to be sent (the crawls were switched off, or the provider was
 # out) is cancelled, not sent late: a pile of them must not all be paid for on the day crawls

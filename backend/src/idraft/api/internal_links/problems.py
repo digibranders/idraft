@@ -23,6 +23,10 @@ class CrawlInProgressError(ProblemError):
     status, code, title = 409, "crawl_in_progress", "A crawl of this site is under way"
 
 
+class CrawlsDisabledError(ProblemError):
+    status, code, title = 503, "crawls_disabled", "Site crawls are not switched on yet"
+
+
 class NoWebsiteError(ProblemError):
     status, code, title = 422, "no_website", "The project has no website to crawl"
 
