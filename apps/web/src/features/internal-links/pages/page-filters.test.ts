@@ -1,7 +1,15 @@
 import { createTranslator } from 'next-intl';
 import { describe, expect, it } from 'vitest';
 
-import { pageExportQuery, pageFilterFields, pageQueryOf, UNTIERED_QUERY, UNTIERED_VALUE } from './page-filters';
+import {
+  capTags,
+  MAX_TAGS,
+  pageExportQuery,
+  pageFilterFields,
+  pageQueryOf,
+  UNTIERED_QUERY,
+  UNTIERED_VALUE,
+} from './page-filters';
 import { parseLinksSearch } from '../url-state';
 import { DEFAULT_PAGE_QUERY } from '@/lib/internal-links/queries';
 import type { PageTier } from '@/lib/internal-links/types';
@@ -109,6 +117,23 @@ describe('pageFilterFields', () => {
     const byId = new Map(fields.map((field) => [field.id, field]));
     expect(byId.get('tier')).toMatchObject({ optionsLoading: true });
     expect(byId.get('tag')).toMatchObject({ optionsLoading: true });
+  });
+});
+
+describe('capTags', () => {
+  const tags = (count: number): string[] =>
+    Array.from({ length: count }, (_, index) => `0192e4a0-4000-7000-8000-${String(index).padStart(12, '0')}`);
+
+  it('has nothing to cut up to the most the API takes', () => {
+    expect(MAX_TAGS).toBe(50);
+    expect(capTags({})).toBeNull();
+    expect(capTags({ tag: { kind: 'enum', values: tags(MAX_TAGS) } })).toBeNull();
+  });
+
+  it('keeps the first tags beyond that, and the other filters as they were', () => {
+    const idx = { kind: 'enum', values: ['no'] } as const;
+    const capped = capTags({ idx, tag: { kind: 'enum', values: tags(MAX_TAGS + 3) } });
+    expect(capped).toEqual({ idx, tag: { kind: 'enum', values: tags(MAX_TAGS) } });
   });
 });
 

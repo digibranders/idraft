@@ -90,10 +90,12 @@ export interface LinksState {
   treeOpen: Set<string>;
 }
 
-const text = (value: string | null | undefined): string | null => {
+/** A search as the address and the API hold it: trimmed, 1 to 200 characters, or `null` for none. */
+export const searchText = (value: string | null | undefined): string | null => {
   const trimmed = value?.trim() ?? '';
   return trimmed === '' ? null : trimmed.slice(0, MAX_SEARCH_LENGTH);
 };
+const text = searchText;
 
 /**
  * A url id the address names, as the id when the API would take it, as `invalid` with its text when it would

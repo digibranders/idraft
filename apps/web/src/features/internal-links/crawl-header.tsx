@@ -25,6 +25,8 @@ export interface CrawlHeaderProps {
   crawlPending: boolean;
   onCrawlNow: () => void;
   onExport: (() => void) | null;
+  /** A download is being made: Export waits for it, and says so. */
+  exporting?: boolean | undefined;
   /** Items Task 13 adds (Tier rules, Import tiers from CSV) before the settings links. */
   extraItems?: readonly MenuItemDef[] | undefined;
   settingsHref: Route;
@@ -45,6 +47,7 @@ export function CrawlHeader({
   crawlPending,
   onCrawlNow,
   onExport,
+  exporting = false,
   extraItems = [],
   settingsHref,
   tiersHref,
@@ -71,7 +74,11 @@ export function CrawlHeader({
       id: 'export-tab',
       label: t('exportTab'),
       icon: Download,
-      ...(onExport === null ? { disabledReason: t('exportNone') } : { onSelect: onExport }),
+      ...(onExport === null
+        ? { disabledReason: t('exportNone') }
+        : exporting
+          ? { disabledReason: t('exportRunning') }
+          : { onSelect: onExport }),
     },
   ];
   return (

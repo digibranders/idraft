@@ -2,7 +2,7 @@
 
 import { Ban } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useCallback, useMemo, useState, type ReactElement, type ReactNode } from 'react';
+import { useCallback, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
 
 import { CrawlButton } from './crawl-button';
 import { CrawlHeader } from './crawl-header';
@@ -21,6 +21,7 @@ import { InlineError } from '@/components/app/status/inline-error';
 import { Tabs, TabsPanel } from '@/components/ui/tabs';
 import { toast } from '@/components/ui/toast';
 import { announce } from '@/lib/a11y/announcer';
+import { isApiProblem } from '@/lib/api/problem';
 import type { CrawlRun, LinksScope } from '@/lib/internal-links/types';
 import { useCan } from '@/lib/permissions';
 import { projectPath, withQuery, workspaceSettingsPath } from '@/lib/routes/paths';
@@ -97,11 +98,30 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
   const inspected = inspectedPage(inspector.target);
   const [exportRun, setExportRun] = useState<(() => Promise<void>) | null>(null);
   const registerExport = useCallback((run: (() => Promise<void>) | null) => setExportRun(() => run), []);
+  // One download at a time: a second press while the file is being made would start the same file again
+  const [exporting, setExporting] = useState(false);
+  const exportingNow = useRef(false);
   const onExport =
     exportRun === null
       ? null
       : () => {
-          exportRun().catch(() => toast({ type: 'error', title: header('exportFailed') }));
+          if (exportingNow.current) return;
+          exportingNow.current = true;
+          setExporting(true);
+          exportRun()
+            .catch((error: unknown) => {
+              // What the API said, when it said something (a problem's detail, else its title)
+              const reason = isApiProblem(error) ? (error.detail ?? error.string('title')) : null;
+              toast({
+                type: 'error',
+                title: header('exportFailed'),
+                ...(reason === null ? {} : { description: reason }),
+              });
+            })
+            .finally(() => {
+              exportingNow.current = false;
+              setExporting(false);
+            });
         };
 
   const crawlButton = (label: string): ReactElement => (
@@ -206,6 +226,7 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
         crawlPending={crawl.pending}
         onCrawlNow={() => crawl.start()}
         onExport={ready ? onExport : null}
+        exporting={exporting}
         settingsHref={settingsHref}
         tiersHref={tiersHref}
       />

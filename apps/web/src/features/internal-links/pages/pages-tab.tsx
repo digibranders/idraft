@@ -7,7 +7,8 @@ import { useEffect, useMemo, type ReactElement } from 'react';
 
 import { useCursorPaging, pageRange } from './cursor-paging';
 import { keysOfSort, pageColumns, sortOfKeys } from './page-columns';
-import { pageExportQuery, pageFilterFields, pageQueryOf } from './page-filters';
+import { capTags, MAX_TAGS, pageExportQuery, pageFilterFields, pageQueryOf } from './page-filters';
+import { useSearchDraft } from './search-draft';
 import { WorklistChips } from './worklist-chips';
 import { ScopeMenu } from '../scope-menu';
 import { DEFAULT_SORT } from '../url-state';
@@ -21,7 +22,7 @@ import { InlineError } from '@/components/app/status/inline-error';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/toast';
 import { downloadApiFile } from '@/lib/api/download';
-import { useDebouncedValue } from '@/lib/dom/use-debounced-value';
+import { isApiProblem } from '@/lib/api/problem';
 import { formatInteger, formatList } from '@/lib/format';
 import { useVocabularies } from '@/lib/keywords/taxonomy-reads';
 import { isPageRowPage, pagesPath, pagesQuery } from '@/lib/internal-links/queries';
@@ -86,12 +87,23 @@ export function PagesTab({ context }: { context: LinksTabContext }): ReactElemen
         }),
       }),
   });
-  // The search is in the address as typed; the request follows it once typing pauses (13 section 6)
-  const search = useDebouncedValue(state.q, SEARCH_DELAY_MS);
+  // The box keeps what is typed; the address and so the request follow once typing pauses (13 section 6)
+  const { draft, setDraft } = useSearchDraft(state.q, (q) => setSearch({ q }), SEARCH_DELAY_MS);
+  // The API takes at most 50 tags; the chips are cut to what the request asks for, and the person is told
+  useEffect(() => {
+    const capped = capTags(values);
+    if (capped === null) return;
+    setValues(capped);
+    toast({
+      type: 'info',
+      title: t('pages.tagCap.title', { max: MAX_TAGS }),
+      description: t('pages.tagCap.description', { max: MAX_TAGS }),
+    });
+  }, [values, setValues, t]);
   // A new query starts again at the first page
-  const filtersKey = JSON.stringify([state.scope, state.worklist, state.sort, search, values]);
+  const filtersKey = JSON.stringify([state.scope, state.worklist, state.sort, state.q, values]);
   const paging = useCursorPaging(filtersKey);
-  const query = pageQueryOf({ ...state, q: search }, values, paging.cursor, paging.size);
+  const query = pageQueryOf(state, values, paging.cursor, paging.size);
   // The rows stay while new filters load: no skeleton flash (12-tables.md section 7)
   const read = useQuery({
     ...pagesQuery(scope, query),
@@ -101,6 +113,18 @@ export function PagesTab({ context }: { context: LinksTabContext }): ReactElemen
   });
   const rows = read.data?.data ?? NO_ROWS;
   const total = read.data?.meta.total ?? null;
+  // A cursor belongs to one crawl. When a crawl ends, the page open is read again with its old cursor and the API
+  // refuses it: start again at the first page (the retry would send the same cursor for ever). A page of another crawl
+  // that is answered all the same does the same.
+  const { reset: startAgain, noteRun } = paging;
+  const refused = isApiProblem(read.error, 'invalid_cursor');
+  useEffect(() => {
+    if (refused) startAgain();
+  }, [refused, startAgain]);
+  const run = read.data?.meta.run_id ?? null;
+  useEffect(() => {
+    noteRun(run);
+  }, [run, noteRun]);
 
   const [table, setTable] = useQueryStates(TABLE_KEYS, { history: 'replace' });
   const columns = useMemo(
@@ -117,8 +141,7 @@ export function PagesTab({ context }: { context: LinksTabContext }): ReactElemen
   }, [registerExport, scope, state, values, paging.size]);
 
   const range = pageRange({ pageIndex: paging.pageIndex, rows: rows.length, limit: paging.size });
-  // The search the request holds, which lags the box by the delay
-  const searched = search !== null;
+  const searched = state.q !== null;
   // While the rows of the last query stay on screen, the cursors in hand belong to it, not to the one loading
   const settled = !read.isPlaceholderData;
   const filtered = Object.keys(values).length > 0 || searched || state.worklist !== null;
@@ -139,6 +162,8 @@ export function PagesTab({ context }: { context: LinksTabContext }): ReactElemen
               : 'empty'
             : 'ready';
   const worklistEmpty = state.worklist === null ? null : EMPTY_KEY[state.worklist];
+  // `scope: null` is deliberate: the link worklists count links of every scope, so the Links tab opens on the default
+  // scope chip (Editorial) and not on the one chosen here
   const openEdgeWorklist = (worklist: EdgeWorklist): void =>
     setSearch({ tab: 'links', lview: worklist, scope: null }, { history: 'push' });
   const openRow = (row: PageRow, intent: 'inspector' | 'new-tab'): void => {
@@ -201,8 +226,8 @@ export function PagesTab({ context }: { context: LinksTabContext }): ReactElemen
           visible: parseColumns(table.cols, known, REQUIRED_COLUMNS),
           onChange: (visible) => void setTable({ cols: visible === null ? null : formatColumns(visible) }),
         }}
-        search={state.q ?? ''}
-        onSearchChange={(q) => setSearch({ q: q.trim() === '' ? null : q })}
+        search={draft}
+        onSearchChange={setDraft}
         searchPlaceholder={t('pages.search')}
         rowName={(row) => row.path}
         onRowOpen={openRow}

@@ -11,9 +11,9 @@ export const UNTIERED_VALUE = 'none';
 /** The Pages tab narrowed to the pages without a tier: the summary strip's Tiered link and the Tier filter agree on it. */
 export const UNTIERED_QUERY = `tier=${UNTIERED_VALUE}`;
 
-/** The most ids the API takes for each list filter. */
+/** The most ids the API takes for each list filter (a workspace has 8 tiers and Untiered, so the tier cap cannot bite). */
 const MAX_TIERS = 9;
-const MAX_TAGS = 50;
+export const MAX_TAGS = 50;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const STATUSES: readonly StatusClass[] = ['2xx', '3xx', '4xx', '5xx'];
@@ -108,6 +108,15 @@ export function pageQueryOf(state: LinksState, values: FilterValues, cursor: str
     cursor,
     limit,
   };
+}
+
+/**
+ * The filter values with the tag filter cut to the most the API takes, or `null` when it is within it. The filter bar
+ * lets a 51st tag be chosen; the tab writes the cut values back, so the chips always say what the request asks for.
+ */
+export function capTags(values: FilterValues): FilterValues | null {
+  const tags = enumValuesOf(values.tag);
+  return tags.length <= MAX_TAGS ? null : { ...values, tag: { kind: 'enum', values: tags.slice(0, MAX_TAGS) } };
 }
 
 /**

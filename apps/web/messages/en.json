@@ -7265,6 +7265,10 @@
       "droppedFilters": {
         "title": "{count, plural, one {A filter from the link was left out} other {# filters from the link were left out}}",
         "description": "{fields}: the link holds a value this list does not have."
+      },
+      "tagCap": {
+        "title": "Tag filter limited to {max} tags",
+        "description": "The tags after the first {max} were left out."
       }
     },
     "filters": {
@@ -7378,6 +7382,7 @@
       "exportTab": "Export this tab (CSV)",
       "exportNone": "Export the Pages, Links or Tier flow tab.",
       "exportFailed": "The export could not be made",
+      "exportRunning": "The export is being prepared.",
       "crawlNow": "Crawl now",
       "crawling": "Crawling",
       "crawlingSince": "A crawl started {time}. One crawl runs at a time.",

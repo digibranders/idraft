@@ -167,5 +167,11 @@ describe('isPageRowPage (the pages answer is typed unknown: its 200 declares a C
     expect(isPageRowPage({ data: [], page: answer.page })).toBe(false);
     expect(isPageRowPage({ ...answer, page: { limit: 100 } })).toBe(false);
     expect(isPageRowPage({ ...answer, meta: { total: 'many' } })).toBe(false);
+    expect(isPageRowPage({ ...answer, page: { ...answer.page, next_cursor: 7 } })).toBe(false);
+    expect(isPageRowPage({ ...answer, page: { has_more: false, limit: 100 } })).toBe(false);
+  });
+
+  it('takes a next cursor that is text', () => {
+    expect(isPageRowPage({ ...answer, page: { ...answer.page, next_cursor: 'abc', has_more: true } })).toBe(true);
   });
 });

@@ -145,7 +145,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> => typeof va
 /**
  * The pages list's 200 declares a JSON body and a CSV body in the OpenAPI, so the generated type of its answer is
  * `unknown`. The JSON read (never `format=csv`, which goes through `downloadApiFile`) is checked here, at the
- * boundary: the parts every reader uses (`data`, `page`, `meta`), not each row.
+ * boundary: the parts every reader uses (`data`, `page` with its cursor, `meta`), not each row.
  */
 export function isPageRowPage(value: unknown): value is PageRowPage {
   if (!isRecord(value)) return false;
@@ -154,8 +154,10 @@ export function isPageRowPage(value: unknown): value is PageRowPage {
     Array.isArray(data) &&
     isRecord(page) &&
     typeof page.has_more === 'boolean' &&
+    (page.next_cursor === null || typeof page.next_cursor === 'string') &&
     isRecord(meta) &&
-    typeof meta.total === 'number'
+    typeof meta.total === 'number' &&
+    typeof meta.run_id === 'string'
   );
 }
 

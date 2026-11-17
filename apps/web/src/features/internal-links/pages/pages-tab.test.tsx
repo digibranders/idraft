@@ -1,9 +1,11 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { UNTIERED_QUERY } from './page-filters';
+import { MAX_TAGS, UNTIERED_QUERY } from './page-filters';
 import { downloadApiFile } from '@/lib/api/download';
+import { problemFrom } from '@/lib/api/problem';
+import { internalLinksKeys } from '@/lib/internal-links/queries';
 import { MOCK_WORKSPACE } from '@/mocks/fixtures';
 import { crawledPages, EVENTUS, MOCK_RUN_ID, pageRow } from '@/mocks/internal-links-world';
 import { mswPath } from '@/mocks/respond';
@@ -24,11 +26,19 @@ vi.mock('@/lib/api/download', () => ({ downloadApiFile: vi.fn(() => Promise.reso
 
 const PAGES = mswPath('/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages');
 
+/** Longer than the search delay of the tab, so the typing has paused. */
+const SEARCH_PAUSE_MS = 400;
+const SCOPE = { workspaceId: MOCK_WORKSPACE.workspace_id, projectId: EVENTUS.project_id };
+/** What a crawl that ends makes stale: every read of the project's internal links (`crawlFinishedKeys`). */
+const [READS_KEY = []] = internalLinksKeys(SCOPE);
+
 beforeEach(() => {
   stubWideScreen();
-  vi.mocked(downloadApiFile).mockClear();
+  vi.mocked(downloadApiFile).mockReset();
+  vi.mocked(downloadApiFile).mockImplementation(() => Promise.resolve());
 });
 afterEach(() => {
+  vi.useRealTimers();
   restoreWideScreen();
   server.events.removeAllListeners();
   document.documentElement.classList.remove('dark');
@@ -130,13 +140,62 @@ describe('the Pages tab (spec 7.2)', () => {
   });
 
   it('waits for the typing to pause before it asks for a search, and asks once', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     const reads = pageReads();
     const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
     await rowOf('/pricing');
     await user.type(screen.getByRole('searchbox', { name: 'Search in table' }), 'pri');
+    // Nothing is asked while the typing goes on
+    expect(reads().flatMap((read) => read.get('q') ?? [])).toEqual([]);
+    act(() => {
+      vi.advanceTimersByTime(SEARCH_PAUSE_MS);
+    });
     await waitFor(() => expect(reads().some((read) => read.get('q') === 'pri')).toBe(true));
-    const asked = reads().flatMap((read) => read.get('q') ?? []);
-    expect(asked).toEqual(['pri']);
+    expect(reads().flatMap((read) => read.get('q') ?? [])).toEqual(['pri']);
+  });
+
+  it('keeps the spaces typed in the search box, asks for the text as typed, and a Clear empties the box', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const reads = pageReads();
+    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    await rowOf('/pricing');
+    const box = screen.getByRole('searchbox', { name: 'Search in table' });
+    await user.type(box, 'a b');
+    expect(box).toHaveValue('a b');
+    act(() => {
+      vi.advanceTimersByTime(SEARCH_PAUSE_MS);
+    });
+    await waitFor(() => expect(reads().some((read) => read.get('q') === 'a b')).toBe(true));
+    // The address holds the trimmed text, and coming back from it must not eat a space just typed
+    expect(box).toHaveValue('a b');
+    await user.type(box, ' ');
+    act(() => {
+      vi.advanceTimersByTime(SEARCH_PAUSE_MS);
+    });
+    expect(box).toHaveValue('a b ');
+    await user.type(box, 'c');
+    expect(box).toHaveValue('a b c');
+    // Nothing matches: Clear filters empties the search, and the box follows
+    await user.clear(box);
+    await user.type(box, 'zzzz');
+    act(() => {
+      vi.advanceTimersByTime(SEARCH_PAUSE_MS);
+    });
+    await user.click(await screen.findByRole('button', { name: 'Clear filters' }));
+    await waitFor(() => expect(box).toHaveValue(''));
+    expect(await rowOf('/pricing')).toBeInTheDocument();
+  });
+
+  it('starts the box from the search in the address, and writes nothing on load', async () => {
+    const writes: string[] = [];
+    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
+      searchParams: '?q=%2Fpricing',
+      onUrlUpdate: ({ queryString }) => writes.push(queryString),
+    });
+    const box = await screen.findByRole('searchbox', { name: 'Search in table' });
+    expect(box).toHaveValue('/pricing');
+    expect(await rowOf('/pricing')).toBeInTheDocument();
+    expect(writes).toEqual([]);
   });
 
   it('exports the server CSV of the current filter, scope and sort, with no page size and no equity', async () => {
@@ -152,6 +211,46 @@ describe('the Pages tab (spec 7.2)', () => {
       { scope: 'all', sort: 'path', q: '/services', format: 'csv' },
       'internal-links-pages.csv',
     );
+  });
+
+  it('starts no second download while one is running, and says why', async () => {
+    let finish = (): void => undefined;
+    vi.mocked(downloadApiFile).mockImplementation(() => new Promise<void>((resolve) => (finish = resolve)));
+    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    await rowOf('/pricing');
+    await user.click(screen.getByRole('button', { name: 'Export' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Export this tab (CSV)' }));
+    await user.click(screen.getByRole('button', { name: 'Export' }));
+    const again = await screen.findByRole('menuitem', { name: /Export this tab \(CSV\)/ });
+    expect(again).toHaveAttribute('aria-disabled', 'true');
+    expect(again).toHaveTextContent('The export is being prepared');
+    await user.click(again);
+    expect(downloadApiFile).toHaveBeenCalledTimes(1);
+    await user.keyboard('{Escape}');
+    await act(async () => {
+      finish();
+      await Promise.resolve();
+    });
+    // Done: the next export starts again
+    await user.click(screen.getByRole('button', { name: 'Export' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Export this tab (CSV)' }));
+    expect(downloadApiFile).toHaveBeenCalledTimes(2);
+  });
+
+  it('names what the API said when the export fails', async () => {
+    vi.mocked(downloadApiFile).mockRejectedValue(
+      problemFrom(new Response(null, { status: 500 }), {
+        title: 'Server error',
+        detail: 'The export could not be built for this crawl.',
+      }),
+    );
+    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    await rowOf('/pricing');
+    await user.click(screen.getByRole('button', { name: 'Export' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Export this tab (CSV)' }));
+    // The toast and the live region that speaks it
+    expect((await screen.findAllByText('The export could not be made')).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('The export could not be built for this crawl.').length).toBeGreaterThan(0);
   });
 
   it('opens a page in the journey from its row, as a pushed history entry', async () => {
@@ -193,6 +292,24 @@ describe('the Untiered filter', () => {
       expect(read.get('filter[tier]') ?? 'none').not.toBe('T1');
       expect(read.get('filter[status]')).toBeNull();
     }
+  });
+
+  it('keeps the tag filter to the most the API takes, in the chips as well as in the request, and says so', async () => {
+    const reads = pageReads();
+    const writes: string[] = [];
+    const tags = Array.from(
+      { length: MAX_TAGS + 1 },
+      (_, index) => `0192e4a0-4000-7000-8000-${String(index).padStart(12, '0')}`,
+    );
+    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
+      searchParams: `?tag=${tags.join(',')}`,
+      onUrlUpdate: ({ queryString }) => writes.push(queryString),
+    });
+    expect(await screen.findByText('Tag filter limited to 50 tags')).toBeInTheDocument();
+    await waitFor(() => expect(writes.length).toBeGreaterThan(0));
+    const kept = (query: string): string[] => new URLSearchParams(query).get('tag')?.split(',') ?? [];
+    expect(writes.some((query) => kept(query).join() === tags.slice(0, MAX_TAGS).join())).toBe(true);
+    for (const read of reads()) expect(read.get('filter[tag]')?.split(',').length ?? 0).toBeLessThanOrEqual(MAX_TAGS);
   });
 
   it('says that a filter from the link was left out', async () => {
@@ -275,15 +392,20 @@ describe('the states of the tab', () => {
   });
 });
 
+/** 120 pages made from the fixture rows: a page of 100 and one of 20. */
+function syntheticRows(): ReturnType<typeof pageRow>[] {
+  const fixture = crawledPages().map((page) => pageRow(page, 'editorial'));
+  return Array.from({ length: 120 }, (_, index) => {
+    const own = fixture[index % fixture.length];
+    if (own === undefined) throw new Error('The fixture has no pages');
+    return { ...own, url_id: String(5000 + index), path: `/page-${String(index)}` };
+  });
+}
+
 describe('paging (decision W6)', () => {
   /** 120 pages made from the fixture rows, in a page of 100 and one of 20, by cursor. */
   const twoPages = (hold?: Promise<void>): (() => (string | null)[]) => {
-    const fixture = crawledPages().map((page) => pageRow(page, 'editorial'));
-    const rows = Array.from({ length: 120 }, (_, index) => {
-      const own = fixture[index % fixture.length];
-      if (own === undefined) throw new Error('The fixture has no pages');
-      return { ...own, url_id: String(5000 + index), path: `/page-${String(index)}` };
-    });
+    const rows = syntheticRows();
     const cursors: (string | null)[] = [];
     server.use(
       http.get(PAGES, async ({ request }) => {
@@ -340,6 +462,71 @@ describe('paging (decision W6)', () => {
     await user.click(await screen.findByRole('button', { name: 'Orphans 1' }));
     expect(await screen.findByText('Showing 1 to 100 of 120')).toBeInTheDocument();
     expect(cursors().at(-1)).toBeNull();
+  });
+});
+
+describe('a crawl that ends while a later page is open', () => {
+  /**
+   * The pages of the latest crawl, whose cursors belong to it: `live.run` is the crawl the API reads, and a cursor of
+   * another crawl is a 400 invalid_cursor, as the backend answers (reads.py binds the run into the cursor).
+   * `lenient` answers a cursor of an older crawl with the new crawl's page instead, to see the run id move.
+   */
+  const crawlPages = (): { live: { run: string; lenient: boolean }; cursors: () => (string | null)[] } => {
+    const rows = syntheticRows();
+    const live = { run: MOCK_RUN_ID, lenient: false };
+    const cursors: (string | null)[] = [];
+    server.use(
+      http.get(PAGES, ({ request }) => {
+        const cursor = new URL(request.url).searchParams.get('cursor');
+        cursors.push(cursor);
+        if (cursor !== null && cursor !== `second-${live.run}` && !live.lenient) {
+          return HttpResponse.json(
+            { type: 'about:blank', title: 'Bad request', status: 400, code: 'invalid_cursor' },
+            { status: 400, headers: { 'content-type': 'application/problem+json' } },
+          );
+        }
+        const second = cursor !== null;
+        return HttpResponse.json({
+          data: second ? rows.slice(100) : rows.slice(0, 100),
+          page: { limit: 100, next_cursor: second ? null : `second-${live.run}`, has_more: !second },
+          meta: { run_id: live.run, scope: 'editorial', total: rows.length },
+        });
+      }),
+    );
+    return { live, cursors: () => cursors };
+  };
+  const NEW_RUN = '0192e4a0-1000-7000-8000-000000000002';
+
+  it('goes back to the first page of the new crawl when the old cursor is refused, and Next then uses the new one', async () => {
+    const { live, cursors } = crawlPages();
+    const { user, queryClient } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    await screen.findByText('Showing 1 to 100 of 120');
+    await user.click(screen.getByRole('button', { name: 'Next page' }));
+    await screen.findByText('Showing 101 to 120 of 120');
+    // The crawl ends: every read of the links is stale, and the page open is read again with its old cursor
+    live.run = NEW_RUN;
+    await act(async () => {
+      await queryClient.invalidateQueries({ queryKey: READS_KEY });
+    });
+    expect(await screen.findByText('Showing 1 to 100 of 120')).toBeInTheDocument();
+    expect(cursors().at(-1)).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Next page' }));
+    expect(await screen.findByText('Showing 101 to 120 of 120')).toBeInTheDocument();
+    expect(cursors().at(-1)).toBe(`second-${NEW_RUN}`);
+  });
+
+  it('goes back to the first page when a page of another crawl arrives, even if it was not refused', async () => {
+    const { live } = crawlPages();
+    live.lenient = true;
+    const { user, queryClient } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    await screen.findByText('Showing 1 to 100 of 120');
+    await user.click(screen.getByRole('button', { name: 'Next page' }));
+    await screen.findByText('Showing 101 to 120 of 120');
+    live.run = NEW_RUN;
+    await act(async () => {
+      await queryClient.invalidateQueries({ queryKey: READS_KEY });
+    });
+    expect(await screen.findByText('Showing 1 to 100 of 120')).toBeInTheDocument();
   });
 });
 
