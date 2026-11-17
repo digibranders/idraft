@@ -569,23 +569,23 @@ export function ownPagesFor(model, domains) {
   return pages.map(([path, topic], index) => ({ url: `northwind.com${path}`, topic, units: units[index] })).sort((a, b) => b.units - a.units);
 }
 
-/** Prompts that name the brand but never cite it: the unlinked mentions, with the share of their answers. */
+/**
+ * Prompts that name the brand but never cite it: the unlinked mentions, ranked per platform (R3). Each platform has its
+ * own rate (its unlinked answers over its valid answers); a platform with under 4 valid answers for the prompt has none
+ * and is left out and named; the prompt is ranked on the equal-weight average of the rest. No count is added across
+ * platforms: `counts` keeps each platform's own.
+ */
 export function unlinkedPrompts(model, limit = 6) {
   return model.prompts
     .map((prompt) => {
-      let named = 0;
-      let unlinked = 0;
-      let answers = 0;
-      for (const code of model.codes) {
-        const row = derived(prompt, code, false);
-        named += row.m;
-        unlinked += row.mentionedOnly;
-        answers += row.n;
-      }
-      return { id: prompt.id, text: prompt.text, topic: prompt.topic, named, unlinked, answers };
+      const rows = model.codes.map((code) => ({ code, row: derived(prompt, code, false) }));
+      const counts = rows.filter(({ row }) => rateState(row.n) === 'ok').map(({ code, row }) => ({ code, k: row.mentionedOnly, n: row.n }));
+      const { value } = equalWeightAverage(counts.map((count) => count.k / count.n));
+      const leftOut = rows.filter(({ row }) => rateState(row.n) !== 'ok').map(({ code }) => code);
+      return { id: prompt.id, text: prompt.text, topic: prompt.topic, rate: value, counts, leftOut, answers: counts.reduce((sum, count) => sum + count.n, 0) };
     })
-    .filter((entry) => entry.answers >= 4 && entry.unlinked > 0)
-    .sort((a, b) => b.unlinked / b.answers - a.unlinked / a.answers || b.answers - a.answers)
+    .filter((entry) => entry.rate !== null && entry.rate > 0)
+    .sort((a, b) => b.rate - a.rate || b.answers - a.answers)
     .slice(0, limit);
 }
 

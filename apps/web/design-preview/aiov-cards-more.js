@@ -238,10 +238,18 @@ export function unlinkedCard(ctx) {
     const meta = el('div', 'flex items-center gap-2');
     const track = el('div', 'h-1.5 flex-1 rounded-full bg-neutral-subtle overflow-hidden');
     const fill = el('div', 'h-full rounded-full');
-    fill.style.width = `${(row.unlinked / row.answers) * 100}%`;
+    fill.style.width = `${row.rate * 100}%`;
     fill.style.background = 'var(--seq-4)';
     track.append(fill);
-    meta.append(track, el('span', 'type-table num text-foreground-secondary whitespace-nowrap', `${row.unlinked} of ${row.answers} answers`), el('span', NEUTRAL_BADGE, row.topic));
+    // One platform with a rate: its own "x of y answers", which is the percent. Several: the average and how many took part,
+    // with no pooled count beside it (each platform's counts are in the row's tooltip)
+    const [only] = row.counts;
+    const figure = row.counts.length === 1 ? `${only.k} of ${only.n} answers` : `${pct0(row.rate)}, average of ${row.counts.length}`;
+    const names = (codes) => codes.map(engineName).join(' and ');
+    const countsText = row.counts.map((count) => `${engineName(count.code)} ${count.k} of ${count.n}`).join(' and ');
+    const head = row.counts.length === 1 ? `${only.k} of ${only.n} answers on ${engineName(only.code)} mention you and cite none of your pages` : `${countsText} answers mention you and cite none of your pages. Average of ${names(row.counts.map((count) => count.code))}, each platform counting once`;
+    li.dataset.tip = row.leftOut.length === 0 ? head : `${head}. Left out, fewer than 4 valid answers: ${names(row.leftOut)}`;
+    meta.append(track, el('span', 'type-table num text-foreground-secondary whitespace-nowrap', figure), el('span', NEUTRAL_BADGE, row.topic));
     li.append(meta);
     list.append(li);
   });

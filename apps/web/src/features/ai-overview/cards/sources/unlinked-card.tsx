@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { useMemo, type ReactElement } from 'react';
 
 import { unlinkedPrompts, type UnlinkedPrompt } from './model/unlinked-model';
@@ -19,7 +19,8 @@ import { Badge } from '@/components/ui/badge';
 import { TextLink } from '@/components/ui/text-link';
 import type { CardProps } from '@/features/layouts';
 import { safeText, type CsvTable } from '@/lib/csv/csv-write';
-import { formatInteger } from '@/lib/format';
+import { formatList, formatPercent } from '@/lib/format';
+import { engineLabel } from '@/lib/layouts';
 import { projectPath } from '@/lib/routes/paths';
 
 /**
@@ -29,6 +30,7 @@ import { projectPath } from '@/lib/routes/paths';
  */
 export default function UnlinkedMentionsCard({ item, live }: CardProps): ReactElement {
   const t = useTranslations('aiOverview.sourcesTracking.unlinked');
+  const locale = useLocale();
   const { workspaceSlug, project, scope } = useOverview();
   const data = useTopicSummary({ subscribed: live });
   const title = t('title');
@@ -69,15 +71,55 @@ export default function UnlinkedMentionsCard({ item, live }: CardProps): ReactEl
   );
   const ready = frame.status === 'ready' || frame.status === 'refetching';
 
+  // One platform with a rate: its own "x of y answers", which is the percent. Several: the average of their rates and how
+  // many took part, with no pooled count beside it (the counts are in the tip, per platform)
+  const figureOf = (row: UnlinkedPrompt): string => {
+    const [only] = row.counts;
+    return row.counts.length === 1 && only !== undefined
+      ? t('answersOf', { unlinked: only.k, answers: only.n })
+      : t('averageOf', { rate: formatPercent(row.rate, { decimals: 0 }), count: row.counts.length });
+  };
+  const tipOf = (row: UnlinkedPrompt): string => {
+    const [only] = row.counts;
+    const head =
+      row.counts.length === 1 && only !== undefined
+        ? t('rowTipOne', { platform: engineLabel(only.code), k: only.k, n: only.n })
+        : t('rowTipAverage', {
+            counts: countsText(row),
+            platforms: formatList(
+              row.counts.map((count) => engineLabel(count.code)),
+              locale,
+            ),
+          });
+    return row.leftOut.length === 0
+      ? head
+      : `${head}. ${t('leftOut', {
+          platforms: formatList(
+            row.leftOut.map((code) => engineLabel(code)),
+            locale,
+          ),
+        })}`;
+  };
+  // Each platform's own counts, never added up: the average is of the platforms' rates (R3)
+  const countsText = (row: UnlinkedPrompt): string =>
+    formatList(
+      row.counts.map((count) => t('platformCount', { platform: engineLabel(count.code), k: count.k, n: count.n })),
+      locale,
+    );
   const columns: PlainColumn<UnlinkedPrompt>[] = [
     { id: 'prompt', header: t('promptHeader'), wrap: true, cell: (row) => row.text },
     { id: 'group', header: t('groupHeader'), cell: (row) => groupOf.get(row.id) ?? '' },
-    { id: 'unlinked', header: t('unlinkedHeader'), cell: (row) => formatInteger(row.unlinked) },
-    { id: 'answers', header: t('answersHeader'), cell: (row) => formatInteger(row.answers) },
+    { id: 'rate', header: t('rateHeader'), cell: (row) => formatPercent(row.rate, { decimals: 0 }) },
+    { id: 'platforms', header: t('platformsHeader'), cell: countsText },
   ];
   const csv: CsvTable = {
-    header: ['prompt', 'group', 'answers_mentioning_without_citation', 'valid_answers'],
-    rows: rows.map((row) => [safeText(row.text), safeText(groupOf.get(row.id) ?? ''), row.unlinked, row.answers]),
+    header: ['prompt', 'group', 'share_of_answers_mentioning_without_citation', 'platform_counts'],
+    rows: rows.map((row) => [
+      safeText(row.text),
+      safeText(groupOf.get(row.id) ?? ''),
+      row.rate,
+      safeText(countsText(row)),
+    ]),
   };
   useCardExport(item.id, () => (!ready ? null : { id: item.id, ...csv }));
 
@@ -91,7 +133,7 @@ export default function UnlinkedMentionsCard({ item, live }: CardProps): ReactEl
           <li
             key={row.id}
             className="flex flex-col gap-1 border-t border-border-subtle py-2 first:border-t-0"
-            title={t('rowTip', { unlinked: row.unlinked, answers: row.answers })}
+            title={tipOf(row)}
           >
             {href === null ? (
               text
@@ -111,13 +153,11 @@ export default function UnlinkedMentionsCard({ item, live }: CardProps): ReactEl
                   style={{
                     // The sequential step by its custom property: the heat bins own the seq class names
                     backgroundColor: 'var(--seq-4)',
-                    width: `${String((row.unlinked / row.answers) * 100)}%`,
+                    width: `${String(row.rate * 100)}%`,
                   }}
                 />
               </div>
-              <span className="num type-table whitespace-nowrap text-foreground-secondary">
-                {t('answersOf', { unlinked: row.unlinked, answers: row.answers })}
-              </span>
+              <span className="num type-table whitespace-nowrap text-foreground-secondary">{figureOf(row)}</span>
               {group === undefined ? null : <Badge tone="neutral">{group}</Badge>}
             </div>
           </li>
