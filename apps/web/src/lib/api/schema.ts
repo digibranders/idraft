@@ -7964,7 +7964,7 @@ export interface components {
         PageSelection: {
             filter?: components["schemas"]["PageFilter"] | null;
             /** Url Ids */
-            url_ids?: number[] | null;
+            url_ids?: string[] | null;
         };
         /** PageTagChange */
         PageTagChange: {
@@ -7974,7 +7974,7 @@ export interface components {
             /** Remove */
             remove: string[];
             /** Url Ids */
-            url_ids?: number[] | null;
+            url_ids?: string[] | null;
         };
         /** PageTagRef */
         PageTagRef: {
@@ -8057,7 +8057,7 @@ export interface components {
              */
             tier_id: string | null;
             /** Url Ids */
-            url_ids?: number[] | null;
+            url_ids?: string[] | null;
         };
         /** PasswordChangeRequest */
         PasswordChangeRequest: {
@@ -16156,8 +16156,8 @@ export interface operations {
                 "filter[tag]"?: string[] | null;
                 "filter[placement]"?: ("content" | "auto_generated" | "navigation" | "header" | "footer" | "sidebar" | "breadcrumb")[] | null;
                 "filter[target_status]"?: ("2xx" | "3xx" | "4xx" | "5xx")[] | null;
-                "filter[source]"?: number | null;
-                "filter[target]"?: number | null;
+                "filter[source]"?: string | null;
+                "filter[target]"?: string | null;
                 "filter[worklist]"?: ("broken_and_redirected" | "links_to_non_indexable") | null;
                 q_source?: string | null;
                 q_target?: string | null;
@@ -16199,7 +16199,7 @@ export interface operations {
     neighbors_api_v1_workspaces__workspace_id__projects__project_id__internal_links_neighbors_get: {
         parameters: {
             query: {
-                url_id: number;
+                url_id: string;
                 direction: "in" | "out";
                 /** @description `latest` or a crawl id. */
                 run?: "latest" | string;
@@ -16295,7 +16295,7 @@ export interface operations {
             header?: never;
             path: {
                 project_id: string;
-                url_id: number;
+                url_id: string;
                 workspace_id: string;
             };
             cookie?: never;
