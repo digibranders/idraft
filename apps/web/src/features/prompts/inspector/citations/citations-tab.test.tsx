@@ -4,6 +4,7 @@ import { useState, type ReactElement } from 'react';
 import { describe, expect, it } from 'vitest';
 
 import { CitationsTab, citationsTab } from './citations-tab';
+import { useCompare } from '../../compare';
 import type { PromptCounts } from '../../inspector-reads';
 import type { PromptTabContext } from '../../seams/inspector-tabs';
 import type { Translate } from '../../seams/shared';
@@ -291,6 +292,65 @@ describe('what the tab reads', () => {
     expect(request.searchParams.get('limit')).toBe('5');
     expect(request.searchParams.get('filter[engine_code_in]')).toBeNull();
     expect(request.searchParams.get('include_branded')).toBeNull();
+  });
+
+  it('follows the page compare mode: with cmp=year no comparison is read, none is marked New, and it says so', async () => {
+    // What the API answers without a comparison: no previous answers, no `previous` on a row
+    const served = serve({ meta: metaOf({ previous_answers: 0 }) });
+    renderWithProviders(<CitationsTab context={contextOf()} />, { searchParams: 'cmp=year' });
+    await domainsTable();
+    for (const request of [...served.domains, ...served.pages]) expect(request.searchParams.get('compare')).toBeNull();
+    expect(
+      await screen.findByText(
+        'Citations cannot be compared with the same period last year yet, so nothing is marked New.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('New')).not.toBeInTheDocument();
+  });
+
+  it('keeps saying what the rows on screen were compared with while the read for a new mode loads', async () => {
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const served = serve({ meta: metaOf({ previous_answers: 0 }) });
+    // The read without a comparison (cmp=year) waits for the test; the one with it answers at once
+    server.use(
+      http.get(DOMAINS, async ({ request }) => {
+        const url = new URL(request.url);
+        served.domains.push(url);
+        if (url.searchParams.get('compare') === null) await held;
+        return HttpResponse.json(list([domain('g2.com', 12)], metaOf({ previous_answers: 0 })));
+      }),
+    );
+    function Switch(): ReactElement {
+      const { setMode } = useCompare();
+      return (
+        <button type="button" onClick={() => setMode('year')}>
+          Last year
+        </button>
+      );
+    }
+    const { user } = renderWithProviders(
+      <>
+        <Switch />
+        <CitationsTab context={contextOf()} />
+      </>,
+      { searchParams: 'cmp=previous' },
+    );
+    const previousWords = 'The previous period has no answers, so nothing is marked New or Lost.';
+    expect(await screen.findByText(previousWords)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Last year' }));
+    // The new read is on its way: the rows held are of the period before, and so are the words
+    await waitFor(() => expect(served.domains.some((url) => url.searchParams.get('compare') === null)).toBe(true));
+    expect(screen.getByText(previousWords)).toBeInTheDocument();
+    release();
+    expect(
+      await screen.findByText(
+        'Citations cannot be compared with the same period last year yet, so nothing is marked New.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(previousWords)).not.toBeInTheDocument();
   });
 
   it('passes include_branded for a branded prompt', async () => {

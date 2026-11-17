@@ -39,6 +39,7 @@ describe('useOverviewScope', () => {
       range: { from: '2026-10-17', to: '2026-11-13', days: 28 },
       rangeValue: { kind: 'preset', preset: '28d' },
       compare: true,
+      compareKind: 'previous_period',
       previous: { from: '2026-09-19', to: '2026-10-16' },
       country: null,
       engines: null,
@@ -48,6 +49,20 @@ describe('useOverviewScope', () => {
     });
     expect(result.current.dropped).toBeNull();
     expect(updates).toHaveLength(0);
+  });
+
+  it('cmp=year reads the same dates a year earlier, and an unknown cmp the period before', () => {
+    const year = setup('?cmp=year').result.current.scope;
+    expect(year).toMatchObject({
+      compare: true,
+      compareKind: 'previous_year',
+      previous: { from: '2025-10-17', to: '2025-11-13' },
+    });
+    expect(setup('?cmp=previous').result.current.scope).toMatchObject({
+      compare: true,
+      compareKind: 'previous_period',
+    });
+    expect(setup('?cmp=off').result.current.scope).toMatchObject({ compare: false, compareKind: 'previous_period' });
   });
 
   it('the keys cmp, country, engine, topic, branded and metric are read', () => {

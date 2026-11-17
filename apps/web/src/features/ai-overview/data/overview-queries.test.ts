@@ -8,6 +8,7 @@ import {
   overviewSchedulesQuery,
   overviewSourcesQuery,
   overviewSummaryQuery,
+  sourcesComparable,
   type ProjectRef,
   type ReadScope,
 } from './overview-queries';
@@ -145,6 +146,20 @@ describe('askedEngines', () => {
     expect(askedEngines(readOf({ engines: ['gemini_web', 'chatgpt_web'] }, ['chatgpt_web']))).toEqual(['chatgpt_web']);
     expect(askedEngines(readOf({ engines: ['gemini_web'] }, ['chatgpt_web']))).toEqual([]);
     expect(askedEngines(readOf({}, []))).toEqual([]);
+  });
+});
+
+describe('sourcesComparable', () => {
+  it('is on for the period before only: the sources routes have no compare=previous_year', () => {
+    expect(sourcesComparable(scopeOf())).toBe(true);
+    expect(sourcesComparable(scopeOf({ compare: false }))).toBe(false);
+    const year = scopeOf({ compareKind: 'previous_year', previous: { from: '2025-10-16', to: '2025-11-12' } });
+    expect(sourcesComparable(year)).toBe(false);
+    // The summary reads the year window by its dates, so the Overview still has it
+    expect(comparisonWindow(year)).toEqual({ from: '2025-10-16', to: '2025-11-12' });
+    expect(queryOf(overviewSourcesQuery(PROJECT, readOf({ compareKind: 'previous_year' })))).not.toHaveProperty(
+      'compare',
+    );
   });
 });
 

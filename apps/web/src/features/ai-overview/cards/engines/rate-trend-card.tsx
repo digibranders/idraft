@@ -145,7 +145,8 @@ export default function RateTrendCard({ item, live }: CardProps): ReactElement {
   );
 
   const currentData = data.current.data;
-  const previousData = data.previous?.data ?? null;
+  // The weeks of last year are not drawn before this year's: one line would join two seasons a year apart as if adjacent
+  const previousData = scope.compareKind === 'previous_year' ? null : (data.previous?.data ?? null);
   const trend = useMemo(
     () =>
       currentData === undefined || data.asked.length === 0

@@ -141,9 +141,9 @@ has its icon). Rows still `todo` after this update: 7 (the seven e2e rows). Back
 position, recommendation and sentiment, OV-HEAD-14) and 12 (run number and last run per platform, OV-SHELL-07 and
 OV-HEAD-16) were added to `docs/ai-visibility/backend-requests-overview.md`. Left as they are, on purpose:
 
-- The trend card now draws its lines with no point markers, as the preview does (OV-TREND-04; a small-sample point keeps
-  its hollow marker). The design system (15 section 3, and `20-accessibility.md` section 12.2, binding) makes marker
-  shapes the non-colour encoding of lines: the owner should confirm this card may rely on colour, the dashed Average and
-  the legend.
+- DECIDED 2026-11-17 (owner decision 12): the trend card draws its point markers again, a shape for each line, in the
+  chart and in the legend, and the preview now draws the same (OV-TREND-04, OV-TREND-08). It had drawn none to match a
+  preview with none.
 - The Table switch of a card staying on when the scope changes (OV-TREND-10): the state lives in the shared frame.
+  Accepted by the owner 2026-11-17 (decision 13), no change.
 - The freshness line against the Runs tile (OV-HEAD-16): two different facts (the newest answer, the newest finished run).

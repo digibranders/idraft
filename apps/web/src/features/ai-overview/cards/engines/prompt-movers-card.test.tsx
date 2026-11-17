@@ -225,12 +225,12 @@ describe('the prompt movers card', () => {
     expect(within(list).getAllByRole('listitem')).toHaveLength(8);
   });
 
-  it('is plain text, with the same words, where the drill gives no link', async () => {
+  it('links to the Prompts page with branded=only, which the page reads since owner decision 15', async () => {
     serve([UP], [UP_BEFORE]);
-    // The Prompts page cannot show "branded prompts only": the drill answers null
     renderCard({}, `${WINDOW}&branded=only`);
     const list = await rowsList();
-    expect(within(list).queryByRole('link')).toBeNull();
+    const link = within(list).getAllByRole('link')[0];
+    expect(link).toHaveAttribute('href', expect.stringContaining('branded=only'));
     expect(within(list).getAllByRole('listitem')[0]).toHaveTextContent('Best CRM for startups: +50.0 pts');
   });
 

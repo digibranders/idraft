@@ -6,6 +6,8 @@ import {
   brandedParams,
   canResetScope,
   changedFilterCount,
+  comparedWindowOf,
+  previousYearWindow,
   namesSeveralPlatforms,
   normalizeEngines,
   onePlatform,
@@ -39,6 +41,27 @@ function scopeOf(patch: Partial<OverviewScope> = {}): OverviewScope {
     ...patch,
   };
 }
+
+describe('previousYearWindow', () => {
+  it('is the same dates a year earlier', () => {
+    expect(previousYearWindow('2026-10-16', '2026-11-12')).toEqual({ from: '2025-10-16', to: '2025-11-12' });
+  });
+
+  it('turns 29 February into 28 February, as the API does for compare=previous_year', () => {
+    expect(previousYearWindow('2028-02-20', '2028-02-29')).toEqual({ from: '2027-02-20', to: '2027-02-28' });
+    expect(previousYearWindow('2028-02-29', '2028-03-05')).toEqual({ from: '2027-02-28', to: '2027-03-05' });
+  });
+
+  it('is the window `comparedWindowOf` gives for the year, and the period before for the other kind', () => {
+    expect(comparedWindowOf('previous_year', '2026-10-16', '2026-11-12')).toEqual({
+      from: '2025-10-16',
+      to: '2025-11-12',
+    });
+    expect(comparedWindowOf('previous_period', '2026-10-16', '2026-11-12')).toEqual(
+      previousWindow('2026-10-16', '2026-11-12'),
+    );
+  });
+});
 
 describe('previousWindow', () => {
   it('is as many days just before from (Oct 16 to Nov 12 gives Sep 18 to Oct 15)', () => {
@@ -259,7 +282,14 @@ describe('changedFilterCount', () => {
   });
 
   it('has a reset patch that leaves the window and the country out and brings the count to zero', () => {
-    expect(Object.keys(RESET_PATCH).sort()).toEqual(['branded', 'compare', 'engines', 'metric', 'topic']);
+    expect(Object.keys(RESET_PATCH).sort()).toEqual([
+      'branded',
+      'compare',
+      'compareKind',
+      'engines',
+      'metric',
+      'topic',
+    ]);
     const reset = scopeOf({
       compare: false,
       engines: ['gemini_web'],

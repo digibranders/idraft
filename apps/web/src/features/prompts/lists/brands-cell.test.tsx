@@ -185,7 +185,10 @@ describe('the Brands cell', () => {
     await user.click(opener());
     const dialog = await screen.findByRole('dialog');
     const lists = within(dialog).getAllByRole('list');
-    expect(within(lists[0] as HTMLElement).getAllByRole('listitem')).toHaveLength(10);
+    // The ten most named, and HubSpot below them at 0%: a competitor the project follows is never cut off
+    const shown = within(lists[0] as HTMLElement).getAllByRole('listitem');
+    expect(shown).toHaveLength(11);
+    expect(shown[10]).toHaveTextContent(/HubSpot0%/);
     const pinned = within(lists[1] as HTMLElement).getByRole('listitem');
     expect(pinned).toHaveTextContent(/^12Northwind/);
     expect(pinned).toHaveTextContent('8%');

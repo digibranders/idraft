@@ -108,8 +108,8 @@ describe('CompareSelect', () => {
     await waitFor(() => {
       expect(menu.contains(document.activeElement)).toBe(true);
     });
-    // Opened by a click nothing is highlighted: the first arrow reaches the first item, the second the next one
-    await user.keyboard('{ArrowDown}{ArrowDown}{Enter}');
+    // Opened by a click nothing is highlighted: the first arrow reaches the first item, the third the last one
+    await user.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}{Enter}');
     await waitFor(() => {
       expect(updates.at(-1)).toBe('?cmp=off');
     });

@@ -72,11 +72,12 @@ describe('brandsOf', () => {
   it('cuts the list at the top ten and pins the own brand when it is below', () => {
     const others: [string, number][] = Array.from({ length: 12 }, (_, i) => [`Brand ${String(i)}`, 9 - (i % 9)]);
     const reading = brandsOf([rowOf(withBrands('chatgpt_web', 10, 1, 0, others))], ['chatgpt_web'], ENTITIES);
-    expect(reading.shown).toHaveLength(LIST_SIZE);
-    expect(reading.shown.some((brand) => brand.own)).toBe(false);
+    // The ten most named, then HubSpot at 0 because the project tracks it
+    expect(reading.shown).toHaveLength(LIST_SIZE + 1);
+    expect(reading.shown.slice(0, LIST_SIZE).some((brand) => brand.own)).toBe(false);
     expect(reading.own).toMatchObject({ name: 'Northwind', own: true });
-    // The 12 others, Northwind, and HubSpot at 0 because the project tracks it
-    expect(reading.total).toBe(14);
+    // The 12 others and Northwind: HubSpot, which the project tracks, is named in no answer and is listed, not counted
+    expect(reading.total).toBe(13);
     expect(brandsOf([rowOf(withBrands('chatgpt_web', 10, 9, 0, others))], ['chatgpt_web'], ENTITIES).own).toBeNull();
   });
 
@@ -86,6 +87,21 @@ describe('brandsOf', () => {
       ['Northwind', 0, { code: 'chatgpt_web', k: 0, n: 10 }],
       ['HubSpot', 0, { code: 'chatgpt_web', k: 0, n: 10 }],
     ]);
+  });
+
+  it('never cuts a tracked brand off the end of a long list, at 0 or with no rate', () => {
+    const others: [string, number][] = Array.from({ length: 12 }, (_, i) => [`Brand ${String(i)}`, 9 - (i % 9)]);
+    const added: TrackedEntity[] = [
+      ...ENTITIES,
+      { entity_id: '00000000-0000-4000-8000-000000000009', name: 'Copper', role: 'competitor' },
+    ];
+    const reading = brandsOf([rowOf(withBrands('chatgpt_web', 10, 9, 0, others))], ['chatgpt_web'], added);
+    // HubSpot is at 0 and Copper has no cell: both are past the top ten and both are still listed
+    expect(reading.shown.slice(LIST_SIZE).map((row) => [row.name, row.rate, row.place])).toEqual([
+      ['HubSpot', 0, 14],
+      ['Copper', null, null],
+    ]);
+    expect(reading.total).toBe(13);
   });
 
   it('keeps a competitor added since the answers were read, with no rate rather than a 0 nobody measured', () => {

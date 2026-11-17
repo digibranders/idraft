@@ -15,8 +15,8 @@ export interface BrandCount {
 }
 
 export interface BrandRow {
-  /** 1 for the brand named most. */
-  place: number;
+  /** 1 for the brand named most; `null` for a tracked brand with no rate, which is kept in the list and not ranked. */
+  place: number | null;
   /** The entity id of a tracked brand, null for a brand nobody tracks. */
   entityId: string | null;
   name: string;
@@ -61,7 +61,7 @@ export interface BrandsReading {
   answers: number;
   /** Rows (prompts) the list is over. */
   prompts: number;
-  /** Brands in the list (the tracked ones at a rate of 0 or with none included), before the cut. */
+  /** Brands the answers name, and the own brand, before the cut. A tracked brand named in no answer is listed, not counted. */
   total: number;
 }
 
@@ -158,7 +158,8 @@ export function brandsOf(
     )
     .sort((a, b) => (b.rate ?? -1) - (a.rate ?? -1))
     .map(({ brand, rate }, index): BrandRow => ({
-      place: index + 1,
+      // A brand with no rate has no place: it is not ranked, only kept
+      place: rate === null ? null : index + 1,
       entityId: brand.entityId,
       name: brand.name,
       own: brand.own,
@@ -166,7 +167,12 @@ export function brandsOf(
       rate,
       counts: countsOf(rows, codes, brand),
     }));
-  const shown = ranked.slice(0, LIST_SIZE);
+  // The top of the list, and below it the competitors the project follows that the cut would drop: a tracked brand is
+  // never hidden (the own brand is pinned under the list instead)
+  const shown = [
+    ...ranked.slice(0, LIST_SIZE),
+    ...ranked.slice(LIST_SIZE).filter((row) => row.tracked && !row.own),
+  ];
   return {
     state: 'ok',
     reason: null,
@@ -175,7 +181,8 @@ export function brandsOf(
     codes,
     answers,
     prompts: rows.length,
-    total: ranked.length,
+    // The brands the answers name (and the own brand), not the tracked ones that no answer names
+    total: ranked.filter((row) => row.own || (row.rate ?? 0) > 0).length,
   };
 }
 

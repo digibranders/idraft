@@ -55,6 +55,8 @@ export function BrandsCell({
   if (reading.state !== 'ok' || shown.length === 0) return null;
 
   const platforms = codes.map(platformName).join(', ');
+  // The names in the cell are the brands the answers name; a tracked brand at 0 is in the list, not in the cell
+  const named = shown.filter((row) => row.own || (row.rate ?? 0) > 0);
   const ownNamed = [...shown, ...(reading.own === null ? [] : [reading.own])].some(
     (row) => row.own && row.rate !== null && row.rate > 0,
   );
@@ -116,13 +118,13 @@ export function BrandsCell({
         trigger={
           <>
             <span className="truncate">
-              {shown
+              {named
                 .slice(0, NAMES_SHOWN)
                 .map((row) => row.name)
                 .join(', ')}
             </span>
-            {shown.length > NAMES_SHOWN ? (
-              <span className="shrink-0 type-label text-foreground-tertiary">+{shown.length - NAMES_SHOWN}</span>
+            {named.length > NAMES_SHOWN ? (
+              <span className="shrink-0 type-label text-foreground-tertiary">+{named.length - NAMES_SHOWN}</span>
             ) : null}
           </>
         }
