@@ -172,10 +172,10 @@ describe('mapReadToFrame', () => {
   describe('a read with data that says too little', () => {
     const empty = (situation: DataSituation, ctx: Partial<FrameContext> = {}) => map({ situation }, ctx);
 
-    it('says how many answers name a tracked brand when fewer than 4 do', () => {
+    it('says how many brand mentions there are when fewer than 4', () => {
       const state = empty({ kind: 'too_few', answers: 3 });
-      expect(state.status === 'empty' && state.empty.title).toBe('Too few answers mention a tracked brand (3)');
-      expect(state.status === 'empty' && state.empty.reason).toContain('at least 4 answers');
+      expect(state.status === 'empty' && state.empty.title).toBe('Too few brand mentions (3)');
+      expect(state.status === 'empty' && state.empty.reason).toContain('at least 4 brand mentions');
     });
 
     it('says no competitor is tracked, with the link to the entities for an editor', () => {

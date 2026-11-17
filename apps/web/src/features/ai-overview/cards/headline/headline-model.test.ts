@@ -114,7 +114,16 @@ describe('the tiles', () => {
     expect(readTile({ prompts: noted('notCollected') }, ONE, 'sov')).toEqual({ state: 'notCollected' });
     expect(readTile({ prompts: noted('capped') }, ONE, 'sov')).toEqual({ state: 'capped' });
     // Every platform of All platforms lacks the counts for the same reason
-    expect(readTile({ prompts: noted('notCollected') }, ALL, 'sov')).toEqual({ state: 'notCollected' });
+    const both = [promptRow('p1', [cells('chatgpt_web', [10, 5, 5, 20]), cells('gemini_web', [4, 6, 2, 8])])].map(
+      (row) => ({
+        ...row,
+        engines: row.engines.map((entry) => ({
+          ...entry,
+          share_of_voice: { ...entry.share_of_voice, share_note: 'notCollected' as const },
+        })),
+      }),
+    );
+    expect(readTile({ prompts: both }, ALL, 'sov')).toEqual({ state: 'notCollected' });
     // The other tiles do not follow it
     expect(readTile({ prompts: noted('notCollected') }, ONE, 'mention').state).toBe('ok');
   });
