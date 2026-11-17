@@ -464,6 +464,22 @@ EXPECTED: dict[tuple[str, str], str] = {
     ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/prompts"): (
         "data:read"
     ),
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/citation-overview"): (
+        "data:read"
+    ),
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/cited-pages"): (
+        "data:read"
+    ),
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/cited-pages/{url_id}"): (
+        "data:read"
+    ),
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/citation-gaps"): (
+        "data:read"
+    ),
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/citation-gaps/{prompt_id}",
+    ): "data:read",
     # WP-26 evidence-viewer
     (
         "GET",

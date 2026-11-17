@@ -9,6 +9,7 @@ from fastapi import Request
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from idraft.api.ai.citation_board import CitationBoardService
 from idraft.api.ai.engine_service import EngineService
 from idraft.api.ai.observations import ObservationService
 from idraft.api.ai.prompt_service import PromptService
@@ -77,6 +78,7 @@ class Resources:
     ai_observations: ObservationService
     ai_summary: SummaryService
     ai_sources: SourceService
+    ai_citation_board: CitationBoardService
     tier_levels: TierLevelService
     page_tiers: PageTierService
     link_reads: LinkReadService

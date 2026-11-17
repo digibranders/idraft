@@ -5,16 +5,20 @@ from __future__ import annotations
 
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
-from uuid import UUID
+from uuid import UUID, uuid4
+
+import httpx
+import pytest
 
 from idraft.api.ai import citation_board_repository as repository
 from idraft.api.ai.source_repository import SourceScope
 from idraft.api.resources import Resources
 from idraft.db.engine import workspace_transaction
 from tests.api.ai.citation_board_support import make_run, run_answer
-from tests.api.ai.sources_support import GUIDE, OWN, Cite, World, make_world
+from tests.api.ai.sources_support import GUIDE, OWN, RIVAL, Cite, World, make_world
 from tests.api.auth.support import execute
-from tests.collectors.ai_support import add_prompt
+from tests.api.entities.support import problem
+from tests.collectors.ai_support import Prompt, add_prompt
 from tests.conftest import PostgresServer
 
 
@@ -182,3 +186,246 @@ async def test_tracked_competitors_entity_names_and_run_number(
     assert nothing == {}
     # The failed run is not counted, but its own number is the completed runs up to its start
     assert numbers == [1, 2, 3, 2, None]
+
+
+async def _get(
+    world: World, api: httpx.AsyncClient, *path: object, **params: object
+) -> httpx.Response:
+    """GET `.../ai/<path>`; every parameter is sent as its text, so ids and numbers pass as is."""
+    query = {key: str(value) for key, value in params.items()}
+    return await api.get(world.url("ai", *path), params=query, headers=world.owner.headers)
+
+
+@pytest.fixture
+async def two_runs(resources: Resources, migrated: PostgresServer) -> tuple[World, Prompt, Prompt]:
+    """Prompt A: run 2 (1 day ago) cites the own page and the guide on ChatGPT and only the rival
+    on Gemini; run 1 (8 days ago) cites the own page on ChatGPT. Prompt B: run 2 only, names the
+    rival without a link."""
+    world = await make_world(resources, migrated)
+    a = await add_prompt(migrated, world.project, "Best managed SOC providers?")
+    b = await add_prompt(migrated, world.project, "How much does a SOC cost?")
+    r1 = await make_run(migrated, world, days_ago=8)
+    r2 = await make_run(migrated, world, days_ago=1)
+    await run_answer(migrated, world, a, run=r2, days_ago=1, cites=[world.own_cite(), Cite(GUIDE)])
+    await run_answer(
+        migrated, world, a, run=r2, days_ago=1, engine="gemini_web", cites=[world.rival_cite()]
+    )
+    await run_answer(migrated, world, a, run=r1, days_ago=8, cites=[world.own_cite()])
+    await run_answer(migrated, world, b, run=r2, days_ago=1, mentions=[world.rival])
+    return world, a, b
+
+
+async def test_the_overview_counts_the_last_run_against_the_run_before(
+    api: httpx.AsyncClient, two_runs: tuple[World, Prompt, Prompt]
+) -> None:
+    world, _, _ = two_runs
+    body = (await _get(world, api, "citation-overview", runs=1)).json()
+
+    assert (body["citations"], body["previous_citations"]) == (1, 1)
+    assert (body["matched_citations"], body["matched_previous_citations"]) == (1, 1)
+    # Own page; the own, guide (example.org) and rival domains
+    assert (body["own_urls"], body["domains"]) == (1, 3)
+    assert body["window"]["answers"] == 3
+    assert [s["slot"] for s in body["window"]["trend"]] == [2, 1]
+    chatgpt = next(e for e in body["engines"] if e["engine_code"] == "chatgpt_web")
+    counts = (
+        chatgpt["answers"],
+        chatgpt["answers_citing"],
+        chatgpt["prompts"],
+        chatgpt["prompts_citing"],
+    )
+    assert counts == (2, 1, 2, 1)
+
+
+async def test_cited_pages_filter_by_role_search_and_count_owners(
+    api: httpx.AsyncClient, two_runs: tuple[World, Prompt, Prompt]
+) -> None:
+    world, _, _ = two_runs
+    body = (
+        await _get(world, api, "cited-pages", runs=1, **{"filter[domain_role_in]": "own"})
+    ).json()
+
+    (row,) = body["data"]
+    assert (row["url"], row["citations"], row["previous_citations"], row["prompts"]) == (
+        OWN,
+        1,
+        1,
+        1,
+    )
+    assert body["meta"]["owners"] == {"own": 1, "competitor": 1, "third_party": 1, "all": 3}
+    guide = await _get(world, api, "cited-pages", runs=1, q="guide.example")
+    assert guide.json()["page"]["total"] == 1
+
+
+async def test_the_gap_analysis_marks_the_gemini_loss(
+    api: httpx.AsyncClient, two_runs: tuple[World, Prompt, Prompt]
+) -> None:
+    world, a, b = two_runs
+    body = (
+        await _get(world, api, "citation-gaps", runs=1, **{"filter[competitor_id_in]": world.rival})
+    ).json()
+
+    rows = {row["prompt_id"]: row for row in body["data"]}
+    assert rows[str(a.id)]["lost_on"] == ["gemini_web"]
+    assert rows[str(b.id)]["competitors"][0]["total"]["state"] == "mentioned"
+    assert (body["meta"]["prompts"], body["meta"]["gaps"]) == (2, 1)
+
+
+async def test_an_untracked_competitor_is_refused(
+    api: httpx.AsyncClient, two_runs: tuple[World, Prompt, Prompt]
+) -> None:
+    world, _, _ = two_runs
+    response = await _get(world, api, "citation-gaps", **{"filter[competitor_id_in]": world.own})
+
+    assert problem(response) == (422, "competitor_not_tracked")
+
+
+async def test_a_page_not_cited_in_the_window_is_not_found(
+    api: httpx.AsyncClient, two_runs: tuple[World, Prompt, Prompt]
+) -> None:
+    world, _, _ = two_runs
+    assert (await _get(world, api, "cited-pages", "999999999", runs=1)).status_code == 404
+
+
+async def test_runs_other_than_1_2_or_4_are_refused(
+    api: httpx.AsyncClient, two_runs: tuple[World, Prompt, Prompt]
+) -> None:
+    world, _, _ = two_runs
+    assert (await _get(world, api, "citation-overview", runs=3)).status_code == 422
+
+
+async def test_a_repeated_competitor_is_one_column(
+    api: httpx.AsyncClient, two_runs: tuple[World, Prompt, Prompt]
+) -> None:
+    world, _, _ = two_runs
+    body = (
+        await _get(
+            world,
+            api,
+            "citation-gaps",
+            runs=1,
+            **{"filter[competitor_id_in]": f"{world.rival},{world.rival}"},
+        )
+    ).json()
+
+    assert [c["entity_id"] for c in body["meta"]["competitors"]] == [str(world.rival)]
+    assert all(len(row["competitors"]) == 1 for row in body["data"])
+
+
+async def test_the_page_drawer_lists_its_prompts_engines_and_neighbours(
+    api: httpx.AsyncClient, two_runs: tuple[World, Prompt, Prompt]
+) -> None:
+    world, a, _ = two_runs
+    listed = await _get(world, api, "cited-pages", runs=1, **{"filter[domain_role_in]": "own"})
+    url_id = listed.json()["data"][0]["url_id"]
+
+    body = (await _get(world, api, "cited-pages", url_id, runs=1)).json()
+
+    assert body["page"]["url"] == OWN
+    # Only prompt A cites the page; it has two current answers (ChatGPT, Gemini), one citing
+    (prompt,) = body["prompts"]
+    assert (prompt["prompt_id"], prompt["cited"], prompt["answers"]) == (str(a.id), 1, 2)
+    per_engine = {e["engine_code"]: (e["cited"], e["answers"]) for e in prompt["engines"]}
+    assert per_engine == {"chatgpt_web": (1, 1), "gemini_web": (0, 1), "google_ai_mode": (0, 0)}
+    # The guide (example.org) is listed in the answer that cites the page; the rival is not
+    (beside,) = body["alongside"]
+    assert (beside["registrable_domain"], beside["domain_role"], beside["answers"]) == (
+        "example.org",
+        "third_party",
+        1,
+    )
+    assert body["window"]["runs"] == 1
+
+
+async def test_the_gap_drawer_lists_the_pages_behind_the_prompt(
+    api: httpx.AsyncClient, two_runs: tuple[World, Prompt, Prompt]
+) -> None:
+    world, a, _ = two_runs
+    competitors = {"filter[competitor_id_in]": world.rival}
+    body = (await _get(world, api, "citation-gaps", a.id, runs=1, **competitors)).json()
+
+    assert (body["row"]["prompt_id"], body["row"]["gap"], body["answers"]) == (str(a.id), 1, 2)
+    assert [(p["url"], p["citations"], p["engines"]) for p in body["competitor_pages"]] == [
+        (RIVAL, 1, ["gemini_web"])
+    ]
+    assert [(p["url"], p["engines"]) for p in body["own_pages"]] == [(OWN, ["chatgpt_web"])]
+    assert [p["url"] for p in body["third_party_pages"]] == [GUIDE]
+    # The prompts have no topic, so no other prompt is a neighbour
+    assert body["closest_pages"] == []
+    missing = await _get(world, api, "citation-gaps", uuid4(), runs=1, **competitors)
+    assert missing.status_code == 404
+
+
+async def test_one_engine_filter_leaves_the_other_engines_out_of_every_row(
+    api: httpx.AsyncClient, two_runs: tuple[World, Prompt, Prompt]
+) -> None:
+    world, a, _ = two_runs
+    body = (
+        await _get(
+            world,
+            api,
+            "citation-gaps",
+            runs=1,
+            **{"filter[competitor_id_in]": world.rival, "filter[engine_code_in]": "chatgpt_web"},
+        )
+    ).json()
+
+    row = next(r for r in body["data"] if r["prompt_id"] == str(a.id))
+    # Gemini is not counted, so the prompt is not lost anywhere: you are cited on ChatGPT
+    assert [e["engine_code"] for e in row["you"]["engines"]] == ["chatgpt_web"]
+    assert (row["lost_on"], row["gap"]) == ([], 0)
+    assert (body["meta"]["prompts"], body["meta"]["gaps"]) == (2, 0)
+    overview = (
+        await _get(
+            world, api, "citation-overview", runs=1, **{"filter[engine_code_in]": "chatgpt_web"}
+        )
+    ).json()
+    assert [e["engine_code"] for e in overview["engines"]] == ["chatgpt_web"]
+    assert overview["window"]["answers"] == 2
+
+
+@pytest.mark.parametrize(("runs", "own_citations"), [(1, 1), (2, 2), (4, 2)])
+async def test_the_strip_equals_the_sum_of_the_own_pages(
+    api: httpx.AsyncClient, two_runs: tuple[World, Prompt, Prompt], runs: int, own_citations: int
+) -> None:
+    world, _, _ = two_runs
+    strip = (await _get(world, api, "citation-overview", runs=runs)).json()
+    pages = (
+        await _get(world, api, "cited-pages", runs=runs, **{"filter[domain_role_in]": "own"})
+    ).json()
+
+    assert strip["citations"] == own_citations
+    assert strip["citations"] == sum(row["citations"] for row in pages["data"])
+    assert strip["citations"] == pages["meta"]["citations"]
+
+
+async def test_a_manual_run_on_one_engine_moves_only_that_engines_slots(
+    api: httpx.AsyncClient, migrated: PostgresServer, two_runs: tuple[World, Prompt, Prompt]
+) -> None:
+    """Prompt A gets a newer run on Gemini alone (its own page cited). Gemini's slot 1 is that
+    run and its old run is slot 2; ChatGPT has no newer run, so its slots do not move."""
+    world, a, _ = two_runs
+    manual = await make_run(migrated, world, days_ago=0.5)
+    await run_answer(
+        migrated, world, a, run=manual, days_ago=0.5, engine="gemini_web", cites=[world.own_cite()]
+    )
+
+    body = (await _get(world, api, "citation-overview", runs=1)).json()
+
+    # Slot 1: A on ChatGPT (run 2), A on Gemini (the manual run), B on ChatGPT (run 2)
+    assert body["window"]["answers"] == 3
+    assert [s["slot"] for s in body["window"]["trend"]] == [2, 1]
+    by_engine = {e["engine_code"]: e for e in body["engines"]}
+    assert (by_engine["chatgpt_web"]["answers"], by_engine["chatgpt_web"]["previous_answers"]) == (
+        2,
+        1,
+    )
+    assert (by_engine["gemini_web"]["answers"], by_engine["gemini_web"]["previous_answers"]) == (
+        1,
+        1,
+    )
+    # Own units: ChatGPT run 2 and the manual run now; ChatGPT run 1 before (Gemini run 2 cites
+    # only the rival). A on ChatGPT and on Gemini are answered in both windows, B is not.
+    assert (body["citations"], body["previous_citations"]) == (2, 1)
+    assert (body["matched_citations"], body["matched_previous_citations"]) == (2, 1)
+    assert body["matched_pairs"] == 2
