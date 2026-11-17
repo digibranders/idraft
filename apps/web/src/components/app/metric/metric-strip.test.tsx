@@ -363,3 +363,41 @@ describe('MetricStrip', () => {
     expect(screen.queryByText('48,210')).toBeNull();
   });
 });
+
+describe('the line strip (WP-77)', () => {
+  it('draws each slot on one line with its figure as the tab stop that speaks the whole hint', () => {
+    renderWithProviders(
+      <MetricStrip
+        size="line"
+        label="Citation measures"
+        status="ready"
+        groups={[
+          {
+            id: 'ai',
+            items: [
+              {
+                id: 'citations',
+                label: 'Total citations',
+                value: '405',
+                tip: 'How many times ...',
+                spoken: 'Total citations: 405. How many times ...',
+              },
+              {
+                id: 'growth',
+                label: 'Citation growth',
+                value: 'n/a',
+                unknown: { kind: 'not-applicable' },
+                tip: 'How total ...',
+                spoken: 'Citation growth: n/a. How total ...',
+              },
+            ],
+          },
+        ]}
+      />,
+    );
+    const group = screen.getByRole('group', { name: 'Citation measures' });
+    expect(group).toHaveClass('@container');
+    expect(screen.getByLabelText('Total citations: 405. How many times ...')).toHaveAttribute('tabindex', '0');
+    expect(screen.getByText('n/a')).toHaveClass('text-foreground-tertiary');
+  });
+});

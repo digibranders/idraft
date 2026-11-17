@@ -302,6 +302,7 @@ Paths are relative to `apps/web/src/`. `ui/` is `components/ui/`; `app/` is `com
 | MetricItem (MetricLabel) | Data: metrics | `app/metric/metric-item.tsx` | V1 | 23 §2.1 |
 | MetricCard | Data: metrics | `app/metric/metric-card.tsx` | V1 | 23 §2.5 |
 | Delta | Data: metrics | `app/metric/delta.tsx` | V1 | 14 §5 |
+| TrendIcon | Data: metrics | `app/metric/trend-icon.tsx` | WP-77 | 25 §9.4a |
 | ConfidenceIndicator | Data: metrics | `app/metric/confidence-indicator.tsx` | V1 | 23 §8.2 |
 | SampleCount | Data: metrics | `app/metric/sample-count.tsx` | V1 | 23 §8.3 |
 | MetricInfo | Data: metrics | `app/metric/metric-info.tsx` | V1 | 22 §10, 23 §8.1 |
@@ -3083,6 +3084,8 @@ interface MetricStripProps {
 
 > As built (WP-33): an item with `href` is a link across its whole cell, and a linked metric shows its `tip` tooltip when the mouse is over it, as an unlinked one does (the link carries a label-purpose copy, so assistive technology still hears the description once, from the value cell).
 
+> As built (WP-77): `size="line"`, the strip of analysis boards (Citations): one 36 px line per slot, label left, figure right, 2 columns, 3 from a 576 px strip, 6 from a 1024 px strip (container queries on the strip), 1 px `border-subtle` gaps. The figure is the tab stop and carries `spoken` as its name; the label and the figure show `tip` with `detail` as its second line.
+
 ### 9.2 MetricItem (MetricLabel)
 `app/metric/metric-item.tsx` · V1 · [23 §2.1](23-application-patterns.md), [23 §2.4](23-application-patterns.md)
 
@@ -3132,6 +3135,19 @@ interface DeltaProps { input: MetricDeltaInput; size?: 'sm' | 'md'; tooltip?: { 
 
 - **Variants:** `size` 2 values. **States:** as `DeltaCell`.
 - **A11y:** `display.label` plus detectability in `sr-only`. **Use:** strips, inspector values, change feeds. **Not for:** rank changes (`RankDelta`); arrows on rates (never).
+
+### 9.4a TrendIcon
+`app/metric/trend-icon.tsx` · WP-77 · [14 §5](14-badges-status.md), [02 §6](02-color-system.md)
+
+Purpose: the change of a rate as an icon, for the line strip of an analysis board (Citations), where a signed figure would not fit beside the value.
+
+```ts
+interface TrendIconProps { input: MetricDeltaInput; spoken: string }   // spoken: "Up 2.5 pts, within normal variation"
+```
+
+- **Variants:** none. Up, down or a minus at 14 px; the tone comes from `formatMetricDelta` (green or red only when the change is detectable, otherwise `foreground-secondary`); a change under half a hundredth of a point is flat and draws the minus.
+- **A11y:** the words are in a visually hidden span; the figures go in the tooltip of what holds the icon (the line strip's `detail`).
+- **Use:** the `delta` of a `line` strip slot for a rate. **Not for:** counts (a neutral signed figure), rank changes (`RankDelta`), table cells (`DeltaCell`).
 
 ### 9.5 ConfidenceIndicator
 `app/metric/confidence-indicator.tsx` · V1 · [23 §8.2](23-application-patterns.md)
