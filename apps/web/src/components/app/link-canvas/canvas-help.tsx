@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 
 const KEYS = [
   ['pan', 'panWhat'],
+  ['space', 'spaceWhat'],
   ['zoom', 'zoomWhat'],
   ['marquee', 'marqueeWhat'],
   ['add', 'addWhat'],
@@ -42,11 +43,12 @@ const BOXES = [
  * The legend and the controls of the canvas (spec 7.5 "Legend and controls"): the gestures and keys, then what the
  * lines and boxes mean. It replaces the legend row that used to sit under the canvas.
  */
-export function CanvasHelp(): ReactElement {
+export function CanvasHelp({ id }: { id?: string | undefined }): ReactElement {
   const t = useTranslations('linkCanvas.help');
   const lines = useTranslations('linkCanvas.legend');
   return (
     <div
+      id={id}
       role="region"
       aria-label={t('title')}
       data-canvas-control=""
@@ -74,7 +76,7 @@ export function CanvasHelp(): ReactElement {
         <ul aria-label={t('boxes')} className="flex flex-wrap items-center gap-x-4 gap-y-1">
           {BOXES.map(([key, look]) => (
             <li key={key} className="inline-flex items-center gap-1.5">
-              <span aria-hidden="true" className={cn('h-4 w-7 rounded-sm border', look)} />
+              <span aria-hidden="true" className={cn('h-4 w-8 rounded-sm border', look)} />
               {t(`box.${key}`)}
             </li>
           ))}

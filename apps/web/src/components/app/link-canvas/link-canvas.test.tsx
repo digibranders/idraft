@@ -1,10 +1,10 @@
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { LinkCanvas, type CanvasFocus, type LinkCanvasProps } from './link-canvas';
 import { tierEdge } from '@/components/app/tier/tier-colors';
 import { SingleKeysContext } from '@/lib/a11y/use-shortcut';
-import { firstView, type View } from '@/lib/internal-links/canvas-view';
+import { centerOn, firstView, type View } from '@/lib/internal-links/canvas-view';
 import {
   buildJourney,
   cardKey,
@@ -820,5 +820,268 @@ describe('LinkCanvas, the legend and controls panel', () => {
     expect(help).toHaveAttribute('aria-expanded', 'true');
     await user.click(help);
     expect(screen.queryByRole('region', { name: 'Legend and controls' })).toBeNull();
+  });
+
+  it('points the question mark button at the panel while it is open, and at nothing while it is closed', async () => {
+    const { user } = canvas();
+    const help = screen.getByRole('button', { name: 'Legend and controls' });
+    expect(help).not.toHaveAttribute('aria-controls');
+    await user.click(help);
+    const region = screen.getByRole('region', { name: 'Legend and controls' });
+    expect(region.id).not.toBe('');
+    expect(help).toHaveAttribute('aria-controls', region.id);
+  });
+
+  it('names the keys that are not obvious: Ctrl, Space, Shift and Enter, and Escape', async () => {
+    const { user } = canvas();
+    await user.click(screen.getByRole('button', { name: 'Legend and controls' }));
+    const region = screen.getByRole('region', { name: 'Legend and controls' });
+    expect(within(region).getByText('Shift, Cmd or Ctrl and click, or Shift and Enter')).toBeInTheDocument();
+    expect(within(region).getByText('Space and drag')).toBeInTheDocument();
+    expect(within(region).getByText(/close the info panel/i)).toBeInTheDocument();
+  });
+});
+
+describe('LinkCanvas, review fixes for moving, selecting and the info panel', () => {
+  const press = (element: HTMLElement, over: Record<string, unknown> = {}): void => {
+    fireEvent.pointerDown(element, {
+      pointerId: 1,
+      clientX: 100,
+      clientY: 100,
+      button: 0,
+      pointerType: 'mouse',
+      ...over,
+    });
+  };
+  const moveTo = (dx: number, dy: number): void => {
+    fireEvent.pointerMove(document, { pointerId: 1, clientX: 100 + dx, clientY: 100 + dy });
+  };
+  const release = (dx: number, dy: number): void => {
+    fireEvent.pointerUp(document, { pointerId: 1, clientX: 100 + dx, clientY: 100 + dy });
+  };
+  const wrapperOf = (element: HTMLElement): HTMLElement => element.closest('.group') as HTMLElement;
+  const focusCardButton = (): HTMLElement => screen.getByRole('button', { name: /, focus page$/ });
+
+  it('centres on the moved focus card, not on where the layout put it', async () => {
+    stubGeometry();
+    const { props, user, rerender } = canvas();
+    press(focusCardButton());
+    moveTo(30, 10);
+    release(30, 10);
+    expect(wrapperOf(focusCardButton()).style.transform).toBe('translate(30px, 10px)');
+    const away: View = { x: -5000, y: 0, scale: 1 };
+    rerender(<LinkCanvas {...props} view={away} />);
+    vi.mocked(props.onViewChange).mockClear();
+    await user.click(screen.getByRole('button', { name: 'Back to the focus page' }));
+    expect(vi.mocked(props.onViewChange).mock.lastCall?.[0]).toEqual(
+      centerOn(away, { left: 30, top: 10, width: 100, height: 40 }, { width: 1000, height: 696 }),
+    );
+  });
+
+  it('closes the info panel from its close button and gives focus back to the Info button', async () => {
+    const { user } = canvas();
+    await user.click(screen.getByRole('button', { name: 'Info about /pricing' }));
+    await user.click(screen.getByRole('button', { name: 'Close' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Info about /pricing' })).toHaveFocus();
+  });
+
+  it('gives the first Escape to the info panel, then the selection, then the focus card', async () => {
+    const { user } = canvas();
+    await shiftClick(user, pricingCard());
+    await user.click(screen.getByRole('button', { name: 'Info about /pricing' }));
+    pricingCard().focus();
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.getByRole('region', { name: 'Selected cards' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Info about /pricing' })).toHaveFocus();
+    pricingCard().focus();
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('region', { name: 'Selected cards' })).toBeNull();
+    expect(pricingCard()).toHaveFocus();
+    await user.keyboard('{Escape}');
+    expect(focusCardButton()).toHaveFocus();
+  });
+
+  it('closes the panel with Escape from the empty canvas without clearing the selection', async () => {
+    const { user } = canvas();
+    await shiftClick(user, pricingCard());
+    await user.click(screen.getByRole('button', { name: 'Info about /pricing' }));
+    screen.getByRole('group', { name: /^Link journey canvas/ }).focus();
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.getByRole('region', { name: 'Selected cards' })).toBeInTheDocument();
+  });
+
+  it('keeps the card where it was moved when the system cancels the pointer, and opens nothing', () => {
+    const { props } = canvas();
+    press(pricingCard());
+    moveTo(30, 10);
+    fireEvent.pointerCancel(document, { pointerId: 1, clientX: 130, clientY: 110 });
+    fireEvent.click(pricingCard());
+    expect(wrapperOf(pricingCard()).style.transform).toBe('translate(30px, 10px)');
+    expect(props.onToggleCard).not.toHaveBeenCalled();
+  });
+
+  it('holds a move inside the content, so no line or card is clipped or left out of the fit and the map', () => {
+    stubGeometry();
+    canvas();
+    press(pricingCard());
+    moveTo(5000, 5000);
+    release(5000, 5000);
+    // The world is 900 by 300 and the card 100 by 40
+    expect(wrapperOf(pricingCard()).style.transform).toBe('translate(800px, 260px)');
+    press(pricingCard());
+    moveTo(-9000, -9000);
+    release(-9000, -9000);
+    expect(wrapperOf(pricingCard()).style.transform).toBe('translate(0px, 0px)');
+  });
+
+  describe('with animation frames run by hand', () => {
+    const frames = new Map<number, FrameRequestCallback>();
+    let next = 1;
+    const runFrames = (): void => {
+      const batch = [...frames.values()];
+      frames.clear();
+      act(() => {
+        for (const callback of batch) callback(0);
+      });
+    };
+    beforeEach(() => {
+      frames.clear();
+      next = 1;
+      vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+        frames.set(next, callback);
+        return next++;
+      });
+      vi.stubGlobal('cancelAnimationFrame', (id: number) => void frames.delete(id));
+    });
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it('applies many moves in one frame as one change, and re-renders only the moved card', () => {
+      canvas();
+      const rendered = vi.mocked(tierEdge).mock.calls.length;
+      press(pricingCard());
+      for (let step = 1; step <= 20; step += 1) moveTo(step, step);
+      // Nothing is drawn until the frame comes
+      expect(wrapperOf(pricingCard()).style.transform).toBe('');
+      expect(vi.mocked(tierEdge).mock.calls.length).toBe(rendered);
+      runFrames();
+      expect(wrapperOf(pricingCard()).style.transform).toBe('translate(20px, 20px)');
+      expect(vi.mocked(tierEdge).mock.calls.length - rendered).toBeLessThanOrEqual(2);
+      release(20, 20);
+    });
+
+    it('cancels a move with Escape: the card goes back and the release is no click', () => {
+      const { props } = canvas();
+      press(pricingCard());
+      moveTo(30, 10);
+      runFrames();
+      expect(wrapperOf(pricingCard()).style.transform).toBe('translate(30px, 10px)');
+      fireEvent.keyDown(document, { key: 'Escape' });
+      expect(wrapperOf(pricingCard()).style.transform).toBe('');
+      moveTo(80, 80);
+      runFrames();
+      release(80, 80);
+      fireEvent.click(pricingCard());
+      expect(wrapperOf(pricingCard()).style.transform).toBe('');
+      expect(props.onToggleCard).not.toHaveBeenCalled();
+      expect(screen.getByRole('button', { name: 'Reset card positions' })).toHaveAttribute('aria-disabled', 'true');
+    });
+
+    it('applies the last move when the pointer is lifted before a frame comes', () => {
+      canvas();
+      press(pricingCard());
+      moveTo(12, 6);
+      release(12, 6);
+      expect(wrapperOf(pricingCard()).style.transform).toBe('translate(12px, 6px)');
+      expect(frames.size).toBe(0);
+    });
+
+    it('measures the whole move at the zoom it started at, so zooming during it does not rescale it', () => {
+      const { props, rerender } = canvas({ view: { x: 0, y: 0, scale: 0.5 } });
+      press(pricingCard());
+      moveTo(30, 10);
+      rerender(<LinkCanvas {...props} view={{ x: 0, y: 0, scale: 2 }} />);
+      moveTo(40, 10);
+      runFrames();
+      release(40, 10);
+      expect(wrapperOf(pricingCard()).style.transform).toBe('translate(80px, 20px)');
+    });
+
+    it('does not run a frame after the canvas is gone', () => {
+      const { unmount } = canvas();
+      press(pricingCard());
+      moveTo(5, 5);
+      unmount();
+      expect(frames.size).toBe(0);
+    });
+  });
+
+  it('gives the map the moved positions of the cards', async () => {
+    stubGeometry();
+    const { user } = canvas();
+    await user.click(screen.getByRole('button', { name: 'Show the map' }));
+    const map = screen.getByRole('img', { name: 'Map of the journey' });
+    const places = (): string[] =>
+      [...map.querySelectorAll('rect[data-card]')].map((rect) => rect.getAttribute('x') ?? '');
+    const before = places();
+    press(pricingCard());
+    moveTo(100, 0);
+    release(100, 0);
+    expect(places()).not.toEqual(before);
+  });
+
+  it('gives focus back to the active card when Clear or Escape in the bar takes the bar away', async () => {
+    const { user } = canvas();
+    await shiftClick(user, pricingCard());
+    await user.click(screen.getByRole('button', { name: 'Clear' }));
+    expect(pricingCard()).toHaveFocus();
+    await shiftClick(user, pricingCard());
+    screen.getByRole('button', { name: 'Show their links' }).focus();
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('region', { name: 'Selected cards' })).toBeNull();
+    expect(pricingCard()).toHaveFocus();
+  });
+
+  it('selects the focused card with Shift and Enter', async () => {
+    const { props, user } = canvas();
+    pricingCard().focus();
+    await user.keyboard('{Shift>}{Enter}{/Shift}');
+    expect(screen.getByText('1 card selected')).toBeInTheDocument();
+    expect(props.onToggleCard).not.toHaveBeenCalled();
+  });
+
+  it('forgets a selection and a move of a card that left the canvas, so it comes back as new', async () => {
+    const open = new Set([cardKey('out', ['2'])]);
+    const { props, user, rerender } = canvas({}, { open });
+    const deep = (): HTMLElement =>
+      screen.getByRole('button', { name: /^\/blog\/post, T3 Content pages, 3 linking pages, linked/ });
+    await shiftClick(user, deep());
+    press(deep());
+    moveTo(30, 10);
+    release(30, 10);
+    expect(screen.getByText('1 card selected')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reset card positions' })).not.toHaveAttribute('aria-disabled', 'true');
+    rerender(<LinkCanvas {...props} layout={buildJourney({ ...base, open: new Set() }, lookup)} />);
+    expect(screen.queryByRole('region', { name: 'Selected cards' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Reset card positions' })).toHaveAttribute('aria-disabled', 'true');
+    rerender(<LinkCanvas {...props} layout={buildJourney({ ...base, open }, lookup)} />);
+    expect(screen.queryByRole('region', { name: 'Selected cards' })).toBeNull();
+    expect(wrapperOf(deep()).style.transform).toBe('');
+  });
+
+  it('keeps the back button and the selection bar apart on a narrow canvas', async () => {
+    stubGeometry();
+    const { props, user, rerender } = canvas();
+    await shiftClick(user, pricingCard());
+    rerender(<LinkCanvas {...props} view={{ x: -5000, y: 0, scale: 1 }} />);
+    const back = screen.getByRole('button', { name: 'Back to the focus page' });
+    const bar = screen.getByRole('region', { name: 'Selected cards' });
+    // One wrapping row for both, so they stack instead of overlapping
+    expect(back.parentElement).toBe(bar.parentElement?.parentElement);
+    expect(back.parentElement?.className).toContain('flex-wrap');
   });
 });

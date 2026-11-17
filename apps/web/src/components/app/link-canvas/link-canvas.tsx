@@ -22,7 +22,7 @@ import {
 
 import { CanvasHelp } from './canvas-help';
 import { CanvasViewport } from './canvas-viewport';
-import type { InfoFacts } from './info-panel';
+import { INFO_TOGGLE_ATTRIBUTE, type InfoFacts } from './info-panel';
 import { LinkCard, type LinkCardPageProps } from './link-card';
 import { Minimap, type MinimapCard } from './minimap';
 import { SelectionBar } from './selection-bar';
@@ -32,7 +32,15 @@ import { Icon } from '@/components/ui/icon';
 import { Skeleton } from '@/components/ui/skeleton';
 import { announce } from '@/lib/a11y/announcer';
 import { SingleKeysContext } from '@/lib/a11y/use-shortcut';
-import { boxesIn, toggleSelected, withOffsets, withoutKeys, type Offset } from '@/lib/internal-links/canvas-selection';
+import {
+  boxesIn,
+  clampMove,
+  keepOffsets,
+  toggleSelected,
+  withOffsets,
+  withoutKeys,
+  type Offset,
+} from '@/lib/internal-links/canvas-selection';
 import {
   MAX_SCALE,
   MIN_SCALE,
@@ -351,6 +359,7 @@ export function LinkCanvas<N extends JourneyNeighbor>({
   const t = useTranslations('linkCanvas');
   const singleKeys = use(SingleKeysContext);
   const markerId = useId();
+  const helpId = useId();
   const scroller = useRef<HTMLDivElement>(null);
   // The focus page the first view was last set for: one first view per focus page
   const firstFor = useRef<string | null>(null);
@@ -384,7 +393,7 @@ export function LinkCanvas<N extends JourneyNeighbor>({
     keys: NO_KEYS,
   });
   const [moved, setMoved] = useState<ReadonlyMap<string, ReadonlyMap<string, Offset>>>(new Map());
-  const offsets = moved.get(focus.urlId) ?? NO_OFFSETS;
+  const storedOffsets = moved.get(focus.urlId) ?? NO_OFFSETS;
   // The card whose info panel is open; it closes when the view pans or zooms or the focus page changes
   const [infoAt, setInfoAt] = useState<{ key: string; focus: string; view: View } | null>(null);
   const infoKey =
@@ -450,6 +459,20 @@ export function LinkCanvas<N extends JourneyNeighbor>({
     () => (selection.focus === focus.urlId ? withoutKeys(selection.keys, selectable) : NO_KEYS),
     [selection, focus.urlId, selectable],
   );
+  // The positions of the cards that are still on the canvas
+  const offsets = useMemo(() => keepOffsets(storedOffsets, selectable), [storedOffsets, selectable]);
+  // A card that left the canvas is forgotten for good (state follows what is shown), so one that comes back is new:
+  // not selected, not moved, and Reset card positions is off when nothing that is shown was moved
+  if (selection.focus !== focus.urlId || selection.keys !== selected)
+    setSelection({ focus: focus.urlId, keys: selected });
+  if (offsets !== storedOffsets) {
+    setMoved((current) => {
+      const next = new Map(current);
+      if (offsets.size === 0) next.delete(focus.urlId);
+      else next.set(focus.urlId, offsets);
+      return next;
+    });
+  }
 
   // A failed list is spoken once through the app's live region, not by a region of the canvas (20 section 10.1)
   useEffect(() => {
@@ -613,7 +636,11 @@ export function LinkCanvas<N extends JourneyNeighbor>({
   const boxOfKey = (key: string): Box | undefined => {
     const root = inner.current;
     const element = nodesOf().find((candidate) => candidate.dataset.key === key);
-    return root === null || element === undefined ? undefined : offsetBox(element, root);
+    if (root === null || element === undefined) return undefined;
+    // Measured now, plus where the person moved the card to (offset geometry does not see the transform)
+    const box = offsetBox(element, root);
+    const shift = offsets.get(key);
+    return shift === undefined ? box : { ...box, left: box.left + shift.dx, top: box.top + shift.dy };
   };
   const fit = (): void => onViewChange(fitView(content, size, JOURNEY_MARGIN));
   const centerFocus = (): void => {
@@ -643,6 +670,14 @@ export function LinkCanvas<N extends JourneyNeighbor>({
   const focusKey = (key: string): void => {
     for (const element of nodesOf()) if (element.dataset.key === key) element.focus();
   };
+
+  // Closed from the keyboard or the close button: focus goes back to the card's Info button, which opened the panel
+  const closeInfo = useStable((key: string, restoreFocus: boolean): void => {
+    setInfoAt(null);
+    if (!restoreFocus) return;
+    const element = nodesOf().find((candidate) => candidate.dataset.key === key);
+    element?.closest('.group')?.querySelector<HTMLElement>(`[${INFO_TOGGLE_ATTRIBUTE}]`)?.focus();
+  });
 
   const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>): void => {
     // Alt and Command with an arrow are the browser's history keys, Control and Command with F are find: not ours
@@ -685,8 +720,9 @@ export function LinkCanvas<N extends JourneyNeighbor>({
       }
     } else if (event.key === 'Escape') {
       event.preventDefault();
-      // The selection goes first; with none, Escape returns to the focus card
-      if (selected.size > 0) changeSelection(NO_KEYS);
+      // An open info panel takes this Escape; then the selection goes; with none, Escape returns to the focus card
+      if (infoKey !== null) closeInfo(infoKey, true);
+      else if (selected.size > 0) changeSelection(NO_KEYS);
       else focusKey(FOCUS_KEY);
     }
   };
@@ -759,27 +795,69 @@ export function LinkCanvas<N extends JourneyNeighbor>({
     const from = { x: event.clientX, y: event.clientY };
     const base = offsets;
     const focusId = focus.urlId;
+    // The zoom the move started at: zooming during it does not rescale the distance already moved
+    const scale = viewNow.current.scale;
+    // Where the layout puts each moved card, and how big the content is: a move is held inside the content
+    const root = inner.current;
+    const limits = new Map<string, Box>();
+    if (root !== null) {
+      for (const element of nodesOf()) {
+        const nodeKey = element.dataset.key;
+        if (nodeKey !== undefined && keys.includes(nodeKey)) limits.set(nodeKey, offsetBox(element, root));
+      }
+    }
+    const room = { width: root?.offsetWidth ?? 0, height: root?.offsetHeight ?? 0 };
     let started = false;
+    let cancelled = false;
+    let frame: number | null = null;
+    // The last distance the pointer went (screen pixels), applied once a frame
+    let latest = { dx: 0, dy: 0 };
+    const apply = (positions: ReadonlyMap<string, Offset>): void =>
+      setMoved((current) => new Map(current).set(focusId, positions));
+    const flush = (): void => {
+      if (frame !== null) cancelAnimationFrame(frame);
+      frame = null;
+      const held = clampMove(limits, base, room, latest.dx / scale, latest.dy / scale);
+      apply(withOffsets(base, keys, held.dx, held.dy));
+    };
     const onMove = (move: globalThis.PointerEvent): void => {
       if (move.pointerId !== id) return;
-      const dx = move.clientX - from.x;
-      const dy = move.clientY - from.y;
+      latest = { dx: move.clientX - from.x, dy: move.clientY - from.y };
       if (!started) {
-        if (Math.hypot(dx, dy) < DRAG_START) return;
+        if (Math.hypot(latest.dx, latest.dy) < DRAG_START) return;
         started = true;
         target.setPointerCapture?.(id);
       }
-      const scale = viewNow.current.scale;
-      setMoved((current) => new Map(current).set(focusId, withOffsets(base, keys, dx / scale, dy / scale)));
+      frame ??= requestAnimationFrame(() => {
+        frame = null;
+        flush();
+      });
+    };
+    // Escape puts the cards back where they were (a drag has this way out that is not a drag)
+    const onKey = (press: globalThis.KeyboardEvent): void => {
+      if (press.key !== 'Escape' || !started) return;
+      press.preventDefault();
+      press.stopPropagation();
+      if (frame !== null) cancelAnimationFrame(frame);
+      frame = null;
+      apply(base);
+      cancelled = true;
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('keydown', onKey, true);
     };
     const stop = (): void => {
+      if (frame !== null) cancelAnimationFrame(frame);
+      frame = null;
       document.removeEventListener('pointermove', onMove);
       document.removeEventListener('pointerup', onEnd);
       document.removeEventListener('pointercancel', onEnd);
+      document.removeEventListener('keydown', onKey, true);
       stopDrag.current = null;
     };
     function onEnd(end: globalThis.PointerEvent): void {
       if (end.pointerId !== id) return;
+      // The last position is the card's, whether the pointer was lifted or the system took it away
+      if (started && !cancelled) flush();
       stop();
       if (!started) return;
       // The click that follows the release must not open the card
@@ -792,6 +870,7 @@ export function LinkCanvas<N extends JourneyNeighbor>({
     document.addEventListener('pointermove', onMove);
     document.addEventListener('pointerup', onEnd);
     document.addEventListener('pointercancel', onEnd);
+    document.addEventListener('keydown', onKey, true);
   });
 
   // Shift and drag on the empty background draws a box; the cards it touches join the selection
@@ -1116,6 +1195,7 @@ export function LinkCanvas<N extends JourneyNeighbor>({
           buttonLabel: t('info.open', { path: node.path }),
           open: infoKey === item.key,
           onToggle: toggleInfo,
+          onClose: closeInfo,
         }}
         tools={{
           focusLabel: t('makeFocus', { path: node.path }),
@@ -1170,7 +1250,8 @@ export function LinkCanvas<N extends JourneyNeighbor>({
   const onViewportKey = (event: KeyboardEvent<HTMLDivElement>): void => {
     if (event.key === '0') fit();
     else if (event.key === 'Home') centerFocus();
-    else if (event.key === 'Escape' && selected.size > 0) changeSelection(NO_KEYS);
+    // An open info panel takes the Escape (it listens for it itself), so the selection stays for the next one
+    else if (event.key === 'Escape' && infoKey === null && selected.size > 0) changeSelection(NO_KEYS);
     else return;
     event.preventDefault();
   };
@@ -1279,6 +1360,7 @@ export function LinkCanvas<N extends JourneyNeighbor>({
                     buttonLabel: t('info.open', { path: focus.path }),
                     open: infoKey === FOCUS_KEY,
                     onToggle: toggleInfo,
+                    onClose: closeInfo,
                   }}
                   tools={{
                     focusLabel: null,
@@ -1319,36 +1401,47 @@ export function LinkCanvas<N extends JourneyNeighbor>({
             canReset={offsets.size > 0}
             onReset={resetPositions}
             helpOpen={helpOpen}
+            helpId={helpId}
             onToggleHelp={() => setHelpOpen((current) => !current)}
           />
         </div>
         {helpOpen ? (
-          <div className="pointer-events-none absolute inset-x-3 top-3 bottom-16 flex items-end">
+          // Between the top row and the toolbar, so the panel covers neither
+          <div className="pointer-events-none absolute inset-x-3 top-16 bottom-16 flex items-end">
             <div className="pointer-events-auto max-h-full max-w-full">
-              <CanvasHelp />
+              <CanvasHelp id={helpId} />
             </div>
           </div>
         ) : null}
-        {focusAway ? (
-          <Button
-            variant="secondary"
-            size="sm"
-            data-canvas-control=""
-            className="absolute top-3 left-3 shadow-popover"
-            onClick={centerFocus}
-          >
-            <Icon icon={Crosshair} size="sm" className="text-primary-text" />
-            {t('backToFocus')}
-          </Button>
-        ) : null}
-        {selected.size > 0 ? (
-          <div className="absolute top-3 left-1/2 -translate-x-1/2">
-            <SelectionBar
-              count={selected.size}
-              onSetTier={onSetTier === undefined ? undefined : setTierOfSelection}
-              onShowLinks={showTheirLinks}
-              onClear={() => changeSelection(NO_KEYS)}
-            />
+        {focusAway || selected.size > 0 ? (
+          // One wrapping row for the back button and the selection bar: on a narrow canvas they stack, never overlap
+          <div className="pointer-events-none absolute inset-x-3 top-3 flex flex-wrap items-start gap-2">
+            {focusAway ? (
+              <Button
+                variant="secondary"
+                size="sm"
+                data-canvas-control=""
+                className="pointer-events-auto shadow-popover"
+                onClick={centerFocus}
+              >
+                <Icon icon={Crosshair} size="sm" className="text-primary-text" />
+                {t('backToFocus')}
+              </Button>
+            ) : null}
+            {selected.size > 0 ? (
+              <div className="pointer-events-auto max-w-full">
+                <SelectionBar
+                  count={selected.size}
+                  onSetTier={onSetTier === undefined ? undefined : setTierOfSelection}
+                  onShowLinks={showTheirLinks}
+                  onClear={() => {
+                    // The bar and the button that had focus are gone: focus goes to the card the person was on
+                    changeSelection(NO_KEYS);
+                    focusKey(tabKey);
+                  }}
+                />
+              </div>
+            ) : null}
           </div>
         ) : null}
         <div

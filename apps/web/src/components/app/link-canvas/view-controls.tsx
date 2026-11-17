@@ -25,6 +25,8 @@ export interface ViewControlsProps {
   canReset: boolean;
   onReset: () => void;
   helpOpen: boolean;
+  /** The id of the legend and controls panel, which the button points at while it is open. */
+  helpId: string;
   onToggleHelp: () => void;
 }
 
@@ -83,7 +85,13 @@ export function ViewControls(props: ViewControlsProps): ReactElement {
         aria-pressed={props.minimap}
         onClick={props.onToggleMinimap}
       />
-      <IconButton icon={CircleHelp} label={t('help')} aria-expanded={props.helpOpen} onClick={props.onToggleHelp} />
+      <IconButton
+        icon={CircleHelp}
+        label={t('help')}
+        aria-expanded={props.helpOpen}
+        aria-controls={props.helpOpen ? props.helpId : undefined}
+        onClick={props.onToggleHelp}
+      />
     </div>
   );
 }

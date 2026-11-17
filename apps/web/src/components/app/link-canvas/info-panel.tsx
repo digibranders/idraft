@@ -22,7 +22,8 @@ export interface InfoFacts {
 export interface InfoPanelProps {
   label: string;
   facts: InfoFacts;
-  onClose: () => void;
+  /** `restoreFocus`: closed from the keyboard or the close button, so focus goes back to the button that opened it. */
+  onClose: (restoreFocus: boolean) => void;
 }
 
 /** Marks the button that opens the panel: a press on it is the panel's own toggle, not a click elsewhere. */
@@ -42,13 +43,16 @@ export function InfoPanel({ label, facts, onClose }: InfoPanelProps): ReactEleme
   });
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') close.current();
+      // A card that took this Escape (to close the panel itself) has already prevented it
+      if (event.key !== 'Escape' || event.defaultPrevented) return;
+      event.preventDefault();
+      close.current(true);
     };
     const onPress = (event: PointerEvent): void => {
       const target = event.target;
       if (!(target instanceof Element)) return;
       if (panel.current?.contains(target) === true || target.closest(`[${INFO_TOGGLE_ATTRIBUTE}]`) !== null) return;
-      close.current();
+      close.current(false);
     };
     document.addEventListener('keydown', onKey);
     document.addEventListener('pointerdown', onPress, true);
@@ -75,7 +79,7 @@ export function InfoPanel({ label, facts, onClose }: InfoPanelProps): ReactEleme
     >
       <div className="flex items-start gap-2">
         <p className="min-w-0 flex-1 type-body-strong break-words text-foreground">{facts.title}</p>
-        <IconButton icon={X} label={t('close')} size="icon-xs" onClick={onClose} />
+        <IconButton icon={X} label={t('close')} size="icon-xs" onClick={() => onClose(true)} />
       </div>
       <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 type-meta">
         {rows.map(([name, value]) => (

@@ -61,7 +61,14 @@ export interface LinkCardPageProps extends CanvasNodeData {
   /** A press that may start moving the card (the canvas decides: not on touch, not with a modifier key). */
   onDragStart: (nodeKey: string, event: PointerEvent<HTMLButtonElement>) => void;
   /** The "i" button: the panel opens from it only, never on hover. */
-  info: { facts: InfoFacts; label: string; buttonLabel: string; open: boolean; onToggle: (nodeKey: string) => void };
+  info: {
+    facts: InfoFacts;
+    label: string;
+    buttonLabel: string;
+    open: boolean;
+    onToggle: (nodeKey: string) => void;
+    onClose: (nodeKey: string, restoreFocus: boolean) => void;
+  };
   tools: {
     focusLabel: string | null;
     onFocusPage: (urlId: string) => void;
@@ -286,7 +293,11 @@ function LinkCardView(props: LinkCardProps): ReactElement {
         </Tooltip>
       )}
       {info.open ? (
-        <InfoPanel label={info.label} facts={info.facts} onClose={() => info.onToggle(props.nodeKey)} />
+        <InfoPanel
+          label={info.label}
+          facts={info.facts}
+          onClose={(restoreFocus) => info.onClose(props.nodeKey, restoreFocus)}
+        />
       ) : null}
     </div>
   );

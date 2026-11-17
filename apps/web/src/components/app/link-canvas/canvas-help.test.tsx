@@ -12,7 +12,9 @@ describe('CanvasHelp', () => {
     expect(within(region).getByText('Select several cards')).toBeInTheDocument();
     expect(within(region).getByText('Plus and minus')).toBeInTheDocument();
     expect(within(region).getByText('Centre on the focus page')).toBeInTheDocument();
-    expect(within(region).getByText('Clear the selection, or go back to the focus page')).toBeInTheDocument();
+    expect(
+      within(region).getByText('Close the info panel, then clear the selection, then go back to the focus page'),
+    ).toBeInTheDocument();
   });
 
   it('draws the six line styles and the boxes', () => {

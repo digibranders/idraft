@@ -1,7 +1,7 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import type { ReactElement } from 'react';
+import type { KeyboardEvent, ReactElement } from 'react';
 
 import { Button } from '@/components/ui/button';
 
@@ -16,6 +16,12 @@ export interface SelectionBarProps {
 /** "N cards selected" with Set tier, Show their links and Clear (spec 7.5 "Selecting and moving"). */
 export function SelectionBar({ count, onSetTier, onShowLinks, onClear }: SelectionBarProps): ReactElement {
   const t = useTranslations('linkCanvas.selection');
+  // Escape on any of the buttons clears, as it does on the canvas
+  const escape = (event: KeyboardEvent<HTMLButtonElement>): void => {
+    if (event.key !== 'Escape') return;
+    event.preventDefault();
+    onClear();
+  };
   return (
     <div
       role="region"
@@ -25,14 +31,14 @@ export function SelectionBar({ count, onSetTier, onShowLinks, onClear }: Selecti
     >
       <span className="type-body-strong whitespace-nowrap text-primary-text">{t('count', { count })}</span>
       {onSetTier === undefined ? null : (
-        <Button variant="secondary" size="sm" onClick={onSetTier}>
+        <Button variant="secondary" size="sm" onClick={onSetTier} onKeyDown={escape}>
           {t('setTier')}
         </Button>
       )}
-      <Button variant="secondary" size="sm" onClick={onShowLinks}>
+      <Button variant="secondary" size="sm" onClick={onShowLinks} onKeyDown={escape}>
         {t('showLinks')}
       </Button>
-      <Button variant="ghost" size="sm" onClick={onClear}>
+      <Button variant="ghost" size="sm" onClick={onClear} onKeyDown={escape}>
         {t('clear')}
       </Button>
     </div>

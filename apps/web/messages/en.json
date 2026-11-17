@@ -7297,10 +7297,12 @@
         "zoomWhat": "Zoom toward the cursor",
         "marquee": "Shift and drag",
         "marqueeWhat": "Select several cards",
-        "add": "Shift or Cmd and click",
+        "space": "Space and drag",
+        "spaceWhat": "Pan, also when you start on a card",
+        "add": "Shift, Cmd or Ctrl and click, or Shift and Enter",
         "addWhat": "Add a card to the selection",
         "move": "Drag a card",
-        "moveWhat": "Move it (kept for this page)",
+        "moveWhat": "Move it (kept for this page). Escape cancels a move. Reset card positions puts every card back",
         "open": "Click a card",
         "openWhat": "Show or hide its links",
         "arrows": "Arrow keys",
@@ -7314,7 +7316,7 @@
         "home": "Home",
         "homeWhat": "Centre on the focus page",
         "escape": "Escape",
-        "escapeWhat": "Clear the selection, or go back to the focus page"
+        "escapeWhat": "Close the info panel, then clear the selection, then go back to the focus page"
       },
       "box": {
         "focus": "Focus page",

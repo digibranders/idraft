@@ -18,6 +18,7 @@ const base = () => ({
   canReset: false,
   onReset: vi.fn(),
   helpOpen: false,
+  helpId: 'help-panel',
   onToggleHelp: vi.fn(),
 });
 
