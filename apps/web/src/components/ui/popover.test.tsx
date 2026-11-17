@@ -121,6 +121,22 @@ describe('Popover', () => {
     expect(await screen.findByRole('dialog', { name: 'How visibility is measured' })).toHaveAttribute('id', 'method');
   });
 
+  it('draws the narrow and wide widths and the menu padding (WP-77)', async () => {
+    const { user } = renderWithProviders(
+      <Popover
+        trigger={<button type="button">Open</button>}
+        aria-label="Competitors to compare"
+        width="narrow"
+        padding="menu"
+      >
+        <p>Body</p>
+      </Popover>,
+    );
+    await user.click(screen.getByRole('button', { name: 'Open' }));
+    const dialog = screen.getByRole('dialog', { name: 'Competitors to compare' });
+    expect(dialog.className).toContain('w-64');
+  });
+
   it('has no accessibility violations while open', async () => {
     const { user, baseElement } = renderWithProviders(
       <Popover trigger={<Button>Density</Button>} title="Table density">

@@ -12,6 +12,10 @@ import { cn } from '@/lib/utils';
 export interface SelectOption<TValue extends string> {
   value: TValue;
   label: string;
+  /** What the list and the trigger show in place of the label, such as an engine's logo and name. The label stays the option's text for typeahead. */
+  display?: ReactNode | undefined;
+  /** A short fact at the end of the row, in meta type: "28 days" (C 116). */
+  note?: string | undefined;
   /** A second line under the label. */
   description?: string | undefined;
   /** Options with the same group name are listed together under it. */
@@ -41,6 +45,8 @@ export interface SelectProps<TValue extends string> extends Omit<
   triggerPrefix?: ReactNode | undefined;
   /** The name of the list of options, which the trigger's `aria-label` does not give it ("Platform in view"). */
   listLabel?: string | undefined;
+  /** Layout of the popup only, its width: `min-w-52` (C 114). */
+  popupClassName?: string | undefined;
   /** Layout only. The width of a field is set on `Field`. */
   className?: string | undefined;
 }
@@ -79,10 +85,11 @@ function Option<TValue extends string>({ option }: { option: SelectOption<TValue
           {option.icon}
         </span>
       )}
-      <span className="flex min-w-0 flex-col">
-        <SelectPrimitive.ItemText>{option.label}</SelectPrimitive.ItemText>
+      <span className={cn('flex min-w-0 flex-col', option.note !== undefined && 'flex-1')}>
+        <SelectPrimitive.ItemText>{option.display ?? option.label}</SelectPrimitive.ItemText>
         {option.description === undefined ? null : <span className="type-meta">{option.description}</span>}
       </span>
+      {option.note === undefined ? null : <span className="ml-auto shrink-0 pl-4 type-meta">{option.note}</span>}
     </SelectPrimitive.Item>
   );
 }
@@ -103,6 +110,7 @@ export function Select<TValue extends string>({
   disabled,
   triggerPrefix,
   listLabel,
+  popupClassName,
   className,
   ...props
 }: SelectProps<TValue>): ReactElement {
@@ -124,7 +132,8 @@ export function Select<TValue extends string>({
         {...props}
         className={cn(
           inputVariants({ variant: 'outline', size }),
-          'flex cursor-default items-center justify-between gap-2 text-left',
+          'flex cursor-default items-center gap-2 text-left',
+          'justify-between',
           className,
         )}
       >
@@ -140,9 +149,14 @@ export function Select<TValue extends string>({
           <SelectPrimitive.Value
             placeholder={placeholder}
             className="min-w-0 truncate data-placeholder:text-foreground-tertiary"
-          />
+          >
+            {(current: TValue | null) => {
+              const option = options.find((candidate) => candidate.value === current);
+              return option === undefined ? placeholder : (option.display ?? option.label);
+            }}
+          </SelectPrimitive.Value>
         </span>
-        <SelectPrimitive.Icon className="flex shrink-0 text-foreground-muted">
+        <SelectPrimitive.Icon className="ml-auto flex shrink-0 text-foreground-muted">
           <Icon icon={ChevronDown} size="sm" />
         </SelectPrimitive.Icon>
       </SelectPrimitive.Trigger>
@@ -162,6 +176,7 @@ export function Select<TValue extends string>({
               'max-h-(--available-height) min-w-(--anchor-width) overflow-y-auto p-1',
               POPUP_SURFACE,
               POPUP_MOTION,
+              popupClassName,
             )}
           >
             <SelectPrimitive.List {...(listLabel === undefined ? {} : { 'aria-label': listLabel })}>

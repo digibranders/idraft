@@ -16,13 +16,27 @@ const FILL: Readonly<Record<number, string>> = {
  * `color_index` for the others, a dashed `chart-other` square past the sixth. Decoration: the name beside
  * it carries the meaning.
  */
-export function EntitySwatch({ colorIndex, own }: { colorIndex: number | null; own: boolean }): ReactNode {
+export function EntitySwatch({
+  colorIndex,
+  own,
+  shape = 'square',
+}: {
+  colorIndex: number | null;
+  own: boolean;
+  /** `dot`: the round mark of the Citations page (C 128 to 133); a third party there is a solid `chart-other` dot. */
+  shape?: 'square' | 'dot' | undefined;
+}): ReactNode {
   const fill = own ? FILL[1] : colorIndex === null ? undefined : FILL[colorIndex];
+  const dot = shape === 'dot';
   return (
     <span
       aria-hidden="true"
       data-color-index={own ? 1 : (colorIndex ?? undefined)}
-      className={cn('size-2 shrink-0 rounded-xs', fill ?? 'border border-dashed border-chart-other')}
+      className={cn(
+        'size-2 shrink-0',
+        dot ? 'rounded-full' : 'rounded-xs',
+        fill ?? (dot ? 'bg-chart-other' : 'border border-dashed border-chart-other'),
+      )}
     />
   );
 }
