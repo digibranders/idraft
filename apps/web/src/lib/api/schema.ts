@@ -2100,6 +2100,64 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/link-crawls": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The project's crawls, newest first */
+        get: operations["list_crawls_api_v1_workspaces__workspace_id__projects__project_id__link_crawls_get"];
+        put?: never;
+        /**
+         * Crawl now
+         * @description Queues a crawl of the project's website. One crawl per project runs at a time (`409 crawl_in_progress` with its `run_id`). `422 no_website` without a website; `422 budget_exceeded` (with `budget_id`) when the crawl would pass a budget, and nothing is queued. `higher_limit` crawls again after a crawl stopped at its ceiling, with twice the limit or what the sitemap asks for.
+         */
+        post: operations["start_crawl_api_v1_workspaces__workspace_id__projects__project_id__link_crawls_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/link-crawls/{run_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One crawl, with its progress */
+        get: operations["get_crawl_api_v1_workspaces__workspace_id__projects__project_id__link_crawls__run_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/link-crawls/{run_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel a queued or running crawl
+         * @description A queued crawl ends at once. A running one is stopped by the worker within a minute and comes back with its state unchanged. `409 invalid_state_transition` for any other state.
+         */
+        post: operations["cancel_crawl_api_v1_workspaces__workspace_id__projects__project_id__link_crawls__run_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/notes": {
         parameters: {
             query?: never;
@@ -2675,7 +2733,7 @@ export interface paths {
         head?: never;
         /**
          * Change the project's settings
-         * @description A JSON merge patch of `seo`: members left out keep their value. The `seo` defaults apply to tracked keywords created after the change.
+         * @description A JSON merge patch of `seo` and `internal_links`: parts and members left out keep their value. The `seo` defaults apply to tracked keywords created after the change. `internal_links.allowed_subdomains` must be the project's website or hosts under it.
          */
         patch: operations["update_settings_api_v1_workspaces__workspace_id__projects__project_id__settings_patch"];
         trace?: never;
@@ -4964,6 +5022,86 @@ export interface components {
             /** Engines */
             engines: components["schemas"]["EngineSummary"][];
         };
+        /** CrawlCreate */
+        CrawlCreate: {
+            /**
+             * Higher Limit
+             * @description Crawl again with a higher limit after a crawl stopped at its ceiling.
+             * @default false
+             */
+            higher_limit: boolean;
+        };
+        /** CrawlRun */
+        CrawlRun: {
+            /**
+             * Ceiling
+             * @description The safety stop: the crawl ends at this many pages.
+             */
+            ceiling: number;
+            /** Cost Usd */
+            cost_usd: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Error Code */
+            error_code: string | null;
+            /** Error Message */
+            error_message: string | null;
+            /** Estimated Cost Usd */
+            estimated_cost_usd: string | null;
+            /** Finished At */
+            finished_at: string | null;
+            /** Hints */
+            hints: "render_javascript"[];
+            /**
+             * Is Latest
+             * @description The crawl `run=latest` reads.
+             */
+            is_latest: boolean;
+            /** Pages Crawled */
+            pages_crawled: number;
+            /**
+             * Pages Found
+             * @description Crawled and still queued, while it runs.
+             */
+            pages_found: number;
+            /** Render Javascript */
+            render_javascript: boolean;
+            requested_by: components["schemas"]["UserRef"] | null;
+            /**
+             * Run Id
+             * Format: uuid
+             */
+            run_id: string;
+            /** Sitemap Pages */
+            sitemap_pages: number | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "queued" | "crawling" | "processing" | "ready" | "stopped_at_ceiling" | "failed" | "cancelled";
+            /** Stop Reason */
+            stop_reason: string | null;
+            /** Submitted At */
+            submitted_at: string | null;
+            /**
+             * Trigger
+             * @enum {string}
+             */
+            trigger: "website_added" | "schedule" | "manual" | "ceiling_retry";
+        };
+        /** CrawlRunPage */
+        CrawlRunPage: {
+            /** Data */
+            data: components["schemas"]["CrawlRun"][];
+            page: components["schemas"]["CursorPageInfo"];
+        };
+        /** CrawlRunResponse */
+        CrawlRunResponse: {
+            data: components["schemas"]["CrawlRun"];
+        };
         /**
          * CursorPageInfo
          * @description A keyset page (docs/19 section 2.4). `next_cursor` is opaque; pass it back as `cursor`.
@@ -6239,6 +6377,38 @@ export interface components {
              * @description The 28 final days the Rankings columns sum, once they are stored.
              */
             window_start: string | null;
+        };
+        /** InternalLinksSettings */
+        InternalLinksSettings: {
+            /**
+             * Allowed Subdomains
+             * @description Hosts of the project's site, besides its own and its `www.` form, that crawls follow (up to 10).
+             */
+            allowed_subdomains?: string[];
+            /**
+             * Render Javascript
+             * @description Crawls render JavaScript; each page costs ten times as much.
+             * @default false
+             */
+            render_javascript: boolean;
+            /**
+             * Schedule
+             * @default weekly
+             * @enum {string}
+             */
+            schedule: "weekly" | "every_two_weeks" | "monthly" | "off";
+        };
+        /** InternalLinksSettingsPatch */
+        InternalLinksSettingsPatch: {
+            /** Allowed Subdomains */
+            allowed_subdomains?: string[];
+            /** Render Javascript */
+            render_javascript?: boolean;
+            /**
+             * Schedule
+             * @enum {string}
+             */
+            schedule?: "weekly" | "every_two_weeks" | "monthly" | "off";
         };
         /**
          * InvalidByStatus
@@ -8122,6 +8292,12 @@ export interface components {
              * @description A `location_id` of `GET /api/v1/locations`.
              */
             default_location_id?: number | null;
+            /**
+             * Map Internal Links
+             * @description With `primary_domain`, queue the first crawl of the site's internal links. The web form sends true (the checkbox is ticked by default).
+             * @default false
+             */
+            map_internal_links: boolean;
             /** Name */
             name: string;
             /** @description Created with role `own`, primary. */
@@ -8311,6 +8487,7 @@ export interface components {
              * @description Read-only: bumped by entity changes.
              */
             entity_config_version: number;
+            internal_links?: components["schemas"]["InternalLinksSettings"];
             seo?: components["schemas"]["SeoSettings"];
             /**
              * Version
@@ -8321,10 +8498,12 @@ export interface components {
         };
         /**
          * ProjectSettingsPatch
-         * @description A JSON merge patch (RFC 7396) of the settings: members left out keep their value.
+         * @description A JSON merge patch (RFC 7396) of the settings: members left out keep their value. A part
+         *     cannot be null: `null` would mean "delete" in a merge patch, and no part can be deleted.
          */
         ProjectSettingsPatch: {
-            seo: components["schemas"]["SeoSettingsPatch"];
+            internal_links?: components["schemas"]["InternalLinksSettingsPatch"];
+            seo?: components["schemas"]["SeoSettingsPatch"];
         };
         /** ProjectSettingsResponse */
         ProjectSettingsResponse: {
@@ -16783,6 +16962,144 @@ export interface operations {
             };
         };
     };
+    list_crawls_api_v1_workspaces__workspace_id__projects__project_id__link_crawls_get: {
+        parameters: {
+            query?: {
+                /** @description `page.next_cursor` of the previous page. */
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CrawlRunPage"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    start_crawl_api_v1_workspaces__workspace_id__projects__project_id__link_crawls_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CrawlCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CrawlRunResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_crawl_api_v1_workspaces__workspace_id__projects__project_id__link_crawls__run_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                run_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CrawlRunResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    cancel_crawl_api_v1_workspaces__workspace_id__projects__project_id__link_crawls__run_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                run_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CrawlRunResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     list_notes_api_v1_workspaces__workspace_id__projects__project_id__notes_get: {
         parameters: {
             query?: {
@@ -19414,6 +19731,8 @@ export const connectionAuth_methodValues: ReadonlyArray<FlattenedDeepRequired<co
 export const connectionProductValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Connection"]["product"]> = ["google", "bing_wmt", "cloudflare"];
 export const connectionStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Connection"]["status"]> = ["active", "reauth_required", "revoked", "error"];
 export const costWorkloadValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CostWorkload"]> = ["seo_rank", "ai_prompt", "ai_mode_keyword", "keyword_metrics", "discovery", "ai_benchmark", "gsc_sync", "bing_sync", "ga4_sync", "cloudflare_sync", "ai_overview", "extraction_llm", "keyword_research", "first_party", "site_crawl"];
+export const crawlRunStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CrawlRun"]["state"]> = ["queued", "crawling", "processing", "ready", "stopped_at_ceiling", "failed", "cancelled"];
+export const crawlRunTriggerValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CrawlRun"]["trigger"]> = ["website_added", "schedule", "manual", "ceiling_retry"];
 export const domainInputMatch_scopeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["DomainInput"]["match_scope"]> = ["path_prefix", "host", "registrable"];
 export const domainRefCategory_sourceAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["DomainRef"]["category_source"]> = ["seed_list", "rule", "llm", "manual", "tenant_override"];
 export const edgeRowKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EdgeRow"]["kind"]> = ["text", "image"];
@@ -19453,6 +19772,8 @@ export const integrationKindValues: ReadonlyArray<FlattenedDeepRequired<componen
 export const integrationStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Integration"]["status"]> = ["active", "reauth_required", "disabled", "error"];
 export const integrationCreateKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["IntegrationCreate"]["kind"]> = ["gsc", "ga4"];
 export const integrationSyncPhaseValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["IntegrationSync"]["phase"]> = ["pending", "backfilling", "synced"];
+export const internalLinksSettingsScheduleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["InternalLinksSettings"]["schedule"]> = ["weekly", "every_two_weeks", "monthly", "off"];
+export const internalLinksSettingsPatchScheduleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["InternalLinksSettingsPatch"]["schedule"]> = ["weekly", "every_two_weeks", "monthly", "off"];
 export const invitationStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Invitation"]["status"]> = ["pending", "accepted", "declined", "cancelled", "expired"];
 export const keywordCheckStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["KeywordCheck"]["status"]> = ["idle", "queued", "processing", "completed", "inconclusive", "failed"];
 export const keywordImportSourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["KeywordImport"]["source"]> = ["upload", "paste", "api"];
