@@ -420,6 +420,71 @@ async def test_a_start_page_that_refuses_the_crawler_does_not_fail_a_crawl_that_
     assert (start["status_code"], start["resource_type"]) == (status, "broken")
 
 
+async def test_a_refused_start_page_gets_the_sites_menu_links_for_the_depth_walk_only(
+    migrated: PostgresServer, worker_db: Sessions
+) -> None:
+    """Real data (eventussecurity.com): the CDN answered the start page 403, so no page was
+    reachable and 420 of 421 had no depth. The menu is on every served page, so it is on the
+    start page too; those links are used for the walk and are never stored."""
+    on_page = synthetic_site()
+    on_page.page_items[0] = on_page.page_items[0].model_copy(
+        update={"status_code": 403, "resource_type": "broken"}
+    )
+    del on_page.html[f"{SITE}/"]
+    task = (await _crawled(migrated, worker_db, on_page)).task
+
+    with capture_logs() as logs:
+        await _ingest(worker_db, on_page, None, task)
+
+    pages = await _pages(migrated, task.run_id)
+    assert {path: page["click_depth"] for path, page in pages.items()} == {
+        "/": 0,
+        "/pricing": 1,
+        "/blog": 1,
+        "/privacy": 1,
+        "/blog/a": 2,
+        "/blog/b": 2,
+        "/blog/c": 2,
+        "/blog/d": 3,
+        "/old": 3,
+        "/gone": 3,
+        "/orphan": None,
+    }
+    assert pages["/orphan"]["is_orphan"]
+    assert pages["/"]["status_code"] == 403
+    assert pages["/"]["resource_type"] == "broken"
+    assert not pages["/"]["is_orphan"]
+    # Nothing was stored for the start page, and no page counts it as linking out or in.
+    stored = await fetchrow(
+        migrated,
+        "SELECT count(*) AS n FROM seo.crawl_links WHERE run_id = $1 AND source_url_id = $2",
+        task.run_id,
+        pages["/"]["url_id"],
+    )
+    assert stored["n"] == 0
+    assert (pages["/"]["outlinks_all"], pages["/"]["outlinks_template"]) == (0, 0)
+    # The six other pages with HTML carry the menu; the start page is not one of them.
+    assert pages["/pricing"]["linking_pages_template"] == 6
+    event = "crawl start page unreadable, depth from template links"
+    entry = next(log for log in logs if log["event"] == event)
+    assert (entry["run_id"], entry["roots"]) == (str(task.run_id), 4)
+
+
+async def test_a_readable_start_page_is_walked_as_before_and_nothing_is_logged(
+    migrated: PostgresServer, worker_db: Sessions
+) -> None:
+    on_page = synthetic_site()
+    task = (await _crawled(migrated, worker_db, on_page)).task
+
+    with capture_logs() as logs:
+        await _ingest(worker_db, on_page, None, task)
+
+    pages = await _pages(migrated, task.run_id)
+    assert pages["/blog/b"]["click_depth"] == 2
+    assert pages["/orphan"]["click_depth"] is None
+    assert not any(log["event"].startswith("crawl start page") for log in logs)
+
+
 @pytest.mark.parametrize("status", [401, 403])
 async def test_a_start_page_that_refuses_the_crawler_fails_the_crawl_and_keeps_its_phase(
     migrated: PostgresServer, worker_db: Sessions, status: int

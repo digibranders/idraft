@@ -78,7 +78,14 @@ from sqlalchemy.orm import aliased
 from idraft.collectors.crawl_runs import INGEST_JOB, CrawlIngestTask
 from idraft.collectors.crawl_store import apply_rules, recompute_tier_flow
 from idraft.crawl.edges import PageEdge, clean_text, is_clean, page_edges
-from idraft.crawl.graph import Link, Node, click_depths, deep_only_through_auto, pagerank
+from idraft.crawl.graph import (
+    Link,
+    Node,
+    click_depths,
+    deep_only_through_auto,
+    pagerank,
+    template_roots,
+)
 from idraft.crawl.head import canonical_of
 from idraft.crawl.hosts import site_hosts
 from idraft.crawl.placement import FoundLink, Placement, classify
@@ -889,13 +896,32 @@ _SUMMARY = text(
 )
 
 
+def _walked_links(run: _Run, nodes: dict[int, Node], links: list[Link]) -> list[Link]:
+    """The links the depth walk follows: the stored ones, and, when the start page was not
+    served, the site's template links as its own. Those are for the walk only: they are never
+    stored, counted or ranked."""
+    if run.start_url_id is None:
+        return links
+    roots = template_roots(run.start_url_id, nodes, links)
+    if not roots:
+        return links
+    _log.info(
+        "crawl start page unreadable, depth from template links",
+        run_id=str(run.id),
+        roots=len(roots),
+    )
+    return [*links, *(Link(run.start_url_id, root, LinkScope.TEMPLATE, True) for root in roots)]
+
+
 def _page_values(
-    nodes: dict[int, Node], links: list[Link], start: int | None
+    nodes: dict[int, Node], links: list[Link], run: _Run
 ) -> tuple[list[dict[str, object]], float]:
     """Depth and equity of every page, and the share of equity the error pages hold. Pure
     work, run in a thread."""
-    depths = {} if start is None else click_depths(start, nodes, links)
-    without = {} if start is None else click_depths(start, nodes, links, without_auto=True)
+    start = run.start_url_id
+    walked = _walked_links(run, nodes, links)
+    depths = {} if start is None else click_depths(start, nodes, walked)
+    without = {} if start is None else click_depths(start, nodes, walked, without_auto=True)
     equity = pagerank(nodes, links)
     # Shares of the crawled pages only (spec 6.4): links to pages past the ceiling hold some
     # value, which is not shown.
@@ -958,7 +984,7 @@ async def _page_metrics(sessions: async_sessionmaker[AsyncSession], run: _Run) -
         for row in link_rows
     ]
     del node_rows, link_rows
-    values, lost = await asyncio.to_thread(_page_values, nodes, links, run.start_url_id)
+    values, lost = await asyncio.to_thread(_page_values, nodes, links, run)
     async with sessions() as db, db.begin():
         await _long_transaction(db)
         if not await _claim(db, run):
