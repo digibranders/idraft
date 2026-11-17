@@ -8,7 +8,7 @@
 | Branch and worktree | `ai/wp-76-citations-v2-api` in `.claude/worktrees/wp-76` (`infra/dev/wp-start WP-76 citations-v2-api`) |
 | Depends on (merged on develop first) | WP-14 sources lane (merged), WP-21 and WP-22 (merged) |
 | Blocks | [WP-77 citations-v2-web](WP-77-citations-v2-web.md) |
-| Owner decisions | D-1 to D-10 in [WP-77 section 2](WP-77-citations-v2-web.md#2-decisions-the-owner-has-not-taken-yet); defaults used |
+| Owner decisions | D-1 to D-10 in [WP-77 section 2](WP-77-citations-v2-web.md#2-decisions), accepted by the owner on 2026-11-17 |
 | Estimate | 10 Sonnet-agent tasks, about 7 hours with one task in flight |
 | Detailed plan | [docs/superpowers/plans/2026-11-17-ai-wp-76-citations-v2-api.md](../../superpowers/plans/2026-11-17-ai-wp-76-citations-v2-api.md) (written, full code) |
 

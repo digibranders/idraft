@@ -7,7 +7,7 @@
 | Status | new; the coordinator adds it to `docs/ai-visibility/tracker.json` |
 | Branch and worktree | `ai/wp-77-citations-v2-web` in `.claude/worktrees/wp-77` (`infra/dev/wp-start WP-77 citations-v2-web`) |
 | Depends on (merged on develop first) | [WP-76 citations-v2-api](WP-76-citations-v2-api.md) and its `pnpm gen:api` commit |
-| Owner decisions | Section 2 (defaults used until the owner answers) |
+| Owner decisions | Section 2, accepted 2026-11-17 |
 | Estimate | 11 Sonnet-agent tasks, about 9 hours with one task in flight |
 | Detailed plan | `docs/superpowers/plans/<date>-ai-wp-77-citations-v2-web.md`, written by Opus at step 0 once the generated types exist (section 6) |
 
@@ -15,9 +15,9 @@
 
 Replace the real `/ai/citations` screen with the design preview's Citations page (`apps/web/design-preview`, route `#/citations` and `#/citations/gaps`, files `cit.js`, `cit-inspector.js`, `cit-data.js`; committed fff09a26 and d54204f8 on develop). **The owner asked for an exact match**: same layout, controls, columns, widths, copy, tooltips, states, drawers and keyboard behaviour. Section 3 is the parity spec. Where the app cannot match, section 2 lists the forced differences; nothing else may differ.
 
-## 2. Decisions the owner has not taken yet
+## 2. Decisions
 
-Defaults used by WP-76 and this package. Ask the owner to confirm before step 0; each one is a single line in the plan to change.
+Accepted by the owner on 2026-11-17 as proposed ("Accept defaults"), including the one copy change of section 3.5 ("No page of your site contains ..."). WP-76 and this package build on them; changing one later is a single line in the plan.
 
 | # | Question | Default | Why |
 |---|---|---|---|
@@ -101,7 +101,7 @@ Default sort: Citations descending; a header click sorts descending, a second cl
 
 Prompts popover (C 416 to 444): dialog "Prompts that cite <path>", head "Cited for" and "N prompts · M citations", an ordered list of up to 10 prompts with "N×", foot link "Show all N prompts" (more than 10) or "Open the page details", which opens the page drawer on its Prompts tab. Width 384 px.
 
-Owner nouns of the empty states (C 26 to 31): Your site "your", Competitors "competitor", Third-party "third-party", All none. The preview's "No your page contains ..." reads badly: write "No page of your site contains ..." and "No pages of your site are cited in ..." for Your site (the one copy change to the preview, to confirm with the owner), the preview's wording for the others.
+Owner nouns of the empty states (C 26 to 31): Your site "your", Competitors "competitor", Third-party "third-party", All none. The preview's "No your page contains ..." reads badly: write "No page of your site contains ..." and "No pages of your site are cited in ..." for Your site (the one copy change to the preview, accepted 2026-11-17), the preview's wording for the others.
 
 Empty states: no rows at all "No citations in this scope" / "No answer in <scope text> cites a page. Choose more runs or another group." / Reset scope. No match: "No pages match" / 'No <owner noun> page contains "<q>".' or "No <owner noun> pages are cited in <scope text>." / Clear search or Show all pages. `<scope text>` is "<platform>, <group>, <runs label>".
 
@@ -161,7 +161,7 @@ Checked at 375, 768, 1024 and 1440 px, light and dark, with the drawer docked an
 
 | # | Task |
 |---|---|
-| 0 | Start the worktree; owner confirms section 2; Opus writes the detailed plan from the generated types (every task: files, tests first, full code, checks) and commits it |
+| 0 | Start the worktree; Opus writes the detailed plan from the generated types (every task: files, tests first, full code, checks) and commits it |
 | 1 | Fixture script and MSW handlers for the five routes, with a schema test |
 | 2 | Query wrappers and URL state (keys, defaults, old-key migration), unit tested |
 | 3 | Toolbar: three selects, competitors popover, reset, export |

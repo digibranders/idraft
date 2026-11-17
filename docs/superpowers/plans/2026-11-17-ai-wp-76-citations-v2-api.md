@@ -12,7 +12,7 @@
 
 ---
 
-## Decisions this plan builds on (owner defaults, see WP-77 section 2)
+## Decisions this plan builds on (accepted by the owner on 2026-11-17, see WP-77 section 2)
 
 | # | Decision | Default used here |
 |---|---|---|
