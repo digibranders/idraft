@@ -9,21 +9,30 @@ between them still give every pair one slot per run."""
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Final, cast
 from uuid import UUID
 
 from idraft.api.schemas.ai_citation_board import (
+    BrandCell,
+    BrandOnPrompt,
+    BrandState,
+    CitationGapDetail,
+    CitationGapRow,
     CitationOverview,
     CitedAlongside,
     CitedPageDetail,
     CitedPagePrompt,
     CitedPageRow,
+    CompetitorOnPrompt,
     EngineAnswers,
+    EngineBrandCell,
     EngineCitationCounts,
+    GapPage,
     PromptCount,
+    PromptTopic,
     RunSlot,
     RunWindow,
 )
@@ -35,6 +44,8 @@ RUN_CHOICES: Final = (1, 2, 4)
 
 # entity id -> (name, color index)
 Names = Mapping[UUID, tuple[str, int | None]]
+# prompt id -> its first term (id, name), for the Group column
+Topics = Mapping[UUID, tuple[UUID, str]]
 
 
 def role_of(value: str) -> DomainRole:
@@ -346,5 +357,197 @@ def page_detail(
             )
             for domain, (u, count) in ranked
         ],
+        window=run_window(board, timezone="", run_number=None),
+    )
+
+
+def state_of(cited: int, mentioned: int, answers: int) -> BrandState:
+    """A brand's state on a prompt: no answers, cited, only named, or not named."""
+    if answers == 0:
+        return "none"
+    if cited > 0:
+        return "cited"
+    return "mentioned" if mentioned > 0 else "not"
+
+
+def _brand(cells: Mapping[str, tuple[int, int, int]], engines: Sequence[str]) -> BrandOnPrompt:
+    """A brand over the engines of the request: its cells in that order, and the sums."""
+    per = []
+    for code in engines:
+        cited, mentioned, answers = cells.get(code, (0, 0, 0))
+        per.append(
+            EngineBrandCell(
+                engine_code=EngineCode(code),
+                cited=cited,
+                mentioned=mentioned,
+                answers=answers,
+                state=state_of(cited, mentioned, answers),
+            )
+        )
+    cited = sum(cell.cited for cell in per)
+    mentioned = sum(cell.mentioned for cell in per)
+    answers = sum(cell.answers for cell in per)
+    return BrandOnPrompt(
+        total=BrandCell(
+            cited=cited,
+            mentioned=mentioned,
+            answers=answers,
+            state=state_of(cited, mentioned, answers),
+        ),
+        engines=per,
+        cited_on=sum(cell.answers > 0 and cell.cited > 0 for cell in per),
+        platforms=sum(cell.answers > 0 for cell in per),
+    )
+
+
+def _cells(
+    answers: Sequence[Slotted],
+    engines: Sequence[str],
+    cited: Callable[[Slotted], bool],
+    named: Callable[[Slotted], bool],
+) -> dict[str, tuple[int, int, int]]:
+    """(cited, mentioned, answers) per engine of one prompt's answers."""
+    out: dict[str, tuple[int, int, int]] = {}
+    for code in engines:
+        on = [s for s in answers if s.answer.engine_code == code]
+        out[code] = (sum(map(cited, on)), sum(map(named, on)), len(on))
+    return out
+
+
+def _cites_own(board: Board) -> Callable[[Slotted], bool]:
+    return lambda s: any(u.domain_role == "own" for u in board.units_of(s))
+
+
+def _cites_entity(board: Board, entity: UUID) -> Callable[[Slotted], bool]:
+    return lambda s: any(
+        u.domain_role == "competitor" and u.entity_id == entity for u in board.units_of(s)
+    )
+
+
+def _names_entity(entity: UUID) -> Callable[[Slotted], bool]:
+    return lambda s: entity in s.answer.competitors_mentioned
+
+
+def gap_rows(
+    board: Board,
+    engines: Sequence[str],
+    competitors: Sequence[UUID],
+    texts: Mapping[UUID, str],
+    topics: Topics,
+) -> list[CitationGapRow]:
+    """One row per prompt with a current answer, the biggest gap first (plan rule 8)."""
+    now = board.current()
+    rows = []
+    for prompt_id in sorted({s.answer.prompt_id for s in now}):
+        mine = [s for s in now if s.answer.prompt_id == prompt_id]
+        you = _brand(
+            _cells(mine, engines, _cites_own(board), lambda s: s.answer.own_mentioned), engines
+        )
+        rivals = [
+            CompetitorOnPrompt(
+                entity_id=entity,
+                **_brand(
+                    _cells(mine, engines, _cites_entity(board, entity), _names_entity(entity)),
+                    engines,
+                ).model_dump(),
+            )
+            for entity in competitors
+        ]
+        # `you.engines` and every `r.engines` hold one cell per engine, in the order of `engines`
+        lost = [
+            index
+            for index, cell in enumerate(you.engines)
+            if cell.answers > 0
+            and cell.cited == 0
+            and any(r.engines[index].cited > 0 for r in rivals)
+        ]
+        topic = topics.get(prompt_id)
+        rows.append(
+            CitationGapRow(
+                prompt_id=prompt_id,
+                text=texts.get(prompt_id, ""),
+                topic=None if topic is None else PromptTopic(term_id=topic[0], name=topic[1]),
+                you=you,
+                competitors=rivals,
+                lost_on=[you.engines[index].engine_code for index in lost],
+                lost_to=[
+                    r.entity_id for r in rivals if any(r.engines[index].cited > 0 for index in lost)
+                ],
+                gap=len(lost),
+                competitor_answers=sum(r.total.cited for r in rivals),
+            )
+        )
+    rows.sort(key=lambda r: (-r.gap, -len(r.lost_to), -r.competitor_answers, r.text))
+    return rows
+
+
+def _pages(
+    board: Board,
+    answers: Iterable[Slotted],
+    keep: Callable[[Unit], bool],
+    limit: int | None = None,
+) -> list[GapPage]:
+    """The kept units of the answers per URL: how many answers list it and on which engines."""
+    found: dict[int, tuple[Unit, int, set[str]]] = {}
+    for s in answers:
+        for u in board.units_of(s):
+            if keep(u):
+                seen = found.get(u.url_id)
+                found[u.url_id] = (
+                    u,
+                    (seen[1] if seen else 0) + 1,
+                    (seen[2] if seen else set()) | {s.answer.engine_code},
+                )
+    ranked = sorted(found.values(), key=lambda item: (-item[1], item[0].url))
+    return [
+        GapPage(
+            url_id=u.url_id,
+            url=u.url,
+            entity_id=u.entity_id,
+            citations=n,
+            engines=[EngineCode(c) for c in sorted(codes)],
+        )
+        for u, n, codes in ranked[:limit]
+    ]
+
+
+def gap_detail(
+    board: Board,
+    prompt_id: UUID,
+    engines: Sequence[str],
+    competitors: Sequence[UUID],
+    texts: Mapping[UUID, str],
+    topics: Topics,
+    terms: Mapping[UUID, Sequence[UUID]],
+) -> CitationGapDetail | None:
+    """The drawer of one prompt of the gap analysis; None when it has no current answer."""
+    row = next(
+        (
+            r
+            for r in gap_rows(board, engines, competitors, texts, topics)
+            if r.prompt_id == prompt_id
+        ),
+        None,
+    )
+    if row is None:
+        return None
+    now = board.current()
+    here = [s for s in now if s.answer.prompt_id == prompt_id]
+    mine = set(terms.get(prompt_id, ()))
+    neighbours = [
+        s
+        for s in now
+        if s.answer.prompt_id != prompt_id and mine & set(terms.get(s.answer.prompt_id, ()))
+    ]
+    selected = set(competitors)
+    return CitationGapDetail(
+        row=row,
+        answers=len(here),
+        competitor_pages=_pages(
+            board, here, lambda u: u.domain_role == "competitor" and u.entity_id in selected
+        ),
+        own_pages=_pages(board, here, lambda u: u.domain_role == "own"),
+        closest_pages=_pages(board, neighbours, lambda u: u.domain_role == "own", 3),
+        third_party_pages=_pages(board, here, lambda u: u.domain_role == "third_party", 5),
         window=run_window(board, timezone="", run_number=None),
     )

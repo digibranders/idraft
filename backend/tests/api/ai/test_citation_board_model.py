@@ -15,6 +15,8 @@ from idraft.api.ai.citation_board_model import (
     Names,
     Unit,
     assign_slots,
+    gap_detail,
+    gap_rows,
     overview,
     page_detail,
     page_rows,
@@ -25,6 +27,7 @@ from idraft.api.schemas.ai_citation_board import BrandCell, RunSlot
 
 NOW = datetime(2026, 11, 16, 9, 0, tzinfo=UTC)
 P1, P2 = UUID(int=1), UUID(int=2)
+RIVAL_1, RIVAL_2 = UUID(int=11), UUID(int=12)
 OWN_A = "https://own.example/a"
 TEXTS = {P1: "Best SOC providers?", P2: "SOC pricing?"}
 NAMES: Names = {}
@@ -222,3 +225,112 @@ def test_role_of_narrows_a_known_role_and_rejects_others() -> None:
     assert role_of("competitor") == "competitor"
     with pytest.raises(ValueError, match="watch"):
         role_of("watch")
+
+
+def test_a_prompt_is_lost_per_engine_where_a_competitor_is_cited_and_you_are_not() -> None:
+    answers = [
+        ans(1, P1, "r1", 1),
+        ans(2, P1, "r1", 1, engine="gemini_web"),
+        ans(3, P2, "r1", 1, mentions={RIVAL_2}),
+    ]
+    units = [
+        unit(1, OWN_A, url_id=1),  # ChatGPT: you are cited
+        unit(2, "https://rival.example/soc", "competitor", RIVAL_1, url_id=5),  # Gemini: the rival
+    ]
+
+    rows = {
+        r.prompt_id: r
+        for r in gap_rows(
+            board(1, answers, units), ["chatgpt_web", "gemini_web"], [RIVAL_1, RIVAL_2], TEXTS, {}
+        )
+    }
+
+    p1 = rows[P1]
+    assert (p1.lost_on, p1.lost_to, p1.gap) == (["gemini_web"], [RIVAL_1], 1)
+    assert (p1.you.total.state, p1.you.cited_on, p1.you.platforms) == ("cited", 1, 2)
+    assert p1.competitors[0].total.state == "cited"
+    p2 = rows[P2]
+    assert p2.gap == 0
+    # Named but never linked is a mention, not a citation
+    assert p2.competitors[1].total.state == "mentioned"
+    assert [e.state for e in p2.you.engines] == ["not", "none"]
+
+
+def test_a_competitor_that_is_not_selected_never_makes_a_gap() -> None:
+    answers = [ans(1, P1, "r1", 1)]
+    units = [unit(1, "https://rival.example/soc", "competitor", RIVAL_2, url_id=5)]
+
+    (row,) = gap_rows(board(1, answers, units), ["chatgpt_web"], [RIVAL_1], TEXTS, {})
+
+    assert (row.gap, row.lost_on, row.lost_to, row.competitor_answers) == (0, [], [], 0)
+    assert row.competitors[0].total.state == "not"
+
+
+def test_gap_rows_sort_by_engines_lost_then_competitors_then_citations_then_text() -> None:
+    p3, p4 = UUID(int=3), UUID(int=4)
+    texts = {P1: "m", P2: "n", p3: "z", p4: "a"}
+    answers = [
+        ans(1, P1, "r1", 1),
+        ans(2, P1, "r1", 1, engine="gemini_web"),
+        ans(3, P2, "r1", 1),
+        # Two replicates of one run: P3 has the rival cited twice, P4 once
+        ans(4, p3, "r1", 1),
+        ans(5, p3, "r1", 1.1),
+        ans(6, p4, "r1", 1),
+    ]
+    rival = "https://rival.example/soc"
+    units = [
+        unit(1, rival, "competitor", RIVAL_1, url_id=5),
+        unit(2, rival, "competitor", RIVAL_1, url_id=5),
+        unit(3, rival, "competitor", RIVAL_1, url_id=5),
+        unit(3, "https://other.example/x", "competitor", RIVAL_2, url_id=6),
+        unit(4, rival, "competitor", RIVAL_1, url_id=5),
+        unit(5, rival, "competitor", RIVAL_1, url_id=5),
+        unit(6, rival, "competitor", RIVAL_1, url_id=5),
+    ]
+
+    rows = gap_rows(
+        board(1, answers, units), ["chatgpt_web", "gemini_web"], [RIVAL_1, RIVAL_2], texts, {}
+    )
+
+    # P1 loses two engines; P2 loses one to two rivals; P3 and P4 lose one to one rival, P3 with
+    # more citations (the text "a" would put P4 first if it came earlier in the key)
+    assert [r.prompt_id for r in rows] == [P1, P2, p3, p4]
+    assert [(r.gap, len(r.lost_to), r.competitor_answers) for r in rows] == [
+        (2, 1, 2),
+        (1, 2, 2),
+        (1, 1, 2),
+        (1, 1, 1),
+    ]
+
+
+def test_the_gap_drawer_lists_competitor_own_closest_and_third_party_pages() -> None:
+    answers = [ans(1, P1, "r1", 1), ans(2, P2, "r1", 1)]
+    units = [
+        unit(1, "https://rival.example/soc", "competitor", RIVAL_1, url_id=5),
+        unit(1, "https://g2.com/x", "third_party", url_id=3),
+        unit(2, OWN_A, url_id=1),
+    ]
+    terms = {P1: [UUID(int=99)], P2: [UUID(int=99)]}
+
+    detail = gap_detail(board(1, answers, units), P1, ["chatgpt_web"], [RIVAL_1], TEXTS, {}, terms)
+
+    assert detail is not None
+    assert [(p.url, p.citations) for p in detail.competitor_pages] == [
+        ("https://rival.example/soc", 1)
+    ]
+    assert detail.own_pages == []
+    assert [p.url for p in detail.closest_pages] == [OWN_A]
+    assert [p.url for p in detail.third_party_pages] == ["https://g2.com/x"]
+
+
+def test_the_gap_drawer_has_no_closest_pages_without_a_term_and_none_without_an_answer() -> None:
+    answers = [ans(1, P1, "r1", 1), ans(2, P2, "r1", 1)]
+    units = [unit(2, OWN_A, url_id=1)]
+    gap_board = board(1, answers, units)
+
+    detail = gap_detail(gap_board, P1, ["chatgpt_web"], [RIVAL_1], TEXTS, {}, {P2: [UUID(int=99)]})
+
+    assert detail is not None
+    assert detail.closest_pages == []
+    assert gap_detail(gap_board, UUID(int=77), ["chatgpt_web"], [RIVAL_1], TEXTS, {}, {}) is None
