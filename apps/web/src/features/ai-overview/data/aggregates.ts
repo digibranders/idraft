@@ -1,5 +1,5 @@
 import { promptRowsRead, promptsInScope, topicsInScope } from './topics-in-scope';
-import type { EngineCode, ProjectEngine, PromptsSummary, PromptSummaryRow, Schemas } from '@/lib/api/types';
+import type { EngineCode, ProjectEngine, PromptsSummary, Schemas } from '@/lib/api/types';
 import { ENGINES } from '@/lib/layouts/catalog';
 import { engineRates, type RateFigure } from '@/lib/rates/strip-model';
 import { isDetectableChange, rateState, type RateState } from '@/lib/stats';

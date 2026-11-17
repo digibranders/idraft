@@ -64,14 +64,20 @@ describe('withBrandMentionShare: the share of voice cell as brand-mention counts
 
   it('takes the counts of a topic row and of the total from the read that has the entity cells', () => {
     const own = summaryOf({ topic: engine(), total: engine() });
-    const source = summaryOf({ topic: engine([entity(OWN, 5), entity(RIVAL, 15)]), total: engine([entity(OWN, 9), entity(RIVAL, 11)]) });
+    const source = summaryOf({
+      topic: engine([entity(OWN, 5), entity(RIVAL, 15)]),
+      total: engine([entity(OWN, 9), entity(RIVAL, 11)]),
+    });
     const read = withBrandMentionShare(own, source);
     expect(read.topics[0]?.engines[0]?.share_of_voice).toMatchObject({ numerator: 5, denominator: 20 });
     expect(read.total?.engines[0]?.share_of_voice).toMatchObject({ numerator: 9, denominator: 20 });
   });
 
   it('adds the total block of the source to a read that has none', () => {
-    const read = withBrandMentionShare(summaryOf({ prompt: engine() }), summaryOf({ total: engine([entity(OWN, 3), entity(RIVAL, 3)]) }));
+    const read = withBrandMentionShare(
+      summaryOf({ prompt: engine() }),
+      summaryOf({ total: engine([entity(OWN, 3), entity(RIVAL, 3)]) }),
+    );
     expect(read.total?.engines[0]?.share_of_voice).toMatchObject({ numerator: 3, denominator: 6 });
   });
 

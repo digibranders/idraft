@@ -109,7 +109,10 @@ describe('the tiles', () => {
     const noted = (note: 'notCollected' | 'capped'): PromptSummaryRow[] =>
       prompts.map((row) => ({
         ...row,
-        engines: row.engines.map((entry) => ({ ...entry, share_of_voice: { ...entry.share_of_voice, share_note: note } })),
+        engines: row.engines.map((entry) => ({
+          ...entry,
+          share_of_voice: { ...entry.share_of_voice, share_note: note },
+        })),
       }));
     expect(readTile({ prompts: noted('notCollected') }, ONE, 'sov')).toEqual({ state: 'notCollected' });
     expect(readTile({ prompts: noted('capped') }, ONE, 'sov')).toEqual({ state: 'capped' });
@@ -129,9 +132,7 @@ describe('the tiles', () => {
   });
 
   it('All platforms says each platform own x of y brand mentions, with no pooled count', () => {
-    const prompts = [
-      promptRow('p1', [cells('chatgpt_web', [10, 5, 5, 20]), cells('gemini_web', [4, 6, 2, 8])]),
-    ];
+    const prompts = [promptRow('p1', [cells('chatgpt_web', [10, 5, 5, 20]), cells('gemini_web', [4, 6, 2, 8])])];
     const read = ok(readTile({ prompts }, ALL, 'sov'));
     expect(read.basis).toMatchObject({
       kind: 'average',

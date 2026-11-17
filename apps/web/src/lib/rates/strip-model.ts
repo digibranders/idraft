@@ -90,7 +90,9 @@ export function shareFigureOf(cells: readonly MetricCell[], mentioned: RateFigur
   const state = rateState(n);
   // Without a valid answer the reason is the Mentioned one; with answers, that none of them names a tracked brand
   const reason: RateReason = mentioned.state === 'none' ? (mentioned.reason ?? 'noAnswers') : 'noBrandNamed';
-  return state === 'none' ? figure(state, null, 0, null, 0, reason) : figure(state, k / n, n, k, mentioned.prompts, null);
+  return state === 'none'
+    ? figure(state, null, 0, null, 0, reason)
+    : figure(state, k / n, n, k, mentioned.prompts, null);
 }
 
 /**

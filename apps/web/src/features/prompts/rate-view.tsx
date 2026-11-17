@@ -24,7 +24,8 @@ export function useRateWords(): RateWords {
     () => ({
       text: (rate, share = false) => {
         if (rate.state === 'none') return EMPTY_VALUE;
-        if (rate.state === 'insufficient') return t(share ? 'insufficientShare' : 'insufficient', { count: rate.answers });
+        if (rate.state === 'insufficient')
+          return t(share ? 'insufficientShare' : 'insufficient', { count: rate.answers });
         return formatPercent(rate.value, { decimals: 0 });
       },
       inline: (rate, share = false) =>

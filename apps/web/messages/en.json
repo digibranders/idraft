@@ -3927,7 +3927,7 @@
       "shareBasis": "{k, number} of {n, number} brand mentions",
       "notCollectedTip": "Not collected yet",
       "cappedTip": "More than 20 tracked brands: the API lists the mentions of the first 20, so the share cannot be read",
-      "basis":"{successes, number} of {answers, plural, one {# answer} other {# answers}}",
+      "basis": "{successes, number} of {answers, plural, one {# answer} other {# answers}}",
       "basisAnswers": "{answers, plural, one {# answer} other {# answers}}",
       "reason": "{reason, select, noAnswers {No answers} noneValid {None valid} notCollected {Not collected yet} capped {More than 20 tracked brands} other {No brand mentioned}}",
       "avgLabel": "{count, plural, one {1 platform} other {average of #}}",

@@ -105,7 +105,11 @@ export function countryModel({ countries, reads, asked, metric }: CountryInput):
       figureOf(
         code,
         // Share of voice is read from the country's `total` row, which carries the entity cells the prompt rows do not
-        engineRates(prompts, code, total?.engines.find((engine) => engine.engine_code === code))[FIGURE_OF[metric]],
+        engineRates(
+          prompts,
+          code,
+          total?.engines.find((engine) => engine.engine_code === code),
+        )[FIGURE_OF[metric]],
       ),
     ),
   }));

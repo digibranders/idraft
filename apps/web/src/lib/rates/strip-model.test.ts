@@ -145,16 +145,21 @@ describe('share of voice: brand mentions, one mention one weight', () => {
   });
 
   it('reads the engine of the total row when it is given', () => {
-    const total = { ...promptOf(counted(9, 4, { naming: 20, share: 5 })).engines[0]! };
+    const [total] = promptOf(counted(9, 4, { naming: 20, share: 5 })).engines;
     const { shareOfVoice } = engineRates([promptOf(NO_COUNTS)], CHATGPT, total);
     expect(shareOfVoice).toMatchObject({ state: 'ok', value: 0.25, answers: 20, successes: 5 });
   });
 
   it('says not collected, or cut by the cap, and never a percent without its counts', () => {
-    const noted = (note: 'notCollected' | 'capped') => {
+    const noted = (note: 'notCollected' | 'capped'): StripPrompt => {
       const row = promptOf(counted(9, 4, { naming: 20, share: 5 }));
-      const [engine] = row.engines;
-      return { ...row, engines: [{ ...engine!, share_of_voice: { ...engine!.share_of_voice, share_note: note } }] };
+      return {
+        ...row,
+        engines: row.engines.map((engine) => ({
+          ...engine,
+          share_of_voice: { ...engine.share_of_voice, share_note: note },
+        })),
+      };
     };
     expect(engineRates([noted('notCollected')], CHATGPT).shareOfVoice).toMatchObject({
       state: 'none',

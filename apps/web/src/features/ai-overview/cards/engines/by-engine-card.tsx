@@ -104,11 +104,7 @@ function RateCellView({ cell, kind, t }: { cell: RateCell; kind: RateKind; t: Tr
           {...(previousText === undefined ? {} : { tip: { previousText } })}
         />
       </span>
-      <SampleCount
-        k={cell.successes}
-        n={cell.answers}
-        noun={kind === 'shareOfVoice' ? 'brandMentions' : 'answers'}
-      />
+      <SampleCount k={cell.successes} n={cell.answers} noun={kind === 'shareOfVoice' ? 'brandMentions' : 'answers'} />
     </div>
   );
 }

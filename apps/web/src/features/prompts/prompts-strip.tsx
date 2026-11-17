@@ -157,7 +157,8 @@ export function PromptsStrip({
    * them it is not collected yet, never a percent or a count made from the old sum of shares.
    */
   const shareDetail = (code: string): string => {
-    const counts = ownEntityIds === undefined ? null : brandMentionCountsOver(prompts, code, ownEntityIds, trackedCount);
+    const counts =
+      ownEntityIds === undefined ? null : brandMentionCountsOver(prompts, code, ownEntityIds, trackedCount);
     if (counts === null) return t('tipNotCollected');
     if (counts.n === 0) return t('tipReason', { reason: 'noAnswers' });
     return rateState(counts.n) === 'ok'

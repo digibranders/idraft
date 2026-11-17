@@ -30,12 +30,15 @@ function basisTip(reading: Extract<Reading, { state: 'ok' }>, { say, nameOf, lis
   const { basis } = reading;
   if (basis.kind === 'average') {
     if (basis.parts !== undefined) {
-      const parts = list(basis.parts.map((part) => say('tips.platformCounts', { name: nameOf(part.code), k: part.k, n: part.n })));
+      const parts = list(
+        basis.parts.map((part) => say('tips.platformCounts', { name: nameOf(part.code), k: part.k, n: part.n })),
+      );
       return say('tips.averageShare', { used: basis.codes.length, parts });
     }
     return say('tips.average', { used: basis.codes.length, names: list(basis.codes.map(nameOf)) });
   }
-  if (basis.noun === 'brandMentions') return basis.k === null ? '' : say('tips.brandMentions', { k: basis.k, n: basis.n });
+  if (basis.noun === 'brandMentions')
+    return basis.k === null ? '' : say('tips.brandMentions', { k: basis.k, n: basis.n });
   if (basis.noun === 'orderedAnswers' || basis.noun === 'judgedMentions') {
     return say(`facts.tips.${basis.noun}`, { n: basis.n });
   }

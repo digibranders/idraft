@@ -37,7 +37,14 @@ function shareCellOf(read: BrandMentionRead, own: number | null, old: MetricCell
   const naming_answers = old === undefined ? 0 : namingAnswersOf(old);
   const n_observations = old?.n_observations ?? 0;
   if (read.kind !== 'counts') {
-    return { numerator: 0, denominator: 0, value: null, n_observations, share_note: NOTE_OF[read.kind], naming_answers };
+    return {
+      numerator: 0,
+      denominator: 0,
+      value: null,
+      n_observations,
+      share_note: NOTE_OF[read.kind],
+      naming_answers,
+    };
   }
   const { k, n } = own === null ? read.counts : { k: own, n: read.counts.n };
   return { numerator: k, denominator: n, value: n > 0 ? k / n : null, n_observations, naming_answers };
@@ -48,7 +55,14 @@ const ownSetOf = (summary: PromptsSummary): ReadonlySet<string> =>
 
 /** One brand's cell of the block: its mentions over every tracked-brand mention of the block. */
 function entityCell(cell: EntityCells, read: BrandMentionRead): EntityCells {
-  return { ...cell, share_of_voice: shareCellOf(read, read.kind === 'counts' ? entityMentions(cell.mentioned) : null, cell.share_of_voice) };
+  return {
+    ...cell,
+    share_of_voice: shareCellOf(
+      read,
+      read.kind === 'counts' ? entityMentions(cell.mentioned) : null,
+      cell.share_of_voice,
+    ),
+  };
 }
 
 interface Context {
@@ -64,11 +78,15 @@ function previousOf(
 ): NonNullable<EngineSummary['previous']> {
   const previous = engine.previous as NonNullable<EngineSummary['previous']>;
   const cells = source.entities;
-  const back = cells?.map((cell) => (cell.previous === undefined || cell.previous === null ? null : cell.previous)) ?? [];
+  const back =
+    cells?.map((cell) => (cell.previous === undefined || cell.previous === null ? null : cell.previous)) ?? [];
   if (cells === undefined || cells === null || back.some((entry) => entry === null)) {
     return { ...previous, share_of_voice: shareCellOf({ kind: 'notCollected' }, null, previous.share_of_voice) };
   }
-  const shown = cells.map((cell, index) => ({ entity_id: cell.entity_id, mentioned: back[index]?.mentioned ?? cell.mentioned }));
+  const shown = cells.map((cell, index) => ({
+    entity_id: cell.entity_id,
+    mentioned: back[index]?.mentioned ?? cell.mentioned,
+  }));
   const read = brandMentionRead({ entities: shown as EntityCells[] }, own, tracked);
   return { ...previous, share_of_voice: shareCellOf(read, null, previous.share_of_voice) };
 }
@@ -108,8 +126,18 @@ function engineOf(engine: EngineSummary, context: Context, from?: EngineSummary)
   };
 }
 
-const enginesOf = (engines: readonly EngineSummary[], context: Context, from?: readonly EngineSummary[]): EngineSummary[] =>
-  engines.map((engine) => engineOf(engine, context, from?.find((entry) => entry.engine_code === engine.engine_code)));
+const enginesOf = (
+  engines: readonly EngineSummary[],
+  context: Context,
+  from?: readonly EngineSummary[],
+): EngineSummary[] =>
+  engines.map((engine) =>
+    engineOf(
+      engine,
+      context,
+      from?.find((entry) => entry.engine_code === engine.engine_code),
+    ),
+  );
 
 /**
  * The summary with the share of voice cells of every block as brand-mention counts. `source` is a read of the same

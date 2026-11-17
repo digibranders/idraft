@@ -198,7 +198,11 @@ export function readTile(
   tile: CellTile,
 ): Reading {
   const figures = asked.map((code) => {
-    const rates = engineRates(prompts, code, total?.engines.find((engine) => engine.engine_code === code));
+    const rates = engineRates(
+      prompts,
+      code,
+      total?.engines.find((engine) => engine.engine_code === code),
+    );
     return {
       code,
       figure: tile === 'mention' ? rates.mentioned : tile === 'citation' ? rates.cited : rates.shareOfVoice,

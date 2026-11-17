@@ -128,7 +128,9 @@ function useSummary(
       {
         ...BRAND_MENTION_READ,
         // The weekly points of a card that draws them come with their entity cells (the weeks of a share of voice line)
-        include: (options.include ?? []).includes('series') ? [...BRAND_MENTION_READ.include, 'series'] : BRAND_MENTION_READ.include,
+        include: (options.include ?? []).includes('series')
+          ? [...BRAND_MENTION_READ.include, 'series']
+          : BRAND_MENTION_READ.include,
         period,
       },
     ),

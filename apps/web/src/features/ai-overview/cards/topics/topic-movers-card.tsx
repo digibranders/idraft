@@ -53,7 +53,8 @@ export default function TopicMoversCard({ item, options, live }: CardProps): Rea
   const words = useTopicWords();
   const empties = useTopicEmpty();
   const { workspaceSlug, project, setScope } = useOverview();
-  const { data, compareOff } = gateComparison(useTopicPeriods({ counts: metricOf(options.metric ?? '') === 'share_of_voice', subscribed: live }),
+  const { data, compareOff } = gateComparison(
+    useTopicPeriods({ counts: metricOf(options.metric ?? '') === 'share_of_voice', subscribed: live }),
     true,
   );
   const metric = metricOf(options.metric ?? '');

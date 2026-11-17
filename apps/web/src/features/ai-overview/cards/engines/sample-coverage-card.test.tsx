@@ -202,7 +202,8 @@ describe('SampleCoverageCard', () => {
         http.get(SUMMARY, async ({ request }) => {
           const url = new URL(request.url);
           // The brand mention read of the hooks is not one of the two reads this test holds and counts
-          if (isBrandMentionRead(url)) return HttpResponse.json({ data: summaryOf(PROMPTS, { codes: ['chatgpt_web'] }) });
+          if (isBrandMentionRead(url))
+            return HttpResponse.json({ data: summaryOf(PROMPTS, { codes: ['chatgpt_web'] }) });
           seen.push(url);
           const branded = url.searchParams.get('include_branded') === 'true';
           const germany = url.searchParams.get('filter[country_iso]') === 'DE';

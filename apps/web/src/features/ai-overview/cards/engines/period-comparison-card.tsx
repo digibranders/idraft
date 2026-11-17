@@ -115,7 +115,11 @@ export default function PeriodComparisonCard({ item, options, live }: CardProps)
     }
     if (row.state === 'none') {
       const words = t(
-        row.reason === 'notCollected' ? 'notCollectedWords' : row.reason === 'capped' ? 'cappedWords' : 'noAnswersWords',
+        row.reason === 'notCollected'
+          ? 'notCollectedWords'
+          : row.reason === 'capped'
+            ? 'cappedWords'
+            : 'noAnswersWords',
       );
       return {
         ...base,

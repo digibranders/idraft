@@ -98,8 +98,13 @@ function entitiesOf(
   previous?: Pair,
   previousWeight?: number,
 ): NonNullable<EngineSummary['entities']> {
-  const make = (counts: Pair, prompts: number | undefined): MetricCell => cell(...counts, prompts === undefined ? {} : { prompts });
-  const entry = (id: string, counts: Pair, before: Pair | undefined): NonNullable<EngineSummary['entities']>[number] => ({
+  const make = (counts: Pair, prompts: number | undefined): MetricCell =>
+    cell(...counts, prompts === undefined ? {} : { prompts });
+  const entry = (
+    id: string,
+    counts: Pair,
+    before: Pair | undefined,
+  ): NonNullable<EngineSummary['entities']>[number] => ({
     entity_id: id,
     mentioned: make(counts, weight),
     share_of_voice: cell(0, 0),
@@ -107,7 +112,8 @@ function entitiesOf(
       ? {}
       : { previous: { mentioned: make(before, previousWeight), share_of_voice: cell(0, 0) } }),
   });
-  const rival = (counts: Pair | undefined): Pair | undefined => (counts === undefined ? undefined : [counts[1] - counts[0], counts[1]]);
+  const rival = (counts: Pair | undefined): Pair | undefined =>
+    counts === undefined ? undefined : [counts[1] - counts[0], counts[1]];
   return [entry(OWN_ID, pair, previous), entry(RIVAL_ID, rival(pair) ?? NONE, rival(previous))];
 }
 

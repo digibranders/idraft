@@ -151,7 +151,8 @@ export function entityTotals(summary: PromptsSummary, engineCode: string, set: T
   const capped = (cells: readonly EntityCells[]): boolean =>
     cells.length >= ENTITY_CELL_CAP && set.entities.length > cells.length;
   const total = summary.total?.engines.find((engine) => engine.engine_code === engineCode);
-  if (total !== undefined && hasEntities(total)) return capped(total.entities) ? UNREAD : fromTotal(total, total.entities, set);
+  if (total !== undefined && hasEntities(total))
+    return capped(total.entities) ? UNREAD : fromTotal(total, total.entities, set);
   const rows = engineRows(summary, engineCode).filter(hasEntities);
   return rows.length === 0 || rows.some((row) => capped(row.entities)) ? UNREAD : fromRows(rows, set);
 }

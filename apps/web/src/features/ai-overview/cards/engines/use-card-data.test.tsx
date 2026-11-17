@@ -319,7 +319,9 @@ describe('useCardData', () => {
     for (const engine of result.current.aggregates?.engines ?? []) {
       if (!engine.asked) continue;
       // Share of voice is read from the `total` row, which carries the entity cells the prompt rows do not
-      const total = result.current.current.data?.total?.engines.find((entry) => entry.engine_code === engine.engineCode);
+      const total = result.current.current.data?.total?.engines.find(
+        (entry) => entry.engine_code === engine.engineCode,
+      );
       const strip = engineRates(prompts, engine.engineCode, total);
       expect(engine.mentioned).toEqual(strip.mentioned);
       expect(engine.cited).toEqual(strip.cited);
