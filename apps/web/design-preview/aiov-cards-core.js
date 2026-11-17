@@ -1,3 +1,4 @@
+/* global document */
 /**
  * Cards of the AI visibility Overview, first half: the headline row, the trend, the outcome split and the
  * competitor cards. Each builder takes the page context `{ model, scope, compare }` and returns a card (or null when

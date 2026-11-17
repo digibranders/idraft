@@ -154,11 +154,14 @@ describe('FactSentence', () => {
     expect(link.getAttribute('href')).toContain('engine=chatgpt_web');
   });
 
-  it('is plain text, with the same words, where the drill gives no link', async () => {
-    // The Prompts page cannot show "branded prompts only": the drill answers null
+  it('links with branded=only, which the Prompts page reads (owner decision 15), with the same words', async () => {
     render(`${WINDOW}&branded=only`);
     const [, up] = await lines();
-    expect(within(up as HTMLElement).queryByRole('link')).toBeNull();
+    expect(
+      within(up as HTMLElement)
+        .getByRole('link')
+        .getAttribute('href'),
+    ).toContain('branded=only');
     expect(up).toHaveTextContent(SENTENCES[1]?.[1] ?? 'missing');
   });
 });

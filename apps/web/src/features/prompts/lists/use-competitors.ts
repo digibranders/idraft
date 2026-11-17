@@ -71,7 +71,16 @@ export function useCompetitors(project: PromptScope, enabled: boolean): Competit
           entity_type: 'brand',
           is_ambiguous: false,
           canonical_name: brand,
-          aliases: [{ alias: brand, match_mode: 'word_boundary', case_sensitive: false }],
+          aliases: [
+            {
+              alias: brand,
+              match_mode: 'word_boundary',
+              case_sensitive: false,
+              language_code: null,
+              is_negative: false,
+              requires_context: false,
+            },
+          ],
           domains: [],
         },
       });

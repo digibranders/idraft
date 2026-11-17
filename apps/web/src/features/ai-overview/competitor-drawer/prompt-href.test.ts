@@ -32,9 +32,18 @@ describe('promptHref', () => {
     expect(parseInspectTarget(inspectOf(href))).toEqual({ type: 'prompt', id: 'p1' });
   });
 
-  it("opens it with the page's own scope when the Prompts page cannot express the Branded choice", () => {
-    const scope: OverviewScope = scopeOf({ branded: 'only' });
-    const href = promptHref(scope, PROJECT, 'p1');
-    expect(href).toBe('/acme/fynix/ai/prompts?inspect=prompt%3Ap1');
+  it('carries the Branded choice, which the Prompts page reads, and the comparison with last year', () => {
+    const scope: OverviewScope = scopeOf({ branded: 'only', compareKind: 'previous_year' });
+    const query = new URL(promptHref(scope, PROJECT, 'p1'), 'http://localhost').searchParams;
+    expect(query.get('branded')).toBe('only');
+    expect(query.get('cmp')).toBe('year');
+  });
+
+  it("opens it with the page's own scope when the Prompts page cannot express the window", () => {
+    const scope: OverviewScope = scopeOf({
+      range: { from: '2026-08-13', to: '2026-11-12', days: 92 },
+      rangeValue: { kind: 'custom', from: '2026-08-13', to: '2026-11-12' },
+    });
+    expect(promptHref(scope, PROJECT, 'p1')).toBe('/acme/fynix/ai/prompts?inspect=prompt%3Ap1');
   });
 });

@@ -169,10 +169,7 @@ export function brandsOf(
     }));
   // The top of the list, and below it the competitors the project follows that the cut would drop: a tracked brand is
   // never hidden (the own brand is pinned under the list instead)
-  const shown = [
-    ...ranked.slice(0, LIST_SIZE),
-    ...ranked.slice(LIST_SIZE).filter((row) => row.tracked && !row.own),
-  ];
+  const shown = [...ranked.slice(0, LIST_SIZE), ...ranked.slice(LIST_SIZE).filter((row) => row.tracked && !row.own)];
   return {
     state: 'ok',
     reason: null,

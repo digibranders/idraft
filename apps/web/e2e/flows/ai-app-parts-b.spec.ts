@@ -340,9 +340,7 @@ test.describe('hostile input at 1280 px', () => {
     await open(page, 'light', 1280);
   });
 
-  test('is text: no script, no handler, no script link, no image, and no payload ran', async ({
-    page,
-  }) => {
+  test('is text: no script, no handler, no script link, no image, and no payload ran', async ({ page }) => {
     const hostile = group(page, 'Hostile input');
     await expect(hostile.locator('script')).toHaveCount(0);
     await expect(hostile.locator('[onerror], [onclick], [onload], [onmouseover]')).toHaveCount(0);
