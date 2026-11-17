@@ -103,13 +103,22 @@ function edgeTip(event, path) {
 
 const linkedAs = (edge) => (edge ? `${scopeOf(edge) === 'editorial' ? '' : `${SCOPE_WORD[scopeOf(edge)]}: `}${edge.anchor}` : '');
 
-function metaLine(item, scope, backs, both) {
+/** The second line of a card: the anchor (or the title) on the left, the facts on the right (tier, links in, status, both ways). */
+function subLine(item, scope, backs, both) {
   const page = pageById(item.id);
-  const reserve = backs.length === 0 ? '' : 'pr-10';
-  const line = el('span', `flex flex-wrap items-center gap-x-1.5 gap-y-0.5 type-meta text-foreground-tertiary ${reserve}`);
-  line.append(el('span', 'text-foreground-secondary', tierCode(tierIdOf(page))), el('span', 'num', `${plural(ins(item.id, scope).length, 'linking page')}`));
-  if (page.status !== 200) line.append(statusBadge(page));
-  if (both) line.append(el('span', BOTH_BADGE, 'Both ways'));
+  // Room for the back-link marker, which sits in the bottom right corner
+  const line = el('span', `flex min-w-0 items-center gap-2 ${backs.length === 0 ? '' : 'pr-10'}`);
+  const facts = el('span', 'flex shrink-0 items-center gap-1.5 type-meta text-foreground-tertiary');
+  facts.append(el('span', 'text-foreground-secondary', tierCode(tierIdOf(page))), el('span', 'num', `${ins(item.id, scope).length} in`));
+  if (page.status !== 200) facts.append(statusBadge(page));
+  if (both) {
+    // Icon only on the canvas, to leave the anchor its width; the card's name and the tip say it in words
+    const mark = el('span', `${BOTH_BADGE} px-1`);
+    mark.dataset.tip = 'Links both ways';
+    mark.append(icon('arrow-left-right', 'size-icon-xs'));
+    facts.append(mark);
+  }
+  line.append(el('span', 'min-w-0 flex-1 truncate type-label text-foreground-secondary', item.edge ? linkedAs(item.edge) : page.title), facts);
   return line;
 }
 
@@ -122,37 +131,39 @@ function cardButton(item, scope, ctx) {
   const openable = !isFocus && !item.last && canOpen(item);
   const isOpen = j().opened.has(item.key);
   const look = isFocus ? 'border-primary-border ring-1 ring-primary-border' : 'border-border-strong';
-  const node = el('button', `node relative w-full text-left rounded-md border border-l-4 ${tierEdge(tierIdOf(page))} ${look} ${isOpen ? 'bg-primary-subtle' : 'bg-surface hover:bg-surface-hover'} px-2.5 py-2 flex flex-col gap-0.5 ${FOCUS_RING}`);
+  const node = el('button', `node relative w-full text-left rounded-md border border-l-4 ${tierEdge(tierIdOf(page))} ${look} ${isOpen ? 'bg-primary-subtle' : 'bg-surface hover:bg-surface-hover'} px-2.5 py-1.5 flex flex-col ${FOCUS_RING}`);
   node.type = 'button';
   Object.assign(node.dataset, { key: item.key, id: item.id, kind: 'card' });
   if (item.parentKey) node.dataset.parent = item.parentKey;
   if (item.dir) node.dataset.dir = item.dir;
   if (openable) node.setAttribute('aria-expanded', String(isOpen));
-  node.setAttribute('aria-label', `${page.path}, ${tierLabel(tierIdOf(page))}, ${plural(ins(item.id, scope).length, 'linking page')}${item.edge ? `, linked as ${linkedAs(item.edge)}, ${PLACEMENT_LABEL[item.edge.placement].toLowerCase()}` : ', focus page'}`);
+  node.setAttribute('aria-label', `${page.path}, ${tierLabel(tierIdOf(page))}, ${plural(ins(item.id, scope).length, 'linking page')}${item.edge ? `, linked as ${linkedAs(item.edge)}, ${PLACEMENT_LABEL[item.edge.placement].toLowerCase()}` : ', focus page'}${both ? ', links both ways' : ''}`);
   const top = el('span', 'flex items-center gap-1 min-w-0 pr-12');
   if (openable) top.append(icon(isOpen ? 'chevron-down' : 'chevron-right', 'size-icon-xs shrink-0 text-foreground-tertiary'));
   top.append(el('span', 'type-table text-foreground truncate', page.path));
-  node.append(top, el('span', 'type-label text-foreground-secondary truncate', item.edge ? linkedAs(item.edge) : page.title), metaLine(item, scope, backs, both));
+  node.append(top, subLine(item, scope, backs, both));
   return { node, backs };
 }
 
 function stubButton(item) {
   const page = pageById(item.id);
-  const node = el('button', `node relative w-full text-left rounded-md border border-dashed border-l-4 border-border-strong ${tierEdge(tierIdOf(page))} bg-surface px-2.5 py-2 flex flex-col gap-0.5 hover:bg-surface-hover ${FOCUS_RING}`);
+  const node = el('button', `node relative w-full text-left rounded-md border border-dashed border-l-4 border-border-strong ${tierEdge(tierIdOf(page))} bg-surface px-2.5 py-1.5 flex flex-col hover:bg-surface-hover ${FOCUS_RING}`);
   node.type = 'button';
   Object.assign(node.dataset, { key: item.key, id: item.id, kind: 'stub', parent: item.parentKey, dir: item.dir });
   node.setAttribute('aria-label', `${page.path}, already on the canvas at ${item.at}. Select to find it.`);
-  node.append(el('span', 'type-table text-foreground truncate', page.path), el('span', 'type-label text-foreground-secondary truncate', linkedAs(item.edge)), el('span', 'type-meta text-foreground-tertiary', `Already on the canvas at ${item.at}. Select to find it.`));
+  const sub = el('span', 'flex min-w-0 items-center gap-2');
+  sub.append(el('span', 'min-w-0 flex-1 truncate type-label text-foreground-secondary', linkedAs(item.edge)), el('span', 'shrink-0 type-meta text-foreground-tertiary', `Also at ${item.at}`));
+  node.append(el('span', 'type-table text-foreground truncate', page.path), sub);
   return node;
 }
 
 function groupButton(item) {
-  const node = el('button', `node relative w-full text-left rounded-md border border-border-strong bg-surface-subtle px-2.5 py-2 flex flex-col gap-0.5 hover:bg-surface-hover ${FOCUS_RING}`);
+  const node = el('button', `node relative w-full text-left rounded-md border border-border-strong bg-surface-subtle px-2.5 py-1.5 flex flex-col hover:bg-surface-hover ${FOCUS_RING}`);
   node.type = 'button';
   Object.assign(node.dataset, { key: item.key, kind: 'group', parent: item.parentKey, dir: item.dir, scope: item.scope });
   node.setAttribute('aria-expanded', String(item.open));
   const label = item.scope === 'both' ? `Both ways: ${plural(item.count, 'page')}` : `${GROUP_LABEL[item.scope]}: ${plural(item.count, 'link')}`;
-  const meta = item.scope === 'both' ? 'Also shown on the right, marked Both ways' : item.open ? 'Shown as cards. Select to hide.' : 'Select to show them as cards.';
+  const meta = item.scope === 'both' ? 'Also shown on the right, marked with a two-way arrow' : item.open ? 'Shown as cards. Select to hide.' : 'Select to show them as cards.';
   node.append(el('span', 'flex items-center gap-1'), el('span', 'type-meta text-foreground-tertiary', meta));
   node.firstChild.append(icon(item.open ? 'chevron-down' : 'chevron-right', 'size-icon-xs shrink-0 text-foreground-tertiary'), el('span', 'type-label text-foreground', label));
   node.setAttribute('aria-label', `${label}. ${meta}`);
@@ -216,17 +227,24 @@ function boxIn(inner, node) {
   return { l: left, r: left + width, m: top + height / 2, b: top + height, c: left + width / 2 };
 }
 
-const CORNER = 8;
-
-/** Orthogonal edge with rounded corners: out of the source, down a shared spine, into the target. */
-function elbow(from, to) {
-  const spine = from.r + (to.l - from.r) / 2;
-  const dy = to.m - from.m;
-  const r = Math.min(CORNER, Math.abs(dy) / 2, Math.abs(spine - from.r), Math.abs(to.l - spine));
-  if (Math.abs(dy) < 1 || r < 1) return `M${from.r},${from.m} H${spine} V${to.m} H${to.l}`;
-  const sign = dy > 0 ? 1 : -1;
-  return `M${from.r},${from.m} H${spine - r} Q${spine},${from.m} ${spine},${from.m + sign * r} V${to.m - sign * r} Q${spine},${to.m} ${spine + r},${to.m} H${to.l}`;
+/**
+ * A smooth S curve from the right edge of the source to the left edge of the target, leaving and arriving level.
+ * Each link has its own curve, so a card with many links fans out and every line can be told apart (a shared
+ * vertical spine drew them on top of each other).
+ */
+function curve(from, to) {
+  const reach = Math.max(48, Math.abs(to.l - from.r) * 0.5);
+  return `M${from.r},${from.m} C${from.r + reach},${from.m} ${to.l - reach},${to.m} ${to.l},${to.m}`;
 }
+
+// One arrowhead per line colour, drawn at the target end so every line points the way the link goes
+const HEADS = {
+  'var(--color-foreground-tertiary)': 'il-head-editorial',
+  'var(--color-border-strong)': 'il-head-menu',
+  'var(--color-warning-text)': 'il-head-redirect',
+  'var(--color-negative-text)': 'il-head-broken',
+};
+const headDefs = () => Object.entries(HEADS).map(([colour, id]) => `<marker id="${id}" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path d="M1 1.5L10 5L1 8.5z" style="fill: ${colour}"/></marker>`).join('');
 
 /** Keys of the hovered card, the cards on its path back to the focus page, and its direct children; null when nothing is hovered. */
 function litKeys() {
@@ -248,7 +266,7 @@ function drawEdges() {
   const hits = [];
   const lit = litKeys();
   active.edgeInfo = [];
-  let paths = '<defs><marker id="il-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M1 1L9 5L1 9z" style="fill: var(--color-primary)"/></marker></defs>';
+  let paths = `<defs>${headDefs()}<marker id="il-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M1 1L9 5L1 9z" style="fill: var(--color-primary)"/></marker></defs>`;
   inner.querySelectorAll('button.node[data-parent]').forEach((node) => {
     const parent = byKey(node.dataset.parent);
     if (!parent) return;
@@ -266,8 +284,10 @@ function drawEdges() {
     const rank = status === 301 || status >= 400 ? 2 : scopeOf(link) === 'editorial' ? 1 : 0;
     // While a card is hovered, the path from the focus page to it stays bold and the rest fades
     const onPath = !lit || (lit.has(node.dataset.key) && lit.has(node.dataset.parent));
-    const d = elbow(from, to);
-    edges.push({ rank, markup: `<path d="${d}" fill="none" stroke-width="${lit && onPath ? 2.5 : 1.5}"${dash} style="stroke: ${colour}; opacity: ${onPath ? 1 : 0.15}"/>` });
+    const d = curve(from, to);
+    const look = `opacity: ${onPath ? 1 : 0.15}`;
+    // The line, an arrowhead at the target and a small dot where it leaves the source
+    edges.push({ rank, markup: `<path d="${d}" fill="none" stroke-width="${lit && onPath ? 2.5 : 1.5}"${dash} marker-end="url(#${HEADS[colour]})" style="stroke: ${colour}; ${look}"/><circle cx="${from.r}" cy="${from.m}" r="2.5" style="fill: ${colour}; ${look}"/>` });
     if (item?.edge) {
       // A wide invisible stroke on top, so a thin line can be hovered for its anchor text
       hits.push(`<path data-edge="${active.edgeInfo.length}" d="${d}" fill="none" stroke="transparent" stroke-width="14" style="pointer-events: stroke"/>`);
@@ -344,7 +364,7 @@ function focusNote(scope) {
 }
 
 function column(label, nodes) {
-  const col = el('div', 'flex w-64 shrink-0 flex-col gap-2');
+  const col = el('div', 'flex w-60 shrink-0 flex-col gap-1.5');
   col.append(el('h3', 'w-fit bg-surface-subtle pr-1 type-label text-foreground-tertiary', label), ...nodes);
   return col;
 }
@@ -392,7 +412,7 @@ function buildCanvas() {
   scroller.setAttribute('aria-label', CANVAS_LABEL);
   scroller.style.cursor = 'grab';
   scroller.style.backgroundImage = 'radial-gradient(circle, color-mix(in srgb, var(--color-border-strong) 35%, transparent) 1px, transparent 1.2px)';
-  const inner = el('div', 'relative flex w-max items-start gap-16 p-4');
+  const inner = el('div', 'relative flex w-max items-start gap-28 p-4');
   inner.style.transformOrigin = '0 0';
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('class', 'pointer-events-none absolute left-0 top-0 overflow-visible');

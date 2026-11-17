@@ -938,6 +938,9 @@
   .w-56 {
     width: calc(var(--spacing) * 56);
   }
+  .w-60 {
+    width: calc(var(--spacing) * 60);
+  }
   .w-64 {
     width: calc(var(--spacing) * 64);
   }
@@ -1311,17 +1314,14 @@
   .gap-6 {
     gap: calc(var(--spacing) * 6);
   }
-  .gap-16 {
-    gap: calc(var(--spacing) * 16);
+  .gap-28 {
+    gap: calc(var(--spacing) * 28);
   }
   .gap-px {
     gap: 1px;
   }
   .gap-x-1 {
     column-gap: var(--spacing);
-  }
-  .gap-x-1\.5 {
-    column-gap: calc(var(--spacing) * 1.5);
   }
   .gap-x-2 {
     column-gap: calc(var(--spacing) * 2);

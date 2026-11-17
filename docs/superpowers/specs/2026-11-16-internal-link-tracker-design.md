@@ -262,7 +262,7 @@ The canvas and the tree list share one state: focus page, link scope and opened 
 - **Layout:** the focus card sits in the middle column.
   - **Right side, links out:** the next column holds the focus page's outlinks. Each further column holds the outlinks of the cards opened in the column before, grouped under their parent.
   - **Left side, links in:** the column before the focus holds the pages that link in, grouped by tier with counts. Opening one of them adds a further column to the left with the pages that link to it, and so on. This is the backward journey: who feeds the pages that feed this one.
-  - Edges always point the way the link goes: from the linking page to the linked page.
+  - Edges always point the way the link goes: from the linking page to the linked page. Each link is its own smooth curve that leaves the source level and arrives at the target level, with a small dot at the source and an arrowhead at the target, in the line colour. Curves fan out from a card with many links, so every line can be followed (a shared vertical trunk, tried first, drew them on top of each other). Columns are 112 px apart to give the curves room.
 - **Growing:** nothing opens by itself. Activating a card opens or closes its next step, on either side. At most 8 children show per card (per tier on the first in-link column), then "+N more" adds the next 8. Children sort by tier, then by equity share. Step labels count from the focus: "Step 2 out", "Step 2 in".
 - **Three kinds of link.** When a card opens, each of its links is sorted into one of three kinds:
   1. **New page:** the target is not on the canvas yet. It becomes a card in the next column.
@@ -274,7 +274,12 @@ The canvas and the tree list share one state: focus page, link scope and opened 
   - On the left side the same rules apply with the direction reversed: an in-link from a page already on the canvas is a stub or a back-link marker, never a second card.
 - **Links both ways:** when a card's page and its parent link to each other in the scope in view, the card shows a "Links both ways" marker. On the first columns this means the page links to the focus and the focus links to it. That reciprocal pair is the shape topic clusters are built on.
 - **Link scope:** with Editorial in view (the default), only editorial links draw as cards. Each opened card's other links collapse into group cards, one per scope with a count, such as "Previous, next and related: 2 links" or "Menus and footer: 9 links". A group card opens like any card, and its children follow the same three kinds. Editorial edges are solid, auto-generated edges dotted and template edges dashed. Links to redirects are amber and broken targets red, with a legend.
-- **Card:** a left edge in the tier colour, the path, the link's anchor and scope, then the tier code, linking pages and equity share. A status badge shows when the page is not 200.
+- **Card:** two lines, 240 px wide and about 42 px tall (decided 2026-11-17 to fit more cards on screen).
+  - A left edge in the tier colour.
+  - Line 1 is the path.
+  - Line 2 is the link's anchor (the page title on the focus card) on the left, and the facts on the right: tier code, "N in" (editorial or all links in, following the scope in view), a status badge when the page is not 200, and a small two-way arrow when the page links both ways with its parent. The words "linking pages" and "links both ways" live in the tooltip and the accessible name.
+  - A stub is two lines too: the path, then the anchor and "Also at step 1 out".
+  - Equity share is not shown anywhere in the UI (decided 2026-11-16).
 - **Tooltip** (house tooltip): title, tier name, status, depth, linking pages (editorial and all), equity share, this link's placement and rel, and whether it links both ways.
 - **Re-center:** each card has "Focus", which makes it the new focus. The URL updates, so Back returns to the previous focus.
 - **Size:** the canvas holds at most 300 cards. Past that, opening is refused with a message pointing to the tree list or a tier filter.

@@ -157,11 +157,12 @@ export function createViewport({ host, content, canPan, onView }) {
   }
 
   host.addEventListener('pointerdown', (event) => {
+    // Every press starts clean: a pan that ended earlier must not swallow the click on a card this press may become
+    dragged = false;
     const touch = event.pointerType === 'touch';
     if (event.button === 1) event.preventDefault();
     const allowed = touch || event.button === 1 || (space && event.button === 0) || canPan(event);
     if (!allowed) return;
-    dragged = false;
     stop();
     pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
     if (pointers.size >= 2) pinchStart();
