@@ -26,8 +26,9 @@ STATEMENTS_MAX = 20
 # The API's statement timeout is 15 s; a list on a crawl with no statistics must answer far
 # inside it, with room for a busy machine.
 # Alone the requests take under a second; four test workers on a busy machine tripped a 3 s
-# bound. This one still catches the plans that took minutes without statistics.
-SLOW_SECONDS = 6.0
+# bound, and a machine under a load average of 70 took 6.9 s. This bound sits under the API's
+# statement timeout and still catches the plans that took minutes without statistics.
+SLOW_SECONDS = 12.0
 
 _URLS = """
 INSERT INTO core.urls (url_hash, canonical_url, domain_id, path, canonicalizer_version)
