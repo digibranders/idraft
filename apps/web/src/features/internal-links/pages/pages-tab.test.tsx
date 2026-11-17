@@ -97,7 +97,7 @@ describe('the Pages tab (spec 7.2)', () => {
     expect(await rowOf('/pricing')).toBeInTheDocument();
   });
 
-  it('opens the Links tab for the two link worklists, which count links', async () => {
+  it('opens the Links tab for the two link worklists, which count links, in the scope of every link', async () => {
     const writes: string[] = [];
     const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
       onUrlUpdate: ({ queryString }) => writes.push(queryString),
@@ -106,6 +106,8 @@ describe('the Pages tab (spec 7.2)', () => {
     await user.click(chip);
     await waitFor(() => expect(writes.at(-1)).toContain('tab=links'));
     expect(writes.at(-1)).toContain('lview=broken_and_redirected');
+    // The chip counts links of every scope, so the tab opens on all of them and lists as many rows as the chip says
+    expect(new URLSearchParams(writes.at(-1)).get('scope')).toBe('all');
   });
 
   it('asks for the link scope the chip names and sends the explicit sort, never by equity', async () => {

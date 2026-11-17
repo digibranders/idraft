@@ -152,7 +152,10 @@ export function isPageRowPage(value: unknown): value is PageRowPage {
   return hasCursorShape(value);
 }
 
-/** The edges list answers the same way (JSON and CSV declared, so `unknown`): the same parts are checked. */
+/**
+ * The edges list answers the same way (JSON and CSV declared, so `unknown`): the same parts are checked. As with
+ * `isPageRowPage`, the rows themselves are trusted past the envelope.
+ */
 export function isEdgeRowPage(value: unknown): value is EdgeRowPage {
   return hasCursorShape(value);
 }

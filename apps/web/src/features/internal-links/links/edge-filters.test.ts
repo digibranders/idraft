@@ -52,6 +52,17 @@ describe('edgeQueryOf', () => {
     expect(query.tagIds).toEqual([]);
   });
 
+  it('cuts the source search to the 200 characters the API takes, and the export agrees', () => {
+    const query = edgeQueryOf(
+      parseLinksSearch({}),
+      { sq: { kind: 'text', operator: 'contains', text: 'a'.repeat(201) } },
+      null,
+      100,
+    );
+    expect(query.qSource).toBe('a'.repeat(200));
+    expect(edgeExportQuery(query).q_source).toBe('a'.repeat(200));
+  });
+
   it('never carries an address id that is not a url id into the query', () => {
     const query = edgeQueryOf(parseLinksSearch({ src: 'abc', tgt: '0' }), {}, null, 100);
     expect(query.source).toBeNull();

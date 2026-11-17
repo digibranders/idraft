@@ -1,6 +1,6 @@
 import { MAX_TAGS, MAX_TIERS, UNTIERED_VALUE, UUID } from '../pages/page-filters';
 import type { LinksTranslate } from '../tabs';
-import type { LinksState } from '../url-state';
+import { searchText, type LinksState } from '../url-state';
 import type { FilterField, FilterValues } from '@/components/app/filters/types';
 import type { DownloadQuery } from '@/lib/api/download';
 import { enumValuesOf, type FilterValue } from '@/lib/filters/filter-values';
@@ -92,7 +92,7 @@ export function edgeQueryOf(state: LinksState, values: FilterValues, cursor: str
     source: state.source,
     target: state.target,
     worklist: state.edgeWorklist,
-    qSource: source?.kind === 'text' && source.text.trim() !== '' ? source.text.trim() : null,
+    qSource: source?.kind === 'text' ? searchText(source.text) : null,
     qTarget: state.lq,
     cursor,
     limit,

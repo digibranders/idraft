@@ -2,6 +2,7 @@ import { act, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { MAX_TAGS } from '../pages/page-filters';
 import { downloadApiFile } from '@/lib/api/download';
 import { internalLinksKeys } from '@/lib/internal-links/queries';
 import { MOCK_WORKSPACE } from '@/mocks/fixtures';
@@ -23,6 +24,8 @@ vi.mock('next/navigation', () => ({
 vi.mock('@/lib/api/download', () => ({ downloadApiFile: vi.fn(() => Promise.resolve()) }));
 
 const EDGES = mswPath('/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/edges');
+/** Longer than the search delay of the tab, so the typing has paused. */
+const SEARCH_PAUSE_MS = 400;
 const SCOPE = { workspaceId: MOCK_WORKSPACE.workspace_id, projectId: EVENTUS.project_id };
 const [READS_KEY = []] = internalLinksKeys(SCOPE);
 
@@ -32,6 +35,7 @@ beforeEach(() => {
   vi.mocked(downloadApiFile).mockImplementation(() => Promise.resolve());
 });
 afterEach(() => {
+  vi.useRealTimers();
   restoreWideScreen();
   server.events.removeAllListeners();
   document.documentElement.classList.remove('dark');
@@ -71,14 +75,15 @@ describe('the Links tab (spec 7.3)', () => {
     expect(await rows()).not.toHaveLength(0);
   });
 
-  it('opens a worklist from the Pages chips as links of every scope, with a chip that removes it', async () => {
+  it('reads the worklist the Pages chip opens (scope all, as the chip counts) and shows a chip that removes it', async () => {
     const reads = edgeReads();
     renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
-      searchParams: '?tab=links&lview=broken_and_redirected',
+      searchParams: '?tab=links&lview=broken_and_redirected&scope=all',
     });
     await rows();
     expect(screen.getByRole('button', { name: 'Remove Broken and redirected links' })).toBeInTheDocument();
     expect(reads().at(-1)?.get('filter[worklist]')).toBe('broken_and_redirected');
+    expect(reads().at(-1)?.get('scope')).toBe('all');
   });
 
   it('reads the links from one page when the address names it, and says so', async () => {
@@ -116,14 +121,140 @@ describe('the Links tab (spec 7.3)', () => {
     );
   });
 
-  it('never shows equity, in the text or in a name', async () => {
-    const { container } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
+  it('never shows or asks for equity: not in the text, a name, the column chooser, a request or the export', async () => {
+    const reads = edgeReads();
+    const { container, user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
       searchParams: '?tab=links',
     });
     await rows();
     expect(container.textContent?.toLowerCase()).not.toContain('equity');
     const names = [...container.querySelectorAll('[aria-label]')].map((node) => node.getAttribute('aria-label'));
     expect(names.join(' ').toLowerCase()).not.toContain('equity');
+    await user.click(screen.getByRole('button', { name: 'Columns' }));
+    expect(await screen.findByRole('checkbox', { name: 'Source page' })).toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: /equity/i })).not.toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    await user.click(screen.getByRole('button', { name: 'Export' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Export this tab (CSV)' }));
+    await waitFor(() => expect(downloadApiFile).toHaveBeenCalledTimes(1));
+    const asked = [...reads().map((read) => read.toString()), JSON.stringify(vi.mocked(downloadApiFile).mock.calls)];
+    for (const text of asked) {
+      expect(text.toLowerCase()).not.toContain('equity');
+      expect(text).not.toMatch(/sort/);
+    }
+  });
+
+  it('sends every filter of the address to the server CSV too: tiers, placement, status, worklist and both pages', async () => {
+    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
+      searchParams:
+        '?tab=links&scope=all&lview=links_to_non_indexable&stier=none&ttier=none&place=footer&tstatus=3xx&src=5&tgt=7',
+    });
+    await user.click(await screen.findByRole('button', { name: 'Export' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Export this tab (CSV)' }));
+    await waitFor(() => expect(downloadApiFile).toHaveBeenCalledTimes(1));
+    expect(downloadApiFile).toHaveBeenCalledWith(
+      `/api/v1/workspaces/${MOCK_WORKSPACE.workspace_id}/projects/${EVENTUS.project_id}/internal-links/edges`,
+      {
+        scope: 'all',
+        'filter[source_tier]': ['none'],
+        'filter[target_tier]': ['none'],
+        'filter[placement]': ['footer'],
+        'filter[target_status]': ['3xx'],
+        'filter[source]': '5',
+        'filter[target]': '7',
+        'filter[worklist]': 'links_to_non_indexable',
+        format: 'csv',
+      },
+      'internal-links-links.csv',
+    );
+  });
+
+  it('starts no second download while one is running, and says why', async () => {
+    let finish = (): void => undefined;
+    vi.mocked(downloadApiFile).mockImplementation(() => new Promise<void>((resolve) => (finish = resolve)));
+    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: '?tab=links' });
+    await rows();
+    await user.click(screen.getByRole('button', { name: 'Export' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Export this tab (CSV)' }));
+    await user.click(screen.getByRole('button', { name: 'Export' }));
+    const again = await screen.findByRole('menuitem', { name: /Export this tab \(CSV\)/ });
+    expect(again).toHaveAttribute('aria-disabled', 'true');
+    expect(again).toHaveTextContent('The export is being prepared');
+    await user.click(again);
+    expect(downloadApiFile).toHaveBeenCalledTimes(1);
+    await user.keyboard('{Escape}');
+    await act(async () => {
+      finish();
+      await Promise.resolve();
+    });
+  });
+
+  it('keeps the tag filter to the most the API takes, in the chips and the request, and says so', async () => {
+    const reads = edgeReads();
+    const writes: string[] = [];
+    const tags = Array.from(
+      { length: MAX_TAGS + 1 },
+      (_, index) => `0192e4a0-4000-7000-8000-${String(index).padStart(12, '0')}`,
+    );
+    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
+      searchParams: `?tab=links&tag=${tags.join(',')}`,
+      onUrlUpdate: ({ queryString }) => writes.push(queryString),
+    });
+    expect(await screen.findByText('Tag filter limited to 50 tags')).toBeInTheDocument();
+    await waitFor(() => expect(writes.length).toBeGreaterThan(0));
+    const kept = (query: string): string[] => new URLSearchParams(query).get('tag')?.split(',') ?? [];
+    expect(writes.some((query) => kept(query).join() === tags.slice(0, MAX_TAGS).join())).toBe(true);
+    for (const read of reads()) expect(read.get('filter[tag]')?.split(',').length ?? 0).toBeLessThanOrEqual(MAX_TAGS);
+  });
+
+  it('keeps the spaces typed in the search, asks once typing pauses, and a cleared box sends no search', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const reads = edgeReads();
+    const writes: string[] = [];
+    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
+      searchParams: '?tab=links',
+      onUrlUpdate: ({ queryString }) => writes.push(queryString),
+    });
+    await rows();
+    const box = screen.getByRole('searchbox', { name: 'Search in table' });
+    await user.type(box, 'seo ');
+    expect(reads().flatMap((read) => read.get('q_target') ?? [])).toEqual([]);
+    act(() => {
+      vi.advanceTimersByTime(SEARCH_PAUSE_MS);
+    });
+    await waitFor(() => expect(reads().some((read) => read.get('q_target') === 'seo')).toBe(true));
+    expect(box).toHaveValue('seo ');
+    await user.clear(box);
+    act(() => {
+      vi.advanceTimersByTime(SEARCH_PAUSE_MS);
+    });
+    // The address drops the search (the unfiltered list is cached, so no new request is needed to show it)
+    await waitFor(() => expect(new URLSearchParams(writes.at(-1)).has('lq')).toBe(false));
+    expect(box).toHaveValue('');
+    expect(reads().flatMap((read) => read.get('q_target') ?? [])).toEqual(['seo']);
+  });
+
+  it('clears a tier filter and the worklist in one go', async () => {
+    server.use(
+      http.get(EDGES, ({ request }) =>
+        new URL(request.url).searchParams.has('filter[worklist]')
+          ? HttpResponse.json({
+              data: [],
+              page: { limit: 100, next_cursor: null, has_more: false },
+              meta: { run_id: MOCK_RUN_ID, scope: 'all', total: 0 },
+            })
+          : undefined,
+      ),
+    );
+    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
+      searchParams: '?tab=links&lview=broken_and_redirected&stier=none',
+    });
+    // The table's own message, not the filter bar's Clear, which is there before the rows have loaded
+    const empty = await screen.findByRole('gridcell', { name: /No links match/ });
+    await user.click(within(empty).getByRole('button', { name: 'Clear filters' }));
+    expect(await rows()).not.toHaveLength(0);
+    expect(screen.queryByRole('button', { name: 'Remove Broken and redirected links' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Remove Source tier/ })).not.toBeInTheDocument();
   });
 
   it('says why when the filters match no link, and clears them', async () => {

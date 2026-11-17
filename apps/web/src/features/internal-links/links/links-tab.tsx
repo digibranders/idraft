@@ -8,6 +8,7 @@ import { useEffect, useMemo, type ReactElement } from 'react';
 import { edgeColumns } from './edge-columns';
 import { edgeExportQuery, edgeFilterFields, edgeQueryOf } from './edge-filters';
 import { pageRange, useCursorPaging } from '../pages/cursor-paging';
+import { capTags, MAX_TAGS } from '../pages/page-filters';
 import { useSearchDraft } from '../pages/search-draft';
 import { ScopeMenu } from '../scope-menu';
 import type { LinksTabContext } from '../tabs';
@@ -19,6 +20,7 @@ import { EmptyState } from '@/components/app/status/empty-state';
 import { InlineError } from '@/components/app/status/inline-error';
 import { Button } from '@/components/ui/button';
 import { Tag } from '@/components/ui/tag';
+import { toast } from '@/components/ui/toast';
 import { downloadApiFile } from '@/lib/api/download';
 import { isApiProblem } from '@/lib/api/problem';
 import { formatInteger } from '@/lib/format';
@@ -83,6 +85,17 @@ function LinksList({ context }: { context: LinksTabContext }): ReactElement {
     [t, tiers, tags, vocabularies.pending, vocabularies.error],
   );
   const [values, setValues] = useUrlFilters(fields);
+  // The API takes at most 50 tags; the chips are cut to what the request and the export ask for, and the person is told
+  useEffect(() => {
+    const capped = capTags(values);
+    if (capped === null) return;
+    setValues(capped);
+    toast({
+      type: 'info',
+      title: t('pages.tagCap.title', { max: MAX_TAGS }),
+      description: t('pages.tagCap.description', { max: MAX_TAGS }),
+    });
+  }, [values, setValues, t]);
   const { draft, setDraft } = useSearchDraft(state.lq, (lq) => setSearch({ lq }), SEARCH_DELAY_MS);
   // A new query starts again at the first page
   const filtersKey = JSON.stringify([state.scope, state.edgeWorklist, state.lq, state.source, state.target, values]);

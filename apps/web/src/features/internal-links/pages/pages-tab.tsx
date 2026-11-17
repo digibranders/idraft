@@ -174,10 +174,10 @@ export function PagesTab({ context }: { context: LinksTabContext }): ReactElemen
               : 'empty'
             : 'ready';
   const worklistEmpty = state.worklist === null ? null : EMPTY_KEY[state.worklist];
-  // `scope: null` is deliberate: the link worklists count links of every scope, so the Links tab opens on the default
-  // scope chip (Editorial) and not on the one chosen here
+  // The link worklists count links of every scope, so the Links tab opens on All links (whatever scope is chosen
+  // here) and lists as many rows as the chip counts
   const openEdgeWorklist = (worklist: EdgeWorklist): void =>
-    setSearch({ tab: 'links', lview: worklist, scope: null }, { history: 'push' });
+    setSearch({ tab: 'links', lview: worklist, scope: 'all' }, { history: 'push' });
   const openRow = (row: PageRow, intent: 'inspector' | 'new-tab'): void => {
     if (intent === 'inspector') {
       context.inspect.open(row.url_id);
