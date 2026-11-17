@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from structlog.testing import capture_logs
 
 from idraft.collectors import budget, crawl_runs
+from idraft.collectors.crawl_enrich import CrawlEnrichTask
 from idraft.collectors.crawl_runs import (
     CrawlBusyError,
     CrawlIngestTask,
@@ -941,3 +942,24 @@ async def test_a_stale_queued_crawl_whose_post_has_begun_is_not_expired(
     await crawl_tick(worker_db, None, _Sent(), now=datetime.now(UTC))
 
     assert (await _run(migrated, run_id))["state"] == "queued"
+
+
+async def test_the_tick_sends_the_enrich_job_for_ready_crawls_that_still_have_extras_to_do(
+    migrated: PostgresServer, worker_db: Sessions
+) -> None:
+    workspace, project = await site_project(migrated)
+    pending, _ = await seed_crawl(migrated, workspace, project, [("/", 200)])
+    finished, _ = await seed_crawl(migrated, workspace, project, [("/", 200)])
+    await execute(
+        migrated, "UPDATE seo.crawl_runs SET enrich_state = 'done' WHERE id = $1", finished
+    )
+    enriched: list[uuid.UUID] = []
+
+    async def send_enrich(task: CrawlEnrichTask) -> bool:
+        enriched.append(task.run_id)
+        return True
+
+    report = await crawl_tick(worker_db, None, _Sent(), now=NOW, send_enrich=send_enrich)
+
+    assert enriched == [pending]
+    assert report.enrich_sent == 1

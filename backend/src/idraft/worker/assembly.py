@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from idraft.collectors.ai_prompt import AiPromptWorkload
 from idraft.collectors.ai_prompt_ingest import ingest as ingest_ai_answers
 from idraft.collectors.costs import DAILY_DAYS, HOURLY_DAYS, roll_up_costs
+from idraft.collectors.crawl_enrich import ENRICH_JOB, ENRICH_PASS_TIME, CrawlEnrichTask, enrich_run
 from idraft.collectors.crawl_ingest import PASS_TIME, ingest_run
 from idraft.collectors.crawl_runs import INGEST_JOB, CrawlIngestTask, crawl_tick
 from idraft.collectors.dispatcher import SubmitBatch, dispatch
@@ -152,6 +153,24 @@ def ingest_handler(
     return crawl_ingest
 
 
+def enrich_handler(context: WorkerContext) -> Callable[[CrawlEnrichTask], Awaitable[None]]:
+    """The `crawl_enrich` job: one pass over one crawl's extras. One at a time per worker
+    process: the mention phase reads raw HTML and keeps one step's pages in memory."""
+    one_at_a_time = asyncio.Semaphore(1)
+
+    async def crawl_enrich(task: CrawlEnrichTask) -> None:
+        async with one_at_a_time:
+            outcome = await enrich_run(
+                context.sessions,
+                context.raw_store,
+                task,
+                deadline=time.monotonic() + ENRICH_PASS_TIME.total_seconds(),
+            )
+        _log.info("crawl enrich pass", run_id=str(task.run_id), **asdict(outcome))
+
+    return crawl_enrich
+
+
 def crawl_ticks(context: WorkerContext) -> list[Tick]:
     """The crawl tick and its `crawl_ingest` job, or nothing: unless `crawls_enabled` is set,
     no crawl is queued, posted or read, whatever else is configured. Without DataForSEO
@@ -163,14 +182,21 @@ def crawl_ticks(context: WorkerContext) -> list[Tick]:
     if on_page is not None:
         context.queues.register("process", INGEST_JOB, ingest_handler(context, on_page))
 
+    context.queues.register("process", ENRICH_JOB, enrich_handler(context))
+
     async def send_crawl_ingest(task: CrawlIngestTask) -> bool:
         if on_page is None:
             return False
         return await context.queues.enqueue(INGEST_JOB, task, dedupe_key=task.dedupe_key)
 
+    async def send_crawl_enrich(task: CrawlEnrichTask) -> bool:
+        return await context.queues.enqueue(ENRICH_JOB, task, dedupe_key=task.dedupe_key)
+
     async def crawls() -> None:
         now = await database_time(context.sessions)
-        report = await crawl_tick(context.sessions, on_page, send_crawl_ingest, now=now)
+        report = await crawl_tick(
+            context.sessions, on_page, send_crawl_ingest, now=now, send_enrich=send_crawl_enrich
+        )
         if not report.quiet:
             _log.info("crawl tick", **asdict(report))
 
