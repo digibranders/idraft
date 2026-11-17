@@ -79,7 +79,8 @@ describe('the Pages tab (spec 7.2)', () => {
 
   it('shows the tier, the depth, the linking pages and the flags of a page', async () => {
     renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: '?q=%2Fblog%2Fthreat' });
-    const row = await within(await grid()).findByRole('row', { name: /^\/blog\/threat-report-2022/ });
+    // An editor's row starts with its selection checkbox ("Select /blog/..."), so the name is matched anywhere
+    const row = await within(await grid()).findByRole('row', { name: /\/blog\/threat-report-2022/ });
     expect(row).toHaveTextContent('T3');
     expect(row).toHaveTextContent('No editorial links in');
   });

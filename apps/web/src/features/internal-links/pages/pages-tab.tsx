@@ -1,20 +1,25 @@
 'use client';
 
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { Layers, Tag, Tags, Workflow } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { parseAsString, useQueryStates } from 'nuqs';
-import { useEffect, useMemo, type ReactElement } from 'react';
+import { useEffect, useMemo, useState, type ReactElement } from 'react';
 
+import { BulkTagDialog } from './bulk-tag-dialog';
+import { BulkTierDialog } from './bulk-tier-dialog';
 import { useCursorPaging, pageRange } from './cursor-paging';
 import { keysOfSort, pageColumns, sortOfKeys } from './page-columns';
 import { capTags, MAX_TAGS, pageExportQuery, pageFilterFields, pageQueryOf } from './page-filters';
 import { useSearchDraft } from './search-draft';
+import { TierKeys } from './tier-keys';
+import { usePageBulk, type BulkTarget } from './use-page-bulk';
 import { WorklistChips } from './worklist-chips';
 import { ScopeMenu } from '../scope-menu';
 import { DEFAULT_SORT } from '../url-state';
 import type { LinksTabContext } from '../tabs';
 import { DataTable } from '@/components/app/data-table/data-table';
-import type { DataTableProps } from '@/components/app/data-table/types';
+import type { DataTableProps, RecordAction } from '@/components/app/data-table/types';
 import { FilterBar } from '@/components/app/filters/filter-bar';
 import { useUrlFilters } from '@/components/app/filters/use-url-filters';
 import { EmptyState } from '@/components/app/status/empty-state';
@@ -27,6 +32,7 @@ import { formatInteger, formatList } from '@/lib/format';
 import { useVocabularies } from '@/lib/keywords/taxonomy-reads';
 import { isPageRowPage, pagesPath, pagesQuery } from '@/lib/internal-links/queries';
 import type { EdgeWorklist, PageRow, PageRowPage, PageWorklist } from '@/lib/internal-links/types';
+import { useCan } from '@/lib/permissions';
 import { formatColumns, parseColumns, parseDensity } from '@/lib/tables/table-state';
 
 const TABLE_KEYS = { density: parseAsString, cols: parseAsString };
@@ -34,6 +40,8 @@ const TABLE_KEYS = { density: parseAsString, cols: parseAsString };
 const NO_ROWS: readonly PageRow[] = [];
 const REQUIRED_COLUMNS = ['page'];
 const EXPORT_NAME = 'internal-links-pages.csv';
+/** Where the project's tag vocabularies are made (the bulk tag dialog's link when it has none). */
+const TAXONOMY_PATH = '/settings/taxonomy';
 /** The request waits this long after the last keystroke (13-filters-search.md section 6). */
 const SEARCH_DELAY_MS = 250;
 
@@ -176,6 +184,44 @@ export function PagesTab({ context }: { context: LinksTabContext }): ReactElemen
     window.open(`${window.location.pathname}?${next.toString()}`, '_blank', 'noopener');
   };
 
+  // Bulk changes: the person may write; the selection belongs to the query, so a new query starts with none
+  const bulkWords = useTranslations('internalLinks.bulk');
+  const canWrite = useCan('projects:write');
+  const [picked, setPicked] = useState<{ key: string; ids: ReadonlySet<string>; all: boolean }>({
+    key: filtersKey,
+    ids: new Set(),
+    all: false,
+  });
+  const chosen = picked.key === filtersKey ? picked : { key: filtersKey, ids: new Set<string>(), all: false };
+  const clearSelection = (): void => setPicked({ key: filtersKey, ids: new Set(), all: false });
+  const bulk = usePageBulk(scope, query, clearSelection);
+  const target: BulkTarget = { ids: [...chosen.ids], allMatching: chosen.all };
+  const targetCount = chosen.all ? (total ?? 0) : chosen.ids.size;
+  const [tierDialog, setTierDialog] = useState(false);
+  const [tagDialog, setTagDialog] = useState<'add' | 'remove' | null>(null);
+  const bulkActions: RecordAction<PageRow>[] = [
+    { id: 'set-tier', label: bulkWords('setTier'), icon: Layers, group: 'object', onSelect: () => setTierDialog(true) },
+    { id: 'add-tag', label: bulkWords('addTag'), icon: Tag, group: 'object', onSelect: () => setTagDialog('add') },
+    {
+      id: 'remove-tag',
+      label: bulkWords('removeTag'),
+      icon: Tags,
+      group: 'object',
+      onSelect: () => setTagDialog('remove'),
+    },
+    {
+      id: 'open-journey',
+      label: bulkWords('openJourney'),
+      icon: Workflow,
+      group: 'open',
+      disabledReason: !chosen.all && chosen.ids.size === 1 ? null : bulkWords('openJourneyOne'),
+      onSelect: (rowsOf) => {
+        const [first] = rowsOf;
+        if (first !== undefined) context.openJourney(first.url_id);
+      },
+    },
+  ];
+
   return (
     <div className="flex flex-col gap-3">
       <WorklistChips
@@ -232,6 +278,18 @@ export function PagesTab({ context }: { context: LinksTabContext }): ReactElemen
         rowName={(row) => row.path}
         onRowOpen={openRow}
         activeRowId={context.inspect.urlId}
+        selection={
+          canWrite
+            ? {
+                selectedIds: chosen.ids,
+                onChange: (ids) => setPicked({ key: filtersKey, ids, all: false }),
+                matchingTotal: total,
+                allMatching: chosen.all,
+                onAllMatchingChange: (all) => setPicked({ key: filtersKey, ids: chosen.ids, all }),
+              }
+            : undefined
+        }
+        bulkActions={canWrite ? bulkActions : undefined}
         status={status}
         errorState={
           <InlineError
@@ -269,6 +327,30 @@ export function PagesTab({ context }: { context: LinksTabContext }): ReactElemen
             />
           )
         }
+      />
+      <TierKeys
+        tiers={tiers}
+        listed={canWrite}
+        enabled={canWrite && (chosen.all || chosen.ids.size > 0) && !bulk.pending}
+        onTier={(tier) => void bulk.setTier(target, tier)}
+      />
+      <BulkTierDialog
+        open={tierDialog}
+        onOpenChange={setTierDialog}
+        count={targetCount}
+        tiers={tiers}
+        pending={bulk.pending}
+        onSetTier={(tier) => bulk.setTier(target, tier)}
+        onReset={() => bulk.resetToRule(target)}
+      />
+      <BulkTagDialog
+        mode={tagDialog}
+        onClose={() => setTagDialog(null)}
+        count={targetCount}
+        tags={tags}
+        taxonomyHref={context.hrefOf(TAXONOMY_PATH)}
+        pending={bulk.pending}
+        onApply={(tag, add) => bulk.changeTag(target, tag, add)}
       />
     </div>
   );
