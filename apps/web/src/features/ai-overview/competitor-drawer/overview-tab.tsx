@@ -4,6 +4,7 @@ import { Layers, Scale } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useMemo, type ReactElement } from 'react';
 
+import type { CitationShare } from './data/citation-share';
 import { useCitationShare } from './data/use-citation-share';
 import { useScopeParts } from './data/use-scope-parts';
 import { useEveryPlatformRead, useWeeklyReads, type CompetitorRead } from './data/use-competitor-read';
@@ -108,7 +109,7 @@ function SummaryCard({
 }: {
   read: CompetitorRead;
   competitor: TrackedEntity;
-  citation: Read<{ own: number | null; rival: number | null }>;
+  citation: Read<CitationShare>;
 }): ReactElement {
   const t = useTranslations('aiOverview.competitorDrawer');
   const slots = read.set === null ? null : colorSlots(read.set);
@@ -165,8 +166,18 @@ function SummaryCard({
             id: 'citation',
             label: t('summary.citation'),
             tip: t('summary.citationTip'),
-            own: { value: citation.data?.own ?? null, answers: null, successes: null },
-            rival: { value: citation.data?.rival ?? null, answers: null, successes: null },
+            own: {
+              value: citation.data?.own ?? null,
+              answers: null,
+              successes: null,
+              counts: citation.data?.ownCounts ?? null,
+            },
+            rival: {
+              value: citation.data?.rival ?? null,
+              answers: null,
+              successes: null,
+              counts: citation.data?.rivalCounts ?? null,
+            },
             ownTip: null,
             rivalTip: null,
             decimals: 1 as const,
@@ -226,7 +237,14 @@ function SummaryCard({
               <ValueCell value={row.own.value} tip={row.ownTip} decimals={row.decimals} state={row.state} />
               <ValueCell value={row.rival.value} tip={row.rivalTip} decimals={row.decimals} state={row.state} />
               <td className="px-3 pr-4 text-right">
-                <GapCell own={row.own.value} rival={row.rival.value} name={competitor.name} decimals={row.decimals} />
+                <GapCell
+                  own={row.own.value}
+                  rival={row.rival.value}
+                  ownCounts={row.own.counts}
+                  rivalCounts={row.rival.counts}
+                  name={competitor.name}
+                  decimals={row.decimals}
+                />
               </td>
             </tr>
           ))}
@@ -366,7 +384,13 @@ function PlatformsCard({
               <ValueCell value={row.own} tip={null} />
               <ValueCell value={row.rival} tip={null} />
               <td className="px-3 pr-4 text-right">
-                <GapCell own={row.own} rival={row.rival} name={competitor.name} />
+                <GapCell
+                  own={row.own}
+                  rival={row.rival}
+                  ownCounts={row.ownCounts}
+                  rivalCounts={row.rivalCounts}
+                  name={competitor.name}
+                />
               </td>
             </tr>
           ))}

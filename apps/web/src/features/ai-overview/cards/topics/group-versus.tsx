@@ -1,13 +1,12 @@
 'use client';
 
-import { Minus, TrendingDown, TrendingUp } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { ReactElement } from 'react';
 
 import type { UnavailablePlatform } from './heatmap-model';
 import type { Reading, VersusRow } from './group-versus-model';
+import { GapIcon } from '../../competitor-drawer/gap-icon';
 import { PlainTable, type PlainColumn } from '@/components/app/table/plain-table';
-import { Icon } from '@/components/ui/icon';
 import { Tooltip } from '@/components/ui/tooltip';
 import { EMPTY_VALUE, formatPercent, formatPointsDelta } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -21,35 +20,23 @@ const FILL: Readonly<Record<string, string>> = {
 const FILL_AVERAGE = 'bg-chart-other';
 const FILL_OTHER = 'bg-chart-bar-neutral';
 
-const TONE = { above: 'text-positive-text', below: 'text-negative-text', level: 'text-foreground-secondary' } as const;
-const ICON = { above: TrendingUp, below: TrendingDown, level: Minus } as const;
-/** Two rates that differ by less than this are level: a point is far above the rounding of a whole percent. */
-const LEVEL_BELOW = 0.0005;
-
 /**
  * The difference between the group and all groups as the trend icon of the Prompts page: green when the group is
- * ahead, red when it is behind, a grey dash when level. It is a direction of a difference between two things, not a
- * detected change, so its hover says it was not tested; shape and words carry it for people who get no colour.
+ * ahead and red when it is behind, only when the difference is detectable (the test of every change icon); otherwise a
+ * grey dash whose words say it is not detectable, small sample.
  */
-function GapIcon({ group, row }: { group: string; row: VersusRow }): ReactElement | null {
+function VersusGap({ group, row }: { group: string; row: VersusRow }): ReactElement | null {
   const t = useTranslations('aiOverview.topics.groups.versus');
   const { difference } = row;
   if (difference === null || row.group.value === null || row.all.value === null) return null;
-  const side = Math.abs(difference) < LEVEL_BELOW ? 'level' : difference > 0 ? 'above' : 'below';
-  const sentence = t(side === 'level' ? 'gapLevel' : side === 'above' ? 'gapAbove' : 'gapBelow', {
+  const detectable = row.detectable === true && difference !== 0;
+  const sentence = t(!detectable ? 'gapLevel' : difference > 0 ? 'gapAbove' : 'gapBelow', {
     group,
     points: formatPointsDelta(Math.abs(difference), { decimals: 1 }).replace(/^\+/, ''),
     ours: percent(row.group.value),
     theirs: percent(row.all.value),
   });
-  return (
-    <Tooltip content={sentence} purpose="label">
-      <span className={cn('inline-flex shrink-0 self-center', TONE[side])}>
-        <Icon icon={ICON[side]} size="sm" />
-        <span className="sr-only">{sentence}</span>
-      </span>
-    </Tooltip>
-  );
+  return <GapIcon difference={difference} detectable={detectable} sentence={sentence} />;
 }
 
 export interface GroupVersusProps {
@@ -143,7 +130,7 @@ export function GroupVersus({ group, rows, unavailable, counted }: GroupVersusPr
                     {row.group.value === null ? t('valueNone') : percent(row.group.value)}
                   </span>
                 </Tooltip>
-                <GapIcon group={group} row={row} />
+                <VersusGap group={group} row={row} />
               </span>
             </div>
             {/* The bar is the group; the tick is all groups */}

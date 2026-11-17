@@ -33,7 +33,8 @@ describe('citationShareOf', () => {
       'own',
       'rival',
     );
-    expect(result).toEqual({ own: 0.2, rival: 0.1 });
+    // The citation units behind each share are what the gap icon tests
+    expect(result).toEqual({ own: 0.2, rival: 0.1, ownCounts: { k: 20, n: 1000 }, rivalCounts: { k: 10, n: 1000 } });
   });
 
   it('averages the platforms where both brands have a share, and leaves out one with under 4 valid answers', () => {
@@ -52,10 +53,7 @@ describe('citationShareOf', () => {
 
   it('has none when a brand is not in the answer or has no value, never 0', () => {
     expect(citationShareOf(response(row('own', { chatgpt_web: [0.2, 100] })), ['chatgpt_web'], 'own', 'rival')).toEqual(
-      {
-        own: null,
-        rival: null,
-      },
+      { own: null, rival: null, ownCounts: null, rivalCounts: null },
     );
     expect(
       citationShareOf(
@@ -64,6 +62,6 @@ describe('citationShareOf', () => {
         'own',
         'rival',
       ),
-    ).toEqual({ own: null, rival: null });
+    ).toEqual({ own: null, rival: null, ownCounts: null, rivalCounts: null });
   });
 });

@@ -6388,9 +6388,9 @@
           "tableThis": "This group",
           "tableAll": "All groups",
           "tablePlatform": "Platform",
-          "gapAbove": "{group} is {points} above all groups: {ours} against {theirs}. Not tested for detectability.",
-          "gapBelow": "{group} is {points} below all groups: {ours} against {theirs}. Not tested for detectability.",
-          "gapLevel": "{group} is level with all groups: {ours} against {theirs}. Not tested for detectability.",
+          "gapAbove": "{group} is {points} above all groups: {ours} against {theirs}. Detectable: its 95% interval excludes zero.",
+          "gapBelow": "{group} is {points} below all groups: {ours} against {theirs}. Detectable: its 95% interval excludes zero.",
+          "gapLevel": "{group} is level with all groups: the difference of {points} is not detectable, small sample: {ours} against {theirs}.",
           "titleLoading": "The chosen group vs all groups"
         },
         "prompts": {
@@ -7058,9 +7058,9 @@
         "valueMention": "{k, number} of {n, number} {n, plural, one {answer} other {answers}}",
         "valueShare": "{n, number} {n, plural, one {answer} other {answers}} that mention a tracked brand",
         "valueAverage": "average of {count, plural, one {# platform} other {# platforms}}",
-        "gapAbove": "You are {points} pts above {name}: {own} against {rival}. Not tested for detectability.",
-        "gapBelow": "You are {points} pts below {name}: {own} against {rival}. Not tested for detectability.",
-        "gapLevel": "You are level with {name}: {own} against {rival}. Not tested for detectability.",
+        "gapAbove": "You are {points} pts above {name}: {own} against {rival}. Detectable: its 95% interval excludes zero.",
+        "gapBelow": "You are {points} pts below {name}: {own} against {rival}. Detectable: its 95% interval excludes zero.",
+        "gapLevel": "Level with {name}: the difference of {points} pts is not detectable, small sample: {own} against {rival}.",
         "emptyTitle": "No rate yet",
         "emptyReason": "Too few answers in this scope to compare.",
         "info": {

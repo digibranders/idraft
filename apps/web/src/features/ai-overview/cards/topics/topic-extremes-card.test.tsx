@@ -159,9 +159,15 @@ describe('with one group chosen: the group against all groups', () => {
     render({ searchParams: GROUP });
     await screen.findByRole('heading', { name: 'Alpha vs all groups' });
     // Alpha is 90% on ChatGPT against 40% of all groups
+    // 9 of 10 answers against all groups' counts: detectable, so the icon is coloured and the words say so
     expect(
-      await screen.findByText('Alpha is 50.0 pts above all groups: 90% against 40%. Not tested for detectability.'),
-    ).toBeInTheDocument();
+      (
+        await screen.findAllByText(
+          'Alpha is 50.0 pts above all groups: 90% against 40%. Detectable: its 95% interval excludes zero.',
+        )
+      ).length,
+    ).toBeGreaterThan(0);
+    expect(document.querySelector('[data-slot="gap-icon"][data-direction="up"]')).not.toBeNull();
   });
 
   it('has the counts of every rate in its tooltip text for screen readers', async () => {

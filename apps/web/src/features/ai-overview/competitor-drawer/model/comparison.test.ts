@@ -39,8 +39,8 @@ describe('compareInScope', () => {
       false,
     );
     // Each prompt counts once: the mean of 4/8 and 2/8, the mean of 2/8 and 6/8
-    expect(result?.mention.own).toEqual({ value: 0.375, answers: 16, successes: 6 });
-    expect(result?.mention.rival).toEqual({ value: 0.5, answers: 16, successes: 8 });
+    expect(result?.mention.own).toEqual({ value: 0.375, answers: 16, successes: 6, counts: { k: 6, n: 16 } });
+    expect(result?.mention.rival).toEqual({ value: 0.5, answers: 16, successes: 8, counts: { k: 8, n: 16 } });
     expect(result?.mention.platforms).toBe(1);
     expect(result?.share.own.value).toBeCloseTo(6 / 16);
     expect(result?.share.own.successes).toBeNull();
@@ -56,6 +56,9 @@ describe('compareInScope', () => {
     expect(result?.mention.rival.value).toBeCloseTo(0.375);
     expect(result?.mention.platforms).toBe(2);
     expect(result?.mention.own.answers).toBeNull();
+    // The gap of an average is tested on the counts of the platforms in it, added up
+    expect(result?.mention.own.counts).toEqual({ k: 4, n: 16 });
+    expect(result?.mention.rival.counts).toEqual({ k: 6, n: 16 });
   });
 
   it('leaves out a platform where either brand has under 4 valid answers, and never turns it into 0', () => {
@@ -91,8 +94,8 @@ describe('platformRows', () => {
       id(2),
     );
     expect(rows).toEqual([
-      { code: 'chatgpt_web', own: 0.5, rival: 0.25 },
-      { code: 'gemini_web', own: null, rival: null },
+      { code: 'chatgpt_web', own: 0.5, rival: 0.25, ownCounts: { k: 4, n: 8 }, rivalCounts: { k: 2, n: 8 } },
+      { code: 'gemini_web', own: null, rival: null, ownCounts: null, rivalCounts: null },
     ]);
   });
 });

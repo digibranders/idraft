@@ -3,7 +3,7 @@ import { CELL_OF_MEASURE, forMeasure } from './group-rows';
 import type { ScopeMetric } from '../../scope/scope-model';
 import type { EngineSummary } from '@/lib/api/types';
 import { averageRate } from '@/lib/rates/rate-model';
-import type { RateState } from '@/lib/stats';
+import { isDetectableDifference, pooledCounts, type Counts, type RateState } from '@/lib/stats';
 
 /**
  * The chosen group against all groups (OV-GRP-12): one row per platform and their average, each with the group's rate
@@ -32,6 +32,12 @@ export interface VersusRow {
   all: Reading;
   /** The group's rate minus the rate of all groups, as a ratio (0.05 is 5 points), when both have a rate; `null` otherwise. */
   difference: number | null;
+  /**
+   * Whether the two rates differ detectably (`isDetectableDifference`, the test of every change icon) on the counts of
+   * both; an average is tested on the counts of the platforms that have a rate on both sides, added up. `null` where a
+   * count is not known (share of voice) or either side has no rate.
+   */
+  detectable: boolean | null;
 }
 
 export interface VersusInput {
@@ -84,26 +90,55 @@ function differenceOf(group: Reading, all: Reading): number | null {
   return group.value === null || all.value === null ? null : group.value - all.value;
 }
 
+/** The counts of a reading that has a rate and whole counts behind it. */
+const countsOf = (reading: Reading): Counts | null =>
+  reading.value === null || reading.successes === null ? null : { k: reading.successes, n: reading.answers };
+
 export function versusRows({ platforms, group, all, measure, averageLabel }: VersusInput): VersusRow[] {
   const codes = platforms.map((platform) => platform.code);
-  const row = (id: string, label: string, isAverage: boolean, own: Reading, every: Reading): VersusRow => ({
+  const row = (
+    id: string,
+    label: string,
+    isAverage: boolean,
+    own: Reading,
+    every: Reading,
+    detectable: boolean | null,
+  ): VersusRow => ({
     id,
     label,
     average: isAverage,
     group: own,
     all: every,
     difference: differenceOf(own, every),
+    detectable,
   });
+  const single = platforms.map((platform) => ({
+    platform,
+    own: platformReading(group, platform.code, measure),
+    every: platformReading(all, platform.code, measure),
+  }));
+  // The average is tested on the platforms that have a rate on both sides, their counts added up
+  const both = single.flatMap(({ own, every }) => {
+    const [a, b] = [countsOf(own), countsOf(every)];
+    return a === null || b === null ? [] : [{ a, b }];
+  });
+  const pooled = (pick: (entry: (typeof both)[number]) => Counts): Counts => pooledCounts(both.map(pick));
   return [
-    ...platforms.map((platform) =>
-      row(
-        platform.code,
-        platform.label,
-        false,
-        platformReading(group, platform.code, measure),
-        platformReading(all, platform.code, measure),
-      ),
+    ...single.map(({ platform, own, every }) =>
+      row(platform.code, platform.label, false, own, every, isDetectableDifference(countsOf(own), countsOf(every))),
     ),
-    row(AVERAGE, averageLabel, true, averageReading(group, codes, measure), averageReading(all, codes, measure)),
+    row(
+      AVERAGE,
+      averageLabel,
+      true,
+      averageReading(group, codes, measure),
+      averageReading(all, codes, measure),
+      both.length === 0
+        ? null
+        : isDetectableDifference(
+            pooled((entry) => entry.a),
+            pooled((entry) => entry.b),
+          ),
+    ),
   ];
 }

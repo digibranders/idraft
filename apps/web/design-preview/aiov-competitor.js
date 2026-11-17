@@ -7,6 +7,7 @@
  * filled again when that scope changes.
  */
 import { formatInteger } from './vendor/format/number.js';
+import { isDetectableDifference } from './vendor/stats/index.js';
 import { COMPETITORS } from './prompts-data.js';
 import { WEEK_LABELS, buildModel, competitorId, groupOf, headToHead, leadsFor, sourcesBehind } from './aiov-data.js';
 import { chartHost, lineOption, mountChart } from './aiov-charts.js';
@@ -42,7 +43,36 @@ const dot = (token) => {
 /** "612 of 1,800 answers", or nothing when a count is missing. */
 const countsOf = (total, part, noun) => (typeof total === 'number' && typeof part === 'number' ? `${formatInteger(part)} of ${formatInteger(total)} ${noun}` : undefined);
 
-const signedPoints =(diff) => (Math.abs(diff) < 0.0005 ? '0 pts' : `${diff > 0 ? '+' : '−'}${(Math.abs(diff) * 100).toFixed(1)} pts`);
+const GAP_TONE = { up: 'text-positive-text', down: 'text-negative-text', flat: 'text-foreground-secondary' };
+
+/**
+ * Your value against theirs as the trend icon: green and up when you are ahead, red and down when you are behind, only
+ * when the difference is detectable (the test of every change icon, on the counts of both); otherwise a grey dash whose
+ * words say it is not detectable, small sample. `n/a` when either has no rate.
+ */
+function gapCell(own, rival, ownCounts, rivalCounts, name, decimals = 0) {
+  const cell = el('td', 'px-3 pr-4 text-right');
+  if (own === null || rival === null) {
+    cell.className = 'px-3 pr-4 text-right num text-foreground-tertiary';
+    cell.textContent = 'n/a';
+    return cell;
+  }
+  const difference = own - rival;
+  const detectable = isDetectableDifference(ownCounts, rivalCounts) === true && difference !== 0;
+  const direction = detectable ? (difference > 0 ? 'up' : 'down') : 'flat';
+  const shown = decimals === 1 ? pct1 : pct0;
+  const points = (Math.abs(difference) * 100).toFixed(1);
+  const sentence = detectable
+    ? `You are ${points} pts ${difference > 0 ? 'above' : 'below'} ${name}: ${shown(own)} against ${shown(rival)}. Detectable: its 95% interval excludes zero.`
+    : `Level with ${name}: the difference of ${points} pts is not detectable, small sample: ${shown(own)} against ${shown(rival)}.`;
+  const icon = el('span', `inline-flex shrink-0 self-center ${GAP_TONE[direction]}`);
+  icon.dataset.direction = direction;
+  icon.dataset.tip = sentence;
+  icon.tabIndex = 0;
+  icon.append(ui.icon(direction === 'flat' ? 'minus' : direction === 'up' ? 'trending-up' : 'trending-down', 'size-icon-sm'), el('span', 'sr-only', sentence));
+  cell.append(icon);
+  return cell;
+}
 
 // -------------------------------------------------------------------------------------------------
 // Overview: you against the competitor
@@ -73,8 +103,7 @@ function overviewTable(rival, rows) {
       if (tip) cell.dataset.tip = tip;
       return cell;
     };
-    const gap = el('td', 'px-3 pr-4 text-right num text-foreground-secondary', row.own === null || row.rival === null ? 'n/a' : signedPoints(row.own - row.rival));
-    gap.dataset.tip = 'Your value minus theirs, in points. Not tested for detectability';
+    const gap = gapCell(row.own, row.rival, row.ownCounts, row.rivalCounts, rival.name, row.decimals);
     tr.append(name, value(row.own, row.decimals, row.ownTip), value(row.rival, row.decimals, row.rivalTip), gap);
     body.append(tr);
   });
@@ -92,9 +121,9 @@ function fillOverview(model, index) {
   }
   const rows = [
     // The counts behind each rate are in the tooltips (R1): pooled answers, while the rate is prompt-weighted
-    { label: 'Mention rate', own: data.own.mention, rival: data.rival.mention, tip: 'Share of valid answers that name the brand. Each prompt counts once.', ownTip: countsOf(model.average.mention.counts?.n, data.own.answers, 'answers'), rivalTip: countsOf(model.average.mention.counts?.n, data.rival.answers, 'answers') },
-    { label: 'Share of voice', own: data.own.sov, rival: data.rival.sov, tip: 'Share of tracked-brand mentions, within the tracked set.', ownTip: countsOf(data.own.answersOfTracked, data.own.answers, 'brand mentions'), rivalTip: countsOf(data.rival.answersOfTracked, data.rival.answers, 'brand mentions') },
-    { label: 'Source share', own: data.sourceShare.own, rival: data.sourceShare.rival, decimals: 1, tip: 'Share of citation units that are pages of the brand’s own domain.' },
+    { label: 'Mention rate', own: data.own.mention, rival: data.rival.mention, ownCounts: { k: data.own.answers, n: data.own.observations }, rivalCounts: { k: data.rival.answers, n: data.rival.observations }, tip: 'Share of valid answers that name the brand. Each prompt counts once.', ownTip: countsOf(model.average.mention.counts?.n, data.own.answers, 'answers'), rivalTip: countsOf(model.average.mention.counts?.n, data.rival.answers, 'answers') },
+    { label: 'Share of voice', own: data.own.sov, rival: data.rival.sov, ownCounts: { k: data.own.answers, n: data.own.answersOfTracked }, rivalCounts: { k: data.rival.answers, n: data.rival.answersOfTracked }, tip: 'Share of tracked-brand mentions, within the tracked set.', ownTip: countsOf(data.own.answersOfTracked, data.own.answers, 'brand mentions'), rivalTip: countsOf(data.rival.answersOfTracked, data.rival.answers, 'brand mentions') },
+    { label: 'Source share', own: data.sourceShare.own, rival: data.sourceShare.rival, ownCounts: data.sourceShare.ownCounts, rivalCounts: data.sourceShare.rivalCounts, decimals: 1, tip: 'Share of citation units that are pages of the brand’s own domain.' },
   ];
   const summary = cardFrame({
     key: 'competitor.summary',
@@ -125,7 +154,7 @@ function fillOverview(model, index) {
     name.scope = 'row';
     name.append(platformLabel(entry.code));
     const cell = (ratio) => (ratio === null ? el('td', 'px-3 text-right text-foreground-tertiary', 'n/a') : el('td', 'px-3 text-right num', pct0(ratio)));
-    const gap = el('td', 'px-3 pr-4 text-right num text-foreground-secondary', entry.own === null || entry.rival === null ? 'n/a' : signedPoints(entry.own - entry.rival));
+    const gap = gapCell(entry.own, entry.rival, entry.ownCounts, entry.rivalCounts, rival.name);
     tr.append(name, cell(entry.own), cell(entry.rival), gap);
     body.append(tr);
   });

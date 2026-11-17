@@ -321,6 +321,7 @@ export function entitiesFor(model) {
     const rate = (pick) => promptWeightedRate(rows.map((row) => ({ k: pick(row), n: row.n })));
     return {
       total,
+      observations,
       shares: [own / total, ...competitors.map((count) => count / total)],
       counts: [own, ...competitors],
       rates: [rate((row) => row.m), ...COMPETITORS.map((_, index) => rate((row) => row.competitors[index]))],
@@ -334,6 +335,8 @@ export function entitiesFor(model) {
     mention: mean((entry) => entry.rates[index]),
     answers: used.reduce((sum, entry) => sum + entry.counts[index], 0),
     answersOfTracked: used.reduce((sum, entry) => sum + entry.total, 0),
+    // The valid answers behind the mention rate, for the test of a gap
+    observations: used.reduce((sum, entry) => sum + entry.observations, 0),
     platforms: used.length,
   }));
 }
@@ -413,12 +416,17 @@ export function headToHead(model, index) {
     const platformModel = buildModel({ ...model.scope, platform: code });
     const [ownEntity, ...others] = entitiesFor(platformModel);
     const other = others[index];
-    return { code, own: ownEntity.mention, rival: other?.mention ?? null };
+    const counts = (entity) => (entity?.mention == null ? null : { k: entity.answers, n: entity.observations });
+    return { code, own: ownEntity.mention, rival: other?.mention ?? null, ownCounts: counts(ownEntity), rivalCounts: counts(other) };
   });
+  const units = (domain) => {
+    const row = domains.rows.find((entry) => entry.domain === domain);
+    return row === undefined ? null : { k: row.units, n: domains.total };
+  };
   return {
     own,
     rival,
-    sourceShare: { own: share('northwind.com'), rival: share(COMPETITORS[index].domain) },
+    sourceShare: { own: share('northwind.com'), rival: share(COMPETITORS[index].domain), ownCounts: units('northwind.com'), rivalCounts: units(COMPETITORS[index].domain) },
     perPlatform,
     series: {
       // Your line is the page's own mention trend, so the same number tells the same story (R12). A competitor's
