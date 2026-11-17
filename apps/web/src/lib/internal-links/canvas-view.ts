@@ -99,8 +99,8 @@ export function centerOn(view: View, box: Box, viewport: Size, scale: number = v
  * The view when a journey first opens: the whole journey when it is readable at 70 percent or more, otherwise the focus
  * page at 85 percent, so the first thing seen is never a blur.
  */
-export function firstView(content: Box, focus: Box, viewport: Size): View {
-  const whole = fitView(content, viewport);
+export function firstView(content: Box, focus: Box, viewport: Size, margin: number = FIT_MARGIN): View {
+  const whole = fitView(content, viewport, margin);
   if (whole.scale >= READABLE_SCALE) return whole;
   return centerOn(whole, focus, viewport, FOCUS_SCALE);
 }

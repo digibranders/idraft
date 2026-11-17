@@ -17,13 +17,26 @@ import {
   type Ref,
 } from 'react';
 
+import { CanvasViewport } from './canvas-viewport';
 import { LinkCard, type LinkCardPageProps } from './link-card';
-import { ZOOMS, type Zoom } from './zoom-controls';
+import { Minimap, type MinimapCard } from './minimap';
+import { ViewControls } from './view-controls';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { announce } from '@/lib/a11y/announcer';
 import { SingleKeysContext } from '@/lib/a11y/use-shortcut';
-import { edgeLook, elbowPath, returnArrowPath, type Box, type EdgeLook } from '@/lib/internal-links/journey-geometry';
+import {
+  centerOn,
+  firstView,
+  fitView,
+  revealMinimum,
+  stepZoom,
+  zoomAt,
+  type Size,
+  type View,
+} from '@/lib/internal-links/canvas-view';
+import { COLUMN_GAP, curvePath } from '@/lib/internal-links/journey-curves';
+import { edgeLook, returnArrowPath, type Box, type EdgeLook } from '@/lib/internal-links/journey-geometry';
 import {
   FOCUS_KEY,
   isFull,
@@ -50,8 +63,10 @@ export interface CanvasFocus {
 }
 
 export interface LinkCanvasHandle {
-  /** The largest zoom step at which the whole journey fits the width. */
-  fitZoom: () => Zoom;
+  /** Everything in view (never past 100 percent). */
+  fit: () => void;
+  /** The focus page in the middle, at the current zoom. */
+  centerFocus: () => void;
 }
 
 export interface LinkCanvasProps<N extends JourneyNeighbor> {
@@ -59,7 +74,9 @@ export interface LinkCanvasProps<N extends JourneyNeighbor> {
   focus: CanvasFocus;
   /** Lines under the focus card: "18 editorial links in.", the orphan and redirect notes. */
   focusNote?: ReactNode;
-  zoom: Zoom;
+  /** Where the world is and how far it is zoomed; the host keeps it (the canvas sets a first view for each focus page). */
+  view: View;
+  onViewChange: (view: View) => void;
   /** Cards whose return arrows stay drawn. */
   pinned: ReadonlySet<string>;
   onTogglePin: (key: string) => void;
@@ -74,9 +91,13 @@ export interface LinkCanvasProps<N extends JourneyNeighbor> {
   ref?: Ref<LinkCanvasHandle>;
 }
 
-/** The space between columns that the elbows' spine runs in (mock `gap-16`; a style, since 64 px is no spacing step). */
-const COLUMN_GAP = 64;
 const MIN_HEIGHT = 440;
+/** Used before the region has been measured (and where there is no layout, as in tests). */
+const DEFAULT_WIDTH = 1000;
+/** A journey fits with more air than a free fit (review of the pure modules: 56, the default is 32). */
+const JOURNEY_MARGIN = 56;
+/** The margin a focused card is kept inside the view with. */
+const REVEAL_MARGIN = 24;
 /** The legend line and the page's bottom padding stay in view under the canvas. */
 const BELOW = 72;
 const FLASH_MS = 1500;
@@ -87,6 +108,8 @@ interface DrawnEdge {
   id: string;
   d: string;
   look: EdgeLook;
+  /** The dot at the source end, and where the arrowhead stands (lines only). */
+  start: { x: number; y: number } | null;
 }
 
 const STROKE: Readonly<Record<EdgeLook['tone'], string>> = {
@@ -95,11 +118,13 @@ const STROKE: Readonly<Record<EdgeLook['tone'], string>> = {
   redirect: 'stroke-warning-text',
   broken: 'stroke-negative-text',
 };
-
-/** The operating system's setting and the app's own (`data-motion` on the root, 21-motion.md): both stop script scrolls. */
-const reducedMotion = (): boolean =>
-  (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false) ||
-  document.documentElement.dataset.motion === 'reduced';
+const FILL: Readonly<Record<EdgeLook['tone'], string>> = {
+  editorial: 'fill-foreground-tertiary',
+  muted: 'fill-border-strong',
+  redirect: 'fill-warning-text',
+  broken: 'fill-negative-text',
+};
+const TONES = Object.keys(STROKE) as readonly EdgeLook['tone'][];
 
 /** How long an activated card may wait for the rebuild its activation causes (the host may answer after a request). */
 const RESTORE_MS = 2000;
@@ -127,6 +152,8 @@ function hold<N extends JourneyNeighbor>(
 interface DrawnEdges {
   lines: DrawnEdge[];
   arrows: DrawnEdge[];
+  /** Every card in world coordinates: the map, the first view and the reveal read them. */
+  cards: MinimapCard[];
   width: number;
   height: number;
 }
@@ -136,8 +163,13 @@ const sameEdges = (a: DrawnEdges, b: DrawnEdges): boolean =>
   a.height === b.height &&
   a.lines.length === b.lines.length &&
   a.arrows.length === b.arrows.length &&
+  a.cards.length === b.cards.length &&
   a.lines.every((line, index) => line.id === b.lines[index]?.id && line.d === b.lines[index].d) &&
-  a.arrows.every((arrow, index) => arrow.id === b.arrows[index]?.id && arrow.d === b.arrows[index].d);
+  a.arrows.every((arrow, index) => arrow.id === b.arrows[index]?.id && arrow.d === b.arrows[index].d) &&
+  a.cards.every((card, index) => {
+    const other = b.cards[index];
+    return card.key === other?.key && card.left === other.left && card.top === other.top;
+  });
 
 function statusBadge(status: number | null, notCrawled: string): LinkCardPageProps['status'] {
   if (status === null) return { text: notCrawled, tone: 'neutral' };
@@ -154,7 +186,8 @@ export function LinkCanvas<N extends JourneyNeighbor>({
   layout,
   focus,
   focusNote,
-  zoom,
+  view,
+  onViewChange,
   pinned,
   onTogglePin,
   onToggleCard,
@@ -170,6 +203,8 @@ export function LinkCanvas<N extends JourneyNeighbor>({
   const singleKeys = use(SingleKeysContext);
   const markerId = useId();
   const scroller = useRef<HTMLDivElement>(null);
+  // The focus page the first view was last set for: one first view per focus page
+  const firstFor = useRef<string | null>(null);
   const inner = useRef<HTMLDivElement>(null);
   // The card that was activated, the keys that can take focus back (itself, then what it hung under), the layout it
   // was activated on and when: focus returns once the layout is rebuilt, and not for a zoom or a hover
@@ -178,8 +213,12 @@ export function LinkCanvas<N extends JourneyNeighbor>({
   const [flashKey, setFlashKey] = useState<string | null>(null);
   // One tab stop for the whole canvas: the card that last had focus (the focus page at first)
   const [activeKey, setActiveKey] = useState(FOCUS_KEY);
-  const [edges, setEdges] = useState<DrawnEdges>({ lines: [], arrows: [], width: 0, height: 0 });
+  const [edges, setEdges] = useState<DrawnEdges>({ lines: [], arrows: [], cards: [], width: 0, height: 0 });
   const [height, setHeight] = useState(MIN_HEIGHT + 120);
+  const [width, setWidth] = useState(DEFAULT_WIDTH);
+  // The map is off until its button is pressed (owner decision, 2026-11-17)
+  const [minimap, setMinimap] = useState(false);
+  const size = useMemo<Size>(() => ({ width, height }), [width, height]);
 
   const tierText = useCallback((tier: TierNameLike | null): string => tier?.code ?? t('untiered'), [t]);
   const tierLong = useCallback(
@@ -228,7 +267,8 @@ export function LinkCanvas<N extends JourneyNeighbor>({
     return keys;
   }, [shownBacks, byKey, flashKey]);
 
-  // Edges are measured from the cards as laid out, in unscaled pixels (the mock's `boxIn`)
+  // Edges are measured from the cards as laid out, in world pixels: the screen rectangles divided by the scale
+  const scale = view.scale;
   const draw = useCallback((): void => {
     const root = inner.current;
     if (root === null) return;
@@ -242,19 +282,30 @@ export function LinkCanvas<N extends JourneyNeighbor>({
       const rect = elements.get(key)?.getBoundingClientRect();
       if (rect === undefined) return null;
       return {
-        left: (rect.left - origin.left) / zoom,
-        top: (rect.top - origin.top) / zoom,
-        width: rect.width / zoom,
-        height: rect.height / zoom,
+        left: (rect.left - origin.left) / scale,
+        top: (rect.top - origin.top) / scale,
+        width: rect.width / scale,
+        height: rect.height / scale,
       };
     };
+    const cards: MinimapCard[] = [];
+    for (const key of elements.keys()) {
+      const box = boxOf(key);
+      if (box !== null) cards.push({ key, ...box });
+    }
     const statusOf = (key: string): number | null => {
       if (key === FOCUS_KEY) return focus.statusCode;
       const item = byKey.get(key);
       return item?.kind === 'card' || item?.kind === 'stub' ? item.node.status_code : null;
     };
+    // Curves leaving one card lean apart (the fan), so each needs its place among the children of its parent
+    const children = new Map<string, number>();
+    for (const item of byKey.values()) children.set(item.parentKey, (children.get(item.parentKey) ?? 0) + 1);
+    const placed = new Map<string, number>();
     const lines: DrawnEdge[] = [];
     for (const [key, item] of byKey) {
+      const index = placed.get(item.parentKey) ?? 0;
+      placed.set(item.parentKey, index + 1);
       const parent = boxOf(item.parentKey);
       const child = boxOf(key);
       if (parent === null || child === null) continue;
@@ -263,7 +314,10 @@ export function LinkCanvas<N extends JourneyNeighbor>({
         item.kind === 'group'
           ? edgeLook(item.scope === 'both' ? null : item.scope, null)
           : edgeLook(item.node.scope, inbound ? statusOf(item.parentKey) : item.node.status_code);
-      lines.push({ id: key, d: elbowPath(inbound ? child : parent, inbound ? parent : child), look });
+      const drawn = inbound
+        ? curvePath(child, parent, index, children.get(item.parentKey))
+        : curvePath(parent, child, index, children.get(item.parentKey));
+      lines.push({ id: key, d: drawn.d, look, start: drawn.start });
     }
     lines.sort((a, b) => a.look.rank - b.look.rank);
     const arrows: DrawnEdge[] = [];
@@ -275,14 +329,14 @@ export function LinkCanvas<N extends JourneyNeighbor>({
         const to = boxOf(back.key);
         if (to === null) continue;
         const d = item.dir === 'out' ? returnArrowPath(from, to) : returnArrowPath(to, from);
-        arrows.push({ id: `${key}>${back.key}`, d, look: { tone: 'editorial', dash: '6 4', rank: 2 } });
+        arrows.push({ id: `${key}>${back.key}`, d, look: { tone: 'editorial', dash: '6 4', rank: 2 }, start: null });
       }
     }
-    // The size of the columns (offset size, in unscaled pixels), not the scroll size: the SVG layer must not hold the area open
-    const next = { lines, arrows, width: root.offsetWidth, height: root.offsetHeight };
+    // The size of the columns (offset size, in world pixels), not the scroll size: the SVG layer must not hold the area open
+    const next = { lines, arrows, cards, width: root.offsetWidth, height: root.offsetHeight };
     // A hover or a pin that changes nothing on screen must not render the canvas again
     setEdges((current) => (sameEdges(current, next) ? current : next));
-  }, [byKey, shownBacks, zoom, focus.statusCode]);
+  }, [byKey, shownBacks, scale, focus.statusCode]);
 
   useLayoutEffect(() => {
     draw();
@@ -315,14 +369,35 @@ export function LinkCanvas<N extends JourneyNeighbor>({
 
   // The canvas takes the rest of the window below its top, so a tall window shows more of the journey
   useLayoutEffect(() => {
-    const fit = (): void => {
+    const measure = (): void => {
       const top = scroller.current?.getBoundingClientRect().top ?? 0;
       setHeight(Math.max(MIN_HEIGHT, Math.round(window.innerHeight - top - BELOW)));
+      setWidth(scroller.current?.clientWidth || DEFAULT_WIDTH);
     };
-    fit();
-    window.addEventListener('resize', fit);
-    return () => window.removeEventListener('resize', fit);
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
   }, []);
+
+  const content = useMemo<Box>(
+    () => ({ left: 0, top: 0, width: edges.width, height: edges.height }),
+    [edges.width, edges.height],
+  );
+  const boxOfKey = (key: string): Box | undefined => edges.cards.find((card) => card.key === key);
+  const fit = (): void => onViewChange(fitView(content, size, JOURNEY_MARGIN));
+  const centerFocus = (): void => {
+    const box = boxOfKey(FOCUS_KEY);
+    if (box !== undefined) onViewChange(centerOn(view, box, size));
+  };
+
+  // The first view of each focus page, once the journey has a size and no list is still loading (spec 7.5 "First view")
+  useEffect(() => {
+    if (layout.pending || edges.width === 0 || firstFor.current === focus.urlId) return;
+    const box = edges.cards.find((card) => card.key === FOCUS_KEY);
+    if (box === undefined) return;
+    firstFor.current = focus.urlId;
+    onViewChange(firstView(content, box, size, JOURNEY_MARGIN));
+  }, [layout.pending, edges.width, edges.cards, content, size, focus.urlId, onViewChange]);
 
   useEffect(() => {
     if (flashKey === null) return undefined;
@@ -330,17 +405,7 @@ export function LinkCanvas<N extends JourneyNeighbor>({
     return () => window.clearTimeout(timer);
   }, [flashKey]);
 
-  useImperativeHandle(
-    ref,
-    () => ({
-      fitZoom: () => {
-        const room = scroller.current?.clientWidth ?? 0;
-        const width = inner.current?.offsetWidth ?? 0;
-        return [...ZOOMS].reverse().find((step) => width * step <= room) ?? ZOOMS[0];
-      },
-    }),
-    [],
-  );
+  useImperativeHandle(ref, () => ({ fit, centerFocus }));
 
   const nodesOf = (): HTMLElement[] => [...(inner.current?.querySelectorAll<HTMLElement>('[data-node]') ?? [])];
   const focusKey = (key: string): void => {
@@ -382,12 +447,10 @@ export function LinkCanvas<N extends JourneyNeighbor>({
       event.preventDefault();
       const urlId = current.dataset.url;
       if (urlId !== undefined && urlId !== focus.urlId && current.dataset.kind === 'card') onRefocus(urlId);
-      else
-        current.scrollIntoView?.({
-          block: 'center',
-          inline: 'center',
-          behavior: reducedMotion() ? 'auto' : 'smooth',
-        });
+      else {
+        const box = boxOfKey(current.dataset.key ?? '');
+        if (box !== undefined) onViewChange(centerOn(view, box, size));
+      }
     } else if (event.key === 'Escape') {
       event.preventDefault();
       focusKey(FOCUS_KEY);
@@ -397,7 +460,7 @@ export function LinkCanvas<N extends JourneyNeighbor>({
   const findOriginal = (urlId: string): void => {
     const original = nodesOf().find((element) => element.dataset.kind === 'card' && element.dataset.url === urlId);
     if (original === undefined) return;
-    original.scrollIntoView?.({ block: 'nearest', inline: 'center', behavior: reducedMotion() ? 'auto' : 'smooth' });
+    // The focus handler of the canvas pans the original into view
     original.focus({ preventScroll: true });
     setFlashKey(original.dataset.key ?? null);
   };
@@ -667,24 +730,39 @@ export function LinkCanvas<N extends JourneyNeighbor>({
   const focusLinking = t('linkingPages', { count: focus.linkingPages });
   const direction = (dir: Direction, step: number): string => t(dir === 'out' ? 'stepOut' : 'stepIn', { step });
 
+  const onViewportKey = (event: KeyboardEvent<HTMLDivElement>): void => {
+    if (event.key === '0') fit();
+    else if (event.key === 'Home') centerFocus();
+    else return;
+    event.preventDefault();
+  };
+  const middle = { x: size.width / 2, y: size.height / 2 };
+
   return (
     <div className="flex flex-col">
-      <div
-        ref={scroller}
-        role="group"
-        aria-label={t('label')}
-        className="overflow-auto bg-surface-subtle"
-        style={{ height }}
-      >
-        <div style={{ width: edges.width * zoom, height: edges.height * zoom }} className="relative">
+      <div ref={scroller} className="relative" style={{ height }}>
+        <CanvasViewport
+          label={t('label')}
+          view={view}
+          onViewChange={onViewChange}
+          size={size}
+          onKey={onViewportKey}
+          className="h-full"
+        >
           <div
             ref={inner}
             role="presentation"
             className="relative flex w-max items-start p-4"
-            style={{ columnGap: COLUMN_GAP, transform: `scale(${String(zoom)})`, transformOrigin: '0 0' }}
+            style={{ columnGap: COLUMN_GAP }}
             onFocus={(event) => {
               const key = event.target.closest<HTMLElement>('[data-node]')?.dataset.key;
-              if (key !== undefined) setActiveKey(key);
+              if (key === undefined) return;
+              setActiveKey(key);
+              // A card reached by the keyboard is brought into view by the least pan that shows it
+              const box = boxOfKey(key);
+              if (box === undefined) return;
+              const next = revealMinimum(view, box, size, REVEAL_MARGIN);
+              if (next !== view) onViewChange(next);
             }}
           >
             <svg
@@ -705,16 +783,36 @@ export function LinkCanvas<N extends JourneyNeighbor>({
                 >
                   <path d="M1 1L9 5L1 9z" className="fill-primary" />
                 </marker>
+                {/* Every curve arrives horizontally, so the arrowhead needs no more than orient auto */}
+                {TONES.map((tone) => (
+                  <marker
+                    key={tone}
+                    id={`${markerId}-${tone}`}
+                    viewBox="0 0 10 10"
+                    refX="9"
+                    refY="5"
+                    markerWidth="7"
+                    markerHeight="7"
+                    orient="auto"
+                  >
+                    <path d="M1 1L9 5L1 9z" className={FILL[tone]} />
+                  </marker>
+                ))}
               </defs>
               {edges.lines.map((line) => (
-                <path
-                  key={line.id}
-                  d={line.d}
-                  fill="none"
-                  strokeWidth={1.5}
-                  strokeDasharray={line.look.dash ?? undefined}
-                  className={STROKE[line.look.tone]}
-                />
+                <g key={line.id}>
+                  <path
+                    d={line.d}
+                    fill="none"
+                    strokeWidth={1.5}
+                    strokeDasharray={line.look.dash ?? undefined}
+                    markerEnd={`url(#${markerId}-${line.look.tone})`}
+                    className={STROKE[line.look.tone]}
+                  />
+                  {line.start === null ? null : (
+                    <circle cx={line.start.x} cy={line.start.y} r={3} className={FILL[line.look.tone]} />
+                  )}
+                </g>
               ))}
               {edges.arrows.map((arrow) => (
                 <path
@@ -782,7 +880,37 @@ export function LinkCanvas<N extends JourneyNeighbor>({
               ),
             )}
           </div>
+        </CanvasViewport>
+        <div className="absolute bottom-3 left-3">
+          <ViewControls
+            percent={Math.round(view.scale * 100)}
+            minimap={minimap}
+            onZoomOut={() => onViewChange(stepZoom(view, -1, size))}
+            onZoomIn={() => onViewChange(stepZoom(view, 1, size))}
+            onActualSize={() => onViewChange(zoomAt(view, 1, middle))}
+            onFit={fit}
+            onCenterFocus={centerFocus}
+            onToggleMinimap={() => setMinimap((current) => !current)}
+          />
         </div>
+        {minimap ? (
+          <div className="absolute right-3 bottom-3">
+            <Minimap
+              label={t('map')}
+              content={content}
+              cards={edges.cards}
+              shown={{
+                left: -view.x / view.scale,
+                top: -view.y / view.scale,
+                width: size.width / view.scale,
+                height: size.height / view.scale,
+              }}
+              onMove={(point) =>
+                onViewChange(centerOn(view, { left: point.x, top: point.y, width: 0, height: 0 }, size))
+              }
+            />
+          </div>
+        ) : null}
       </div>
       <Legend />
     </div>

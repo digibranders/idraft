@@ -7236,10 +7236,18 @@
       "broken": "Broken target",
       "back": "Back link (shown on hover or when pinned)"
     },
-    "zoomLevel": "{percent}%",
-    "zoomOut": "Zoom out",
-    "zoomIn": "Zoom in",
-    "fit": "Fit to view"
+    "controls": {
+      "label": "Canvas view",
+      "zoomOut": "Zoom out",
+      "zoomIn": "Zoom in",
+      "percent": "{percent}%",
+      "actualSize": "{percent}%, return to 100%",
+      "fit": "Fit everything",
+      "center": "Centre on focus",
+      "showMap": "Show the map",
+      "hideMap": "Hide the map"
+    },
+    "map": "Map of the journey"
   },
   "internalLinks": {
     "title": "Internal links",

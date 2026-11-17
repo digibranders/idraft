@@ -4113,19 +4113,24 @@ interface LinkCanvasProps<N extends JourneyNeighbor> {
   layout: JourneyLayout<N>;        // lib/internal-links/journey-layout.ts
   focus: CanvasFocus;
   focusNote?: ReactNode;
-  zoom: 0.6 | 0.8 | 1 | 1.2;
+  view: { x: number; y: number; scale: number };   // lib/internal-links/canvas-view.ts, scale 0.25 to 2
+  onViewChange: (view: View) => void;
   pinned: ReadonlySet<string>;
   onTogglePin, onToggleCard, onToggleGroup, onMore: (key: string) => void;
   onRefocus, onDetails: (urlId: string) => void;
   onRetry: (request: ListRequest) => void;
   onFull: () => void;              // opening refused at 300 cards
-  ref?: Ref<{ fitZoom: () => Zoom }>;
+  ref?: Ref<{ fit: () => void; centerFocus: () => void }>;
 }
 ```
 
-- **Variants:** none. `ZoomControls` (`zoom-controls.tsx`) sits in the toolbar above it.
+- **Viewport** (`canvas-viewport.tsx`): the canvas does not scroll. The columns and the lines sit in one world that moves by a single transform; the background is a dot grid that moves and scales with it. Columns stand 112 px apart. Pan: drag the empty background, wheel or two finger scroll, Space and drag, one finger on a touch screen, the arrow keys (Shift for a larger step) when the empty canvas has focus; a fast drag glides to a stop. Zoom: 25 to 200 percent with Ctrl or Cmd and the wheel or a pinch, toward the cursor; the keys + and - step by a quarter, 1 returns to 100 percent, 0 fits everything, Home centres on the focus page. Reduced motion (the system setting or `data-motion="reduced"`) removes the glide; nothing else animates.
+- **First view:** once per focus page, when no list is loading: the whole journey with a 56 px margin when that is readable (70 percent or more), otherwise the focus page at 85 percent. A card that takes focus is panned into view by the least move (24 px margin).
+- **View controls** (`view-controls.tsx`, a toolbar named Canvas view, bottom left): zoom out, the zoom in percent (press to return to 100 percent), zoom in, fit everything, centre on focus, show or hide the map.
+- **Minimap** (`minimap.tsx`, bottom right): off until the map button is pressed; hidden under 640 px; every card as a box and the part in view as an outline; press or drag to move the view.
+- **Variants:** none.
 - **States:** loading list (a skeleton row and `role="status"`), failed list (words and Try again), full canvas (refused through `onFull`), back links shown on hover, focus or pin.
-- **A11y:** the scroller is a named `group` whose name points to the tree list; keyboard model in 20 §7.1; the SVG is `aria-hidden` and nothing it shows is only there.
+- **A11y:** the viewport is a named, focusable `group` whose name points to the tree list; keyboard model in 20 §7.1; the SVG is `aria-hidden` and nothing it shows is only there.
 - **Use:** the Journey tab of Internal links.
 - **Not for:** a whole-site graph (spec 3: "when asked"), any other diagram.
 

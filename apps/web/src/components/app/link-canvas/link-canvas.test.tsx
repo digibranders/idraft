@@ -1,8 +1,9 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { LinkCanvas, type CanvasFocus, type LinkCanvasProps } from './link-canvas';
 import { SingleKeysContext } from '@/lib/a11y/use-shortcut';
+import type { View } from '@/lib/internal-links/canvas-view';
 import {
   buildJourney,
   cardKey,
@@ -62,7 +63,8 @@ function canvas(over: Partial<LinkCanvasProps<JourneyNeighbor>> = {}, state: Par
   const props: LinkCanvasProps<JourneyNeighbor> = {
     layout: buildJourney({ ...base, ...state }, lookup),
     focus: FOCUS,
-    zoom: 1,
+    view: { x: 0, y: 0, scale: 1 },
+    onViewChange: vi.fn(),
     pinned: new Set(),
     onTogglePin: vi.fn(),
     onToggleCard: vi.fn(),
@@ -269,12 +271,80 @@ describe('LinkCanvas, behaviour found in review', () => {
     expect(screen.getByRole('button', { name: /focus page$/ })).toHaveFocus();
   });
 
-  it('does not pull focus back to an old card when only the zoom changes', async () => {
+  it('does not pull focus back to an old card when only the view changes', async () => {
     const { props, user, rerender } = canvas();
     await user.click(screen.getByRole('button', { name: /^\/blog, T3/ }));
     screen.getByRole('button', { name: /^\/pricing, T1/ }).focus();
-    rerender(<LinkCanvas {...props} zoom={0.6} />);
+    rerender(<LinkCanvas {...props} view={{ x: -20, y: 10, scale: 0.6 }} />);
     expect(screen.getByRole('button', { name: /^\/pricing, T1/ })).toHaveFocus();
+  });
+
+  it('shows the world through a transform and has no scrolling region', () => {
+    canvas({ view: { x: 40, y: 20, scale: 0.5 } });
+    const region = screen.getByRole('group', { name: /^Link journey canvas/ });
+    expect(region.className).toContain('overflow-hidden');
+    expect((region.firstElementChild as HTMLElement).style.transform).toBe('translate(40px, 20px) scale(0.5)');
+    expect(region).toHaveAttribute('tabindex', '0');
+  });
+
+  it('has the view toolbar, and the map is off until its button is pressed', async () => {
+    const { user } = canvas();
+    expect(screen.getByRole('toolbar', { name: 'Canvas view' })).toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: 'Map of the journey' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Show the map' }));
+    expect(screen.getByRole('img', { name: 'Map of the journey' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Hide the map' })).toHaveAttribute('aria-pressed', 'true');
+    await user.click(screen.getByRole('button', { name: 'Hide the map' }));
+    expect(screen.queryByRole('img', { name: 'Map of the journey' })).toBeNull();
+  });
+
+  it('fits everything at no more than 100 percent, centres on the focus page, and returns to 100 percent', async () => {
+    const onViewChange = vi.fn();
+    const { user } = canvas({ onViewChange, view: { x: 0, y: 0, scale: 0.5 } });
+    onViewChange.mockClear();
+    await user.click(screen.getByRole('button', { name: 'Fit everything' }));
+    expect((onViewChange.mock.lastCall?.[0] as View).scale).toBeLessThanOrEqual(1);
+    await user.click(screen.getByRole('button', { name: 'Centre on focus' }));
+    expect(onViewChange).toHaveBeenCalledTimes(2);
+    await user.click(screen.getByRole('button', { name: '50%, return to 100%' }));
+    expect((onViewChange.mock.lastCall?.[0] as View).scale).toBe(1);
+  });
+
+  it('answers 0 for fit and Home for the focus page from the empty canvas', () => {
+    const onViewChange = vi.fn();
+    canvas({ onViewChange });
+    onViewChange.mockClear();
+    const region = screen.getByRole('group', { name: /^Link journey canvas/ });
+    fireEvent.keyDown(region, { key: '0' });
+    fireEvent.keyDown(region, { key: 'Home' });
+    expect(onViewChange).toHaveBeenCalledTimes(2);
+  });
+
+  it('reveals a card that takes focus outside the view, and leaves a visible one alone', () => {
+    const onViewChange = vi.fn();
+    canvas({ onViewChange, view: { x: -10000, y: 0, scale: 1 } });
+    onViewChange.mockClear();
+    screen.getByRole('button', { name: /^\/pricing, T1/ }).focus();
+    expect(onViewChange).toHaveBeenCalledTimes(1);
+  });
+
+  it('sets the first view once per focus page, when the journey has a size', () => {
+    const size = vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(900);
+    const tall = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(300);
+    const onViewChange = vi.fn();
+    const { props, rerender } = canvas({ onViewChange });
+    expect(onViewChange).toHaveBeenCalledTimes(1);
+    rerender(<LinkCanvas {...props} onViewChange={onViewChange} pinned={new Set(['x'])} />);
+    expect(onViewChange).toHaveBeenCalledTimes(1);
+    rerender(<LinkCanvas {...props} onViewChange={onViewChange} focus={{ ...FOCUS, urlId: '9' }} />);
+    expect(onViewChange).toHaveBeenCalledTimes(2);
+    size.mockRestore();
+    tall.mockRestore();
+  });
+
+  it('never draws an equity share', () => {
+    const { container } = canvas();
+    expect(container.textContent?.toLowerCase()).not.toContain('equity');
   });
 
   it('writes a back link without an anchor as a plain row, never as an empty quote', () => {

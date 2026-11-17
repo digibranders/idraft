@@ -103,6 +103,13 @@ describe('canvas view', () => {
     expect(view.scale).toBeLessThan(1);
   });
 
+  it('takes the margin the journey asks for, so a wider margin fits at a smaller zoom', () => {
+    const content = { left: 0, top: 0, width: 1200, height: 500 };
+    const focus = { left: 500, top: 200, width: 288, height: 56 };
+    expect(firstView(content, focus, VIEWPORT, 56).scale).toBeLessThan(firstView(content, focus, VIEWPORT).scale);
+    expect(firstView(content, focus, VIEWPORT, 56)).toEqual(fitView(content, VIEWPORT, 56));
+  });
+
   it('shows the focus page at 85 percent when the whole journey would be a blur', () => {
     const content = { left: 0, top: 0, width: 6000, height: 2000 };
     const focus = { left: 2800, top: 900, width: 288, height: 56 };

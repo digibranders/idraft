@@ -1,11 +1,11 @@
 'use client';
 
-import { useMemo, useRef, useState, type ReactElement } from 'react';
+import { useMemo, useState, type ReactElement } from 'react';
 
 import { SpecimenGroup, SpecimenRow } from './specimen';
-import { LinkCanvas, type CanvasFocus, type LinkCanvasHandle } from '@/components/app/link-canvas/link-canvas';
-import { ZoomControls, type Zoom } from '@/components/app/link-canvas/zoom-controls';
+import { LinkCanvas, type CanvasFocus } from '@/components/app/link-canvas/link-canvas';
 import { TierBadge } from '@/components/app/tier/tier-badge';
+import type { View } from '@/lib/internal-links/canvas-view';
 import { buildJourney, cardKey, type JourneyNeighbor, type ListLookup } from '@/lib/internal-links/journey-layout';
 
 const TIERS = [
@@ -80,13 +80,12 @@ const toggled = (set: ReadonlySet<string>, key: string): Set<string> => {
 
 /** A live canvas: cards and groups open and close in place, so focus, edges and the back-link marker can be tried. */
 function CanvasSpecimen(): ReactElement {
-  const [zoom, setZoom] = useState<Zoom>(1);
+  const [view, setView] = useState<View>({ x: 0, y: 0, scale: 1 });
   const [pinned, setPinned] = useState<ReadonlySet<string>>(new Set());
   const [open, setOpen] = useState<ReadonlySet<string>>(
     new Set([cardKey('out', ['2']), cardKey('out', ['3']), cardKey('out', ['2', '4'])]),
   );
   const [groups, setGroups] = useState<ReadonlySet<string>>(new Set());
-  const handle = useRef<LinkCanvasHandle>(null);
   const none = (): void => undefined;
   const layout = useMemo(
     () => buildJourney({ focus: '1', scope: 'editorial', open, groups, more: new Map() }, lookup),
@@ -94,15 +93,12 @@ function CanvasSpecimen(): ReactElement {
   );
   return (
     <div className="flex flex-col rounded-lg border border-border bg-surface">
-      <div className="flex items-center border-b border-border-subtle px-3 py-2">
-        <ZoomControls zoom={zoom} onZoomChange={setZoom} onFit={() => setZoom(handle.current?.fitZoom() ?? 1)} />
-      </div>
       <LinkCanvas
-        ref={handle}
         layout={layout}
         focus={FOCUS}
         focusNote={<p className="type-meta text-foreground-tertiary">4 editorial links in.</p>}
-        zoom={zoom}
+        view={view}
+        onViewChange={setView}
         pinned={pinned}
         onTogglePin={(key) => setPinned((current) => toggled(current, key))}
         onToggleCard={(key) => setOpen((current) => toggled(current, key))}
@@ -140,7 +136,7 @@ export function LinkCanvasSection(): ReactElement {
       </SpecimenGroup>
       <SpecimenGroup
         title="LinkCanvas and LinkCard"
-        note="Cards, a stub (Already on the canvas), a group card (Menu and footer), a back-link marker (hover, focus or pin it), a redirect and a broken target."
+        note="Drag the background, use the wheel or Ctrl and wheel, or press the controls at the bottom left (the map button shows the map at the bottom right). Cards, a stub (Already on the canvas), a group card (Menu and footer), a back-link marker (hover, focus or pin it), a redirect and a broken target."
       >
         <CanvasSpecimen />
       </SpecimenGroup>

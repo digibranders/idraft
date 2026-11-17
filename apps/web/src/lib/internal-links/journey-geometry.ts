@@ -1,7 +1,5 @@
 import type { EdgeScope } from './scopes';
 
-/** The radius of an elbow's corners (mock `CORNER`). */
-export const CORNER = 8;
 /** How far below the lower card a return arrow dips. */
 const RETURN_DIP = 40;
 
@@ -13,28 +11,8 @@ export interface Box {
   height: number;
 }
 
-const right = (box: Box): number => box.left + box.width;
-const middle = (box: Box): number => box.top + box.height / 2;
 const bottom = (box: Box): number => box.top + box.height;
 const center = (box: Box): number => box.left + box.width / 2;
-
-/**
- * An orthogonal edge with rounded corners from the middle of `from`'s right side to the middle of `to`'s left side,
- * down a spine halfway between them (the mock's `elbow`). Cards of one parent share the spine. `from` is always the
- * card on the left: an edge into the focus from the left (a link in) passes the child first.
- */
-export function elbowPath(from: Box, to: Box): string {
-  const startX = right(from);
-  const startY = middle(from);
-  const endX = to.left;
-  const endY = middle(to);
-  const spine = startX + (endX - startX) / 2;
-  const dy = endY - startY;
-  const r = Math.min(CORNER, Math.abs(dy) / 2, Math.abs(spine - startX), Math.abs(endX - spine));
-  if (Math.abs(dy) < 1 || r < 1) return `M${startX},${startY} H${spine} V${endY} H${endX}`;
-  const sign = dy > 0 ? 1 : -1;
-  return `M${startX},${startY} H${spine - r} Q${spine},${startY} ${spine},${startY + sign * r} V${endY - sign * r} Q${spine},${endY} ${spine + r},${endY} H${endX}`;
-}
 
 /** A dashed return arrow from the bottom of `from` to the bottom of `to`, dipping under both (the mock's back-link arrows). */
 export function returnArrowPath(from: Box, to: Box): string {
