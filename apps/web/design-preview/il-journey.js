@@ -10,6 +10,7 @@ import {
   setFocus, setTier, suggestedLinks, state, statusBadge, tierBadge, tierBg, tierCode, tierEdge, tierIdOf, tierLabel, tierPosition, tiers,
 } from './il-model.js';
 import { openInspector } from './il-drawer.js';
+import { HOST } from './il-data.js';
 import { MAX_K, MIN_K, createMinimap, createViewport } from './il-canvas.js';
 import { MAX_CARDS, backsOf, buildJourney, canOpen, depthText, linksOf, markerScope, treeRows } from './il-journey-layout.js';
 
@@ -185,6 +186,20 @@ function groupButton(item) {
   return node;
 }
 
+/** A link to the live page, in a new tab. As a card tool it is an icon; in the info panel it carries a label. */
+function visitLink(id, className, withLabel) {
+  const page = pageById(id);
+  const link = el('a', className);
+  link.href = `https://${HOST}${page.path}`;
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  link.dataset.tip = `Visit ${page.path} in a new tab`;
+  link.setAttribute('aria-label', `Visit ${page.path} in a new tab`);
+  link.append(icon('external-link', 'size-icon-xs'));
+  if (withLabel) link.append(el('span', '', 'Visit page'));
+  return link;
+}
+
 function toolButton(name, label, data) {
   const button = el('button', `${ICON_BUTTON} ${FOCUS_RING}`);
   button.type = 'button';
@@ -201,7 +216,7 @@ function cardWrap(item, scope, ctx) {
   const wrap = el('div', 'relative group');
   const tools = el('div', 'absolute right-1 top-1 flex gap-0.5 rounded-sm bg-surface opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-within:opacity-100');
   if (item.key !== 'f') tools.append(toolButton('crosshair', `Make ${path} the focus`, { focusId: item.id }));
-  tools.append(toolButton('info', `Info about ${path}`, { info: item.key }), toolButton('panel-right-open', `Details of ${path}`, { details: item.id }));
+  tools.append(toolButton('info', `Info about ${path}`, { info: item.key }), toolButton('panel-right-open', `Details of ${path}`, { details: item.id }), visitLink(item.id, `${ICON_BUTTON} ${FOCUS_RING}`, false));
   if (item.key === 'f') {
     // A soft halo behind the focus card, so it reads as the centre of the canvas at any zoom
     const halo = el('span', 'pointer-events-none absolute -inset-1.5 rounded-lg');
@@ -716,12 +731,24 @@ function buildCanvas() {
     if (!node || !item) return;
     cardTip(node, item);
     pinnedTip = key;
+    // Pinned, the panel can be used: it offers the live page in a new tab
+    tip.classList.remove('pointer-events-none');
+    tip.append(visitLink(item.id, 'mt-2 inline-flex h-control-sm items-center gap-1.5 rounded-md border border-border bg-surface px-2 type-body text-foreground hover:bg-surface-hover', true));
     const away = (event) => {
-      if (event.target.closest?.(`[data-info="${CSS.escape(key)}"]`)) return;
+      if (event.target.closest?.(`[data-info="${CSS.escape(key)}"]`) || event.target.closest?.('[role=tooltip]')) return;
       hideTip();
       document.removeEventListener('pointerdown', away, true);
+      document.removeEventListener('keydown', escape, true);
+    };
+    // Escape closes it from anywhere, also when focus has moved away from the canvas (for example after the Visit link)
+    const escape = (event) => {
+      if (event.key !== 'Escape') return;
+      hideTip();
+      document.removeEventListener('pointerdown', away, true);
+      document.removeEventListener('keydown', escape, true);
     };
     document.addEventListener('pointerdown', away, true);
+    document.addEventListener('keydown', escape, true);
   }
 
   // ---- Card positions (kept per focus page for the session)
