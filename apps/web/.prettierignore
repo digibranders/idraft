@@ -3,6 +3,7 @@
 .tmp
 next-env.d.ts
 src/lib/api/schema.ts
+src/mocks/fixtures
 public
 
 pnpm-lock.yaml
