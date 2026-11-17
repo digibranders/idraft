@@ -17,6 +17,7 @@ import {
   pageFilterOf,
   pageParams,
   pagesQuery,
+  tierFlowQuery,
   tierRulesQuery,
   pageTiersQuery,
   checkUrlId,
@@ -75,6 +76,16 @@ describe('the pages query (the backend OpenAPI)', () => {
     expect(startsWith(pagesQuery(SCOPE, DEFAULT_PAGE_QUERY).queryKey, reads)).toBe(true);
     expect(startsWith(tierRulesQuery(SCOPE).queryKey, rules)).toBe(true);
     expect(startsWith(pageTiersQuery('w1').queryKey, tiers)).toBe(true);
+  });
+
+  it('keys the tier flow under the reads that a tier change or a finished crawl makes stale', () => {
+    const startsWith = (key: readonly unknown[], prefix: readonly unknown[] | undefined): boolean =>
+      prefix !== undefined && prefix.every((part, index) => key[index] === part);
+    const key = tierFlowQuery(SCOPE, 'editorial').queryKey;
+    expect(startsWith(key, internalLinksKeys(SCOPE)[0])).toBe(true);
+    expect(crawlFinishedKeys(SCOPE).some((prefix) => startsWith(key, prefix))).toBe(true);
+    // One key per scope: a scope never reads the answer of another
+    expect(tierFlowQuery(SCOPE, 'all').queryKey).not.toEqual(key);
   });
 });
 

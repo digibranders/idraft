@@ -31,6 +31,19 @@ describe('tier flow (spec 7.6, mock il-flow.js)', () => {
     expect(strongestSenderToT1([])).toBeNull();
   });
 
+  it('breaks a tie between senders by tier position, Untiered last, whatever the order of the cells', () => {
+    const T3 = { tier_id: 'c', code: 'T3', name: 'Archive' };
+    const tie = [
+      { from_tier: null, to_tier: T1, links: 5 },
+      { from_tier: T3, to_tier: T1, links: 5 },
+      { from_tier: T2, to_tier: T1, links: 5 },
+    ];
+    expect(strongestSenderToT1(tie)?.from).toBe(T2);
+    expect(strongestSenderToT1([...tie].reverse())?.from).toBe(T2);
+    expect(strongestSenderToT1(tie.slice(0, 1))?.from).toBeNull();
+    expect(strongestSenderToT1(tie.slice(0, 2).reverse())?.from).toBe(T3);
+  });
+
   it('gives each tier its share of the pages', () => {
     const shares = tierShares([
       { tier: T1, pages: 14, average_depth: 1.5 },

@@ -1,12 +1,13 @@
 'use client';
 
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import type { Route } from 'next';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useEffect, useMemo, type ReactElement } from 'react';
 
 import { SkeletonRows } from '../crawl-states';
+import { UNTIERED_VALUE } from '../pages/page-filters';
 import { ScopeMenu } from '../scope-menu';
 import type { LinksTabContext } from '../tabs';
 import { SEQUENTIAL_BINS } from '@/components/app/chart/heat-bins';
@@ -14,6 +15,7 @@ import { Banner } from '@/components/app/status/banner';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { InlineError } from '@/components/app/status/inline-error';
 import { TierBadge } from '@/components/app/tier/tier-badge';
+import { Button } from '@/components/ui/button';
 import { LinkButton } from '@/components/ui/link-button';
 import { csvBlob, downloadBlob, safeText } from '@/lib/csv/csv-write';
 import { formatDecimal, formatInteger, formatPercent } from '@/lib/format';
@@ -27,10 +29,7 @@ import { cn } from '@/lib/utils';
 
 const CELL = 'px-3';
 const HEAD = 'h-row-header border-b border-border bg-surface-subtle type-table-header text-foreground-tertiary';
-const EXPORT_NAME = 'internal-links-tier-flow.csv';
-/** What the address and the cells call a page with no tier (the Links tab reads the same word). */
-const NO_TIER = 'none';
-const keyOf = (tier: TierRef | null): string => tier?.tier_id ?? NO_TIER;
+const keyOf = (tier: TierRef | null): string => tier?.tier_id ?? UNTIERED_VALUE;
 const pairKey = (from: TierRef | null, to: TierRef | null): string => `${keyOf(from)}>${keyOf(to)}`;
 
 /**
@@ -44,8 +43,10 @@ export function FlowTab({ context }: { context: LinksTabContext }): ReactElement
   const scopeWords = useTranslations('linkCanvas.scope');
   const common = useTranslations('common');
   const { scope, state, setSearch, registerExport } = context;
-  const read = useQuery({ ...tierFlowQuery(scope, state.scope), placeholderData: keepPreviousData });
-  const flow = read.data?.data;
+  // No placeholder data: the answer of one scope is never shown under the name of another
+  const read = useQuery(tierFlowQuery(scope, state.scope));
+  const answer = read.data?.data;
+  const flow = answer?.scope === state.scope ? answer : undefined;
   const scopeWord = scopeWords(SCOPE_KEY[state.scope]);
   const label = useMemo(
     () =>
@@ -59,10 +60,15 @@ export function FlowTab({ context }: { context: LinksTabContext }): ReactElement
     [flow],
   );
   const keys = useMemo(() => tiers.map((stat) => stat.tier), [tiers]);
-  const cells = useMemo(
-    () => new Map((flow?.cells ?? []).map((cell) => [pairKey(cell.from_tier, cell.to_tier), cell.links])),
-    [flow],
-  );
+  const cells = useMemo(() => {
+    // A pair named twice adds up
+    const sums = new Map<string, number>();
+    for (const cell of flow?.cells ?? []) {
+      const key = pairKey(cell.from_tier, cell.to_tier);
+      sums.set(key, (sums.get(key) ?? 0) + cell.links);
+    }
+    return sums;
+  }, [flow]);
   const valueOf = (from: TierRef | null, to: TierRef | null): number => cells.get(pairKey(from, to)) ?? 0;
 
   // The page's Export downloads this matrix (a header, one line per tier, the row total last)
@@ -77,13 +83,13 @@ export function FlowTab({ context }: { context: LinksTabContext }): ReactElement
         const values = keys.map((to) => cells.get(pairKey(from, to)) ?? 0);
         return [safeText(label(from)), ...values, values.reduce((sum, value) => sum + value, 0)];
       });
-      downloadBlob(csvBlob({ header, rows }), EXPORT_NAME);
+      downloadBlob(csvBlob({ header, rows }), `internal-links-tier-flow-${flow.scope}.csv`);
       return Promise.resolve();
     });
     return () => registerExport(null);
   }, [registerExport, flow, keys, cells, label, t]);
 
-  if (read.isError && flow === undefined) {
+  if (read.isError && answer === undefined) {
     return (
       <InlineError
         title={t('loadFailed')}
@@ -156,7 +162,7 @@ export function FlowTab({ context }: { context: LinksTabContext }): ReactElement
       {strongest === null ? null : (
         <p className="type-body text-foreground">
           {strongest.links === 0
-            ? t('sentenceNone', { to: strongest.top.code })
+            ? t('sentenceNone', { to: strongest.top.code, scope: scopeWord })
             : t('sentence', {
                 from: strongest.from === null ? t('untieredPages') : `${strongest.from.name} (${strongest.from.code})`,
                 count: strongest.links,
@@ -166,6 +172,19 @@ export function FlowTab({ context }: { context: LinksTabContext }): ReactElement
         </p>
       )}
       {flow.stale ? <Banner tone="info" placement="region" message={t('stale')} /> : null}
+      {read.isError ? (
+        <Banner
+          tone="warning"
+          placement="region"
+          live
+          message={t('refreshFailed')}
+          actions={
+            <Button variant="secondary" size="sm" loading={read.isFetching} onClick={() => void read.refetch()}>
+              {common('retry')}
+            </Button>
+          }
+        />
+      ) : null}
       <section className="overflow-hidden rounded-lg border border-border bg-surface">
         <div className="flex flex-wrap items-center gap-3 border-b border-border-subtle px-4 py-3">
           <ScopeMenu
@@ -175,7 +194,8 @@ export function FlowTab({ context }: { context: LinksTabContext }): ReactElement
           <span className="type-meta text-foreground-tertiary">{t('rowsToColumns')}</span>
         </div>
         <div className="overflow-x-auto">
-          <table aria-label={t('caption')} className="w-full border-collapse">
+          <table className="w-full border-collapse">
+            <caption className="sr-only">{t('caption')}</caption>
             <thead>
               <tr>
                 <th scope="col" className={cn(CELL, HEAD, 'text-left')}>
@@ -203,25 +223,28 @@ export function FlowTab({ context }: { context: LinksTabContext }): ReactElement
                     const value = valueOf(from, to);
                     const level = flowLevel(value, max);
                     const bin = level === null ? undefined : SEQUENTIAL_BINS[level];
+                    const words = { count: value, scope: scopeWord, from: label(from), to: label(to) };
+                    // A cell with no links has nothing to show in the Links tab: it is text, not a link
                     return (
                       <td key={keyOf(to)} className="border-b border-border-subtle p-0 text-right">
-                        <Link
-                          href={pairHref(from, to)}
-                          aria-label={t('cellName', {
-                            count: value,
-                            scope: scopeWord,
-                            from: label(from),
-                            to: label(to),
-                          })}
-                          className={cn(
-                            'block h-row px-3 py-2 num type-table focus-visible:focus-ring-inset',
-                            bin === undefined
-                              ? 'text-foreground-tertiary hover:bg-surface-hover'
-                              : [bin.fill, bin.text],
-                          )}
-                        >
-                          {formatInteger(value)}
-                        </Link>
+                        {bin === undefined ? (
+                          <span className="block h-row px-3 py-2 num type-table text-foreground-tertiary">
+                            <span aria-hidden="true">{formatInteger(value)}</span>
+                            <span className="sr-only">{t('cellNone', words)}</span>
+                          </span>
+                        ) : (
+                          <Link
+                            href={pairHref(from, to)}
+                            aria-label={t('cellName', words)}
+                            className={cn(
+                              'block h-row px-3 py-2 num type-table focus-visible:focus-ring-inset',
+                              bin.fill,
+                              bin.text,
+                            )}
+                          >
+                            {formatInteger(value)}
+                          </Link>
+                        )}
                       </td>
                     );
                   })}

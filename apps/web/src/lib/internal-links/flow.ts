@@ -31,7 +31,13 @@ export function strongestSenderToT1<TTier extends TierNameLike>(
       (cell.from_tier === null || tierPosition(cell.from_tier) !== 1),
   );
   const best = senders.reduce<FlowCellLike<TTier> | null>(
-    (current, cell) => (current === null || cell.links > current.links ? cell : current),
+    (current, cell) =>
+      current === null ||
+      cell.links > current.links ||
+      // A tie goes to the higher tier (lower position), Untiered last, so the answer never depends on cell order
+      (cell.links === current.links && tierPosition(cell.from_tier) < tierPosition(current.from_tier))
+        ? cell
+        : current,
     null,
   );
   if (best === null || best.links === 0) return { from: null, links: 0, top };
