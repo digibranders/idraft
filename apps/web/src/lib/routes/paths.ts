@@ -89,7 +89,8 @@ export function queryOf(
 }
 
 /** The sections of Settings that exist outside any project: the account's and the workspace's. */
-export type WorkspaceSettingsSection = 'profile' | 'security' | 'preferences' | 'workspace' | 'members' | 'budgets';
+export type WorkspaceSettingsSection =
+  'profile' | 'security' | 'preferences' | 'workspace' | 'members' | 'budgets' | 'tiers';
 
 /**
  * A section of Settings outside any project, reachable from the workspace page and when the member can

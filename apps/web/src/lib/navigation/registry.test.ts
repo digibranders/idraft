@@ -18,13 +18,14 @@ const keysOf = (sections: ReturnType<typeof visibleNavigation>): string[] =>
   sections.flatMap((section) => section.groups.flatMap((group) => group.items.map((item) => item.key)));
 
 describe('the navigation registry', () => {
-  it('has the 16 destinations of 11 section 1.1, in 3 sections', () => {
-    expect(NAVIGATION).toHaveLength(16);
+  it('has the 17 destinations of 11 section 1.1 and Internal links, in 3 sections', () => {
+    expect(NAVIGATION).toHaveLength(17);
     expect(new Set(NAVIGATION.map((item) => item.section))).toEqual(new Set([1, 2, 3]));
     expect(NAVIGATION.filter((item) => item.group === 'seo').map((item) => item.key)).toEqual([
       'rankings',
       'keywords',
       'pages',
+      'internalLinks',
     ]);
     expect(NAVIGATION.filter((item) => item.group === 'ai')).toHaveLength(4);
   });
@@ -35,9 +36,10 @@ describe('the navigation registry', () => {
     }
   });
 
-  it('lists only what is live: Keywords, AI Overview, Topics & Prompts, Citations, Integrations, Runs, Costs and Settings, for now', () => {
+  it('lists only what is live: Keywords, Internal links, AI Overview, Topics & Prompts, Citations, Integrations, Runs, Costs and Settings, for now', () => {
     expect(keysOf(visibleNavigation(NAVIGATION, permissionsFor('owner')))).toEqual([
       'keywords',
+      'internalLinks',
       'aiOverview',
       'prompts',
       'citations',
@@ -62,6 +64,7 @@ describe('the navigation registry', () => {
       keysOf(visibleNavigation(NAVIGATION, permissionsFor(role)));
     expect(shownTo('viewer')).toEqual([
       'keywords',
+      'internalLinks',
       'aiOverview',
       'prompts',
       'citations',
@@ -71,6 +74,7 @@ describe('the navigation registry', () => {
     ]);
     expect(shownTo('analyst')).toEqual([
       'keywords',
+      'internalLinks',
       'aiOverview',
       'prompts',
       'citations',

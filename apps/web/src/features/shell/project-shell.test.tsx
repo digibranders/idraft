@@ -155,6 +155,7 @@ describe('ProjectShell', () => {
     expect(listed).toEqual({
       editor: [
         'Keywords /digibranders/fynix/seo/keywords',
+        'Internal links /digibranders/fynix/seo/internal-links',
         'Overview /digibranders/fynix/ai',
         'Topics & Prompts /digibranders/fynix/ai/prompts',
         'Citations /digibranders/fynix/ai/citations',
@@ -165,6 +166,7 @@ describe('ProjectShell', () => {
       ],
       viewer: [
         'Keywords /digibranders/fynix/seo/keywords',
+        'Internal links /digibranders/fynix/seo/internal-links',
         'Overview /digibranders/fynix/ai',
         'Topics & Prompts /digibranders/fynix/ai/prompts',
         'Citations /digibranders/fynix/ai/citations',

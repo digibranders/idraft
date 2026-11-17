@@ -9,6 +9,7 @@ import {
   ListOrdered,
   MessageSquare,
   MessageSquareText,
+  Network,
   Plug,
   Quote,
   Receipt,
@@ -23,7 +24,7 @@ import type { Permission } from '@/lib/permissions/permissions';
 import { projectPath, withQuery } from '@/lib/routes/paths';
 
 /**
- * The destinations of a project (11-navigation.md section 1.1, 16 items in 3 sections), the one list the
+ * The destinations of a project (11-navigation.md section 1.1, 17 items in 3 sections), the one list the
  * sidebar, the breadcrumb and later the command palette read. Runs and Costs are in it too: Runs is the
  * project's own, and Costs shows the whole workspace's spend but is opened from the project, so the sidebar
  * stays on screen. A destination whose screen is not built yet is `planned`: it is absent from navigation
@@ -36,6 +37,7 @@ export type NavKey =
   | 'rankings'
   | 'keywords'
   | 'pages'
+  | 'internalLinks'
   | 'aiOverview'
   | 'prompts'
   | 'citations'
@@ -116,6 +118,15 @@ export const NAVIGATION: readonly NavDestination[] = [
     group: 'seo',
     permission: 'data:read',
     status: 'planned',
+  },
+  {
+    key: 'internalLinks',
+    path: '/seo/internal-links',
+    icon: Network,
+    section: 1,
+    group: 'seo',
+    permission: 'data:read',
+    status: 'live',
   },
   {
     key: 'aiOverview',
