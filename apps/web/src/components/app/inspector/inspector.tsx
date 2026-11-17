@@ -40,6 +40,12 @@ export interface InspectorProps {
   onClose: () => void;
   /** J and K, the same as Previous and Next; left out with them. */
   onStep?: ((direction: 'next' | 'previous') => void) | undefined;
+  /**
+   * Leaves out the More actions button when the drawer has no actions of its own: without it the width items (Default,
+   * Wide, Maximum, Reset width) are not offered either, and the resize handle is the way to change the width.
+   * Default `false`.
+   */
+  hideMoreActions?: boolean | undefined;
   /** An `InspectorFooter` while a section is in edit mode. */
   footer?: ReactNode;
   /** `InspectorTabs` with their panels, or an `InspectorBody`. */
@@ -65,6 +71,7 @@ export function Inspector({
   backLabel,
   onClose,
   onStep,
+  hideMoreActions = false,
   footer,
   children,
 }: InspectorProps): ReactElement {
@@ -170,7 +177,7 @@ export function Inspector({
         {...header}
         titleId={titleId}
         titleRef={title}
-        moreActions={[...(header.moreActions ?? []), ...widthItems]}
+        moreActions={hideMoreActions ? [] : [...(header.moreActions ?? []), ...widthItems]}
         onClose={onClose}
         backLabel={mode === 'sheet' ? backLabel : null}
       />

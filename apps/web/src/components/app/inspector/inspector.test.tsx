@@ -31,8 +31,10 @@ function Harness({
   atFirst = false,
   title = 'best crm for startups',
   list = <button type="button">A row of the list</button>,
+  hideMoreActions = false,
 }: {
   atFirst?: boolean;
+  hideMoreActions?: boolean;
   title?: string;
   /** What the list beside the inspector holds. */
   list?: ReactNode;
@@ -45,6 +47,7 @@ function Harness({
           backLabel="Back to Keywords"
           onClose={onClose}
           onStep={onStep}
+          hideMoreActions={hideMoreActions}
           header={{
             title,
             typeLabel: 'Keyword',
@@ -232,6 +235,12 @@ describe('Inspector', () => {
     expect(window.localStorage.getItem('inspector-width:keyword')).toBeNull();
   });
 
+  it('leaves the More menu out when asked, and keeps Close', () => {
+    renderWithProviders(<Harness hideMoreActions />);
+    expect(screen.queryByRole('button', { name: /^More actions for/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument();
+  });
+
   it('offers the widths in its More menu', async () => {
     const { user } = renderWithProviders(<Harness />);
     await user.click(screen.getByRole('button', { name: 'More actions for best crm for startups' }));
@@ -272,6 +281,35 @@ describe('InspectorSection', () => {
     expect(title.parentElement).toHaveClass('flex-wrap');
     expect(title.parentElement?.parentElement).toHaveClass('min-h-12', 'py-3');
     expect(title.parentElement?.parentElement).not.toHaveClass('h-12');
+  });
+
+  it('can put its action on a second row until the card is 42 rem wide (a container query)', () => {
+    const { container, rerender } = renderWithProviders(
+      <InspectorSection
+        title="Who is cited"
+        meta="9 answers"
+        action={<button type="button">Open</button>}
+        status="ready"
+      />,
+    );
+    expect(container.querySelector('section')).not.toHaveClass('@container');
+    expect(screen.getByRole('button', { name: 'Open' }).parentElement).not.toHaveClass('basis-full');
+    rerender(
+      <InspectorSection
+        title="Who is cited"
+        meta="9 answers"
+        action={<button type="button">Open</button>}
+        stackAction
+        status="ready"
+      />,
+    );
+    expect(container.querySelector('section')).toHaveClass('@container');
+    expect(screen.getByRole('button', { name: 'Open' }).parentElement).toHaveClass('basis-full', '@2xl:basis-auto');
+    expect(screen.getByRole('heading', { level: 3 }).parentElement?.parentElement).toHaveClass(
+      'flex-wrap',
+      'min-h-12',
+      'py-3',
+    );
   });
 
   it('keeps a header without a meta one 48 px line that cuts a long title', () => {

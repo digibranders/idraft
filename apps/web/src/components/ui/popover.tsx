@@ -31,6 +31,8 @@ export interface PopoverProps extends Omit<
   width?: PopoverWidth | undefined;
   side?: 'bottom' | 'top' | 'left' | 'right' | undefined;
   align?: 'start' | 'center' | 'end' | undefined;
+  /** Distance from the trigger in px. Default 4; the Citations competitors picker sits 8 px away, as the preview's does. */
+  sideOffset?: number | undefined;
   open?: boolean | undefined;
   onOpenChange?: ((open: boolean) => void) | undefined;
   children: ReactNode;
@@ -55,6 +57,13 @@ const PADDING_CLASS: Readonly<Record<PopoverPadding, string>> = {
   menu: cn('p-1'),
   none: '',
 };
+/** `menu` and `none` pad their own sections, so the sections sit flush (no 12 px between them). */
+const GAP_CLASS: Readonly<Record<PopoverPadding, string>> = {
+  list: cn('gap-3'),
+  text: cn('gap-3'),
+  menu: '',
+  none: '',
+};
 
 /**
  * A short interaction anchored to a control (16-drawers-dialogs-popovers.md section 5.1): a filter editor,
@@ -68,6 +77,7 @@ export function Popover({
   width = 'content',
   side = 'bottom',
   align = 'start',
+  sideOffset = 4,
   open,
   onOpenChange,
   children,
@@ -85,7 +95,7 @@ export function Popover({
         <PopoverPrimitive.Positioner
           side={side}
           align={align}
-          sideOffset={4}
+          sideOffset={sideOffset}
           collisionPadding={8}
           collisionAvoidance={POPUP_COLLISION}
           className="z-(--z-dropdown)"
@@ -102,7 +112,7 @@ export function Popover({
             )}
           >
             <ScrollArea maxHeight="fill" className="min-h-0 flex-1">
-              <div className={cn('flex flex-col gap-3', PADDING_CLASS[padding])}>
+              <div className={cn('flex flex-col', GAP_CLASS[padding], PADDING_CLASS[padding])}>
                 {title === undefined ? null : (
                   <PopoverPrimitive.Title className="type-subsection-title">{title}</PopoverPrimitive.Title>
                 )}

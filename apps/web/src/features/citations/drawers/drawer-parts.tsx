@@ -45,7 +45,7 @@ export function DrawerTable({
               key={column.id}
               scope="col"
               className={cn(
-                'px-2 text-left type-label font-normal whitespace-nowrap first:pl-4 last:pr-4',
+                'px-2 text-left type-table-header whitespace-nowrap first:pl-4 last:pr-4',
                 column.className,
               )}
             >

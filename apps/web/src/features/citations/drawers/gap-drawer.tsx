@@ -111,6 +111,7 @@ export function GapDrawer(props: GapDrawerProps): ReactElement {
       backLabel={t('gapDrawer.back')}
       onClose={props.onClose}
       onStep={props.stepping.onStep}
+      hideMoreActions
     >
       <InspectorTabs<GapDrawerTab>
         label={t('gapDrawer.tabsLabel')}
@@ -241,6 +242,7 @@ function GapCards({
             {t('gapDrawer.openAnswers')}
           </Button>
         }
+        stackAction
         status={status}
         flush
       >

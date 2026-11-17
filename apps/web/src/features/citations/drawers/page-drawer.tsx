@@ -111,6 +111,7 @@ export function PageDrawer(props: PageDrawerProps): ReactElement {
       backLabel={t('pageDrawer.back')}
       onClose={props.onClose}
       onStep={props.stepping.onStep}
+      hideMoreActions
     >
       <InspectorTabs<PageDrawerTab>
         label={t('pageDrawer.tabsLabel')}

@@ -207,7 +207,7 @@ Branch `claude/ai-wp-77-citations-v2-web-481cad`. The plan is `docs/superpowers/
 
 ### 9.2 House components (owner approved)
 
-Added: `BoardTable` (12-tables.md section 20), `TrendIcon`, `PressedGroup`. Extended through documented variants: `Select` (prefix, option display and note, popup width), `Popover` (narrow and wide widths, menu and none paddings), `EntitySwatch` (dot), `EngineLogo` (hidden name), `SparklineCell` (size, entity colour, end dot, fill), `MetricStrip` (line), `TabNav` (segmented), `EmptyState` (table and card), `InspectorSection` (meta, flush, title size), `Badge` (`badgeVariants` exported). The additions and variants are documented in the design system documents (07, 12, 13, 16, 17, 23 and 25); specimens were added to `/design-system` in the task that built each, and the list of specimens was not re-audited for this note.
+Added: `BoardTable` (12-tables.md section 20), `TrendIcon`, `PressedGroup`. Extended through documented variants: `Select` (prefix, option display and note, popup width), `Popover` (narrow and wide widths, menu and none paddings that also drop the section gap, `sideOffset`), `EntitySwatch` (dot), `EngineLogo` (hidden name, contained in its cell), `SparklineCell` (size, entity colour, end dot, fill), `MetricStrip` (line), `TabNav` (segmented), `EmptyState` (table and card), `InspectorSection` (meta, flush, title size, stacked action), `Inspector` (`hideMoreActions`), `Badge` (`badgeVariants` exported). The additions and variants are documented in the design system documents (07, 12, 13, 16, 17, 23 and 25); specimens were added to `/design-system` in the task that built each, and the list of specimens was not re-audited for this note.
 
 ### 9.3 Differences from the preview
 
@@ -221,6 +221,23 @@ Added: `BoardTable` (12-tables.md section 20), `TrendIcon`, `PressedGroup`. Exte
 - The prompt inspector in place reads the address's date range (the Prompts page's window, not the runs) and has no answer viewer.
 - Export writes a CSV (the preview shows a note).
 - The Overview's domain drills open Cited pages by owner and do not add a domain search term (`q=<domain>` is not added).
+
+The browser parity pass was done on 2026-11-17 in Chrome against the preview on port 4190, at 1440 and 375 px, for the listed states, by DOM measurements (`getBoundingClientRect`, `getComputedStyle`). The app was signed in on `app.localhost`, because a `__Host-session` cookie from another session already existed on `localhost`. The whole-row competitor toggle hit area was confirmed: a click on the name, on empty space, on the right edge and on the dot each toggles the competitor.
+
+The pass found differences that were fixed in the commit "match the preview popovers, drawer table headers and drawer overflow": the prompts popover's 12 px gap and scroll, the competitors popover's 24 px of height and 4 px of offset, lowercase drawer table headers, the gap drawer's "Open answers" row, the page scrollbar from the `sr-only` engine names in the drawers, the extra More actions button of both drawer headers, the Export icon size (14 px) and the Reset button's border and weight.
+
+Remaining differences from the preview, none fixed in this package:
+
+- Shared inspector chrome, used by every drawer of the app. Changing it is outside this package without an owner decision.
+  - The phone sheet header: a labelled back button, and First and Next buttons on the phone.
+  - Drawer accessible names: "Close" against the preview's "Close inspector", "First page in this list" against "Previous page", and the tablist's name.
+  - The tab bar is 1 px taller and the tab gap is 24 px against the preview's 20 px.
+  - The drawer card titles are `h3` against the preview's `h2`.
+- Accepted, not shared chrome:
+  - 200 rows per page of Cited pages against the preview's all 278 (the server pages the rows, D-6).
+  - The error state for a mock id that no fixture row has.
+  - Data names (fixture names are mapped by position onto the requesting project).
+- Unverified after the fix: the competitors popover's 4 px offset (app 104 px, preview 108 px from the top) is set with `sideOffset={8}` from the measured numbers, and has not been measured again.
 
 ### 9.4 Open points and how each was resolved
 
@@ -256,5 +273,6 @@ Added: `BoardTable` (12-tables.md section 20), `TrendIcon`, `PressedGroup`. Exte
 ### 9.6 Checks
 
 - Run for the e2e commit: `eslint` and `prettier --check` on the two e2e files, and `pnpm typecheck` once (it covers `e2e/**/*.ts`).
-- Not run in this worktree, under the owner's load rule: the full `pnpm test`, `pnpm build`, the Playwright e2e (against mocks or the dev API), the whole-project `pnpm lint`, and the side by side browser comparison with the preview (brief 5.3). The new e2e spec was written from the screen's code and has never been executed; its first run may need locator fixes.
-- Still to do before the push: those runs, the parity review with its difference list, and the rebase onto `origin/develop`.
+- Run: the browser parity pass with the preview (see 9.3), by DOM measurements at 1440 and 375 px; after its fixes, the test files of the touched components one at a time, `eslint` and `prettier --check` on the changed files, and `pnpm typecheck` once.
+- Not run in this worktree, under the owner's load rule: the full `pnpm test`, `pnpm build`, the Playwright e2e (against mocks or the dev API) and the whole-project `pnpm lint`. The new e2e spec was written from the screen's code and has never been executed; its first run may need locator fixes.
+- Still to do before the push: those runs, and the rebase onto `origin/develop`.

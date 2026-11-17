@@ -148,6 +148,15 @@ describe('the Citations toolbar', () => {
     expect(screen.getByRole('combobox', { name: 'Platform: All platforms' })).toHaveFocus();
   });
 
+  it('draws Reset as a plain 36 px box and the Export icon at 14 px, as the preview does', () => {
+    setup({ isDefaultScope: false });
+    const reset = screen.getByRole('button', { name: 'Reset scope' });
+    expect(reset).toHaveClass('border-0', 'type-body');
+    expect(reset).not.toHaveClass('border', 'type-body-strong');
+    const icon = screen.getByRole('button', { name: 'Export' }).querySelector('svg');
+    expect(icon).toHaveClass('size-icon-sm');
+  });
+
   it('disables Export until the engines are known', () => {
     setup({ canExport: false });
     expect(screen.getByRole('button', { name: 'Export' })).toBeDisabled();

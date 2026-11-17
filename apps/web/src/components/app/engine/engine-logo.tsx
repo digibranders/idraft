@@ -37,9 +37,11 @@ export function EngineLogo({
   const mark = hidden ? null : <EngineMark engine={engine} />;
   if (mark === null || engineMark(engine) === null)
     return <span className="inline-flex min-w-0 items-center">{text}</span>;
-  const label = nameDisplay === 'visually-hidden' ? <span className="sr-only">{name}</span> : text;
+  const hiddenName = nameDisplay === 'visually-hidden';
+  const label = hiddenName ? <span className="sr-only">{name}</span> : text;
   return (
-    <span className="inline-flex min-w-0 items-center gap-2">
+    // `relative` contains the absolutely placed `sr-only` name, so it cannot reach out to a distant scroll container
+    <span className={cn('inline-flex min-w-0 items-center gap-2', hiddenName && 'relative')}>
       {mark}
       {label}
     </span>

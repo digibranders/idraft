@@ -28,6 +28,11 @@ export interface InspectorSectionProps {
   flush?: boolean | undefined;
   /** At most one control, right-aligned: "View all", a `Select`, a badge or Edit. */
   action?: ReactNode;
+  /**
+   * The action sits on a second row under the title until the card is 42 rem wide, then beside it at the right (the
+   * preview's card tools, a container query on the card). Default `false`: the action stays on the title row.
+   */
+  stackAction?: boolean | undefined;
   status: InspectorSectionStatus;
   /** An `InlineError` with Retry, shown for `error`. */
   error?: ReactNode;
@@ -50,6 +55,7 @@ export function InspectorSection({
   titleSize = 'default',
   flush,
   action,
+  stackAction = false,
   status,
   error,
   empty,
@@ -60,10 +66,19 @@ export function InspectorSection({
     <section
       aria-busy={status === 'loading' ? true : undefined}
       // A flush table's header band runs to the card's edge, so the 8 px corners clip it
-      className={cn('rounded-lg border border-border bg-surface', flush === true && 'overflow-hidden')}
+      className={cn(
+        'rounded-lg border border-border bg-surface',
+        flush === true && 'overflow-hidden',
+        stackAction && '@container',
+      )}
     >
       {/* With a meta the header wraps as the preview's does (min 48 px, 12 px above and below, no cut text); without one it stays a 48 px line */}
-      <div className={cn('flex items-center gap-2 px-4', meta === undefined ? 'h-12' : 'min-h-12 py-3')}>
+      <div
+        className={cn(
+          'flex items-center gap-2 px-4',
+          stackAction ? 'min-h-12 flex-wrap gap-y-2 py-3' : meta === undefined ? 'h-12' : 'min-h-12 py-3',
+        )}
+      >
         {icon === undefined ? null : <Icon icon={icon} size="default" className="shrink-0 text-foreground-tertiary" />}
         <div
           className={cn(
@@ -82,7 +97,9 @@ export function InspectorSection({
           </h3>
           {meta === undefined ? null : <span className="min-w-0 num type-meta wrap-anywhere">{meta}</span>}
         </div>
-        {action === undefined || action === null ? null : <div className="shrink-0">{action}</div>}
+        {action === undefined || action === null ? null : (
+          <div className={cn('shrink-0', stackAction && 'basis-full @2xl:basis-auto')}>{action}</div>
+        )}
       </div>
       {/* A flush card pads only a skeleton and an error: a table, a list and an empty state draw their own edges */}
       <div className={flush === true && (status === 'ready' || status === 'empty') ? undefined : 'px-4 pb-4'}>

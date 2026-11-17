@@ -169,6 +169,8 @@ export function ScopeToolbar(props: ScopeToolbarProps): ReactElement {
             variant="ghost"
             size="icon"
             label={t('toolbar.reset')}
+            // The preview's reset is a plain 36 px box: no border and the body weight (`type-body` replaces the button's)
+            className="border-0 type-body"
             disabled={props.isDefaultScope}
             tabIndex={props.isDefaultScope ? -1 : undefined}
             onClick={() => {
@@ -180,13 +182,9 @@ export function ScopeToolbar(props: ScopeToolbarProps): ReactElement {
         </span>
       </div>
       <div className="flex min-w-0 items-center gap-x-4 xl:ml-auto">
-        <Button
-          variant="secondary"
-          icon={Download}
-          loading={props.exporting}
-          disabled={!props.canExport}
-          onClick={props.onExport}
-        >
+        {/* The preview draws this icon at 14 px (`size-icon-sm`), which is 2 px under the button's own 16 px */}
+        <Button variant="secondary" loading={props.exporting} disabled={!props.canExport} onClick={props.onExport}>
+          <Icon icon={Download} size="sm" />
           {t('toolbar.export')}
         </Button>
       </div>

@@ -135,6 +135,26 @@ describe('Popover', () => {
     await user.click(screen.getByRole('button', { name: 'Open' }));
     const dialog = screen.getByRole('dialog', { name: 'Competitors to compare' });
     expect(dialog.className).toContain('w-64');
+    // Sections that pad themselves sit flush: no 12 px between them
+    expect(screen.getByText('Body').parentElement).toHaveClass('p-1');
+    expect(screen.getByText('Body').parentElement).not.toHaveClass('gap-3');
+  });
+
+  it('keeps the 12 px gap between sections for list and text padding, and drops it for none', async () => {
+    const { user, rerender } = renderWithProviders(
+      <Popover trigger={<button type="button">Open</button>} aria-label="Sections" padding="text">
+        <p>Body</p>
+      </Popover>,
+    );
+    await user.click(screen.getByRole('button', { name: 'Open' }));
+    await screen.findByRole('dialog');
+    expect(screen.getByText('Body').parentElement).toHaveClass('gap-3');
+    rerender(
+      <Popover trigger={<button type="button">Open</button>} aria-label="Sections" padding="none">
+        <p>Body</p>
+      </Popover>,
+    );
+    expect(screen.getByText('Body').parentElement).not.toHaveClass('gap-3', 'p-3', 'p-4', 'p-1');
   });
 
   it('has no accessibility violations while open', async () => {

@@ -881,7 +881,7 @@ interface PopoverProps {
 - **Use:** anything interactive under 400 px tall that belongs to a control.
 - **Not for:** record detail (`Inspector`), multi-step tasks (`Dialog`), commands (`Menu`), opening a dialog (close the popover first).
 
-> As built (WP-77): widths `narrow` (256 px) and `wide` (384 px), both capped by the available width, and paddings `menu` (4 px) and `none` (the sections pad themselves), for the Citations competitors and prompts pickers.
+> As built (WP-77): widths `narrow` (256 px) and `wide` (384 px), both capped by the available width, and paddings `menu` (4 px) and `none` (the sections pad themselves), for the Citations competitors and prompts pickers. Those two paddings also drop the 12 px gap between sections (the sections sit flush, as the preview's do); `list` and `text` keep it. An optional `sideOffset` (px, default 4) sets the distance from the trigger; the competitors picker uses 8.
 
 ### 3.24 PreviewCard
 `ui/preview-card.tsx` · V1 · [16 §6.3](16-drawers-dialogs-popovers.md)
@@ -4160,7 +4160,7 @@ interface EngineBadgeProps {
 interface EngineLogoProps { engine: EngineCode; hidden?: boolean }
 ```
 
-> As built (WP-77): `EngineLogo` takes `nameDisplay?: 'visible' | 'visually-hidden'` (default `visible`). With `visually-hidden` the mark is the only thing on screen and the name is an `sr-only` span, for a column of marks that would repeat the names (Citations Platforms and Lost on); the cell's tooltip names the engine. Without a mark the name stays visible.
+> As built (WP-77): `EngineLogo` takes `nameDisplay?: 'visible' | 'visually-hidden'` (default `visible`). With `visually-hidden` the mark is the only thing on screen and the name is an `sr-only` span, for a column of marks that would repeat the names (Citations Platforms and Lost on); the cell's tooltip names the engine. Without a mark the name stays visible. The wrapper is `relative` in that mode, so the absolutely placed `sr-only` name stays in its own cell and cannot widen a scroll container (a page scrollbar appeared in the page drawer's Prompts tab without it).
 
 - **Variants:** none (neutral subtle; class badge neutral outline). **States:** none.
 - **A11y:** text; class badge read after the engine name. **Use:** headers, cells, evidence headers, legends. **Not for:** chart colors (engines take categorical colors in fixed order only inside engine charts). `EngineLogo` rules (source, size, the monochrome OpenAI mark, the shared Google mark, where it may appear) are in [07 §5](07-icons.md).
@@ -4772,6 +4772,8 @@ interface InspectorProps {
 - **A11y:** `aside` labeled by the title (complementary landmark); non-modal when docked or overlaid (F6 reaches it); modal sheet below 768 px; focus to the title on open, back to the originating row on Escape; Escape closes one layer per press.
 - **Use:** every record opened from a table, chart point, notification or palette. **Not for:** creating objects, destructive confirmation, multi-record study (full page).
 
+> As built (WP-77): optional `hideMoreActions` (default false) leaves out the More actions button, and with it the width items (Default, Wide, Maximum, Reset width), for a drawer that has no actions of its own; the resize handle stays the way to change the width. The two Citations drawers pass it, as the preview's drawers have only Close.
+
 ### 18.2 InspectorHeader
 `app/inspector/inspector-header.tsx` · V1 · [16 §2.1](16-drawers-dialogs-popovers.md), [23 §4.1](23-application-patterns.md)
 
@@ -4827,7 +4829,7 @@ interface InspectorSectionProps {
 - **Rules:** own query and error boundary; lists capped at 10 rows then "View all N" (section 23, item 34); charts full width at 180 px (section 23, item 33); tables at most 4 columns, not sortable, never virtualized; not collapsible; nothing uses `type-metric`.
 - **A11y:** heading level 3. **Not for:** bordered panels inside the inspector.
 
-> As built (WP-77): `icon` is optional (the Citations drawers draw none), and three optional props were added: `meta` (a short fact after the title in `type-meta`, such as "31 prompts · cited in 76 answers"; with a meta the header is `min-h-12 py-3` and wraps the meta to a second line instead of cutting it, as the preview's `cardFrame` does), `flush` (the ready and empty bodies have no padding and the card clips its corners, for a table or a list whose rows draw their own 16 px edges and an empty state that pads itself; a skeleton and an error keep the 16 px edges) and `titleSize` (`default` is `type-subsection-title`, `section` is `type-section-title` 16/24 as every Citations drawer card title is in the preview; still an `h3`). Callers that pass none draw as before. The specimen is in the `/design-system` Inspector section.
+> As built (WP-77): `icon` is optional (the Citations drawers draw none), and three optional props were added: `meta` (a short fact after the title in `type-meta`, such as "31 prompts · cited in 76 answers"; with a meta the header is `min-h-12 py-3` and wraps the meta to a second line instead of cutting it, as the preview's `cardFrame` does), `flush` (the ready and empty bodies have no padding and the card clips its corners, for a table or a list whose rows draw their own 16 px edges and an empty state that pads itself; a skeleton and an error keep the 16 px edges) and `titleSize` (`default` is `type-subsection-title`, `section` is `type-section-title` 16/24 as every Citations drawer card title is in the preview; still an `h3`) and `stackAction` (default false; the card becomes a container and the `action` sits on a second row under the title until the card is 42 rem wide, `@2xl`, then at the right of the title row, as the preview's card tools do; the Citations gap drawer's "Who is cited" card uses it). Callers that pass none draw as before. The specimen is in the `/design-system` Inspector section.
 
 ### 18.5 InspectorFooter
 `app/inspector/inspector-footer.tsx` · V1 · [16 §2.5](16-drawers-dialogs-popovers.md)

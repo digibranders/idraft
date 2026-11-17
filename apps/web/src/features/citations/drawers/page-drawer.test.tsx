@@ -82,6 +82,17 @@ describe('the page drawer (I 71 to 207)', () => {
     expect(await axe(container)).toHaveNoViolations();
   });
 
+  it('has only Close in its header (no More actions menu), and draws table headers in capitals', async () => {
+    setup();
+    const drawer = await screen.findByRole('complementary');
+    const table = await within(drawer).findByRole('table', { name: 'Prompts that cite this page' });
+    expect(within(drawer).queryByRole('button', { name: /^More actions for/ })).not.toBeInTheDocument();
+    for (const header of within(table).getAllByRole('columnheader')) {
+      expect(header).toHaveClass('type-table-header');
+      expect(header).not.toHaveClass('type-label');
+    }
+  });
+
   it('opens a prompt with the list of the drawer for J and K', async () => {
     const { user, props } = setup();
     const drawer = await screen.findByRole('complementary');
