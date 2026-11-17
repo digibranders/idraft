@@ -2,8 +2,10 @@
 
 Each classified link's href is canonicalized (canonicalizer v1). Links to another site, links
 that cannot name a page and links from the page to itself (jump links included: the fragment
-is not part of a page's URL) are dropped. What is left is counted once per (target, placement,
-anchor, kind, container, open, rel) with its occurrences. The container, the open flag and the
+is not part of a page's URL) are dropped, and so are links to the site's own `/cdn-cgi/` paths
+(Cloudflare's e-mail obfuscation and tooling, not pages). What is left is counted once per
+(target, placement, anchor, kind, container, open, rel) with its occurrences. The container, the
+open flag and the
 rel set are part of the key so that a merge never hides which block a link sat in (the template
 pass works per container), whether the first pass left it open, or whether it passes equity;
 `followed` is therefore the same for every occurrence of an edge. A link the first pass called
@@ -35,6 +37,8 @@ from idraft.crawl.scopes import LinkScope, scope_of
 from idraft.extraction.urls import CanonicalUrl, UrlRejectedError, canonicalize
 
 ANCHOR_MAX: Final = 500
+# Cloudflare's own paths on the site (e-mail obfuscation, tooling): the CDN's, not pages.
+_CDN_PATH: Final = "/cdn-cgi/"
 _OCCURRENCES_MAX: Final = 32_767
 # Control characters that are not whitespace, U+200B, the left-to-right and right-to-left marks,
 # the bidi embeddings, overrides and isolates (U+202A to U+202E, U+2066 to U+2069), U+061C, the
@@ -99,6 +103,8 @@ def page_edges(
                 canonical[link.href] = None
         target = canonical[link.href]
         if target is None or target.host.name not in hosts or target.url_hash == page.url_hash:
+            continue
+        if target.path.lower().startswith(_CDN_PATH):
             continue
         anchor = _anchor(link.anchor)
         placement = str(link.placement)
