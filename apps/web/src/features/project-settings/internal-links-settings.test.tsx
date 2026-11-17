@@ -179,6 +179,28 @@ describe('Project settings > Internal links', () => {
     expect(screen.queryByText(/RAW PROVIDER TEXT/)).toBeNull();
   });
 
+  it('lists a crawl the system cancelled as Cancelled, blaming no one and never printing its message', async () => {
+    const base = (await mockBrowser('viewer').call('GET', `${P}/link-crawls`)).body as {
+      data: CrawlRun[];
+      page: unknown;
+    };
+    const first = base.data[0];
+    if (first === undefined) throw new Error('The mock has no crawl');
+    const cancelled: CrawlRun = {
+      ...first,
+      state: 'cancelled',
+      is_latest: false,
+      error_code: null,
+      error_message: 'Cancelled by the system: the project was paused',
+    };
+    server.use(http.get(CRAWLS, () => HttpResponse.json({ ...base, data: [cancelled] })));
+    const { container } = renderWithProviders(screenAs('editor'));
+    const table = await screen.findByRole('table', { name: 'Latest 10 crawls' });
+    expect(await within(table).findByText('Cancelled')).toBeInTheDocument();
+    expect(container.textContent).not.toContain('by the system');
+    expect(container.textContent).not.toMatch(/cancelled by|you cancelled/i);
+  });
+
   it('shows the estimate of a crawl that is under way', async () => {
     const base = (await mockBrowser('viewer').call('GET', `${P}/link-crawls`)).body as {
       data: CrawlRun[];

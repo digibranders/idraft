@@ -12,6 +12,26 @@ describe('the page the inspector names', () => {
   });
 });
 
+describe('the scope of a hand typed link worklist address', () => {
+  it('reads All links when a link worklist is on the Links tab and the address names no scope', () => {
+    expect(parseLinksSearch({ tab: 'links', lview: 'broken_and_redirected' }).scope).toBe('all');
+    expect(parseLinksSearch({ tab: 'links', lview: 'links_to_non_indexable', scope: '' }).scope).toBe('all');
+  });
+
+  it('keeps a scope the address names, an unknown one reading editorial, and no worklist reading editorial', () => {
+    expect(parseLinksSearch({ tab: 'links', lview: 'broken_and_redirected', scope: 'editorial' }).scope).toBe(
+      'editorial',
+    );
+    expect(parseLinksSearch({ tab: 'links', lview: 'broken_and_redirected', scope: 'template' }).scope).toBe(
+      'template',
+    );
+    expect(parseLinksSearch({ tab: 'links', lview: 'broken_and_redirected', scope: 'nope' }).scope).toBe('editorial');
+    expect(parseLinksSearch({ tab: 'links' }).scope).toBe('editorial');
+    expect(parseLinksSearch({ tab: 'pages', lview: 'broken_and_redirected' }).scope).toBe('editorial');
+    expect(parseLinksSearch({ tab: 'links', lview: 'unknown' }).scope).toBe('editorial');
+  });
+});
+
 describe('the address of Internal links (URL state table)', () => {
   it('reads the defaults from an empty address', () => {
     expect(parseLinksSearch({})).toEqual({

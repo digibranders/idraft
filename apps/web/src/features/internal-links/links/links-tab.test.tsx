@@ -86,6 +86,25 @@ describe('the Links tab (spec 7.3)', () => {
     expect(reads().at(-1)?.get('scope')).toBe('all');
   });
 
+  it('reads All links for a hand typed worklist address with no scope, and keeps Editorial choosable', async () => {
+    const reads = edgeReads();
+    const writes: string[] = [];
+    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
+      searchParams: '?tab=links&lview=broken_and_redirected',
+      onUrlUpdate: ({ queryString }) => writes.push(queryString),
+    });
+    await rows();
+    expect(reads().at(-1)?.get('scope')).toBe('all');
+    await user.click(screen.getByRole('button', { name: 'Link scope: All links' }));
+    await user.click(await screen.findByRole('menuitemradio', { name: 'Editorial' }));
+    await waitFor(() => {
+      expect(writes.at(-1)).toContain('scope=editorial');
+    });
+    await waitFor(() => {
+      expect(reads().at(-1)?.get('scope')).toBe('editorial');
+    });
+  });
+
   it('reads the links from one page when the address names it, and says so', async () => {
     const reads = edgeReads();
     const [first] = edgeRows('editorial');

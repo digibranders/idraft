@@ -169,7 +169,11 @@ function LinksList({ context }: { context: LinksTabContext }): ReactElement {
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
         <FilterBar fields={fields} values={values} onChange={setValues} />
-        <ScopeMenu scope={state.scope} onChange={(next) => setSearch({ scope: next === 'editorial' ? null : next })} />
+        <ScopeMenu
+          scope={state.scope}
+          // With a worklist on, no scope key reads All links, so Editorial must be written out
+          onChange={(next) => setSearch({ scope: next === 'editorial' && state.edgeWorklist === null ? null : next })}
+        />
         {notes.map((note) => (
           <Tag
             key={note.key}

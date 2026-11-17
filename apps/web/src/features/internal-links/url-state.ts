@@ -137,11 +137,16 @@ export function parseLinksSearch(search: LinksSearch): LinksState {
   const src = readUrlId(search.src);
   const tgt = readUrlId(search.tgt);
   const focus = readUrlId(search.focus);
+  const tab = TABS.find((candidate) => candidate === search.tab) ?? 'pages';
+  const edgeWorklist = EDGE_WORKLISTS.find((list) => list === search.lview) ?? null;
+  // The link worklists count links of every scope, so a hand typed address that names none reads All links. Editorial
+  // is then written out (`scope=editorial`) by the scope menu, so choosing it is still possible.
+  const scopeUnset = search.scope === null || search.scope === undefined || search.scope === '';
   return {
-    tab: TABS.find((tab) => tab === search.tab) ?? 'pages',
-    scope: parseLinkScope(search.scope),
+    tab,
+    scope: tab === 'links' && edgeWorklist !== null && scopeUnset ? 'all' : parseLinkScope(search.scope),
     worklist: WORKLISTS.find((list) => list === search.view) ?? null,
-    edgeWorklist: EDGE_WORKLISTS.find((list) => list === search.lview) ?? null,
+    edgeWorklist,
     sort: PAGE_SORTS.find((sort) => sort === search.sort) ?? DEFAULT_SORT,
     q: text(search.q),
     lq: text(search.lq),
