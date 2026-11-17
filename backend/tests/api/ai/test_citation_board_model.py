@@ -7,12 +7,18 @@ from collections.abc import Iterable
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
+import pytest
+
 from idraft.api.ai.citation_board_model import (
     Answer,
     Board,
+    Names,
     Unit,
     assign_slots,
     overview,
+    page_detail,
+    page_rows,
+    role_of,
     run_window,
 )
 from idraft.api.schemas.ai_citation_board import BrandCell, RunSlot
@@ -20,6 +26,8 @@ from idraft.api.schemas.ai_citation_board import BrandCell, RunSlot
 NOW = datetime(2026, 11, 16, 9, 0, tzinfo=UTC)
 P1, P2 = UUID(int=1), UUID(int=2)
 OWN_A = "https://own.example/a"
+TEXTS = {P1: "Best SOC providers?", P2: "SOC pricing?"}
+NAMES: Names = {}
 
 
 def test_a_brand_cell_states_its_counts() -> None:
@@ -156,3 +164,61 @@ def test_the_window_lists_its_slots_with_dates_and_counts() -> None:
         2,
         NOW - timedelta(days=1),
     )
+
+
+def test_a_page_row_counts_units_prompts_engines_and_trend() -> None:
+    # Url 1 is cited in every answer: slot 1 holds three answers, slot 2 (P1 ChatGPT, 8 days) one
+    answers = [
+        ans(1, P1, "r2", 1),
+        ans(2, P2, "r2", 1),
+        ans(3, P1, "r1", 8),
+        ans(4, P1, "r2", 1, engine="gemini_web"),
+    ]
+    units = [unit(oid, OWN_A, url_id=1) for oid in (1, 2, 3, 4)]
+
+    (row,) = page_rows(board(1, answers, units), ["chatgpt_web", "gemini_web"], TEXTS, NAMES)
+
+    assert (row.citations, row.previous_citations, row.prompts) == (3, 1, 2)
+    assert [(e.engine_code, e.citation_units) for e in row.engines] == [
+        ("chatgpt_web", 2),
+        ("gemini_web", 1),
+    ]
+    assert [(p.text, p.citations) for p in row.top_prompts] == [
+        ("Best SOC providers?", 2),
+        ("SOC pricing?", 1),
+    ]
+    assert row.trend == [1, 3]
+    assert row.last_cited_at == NOW - timedelta(days=1)
+
+
+def test_the_page_drawer_lists_prompts_with_cited_over_answers_and_alongside_domains() -> None:
+    # Answers 1 and 2 are replicates of one run of P1; only answer 1 cites url 1
+    answers = [ans(1, P1, "r2", 1), ans(2, P1, "r2", 1.1), ans(3, P2, "r2", 1)]
+    units = [
+        unit(1, OWN_A, url_id=1),
+        unit(1, "https://g2.com/x", "third_party", url_id=3),
+        unit(1, "https://g2.com/y", "third_party", url_id=4),
+        unit(3, OWN_A, url_id=1),
+    ]
+
+    detail = page_detail(board(1, answers, units), 1, ["chatgpt_web"], TEXTS, NAMES)
+
+    assert detail is not None
+    assert [(p.text, p.cited, p.answers) for p in detail.prompts] == [
+        ("Best SOC providers?", 1, 2),
+        ("SOC pricing?", 1, 1),
+    ]
+    # g2.com is listed once for the answer that holds two of its URLs
+    assert [(a.registrable_domain, a.answers) for a in detail.alongside] == [("g2.com", 1)]
+
+
+def test_a_page_that_is_not_cited_now_has_no_drawer() -> None:
+    answers = [ans(1, P1, "r2", 1), ans(2, P1, "r1", 8)]
+
+    assert page_detail(board(1, answers, [unit(2, OWN_A, url_id=1)]), 1, [], TEXTS, NAMES) is None
+
+
+def test_role_of_narrows_a_known_role_and_rejects_others() -> None:
+    assert role_of("competitor") == "competitor"
+    with pytest.raises(ValueError, match="watch"):
+        role_of("watch")
