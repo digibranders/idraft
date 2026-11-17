@@ -102,9 +102,24 @@ const enginesOf = (engines: readonly EngineSummary[], context: Context, from?: r
  * The summary with the share of voice cells of every block as brand-mention counts. `source` is a read of the same
  * scope with the entity cells (`rows: topics`, `include: entities, total`): a topic row or the total of `summary` that
  * has none of its own takes its counts from the same topic or the total there, and a `summary` with no total block
- * takes the source's. A prompt row or a country row without entity cells has no counts ("not collected").
+ * takes the source's. A prompt row or a country row without entity cells has no counts ("not collected"). The same two
+ * reads give the same object, so a render that holds them again holds the same summary.
  */
 export function withBrandMentionShare(summary: PromptsSummary, source?: PromptsSummary | null): PromptsSummary {
+  const bySource = CACHE.get(summary) ?? new WeakMap<object, PromptsSummary>();
+  CACHE.set(summary, bySource);
+  const key = source ?? NO_SOURCE;
+  const held = bySource.get(key);
+  if (held !== undefined) return held;
+  const made = rewrite(summary, source);
+  bySource.set(key, made);
+  return made;
+}
+
+const CACHE = new WeakMap<PromptsSummary, WeakMap<object, PromptsSummary>>();
+const NO_SOURCE = {};
+
+function rewrite(summary: PromptsSummary, source: PromptsSummary | null | undefined): PromptsSummary {
   const context: Context = { own: ownSetOf(summary), tracked: summary.entities.length };
   const topicOf = new Map((source?.topics ?? []).map((topic) => [topic.term_id, topic]));
   const total = summary.total ?? source?.total;

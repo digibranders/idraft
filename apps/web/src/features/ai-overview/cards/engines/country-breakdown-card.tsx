@@ -186,7 +186,7 @@ export default function CountryBreakdownCard({ item, options, live }: CardProps)
   const metaOf = useCardMeta();
   const metric = options.metric !== undefined && isCountryMetric(options.metric) ? options.metric : 'mention';
   const data = useCardData({ previous: 'none', subscribed: live });
-  const { countries, reads } = useCountryReads({ subscribed: live });
+  const { countries, reads } = useCountryReads({ subscribed: live, withCounts: metric === 'share_of_voice' });
   const { scope, asked } = data;
   const title = t('title');
   const metricLabel = t(METRIC_KEY[metric]);

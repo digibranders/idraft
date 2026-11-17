@@ -4,7 +4,7 @@ import type { ComponentType, ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import CountryBreakdownCard from './country-breakdown-card';
-import { engineCells, promptRow, summaryOf } from './engines-fixtures';
+import { engineCells, promptRow, summaryOf, withBrandMentions } from './engines-fixtures';
 import { ExportProvider, useExportBlocks, type ExportRead } from '../../export/export-registry';
 import type { CardProps } from '@/features/layouts';
 import type { PromptSummaryRow } from '@/lib/api/types';
@@ -65,7 +65,10 @@ function serveCountries(byCountry: Readonly<Record<string, readonly PromptSummar
       const url = new URL(request.url);
       seen.push(url);
       const rows = byCountry[url.searchParams.get('filter[country_iso]') ?? ''] ?? [];
-      return HttpResponse.json({ data: summaryOf(rows, { codes: ['chatgpt_web', 'gemini_web'] }) });
+      const summary = summaryOf(rows, { codes: ['chatgpt_web', 'gemini_web'] });
+      // The read of the brand mention counts (share of voice): ChatGPT names the brand 6 times and a rival 4 times
+      const counts = url.searchParams.getAll('include').join(',').includes('entities');
+      return HttpResponse.json({ data: counts ? withBrandMentions(summary, { chatgpt_web: [6, 4] }) : summary });
     }),
   );
   return seen;
@@ -151,7 +154,7 @@ describe('CountryBreakdownCard', () => {
 
   it.each([
     ['citation', 'Citation rate', ['ChatGPT: 25%, 2 of 8 answers, 1 prompt']],
-    ['share_of_voice', 'Share of voice', ['ChatGPT: 60%, 10 answers that name a brand, 1 prompt']],
+    ['share_of_voice', 'Share of voice', ['ChatGPT: 60%, 6 of 10 brand mentions']],
   ] as const)('shows the %s of the option in place of the mention rate', async (metric, label, rows) => {
     serveCountries({ DE: GERMANY, IN: GERMANY });
     function WithMetric(props: CardProps): ReactElement {

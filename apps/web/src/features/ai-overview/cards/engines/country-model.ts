@@ -1,4 +1,4 @@
-import type { EngineCode, PromptSummaryRow } from '@/lib/api/types';
+import type { EngineCode, PromptsSummary, PromptSummaryRow } from '@/lib/api/types';
 import { engineRates, type RateFigure, type RateReason } from '@/lib/rates/strip-model';
 import type { RateState } from '@/lib/stats';
 
@@ -30,6 +30,8 @@ export interface CountryRead {
   /** The prompt rows of the country's summary; `null` while it has not answered and when it failed. */
   prompts: readonly PromptSummaryRow[] | null;
   failed: boolean;
+  /** The country's `total` row with the share of voice counts (`withBrandMentionShare`); `undefined` while that read is out. */
+  total?: PromptsSummary['total'];
 }
 
 /** One engine's figure in one country: the rate with its counts, or why there is none. */
@@ -91,13 +93,21 @@ export function countryModel({ countries, reads, asked, metric }: CountryInput):
   if (countries.length < MIN_COUNTRIES) return { kind: 'tooFewCountries', countries: countries.length };
   // A read that has not answered is not a group yet; the card waits for it
   const answered = reads
-    .flatMap((read) => (read.prompts === null || read.failed ? [] : [{ country: read.country, prompts: read.prompts }]))
+    .flatMap((read) =>
+      read.prompts === null || read.failed ? [] : [{ country: read.country, prompts: read.prompts, total: read.total }],
+    )
     .sort((a, b) => b.prompts.length - a.prompts.length || a.country.localeCompare(b.country));
-  const shown = answered.slice(0, MAX_COUNTRY_GROUPS).map(({ country, prompts }): CountryGroup => ({
+  const shown = answered.slice(0, MAX_COUNTRY_GROUPS).map(({ country, prompts, total }): CountryGroup => ({
     kind: 'ready',
     country,
     prompts: prompts.length,
-    rows: asked.map((code) => figureOf(code, engineRates(prompts, code)[FIGURE_OF[metric]])),
+    rows: asked.map((code) =>
+      figureOf(
+        code,
+        // Share of voice is read from the country's `total` row, which carries the entity cells the prompt rows do not
+        engineRates(prompts, code, total?.engines.find((engine) => engine.engine_code === code))[FIGURE_OF[metric]],
+      ),
+    ),
   }));
   // A failure is never cut: its group is where the person retries
   const failed = reads

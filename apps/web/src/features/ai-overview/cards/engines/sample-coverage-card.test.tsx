@@ -15,6 +15,7 @@ import * as csvWrite from '@/lib/csv/csv-write';
 import { axe } from '@/test/axe';
 import { CARD_ID, cardInOverview } from '@/test/ai-overview-harness';
 import { stubViewport } from '@/test/customize-harness';
+import { isBrandMentionRead } from '@/test/brand-mention-read';
 import { server } from '@/test/msw';
 import { renderWithProviders } from '@/test/render';
 
@@ -57,7 +58,7 @@ function serve(
   server.use(
     http.get(SUMMARY, ({ request }) => {
       const url = new URL(request.url);
-      seen.push(url);
+      if (!isBrandMentionRead(url)) seen.push(url);
       const branded = url.searchParams.get('include_branded') === 'true';
       if (branded && withBranded === 'fail') return failing('req-branded');
       const rows = branded ? [...prompts, prompt('p-branded', 8, 8)] : prompts;
@@ -200,6 +201,8 @@ describe('SampleCoverageCard', () => {
       server.use(
         http.get(SUMMARY, async ({ request }) => {
           const url = new URL(request.url);
+          // The brand mention read of the hooks is not one of the two reads this test holds and counts
+          if (isBrandMentionRead(url)) return HttpResponse.json({ data: summaryOf(PROMPTS, { codes: ['chatgpt_web'] }) });
           seen.push(url);
           const branded = url.searchParams.get('include_branded') === 'true';
           const germany = url.searchParams.get('filter[country_iso]') === 'DE';

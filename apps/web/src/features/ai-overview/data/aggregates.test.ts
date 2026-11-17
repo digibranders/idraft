@@ -126,15 +126,15 @@ describe('the numbers of one engine', () => {
     expect(mentioned).toMatchObject({ state: 'ok', successes: 4, answers: 12, prompts: 2, reason: null });
   });
 
-  it('has a share of voice that is the sum of the numerators over the sum of the denominators', () => {
+  it('has a share of voice that is the own brand mentions over the tracked-brand mentions, x of y', () => {
+    // The share cells hold the count share (`withBrandMentionShare`): numerator the own mentions, denominator all of them
     const current = summaryOf([
-      row('a', cellsOf('chatgpt_web', { mentioned: cell(3, 8), share: share(2.5, 5, 8) })),
+      row('a', cellsOf('chatgpt_web', { mentioned: cell(3, 8), share: share(2, 5, 8) })),
       row('b', cellsOf('chatgpt_web', { mentioned: cell(1, 4), share: share(1, 3, 4) })),
     ]);
     const { shareOfVoice } = engineOf(buildAggregates(inputsOf(current)), 'chatgpt_web');
-    expect(shareOfVoice.value).toBeCloseTo(3.5 / 8, 10);
-    // The numerator is a sum of shares, not a count of answers
-    expect(shareOfVoice).toMatchObject({ state: 'ok', answers: 8, successes: null });
+    expect(shareOfVoice.value).toBeCloseTo(3 / 8, 10);
+    expect(shareOfVoice).toMatchObject({ state: 'ok', answers: 8, successes: 3 });
   });
 
   it('has a named and cited rate from the outcomes cells, prompt weighted like the mention rate', () => {

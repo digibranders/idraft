@@ -81,7 +81,8 @@ describe('buildComparison', () => {
     const voice = compared(buildComparison({ aggregates: aggregatesOf(NOW, BEFORE), metric: 'share_of_voice' })[0]);
     expect(voice.interval).toBeNull();
     expect(voice.detectable).toBeNull();
-    expect(voice.now.successes).toBeNull();
+    // Its counts are brand mentions, x of y, and are not tested
+    expect(voice.now.successes).not.toBeNull();
   });
 
   it('is detectable only through the aggregates verdict', () => {

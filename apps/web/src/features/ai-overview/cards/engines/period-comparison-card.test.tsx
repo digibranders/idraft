@@ -3,7 +3,7 @@ import { http, HttpResponse } from 'msw';
 import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { engineCells, promptRow, summaryOf, type EngineCellsInput } from './engines-fixtures';
+import { engineCells, promptRow, summaryOf, withBrandMentions, type EngineCellsInput } from './engines-fixtures';
 import PeriodComparisonCard from './period-comparison-card';
 import { ExportProvider, useExportBlocks, type ExportRead } from '../../export/export-registry';
 import type { CardProps } from '@/features/layouts';
@@ -133,12 +133,16 @@ describe('the period comparison card', () => {
   });
 
   it('writes share of voice rows as words with the numbers and "no interval yet"', async () => {
-    serve(NOW, BEFORE);
+    serve(
+      withBrandMentions(NOW, { chatgpt_web: [6, 6], gemini_web: [3, 9] }),
+      withBrandMentions(BEFORE, { chatgpt_web: [3, 9], gemini_web: [3, 9] }),
+    );
     renderCard('share_of_voice');
     const list = await rowsList();
     const [chatgpt] = within(list).getAllByRole('listitem');
     expect(chatgpt).toHaveTextContent('no interval yet');
-    expect(chatgpt).toHaveTextContent('answers that mention a brand');
+    // x of y brand mentions of each window, not a pooled answer count
+    expect(chatgpt).toHaveTextContent('3 of 12 then 6 of 12 brand mentions');
     const frame = await frameOf();
     expect(frame.querySelectorAll('[data-slot="interval-whisker"]')).toHaveLength(0);
     expect(frame.querySelectorAll('[data-slot="interval-dot-current"]')).toHaveLength(0);

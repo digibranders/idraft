@@ -10,6 +10,7 @@ import type { CardProps } from '@/features/layouts';
 import type { PromptsSummary } from '@/lib/api/types';
 import * as csvWrite from '@/lib/csv/csv-write';
 import { formatPercent } from '@/lib/format';
+import { withBrandMentionShare } from '@/lib/rates/brand-mention-share';
 import { engineRates } from '@/lib/rates/strip-model';
 import { axe } from '@/test/axe';
 import { cardInOverview } from '@/test/ai-overview-harness';
@@ -131,12 +132,20 @@ describe('the AI by platform card', () => {
     server.events.on('response:mocked', listener);
     render();
     const table = await tableOf();
+    // The page's own read and the read that carries the entity cells of the total (share of voice counts)
     await vi.waitFor(() => {
-      expect(bodies.length).toBeGreaterThan(0);
+      expect(bodies.length).toBeGreaterThan(1);
     });
     server.events.removeListener('response:mocked', listener);
-    const prompts = bodies[0]?.data.prompts ?? [];
-    const strip = engineRates(prompts, 'chatgpt_web');
+    const page = bodies.find((body) => body.data.prompts.length > 0)?.data;
+    const counts = bodies.find((body) => body.data.prompts.length === 0)?.data;
+    if (page === undefined || counts === undefined) throw new Error('The two summary reads were not seen');
+    const read = withBrandMentionShare(page, counts);
+    const strip = engineRates(
+      read.prompts,
+      'chatgpt_web',
+      read.total?.engines.find((engine) => engine.engine_code === 'chatgpt_web'),
+    );
     const chatgpt = within(table).getByRole('row', { name: /ChatGPT/ });
     const [mention, citation, share] = within(chatgpt).getAllByRole('cell');
     expect(mention).toHaveTextContent(formatPercent(strip.mentioned.value));
@@ -209,15 +218,15 @@ describe('the AI by platform card', () => {
     expect(reason.closest('.sr-only')).toBeNull();
   });
 
-  it('says what the share of voice count is: the answers that name a brand, as the tooltip does', async () => {
+  it('says what the share of voice count is: x of y brand mentions, as the tooltip does', async () => {
     render();
     const table = await tableOf();
     const chatgpt = within(table).getByRole('row', { name: /ChatGPT/ });
     const [mention, , share] = within(chatgpt).getAllByRole('cell');
     // The visible count line of the cell (the delta's tip carries its own words, so the line is read on its own)
     const lines = Array.from(share?.querySelectorAll('span') ?? []).map((node) => node.textContent ?? '');
-    expect(lines.some((text) => /^[\d,]+ answers? that names? a brand$/.test(text))).toBe(true);
-    expect(lines.some((text) => /^[\d,]+ answers$/.test(text))).toBe(false);
+    expect(lines.some((text) => /^[\d,]+ of [\d,]+ brand mentions$/.test(text))).toBe(true);
+    expect(lines.some((text) => /answers$/.test(text))).toBe(false);
     // The mention count is over valid answers, and says so by its own form
     expect(mention?.textContent).toMatch(/\d[\d,]* of \d[\d,]* answers/);
   });
