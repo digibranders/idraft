@@ -212,8 +212,8 @@ export interface DataTableProps<TRow> {
   sort: readonly SortKey[];
   /**
    * Opt in: what sorts the table while a column of the sort (`sort`) is hidden in the column chooser, or the
-   * screen's scope removed it. The fallback then sorts and shows its indicator, and the caller's `sort` is not
-   * changed (the choice returns when the column does). Keep its identity between renders. The table sorts only in client
+   * screen's scope removed it. The fallback then sorts and shows its indicator (none when its own column is hidden
+   * too: the rows still follow it), and the caller's `sort` is not changed. Keep its identity between renders. The table sorts only in client
    * mode: in tree and server mode the caller orders its rows by `effectiveSort(sort, fallback, shownIds)`, which is
    * what the table draws, or the indicator and the rows disagree.
    */

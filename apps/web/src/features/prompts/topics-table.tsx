@@ -384,6 +384,12 @@ export function TopicsTable({
     [visible, columns],
   );
   const sorting = useMemo(() => effectiveSort(sort, DEFAULT_TOPIC_SORT, shownIds), [sort, shownIds]);
+  // The address follows the sort applied: one on a column that is not shown is dropped from it
+  const staleSort = sortText !== null && sort.some((key) => !shownIds.includes(key.id));
+  const dataLoaded = summary !== undefined;
+  useEffect(() => {
+    if (staleSort && dataLoaded) onSortTextChange(null);
+  }, [staleSort, dataLoaded, onSortTextChange]);
   const groups = useMemo(
     (): Group[] =>
       summary === undefined

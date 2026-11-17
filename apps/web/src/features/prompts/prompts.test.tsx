@@ -1,4 +1,4 @@
-import { act, screen, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { Suspense, type ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -1159,14 +1159,38 @@ describe('Prompts: Mentioned and Cited per platform, filters and sort', () => {
       ]);
     });
 
-    it('keeps a sort on a column the chooser leaves out in the link, applies the default order, and applies it once the column is shown', async () => {
+    it('drops a sort on a column that is not shown from the link and applies the default order; the column in view keeps its sort', async () => {
       serve();
-      const hidden = renderOnPrompts(promptsAs('viewer'), { searchParams: '?sort=chatgpt_web_rate' });
+      const writes: string[] = [];
+      const hidden = renderOnPrompts(promptsAs('viewer'), {
+        searchParams: '?sort=chatgpt_web_rate',
+        onUrlUpdate: ({ queryString }) => writes.push(queryString),
+      });
       // The default order: the highest Mention rate first, not the order of the hidden platform column
       expect((await order())[0]).toBe('Question number 2?');
+      // The address says what the table does: the stale sort is gone
+      await waitFor(() => expect(writes.at(-1)).not.toContain('sort='));
       hidden.unmount();
       renderOnPrompts(promptsAs('viewer'), { searchParams: `?sort=chatgpt_web_rate&${PLATFORM_COLUMNS}` });
       expect((await order())[0]).toBe('Question number 3?');
+    });
+
+    it('keeps ordering by Mention rate, highest first, while that column is hidden: no header is marked and the address has no sort', async () => {
+      serve();
+      const writes: string[] = [];
+      renderOnPrompts(promptsAs('viewer'), {
+        searchParams: '?cols=prompt,citation&sort=topic',
+        onUrlUpdate: ({ queryString }) => writes.push(queryString),
+      });
+      expect((await order())[0]).toBe('Question number 2?');
+      const table = await grid();
+      expect(within(table).queryByRole('columnheader', { name: /^Mention rate/ })).toBeNull();
+      expect(
+        within(table)
+          .getAllByRole('columnheader')
+          .filter((header) => header.getAttribute('aria-sort') !== null && header.getAttribute('aria-sort') !== 'none'),
+      ).toEqual([]);
+      await waitFor(() => expect(writes.at(-1)).not.toContain('sort='));
     });
 
     it('sorts rates a text order would get wrong: 5, 10, 25, 50 and 100 percent', async () => {

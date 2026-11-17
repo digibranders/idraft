@@ -547,12 +547,22 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   });
   const columnIds = useMemo(() => new Set(columns.map((column) => column.id)), [columns]);
   const visible = useMemo(() => parseColumns(view.cols, columnIds, ['prompt']), [view.cols, columnIds]);
-  // The sort of the address, as it is: a column the chooser (or the scope) leaves out keeps its place in the link, and
-  // the table sorts by the default order meanwhile (`sortFallback`), so it applies again when the column is shown
   const sort = useMemo((): readonly SortKey[] => {
     const parsed = parseSort(view.sort, sortFields);
     return parsed.length === 0 ? DEFAULT_PROMPT_SORT : parsed;
   }, [view.sort, sortFields]);
+  // The address follows the sort the table applies: a sort on a column that is not shown (turned off in the chooser, left
+  // out by a link or by Reset) is dropped from it, and the table orders by Mention rate meanwhile (`sortFallback`)
+  const shownIds = useMemo(
+    () => visible ?? columns.filter((column) => column.defaultVisible !== false).map((column) => column.id),
+    [visible, columns],
+  );
+  const staleSort = view.sort !== null && sort.some((key) => !shownIds.includes(key.id));
+  // Only on the Prompts tab: the Groups tab reads the same `sort` with its own columns
+  const dataLoaded = summaryData !== undefined && tab !== 'topics';
+  useEffect(() => {
+    if (staleSort && dataLoaded) void setView({ sort: null });
+  }, [staleSort, dataLoaded, setView]);
   // The Location column is not there while the top bar names a location, so the chooser cannot say whether it is on: its
   // choice is kept in the address as it was (on by default), and applies again when the top bar is back on All locations
   const keepLocationChoice = (next: readonly string[]): readonly string[] => {
