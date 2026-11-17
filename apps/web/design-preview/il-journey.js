@@ -880,7 +880,7 @@ function buildCanvas() {
    * from its old place to its new one, fade the new cards in, and pan only as far as it takes to show the new links.
    * (Rebuilding moves things: a new column on the left pushes everything right, and children land between siblings.)
    */
-  function settle(before, anchorKey) {
+  function settle(before, anchorKey, oldNodes) {
     const after = snapshot();
     const k = viewport.v.k;
     let ax = 0;
@@ -894,7 +894,22 @@ function buildCanvas() {
     }
     const calm = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
     if (!calm) {
+      // Cards that are gone fade out where they stood, instead of vanishing: the old element is put back for a moment
+      before.forEach((box, key) => {
+        const ghost = oldNodes?.get(key);
+        if (after.has(key) || !ghost) return;
+        Object.assign(ghost.style, { position: 'absolute', left: `${box.l + ax}px`, top: `${box.t + ay}px`, width: `${box.r - box.l}px`, margin: '0', transform: '', pointerEvents: 'none', opacity: '' });
+        ghost.dataset.ghost = '';
+        ghost.setAttribute('aria-hidden', 'true');
+        ghost.querySelectorAll('button').forEach((button) => {
+          button.tabIndex = -1;
+        });
+        inner.append(ghost);
+        ghost.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 180, easing: 'ease-in', fill: 'forwards' }).finished.then(() => ghost.remove());
+      });
       inner.querySelectorAll('button.node').forEach((node) => {
+        // The fading ghosts above are not part of the new layout
+        if (node.closest('[data-ghost]')) return;
         const key = node.dataset.key;
         const target = movable(node);
         const was = before.get(key);
@@ -921,7 +936,9 @@ function buildCanvas() {
     hoverKey = null;
     // Finish any glide still running, so the "before" positions are the settled ones
     inner.getAnimations?.({ subtree: true }).forEach((animation) => animation.finish());
+    inner.querySelectorAll('[data-ghost]').forEach((ghost) => ghost.remove());
     const before = inner.querySelector('button.node') ? snapshot() : null;
+    const oldNodes = before ? new Map([...inner.querySelectorAll('button.node')].map((node) => [node.dataset.key, movable(node)])) : null;
     ctx.loops = new Map();
     ctx.items = new Map();
     let graph = buildJourney({ focus: j().focus, cards: j().cards, opened: j().opened, more: j().more, groups: j().groups });
@@ -975,7 +992,7 @@ function buildCanvas() {
     paintSelection();
     renderBar();
     syncControls();
-    if (before && live(inner)) settle(before, refocusKey);
+    if (before && live(inner)) settle(before, refocusKey, oldNodes);
     else {
       requestAnimationFrame(() => {
         if (!live(inner)) return;
