@@ -338,21 +338,21 @@ describe('the new and lost sources card (CH-22, WB-OV-12)', () => {
     ).toBeInTheDocument();
   });
 
-  it('links each row to the new and lost tab of the Citations page, with the scope of the card', async () => {
+  it('links each row to Cited pages of the Citations page, with the platform of the card', async () => {
     serve();
     const { user } = renderCard('cmp=off&engine=chatgpt_web');
     const list = await newList();
     const link = within(list).getByRole('link', { name: /^reddit\.com, Third party/ });
     const href = new URL(link.getAttribute('href') ?? '', 'http://localhost');
     expect(href.pathname).toBe('/digibranders/fynix/ai/citations');
-    expect(href.searchParams.get('tab')).toBe('new-lost');
-    expect(href.searchParams.get('kind')).toBe('new');
-    expect(href.searchParams.get('engine')).toBe('chatgpt_web');
+    expect(href.searchParams.get('platform')).toBe('chatgpt_web');
+    for (const key of ['tab', 'kind', 'engine', 'role', 'inspect']) expect(href.searchParams.has(key)).toBe(false);
     const tabs = await toolbar();
     await user.click(within(tabs).getByRole('button', { name: 'Lost, 5' }));
     const lost = await lostList();
     const lostHref = new URL(within(lost).getAllByRole('link')[0]?.getAttribute('href') ?? '', 'http://localhost');
-    expect(lostHref.searchParams.get('kind')).toBe('lost');
+    expect(lostHref.pathname).toBe('/digibranders/fynix/ai/citations');
+    expect(lostHref.searchParams.has('kind')).toBe(false);
   });
 
   it('leaves a row as plain text where the Citations page cannot show the scope', async () => {

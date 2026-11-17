@@ -21,6 +21,9 @@ import type { Branded, OverviewScope } from '../scope/scope-model';
  * A link is `null` (the number is plain text) rather than a link that would show other numbers than the ones
  * clicked: the page is not live, or the scope has a country, a branded choice or a window the page cannot express.
  * The helper cannot know which engines are off in the project: the caller skips the link when the scope holds one.
+ *
+ * The Citations page's keys (`platform`, `group`, `owner`) are `features/citations/board-state.ts`'s;
+ * `drill-links.test.ts` reads every link back with its parser.
  */
 
 export type DrillKind =
@@ -34,7 +37,6 @@ export type DrillKind =
   | 'prompt'
   | 'citations'
   | 'competitors'
-  | 'sources'
   | 'runs';
 
 /** The rate a number shows, which the Prompts page's engine columns take as `metric`. */
@@ -71,7 +73,6 @@ export const DRILL_SUPPORT: DrillSupport = {
   prompt: { outcome: false, opportunity: false },
   citations: { outcome: false, opportunity: false },
   competitors: { outcome: false, opportunity: false },
-  sources: { outcome: false, opportunity: false },
   runs: { outcome: false, opportunity: false },
 };
 
@@ -92,7 +93,7 @@ interface Destination {
   compare: 'previous-turns-on' | 'off-turns-off';
 }
 
-/** The Citations page and the others have one Branded choice, `include`; excluded is the default and is not written. */
+/** The pages other than Citations have one Branded choice, `include`; excluded is the default and is not written. */
 const BRANDED_INCLUDE: Destination['branded'] = { excluded: null, included: 'include' };
 /** The Prompts page has `Only` too (`branded=only`: the branded prompts alone). */
 const BRANDED_PROMPTS: Destination['branded'] = { ...BRANDED_INCLUDE, only: 'only' };
@@ -104,15 +105,15 @@ function cmpOf(page: Destination['compare'], scope: OverviewScope): string | nul
   return scope.compareKind === 'previous_year' ? CMP_YEAR : 'previous';
 }
 
-// competitors and sources are not built: their keys are to be checked against the pages when they are
+// competitors is not built: its keys are to be checked against the page when it is
 const DESTINATIONS: Readonly<Record<DrillKind, Destination>> = {
   prompts: { nav: 'prompts', scoped: true, country: true, branded: BRANDED_PROMPTS, compare: 'previous-turns-on' },
   topic: { nav: 'prompts', scoped: true, country: true, branded: BRANDED_PROMPTS, compare: 'previous-turns-on' },
   topicDrawer: { nav: 'prompts', scoped: true, country: true, branded: BRANDED_PROMPTS, compare: 'previous-turns-on' },
   prompt: { nav: 'prompts', scoped: true, country: true, branded: BRANDED_PROMPTS, compare: 'previous-turns-on' },
-  citations: { nav: 'citations', scoped: true, country: false, branded: BRANDED_INCLUDE, compare: 'off-turns-off' },
+  // The Citations page counts non-branded prompts only: an included scope has no link
+  citations: { nav: 'citations', scoped: true, country: false, branded: { excluded: null }, compare: 'off-turns-off' },
   competitors: { nav: 'competitors', scoped: true, country: true, branded: BRANDED_INCLUDE, compare: 'off-turns-off' },
-  sources: { nav: 'sources', scoped: true, country: true, branded: BRANDED_INCLUDE, compare: 'off-turns-off' },
   // Runs reads a month, not a window: the scope means nothing there
   runs: { nav: 'runs', scoped: false, country: false, branded: BRANDED_INCLUDE, compare: 'off-turns-off' },
 };
@@ -158,11 +159,21 @@ export function drillHref(
   if (page === undefined || page.status !== 'live') return null;
   const path = projectPath(project.workspace, project.project, page.path);
   if (!destination.scoped) return path;
-  // The Overview takes 92 days; the pages read a range with the default limit and would open another window
-  if (scope.range.days > MAX_RANGE_DAYS) return null;
-
   const branded = destination.branded[scope.branded];
   if (branded === undefined || (scope.country !== null && !destination.country)) return null;
+  if (kind === 'citations') {
+    // The Citations page reads runs, not dates, one platform or all, and a group (WP-77 brief 3.1): the window and the
+    // comparison of the Overview are not carried
+    const engines = extra.engine === undefined ? scope.engines : [extra.engine];
+    const query = new URLSearchParams();
+    const one = engines !== null && engines.length === 1 ? engines[0] : undefined;
+    if (one !== undefined) query.set('platform', one);
+    const group = extra.term ?? scope.topic;
+    if (group !== null && group !== undefined && group !== '') query.set('group', group);
+    return withQuery(path, query.toString());
+  }
+  // The Overview takes 92 days; the pages read a range with the default limit and would open another window
+  if (scope.range.days > MAX_RANGE_DAYS) return null;
   // A comparison with last year is one the Prompts page alone can express: the others would show the period before
   if (scope.compare && scope.compareKind === 'previous_year' && destination.compare === 'off-turns-off') return null;
   // The object a drawer opens: a topic term (the scope's topic when none is given) or a prompt

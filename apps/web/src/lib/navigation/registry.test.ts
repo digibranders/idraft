@@ -18,15 +18,15 @@ const keysOf = (sections: ReturnType<typeof visibleNavigation>): string[] =>
   sections.flatMap((section) => section.groups.flatMap((group) => group.items.map((item) => item.key)));
 
 describe('the navigation registry', () => {
-  it('has the 16 destinations of 11 section 1.1, in 3 sections', () => {
-    expect(NAVIGATION).toHaveLength(16);
+  it('has the 15 destinations of 11 section 1.1 (without Sources, WP-77 D-8), in 3 sections', () => {
+    expect(NAVIGATION).toHaveLength(15);
     expect(new Set(NAVIGATION.map((item) => item.section))).toEqual(new Set([1, 2, 3]));
     expect(NAVIGATION.filter((item) => item.group === 'seo').map((item) => item.key)).toEqual([
       'rankings',
       'keywords',
       'pages',
     ]);
-    expect(NAVIGATION.filter((item) => item.group === 'ai')).toHaveLength(4);
+    expect(NAVIGATION.filter((item) => item.group === 'ai')).toHaveLength(3);
   });
 
   it('asks only for permissions the API has', () => {
@@ -179,7 +179,6 @@ describe('the navigation registry', () => {
       'matrix',
       'rankings',
       'pages',
-      'sources',
       'competitors',
       'discover',
       'reports',
@@ -189,7 +188,6 @@ describe('the navigation registry', () => {
   it('finds the planned destinations of the AI visibility pages by their paths', () => {
     const at = (path: string): string | undefined => destinationOf(NAVIGATION, path, 'digibranders', 'fynix')?.key;
     expect(at('/digibranders/fynix/ai/citations')).toBe('citations');
-    expect(at('/digibranders/fynix/ai/sources')).toBe('sources');
     expect(at('/digibranders/fynix/competitors')).toBe('competitors');
     expect(at('/digibranders/fynix/discover/prompts')).toBe('discover');
     expect(at('/digibranders/fynix/reports')).toBe('reports');

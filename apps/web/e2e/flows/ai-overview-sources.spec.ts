@@ -95,10 +95,6 @@ async function linkNames(card: Locator): Promise<string[]> {
   return card.getByRole('link').evaluateAll((nodes) => nodes.map((node) => node.textContent ?? ''));
 }
 
-/** The inspector of a domain on the Citations page: beside the table on a wide window, a sheet over it on a narrow one. */
-const domainInspector = (page: Page, domain: string): Locator =>
-  page.getByRole('complementary', { name: domain }).or(page.getByRole('dialog', { name: domain }));
-
 /** Presses Tab until the focus is on `target`; it takes a few presses to cross the controls before it. */
 async function tabTo(page: Page, target: Locator, maxPresses = 12): Promise<void> {
   const focused = target.and(page.locator(':focus'));
@@ -208,23 +204,22 @@ test.describe('the source, fan-out, activity and operations cards, as an editor'
     });
   });
 
-  test('a domain row opens the Citations page with the domain inspector, and Back returns to the scope', async ({
-    page,
-  }) => {
-    // The comparison off is a scope that the card carries into its links and that Back must return to
+  test('a domain row opens Cited pages of its domain type, and Back returns to the scope', async ({ page }) => {
+    // The comparison off is a scope of the Overview: the Citations page reads runs, so the link does not carry it, and Back must return to it
     await openScreen(page, FYNIX_PATH, 1280, '?cmp=off');
     const card = await awaitCard(page, TOP_DOMAINS_TITLE);
     await expect(card).not.toContainText(/\b(?:up|down) [\d.]+ pts\b/);
     const row = card.getByRole('link', { name: 'searchenginejournal.com', exact: true });
-    await expect(row).toHaveAttribute('href', /\/ai\/citations\?.*tab=domains/);
+    await expect(row).toHaveAttribute('href', /\/ai\/citations\?owner=third$/);
     await row.click();
 
     await expect(page.getByRole('heading', { level: 1, name: 'Citations' })).toBeVisible();
     await expect(page).toHaveURL(/\/ai\/citations\?/);
-    await expect(page).toHaveURL(/[?&]tab=domains(&|$)/);
-    await expect(page).toHaveURL(/[?&]cmp=off(&|$)/);
-    await expect(page).toHaveURL(/[?&]inspect=domain%3Asearchenginejournal\.com(&|$)/);
-    await expect(domainInspector(page, 'searchenginejournal.com')).toBeVisible();
+    await expect(page).toHaveURL(/[?&]owner=third(&|$)/);
+    await expect(page).not.toHaveURL(/[?&](cmp|tab|inspect)=/);
+    await expect(
+      page.getByRole('group', { name: 'Domain type' }).getByRole('button', { name: /^Third-party/ }),
+    ).toHaveAttribute('aria-pressed', 'true');
 
     await page.goBack();
     await expect(page.getByRole('heading', { level: 1, name: 'AI visibility overview' })).toBeVisible();
@@ -252,9 +247,7 @@ test.describe('the source, fan-out, activity and operations cards, as an editor'
     await expect(tableToggle(card)).toHaveAttribute('aria-pressed', 'false');
   });
 
-  test('the New and lost card counts its domains and a row opens the New and lost tab of Citations', async ({
-    page,
-  }) => {
+  test('the New and lost card counts its domains and a row opens Cited pages of Citations', async ({ page }) => {
     await openScreen(page, FYNIX_PATH);
     await startCustomizing(page);
     await addCatalogCard(page, ADDED_CARDS.newLost.catalog);
@@ -286,11 +279,10 @@ test.describe('the source, fan-out, activity and operations cards, as an editor'
     await expect(page.locator(POLITE)).toContainText(/New domains shown/);
 
     const row = card.getByRole('link', { name: /: new, [\d,]+ citation units? now/ }).first();
-    await expect(row).toHaveAttribute('href', /\/ai\/citations\?.*tab=new-lost/);
+    await expect(row).toHaveAttribute('href', /\/ai\/citations$/);
     await row.click();
     await expect(page.getByRole('heading', { level: 1, name: 'Citations' })).toBeVisible();
-    await expect(page).toHaveURL(/[?&]tab=new-lost(&|$)/);
-    await expect(page).toHaveURL(/[?&]kind=new(&|$)/);
+    await expect(page.getByRole('link', { name: /^Cited pages/ })).toHaveAttribute('aria-current', 'page');
     await page.goBack();
     await expect(page.getByRole('heading', { level: 1, name: 'AI visibility overview' })).toBeVisible();
   });
@@ -304,7 +296,7 @@ test.describe('the source, fan-out, activity and operations cards, as an editor'
     await expect(feed).toContainText(/Changes\s*\d+ changes?/);
     await expect(feed.getByRole('link', { name: /^New cited domains?: \d+ domains?/ })).toHaveAttribute(
       'href',
-      /\/ai\/citations\?.*tab=new-lost/,
+      /\/ai\/citations$/,
     );
 
     // Branded prompts alone is a scope that Citations cannot show: the feed does not read the sources then

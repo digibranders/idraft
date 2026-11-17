@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { readRangeParams } from '@/components/app/date-range/range-model';
-import { parseScope as parseCitationScope } from '@/features/citations/citation-scope';
+import { parseBoard } from '@/features/citations/board-state';
 import { engineSortId, parseCountry, parseMetric, parseTab } from '@/features/prompts/prompt-model';
 import { parseEnumList } from '@/lib/filters/filter-values';
 import { parseInspectTarget } from '@/lib/inspector/placement';
@@ -23,7 +23,6 @@ const NO_SUPPORT: DrillSupport = {
   prompt: { outcome: false, opportunity: false },
   citations: { outcome: false, opportunity: false },
   competitors: { outcome: false, opportunity: false },
-  sources: { outcome: false, opportunity: false },
   runs: { outcome: false, opportunity: false },
 };
 
@@ -68,12 +67,10 @@ const pathOf = (href: string | null): string => {
 const isLive = (key: string): boolean => NAVIGATION.find((item) => item.key === key)?.status === 'live';
 
 describe('drillHref carries the scope', () => {
-  // Citations does not read the country, so its link is checked without one (see the null cases below)
   it.each<[DrillKind, OverviewScope, string]>([
     ['prompts', NARROWED, '/acme/eventus/ai/prompts'],
     ['topic', NARROWED, '/acme/eventus/ai/prompts'],
     ['topicDrawer', NARROWED, '/acme/eventus/ai/prompts'],
-    ['citations', scopeOf({ ...NARROWED, country: null }), '/acme/eventus/ai/citations'],
   ])('%s: window, cmp, country, engine, topic and branded of the scope', (kind, scope, path) => {
     const href = drillHref(kind, scope, kind === 'topicDrawer' ? { term: OTHER_TOPIC } : {}, PROJECT);
     const query = queryOf(href);
@@ -81,9 +78,9 @@ describe('drillHref carries the scope', () => {
     expect(query.get('from')).toBe('2026-10-01');
     expect(query.get('to')).toBe('2026-10-20');
     expect(query.get('win')).toBeNull();
-    // Citations compares by default and turns off with cmp=off; the Prompts page compares only for cmp=previous
-    expect(query.get('cmp')).toBe(kind === 'citations' ? 'off' : null);
-    expect(query.get('country')).toBe(kind === 'citations' ? null : 'DE');
+    // The Prompts page compares only for cmp=previous
+    expect(query.get('cmp')).toBeNull();
+    expect(query.get('country')).toBe('DE');
     expect(query.get('engine')).toBe('chatgpt_web,gemini_web');
     expect(query.get('topic')).toBe(TOPIC);
     expect(query.get('branded')).toBe('include');
@@ -94,7 +91,6 @@ describe('drillHref carries the scope', () => {
     ['topic', 'previous'],
     ['topicDrawer', 'previous'],
     ['prompt', 'previous'],
-    ['citations', null],
   ])('%s: a comparison that is on writes cmp=%s, so the page opens as the Overview does', (kind, expected) => {
     const scope = scopeOf({ ...NARROWED, country: null, compare: true });
     const href = drillHref(
@@ -104,6 +100,28 @@ describe('drillHref carries the scope', () => {
       PROJECT,
     );
     expect(queryOf(href).get('cmp')).toBe(expected);
+  });
+
+  it('citations: the group and one platform, and nothing of the window, comparison, country or branded', () => {
+    const scope = scopeOf({ ...NARROWED, country: null, branded: 'excluded' });
+    const href = drillHref('citations', scope, {}, PROJECT);
+    const query = queryOf(href);
+    expect(pathOf(href)).toBe('/acme/eventus/ai/citations');
+    for (const key of ['from', 'to', 'win', 'cmp', 'engine', 'topic', 'branded', 'country', 'platform']) {
+      expect(query.get(key)).toBeNull();
+    }
+    expect(query.get('group')).toBe(TOPIC);
+    const one = queryOf(drillHref('citations', scopeOf({ engines: ['gemini_web'] }), {}, PROJECT));
+    expect(one.get('platform')).toBe('gemini_web');
+    expect(
+      queryOf(drillHref('citations', scopeOf({ engines: ['gemini_web'] }), { engine: 'chatgpt_web' }, PROJECT)).get(
+        'platform',
+      ),
+    ).toBe('chatgpt_web');
+  });
+
+  it('citations: a branded included scope has no link (the page counts non-branded prompts only)', () => {
+    expect(drillHref('citations', scopeOf({ branded: 'included' }), {}, PROJECT)).toBeNull();
   });
 
   it('writes a preset window as win, and nothing for the default 28 days', () => {
@@ -168,23 +186,18 @@ describe('the Prompts links are read by the Prompts page own parsers', () => {
 });
 
 describe('the Citations link is read by the Citations page own parser', () => {
-  it('engine, topic, branded and cmp', () => {
-    const href = drillHref('citations', scopeOf({ ...NARROWED, country: null }), {}, PROJECT);
-    const query = queryOf(href);
-    const read = parseCitationScope(
-      Object.fromEntries(['tab', 'engine', 'topic', 'branded', 'cmp'].map((key) => [key, query.get(key)])),
-      ENGINES,
-    );
-    expect(read.engines).toEqual(['chatgpt_web', 'gemini_web']);
-    expect(read.term).toBe(TOPIC);
-    expect(read.includeBranded).toBe(true);
-    expect(read.compare).toBe(false);
+  it('platform and group', () => {
+    const scope = scopeOf({ engines: ['gemini_web'], topic: TOPIC });
+    const query = queryOf(drillHref('citations', scope, {}, PROJECT));
+    const read = parseBoard(Object.fromEntries(query.entries()), { engines: null, terms: null, tracked: null });
+    expect(read.platform).toBe('gemini_web');
+    expect(read.group).toBe(TOPIC);
   });
 });
 
 describe('liveness', () => {
   it('a destination that is not live in the navigation registry gives null, not a link to a 404 page', () => {
-    for (const kind of ['competitors', 'sources'] as const) {
+    for (const kind of ['competitors'] as const) {
       expect(isLive(kind)).toBe(false);
       expect(drillHref(kind, scopeOf(), {}, PROJECT)).toBeNull();
     }
@@ -347,10 +360,16 @@ describe('a scope the destination cannot express gives null, never a link that s
 });
 
 describe('the longest window the destinations take', () => {
-  // The Overview allows 92 days; Prompts and Citations read a range with the default limit, 91
+  // The Overview allows 92 days; Prompts reads a range with the default limit, 91
   const custom = (from: string, to: string, days: number): OverviewScope =>
     scopeOf({ rangeValue: { kind: 'custom', from, to }, range: { from, to, days } });
-  const KINDS = ['prompts', 'topic', 'topicDrawer', 'citations'] as const;
+  const KINDS = ['prompts', 'topic', 'topicDrawer'] as const;
+
+  it('citations: a 92 day window still links, as the page reads runs and not a window', () => {
+    expect(drillHref('citations', custom('2026-08-13', '2026-11-12', 92), {}, PROJECT)).toBe(
+      '/acme/eventus/ai/citations',
+    );
+  });
 
   it.each(KINDS)('%s: a 92 day custom window gives null, not a link that opens another window', (kind) => {
     expect(drillHref(kind, custom('2026-08-13', '2026-11-12', 92), { term: TOPIC }, PROJECT)).toBeNull();

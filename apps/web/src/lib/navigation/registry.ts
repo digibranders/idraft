@@ -3,7 +3,6 @@ import {
   Compass,
   FileChartColumn,
   FileText,
-  Globe,
   Grid2x2,
   LayoutDashboard,
   ListOrdered,
@@ -39,7 +38,6 @@ export type NavKey =
   | 'aiOverview'
   | 'prompts'
   | 'citations'
-  | 'sources'
   | 'competitors'
   | 'discover'
   | 'reports'
@@ -143,15 +141,6 @@ export const NAVIGATION: readonly NavDestination[] = [
     group: 'ai',
     permission: 'data:read',
     status: 'live',
-  },
-  {
-    key: 'sources',
-    path: '/ai/sources',
-    icon: Globe,
-    section: 1,
-    group: 'ai',
-    permission: 'data:read',
-    status: 'planned',
   },
   {
     key: 'competitors',
