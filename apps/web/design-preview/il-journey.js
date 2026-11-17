@@ -1007,7 +1007,18 @@ function buildCanvas() {
       return;
     }
     if (set.has(key)) set.delete(key);
-    else set.add(key);
+    else {
+      set.add(key);
+      // One journey at a time: opening a card closes every other opened card on its side, except the ones on its own
+      // path from the focus page. Select a second page and the first one's links go away.
+      const item = ctx.items.get(key);
+      if (kind !== 'group' && item?.keys) {
+        const path = new Set(item.keys);
+        [...j().opened].forEach((other) => {
+          if (ctx.items.get(other)?.dir === item.dir && !path.has(other)) j().opened.delete(other);
+        });
+      }
+    }
     rebuild(key);
   }
 
