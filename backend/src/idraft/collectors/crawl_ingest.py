@@ -78,7 +78,15 @@ from sqlalchemy.orm import aliased
 from idraft.collectors.crawl_runs import INGEST_JOB, CrawlIngestTask
 from idraft.collectors.crawl_store import apply_rules, recompute_tier_flow
 from idraft.crawl.edges import PageEdge, clean_text, is_clean, page_edges
-from idraft.crawl.graph import Link, Node, click_depths, deep_only_through_auto, pagerank
+from idraft.crawl.graph import (
+    Link,
+    Node,
+    click_depths,
+    deep_only_through_auto,
+    pagerank,
+    template_roots,
+)
+from idraft.crawl.head import canonical_of
 from idraft.crawl.hosts import site_hosts
 from idraft.crawl.placement import FoundLink, Placement, classify
 from idraft.crawl.scopes import LinkScope, scope_of
@@ -127,6 +135,8 @@ _REASONS: Final = frozenset(
     {"robots_txt", "meta_tag", "http_header", "attribute", "too_many_redirects"}
 )
 _REFUSED: Final = frozenset({401, 403})
+# A refused start page ends the crawl as `site_blocked` only when fewer pages than this were served.
+BLOCKED_SERVED_MIN: Final = 3
 _BLOCKED_MESSAGE: Final = "The start page refuses the crawler."
 _FAILED_MESSAGE: Final = "The crawl could not be read; the previous crawl is still shown."
 _log = structlog.get_logger(__name__)
@@ -173,6 +183,8 @@ class _PageLinks:
     state: str
     edges: list[PageEdge]
     capped: bool
+    # The canonical address the page's own HTML names, when its HTML was read.
+    canonical: CanonicalUrl | None = None
 
 
 type Step = Callable[
@@ -198,6 +210,11 @@ def _canonical(raw: str | None) -> CanonicalUrl | None:
         return canonicalize(raw)
     except UrlRejectedError:
         return None
+
+
+def _elsewhere(url_id: int, canonical_id: int | None) -> bool:
+    """Whether a page names another page as its canonical: then it is not indexable itself."""
+    return canonical_id is not None and canonical_id != url_id
 
 
 def _listing_bound(run: _Run) -> int:
@@ -391,7 +408,7 @@ async def _pages(
         for item, url, redirect, canonical in found:
             url_id = ids[url.url_hash]
             canonical_id = None if canonical is None else ids[canonical.url_hash]
-            elsewhere = canonical_id is not None and canonical_id != url_id
+            elsewhere = _elsewhere(url_id, canonical_id)
             values.append(
                 {
                     "run_id": run.id,
@@ -433,8 +450,19 @@ async def _pages(
             )
         ).scalar_one_or_none()
         if status in _REFUSED:
-            await _fail(db, run, code="site_blocked", message=_BLOCKED_MESSAGE)
-            return True
+            served: int = (
+                await db.execute(
+                    select(func.count()).where(
+                        crawl_pages.c.run_id == run.id, crawl_pages.c.status_code == 200
+                    )
+                )
+            ).scalar_one()
+            # A start page can answer 403 to the crawler's one spelling of it while the site
+            # serves hundreds of pages (eventussecurity.com did): only a crawl that was served
+            # next to nothing is a blocked one.
+            if served < BLOCKED_SERVED_MIN:
+                await _fail(db, run, code="site_blocked", message=_BLOCKED_MESSAGE)
+                return True
         await _checkpoint(
             db,
             run,
@@ -507,6 +535,7 @@ async def _read_page(
     the worker's other jobs."""
     url_id, crawled_url, canonical_url, url_hash = page_row
     html: str | None = None
+    html_canonical: CanonicalUrl | None = None
     try:
         html = await on_page.raw_html(run.provider_task_id, crawled_url)
     except ProviderCallError as failure:
@@ -525,6 +554,8 @@ async def _read_page(
             await store.put(html_key(run.project_id, url_hash), packed)
         links = await asyncio.to_thread(classify, html, crawled_url)
         state = "from_html"
+        # The provider's pages listing does not carry the canonical; the HTML does.
+        html_canonical = _canonical(await asyncio.to_thread(canonical_of, html, crawled_url))
     else:
         try:
             provided = await on_page.links_from(run.provider_task_id, crawled_url)
@@ -542,7 +573,9 @@ async def _read_page(
         links = [_as_found(link) for link in provided[: 4 * EDGES_PER_PAGE_MAX]]
         state = "from_provider"
     edges, capped = await asyncio.to_thread(_edges_of, links, canonicalize(canonical_url), hosts)
-    return _PageLinks(url_id=url_id, state=state, edges=edges, capped=capped)
+    return _PageLinks(
+        url_id=url_id, state=state, edges=edges, capped=capped, canonical=html_canonical
+    )
 
 
 def _edges_of(
@@ -550,6 +583,30 @@ def _edges_of(
 ) -> tuple[list[PageEdge], bool]:
     """The page's capped edges, from the links whose address the database can hold."""
     return capped_edges([link for link in links if is_clean(link.href)], page=page, hosts=hosts)
+
+
+async def _store_html_canonical(
+    db: AsyncSession, run: _Run, url_id: int, canonical_id: int
+) -> None:
+    """The canonical a page's HTML names, for a page the provider gave none (the provider's
+    stands). It makes the page non-indexable as the provider's does, and keeps a reason the
+    non-indexable step already gave."""
+    rule: dict[str, object] = {}
+    if _elsewhere(url_id, canonical_id):
+        rule = {
+            "is_indexable": False,
+            "non_indexable_reason": func.coalesce(crawl_pages.c.non_indexable_reason, "canonical"),
+        }
+    await db.execute(
+        update(crawl_pages)
+        .where(
+            crawl_pages.c.run_id == run.id,
+            crawl_pages.c.workspace_id == run.workspace_id,
+            crawl_pages.c.url_id == url_id,
+            crawl_pages.c.canonical_url_id.is_(None),
+        )
+        .values(canonical_url_id=canonical_id, **rule)
+    )
 
 
 async def _links(
@@ -626,7 +683,11 @@ async def _links(
     async with sessions() as db, db.begin():
         if not await _claim(db, run):
             return False
-        ids = await _url_ids(db, (edge.target for read in found for edge in read.edges))
+        ids = await _url_ids(
+            db,
+            [edge.target for read in found for edge in read.edges]
+            + [read.canonical for read in found if read.canonical is not None],
+        )
         stored = 0
         for read in found:
             # A page is written once: only the step that moves it out of `waiting` stores it.
@@ -645,6 +706,8 @@ async def _links(
             ).scalar_one_or_none()
             if moved is None:
                 continue
+            if read.canonical is not None:
+                await _store_html_canonical(db, run, read.url_id, ids[read.canonical.url_hash])
             if read.capped:
                 _log.warning(
                     "crawl page links cut",
@@ -833,13 +896,32 @@ _SUMMARY = text(
 )
 
 
+def _walked_links(run: _Run, nodes: dict[int, Node], links: list[Link]) -> list[Link]:
+    """The links the depth walk follows: the stored ones, and, when the start page was not
+    served, the site's template links as its own. Those are for the walk only: they are never
+    stored, counted or ranked."""
+    if run.start_url_id is None:
+        return links
+    roots = template_roots(run.start_url_id, nodes, links)
+    if not roots:
+        return links
+    _log.info(
+        "crawl start page unreadable, depth from template links",
+        run_id=str(run.id),
+        roots=len(roots),
+    )
+    return [*links, *(Link(run.start_url_id, root, LinkScope.TEMPLATE, True) for root in roots)]
+
+
 def _page_values(
-    nodes: dict[int, Node], links: list[Link], start: int | None
+    nodes: dict[int, Node], links: list[Link], run: _Run
 ) -> tuple[list[dict[str, object]], float]:
     """Depth and equity of every page, and the share of equity the error pages hold. Pure
     work, run in a thread."""
-    depths = {} if start is None else click_depths(start, nodes, links)
-    without = {} if start is None else click_depths(start, nodes, links, without_auto=True)
+    start = run.start_url_id
+    walked = _walked_links(run, nodes, links)
+    depths = {} if start is None else click_depths(start, nodes, walked)
+    without = {} if start is None else click_depths(start, nodes, walked, without_auto=True)
     equity = pagerank(nodes, links)
     # Shares of the crawled pages only (spec 6.4): links to pages past the ceiling hold some
     # value, which is not shown.
@@ -902,7 +984,7 @@ async def _page_metrics(sessions: async_sessionmaker[AsyncSession], run: _Run) -
         for row in link_rows
     ]
     del node_rows, link_rows
-    values, lost = await asyncio.to_thread(_page_values, nodes, links, run.start_url_id)
+    values, lost = await asyncio.to_thread(_page_values, nodes, links, run)
     async with sessions() as db, db.begin():
         await _long_transaction(db)
         if not await _claim(db, run):

@@ -77,6 +77,22 @@ def test_links_are_kept_when_internal_and_counted_once_per_placement_and_anchor(
     assert scopes == {"content": LinkScope.EDITORIAL, "navigation": LinkScope.TEMPLATE}
 
 
+def test_a_cloudflare_internal_link_is_not_a_page() -> None:
+    edges = _edges(
+        _found("https://example.com/cdn-cgi/l/email-protection#9f8e8d", anchor="[email protected]"),
+        _found("https://example.com/CDN-CGI/trace"),
+        _found("https://example.com/pricing"),
+        _found("https://example.com/blog/cdn-cgi/guide"),
+        _found("https://example.com/cdn-cgi-guide"),
+    )
+
+    assert [edge.target.path for edge in edges] == [
+        "/pricing",
+        "/blog/cdn-cgi/guide",
+        "/cdn-cgi-guide",
+    ]
+
+
 def test_nofollow_image_anchors_and_template_candidates() -> None:
     (image,) = _edges(
         _found("https://example.com/a", anchor="Logo", kind="image", rel=frozenset({"nofollow"}))

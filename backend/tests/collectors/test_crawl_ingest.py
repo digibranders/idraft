@@ -294,14 +294,208 @@ async def test_ingest_carries_on_from_its_checkpoint(
     assert pages["/pricing"]["linking_pages_template"] == 7
 
 
+def _site_with_head_canonicals() -> FakeOnPage:
+    """The synthetic site, where the provider names no canonical (as on real crawls) and the
+    pages say it in their HTML: `/blog/a` names `/blog/b` (relative), `/blog/b` itself with a
+    trailing slash, `/privacy` (which the provider calls non-indexable by its meta tag) names
+    `/pricing`, and `/pricing` names `/blog` while the provider says `/blog/c`."""
+    site = synthetic_site()
+    site.html[f"{SITE}/blog/a"] = page_html(
+        '<p><a href="/pricing">See plans</a></p>',
+        article=True,
+        next_="/blog/b",
+        canonical="/blog/b",
+    )
+    site.html[f"{SITE}/blog/b"] = page_html(
+        "<p>No links here.</p>",
+        article=True,
+        prev="/blog/a",
+        next_="/blog/c",
+        canonical=f"{SITE}/blog/b/",
+    )
+    site.html[f"{SITE}/privacy"] = page_html("<p>Privacy.</p>", canonical="/pricing")
+    site.html[f"{SITE}/pricing"] = page_html(
+        '<div class="intro"><a href="/blog/c">How it works</a></div>', canonical="/blog"
+    )
+    site.page_items = [
+        item.model_copy(update={"canonical": f"{SITE}/blog/c"})
+        if item.url == f"{SITE}/pricing"
+        else item
+        for item in site.page_items
+    ]
+    return site
+
+
+async def _canonicals(pg: PostgresServer, run_id: uuid.UUID) -> dict[str, tuple[Any, ...]]:
+    rows = await fetch(
+        pg,
+        "SELECT p.url_id, u.path, c.path AS canonical, p.is_indexable, p.non_indexable_reason "
+        "FROM seo.crawl_pages p JOIN core.urls u ON u.id = p.url_id "
+        "LEFT JOIN core.urls c ON c.id = p.canonical_url_id WHERE p.run_id = $1",
+        run_id,
+    )
+    return {
+        row["path"]: (row["canonical"], row["is_indexable"], row["non_indexable_reason"])
+        for row in rows
+    }
+
+
+async def test_a_canonical_only_the_html_names_is_stored_and_makes_the_page_non_indexable(
+    migrated: PostgresServer, worker_db: Sessions
+) -> None:
+    on_page = _site_with_head_canonicals()
+    crawled = await _crawled(migrated, worker_db, on_page)
+
+    await _ingest(worker_db, on_page, None, crawled.task)
+
+    stored = await _canonicals(migrated, crawled.task.run_id)
+    # Another page's canonical: stored, and non-indexable for the reason ingest gives it.
+    assert stored["/blog/a"] == ("/blog/b", False, "canonical")
+    # Its own address, with or without a trailing slash: stored and still indexable.
+    assert stored["/blog/b"] == ("/blog/b", True, None)
+    # The provider's own reason is kept, and the canonical is stored beside it.
+    assert stored["/privacy"] == ("/pricing", False, "meta_tag")
+    # The provider's canonical outranks the page's HTML.
+    assert stored["/pricing"] == ("/blog/c", False, "canonical")
+    # No canonical anywhere: untouched.
+    assert stored["/blog"] == (None, True, None)
+    assert stored["/orphan"] == (None, True, None)
+    assert stored["/gone"] == (None, True, None)
+
+
+async def test_a_crash_in_the_links_step_resumes_to_the_same_canonicals(
+    migrated: PostgresServer, worker_db: Sessions, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    plain_site = _site_with_head_canonicals()
+    plain = await _crawled(migrated, worker_db, plain_site)
+    await _ingest(worker_db, plain_site, None, plain.task)
+    expected = await _canonicals(migrated, plain.task.run_id)
+    assert expected["/blog/a"] == ("/blog/b", False, "canonical")
+    await execute(
+        migrated, "UPDATE core.projects SET primary_domain_id = NULL WHERE id = $1", plain.project
+    )
+    on_page = _site_with_head_canonicals()
+    task = (await _crawled(migrated, worker_db, on_page)).task
+    armed = [True]
+    real_checkpoint = crawl_ingest._checkpoint
+
+    async def checkpoint(db: AsyncSession, run: Any, **values: object) -> None:
+        # The links step's last write: its canonicals are in the transaction, its checkpoint is not.
+        if run.phase == "links" and armed:
+            armed.clear()
+            raise RuntimeError("injected")
+        await real_checkpoint(db, run, **values)
+
+    monkeypatch.setattr(crawl_ingest, "_checkpoint", checkpoint)
+    failed = 0
+    for _ in range(60):
+        failed += (await _ingest(worker_db, on_page, None, task)).failed
+        if (await _state(migrated, task.run_id))[0] != "processing":
+            break
+
+    assert failed == 1
+    assert await _canonicals(migrated, task.run_id) == expected
+    assert await _snapshot(migrated, task.run_id) == await _snapshot(migrated, plain.task.run_id)
+
+
+@pytest.mark.parametrize("status", [401, 403])
+async def test_a_start_page_that_refuses_the_crawler_does_not_fail_a_crawl_that_found_pages(
+    migrated: PostgresServer, worker_db: Sessions, status: int
+) -> None:
+    """Real data (eventussecurity.com): the start page and a fifth of the pages answered 403 and
+    318 pages were served. The crawl is kept: the refused pages are stored as broken."""
+    on_page = synthetic_site()
+    on_page.page_items[0] = on_page.page_items[0].model_copy(
+        update={"status_code": status, "resource_type": "broken"}
+    )
+    task = (await _crawled(migrated, worker_db, on_page)).task
+
+    await _ingest(worker_db, on_page, None, task)
+
+    run = await fetchrow(
+        migrated, "SELECT state, error_code FROM seo.crawl_runs WHERE id = $1", task.run_id
+    )
+    assert (run["state"], run["error_code"]) == ("ready", None)
+    start = (await _pages(migrated, task.run_id))["/"]
+    assert (start["status_code"], start["resource_type"]) == (status, "broken")
+
+
+async def test_a_refused_start_page_gets_the_sites_menu_links_for_the_depth_walk_only(
+    migrated: PostgresServer, worker_db: Sessions
+) -> None:
+    """Real data (eventussecurity.com): the CDN answered the start page 403, so no page was
+    reachable and 420 of 421 had no depth. The menu is on every served page, so it is on the
+    start page too; those links are used for the walk and are never stored."""
+    on_page = synthetic_site()
+    on_page.page_items[0] = on_page.page_items[0].model_copy(
+        update={"status_code": 403, "resource_type": "broken"}
+    )
+    del on_page.html[f"{SITE}/"]
+    task = (await _crawled(migrated, worker_db, on_page)).task
+
+    with capture_logs() as logs:
+        await _ingest(worker_db, on_page, None, task)
+
+    pages = await _pages(migrated, task.run_id)
+    assert {path: page["click_depth"] for path, page in pages.items()} == {
+        "/": 0,
+        "/pricing": 1,
+        "/blog": 1,
+        "/privacy": 1,
+        "/blog/a": 2,
+        "/blog/b": 2,
+        "/blog/c": 2,
+        "/blog/d": 3,
+        "/old": 3,
+        "/gone": 3,
+        "/orphan": None,
+    }
+    assert pages["/orphan"]["is_orphan"]
+    assert pages["/"]["status_code"] == 403
+    assert pages["/"]["resource_type"] == "broken"
+    assert not pages["/"]["is_orphan"]
+    # Nothing was stored for the start page, and no page counts it as linking out or in.
+    stored = await fetchrow(
+        migrated,
+        "SELECT count(*) AS n FROM seo.crawl_links WHERE run_id = $1 AND source_url_id = $2",
+        task.run_id,
+        pages["/"]["url_id"],
+    )
+    assert stored["n"] == 0
+    assert (pages["/"]["outlinks_all"], pages["/"]["outlinks_template"]) == (0, 0)
+    # The six other pages with HTML carry the menu; the start page is not one of them.
+    assert pages["/pricing"]["linking_pages_template"] == 6
+    event = "crawl start page unreadable, depth from template links"
+    entry = next(log for log in logs if log["event"] == event)
+    assert (entry["run_id"], entry["roots"]) == (str(task.run_id), 4)
+
+
+async def test_a_readable_start_page_is_walked_as_before_and_nothing_is_logged(
+    migrated: PostgresServer, worker_db: Sessions
+) -> None:
+    on_page = synthetic_site()
+    task = (await _crawled(migrated, worker_db, on_page)).task
+
+    with capture_logs() as logs:
+        await _ingest(worker_db, on_page, None, task)
+
+    pages = await _pages(migrated, task.run_id)
+    assert pages["/blog/b"]["click_depth"] == 2
+    assert pages["/orphan"]["click_depth"] is None
+    assert not any(log["event"].startswith("crawl start page") for log in logs)
+
+
 @pytest.mark.parametrize("status", [401, 403])
 async def test_a_start_page_that_refuses_the_crawler_fails_the_crawl_and_keeps_its_phase(
     migrated: PostgresServer, worker_db: Sessions, status: int
 ) -> None:
     on_page = synthetic_site()
-    on_page.page_items[0] = on_page.page_items[0].model_copy(
-        update={"status_code": status, "resource_type": "broken"}
-    )
+    # A site that refuses the crawler refuses every page it is asked for.
+    on_page.page_items = [
+        item.model_copy(update={"status_code": status, "resource_type": "broken"})
+        for item in on_page.page_items
+        if item.status_code == 200
+    ]
     task = (await _crawled(migrated, worker_db, on_page)).task
 
     await _ingest(worker_db, on_page, None, task)

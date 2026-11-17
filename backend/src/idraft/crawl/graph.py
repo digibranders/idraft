@@ -2,7 +2,8 @@
 
 Depth: breadth-first from the start URL over followed links of every placement; a redirect is a
 hop to its target. The same search without auto-generated links finds pages that only
-previous and next links reach.
+previous and next links reach. A start page that was not served has no links to walk from, so the
+walk borrows the site's template links for it (`template_roots`).
 
 PageRank: damping 0.85, until the largest change is under 1e-9 or for 200 rounds, over unique
 (source, target) pairs. A source's out-degree counts every distinct target, followed or not, and
@@ -80,6 +81,31 @@ def click_depths(
                 depths[target] = depths[current] + 1
                 queue.append(target)
     return depths
+
+
+def template_roots(start: int, nodes: Mapping[int, Node], links: Iterable[Link]) -> frozenset[int]:
+    """The targets a start page that cannot be read would link to, for the depth walk only.
+
+    A site's template links (header, navigation, footer) are on every page, the start page
+    included. When the start page was not served (a CDN answered the crawler 403) or has no
+    links, the targets that more than half of the served pages carry as followed template links
+    stand in for its links. A start page that redirects, or that has links, needs none."""
+    start_node = nodes.get(start)
+    if start_node is not None and start_node.redirect_to not in (None, start):
+        return frozenset()
+    served = {node.url_id for node in nodes.values() if node.status_code == 200} - {start}
+    carried_by: dict[int, set[int]] = {}
+    start_links = False
+    for link in links:
+        if link.source == start:
+            start_links = True
+        elif link.scope is LinkScope.TEMPLATE and link.followed and link.source in served:
+            carried_by.setdefault(link.target, set()).add(link.source)
+    if start_links and start_node is not None and start_node.status_code == 200:
+        return frozenset()
+    return frozenset(
+        target for target, sources in carried_by.items() if 2 * len(sources) > len(served)
+    )
 
 
 def deep_only_through_auto(depth: int | None, depth_without_auto: int | None) -> bool:

@@ -94,6 +94,8 @@ PAGE_WORKER_UPDATE = (
     "is_orphan",
     "is_editorial_orphan",
     "deep_only_through_auto",
+    # Migration 0026: the canonical read from a page's own HTML at ingest.
+    "canonical_url_id",
 )
 
 URL_COLUMNS = ("url_hash", "canonical_url", "domain_id", "path", "canonicalizer_version")

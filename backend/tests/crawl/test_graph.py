@@ -10,6 +10,7 @@ from idraft.crawl.graph import (
     click_depths,
     deep_only_through_auto,
     pagerank,
+    template_roots,
 )
 from idraft.crawl.scopes import LinkScope
 
@@ -123,3 +124,83 @@ def test_a_target_that_was_not_crawled_is_a_node() -> None:
 def test_nothing_to_rank() -> None:
     equity = pagerank({}, [])
     assert (equity.shares, equity.lost_to_errors, equity.rounds) == ({}, 0.0, 0)
+
+
+def _header(sources: range | list[int], *targets: int) -> list[Link]:
+    return [_link(source, target, T) for source in sources for target in targets]
+
+
+def test_a_refused_start_page_gets_the_header_targets_of_the_pages_served() -> None:
+    # 1 is the start page and answered 403; 2 to 5 carry a header with 8 and 9, which are served
+    # pages too: 4 of the 6 served pages carry each of them.
+    nodes = _nodes((1, 403), *[(url_id, 200) for url_id in (2, 3, 4, 5, 8, 9)])
+    links = [*_header(range(2, 6), 8, 9), _link(2, 3)]
+
+    assert template_roots(1, nodes, links) == {8, 9}
+
+
+def test_exactly_half_of_the_served_pages_is_not_more_than_half() -> None:
+    nodes = _nodes((1, 403), *[(url_id, 200) for url_id in (2, 3, 4, 5)])
+
+    assert template_roots(1, nodes, _header([2, 3], 9)) == frozenset()
+    assert template_roots(1, nodes, _header([2, 3, 4], 9)) == {9}
+
+
+def test_only_followed_template_links_of_served_pages_count() -> None:
+    nodes = _nodes((1, 403), (2, 200), (3, 200), (4, 404))
+    links = [
+        _link(2, 7, A),
+        _link(3, 7, A),
+        _link(2, 8, E),
+        _link(3, 8, E),
+        _link(2, 9, T, followed=False),
+        _link(3, 9, T, followed=False),
+        # A page that was not served says nothing about the site's template.
+        _link(4, 6, T),
+    ]
+
+    assert template_roots(1, nodes, links) == frozenset()
+
+
+def test_pages_with_no_template_links_give_no_roots() -> None:
+    nodes = _nodes((1, 403), (2, 200), (3, 200))
+
+    assert template_roots(1, nodes, []) == frozenset()
+
+
+def test_a_one_page_site_whose_start_page_is_refused_has_no_roots() -> None:
+    assert template_roots(1, _nodes((1, 403)), []) == frozenset()
+
+
+def test_a_start_page_missing_from_the_crawl_gets_the_roots_too() -> None:
+    nodes = _nodes((2, 200), (3, 200), (4, 200))
+
+    assert template_roots(1, nodes, _header(range(2, 5), 5)) == {5}
+
+
+def test_a_start_page_that_answers_with_no_links_gets_the_roots() -> None:
+    nodes = _nodes((1, 200), (2, 200), (3, 200))
+
+    assert template_roots(1, nodes, _header([2, 3], 4)) == {4}
+
+
+def test_a_readable_start_page_gets_nothing() -> None:
+    nodes = _nodes((1, 200), (2, 200), (3, 200))
+    links = [*_header([2, 3], 4), _link(1, 2)]
+
+    assert template_roots(1, nodes, links) == frozenset()
+
+
+def test_a_start_page_that_redirects_gets_nothing() -> None:
+    nodes = _nodes((1, 301, 2), (2, 200), (3, 200))
+
+    assert template_roots(1, nodes, _header([2, 3], 4)) == frozenset()
+
+
+def test_the_roots_make_pages_reachable_without_being_links_of_the_start_page() -> None:
+    nodes = _nodes((1, 403), (2, 200), (3, 200), (4, 200), (5, 200))
+    links = [*_header([2, 3, 4], 2, 3), _link(2, 4), _link(3, 5)]
+
+    assert click_depths(1, nodes, links) == {1: 0}
+    virtual = [_link(1, root, T) for root in template_roots(1, nodes, links)]
+    assert click_depths(1, nodes, [*links, *virtual]) == {1: 0, 2: 1, 3: 1, 4: 2, 5: 2}
