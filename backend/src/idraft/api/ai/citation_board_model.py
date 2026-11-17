@@ -15,6 +15,14 @@ from datetime import datetime
 from typing import Final
 from uuid import UUID
 
+from idraft.api.schemas.ai_citation_board import (
+    CitationOverview,
+    EngineCitationCounts,
+    RunSlot,
+    RunWindow,
+)
+from idraft.domain.ai_engines import EngineCode
+
 TREND_SLOTS: Final = 8
 RUN_CHOICES: Final = (1, 2, 4)
 
@@ -92,3 +100,102 @@ class Board:
 
     def units_of(self, slotted: Slotted) -> Sequence[Unit]:
         return self.units.get(slotted.answer.observation_id, ())
+
+
+def _slots(answers: Iterable[Slotted], wanted: Iterable[int]) -> list[RunSlot]:
+    by_slot: defaultdict[int, list[datetime]] = defaultdict(list)
+    for s in answers:
+        by_slot[s.slot].append(s.answer.observed_at)
+    return [
+        RunSlot(
+            slot=slot,
+            first_at=min(by_slot[slot]),
+            last_at=max(by_slot[slot]),
+            answers=len(by_slot[slot]),
+        )
+        for slot in wanted
+        if by_slot.get(slot)
+    ]
+
+
+def run_window(board: Board, *, timezone: str, run_number: int | None) -> RunWindow:
+    current = board.current()
+    # The latest answer over the whole board, not only the current window
+    latest = max((s.answer.observed_at for s in board.answers), default=None)
+    return RunWindow(
+        runs=board.runs,
+        timezone=timezone,
+        current=_slots(board.answers, range(1, board.runs + 1)),
+        previous=_slots(board.answers, range(board.runs + 1, 2 * board.runs + 1)),
+        trend=_slots(board.answers, range(TREND_SLOTS, 0, -1)),
+        answers=len(current),
+        prompts=len({s.answer.prompt_id for s in current}),
+        latest_answer_at=latest,
+        latest_run_number=run_number,
+    )
+
+
+def latest_run_id(board: Board) -> UUID | None:
+    """The run of the scope's latest answer, for the footer's run number."""
+    newest = max(board.answers, key=lambda s: s.answer.observed_at, default=None)
+    return None if newest is None else newest.answer.run_id
+
+
+def _own_units(board: Board, answers: Iterable[Slotted]) -> list[Unit]:
+    return [u for s in answers for u in board.units_of(s) if u.domain_role == "own"]
+
+
+def _pair(s: Slotted) -> tuple[UUID, str]:
+    return s.answer.prompt_id, s.answer.engine_code
+
+
+def overview(
+    board: Board, engines: Sequence[str], *, timezone: str, run_number: int | None = None
+) -> CitationOverview:
+    """The six measures of the strip and their previous values (plan rules 3 to 7)."""
+    now, before = board.current(), board.previous()
+    matched = {_pair(s) for s in now} & {_pair(s) for s in before}
+
+    def engine_counts(code: str) -> EngineCitationCounts:
+        def counts(answers: list[Slotted]) -> tuple[int, int, int, int]:
+            mine = [s for s in answers if s.answer.engine_code == code]
+            citing = [s for s in mine if any(u.domain_role == "own" for u in board.units_of(s))]
+            return (
+                len(mine),
+                len(citing),
+                len({s.answer.prompt_id for s in mine}),
+                len({s.answer.prompt_id for s in citing}),
+            )
+
+        a, b, c, d = counts(now)
+        e, f, g, h = counts(before)
+        return EngineCitationCounts(
+            engine_code=EngineCode(code),
+            answers=a,
+            answers_citing=b,
+            prompts=c,
+            prompts_citing=d,
+            previous_answers=e,
+            previous_answers_citing=f,
+            previous_prompts=g,
+            previous_prompts_citing=h,
+        )
+
+    def domains_of(answers: list[Slotted]) -> int:
+        return len({u.registrable_domain for s in answers for u in board.units_of(s)})
+
+    return CitationOverview(
+        window=run_window(board, timezone=timezone, run_number=run_number),
+        engines=[engine_counts(code) for code in engines],
+        citations=len(_own_units(board, now)),
+        previous_citations=len(_own_units(board, before)),
+        matched_citations=len(_own_units(board, [s for s in now if _pair(s) in matched])),
+        matched_previous_citations=len(
+            _own_units(board, [s for s in before if _pair(s) in matched])
+        ),
+        matched_pairs=len(matched),
+        own_urls=len({u.url_id for u in _own_units(board, now)}),
+        previous_own_urls=len({u.url_id for u in _own_units(board, before)}),
+        domains=domains_of(now),
+        previous_domains=domains_of(before),
+    )

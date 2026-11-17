@@ -7,11 +7,19 @@ from collections.abc import Iterable
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-from idraft.api.ai.citation_board_model import Answer, Board, assign_slots
+from idraft.api.ai.citation_board_model import (
+    Answer,
+    Board,
+    Unit,
+    assign_slots,
+    overview,
+    run_window,
+)
 from idraft.api.schemas.ai_citation_board import BrandCell, RunSlot
 
 NOW = datetime(2026, 11, 16, 9, 0, tzinfo=UTC)
 P1, P2 = UUID(int=1), UUID(int=2)
+OWN_A = "https://own.example/a"
 
 
 def test_a_brand_cell_states_its_counts() -> None:
@@ -77,3 +85,74 @@ def test_the_windows_are_slots_1_to_n_and_n_plus_1_to_2n() -> None:
 
     assert [s.answer.observation_id for s in board.current()] == [1, 2]
     assert [s.answer.observation_id for s in board.previous()] == [3, 4]
+
+
+def unit(
+    oid: int,
+    url: str,
+    role: str = "own",
+    entity: UUID | None = None,
+    *,
+    url_id: int,
+) -> Unit:
+    host = url.split("/")[2]
+    path = "/" + url.split("/", 3)[-1]
+    return Unit(oid, url_id, url, host, host, path, None, role, entity)
+
+
+def board(runs: int, answers: list[Answer], units: list[Unit]) -> Board:
+    by_answer: dict[int, list[Unit]] = {}
+    for u in units:
+        by_answer.setdefault(u.observation_id, []).append(u)
+    return Board(runs=runs, answers=assign_slots(answers), units=by_answer)
+
+
+def test_the_strip_counts_own_units_rates_per_engine_and_matched_growth() -> None:
+    # P1 ChatGPT: r2 (now) cites own twice, r1 (before) once. P2 ChatGPT: only r2, cites own once.
+    # P1 Gemini: r2 cites nothing, r1 cites own. Runs = 1.
+    answers = [
+        ans(1, P1, "r2", 1),
+        ans(2, P1, "r1", 8),
+        ans(3, P2, "r2", 1),
+        ans(4, P1, "r2", 1, engine="gemini_web"),
+        ans(5, P1, "r1", 8, engine="gemini_web"),
+    ]
+    units = [
+        unit(1, OWN_A, url_id=1),
+        unit(1, "https://own.example/b", url_id=2),
+        unit(1, "https://g2.com/x", "third_party", url_id=3),
+        unit(2, OWN_A, url_id=1),
+        unit(3, OWN_A, url_id=1),
+        unit(5, OWN_A, url_id=1),
+    ]
+
+    result = overview(board(1, answers, units), ["chatgpt_web", "gemini_web"], timezone="UTC")
+
+    assert (result.citations, result.previous_citations) == (3, 2)
+    # Matched pairs: P1 ChatGPT and P1 Gemini (P2 has no previous run)
+    matched = (result.matched_citations, result.matched_previous_citations, result.matched_pairs)
+    assert matched == (2, 2, 2)
+    chatgpt, gemini = result.engines
+    now = (chatgpt.answers, chatgpt.answers_citing, chatgpt.prompts, chatgpt.prompts_citing)
+    assert now == (2, 2, 2, 2)
+    assert (chatgpt.previous_answers, chatgpt.previous_answers_citing) == (1, 1)
+    assert (gemini.answers, gemini.answers_citing, gemini.previous_answers_citing) == (1, 0, 1)
+    assert (result.own_urls, result.previous_own_urls) == (2, 1)
+    assert (result.domains, result.previous_domains) == (2, 1)
+
+
+def test_the_window_lists_its_slots_with_dates_and_counts() -> None:
+    answers = [ans(1, P1, "r2", 1), ans(2, P1, "r1", 8), ans(3, P2, "r2", 2)]
+
+    window = run_window(board(1, answers, []), timezone="Asia/Kolkata", run_number=None)
+
+    assert [s.slot for s in window.current] == [1]
+    assert window.current[0].answers == 2
+    assert window.current[0].first_at == NOW - timedelta(days=2)
+    assert [s.slot for s in window.previous] == [1 + 1]
+    assert [s.slot for s in window.trend] == [2, 1]
+    assert (window.answers, window.prompts, window.latest_answer_at) == (
+        2,
+        2,
+        NOW - timedelta(days=1),
+    )
