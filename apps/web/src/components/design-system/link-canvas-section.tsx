@@ -68,6 +68,7 @@ const FOCUS: CanvasFocus = {
   tier: { code: 'T3', name: 'Content pages' },
   linkingPages: 4,
   linkingPagesAll: 9,
+  linksOut: 7,
   statusCode: 200,
   clickDepth: 0,
 };
@@ -108,6 +109,8 @@ function CanvasSpecimen(): ReactElement {
         onDetails={none}
         onRetry={none}
         onFull={none}
+        onShowLinks={(keys) => setOpen((current) => new Set([...current, ...keys]))}
+        onSetTier={none}
       />
     </div>
   );
@@ -136,7 +139,7 @@ export function LinkCanvasSection(): ReactElement {
       </SpecimenGroup>
       <SpecimenGroup
         title="LinkCanvas and LinkCard"
-        note="Drag the background, use the wheel or Ctrl and wheel, or press the controls at the bottom left (the map button shows the map at the bottom right). Cards, a stub (Already on the canvas), a group card (Menu and footer), a back-link marker (hover, focus or pin it), a redirect and a broken target."
+        note="Drag the background, use the wheel or Ctrl and wheel, or press the controls at the bottom left (the map button shows the map at the bottom right, the question mark the legend and keys). The focus card is wider with a primary border. Drag a card to move it, Shift or Cmd and click or Shift and drag to select (the bar offers Show their links), the i button opens a card's info panel. Cards, a stub (Also at), a group card (Menu and footer), a back-link marker (hover, focus or pin it), a redirect and a broken target."
       >
         <CanvasSpecimen />
       </SpecimenGroup>

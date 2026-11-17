@@ -76,6 +76,7 @@ const FOCUS: CanvasFocus = {
   tier: { code: 'T3', name: 'Content pages' },
   linkingPages: 4,
   linkingPagesAll: 9,
+  linksOut: 7,
   statusCode: 200,
   clickDepth: 0,
 };
@@ -96,6 +97,7 @@ function canvas(over: Partial<LinkCanvasProps<JourneyNeighbor>> = {}, state: Par
     onDetails: vi.fn(),
     onRetry: vi.fn(),
     onFull: vi.fn(),
+    onShowLinks: vi.fn(),
     ...over,
   };
   return { props, ...renderWithProviders(<LinkCanvas {...props} />) };
@@ -126,7 +128,8 @@ describe('LinkCanvas (spec 7.5)', () => {
       name: '/pricing, T1 Money pages, 3 linking pages, linked as “Go to /pricing”, content',
     });
     expect(pricing).toHaveAttribute('aria-expanded', 'false');
-    expect(within(pricing).getByText('Both ways')).toBeInTheDocument();
+    // A two-way arrow, with the words as its title
+    expect(within(pricing).getByTitle('Links both ways')).toBeInTheDocument();
   });
 
   it('labels the columns from the focus', () => {
@@ -353,7 +356,7 @@ describe('LinkCanvas, behaviour found in review', () => {
     const onViewChange = vi.fn();
     const { user } = canvas({ onViewChange, view: { x: -10000, y: 0, scale: 1 } });
     onViewChange.mockClear();
-    screen.getByRole('button', { name: /focus page$/ }).focus();
+    screen.getByRole('button', { name: /, focus page$/ }).focus();
     await user.keyboard('{ArrowRight}');
     expect(screen.getByRole('button', { name: /^\/pricing, T1/ })).toHaveFocus();
     // The card is at the left of a world that sits 10000 px to the left: the least pan brings it 24 px inside
@@ -522,5 +525,300 @@ describe('LinkCanvas, behaviour found in review', () => {
     expect(marker).toHaveAccessibleDescription(/T3 \/\. T3 \/pricing\./);
     expect(marker).not.toHaveAccessibleDescription(/“”/);
     expect(marker).not.toHaveAccessibleDescription(/And \d+ more/);
+  });
+});
+
+const pricingCard = (): HTMLElement => screen.getByRole('button', { name: /^\/pricing, T1/ });
+const blogCard = (): HTMLElement => screen.getByRole('button', { name: /^\/blog, T3/ });
+const shiftClick = async (user: ReturnType<typeof canvas>['user'], element: HTMLElement): Promise<void> => {
+  await user.keyboard('{Shift>}');
+  await user.click(element);
+  await user.keyboard('{/Shift}');
+};
+
+describe('LinkCanvas, the focus card and the card layout (spec 7.5)', () => {
+  it('makes the focus card wider, with a 2 px primary border, a halo and a third line', () => {
+    canvas();
+    const card = screen.getByRole('button', { name: /focus page$/ });
+    expect(card.className).toContain('border-2');
+    expect(card.className).toContain('border-primary');
+    expect(card.closest('.group')?.className).toContain('w-72');
+    expect(screen.getByText('7 out')).toBeInTheDocument();
+    expect(screen.getByText('This is the home page')).toBeInTheDocument();
+  });
+
+  it('says how many clicks from home, and when the focus is not reachable', () => {
+    canvas({ focus: { ...FOCUS, clickDepth: 3 } });
+    expect(screen.getByText('3 clicks from home')).toBeInTheDocument();
+  });
+
+  it('says a focus page that cannot be reached from home', () => {
+    canvas({ focus: { ...FOCUS, clickDepth: null } });
+    expect(screen.getByText('Not reachable from home')).toBeInTheDocument();
+  });
+
+  it('heads the focus column with a primary Focus page badge', () => {
+    canvas();
+    expect(screen.getByRole('heading', { name: 'Focus page' }).className).toContain('bg-primary-subtle');
+  });
+
+  it('draws other cards 240 px wide with the path, then the anchor and the facts', () => {
+    canvas();
+    const pricing = pricingCard();
+    expect(pricing.closest('.group')?.className).toContain('w-60');
+    expect(within(pricing).getByText('/pricing')).toBeInTheDocument();
+    expect(within(pricing).getByText('Go to /pricing')).toBeInTheDocument();
+    expect(within(pricing).getByText('3 in')).toBeInTheDocument();
+    expect(within(pricing).getByText('T1')).toBeInTheDocument();
+    expect(within(pricing).queryByText('3 linking pages')).toBeNull();
+  });
+
+  it('shows a stub as two lines: the path, then the anchor and where the page also is', () => {
+    canvas({}, { open: new Set([cardKey('out', ['2']), cardKey('out', ['3'])]) });
+    const stub = screen.getByRole('button', { name: /^\/blog\/post, already on the canvas/ });
+    expect(within(stub).getByText('Also at step 2 out')).toBeInTheDocument();
+  });
+
+  it('has no legend row under the canvas', () => {
+    canvas();
+    expect(screen.queryByRole('list', { name: 'Legend' })).toBeNull();
+  });
+});
+
+describe('LinkCanvas, the info panel', () => {
+  it('does not open on hover or focus', async () => {
+    const { user } = canvas();
+    await user.hover(pricingCard());
+    pricingCard().focus();
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('opens from the Info button with the facts of the page and the link, and closes on Escape or the button again', async () => {
+    const { user } = canvas();
+    await user.click(screen.getByRole('button', { name: 'Info about /pricing' }));
+    const panel = screen.getByRole('dialog', { name: 'Info about /pricing' });
+    expect(within(panel).getByText('T1 Money pages')).toBeInTheDocument();
+    expect(within(panel).getByText('Link placement')).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Info about /pricing' }));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Info about /pricing' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('closes when the view pans', async () => {
+    const { user, props, rerender } = canvas();
+    await user.click(screen.getByRole('button', { name: 'Info about /pricing' }));
+    rerender(<LinkCanvas {...props} view={{ x: -30, y: 0, scale: 1 }} />);
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('is on the focus card too, without link rows', async () => {
+    const { user } = canvas();
+    await user.click(screen.getByRole('button', { name: 'Info about /' }));
+    expect(within(screen.getByRole('dialog')).queryByText('Link placement')).toBeNull();
+  });
+});
+
+describe('LinkCanvas, line tips', () => {
+  it('names the anchor, the type and the attribute of a line on hover', () => {
+    const { container } = canvas();
+    const line = container.querySelector('path[data-line]');
+    expect(line).not.toBeNull();
+    fireEvent.pointerMove(line as Element, { clientX: 40, clientY: 50 });
+    const tip = screen.getByRole('tooltip');
+    expect(within(tip).getByText('Anchor text')).toBeInTheDocument();
+    expect(within(tip).getByText('Link type')).toBeInTheDocument();
+    expect(within(tip).getByText('Attribute')).toBeInTheDocument();
+    fireEvent.pointerLeave(line as Element);
+    expect(screen.queryByRole('tooltip')).toBeNull();
+  });
+});
+
+describe('LinkCanvas, back to the focus page', () => {
+  it('shows only when the focus card is off screen, and centres on it', async () => {
+    stubGeometry();
+    const { props, user, rerender } = canvas();
+    expect(screen.queryByRole('button', { name: 'Back to the focus page' })).toBeNull();
+    rerender(<LinkCanvas {...props} view={{ x: -5000, y: 0, scale: 1 }} />);
+    await user.click(screen.getByRole('button', { name: 'Back to the focus page' }));
+    expect(props.onViewChange).toHaveBeenCalled();
+  });
+});
+
+describe('LinkCanvas, selecting cards', () => {
+  it('selects with Shift click, says how many, and takes a card away the second time', async () => {
+    const { user } = canvas();
+    await shiftClick(user, pricingCard());
+    await shiftClick(user, blogCard());
+    expect(screen.getByText('2 cards selected')).toBeInTheDocument();
+    await shiftClick(user, blogCard());
+    expect(screen.getByText('1 card selected')).toBeInTheDocument();
+    await shiftClick(user, pricingCard());
+    expect(screen.queryByRole('region', { name: 'Selected cards' })).toBeNull();
+  });
+
+  it('does not open a card that Shift click selected', async () => {
+    const { props, user } = canvas();
+    await shiftClick(user, pricingCard());
+    expect(props.onToggleCard).not.toHaveBeenCalled();
+  });
+
+  it('hands the cards that can open to Show their links', async () => {
+    const { props, user } = canvas();
+    await shiftClick(user, pricingCard());
+    await shiftClick(user, blogCard());
+    await user.click(screen.getByRole('button', { name: 'Show their links' }));
+    const keys = vi.mocked(props.onShowLinks).mock.lastCall?.[0] ?? [];
+    expect([...keys].sort()).toEqual([cardKey('out', ['2']), cardKey('out', ['3'])].sort());
+  });
+
+  it('sets the tier of the selected pages when the person can write, and offers nothing when not', async () => {
+    const onSetTier = vi.fn();
+    const { user } = canvas({ onSetTier });
+    await shiftClick(user, pricingCard());
+    await shiftClick(user, blogCard());
+    await user.click(screen.getByRole('button', { name: 'Set tier' }));
+    expect(onSetTier.mock.lastCall?.[0]).toEqual(['2', '3']);
+  });
+
+  it('has no Set tier without the handler', async () => {
+    const { user } = canvas();
+    await shiftClick(user, pricingCard());
+    expect(screen.queryByRole('button', { name: 'Set tier' })).toBeNull();
+  });
+
+  it('clears with the Clear button', async () => {
+    const { user } = canvas();
+    await shiftClick(user, pricingCard());
+    await user.click(screen.getByRole('button', { name: 'Clear' }));
+    expect(screen.queryByRole('region', { name: 'Selected cards' })).toBeNull();
+  });
+
+  it('clears with Escape first, and only the next Escape returns to the focus card', async () => {
+    const { user } = canvas();
+    await shiftClick(user, pricingCard());
+    pricingCard().focus();
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('region', { name: 'Selected cards' })).toBeNull();
+    expect(pricingCard()).toHaveFocus();
+    await user.keyboard('{Escape}');
+    expect(screen.getByRole('button', { name: /focus page$/ })).toHaveFocus();
+  });
+
+  it('selects the cards a Shift drag over the background touches, without panning', () => {
+    stubGeometry();
+    const { props } = canvas();
+    const region = screen.getByRole('group', { name: /^Link journey canvas/ });
+    // The first view of the focus page is the canvas's own change, before the person does anything
+    vi.mocked(props.onViewChange).mockClear();
+    fireEvent.pointerDown(region, { pointerId: 1, clientX: 0, clientY: 0, button: 0, shiftKey: true });
+    fireEvent.pointerMove(document, { pointerId: 1, clientX: 200, clientY: 100 });
+    fireEvent.pointerUp(document, { pointerId: 1, clientX: 200, clientY: 100 });
+    expect(screen.getByText('4 cards selected')).toBeInTheDocument();
+    expect(props.onViewChange).not.toHaveBeenCalled();
+  });
+
+  it('keeps a selection only for the focus page it was made on', async () => {
+    const { user, props, rerender } = canvas();
+    await shiftClick(user, pricingCard());
+    rerender(<LinkCanvas {...props} focus={{ ...FOCUS, urlId: '9' }} />);
+    expect(screen.queryByRole('region', { name: 'Selected cards' })).toBeNull();
+  });
+});
+
+describe('LinkCanvas, moving cards', () => {
+  const drag = (element: HTMLElement, dx: number, dy: number, over: Record<string, unknown> = {}): void => {
+    fireEvent.pointerDown(element, {
+      pointerId: 1,
+      clientX: 100,
+      clientY: 100,
+      button: 0,
+      pointerType: 'mouse',
+      ...over,
+    });
+    fireEvent.pointerMove(document, { pointerId: 1, clientX: 100 + dx, clientY: 100 + dy });
+    fireEvent.pointerUp(document, { pointerId: 1, clientX: 100 + dx, clientY: 100 + dy });
+  };
+  const wrapperOf = (element: HTMLElement): HTMLElement => element.closest('.group') as HTMLElement;
+
+  it('moves a card with the pointer, by the distance in world pixels', () => {
+    canvas({ view: { x: 0, y: 0, scale: 0.5 } });
+    drag(pricingCard(), 30, 10);
+    expect(wrapperOf(pricingCard()).style.transform).toBe('translate(60px, 20px)');
+  });
+
+  it('does not open the card it moved', () => {
+    const { props } = canvas();
+    drag(pricingCard(), 30, 10);
+    fireEvent.click(pricingCard());
+    expect(props.onToggleCard).not.toHaveBeenCalled();
+  });
+
+  it('still opens a card that was only pressed and released', async () => {
+    const { props, user } = canvas();
+    await user.click(pricingCard());
+    expect(props.onToggleCard).toHaveBeenCalledWith(cardKey('out', ['2']));
+    expect(wrapperOf(pricingCard()).style.transform).toBe('');
+  });
+
+  it('does not move on a touch screen, so a tap always opens', () => {
+    canvas();
+    drag(pricingCard(), 30, 10, { pointerType: 'touch' });
+    expect(wrapperOf(pricingCard()).style.transform).toBe('');
+  });
+
+  it('moves the whole selection when a selected card is dragged', async () => {
+    const { user } = canvas();
+    await shiftClick(user, pricingCard());
+    await shiftClick(user, blogCard());
+    drag(pricingCard(), 20, 0);
+    expect(wrapperOf(blogCard()).style.transform).toBe('translate(20px, 0px)');
+  });
+
+  it('keeps the positions for each focus page, and Reset card positions puts the cards back', async () => {
+    const { user, props, rerender } = canvas();
+    const reset = screen.getByRole('button', { name: 'Reset card positions' });
+    expect(reset).toHaveAttribute('aria-disabled', 'true');
+    drag(pricingCard(), 30, 10);
+    rerender(<LinkCanvas {...props} focus={{ ...FOCUS, urlId: '9' }} />);
+    expect(wrapperOf(pricingCard()).style.transform).toBe('');
+    rerender(<LinkCanvas {...props} />);
+    expect(wrapperOf(pricingCard()).style.transform).toBe('translate(30px, 10px)');
+    await user.click(screen.getByRole('button', { name: 'Reset card positions' }));
+    expect(wrapperOf(pricingCard()).style.transform).toBe('');
+  });
+
+  it('does not render the other cards again while one is moved', () => {
+    canvas();
+    const rendered = vi.mocked(tierEdge).mock.calls.length;
+    drag(pricingCard(), 30, 10);
+    expect(vi.mocked(tierEdge).mock.calls.length - rendered).toBeLessThanOrEqual(2);
+  });
+
+  it('draws the lines to where the card was moved', () => {
+    stubGeometry();
+    const { container } = canvas();
+    const line = (): string | null | undefined =>
+      container.querySelector(`path[data-line="${cardKey('out', ['2'])}"]`)?.getAttribute('d');
+    const before = line();
+    expect(before).toBeTruthy();
+    drag(pricingCard(), 30, 10);
+    expect(line()).toBeTruthy();
+    expect(line()).not.toBe(before);
+  });
+});
+
+describe('LinkCanvas, the legend and controls panel', () => {
+  it('opens and closes from the question mark button', async () => {
+    const { user } = canvas();
+    const help = screen.getByRole('button', { name: 'Legend and controls' });
+    expect(help).toHaveAttribute('aria-expanded', 'false');
+    await user.click(help);
+    expect(screen.getByRole('region', { name: 'Legend and controls' })).toBeInTheDocument();
+    expect(help).toHaveAttribute('aria-expanded', 'true');
+    await user.click(help);
+    expect(screen.queryByRole('region', { name: 'Legend and controls' })).toBeNull();
   });
 });

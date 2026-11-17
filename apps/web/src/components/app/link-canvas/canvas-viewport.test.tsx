@@ -159,6 +159,32 @@ describe('CanvasViewport', () => {
       expect(onViewChange).not.toHaveBeenCalled();
     });
 
+    it('lets the canvas take a press of the background, and then does not pan', () => {
+      const onBackgroundPointerDown = vi.fn(() => true);
+      const onViewChange = vi.fn();
+      render(
+        <CanvasViewport
+          label="Journey"
+          view={{ x: 0, y: 0, scale: 1 }}
+          onViewChange={onViewChange}
+          size={{ width: 1000, height: 600 }}
+          onBackgroundPointerDown={onBackgroundPointerDown}
+        >
+          <button type="button">card</button>
+        </CanvasViewport>,
+      );
+      const region = screen.getByRole('group', { name: 'Journey' });
+      fireEvent.pointerDown(region, { pointerId: 1, clientX: 100, clientY: 100, button: 0, shiftKey: true });
+      fireEvent.pointerMove(region, { pointerId: 1, clientX: 140, clientY: 110 });
+      runFrames();
+      expect(onBackgroundPointerDown).toHaveBeenCalledTimes(1);
+      expect(onViewChange).not.toHaveBeenCalled();
+      // A press on a card is never offered to the canvas as background
+      fireEvent.pointerUp(region, { pointerId: 1 });
+      fireEvent.pointerDown(screen.getByRole('button', { name: 'card' }), { pointerId: 2, clientX: 0, clientY: 0 });
+      expect(onBackgroundPointerDown).toHaveBeenCalledTimes(1);
+    });
+
     it('keeps the first delta when a second move comes before the view has been rendered', () => {
       const { region, onViewChange } = setup();
       fireEvent.pointerDown(region, { pointerId: 1, clientX: 100, clientY: 100, button: 0 });

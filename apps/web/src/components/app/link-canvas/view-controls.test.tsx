@@ -15,6 +15,10 @@ const base = () => ({
   onFit: vi.fn(),
   onCenterFocus: vi.fn(),
   onToggleMinimap: vi.fn(),
+  canReset: false,
+  onReset: vi.fn(),
+  helpOpen: false,
+  onToggleHelp: vi.fn(),
 });
 
 describe('ViewControls', () => {
@@ -44,6 +48,24 @@ describe('ViewControls', () => {
     expect(props.onToggleMinimap).toHaveBeenCalledTimes(1);
     rerender(<ViewControls {...props} minimap />);
     expect(screen.getByRole('button', { name: 'Hide the map' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('resets card positions only when a card was moved, and opens the legend and controls', async () => {
+    const props = base();
+    const { user, rerender } = renderWithProviders(<ViewControls {...props} />);
+    const reset = screen.getByRole('button', { name: 'Reset card positions' });
+    expect(reset).toHaveAttribute('aria-disabled', 'true');
+    await user.click(reset);
+    expect(props.onReset).not.toHaveBeenCalled();
+    rerender(<ViewControls {...props} canReset />);
+    await user.click(screen.getByRole('button', { name: 'Reset card positions' }));
+    expect(props.onReset).toHaveBeenCalledTimes(1);
+    const help = screen.getByRole('button', { name: 'Legend and controls' });
+    expect(help).toHaveAttribute('aria-expanded', 'false');
+    await user.click(help);
+    expect(props.onToggleHelp).toHaveBeenCalledTimes(1);
+    rerender(<ViewControls {...props} helpOpen />);
+    expect(screen.getByRole('button', { name: 'Legend and controls' })).toHaveAttribute('aria-expanded', 'true');
   });
 
   it('turns the map button off where the map is not drawn (under 640 px)', () => {

@@ -23,6 +23,8 @@ export interface CanvasViewportProps {
   size: Size;
   /** Called for a key the viewport does not own (0, Home, Escape): the canvas decides. */
   onKey?: ((event: KeyboardEvent<HTMLDivElement>) => void) | undefined;
+  /** A press of the empty background (not on a card or a control): answer `true` to take it, and the view does not pan. */
+  onBackgroundPointerDown?: ((event: ReactPointerEvent<HTMLDivElement>) => boolean) | undefined;
   children: ReactNode;
   className?: string;
 }
@@ -67,6 +69,7 @@ export function CanvasViewport({
   onViewChange,
   size,
   onKey,
+  onBackgroundPointerDown,
   children,
   className,
 }: CanvasViewportProps): ReactElement {
@@ -186,6 +189,8 @@ export function CanvasViewport({
     }
     if (onCard && !space.current) return;
     if (event.button !== 0 && event.pointerType === 'mouse') return;
+    // The canvas may take a press of the empty background for itself (Shift and drag draws a selection box)
+    if (!space.current && onBackgroundPointerDown?.(event) === true) return;
     const point = local(event.clientX, event.clientY);
     drag.current = { x: point.x, y: point.y, vx: 0, vy: 0, t: performance.now() };
     region.current?.setPointerCapture?.(event.pointerId);

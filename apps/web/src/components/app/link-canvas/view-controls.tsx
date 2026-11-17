@@ -1,6 +1,6 @@
 'use client';
 
-import { Map, Maximize2, Target, ZoomIn, ZoomOut } from 'lucide-react';
+import { CircleHelp, Map, Maximize2, Target, Undo2, ZoomIn, ZoomOut } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { ReactElement } from 'react';
 
@@ -21,11 +21,16 @@ export interface ViewControlsProps {
   onFit: () => void;
   onCenterFocus: () => void;
   onToggleMinimap: () => void;
+  /** At least one card was moved: Reset card positions has something to put back. */
+  canReset: boolean;
+  onReset: () => void;
+  helpOpen: boolean;
+  onToggleHelp: () => void;
 }
 
 /**
- * The toolbar at the bottom left of the canvas (spec 7.5 "View controls"): zoom, fit, centre on the focus page and the
- * map. Reset positions and the legend join it with the selection and move work.
+ * The toolbar at the bottom left of the canvas (spec 7.5 "View controls"): zoom, fit, centre on the focus page, reset
+ * card positions, the map and the legend and controls panel.
  */
 export function ViewControls(props: ViewControlsProps): ReactElement {
   const t = useTranslations('linkCanvas.controls');
@@ -64,6 +69,13 @@ export function ViewControls(props: ViewControlsProps): ReactElement {
       <IconButton icon={Maximize2} label={t('fit')} onClick={props.onFit} />
       <IconButton icon={Target} label={t('center')} onClick={props.onCenterFocus} />
       <IconButton
+        icon={Undo2}
+        label={t('reset')}
+        disabled={!props.canReset}
+        focusableWhenDisabled
+        onClick={props.onReset}
+      />
+      <IconButton
         icon={Map}
         label={props.minimap ? t('hideMap') : t('showMap')}
         // The map is drawn from 640 px up (see Minimap), so its button is too
@@ -71,6 +83,7 @@ export function ViewControls(props: ViewControlsProps): ReactElement {
         aria-pressed={props.minimap}
         onClick={props.onToggleMinimap}
       />
+      <IconButton icon={CircleHelp} label={t('help')} aria-expanded={props.helpOpen} onClick={props.onToggleHelp} />
     </div>
   );
 }

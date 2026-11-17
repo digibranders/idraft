@@ -1,5 +1,6 @@
 'use client';
 
+import { Crosshair } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import {
   use,
@@ -13,19 +14,25 @@ import {
   useRef,
   useState,
   type KeyboardEvent,
+  type PointerEvent,
   type ReactElement,
   type ReactNode,
   type Ref,
 } from 'react';
 
+import { CanvasHelp } from './canvas-help';
 import { CanvasViewport } from './canvas-viewport';
+import type { InfoFacts } from './info-panel';
 import { LinkCard, type LinkCardPageProps } from './link-card';
 import { Minimap, type MinimapCard } from './minimap';
+import { SelectionBar } from './selection-bar';
 import { ViewControls } from './view-controls';
 import { Button } from '@/components/ui/button';
+import { Icon } from '@/components/ui/icon';
 import { Skeleton } from '@/components/ui/skeleton';
 import { announce } from '@/lib/a11y/announcer';
 import { SingleKeysContext } from '@/lib/a11y/use-shortcut';
+import { boxesIn, toggleSelected, withOffsets, withoutKeys, type Offset } from '@/lib/internal-links/canvas-selection';
 import {
   MAX_SCALE,
   MIN_SCALE,
@@ -52,7 +59,6 @@ import {
 import { PLACEMENT_KEY, SCOPE_KEY } from '@/lib/internal-links/scopes';
 import type { TierNameLike } from '@/lib/internal-links/tiers';
 import { cn } from '@/lib/utils';
-
 /** The page the journey is centered on, from the inspector read of the feature. */
 export interface CanvasFocus {
   urlId: string;
@@ -61,6 +67,8 @@ export interface CanvasFocus {
   tier: TierNameLike | null;
   linkingPages: number;
   linkingPagesAll: number;
+  /** The links out of the page in the scope in view: the focus card's "N out". */
+  linksOut: number;
   statusCode: number | null;
   clickDepth: number | null;
 }
@@ -91,6 +99,10 @@ export interface LinkCanvasProps<N extends JourneyNeighbor> {
   onRetry: (request: ListRequest) => void;
   /** Opening was refused: the canvas holds 300 cards. */
   onFull: () => void;
+  /** The selection bar's "Show their links": the keys of the selected cards that have links to open (the host opens them together). */
+  onShowLinks: (keys: readonly string[]) => void;
+  /** The selected pages' url ids for the host's tier menu; leave it out for a person who cannot write, and the bar has no Set tier. */
+  onSetTier?: ((urlIds: readonly string[]) => void) | undefined;
   ref?: Ref<LinkCanvasHandle>;
 }
 
@@ -107,13 +119,26 @@ const FLASH_MS = 1500;
 /** The back links a card's marker tooltip lists. */
 const BACK_ROWS = 3;
 
+/** What the tip of a line says: the anchor, the type of link and its attribute (spec 7.5 "Lines"). */
+interface LineFacts {
+  anchor: string | null;
+  type: string;
+  attribute: string;
+}
+
 interface DrawnEdge {
   id: string;
   d: string;
   look: EdgeLook;
   /** The dot at the source end, and where the arrowhead stands (lines only). */
   start: { x: number; y: number } | null;
+  facts: LineFacts | null;
 }
+
+/** Pressing a card and moving less than this many pixels is a click, not a move. */
+const DRAG_START = 5;
+const NO_OFFSETS: ReadonlyMap<string, Offset> = new Map();
+const NO_KEYS: ReadonlySet<string> = new Set();
 
 const STROKE: Readonly<Record<EdgeLook['tone'], string>> = {
   editorial: 'stroke-foreground-tertiary',
@@ -197,7 +222,17 @@ function useStable<A extends unknown[], R>(fn: (...args: A) => R): (...args: A) 
 const none = (): void => undefined;
 
 /** The lines, dots and arrowheads, drawn again only when the drawing changes (a pan or a zoom leaves it alone). */
-const EdgeLayer = memo(function EdgeLayer({ edges, markerId }: { edges: DrawnEdges; markerId: string }): ReactElement {
+const EdgeLayer = memo(function EdgeLayer({
+  edges,
+  markerId,
+  onLine,
+  onLineLeave,
+}: {
+  edges: DrawnEdges;
+  markerId: string;
+  onLine: (id: string, event: PointerEvent<SVGPathElement>) => void;
+  onLineLeave: () => void;
+}): ReactElement {
   return (
     <svg
       aria-hidden="true"
@@ -237,6 +272,19 @@ const EdgeLayer = memo(function EdgeLayer({ edges, markerId }: { edges: DrawnEdg
           />
           {line.start === null ? null : (
             <circle cx={line.start.x} cy={line.start.y} r={3} className={FILL[line.look.tone]} />
+          )}
+          {line.facts === null ? null : (
+            // A wide invisible stroke to hover: the line itself is 1.5 px
+            <path
+              d={line.d}
+              data-line={line.id}
+              fill="none"
+              stroke="transparent"
+              strokeWidth={12}
+              pointerEvents="stroke"
+              onPointerMove={(event) => onLine(line.id, event)}
+              onPointerLeave={onLineLeave}
+            />
           )}
         </g>
       ))}
@@ -296,6 +344,8 @@ export function LinkCanvas<N extends JourneyNeighbor>({
   onDetails,
   onRetry,
   onFull,
+  onShowLinks,
+  onSetTier,
   ref,
 }: LinkCanvasProps<N>): ReactElement {
   const t = useTranslations('linkCanvas');
@@ -327,7 +377,40 @@ export function LinkCanvas<N extends JourneyNeighbor>({
   const [width, setWidth] = useState(DEFAULT_WIDTH);
   // The map is off until its button is pressed (owner decision, 2026-11-17)
   const [minimap, setMinimap] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  // The selected cards, and where cards were moved to (kept for each focus page for as long as the canvas lives)
+  const [selection, setSelection] = useState<{ focus: string; keys: ReadonlySet<string> }>({
+    focus: focus.urlId,
+    keys: NO_KEYS,
+  });
+  const [moved, setMoved] = useState<ReadonlyMap<string, ReadonlyMap<string, Offset>>>(new Map());
+  const offsets = moved.get(focus.urlId) ?? NO_OFFSETS;
+  // The card whose info panel is open; it closes when the view pans or zooms or the focus page changes
+  const [infoAt, setInfoAt] = useState<{ key: string; focus: string; view: View } | null>(null);
+  const infoKey =
+    infoAt !== null &&
+    infoAt.focus === focus.urlId &&
+    infoAt.view.x === view.x &&
+    infoAt.view.y === view.y &&
+    infoAt.view.scale === view.scale
+      ? infoAt.key
+      : null;
+  const [lineTip, setLineTip] = useState<{ id: string; x: number; y: number } | null>(null);
+  const viewNow = useRef(view);
+  const marquee = useRef<HTMLDivElement>(null);
+  // A move just ended: the click that follows it must not open the card
+  const suppressClick = useRef(false);
+  const stopDrag = useRef<(() => void) | null>(null);
   const size = useMemo<Size>(() => ({ width, height }), [width, height]);
+  useLayoutEffect(() => {
+    viewNow.current = view;
+  });
+  useEffect(
+    () => () => {
+      stopDrag.current?.();
+    },
+    [],
+  );
 
   const tierText = useCallback((tier: TierNameLike | null): string => tier?.code ?? t('untiered'), [t]);
   const tierLong = useCallback(
@@ -356,6 +439,17 @@ export function LinkCanvas<N extends JourneyNeighbor>({
   }, [layout, focus.urlId, focus.path]);
   // The tab stop stays where focus last was; when that node is gone it falls back to the focus page
   const tabKey = stops.has(activeKey) ? activeKey : FOCUS_KEY;
+  // Page cards can be selected and moved (stubs, groups and "+N more" are not pages to act on)
+  const selectable = useMemo(() => {
+    const keys = new Set<string>([FOCUS_KEY]);
+    for (const [key, item] of byKey) if (item.kind === 'card') keys.add(key);
+    return keys;
+  }, [byKey]);
+  // A selection belongs to its focus page, and loses the cards that are no longer on the canvas
+  const selected = useMemo(
+    () => (selection.focus === focus.urlId ? withoutKeys(selection.keys, selectable) : NO_KEYS),
+    [selection, focus.urlId, selectable],
+  );
 
   // A failed list is spoken once through the app's live region, not by a region of the canvas (20 section 10.1)
   useEffect(() => {
@@ -386,9 +480,13 @@ export function LinkCanvas<N extends JourneyNeighbor>({
       const key = element.getAttribute('data-key');
       if (key !== null) elements.set(key, element);
     }
+    // A moved card is drawn by a transform, which offset geometry does not see: its offset is added here
     const boxOf = (key: string): Box | null => {
       const element = elements.get(key);
-      return element === undefined ? null : offsetBox(element, root);
+      if (element === undefined) return null;
+      const box = offsetBox(element, root);
+      const shift = offsets.get(key);
+      return shift === undefined ? box : { ...box, left: box.left + shift.dx, top: box.top + shift.dy };
     };
     const cards: MinimapCard[] = [];
     for (const key of elements.keys()) {
@@ -419,7 +517,18 @@ export function LinkCanvas<N extends JourneyNeighbor>({
       const drawn = inbound
         ? curvePath(child, parent, index, children.get(item.parentKey))
         : curvePath(parent, child, index, children.get(item.parentKey));
-      lines.push({ id: key, d: drawn.d, look, start: drawn.start });
+      const facts: LineFacts | null =
+        item.kind === 'card'
+          ? {
+              anchor: item.node.anchor,
+              type:
+                item.node.placement === null
+                  ? t('redirectTarget')
+                  : t(`placement.${PLACEMENT_KEY[item.node.placement]}`),
+              attribute: item.node.rel.length === 0 ? t('follow') : item.node.rel.join(' '),
+            }
+          : null;
+      lines.push({ id: key, d: drawn.d, look, start: drawn.start, facts });
     }
     lines.sort((a, b) => a.look.rank - b.look.rank);
     const arrows: DrawnEdge[] = [];
@@ -431,7 +540,13 @@ export function LinkCanvas<N extends JourneyNeighbor>({
         const to = boxOf(back.key);
         if (to === null) continue;
         const d = item.dir === 'out' ? returnArrowPath(from, to) : returnArrowPath(to, from);
-        arrows.push({ id: `${key}>${back.key}`, d, look: { tone: 'editorial', dash: '6 4', rank: 2 }, start: null });
+        arrows.push({
+          id: `${key}>${back.key}`,
+          d,
+          look: { tone: 'editorial', dash: '6 4', rank: 2 },
+          start: null,
+          facts: null,
+        });
       }
     }
     // The size of the columns (offset size, in world pixels), not the scroll size: the SVG layer must not hold the area open
@@ -446,7 +561,7 @@ export function LinkCanvas<N extends JourneyNeighbor>({
     };
     // A hover or a pin that changes nothing on screen must not render the canvas again
     setEdges((current) => (sameEdges(current, next) ? current : next));
-  }, [byKey, shownBacks, layout, focus.urlId, focus.statusCode]);
+  }, [byKey, shownBacks, layout, focus.urlId, focus.statusCode, offsets, t]);
 
   useLayoutEffect(() => {
     draw();
@@ -570,7 +685,9 @@ export function LinkCanvas<N extends JourneyNeighbor>({
       }
     } else if (event.key === 'Escape') {
       event.preventDefault();
-      focusKey(FOCUS_KEY);
+      // The selection goes first; with none, Escape returns to the focus card
+      if (selected.size > 0) changeSelection(NO_KEYS);
+      else focusKey(FOCUS_KEY);
     }
   };
 
@@ -597,7 +714,24 @@ export function LinkCanvas<N extends JourneyNeighbor>({
   };
 
   // One function each for every card, so a card that did not change is not drawn again when the canvas pans or zooms
-  const activate = useStable((key: string): void => {
+  const changeSelection = (next: ReadonlySet<string>): void => {
+    setSelection({ focus: focus.urlId, keys: next });
+    announce(next.size === 0 ? t('selection.cleared') : t('selection.count', { count: next.size }), {
+      key: 'link-canvas-selection',
+      debounceMs: 300,
+    });
+  };
+  const activate = useStable((key: string, modified: boolean): void => {
+    // The click that ends a move is not a press on the card
+    if (suppressClick.current) {
+      suppressClick.current = false;
+      return;
+    }
+    // Shift, Cmd or Ctrl and press adds a page card to the selection, or takes it away
+    if (modified && selectable.has(key)) {
+      changeSelection(toggleSelected(selected, key));
+      return;
+    }
     const item = byKey.get(key);
     if (item?.kind === 'group') opening(item.open, () => onToggleGroup(key), key, item.parentKey);
     else if (item?.kind === 'stub') findOriginal(item.urlId);
@@ -608,6 +742,143 @@ export function LinkCanvas<N extends JourneyNeighbor>({
   const togglePin = useStable((key: string): void => onTogglePin(key));
   const showBack = useStable((key: string, shown: boolean): void => setHoverKey(shown ? key : null));
   const cardKeyDown = useStable(onKeyDown);
+  const toggleInfo = useStable((key: string): void =>
+    setInfoAt((current) =>
+      current?.key === key && current.focus === focus.urlId ? null : { key, focus: focus.urlId, view: viewNow.current },
+    ),
+  );
+
+  // Moving a card: press, move past a few pixels, and the card (and the selection it is in) follows the pointer
+  const dragStart = useStable((key: string, event: PointerEvent<HTMLButtonElement>): void => {
+    if (event.button !== 0 || event.pointerType === 'touch' || event.shiftKey || event.metaKey || event.ctrlKey) return;
+    if (!selectable.has(key)) return;
+    stopDrag.current?.();
+    const keys = selected.has(key) && selected.size > 1 ? [...selected] : [key];
+    const target = event.currentTarget;
+    const id = event.pointerId;
+    const from = { x: event.clientX, y: event.clientY };
+    const base = offsets;
+    const focusId = focus.urlId;
+    let started = false;
+    const onMove = (move: globalThis.PointerEvent): void => {
+      if (move.pointerId !== id) return;
+      const dx = move.clientX - from.x;
+      const dy = move.clientY - from.y;
+      if (!started) {
+        if (Math.hypot(dx, dy) < DRAG_START) return;
+        started = true;
+        target.setPointerCapture?.(id);
+      }
+      const scale = viewNow.current.scale;
+      setMoved((current) => new Map(current).set(focusId, withOffsets(base, keys, dx / scale, dy / scale)));
+    };
+    const stop = (): void => {
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onEnd);
+      document.removeEventListener('pointercancel', onEnd);
+      stopDrag.current = null;
+    };
+    function onEnd(end: globalThis.PointerEvent): void {
+      if (end.pointerId !== id) return;
+      stop();
+      if (!started) return;
+      // The click that follows the release must not open the card
+      suppressClick.current = true;
+      window.setTimeout(() => {
+        suppressClick.current = false;
+      }, 0);
+    }
+    stopDrag.current = stop;
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onEnd);
+    document.addEventListener('pointercancel', onEnd);
+  });
+
+  // Shift and drag on the empty background draws a box; the cards it touches join the selection
+  const finishBox = useStable((area: Box): void => {
+    if (area.width < 3 && area.height < 3) return;
+    const boxes = new Map(edges.cards.filter((card) => selectable.has(card.key)).map((card) => [card.key, card]));
+    const found = boxesIn(boxes, area);
+    if (found.length > 0) changeSelection(new Set([...selected, ...found]));
+  });
+  const backgroundPress = useStable((event: PointerEvent<HTMLDivElement>): boolean => {
+    const holder = scroller.current;
+    if (!event.shiftKey || holder === null || event.button !== 0) return false;
+    event.preventDefault();
+    const region = event.currentTarget;
+    const id = event.pointerId;
+    region.setPointerCapture?.(id);
+    const rect = holder.getBoundingClientRect();
+    const from = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+    const box = marquee.current;
+    const draw = (x: number, y: number): void => {
+      if (box === null) return;
+      box.hidden = false;
+      box.style.left = `${String(Math.min(from.x, x))}px`;
+      box.style.top = `${String(Math.min(from.y, y))}px`;
+      box.style.width = `${String(Math.abs(x - from.x))}px`;
+      box.style.height = `${String(Math.abs(y - from.y))}px`;
+    };
+    const onMove = (move: globalThis.PointerEvent): void => {
+      if (move.pointerId === id) draw(move.clientX - rect.left, move.clientY - rect.top);
+    };
+    const onUp = (up: globalThis.PointerEvent): void => {
+      if (up.pointerId !== id) return;
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      document.removeEventListener('pointercancel', onUp);
+      if (box !== null) box.hidden = true;
+      if (up.type === 'pointercancel') return;
+      const to = { x: up.clientX - rect.left, y: up.clientY - rect.top };
+      const now = viewNow.current;
+      finishBox({
+        left: (Math.min(from.x, to.x) - now.x) / now.scale,
+        top: (Math.min(from.y, to.y) - now.y) / now.scale,
+        width: Math.abs(to.x - from.x) / now.scale,
+        height: Math.abs(to.y - from.y) / now.scale,
+      });
+    };
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+    document.addEventListener('pointercancel', onUp);
+    return true;
+  });
+
+  const showLine = useStable((id: string, event: PointerEvent<SVGPathElement>): void => {
+    const rect = scroller.current?.getBoundingClientRect();
+    setLineTip({ id, x: event.clientX - (rect?.left ?? 0) + 12, y: event.clientY - (rect?.top ?? 0) + 12 });
+  });
+  const hideLine = useStable((): void => setLineTip(null));
+
+  const showTheirLinks = (): void => {
+    // Only a card that has links to open and is not open yet has anything to show
+    const keys = [...selected].filter((key) => {
+      const item = byKey.get(key);
+      return item?.kind === 'card' && item.canOpen && !item.open;
+    });
+    if (keys.length === 0) {
+      announce(t('selection.nothingToShow'));
+      return;
+    }
+    onShowLinks(keys);
+  };
+  const setTierOfSelection = (): void => {
+    const ids = new Set<string>();
+    for (const key of selected) {
+      const item = byKey.get(key);
+      const urlId = key === FOCUS_KEY ? focus.urlId : item?.kind === 'card' ? item.urlId : null;
+      if (urlId !== null) ids.add(urlId);
+    }
+    onSetTier?.([...ids]);
+  };
+  const resetPositions = (): void => {
+    setMoved((current) => {
+      const next = new Map(current);
+      next.delete(focus.urlId);
+      return next;
+    });
+    announce(t('positionsReset'));
+  };
 
   const linkedAs = (node: N): string => {
     if (node.anchor === null) return node.title ?? '';
@@ -721,7 +992,7 @@ export function LinkCanvas<N extends JourneyNeighbor>({
             path={item.node.path}
             line={linkedAs(item.node)}
             tier={item.node.tier}
-            note={t('stubLine', { at })}
+            note={t('stubAt', { at })}
             tabStop={item.key === tabKey}
             onActivate={activate}
             onKeyDown={cardKeyDown}
@@ -733,8 +1004,9 @@ export function LinkCanvas<N extends JourneyNeighbor>({
     }
   };
 
-  const tipOf = (
-    path: string,
+  const relOf = (link: N): string => (link.rel.length === 0 ? t('follow') : link.rel.join(' '));
+  // What a screen reader hears after a card's name (the info panel carries the same facts for the eye)
+  const describe = (
     tier: TierNameLike | null,
     status: number | null,
     depth: number | null,
@@ -742,23 +1014,32 @@ export function LinkCanvas<N extends JourneyNeighbor>({
     all: number,
     link: N | null,
     both: boolean,
-  ): { content: string; detail: string } => ({
-    content: path,
-    detail: [
+  ): string =>
+    [
       t('tipTier', { tier: tierLong(tier) }),
       status === null ? t('tipStatusUnknown') : t('tipStatus', { status }),
       depth === null ? t('tipDepthNone') : t('tipDepth', { depth }),
       t('tipLinking', { scoped, all }),
-      ...(link === null
-        ? []
-        : [
-            t('tipLink', {
-              placement: placementWord(link),
-              rel: link.rel.length === 0 ? t('follow') : link.rel.join(' '),
-            }),
-          ]),
+      ...(link === null ? [] : [t('tipLink', { placement: placementWord(link), rel: relOf(link) })]),
       ...(both ? [t('tipBoth')] : []),
-    ].join(' '),
+    ].join(' ');
+  const factsOf = (
+    path: string,
+    tier: TierNameLike | null,
+    status: number | null,
+    depth: number | null,
+    scoped: number,
+    all: number,
+    link: N | null,
+  ): InfoFacts => ({
+    title: path,
+    tier: tierLong(tier),
+    status: status === null ? t('notCrawled') : String(status),
+    depth: depth === null ? t('focusDepthNone') : String(depth),
+    linkingScoped: String(scoped),
+    linkingAll: String(all),
+    placement: link === null ? '' : placementWord(link),
+    rel: link === null ? '' : relOf(link),
   });
 
   const renderCard = (item: Extract<JourneyItem<N>, { kind: 'card' }>, column: number): ReactElement => {
@@ -803,13 +1084,13 @@ export function LinkCanvas<N extends JourneyNeighbor>({
         line={linkedAs(node)}
         tier={node.tier}
         tierText={tierText(node.tier)}
-        linkingText={linking}
+        linkingText={t('cardIn', { count: node.linking_pages })}
         status={statusBadge(node.status_code, t('notCrawled'))}
-        bothWaysText={item.bothWays ? t('bothWays') : null}
+        bothWaysText={item.bothWays ? t('bothWaysIcon') : null}
         focus={false}
+        focusFacts={null}
         open={item.canOpen ? item.open : null}
-        tip={tipOf(
-          node.path,
+        description={describe(
           node.tier,
           node.status_code,
           node.click_depth,
@@ -818,6 +1099,24 @@ export function LinkCanvas<N extends JourneyNeighbor>({
           node,
           item.bothWays,
         )}
+        selected={selected.has(item.key)}
+        offset={offsets.get(item.key) ?? null}
+        onDragStart={dragStart}
+        info={{
+          facts: factsOf(
+            node.path,
+            node.tier,
+            node.status_code,
+            node.click_depth,
+            node.linking_pages,
+            node.linking_pages_all,
+            node,
+          ),
+          label: t('info.open', { path: node.path }),
+          buttonLabel: t('info.open', { path: node.path }),
+          open: infoKey === item.key,
+          onToggle: toggleInfo,
+        }}
         tools={{
           focusLabel: t('makeFocus', { path: node.path }),
           onFocusPage: toolRefocus,
@@ -846,9 +1145,15 @@ export function LinkCanvas<N extends JourneyNeighbor>({
     );
   };
 
-  const column = (label: string, index: number, children: ReactNode): ReactElement => (
-    <div key={`${label}-${String(index)}`} className="flex w-64 shrink-0 flex-col gap-2">
-      <h3 className="type-label text-foreground-tertiary">{label}</h3>
+  const column = (label: string, index: number, children: ReactNode, isFocus = false): ReactElement => (
+    <div key={`${label}-${String(index)}`} className={cn('flex shrink-0 flex-col gap-2', isFocus ? 'w-72' : 'w-60')}>
+      {isFocus ? (
+        <h3 className="inline-flex h-badge w-fit items-center rounded-sm bg-primary-subtle px-1.5 type-label text-primary-text">
+          {label}
+        </h3>
+      ) : (
+        <h3 className="type-label text-foreground-tertiary">{label}</h3>
+      )}
       {children}
     </div>
   );
@@ -865,10 +1170,20 @@ export function LinkCanvas<N extends JourneyNeighbor>({
   const onViewportKey = (event: KeyboardEvent<HTMLDivElement>): void => {
     if (event.key === '0') fit();
     else if (event.key === 'Home') centerFocus();
+    else if (event.key === 'Escape' && selected.size > 0) changeSelection(NO_KEYS);
     else return;
     event.preventDefault();
   };
   const middle = { x: size.width / 2, y: size.height / 2 };
+  // "Back to the focus page" shows when the focus card is wholly outside the view (not before the first drawing)
+  const focusBox = edges.cards.find((card) => card.key === FOCUS_KEY);
+  const focusAway =
+    edges.width > 0 &&
+    focusBox !== undefined &&
+    ((focusBox.left + focusBox.width) * view.scale + view.x <= 0 ||
+      focusBox.left * view.scale + view.x >= size.width ||
+      (focusBox.top + focusBox.height) * view.scale + view.y <= 0 ||
+      focusBox.top * view.scale + view.y >= size.height);
 
   return (
     <div className="flex flex-col">
@@ -879,6 +1194,7 @@ export function LinkCanvas<N extends JourneyNeighbor>({
           onViewChange={onViewChange}
           size={size}
           onKey={onViewportKey}
+          onBackgroundPointerDown={backgroundPress}
           className="h-full"
         >
           <div
@@ -905,7 +1221,7 @@ export function LinkCanvas<N extends JourneyNeighbor>({
               if (next !== view) onViewChange(next);
             }}
           >
-            <EdgeLayer edges={edges} markerId={markerId} />
+            <EdgeLayer edges={edges} markerId={markerId} onLine={showLine} onLineLeave={hideLine} />
             {left.map((side, index) => column(direction('in', side.step), index, columnItems(side.items, index)))}
             {column(
               t('focusColumn'),
@@ -923,13 +1239,21 @@ export function LinkCanvas<N extends JourneyNeighbor>({
                   line={focus.title ?? ''}
                   tier={focus.tier}
                   tierText={tierText(focus.tier)}
-                  linkingText={focusLinking}
+                  linkingText={t('cardIn', { count: focus.linkingPages })}
                   status={statusBadge(focus.statusCode, t('notCrawled'))}
                   bothWaysText={null}
                   focus
+                  focusFacts={{
+                    out: t('focusOut', { count: focus.linksOut }),
+                    depth:
+                      focus.clickDepth === null
+                        ? t('focusDepthNone')
+                        : focus.clickDepth === 0
+                          ? t('focusDepthHome')
+                          : t('focusDepth', { count: focus.clickDepth }),
+                  }}
                   open={null}
-                  tip={tipOf(
-                    focus.path,
+                  description={describe(
                     focus.tier,
                     focus.statusCode,
                     focus.clickDepth,
@@ -938,6 +1262,24 @@ export function LinkCanvas<N extends JourneyNeighbor>({
                     null,
                     false,
                   )}
+                  selected={selected.has(FOCUS_KEY)}
+                  offset={offsets.get(FOCUS_KEY) ?? null}
+                  onDragStart={dragStart}
+                  info={{
+                    facts: factsOf(
+                      focus.path,
+                      focus.tier,
+                      focus.statusCode,
+                      focus.clickDepth,
+                      focus.linkingPages,
+                      focus.linkingPagesAll,
+                      null,
+                    ),
+                    label: t('info.open', { path: focus.path }),
+                    buttonLabel: t('info.open', { path: focus.path }),
+                    open: infoKey === FOCUS_KEY,
+                    onToggle: toggleInfo,
+                  }}
                   tools={{
                     focusLabel: null,
                     onFocusPage: none,
@@ -946,11 +1288,12 @@ export function LinkCanvas<N extends JourneyNeighbor>({
                   }}
                   back={null}
                   tabStop={FOCUS_KEY === tabKey}
-                  onActivate={none}
+                  onActivate={activate}
                   onKeyDown={cardKeyDown}
                 />
                 {focusNote}
               </div>,
+              true,
             )}
             {layout.out.map((side, index) =>
               column(
@@ -973,8 +1316,50 @@ export function LinkCanvas<N extends JourneyNeighbor>({
             onFit={fit}
             onCenterFocus={centerFocus}
             onToggleMinimap={() => setMinimap((current) => !current)}
+            canReset={offsets.size > 0}
+            onReset={resetPositions}
+            helpOpen={helpOpen}
+            onToggleHelp={() => setHelpOpen((current) => !current)}
           />
         </div>
+        {helpOpen ? (
+          <div className="pointer-events-none absolute inset-x-3 top-3 bottom-16 flex items-end">
+            <div className="pointer-events-auto max-h-full max-w-full">
+              <CanvasHelp />
+            </div>
+          </div>
+        ) : null}
+        {focusAway ? (
+          <Button
+            variant="secondary"
+            size="sm"
+            data-canvas-control=""
+            className="absolute top-3 left-3 shadow-popover"
+            onClick={centerFocus}
+          >
+            <Icon icon={Crosshair} size="sm" className="text-primary-text" />
+            {t('backToFocus')}
+          </Button>
+        ) : null}
+        {selected.size > 0 ? (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2">
+            <SelectionBar
+              count={selected.size}
+              onSetTier={onSetTier === undefined ? undefined : setTierOfSelection}
+              onShowLinks={showTheirLinks}
+              onClear={() => changeSelection(NO_KEYS)}
+            />
+          </div>
+        ) : null}
+        <div
+          ref={marquee}
+          hidden
+          aria-hidden="true"
+          className="pointer-events-none absolute rounded-sm border border-primary bg-primary-subtle opacity-60"
+        />
+        {lineTip === null ? null : (
+          <LineTip tip={lineTip} facts={edges.lines.find((line) => line.id === lineTip.id)?.facts ?? null} />
+        )}
         {minimap ? (
           <div className="absolute right-3 bottom-3">
             <Minimap
@@ -994,32 +1379,28 @@ export function LinkCanvas<N extends JourneyNeighbor>({
           </div>
         ) : null}
       </div>
-      <Legend />
     </div>
   );
 }
 
-function Legend(): ReactElement {
-  const t = useTranslations('linkCanvas.legend');
-  const entries = [
-    ['editorial', 'border-foreground-tertiary'],
-    ['autoGenerated', 'border-dotted border-border-strong'],
-    ['template', 'border-dashed border-border-strong'],
-    ['redirect', 'border-warning-text'],
-    ['broken', 'border-negative-text'],
-    ['back', 'border-dashed border-primary'],
-  ] as const;
+/** What a line is: the anchor, the type of link and its attribute, next to the pointer. */
+function LineTip({ tip, facts }: { tip: { x: number; y: number }; facts: LineFacts | null }): ReactElement | null {
+  const t = useTranslations('linkCanvas.line');
+  if (facts === null) return null;
   return (
-    <ul
-      aria-label={t('label')}
-      className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border-subtle px-4 py-2 type-meta text-foreground-secondary"
+    <div
+      role="tooltip"
+      className="pointer-events-none absolute rounded-md border border-border bg-surface-elevated p-2 shadow-popover"
+      style={{ left: tip.x, top: tip.y }}
     >
-      {entries.map(([key, line]) => (
-        <li key={key} className="inline-flex items-center gap-1.5">
-          <span aria-hidden="true" className={cn('w-6 border-t-2', line)} />
-          {t(key)}
-        </li>
-      ))}
-    </ul>
+      <dl className="grid grid-cols-2 gap-x-3 gap-y-1 type-meta">
+        <dt className="text-foreground-tertiary">{t('anchor')}</dt>
+        <dd className="text-foreground">{facts.anchor === null ? t('anchorNone') : `“${facts.anchor}”`}</dd>
+        <dt className="text-foreground-tertiary">{t('type')}</dt>
+        <dd className="text-foreground">{facts.type}</dd>
+        <dt className="text-foreground-tertiary">{t('attribute')}</dt>
+        <dd className="text-foreground">{facts.attribute}</dd>
+      </dl>
+    </div>
   );
 }
