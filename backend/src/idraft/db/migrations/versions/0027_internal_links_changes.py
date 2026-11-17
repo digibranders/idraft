@@ -34,7 +34,7 @@ ALTER TABLE seo.crawl_runs
         CHECK (enrich_state IN ('pending','running','done','failed')),
     ADD COLUMN enrich_phase text CHECK (enrich_phase IN ('changes','anchors','mentions','done')),
     ADD COLUMN enrich_failures smallint NOT NULL DEFAULT 0,
-    ADD COLUMN enrich_offset integer NOT NULL DEFAULT 0;
+    ADD COLUMN enrich_offset bigint NOT NULL DEFAULT 0;  -- the last URL id the mention phase read
 
 CREATE INDEX crawl_runs_enriching ON seo.crawl_runs (state, created_at)
     WHERE enrich_state IN ('pending','running');

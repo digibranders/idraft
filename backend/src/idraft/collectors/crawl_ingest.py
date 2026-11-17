@@ -77,6 +77,7 @@ from sqlalchemy.orm import aliased
 
 from idraft.collectors.crawl_runs import INGEST_JOB, CrawlIngestTask
 from idraft.collectors.crawl_store import apply_rules, recompute_tier_flow
+from idraft.collectors.crawl_store import html_key as html_key  # kept here for its callers
 from idraft.crawl.edges import PageEdge, clean_text, is_clean, page_edges
 from idraft.crawl.graph import (
     Link,
@@ -190,14 +191,6 @@ class _PageLinks:
 type Step = Callable[
     [async_sessionmaker[AsyncSession], OnPageApi, ObjectStore | None, _Run], Awaitable[bool]
 ]
-
-
-def html_key(project_id: UUID, url_hash: bytes) -> str:
-    """Where a page's latest raw HTML is kept (decision D9): one object per project and URL,
-    overwritten by the next crawl. A project belongs to one workspace, and its id is a UUIDv7
-    (74 random bits), which the site's own addresses do not give away; the bucket is private, so
-    the key is a name, not an access control."""
-    return f"crawl/v1/html/{project_id}/{url_hash.hex()}.html.zst"
 
 
 def _canonical(raw: str | None) -> CanonicalUrl | None:

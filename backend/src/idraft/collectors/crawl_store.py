@@ -24,6 +24,15 @@ from idraft.db.tables import (
     urls,
 )
 
+
+def html_key(project_id: UUID, url_hash: bytes) -> str:
+    """Where a page's latest raw HTML is kept (decision D9): one object per project and URL,
+    overwritten by the next crawl. A project belongs to one workspace, and its id is a UUIDv7
+    (74 random bits), which the site's own addresses do not give away; the bucket is private, so
+    the key is a name, not an access control."""
+    return f"crawl/v1/html/{project_id}/{url_hash.hex()}.html.zst"
+
+
 # Crawls whose data the screens show; the latest of them is `run=latest`.
 DATA_STATES: Final = ("ready", "stopped_at_ceiling")
 ACTIVE_STATES: Final = ("queued", "crawling", "processing")

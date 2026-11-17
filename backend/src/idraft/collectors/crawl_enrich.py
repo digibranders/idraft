@@ -19,20 +19,37 @@ from uuid import UUID
 
 import structlog
 from pydantic import BaseModel
-from sqlalchemy import ARRAY, Text, bindparam, case, delete, func, literal, select, text, update
+from sqlalchemy import (
+    ARRAY,
+    BigInteger,
+    Text,
+    bindparam,
+    case,
+    delete,
+    func,
+    literal,
+    select,
+    text,
+    update,
+)
+from sqlalchemy.dialects.postgresql import insert as upsert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from idraft.collectors.crawl_store import DATA_STATES
+from idraft.collectors.crawl_store import DATA_STATES, html_key
 from idraft.crawl.anchors import GENERIC_ANCHORS
 from idraft.crawl.changes import CHANGES_MAX, AlertSettings, alert_due, alert_settings
+from idraft.crawl.mentions import PhraseSet, find_mentions, index_phrases, visible_text
 from idraft.db.tables import (
     crawl_alerts,
     crawl_link_changes,
+    crawl_mentions,
     crawl_page_changes,
+    crawl_pages,
     crawl_runs,
     projects,
+    urls,
 )
-from idraft.storage.raw import ObjectStore
+from idraft.storage.raw import ObjectStore, RawStorageError, decompress
 
 ENRICH_JOB: Final = "crawl_enrich"
 ENRICH_PASS_TIME: Final = timedelta(minutes=6)
@@ -339,16 +356,172 @@ async def _anchors(
                     "generic": sorted(GENERIC_ANCHORS),
                 },
             )
-        # Task 7 changes the next phase to `mentions`.
         await db.execute(
             update(crawl_runs)
             .where(crawl_runs.c.workspace_id == run.workspace_id, crawl_runs.c.id == run.id)
-            .values(enrich_state="done", enrich_phase="done", enrich_offset=0, enrich_failures=0)
+            .values(
+                enrich_state="running", enrich_phase="mentions", enrich_offset=0, enrich_failures=0
+            )
         )
     return True
 
 
-_STEPS: Final[dict[str, Step]] = {"changes": _changes, "anchors": _anchors}
+# ------------------------------------------------------------------------------------------
+# Phase 3: mentions, found in the stored HTML of the pages a visitor can reach (decision D11)
+
+MENTION_PAGES_PER_STEP: Final = 25
+# A page's text is cut here before it is searched (the HTML of a trap page can be huge).
+MENTION_TEXT_MAX: Final = 500_000
+# A tracked keyword belongs to the page it targets, or, with no target, to the page it ranks
+# with now (decision D8).
+_KEYWORD_PHRASES = text(
+    """
+    SELECT coalesce(tk.target_url_id, st.current_url_id) AS url_id, k.text AS phrase
+    FROM seo.tracked_keywords tk
+    JOIN seo.keywords k ON k.id = tk.keyword_id AND k.workspace_id = tk.workspace_id
+    LEFT JOIN seo.tracked_keyword_state st
+         ON st.tracked_keyword_id = tk.id AND st.workspace_id = tk.workspace_id
+    WHERE tk.workspace_id = CAST(:workspace_id AS uuid)
+      AND tk.project_id = CAST(:project_id AS uuid)
+      AND tk.is_active AND tk.deleted_at IS NULL
+      AND coalesce(tk.target_url_id, st.current_url_id) IS NOT NULL
+    """
+)
+# Anchors at least two other pages use to link to a page by an editorial link.
+_ANCHOR_PHRASES = text(
+    """
+    SELECT target_url_id AS url_id, min(anchor) AS phrase
+    FROM seo.crawl_links
+    WHERE run_id = CAST(:run_id AS uuid) AND workspace_id = CAST(:workspace_id AS uuid)
+      AND scope = 'editorial' AND source_url_id <> target_url_id AND anchor <> ''
+    GROUP BY target_url_id, lower(anchor)
+    HAVING count(DISTINCT source_url_id) >= 2
+    """
+)
+_ALREADY_LINKED = text(
+    """
+    SELECT DISTINCT source_url_id, target_url_id FROM seo.crawl_links
+    WHERE run_id = CAST(:run_id AS uuid) AND workspace_id = CAST(:workspace_id AS uuid)
+      AND scope = 'editorial' AND source_url_id = ANY(:sources)
+    """
+).bindparams(bindparam("sources", type_=ARRAY(BigInteger)))
+
+
+async def _mentions(
+    sessions: async_sessionmaker[AsyncSession], store: ObjectStore | None, run: _Run
+) -> bool:
+    """25 source pages per step: read the stored HTML, take the visible text and look for the
+    phrases of every live indexable target. A page whose HTML is gone has no mention."""
+    keys = {"run_id": str(run.id), "workspace_id": str(run.workspace_id)}
+    async with sessions() as db:
+        sources = (
+            await db.execute(
+                select(crawl_pages.c.url_id, urls.c.url_hash)
+                .join(urls, urls.c.id == crawl_pages.c.url_id)
+                .where(
+                    crawl_pages.c.workspace_id == run.workspace_id,
+                    crawl_pages.c.run_id == run.id,
+                    crawl_pages.c.status_code == 200,
+                    crawl_pages.c.is_indexable,
+                    crawl_pages.c.click_depth.is_not(None),
+                    crawl_pages.c.links_state == "from_html",
+                    crawl_pages.c.url_id > run.offset,
+                )
+                .order_by(crawl_pages.c.url_id)
+                .limit(MENTION_PAGES_PER_STEP)
+            )
+        ).all()
+        index: dict[str, list[tuple[int, Any]]] = {}
+        already: dict[int, set[int]] = {}
+        if sources and store is not None:
+            targets = {
+                row.url_id
+                for row in await db.execute(
+                    select(crawl_pages.c.url_id).where(
+                        crawl_pages.c.workspace_id == run.workspace_id,
+                        crawl_pages.c.run_id == run.id,
+                        crawl_pages.c.status_code == 200,
+                        crawl_pages.c.is_indexable,
+                    )
+                )
+            }
+            keywords: dict[int, list[str]] = {}
+            for row in await db.execute(
+                _KEYWORD_PHRASES, {**keys, "project_id": str(run.project_id)}
+            ):
+                keywords.setdefault(row.url_id, []).append(row.phrase)
+            anchors: dict[int, list[str]] = {}
+            for row in await db.execute(_ANCHOR_PHRASES, keys):
+                anchors.setdefault(row.url_id, []).append(row.phrase)
+            index = index_phrases(
+                {
+                    url: PhraseSet(keywords.get(url, ()), anchors.get(url, ()))
+                    for url in targets
+                    if url in keywords or url in anchors
+                }
+            )
+            for row in await db.execute(
+                _ALREADY_LINKED, {**keys, "sources": [row.url_id for row in sources]}
+            ):
+                already.setdefault(row.source_url_id, set()).add(row.target_url_id)
+    found: list[dict[str, object]] = []
+    for source in sources:
+        if store is None or not index:
+            break
+        try:
+            html = decompress(await store.get(html_key(run.project_id, source.url_hash)))
+        except RawStorageError:
+            continue
+        page_text = visible_text(html.decode("utf-8", errors="replace"))[:MENTION_TEXT_MAX]
+        for mention in find_mentions(
+            page_text,
+            index,
+            source_url_id=source.url_id,
+            skip=already.get(source.url_id, set()),
+        ):
+            found.append(
+                {
+                    "run_id": run.id,
+                    "workspace_id": run.workspace_id,
+                    "source_url_id": source.url_id,
+                    "target_url_id": mention.target_url_id,
+                    "phrase": mention.phrase[:200],
+                    "context": mention.context[:400],
+                    "origin": mention.origin,
+                }
+            )
+    async with sessions() as db, db.begin():
+        if not await _locked(db, run):
+            return False
+        if run.offset == 0:
+            await db.execute(
+                delete(crawl_mentions).where(
+                    crawl_mentions.c.run_id == run.id,
+                    crawl_mentions.c.workspace_id == run.workspace_id,
+                )
+            )
+        if found:
+            # A retried step may meet rows it already wrote: the primary key makes that harmless.
+            await db.execute(upsert(crawl_mentions).values(found).on_conflict_do_nothing())
+        finished = len(sources) < MENTION_PAGES_PER_STEP
+        await db.execute(
+            update(crawl_runs)
+            .where(crawl_runs.c.workspace_id == run.workspace_id, crawl_runs.c.id == run.id)
+            .values(
+                enrich_state="done" if finished else "running",
+                enrich_phase="done" if finished else "mentions",
+                enrich_offset=0 if finished else sources[-1].url_id,
+                enrich_failures=0,
+            )
+        )
+    return True
+
+
+_STEPS: Final[dict[str, Step]] = {
+    "changes": _changes,
+    "anchors": _anchors,
+    "mentions": _mentions,
+}
 
 
 async def _failed_pass(sessions: async_sessionmaker[AsyncSession], run: _Run) -> None:
