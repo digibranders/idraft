@@ -1,6 +1,16 @@
 'use client';
 
-import { CircleSlash, History, LineChart, ListChecks, Plus, Sparkles, type LucideIcon } from 'lucide-react';
+import {
+  Check,
+  CircleSlash,
+  History,
+  LineChart,
+  ListChecks,
+  Minus,
+  Plus,
+  Sparkles,
+  type LucideIcon,
+} from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useCallback, useMemo, type ReactElement } from 'react';
 
@@ -17,6 +27,7 @@ import {
   type WeekPoint,
 } from './history-model';
 import type { PromptAnswers, PromptCounts } from './inspector-reads';
+import { isValidAnswer } from './latest-model';
 import { outcomeKey, type DateRange } from './prompt-model';
 import { ChartFrame } from '@/components/app/chart/chart-frame';
 import { InspectorSection } from '@/components/app/inspector/inspector-section';
@@ -25,11 +36,13 @@ import { InlineError } from '@/components/app/status/inline-error';
 import { PlainTable, type PlainColumn } from '@/components/app/table/plain-table';
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
+import type { ObservationFactsWithExtra } from '@/lib/api/prompt-facts';
 import type { ObservationSummary, ProjectEngine } from '@/lib/api/types';
 import type { ChartBoundary } from '@/lib/charts/boundaries';
 import { rateBandOption, type RateBandPoint } from '@/lib/charts/rate-band-chart';
 import type { ChartTokens } from '@/lib/design/read-tokens';
 import {
+  EMPTY_VALUE,
   formatChartDate,
   formatDateRange,
   formatInterval,
@@ -86,6 +99,7 @@ export function InspectorHistory({
 }: InspectorHistoryProps): ReactElement {
   const t = useTranslations('prompts.inspector');
   const history = useTranslations('prompts.inspector.history');
+  const drawer = useTranslations('prompts.drawer.history');
   const rate = useTranslations('prompts.rate');
   const common = useTranslations('common');
   const model = useMemo(
@@ -232,7 +246,7 @@ export function InspectorHistory({
           meta={formatDateRange(range.from, range.to)}
           footnote={
             <>
-              <p>{history('chartFootnote', { min: MIN_OBSERVATIONS, weeks })}</p>
+              <p>{history('chartFootnote', { min: MIN_OBSERVATIONS, weeks, days: weeks * 7 })}</p>
               {changes.length === 0 ? null : (
                 <ul className="mt-1">
                   {changes.map((change) => (
@@ -274,40 +288,84 @@ export function InspectorHistory({
     ));
 
   const lastRows = answers.rows.slice(0, LAST_ANSWERS);
+  /** Yes or no as an icon with its words for assistive technology; n/a for an answer that is not counted. */
+  const yesNo = (row: ObservationSummary, value: boolean, noun: string): ReactElement =>
+    isValidAnswer(row) ? (
+      <>
+        <Icon icon={value ? Check : Minus} size="sm" className={value ? 'text-foreground' : 'text-foreground-muted'} />
+        <span className="sr-only">{drawer(value ? 'answerYes' : 'answerNo', { fact: noun })}</span>
+      </>
+    ) : (
+      <span className="text-foreground-tertiary">{EMPTY_VALUE}</span>
+    );
+  /** The facts the backend has not built yet are absent, not false: the cell says n/a and the note under the table says why. */
+  const extraOf = (row: ObservationSummary): ObservationFactsWithExtra | null => row.facts;
+  const recommendedCell = (row: ObservationSummary): ReactElement => {
+    const recommended = extraOf(row)?.recommended;
+    if (recommended === undefined) {
+      return (
+        <>
+          <span className="text-foreground-tertiary">{EMPTY_VALUE}</span>
+          <span className="sr-only">{drawer('recommendedNotCollected')}</span>
+        </>
+      );
+    }
+    if (recommended === null || !isValidAnswer(row))
+      return <span className="text-foreground-tertiary">{EMPTY_VALUE}</span>;
+    return yesNo(row, recommended, drawer('recommendedLabel'));
+  };
+  const recommendedKnown = lastRows.some((row) => extraOf(row)?.recommended !== undefined);
   const answerColumns: PlainColumn<ObservationSummary>[] = [
     {
-      id: 'date',
-      header: t('columns.date'),
+      id: 'answer',
+      header: drawer('answerColumn'),
+      wrap: true,
       cell: (row) => {
         const date = formatTableDateTime(row.observed_at, timeZone);
-        return onOpenAnswer === undefined ? (
-          <span className="num">{date}</span>
-        ) : (
-          <Button
-            variant="link"
-            aria-label={t('openAnswer', { engine: labelOf(row.engine_code), date })}
-            onClick={() => onOpenAnswer(row.observation_id, row.observed_at)}
-          >
-            <span className="num">{date}</span>
-          </Button>
+        const dateText = <span className="num">{date}</span>;
+        return (
+          <span className="flex min-w-0 flex-col">
+            <span className="flex flex-wrap items-baseline gap-x-2">
+              {onOpenAnswer === undefined ? (
+                dateText
+              ) : (
+                <Button
+                  variant="link"
+                  aria-label={t('openAnswer', { engine: labelOf(row.engine_code), date })}
+                  onClick={() => onOpenAnswer(row.observation_id, row.observed_at)}
+                >
+                  {dateText}
+                </Button>
+              )}
+              <span>{labelOf(row.engine_code)}</span>
+            </span>
+            {/* An answer that does not count says why in words, never as a miss */}
+            {isValidAnswer(row) ? null : (
+              <span className="type-meta">{t(`outcomes.${outcomeKey(row.status, row.facts)}`)}</span>
+            )}
+          </span>
         );
       },
     },
-    { id: 'engine', header: t('columns.engine'), cell: (row) => labelOf(row.engine_code) },
-    { id: 'status', header: t('columns.status'), cell: (row) => t(`statuses.${row.status}`) },
     {
-      id: 'outcome',
-      header: t('columns.outcome'),
-      wrap: true,
-      cell: (row) => t(`outcomes.${outcomeKey(row.status, row.facts)}`),
+      id: 'mentioned',
+      header: drawer('mentionedColumn'),
+      cell: (row) => yesNo(row, row.facts?.own_mentioned === true, drawer('mentionedLabel')),
     },
+    {
+      id: 'cited',
+      header: drawer('citedColumn'),
+      cell: (row) => yesNo(row, row.facts?.own_domain_cited === true, drawer('citedLabel')),
+    },
+    { id: 'recommended', header: drawer('recommendedColumn'), cell: recommendedCell },
   ];
   return (
     <>
       {chart}
       <InspectorSection
-        title={history('latestAnswers')}
+        title={drawer('answersTitle')}
         icon={ListChecks}
+        action={<span className="type-meta">{drawer('answersScope', { count: LAST_ANSWERS })}</span>}
         status={answers.status === 'ready' && lastRows.length === 0 ? 'empty' : answers.status}
         error={
           <InlineError
@@ -323,22 +381,26 @@ export function InspectorHistory({
           <EmptyState variant="inline" title={t('answersEmpty')} reason={t('answersEmptyReason')} headingLevel={3} />
         }
       >
-        {answers.rows.length > LAST_ANSWERS ? (
-          <p className="mb-2 type-meta">{history('latestNote', { count: LAST_ANSWERS })}</p>
+        <div className="-mx-4 -mb-4 [&>div]:rounded-none [&>div]:border-x-0 [&>div]:border-b-0">
+          <PlainTable<ObservationSummary>
+            caption={t('answersCaption')}
+            columns={answerColumns}
+            rows={lastRows}
+            rowKey={(row) => row.observation_id}
+            status="ready"
+            errorState={null}
+            emptyText={t('answersEmpty')}
+          />
+        </div>
+        {lastRows.length > 0 && !recommendedKnown ? (
+          <p className="mt-6 type-meta">{drawer('recommendedNote')}</p>
         ) : null}
-        <PlainTable<ObservationSummary>
-          caption={t('answersCaption')}
-          columns={answerColumns}
-          rows={lastRows}
-          rowKey={(row) => row.observation_id}
-          status="ready"
-          errorState={null}
-          emptyText={t('answersEmpty')}
-        />
       </InspectorSection>
       <InspectorSection
         title={history('events')}
         icon={History}
+        // The events are read over the window of the page, so the card says that window, not a fixed number of days
+        action={<span className="num type-meta">{formatDateRange(range.from, range.to)}</span>}
         status={createdAt === null ? 'loading' : answers.status === 'loading' ? 'loading' : 'ready'}
       >
         <ul aria-label={history('eventsLabel')} className="flex flex-col gap-2">

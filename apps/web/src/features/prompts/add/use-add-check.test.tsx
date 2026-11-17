@@ -213,7 +213,7 @@ describe('the check of a pasted list', () => {
     const toggle = await screen.findByRole('button', { name: /Check the list/ });
     await waitFor(() => expect(toggle).not.toHaveTextContent('Checking'));
     await user.click(toggle);
-    expect(screen.getByText('Choose a country to check what is tracked.')).toBeInTheDocument();
+    expect(screen.getByText('Choose a location to check what is tracked.')).toBeInTheDocument();
     expect(screen.queryByText(/already tracked/)).not.toBeInTheDocument();
   });
 
@@ -301,7 +301,7 @@ describe('the lint rules in the check list', () => {
     await check('Rankforge vs Fynix for a small agency in Berlin');
     expect(
       screen.getByText(
-        'Names Fynix, so it counts as branded and stays out of the rates unless branded prompts are included.',
+        'Mentions Fynix, so it counts as branded and stays out of the rates unless branded prompts are included.',
       ),
     ).toBeInTheDocument();
     expect(screen.getByText('Type: comparison (from wording)')).toBeInTheDocument();

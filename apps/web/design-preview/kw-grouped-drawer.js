@@ -64,7 +64,7 @@ function keywordBody(keyword) {
   const cards = el('div', 'grid grid-cols-2 gap-3');
   devicesIn().forEach((device) => cards.append(deviceCard(keyword, device)));
   body.append(section('Rank', cards));
-  body.append(section('Metrics', facts([['Search volume', volumeText(keyword.volume)], ['Keyword difficulty', keyword.kd === null ? 'No data' : String(keyword.kd)], ['CPC (USD)', keyword.cpc ? `$${keyword.cpc.toFixed(2)}` : 'No data'], ['Intent', keyword.intent[0].toUpperCase() + keyword.intent.slice(1)], ['Priority', String(keyword.priority)], ['Country', keyword.country]])));
+  body.append(section('Metrics', facts([['Search volume', volumeText(keyword.volume)], ['Keyword difficulty', keyword.kd === null ? 'Not collected yet' : String(keyword.kd)], ['CPC (USD)', keyword.cpc ? `$${keyword.cpc.toFixed(2)}` : 'Not collected yet'], ['Intent', keyword.intent[0].toUpperCase() + keyword.intent.slice(1)], ['Priority', String(keyword.priority)], ['Location', keyword.country]])));
   const choose = el('select', 'h-control px-3 pr-8 rounded-md border border-border bg-surface type-body text-foreground w-full');
   choose.setAttribute('aria-label', 'Group');
   [UNGROUPED, ...groupNames()].forEach((name) => {
@@ -92,8 +92,8 @@ function groupBody(name) {
   const items = shown().filter((keyword) => groupOf(keyword) === name);
   const m = measures(items);
   const body = el('div', 'flex flex-col gap-5');
-  body.append(section('Summary', facts([['Keywords', plural(items.length, 'keyword')], ['Tracked', String(m.tracked)], ['Top 10', `${m.top10} of ${m.tracked}`], ['Top 10 reach', `${Math.round(m.reach * 100)}% of volume`], ['Search volume', `${m.volume.toLocaleString('en-US')} a month`], ['Average KD', m.kd === null ? 'No data' : String(m.kd)]])));
-  const spread = [['Top 3', (rank) => isRank(rank) && rank <= 3], ['4 to 10', (rank) => isRank(rank) && rank >= 4 && rank <= 10], ['11 to 20', (rank) => isRank(rank) && rank >= 11 && rank <= 20], ['21 to 100', (rank) => isRank(rank) && rank >= 21], ['Over 100', (rank) => rank === 'b']].map(([label, test]) => [label, bucket(items, test)]);
+  body.append(section('Summary', facts([['Keywords', plural(items.length, 'keyword')], ['Tracked', String(m.tracked)], ['Top 10', `${m.top10} of ${m.tracked}`], ['Top 10 reach', `${Math.round(m.reach * 100)}% of volume`], ['Search volume', `${m.volume.toLocaleString('en-US')} a month`], ['Average keyword difficulty', m.kd === null ? 'Not collected yet' : String(m.kd)]])));
+  const spread = [['Top 3', (rank) => isRank(rank) && rank <= 3], ['4 to 10', (rank) => isRank(rank) && rank >= 4 && rank <= 10], ['11 to 20', (rank) => isRank(rank) && rank >= 11 && rank <= 20], ['21 to 100', (rank) => isRank(rank) && rank >= 21], ['Beyond depth', (rank) => rank === 'b']].map(([label, test]) => [label, bucket(items, test)]);
   const total = Math.max(1, spread.reduce((sum, [, count]) => sum + count, 0));
   const bar = el('div', 'flex h-3 overflow-hidden rounded-sm bg-surface-subtle');
   const shades = ['bg-positive-text', 'bg-primary', 'bg-info-text', 'bg-neutral-text', 'bg-border-strong'];

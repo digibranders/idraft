@@ -26,7 +26,7 @@ describe('engineCell', () => {
     // The engine had no citation at all in scope: not 0%
     const none = engineCell(GEMINI, totals([['gemini_web', 0]]));
     expect(none.state).toBe('none');
-    expect(none.tip).toBe('Gemini has no citation in this window.');
+    expect(none.tip).toBe('Gemini has no citation in this period.');
   });
 
   it('says the units and the total in the tooltip', () => {
@@ -48,6 +48,6 @@ describe('engineCell', () => {
 
   it('is n/a for an engine the totals do not list', () => {
     const cell = engineCell(CHATGPT, totals([['gemini_web', 400]]));
-    expect(cell).toMatchObject({ state: 'none', tip: 'ChatGPT has no citation in this window.' });
+    expect(cell).toMatchObject({ state: 'none', tip: 'ChatGPT has no citation in this period.' });
   });
 });

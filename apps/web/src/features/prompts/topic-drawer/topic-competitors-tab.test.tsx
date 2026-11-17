@@ -76,58 +76,55 @@ const renderTab = (
   serve(row);
   return renderDrawerPart(<CompetitorsTab />, { summary: summaryOf([rowOf()], TRACKED), ...options });
 };
-const table = (): HTMLElement => screen.getByRole('table', { name: 'Competitors by engine' });
+const table = (): HTMLElement => screen.getByRole('table', { name: 'Competitors by platform' });
 const rowsOf = (): HTMLElement[] => within(table()).getAllByRole('row').slice(1);
 
 describe('CompetitorsTab: the tracked entities by engine', () => {
   it('shows entities by engine with the answers behind each value, own first', async () => {
     renderTab();
-    expect(await screen.findByRole('table', { name: 'Competitors by engine' })).toBeInTheDocument();
+    expect(await screen.findByRole('table', { name: 'Competitors by platform' })).toBeInTheDocument();
     expect(
       within(table())
         .getAllByRole('columnheader')
         .map((header) => header.textContent),
-    ).toEqual(['Entity', 'ChatGPT', 'Gemini']);
+    ).toEqual(['Brand', 'ChatGPT', 'Gemini']);
     const [acme, beta, gamma] = rowsOf();
     // The API lists the competitors before the own brand; the own brand is first here, tagged
     expect(acme).toHaveTextContent('Acme');
-    expect(acme).toHaveTextContent('own brand');
-    // Share of voice counts the answers that name a brand, and says so
-    expect(acme).toHaveTextContent('30%, 10 answers that name a brand');
-    expect(acme).toHaveTextContent('50%, 8 answers that name a brand');
+    expect(acme).toHaveTextContent('your brand');
+    // Share of voice counts brand mentions, each brand's over all tracked-brand mentions of the platform, and says so
+    expect(acme).toHaveTextContent('27%, 3 of 11 brand mentions');
+    expect(acme).toHaveTextContent('40%, 4 of 10 brand mentions');
     expect(beta).toHaveTextContent('Beta');
-    expect(beta).toHaveTextContent('50%, 10 answers that name a brand');
+    expect(beta).toHaveTextContent(/\d+%, \d+ of 11 brand mentions/);
     expect(gamma).toHaveTextContent('Gamma');
-    expect(gamma).toHaveTextContent('38%, 8 answers that name a brand');
-    expect(screen.getByRole('heading', { name: 'Competitors by engine' })).toBeInTheDocument();
+    expect(gamma).toHaveTextContent(/\d+%, \d+ of 10 brand mentions/);
+    expect(screen.getByRole('heading', { name: 'Competitors by platform' })).toBeInTheDocument();
   });
 
   it('marks and names the leader on each engine', async () => {
     renderTab();
-    await screen.findByRole('table', { name: 'Competitors by engine' });
+    await screen.findByRole('table', { name: 'Competitors by platform' });
     const [, beta, gamma] = rowsOf();
-    // Beta leads ChatGPT with 50 percent, Gamma leads Gemini with 38 percent; the own brand never leads
-    const share = (rate: string, answers: number): string => `${rate}, ${String(answers)} answers that name a brand`;
+    // Beta leads ChatGPT, Gamma leads Gemini; the own brand never leads. Each value is x of y brand mentions
+    const bold = (row: HTMLElement | undefined): string[] =>
+      Array.from(row?.querySelectorAll('.type-table-strong') ?? []).map((node) => node.textContent ?? '');
     // The counts wrap under the rate, so the table fits a narrow drawer instead of scrolling the names away
-    expect(
-      within(beta ?? document.body)
-        .getByText(share('50%', 10))
-        .closest('td'),
-    ).not.toHaveClass('whitespace-nowrap');
-    expect(within(beta ?? document.body).getByText(share('50%', 10))).toHaveClass('type-table-strong');
-    expect(within(gamma ?? document.body).getByText(share('38%', 8))).toHaveClass('type-table-strong');
-    // A value that does not lead keeps the plain weight
-    expect(within(beta ?? document.body).getByText(share('13%', 8))).not.toHaveClass('type-table-strong');
+    expect(bold(beta)).toHaveLength(1);
+    expect(bold(beta)[0]).toMatch(/^\d+%, \d+ of 11 brand mentions$/);
+    expect(bold(gamma)).toHaveLength(1);
+    expect(bold(gamma)[0]).toMatch(/^\d+%, \d+ of 10 brand mentions$/);
+    expect(beta?.querySelector('.type-table-strong')?.closest('td')).not.toHaveClass('whitespace-nowrap');
     expect(within(beta ?? document.body).getByText('leads on ChatGPT')).toHaveClass('sr-only');
     expect(within(beta ?? document.body).queryByText('leads on Gemini')).toBeNull();
     expect(within(gamma ?? document.body).getByText('leads on Gemini')).toBeInTheDocument();
     expect(screen.queryAllByText(/^leads on /)).toHaveLength(2);
-    expect(screen.getByText(/The leading competitor on each engine is in bold\./)).toBeInTheDocument();
+    expect(screen.getByText(/The leading competitor on each platform is in bold\./)).toBeInTheDocument();
   });
 
   it('switches between Mentioned and Share of voice', async () => {
     const { user } = renderTab();
-    await screen.findByRole('table', { name: 'Competitors by engine' });
+    await screen.findByRole('table', { name: 'Competitors by platform' });
     expect(screen.getByRole('radio', { name: 'Share of voice' })).toBeChecked();
     await user.click(screen.getByRole('radio', { name: 'Mentioned' }));
     const [acme, beta, gamma] = rowsOf();
@@ -143,10 +140,10 @@ describe('CompetitorsTab: the tracked entities by engine', () => {
     serve(rowOf(CHATGPT), [own('own', 'Acme')]);
     renderDrawerPart(<CompetitorsTab />, { summary: summaryOf([rowOf()], [own('own', 'Acme')]) });
     expect(await screen.findByText('No tracked competitor')).toBeInTheDocument();
-    expect(screen.getByText('Add a competitor in Entities to compare it here.')).toBeInTheDocument();
+    expect(screen.getByText('Add a competitor in Brands and aliases to compare it here.')).toBeInTheDocument();
     expect(screen.queryByRole('table')).toBeNull();
     // The way to do it is one link away, to the project's entities
-    expect(screen.getByRole('link', { name: 'Open Entities' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Open Brands and aliases' })).toHaveAttribute(
       'href',
       '/digibranders/fynix/settings/entities',
     );
@@ -164,11 +161,12 @@ describe('CompetitorsTab: the tracked entities by engine', () => {
       ],
     });
     renderTab(rowOf(CHATGPT, noneValid));
-    await screen.findByRole('table', { name: 'Competitors by engine' });
+    await screen.findByRole('table', { name: 'Competitors by platform' });
     const [acme, beta] = rowsOf();
-    expect(acme).toHaveTextContent('None valid');
+    // The share is counted from the brands' mentions: the own brand has none of the 6 there are, which is 0% of them
+    expect(acme).toHaveTextContent('0%, 0 of 6 brand mentions');
     expect(acme).not.toHaveTextContent('No answers');
-    expect(beta).toHaveTextContent('13%, 8 answers that name a brand');
+    expect(beta).toHaveTextContent('1 of 6 brand mentions');
   });
 
   it('says a failed read, keeps the section and retries', async () => {
@@ -181,21 +179,21 @@ describe('CompetitorsTab: the tracked entities by engine', () => {
       ),
     );
     const { user } = renderDrawerPart(<CompetitorsTab />, { summary: summaryOf([rowOf()], TRACKED) });
-    expect(screen.getByRole('heading', { name: 'Competitors by engine' }).closest('section')).toHaveAttribute(
+    expect(screen.getByRole('heading', { name: 'Competitors by platform' }).closest('section')).toHaveAttribute(
       'aria-busy',
       'true',
     );
     expect(await screen.findByText('Competitors could not be loaded')).toBeInTheDocument();
     fail = false;
     await user.click(screen.getByRole('button', { name: 'Try again' }));
-    expect(await screen.findByRole('table', { name: 'Competitors by engine' })).toBeInTheDocument();
+    expect(await screen.findByRole('table', { name: 'Competitors by platform' })).toBeInTheDocument();
   });
 
   it('an engine without cells says no answers, never 0', async () => {
     renderTab(rowOf(CHATGPT, engine('gemini_web')));
-    await screen.findByRole('table', { name: 'Competitors by engine' });
+    await screen.findByRole('table', { name: 'Competitors by platform' });
     const [acme, beta] = rowsOf();
-    expect(acme).toHaveTextContent('30%, 10 answers that name a brand');
+    expect(acme).toHaveTextContent('27%, 3 of 11 brand mentions');
     expect(acme).toHaveTextContent('No answers');
     expect(beta).toHaveTextContent('No answers');
     expect(table().textContent).not.toMatch(/(^|\s)0%/);
@@ -212,17 +210,17 @@ describe('CompetitorsTab: the tracked entities by engine', () => {
         ]),
       ),
     );
-    await screen.findByRole('table', { name: 'Competitors by engine' });
+    await screen.findByRole('table', { name: 'Competitors by platform' });
     const [acme] = rowsOf();
-    expect(acme).toHaveTextContent('too few answers (3)');
+    expect(acme).toHaveTextContent('too few brand mentions (3)');
   });
 
   it('states the 20 entity cap in the footnote', async () => {
     renderTab();
-    await screen.findByRole('table', { name: 'Competitors by engine' });
+    await screen.findByRole('table', { name: 'Competitors by platform' });
     expect(
       screen.getByText(
-        'The tracked set of the answers read, at most 20 entities, the own brand first. The leading competitor on each engine is in bold.',
+        'The tracked set of the answers read, at most 20 brands, your brand first. The leading competitor on each platform is in bold.',
       ),
     ).toBeInTheDocument();
   });
@@ -233,8 +231,8 @@ describe('CompetitorsTab: the tracked entities by engine', () => {
       http.get(SUMMARY_PATH, () => HttpResponse.json({ data: { ...BODY_BASE, entities: TRACKED, topics: [none] } })),
     );
     renderDrawerPart(<CompetitorsTab />, { topicKey: NO_TOPIC, summary: summaryOf([none], TRACKED) });
-    expect(await screen.findByRole('table', { name: 'Competitors by engine' })).toBeInTheDocument();
-    expect(rowsOf()[0]).toHaveTextContent('30%, 10 answers that name a brand');
+    expect(await screen.findByRole('table', { name: 'Competitors by platform' })).toBeInTheDocument();
+    expect(rowsOf()[0]).toHaveTextContent('27%, 3 of 11 brand mentions');
   });
 
   it('asks the topic rows with the entity cells and nothing else', async () => {
@@ -246,7 +244,7 @@ describe('CompetitorsTab: the tracked entities by engine', () => {
       }),
     );
     renderDrawerPart(<CompetitorsTab />, { summary: summaryOf([rowOf()], TRACKED) });
-    await screen.findByRole('table', { name: 'Competitors by engine' });
+    await screen.findByRole('table', { name: 'Competitors by platform' });
     expect(asked[0]?.get('rows')).toBe('topics');
     expect(asked[0]?.getAll('include').join(',')).toBe('entities');
   });
@@ -284,6 +282,6 @@ describe('topicCompetitorsTab: the tab entry', () => {
   it('renders the Competitors section as its panel', async () => {
     serve(rowOf(CHATGPT, GEMINI));
     renderDrawerPart(<>{topicCompetitorsTab.render(context(undefined))}</>, { summary: summaryOf([rowOf()], TRACKED) });
-    expect(await screen.findByRole('table', { name: 'Competitors by engine' })).toBeInTheDocument();
+    expect(await screen.findByRole('table', { name: 'Competitors by platform' })).toBeInTheDocument();
   });
 });

@@ -145,7 +145,7 @@ async function pixelsNear(panel: Locator, colour: readonly number[], fromFractio
     );
 }
 
-const STRIP_LABELS = ['Rank', 'Best rank', 'Average rank', 'Days in top 10', 'Volume', 'AI Overview'] as const;
+const STRIP_LABELS = ['Rank', 'Best rank', 'Average rank', 'Days in top 10', 'Volume', 'Google AI Overview'] as const;
 /**
  * Rows of cells the metric strip takes: one while every cell keeps 140 px, else two (23 section 2.3). At 1024 px
  * the content is wide enough for six cells of 140 px, so the strip stays on one row there; below 768 px it
@@ -453,7 +453,7 @@ test.describe('keyword detail', () => {
     expect(await table.getByRole('rowheader').first().textContent()).toMatch(/^[A-Z][a-z]{2} \d{1,2}$/);
     await expect(table.getByRole('row').nth(1).getByRole('cell').first()).toHaveText(/^\d+$/);
 
-    await panel.getByRole('combobox', { name: 'Window' }).click();
+    await panel.getByRole('combobox', { name: 'Period' }).click();
     await page.getByRole('option', { name: 'Last 30 days' }).click();
     await expect(page).toHaveURL(/[?&]win=30d/);
     await expect(panel.getByText(/^Last 30 days · /)).toBeVisible();
@@ -793,7 +793,7 @@ test.describe('keyword detail', () => {
           expect(ratio).toBeLessThan(most);
           // The controls are one toolbar row from 1024 px and two at most below, inside the card
           const toolbar = [
-            panel.getByRole('combobox', { name: 'Window' }),
+            panel.getByRole('combobox', { name: 'Period' }),
             panel.getByRole('button', { name: 'Competitors (5)' }),
             panel.getByRole('button', { name: 'Absolute', exact: true }),
             panel.getByRole('button', { name: 'Deep checks' }),

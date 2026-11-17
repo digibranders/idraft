@@ -98,9 +98,9 @@ describe('enginePoints: the weekly points of a topic on one engine', () => {
     expect(point?.band).toEqual(wilsonInterval(2, 4));
   });
 
-  it('reads share of voice by the answers that name a brand, with no count of successes and no band', () => {
-    const [point] = pointsOf([week('2026-10-26', { share_of_voice: cell(2.5, 5), prompts: 3 })], 'share_of_voice');
-    expect(point).toMatchObject({ value: 0.5, k: null, n: 5, band: null, thin: false, prompts: 3 });
+  it('reads share of voice as brand mentions, x of y, with no band', () => {
+    const [point] = pointsOf([week('2026-10-26', { share_of_voice: cell(2, 4), prompts: 3 })], 'share_of_voice');
+    expect(point).toMatchObject({ value: 0.5, k: 2, n: 4, band: null, thin: false, prompts: 3 });
   });
 
   it('has no points when the engine has no series', () => {

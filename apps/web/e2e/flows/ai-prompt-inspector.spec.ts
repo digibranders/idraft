@@ -28,7 +28,7 @@ const tabRowOf = (inspector: Locator): Locator =>
   inspector.getByRole('tablist', { name: 'Prompt sections' }).locator('xpath=..');
 
 test.describe('The prompt inspector, completed', () => {
-  test('shows its freshness and topic, the cited domains, the events and the statistics of a prompt', async ({
+  test('shows its freshness and group, the cited domains, the events and the statistics of a prompt', async ({
     page,
   }) => {
     const inspector = await openFirstPrompt(page, 1280);
@@ -38,7 +38,7 @@ test.describe('The prompt inspector, completed', () => {
     await expect(inspector.getByText(FIRST_TOPIC, { exact: true }).first()).toBeVisible();
 
     // Latest: each engine card names at most 3 cited domains, the rest behind "+N"
-    const sourceLists = inspector.getByRole('list', { name: 'Top sources of this answer' });
+    const sourceLists = inspector.getByRole('list', { name: 'Top cited domains of this answer' });
     await expect(sourceLists.first()).toBeVisible();
     for (const list of await sourceLists.all()) {
       const chips = await list.locator('[data-slot="domain-chip"]').count();
@@ -61,9 +61,7 @@ test.describe('The prompt inspector, completed', () => {
     // Stats: the sample behind each rate, what the rates count, and the statistics of one rate
     await inspector.getByRole('tab', { name: 'Stats' }).click();
     await expect(inspector.getByText(/^\d+ of \d+ answers$/).first()).toBeVisible();
-    await expect(
-      inspector.getByText('ChatGPT only: rates count valid answers, each of this prompt counted once'),
-    ).toBeVisible();
+    await expect(inspector.getByText(/^A rate is successes over valid answers in the period/)).toBeVisible();
     const opener = inspector.getByRole('button', { name: 'Open statistics for Mention on ChatGPT' });
     await opener.click();
     await inspector.getByRole('button', { name: 'Back to Stats' }).click();

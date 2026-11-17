@@ -69,13 +69,13 @@ describe('enginePoints', () => {
     expect(points.map((point) => point.value)).toEqual([null, null, null]);
   });
 
-  it('share of voice has no count of successes and counts the answers that name a brand', () => {
+  it('share of voice counts brand mentions: k is the own mentions, n all of them, and it has no band', () => {
     const share = { value: 0.5, numerator: 3, denominator: 6, n_observations: 9, pooled: null };
     const points = enginePoints(
       engine('chatgpt_web', { series: [week('2026-10-12', { share_of_voice: share })] }),
       'share_of_voice',
     );
-    expect(points?.[0]).toMatchObject({ value: 0.5, k: null, n: 6, band: null });
+    expect(points?.[0]).toMatchObject({ value: 0.5, k: 3, n: 6, band: null });
   });
 });
 

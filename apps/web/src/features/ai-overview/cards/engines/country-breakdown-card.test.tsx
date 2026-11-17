@@ -4,7 +4,7 @@ import type { ComponentType, ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import CountryBreakdownCard from './country-breakdown-card';
-import { engineCells, promptRow, summaryOf } from './engines-fixtures';
+import { engineCells, promptRow, summaryOf, withBrandMentions } from './engines-fixtures';
 import { ExportProvider, useExportBlocks, type ExportRead } from '../../export/export-registry';
 import type { CardProps } from '@/features/layouts';
 import type { PromptSummaryRow } from '@/lib/api/types';
@@ -22,7 +22,7 @@ vi.mock('@/lib/csv/csv-write', async (importOriginal) => ({
 }));
 
 const TYPE = 'ai.country_breakdown';
-const TITLE = 'By country';
+const TITLE = 'By location';
 const WINDOW = 'from=2026-10-16&to=2026-11-12';
 const SUMMARY = '*/api/v1/workspaces/:w/projects/:p/ai/prompts-summary';
 const PROMPTS = '*/api/v1/workspaces/:w/projects/:p/prompts';
@@ -65,7 +65,10 @@ function serveCountries(byCountry: Readonly<Record<string, readonly PromptSummar
       const url = new URL(request.url);
       seen.push(url);
       const rows = byCountry[url.searchParams.get('filter[country_iso]') ?? ''] ?? [];
-      return HttpResponse.json({ data: summaryOf(rows, { codes: ['chatgpt_web', 'gemini_web'] }) });
+      const summary = summaryOf(rows, { codes: ['chatgpt_web', 'gemini_web'] });
+      // The read of the brand mention counts (share of voice): ChatGPT names the brand 6 times and a rival 4 times
+      const counts = url.searchParams.getAll('include').join(',').includes('entities');
+      return HttpResponse.json({ data: counts ? withBrandMentions(summary, { chatgpt_web: [6, 4] }) : summary });
     }),
   );
   return seen;
@@ -117,7 +120,7 @@ describe('CountryBreakdownCard', () => {
   it('shows Germany with its rows and India, which has one prompt, with its real figures and the sample said, never as 0', async () => {
     renderCard();
     const frame = await section();
-    const india = await within(frame).findByRole('list', { name: 'Mention rate by engine in India' });
+    const india = await within(frame).findByRole('list', { name: 'Mention rate by platform in India' });
     expect(within(frame).getByRole('heading', { level: 3, name: 'Germany' })).toBeInTheDocument();
     expect(within(frame).getByRole('heading', { level: 3, name: 'India' })).toBeInTheDocument();
     // The Hindi prompt has 7 valid answers on ChatGPT and 8 on Gemini: a rate is read, over one prompt
@@ -125,25 +128,25 @@ describe('CountryBreakdownCard', () => {
     expect(chatgpt).toMatch(/^ChatGPT: \d+%, \d+ of 7 answers, 1 prompt$/);
     expect(gemini).toMatch(/^Gemini: \d+%, \d+ of 8 answers, 1 prompt$/);
     expect(within(frame).getByText('1 prompt in this scope')).toBeInTheDocument();
-    const germany = within(frame).getByRole('list', { name: 'Mention rate by engine in Germany' });
+    const germany = within(frame).getByRole('list', { name: 'Mention rate by platform in Germany' });
     expect(spoken(germany)).toHaveLength(2);
   });
 
-  it('reads a country with too few answers as its answers and a country without any as unknown, never as 0%', async () => {
+  it('reads a location with too few answers as its answers and a location without any as unknown, never as 0%', async () => {
     serveCountries({ DE: [prompt('d1', [1, 3], null)], IN: GERMANY });
     renderCard();
     const frame = await section();
-    const germany = await within(frame).findByRole('list', { name: 'Mention rate by engine in Germany' });
+    const germany = await within(frame).findByRole('list', { name: 'Mention rate by platform in Germany' });
     expect(spoken(germany)).toEqual(['ChatGPT: 3 answers, too few for a rate', 'Gemini: No answers']);
     expect(germany).not.toHaveTextContent('0%');
     expect(germany.querySelectorAll('[data-slot="bar-list-bar"]')).toHaveLength(0);
   });
 
-  it('draws every group on one scale: the same rate is the same bar length in every country', async () => {
+  it('draws every group on one scale: the same rate is the same bar length in every location', async () => {
     serveCountries({ DE: GERMANY, IN: GERMANY });
     renderCard();
     const frame = await section();
-    await within(frame).findByRole('list', { name: 'Mention rate by engine in India' });
+    await within(frame).findByRole('list', { name: 'Mention rate by platform in India' });
     const widths = [...frame.querySelectorAll<HTMLElement>('[data-slot="bar-list-bar"]')].map((bar) => bar.style.width);
     // ChatGPT 4 of 8 (50%) and Gemini 2 of 5 (40%), in both countries, on a scale from 0 to 100%
     expect(widths).toEqual(['50%', '40%', '50%', '40%']);
@@ -151,7 +154,7 @@ describe('CountryBreakdownCard', () => {
 
   it.each([
     ['citation', 'Citation rate', ['ChatGPT: 25%, 2 of 8 answers, 1 prompt']],
-    ['share_of_voice', 'Share of voice', ['ChatGPT: 60%, 10 answers that name a brand, 1 prompt']],
+    ['share_of_voice', 'Share of voice', ['ChatGPT: 60%, 6 of 10 brand mentions']],
   ] as const)('shows the %s of the option in place of the mention rate', async (metric, label, rows) => {
     serveCountries({ DE: GERMANY, IN: GERMANY });
     function WithMetric(props: CardProps): ReactElement {
@@ -159,17 +162,17 @@ describe('CountryBreakdownCard', () => {
     }
     renderCard(WINDOW, WithMetric);
     const frame = await section();
-    const list = await within(frame).findByRole('list', { name: `${label} by engine in Germany` });
+    const list = await within(frame).findByRole('list', { name: `${label} by platform in Germany` });
     expect(spoken(list).slice(0, rows.length)).toEqual(rows);
   });
 
-  it('ignores the country filter of the page, reads every country, and says so in the meta line', async () => {
+  it('ignores the location filter of the page, reads every location, and says so in the meta line', async () => {
     const seen = serveCountries({ DE: GERMANY, IN: INDIA });
     renderCard(`${WINDOW}&country=IN`);
     const frame = await section();
-    await within(frame).findByRole('list', { name: 'Mention rate by engine in Germany' });
-    expect(within(frame).getByRole('list', { name: 'Mention rate by engine in India' })).toBeInTheDocument();
-    expect(frame).toHaveTextContent(/country filter of this page is not applied/);
+    await within(frame).findByRole('list', { name: 'Mention rate by platform in Germany' });
+    expect(within(frame).getByRole('list', { name: 'Mention rate by platform in India' })).toBeInTheDocument();
+    expect(frame).toHaveTextContent(/location filter of this page is not applied/);
     // The page is on India, and Germany is read all the same
     expect(new Set(seen.map((url) => url.searchParams.get('filter[country_iso]')))).toEqual(new Set(['DE', 'IN']));
   });
@@ -184,16 +187,16 @@ describe('CountryBreakdownCard', () => {
     expect(frame).toHaveTextContent(/A rate needs 4 or more valid answers/);
   });
 
-  it('is empty, and teaches, when the project asks in one country', async () => {
+  it('is empty, and teaches, when the project asks in one location', async () => {
     serveMarkets(['DE']);
     serveCountries({ DE: GERMANY });
     renderCard();
-    expect(await screen.findByText('This project asks in one country')).toBeInTheDocument();
-    expect(screen.getByText('Compare markets by adding prompts for another country.')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Open Topics and prompts' }).getAttribute('href')).toContain('/prompts');
+    expect(await screen.findByText('This project asks in one location')).toBeInTheDocument();
+    expect(screen.getByText('Add prompts for another location to compare locations.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open Prompts' }).getAttribute('href')).toContain('/prompts');
   });
 
-  it('shows the 8 countries with the most prompts and counts the rest in the footnote', async () => {
+  it('shows the 8 locations with the most prompts and counts the rest in the footnote', async () => {
     const codes = ['DE', 'IN', 'FR', 'ES', 'IT', 'NL', 'PL', 'SE', 'NO', 'DK'];
     serveMarkets(codes);
     serveCountries(
@@ -206,13 +209,13 @@ describe('CountryBreakdownCard', () => {
     );
     renderCard();
     const frame = await section();
-    await within(frame).findByRole('list', { name: 'Mention rate by engine in Denmark' });
+    await within(frame).findByRole('list', { name: 'Mention rate by platform in Denmark' });
     expect(within(frame).getAllByRole('heading', { level: 3 })).toHaveLength(8);
     expect(within(frame).queryByRole('heading', { level: 3, name: 'Germany' })).not.toBeInTheDocument();
-    expect(frame).toHaveTextContent('2 more countries are not shown');
+    expect(frame).toHaveTextContent('2 more locations are not shown');
   });
 
-  it('leaves the other country and gives the one that failed its own Retry', async () => {
+  it('leaves the other location and gives the one that failed its own Retry', async () => {
     server.use(
       http.get(SUMMARY, ({ request }) => {
         const country = new URL(request.url).searchParams.get('filter[country_iso]');
@@ -225,14 +228,14 @@ describe('CountryBreakdownCard', () => {
     const { user } = renderCard();
     const frame = await section();
     expect(await within(frame).findByText('Could not load India')).toBeInTheDocument();
-    expect(within(frame).getByRole('list', { name: 'Mention rate by engine in Germany' })).toBeInTheDocument();
+    expect(within(frame).getByRole('list', { name: 'Mention rate by platform in Germany' })).toBeInTheDocument();
     expect(within(frame).getAllByText(/req-india/).length).toBeGreaterThan(0);
     serveCountries({ DE: GERMANY, IN: INDIA });
     await user.click(within(frame).getByRole('button', { name: 'Try again' }));
-    expect(await within(frame).findByRole('list', { name: 'Mention rate by engine in India' })).toBeInTheDocument();
+    expect(await within(frame).findByRole('list', { name: 'Mention rate by platform in India' })).toBeInTheDocument();
   });
 
-  it('keeps Germany on screen and shows India as retrying, not a card-wide skeleton, while the failed country is read again', async () => {
+  it('keeps Germany on screen and shows India as retrying, not a card-wide skeleton, while the failed location is read again', async () => {
     server.use(
       http.get(SUMMARY, ({ request }) => {
         const country = new URL(request.url).searchParams.get('filter[country_iso]');
@@ -264,31 +267,31 @@ describe('CountryBreakdownCard', () => {
       expect(within(frame).getByRole('button', { name: 'Try again' })).toHaveAttribute('aria-busy', 'true');
     });
     expect(frame.querySelector('[data-slot="skeleton"]')).toBeNull();
-    expect(within(frame).getByRole('list', { name: 'Mention rate by engine in Germany' })).toBeInTheDocument();
+    expect(within(frame).getByRole('list', { name: 'Mention rate by platform in Germany' })).toBeInTheDocument();
     expect(within(frame).getByText('Could not load India')).toBeInTheDocument();
     expect(within(frame).getAllByText(/req-india/).length).toBeGreaterThan(0);
     act(() => {
       release();
     });
-    expect(await within(frame).findByRole('list', { name: 'Mention rate by engine in India' })).toBeInTheDocument();
-    expect(within(frame).getByRole('list', { name: 'Mention rate by engine in Germany' })).toBeInTheDocument();
+    expect(await within(frame).findByRole('list', { name: 'Mention rate by platform in India' })).toBeInTheDocument();
+    expect(within(frame).getByRole('list', { name: 'Mention rate by platform in Germany' })).toBeInTheDocument();
   });
 
-  it('shows no group of its own for the page country when no prompt asks in it', async () => {
+  it('shows no group of its own for the page location when no prompt asks in it', async () => {
     serveMarkets(['DE']);
     serveCountries({ DE: GERMANY });
     renderCard(`${WINDOW}&country=IN`);
-    expect(await screen.findByText('This project asks in one country')).toBeInTheDocument();
+    expect(await screen.findByText('This project asks in one location')).toBeInTheDocument();
     expect(screen.queryByRole('heading', { level: 3, name: 'India' })).not.toBeInTheDocument();
   });
 
-  it('the Table view lists every country and engine with its counts and the CSV matches', async () => {
+  it('the Table view lists every location and platform with its counts and the CSV matches', async () => {
     serveCountries({ DE: GERMANY, IN: INDIA });
     const { user } = renderCard();
     const frame = await section();
-    await within(frame).findByRole('list', { name: 'Mention rate by engine in India' });
+    await within(frame).findByRole('list', { name: 'Mention rate by platform in India' });
     await user.click(within(frame).getByRole('button', { name: 'Table' }));
-    const table = within(frame).getByRole('table', { name: 'Mention rate by country and engine' });
+    const table = within(frame).getByRole('table', { name: 'Mention rate by location and platform' });
     expect(within(table).getAllByRole('row')).toHaveLength(1 + 4);
     expect(table).toHaveTextContent('Germany');
     expect(table).toHaveTextContent('4 of 8 answers');
@@ -298,7 +301,7 @@ describe('CountryBreakdownCard', () => {
     expect(name).toBe('by-country.csv');
     if (!(blob instanceof Blob)) throw new Error('No file was downloaded');
     const text = await blob.text();
-    expect(text).toContain('Country,Engine,Mention rate,Answers,Prompts');
+    expect(text).toContain('Location,Platform,Mention rate,Answers,Prompts');
     expect(text).toContain('Germany,ChatGPT,50%,4 of 8 answers,1');
     expect(text).toContain('India,ChatGPT,3 answers,3 answers,1');
   });
@@ -333,20 +336,20 @@ describe('CountryBreakdownCard', () => {
     expect(screen.getAllByText(/req-country/).length).toBeGreaterThan(0);
     server.resetHandlers();
     await user.click(screen.getByRole('button', { name: 'Try again' }));
-    expect(await screen.findByRole('list', { name: 'Mention rate by engine in Germany' })).toBeInTheDocument();
+    expect(await screen.findByRole('list', { name: 'Mention rate by platform in Germany' })).toBeInTheDocument();
   });
 
   it('keeps the groups and says the figures are stale when a later read fails', async () => {
     serveCountries({ DE: GERMANY, IN: INDIA });
     const { queryClient } = renderCard();
     const frame = await section();
-    await within(frame).findByRole('list', { name: 'Mention rate by engine in India' });
+    await within(frame).findByRole('list', { name: 'Mention rate by platform in India' });
     server.use(http.get(SUMMARY, () => failing('req-later')));
     await act(async () => {
       await queryClient.invalidateQueries();
     });
     expect(await within(frame).findByText('Stale: these are the last figures read')).toBeInTheDocument();
-    expect(within(frame).getByRole('list', { name: 'Mention rate by engine in Germany' })).toBeInTheDocument();
+    expect(within(frame).getByRole('list', { name: 'Mention rate by platform in Germany' })).toBeInTheDocument();
   });
 
   it('registers its Table view as an export block under the item id, with empty unknown cells and a status', async () => {
@@ -389,7 +392,7 @@ describe('CountryBreakdownCard', () => {
   it('axe finds no violation', async () => {
     serveCountries({ DE: GERMANY, IN: INDIA });
     const { container } = renderCard();
-    await screen.findByRole('list', { name: 'Mention rate by engine in India' });
+    await screen.findByRole('list', { name: 'Mention rate by platform in India' });
     expect(await axe(container)).toHaveNoViolations();
   });
 });

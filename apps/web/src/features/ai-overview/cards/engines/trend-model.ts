@@ -4,7 +4,9 @@ import type { OverviewAggregates } from '../../data/aggregates';
 import type { SmallMultiplePanel } from '@/components/app/chart/small-multiples';
 import { addDays } from '@/components/app/date-range/business-date';
 import type { EngineCode, EngineSummary, MetricCell, ProjectEngine, PromptsSummary, WeekCells } from '@/lib/api/types';
+import type { WeekWithVisibility } from '@/lib/api/week-visibility';
 import type { RateBandPoint } from '@/lib/charts/rate-band-chart';
+import { shareNoteOf, type ShareNote } from '@/lib/rates/brand-mention-share';
 import { rateTipText, type RateTipWords } from '@/lib/charts/rate-tip';
 import type { CsvCell } from '@/lib/csv/csv-write';
 import { promptWeightedRate, rateState, wilsonInterval, type Interval, type RateState } from '@/lib/stats';
@@ -25,7 +27,25 @@ export const TREND_METRICS: readonly TrendMetric[] = ['mention', 'citation', 'sh
 
 export const isTrendMetric = (value: string): value is TrendMetric => TREND_METRICS.some((metric) => metric === value);
 
+/**
+ * The metrics a week can carry: the three of the trend cards, and AI visibility (named or cited), which the API does
+ * not put on a week yet (backend request 1, `WeekCells.visibility`). A summary without it has no weekly visibility,
+ * and says so (`hasWeeklyVisibility`); the figure is never made up from the mention and citation cells.
+ */
+export type WeekMetric = TrendMetric | 'visibility';
+
 const CELL_OF = { mention: 'mentioned', citation: 'cited' } as const;
+
+const NO_ANSWERS: MetricCell = { value: null, numerator: 0, denominator: 0, n_observations: 0, pooled: null };
+
+/** Whether any week of any series of the summary carries the visibility cell: the API collects it weekly. */
+export function hasWeeklyVisibility(summary: PromptsSummary): boolean {
+  const weeks = [
+    ...(summary.total?.engines ?? []).flatMap((engine) => engine.series ?? []),
+    ...summary.prompts.flatMap((prompt) => prompt.engines.flatMap((engine) => engine.series ?? [])),
+  ];
+  return weeks.some((week) => (week as WeekWithVisibility).visibility != null);
+}
 
 export interface TrendPoint {
   /** The Monday the week starts on, a project day. */
@@ -44,6 +64,8 @@ export interface TrendPoint {
   thin: boolean;
   /** The weeks the point pools, only when it holds more than its own week. */
   pooledWeeks: number | null;
+  /** The first and last day the API's `pool` says the point covers; `null` unless the point is the `total`'s and pools. */
+  pooledRange: { from: string; to: string } | null;
   /** The window cuts the week: part of its days are outside it. */
   partial: boolean;
 }
@@ -86,6 +108,7 @@ interface Parts {
   n: number;
   prompts: number | null;
   pooledWeeks: number | null;
+  pooledRange: { from: string; to: string } | null;
 }
 
 const sum = (values: readonly number[]): number => values.reduce((total, value) => total + value, 0);
@@ -96,7 +119,7 @@ const isWhole = (value: number): boolean => Number.isInteger(value) && value >= 
 const isPartialWeek = (weekStart: string, range: TrendInput['range']): boolean =>
   weekStart < range.from || addDays(weekStart, 6) > range.to;
 
-const GAP: Parts = { value: null, k: null, n: 0, prompts: null, pooledWeeks: null };
+const GAP: Parts = { value: null, k: null, n: 0, prompts: null, pooledWeeks: null, pooledRange: null };
 
 /** The weeks a point pools, when that is more than its own week. */
 const poolOf = (week: WeekCells): number | null => {
@@ -104,8 +127,12 @@ const poolOf = (week: WeekCells): number | null => {
   return weeks > 1 ? weeks : null;
 };
 
+/** The days those weeks cover, in the words of the API's `pool`; `null` when the point holds only its own week. */
+const rangeOf = (week: WeekCells): Parts['pooledRange'] =>
+  poolOf(week) === null || week.pool == null ? null : { from: week.pool.window.from, to: week.pool.window.to };
+
 /** A point from its parts: the interval and the thin state come from the counts and from nothing else. */
-function pointOf(weekStart: string, parts: Parts, metric: TrendMetric, range: TrendInput['range']): TrendPoint {
+function pointOf(weekStart: string, parts: Parts, metric: WeekMetric, range: TrendInput['range']): TrendPoint {
   const state: RateState = rateState(parts.n);
   const hasBand = metric !== 'share_of_voice' && state === 'ok' && parts.k !== null;
   return {
@@ -118,7 +145,7 @@ function pointOf(weekStart: string, parts: Parts, metric: TrendMetric, range: Tr
 }
 
 /** The point of prompt rows in one week: each prompt's own pooled cell, added up, the value their mean (C-19). */
-function promptsPart(cells: readonly { week: WeekCells; cell: MetricCell }[], metric: TrendMetric): Parts {
+function promptsPart(cells: readonly { week: WeekCells; cell: MetricCell }[], metric: WeekMetric): Parts {
   if (cells.length === 0) return GAP;
   const pooledWeeks = cells.reduce<number | null>((most, { week }) => {
     const weeks = poolOf(week);
@@ -129,8 +156,9 @@ function promptsPart(cells: readonly { week: WeekCells; cell: MetricCell }[], me
   // No valid answer in the week is a gap, not a rate of 0
   if (n === 0) return GAP;
   if (metric === 'share_of_voice') {
-    // One answer one weight: the numerators are sums of shares, so they are no count of successes
-    return { value: sum(counts.map((count) => count.k)) / n, k: null, n, prompts: null, pooledWeeks };
+    // One mention one weight: the numerators are the own brand's mentions, the denominators every tracked brand's
+    const k = sum(counts.map((count) => count.k));
+    return { value: k / n, k, n, prompts: null, pooledWeeks, pooledRange: null };
   }
   if (counts.some((count) => !isWhole(count.k) || !isWhole(count.n) || count.k > count.n)) return GAP;
   return {
@@ -139,28 +167,64 @@ function promptsPart(cells: readonly { week: WeekCells; cell: MetricCell }[], me
     n,
     prompts: counts.filter((count) => count.n >= 1).length,
     pooledWeeks,
+    pooledRange: null,
   };
 }
 
 /** The point of a total row: its cell is prompt weighted, so its counts are in `pooled`. */
-function totalPart(week: WeekCells, cell: MetricCell, metric: TrendMetric): Parts {
+function totalPart(week: WeekCells, cell: MetricCell, metric: WeekMetric): Parts {
   const pooledWeeks = poolOf(week);
+  const pooledRange = rangeOf(week);
   if (metric === 'share_of_voice') {
-    return cell.denominator > 0 ? { value: cell.value, k: null, n: cell.denominator, prompts: null, pooledWeeks } : GAP;
+    return cell.denominator > 0
+      ? { value: cell.value, k: cell.numerator, n: cell.denominator, prompts: null, pooledWeeks, pooledRange }
+      : GAP;
   }
   const n = cell.pooled?.trials ?? cell.denominator;
   const k = cell.pooled?.successes ?? cell.numerator;
   if (!isWhole(n) || n === 0 || !isWhole(k) || k > n) return GAP;
-  return { value: cell.value, k, n, prompts: cell.pooled === null ? week.prompts : cell.denominator, pooledWeeks };
+  return {
+    value: cell.value,
+    k,
+    n,
+    prompts: cell.pooled === null ? week.prompts : cell.denominator,
+    pooledWeeks,
+    pooledRange,
+  };
 }
 
-const cellOf = (week: WeekCells, metric: TrendMetric): MetricCell =>
-  metric === 'share_of_voice' ? week.share_of_voice : week[CELL_OF[metric]];
+const cellOf = (week: WeekCells, metric: WeekMetric): MetricCell =>
+  metric === 'share_of_voice'
+    ? week.share_of_voice
+    : metric === 'visibility'
+      ? ((week as WeekWithVisibility).visibility ?? NO_ANSWERS)
+      : week[CELL_OF[metric]];
 
 const totalSeries = (summary: PromptsSummary, code: EngineCode): readonly WeekCells[] | null => {
   const engine: EngineSummary | undefined = summary.total?.engines.find((entry) => entry.engine_code === code);
   return engine?.series != null && engine.series.length > 0 ? engine.series : null;
 };
+
+/**
+ * Whether the summary has weekly points and none of them carries its share of voice as brand-mention counts (no entity
+ * cells in the weeks, or cut at 20 brands). The server sends the weekly entity cells with `include=series,entities`; a
+ * read without them is "not collected", never drawn from the old sum of shares.
+ */
+export function weeklyShareNotCollected(summary: PromptsSummary): boolean {
+  return weeklyShareNote(summary) !== undefined;
+}
+
+/**
+ * Why no week of the summary has its share of voice as brand-mention counts: `capped` when the weekly cells stop at 20 of
+ * a longer tracked set (the share would be over too few mentions: "More than 20 tracked brands"), else `notCollected`;
+ * `undefined` when some week has its counts, or there is no week.
+ */
+export function weeklyShareNote(summary: PromptsSummary): ShareNote | undefined {
+  const engines = [...(summary.total?.engines ?? []), ...summary.prompts.flatMap((prompt) => prompt.engines)];
+  const notes = engines.flatMap((engine) => engine.series ?? []).map((week) => shareNoteOf(week.share_of_voice));
+  if (notes.length === 0 || notes.some((note) => note === undefined)) return undefined;
+  return notes.includes('capped') ? 'capped' : 'notCollected';
+}
 
 /** The weeks of an engine's series over the prompt rows, oldest first. */
 const promptWeeks = (summary: PromptsSummary, code: EngineCode): string[] =>
@@ -179,7 +243,7 @@ const promptWeeks = (summary: PromptsSummary, code: EngineCode): string[] =>
 export function projectWeeks(
   summary: PromptsSummary,
   code: EngineCode,
-  metric: TrendMetric,
+  metric: WeekMetric,
   range: TrendInput['range'],
 ): TrendPoint[] {
   const total = totalSeries(summary, code);
@@ -212,7 +276,9 @@ function previousValues(
   });
 }
 
-const gapAt = (weekStart: string, range: TrendInput['range']): TrendPoint => pointOf(weekStart, GAP, 'mention', range);
+/** A week with no answer on an engine: a gap. */
+export const gapAt = (weekStart: string, range: TrendInput['range']): TrendPoint =>
+  pointOf(weekStart, GAP, 'mention', range);
 
 /** The weekly model of the engines asked: every engine has a point for every week of the chart. */
 export function buildTrend({ current, previous, asked, metric, range }: TrendInput): TrendModel {
@@ -239,18 +305,27 @@ export function buildTrend({ current, previous, asked, metric, range }: TrendInp
 /** The finished words a point needs on top of the shared tooltip words. */
 export interface TrendWords {
   rate: RateTipWords;
-  /** "50%, 8 answers that name a brand". */
-  share: (value: number, n: number) => string;
+  /** "50%, 4 of 8 brand mentions". */
+  share: (value: number, k: number, n: number) => string;
+  /** "4 weeks together (Oct 19 to Nov 9, 2026)": the weeks a pooled point holds, in the words of the API's `pool`. */
+  pooledRange: (weeks: number, from: string, to: string) => string;
   /** "partial week". */
   partial: string;
 }
 
-function tipOf(point: TrendPoint, metric: TrendMetric, words: TrendWords): string {
-  const { value, k, n, prompts, band, thin, pooledWeeks } = point;
+export function tipOf(point: TrendPoint, metric: WeekMetric, words: TrendWords): string {
+  const { value, k, n, prompts, band, thin, pooledWeeks, pooledRange } = point;
   const pooled = pooledWeeks ?? undefined;
   const text =
-    metric === 'share_of_voice' && !thin && value !== null
-      ? [words.share(value, n), pooled === undefined ? null : words.rate.pooled(pooled)]
+    metric === 'share_of_voice' && !thin && value !== null && k !== null
+      ? [
+          words.share(value, k, n),
+          pooled === undefined
+            ? null
+            : pooledRange === null
+              ? words.rate.pooled(pooled)
+              : words.pooledRange(pooled, pooledRange.from, pooledRange.to),
+        ]
           .filter((part): part is string => part !== null)
           .join(', ')
       : rateTipText({ value, k, n, prompts: prompts ?? undefined, band, thin, pooledWeeks: pooled }, words.rate);

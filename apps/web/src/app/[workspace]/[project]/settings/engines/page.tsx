@@ -12,7 +12,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: t('engines') };
 }
 
-/** Project settings > Engines: which AI engines ask the project's prompts, and in which countries. */
+/** Project settings > Platforms: which AI platforms ask the project's prompts, and in which countries. */
 export default async function EnginesPage({
   params,
 }: PageProps<'/[workspace]/[project]/settings/engines'>): Promise<ReactNode> {

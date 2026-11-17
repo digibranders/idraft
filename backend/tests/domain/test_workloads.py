@@ -4,9 +4,11 @@ import pytest
 
 from idraft.domain.workloads import (
     BudgetGroup,
+    CostChannel,
     CostWorkload,
     TaskWorkload,
     budget_group,
+    cost_channel,
     cost_workloads,
 )
 
@@ -56,3 +58,9 @@ def test_a_budget_for_all_covers_every_cost_workload() -> None:
         CostWorkload.AI_OVERVIEW,
     }
     assert cost_workloads(BudgetGroup.AI_BENCHMARK) == {CostWorkload.AI_BENCHMARK}
+
+
+def test_a_site_crawl_is_its_own_budget_group_on_the_seo_side() -> None:
+    assert budget_group(CostWorkload.SITE_CRAWL) is BudgetGroup.SITE_CRAWL
+    assert cost_workloads(BudgetGroup.SITE_CRAWL) == frozenset({CostWorkload.SITE_CRAWL})
+    assert cost_channel(CostWorkload.SITE_CRAWL) is CostChannel.SEO

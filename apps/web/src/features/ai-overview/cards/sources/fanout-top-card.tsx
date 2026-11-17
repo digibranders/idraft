@@ -5,26 +5,20 @@ import type { ReactElement } from 'react';
 
 import { useFanoutRows } from './data/fanout-reads';
 import { fanoutFigures, fanoutStanding, type FanoutFigures, type FanoutStanding } from './model/fanout-model';
+import { FanoutTable, type FanoutTableRow } from './parts/fanout-table';
 import { useFrameState, type DataSituation } from './parts/frame-state';
 import { engineNames } from './parts/source-meta';
+import { useScopeUnavailable } from '../../states/scope-unavailable';
 import { engineLabel } from '../engines/engine-role';
 import { useCardDensity } from '../engines/use-card-density';
 import { useCardExport } from '../engines/use-card-seams';
-import {
-  BarList,
-  BarListTable,
-  barListCsv,
-  type BarListProps,
-  type ComparisonRow,
-} from '@/components/app/chart/bar-list';
+import { BarListTable, barListCsv, type BarListProps, type ComparisonRow } from '@/components/app/chart/bar-list';
 import { ChartFrame } from '@/components/app/chart/chart-frame';
 import { visibleUrlText } from '@/components/app/cells/visible-text';
-import { MetricInfo } from '@/components/app/metric/metric-info';
 import { Badge } from '@/components/ui/badge';
 import type { CardProps } from '@/features/layouts';
-import { METHODOLOGY_HREF } from '@/lib/citations/methodology';
 import type { EngineCode } from '@/lib/api/types';
-import { formatDateRange, formatInteger, formatList, formatPercent } from '@/lib/format';
+import { formatInteger, formatList, formatPercent } from '@/lib/format';
 import { MIN_OBSERVATIONS } from '@/lib/stats';
 
 /** The `rows` option (catalog 5 or 10, default 5). */
@@ -65,8 +59,9 @@ function situationOf(
 }
 
 /**
- * CH-17: the searches the engines that show them ran to build their answers, by how many answers ran each one, over
- * every valid answer in scope on those engines (`meta.answers`). Beside every percent is its count. An engine that
+ * CH-17 and OV-TRF-05: the searches the platforms that show them ran to build their answers, as a table: the query,
+ * the answers that ran it, its prompts and the domain cited most, over every valid answer in scope on those platforms
+ * (`meta.answers`). The share of each query is in the Table view and the export, with its counts. An engine that
  * does not show its searches is not exposed, never 0: the card says which, and says so alone when no engine in scope
  * shows them. A search whose answers cited a domain of yours carries the words "Own domain cited" (an association:
  * which search found which source is not stored). The search text and the domains are provider text: React text
@@ -74,6 +69,8 @@ function situationOf(
  */
 export default function FanoutTopCard({ item, options, live }: CardProps): ReactElement {
   const t = useTranslations('aiOverview.sources.fanout');
+  const words = useTranslations('aiOverview.sourcesTracking.fanout');
+  const unavailable = useScopeUnavailable(words('title'));
   const insufficient = useTranslations('common.insufficient');
   const density = useCardDensity();
   const reads = useFanoutRows({ limit: rowsOf(options.rows), subscribed: live });
@@ -81,13 +78,16 @@ export default function FanoutTopCard({ item, options, live }: CardProps): React
   const figures = page === undefined ? [] : fanoutFigures(page);
   const standing = page === undefined ? null : fanoutStanding(page);
 
-  const frame = useFrameState({
+  const situation = situationOf(reads.askable, reads.without, standing);
+  const state = useFrameState({
     subject: t('subject'),
     read: reads.current,
     previous: null,
     previousEmpty: false,
-    situation: situationOf(reads.askable, reads.without, standing),
+    situation,
   });
+  // A platform that does not show its searches: the reason of every card that has nothing for the scope
+  const frame = state.status === 'empty' && situation.kind === 'no_fanout' ? { ...state, empty: unavailable } : state;
 
   const citedText = (figure: FanoutFigures): string =>
     formatList(
@@ -139,6 +139,20 @@ export default function FanoutTopCard({ item, options, live }: CardProps): React
     };
   };
   const rows = figures.map(rowOf);
+  const tableRows = figures.map((figure): FanoutTableRow => ({
+    id: figure.id,
+    query: visibleUrlText(figure.text),
+    answers: formatInteger(figure.observations),
+    prompts: formatInteger(figure.prompts),
+    topCited: visibleUrlText(figure.cited[0]?.registrable_domain ?? ''),
+    tip: [
+      t('tipEngine', { engine: engineName(figure) }),
+      figure.cited.length === 0 ? null : t('tipCited', { list: citedText(figure) }),
+      t('tipAssociation'),
+    ]
+      .filter((part) => part !== null)
+      .join('. '),
+  }));
 
   const list: BarListProps = {
     mode: 'comparison',
@@ -170,14 +184,15 @@ export default function FanoutTopCard({ item, options, live }: CardProps): React
   });
 
   const shown = frame.status === 'ready' || frame.status === 'refetching';
+  const shownBy =
+    page === undefined ? [] : page.meta.engine_codes.filter((code) => !page.meta.engines_without_fanout.includes(code));
   const meta =
     page === undefined || !shown
       ? null
-      : t('meta', {
-          window: formatDateRange(page.meta.window.from, page.meta.window.to),
+      : words('meta', {
+          engines: formatList(engineNames(shownBy)),
+          withFanout: page.meta.answers_with_fanout,
           answers: page.meta.answers,
-          engines: formatList(engineNames(page.meta.engine_codes)),
-          branded: String(page.meta.include_branded),
         });
   const leaders = formatList(
     rows
@@ -191,9 +206,11 @@ export default function FanoutTopCard({ item, options, live }: CardProps): React
   return (
     <ChartFrame
       kind="html"
+      keepHeaderWhenEmpty
       variant="panel"
       height={240}
-      title={t('title')}
+      title={words('title')}
+      info={{ what: words('infoWhat'), how: words('infoHow') }}
       meta={meta}
       summary={
         page === undefined || rows.length === 0
@@ -216,26 +233,16 @@ export default function FanoutTopCard({ item, options, live }: CardProps): React
         )
       }
       body={
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 type-meta">
-            <span>{t('rankedBy')}</span>
-            <MetricInfo
-              name={t('infoName')}
-              definition={t('infoDefinition')}
-              formula={t('infoFormula')}
-              {...(page === undefined
-                ? {}
-                : {
-                    denominatorText: t('infoSample', {
-                      withFanout: formatInteger(page.meta.answers_with_fanout),
-                      answers: page.meta.answers,
-                    }),
-                  })}
-              methodologyHref={METHODOLOGY_HREF}
-            />
-          </div>
-          <BarList {...list} />
-        </div>
+        <FanoutTable
+          rows={tableRows}
+          caption={words('caption')}
+          headers={{
+            query: words('queryHeader'),
+            answers: words('answersHeader'),
+            prompts: words('promptsHeader'),
+            topCited: words('topCitedHeader'),
+          }}
+        />
       }
       table={<BarListTable {...list} />}
       menu={{ fileName: t('fileName'), csv }}

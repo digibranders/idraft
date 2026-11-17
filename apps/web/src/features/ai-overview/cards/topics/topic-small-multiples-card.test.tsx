@@ -68,7 +68,7 @@ afterEach(() => {
 });
 
 const SUMMARY_PATH = mswPath('/api/v1/workspaces/:w/projects/:p/ai/prompts-summary');
-const TITLE_CHATGPT = 'Mention rate by topic on ChatGPT';
+const TITLE_CHATGPT = 'Mention rate by group on ChatGPT';
 
 const NAMES = ['SEO tools', 'Email', 'CRM', 'Pricing', 'Support', 'Billing', 'Reports'] as const;
 const PROMPTS = [12, 8, 6, 5, 4, 3, 2] as const;
@@ -182,7 +182,7 @@ const failing = (): ReturnType<typeof HttpResponse.json> =>
   );
 
 describe('TopicSmallMultiplesCard', () => {
-  it('a panel per top topic by prompts, named with its prompts', async () => {
+  it('a panel per top group by prompts, named with its prompts', async () => {
     render();
     await charts();
     const names = screen.getAllByRole('img').map((panel) => panel.getAttribute('aria-label'));
@@ -196,7 +196,7 @@ describe('TopicSmallMultiplesCard', () => {
     ]);
   });
 
-  it('topics 6 or 9 cut the panels', async () => {
+  it('groups 6 or 9 cut the panels', async () => {
     const nine = render({ options: { topics: '9' } });
     await charts();
     // Seven topics are in the read, and all of them are drawn
@@ -208,9 +208,9 @@ describe('TopicSmallMultiplesCard', () => {
     expect(screen.queryByRole('img', { name: /Reports/ })).not.toBeInTheDocument();
   });
 
-  it('draws every panel for the engine chosen and says it in the title', async () => {
+  it('draws every panel for the platform chosen and says it in the title', async () => {
     render({ options: { engine: 'gemini_web' } });
-    expect(await heading('Mention rate by topic on Gemini')).toBeInTheDocument();
+    expect(await heading('Mention rate by group on Gemini')).toBeInTheDocument();
     await charts();
     // The marker of an engine is its place in the fixed order: Gemini is a square, ChatGPT a circle
     const symbolOf = (id: string): unknown => (drawnOf(id).option.series as { symbol?: string }[])[0]?.symbol;
@@ -261,22 +261,26 @@ describe('TopicSmallMultiplesCard', () => {
     render();
     const frame = await frameOf();
     await charts();
-    expect(within(frame).getByText(/Topics overlap/)).toBeInTheDocument();
+    expect(within(frame).getByText(/Groups overlap/)).toBeInTheDocument();
     expect(within(frame).getByText(/Prompt weighted/)).toBeInTheDocument();
     expect(within(frame).getByText(/95 percent interval/)).toBeInTheDocument();
-    expect(within(frame).queryByText(/in more than one topic/)).not.toBeInTheDocument();
+    expect(within(frame).queryByText(/in more than one group/)).not.toBeInTheDocument();
   });
 
   it('the latest week is named in each panel, with its counts', async () => {
     render();
     await charts();
     expect(
-      within(figureOf('SEO tools (12 prompts)')).getByText(/Nov 9: 25\.0%, 10 of 40 answers.*5 prompts/),
+      within(figureOf('SEO tools (12 prompts)')).getByText(
+        /Nov 9: 25\.0%, average of 5 prompts.*All answers pooled: 25\.0%, 10 of 40 answers/,
+      ),
     ).toBeInTheDocument();
-    expect(within(figureOf('CRM (6 prompts)')).getByText(/Nov 9: 40\.0%, 8 of 20 answers/)).toBeInTheDocument();
+    expect(
+      within(figureOf('CRM (6 prompts)')).getByText(/Nov 9: 40\.0%.*All answers pooled: 40\.0%, 8 of 20 answers/),
+    ).toBeInTheDocument();
   });
 
-  it('a topic with no series says no weekly data in text, never a line at 0', async () => {
+  it('a group with no series says no weekly data in text, never a line at 0', async () => {
     render({ options: { engine: 'gemini_web' } });
     await charts();
     const figure = figureOf('Email (8 prompts)');
@@ -284,15 +288,15 @@ describe('TopicSmallMultiplesCard', () => {
     expect(within(figure).queryByTestId('echart-canvas')).not.toBeInTheDocument();
   });
 
-  it('the summary sentence names the metric, the engine and the topics', async () => {
+  it('the summary sentence names the metric, the platform and the groups', async () => {
     render();
     await charts();
     expect(
-      screen.getByText(/Mention rate week by week for the 6 topics with the most prompts on ChatGPT/),
+      screen.getByText(/Mention rate week by week for the 6 groups with the most prompts on ChatGPT/),
     ).toBeInTheDocument();
   });
 
-  it('the Table form has a column per topic with k of n answers', async () => {
+  it('the Table form has a column per group with k of n answers', async () => {
     const { user } = render();
     await charts();
     await user.click(screen.getByRole('button', { name: 'Table' }));
@@ -375,29 +379,29 @@ describe('TopicSmallMultiplesCard states', () => {
     await charts();
   });
 
-  it('an engine the view does not ask is an empty state that can clear the filter', async () => {
+  it('a platform the view does not ask is an empty state that can clear the filter', async () => {
     const { user } = render({
       options: { engine: 'google_ai_mode' },
       searchParams: 'engine=chatgpt_web',
       threeEngines: true,
     });
-    expect(await screen.findByText('AI Mode is not part of this view')).toBeInTheDocument();
+    expect(await screen.findByText('Google AI Mode is not part of this view')).toBeInTheDocument();
     expect(screen.queryAllByTestId('echart-canvas')).toHaveLength(0);
-    await user.click(screen.getByRole('button', { name: 'Use all engines' }));
+    await user.click(screen.getByRole('button', { name: 'Use all platforms' }));
     await waitFor(() => {
-      expect(screen.queryByText('AI Mode is not part of this view')).not.toBeInTheDocument();
+      expect(screen.queryByText('Google AI Mode is not part of this view')).not.toBeInTheDocument();
     });
-    expect(await heading('Mention rate by topic on AI Mode')).toBeInTheDocument();
+    expect(await heading('Mention rate by group on Google AI Mode')).toBeInTheDocument();
   });
 
-  it('no topics is an empty state with Open Topics and prompts', async () => {
+  it('no groups is an empty state with Open Prompts', async () => {
     render({ summary: summaryOf({ topics: [], prompts: [], engineCodes: ['chatgpt_web'] }) });
-    const title = await screen.findByRole('heading', { name: 'No topics yet' });
+    const title = await screen.findByRole('heading', { name: 'No groups yet' });
     const box = within(title.closest('[data-slot="empty-state"]') as HTMLElement);
-    expect(box.getByRole('link', { name: 'Open Topics and prompts' })).toBeInTheDocument();
+    expect(box.getByRole('link', { name: 'Open Prompts' })).toBeInTheDocument();
   });
 
-  it('no valid answer in any week names the engine and has one action', async () => {
+  it('no valid answer in any week names the platform and has one action', async () => {
     render({
       searchParams: 'engine=chatgpt_web',
       summary: summaryOf({

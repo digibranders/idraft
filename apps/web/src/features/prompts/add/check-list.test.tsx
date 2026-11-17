@@ -212,7 +212,7 @@ describe('the check list', () => {
   it('asks for a country instead of saying nothing is tracked, and says when the list could not be checked', async () => {
     const view = renderWithProviders(show(props([row(1)], { needsCountry: true })));
     await view.user.click(screen.getByRole('button', { name: /Check the list/ }));
-    expect(screen.getByText('Choose a country to check what is tracked.')).toBeInTheDocument();
+    expect(screen.getByText('Choose a location to check what is tracked.')).toBeInTheDocument();
     view.unmount();
     const failed = renderWithProviders(show(props([row(1)], { failed: true })));
     await failed.user.click(screen.getByRole('button', { name: /Check the list/ }));

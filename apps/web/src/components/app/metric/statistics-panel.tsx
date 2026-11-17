@@ -99,7 +99,7 @@ function RateWithCount({
     <div className="flex min-w-0 flex-col gap-1">
       {label === undefined ? null : <p className="type-meta">{label}</p>}
       <div className="flex flex-wrap items-baseline gap-x-2">
-        <span className="num type-metric">{formatPercent(ratio)}</span>
+        <span className="num type-metric">{formatPercent(ratio, { decimals: 0 })}</span>
         {count}
       </div>
     </div>
@@ -162,10 +162,10 @@ function UncertaintyBody({ data }: { data: StatisticsContent }): ReactElement {
         estimate={estimate.value}
         low={interval.low}
         high={interval.high}
-        decimals={1}
+        decimals={0}
         scaleMax={scaleFor(interval.high)}
         form="text-and-bar"
-        label={t('interval', { interval: formatInterval(interval.low, interval.high, 1) })}
+        label={t('interval', { interval: formatInterval(interval.low, interval.high) })}
       />
       <p className="type-meta">{interval.methodText}</p>
     </div>

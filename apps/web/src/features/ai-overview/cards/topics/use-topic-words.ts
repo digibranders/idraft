@@ -42,8 +42,15 @@ export function useTopicWords(): TopicWords {
       answers,
       prompts,
       cellTip: (value, counted) => {
-        if (value.state === 'none') return rateTip.noAnswers;
-        if (value.state === 'insufficient') return rateTip.thin(value.answers);
+        if (value.state === 'none') {
+          // Share of voice: the counts of the brands are not collected, or cut by the cap of 20 tracked brands
+          if (value.reason === 'notCollected') return t('tipNotCollected');
+          if (value.reason === 'capped') return t('tipCapped');
+          return rateTip.noAnswers;
+        }
+        if (value.state === 'insufficient') {
+          return counted ? rateTip.thin(value.answers) : t('tipShareThin', { count: value.answers });
+        }
         if (counted && value.successes !== null) {
           return rateTipText(
             {
@@ -57,13 +64,8 @@ export function useTopicWords(): TopicWords {
             rateTip,
           );
         }
-        // Share of voice has no count of answers that name a brand: it says the answers it is over
-        return [
-          t('tipShare', { value: percent(value.value), count: value.answers }),
-          value.prompts === null ? null : rateTip.prompts(value.prompts),
-        ]
-          .filter((part): part is string => part !== null)
-          .join(', ');
+        // Share of voice is a share of brand mentions: x of y, and never a prompt weighted percent beside pooled counts
+        return t('tipShare', { value: percent(value.value), k: value.successes ?? 0, n: value.answers });
       },
       metricLabel: (metric) =>
         metric === 'mention'

@@ -32,9 +32,12 @@ function scopeQuery(query: Record<string, unknown>): Record<string, unknown> {
 }
 
 describe('sourceFilters', () => {
-  it('leaves the engine filter out when every enabled engine is asked', () => {
-    expect(sourceFilters(read()).engines).toEqual([]);
-    expect(sourceFilters(read({ engines: ['gemini_web', 'chatgpt_web', 'google_ai_mode'] })).engines).toEqual([]);
+  it('always names the engines asked, so an engine that is off is never read (R12, OV-SCOPE-13)', () => {
+    expect(sourceFilters(read()).engines).toEqual(ENGINES_ALL);
+    expect(sourceFilters(read({}, ['chatgpt_web', 'gemini_web'])).engines).toEqual(['chatgpt_web', 'gemini_web']);
+    expect(sourceFilters(read({ engines: ['gemini_web', 'chatgpt_web', 'google_ai_mode'] })).engines).toEqual(
+      ENGINES_ALL,
+    );
   });
 
   it('sends the asked engines, in the order of the project, when a subset is asked', () => {

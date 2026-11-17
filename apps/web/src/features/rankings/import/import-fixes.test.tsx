@@ -219,14 +219,14 @@ describe('Import dialog: Back and Continue', () => {
       const { dialog } = await openImport(user);
       await uploadAndContinue(user, dialog, csv('keyword,tags\nrank tracker api,blog'));
       await within(dialog).findByText(MAP_INTRO, undefined, PARSED);
-      expect(within(dialog).getByText('Choose the vocabulary these terms belong to.')).toBeInTheDocument();
-      await choose(user, dialog, 'Vocabulary for tags', 'Topics');
+      expect(within(dialog).getByText('Choose the tag set these tags belong to.')).toBeInTheDocument();
+      await choose(user, dialog, 'Tag set for tags', 'Topics');
       await press(dialog, 'Back');
       await press(dialog, 'Continue');
       // Not "could not continue": the file is the same, so the person goes on to the step that fixes it
       await within(dialog).findByText(MAP_INTRO, undefined, PARSED);
       expect(within(dialog).queryByText(COULD_NOT_CONTINUE)).toBeNull();
-      expect(within(dialog).getByRole('combobox', { name: 'Vocabulary for tags' })).toHaveTextContent('Topics');
+      expect(within(dialog).getByRole('combobox', { name: 'Tag set for tags' })).toHaveTextContent('Topics');
       expect(patches.bodies).toEqual([]);
       await press(dialog, 'Continue');
       await within(dialog).findByRole('heading', { name: 'New' }, PARSED);
@@ -672,20 +672,20 @@ describe('Import dialog: vocabularies', () => {
   it('offers every vocabulary to a member of every project', async () => {
     const { user } = renderWithProviders(<Controlled changes={[]} />);
     const dialog = await pasteWithTags(user);
-    await user.click(within(dialog).getByRole('combobox', { name: 'Vocabulary for tags' }));
+    await user.click(within(dialog).getByRole('combobox', { name: 'Tag set for tags' }));
     expect(await optionNames()).toEqual(['Services', 'Topics']);
   });
 
   it('offers a member limited to some projects the vocabularies of a project only, in Upload and in Map', async () => {
     const { user } = renderWithProviders(<Controlled changes={[]} projectIds={[fynix.project_id]} />);
     const dialog = await pasteWithTags(user);
-    await user.click(within(dialog).getByRole('combobox', { name: 'Vocabulary for tags' }));
+    await user.click(within(dialog).getByRole('combobox', { name: 'Tag set for tags' }));
     expect(await optionNames()).toEqual(['Services']);
     await user.keyboard('{Escape}');
     await user.click(within(dialog).getByRole('radio', { name: 'CSV file' }));
     await uploadAndContinue(user, dialog, csv('keyword,tags\nrank tracker api,blog'));
     await within(dialog).findByText(MAP_INTRO, undefined, PARSED);
-    await user.click(within(dialog).getByRole('combobox', { name: 'Vocabulary for tags' }));
+    await user.click(within(dialog).getByRole('combobox', { name: 'Tag set for tags' }));
     expect(await optionNames()).toEqual(['Services']);
   });
 
@@ -706,22 +706,22 @@ describe('Import dialog: vocabularies', () => {
       const { dialog } = await openImport(user);
       await uploadAndContinue(user, dialog, csv('keyword,tags\nrank tracker api,blog'));
       await within(dialog).findByText(MAP_INTRO, undefined, PARSED);
-      await choose(user, dialog, 'Vocabulary for tags', 'Topics');
+      await choose(user, dialog, 'Tag set for tags', 'Topics');
       await press(dialog, 'Continue');
       expect(
         await within(dialog).findByText(
-          'Choose a vocabulary of this project. Vocabularies shared by every project are for admins.',
+          'Choose a tag set of this project. Tag sets shared by every project are for admins.',
         ),
       ).toBeInTheDocument();
-      expect(within(dialog).getByRole('combobox', { name: 'Vocabulary for tags' })).toHaveAttribute(
+      expect(within(dialog).getByRole('combobox', { name: 'Tag set for tags' })).toHaveAttribute(
         'aria-invalid',
         'true',
       );
       expect(within(dialog).queryByText(COULD_NOT_CONTINUE)).toBeNull();
-      await choose(user, dialog, 'Vocabulary for tags', 'Services');
+      await choose(user, dialog, 'Tag set for tags', 'Services');
       expect(
         within(dialog).queryByText(
-          'Choose a vocabulary of this project. Vocabularies shared by every project are for admins.',
+          'Choose a tag set of this project. Tag sets shared by every project are for admins.',
         ),
       ).toBeNull();
     },
@@ -744,7 +744,7 @@ describe('Import dialog: vocabularies', () => {
       await press(dialog, 'Import 1 keyword');
       expect(
         await within(dialog).findByText(
-          'This import uses a vocabulary shared across the workspace. Choose a vocabulary of this project, or ask an admin.',
+          'This import uses a tag set shared across the workspace. Choose a tag set of this project, or ask an admin.',
         ),
       ).toBeInTheDocument();
       expect(
@@ -765,11 +765,11 @@ describe('Import dialog: vocabularies', () => {
     );
     const { user } = renderWithProviders(<Controlled changes={[]} />);
     const dialog = await pasteWithTags(user);
-    expect(within(dialog).getByText('Loading vocabularies')).toBeInTheDocument();
+    expect(within(dialog).getByText('Loading tag sets')).toBeInTheDocument();
     loaded.open();
-    await user.click(await within(dialog).findByRole('combobox', { name: 'Vocabulary for tags' }));
+    await user.click(await within(dialog).findByRole('combobox', { name: 'Tag set for tags' }));
     expect(await optionNames()).toEqual(['Services', 'Topics']);
-    expect(within(dialog).queryByText('Loading vocabularies')).toBeNull();
+    expect(within(dialog).queryByText('Loading tag sets')).toBeNull();
   });
 
   it('says the vocabularies could not be loaded, and loads them again on Retry', async () => {
@@ -779,11 +779,11 @@ describe('Import dialog: vocabularies', () => {
     );
     const { user } = renderWithProviders(<Controlled changes={[]} />);
     const dialog = await pasteWithTags(user);
-    expect(await within(dialog).findByText('The vocabularies could not be loaded.')).toBeInTheDocument();
+    expect(await within(dialog).findByText('The tag sets could not be loaded.')).toBeInTheDocument();
     failing = false;
     await user.click(within(dialog).getByRole('button', { name: 'Try again' }));
-    await user.click(await within(dialog).findByRole('combobox', { name: 'Vocabulary for tags' }));
+    await user.click(await within(dialog).findByRole('combobox', { name: 'Tag set for tags' }));
     expect(await optionNames()).toEqual(['Services', 'Topics']);
-    expect(within(dialog).queryByText('The vocabularies could not be loaded.')).toBeNull();
+    expect(within(dialog).queryByText('The tag sets could not be loaded.')).toBeNull();
   });
 });

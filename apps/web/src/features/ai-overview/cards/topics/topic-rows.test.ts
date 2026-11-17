@@ -130,7 +130,7 @@ describe('orderRows', () => {
 
   it('the no topic row is last whatever the order', () => {
     const none = nodeOf(
-      'Prompts without a topic',
+      'Prompts without a group',
       99,
       [
         [9, 10],

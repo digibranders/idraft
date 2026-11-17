@@ -1,7 +1,9 @@
 /**
- * The AI visibility screen and its card catalog (WP-33 T2). The tables below are typed copies of
- * docs/ai-visibility/inventory/overview-and-charts.md sections 9.3 (numbers), 9.4 (cards) and 9.5 (presets), written
- * row by row and independent of catalog.ts, so a slip in either one fails here.
+ * The AI visibility screen and its card catalog (WP-33 T2, then the redesign of 2026-11-16). The tables below are typed
+ * copies of docs/ai-visibility/inventory/overview-and-charts.md sections 9.3 (numbers) and 9.4 (cards), changed by the
+ * redesign spec (docs/superpowers/specs/2026-11-16-ai-overview-redesign-design.md section 5) and by the preview's card
+ * registry (apps/web/design-preview/aiov-registry.js), written row by row and independent of catalog.ts, so a slip in
+ * either one fails here.
  */
 import { describe, expect, it } from 'vitest';
 import {
@@ -12,21 +14,18 @@ import {
   SCREENS,
   cardAvailability,
   cardType,
-  defaultOptions,
   identityOption,
   isNewCardType,
   numberType,
   packRows,
   sanitizeLayout,
-  type CardItem,
-  type EngineCode,
   type LayoutDocument,
-  type NumberItem,
   type Width,
 } from './index';
 
 const SHORT_WIDTH: Readonly<Record<string, Width>> = { T: 'third', H: 'half', '2T': 'two_thirds', F: 'full' };
 const RELEASED = '2026-11-13';
+const REDESIGN_RELEASED = '2026-11-16';
 
 interface Opt {
   name: string;
@@ -37,6 +36,8 @@ const opt = (name: string, values: readonly string[], fallback: string): Opt => 
 
 const ENGINE = opt('engine', ['chatgpt_web', 'gemini_web', 'google_ai_mode'], 'chatgpt_web');
 const METRIC = opt('metric', ['mention', 'citation', 'share_of_voice'], 'mention');
+/** The trend and the group heat map also draw AI Visibility, which is their default. */
+const VISIBILITY_METRIC = opt('metric', ['visibility', 'mention', 'citation', 'share_of_voice'], 'visibility');
 const DIRECTION = opt('direction', ['both', 'up', 'down'], 'both');
 const rows = (values: readonly string[], fallback: string): Opt => opt('rows', values, fallback);
 
@@ -46,16 +47,19 @@ const rows = (values: readonly string[], fallback: string): Opt => opt('rows', v
  */
 const PER_ENGINE = 3;
 const PER_METRIC = 3;
+const PER_VISIBILITY_METRIC = 4;
 
 interface Row {
   key: string;
   /** Existing types keep the title WP-15 shipped. */
   title: string | null;
-  group: 'ai' | 'activity';
+  group: 'ai' | 'activity' | 'traffic';
   widths: string;
   max: number;
   options: readonly Opt[];
   permission?: string;
+  integration?: string;
+  released?: string;
 }
 
 const row = (
@@ -65,63 +69,68 @@ const row = (
   widths: string,
   max: number,
   options: readonly Opt[] = [],
-  permission?: string,
-): Row => ({ key, title, group, widths, max, options, ...(permission ? { permission } : {}) });
+  extra: Pick<Row, 'permission' | 'integration' | 'released'> = {},
+): Row => ({ key, title, group, widths, max, options, ...extra });
 
 /** Every row of 9.4 whose Screens column has AO, except the planned types, which are not listed until data exists. */
 const EXISTING: readonly Row[] = [
   row('ai.mention_trend', null, 'ai', 'H 2T F', PER_ENGINE, [ENGINE]),
   row('ai.by_engine', null, 'ai', 'H 2T F', 1),
-  row('ai.citation_share_by_domain_type', null, 'ai', 'T H', 1),
-  row('activity.key_changes', null, 'activity', 'H 2T F', 1, [rows(['5', '8'], '8')]),
+  row('ai.citation_share_by_domain_type', null, 'ai', 'H T', 1),
+  // Two thirds stays for the project Overview; the AI visibility page also takes a third.
+  row('activity.key_changes', null, 'activity', 'H T 2T F', 1, [rows(['5', '8'], '8')]),
   row('activity.collection_status', null, 'activity', 'T H', 1),
 ];
 
 const NEW: readonly Row[] = [
+  row('ai.visibility_split', 'AI visibility rate (headline)', 'ai', 'F', 1, [], { released: REDESIGN_RELEASED }),
   row('ai.change_summary', 'What changed', 'activity', 'F 2T', 1, [opt('facts', ['3', '5'], '5')]),
-  row('ai.rate_trend_by_engine', 'Rates by engine over time', 'ai', '2T F', PER_METRIC, [METRIC]),
-  row('ai.outcome_mix', 'Named and cited', 'ai', 'T H', 1),
+  row('ai.rate_trend_by_engine', 'Rate by platform over time', 'ai', '2T F H', PER_VISIBILITY_METRIC, [
+    VISIBILITY_METRIC,
+  ]),
+  row('ai.outcome_mix', 'Outcome split by platform', 'ai', 'T H', 1),
   row('ai.answer_funnel', 'From answer to citation', 'ai', 'T H', 1),
-  row('ai.share_of_voice', 'Share of voice, one engine', 'ai', 'H T', PER_ENGINE, [ENGINE, rows(['5', '10'], '10')]),
+  // The three competitor cards follow the page scope, so they have no engine option and one instance.
+  row('ai.share_of_voice', 'Share of voice', 'ai', 'H T', 1, [rows(['5', '10'], '10')]),
   row('ai.competitor_trend', 'You vs top competitors', 'ai', 'H 2T F', PER_ENGINE, [
     ENGINE,
     opt('competitors', ['3', '5'], '3'),
   ]),
-  row('ai.competitor_table', 'Competitors by engine', 'ai', 'H 2T F', 1, [
+  row('ai.competitor_table', 'Competitors by platform', 'ai', 'H 2T F', 1, [
     opt('metric', ['mention', 'share_of_voice'], 'mention'),
     rows(['5', '10'], '5'),
   ]),
-  row('ai.lost_to_competitor', 'Prompts lost to a competitor', 'ai', 'T H', PER_ENGINE, [
-    ENGINE,
-    rows(['5', '10'], '5'),
-  ]),
-  row('ai.co_mentions', 'Who we are named with', 'ai', 'H 2T', PER_ENGINE, [ENGINE]),
-  row('ai.sov_over_time', 'Share of voice over time', 'ai', '2T H F', PER_ENGINE, [ENGINE]),
+  row('ai.lost_to_competitor', 'Lost to competitor', 'ai', 'H F', 1, [rows(['5', '10'], '5')]),
+  row('ai.co_mentions', 'Who we are mentioned with', 'ai', 'H 2T', PER_ENGINE, [ENGINE]),
+  row('ai.sov_over_time', 'Share of voice over time', 'ai', 'H 2T F', 1),
   row('ai.sov_rank', 'Share of voice rank', 'ai', 'H 2T', PER_ENGINE, [ENGINE]),
-  row('ai.topic_heatmap', 'Topics by engine', 'ai', '2T F', PER_METRIC, [
-    METRIC,
+  row('ai.topic_heatmap', 'Groups by platform', 'ai', '2T F', PER_VISIBILITY_METRIC, [
+    VISIBILITY_METRIC,
     rows(['5', '10', '20'], '10'),
     opt('level', ['top', 'all'], 'top'),
     opt('sort', ['prompts', 'rate', 'gap'], 'prompts'),
   ]),
-  row('ai.topic_extremes', 'Strongest and weakest topics', 'ai', 'H T 2T', PER_METRIC, [METRIC, rows(['3', '5'], '5')]),
-  row('ai.topic_movers', 'Topics gaining or losing', 'ai', 'H 2T', PER_METRIC, [
+  row('ai.topic_extremes', 'Strongest and weakest groups', 'ai', 'T H', PER_METRIC, [METRIC, rows(['3', '5'], '5')]),
+  row('ai.topic_movers', 'Groups gaining or losing', 'ai', 'H 2T', PER_METRIC, [
     METRIC,
     DIRECTION,
     rows(['5', '10'], '5'),
   ]),
-  row('ai.topic_engine_gap', 'Where engines disagree', 'ai', '2T H F', PER_METRIC, [METRIC, rows(['5', '10'], '10')]),
-  row('ai.engine_disagreement', 'Named by one engine, not another', 'ai', 'H 2T', 1, [rows(['5', '10'], '5')]),
-  row('ai.topic_trends', 'Topic trends by engine', 'ai', 'F 2T', PER_METRIC, [METRIC, opt('topics', ['3', '6'], '6')]),
-  row('ai.topic_small_multiples', 'Topic trends, one engine', 'ai', '2T F', PER_ENGINE, [
+  row('ai.topic_engine_gap', 'Where platforms disagree', 'ai', '2T H F', PER_METRIC, [METRIC, rows(['5', '10'], '10')]),
+  row('ai.engine_disagreement', 'Mentioned by one platform, not another', 'ai', 'H 2T', 1, [rows(['5', '10'], '5')]),
+  row('ai.topic_trends', 'Group trends by platform', 'ai', 'F 2T', PER_METRIC, [
+    METRIC,
+    opt('topics', ['3', '6'], '6'),
+  ]),
+  row('ai.topic_small_multiples', 'Group trends, one platform', 'ai', '2T F', PER_ENGINE, [
     ENGINE,
     opt('topics', ['6', '9'], '6'),
   ]),
-  row('ai.topic_contribution', 'What each topic adds', 'ai', 'H 2T', PER_ENGINE, [
+  row('ai.topic_contribution', 'What each group adds', 'ai', 'H 2T', PER_ENGINE, [
     ENGINE,
     opt('view', ['level', 'change'], 'level'),
   ]),
-  row('ai.prompt_heatmap', 'Prompts by engine', 'ai', '2T F', 1, [
+  row('ai.prompt_heatmap', 'Prompts by platform', 'ai', '2T F', 1, [
     rows(['10', '20'], '10'),
     opt('sort', ['most_named', 'least_named'], 'least_named'),
   ]),
@@ -135,22 +144,26 @@ const NEW: readonly Row[] = [
     ENGINE,
     opt('metric', ['mention', 'citation'], 'mention'),
   ]),
-  row('ai.engine_agreement', 'Engine agreement', 'ai', 'T H', 1),
-  row('ai.citation_vs_mention', 'Cited as often as named?', 'ai', 'H 2T', PER_ENGINE, [ENGINE]),
-  row('ai.country_breakdown', 'By country', 'ai', 'H 2T', PER_METRIC, [METRIC]),
-  row('sources.top_domains', 'Top cited domains', 'ai', 'T H', 1, [
+  row('ai.engine_agreement', 'Platform agreement', 'ai', 'T H', 1),
+  row('ai.citation_vs_mention', 'Cited as often as mentioned?', 'ai', 'H 2T', PER_ENGINE, [ENGINE]),
+  row('ai.country_breakdown', 'By location', 'ai', 'H 2T', PER_METRIC, [METRIC]),
+  row('sources.top_domains', 'Top cited domains', 'ai', 'H T', 1, [
     opt('role', ['all', 'third_party', 'competitor'], 'all'),
     rows(['5', '8', '10'], '8'),
   ]),
-  row('sources.own_pages', 'Your pages AI engines cite', 'ai', 'T H', 1, [rows(['5', '8', '10'], '8')]),
-  row('sources.new_lost', 'New and lost sources', 'ai', 'H T', 1),
-  row('sources.diversity', 'Source diversity', 'ai', 'H 2T', 1),
-  row('ai.fanout_top', 'What ChatGPT searched', 'ai', 'H T', 1, [rows(['5', '10'], '5')]),
+  row('sources.own_pages', 'Your pages cited', 'ai', 'H T', 1, [rows(['5', '8', '10'], '8')]),
+  row('sources.new_lost', 'New and lost domains', 'ai', 'H T', 1),
+  row('sources.diversity', 'Cited domain diversity', 'ai', 'H 2T', 1),
+  row('ai.fanout_top', 'Top fan-out queries', 'ai', 'H T F', 1, [rows(['5', '10'], '5')]),
+  row('ai.unlinked_mentions', 'Mentioned, not cited', 'ai', 'H T', 1, [], { released: REDESIGN_RELEASED }),
+  row('ai.position_distribution', 'Mention position', 'ai', 'H T F', 1, [], { released: REDESIGN_RELEASED }),
+  row('ai.sentiment_by_engine', 'Sentiment by platform', 'ai', 'H T', 1, [], { released: REDESIGN_RELEASED }),
+  row('traffic.ai_referrals', 'AI referral visits', 'traffic', 'F 2T', 1, [], { released: REDESIGN_RELEASED }),
   row('ai.opportunities', 'AI opportunities', 'ai', 'H T', 1, [rows(['4', '8'], '4')]),
-  row('ops.answer_calendar', 'Answers collected', 'activity', 'H F', 1),
-  row('ops.answer_status', 'Answer status by engine', 'activity', 'H 2T', 1),
-  row('ops.engines', 'Engines and schedule', 'activity', 'T H', 1),
-  row('ops.ai_spend', 'AI spend', 'activity', 'T', 1, [], 'costs:read'),
+  row('ops.answer_calendar', 'Run calendar', 'activity', 'F H', 1),
+  row('ops.answer_status', 'Answer status by platform', 'activity', 'H 2T', 1),
+  row('ops.engines', 'Platforms and schedule', 'activity', 'T H', 1),
+  row('ops.ai_spend', 'AI spend', 'activity', 'T', 1, [], { permission: 'costs:read' }),
   row('ai.sample_coverage', 'Answers behind the numbers', 'activity', 'T H', 1),
 ];
 
@@ -166,9 +179,9 @@ const NUMBERS: ReadonlyArray<readonly [string, string, boolean]> = [
   ['ai.valid_answers', 'Valid answers', true],
   ['ai.mention_rate', 'Mention rate', true],
   ['ai.citation_rate', 'Citation rate', true],
-  ['ai.mention_and_citation_rate', 'Named and cited', true],
+  ['ai.mention_and_citation_rate', 'Mentioned and cited', true],
   ['ai.share_of_voice', 'Share of voice', true],
-  ['ai.citation_share', 'Own citation share', true],
+  ['ai.citation_share', 'Your citation share', true],
   ['ai.fanout_presence_rate', 'Fan-out presence', true],
 ];
 
@@ -180,9 +193,9 @@ const widthsOf = (short: string): Width[] =>
   });
 
 describe('every card of inventory 9.4 for ai_overview', () => {
-  it('is 5 reused and 38 new types', () => {
+  it('is 5 reused and 43 new types', () => {
     expect(EXISTING).toHaveLength(5);
-    expect(NEW).toHaveLength(38);
+    expect(NEW).toHaveLength(43);
   });
 
   it.each(TABLE.map((entry) => [entry.key, entry] as const))(
@@ -197,10 +210,10 @@ describe('every card of inventory 9.4 for ai_overview', () => {
       expect(type.maxInstances).toBe(entry.max);
       expect(type.group).toBe(entry.group);
       expect(type.permission).toBe(entry.permission ?? null);
-      expect(type.integration).toBeNull();
+      expect(type.integration).toBe(entry.integration ?? null);
       if (entry.title !== null) {
         expect(type.title).toBe(entry.title);
-        expect(type.addedOn).toBe(RELEASED);
+        expect(type.addedOn).toBe(entry.released ?? RELEASED);
         expect(type.description.length).toBeGreaterThan(20);
         expect(type.channels).toEqual({ all: ['ai'], any: [] });
       }
@@ -229,11 +242,12 @@ describe('every card of inventory 9.4 for ai_overview', () => {
     for (const key of PLANNED) expect(cardType(key)).toBeUndefined();
   });
 
-  it('gives the 38 new types a release date, so the catalog shows New for 30 days', () => {
+  it('gives the 43 new types a release date, so the catalog shows New for 30 days', () => {
     for (const entry of NEW) {
       const type = cardType(entry.key);
-      expect(type && isNewCardType(type, RELEASED)).toBe(true);
-      expect(type && isNewCardType(type, '2026-12-13')).toBe(false);
+      const released = entry.released ?? RELEASED;
+      expect(type && isNewCardType(type, released)).toBe(true);
+      expect(type && isNewCardType(type, '2026-12-17')).toBe(false);
     }
   });
 
@@ -260,9 +274,33 @@ describe('reusable card types', () => {
       const first = entry.options[0];
       expect(identityOption(type)).toBe(entry.max > 1 && first ? first.name : null);
     }
-    const share = cardType('ai.share_of_voice');
-    if (share) expect(identityOption(share)).toBe('engine');
-    expect(Object.keys(cardType('ai.share_of_voice')?.options ?? {})).toEqual(['engine', 'rows']);
+    const trend = cardType('ai.competitor_trend');
+    if (trend) expect(identityOption(trend)).toBe('engine');
+    expect(Object.keys(trend?.options ?? {})).toEqual(['engine', 'competitors']);
+  });
+
+  it('give the competitor cards that follow the page scope no engine and one instance', () => {
+    for (const key of ['ai.share_of_voice', 'ai.sov_over_time', 'ai.lost_to_competitor']) {
+      const type = cardType(key);
+      expect(type?.maxInstances, key).toBe(1);
+      expect(Object.keys(type?.options ?? {}), key).not.toContain('engine');
+      expect(type && identityOption(type), key).toBeNull();
+    }
+  });
+
+  it('keep a stored layout of the old per engine competitor cards valid: the engine goes, the first instance stays', () => {
+    const stored: LayoutDocument = {
+      schema: 1,
+      cards: (['chatgpt_web', 'gemini_web'] as const).map((engine, index) => ({
+        id: `c${index}`,
+        type: 'ai.share_of_voice',
+        width: 'half',
+        options: { engine, rows: '5' },
+      })),
+    };
+    expect(sanitizeLayout(stored, 'ai_overview').document.cards).toEqual([
+      { id: 'c0', type: 'ai.share_of_voice', width: 'half', options: { rows: '5' } },
+    ]);
   });
 
   it('never allow more instances than the identity option has values', () => {
@@ -276,12 +314,11 @@ describe('reusable card types', () => {
   it('keep one instance per engine when the first option is the engine', () => {
     const doc: LayoutDocument = {
       schema: 1,
-      numbers: [],
       cards: ['chatgpt_web', 'chatgpt_web', 'gemini_web'].map((engine, index) => ({
         id: `c${index}`,
-        type: 'ai.share_of_voice',
+        type: 'ai.competitor_trend',
         width: 'half',
-        options: { engine, rows: '10' },
+        options: { engine, competitors: '3' },
       })),
     };
     const kept = sanitizeLayout(doc, 'ai_overview').document.cards ?? [];
@@ -300,7 +337,7 @@ describe('the five reused types', () => {
 
   it('keep their titles, widths and release dates for the project Overview', () => {
     expect(cardType('ai.mention_trend')?.title).toBe('Mention rate trend');
-    expect(cardType('ai.by_engine')?.title).toBe('AI by engine');
+    expect(cardType('ai.by_engine')?.title).toBe('AI by platform');
     expect(cardType('activity.key_changes')?.addedOn).toBe('2026-06-01');
     expect(cardType('ai.mention_trend')?.addedOn).toBe('2026-09-30');
   });
@@ -328,6 +365,16 @@ describe('permissions and integrations', () => {
     for (const key of ['ai.fanout_top', 'ai.country_breakdown', 'ops.ai_spend'])
       expect(cardType(key)?.integration).toBeNull();
   });
+
+  it('keeps the referral card in every project, because it says itself that GA4 is not connected', () => {
+    const type = cardType('traffic.ai_referrals');
+    if (!type) throw new Error('traffic.ai_referrals is not in the catalog');
+    expect(type.group).toBe('traffic');
+    const capabilities = { channels: ['ai'] as const, permissions: [] as string[], integrations: [] as string[] };
+    // A card the layout skipped would lose its place; the owner decision is that every card keeps it and says why
+    expect(cardAvailability(type, capabilities).state).toBe('available');
+    for (const other of CARD_TYPES) expect(other.integration).toBeNull();
+  });
 });
 
 describe('the numbers of inventory 9.3, wave 1', () => {
@@ -344,23 +391,7 @@ describe('the numbers of inventory 9.3, wave 1', () => {
 
   it('puts Prompts on no engine and every other AI number on one engine', () => {
     expect(numberType('ai.prompts_in_scope')?.perEngine).toBe(false);
-    const sanitized = sanitizeLayout(
-      {
-        schema: 1,
-        numbers: [
-          { id: 'a', metric: 'ai.prompts_in_scope', engine: 'chatgpt_web' },
-          { id: 'b', metric: 'ai.prompts_in_scope' },
-          { id: 'c', metric: 'ai.valid_answers' },
-          { id: 'd', metric: 'ai.valid_answers', engine: 'gemini_web' },
-        ],
-        cards: [],
-      },
-      'ai_overview',
-    ).document.numbers;
-    expect(sanitized).toEqual([
-      { id: 'a', metric: 'ai.prompts_in_scope' },
-      { id: 'd', metric: 'ai.valid_answers', engine: 'gemini_web' },
-    ]);
+    for (const [metric, , perEngine] of NUMBERS) expect(numberType(metric)?.perEngine).toBe(perEngine);
   });
 
   it('keeps Mention rate, Citation rate and Share of voice on the project Overview too', () => {
@@ -389,213 +420,39 @@ describe('the numbers of inventory 9.3, wave 1', () => {
   });
 });
 
-const doc = (numbers: NumberItem[], cards: CardItem[]): LayoutDocument => ({ schema: 1, numbers, cards });
-
-interface Placed {
-  type: string;
-  width: Width;
-  options?: Record<string, string>;
-}
-
-/** A preset document: every card at its type defaults, then the options the table of 9.5 names. */
-function presetDocument(numbers: NumberItem[], placed: readonly Placed[]): LayoutDocument {
-  const cards = placed.map((entry, index): CardItem => {
-    const type = cardType(entry.type);
-    const defaults = type ? defaultOptions(type) : undefined;
-    const options = defaults ? { ...defaults, ...entry.options } : undefined;
-    return { id: `c${index}`, type: entry.type, width: entry.width, ...(options ? { options } : {}) };
-  });
-  return doc(
-    numbers.map((n, index) => ({ ...n, id: `n${index}` })),
-    cards,
-  );
-}
-
-const mention = (engine: EngineCode): NumberItem => ({ id: '', metric: 'ai.mention_rate', engine });
-const citation = (engine: EngineCode): NumberItem => ({ id: '', metric: 'ai.citation_rate', engine });
-const sov = (engine: EngineCode): NumberItem => ({ id: '', metric: 'ai.share_of_voice', engine });
-const cite = (engine: EngineCode): NumberItem => ({ id: '', metric: 'ai.citation_share', engine });
-const PROMPTS: NumberItem = { id: '', metric: 'ai.prompts_in_scope' };
-const MENTIONS: NumberItem[] = [mention('chatgpt_web'), mention('gemini_web'), mention('google_ai_mode')];
-
-const DEFAULT_PRESET = {
-  numbers: [PROMPTS, ...MENTIONS],
-  cards: [
-    { type: 'ai.change_summary', width: 'full' },
-    { type: 'ai.rate_trend_by_engine', width: 'two_thirds', options: { metric: 'mention' } },
-    { type: 'ai.outcome_mix', width: 'third' },
-    { type: 'sources.top_domains', width: 'third' },
-    { type: 'ai.topic_heatmap', width: 'two_thirds', options: { metric: 'mention' } },
-    { type: 'ai.share_of_voice', width: 'half', options: { engine: 'chatgpt_web' } },
-    { type: 'ai.competitor_trend', width: 'half', options: { engine: 'chatgpt_web' } },
-    { type: 'activity.key_changes', width: 'half', options: { rows: '8' } },
-    { type: 'ai.opportunities', width: 'half', options: { rows: '4' } },
-  ],
-} satisfies { numbers: NumberItem[]; cards: Placed[] };
-
-/** The other four presets of 9.5, with the card each "until" variant swaps in for the one named in the table. */
-const PRESETS: ReadonlyArray<{ name: string; numbers: NumberItem[]; cards: Placed[] }> = [
-  {
-    name: 'Executive summary',
-    numbers: [...MENTIONS, sov('chatgpt_web')],
-    cards: [
-      { type: 'ai.change_summary', width: 'full', options: { facts: '3' } },
-      { type: 'ai.rate_trend_by_engine', width: 'full', options: { metric: 'mention' } },
-      { type: 'ai.share_of_voice', width: 'half', options: { engine: 'chatgpt_web', rows: '5' } },
-      { type: 'ai.topic_extremes', width: 'half', options: { metric: 'mention', rows: '3' } },
-      { type: 'ai.answer_funnel', width: 'half' },
-      { type: 'ai.period_comparison', width: 'half', options: { metric: 'mention' } },
-    ],
-  },
-  {
-    name: 'Executive summary until N2',
-    numbers: [...MENTIONS, sov('chatgpt_web')],
-    cards: [
-      { type: 'ai.change_summary', width: 'full', options: { facts: '3' } },
-      { type: 'ai.rate_trend_by_engine', width: 'full', options: { metric: 'mention' } },
-      { type: 'ai.share_of_voice', width: 'half', options: { engine: 'chatgpt_web', rows: '5' } },
-      { type: 'ai.topic_extremes', width: 'half', options: { metric: 'mention', rows: '3' } },
-      { type: 'ai.answer_funnel', width: 'half' },
-      { type: 'ai.outcome_mix', width: 'half' },
-    ],
-  },
-  {
-    name: 'SEO analyst',
-    numbers: [
-      PROMPTS,
-      citation('chatgpt_web'),
-      citation('gemini_web'),
-      citation('google_ai_mode'),
-      cite('chatgpt_web'),
-    ],
-    cards: [
-      { type: 'sources.own_pages', width: 'half', options: { rows: '10' } },
-      { type: 'sources.top_domains', width: 'half', options: { role: 'third_party', rows: '10' } },
-      { type: 'ai.citation_vs_mention', width: 'two_thirds', options: { engine: 'chatgpt_web' } },
-      { type: 'ai.citation_share_by_domain_type', width: 'third' },
-      { type: 'ai.fanout_top', width: 'half', options: { rows: '10' } },
-      { type: 'ai.prompt_movers', width: 'half', options: { engine: 'chatgpt_web' } },
-      { type: 'ai.opportunities', width: 'half', options: { rows: '8' } },
-      { type: 'ai.sample_coverage', width: 'half' },
-    ],
-  },
-  {
-    name: 'SEO analyst until wave 2 and N2',
-    numbers: [
-      PROMPTS,
-      citation('chatgpt_web'),
-      citation('gemini_web'),
-      citation('google_ai_mode'),
-      cite('chatgpt_web'),
-    ],
-    cards: [
-      { type: 'sources.own_pages', width: 'half', options: { rows: '10' } },
-      { type: 'sources.top_domains', width: 'half', options: { role: 'third_party', rows: '10' } },
-      { type: 'ai.topic_heatmap', width: 'two_thirds', options: { metric: 'citation' } },
-      { type: 'ai.citation_share_by_domain_type', width: 'third' },
-      { type: 'ai.fanout_top', width: 'half', options: { rows: '10' } },
-      { type: 'ai.top_prompts', width: 'half', options: { show: 'least_named' } },
-      { type: 'ai.opportunities', width: 'half', options: { rows: '8' } },
-      { type: 'ai.sample_coverage', width: 'half' },
-    ],
-  },
-  {
-    name: 'Competitive',
-    numbers: [PROMPTS, sov('chatgpt_web'), sov('gemini_web'), sov('google_ai_mode')],
-    cards: [
-      { type: 'ai.share_of_voice', width: 'half', options: { engine: 'chatgpt_web' } },
-      { type: 'ai.share_of_voice', width: 'half', options: { engine: 'gemini_web' } },
-      { type: 'ai.competitor_trend', width: 'full', options: { engine: 'chatgpt_web', competitors: '3' } },
-      { type: 'ai.lost_to_competitor', width: 'half', options: { engine: 'chatgpt_web' } },
-      { type: 'ai.competitor_table', width: 'half', options: { metric: 'mention' } },
-      { type: 'ai.sov_over_time', width: 'two_thirds', options: { engine: 'chatgpt_web' } },
-      { type: 'sources.top_domains', width: 'third', options: { role: 'competitor' } },
-      { type: 'ai.co_mentions', width: 'half', options: { engine: 'chatgpt_web' } },
-    ],
-  },
-  {
-    name: 'Competitive before wave 2',
-    numbers: [PROMPTS, sov('chatgpt_web'), sov('gemini_web'), sov('google_ai_mode')],
-    cards: [
-      { type: 'ai.share_of_voice', width: 'half', options: { engine: 'chatgpt_web' } },
-      { type: 'ai.share_of_voice', width: 'half', options: { engine: 'gemini_web' } },
-      { type: 'ai.competitor_table', width: 'full', options: { metric: 'share_of_voice' } },
-      { type: 'ai.lost_to_competitor', width: 'half', options: { engine: 'chatgpt_web' } },
-      // 9.5 names ai.competitor_table (mention) as card 5 and again for card 3, but the type is single use (9.4:
-      // one instance), so the duplicate is omitted here.
-      { type: 'ai.topic_heatmap', width: 'two_thirds', options: { metric: 'share_of_voice' } },
-      { type: 'sources.top_domains', width: 'third', options: { role: 'competitor' } },
-      { type: 'ai.engine_disagreement', width: 'half' },
-    ],
-  },
-  {
-    name: 'Topic owner',
-    numbers: [PROMPTS, ...MENTIONS],
-    cards: [
-      { type: 'ai.topic_heatmap', width: 'full', options: { metric: 'mention', level: 'all', rows: '20' } },
-      { type: 'ai.topic_extremes', width: 'half', options: { metric: 'mention' } },
-      { type: 'ai.topic_movers', width: 'half', options: { metric: 'mention' } },
-      { type: 'ai.topic_engine_gap', width: 'two_thirds', options: { metric: 'mention' } },
-      { type: 'ai.sample_coverage', width: 'third' },
-      { type: 'ai.topic_trends', width: 'full', options: { metric: 'mention', topics: '6' } },
-      { type: 'ai.engine_disagreement', width: 'half' },
-      { type: 'ai.topic_contribution', width: 'half', options: { engine: 'chatgpt_web' } },
-    ],
-  },
-  {
-    name: 'Topic owner before wave 2',
-    numbers: [PROMPTS, ...MENTIONS],
-    cards: [
-      { type: 'ai.topic_heatmap', width: 'full', options: { metric: 'mention', level: 'all', rows: '20' } },
-      { type: 'ai.topic_extremes', width: 'half', options: { metric: 'mention' } },
-      { type: 'ai.topic_contribution', width: 'half', options: { engine: 'chatgpt_web' } },
-      { type: 'ai.topic_engine_gap', width: 'two_thirds', options: { metric: 'mention' } },
-      { type: 'ai.sample_coverage', width: 'third' },
-      { type: 'ai.topic_heatmap', width: 'full', options: { metric: 'citation' } },
-      { type: 'ai.engine_disagreement', width: 'half' },
-      { type: 'ai.top_prompts', width: 'half', options: { show: 'least_named' } },
-    ],
-  },
-];
-
 describe('the built-in layout of ai_overview', () => {
-  const builtin = presetDocument(DEFAULT_PRESET.numbers, DEFAULT_PRESET.cards);
+  const { builtin } = SCREENS.ai_overview;
 
-  it('is the Default preset of 9.5: four numbers and nine cards in order, with the table options', () => {
-    const { numbers, cards } = SCREENS.ai_overview.builtin;
-    expect(numbers).toEqual([
-      { id: 'prompts', metric: 'ai.prompts_in_scope' },
-      { id: 'mention-chatgpt', metric: 'ai.mention_rate', engine: 'chatgpt_web' },
-      { id: 'mention-gemini', metric: 'ai.mention_rate', engine: 'gemini_web' },
-      { id: 'mention-ai-mode', metric: 'ai.mention_rate', engine: 'google_ai_mode' },
+  it('is the Default of the redesign: eleven cards in order, every option written out', () => {
+    // The headline card replaced the numbers strip: the screen has no numbers zone and the Default no numbers
+    expect(SCREENS.ai_overview.zones.numbers).toBe(false);
+    expect(builtin.numbers).toBeUndefined();
+    expect(builtin.cards?.map((card) => [card.type, card.width])).toEqual([
+      ['ai.visibility_split', 'full'],
+      ['ai.rate_trend_by_engine', 'two_thirds'],
+      ['ai.outcome_mix', 'third'],
+      ['ai.share_of_voice', 'half'],
+      ['ai.lost_to_competitor', 'half'],
+      ['ai.topic_heatmap', 'full'],
+      ['sources.top_domains', 'third'],
+      ['ai.position_distribution', 'third'],
+      ['ai.sentiment_by_engine', 'third'],
+      ['traffic.ai_referrals', 'two_thirds'],
+      ['ai.fanout_top', 'third'],
     ]);
-    expect(cards?.map((card) => card.id)).toEqual([
-      'change-summary',
-      'rate-trend',
-      'outcome-mix',
-      'top-domains',
-      'topic-heatmap',
-      'share-of-voice-chatgpt',
-      'competitor-trend-chatgpt',
-      'key-changes',
-      'opportunities',
-    ]);
-    expect(cards?.map((card) => card.type)).toEqual(builtin.cards?.map((card) => card.type));
-    expect(cards?.map((card) => card.width)).toEqual(builtin.cards?.map((card) => card.width));
-    expect(cards?.map((card) => card.options)).toEqual(builtin.cards?.map((card) => card.options));
+    // The trend and the heat map open on AI Visibility
+    expect(builtin.cards?.[1]?.options).toEqual({ metric: 'visibility' });
+    expect(builtin.cards?.[5]?.options).toEqual({ metric: 'visibility', rows: '10', level: 'top', sort: 'prompts' });
   });
 
   it('sanitizes unchanged', () => {
-    expect(sanitizeLayout(SCREENS.ai_overview.builtin, 'ai_overview')).toEqual({
-      document: SCREENS.ai_overview.builtin,
-      changed: false,
-    });
+    expect(sanitizeLayout(builtin, 'ai_overview')).toEqual({ document: builtin, changed: false });
   });
 
-  it('leaves no row part empty at the wide and the medium width', () => {
-    for (const breakpoint of ['wide', 'medium'] as const)
-      for (const placedRow of packRows(SCREENS.ai_overview.builtin.cards ?? [], breakpoint))
-        expect(placedRow.reduce((sum, placed) => sum + placed.span, 0)).toBe(12);
+  it('uses every card at its catalog widths and fills complete rows at 1280 px', () => {
+    for (const card of builtin.cards ?? []) expect(cardType(card.type)?.widths).toContain(card.width);
+    for (const placedRow of packRows(builtin.cards ?? [], 'wide'))
+      expect(placedRow.reduce((sum, placed) => sum + placed.span, 0)).toBe(12);
   });
 
   it('keeps the project Overview built-in layout as it was', () => {
@@ -604,16 +461,20 @@ describe('the built-in layout of ai_overview', () => {
   });
 });
 
-describe('the presets of 9.5', () => {
-  it.each(PRESETS.map((preset) => [preset.name, preset] as const))(
-    '%s uses only catalogued types, widths, options and numbers, and sanitizes unchanged',
-    (_name, preset) => {
-      const document = presetDocument(preset.numbers, preset.cards);
-      expect(sanitizeLayout(document, 'ai_overview')).toEqual({ document, changed: false });
-      expect(document.cards?.length).toBeLessThanOrEqual(LIMITS.cards);
-      expect(document.numbers?.length).toBeLessThanOrEqual(LIMITS.numbers);
-    },
-  );
+describe('a layout stored before the numbers strip was retired', () => {
+  it('is read with its numbers ignored, and its cards kept', () => {
+    const stored = {
+      schema: 1,
+      numbers: [
+        { id: 'prompts', metric: 'ai.prompts_in_scope' },
+        { id: 'mention-chatgpt', metric: 'ai.mention_rate', engine: 'chatgpt_web' },
+      ],
+      cards: [{ id: 'visibility-split', type: 'ai.visibility_split', width: 'full' }],
+    };
+    const { document } = sanitizeLayout(stored, 'ai_overview');
+    expect(document.numbers).toBeUndefined();
+    expect(document.cards?.map((card) => card.type)).toEqual(['ai.visibility_split']);
+  });
 });
 
 describe('the limits', () => {
@@ -621,10 +482,10 @@ describe('the limits', () => {
     expect(LIMITS).toEqual({ cards: 12, numbers: 6 });
     const cards = CARD_TYPES.filter((type) => type.screens.includes('ai_overview'));
     const numbers = NUMBER_TYPES.filter((type) => type.screens.includes('ai_overview'));
-    expect(cards.length).toBe(43);
+    expect(cards.length).toBe(TABLE.length);
     expect(numbers.length).toBeGreaterThan(LIMITS.numbers);
     const everyCard = cards.map((type, index) => ({ id: `c${index}`, type: type.key }));
-    const kept = sanitizeLayout({ schema: 1, numbers: [], cards: everyCard }, 'ai_overview').document.cards ?? [];
+    const kept = sanitizeLayout({ schema: 1, cards: everyCard }, 'ai_overview').document.cards ?? [];
     expect(kept).toHaveLength(LIMITS.cards);
   });
 });

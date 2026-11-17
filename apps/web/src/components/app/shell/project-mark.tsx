@@ -18,16 +18,18 @@ export interface ProjectMarkProps {
 
 /**
  * The project's mark (11-navigation.md section 8, 07-icons.md section 5): the icon of its website on a light
- * tile, found from the primary domain with no one uploading anything, or its first letter on the near-black
- * tile where the site has no icon or it has not loaded. The project's name is always beside it or in a
+ * tile, found from the primary domain with no one uploading anything (there is no first-party icon route yet, so
+ * for now every mark is the letter), or its first letter on the near-black tile where the site has no icon or it
+ * has not loaded. The project's name is always beside it or in a
  * tooltip, so the mark is decorative.
  */
 export function ProjectMark({ name, domain = null, size = 'sm' }: ProjectMarkProps): ReactElement {
-  // A new domain is a new icon, so it starts again from the letter
-  return domain === null ? (
+  const src = domain === null ? null : faviconUrl(domain);
+  // A new icon starts again from the letter; with no icon address (none yet) the letter is all there is
+  return src === null ? (
     <Letter name={name} size={size} />
   ) : (
-    <WebsiteIcon key={domain} name={name} domain={domain} size={size} />
+    <WebsiteIcon key={src} name={name} src={src} size={size} />
   );
 }
 
@@ -47,9 +49,9 @@ function Letter({ name, size }: Readonly<{ name: string; size: keyof typeof TILE
 
 function WebsiteIcon({
   name,
-  domain,
+  src,
   size,
-}: Readonly<{ name: string; domain: string; size: keyof typeof TILE }>): ReactElement {
+}: Readonly<{ name: string; src: string; size: keyof typeof TILE }>): ReactElement {
   const [found, setFound] = useState<boolean | null>(null);
   const settle = (image: HTMLImageElement): void => setFound(image.naturalWidth >= FAVICON_MIN_WIDTH);
   return (
@@ -64,14 +66,14 @@ function WebsiteIcon({
           TILE[size],
         )}
       >
-        {/* A plain image: the service is the one the CSP names, and the size is not one Next could optimize */}
+        {/* A plain image: the address is the app's own (`faviconUrl`), and the size is not one Next could optimize */}
         {/* eslint-disable-next-line @next/next/no-img-element -- see above */}
         <img
           // An icon from the cache is complete before React listens for it
           ref={(image) => {
             if (image?.complete === true && found === null) settle(image);
           }}
-          src={faviconUrl(domain)}
+          src={src}
           alt=""
           width={64}
           height={64}

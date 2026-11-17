@@ -13,7 +13,7 @@ import {
   type ReadFacts,
 } from './frame-state';
 import messages from '../../../../../../messages/en.json';
-import type { Say } from '../../../numbers/number-model';
+import type { Say } from '../../say';
 import type { Route } from 'next';
 
 const translator = (namespace: string): Say => {
@@ -151,14 +151,14 @@ describe('mapReadToFrame', () => {
 
     it('sends a viewer to a workspace admin, with no link', () => {
       const state = map({ engine: off }, { canManageEngines: false });
-      expect(state.status === 'empty' && state.empty.reason).toContain('Ask a workspace admin to turn on an engine');
+      expect(state.status === 'empty' && state.empty.reason).toContain('Ask a workspace admin to turn on a platform');
       expect(state.status === 'empty' && state.empty.action).toBeUndefined();
     });
 
     it('says an engine outside the filter is outside the filter, whoever looks', () => {
       for (const canManageEngines of [true, false]) {
         const state = map({ engine: outside }, { canManageEngines });
-        expect(state.status === 'empty' && state.empty.reason).toContain('outside the engine filter');
+        expect(state.status === 'empty' && state.empty.reason).toContain('outside the platform filter');
         expect(state.status === 'empty' && state.empty.action).toBeUndefined();
       }
     });
@@ -172,10 +172,10 @@ describe('mapReadToFrame', () => {
   describe('a read with data that says too little', () => {
     const empty = (situation: DataSituation, ctx: Partial<FrameContext> = {}) => map({ situation }, ctx);
 
-    it('says how many answers name a tracked brand when fewer than 4 do', () => {
+    it('says how many brand mentions there are when fewer than 4', () => {
       const state = empty({ kind: 'too_few', answers: 3 });
-      expect(state.status === 'empty' && state.empty.title).toBe('Too few answers name a tracked brand (3)');
-      expect(state.status === 'empty' && state.empty.reason).toContain('at least 4 answers');
+      expect(state.status === 'empty' && state.empty.title).toBe('Too few brand mentions (3)');
+      expect(state.status === 'empty' && state.empty.reason).toContain('at least 4 brand mentions');
     });
 
     it('says no competitor is tracked, with the link to the entities for an editor', () => {
@@ -186,7 +186,7 @@ describe('mapReadToFrame', () => {
 
     it('tells a viewer to ask a member who can edit entities, with no link', () => {
       const state = empty({ kind: 'no_competitor' }, { canEditEntities: false });
-      expect(state.status === 'empty' && state.empty.reason).toContain('Ask a member who can edit entities');
+      expect(state.status === 'empty' && state.empty.reason).toContain('Ask a member who can edit brands');
       expect(state.status === 'empty' && state.empty.action).toBeUndefined();
     });
 

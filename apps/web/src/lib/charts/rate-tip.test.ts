@@ -38,9 +38,27 @@ describe('rateTipText', () => {
     expect(rateTipText(full, words)).toBe('34.0%, 612 of 1,800 answers, 28% to 41%');
   });
 
+  it('labels a prompt-weighted percent "average of N prompts" and writes the pooled answers with their own percent', () => {
+    const own = {
+      ...words,
+      averageOfPrompts: (count: number) => `average of ${String(count)} prompts`,
+      pooledAnswers: (text: string) => `Pooled: ${text}`,
+    };
+    // 73% is the mean of the prompts' rates; 17 of 23 is 73.9%, never printed beside 73%
+    expect(
+      rateTipText({ value: 0.73, k: 17, n: 23, prompts: 4, band: { low: 0.52, high: 0.88 }, thin: false }, own),
+    ).toBe('73.0%, average of 4 prompts. Pooled: 73.9%, 17 of 23 answers, 52% to 88%');
+  });
+
   it('adds the prompts and then the pooled weeks', () => {
     expect(rateTipText({ ...full, prompts: 250, pooledWeeks: 4 }, words)).toBe(
-      '34.0%, 612 of 1,800 answers, 28% to 41%, 250 prompts, each counts once, pooled over 4 weeks',
+      '34.0%, 250 prompts, each counts once, pooled over 4 weeks. 34.0%, 612 of 1,800 answers, 28% to 41%',
+    );
+  });
+
+  it('keeps the plain anatomy for one prompt: its percent is the one of its answers', () => {
+    expect(rateTipText({ ...full, prompts: 1 }, words)).toBe(
+      '34.0%, 612 of 1,800 answers, 28% to 41%, 1 prompts, each counts once',
     );
   });
 

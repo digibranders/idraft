@@ -45,12 +45,16 @@ const REASON_KEY = {
   noAnswers: 'noAnswers',
   noneValid: 'noneValid',
   noBrandNamed: 'noBrandNamed',
+  notCollected: 'notCollected',
+  capped: 'capped',
 } as const;
 
 const STATUS_KEY = {
   no_answers: 'noAnswers',
   no_valid_answers: 'noneValid',
   no_brand_named: 'noBrandNamed',
+  not_collected: 'notCollected',
+  over_cap: 'capped',
   branded_only: 'ownBrandedOnly',
   not_read: 'ownNotRead',
 } as const;
@@ -60,26 +64,35 @@ const FILE_NAME = 'ai-by-engine';
 
 /** What a cell of a rate says in one line, for the summary: the percent with its counts, or why there is none. */
 function figureText(cell: RateCell, kind: RateKind, t: Translate): string {
-  if (cell.state === 'insufficient') return t('thin', { count: cell.answers });
+  if (cell.state === 'insufficient') return t(kind === 'shareOfVoice' ? 'thinShare' : 'thin', { count: cell.answers });
   if (cell.state === 'none') return t(REASON_KEY[cell.reason ?? 'noAnswers']);
   const value = formatPercent(cell.value);
-  return kind === 'shareOfVoice' || cell.successes === null
-    ? t('figureShare', { value, n: cell.answers })
+  if (cell.successes === null) return value;
+  return kind === 'shareOfVoice'
+    ? t('figureShare', { value, k: cell.successes, n: cell.answers })
     : t('figure', { value, k: cell.successes, n: cell.answers });
 }
 
 function RateCellView({ cell, kind, t }: { cell: RateCell; kind: RateKind; t: Translate }): ReactElement {
-  if (cell.state === 'insufficient') return <SmallSampleMarker answers={cell.answers} form="text" />;
+  if (cell.state === 'insufficient') {
+    return kind === 'shareOfVoice' ? (
+      <span className="type-meta text-foreground-tertiary">{t('thinShare', { count: cell.answers })}</span>
+    ) : (
+      <SmallSampleMarker answers={cell.answers} form="text" />
+    );
+  }
   if (cell.state === 'none') {
     return <span className="text-foreground-tertiary">{t(REASON_KEY[cell.reason ?? 'noAnswers'])}</span>;
   }
   const before = cell.previous;
   const previousText =
-    before === null || before.value === null
+    before === null || before.value === null || before.successes === null
       ? undefined
-      : kind === 'shareOfVoice' || before.successes === null
-        ? t('previousShare', { value: formatPercent(before.value), n: before.answers })
-        : t('previousText', { value: formatPercent(before.value), k: before.successes, n: before.answers });
+      : t(kind === 'shareOfVoice' ? 'previousShare' : 'previousText', {
+          value: formatPercent(before.value),
+          k: before.successes,
+          n: before.answers,
+        });
   return (
     <div className="flex flex-col">
       {/* The rate and its change stay on one line; the counts under them are what wraps */}
@@ -91,12 +104,7 @@ function RateCellView({ cell, kind, t }: { cell: RateCell; kind: RateKind; t: Tr
           {...(previousText === undefined ? {} : { tip: { previousText } })}
         />
       </span>
-      {kind === 'shareOfVoice' ? (
-        // Its count is the answers that name a brand, not the valid answers: say so, as the tip does
-        <span className="num type-meta">{t('shareCount', { n: cell.answers })}</span>
-      ) : (
-        <SampleCount k={cell.successes} n={cell.answers} noun="answers" />
-      )}
+      <SampleCount k={cell.successes} n={cell.answers} noun={kind === 'shareOfVoice' ? 'brandMentions' : 'answers'} />
     </div>
   );
 }
@@ -195,7 +203,7 @@ export default function ByEngineCard({ item, live }: CardProps): ReactElement {
   const common = useTranslations('aiOverview.engines.common');
   const meta = useCardMeta();
   const drill = useCardDrill();
-  const data = useCardData({ previous: 'optional', sources: true, subscribed: live });
+  const data = useCardData({ previous: 'optional', sources: true, counts: true, subscribed: live });
   const { scope, aggregates } = data;
 
   // The sources of the last scope are not read for this one: the citation column says "not read" until they arrive

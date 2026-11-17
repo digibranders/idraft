@@ -16,6 +16,7 @@ dependencies = [
     # Pinned, like publicsuffixlist: its UTS 46 tables decide canonical hosts.
     "idna==3.20",
     # Pinned: its bundled Public Suffix List is part of the URL canonicalizer version.
+    "numpy>=2.3",
     "publicsuffixlist==1.0.2.20260925",
     "pyahocorasick==2.3.1",
     "pydantic>=2.13.5",
@@ -23,6 +24,7 @@ dependencies = [
     "pyotp>=2.10.0",
     "python-multipart>=0.0.32",
     "redis>=8.1.0",
+    "scipy>=1.16",
     "sentry-sdk[fastapi]>=2.71.0",
     "sqlalchemy[asyncio]>=2.1.1",
     "structlog>=26.1.0",
@@ -132,6 +134,16 @@ forbidden_modules = [
 ]
 
 [[tool.importlinter.contracts]]
+name = "crawl is pure: no database, workers, entrypoints or I/O libraries"
+type = "forbidden"
+source_modules = ["idraft.crawl"]
+forbidden_modules = [
+  "idraft.api", "idraft.worker", "idraft.collectors", "idraft.providers", "idraft.db",
+  "idraft.storage", "idraft.config",
+  "sqlalchemy", "asyncpg", "redis", "httpx", "fastapi", "starlette",
+]
+
+[[tool.importlinter.contracts]]
 name = "providers never touch the database"
 type = "forbidden"
 source_modules = ["idraft.providers"]
@@ -159,7 +171,7 @@ forbidden_modules = ["idraft.api", "idraft.worker"]
 name = "the dev seed is reached only from the operator CLI"
 type = "forbidden"
 source_modules = [
-  "idraft.ai", "idraft.api", "idraft.collectors", "idraft.config", "idraft.db",
+  "idraft.ai", "idraft.api", "idraft.collectors", "idraft.config", "idraft.crawl", "idraft.db",
   "idraft.domain", "idraft.extraction", "idraft.keywords", "idraft.providers",
   "idraft.ranks", "idraft.storage", "idraft.vault", "idraft.worker",
 ]
@@ -177,6 +189,7 @@ dev = [
     "pytest-cov>=7.1.0",
     "pytest-xdist>=3.8",
     "ruff>=0.16.9",
+    "scipy-stubs>=1.16",
     "testcontainers[postgres,redis]>=4.15.0",
     "types-aiobotocore[s3]>=3.9.1",
 ]

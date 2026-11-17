@@ -17,7 +17,7 @@ afterEach(() => {
 /** The select as the page wires it: the scope from the URL, the choice written back with `setScope`. */
 function Wired(): ReactElement {
   const { scope, setScope } = useOverviewScope({ project: { timeZone: 'Europe/Berlin' } });
-  return <CompareSelect scope={scope} onCompareChange={(compare) => setScope({ compare })} />;
+  return <CompareSelect scope={scope} onCompareChange={setScope} />;
 }
 
 const trigger = (name: RegExp | string): Promise<HTMLElement> => screen.findByRole('button', { name });
@@ -26,7 +26,7 @@ describe('CompareSelect', () => {
   it('defaults to vs previous period and No comparison writes cmp=off', async () => {
     const updates: string[] = [];
     const { user } = renderWithProviders(<Wired />, { onUrlUpdate: (event) => updates.push(event.queryString) });
-    const button = await trigger('vs previous period');
+    const button = await trigger('Compare with: vs previous period');
     expect(button).toHaveAttribute('aria-haspopup', 'menu');
     await user.click(button);
     expect(await screen.findByRole('menuitemradio', { name: 'vs previous period' })).toBeChecked();
@@ -34,11 +34,11 @@ describe('CompareSelect', () => {
     await waitFor(() => {
       expect(updates.at(-1)).toBe('?cmp=off');
     });
-    expect(await trigger('No comparison')).toBeInTheDocument();
+    expect(await trigger('Compare with: No comparison')).toBeInTheDocument();
     await waitFor(() => {
       expect(screen.queryByRole('menu')).not.toBeInTheDocument();
     });
-    await user.click(screen.getByRole('button', { name: 'No comparison' }));
+    await user.click(screen.getByRole('button', { name: 'Compare with: No comparison' }));
     const again = await screen.findByRole('menuitemradio', { name: 'vs previous period' });
     // An item clicked in the instant the menu opens is taken for the end of the click that opened it
     await waitFor(() => {
@@ -50,47 +50,73 @@ describe('CompareSelect', () => {
     });
   });
 
+  it('offers vs same period last year: it writes cmp=year and names the dates a year earlier', async () => {
+    const updates: string[] = [];
+    const { user } = renderWithProviders(<Wired />, { onUrlUpdate: (event) => updates.push(event.queryString) });
+    await user.click(await trigger('Compare with: vs previous period'));
+    await user.click(await screen.findByRole('menuitemradio', { name: 'vs same period last year' }));
+    await waitFor(() => {
+      expect(updates.at(-1)).toBe('?cmp=year');
+    });
+    await user.click(await trigger('Compare with: vs same period last year'));
+    expect(await screen.findByText('Oct 17 to Nov 13, 2026 against Oct 17 to Nov 13, 2025')).toBeInTheDocument();
+    expect(screen.getByRole('menuitemradio', { name: 'vs same period last year' })).toBeChecked();
+  });
+
+  it('reads cmp=year from a link and back to the period before with the first choice', async () => {
+    const updates: string[] = [];
+    const { user } = renderWithProviders(<Wired />, {
+      searchParams: 'cmp=year',
+      onUrlUpdate: (event) => updates.push(event.queryString),
+    });
+    await user.click(await trigger('Compare with: vs same period last year'));
+    await user.click(await screen.findByRole('menuitemradio', { name: 'vs previous period' }));
+    await waitFor(() => {
+      expect(updates.at(-1)).toBe('');
+    });
+  });
+
   it('names the two windows in words at the head of the menu, the previous one from previousWindow', async () => {
     const { user } = renderWithProviders(<Wired />);
-    await user.click(await trigger('vs previous period'));
+    await user.click(await trigger('Compare with: vs previous period'));
     // 28 days from Oct 17: the 28 days before are Sep 19 to Oct 16
     expect(await screen.findByText('Oct 17 to Nov 13, 2026 against Sep 19 to Oct 16, 2026')).toBeInTheDocument();
   });
 
   it('says there is no comparison in the head of the menu while it is off', async () => {
     const { user } = renderWithProviders(<Wired />, { searchParams: '?cmp=off' });
-    await user.click(await trigger('No comparison'));
+    await user.click(await trigger('Compare with: No comparison'));
     expect(await screen.findByText('Oct 17 to Nov 13, 2026, with no comparison')).toBeInTheDocument();
   });
 
   it('offers no comparison for a window whose previous days start before the year 2000', async () => {
     const { user } = renderWithProviders(<Wired />, { searchParams: '?from=2000-01-05&to=2000-01-20' });
-    await user.click(await trigger('No comparison'));
+    await user.click(await trigger('Compare with: No comparison'));
     const previous = await screen.findByRole('menuitemradio', { name: 'vs previous period' });
     expect(previous).toHaveAttribute('aria-disabled', 'true');
-    expect(screen.getByText('No days before this window')).toBeInTheDocument();
+    expect(screen.getByText('No days before this period')).toBeInTheDocument();
     expect(screen.getByRole('menuitemradio', { name: 'No comparison' })).toBeChecked();
   });
 
   it('chooses with the arrows and Enter, and Escape closes and returns focus', async () => {
     const updates: string[] = [];
     const { user } = renderWithProviders(<Wired />, { onUrlUpdate: (event) => updates.push(event.queryString) });
-    const button = await trigger('vs previous period');
+    const button = await trigger('Compare with: vs previous period');
     await user.click(button);
     const menu = await screen.findByRole('menu');
     // Focus moves into the menu after it opens: a key pressed before that goes nowhere
     await waitFor(() => {
       expect(menu.contains(document.activeElement)).toBe(true);
     });
-    // Opened by a click nothing is highlighted: the first arrow reaches the first item, the second the next one
-    await user.keyboard('{ArrowDown}{ArrowDown}{Enter}');
+    // Opened by a click nothing is highlighted: the first arrow reaches the first item, the third the last one
+    await user.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}{Enter}');
     await waitFor(() => {
       expect(updates.at(-1)).toBe('?cmp=off');
     });
     await waitFor(() => {
       expect(screen.queryByRole('menu')).not.toBeInTheDocument();
     });
-    await user.click(await trigger('No comparison'));
+    await user.click(await trigger('Compare with: No comparison'));
     const reopened = await screen.findByRole('menu');
     await waitFor(() => {
       expect(reopened.contains(document.activeElement)).toBe(true);
@@ -99,6 +125,6 @@ describe('CompareSelect', () => {
     await waitFor(() => {
       expect(screen.queryByRole('menu')).not.toBeInTheDocument();
     });
-    expect(await trigger('No comparison')).toHaveFocus();
+    expect(await trigger('Compare with: No comparison')).toHaveFocus();
   });
 });

@@ -217,7 +217,7 @@ describe('Citations page', () => {
       }),
     );
     render();
-    expect(await screen.findByText('No citation in this window')).toBeInTheDocument();
+    expect(await screen.findByText('No citation in this period')).toBeInTheDocument();
   });
 
   it('a viewer without data:read sees the no access state', async () => {
@@ -228,11 +228,11 @@ describe('Citations page', () => {
     expect(to(reads, '/ai/sources/domains')).toHaveLength(0);
   });
 
-  it('without an enabled engine says so and links to Engines', async () => {
+  it('without an enabled platform says so and links to Platforms', async () => {
     const reads = watch();
     renderWithProviders(citationsAs('editor', asProject(cleanstart)));
-    expect(await screen.findByRole('heading', { name: 'No engine is on' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Open Engines' })).toHaveAttribute(
+    expect(await screen.findByRole('heading', { name: 'No platform is on' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open Platforms' })).toHaveAttribute(
       'href',
       '/digibranders/cleanstart/settings/engines',
     );
@@ -318,18 +318,18 @@ describe('Citations page', () => {
     expect(diversity.requests).toHaveLength(2);
     expect(added.requests).toHaveLength(2);
     expect(cell('Distinct domains')).not.toHaveTextContent('n/a');
-    expect(cell('New sources')).not.toHaveTextContent('n/a');
+    expect(cell('New domains')).not.toHaveTextContent('n/a');
   });
 
   it.each([
-    ['New', 'new', 'Lost sources'],
-    ['Lost', 'lost', 'New sources'],
+    ['New', 'new', 'Lost domains'],
+    ['Lost', 'lost', 'New domains'],
   ])('a failed %s read shows the partial banner, is n/a and leaves the other count', async (_name, kind, other) => {
     const failing = breakReads(/\/ai\/sources\/changes$/, (url) => url.searchParams.get('kind') === kind);
     const { user } = render();
     expect(await screen.findByText('Some figures could not be loaded.')).toBeInTheDocument();
     await waitFor(() => expect(cell(other)).toHaveTextContent(/\d/));
-    expect(cell(kind === 'new' ? 'New sources' : 'Lost sources')).toHaveTextContent('n/a');
+    expect(cell(kind === 'new' ? 'New domains' : 'Lost domains')).toHaveTextContent('n/a');
     failing.broken.on = false;
     await user.click(bannerRetry());
     await waitFor(() => expect(screen.queryByText('Some figures could not be loaded.')).toBeNull());
@@ -357,7 +357,7 @@ describe('Citations page', () => {
 
   it('the strip counts a new and a lost source', async () => {
     render();
-    for (const name of ['New sources', 'Lost sources']) {
+    for (const name of ['New domains', 'Lost domains']) {
       await waitFor(() => expect(cell(name)).toHaveTextContent(/^\D+1\D/));
       expect(cell(name)).not.toHaveTextContent('n/a');
       expect(cell(name)).not.toHaveTextContent('The previous period has no answers');
@@ -379,11 +379,11 @@ describe('Citations page', () => {
     expect(cell('Citation units')).toHaveTextContent(/[\d,]{3,}/);
   });
 
-  it('choosing a Role keeps the Own citation share, and no strip read takes the role filter', async () => {
+  it('choosing a Role keeps Your citation share, and no strip read takes the role filter', async () => {
     const reads = watch();
     render('?role=competitor');
-    await waitFor(() => expect(cell('Own citation share')).toHaveTextContent(/\d+(\.\d)?%/));
-    expect(cell('Own citation share')).toHaveTextContent(/of [\d,]+ (?:citation )?units/);
+    await waitFor(() => expect(cell('Your citation share')).toHaveTextContent(/\d+(\.\d)?%/));
+    expect(cell('Your citation share')).toHaveTextContent(/of [\d,]+ (?:citation )?units/);
     const strips = [
       ...to(reads, '/ai/sources/domains'),
       ...to(reads, '/ai/sources/diversity'),
@@ -439,15 +439,15 @@ describe('Citations page', () => {
     const writes: string[] = [];
     const { user } = render('', { onUrlUpdate: ({ queryString }) => writes.push(queryString) });
     await user.click(await screen.findByRole('button', { name: /^Saved view: Default/ }));
-    await user.click(await screen.findByRole('menuitemradio', { name: 'Competitor sources' }));
+    await user.click(await screen.findByRole('menuitemradio', { name: 'Competitor domains' }));
     await waitFor(() => expect(writes.at(-1)).toContain('role=competitor'));
     expect(writes.at(-1)).toContain('view=competitor-sources');
     // An edit away from the view, then Reset to it
     await user.click(screen.getByRole('combobox', { name: 'Compare with' }));
     await user.click(await screen.findByRole('option', { name: 'No comparison' }));
     await waitFor(() => expect(writes.at(-1)).toContain('cmp=off'));
-    await user.click(await screen.findByRole('button', { name: /^Saved view: Competitor sources, edited/ }));
-    await user.click(await screen.findByRole('menuitem', { name: 'Reset to Competitor sources' }));
+    await user.click(await screen.findByRole('button', { name: /^Saved view: Competitor domains, edited/ }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Reset to Competitor domains' }));
     await waitFor(() => expect(writes.at(-1)).not.toContain('cmp=off'));
     expect(writes.at(-1)).toContain('role=competitor');
   });
@@ -532,7 +532,7 @@ describe('Citations page: the scope in the address', () => {
     const unlisted = render('?tab=pages');
     expect(await screen.findByText('Panel of Domains')).toBeInTheDocument();
     await unlisted.user.click(screen.getByRole('button', { name: 'Add a filter' }));
-    expect(await screen.findByRole('button', { name: 'Engine' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Platform' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Domain' })).toBeNull();
   });
 
@@ -556,7 +556,7 @@ describe('Citations page: the scope in the address', () => {
     expect(to(reads, '/ai/sources/pages').at(-1)?.searchParams.has('filter[registrable_domain]')).toBe(false);
   });
 
-  it('reads nothing before the engines resolve, keeps the engine in the address and then asks for it', async () => {
+  it('reads nothing before the platforms resolve, keeps the platform in the address and then asks for it', async () => {
     const held = gate();
     server.use(
       http.get(mswPath(ENGINES), async ({ request }) => {
@@ -583,7 +583,7 @@ describe('Citations page: the scope in the address', () => {
     expect(writes).toEqual([]);
   });
 
-  it('shows an inline error with Retry when the engines cannot be read, and reads nothing', async () => {
+  it('shows an inline error with Retry when the platforms cannot be read, and reads nothing', async () => {
     let calls = 0;
     server.use(
       http.get(mswPath(ENGINES), async ({ request }) => {
@@ -603,7 +603,7 @@ describe('Citations page: the scope in the address', () => {
     await waitFor(() => expect(to(reads, '/ai/sources/domains').length).toBeGreaterThan(0));
   });
 
-  it('leaves out an engine that is off, and follows the engines when they change', async () => {
+  it('leaves out a platform that is off, and follows the platforms when they change', async () => {
     const reads = watch();
     const { queryClient } = render('?engine=gemini_web');
     await waitFor(() => expect(to(reads, '/ai/sources/domains').length).toBeGreaterThan(0));
@@ -612,7 +612,7 @@ describe('Citations page: the scope in the address', () => {
       params: { path: { workspace_id: MOCK_WORKSPACE.workspace_id, project_id: fynix.project_id } },
     }).queryKey;
     const data = queryClient.getQueryData<ApiResponse<'get', typeof ENGINES>>(key);
-    if (data === undefined) throw new Error('The engines are not in the cache');
+    if (data === undefined) throw new Error('The platforms are not in the cache');
     const before = to(reads, '/ai/sources/domains').length;
     act(() => {
       queryClient.setQueryData(key, {
@@ -671,7 +671,7 @@ describe('Citations page: the New and lost tab', () => {
     await user.click(await screen.findByRole('tab', { name: 'New and lost' }));
     await waitFor(() => expect(writes.at(-1)?.queryString).toContain('tab=new-lost'));
     expect(writes.at(-1)?.history).toBe('push');
-    expect(await screen.findByRole('grid', { name: 'New sources' })).toBeInTheDocument();
+    expect(await screen.findByRole('grid', { name: 'New domains' })).toBeInTheDocument();
   });
 
   it('Export is not offered on New and lost', async () => {
@@ -680,7 +680,7 @@ describe('Citations page: the New and lost tab', () => {
     expect(await screen.findByRole('button', { name: 'Export CSV' })).toBeInTheDocument();
     domains.unmount();
     render('?tab=new-lost');
-    await screen.findByRole('grid', { name: 'New sources' });
+    await screen.findByRole('grid', { name: 'New domains' });
     expect(screen.queryByRole('button', { name: 'Export CSV' })).toBeNull();
   });
 
@@ -694,7 +694,7 @@ describe('Citations page: the New and lost tab', () => {
       await screen.findByRole('button', { name: 'Remove filter Unresolved redirects: Include unresolved redirects' }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: 'Remove filter Engine links: Include engine-internal links' }),
+      screen.getByRole('button', { name: 'Remove filter Platform links: Include platform-internal links' }),
     ).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Clear filters' }));
     await waitFor(() => expect(writes.at(-1)).not.toContain('redirects'));
@@ -713,7 +713,7 @@ describe('Citations page: the New and lost tab', () => {
     registry.real = true;
     const reads = watch();
     render('?tab=new-lost&redirects=include&internal=include');
-    await screen.findByRole('grid', { name: 'New sources' });
+    await screen.findByRole('grid', { name: 'New domains' });
     await waitFor(() => expect(to(reads, '/ai/citations').length).toBeGreaterThan(0));
     for (const route of ['/ai/sources/domains', '/ai/sources/diversity', '/ai/sources/changes']) {
       expect(to(reads, route).length).toBeGreaterThan(0);
@@ -732,23 +732,23 @@ describe('Citations page: the New and lost tab', () => {
   it("the strip's counts equal the segment counts", async () => {
     registry.real = true;
     render('?tab=new-lost');
-    const table = await screen.findByRole('grid', { name: 'New sources' });
+    const table = await screen.findByRole('grid', { name: 'New domains' });
     await waitFor(() => expect(within(table).queryAllByRole('rowheader').length).toBeGreaterThan(0));
     // The table's own caption says "New sources" too, so the strip's cell is looked up inside the strip
     const stripGroup = await strip();
     const stripCount = (name: string): string =>
       within(stripGroup).getByText(name).closest('div')?.textContent?.match(/\d+/)?.[0] ?? '';
-    await waitFor(() => expect(stripCount('New sources')).not.toBe(''));
-    await waitFor(() => expect(stripCount('Lost sources')).not.toBe(''));
-    expect(screen.getByRole('radio', { name: `New ${stripCount('New sources')}` })).toBeInTheDocument();
-    expect(screen.getByRole('radio', { name: `Lost ${stripCount('Lost sources')}` })).toBeInTheDocument();
+    await waitFor(() => expect(stripCount('New domains')).not.toBe(''));
+    await waitFor(() => expect(stripCount('Lost domains')).not.toBe(''));
+    expect(screen.getByRole('radio', { name: `New ${stripCount('New domains')}` })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: `Lost ${stripCount('Lost domains')}` })).toBeInTheDocument();
   });
 
   it('asks each of New and Lost once for the strip and the tab together', async () => {
     registry.real = true;
     const reads = watch();
     render('?tab=new-lost');
-    await screen.findByRole('grid', { name: 'New sources' });
+    await screen.findByRole('grid', { name: 'New domains' });
     await waitFor(() => expect(to(reads, '/ai/sources/changes')).toHaveLength(2));
     expect(
       to(reads, '/ai/sources/changes')
@@ -758,8 +758,8 @@ describe('Citations page: the New and lost tab', () => {
   });
 });
 
-describe('Citations page: the country scope', () => {
-  const countryControl = (name = 'Country: All countries'): Promise<HTMLElement> =>
+describe('Citations page: the location scope', () => {
+  const countryControl = (name = 'Location: All locations'): Promise<HTMLElement> =>
     screen.findByRole('combobox', { name });
   const COUNTRY = 'filter[country_iso]';
   /** The routes every tab reads for the strip, and the one list route each tab reads besides. */
@@ -770,20 +770,20 @@ describe('Citations page: the country scope', () => {
     const country = await countryControl();
     const range = await screen.findByRole('button', { name: /^Date range: / });
     expect(range.compareDocumentPosition(country) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(screen.getAllByRole('combobox', { name: /^Country:/ })).toHaveLength(1);
+    expect(screen.getAllByRole('combobox', { name: /^Location:/ })).toHaveLength(1);
   });
 
-  it('lists all countries and the countries of the prompts', async () => {
+  it('lists all locations and the locations of the prompts', async () => {
     const { user } = render();
     await user.click(await countryControl());
     expect((await screen.findAllByRole('option')).map((option) => option.textContent)).toEqual([
-      'All countries',
+      'All locations',
       'Germany',
       'India',
     ]);
   });
 
-  it('choosing a country asks every read with filter[country_iso] and writes the key, and All countries removes it', async () => {
+  it('choosing a location asks every read with filter[country_iso] and writes the key, and All locations removes it', async () => {
     const reads = watch();
     const writes: string[] = [];
     const { user } = render('', { onUrlUpdate: ({ queryString }) => writes.push(queryString) });
@@ -795,13 +795,13 @@ describe('Citations page: the country scope', () => {
     for (const route of STRIP_ROUTES) {
       await waitFor(() => expect(to(reads, route).some((url) => url.searchParams.get(COUNTRY) === 'DE')).toBe(true));
     }
-    expect(await countryControl('Country: Germany')).toBeInTheDocument();
-    await user.click(await countryControl('Country: Germany'));
-    await user.click(await screen.findByRole('option', { name: 'All countries' }));
+    expect(await countryControl('Location: Germany')).toBeInTheDocument();
+    await user.click(await countryControl('Location: Germany'));
+    await user.click(await screen.findByRole('option', { name: 'All locations' }));
     await waitFor(() => expect(new URLSearchParams(writes.at(-1)).has('country')).toBe(false));
   });
 
-  it('keeps the old rows while the new country is read', async () => {
+  it('keeps the old rows while the new location is read', async () => {
     registry.real = true;
     const held = gate();
     server.use(
@@ -822,7 +822,7 @@ describe('Citations page: the country scope', () => {
     await waitFor(() => expect(table).not.toHaveAttribute('aria-busy', 'true'));
   });
 
-  it('Clear filters does not clear the country', async () => {
+  it('Clear filters does not clear the location', async () => {
     const writes: string[] = [];
     const { user } = render('?country=DE&redirects=include', {
       onUrlUpdate: ({ queryString }) => writes.push(queryString),
@@ -830,10 +830,10 @@ describe('Citations page: the country scope', () => {
     await user.click(await screen.findByRole('button', { name: 'Clear filters' }));
     await waitFor(() => expect(writes.at(-1)).not.toContain('redirects'));
     expect(new URLSearchParams(writes.at(-1)).get('country')).toBe('DE');
-    expect(await countryControl('Country: Germany')).toBeInTheDocument();
+    expect(await countryControl('Location: Germany')).toBeInTheDocument();
   });
 
-  it('the Clear filters of an empty table does not clear the country either', async () => {
+  it('the Clear filters of an empty table does not clear the location either', async () => {
     registry.real = true;
     const writes: string[] = [];
     // 1,000 is the most the minimum takes: no domain of the mock world reaches it
@@ -848,17 +848,17 @@ describe('Citations page: the country scope', () => {
     expect(new URLSearchParams(writes.at(-1)).get('country')).toBe('DE');
   });
 
-  it('the country is no filter chip and no saved view key', async () => {
+  it('the location is no filter chip and no saved view key', async () => {
     render('?country=DE');
-    await countryControl('Country: Germany');
+    await countryControl('Location: Germany');
     expect(screen.queryByRole('button', { name: /^Remove filter/ })).toBeNull();
     expect(screen.getByRole('button', { name: /^Saved view: Default(?!, edited)/ })).toBeInTheDocument();
   });
 
-  it('the note names the country while one is chosen, and is absent for all countries', async () => {
+  it('the note names the location while one is chosen, and is absent for all locations', async () => {
     const chosen = render('?country=DE');
     const note = await screen.findByText(
-      'Only the prompts set in Germany are read. Prompts with no country are left out.',
+      'Only the prompts set in Germany are read. Prompts with no location are left out.',
     );
     // One message, not two joined in the markup: one text node
     expect(note.childNodes).toHaveLength(1);
@@ -868,7 +868,7 @@ describe('Citations page: the country scope', () => {
     expect(screen.queryByText(/Only the prompts set in/)).toBeNull();
   });
 
-  it('the control is absent when no prompt has a country', async () => {
+  it('the control is absent when no prompt has a location', async () => {
     server.use(
       http.get(mswPath(`${P}/prompts`), async ({ request }) => {
         const real = await getResponse([...handlers], request);
@@ -883,8 +883,8 @@ describe('Citations page: the country scope', () => {
     const promptList = (): URL[] => reads.filter((url) => url.pathname.endsWith(`/${fynix.project_id}/prompts`));
     await waitFor(() => expect(promptList().length).toBeGreaterThan(0));
     await new Promise((resolve) => setTimeout(resolve, 60));
-    expect(screen.queryByRole('combobox', { name: /^Country:/ })).toBeNull();
-    expect(screen.queryByText(/^Country:/)).toBeNull();
+    expect(screen.queryByRole('combobox', { name: /^Location:/ })).toBeNull();
+    expect(screen.queryByText(/^Location:/)).toBeNull();
   });
 
   it('the Domains, Pages and New and lost tabs all carry it', async () => {
@@ -950,7 +950,7 @@ describe('Citations page: the domain inspector', () => {
   it('opens a domain that is not in the table, which has no position', async () => {
     render('?inspect=domain:nobody.example');
     const inspector = await inspected('nobody.example');
-    expect(await within(inspector).findByText('Not cited in this window')).toBeInTheDocument();
+    expect(await within(inspector).findByText('Not cited in this period')).toBeInTheDocument();
     expect(within(inspector).queryByText(/^\d+ of \d+$/)).toBeNull();
     expect(within(inspector).queryByRole('button', { name: /^(Next|Previous) domain$/ })).toBeNull();
   });
@@ -1089,7 +1089,7 @@ describe('Citations page: the source inspector', () => {
     await user.click(units);
     await waitFor(() => expect(lastWrite(writes).get('inspect')).toBe(`source:${first}`));
     expect(lastWrite(writes).get('tab')).toBe('pages');
-    expect(await screen.findByRole('group', { name: 'Source summary' })).toBeInTheDocument();
+    expect(await screen.findByRole('group', { name: 'Page summary' })).toBeInTheDocument();
   });
 
   it('makes the path of a page a link to its inspector, and a click on it does not open the row twice', async () => {
@@ -1113,7 +1113,7 @@ describe('Citations page: the source inspector', () => {
     if (first === undefined) throw new Error('The table has no pages');
     const reads = watch();
     const { container } = render(`?inspect=source:${first}&engine=gemini_web&win=7d&role=own`);
-    expect(await screen.findByRole('group', { name: 'Source summary' })).toBeInTheDocument();
+    expect(await screen.findByRole('group', { name: 'Page summary' })).toBeInTheDocument();
     await waitFor(() => expect(to(reads, '/ai/citations').length).toBeGreaterThan(0));
     const read = to(reads, '/ai/citations')[0];
     expect(read?.searchParams.get('filter[url_id]')).toBe(first);
@@ -1130,7 +1130,7 @@ describe('Citations page: the source inspector', () => {
     const { user } = render(`?tab=pages&inspect=source:${first}&itab=overview`, {
       onUrlUpdate: ({ queryString }) => writes.push(queryString),
     });
-    await screen.findByRole('group', { name: 'Source summary' });
+    await screen.findByRole('group', { name: 'Page summary' });
     const table = await pagesGrid();
     const [row] = within(table).getAllByRole('rowheader');
     if (row === undefined) throw new Error('The table has no row');
@@ -1149,7 +1149,7 @@ describe('Citations page: the source inspector', () => {
     render(`?tab=pages&inspect=source:${first}`);
     const inspector = await screen.findByRole('complementary');
     expect(await within(inspector).findByText(/^1 of \d+$/)).toBeInTheDocument();
-    expect(within(inspector).getByRole('button', { name: 'First source in this list' })).toHaveAttribute(
+    expect(within(inspector).getByRole('button', { name: 'First page in this list' })).toHaveAttribute(
       'aria-disabled',
       'true',
     );
@@ -1162,7 +1162,7 @@ describe('Citations page: the source inspector', () => {
     const { user } = render(`?tab=pages&inspect=source:${first}&itab=overview`, {
       onUrlUpdate: ({ queryString }) => writes.push(queryString),
     });
-    await screen.findByRole('group', { name: 'Source summary' });
+    await screen.findByRole('group', { name: 'Page summary' });
     await user.keyboard('{Escape}');
     await waitFor(() => expect(lastWrite(writes).has('inspect')).toBe(false));
     expect(lastWrite(writes).has('itab')).toBe(false);

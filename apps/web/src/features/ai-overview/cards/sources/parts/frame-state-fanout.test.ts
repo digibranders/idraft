@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import { mapReadToFrame, type FrameContext, type FrameInput, type FrameWords } from './frame-state';
 import messages from '../../../../../../messages/en.json';
-import type { Say } from '../../../numbers/number-model';
+import type { Say } from '../../say';
 
 const translator = (namespace: string): Say => {
   const translate = createTranslator({ locale: 'en', messages, namespace: namespace as never });
@@ -59,7 +59,7 @@ describe('mapReadToFrame for the fan-out card', () => {
   it('says no answer ran a search, with the answers collected', () => {
     const state = mapReadToFrame(input({ situation: { kind: 'none_issued', answers: 40 } }), words, context);
     if (state.status !== 'empty') throw new Error('expected an empty state');
-    expect(state.empty.title).toBe('No answer ran a search in this window');
+    expect(state.empty.title).toBe('No answer ran a search in this period');
     expect(state.empty.reason).toContain('40 answers were collected');
   });
 

@@ -26,20 +26,22 @@ type Zones = { numbers: boolean; cards: boolean; widths: boolean };
 const NUMBERS_ONLY: Zones = { numbers: true, cards: false, widths: false };
 const CARDS_ONLY: Zones = { numbers: false, cards: true, widths: false };
 const BOTH_WITH_WIDTHS: Zones = { numbers: true, cards: true, widths: true };
+/** The AI visibility screen: its headline card replaced the numbers strip. */
+const CARDS_WITH_WIDTHS: Zones = { numbers: false, cards: true, widths: true };
 
 const EXPECTED: ReadonlyArray<readonly [ScreenKey, string, Zones]> = [
   ['overview', 'Overview', BOTH_WITH_WIDTHS],
-  ['ai_overview', 'AI visibility', BOTH_WITH_WIDTHS],
-  ['rankings', 'Rankings', NUMBERS_ONLY],
-  ['prompts', 'Topics and prompts', NUMBERS_ONLY],
+  ['ai_overview', 'AI visibility', CARDS_WITH_WIDTHS],
+  ['rankings', 'Keywords', NUMBERS_ONLY],
+  ['prompts', 'Prompts', NUMBERS_ONLY],
   ['citations', 'Citations', NUMBERS_ONLY],
-  ['sources', 'Sources', NUMBERS_ONLY],
+  ['sources', 'Cited domains', NUMBERS_ONLY],
   ['pages', 'Pages', NUMBERS_ONLY],
   ['inspector.keyword', 'Keyword', CARDS_ONLY],
   ['inspector.prompt', 'Prompt', CARDS_ONLY],
   ['inspector.page', 'Page', CARDS_ONLY],
   ['inspector.citation', 'Citation', CARDS_ONLY],
-  ['inspector.topic', 'Topic', CARDS_ONLY],
+  ['inspector.topic', 'Group', CARDS_ONLY],
 ];
 
 describe('the types follow the API schema', () => {
@@ -150,7 +152,7 @@ describe('cardName and engineLabel', () => {
   });
 
   it('labels an engine by its catalog label, else by its code', () => {
-    expect(engineLabel('google_ai_mode')).toBe('AI Mode');
+    expect(engineLabel('google_ai_mode')).toBe('Google AI Mode');
     expect(engineLabel('chatgpt_web')).toBe('ChatGPT');
     expect(engineLabel('mystery')).toBe('mystery');
   });

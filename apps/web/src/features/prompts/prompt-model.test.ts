@@ -25,7 +25,6 @@ import {
   promptKeyOf,
   readPromptLines,
   SORT_ID,
-  topicChoices,
   topicDescendants,
   topicMembers,
   topicPrompts,
@@ -33,7 +32,6 @@ import {
   topicsBelow,
   topicOriginOf,
   topicSummaryRow,
-  topicsSpanned,
   topicTermsOf,
   trailingRange,
   WIDEST_WINDOW,
@@ -48,11 +46,9 @@ import type {
   Prompt,
   PromptsSummary,
   PromptSummaryRow,
-  TopicSummaryRow,
 } from '@/lib/api/types';
 import type { NamedTerm } from '@/lib/keywords/taxonomy-reads';
 import type { Country } from '@/lib/locations/countries';
-import type { StripPrompt } from '@/lib/rates/strip-model';
 
 type Facts = NonNullable<ObservationDetail['facts']>;
 
@@ -229,23 +225,6 @@ describe('the topic filter', () => {
     const terms = collectTopicTerms([carrying(SEO, TECHNICAL), carrying(TECHNICAL, term('p', 'x', 'persona'))]);
     expect([...terms.keys()]).toEqual(['seo', 'technical']);
   });
-
-  it('offers the topics the prompts carry and every topic above them, in the tree order', () => {
-    const carried = collectTopicTerms([carrying(term('crawl', 'seo/technical-seo/crawling'))]);
-    expect(topicChoices(TREE, carried).map((choice) => [choice.termId, choice.name, choice.path])).toEqual([
-      ['seo', 'SEO', 'SEO'],
-      ['technical', 'Technical SEO', 'SEO / Technical SEO'],
-      ['crawl', 'Crawling', 'SEO / Technical SEO / Crawling'],
-    ]);
-  });
-
-  it('offers a carried topic the tree does not hold by what the prompt says of it, after the tree ones', () => {
-    const carried = collectTopicTerms([carrying(term('loose', 'a/loose'), term('paid', 'paid'))]);
-    expect(topicChoices(TREE, carried).map((choice) => [choice.termId, choice.name, choice.path])).toEqual([
-      ['paid', 'Paid search', 'Paid search'],
-      ['loose', 'loose', 'a/loose'],
-    ]);
-  });
 });
 
 describe('the topic rows of the summary', () => {
@@ -306,48 +285,6 @@ describe('the topic rows of the summary', () => {
 
   it('cannot list the prompts of a topic the tree does not hold', () => {
     expect(topicMembers('elsewhere', [row('a', 'seo')], below)).toBeNull();
-  });
-});
-
-describe('topicsSpanned', () => {
-  const topic = (term_id: string | null, name: string | null): TopicSummaryRow => ({
-    term_id,
-    name,
-    prompt_count: 1,
-    last_observed_at: null,
-    last_valid_at: null,
-    engines: [],
-  });
-  const topics = [topic('seo', 'SEO'), topic('technical', 'Technical SEO'), topic('paid', 'Paid'), topic(null, null)];
-  const tree = [
-    { termId: 'seo', parentId: null },
-    { termId: 'technical', parentId: 'seo' },
-    { termId: 'paid', parentId: null },
-  ].map((term) => ({ ...term, name: term.termId, path: term.termId }));
-  const below = topicDescendants(tree, []);
-  const inScope = (...ids: string[][]): StripPrompt[] =>
-    ids.map((topicIds) => ({ topic_term_ids: topicIds, engines: [] }));
-
-  it('counts each topic that has a prompt in scope, the topics above a prompt included, once', () => {
-    expect(topicsSpanned(topics, inScope(['technical'], ['technical'], ['paid']), below, null)).toBe(3);
-  });
-
-  it('never counts the row of the prompts without a topic: No topic is no topic', () => {
-    expect(topicsSpanned(topics, inScope([], ['paid']), below, null)).toBe(1);
-    expect(topicsSpanned(topics, inScope([], []), below, null)).toBe(0);
-  });
-
-  it('leaves out a topic no prompt in scope belongs to, and every topic a topic filter does not keep', () => {
-    expect(topicsSpanned(topics, inScope(['paid']), below, null)).toBe(1);
-    expect(topicsSpanned(topics, inScope(['technical']), below, new Set(['technical']))).toBe(1);
-  });
-
-  it('is 0 without a prompt', () => {
-    expect(topicsSpanned(topics, [], below, null)).toBe(0);
-  });
-
-  it('counts a topic a prompt carries when the tree does not hold it yet', () => {
-    expect(topicsSpanned([topic('seo', 'SEO'), topic('paid', 'Paid')], inScope(['paid']), new Map(), null)).toBe(1);
   });
 });
 
@@ -637,19 +574,19 @@ describe('the topic drawer', () => {
 
   it('puts the most mentioned prompt of the engine first, and a prompt with no rate last, keeping the order of equals', () => {
     const rows = [prompt('none', [], null), prompt('low', [], 0.25), prompt('high', [], 0.75), prompt('tie', [], 0.25)];
-    expect(ids(mostMentionedFirst(rows, 'chatgpt_web'))).toEqual(['high', 'low', 'tie', 'none']);
+    expect(ids(mostMentionedFirst(rows, ['chatgpt_web']))).toEqual(['high', 'low', 'tie', 'none']);
     // No engine leaves every prompt without a rate, and so in the order given
-    expect(ids(mostMentionedFirst(rows, undefined))).toEqual(['none', 'low', 'high', 'tie']);
+    expect(ids(mostMentionedFirst(rows, []))).toEqual(['none', 'low', 'high', 'tie']);
   });
 
   it('lists the prompts of a topic and of the topics below it, most mentioned first, and none for a topic the tree does not hold', () => {
     const summary = {
       prompts: [prompt('a', ['crawl'], 0.1), prompt('b', ['seo'], 0.6), prompt('c', [], 0.9)],
     } as unknown as PromptsSummary;
-    expect(ids(topicPrompts(summary, 'seo', tree, 'chatgpt_web'))).toEqual(['b', 'a']);
-    expect(ids(topicPrompts(summary, NO_TOPIC, tree, 'chatgpt_web'))).toEqual(['c']);
-    expect(topicPrompts(summary, 'elsewhere', tree, 'chatgpt_web')).toBeNull();
-    expect(topicPrompts(undefined, 'seo', tree, 'chatgpt_web')).toBeNull();
+    expect(ids(topicPrompts(summary, 'seo', tree, ['chatgpt_web']))).toEqual(['b', 'a']);
+    expect(ids(topicPrompts(summary, NO_TOPIC, tree, ['chatgpt_web']))).toEqual(['c']);
+    expect(topicPrompts(summary, 'elsewhere', tree, ['chatgpt_web'])).toBeNull();
+    expect(topicPrompts(undefined, 'seo', tree, ['chatgpt_web'])).toBeNull();
   });
 
   it('finds the summary row of a topic by its term id, and the row of no topic by its key', () => {
@@ -722,11 +659,8 @@ describe('the metric of the engine columns and the sort ids', () => {
     expect(engineSortId('gemini_web', 'cited')).toBe('gemini_web_cited');
   });
 
-  it('sorts both tables by Mention rate high to low first, a tie by name', () => {
+  it('sorts both tables by Mention rate high to low first, by that one key, so one arrow shows on the header', () => {
     expect(DEFAULT_TOPIC_SORT).toEqual([{ id: SORT_ID.mention, desc: true }]);
-    expect(DEFAULT_PROMPT_SORT).toEqual([
-      { id: SORT_ID.mention, desc: true },
-      { id: SORT_ID.prompt, desc: false },
-    ]);
+    expect(DEFAULT_PROMPT_SORT).toEqual([{ id: SORT_ID.mention, desc: true }]);
   });
 });

@@ -79,14 +79,14 @@ const figuresOf = (totals: EngineEntityTotals, entityId: string) => {
 };
 
 describe('entityTotals', () => {
-  it('share of voice is the sum of numerators over the sum of denominators of the prompt rows, not the mean of the shares', () => {
+  it('share of voice is the brand mentions over all tracked-brand mentions of the prompt rows (D17), not the mean of the shares', () => {
     const totals = read();
     const fynix = figuresOf(totals, FYNIX);
-    // (1 + 2) / (2 + 8) = 0.3, where the mean of 1/2 and 2/8 would be 0.375
+    // Mentions 1 + 2 of the brand over (1 + 2) + (2 + 5) + 0 of the three: 3 of 10, where the mean of 1/3 and 2/7 would differ
     expect(fynix.share).toMatchObject({ state: 'ok', numerator: 3, answers: 10 });
     expect(fynix.share.value).toBeCloseTo(0.3, 10);
     expect(figuresOf(totals, HUBSPOT).share.value).toBeCloseTo(0.7, 10);
-    expect(totals.answersNamingTracked).toBe(10);
+    expect(totals.brandMentions).toBe(10);
     expect(totals.validAnswers).toBe(9);
   });
 
@@ -130,7 +130,7 @@ describe('entityTotals', () => {
     });
     const totals = read(thin);
     expect(totals.state).toBe('insufficient');
-    expect(totals.answersNamingTracked).toBe(3);
+    expect(totals.brandMentions).toBe(3);
     const fynix = figuresOf(totals, FYNIX);
     expect(fynix.share).toMatchObject({ state: 'insufficient', value: null, answers: 3 });
     expect(fynix.mention).toMatchObject({ state: 'insufficient', value: null, k: 1, n: 3 });

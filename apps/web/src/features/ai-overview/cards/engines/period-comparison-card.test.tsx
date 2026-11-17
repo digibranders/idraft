@@ -3,7 +3,7 @@ import { http, HttpResponse } from 'msw';
 import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { engineCells, promptRow, summaryOf, type EngineCellsInput } from './engines-fixtures';
+import { engineCells, promptRow, summaryOf, withBrandMentions, type EngineCellsInput } from './engines-fixtures';
 import PeriodComparisonCard from './period-comparison-card';
 import { ExportProvider, useExportBlocks, type ExportRead } from '../../export/export-registry';
 import type { CardProps } from '@/features/layouts';
@@ -133,12 +133,16 @@ describe('the period comparison card', () => {
   });
 
   it('writes share of voice rows as words with the numbers and "no interval yet"', async () => {
-    serve(NOW, BEFORE);
+    serve(
+      withBrandMentions(NOW, { chatgpt_web: [6, 6], gemini_web: [3, 9] }),
+      withBrandMentions(BEFORE, { chatgpt_web: [3, 9], gemini_web: [3, 9] }),
+    );
     renderCard('share_of_voice');
     const list = await rowsList();
     const [chatgpt] = within(list).getAllByRole('listitem');
     expect(chatgpt).toHaveTextContent('no interval yet');
-    expect(chatgpt).toHaveTextContent('answers that name a brand');
+    // x of y brand mentions of each window, not a pooled answer count
+    expect(chatgpt).toHaveTextContent('3 of 12 then 6 of 12 brand mentions');
     const frame = await frameOf();
     expect(frame.querySelectorAll('[data-slot="interval-whisker"]')).toHaveLength(0);
     expect(frame.querySelectorAll('[data-slot="interval-dot-current"]')).toHaveLength(0);
@@ -245,7 +249,7 @@ describe('the period comparison card', () => {
       within(table)
         .getAllByRole('columnheader')
         .map((header) => header.textContent),
-    ).toEqual(['Engine', 'Previous', 'Current', 'Change', '95% interval']);
+    ).toEqual(['Platform', 'Previous', 'Current', 'Change', '95% interval']);
     const [first] = within(table).getAllByRole('row').slice(1);
     expect(first).toHaveTextContent('37.5%, 6 of 16 answers');
     expect(first).toHaveTextContent('62.5%, 10 of 16 answers');
@@ -254,7 +258,7 @@ describe('the period comparison card', () => {
     const [blob] = vi.mocked(csvWrite.downloadBlob).mock.calls[0] ?? [];
     if (!(blob instanceof Blob)) throw new Error('No file was downloaded');
     const text = await blob.text();
-    expect(text).toContain('Engine,Previous,Current,Change,95% interval');
+    expect(text).toContain('Platform,Previous,Current,Change,95% interval');
     expect(text).toContain('"37.5%, 6 of 16 answers"');
   });
 

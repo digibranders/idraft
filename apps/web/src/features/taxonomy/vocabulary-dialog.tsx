@@ -4,7 +4,12 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
 import { useRef, useState, type ReactNode } from 'react';
 
-import { VOCABULARY_KINDS, vocabulariesQuery, type Vocabulary, type VocabularyKind } from './taxonomy-queries';
+import {
+  CREATABLE_VOCABULARY_KINDS,
+  vocabulariesQuery,
+  type Vocabulary,
+  type VocabularyKind,
+} from './taxonomy-queries';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogBody, DialogClose, DialogFooter, DialogHeader } from '@/components/ui/dialog';
@@ -62,7 +67,7 @@ function VocabularyForm({
   const nameInput = useRef<HTMLInputElement>(null);
   const initial = vocabulary === 'new' ? null : vocabulary;
   const [name, setName] = useState(initial?.name ?? '');
-  const [kind, setKind] = useState<VocabularyKind>(initial?.kind ?? 'topic');
+  const [kind, setKind] = useState<VocabularyKind>(initial?.kind ?? 'product');
   const [reach, setReach] = useState<Reach>('project');
   const [hierarchical, setHierarchical] = useState(initial?.is_hierarchical ?? true);
   const [singleValued, setSingleValued] = useState(initial?.is_single_valued ?? false);
@@ -175,7 +180,7 @@ function VocabularyForm({
                 value={kind}
                 onValueChange={setKind}
                 placeholder={t('kind')}
-                options={VOCABULARY_KINDS.map((value) => ({ value, label: kinds(value) }))}
+                options={CREATABLE_VOCABULARY_KINDS.map((value) => ({ value, label: kinds(value) }))}
               />
             </Field>
           ) : null}

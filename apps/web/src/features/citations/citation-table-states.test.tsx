@@ -72,16 +72,13 @@ describe('CitationEmptyState', () => {
   it('says there are no citations yet, with a way to the prompts, when no answer was read', () => {
     renderWithProviders(<CitationEmptyState meta={{ ...META, answers: 0 }} workspaceSlug="ws" projectSlug="proj" />);
     expect(screen.getByRole('heading', { name: 'No citations yet' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Open Topics and Prompts' })).toHaveAttribute(
-      'href',
-      '/ws/proj/ai/prompts',
-    );
+    expect(screen.getByRole('link', { name: 'Open Prompts' })).toHaveAttribute('href', '/ws/proj/ai/prompts');
   });
 
   it('says how many answers were read when none names a source', () => {
     renderWithProviders(<CitationEmptyState meta={META} workspaceSlug="ws" projectSlug="proj" />);
-    expect(screen.getByRole('heading', { name: 'The answers cite no source' })).toBeInTheDocument();
-    expect(screen.getByText('12 answers were read in this window and none names a source.')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'The answers cite no domain' })).toBeInTheDocument();
+    expect(screen.getByText('12 answers were read in this period and none cites a domain.')).toBeInTheDocument();
   });
 });
 
@@ -108,7 +105,7 @@ describe('CitationFilteredEmptyState', () => {
   it('names the filters and offers Clear filters', async () => {
     const onClear = vi.fn();
     const { user } = show(1, true, onClear);
-    expect(screen.getByText('Role: Own')).toBeInTheDocument();
+    expect(screen.getByText('Role: Your site')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Clear filters' }));
     expect(onClear).toHaveBeenCalledOnce();
   });

@@ -96,13 +96,13 @@ describe('the Domains tab on a phone', () => {
     renderTab();
     const g2 = await rowNamed(/^g2\.com/);
     expect(g2).toHaveTextContent('g2.com');
-    expect(g2).toHaveTextContent('Source share');
+    expect(g2).toHaveTextContent('Citation share');
     expect(g2).toHaveTextContent('10.4%');
     expect(g2).toHaveTextContent('Third party, 1,912 of 18,420 units');
     // A neutral change in points, from the period before
     expect(g2).toHaveTextContent('+2.1 pts');
     // The own row says Own in words, and a share of 4 units is 4 of 18,420, not a bare 0.0%
-    expect(await rowNamed(/^fynix\.com/)).toHaveTextContent('Own, 4 of 18,420 units');
+    expect(await rowNamed(/^fynix\.com/)).toHaveTextContent('Your site, 4 of 18,420 units');
     expect(await rowNamed(/^hubspot\.com/)).toHaveTextContent('Competitor, 800 of 18,420 units');
   });
 
@@ -282,7 +282,7 @@ describe('the Domains tab on a phone', () => {
       expect(
         await screen.findByRole('heading', { name: 'No domain or page matches these filters' }),
       ).toBeInTheDocument();
-      expect(screen.getByText('Role: Own')).toBeInTheDocument();
+      expect(screen.getByText('Role: Your site')).toBeInTheDocument();
       await user.click(screen.getByRole('button', { name: 'Clear filters' }));
       expect(onClear).toHaveBeenCalledOnce();
     });

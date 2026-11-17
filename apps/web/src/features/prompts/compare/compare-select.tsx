@@ -3,13 +3,14 @@
 import { useTranslations } from 'next-intl';
 import { useId, type ReactElement } from 'react';
 
-import { useCompare } from './use-compare';
+import { useShownMode } from './compared-window';
+import { useCompare, type CompareMode } from './use-compare';
 import { Select } from '@/components/ui/select';
 import { Tooltip } from '@/components/ui/tooltip';
 import type { Schemas } from '@/lib/api/types';
 import { formatDateRange } from '@/lib/format';
 
-type Choice = 'previous' | 'off';
+type Choice = CompareMode | 'off';
 
 export interface CompareSelectProps {
   /** The window the response was compared with, when it has one: the tooltip names it. */
@@ -17,31 +18,35 @@ export interface CompareSelectProps {
 }
 
 /**
- * "Compare with" of Topics & Prompts (WB-TPF-06): the period before, or no comparison. Off stops the read of the
- * previous period and every change; the address says it as `cmp=off`. Same period last year and Custom are not offered (no data for them yet).
+ * "Compare with" of the Prompts page (WB-TPF-06): no comparison, which is where the page opens, the period before, or
+ * the same dates a year earlier. Off stops the read of the compared period and every change; the address says on as
+ * `cmp=previous` or `cmp=year`. Custom is not offered (no data for it yet).
  */
 export function CompareSelect({ window }: CompareSelectProps): ReactElement {
   const t = useTranslations('prompts.compare');
-  const { compare, setCompare } = useCompare();
+  const { compare, mode, setCompare, setMode } = useCompare();
+  // The window is the one of the rows on screen, so the tip names what they were compared with
+  const shown = useShownMode();
   const describedBy = useId();
   const tip = compare
     ? window === null
       ? null
-      : t('windowTip', { range: formatDateRange(window.from, window.to) })
+      : t('windowTip', { kind: shown, range: formatDateRange(window.from, window.to) })
     : t('offTip');
   return (
     // The tooltip is for the eye; the combobox itself is described by the hidden text, so a screen reader hears it
     <Tooltip content={tip ?? t('label')} purpose="label" disabled={tip === null} side="bottom">
-      <div className="w-48 shrink-0">
+      <div className="min-w-0 md:w-48 md:shrink-0">
         <Select<Choice>
           aria-label={t('label')}
           {...(tip === null ? {} : { 'aria-describedby': describedBy })}
           size="sm"
-          value={compare ? 'previous' : 'off'}
-          onValueChange={(next) => setCompare(next === 'previous')}
+          value={compare ? mode : 'off'}
+          onValueChange={(next) => (next === 'off' ? setCompare(false) : setMode(next))}
           placeholder={t('label')}
           options={[
             { value: 'previous', label: t('previous') },
+            { value: 'year', label: t('year') },
             { value: 'off', label: t('off') },
           ]}
         />

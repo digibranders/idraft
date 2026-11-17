@@ -39,6 +39,8 @@ export interface CountryScopeControlProps {
   nameOf: (iso: string) => string;
   labels: CountryScopeLabels;
   onCountryChange: (iso: string | null) => void;
+  /** Shows the name at every width, for a place with room for it (a filters sheet), not the ISO code or the pin alone. */
+  showName?: boolean | undefined;
 }
 
 /**
@@ -52,6 +54,7 @@ export function CountryScopeControl({
   nameOf,
   labels,
   onCountryChange,
+  showName = false,
 }: CountryScopeControlProps): ReactElement | null {
   const { allCountries } = labels;
   const everywhere = useMemo((): CountryChoice => ({ iso: null, name: allCountries }), [allCountries]);
@@ -63,12 +66,14 @@ export function CountryScopeControl({
   const current = options.find((option) => option.iso === country) ?? everywhere;
   const shown = (
     <>
-      <span aria-hidden className="hidden max-w-40 truncate lg:inline">
+      <span aria-hidden className={cn('max-w-40 truncate', showName ? 'inline' : 'hidden lg:inline')}>
         {current.name}
       </span>
-      <span aria-hidden className="uppercase lg:hidden">
-        {current.iso}
-      </span>
+      {showName ? null : (
+        <span aria-hidden className="uppercase lg:hidden">
+          {current.iso}
+        </span>
+      )}
     </>
   );
   const name = labels.country(current.name);

@@ -9,9 +9,26 @@
 @source "./prompts-data.js";
 @source "./prompts-state.js";
 @source "./prompts-cells.js";
+@source "./prompts-extra.js";
+@source "./prompts-extra-cells.js";
 @source "./prompts-topics.js";
 @source "./prompts-topic-inspector.js";
+@source "./prompts-add.js";
 @source "./perf.js";
+@source "./aiov.js";
+@source "./aiov-cards-core.js";
+@source "./aiov-cards-more.js";
+@source "./aiov-charts.js";
+@source "./aiov-competitor.js";
+@source "./aiov-controls.js";
+@source "./aiov-customize.js";
+@source "./aiov-layout.js";
+@source "./aiov-registry.js";
+@source "./aiov-data.js";
+@source "./aiov-parts.js";
+@source "./cit.js";
+@source "./cit-data.js";
+@source "./cit-inspector.js";
 @source "./perf-add.js";
 @source "./perf-calc.js";
 @source "./perf-chart.js";
@@ -29,6 +46,7 @@
 @source "./kw-grouped-drawer.js";
 @source "./kw-grouped-pages.js";
 
+@source "./il*.js";
 /* Every table: all data at 12 px / 16 px and header labels in capitals (owner decisions of 2026-10-29).
    Unlayered on purpose: it wins over the type-* utilities that the mock-up cells carry. The app does this
    with the type-table and type-table-header tokens; the preview's hand-written markup is too varied for that. */

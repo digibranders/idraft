@@ -1,129 +1,80 @@
 import { describe, expect, it } from 'vitest';
 
-import { extremesModel } from './extremes-model';
-import type { TopicNode } from './model-types';
-import { NO_TOPIC } from './topic-nodes';
-import { engine, weighted } from '@/features/prompts/topics-by-engine/cells-fixtures';
+import { MIN_GROUPS_TO_RANK, extremesExportRow, extremesFileName, extremesOf } from './extremes-model';
+import { groupRows } from './group-rows';
+import { engineCells, topicRow } from './topic-card-test-kit';
+import { buildTopicNodes, topicDescendants } from './topic-nodes';
+import type { TopicSummaryRow } from '@/lib/api/types';
 
-const CODE = 'chatgpt_web';
+/** A group with a mention rate of `k` in 10 answers on ChatGPT, and as many prompts as `prompts`. */
+const group = (id: string, k: number, prompts = 5): TopicSummaryRow =>
+  topicRow(id, id.toUpperCase(), prompts, [engineCells('chatgpt_web', { mentioned: [k, 10], prompts })]);
 
-/** A leaf topic with `k` of `n` valid answers on ChatGPT, weighted over `prompts` prompts. */
-function leaf(name: string, prompts: number, k: number, n: number, over: Partial<TopicNode> = {}): TopicNode {
-  return {
-    key: name,
-    termId: name,
-    name,
-    path: [name],
-    parentKey: null,
-    level: 1,
-    promptCount: prompts,
-    engines: [engine(CODE, { mentioned: weighted(k, n, prompts) })],
-    members: null,
-    lastValidAt: null,
-    children: [],
-    ...over,
-  };
+function rowsOf(topics: TopicSummaryRow[]) {
+  const nodes = buildTopicNodes({
+    topics,
+    prompts: [],
+    tree: [],
+    descendants: topicDescendants(
+      [],
+      topics.flatMap((topic) => (topic.term_id === null ? [] : [topic.term_id])),
+    ),
+    kept: null,
+    noTopicName: '',
+  });
+  return groupRows(nodes, ['chatgpt_web'], 'mention');
 }
 
-const names = (entries: readonly { row: { node: TopicNode } }[]): string[] =>
-  entries.map((entry) => entry.row.node.name);
+const rates = (list: { value: number }[]): number[] => list.map((entry) => Math.round(entry.value * 10));
 
-describe('extremesModel', () => {
-  it('a topic under 4 answers or under 3 prompts is not eligible and is counted', () => {
-    const model = extremesModel(
-      [
-        leaf('Thin answers', 5, 3, 3),
-        leaf('Thin prompts', 2, 8, 10),
-        leaf('No cells', 4, 0, 0, { engines: [] }),
-        leaf('Ranked', 4, 8, 10),
-      ],
-      CODE,
-      'mentioned',
-      5,
-    );
-    expect(names(model.strongest)).toEqual(['Ranked']);
-    expect(model.weakest).toEqual([]);
-    expect(model.notRanked).toBe(3);
+describe('extremesOf', () => {
+  it('needs at least 4 groups with a rate', () => {
+    const result = extremesOf(rowsOf([group('a', 9), group('b', 5), group('c', 2)]));
+    expect(MIN_GROUPS_TO_RANK).toBe(4);
+    expect(result.enough).toBe(false);
+    expect(result.strongest).toEqual([]);
+    expect(result.weakest).toEqual([]);
   });
 
-  it('says whether the engine has a rate or any answer at all, ranked or not', () => {
-    const some = extremesModel([leaf('Few prompts', 2, 8, 10), leaf('Thin', 4, 3, 3)], CODE, 'mentioned', 5);
-    expect(some).toMatchObject({ rated: 1, answered: true, notRanked: 2 });
-    const none = extremesModel([leaf('Silent', 4, 0, 0)], CODE, 'mentioned', 5);
-    expect(none).toMatchObject({ rated: 0, answered: false, notRanked: 1 });
+  it('takes at most half of the groups, so no group is on both sides, strongest high to low and weakest low to high', () => {
+    const result = extremesOf(rowsOf(['a', 'b', 'c', 'd', 'e'].map((id, place) => group(id, 9 - place * 2))));
+    expect(result.enough).toBe(true);
+    expect(rates(result.strongest)).toEqual([9, 7]);
+    expect(rates(result.weakest)).toEqual([1, 3]);
+    const names = [...result.strongest, ...result.weakest].map((entry) => entry.row.node.key);
+    expect(new Set(names).size).toBe(names.length);
   });
 
-  it('the floor is 4 answers and 3 prompts exactly', () => {
-    const model = extremesModel([leaf('Edge', 3, 2, 4)], CODE, 'mentioned', 5);
-    expect(names(model.strongest)).toEqual(['Edge']);
-    expect(model.notRanked).toBe(0);
+  it('shows 3 a side from 6 groups and 5 a side from 12', () => {
+    const six = extremesOf(rowsOf(Array.from({ length: 6 }, (_, place) => group(`g${String(place)}`, place))));
+    expect(six.strongest).toHaveLength(3);
+    const twelve = extremesOf(rowsOf(Array.from({ length: 12 }, (_, place) => group(`g${String(place)}`, place % 10))));
+    expect(twelve.strongest).toHaveLength(5);
+    expect(twelve.weakest).toHaveLength(5);
   });
 
-  it('strongest takes the highest and skips a rate of 0', () => {
-    const model = extremesModel(
-      [leaf('Zero', 4, 0, 10), leaf('Half', 4, 5, 10), leaf('Most', 4, 9, 10)],
-      CODE,
-      'mentioned',
-      5,
-    );
-    expect(names(model.strongest)).toEqual(['Most', 'Half']);
-    // A rate of 0 is a real weakest, only never a strongest
-    expect(names(model.weakest)).toEqual(['Zero']);
-  });
-
-  it('weakest takes the lowest of the rest and never repeats a strongest topic', () => {
+  it('breaks a tie by prompts, then by name, and leaves a group with no rate out of the ranking and last in the table', () => {
     const topics = [
-      leaf('A', 4, 9, 10),
-      leaf('B', 4, 7, 10),
-      leaf('C', 4, 5, 10),
-      leaf('D', 4, 3, 10),
-      leaf('E', 4, 1, 10),
+      group('a', 5, 2),
+      group('b', 5, 9),
+      group('c', 1),
+      group('d', 8),
+      topicRow('z', 'Z', 3, [engineCells('chatgpt_web', { mentioned: [0, 0], prompts: 3 })]),
     ];
-    const split = extremesModel(topics, CODE, 'mentioned', 2);
-    expect(names(split.strongest)).toEqual(['A', 'B']);
-    expect(names(split.weakest)).toEqual(['E', 'D']);
-    // Three topics are asked for in each list but only five exist: the weakest list gets what the strongest left
-    const crowded = extremesModel(topics.slice(0, 3), CODE, 'mentioned', 2);
-    expect(names(crowded.strongest)).toEqual(['A', 'B']);
-    expect(names(crowded.weakest)).toEqual(['C']);
-    const shared = names(crowded.strongest).filter((name) => names(crowded.weakest).includes(name));
-    expect(shared).toEqual([]);
+    const result = extremesOf(rowsOf(topics));
+    expect(result.rated).toBe(4);
+    expect(result.strongest.map((entry) => entry.row.node.name)).toEqual(['D', 'B']);
+    expect(result.all.at(-1)?.node.name).toBe('Z');
   });
 
-  it('a tie goes to the prompts then the name', () => {
-    const model = extremesModel(
-      [leaf('Beta', 4, 5, 10), leaf('Alpha', 4, 5, 10), leaf('Wide', 9, 5, 10)],
-      CODE,
-      'mentioned',
-      5,
-    );
-    expect(names(model.strongest)).toEqual(['Wide', 'Alpha', 'Beta']);
+  it('writes an unknown rate as an empty cell with its state, never 0', () => {
+    const [unknown] = rowsOf([topicRow('z', 'Z', 3, [engineCells('chatgpt_web', { mentioned: [0, 0], prompts: 3 })])]);
+    expect(unknown && extremesExportRow(unknown)).toEqual(['Z', 3, null, 0, 'none']);
+    const [known] = rowsOf([group('a', 6)]);
+    expect(known && extremesExportRow(known)).toEqual(['A', 5, 60, 1, 'ok']);
   });
 
-  it('the no topic row is never ranked', () => {
-    const model = extremesModel(
-      [leaf('Unfiled', 6, 9, 10, { key: NO_TOPIC, termId: null }), leaf('SEO', 4, 5, 10)],
-      CODE,
-      'mentioned',
-      5,
-    );
-    expect(names(model.strongest)).toEqual(['SEO']);
-    expect(model.notRanked).toBe(0);
-  });
-
-  it('parents are not ranked beside their children (leaves only)', () => {
-    const child = leaf('Local SEO', 4, 4, 10, { level: 2, parentKey: 'SEO' });
-    const parent = leaf('SEO', 8, 9, 10, { children: [child] });
-    const model = extremesModel([parent, leaf('Ads', 4, 6, 10)], CODE, 'mentioned', 5);
-    expect(names(model.strongest)).toEqual(['Ads', 'Local SEO']);
-    expect(names(model.weakest)).toEqual([]);
-  });
-
-  it('ranks the metric asked: citation reads the cited cell', () => {
-    const topic = leaf('Cited', 4, 9, 10, {
-      engines: [engine(CODE, { mentioned: weighted(9, 10, 4), cited: weighted(1, 10, 4) })],
-    });
-    const model = extremesModel([topic], CODE, 'cited', 5);
-    expect(model.strongest[0]?.value.value).toBeCloseTo(0.1);
+  it('names the file by the measure', () => {
+    expect(extremesFileName('visibility')).toBe('strongest-weakest-groups-visibility');
   });
 });

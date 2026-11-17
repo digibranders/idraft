@@ -37,7 +37,7 @@ afterEach(() => {
 });
 
 const SUMMARY_PATH = mswPath('/api/v1/workspaces/:w/projects/:p/ai/prompts-summary');
-const TITLE = 'Named by one engine, not another';
+const TITLE = 'Mentioned by one platform, not another';
 
 const TERMS: TermSpec[] = [
   { id: 't1', name: 'SEO tools', parent: null },
@@ -117,7 +117,8 @@ const frameOf = async (): Promise<HTMLElement> => {
   if (section === null) throw new Error('The card has no frame');
   return section;
 };
-const tableOf = (): Promise<HTMLElement> => screen.findByRole('table', { name: /^Prompts one engine names/ });
+const tableOf = (): Promise<HTMLElement> =>
+  screen.findByRole('table', { name: /^Prompts where one platform mentions you/ });
 const rowsOf = async (): Promise<HTMLElement[]> =>
   within(await tableOf())
     .getAllByRole('row')
@@ -133,7 +134,7 @@ const failing = (): ReturnType<typeof HttpResponse.json> =>
   );
 
 describe('EngineDisagreementCard', () => {
-  it('lists the topic, the pair words and the prompt count', async () => {
+  it('lists the group, the pair words and the prompt count', async () => {
     render();
     expect((await rowsOf()).map(cellsOf)).toEqual([
       ['SEO tools', 'ChatGPT yes, Gemini no', '4 prompts of 6'],
@@ -142,13 +143,13 @@ describe('EngineDisagreementCard', () => {
     ]);
   });
 
-  it('a topic links to the drawer', async () => {
+  it('a group links to the drawer', async () => {
     render();
     const link = within((await rowsOf())[0] as HTMLElement).getByRole('link', { name: 'SEO tools' });
     expect(new URL(link.getAttribute('href') ?? '', 'http://localhost').searchParams.get('inspect')).toBe('topic:t1');
   });
 
-  it('needs two engines', async () => {
+  it('needs two platforms', async () => {
     const updates: string[] = [];
     server.use(summaryHandler(SUMMARY), ...vocabularyHandlers(TERMS));
     function Card(props: CardProps): ReactElement {
@@ -163,10 +164,10 @@ describe('EngineDisagreementCard', () => {
         },
       },
     );
-    const title = await screen.findByRole('heading', { name: 'Needs two engines' });
+    const title = await screen.findByRole('heading', { name: 'Needs two platforms' });
     const box = within(title.closest('[data-slot="empty-state"]') as HTMLElement);
     expect([...box.queryAllByRole('button'), ...box.queryAllByRole('link')]).toHaveLength(1);
-    await user.click(box.getByRole('button', { name: 'Use all engines' }));
+    await user.click(box.getByRole('button', { name: 'Use all platforms' }));
     await waitFor(() => {
       expect(updates.length).toBeGreaterThan(0);
     });
@@ -181,21 +182,21 @@ describe('EngineDisagreementCard', () => {
       }),
     });
     const title = await screen.findByRole('heading', {
-      name: 'No prompt is named by one engine and missed by another',
+      name: 'No prompt where one platform mentions you and another does not',
     });
     const box = within(title.closest('[data-slot="empty-state"]') as HTMLElement);
     expect(
-      box.getByText(/among prompts with at least 4 valid answers on the engine that misses you/),
+      box.getByText(/among prompts with at least 4 valid answers on the platform that misses you/),
     ).toBeInTheDocument();
-    expect(box.getByRole('link', { name: 'Open Topics and prompts' })).toBeInTheDocument();
+    expect(box.getByRole('link', { name: 'Open Prompts' })).toBeInTheDocument();
   });
 
-  it('no topics is an empty state with Open Topics and prompts', async () => {
+  it('no groups is an empty state with Open Prompts', async () => {
     render({ summary: summaryOf({ topics: [], prompts: [], engineCodes: ['chatgpt_web', 'gemini_web'] }) });
-    expect(await screen.findByRole('heading', { name: 'No topics yet' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'No groups yet' })).toBeInTheDocument();
   });
 
-  it('no valid answers names the engines and the days', async () => {
+  it('no valid answers names the platforms and the days', async () => {
     render({
       summary: summaryOf({
         topics: [topicOf('t1', 'SEO tools', 1)],
@@ -218,19 +219,19 @@ describe('EngineDisagreementCard', () => {
     await tableOf();
     expect(
       within(frame).getByText(
-        /1 prompt is left out because an engine has fewer than 4 valid answers to say it misses you/,
+        /1 prompt is left out because a platform has fewer than 4 valid answers to say it misses you/,
       ),
     ).toBeInTheDocument();
-    expect(within(frame).getByText(/names you in at least one answer/)).toBeInTheDocument();
+    expect(within(frame).getByText(/mentions you in at least one answer/)).toBeInTheDocument();
   });
 
   it('the overlap footnote', async () => {
     render();
     const frame = await frameOf();
     await tableOf();
-    expect(within(frame).getByText(/Topics overlap/)).toBeInTheDocument();
+    expect(within(frame).getByText(/Groups overlap/)).toBeInTheDocument();
     await waitFor(() => {
-      expect(within(frame).getByText(/1 prompt is in more than one topic/)).toBeInTheDocument();
+      expect(within(frame).getByText(/1 prompt is in more than one group/)).toBeInTheDocument();
     });
   });
 
@@ -238,12 +239,12 @@ describe('EngineDisagreementCard', () => {
     const { user } = render();
     await tableOf();
     await user.click(screen.getByRole('button', { name: 'Table' }));
-    const grid = await screen.findByRole('table', { name: /^Prompts one engine names/ });
+    const grid = await screen.findByRole('table', { name: /^Prompts where one platform mentions you/ });
     expect(
       within(grid)
         .getAllByRole('columnheader')
         .map((cell) => cell.textContent),
-    ).toEqual(['Topic', 'Engines', 'Prompts', 'Examples']);
+    ).toEqual(['Group', 'Platforms', 'Prompts', 'Examples']);
     const first = within(within(grid).getAllByRole('row')[1] as HTMLElement);
     // Four prompts disagree on SEO tools; the examples are the first three, in the order the prompts come
     expect(first.getAllByRole('listitem').map((item) => item.textContent)).toEqual([
@@ -259,7 +260,7 @@ describe('EngineDisagreementCard', () => {
     expect(await axe(container)).toHaveNoViolations();
   });
 
-  it('keyboard: the topics are links and Tab visits them in order', async () => {
+  it('keyboard: the groups are links and Tab visits them in order', async () => {
     const { user } = render();
     const links = within(await tableOf()).getAllByRole('link');
     for (let press = 0; press < 12 && document.activeElement !== links[0]; press += 1) await user.tab();
@@ -329,10 +330,10 @@ describe('EngineDisagreementCard states', () => {
     expect(await rowsOf()).toHaveLength(3);
   });
 
-  it('partial names an engine that has no valid answer on any prompt', async () => {
+  it('partial names a platform that has no valid answer on any prompt', async () => {
     render({ searchParams: '', threeEngines: true });
     await tableOf();
-    expect(screen.getByText('Partial data: AI Mode has no valid answer in this window')).toBeInTheDocument();
+    expect(screen.getByText('Partial data: Google AI Mode has no valid answer in this period')).toBeInTheDocument();
   });
 
   it('holds the card as loading while the vocabulary tree is pending, then shows the rows', async () => {
@@ -367,7 +368,7 @@ describe('EngineDisagreementCard states', () => {
 });
 
 describe('EngineDisagreementCard export block', () => {
-  it('registers a block under the item id with the engine codes and the counts', async () => {
+  it('registers a block under the item id with the platform codes and the counts', async () => {
     let reader: () => ExportRead = () => ({ blocks: [], loading: 0 });
     function Reader(): null {
       reader = useExportBlocks();

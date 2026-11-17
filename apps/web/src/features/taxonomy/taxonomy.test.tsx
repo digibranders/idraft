@@ -36,7 +36,7 @@ function screenAs(role: Role, projectIds: readonly string[] | null = null): Reac
   );
 }
 
-const tree = (): Promise<HTMLElement> => screen.findByRole('tree', { name: 'Terms of Topics' });
+const tree = (): Promise<HTMLElement> => screen.findByRole('tree', { name: 'Tags of Topics' });
 const term = (name: string): HTMLElement => screen.getByRole('treeitem', { name });
 
 describe('Taxonomy', () => {
@@ -44,7 +44,7 @@ describe('Taxonomy', () => {
     const { container } = renderWithProviders(screenAs('editor'));
     await tree();
     expect(term('SEO')).toHaveAttribute('aria-expanded', 'false');
-    expect(screen.getByText('Topics, 6 terms, shared by every project')).toBeInTheDocument();
+    expect(screen.getByText('Groups, 6 terms, shared by every project')).toBeInTheDocument();
     expect(await axe(container)).toHaveNoViolations();
   });
 
@@ -53,9 +53,9 @@ describe('Taxonomy', () => {
     await tree();
     await user.click(term('SEO'));
     await user.click(screen.getByRole('button', { name: 'Add under SEO' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Add a term under SEO' });
+    const dialog = await screen.findByRole('dialog', { name: 'Add a tag under SEO' });
     await user.type(within(dialog).getByRole('textbox', { name: 'Name' }), 'Enterprise SEO');
-    await user.click(within(dialog).getByRole('button', { name: 'Add term' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Add tag' }));
     expect(await screen.findByRole('treeitem', { name: 'Enterprise SEO' })).toHaveAttribute('aria-selected', 'true');
     expect(term('SEO')).toHaveAttribute('aria-expanded', 'true');
   });
@@ -80,31 +80,31 @@ describe('Taxonomy', () => {
     await tree();
     await user.click(term('Content Marketing'));
     await user.click(screen.getByRole('button', { name: 'Delete' }));
-    const confirm = await screen.findByRole('alertdialog', { name: 'Delete the term Content Marketing?' });
-    expect(within(confirm).getByText(/The 1 term under it goes too/)).toBeInTheDocument();
-    await user.click(within(confirm).getByRole('button', { name: 'Delete with its terms' }));
+    const confirm = await screen.findByRole('alertdialog', { name: 'Delete the tag Content Marketing?' });
+    expect(within(confirm).getByText(/The 1 tag under it goes too/)).toBeInTheDocument();
+    await user.click(within(confirm).getByRole('button', { name: 'Delete with its tags' }));
     await waitFor(() => expect(screen.queryByRole('treeitem', { name: 'Content Marketing' })).toBeNull());
   });
 
   it('creates a vocabulary for this project and opens it', async () => {
     const { user } = renderWithProviders(screenAs('editor'));
     await tree();
-    await user.click(screen.getByRole('button', { name: 'New vocabulary' }));
-    const dialog = await screen.findByRole('dialog', { name: 'New vocabulary' });
+    await user.click(screen.getByRole('button', { name: 'New tag set' }));
+    const dialog = await screen.findByRole('dialog', { name: 'New tag set' });
     await user.type(within(dialog).getByRole('textbox', { name: 'Name' }), 'Markets');
-    await user.click(within(dialog).getByRole('button', { name: 'Create vocabulary' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Create tag set' }));
     await waitFor(() => expect(dialog).not.toBeInTheDocument());
-    expect(await screen.findByText('No terms yet. Add one, or paste a list.')).toBeInTheDocument();
+    expect(await screen.findByText('No tags yet. Add one, or paste a list.')).toBeInTheDocument();
   });
 
   it('pastes a list of paths, creating missing parents', async () => {
     const { user } = renderWithProviders(screenAs('editor'));
     await tree();
     await user.click(screen.getByRole('button', { name: 'Paste a list' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Paste a list of terms' });
-    await user.click(within(dialog).getByRole('textbox', { name: 'Terms' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Paste a list of tags' });
+    await user.click(within(dialog).getByRole('textbox', { name: 'Tags' }));
     await user.paste('Analytics\nAnalytics/Attribution');
-    await user.click(within(dialog).getByRole('button', { name: 'Add terms' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Add tags' }));
     await waitFor(() => expect(dialog).not.toBeInTheDocument());
     expect(await screen.findByRole('treeitem', { name: 'Analytics' })).toHaveAttribute('aria-expanded', 'false');
   });
@@ -126,7 +126,7 @@ describe('Taxonomy', () => {
     await user.click(await screen.findByRole('option', { name: 'SEO' }));
     await user.click(within(dialog).getByRole('button', { name: 'Move' }));
     expect(
-      await within(dialog).findByText('A term is at most 10 levels from the top. Choose a place higher up.'),
+      await within(dialog).findByText('A tag is at most 10 levels from the top. Choose a place higher up.'),
     ).toBeInTheDocument();
   });
 
@@ -142,11 +142,11 @@ describe('Taxonomy', () => {
     await tree();
     await user.click(term('SEO'));
     await user.click(screen.getByRole('button', { name: 'Add under SEO' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Add a term under SEO' });
+    const dialog = await screen.findByRole('dialog', { name: 'Add a tag under SEO' });
     await user.type(within(dialog).getByRole('textbox', { name: 'Name' }), 'Enterprise SEO');
-    await user.click(within(dialog).getByRole('button', { name: 'Add term' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Add tag' }));
     expect(
-      await within(dialog).findByText('The term to place it under no longer exists. Choose another place.'),
+      await within(dialog).findByText('The tag to place it under no longer exists. Choose another place.'),
     ).toBeInTheDocument();
   });
 
@@ -154,38 +154,38 @@ describe('Taxonomy', () => {
     const { user } = renderWithProviders(screenAs('editor'));
     await tree();
     await user.click(screen.getByRole('button', { name: 'Paste a list' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Paste a list of terms' });
-    const field = within(dialog).getByRole('textbox', { name: 'Terms' });
+    const dialog = await screen.findByRole('dialog', { name: 'Paste a list of tags' });
+    const field = within(dialog).getByRole('textbox', { name: 'Tags' });
     await user.click(field);
     await user.paste(Array.from({ length: 11 }, (_, index) => `L${String(index + 1)}`).join('/'));
-    await user.click(within(dialog).getByRole('button', { name: 'Add terms' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Add tags' }));
     expect(
       await within(dialog).findByText('A line has more than 10 levels. Shorten it and try again.'),
     ).toBeInTheDocument();
     await user.clear(field);
     await user.paste(`SEO/${'A'.repeat(201)}`);
-    await user.click(within(dialog).getByRole('button', { name: 'Add terms' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Add tags' }));
     expect(
-      await within(dialog).findByText('A term name has at most 200 characters. Shorten the longer ones and try again.'),
+      await within(dialog).findByText('A tag name has at most 200 characters. Shorten the longer ones and try again.'),
     ).toBeInTheDocument();
     await user.clear(field);
     await user.paste('SEO\nSEO / Local SEO');
-    await user.click(within(dialog).getByRole('button', { name: 'Add terms' }));
-    expect(await screen.findByText('These terms are all there already, so none was added.')).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Add tags' }));
+    expect(await screen.findByText('These tags are all there already, so none was added.')).toBeInTheDocument();
   });
 
   it('lets a member limited to some projects change only their projects’ vocabularies', async () => {
     const { user } = renderWithProviders(screenAs('editor', [fynix.project_id]));
     await tree();
-    expect(screen.getByText(/^This vocabulary is shared by every project/)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Add term' })).toBeNull();
+    expect(screen.getByText(/^This tag set is shared by every project/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Add tag' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Actions for Topics' })).toBeNull();
-    await user.click(screen.getByRole('combobox', { name: 'Vocabulary' }));
+    await user.click(screen.getByRole('combobox', { name: 'Tag set' }));
     await user.click(await screen.findByRole('option', { name: 'Services' }));
-    expect(await screen.findByRole('button', { name: 'Add term' })).toBeInTheDocument();
-    expect(screen.queryByText(/^This vocabulary is shared by every project/)).toBeNull();
-    await user.click(screen.getByRole('button', { name: 'New vocabulary' }));
-    const dialog = await screen.findByRole('dialog', { name: 'New vocabulary' });
+    expect(await screen.findByRole('button', { name: 'Add tag' })).toBeInTheDocument();
+    expect(screen.queryByText(/^This tag set is shared by every project/)).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'New tag set' }));
+    const dialog = await screen.findByRole('dialog', { name: 'New tag set' });
     expect(within(dialog).getByRole('radio', { name: /^The whole workspace/ })).toHaveAttribute(
       'aria-disabled',
       'true',
@@ -195,8 +195,8 @@ describe('Taxonomy', () => {
   it('is read-only without taxonomy:write', async () => {
     renderWithProviders(screenAs('analyst'));
     await tree();
-    expect(screen.getByText('Owners, admins and editors can change the taxonomy.')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Add term' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'New vocabulary' })).toBeNull();
+    expect(screen.getByText('Owners, admins and editors can change the tags.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Add tag' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'New tag set' })).toBeNull();
   });
 });

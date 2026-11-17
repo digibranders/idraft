@@ -27,10 +27,10 @@ const THIRD_PARTIES = ['searchenginejournal.com', 'example.com', 'agency-radar.e
 const STRIP_FIGURES = [
   'Citation units',
   'Distinct domains',
-  'Effective sources',
-  'Own citation share',
-  'New sources',
-  'Lost sources',
+  'Effective domains',
+  'Your citation share',
+  'New domains',
+  'Lost domains',
 ];
 
 const domainRow = (page: Page, domain: string): Locator =>
@@ -60,7 +60,10 @@ test.describe('The Citations page', () => {
     for (const figure of STRIP_FIGURES) await expect(strip.getByRole('term').filter({ hasText: figure })).toBeVisible();
     const units = formatInteger(await scopeUnits(page));
     await expect(stripValue(page, 'Citation units')).toContainText(units);
-    await expect(stripValue(page, 'Own citation share')).toContainText(new RegExp(`\\d+ of ${units} units`));
+    // The counts behind the share are the tooltip text, which the value is described by
+    await expect(stripValue(page, 'Your citation share')).toHaveAccessibleDescription(
+      new RegExp(`\\d+ of ${units} citation units`),
+    );
 
     // The Domains table: the columns of DS 9.7, each domain with its role
     const table = domainsTable(page);
@@ -70,7 +73,7 @@ test.describe('The Citations page', () => {
     }
     await expect(table.getByRole('columnheader', { name: 'ChatGPT ChatGPT column options' })).toBeVisible();
     await expect(table.getByRole('columnheader', { name: 'Gemini Gemini column options' })).toBeVisible();
-    await expect(domainRow(page, OWN)).toContainText('Own');
+    await expect(domainRow(page, OWN)).toContainText('Your site');
     await expect(domainRow(page, COMPETITOR)).toContainText('Competitor');
     for (const domain of THIRD_PARTIES) await expect(domainRow(page, domain)).toContainText('Third party');
     await expect(page.getByText(/^\d+ domains?$/).first()).toBeVisible();
@@ -115,13 +118,13 @@ test.describe('The Citations page', () => {
     ).toContainText('Brightwave Digital');
 
     // The card above the table: the prompts whose answers cite no page of the project, each with the domains cited instead
-    await expect(page.getByRole('region', { name: 'Prompts with no own page cited' })).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Prompts with none of your pages cited' })).toBeVisible();
   });
 
-  test('a Role filter narrows the rows and leaves the Own citation share', async ({ page }) => {
+  test('a Role filter narrows the rows and leaves the Your citation share', async ({ page }) => {
     await openCitations(page, 1280);
     await expect(domainsTable(page).getByRole('rowheader')).toHaveCount(1 + 1 + THIRD_PARTIES.length);
-    const share = await textOf(stripValue(page, 'Own citation share'));
+    const share = await textOf(stripValue(page, 'Your citation share'));
     const units = await textOf(stripValue(page, 'Citation units'));
 
     await page.getByRole('button', { name: 'Add a filter' }).click();
@@ -136,7 +139,7 @@ test.describe('The Citations page', () => {
     await expect(domainRow(page, OWN)).toHaveCount(0);
     await expect(domainRow(page, COMPETITOR)).toHaveCount(0);
     // The strip is of the whole scope: the role filter never narrows it
-    await expect(stripValue(page, 'Own citation share')).toHaveText(share);
+    await expect(stripValue(page, 'Your citation share')).toHaveText(share);
     await expect(stripValue(page, 'Citation units')).toHaveText(units);
   });
 
@@ -144,7 +147,7 @@ test.describe('The Citations page', () => {
     await openCitations(page, 1280);
     await expect(stripValue(page, 'Citation units')).toContainText(/\d+/);
     const units = await textOf(stripValue(page, 'Citation units'));
-    const share = await textOf(stripValue(page, 'Own citation share'));
+    const share = await textOf(stripValue(page, 'Your citation share'));
 
     await page.goto(`${FYNIX_CITATIONS}?min=1000`);
     // No row reaches 1,000 units, so the table has none to draw and says why
@@ -156,7 +159,7 @@ test.describe('The Citations page', () => {
     await expect(domainsTable(page).getByRole('rowheader')).toHaveCount(0);
     // The strip does not change with the minimum, which only sets what counts as a New source
     await expect(stripValue(page, 'Citation units')).toHaveText(units);
-    await expect(stripValue(page, 'Own citation share')).toHaveText(share);
+    await expect(stripValue(page, 'Your citation share')).toHaveText(share);
 
     await page.getByRole('button', { name: 'Clear filters' }).click();
     await expect(page).not.toHaveURL(/[?&]min=/);
@@ -183,7 +186,7 @@ test.describe('The Citations page', () => {
       'Domain',
       'Role',
       'Citation units',
-      'Source share (%)',
+      'Citation share (%)',
       'Total citation units in scope',
       'Answers',
       'Prompts',
@@ -230,73 +233,73 @@ test.describe('The Citations page', () => {
 });
 
 test.describe('The Citations tab of the prompt inspector', () => {
-  test('shows the banner, Top domains with roles, Top pages and the answers, and says Source N of M', async ({
+  test('shows the banner, Top domains with roles, Top pages and the answers, and says Citation N of M', async ({
     page,
   }) => {
     const inspector = await openInspectorCitations(page, 1280);
 
     // The banner says what is so and judges nothing
     await expect(
-      inspector.getByText(/^Cited in \d+ of \d+ answers?; last answer .+; \d+ own pages? cited$/),
+      inspector.getByText(/^Cited in \d+ of \d+ answers?; last answer .+; \d+ pages? of yours cited$/),
     ).toBeVisible();
 
     const domains = inspector.getByRole('table', { name: 'Most cited domains for this prompt' });
     await expect(
       domains.getByRole('row', { name: new RegExp(`^${COMPETITOR.replaceAll('.', '\\.')} Competitor `) }),
     ).toBeVisible();
-    await expect(domains.getByRole('row', { name: new RegExp(`^${OWN.replaceAll('.', '\\.')} Own `) })).toBeVisible();
-    // Every share names the units it is a share of
-    await expect(domains.getByRole('row', { name: /of \d+ units?/ }).first()).toBeVisible();
+    await expect(
+      domains.getByRole('row', { name: new RegExp(`^${OWN.replaceAll('.', '\\.')} Your site `) }),
+    ).toBeVisible();
+    // Every count names the valid answers it is a count of, and no row counts citation units
+    await expect(domains.getByRole('row', { name: /\d+ of \d+ answers?/ }).first()).toBeVisible();
 
     const pages = inspector.getByRole('table', { name: 'Most cited pages for this prompt' });
     await expect(pages.getByRole('link', { name: /^Open fynix\.digital\/seo-audit in a new tab$/ })).toBeVisible();
 
     // The answers: where the own page stood among the sources of the answer, never as a rank
-    const answers = inspector.getByRole('table', { name: 'Own page cited in each answer' });
+    const answers = inspector.getByRole('table', { name: 'Your page cited in each answer' });
     await expect(answers.getByRole('button', { name: /^Open the (ChatGPT|Gemini) answer of / }).first()).toBeVisible();
-    await expect(answers.getByText(/^Source \d+ of \d+$/).first()).toBeVisible();
+    await expect(answers.getByText(/^Citation \d+ of \d+$/).first()).toBeVisible();
     await expect(answers.getByText('Not cited').first()).toBeVisible();
     await expect(inspector.getByRole('tabpanel', { name: 'Citations' })).not.toContainText(/rank/i);
   });
 
-  test('the engine select splits the lists by engine and never writes rank', async ({ page }) => {
+  test('the platform select splits the lists by platform and never writes rank', async ({ page }) => {
     const inspector = await openInspectorCitations(page, 1280);
     const panel = inspector.getByRole('tabpanel', { name: 'Citations' });
     const domains = inspector.getByRole('table', { name: 'Most cited domains for this prompt' });
 
-    // All engines: one column of units for each engine, never one pooled figure, and they add up to the Units
-    await expect(inspector.getByRole('radio', { name: 'All engines' })).toBeChecked();
-    await expect(domains.getByRole('columnheader')).toHaveText(['Domain', 'Units', /^ChatGPT/, /^Gemini/]);
-    const first = domains.getByRole('row').nth(1);
-    const [unitsCell = '', chatgpt = '', gemini = ''] = await first.getByRole('cell').allInnerTexts();
-    expect(Number(/^\d+/.exec(unitsCell)?.[0])).toBe(Number(chatgpt) + Number(gemini));
+    // All platforms: the answers that cite a domain, counted once over all of them, with no rate and no column per platform
+    await expect(inspector.getByRole('radio', { name: 'All platforms' })).toBeChecked();
+    await expect(domains.getByRole('columnheader')).toHaveText(['Domain', 'Citations']);
+    await expect(domains.getByRole('row').nth(1)).not.toContainText('%');
     await expect(panel).not.toContainText(/rank/i);
-    const allUnits = await scopeUnits(inspector);
+    await expect(inspector.getByText(/^Counted in \d+ valid answers?, over all platforms\./)).toBeVisible();
 
-    // One engine: its own lists, read over its own answers, and the page says which engine is read
+    // One platform: its own lists, read over its own answers, and the page says which platform is read
     await inspector.getByRole('radio', { name: 'ChatGPT' }).click();
     await expect(inspector.getByRole('radio', { name: 'ChatGPT' })).toBeChecked();
     await expect(
-      inspector.getByText('Only ChatGPT is read. The last answer date above covers all engines.'),
+      inspector.getByText('Only ChatGPT is read. The last answer date above covers all platforms.'),
     ).toBeVisible();
-    await expect(domains.getByRole('columnheader')).toHaveText(['Domain', 'Units']);
-    await expect.poll(() => scopeUnits(inspector)).toBeLessThan(allUnits);
+    await expect(domains.getByRole('columnheader')).toHaveText(['Domain', 'Citations']);
+    await expect(inspector.getByText(/^Counted in \d+ valid answers?\. A domain or page counts once/)).toBeVisible();
     await expect(panel).not.toContainText(/rank/i);
 
     await inspector.getByRole('radio', { name: 'Gemini' }).click();
     await expect(
-      inspector.getByText('Only Gemini is read. The last answer date above covers all engines.'),
+      inspector.getByText('Only Gemini is read. The last answer date above covers all platforms.'),
     ).toBeVisible();
     await expect(panel).not.toContainText(/rank/i);
 
-    await inspector.getByRole('radio', { name: 'All engines' }).click();
-    await expect(domains.getByRole('columnheader')).toHaveText(['Domain', 'Units', /^ChatGPT/, /^Gemini/]);
-    await expect.poll(() => scopeUnits(inspector)).toBe(allUnits);
+    await inspector.getByRole('radio', { name: 'All platforms' }).click();
+    await expect(domains.getByRole('columnheader')).toHaveText(['Domain', 'Citations']);
+    await expect(inspector.getByText(/^Counted in \d+ valid answers?, over all platforms\./)).toBeVisible();
   });
 
   test('the count of other domains opens a list of at most 5 domains', async ({ page }) => {
     const inspector = await openInspectorCitations(page, 1280);
-    const answers = inspector.getByRole('table', { name: 'Own page cited in each answer' });
+    const answers = inspector.getByRole('table', { name: 'Your page cited in each answer' });
     const trigger = answers.getByRole('button', { name: /^\d+ domains? cited in this answer, show them$/ }).first();
     await trigger.click();
     const list = page.getByRole('dialog', { name: /^(Cited instead|Also cited)$/ });

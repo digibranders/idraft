@@ -4,6 +4,7 @@ import type { ReactElement } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { InspectorLatest } from './inspector-latest';
+import type { ObservationFactsWithExtra } from '@/lib/api/prompt-facts';
 import type { CitationOut, ObservationDetail, ObservationSummary, ProjectEngine } from '@/lib/api/types';
 import { MOCK_PROJECTS, MOCK_WORKSPACE, mockUser } from '@/mocks/fixtures';
 import { ENGINE_FACTS } from '@/mocks/prompt-fixtures';
@@ -121,7 +122,7 @@ function renderLatest(): ProvidedRender {
   return renderWithProviders(ui);
 }
 
-const sourcesList = (): Promise<HTMLElement> => screen.findByRole('list', { name: 'Top sources of this answer' });
+const sourcesList = (): Promise<HTMLElement> => screen.findByRole('list', { name: 'Top cited domains of this answer' });
 const chipTexts = (list: HTMLElement): (string | null)[] =>
   within(list)
     .getAllByRole('listitem')
@@ -168,7 +169,7 @@ describe('the cited sources of a Latest card', () => {
     serveCitations([]);
     renderLatest();
     expect(await screen.findByText('gpt-5')).toBeInTheDocument();
-    expect(screen.queryByRole('list', { name: 'Top sources of this answer' })).toBeNull();
+    expect(screen.queryByRole('list', { name: 'Top cited domains of this answer' })).toBeNull();
   });
 
   it('draws the chips in the neutral chip style, with no role colour', async () => {
@@ -222,5 +223,58 @@ describe('the hashes of a Latest card', () => {
     expect(await screen.findByText('gpt-5')).toBeInTheDocument();
     expect(screen.queryByText('Answer SHA-256')).toBeNull();
     expect(screen.queryByText('Raw SHA-256')).toBeNull();
+  });
+});
+
+describe('the facts of a Latest card', () => {
+  const withFacts = (extra: Partial<ObservationFactsWithExtra>): ObservationFactsWithExtra => ({
+    ...(ROW.facts as ObservationFactsWithExtra),
+    ...extra,
+  });
+
+  it('says Mentioned and Cited as Yes or No, with the platform name, the replicate and the Valid badge', async () => {
+    serveCitations([], { facts: withFacts({ own_mentioned: true, own_domain_cited: false }) });
+    renderLatest();
+    const card = (await screen.findByRole('heading', { name: 'ChatGPT' })).closest('section') as HTMLElement;
+    expect(await within(card).findByText('replicate 1')).toBeInTheDocument();
+    expect(within(card).getByText('Valid')).toBeInTheDocument();
+    const facts = within(card).getByLabelText('Facts of this answer');
+    expect(facts).toHaveTextContent('Mentioned Yes');
+    expect(facts).toHaveTextContent('Cited No');
+  });
+
+  it('says "Not collected yet" for a recommendation the backend has not built, never "No"', async () => {
+    serveCitations([]);
+    renderLatest();
+    const facts = await screen.findByLabelText('Facts of this answer');
+    expect(facts).toHaveTextContent('Recommended Not collected yet');
+    expect(facts).not.toHaveTextContent(/Recommended No(?!t)/);
+    expect(facts).not.toHaveTextContent(/Rank/);
+  });
+
+  it('says Yes or No for a recommendation the facts carry, and n/a for a platform that is not classified', async () => {
+    serveCitations([], { facts: withFacts({ recommended: true }) });
+    const first = renderLatest();
+    expect(await screen.findByLabelText('Facts of this answer')).toHaveTextContent('Recommended Yes');
+    first.unmount();
+    serveCitations([], { facts: withFacts({ recommended: null }) });
+    renderLatest();
+    expect(await screen.findByLabelText('Facts of this answer')).toHaveTextContent('Recommended n/a');
+  });
+
+  it('says Rank with its place of the list for an answer that is a list, and instead of the recommendation', async () => {
+    serveCitations([], { facts: withFacts({ recommended: true, list_rank: { place: 2, listed: 3 } }) });
+    renderLatest();
+    const facts = await screen.findByLabelText('Facts of this answer');
+    expect(facts).toHaveTextContent('Rank 2 of 3');
+    expect(facts).not.toHaveTextContent('Recommended');
+  });
+
+  it('says "Not collected yet" for the rank of a list answer whose place the backend does not send', async () => {
+    serveCitations([], { facts: withFacts({ had_structured_list: true, own_mention_order: 2 }) });
+    renderLatest();
+    const facts = await screen.findByLabelText('Facts of this answer');
+    expect(facts).toHaveTextContent('Rank Not collected yet');
+    expect(facts).not.toHaveTextContent(/Rank \d/);
   });
 });

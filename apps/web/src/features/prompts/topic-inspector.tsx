@@ -13,14 +13,16 @@ import {
   topicSummaryRow,
   type TopicDescendants,
 } from './prompt-model';
-import { ChangeInline, useChangeWords, useComparedWindow, useCompare } from './compare';
+import { useChangeWords, useComparedWindow, useCompare } from './compare';
 import { averageChange, type AverageChange } from './compare/average-change';
 import { TippedChange } from './compare/tipped-change';
 import { chosenTab } from './seams/shared';
 import { TOPIC_TAB_ENTRIES, topicTabs, type TopicInspectorTab, type TopicTabContext } from './seams/topic-tabs';
+import { TrendIcon } from './trend-icon';
 import { TopicDrawerProvider, type TopicDrawerExtras } from './topic-drawer/drawer-context';
 import { EngineFilteredPrompts } from './topic-drawer/engine-filter';
 import { TopicEngineSections } from './topic-drawer/engine-sections';
+import { TopPromptsTable } from './topic-drawer/top-prompts-table';
 import { PromptRow } from './topic-drawer/prompt-row';
 import { useTopicHeader } from './topic-drawer/use-topic-header';
 import { Inspector } from '@/components/app/inspector/inspector';
@@ -109,7 +111,7 @@ function PromptList({
             change={
               mention.change === null ? undefined : (
                 <TippedChange tip={mention.tip}>
-                  <ChangeInline change={mention.change} size="sm" />
+                  <TrendIcon change={mention.change} />
                 </TippedChange>
               )
             }
@@ -174,6 +176,7 @@ function TopicInspectorBody({
   onClose,
 }: Omit<TopicInspectorProps, 'extras'>): ReactElement {
   const t = useTranslations('prompts.topicDrawer');
+  const groupScope = useTranslations('prompts.groupOutOfScope');
   const root = useTranslations();
   const words = useTranslations('prompts');
   const common = useTranslations('common');
@@ -184,7 +187,12 @@ function TopicInspectorBody({
   const range = compared === null ? null : formatDateRange(compared.from, compared.to);
   const row = topicSummaryRow(summary, topicKey);
   const name = topicKey === NO_TOPIC ? words('columns.noTopic') : (row?.name ?? treeName ?? '');
-  const prompts = topicPrompts(summary, topicKey, descendants, engines[0]?.engine.engine_code);
+  const prompts = topicPrompts(
+    summary,
+    topicKey,
+    descendants,
+    engines.map((engine) => engine.engine.engine_code),
+  );
   const header = useTopicHeader({ topicKey, row, prompts });
   const missing = counts.status === 'ready' && row === undefined;
   const sectionStatus = (ready: InspectorSectionStatus = 'ready'): InspectorSectionStatus =>
@@ -240,7 +248,7 @@ function TopicInspectorBody({
             <span className="num type-meta text-foreground-tertiary">
               {t('acrossEngines', { count: average.engines })}
             </span>
-            <ChangeInline change={change.change} size="sm" />
+            <TrendIcon change={change.change} />
           </TippedChange>
         ),
     };
@@ -250,12 +258,22 @@ function TopicInspectorBody({
   if (missing) {
     body = (
       <InspectorBody>
-        <EmptyState
-          variant="inline"
-          title={t('loadFailed')}
-          reason={inspectorWords('notFound', { type: t('noun') })}
-          headingLevel={3}
-        />
+        {/* A group the project holds but the scope has no prompt of is not a group that does not exist */}
+        {treeName === null ? (
+          <EmptyState
+            variant="inline"
+            title={t('loadFailed')}
+            reason={inspectorWords('notFound', { type: t('noun') })}
+            headingLevel={3}
+          />
+        ) : (
+          <EmptyState
+            variant="inline"
+            title={groupScope('noneTitle')}
+            reason={groupScope('noneReason')}
+            headingLevel={3}
+          />
+        )}
       </InspectorBody>
     );
   } else {
@@ -272,15 +290,15 @@ function TopicInspectorBody({
           error={failed}
           empty={noPrompts}
           action={
-            prompts !== null && prompts.length > TOPIC_TOP_PROMPTS ? (
-              <Button variant="link" size="sm" onClick={() => onTabChange(TOPIC_TAB.prompts)}>
-                {words('topics.showAll', { count: prompts.length })}
+            prompts !== null && prompts.length > 0 ? (
+              <Button variant="secondary" size="sm" onClick={() => onTabChange(TOPIC_TAB.prompts)}>
+                {t('topPromptsTable.viewAll')}
               </Button>
             ) : undefined
           }
         >
           {prompts === null ? null : (
-            <PromptList prompts={prompts.slice(0, TOPIC_TOP_PROMPTS)} engines={engines} onOpen={onOpenPrompt} />
+            <TopPromptsTable prompts={prompts.slice(0, TOPIC_TOP_PROMPTS)} engines={engines} onOpen={onOpenPrompt} />
           )}
         </InspectorSection>
       </>
@@ -305,7 +323,15 @@ function TopicInspectorBody({
     const context: TopicTabContext = { topicKey, summary, counts, engines, descendants, onOpenPrompt };
     const builtInTabs: TopicInspectorTab[] = [
       { id: 'overview', label: (translate) => translate('prompts.topicDrawer.tabOverview'), render: () => overview },
-      { id: 'prompts', label: (translate) => translate('prompts.topicDrawer.tabPrompts'), render: () => promptsPanel },
+      {
+        id: 'prompts',
+        // The tab says how many prompts it lists once they are known (PR-DRAWER-11: "Prompts (24)")
+        label: (translate) =>
+          prompts === null
+            ? translate('prompts.topicDrawer.tabPrompts')
+            : translate('prompts.groupsTab.tabPromptsCount', { count: prompts.length }),
+        render: () => promptsPanel,
+      },
     ];
     const tabs = topicTabs(builtInTabs, TOPIC_TAB_ENTRIES, context);
     body = (

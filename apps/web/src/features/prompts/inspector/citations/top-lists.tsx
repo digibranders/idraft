@@ -5,17 +5,16 @@ import { useLocale, useTranslations } from 'next-intl';
 import type { ReactElement, ReactNode } from 'react';
 
 import {
-  engineCell,
+  ALL_ENGINES,
   FAVICON,
   IDENTITY_WIDTH,
   lostRows,
+  MIN_SUPPORT,
   notCited,
   topRows,
-  type EngineColumn,
   type TopRow,
 } from './citations-model';
 import type { CitationRead } from './citations-reads';
-import type { PromptCounts } from '../../inspector-reads';
 import { DomainRoleBadge, Favicon } from '@/components/app/cells/domain-cell';
 import { URLCell } from '@/components/app/cells/url-cell';
 import { visibleUrlText } from '@/components/app/cells/visible-text';
@@ -26,7 +25,6 @@ import { PlainTable, type PlainColumn } from '@/components/app/table/plain-table
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tooltip } from '@/components/ui/tooltip';
-import { unitShare, type UnitShare } from '@/lib/citations/share-model';
 import type {
   DomainRole,
   SourceChangePage,
@@ -36,39 +34,22 @@ import type {
   SourcePageRow,
   SourcesMeta,
 } from '@/lib/citations/types';
-import { displayDomain, EMPTY_VALUE, formatInteger, formatList, formatPercent } from '@/lib/format';
+import { displayDomain, formatList, formatPercent } from '@/lib/format';
+import { rateState } from '@/lib/stats';
 import { cn } from '@/lib/utils';
 
 /**
- * A cell's two lines: the units, then the share with the units it is a share of ("25.0% of 48"). The unit noun is
- * for a screen reader only, since the column is Units. `compact` (the domains, whose count columns leave the
- * domain little width) and a phone keep "of 48" for a screen reader too: the scope line above the lists names the
- * 48 for every share.
+ * The answers that cite a row, as a count of the valid answers read ("13 of 24 answers", rule R11: a row counts once
+ * in an answer, however many of its pages the answer cites). The rate is drawn for one platform only and from
+ * `MIN_OBSERVATIONS` answers: over All platforms it would be a rate pooled across platforms.
  */
-function UnitsCell({
-  units,
-  share,
-  compact = false,
-}: {
-  units: number;
-  share: UnitShare;
-  compact?: boolean;
-}): ReactElement {
+function AnswersCell({ cited, answers, rated }: { cited: number; answers: number; rated: boolean }): ReactElement {
   const t = useTranslations('prompts.citationsTab.domains');
+  const rate = rated && rateState(answers) === 'ok' ? cited / answers : null;
   return (
     <span className="flex flex-col whitespace-nowrap">
-      <span className="num type-body-strong">{formatInteger(units)}</span>
-      <span className="num type-meta">
-        {share.value === null ? (
-          EMPTY_VALUE
-        ) : (
-          <>
-            {formatPercent(share.value)}
-            <span className={compact ? 'sr-only' : 'max-md:sr-only'}> {t('unitsOf', { units: share.total })}</span>
-            <span className="sr-only"> {t('unitsNoun', { units: share.total })}</span>
-          </>
-        )}
-      </span>
+      {rate === null ? null : <span className="num type-body-strong">{formatPercent(rate, { decimals: 0 })}</span>}
+      <span className="num type-meta">{t('answersOf', { cited, answers })}</span>
     </span>
   );
 }
@@ -128,17 +109,6 @@ function NewMarker({ previousAnswers }: { previousAnswers: number }): ReactEleme
   );
 }
 
-/** One engine's units of a row; n/a, with the reason, for an engine that has no valid answer. */
-function EngineCount({ count, label }: { count: number | null; label: string }): ReactElement {
-  const t = useTranslations('prompts.citationsTab.domains');
-  if (count !== null) return <span>{formatInteger(count)}</span>;
-  return (
-    <Tooltip content={t('engineNone', { engine: label })}>
-      <span>{EMPTY_VALUE}</span>
-    </Tooltip>
-  );
-}
-
 interface TopListProps<TRow extends SourceDomainRow | SourcePageRow> {
   title: string;
   icon: LucideIcon;
@@ -147,7 +117,6 @@ interface TopListProps<TRow extends SourceDomainRow | SourcePageRow> {
   emptyTitle: string;
   emptyReason: string;
   read: CitationRead<{ data: TRow[]; meta: SourcesMeta }>;
-  minSupport: number;
   columns: (meta: SourcesMeta) => PlainColumn<TopRow<TRow>>[];
   rowKey: (row: TRow) => string;
   /** Above the table, when there is one. */
@@ -165,7 +134,6 @@ function TopList<TRow extends SourceDomainRow | SourcePageRow>({
   emptyTitle,
   emptyReason,
   read,
-  minSupport,
   columns,
   rowKey,
   lead,
@@ -174,7 +142,7 @@ function TopList<TRow extends SourceDomainRow | SourcePageRow>({
   const inspector = useTranslations('prompts.inspector');
   const common = useTranslations('common');
   const { data } = read;
-  const top = data === undefined ? null : topRows(data.data, data.meta, minSupport);
+  const top = data === undefined ? null : topRows(data.data, data.meta, MIN_SUPPORT);
   let status: InspectorSectionStatus = 'loading';
   if (read.status === 'error') status = 'error';
   else if (top !== null) status = top.rows.length === 0 ? 'empty' : 'ready';
@@ -252,7 +220,7 @@ function LostLine({ lost }: { lost: CitationRead<SourceChangePage> }): ReactElem
       <p className="type-label">{t('title')}</p>
       <p className="num type-meta">
         {formatList(
-          rows.map((row) => t('row', { domain: row.domain, units: row.units })),
+          rows.map((row) => row.domain),
           locale,
         )}
       </p>
@@ -264,19 +232,16 @@ function LostLine({ lost }: { lost: CitationRead<SourceChangePage> }): ReactElem
 export interface TopDomainsProps {
   read: CitationRead<SourceDomainPage>;
   lost: CitationRead<SourceChangePage>;
-  /** One count column for each engine (`engineColumns`); none for a single engine. */
-  columns: readonly EngineColumn[];
-  /** The prompt's summary: which engines had a valid answer. */
-  counts: PromptCounts;
-  minSupport: number;
+  /** `ALL_ENGINES` or an engine code: a rate is drawn for one platform only. */
+  engine: string;
 }
 
 /**
- * The five most cited domains of the prompt (WB-PIC-01): role, citation units and the share with the units it is a
- * share of, New against the period before (WB-PIC-04), one count per engine for All engines (WB-PIC-03), and
- * the domains lost since. No position is a rank: the list is the order of citation units.
+ * The five most cited domains of the prompt (WB-PIC-01, register PR-DRAWER-08): role, and the answers that cite the
+ * domain as a count of the valid answers read (rule R11), New against the period before (WB-PIC-04), and the domains
+ * lost since. No position is a rank: the list is the order of the answers that cite a domain.
  */
-export function TopDomains({ read, lost, columns, counts, minSupport }: TopDomainsProps): ReactElement {
+export function TopDomains({ read, lost, engine }: TopDomainsProps): ReactElement {
   const t = useTranslations('prompts.citationsTab.domains');
   const columnsOf = (meta: SourcesMeta): PlainColumn<TopRow<SourceDomainRow>>[] => [
     {
@@ -292,17 +257,11 @@ export function TopDomains({ read, lost, columns, counts, minSupport }: TopDomai
       ),
     },
     {
-      id: 'units',
-      header: t('units'),
+      id: 'citations',
+      header: t('citations'),
       wrap: true,
-      cell: ({ row }) => <UnitsCell compact units={row.citation_units} share={unitShare(row.source_share)} />,
+      cell: ({ row }) => <AnswersCell cited={row.observations} answers={meta.answers} rated={engine !== ALL_ENGINES} />,
     },
-    ...columns.map((column): PlainColumn<TopRow<SourceDomainRow>> => ({
-      id: `engine-${column.code}`,
-      header: column.label,
-      description: t('engineUnits', { engine: column.label }),
-      cell: ({ row }) => <EngineCount count={engineCell(row, column.code, counts)} label={column.label} />,
-    })),
   ];
   return (
     <TopList<SourceDomainRow>
@@ -313,7 +272,6 @@ export function TopDomains({ read, lost, columns, counts, minSupport }: TopDomai
       emptyTitle={t('emptyTitle')}
       emptyReason={t('emptyReason')}
       read={read}
-      minSupport={minSupport}
       rowKey={(row) => `${row.registrable_domain}:${row.domain_role}:${row.role_entity_id ?? ''}`}
       columns={columnsOf}
       lead={(meta) =>
@@ -328,11 +286,12 @@ export interface TopPagesProps {
   read: CitationRead<SourcePagePage>;
   /** The own pages the prompt cites (`page.total`); unknown while it loads or when it failed. */
   ownPages: CitationRead<SourcePagePage>;
-  minSupport: number;
+  /** `ALL_ENGINES` or an engine code: a rate is drawn for one platform only. */
+  engine: string;
 }
 
-/** The five most cited pages of the prompt (WB-PIC-02): the page with its host and title, units and share, New. */
-export function TopPages({ read, ownPages, minSupport }: TopPagesProps): ReactElement {
+/** The five most cited pages of the prompt (WB-PIC-02): the page with its host and title, the answers that cite it, New. */
+export function TopPages({ read, ownPages, engine }: TopPagesProps): ReactElement {
   const t = useTranslations('prompts.citationsTab.pages');
   const domains = useTranslations('prompts.citationsTab.domains');
   const noOwnPage = ownPages.data?.page.total === 0;
@@ -355,10 +314,10 @@ export function TopPages({ read, ownPages, minSupport }: TopPagesProps): ReactEl
       ),
     },
     {
-      id: 'units',
-      header: domains('units'),
+      id: 'citations',
+      header: domains('citations'),
       wrap: true,
-      cell: ({ row }) => <UnitsCell units={row.citation_units} share={unitShare(row.source_share)} />,
+      cell: ({ row }) => <AnswersCell cited={row.observations} answers={meta.answers} rated={engine !== ALL_ENGINES} />,
     },
   ];
   return (
@@ -370,7 +329,6 @@ export function TopPages({ read, ownPages, minSupport }: TopPagesProps): ReactEl
       emptyTitle={t('emptyTitle')}
       emptyReason={t('emptyReason')}
       read={read}
-      minSupport={minSupport}
       rowKey={(row) => String(row.url_id)}
       columns={columnsOf}
       after={() => (noOwnPage ? <p className="type-meta">{t('noOwnPage')}</p> : null)}

@@ -168,7 +168,7 @@ describe('the number catalog', () => {
         .map((chip) => chip.textContent),
     ).toEqual(seoLabels);
 
-    const ai = within(dialog).getByRole('group', { name: 'AI, one engine each' });
+    const ai = within(dialog).getByRole('group', { name: 'AI, one platform each' });
     const aiTypes = NUMBER_TYPES.filter((type) => type.screens.includes('overview') && type.perEngine);
     for (const type of aiTypes) {
       const row = within(ai).getByRole('group', { name: type.label });
@@ -192,7 +192,12 @@ describe('the number catalog', () => {
       name: /^(Mention|Citation|Recommendation) |^Share of voice /,
     });
     expect(engineChips).toHaveLength(4 * ENGINES.length);
-    expect(within(dialog).queryByRole('button', { name: /AI Overview/i })).toBeNull();
+    // The SEO number "Google AI Overview citation rate" is not an engine number; only the engine chips are checked
+    expect(
+      within(dialog).queryByRole('button', {
+        name: /^(Mention|Citation|Recommendation|Share of voice).*AI Overview/i,
+      }),
+    ).toBeNull();
     expect(
       within(dialog).queryByRole('button', {
         name: /^(Mention rate|Citation rate|Recommendation rate|Share of voice)$/,

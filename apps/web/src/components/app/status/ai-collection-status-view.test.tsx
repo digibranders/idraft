@@ -57,12 +57,12 @@ describe('AiCollectionStatusView notice', () => {
     renderWithProviders(<AiCollectionStatusView {...idle} notice={{ engines: [gemini, chatgpt], href: HREF }} />);
     expect(
       screen.getByText(
-        'Gemini: 132 of 150 answers valid, 88%. Below 90%, so this engine is degraded in the latest run.',
+        'Gemini: 132 of 150 answers valid, 88%. Below 90%, so this platform is degraded in the latest run.',
       ),
     ).toBeVisible();
     expect(
       screen.getByText(
-        'ChatGPT: 80 of 100 answers valid, 80%. Below 90%, so this engine is degraded in the latest run.',
+        'ChatGPT: 80 of 100 answers valid, 80%. Below 90%, so this platform is degraded in the latest run.',
       ),
     ).toBeVisible();
     // One link per engine, each named for its engine and pointing at the run

@@ -16,6 +16,7 @@ import {
   type Capabilities,
   type LayoutDocument,
 } from '@/lib/layouts';
+import { useCardReadiness, useCurrentCardId } from '@/components/app/chart/card-readiness';
 import { PermissionProvider } from '@/lib/permissions';
 import { membershipFactory } from '@/mocks/factories/identity';
 import { MOCK_WORKSPACE } from '@/mocks/fixtures';
@@ -240,6 +241,18 @@ describe('LayoutGrid in view mode', () => {
         expect(spanAt(probe, breakpoint)).toBe(spanOf(width, breakpoint));
       }
     }
+  });
+
+  it('puts the classes the screen asks for on every cell in view mode, and none in customize mode', async () => {
+    serve();
+    const { user } = mount({ grid: { cardClassName: (item) => `min-h-for-${item.id}` } });
+    await cardsShown();
+    for (const card of BUILTIN_CARDS) expect(frameOf(card.id)).toHaveClass(`min-h-for-${card.id}`);
+    await user.click(screen.getByRole('button', { name: 'Customize' }));
+    await waitFor(() => {
+      expect(frames()).toHaveLength(BUILTIN_CARDS.length);
+    });
+    for (const card of BUILTIN_CARDS) expect(frameOf(card.id).className).not.toContain('min-h-for-');
   });
 
   it('is one column with no spans for columns="one"', async () => {
@@ -637,5 +650,45 @@ describe('LayoutGrid in customize mode', () => {
     const view = mount({ grid: { onAddCard: () => undefined } });
     await customize(view);
     expect(await axe(view.container)).toHaveNoViolations();
+  });
+});
+
+/** A card that reports an empty state, as a chart frame does, so the grid learns it is not ready. */
+function EmptyCard({ item }: CardProps): ReactElement {
+  const readiness = useCardReadiness();
+  const id = useCurrentCardId();
+  useEffect(() => {
+    if (readiness !== null && id !== null) readiness.report(id, 'empty');
+  }, [readiness, id]);
+  return <div data-testid={`body-${item.id}`}>{`Empty ${item.id}`}</div>;
+}
+
+describe('LayoutGrid and the cards that report an empty state', () => {
+  const firstId = BUILTIN_CARDS[0]?.id ?? '';
+  const registry = (): CardRegistry =>
+    defineCards(
+      Object.fromEntries(
+        BUILTIN_TYPES.map((type, index) => [
+          type,
+          { load: () => Promise.resolve({ default: index === 0 ? EmptyCard : TestCard }) },
+        ]),
+      ),
+    );
+
+  it('moves an empty card of the built-in layout behind the others, as every screen did', async () => {
+    serve();
+    mount({ registry: registry() });
+    await cardsShown();
+    await waitFor(() => {
+      expect(frames().at(-1)?.dataset.layoutCard).toBe(firstId);
+    });
+  });
+
+  it('keeps an empty card in its place when the screen asks for it (the AI visibility Overview)', async () => {
+    serve();
+    mount({ registry: registry(), grid: { keepCardOrder: true } });
+    await cardsShown();
+    await act(() => Promise.resolve());
+    expect(frames().map((frame) => frame.dataset.layoutCard)).toEqual(BUILTIN_CARDS.map((card) => card.id));
   });
 });

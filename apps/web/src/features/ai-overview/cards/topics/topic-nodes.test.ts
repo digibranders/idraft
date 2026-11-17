@@ -46,7 +46,7 @@ const args = (over: Partial<BuildTopicNodesArgs> = {}): BuildTopicNodesArgs => (
   tree: TREE,
   descendants: DESCENDANTS,
   kept: null,
-  noTopicName: 'Prompts without a topic',
+  noTopicName: 'Prompts without a group',
   ...over,
 });
 
@@ -107,7 +107,7 @@ describe('buildTopicNodes', () => {
     expect(last).toMatchObject({
       key: '__none',
       termId: null,
-      name: 'Prompts without a topic',
+      name: 'Prompts without a group',
       level: 1,
       parentKey: null,
       promptCount: 1,
@@ -157,12 +157,12 @@ describe('leavesOf and topLevelOf', () => {
 describe('overlapCount', () => {
   it('counts a prompt in two top level topics once', () => {
     const prompts = [
-      promptRow('both', 'in two topics', ['tech', 'ads']),
+      promptRow('both', 'in two groups', ['tech', 'ads']),
       promptRow('three', 'in three topics', ['local', 'ads']),
       promptRow('one', 'in one topic', ['tech']),
       // Two topics of the same top level topic are one top level topic
       promptRow('same', 'under one parent', ['tech', 'local']),
-      promptRow('none', 'no topic', []),
+      promptRow('none', 'no group', []),
     ];
     const nodes = buildTopicNodes(args({ prompts }));
     expect(overlapCount(prompts, nodes)).toBe(2);

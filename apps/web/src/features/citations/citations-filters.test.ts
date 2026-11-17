@@ -54,12 +54,12 @@ describe('citationFilterFields', () => {
 
   it('role options carry their units from meta.by_role and no count while unknown', () => {
     expect(options(citationFilterFields(input()), 'role')).toEqual([
-      { value: 'own', label: 'Own', count: 1676 },
+      { value: 'own', label: 'Your site', count: 1676 },
       { value: 'competitor', label: 'Competitor', count: 5000 },
       { value: 'third_party', label: 'Third party', count: 11744 },
     ]);
     expect(options(citationFilterFields(input({ roleUnits: null })), 'role')).toEqual([
-      { value: 'own', label: 'Own', count: null },
+      { value: 'own', label: 'Your site', count: null },
       { value: 'competitor', label: 'Competitor', count: null },
       { value: 'third_party', label: 'Third party', count: null },
     ]);
@@ -83,9 +83,9 @@ describe('citationFilterFields', () => {
       const fields = citationFilterFields(input({ tab, flagWords }));
       expect(fields.map((entry) => entry.id)).toEqual(expect.arrayContaining(['redirects', 'internal']));
       expect(field(fields, 'redirects')).toMatchObject({ kind: 'enum', multi: false, label: 'Unresolved redirects' });
-      expect(field(fields, 'internal')).toMatchObject({ kind: 'enum', multi: false, label: 'Engine links' });
+      expect(field(fields, 'internal')).toMatchObject({ kind: 'enum', multi: false, label: 'Platform links' });
       expect(options(fields, 'redirects')).toEqual([{ value: 'include', label: 'Include unresolved redirects' }]);
-      expect(options(fields, 'internal')).toEqual([{ value: 'include', label: 'Include engine-internal links' }]);
+      expect(options(fields, 'internal')).toEqual([{ value: 'include', label: 'Include platform-internal links' }]);
     }
     // Without the words (a harness that does not need them) no flag field is offered
     expect(citationFilterFields(input()).map((entry) => entry.id)).toEqual(['engine', 'role', 'topic', 'branded']);

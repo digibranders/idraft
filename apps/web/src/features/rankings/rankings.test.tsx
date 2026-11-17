@@ -103,9 +103,9 @@ describe('Rankings', () => {
     expect(within(grid).getByRole('columnheader', { name: /^Rank$/ })).toBeInTheDocument();
     expect(within(grid).queryByRole('columnheader', { name: /^Desktop$/ })).toBeNull();
     expect(within(grid).queryByRole('columnheader', { name: /^Mobile$/ })).toBeNull();
-    // The device and location are not columns: they are the controls beside the filters
+    // The device is not a column: it is a control beside the filters. The location is one column (named Country before the glossary pass), not one per location
     expect(within(grid).queryByRole('columnheader', { name: /^Device$/ })).toBeNull();
-    expect(within(grid).queryByRole('columnheader', { name: /^Location$/ })).toBeNull();
+    expect(within(grid).getAllByRole('columnheader', { name: /^Location$/ })).toHaveLength(1);
     // Two options only
     expect(screen.queryByRole('radio', { name: 'Desktop and mobile' })).toBeNull();
     expect(screen.getByRole('radio', { name: 'Desktop' })).toBeChecked();
@@ -705,7 +705,7 @@ describe('Rankings rank columns', () => {
       .find((candidate) => named(candidate, withAioCited.text));
     const row = header?.closest('tr');
     if (row === null || row === undefined) throw new Error(`No row for ${withAioCited.text}`);
-    const cell = row.cells[columnIndex(grid, /^AI Overview$/)];
+    const cell = row.cells[columnIndex(grid, /^Google AI Overview$/)];
     if (cell === undefined) throw new Error('No AI Overview cell');
     expect(within(cell).getByText(`#${withAioCited.state.aio.citation_position}`)).toBeInTheDocument();
     expect(within(cell).queryByText(/Cited/)).toBeNull();
@@ -765,8 +765,8 @@ describe('Rankings rank columns', () => {
       expect(within(cells(/^Rank$/)).getByText('stale')).toHaveClass('sr-only');
       expect(within(cells(/^SERP features$/)).getByRole('img', { name: 'Check failed' })).toBeInTheDocument();
       expect(within(cells(/^SERP features$/)).getByText('stale')).toHaveClass('sr-only');
-      expect(within(cells(/^AI Overview$/)).getByRole('img', { name: 'Check failed' })).toBeInTheDocument();
-      expect(within(cells(/^AI Overview$/)).getByText('stale')).toHaveClass('sr-only');
+      expect(within(cells(/^Google AI Overview$/)).getByRole('img', { name: 'Check failed' })).toBeInTheDocument();
+      expect(within(cells(/^Google AI Overview$/)).getByText('stale')).toHaveClass('sr-only');
       // Updated says the check failed and, because the API flags the keyword stale, shows the marker as well
       expect(within(cells(/^Updated$/)).getByText('Check failed')).toBeInTheDocument();
       expect(within(cells(/^Updated$/)).getByText('Stale')).toBeInTheDocument();
@@ -1116,7 +1116,7 @@ describe('Rankings rank filters', () => {
     const { user } = renderWithProviders(as('viewer'), { onUrlUpdate: url.onUrlUpdate });
     const grid = await loadedGrid();
     await user.click(screen.getByRole('button', { name: 'Add a filter' }));
-    const picker = (await screen.findAllByRole('button', { name: 'AI Overview' })).find(
+    const picker = (await screen.findAllByRole('button', { name: 'Google AI Overview' })).find(
       (button) => !grid.contains(button),
     );
     if (picker === undefined) throw new Error('The field picker has no AI Overview');

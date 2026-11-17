@@ -2,22 +2,20 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { cleanup, screen, within } from '@testing-library/react';
-import { useMemo, type ReactElement } from 'react';
+import type { ReactElement } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { cell, engineOf, projectEngine, promptsOf } from './change-test-data';
 import { ComparedWindowProvider } from './compared-window';
 import type { PromptCounts } from '../inspector-reads';
 import { InspectorStrip } from '../inspector-strip';
-import { usePromptColumns, type PromptRow } from '../prompt-columns';
 import { PromptsStrip } from '../prompts-strip';
 import { useRateColumns } from '../rate-columns';
 import { TopicInspector } from '../topic-inspector';
 import { promptRow, topicRow } from '../topics-by-engine/cells-fixtures';
-import type { DataTableColumn } from '@/components/app/data-table/types';
 import type { EngineSummary, MetricCell } from '@/lib/api/types';
 import type { StripPrompt } from '@/lib/rates/strip-model';
-import { renderWithProviders } from '@/test/render';
+import { renderWithProviders, type ProvidedRender } from '@/test/render';
 import { DRAWER_TOPIC_ID, READY_COUNTS, drawerExtras, summaryOf } from '@/test/topic-drawer-harness';
 
 /**
@@ -39,6 +37,9 @@ vi.mock('next/navigation', () => ({
 }));
 
 const WINDOW = { from: '2026-09-18', to: '2026-10-15' };
+
+/** Every surface is drawn with the comparison on: the page opens without one, and a change shows only then. */
+const renderOn = (ui: ReactElement): ProvidedRender => renderWithProviders(ui, { searchParams: '?cmp=previous' });
 const CHAT = projectEngine('chatgpt_web');
 
 type Pair = readonly [MetricCell, MetricCell];
@@ -129,13 +130,13 @@ const chatCells = (change: Case): EngineSummary[] => [engineOf('chatgpt_web', ch
 
 /** The strip chip of ChatGPT: its value is the tab stop that holds the tooltip. */
 function stripChip(change: Case): HTMLElement {
-  renderWithProviders(
+  renderOn(
     <ComparedWindowProvider value={WINDOW}>
       <PromptsStrip prompts={change.prompts} engines={[CHAT]} topics={1} status="ready" countsFailed={false} />
     </ComparedWindowProvider>,
   );
-  const chip = screen.getByText('ChatGPT', { selector: 'dt' }).parentElement;
-  if (chip === null) throw new Error('The ChatGPT chip is missing');
+  const chip = screen.getAllByRole('term').find((term) => term.textContent === 'ChatGPT')?.parentElement;
+  if (chip === null || chip === undefined) throw new Error('The ChatGPT chip is missing');
   return within(chip).getByRole('definition');
 }
 
@@ -150,37 +151,12 @@ function MentionCell({ row }: { row: CellsRow }): ReactElement {
 }
 
 function mentionCell(change: Case): HTMLElement {
-  renderWithProviders(
+  renderOn(
     <ComparedWindowProvider value={WINDOW}>
       <MentionCell row={{ cells: chatCells(change) }} />
     </ComparedWindowProvider>,
   );
   return screen.getByTestId('mention-cell');
-}
-
-/** A row of the Prompts tab with the engine cells its summary has. */
-const promptTableRow = (cells: readonly EngineSummary[]): PromptRow =>
-  ({
-    prompt: { prompt_id: 'prompt', current_version: { text: 'prompt' }, is_branded: false },
-    summary: { prompt_id: 'prompt', engines: cells },
-    countsLoaded: true,
-    topics: null,
-    topicList: [],
-    country: null,
-  }) as unknown as PromptRow;
-
-function ChangeColumnCell({ row }: { row: PromptRow }): ReactElement {
-  const { columns } = usePromptColumns([CHAT], 'mention', WINDOW);
-  const column: DataTableColumn<PromptRow> | undefined = useMemo(
-    () => columns.find((entry) => entry.id === 'change_chatgpt_web'),
-    [columns],
-  );
-  return <div data-testid="change-cell">{column?.cell(row)}</div>;
-}
-
-function changeColumnCell(change: Case): HTMLElement {
-  renderWithProviders(<ChangeColumnCell row={promptTableRow(chatCells(change))} />);
-  return screen.getByTestId('change-cell');
 }
 
 function inspectorItem(change: Case): HTMLElement {
@@ -193,7 +169,7 @@ function inspectorItem(change: Case): HTMLElement {
     retry: () => undefined,
     retrying: false,
   };
-  renderWithProviders(
+  renderOn(
     <ComparedWindowProvider value={WINDOW}>
       <InspectorStrip engines={[CHAT]} counts={counts} noCountsReason="No counts" />
     </ComparedWindowProvider>,
@@ -210,7 +186,7 @@ function renderDrawer(change: Case): void {
     ...summaryOf([topicRow(DRAWER_TOPIC_ID, 'Paid Search', 1, chatCells(change))]),
     prompts: [prompt],
   };
-  renderWithProviders(
+  renderOn(
     <ComparedWindowProvider value={WINDOW}>
       <TopicInspector
         topicKey={DRAWER_TOPIC_ID}
@@ -245,22 +221,21 @@ async function drawerCard(change: Case): Promise<HTMLElement> {
 
 async function topPrompt(change: Case): Promise<HTMLElement> {
   renderDrawer(change);
-  const item = within(await sectionOf('Top prompts'))
+  const item = within(await sectionOf('Top prompts in this group'))
     .getByText('Prompt p')
-    .closest('li');
+    .closest('tr');
   if (item === null) throw new Error('The top prompt is missing');
   return item;
 }
 
 async function byEngineRow(change: Case): Promise<HTMLElement> {
   renderDrawer(change);
-  return sectionOf('By engine');
+  return sectionOf('By platform');
 }
 
 const SURFACES: readonly Surface[] = [
   { name: 'the strip chip', draw: stripChip },
   { name: 'the Mention cell', draw: mentionCell },
-  { name: 'the change column cell', draw: changeColumnCell },
   { name: 'the inspector strip item', draw: inspectorItem },
   { name: 'the drawer card', draw: drawerCard },
   { name: 'the top prompt change', draw: topPrompt },
@@ -275,6 +250,20 @@ interface Drawn {
 
 /** The one change drawn in `region`, as a person sees it and as a screen reader says it; `null` when none is drawn. */
 function drawnIn(region: HTMLElement): Drawn | null {
+  // The table cell draws the change as an icon: its tone is on the icon, its direction in `data-direction`
+  const icons = Array.from(region.querySelectorAll<HTMLElement>('[data-slot="trend-icon"]'));
+  if (icons.length > 0) {
+    const [icon] = icons;
+    if (icon === undefined || icons.length > 1) throw new Error(`${String(icons.length)} icons are drawn here`);
+    const tones = (Object.keys(TONES) as Tone[]).filter((tone) => icon.classList.contains(TONES[tone]));
+    const [tone] = tones;
+    if (tone === undefined || tones.length !== 1) throw new Error(`The icon has ${String(tones.length)} tone classes`);
+    return {
+      tone,
+      sign: icon.dataset.direction === 'up' ? '+' : '-',
+      spoken: icon.querySelector('.sr-only')?.textContent ?? '',
+    };
+  }
   const visible = Array.from(region.querySelectorAll<HTMLElement>('span[aria-hidden="true"]')).filter((element) =>
     /pts$/.test(element.textContent ?? ''),
   );
@@ -311,10 +300,10 @@ describe('colour only when the change is detectable (WB-DATA-02)', () => {
     expect(drawn.spoken.startsWith(expected.sign === '+' ? 'up ' : 'down ')).toBe(true);
 
     if (expected.says === 'detectable') {
-      expect(drawn.spoken).toMatch(/, detectable, interim test$/);
+      expect(drawn.spoken).toMatch(/, detectable, provisional$/);
       expect(drawn.spoken).not.toMatch(/within normal variation/);
     } else if (expected.says === 'within') {
-      expect(drawn.spoken).toMatch(/, within normal variation, interim test$/);
+      expect(drawn.spoken).toMatch(/, within normal variation, provisional$/);
       expect(drawn.spoken).not.toMatch(/detectable/);
     } else {
       // No test was made: nothing is said about variation, and no test is claimed
@@ -351,8 +340,8 @@ describe('no source names a tone class', () => {
   const ROOT = resolve(process.cwd(), 'src');
   const FOLDERS = ['features/prompts/compare', 'lib/compare'];
   const FILES = [
-    'features/prompts/columns/compare-columns.tsx',
     'features/prompts/prompts-strip.tsx',
+    'features/prompts/trend-icon.tsx',
     'features/prompts/rate-columns.tsx',
     'features/prompts/inspector-strip.tsx',
     'features/prompts/topic-inspector.tsx',
@@ -374,7 +363,7 @@ describe('no source names a tone class', () => {
   const TONE_CLASS = /\b(?:text|bg|border|ring|fill|stroke)-(?:positive|negative|green|red)\b|\b(?:green|red)\b/;
 
   it('reads the files of the package, so a rename cannot empty the scan', () => {
-    expect(sources).toEqual(expect.arrayContaining(['features/prompts/compare/change-inline.tsx']));
+    expect(sources).toEqual(expect.arrayContaining(['features/prompts/compare/change-words.ts']));
     expect(sources.length).toBeGreaterThan(15);
   });
 

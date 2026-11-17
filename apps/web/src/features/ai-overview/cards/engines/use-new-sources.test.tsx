@@ -133,7 +133,7 @@ describe('useNewSources', () => {
       expect(result.current.read.status).toBe('ready');
     });
     expect(seen[0]?.searchParams.get('include_branded')).toBe('false');
-    expect(seen[0]?.searchParams.has('filter[engine_code_in]')).toBe(false);
+    expect(seen[0]?.searchParams.get('filter[engine_code_in]')).toBe('chatgpt_web,gemini_web');
   });
 
   it('runs once the engines are known, with branded prompts left out and the comparison on (the control of the two tests below)', async () => {

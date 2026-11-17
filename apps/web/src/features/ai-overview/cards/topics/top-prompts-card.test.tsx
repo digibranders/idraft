@@ -164,16 +164,16 @@ describe('which prompts', () => {
 });
 
 describe('a row', () => {
-  it('has the percent with avg of N engines, and the counts of each engine in its words', async () => {
+  it('has the percent with average of N engines, and the counts of each engine in its words', async () => {
     renderCard({ options: { show: 'most_named' } });
     const alpha = await itemOf('Alpha prompt');
     expect(alpha).toHaveTextContent(/85(\.\d)?%/);
-    expect(alpha).toHaveTextContent('avg of 2 engines');
+    expect(alpha).toHaveTextContent('average of 2 platforms');
     expect(alpha).toHaveTextContent('ChatGPT 90 of 100 answers');
     expect(alpha).toHaveTextContent('Gemini 80 of 100 answers');
     // One engine has a rate: it is that engine alone, never an average of two
     const eta = await itemOf('Eta prompt');
-    expect(eta).toHaveTextContent('1 engine');
+    expect(eta).toHaveTextContent('1 platform');
     expect(eta).toHaveTextContent('ChatGPT only');
     expect(eta).not.toHaveTextContent('Gemini 1 of 2');
   });
@@ -193,13 +193,13 @@ describe('a row', () => {
   it('largest change says before and now with their answers, and how many engines took part', async () => {
     renderCard({ options: { show: 'largest_change' } });
     const alpha = await itemOf('Alpha prompt');
-    expect(alpha).toHaveTextContent('avg of 2 engines');
+    expect(alpha).toHaveTextContent('average of 2 platforms');
     expect(alpha).toHaveTextContent(/35(\.\d)?%, 70 of 200 answers/);
     expect(alpha).toHaveTextContent(/85(\.\d)?%, 170 of 200 answers/);
     expect(alpha).toHaveTextContent('ChatGPT and Gemini');
     // Eta: Gemini has 2 answers in both windows, so only ChatGPT takes part on both sides
     const eta = await itemOf('Eta prompt');
-    expect(eta).toHaveTextContent('1 engine');
+    expect(eta).toHaveTextContent('1 platform');
     expect(eta).toHaveTextContent('ChatGPT only');
     expect(eta).toHaveTextContent(/20(\.\d)?%, 20 of 100 answers/);
   });
@@ -282,7 +282,7 @@ describe('the comparison', () => {
     });
     const title = await screen.findByRole('heading', { name: 'No prompt can be compared' });
     const box = within(title.closest('[data-slot="empty-state"]') as HTMLElement);
-    expect(box.getByRole('link', { name: 'Open Topics and prompts' })).toBeInTheDocument();
+    expect(box.getByRole('link', { name: 'Open Prompts' })).toBeInTheDocument();
   });
 
   it('not paired shows loading and no change', async () => {
@@ -330,7 +330,7 @@ describe('words and forms', () => {
     expect(
       within(frame).getByText(/A rate under 4 valid answers shows its answer count and no percent/),
     ).toBeInTheDocument();
-    expect(within(frame).getByText(/equal weight average of the engines that show a rate/)).toBeInTheDocument();
+    expect(within(frame).getByText(/equal weight average of the platforms that show a rate/)).toBeInTheDocument();
   });
 
   it('the Table form has the counts of every row, and the change for the largest change', async () => {
@@ -463,8 +463,8 @@ describe('states', () => {
 
   it('no engine asked says so and offers Use all engines', async () => {
     renderCard({ searchParams: 'engine=google_ai_mode' });
-    expect(await screen.findByText('No engine is part of this view')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Use all engines' })).toBeInTheDocument();
+    expect(await screen.findByText('No platform is part of this view')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Use all platforms' })).toBeInTheDocument();
   });
 
   it('no prompts teaches how to get some, with one action', async () => {
@@ -512,7 +512,7 @@ describe('states', () => {
     renderCard({
       summary: summaryOf({ prompts: [prompt('p', 'Only Gemini', { chatgpt: [0, 0], gemini: [9, 10] })] }),
     });
-    expect(await screen.findByText('Partial data: ChatGPT has no valid answer in this window')).toBeInTheDocument();
+    expect(await screen.findByText('Partial data: ChatGPT has no valid answer in this period')).toBeInTheDocument();
   });
 
   it('holds the card as loading while the vocabulary tree is pending, then shows the rows', async () => {

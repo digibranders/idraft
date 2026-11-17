@@ -79,7 +79,7 @@ const renderSection = (over: Partial<AnswersCitedProps> = {}): ProvidedRender =>
     />,
   );
 
-const tableOf = (): HTMLElement => screen.getByRole('table', { name: 'Own page cited in each answer' });
+const tableOf = (): HTMLElement => screen.getByRole('table', { name: 'Your page cited in each answer' });
 const rowOf = (name: RegExp | string): HTMLElement => {
   const row = within(tableOf())
     .getAllByRole('row')
@@ -138,8 +138,8 @@ describe('the answers section', () => {
       ...[3, 4, 5, 6, 7, 8, 9].map((index) => citation('o1', index, `site${String(index)}.com`, 'third_party')),
     ];
     renderSection({ citations: readOf(citationPage(rows)) });
-    const row = rowOf('Source 2 of 9');
-    expect(within(row).getByText('Source 2 of 9')).toBeInTheDocument();
+    const row = rowOf('Citation 2 of 9');
+    expect(within(row).getByText('Citation 2 of 9')).toBeInTheDocument();
     expect(within(row).getByRole('link', { name: /seo-tools/ })).toHaveAttribute(
       'href',
       'https://www.fynix.io/blog/seo-tools',
@@ -153,7 +153,7 @@ describe('the answers section', () => {
       citation('o1', 3, 'fynix.io', 'own'),
     ];
     renderSection({ citations: readOf(citationPage(rows)) });
-    expect(screen.getByText('and 2 more own pages')).toBeInTheDocument();
+    expect(screen.getByText('and 2 more pages of yours')).toBeInTheDocument();
   });
 
   it('says Not cited when the answer cites sources and none is own', () => {
@@ -170,7 +170,7 @@ describe('the answers section', () => {
       answers: readOf(observationPage([observation('o1', { total: 0 })])),
       citations: readOf(citationPage([])),
     });
-    expect(screen.getByText('No source in this answer')).toBeInTheDocument();
+    expect(screen.getByText('No citation in this answer')).toBeInTheDocument();
     expect(screen.queryByText('Not cited')).toBeNull();
   });
 
@@ -293,14 +293,14 @@ describe('the states of the answers section', () => {
       answers: readOf(observationPage([observation('o1', { total: 0 })])),
       citations: readOf<CitationPage>(undefined, { status: 'error' }),
     });
-    expect(screen.getByText('No source in this answer')).toBeInTheDocument();
+    expect(screen.getByText('No citation in this answer')).toBeInTheDocument();
   });
 
   it('shows skeleton rows while the answers load', () => {
     const { container } = renderSection({ answers: readOf<Schemas['ObservationPage']>(undefined) });
     expect(screen.getByRole('heading', { name: 'Cited in each answer' })).toBeInTheDocument();
     expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
-    expect(screen.queryByRole('table', { name: 'Own page cited in each answer' })).toBeNull();
+    expect(screen.queryByRole('table', { name: 'Your page cited in each answer' })).toBeNull();
   });
 
   it('shows the cells of the citations as loading while only they load', () => {

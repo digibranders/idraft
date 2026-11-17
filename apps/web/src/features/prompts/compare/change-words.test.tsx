@@ -40,14 +40,28 @@ describe('useChangeWords', () => {
     expect(tip).toContain('Previous 20%, 12 of 60 answers');
     expect(tip).toContain(`Previous period: ${RANGE}`);
     expect(tip).toContain('Detectable change');
-    expect(tip).toContain('Interim test');
+    expect(tip).toContain('Provisional');
+  });
+
+  it('names the same period last year, not the previous period, when the comparison is a year back', () => {
+    const { unmount } = renderWithProviders(
+      <Words change={engine(DETECTABLE)} options={{ kind: 'engine', range: RANGE, move: true }} />,
+      { searchParams: '?cmp=year' },
+    );
+    const tip = screen.getByTestId('tip').textContent ?? '';
+    expect(tip).toContain('Up 30.0 pts against the same period last year, from 20% to 50%');
+    expect(tip).toContain(`Same period last year: ${RANGE}`);
+    expect(tip).not.toContain('previous period');
+    unmount();
+    const strip = tipOf(engine(DETECTABLE), { kind: 'strip', range: RANGE });
+    expect(strip.tip).toContain(`Previous period: ${RANGE}`);
   });
 
   it('says a change within normal variation is, and not that it is detectable', () => {
     const { tip } = tipOf(engine(WITHIN), { kind: 'engine', range: RANGE });
     expect(tip).toContain('Within normal variation');
     expect(tip).not.toContain('Detectable change');
-    expect(tip).toContain('Interim test');
+    expect(tip).toContain('Provisional');
   });
 
   it('says how many engines an average is over and that the test is on pooled answers', () => {
@@ -58,7 +72,7 @@ describe('useChangeWords', () => {
     const change = averageChangeOf(cells, ['chatgpt_web', 'gemini_web'], 'mentioned');
     const { tip } = tipOf(change, { kind: 'average', range: RANGE, shown: 2 });
     // The engine count comes first, and the unpaired test is named once
-    expect(tip.startsWith('Average of 2 engines that have a rate in both periods, tested on pooled answers')).toBe(
+    expect(tip.startsWith('Average of 2 platforms that have a rate in both periods, tested on pooled answers')).toBe(
       true,
     );
     expect(tip).toContain('Previous 20%, 20 of 100 answers');
@@ -73,14 +87,16 @@ describe('useChangeWords', () => {
     ];
     const change = averageChangeOf(cells, ['chatgpt_web', 'gemini_web'], 'mentioned');
     const { tip } = tipOf(change, { kind: 'average', range: RANGE, shown: 3 });
-    expect(tip).toContain('Average of 2 of 3 engines, the ones with a rate in both periods, tested on pooled answers');
+    expect(tip).toContain(
+      'Average of 2 of 3 platforms, the ones with a rate in both periods, tested on pooled answers',
+    );
   });
 
   it('names the one engine a change is of when the average has more engines', () => {
     const cells = [engineOf('chatgpt_web', cell(30, 60), cell(12, 60))];
     const change = averageChangeOf(cells, ['chatgpt_web'], 'mentioned');
     const { tip } = tipOf(change, { kind: 'average', range: RANGE, shown: 2, engine: 'ChatGPT' });
-    expect(tip.startsWith('Change of ChatGPT only, the one engine with a rate in both periods')).toBe(true);
+    expect(tip.startsWith('Change of ChatGPT only, the one platform with a rate in both periods')).toBe(true);
     expect(tip).not.toContain('Average of');
     expect(tip).not.toContain('pooled answers');
   });
@@ -103,7 +119,7 @@ describe('useChangeWords', () => {
     expect(tip).toContain('This change is not tested because');
     expect(tip).not.toContain('Detectable change');
     expect(tip).not.toContain('Within normal variation');
-    expect(tip).not.toContain('Interim test');
+    expect(tip).not.toContain('Provisional');
   });
 
   it('says over how many prompts a topic rate and a chip figure of the period before are', () => {
@@ -131,7 +147,7 @@ describe('useChangeWords', () => {
     expect(tip.endsWith('.')).toBe(false);
     expect(tip).not.toContain('Detectable change');
     expect(tip).not.toContain('Within normal variation');
-    expect(tip).not.toContain('Interim test');
+    expect(tip).not.toContain('Provisional');
   });
 
   it('gives no tip and no label for no change', () => {

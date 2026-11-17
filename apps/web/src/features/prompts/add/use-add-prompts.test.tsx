@@ -251,7 +251,7 @@ describe('useAddPrompts: openAdd', () => {
     await user.click(await within(header()).findByRole('button', { name: 'Add prompts' }));
     const dialog = await addDialog();
     // No chip: the picker is an empty field
-    expect(within(dialog).getByRole('combobox', { name: /^Topic/ })).toHaveValue('');
+    expect(within(dialog).getByRole('combobox', { name: /^Group/ })).toHaveValue('');
     expect(within(dialog).queryByText('SEO')).toBeNull();
     expect(within(dialog).queryByText('Content Marketing')).toBeNull();
   });

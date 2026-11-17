@@ -38,7 +38,7 @@ const summaryWith = (engines: readonly EngineSummary[], last: string | null = nu
   summaryOf([{ ...topicRow(DRAWER_TOPIC_ID, 'Technical SEO', 4, engines), last_valid_at: last }]);
 
 /** The engine rows, whatever the metric the list is named by. */
-const rows = (): HTMLElement[] => within(screen.getByRole('list', { name: / by engine$/ })).getAllByRole('listitem');
+const rows = (): HTMLElement[] => within(screen.getByRole('list', { name: / by platform$/ })).getAllByRole('listitem');
 const labelsOf = (): (string | null)[] =>
   rows().map((row) => row.querySelector('[data-slot="bar-list-label"]')?.textContent ?? null);
 
@@ -47,8 +47,10 @@ const render = (
   search = '',
   options: Parameters<typeof renderDrawerPart>[1] = {},
 ) => {
-  address.search = search;
-  return renderDrawerPart(<EnginePanel />, { summary: summaryWith(engines), searchParams: search, ...options });
+  // The page opens without a comparison: the change in points shows only when the address asks for it
+  const searchParams = search === '' ? '?cmp=previous' : search;
+  address.search = searchParams;
+  return renderDrawerPart(<EnginePanel />, { summary: summaryWith(engines), searchParams, ...options });
 };
 
 describe('EnginePanel: the By engine section of the drawer', () => {
@@ -57,10 +59,13 @@ describe('EnginePanel: the By engine section of the drawer', () => {
     expect(labelsOf()).toEqual(['ChatGPT', 'Gemini']);
     const [first, second] = rows();
     expect(first).toHaveTextContent('38%');
-    expect(first).toHaveTextContent('3 of 8 answers, 4 prompts');
+    // The percent is the mean of the prompts' rates: it says "average of 4 prompts" and has no pooled count beside it
+    expect(first).toHaveTextContent('average of 4 prompts');
+    expect(first?.textContent).not.toContain('3 of 8 answers, 4 prompts');
+    expect(first).toHaveTextContent('All answers pooled: 38%, 3 of 8 answers');
     expect(second).toHaveTextContent('25%');
-    expect(second).toHaveTextContent('2 of 8 answers, 4 prompts');
-    expect(screen.getByRole('heading', { name: 'By engine' })).toBeInTheDocument();
+    expect(second).toHaveTextContent('average of 4 prompts');
+    expect(screen.getByRole('heading', { name: 'By platform' })).toBeInTheDocument();
   });
 
   it('shows the weighted note', () => {
@@ -68,33 +73,35 @@ describe('EnginePanel: the By engine section of the drawer', () => {
     expect(screen.getByText(WEIGHTED_NOTE)).toBeInTheDocument();
   });
 
-  it('share of voice says answers naming a brand and never a count of successes', () => {
+  it('share of voice says x of y brand mentions, never answers', () => {
     render([chatgpt(), gemini()], '?metric=sov');
     const [first, second] = rows();
     expect(first).toHaveTextContent('40%');
-    expect(first).toHaveTextContent('5 answers naming a brand, 4 prompts');
+    expect(first).toHaveTextContent('2 of 5 brand mentions');
     expect(second).toHaveTextContent('25%');
-    expect(second).toHaveTextContent('4 answers naming a brand, 4 prompts');
-    expect(first?.textContent).not.toMatch(/\d+ of \d+/);
+    expect(second).toHaveTextContent(/\d+ of 4 brand mentions/);
+    expect(first?.textContent).not.toMatch(/answers/);
   });
 
   it('the metric control switches Mention, Citation and Share of voice and writes ?metric', async () => {
     const writes: string[] = [];
     const { user } = render([chatgpt(), gemini()], '', { onUrlUpdate: ({ queryString }) => writes.push(queryString) });
-    expect(screen.getByRole('combobox', { name: 'Metric of the engine panel' })).toHaveTextContent('Mention');
-    await user.click(screen.getByRole('combobox', { name: 'Metric of the engine panel' }));
+    expect(screen.getByRole('combobox', { name: 'Metric of the platform table' })).toHaveTextContent('Mention');
+    await user.click(screen.getByRole('combobox', { name: 'Metric of the platform table' }));
     await user.click(await screen.findByRole('option', { name: 'Citation' }));
     expect(new URLSearchParams(writes.at(-1)).get('metric')).toBe('citation');
     // The rows follow the address: Gemini's 4 of 8 citations
-    expect(await screen.findByRole('list', { name: 'Citation by engine' })).toBeInTheDocument();
-    await user.click(screen.getByRole('combobox', { name: 'Metric of the engine panel' }));
+    expect(await screen.findByRole('list', { name: 'Citation by platform' })).toBeInTheDocument();
+    await user.click(screen.getByRole('combobox', { name: 'Metric of the platform table' }));
     await user.click(await screen.findByRole('option', { name: 'Share of voice' }));
     expect(new URLSearchParams(writes.at(-1)).get('metric')).toBe('sov');
   });
 
   it('an engine row leads to the Prompts tab filtered to that engine', () => {
     render([chatgpt(), gemini()], '?view=engines&metric=citation');
-    const link = screen.getByRole('link', { name: 'Gemini: 50%, 4 of 8 answers' });
+    const link = screen.getByRole('link', {
+      name: 'Gemini: 50%, average of 4 prompts. All answers pooled: 50%, 4 of 8 answers',
+    });
     const [path, query] = (link.getAttribute('href') ?? '').split('?');
     expect(path).toBe('/digibranders/fynix/ai/prompts');
     const params = new URLSearchParams(query);
@@ -106,20 +113,25 @@ describe('EnginePanel: the By engine section of the drawer', () => {
     expect(params.get('metric')).toBe('citation');
   });
 
-  it('shows the change in points only when cells carry previous, coloured only when detectable', () => {
+  it('shows the change as the trend icon only when cells carry previous, coloured only when detectable', () => {
     render([
       chatgpt({ mentioned: weighted(40, 80, 4), previous: { mentioned: weighted(20, 80, 4) } }),
       gemini({ mentioned: weighted(5, 10, 4), previous: { mentioned: weighted(4, 10, 4) } }),
     ]);
     const [first, second] = rows();
-    const colour = (row: HTMLElement | undefined, text: string): string =>
-      (within(row ?? document.body).getAllByText(text, { selector: '[aria-hidden="true"]' })[0] ?? document.body)
-        .className;
-    expect(first).toHaveTextContent('+25.0 pts');
-    expect(colour(first, '+25.0 pts')).toContain('text-positive-text');
+    const icon = (row: HTMLElement | undefined): HTMLElement => {
+      const found = row?.querySelector<HTMLElement>('[data-slot="trend-icon"]');
+      if (found === null || found === undefined) throw new Error('The row draws no change');
+      return found;
+    };
+    // The icon draws no figures: the points are spoken and in the tooltip of the row
+    expect(first).not.toHaveTextContent('+25.0 pts');
+    expect(icon(first)).toHaveAttribute('data-direction', 'up');
+    expect(icon(first)).toHaveClass('text-positive-text');
+    expect(first).toHaveTextContent('up 25.0 pts');
     // Within normal variation: a change that is not told from noise is never coloured
-    expect(colour(second, '+10.0 pts')).toContain('text-foreground-secondary');
-    expect(colour(second, '+10.0 pts')).not.toContain('text-positive-text');
+    expect(icon(second)).toHaveClass('text-foreground-secondary');
+    expect(icon(second)).not.toHaveClass('text-positive-text');
   });
 
   it('shows no change without previous', () => {
@@ -147,15 +159,16 @@ describe('EnginePanel: the By engine section of the drawer', () => {
 
   it('writes the compared engines in the comparison sentence under the rows', () => {
     render();
-    expect(
-      screen.getByText(/^Best on ChatGPT at 37.5%, weakest on Gemini at 25.0%, a gap of 12.5 pts\./),
-    ).toBeVisible();
+    expect(screen.getByText(/^Best on ChatGPT at 38%, weakest on Gemini at 25%, a gap of 13 pts\./)).toBeVisible();
   });
 
   it('loading is a skeleton, a failed read has Retry, an unknown topic says so', async () => {
     const retry = vi.fn();
     const loading = renderDrawerPart(<EnginePanel />, { counts: { ...READY_COUNTS, status: 'loading' } });
-    expect(screen.getByRole('heading', { name: 'By engine' }).closest('section')).toHaveAttribute('aria-busy', 'true');
+    expect(screen.getByRole('heading', { name: 'By platform' }).closest('section')).toHaveAttribute(
+      'aria-busy',
+      'true',
+    );
     expect(screen.queryByRole('list', { name: 'Mention by engine' })).toBeNull();
     loading.unmount();
 
@@ -165,7 +178,7 @@ describe('EnginePanel: the By engine section of the drawer', () => {
     failed.unmount();
 
     renderDrawerPart(<EnginePanel />, { summary: summaryOf([]) });
-    expect(screen.getByText('The topic could not be loaded.')).toBeInTheDocument();
+    expect(screen.getByText('The group could not be loaded.')).toBeInTheDocument();
     expect(screen.queryByRole('list', { name: 'Mention by engine' })).toBeNull();
   });
 
@@ -173,7 +186,7 @@ describe('EnginePanel: the By engine section of the drawer', () => {
     // The page keeps the previous summary while the next is read: the counts say loading, the rows stay
     render([chatgpt(), gemini()], '', { counts: { ...READY_COUNTS, status: 'loading' } });
     expect(labelsOf()).toEqual(['ChatGPT', 'Gemini']);
-    expect(screen.getByRole('heading', { name: 'By engine' }).closest('section')).not.toHaveAttribute('aria-busy');
+    expect(screen.getByRole('heading', { name: 'By platform' }).closest('section')).not.toHaveAttribute('aria-busy');
   });
 
   it('says when the topic has had no valid answer for a week', () => {

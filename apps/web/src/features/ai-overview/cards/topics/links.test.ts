@@ -15,11 +15,13 @@ function scopeOf(patch: Partial<OverviewScope> = {}): OverviewScope {
     range: { from: '2026-10-16', to: '2026-11-12', days: 28 },
     rangeValue: { kind: 'preset', preset: '28d' },
     compare: true,
+    compareKind: 'previous_period',
     previous: { from: '2026-09-18', to: '2026-10-15' },
     country: null,
     engines: null,
     topic: null,
     branded: 'excluded',
+    metric: 'visibility',
     ...patch,
   };
 }
@@ -59,7 +61,8 @@ describe('topic links', () => {
     expect(query.get('eng')).toBe('gemini_web');
     expect(query.get('from')).toBe('2026-10-01');
     expect(query.get('to')).toBe('2026-10-20');
-    expect(query.get('cmp')).toBe('off');
+    // The Prompts page compares only for cmp=previous, so a comparison that is off writes nothing
+    expect(query.get('cmp')).toBeNull();
     expect(query.get('country')).toBe('DE');
     expect(query.get('branded')).toBe('include');
     // The number is of one engine, so the page shows that engine
@@ -74,12 +77,12 @@ describe('topic links', () => {
     expect(query.get('engine')).toBe('chatgpt_web,gemini_web');
   });
 
-  it('defaults write nothing (compare on, branded excluded, no country)', () => {
+  it('defaults write only cmp=previous, which the Prompts page needs to compare (branded excluded, no country)', () => {
     const drawer = queryOf(topicDrawerHref(ctxOf(), TOPIC));
-    expect([...drawer.keys()]).toEqual(['inspect']);
+    expect([...drawer.keys()].sort()).toEqual(['cmp', 'inspect']);
     const engine = queryOf(topicEngineHref(ctxOf(), TOPIC, 'chatgpt_web'));
-    expect([...engine.keys()].sort()).toEqual(['eng', 'engine', 'inspect', 'itab']);
-    expect(queryOf(promptsTabHref(ctxOf())).toString()).toBe('tab=prompts');
+    expect([...engine.keys()].sort()).toEqual(['cmp', 'eng', 'engine', 'inspect', 'itab']);
+    expect(queryOf(promptsTabHref(ctxOf())).toString()).toBe('cmp=previous&tab=prompts');
   });
 
   it('the Topics tab link carries view and metric', () => {

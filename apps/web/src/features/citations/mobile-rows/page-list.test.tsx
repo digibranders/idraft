@@ -91,7 +91,7 @@ describe('the Pages tab on a phone', () => {
   it('line 1 is the page title and its share, line 2 the role with its units and the change', async () => {
     renderTab();
     const row = await rowNamed(/^Page 1/);
-    expect(row).toHaveTextContent('Source share');
+    expect(row).toHaveTextContent('Citation share');
     expect(row).toHaveTextContent('1.6%');
     expect(row).toHaveTextContent('Third party, 300 of 18,420 units');
     expect(row).toHaveTextContent('+0.5 pts');
@@ -108,7 +108,7 @@ describe('the Pages tab on a phone', () => {
     ]);
     // Provider text never becomes markup
     expect(container.querySelector('img[src="x"]')).toBeNull();
-    expect(buttons[2]).toHaveTextContent('Own, 300 of 18,420 units');
+    expect(buttons[2]).toHaveTextContent('Your site, 300 of 18,420 units');
   });
 
   it('says n/a for a share that cannot be told, never 0%', async () => {

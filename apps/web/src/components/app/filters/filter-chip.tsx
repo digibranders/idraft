@@ -10,6 +10,7 @@ import { IconButton } from '@/components/ui/icon-button';
 import { Popover } from '@/components/ui/popover';
 import type { FilterValue } from '@/lib/filters/filter-values';
 import { formatInteger } from '@/lib/format';
+import { cn } from '@/lib/utils';
 
 /** An enum chip names up to this many values, then counts them (13-filters-search.md section 3). */
 const NAMED_VALUES = 2;
@@ -56,6 +57,8 @@ export interface FilterChipProps {
   /** Commits a new value; `null` removes the filter. */
   onApply: (value: FilterValue | null) => void;
   onRemove: () => void;
+  /** The 32 px chip of a screen whose controls are all 32 px high (the Prompts page); off: the 36 px default. */
+  compact?: boolean | undefined;
 }
 
 /**
@@ -63,7 +66,7 @@ export interface FilterChipProps {
  * opens its editor; the X removes it. The editor works on a draft taken from the applied value each time
  * it opens, so closing it without applying changes nothing.
  */
-export function FilterChip({ field, value, onApply, onRemove }: FilterChipProps): ReactElement {
+export function FilterChip({ field, value, onApply, onRemove, compact = false }: FilterChipProps): ReactElement {
   const t = useTranslations('filters');
   const chipText = useChipText();
   const formId = useId();
@@ -83,7 +86,10 @@ export function FilterChip({ field, value, onApply, onRemove }: FilterChipProps)
   return (
     <div
       data-filter-chip={field.id}
-      className="inline-flex h-control max-w-full items-center rounded-md bg-neutral-subtle type-body"
+      className={cn(
+        'inline-flex max-w-full items-center rounded-md bg-neutral-subtle type-body',
+        compact ? 'h-control-sm' : 'h-control',
+      )}
     >
       <Popover
         open={open}

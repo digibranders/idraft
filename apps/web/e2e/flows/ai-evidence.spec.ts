@@ -13,7 +13,7 @@ const FIRST_PROMPT_ID = '0192d1a8-e000-7a10-8e00-000000000002';
 /** Its number among the fixture prompts, which the answer ids are made from. */
 const FIRST_PROMPT_INDEX = 1;
 const OPEN_ANSWER = /^Open the ChatGPT answer of /;
-const COMPARE_TITLE = 'Change since the last answer that named the brand';
+const COMPARE_TITLE = 'Change since the last answer that mentioned the brand';
 
 /** The answer viewer: beside the table on a wide window, a sheet over it on a narrow one. */
 const viewerOf = (page: Page): Locator =>
@@ -28,7 +28,7 @@ async function viewerReady(page: Page): Promise<Locator> {
   const viewer = viewerOf(page);
   await expect(viewer.getByRole('heading', { name: 'Details' })).toBeVisible();
   await expect(viewer.getByRole('radiogroup', { name: 'Answer view' })).toBeVisible();
-  await expect(viewer.getByRole('list', { name: 'Sources cited in this answer' })).toBeVisible();
+  await expect(viewer.getByRole('list', { name: 'Citations in this answer' })).toBeVisible();
   return viewer;
 }
 
@@ -69,6 +69,22 @@ async function openOldestAnswer(page: Page): Promise<Locator> {
   return viewerReady(page);
 }
 
+/** Opens, by its address, the newest answer of the prompt that has a link to the provider; fails when none of the last 28 days has. */
+async function openAnswerWithProviderLink(page: Page): Promise<Locator> {
+  const now = Date.now();
+  const today = Math.floor(now / DAY_MS);
+  for (let day = today; day > today - 28; day -= 1) {
+    const at = day * DAY_MS + 2 * 3_600_000;
+    if (![1, 4].includes(new Date(at).getUTCDay()) || at > now) continue;
+    const id = String(day * 10_000 + FIRST_PROMPT_INDEX * 10);
+    await page.goto(`${FYNIX_PROMPTS}?tab=prompts&inspect=${encodeURIComponent(`answer:${id}`)}`);
+    const viewer = await viewerReady(page);
+    const link = viewer.getByRole('link', { name: 'Open at the provider' });
+    if ((await link.count()) > 0) return link;
+  }
+  throw new Error('No answer of the last 28 days has a link to the provider');
+}
+
 /** Chooses an answer view. The label sits twice in the control (a hidden copy keeps the width), so the first is clicked. */
 async function chooseView(viewer: Locator, name: 'Evidence' | 'Formatted' | 'Raw'): Promise<void> {
   const views = viewer.getByRole('radiogroup', { name: 'Answer view' });
@@ -76,7 +92,7 @@ async function chooseView(viewer: Locator, name: 'Evidence' | 'Formatted' | 'Raw
   await expect(views.getByRole('radio', { name })).toBeChecked();
 }
 
-const ownMarks = (viewer: Locator): Locator => viewer.locator('[aria-label*="mention, own brand"]');
+const ownMarks = (viewer: Locator): Locator => viewer.locator('[aria-label*="mention, your brand"]');
 
 test.describe('The answer viewer', () => {
   test('jumps from a citation marker to its item in the source list', async ({ page }) => {
@@ -87,7 +103,7 @@ test.describe('The answer viewer', () => {
     expect(index).toBeDefined();
     await marker.click();
     const item = viewer
-      .getByRole('list', { name: 'Sources cited in this answer' })
+      .getByRole('list', { name: 'Citations in this answer' })
       .getByRole('button', { name: `Show in answer, citation ${String(index)}` })
       .locator('xpath=ancestor::li[1]');
     await expect(item).toHaveAttribute('aria-current', 'true');
@@ -96,7 +112,7 @@ test.describe('The answer viewer', () => {
 
   test('takes the marks of an entity away when it is toggled off, and puts them back', async ({ page }) => {
     const viewer = await openAnswer(page, 1280);
-    const entities = viewer.getByRole('group', { name: 'Entities' });
+    const entities = viewer.getByRole('group', { name: 'Brands' });
     // The own brand is listed first
     const own = entities.getByRole('checkbox').first();
     await expect(ownMarks(viewer).first()).toBeVisible();
@@ -126,7 +142,7 @@ test.describe('The answer viewer', () => {
     await expect(viewer.locator('script')).toHaveCount(0);
   });
 
-  test('says what changed since the last answer that named the brand, or why there is no earlier answer', async ({
+  test('says what changed since the last answer that mentioned the brand, or why there is no earlier answer', async ({
     page,
   }) => {
     const newest = await openAnswer(page, 1280);
@@ -149,8 +165,10 @@ test.describe('The answer viewer', () => {
       (url) => !['localhost', '127.0.0.1'].includes(url.hostname),
       (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<title>provider</title>' }),
     );
-    const viewer = await openAnswer(page, 1280);
-    const link = viewer.getByRole('link', { name: 'Open at the provider' });
+    await openAnswer(page, 1280);
+    // The mock gives some answers no web address to open (an unusable one is left out), and which one is newest
+    // follows the clock: the runs are tried from the newest back until an answer has the link
+    const link = await openAnswerWithProviderLink(page);
     await expect(link).toHaveAttribute('target', '_blank');
     await expect(link).toHaveAttribute('rel', /noopener/);
     const href = await link.getAttribute('href');

@@ -16,7 +16,7 @@ export interface TopicPoint {
   weekStart: string;
   /** The cell's prompt weighted value; `null` for a week with no valid answer, or counts that cannot be real. A gap, never 0. */
   value: number | null;
-  /** The valid answers that count; `null` for share of voice, and for a gap. */
+  /** The valid answers that count (the own brand's mentions, for share of voice); `null` for a gap. */
   k: number | null;
   /** The valid answers behind the value (the answers that name a brand, for share of voice); 0 for a gap. */
   n: number;
@@ -37,10 +37,10 @@ export interface TopicPoint {
 }
 
 /** The counts of a cell, or `null` when they cannot be real: `n` whole and not negative, `k` whole and no more than `n`. */
-function countsOf(cell: MetricCell, metric: CellMetric): { k: number | null; n: number } | null {
+function countsOf(cell: MetricCell): { k: number | null; n: number } | null {
   const n = cell.pooled?.trials ?? cell.denominator;
-  // Share of voice counts answers that name a brand, but its numerator is a sum of shares: it has no count of successes
-  const k = metric === 'share_of_voice' ? null : (cell.pooled?.successes ?? cell.numerator);
+  // Share of voice counts brand mentions: its numerator is the own brand's mentions, its denominator all of them
+  const k = cell.pooled?.successes ?? cell.numerator;
   if (!Number.isInteger(n) || n < 0) return null;
   if (k !== null && (!Number.isInteger(k) || k < 0 || k > n)) return null;
   return { k, n };
@@ -61,7 +61,7 @@ function pointOf(week: WeekCells, cell: MetricCell | undefined, metric: CellMetr
     band: null,
     thin: false,
   };
-  const counts = cell === undefined ? null : countsOf(cell, metric);
+  const counts = cell === undefined ? null : countsOf(cell);
   if (cell === undefined || counts === null || counts.n === 0 || cell.value === null) return point;
   const state = rateState(counts.n);
   return {
@@ -69,7 +69,9 @@ function pointOf(week: WeekCells, cell: MetricCell | undefined, metric: CellMetr
     value: cell.value,
     k: counts.k,
     n: counts.n,
-    band: state === 'ok' && counts.k !== null ? wilsonInterval(counts.k, counts.n) : null,
+    // Brand mentions are not independent trials of one rate: share of voice has no interval
+    band:
+      state === 'ok' && counts.k !== null && metric !== 'share_of_voice' ? wilsonInterval(counts.k, counts.n) : null,
     thin: state === 'insufficient',
   };
 }

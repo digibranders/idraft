@@ -1,0 +1,15 @@
+{
+  "description": "Strings of en.json where a banned word is correct. Each entry names the word id of banned-words.json, a key prefix or an exact key, and the reason. Keep this list short; every entry needs a reason.",
+  "exceptions": [
+    { "word": "window", "key": "projectSettings.schedules.when.", "reason": "A schedule time slot (a run may start within these hours), not the date range, which is Period" },
+    { "word": "window", "key": "runReasons.missedWindow", "reason": "The scheduled time slot passed; not the date range" },
+    { "word": "window", "key": "projectSettings.schedules.dialog.window", "reason": "The schedule time slot field and its hint" },
+    { "word": "window", "key": "runs.columns.window", "reason": "The Runs column shows the scheduled time slot of a run, not the date range" },
+    { "word": "window", "key": "runs.inspector.window", "reason": "Same as the Runs column" },
+    { "word": "cluster", "key": "taxonomySettings.kinds.cluster", "reason": "Decision D19: the Cluster type is dropped from the screen in code; the key stays until the API value is retired" },
+    { "word": "source-cited", "key": "costs.sources", "reason": "Where a cost figure comes from (provider, tokens, price book): a data source" },
+    { "word": "panel", "key": "rankings.features.", "reason": "Knowledge panel is the name of a Google results feature" },
+    { "word": "source-cited", "key": "integrations.", "reason": "Data sources are the connected providers (Search Console, Analytics), not cited websites" },
+    { "word": "source-cited", "key": "evidence.", "reason": "To be reviewed in the application pass: evidence sources are where an answer got a claim" }
+  ]
+}

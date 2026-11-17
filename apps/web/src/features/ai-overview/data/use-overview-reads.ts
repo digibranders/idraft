@@ -20,6 +20,7 @@ import {
 } from './overview-queries';
 import { mapRead, useRead, type Gate, type Read } from './read-state';
 import type { EngineCode, ProjectEngine, PromptsSummary, Schemas } from '@/lib/api/types';
+import { withBrandMentionShare } from '@/lib/rates/brand-mention-share';
 
 /**
  * The reads of the AI visibility Overview (WP-33 plan section 3.3). The shell and every card read through these
@@ -45,7 +46,15 @@ export interface ReadOptions {
   subscribed?: boolean | undefined;
 }
 
-export type SummaryReadOptions = SummaryOptions & ReadOptions;
+export type SummaryReadOptions = SummaryOptions &
+  ReadOptions & {
+    /**
+     * The card shows share of voice, which counts brand mentions (D17): the read also asks the topic rows and the total
+     * with their entity cells, one small read for each window. Left out, the read is the page's own and share of voice
+     * has no counts in it ("not collected"), so a card that shows none of it asks nothing more.
+     */
+    counts?: boolean | undefined;
+  };
 export type SourcesReadOptions = SourcesOptions & ReadOptions;
 
 /** `idle` when the read has nothing to ask; otherwise `run`, or `paused` while it is not subscribed. */
@@ -97,7 +106,7 @@ export function useOverviewEngines(project: ProjectRef): OverviewEngines {
 function useSummary(
   input: OverviewReadInput,
   period: 'current' | 'previous',
-  { subscribed = true, ...options }: SummaryReadOptions,
+  { subscribed = true, counts: wantsCounts = false, ...options }: SummaryReadOptions,
 ): Read<PromptsSummary> {
   const { project, scope, enabledEngines } = input;
   const runs = askedEngines(input).length > 0 && (period === 'current' || comparisonWindow(scope) !== null);
@@ -108,9 +117,40 @@ function useSummary(
     // A scope change keeps the last figures on screen until the new ones arrive
     placeholderData: keepPreviousData,
   });
+  // Share of voice is a count of brand mentions (D17): the read of the topic rows and the total with their entity cells
+  // is small, where the prompt rows with entity cells are megabytes, so it is the one extra read of every window whose
+  // own read carries no entity cells
+  const needsCounts = wantsCounts && !(options.include ?? []).includes('entities');
+  const counts = useQuery({
+    ...overviewSummaryQuery(
+      project,
+      { scope, enabledEngines },
+      {
+        ...BRAND_MENTION_READ,
+        // The weekly points of a card that draws them come with their entity cells (the weeks of a share of voice line)
+        include: (options.include ?? []).includes('series')
+          ? [...BRAND_MENTION_READ.include, 'series']
+          : BRAND_MENTION_READ.include,
+        period,
+      },
+    ),
+    enabled: gate === 'run' && needsCounts,
+    placeholderData: keepPreviousData,
+  });
   const read = useRead(query, gate);
-  return useMemo(() => mapRead(read, summaryOf), [read]);
+  // A failed counts read leaves the share of voice "not collected": it never fails the figures that do not need it
+  const countsPending = needsCounts && gate === 'run' && counts.data === undefined && !counts.isError;
+  return useMemo((): Read<PromptsSummary> => {
+    if (countsPending && read.data !== undefined) {
+      return { ...read, status: 'loading', data: undefined, stale: false, placeholder: false };
+    }
+    const source = needsCounts ? (counts.data?.data ?? null) : null;
+    return mapRead(read, (page) => withBrandMentionShare(summaryOf(page), source));
+  }, [read, counts.data, countsPending, needsCounts]);
 }
+
+/** The read that carries the entity cells of every topic row and of the total: where share of voice gets its counts. */
+const BRAND_MENTION_READ = { include: ['entities', 'total'], rows: 'topics' } as const satisfies SummaryOptions;
 
 /**
  * The summary of the scope's window, one read; not asked while no engine in the scope is on, nor while

@@ -8,30 +8,30 @@ import { renderWithProviders } from '@/test/render';
 const base = { overlapPrompts: null, pooled: false, weighting: 'prompt' } as const;
 
 describe('TopicFootnote', () => {
-  it('always says topics overlap', () => {
+  it('always says groups overlap', () => {
     renderWithProviders(<TopicFootnote {...base} />);
-    expect(screen.getByText(/a prompt in two topics counts in both/i)).toBeInTheDocument();
+    expect(screen.getByText(/a prompt in two groups counts in both/i)).toBeInTheDocument();
   });
 
-  it('says how many prompts are in more than one topic when known', () => {
+  it('says how many prompts are in more than one group when known', () => {
     renderWithProviders(<TopicFootnote {...base} overlapPrompts={4} />);
-    expect(screen.getByText(/4 prompts are in more than one topic/)).toBeInTheDocument();
+    expect(screen.getByText(/4 prompts are in more than one group/)).toBeInTheDocument();
   });
 
   it('says one prompt in the singular and says nothing when the count is unknown', () => {
     const { rerender } = renderWithProviders(<TopicFootnote {...base} overlapPrompts={1} />);
-    expect(screen.getByText(/1 prompt is in more than one topic/)).toBeInTheDocument();
+    expect(screen.getByText(/1 prompt is in more than one group/)).toBeInTheDocument();
     rerender(<TopicFootnote {...base} overlapPrompts={null} />);
-    expect(screen.queryByText(/in more than one topic/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/in more than one group/)).not.toBeInTheDocument();
   });
 
   it('says the pooled sentence only when a point is pooled', () => {
     const { rerender } = renderWithProviders(<TopicFootnote {...base} pooled={false} />);
-    expect(screen.queryByText(/together \(clipped to the window\)/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/together \(clipped to the period\)/)).not.toBeInTheDocument();
     rerender(<TopicFootnote {...base} pooled />);
     expect(
       screen.getByText(
-        'A topic weekly point with fewer than 10 prompts answering that week shows the last 4 weeks together (clipped to the window); a prompt point always shows 4 weeks.',
+        'A group weekly point with fewer than 10 prompts answering that week shows the last 4 weeks together (clipped to the period); a prompt point always shows 4 weeks.',
       ),
     ).toBeInTheDocument();
   });

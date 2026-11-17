@@ -1,7 +1,7 @@
 import type { Route } from 'next';
 
 import { MAX_RANGE_DAYS, writeRangeParams } from '@/components/app/date-range/range-model';
-import { cmpParam } from '@/lib/compare/compare-model';
+import { CMP_YEAR, cmpParam } from '@/lib/compare/compare-model';
 import { formatInspectTarget, type InspectorTarget } from '@/lib/inspector/placement';
 import { NAVIGATION, type NavKey } from '@/lib/navigation/registry';
 import { projectPath, withQuery } from '@/lib/routes/paths';
@@ -84,22 +84,37 @@ interface Destination {
   country: boolean;
   /** The value of `branded` for each choice; a choice missing here cannot be expressed on the page. */
   branded: Partial<Record<Branded, string | null>>;
+  /**
+   * How the page reads `cmp`. The Prompts page opens with no comparison and turns it on only for `cmp=previous`; the
+   * other pages compare by default and turn it off with `cmp=off`. The link writes what makes the page open as the
+   * Overview is: comparing, or not.
+   */
+  compare: 'previous-turns-on' | 'off-turns-off';
 }
 
-/** The Prompts and Citations pages have one Branded choice, `include`; excluded is the default and is not written. */
+/** The Citations page and the others have one Branded choice, `include`; excluded is the default and is not written. */
 const BRANDED_INCLUDE: Destination['branded'] = { excluded: null, included: 'include' };
+/** The Prompts page has `Only` too (`branded=only`: the branded prompts alone). */
+const BRANDED_PROMPTS: Destination['branded'] = { ...BRANDED_INCLUDE, only: 'only' };
+
+/** The `cmp` that makes `page` open as the Overview is: the period before, last year, or no comparison. */
+function cmpOf(page: Destination['compare'], scope: OverviewScope): string | null {
+  if (page === 'off-turns-off') return cmpParam(scope.compare);
+  if (!scope.compare) return null;
+  return scope.compareKind === 'previous_year' ? CMP_YEAR : 'previous';
+}
 
 // competitors and sources are not built: their keys are to be checked against the pages when they are
 const DESTINATIONS: Readonly<Record<DrillKind, Destination>> = {
-  prompts: { nav: 'prompts', scoped: true, country: true, branded: BRANDED_INCLUDE },
-  topic: { nav: 'prompts', scoped: true, country: true, branded: BRANDED_INCLUDE },
-  topicDrawer: { nav: 'prompts', scoped: true, country: true, branded: BRANDED_INCLUDE },
-  prompt: { nav: 'prompts', scoped: true, country: true, branded: BRANDED_INCLUDE },
-  citations: { nav: 'citations', scoped: true, country: false, branded: BRANDED_INCLUDE },
-  competitors: { nav: 'competitors', scoped: true, country: true, branded: BRANDED_INCLUDE },
-  sources: { nav: 'sources', scoped: true, country: true, branded: BRANDED_INCLUDE },
+  prompts: { nav: 'prompts', scoped: true, country: true, branded: BRANDED_PROMPTS, compare: 'previous-turns-on' },
+  topic: { nav: 'prompts', scoped: true, country: true, branded: BRANDED_PROMPTS, compare: 'previous-turns-on' },
+  topicDrawer: { nav: 'prompts', scoped: true, country: true, branded: BRANDED_PROMPTS, compare: 'previous-turns-on' },
+  prompt: { nav: 'prompts', scoped: true, country: true, branded: BRANDED_PROMPTS, compare: 'previous-turns-on' },
+  citations: { nav: 'citations', scoped: true, country: false, branded: BRANDED_INCLUDE, compare: 'off-turns-off' },
+  competitors: { nav: 'competitors', scoped: true, country: true, branded: BRANDED_INCLUDE, compare: 'off-turns-off' },
+  sources: { nav: 'sources', scoped: true, country: true, branded: BRANDED_INCLUDE, compare: 'off-turns-off' },
   // Runs reads a month, not a window: the scope means nothing there
-  runs: { nav: 'runs', scoped: false, country: false, branded: BRANDED_INCLUDE },
+  runs: { nav: 'runs', scoped: false, country: false, branded: BRANDED_INCLUDE, compare: 'off-turns-off' },
 };
 
 const termTarget = (id: string | null | undefined): InspectorTarget | null =>
@@ -109,6 +124,18 @@ const promptTarget = (id: string | undefined): InspectorTarget | null =>
 
 /** The sort id of an engine's rate column on the Prompts tab (`engineSortId` of the Prompts page). */
 const engineRateSort = (engineCode: string): string => `${engineCode}_rate`;
+
+/**
+ * The columns the Prompts tab shows when a link sorts by a platform's rate. That column waits in the column chooser by
+ * default, and the page applies a sort only to a column that is on screen, so the link names the columns it needs: the
+ * ones the tab opens with (Group, Location while the top bar has no location, Mention rate and Citation rate) and the
+ * platform's rate. The Prompt column is always there. Written out in `cols` as the page parses it (`parseColumns`).
+ */
+function promptColumnsFor(engineCode: string, country: string | null): string {
+  return ['topic', ...(country === null ? ['country'] : []), 'mention', 'citation', engineRateSort(engineCode)].join(
+    ',',
+  );
+}
 
 /**
  * The link for `kind` with the scope of the Overview carried, or `null` where there is no page to go to or the
@@ -136,6 +163,8 @@ export function drillHref(
 
   const branded = destination.branded[scope.branded];
   if (branded === undefined || (scope.country !== null && !destination.country)) return null;
+  // A comparison with last year is one the Prompts page alone can express: the others would show the period before
+  if (scope.compare && scope.compareKind === 'previous_year' && destination.compare === 'off-turns-off') return null;
   // The object a drawer opens: a topic term (the scope's topic when none is given) or a prompt
   const target: InspectorTarget | null =
     kind === 'topicDrawer'
@@ -153,7 +182,7 @@ export function drillHref(
   put('win', win);
   put('from', from);
   put('to', to);
-  put('cmp', cmpParam(scope.compare));
+  put('cmp', cmpOf(destination.compare, scope));
   put('country', scope.country);
   const engines = extra.engine === undefined ? scope.engines : [extra.engine];
   put('engine', engines === null ? null : engines.join(','));
@@ -162,7 +191,10 @@ export function drillHref(
   put('branded', branded);
   if (kind === 'prompts') {
     put('tab', 'prompts');
-    if (extra.engine !== undefined) put('sort', formatSort([{ id: engineRateSort(extra.engine), desc: true }]));
+    if (extra.engine !== undefined) {
+      put('sort', formatSort([{ id: engineRateSort(extra.engine), desc: true }]));
+      put('cols', promptColumnsFor(extra.engine, scope.country));
+    }
     if (extra.metric !== undefined && extra.metric !== 'mention') put('metric', extra.metric);
   }
   if (target !== null) put('inspect', formatInspectTarget(target));

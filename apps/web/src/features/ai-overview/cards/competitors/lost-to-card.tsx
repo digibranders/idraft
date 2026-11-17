@@ -4,28 +4,25 @@ import { useTranslations } from 'next-intl';
 import type { ReactElement } from 'react';
 
 import { SHAPE_OPTIONS, useTrackedSet } from './data/use-competitor-reads';
-import { lostToRows } from './model/lost-to';
-import type { LostToRead, TrackedSet } from './model/types';
-import { useCardEngine } from './parts/card-engine';
+import { leadsOf, type CompetitorLead, type LeadRead } from './model/lead-rule';
+import { colorSlots } from './model/tracked-set';
+import type { TrackedSet } from './model/types';
+import { useCardPlatforms } from './parts/card-engine';
+import { CompetitorDot } from './parts/competitor-bars';
 import { frameSummary, useFrameState, type DataSituation, type FrameState } from './parts/frame-state';
 import { loadingBodyHeight } from './skeletons';
-import { useCardDensity } from '../engines/use-card-density';
-import { useCardDrill, useCardExport } from '../engines/use-card-seams';
-import { useOverview, useOverviewSummary } from '../../overview-context';
-import {
-  BarList,
-  BarListTable,
-  barListCsv,
-  type BarListProps,
-  type ComparisonRow,
-} from '@/components/app/chart/bar-list';
+import { useCardExport } from '../engines/use-card-seams';
+import { useOpenCompetitor, type CompetitorLead as LeadKind } from '../../competitor-drawer/open-competitor';
+import { useOverviewSummary } from '../../overview-context';
+import { useScopeUnavailable } from '../../states/scope-unavailable';
 import { ChartFrame } from '@/components/app/chart/chart-frame';
-import { EngineLogo } from '@/components/app/engine/engine-logo';
+import { PlainTable, type PlainColumn } from '@/components/app/table/plain-table';
 import type { CardProps } from '@/features/layouts';
-import { formatDateRange, formatList } from '@/lib/format';
+import { safeText, type CsvTable } from '@/lib/csv/csv-write';
+import { formatInteger, formatList } from '@/lib/format';
 import { MIN_OBSERVATIONS } from '@/lib/stats';
 
-/** The `rows` option (catalog 5 or 10, default 5). */
+/** The `rows` option (catalog 5 or 10, default 5): the competitors drawn in the card; the Table view holds them all. */
 const ROW_OPTIONS = [5, 10] as const;
 const DEFAULT_ROWS = 5;
 const LOADING_HEIGHT = loadingBodyHeight('ai.lost_to_competitor');
@@ -35,122 +32,116 @@ function rowsOf(option: string | undefined): number {
   return ROW_OPTIONS.find((candidate) => candidate === rows) ?? DEFAULT_ROWS;
 }
 
-function situationOf(result: LostToRead | null, set: TrackedSet | null): DataSituation {
-  if (result === null || set === null) return { kind: 'ready' };
-  if (result.status === 'unread') return { kind: 'no_answers' };
+function situationOf(read: LeadRead | null, set: TrackedSet | null): DataSituation {
+  if (read === null || set === null) return { kind: 'ready' };
+  if (read.status === 'unread') return { kind: 'no_answers' };
   if (!set.entities.some((entity) => entity.role === 'competitor')) return { kind: 'no_competitor' };
   return { kind: 'ready' };
 }
 
+/** The competitors that could be compared on a prompt, the ones that lead on most prompts first. */
+const rowsFrom = (read: LeadRead | null): CompetitorLead[] =>
+  read?.status === 'read'
+    ? read.competitors
+        .filter((lead) => lead.compared > 0)
+        .sort((a, b) => b.they - a.they || a.entity.name.localeCompare(b.entity.name))
+    : [];
+
 /**
- * CH-05: the competitors that take prompts from the own brand on one engine. A prompt is lost to a competitor when
- * it is named in an answer, you are named in none of the prompt's answers on this engine, and the prompt has 4 or
- * more valid answers (D-3: the rule of a prompt, so a drill count can be larger). The bar is the share of those
- * prompts, and prompts with too few answers are counted in the footnote, never hidden.
+ * CH-05 and OV-GAP: for each competitor, the prompts where it leads and the prompts where you lead, over the
+ * platforms of the page scope (no engine option). The rule is `leadsOf`: decided on each platform and combined
+ * without pooling answers, the same counts the competitor drawer reads (R12). A name opens its drawer, a count opens it
+ * on the prompts behind that count.
  */
 export default function LostToCard({ item, options, live }: CardProps): ReactElement {
-  const t = useTranslations('aiOverview.competitors.lostTo');
-  const insufficient = useTranslations('common.insufficient');
-  const { scope } = useOverview();
-  const engine = useCardEngine(options);
-  const density = useCardDensity();
-  const drill = useCardDrill();
+  const t = useTranslations('aiOverview.competitors.scopeGap');
+  const platforms = useCardPlatforms();
+  const open = useOpenCompetitor();
+  const unavailable = useScopeUnavailable(t('title'));
   // One read: this card draws no comparison, so the previous window is not asked
   const summaryRead = useOverviewSummary({ ...SHAPE_OPTIONS['prompt-rows'], subscribed: live });
   const current = summaryRead.data;
   const set = useTrackedSet(current);
-  const result = current !== undefined && set !== null ? lostToRows(current, engine.code, set) : null;
-  const read = result?.status === 'read' ? result : null;
+  const read: LeadRead | null =
+    current !== undefined && set !== null && platforms.codes.length > 0 ? leadsOf(current, platforms.codes, set) : null;
   const base = useFrameState({
     subject: t('subject'),
     read: summaryRead,
-    // The previous window is not drawn here: nothing of it can be missing from this card
     previous: null,
     previousEmpty: false,
-    engine,
-    situation: situationOf(result, set),
+    engine: null,
+    situation: situationOf(read, set),
   });
-  const enough = read?.promptsWithEnoughAnswers ?? 0;
-  const tooFew = read?.promptsWithTooFewAnswers ?? 0;
-  // Prompts exist and none has 4 answers: nothing can be lost yet, which is not the same as nothing being lost
+  const all = rowsFrom(read);
   const frame: FrameState =
-    (base.status === 'ready' || base.status === 'refetching') && read !== null && enough === 0
-      ? {
-          status: 'empty',
-          empty: {
-            title: t('notEnoughTitle'),
-            reason: t('notEnoughReason', { min: MIN_OBSERVATIONS, engine: engine.label }),
-          },
-        }
-      : base;
-
-  const rows: ComparisonRow[] = (read?.rows ?? []).map((row) => {
-    const value = t('promptsValue', { count: row.prompts });
-    const context = t('ofPrompts', { total: enough });
-    return {
-      id: row.entityId,
-      label: row.name,
-      own: false,
-      value: { kind: 'value', value: row.prompts, valueText: value, contextText: context },
-      accessibleText: t('rowText', { name: row.name, value, context }),
-      tip: t('rowTip', { name: row.name, min: MIN_OBSERVATIONS }),
-      // A row is plain text where there is no page to open
-      href: drill('competitors', { engine: engine.code }) ?? undefined,
-    };
-  });
+    platforms.codes.length === 0
+      ? { status: 'empty', empty: unavailable }
+      : read?.status === 'read' && all.length === 0 && (base.status === 'ready' || base.status === 'refetching')
+        ? { status: 'empty', empty: { title: t('emptyTitle'), reason: t('emptyReason') } }
+        : base;
   const limit = rowsOf(options.rows);
-  const hidden = Math.max(0, rows.length - limit);
-  const list: BarListProps = {
-    mode: 'comparison',
-    rows,
-    caption: t('caption', { engine: engine.label }),
-    labelHeader: t('labelHeader'),
-    valueHeader: t('valueHeader'),
-    contextHeader: t('contextHeader'),
-    // The bar is the share of the prompts that could be lost, so a full bar is every one of them
-    max: enough,
-    limit,
-    density,
+  const shown = all.slice(0, limit);
+  const slots = set === null ? null : colorSlots(set);
+  const tooFew = read?.status === 'read' ? read.tooFew : 0;
+
+  const columns: PlainColumn<CompetitorLead>[] = [
+    { id: 'name', header: t('competitor'), cell: (lead) => lead.entity.name },
+    { id: 'they', header: t('theyLead'), cell: (lead) => formatInteger(lead.they) },
+    { id: 'you', header: t('youLead'), cell: (lead) => formatInteger(lead.you) },
+    { id: 'close', header: t('close'), cell: (lead) => formatInteger(lead.close) },
+    { id: 'compared', header: t('compared'), cell: (lead) => formatInteger(lead.compared) },
+  ];
+  const csv: CsvTable = {
+    header: columns.map((column) => safeText(column.header)),
+    rows: all.map((lead) => [safeText(lead.entity.name), lead.they, lead.you, lead.close, lead.compared]),
   };
-  const csv = barListCsv(list, (count) => insufficient('answers', { count }));
   useCardExport(item.id, () => {
     if (frame.status === 'loading' || frame.status === 'error') return null;
-    return {
-      id: item.id,
-      header: [...csv.header, t('statusHeader')],
-      rows: csv.rows.map((row) => [...row, t('statusRead')]),
-    };
+    return { id: item.id, header: csv.header, rows: csv.rows };
   });
 
+  const countCell = (lead: CompetitorLead, kind: LeadKind, count: number, last: boolean): ReactElement => (
+    <td className={last ? 'pr-4 pl-3 text-right num' : 'px-3 text-right num'}>
+      <button
+        type="button"
+        aria-label={
+          kind === 'they'
+            ? t('theyLabel', { name: lead.entity.name, count, compared: lead.compared })
+            : t('youLabel', { count, compared: lead.compared })
+        }
+        onClick={(event) => open(lead.entity.entityId, event.currentTarget, { lead: kind })}
+        className="rounded-sm outline-none hover:underline focus-visible:focus-ring"
+      >
+        {t('count', { count, compared: lead.compared })}
+      </button>
+    </td>
+  );
   const notes = [
     tooFew > 0 ? t('tooFewNote', { count: tooFew, min: MIN_OBSERVATIONS }) : null,
-    hidden > 0 ? t('moreRows', { count: hidden }) : null,
+    all.length > shown.length ? t('moreRows', { count: all.length - shown.length }) : null,
   ].filter((note): note is string => note !== null);
-  const range = current === undefined ? null : formatDateRange(current.window.from, current.window.to);
+
   return (
     <ChartFrame
       kind="html"
+      keepHeaderWhenEmpty
       variant="panel"
       height={240}
       loadingHeight={LOADING_HEIGHT}
-      title={t('title', { engine: engine.label })}
-      meta={
-        range === null || read === null
-          ? null
-          : t('meta', { window: range, count: enough, min: MIN_OBSERVATIONS, branded: scope.branded })
-      }
+      title={t('title')}
+      meta={read?.status === 'read' && all.length > 0 ? t('meta') : null}
+      info={{ what: t('info.what'), how: t('info.how') }}
       summary={frameSummary(
         frame,
-        rows.length === 0
-          ? t('summaryNone', { engine: engine.label, total: enough, min: MIN_OBSERVATIONS })
-          : t('summary', {
-              engine: engine.label,
-              total: enough,
-              min: MIN_OBSERVATIONS,
-              list: formatList(
-                rows.slice(0, 3).map((row) => `${row.label} ${row.value.kind === 'value' ? row.value.valueText : ''}`),
+        t('summary', {
+          list: formatList(
+            shown
+              .slice(0, 3)
+              .map((lead) =>
+                t('summaryRow', { name: lead.entity.name, they: lead.they, you: lead.you, compared: lead.compared }),
               ),
-            }),
+          ),
+        }),
       )}
       footnote={
         notes.length === 0 ? undefined : (
@@ -162,24 +153,55 @@ export default function LostToCard({ item, options, live }: CardProps): ReactEle
         )
       }
       body={
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center gap-2 type-meta">
-            <EngineLogo engine={engine.code} name={engine.label} />
-          </div>
-          {rows.length === 0 ? (
-            <div className="flex flex-col gap-1">
-              <p className="type-body-strong">{t('noneTitle', { engine: engine.label })}</p>
-              <p className="type-body text-foreground-secondary">
-                {t('noneReason', { total: enough, min: MIN_OBSERVATIONS })}
-              </p>
-            </div>
-          ) : (
-            <BarList {...list} />
-          )}
+        <div className="-mx-4 overflow-x-auto">
+          <table aria-label={t('caption')} className="w-full type-table">
+            <thead>
+              <tr className="h-row-header border-t border-border-subtle bg-surface-subtle">
+                <th scope="col" className="pr-3 pl-4 text-left type-table-header whitespace-nowrap">
+                  {t('competitor')}
+                </th>
+                <th scope="col" className="px-3 text-right type-table-header whitespace-nowrap">
+                  {t('theyLead')}
+                </th>
+                <th scope="col" className="pr-4 pl-3 text-right type-table-header whitespace-nowrap">
+                  {t('youLead')}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((lead) => (
+                <tr key={lead.entity.entityId} className="h-row-compact border-t border-border-subtle">
+                  <th scope="row" className="pr-3 pl-4 text-left font-normal whitespace-nowrap text-foreground">
+                    <button
+                      type="button"
+                      aria-label={t('open', { name: lead.entity.name })}
+                      onClick={(event) => open(lead.entity.entityId, event.currentTarget)}
+                      className="inline-flex items-center gap-2 rounded-sm outline-none hover:underline focus-visible:focus-ring"
+                    >
+                      <CompetitorDot slot={slots?.get(lead.entity.entityId) ?? null} />
+                      {lead.entity.name}
+                    </button>
+                  </th>
+                  {countCell(lead, 'they', lead.they, false)}
+                  {countCell(lead, 'you', lead.you, true)}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       }
-      table={<BarListTable {...list} />}
-      menu={{ fileName: t('fileName', { engine: engine.code }), csv }}
+      table={
+        <PlainTable<CompetitorLead>
+          caption={t('caption')}
+          columns={columns}
+          rows={all}
+          rowKey={(lead) => lead.entity.entityId}
+          status="ready"
+          errorState={null}
+          emptyText={t('emptyTitle')}
+        />
+      }
+      menu={{ fileName: t('fileName'), csv }}
       {...frame}
     />
   );

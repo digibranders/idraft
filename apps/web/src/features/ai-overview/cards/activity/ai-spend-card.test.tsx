@@ -80,7 +80,7 @@ describe('the AI spend card', () => {
     second.unmount();
     serve(budgetStatus({ projectId: null, workload: 'all' }));
     render();
-    expect(await screen.findByText('Workspace budget, all workloads')).toBeInTheDocument();
+    expect(await screen.findByText('Workspace budget, all job types')).toBeInTheDocument();
   });
 
   it('shows one budget and never adds several up', async () => {

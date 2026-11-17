@@ -40,7 +40,7 @@ test.describe('schedules and keyword defaults', () => {
     await choose(page, dialog, 'What to collect', 'SEO rank');
     await choose(page, dialog, 'Repeats', 'Every week');
     await choose(page, dialog, 'On', 'Wednesday');
-    await dialog.getByRole('radio', { name: /^Groups and terms/ }).click();
+    await dialog.getByRole('radio', { name: /^Groups and tags/ }).click();
     await dialog.getByRole('combobox', { name: /^Groups/ }).click();
     await page.getByRole('option', { name: 'Local' }).click();
     await page.keyboard.press('Escape');

@@ -117,14 +117,14 @@ const coverageUi = (open = false): ReactElement => <AiRunCoverage scope={RUNS_SC
 
 /** The card of one engine in "Answers by engine". */
 async function engineCard(name: string): Promise<HTMLElement> {
-  const section = (await screen.findByRole('heading', { name: 'Answers by engine' })).closest('section');
+  const section = (await screen.findByRole('heading', { name: 'Answers by platform' })).closest('section');
   if (section === null) throw new Error('no section');
   const card = (await within(section).findByText(name, { selector: '[data-slot="badge"]' })).closest('li');
   if (card === null) throw new Error(`no card for ${name}`);
   return card;
 }
 
-describe('Answers by engine', () => {
+describe('Answers by platform', () => {
   it('answers by engine shows valid of planned with the percent and the count', async () => {
     serveCoverage({ by_engine: [engineRow('chatgpt_web')], missing: [] });
     renderWithProviders(coverageUi());
@@ -182,7 +182,7 @@ describe('Answers by engine', () => {
     renderWithProviders(coverageUi());
     const card = await engineCard('Google AI Mode');
     expect(within(card).getByText('n/a')).toBeInTheDocument();
-    expect(within(card).getByText('No answers were planned on this engine in this run.')).toBeInTheDocument();
+    expect(within(card).getByText('No answers were planned on this platform in this run.')).toBeInTheDocument();
     expect(card.textContent).not.toMatch(/0 of 0|0%/);
   });
 
@@ -222,7 +222,7 @@ describe('Answers by engine', () => {
     expect(healthy.querySelector('[class*="warning"]')).toBeNull();
     expect(degraded.querySelector('[class*="warning"]')).not.toBeNull();
     // The colour is never the only marker: words say it too (WCAG 1.4.1)
-    const cue = 'Below 90%, so this engine is degraded in this run.';
+    const cue = 'Below 90%, so this platform is degraded in this run.';
     expect(within(degraded).getByText(cue)).toBeInTheDocument();
     expect(within(healthy).queryByText(cue)).toBeNull();
   });
@@ -235,7 +235,7 @@ describe('Answers by engine', () => {
     renderWithProviders(coverageUi());
     const card = await engineCard('Gemini');
     expect(within(card).getByText('896 of 1,000 answers valid, 89.6%')).toBeInTheDocument();
-    expect(within(card).getByText('Below 90%, so this engine is degraded in this run.')).toBeInTheDocument();
+    expect(within(card).getByText('Below 90%, so this platform is degraded in this run.')).toBeInTheDocument();
   });
 
   it('engines are listed one by one and no total pools them', async () => {
@@ -291,7 +291,7 @@ describe('Missing answers', () => {
     const headers = within(table)
       .getAllByRole('columnheader')
       .map((cell) => cell.textContent);
-    expect(headers).toEqual(['Prompt', 'Engine', 'Task status']);
+    expect(headers).toEqual(['Prompt', 'Platform', 'Task status']);
     const rows = within(table).getAllByRole('row').slice(1);
     expect(rows).toHaveLength(50);
     // The text of a prompt already read, else its id: never blank
@@ -334,7 +334,7 @@ describe('the read', () => {
     expect(await screen.findByText('Could not refresh. These are the last figures read.')).toBeInTheDocument();
     // What was on screen stays; the error view is for a first read that fails
     expect(screen.getByText('141 of 150 answers valid, 94%')).toBeInTheDocument();
-    expect(screen.queryByText('Answers per engine did not load')).toBeNull();
+    expect(screen.queryByText('Answers per platform did not load')).toBeNull();
 
     served.answer({ by_engine: [engineRow('chatgpt_web', { valid: 150, partial: 0 })], missing: [] });
     await view.queryClient.refetchQueries();
@@ -427,7 +427,7 @@ describe('in the run inspector', () => {
     renderWithProviders(inspectorOf('ai_prompt'));
     const headings = await screen.findAllByRole('heading', { level: 3 });
     const names = headings.map((heading) => heading.textContent);
-    expect(names).toEqual(['Summary', 'Tasks by status', 'Answers by engine', 'Missing answers']);
+    expect(names).toEqual(['Summary', 'Tasks by status', 'Answers by platform', 'Missing answers']);
   });
 
   it('a keyword run shows neither section', async () => {
@@ -435,7 +435,7 @@ describe('in the run inspector', () => {
     const served = serveCoverage({ by_engine: [engineRow('chatgpt_web')], missing: [] });
     renderWithProviders(inspectorOf('keyword_metrics'));
     expect(await screen.findByRole('heading', { name: 'Tasks by status' })).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Answers by engine' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Answers by platform' })).toBeNull();
     expect(screen.queryByRole('heading', { name: 'Missing answers' })).toBeNull();
     // The workload check is also what keeps the page from asking a keyword run for answers: the API refuses with 422
     expect(served.asked()).toBe(0);
@@ -445,20 +445,20 @@ describe('in the run inspector', () => {
     detailIsGone();
     const served = serveCoverage(null);
     const view = renderWithProviders(inspectorOf('ai_prompt'));
-    expect(await screen.findByText('Answers per engine did not load')).toBeInTheDocument();
+    expect(await screen.findByText('Answers per platform did not load')).toBeInTheDocument();
     // The run's own sections stay
     expect(screen.getByRole('heading', { name: 'Summary' })).toBeInTheDocument();
-    expect(screen.getByText('Trigger')).toBeInTheDocument();
+    expect(screen.getByText('Started by')).toBeInTheDocument();
     // One error for the one read, not one per section (the detail read of this test fails too, in its own section)
-    expect(screen.getAllByText('Answers per engine did not load')).toHaveLength(1);
+    expect(screen.getAllByText('Answers per platform did not load')).toHaveLength(1);
     expect(screen.queryByRole('heading', { name: 'Missing answers' })).toBeNull();
-    const section = screen.getByRole('heading', { name: 'Answers by engine' }).closest('section');
+    const section = screen.getByRole('heading', { name: 'Answers by platform' }).closest('section');
     if (section === null) throw new Error('no section');
     expect(within(section).getAllByRole('button', { name: 'Try again' })).toHaveLength(1);
 
     served.answer({ by_engine: [engineRow('chatgpt_web')], missing: [] });
     await view.user.click(within(section).getByRole('button', { name: 'Try again' }));
     expect(await screen.findByText('141 of 150 answers valid, 94%')).toBeInTheDocument();
-    expect(screen.queryByText('Answers per engine did not load')).toBeNull();
+    expect(screen.queryByText('Answers per platform did not load')).toBeNull();
   });
 });

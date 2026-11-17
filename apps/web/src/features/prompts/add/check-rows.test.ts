@@ -161,7 +161,7 @@ describe('the rows of the check list', () => {
       { tone: 'warning', text: 'Too long for AI Mode, which skips it.' },
       {
         tone: 'note',
-        text: 'Names Acme Inc, so it counts as branded and stays out of the rates unless branded prompts are included.',
+        text: 'Mentions Acme Inc, so it counts as branded and stays out of the rates unless branded prompts are included.',
       },
     ]);
   });
@@ -178,14 +178,14 @@ describe('the rows of the check list', () => {
       }),
     ];
     expect(only(rowsOf(text, lint, { branded: 'never' })).reasons).toEqual([
-      { tone: 'warning', text: 'Names Acme Inc but is marked not branded. Its answers will count in the rates.' },
+      { tone: 'warning', text: 'Mentions Acme Inc but is marked not branded. Its answers will count in the rates.' },
     ]);
     // Set from the names and always branded: the line is branded, which is a note and not a problem
     for (const branded of ['auto', 'always'] as const) {
       expect(only(rowsOf(text, lint, { branded })).reasons).toEqual([
         {
           tone: 'note',
-          text: 'Names Acme Inc, so it counts as branded and stays out of the rates unless branded prompts are included.',
+          text: 'Mentions Acme Inc, so it counts as branded and stays out of the rates unless branded prompts are included.',
         },
       ]);
     }

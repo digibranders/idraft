@@ -143,11 +143,11 @@ describe('the Answers tab of the source inspector', () => {
   it('says the place the page has in the answer list, and never claims a rank or a total', async () => {
     renderWithProviders(<Tab citations={readOf('ready', pageOf([rowOf(1001, { citation_index: 3 })]))} />);
     const [first] = await bodyRows();
-    expect(within(first as HTMLElement).getByText('Listed as source 3 in the answer')).toBeInTheDocument();
+    expect(within(first as HTMLElement).getByText('Listed as citation 3 in the answer')).toBeInTheDocument();
     const text = (await table()).textContent ?? '';
     expect(text).not.toMatch(/rank/i);
     expect(text).not.toContain('#');
-    expect(text).not.toMatch(/source 3 of/i);
+    expect(text).not.toMatch(/citation 3 of/i);
   });
 
   it('counts a page an answer lists twice as one answer, at its first place', async () => {
@@ -165,13 +165,13 @@ describe('the Answers tab of the source inspector', () => {
     );
     await waitFor(async () => expect(await bodyRows()).toHaveLength(2));
     const lines = await bodyRows();
-    expect(lines[0]).toHaveTextContent('Listed as source 2 in the answer');
+    expect(lines[0]).toHaveTextContent('Listed as citation 2 in the answer');
   });
 
   it('links Open evidence to the answer on the prompts page, with the marker to show', async () => {
     renderWithProviders(<Tab citations={readOf('ready', pageOf([rowOf(1001, { citation_index: 3 })]))} />);
     const link = await screen.findByRole('link', {
-      name: 'Open the evidence of the answer of Nov 10, 08:00, source 3',
+      name: 'Open the evidence of the answer of Nov 10, 08:00, citation 3',
     });
     expect(link).toHaveAttribute('href', '/digibranders/fynix/ai/prompts?inspect=answer%3A1001&cite=3');
     expect(link).toHaveTextContent('Open evidence');
@@ -191,8 +191,8 @@ describe('the Answers tab of the source inspector', () => {
     );
     const links = await screen.findAllByRole('link');
     expect(links.map((link) => link.getAttribute('aria-label'))).toEqual([
-      'Open the evidence of the answer of Nov 10, 08:00, source 3',
-      'Open the evidence of the answer of Nov 9, 15:45, source 8',
+      'Open the evidence of the answer of Nov 10, 08:00, citation 3',
+      'Open the evidence of the answer of Nov 9, 15:45, citation 8',
     ]);
     expect(links[1]).toHaveAttribute('href', '/digibranders/fynix/ai/prompts?inspect=answer%3A1002&cite=8');
   });
@@ -222,7 +222,7 @@ describe('the Answers tab of the source inspector', () => {
     );
     const [first] = await bodyRows();
     const list = within(first as HTMLElement).getByRole('list', {
-      name: 'Passages the engine quoted from its sources',
+      name: 'Passages the platform quoted from the cited pages',
     });
     expect(list).toHaveTextContent('“G2 compares the top CRM tools.”');
     expect(list).toHaveTextContent('g2.com');
@@ -275,7 +275,7 @@ describe('the Answers tab of the source inspector', () => {
     renderWithProviders(<Tab citations={readOf('ready', pageOf([]))} />);
     expect(await screen.findByText('No answer cites this page')).toBeInTheDocument();
     expect(
-      screen.getByText('No answer read in this window cites it. Choose a longer window or another engine.'),
+      screen.getByText('No answer read in this period cites it. Choose a longer period or another platform.'),
     ).toBeInTheDocument();
     expect(screen.queryByRole('table')).toBeNull();
   });

@@ -159,7 +159,7 @@ const panel = (): Promise<HTMLElement> => screen.findByRole('complementary', { n
 const strip = (): Promise<HTMLElement> => screen.findByRole('group', { name: 'Domain summary' });
 /** The open tooltip: the popup a hover or focus opens. */
 const tooltip = (): HTMLElement | null => document.querySelector<HTMLElement>('[data-slot="tooltip"]');
-const engineTable = (): Promise<HTMLElement> => screen.findByRole('table', { name: 'Citations of g2.com by engine' });
+const engineTable = (): Promise<HTMLElement> => screen.findByRole('table', { name: 'Citations of g2.com by platform' });
 
 describe('the domain inspector header', () => {
   it('shows the domain, one role badge per row, Category n/a and when it was last cited', async () => {
@@ -176,7 +176,7 @@ describe('the domain inspector header', () => {
     expect(within(inspector).getByRole('heading', { level: 2, name: 'g2.com' })).toBeInTheDocument();
     expect(await within(inspector).findByText('Third party')).toBeInTheDocument();
     expect(within(inspector).getByText('Competitor')).toBeInTheDocument();
-    expect(within(inspector).getByText('Category n/a')).toBeInTheDocument();
+    expect(within(inspector).getByText('Domain type n/a')).toBeInTheDocument();
     // The newest of the rows: 11 November, 08:00 UTC, 28 hours before NOW
     expect(within(inspector).getByText('Last cited 1d ago')).toBeInTheDocument();
     expect(within(inspector).getByText('Domain')).toBeInTheDocument();
@@ -187,8 +187,10 @@ describe('the domain inspector header', () => {
     serve(detailOf({ rows: [rowOf(), rowOf({ domain_role: 'competitor', role_entity_id: 'ent-1' })] }));
     const { user } = renderWithProviders(<Harness />);
     const inspector = await panel();
-    await user.hover(await within(inspector).findByText('Category n/a'));
-    await waitFor(() => expect(tooltip()).toHaveTextContent('Categories arrive with the Sources work.'));
+    await user.hover(await within(inspector).findByText('Domain type n/a'));
+    await waitFor(() =>
+      expect(tooltip()).toHaveTextContent('Domain types arrive with the Citation opportunities work.'),
+    );
   });
 
   it('has Copy link and View pages on the Pages tab in the More menu, the second a real link', async () => {
@@ -213,9 +215,9 @@ describe('the domain inspector strip', () => {
     const summary = await strip();
     expect(await within(summary).findByText('1,912')).toBeInTheDocument();
     expect(within(summary).getByText('Citation units')).toBeInTheDocument();
-    expect(within(summary).getByText('of 18,420 units in 4,812 answers, all engines')).toBeInTheDocument();
+    expect(within(summary).getByText('of 18,420 units in 4,812 answers, all platforms')).toBeInTheDocument();
     expect(within(summary).getByText('10.4%')).toBeInTheDocument();
-    expect(within(summary).getByText('1,912 of 18,420 units, all engines')).toBeInTheDocument();
+    expect(within(summary).getByText('1,912 of 18,420 units, all platforms')).toBeInTheDocument();
     expect(within(summary).getByText('Answers citing it')).toBeInTheDocument();
     expect(within(summary).getByText('640')).toBeInTheDocument();
     expect(within(summary).getByText('of 4,812 answers')).toBeInTheDocument();
@@ -224,14 +226,14 @@ describe('the domain inspector strip', () => {
     expect(await axe(container)).toHaveNoViolations();
   });
 
-  it('says the units and the share are of every engine when none is chosen', async () => {
+  it('says the units and the share are of every platform when none is chosen', async () => {
     renderWithProviders(<Harness />);
     const summary = await strip();
-    expect(await within(summary).findByText('of 18,420 units in 4,812 answers, all engines')).toBeInTheDocument();
-    expect(within(summary).getByText('1,912 of 18,420 units, all engines')).toBeInTheDocument();
+    expect(await within(summary).findByText('of 18,420 units in 4,812 answers, all platforms')).toBeInTheDocument();
+    expect(within(summary).getByText('1,912 of 18,420 units, all platforms')).toBeInTheDocument();
   });
 
-  it('names the chosen engines in the units and the share context', async () => {
+  it('names the chosen platforms in the units and the share context', async () => {
     renderWithProviders(
       <Harness filters={{ ...FILTERS, engines: ['chatgpt_web', 'gemini_web'] }} engines={ENGINES.slice(0, 2)} />,
     );
@@ -240,7 +242,7 @@ describe('the domain inspector strip', () => {
       await within(summary).findByText('of 18,420 units in 4,812 answers, ChatGPT and Gemini'),
     ).toBeInTheDocument();
     expect(within(summary).getByText('1,912 of 18,420 units, ChatGPT and Gemini')).toBeInTheDocument();
-    expect(within(summary).queryByText(/all engines/)).toBeNull();
+    expect(within(summary).queryByText(/all platforms/)).toBeNull();
   });
 
   it('shows no change figure: the detail has no period before it, so a zero would be a lie', async () => {
@@ -270,7 +272,7 @@ describe('the domain inspector strip', () => {
   });
 });
 
-describe('the engine table', () => {
+describe('the platform table', () => {
   it('says each share with its count', async () => {
     renderWithProviders(<Harness />);
     const table = await engineTable();
@@ -289,17 +291,17 @@ describe('the engine table', () => {
       within(table)
         .getAllByRole('columnheader')
         .map((header) => header.textContent),
-    ).toEqual(['Engine', 'Units', 'Share of the engine', 'Answers citing it']);
+    ).toEqual(['Platform', 'Units', 'Share of the platform', 'Answers citing it']);
   });
 
-  it('keeps the engines apart: no row adds them up', async () => {
+  it('keeps the platforms apart: no row adds them up', async () => {
     renderWithProviders(<Harness />);
     const table = await engineTable();
     expect(within(table).getAllByRole('rowheader')).toHaveLength(3);
     expect(table.querySelector('tfoot')).toBeNull();
   });
 
-  it('says n/a with the reason for an engine with no citation, never 0%', async () => {
+  it('says n/a with the reason for a platform with no citation, never 0%', async () => {
     serve(
       detailOf({
         engines: [
@@ -323,10 +325,10 @@ describe('the engine table', () => {
     if (mode === null) throw new Error('The AI Mode row is missing');
     expect(within(mode).queryByText(/%/)).toBeNull();
     await user.hover(within(mode).getByText('n/a'));
-    await waitFor(() => expect(tooltip()).toHaveTextContent('AI Mode has no citation in this window.'));
+    await waitFor(() => expect(tooltip()).toHaveTextContent('AI Mode has no citation in this period.'));
   });
 
-  it('says an engine that asked and was never cited has 0 units and 0 answers, and no share', async () => {
+  it('says a platform that asked and was never cited has 0 units and 0 answers, and no share', async () => {
     serve(
       detailOf({
         engines: [
@@ -352,7 +354,7 @@ describe('the engine table', () => {
     expect(within(mode).getAllByText('n/a')).toHaveLength(1);
   });
 
-  it('says n/a with the reason, not 0, for the units and answers of an engine that has no answer', async () => {
+  it('says n/a with the reason, not 0, for the units and answers of a platform that has no answer', async () => {
     serve(
       detailOf({
         engines: [
@@ -385,10 +387,10 @@ describe('the engine table', () => {
     const [units] = unknown;
     if (units === undefined) throw new Error('The units cell is missing');
     await user.hover(units);
-    await waitFor(() => expect(tooltip()).toHaveTextContent('AI Mode has no answer in this window.'));
+    await waitFor(() => expect(tooltip()).toHaveTextContent('AI Mode has no answer in this period.'));
   });
 
-  it('says the citations of an engine are not known when the read has no series for it', async () => {
+  it('says the citations of a platform are not known when the read has no series for it', async () => {
     serve(detailOf({ engines: [{ engine_code: 'chatgpt_web', series: weeks(700, 7000) }] }));
     renderWithProviders(<Harness />);
     const table = await engineTable();
@@ -445,16 +447,16 @@ describe('the domain inspector states', () => {
     serve(NOT_CITED);
     renderWithProviders(<Harness />);
     const inspector = await panel();
-    expect(await within(inspector).findByText('Not cited in this window')).toBeInTheDocument();
+    expect(await within(inspector).findByText('Not cited in this period')).toBeInTheDocument();
     expect(
       within(inspector).getByText(
-        'No answer read in this window cites g2.com. Choose a longer window or another engine.',
+        'No answer read in this period cites g2.com. Choose a longer period or another platform.',
       ),
     ).toBeInTheDocument();
     expect(within(inspector).queryByRole('group', { name: 'Domain summary' })).toBeNull();
     expect(within(inspector).queryByRole('table')).toBeNull();
     expect(within(inspector).queryByText('0')).toBeNull();
-    expect(within(inspector).queryByText('Category n/a')).toBeNull();
+    expect(within(inspector).queryByText('Domain type n/a')).toBeNull();
   });
 
   it('says a project the caller cannot see is not there', async () => {
@@ -582,10 +584,10 @@ describe('the tabs', () => {
       '/digibranders/fynix/ai/citations?inspect=source%3A77',
     );
     expect(within(inspector).getByRole('group', { name: 'Domain summary' })).toBeInTheDocument();
-    expect(within(inspector).queryByRole('table', { name: 'Citations of g2.com by engine' })).toBeNull();
+    expect(within(inspector).queryByRole('table', { name: 'Citations of g2.com by platform' })).toBeNull();
   });
 
-  it('shows the top prompts on the Prompts tab, with the text and the engine', async () => {
+  it('shows the top prompts on the Prompts tab, with the text and the platform', async () => {
     serveTabs();
     renderWithProviders(<Harness tab="prompts" />);
     const inspector = await panel();
@@ -594,7 +596,7 @@ describe('the tabs', () => {
     expect(await within(inspector).findByText('Gemini')).toBeInTheDocument();
   });
 
-  it('does not show the engines of the last domain on the Prompts tab of the next one while they read', async () => {
+  it('does not show the platforms of the last domain on the Prompts tab of the next one while they read', async () => {
     serveTabs();
     const held = gate();
     server.use(
@@ -635,7 +637,7 @@ describe('the tabs', () => {
 });
 
 describe('the Overview tab', () => {
-  it('lists the trend, the engine table, the entities named and the search share, in that order', async () => {
+  it('lists the trend, the platform table, the entities named and the search share, in that order', async () => {
     serve(detailOf({ cited_with: [{ entity_id: '0b0e3d6a-0000-4000-8000-000000000001', observations: 120 }] }));
     renderWithProviders(<Harness />);
     const inspector = await panel();
@@ -646,9 +648,9 @@ describe('the Overview tab', () => {
     expect(within(inspector).getByRole('link', { name: 'Open Rankings' })).toHaveAttribute('href', RANKINGS_HREF);
     // The last card is a card heading and the reason it is empty
     expect(titles).toEqual([
-      'Share of citations by engine',
-      'By engine',
-      'Named when cited',
+      'Share of citations by platform',
+      'By platform',
+      'Mentioned when cited',
       'Search share of voice',
       'Not available yet',
     ]);
@@ -661,7 +663,7 @@ describe('the Overview tab', () => {
     const inspector = await panel();
     expect(await within(inspector).findByText('Name n/a')).toBeInTheDocument();
     expect(await engineTable()).toBeInTheDocument();
-    expect(within(inspector).getByRole('img', { name: 'Share of citations by engine' })).toBeInTheDocument();
+    expect(within(inspector).getByRole('img', { name: 'Share of citations by platform' })).toBeInTheDocument();
   });
 
   it('has no accessibility violations', async () => {

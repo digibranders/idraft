@@ -22,8 +22,8 @@ import { cn } from '@/lib/utils';
 export type DomainRole = components['schemas']['CitationRow']['domain_role'];
 
 /**
- * `show`: the site's icon from the allowlisted endpoint, the placeholder square until it loads and when the
- * service has none or it fails. `hide`: the placeholder square only (the setting is off). Left out of a part's
+ * `show`: the site's icon from the app's own endpoint (`faviconUrl`; none yet, so the square), the placeholder
+ * square until it loads and when the app has none or it fails. `hide`: the placeholder square only (the setting is off). Left out of a part's
  * props: no icon slot at all (not a domain-first table, 07-icons.md section 5).
  */
 export type FaviconMode = 'show' | 'hide';
@@ -46,11 +46,12 @@ export interface FaviconProps {
  * refuses (not a public name, or not a name at all) is never sent to the service.
  */
 export function Favicon({ host, mode }: FaviconProps): ReactElement {
-  // `normalizeDomain` takes a scheme, a path and a query: only its bare `domain` may leave for the service
+  // `normalizeDomain` takes a scheme, a path and a query: only its bare `domain` may be asked of the icon route
   const normalized = mode === 'show' ? normalizeDomain(host) : null;
+  const src = normalized?.ok === true ? faviconUrl(normalized.domain) : null;
   return (
     <span data-slot="favicon" aria-hidden="true" className="relative size-icon shrink-0">
-      {normalized?.ok === true ? <FaviconImage key={normalized.domain} domain={normalized.domain} /> : <Square />}
+      {src === null ? <Square /> : <FaviconImage key={src} src={src} />}
     </span>
   );
 }
@@ -59,20 +60,20 @@ const Square = (): ReactElement => (
   <span data-slot="favicon-placeholder" className="absolute inset-0 rounded-xs bg-neutral-subtle ring-1 ring-border" />
 );
 
-function FaviconImage({ domain }: Readonly<{ domain: string }>): ReactElement {
+function FaviconImage({ src }: Readonly<{ src: string }>): ReactElement {
   const [found, setFound] = useState<boolean | null>(null);
   const settle = (image: HTMLImageElement): void => setFound(image.naturalWidth >= FAVICON_MIN_WIDTH);
   return (
     <>
       {found === true ? null : <Square />}
-      {/* A plain image: the service is the one the CSP names, and the size is not one Next could optimize */}
+      {/* A plain image: the address is the app's own (`faviconUrl`), and the size is not one Next could optimize */}
       {/* eslint-disable-next-line @next/next/no-img-element -- see above */}
       <img
         // An icon from the cache is complete before React listens for it
         ref={(image) => {
           if (image?.complete === true && image.naturalWidth > 0 && found === null) settle(image);
         }}
-        src={faviconUrl(domain)}
+        src={src}
         alt=""
         width={16}
         height={16}

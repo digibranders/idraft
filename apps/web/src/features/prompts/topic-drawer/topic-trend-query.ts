@@ -6,6 +6,7 @@ import { NO_TOPIC, topicSummaryRow } from '@/features/prompts/prompt-model';
 import type { TopicReadScope } from '@/features/prompts/topics-by-engine/topic-entities-query';
 import { apiQuery, type ApiQueryOptions } from '@/lib/api/query';
 import type { PromptsSummary, SummaryEntity, TopicSummaryRow } from '@/lib/api/types';
+import { withBrandMentionShare } from '@/lib/rates/brand-mention-share';
 
 const SUMMARY = '/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/prompts-summary' as const;
 
@@ -16,7 +17,7 @@ const SUMMARY = '/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/prom
  * under the project's `ai` prefix, so `refreshPrompts` reaches it.
  */
 export const topicTrendQuery = (
-  { scope, range, includeBranded, country }: TopicReadScope,
+  { scope, range, includeBranded, brandedOnly, country }: TopicReadScope,
   termId: string,
 ): ApiQueryOptions<typeof SUMMARY> =>
   apiQuery(SUMMARY, {
@@ -26,6 +27,7 @@ export const topicTrendQuery = (
         from: range.from,
         to: range.to,
         include_branded: includeBranded,
+        ...(brandedOnly === true ? { branded_only: true } : {}),
         ...(country === null ? {} : { 'filter[country_iso]': country }),
         rows: 'topics',
         include: ['series', 'entities'],
@@ -79,7 +81,11 @@ export function useTopicTrend(
     };
   }
   const { data } = query;
-  const row = data?.data.topics.find((topic) => topic.term_id === topicKey);
+  // The weekly entity cells of the row give its weeks as brand-mention counts (D17)
+  const row =
+    data === undefined
+      ? undefined
+      : withBrandMentionShare(data.data).topics.find((topic) => topic.term_id === topicKey);
   // The placeholder is the previous read, which may be another topic's: without this topic's row in it, nothing of it shows
   const foreign = query.isPlaceholderData && row === undefined;
   return {

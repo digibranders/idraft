@@ -6,8 +6,8 @@ import type { EngineSummary, MetricCell, ProjectEngine } from '@/lib/api/types';
 
 const LABELS: PromptExportLabels = {
   prompt: 'Prompt',
-  topic: 'Topic',
-  country: 'Country',
+  topic: 'Group',
+  country: 'Location',
   branded: 'Branded',
   yes: 'Yes',
   no: 'No',
@@ -66,8 +66,8 @@ describe('the CSV of prompts', () => {
     );
     expect(table.header).toEqual([
       'Prompt',
-      'Topic',
-      'Country',
+      'Group',
+      'Location',
       'Branded',
       'Mention rate (%)',
       'Mention answers',
@@ -109,5 +109,8 @@ describe('the CSV of prompts', () => {
 
   it('names the file for the window of the answers', () => {
     expect(exportFileName({ from: '2026-10-16', to: '2026-11-12' })).toBe('prompts-2026-10-16-to-2026-11-12.csv');
+    expect(exportFileName({ from: '2026-10-16', to: '2026-11-12' }, 'groups')).toBe(
+      'groups-prompts-2026-10-16-to-2026-11-12.csv',
+    );
   });
 });

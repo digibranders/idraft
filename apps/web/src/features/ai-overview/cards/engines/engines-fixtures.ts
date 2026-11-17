@@ -117,3 +117,31 @@ export function summaryOf(
     window: { ...window, timezone: 'UTC' },
   };
 }
+
+/**
+ * The summary with the tracked brands and a `total` row whose engines carry the entity cells share of voice is counted
+ * from (D17): `counts` is, per engine, the mentions of the own brand and of one competitor, so x is the first and y both.
+ */
+export function withBrandMentions(
+  summary: PromptsSummary,
+  counts: Readonly<Record<string, readonly [own: number, rival: number]>>,
+): PromptsSummary {
+  const engines = Object.entries(counts).flatMap(([code, [own, rival]]) => {
+    const base = summary.prompts.flatMap((prompt) => prompt.engines).find((engine) => engine.engine_code === code);
+    if (base === undefined) return [];
+    const entity = (id: string, mentions: number): NonNullable<EngineSummary['entities']>[number] => ({
+      entity_id: id,
+      mentioned: cell(mentions, 20),
+      share_of_voice: cell(0, 0),
+    });
+    return [{ ...base, entities: [entity('e-own', own), entity('e-rival', rival)] }];
+  });
+  return {
+    ...summary,
+    entities: [
+      { entity_id: 'e-own', name: 'Northwind', role: 'own' },
+      { entity_id: 'e-rival', name: 'Rival', role: 'competitor' },
+    ],
+    total: { engines, last_observed_at: null, last_valid_at: null, prompt_count: summary.prompts.length },
+  };
+}

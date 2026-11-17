@@ -37,7 +37,11 @@ export default function TopicTrendsCard({ item, options, live }: CardProps): Rea
   const chart = useTranslations('chart');
   const words = useTopicWords();
   const empties = useTopicEmpty();
-  const read = useTopicSummary({ ...READ.topicSeries, subscribed: live });
+  const read = useTopicSummary({
+    ...READ.topicSeries,
+    counts: metricOf(options.metric ?? '') === 'share_of_voice',
+    subscribed: live,
+  });
   // The top level topics depend on the vocabulary tree: until it is read, a subtopic would stand among them
   const data: TopicData =
     read.tree.pending && (read.phase === 'ready' || read.phase === 'refetching') ? { ...read, phase: 'loading' } : read;
@@ -51,7 +55,7 @@ export default function TopicTrendsCard({ item, options, live }: CardProps): Rea
   const model = buildTrend({ nodes: data.nodes, engines, metric: cell, count });
   const trendWords: TrendWords = {
     rateTip: words.rateTip,
-    share: (value, answers) => common('tipShare', { value: words.percent(value), count: answers }),
+    share: (value, mentions, all) => common('tipShare', { value: words.percent(value), k: mentions, n: all }),
     pooledTo: (weeks, to) => t('pooledTo', { weeks, date: formatChartDate(to) }),
   };
   const panels = trendPanels(model, cell, trendWords, (row, column) =>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildCsp, createNonce, FAVICON_SOURCES } from './csp';
+import { buildCsp, createNonce } from './csp';
 
 const NONCE = 'bm9uY2Utb2YtdGhpcy10ZXN0';
 
@@ -28,7 +28,7 @@ describe('buildCsp in production', () => {
       'script-src': ["'self'", `'nonce-${NONCE}'`, "'strict-dynamic'"],
       'style-src': ["'self'", `'nonce-${NONCE}'`],
       'style-src-attr': ["'unsafe-inline'"],
-      'img-src': ["'self'", 'data:', 'blob:', ...FAVICON_SOURCES],
+      'img-src': ["'self'", 'data:', 'blob:'],
       'font-src': ["'self'"],
       'connect-src': ["'self'", 'https://*.ingest.sentry.io'],
       'worker-src': ["'self'", 'blob:'],

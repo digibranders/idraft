@@ -1,6 +1,7 @@
 import { mentionFigureOf } from './entity-totals';
 import { colorSlots } from './tracked-set';
 import {
+  CAPPED,
   UNREAD,
   type FoldedPoint,
   type PoolNote,
@@ -12,6 +13,7 @@ import {
   type WeeklyRead,
 } from './types';
 import type { PromptsSummary, WeekCells } from '@/lib/api/types';
+import { shareNoteOf } from '@/lib/rates/brand-mention-share';
 import { rateState } from '@/lib/stats';
 
 /**
@@ -20,10 +22,15 @@ import { rateState } from '@/lib/stats';
  * without it the weeks are `unread`. Pooling is the API's (C-11): a pooled point says which weeks it holds.
  */
 
-/** The weekly points of one engine's total, oldest first; `null` when the read does not carry them. */
+/**
+ * The weekly points of one engine's total, oldest first; `null` when the read does not carry them, or carries points of
+ * the own cells only with no cell for any tracked brand (a read without `include=entities`): the weeks would all read as
+ * "no value", which is not the same as weeks that were too thin to rate.
+ */
 function seriesOf(summary: PromptsSummary, engineCode: string): WeekCells[] | null {
   const series = summary.total?.engines.find((engine) => engine.engine_code === engineCode)?.series;
   if (series === undefined || series === null) return null;
+  if (series.length > 0 && series.every((point) => (point.entities?.length ?? 0) === 0)) return null;
   return [...series].sort((a, b) => a.week_start.localeCompare(b.week_start));
 }
 
@@ -40,6 +47,8 @@ function poolOf(point: WeekCells): PoolNote | null {
 export function weeklyShares(summary: PromptsSummary, engineCode: string, set: TrackedSet): WeeklyRead<WeeklyPoint> {
   const series = seriesOf(summary, engineCode);
   if (series === null) return UNREAD;
+  // Cells cut at 20 of a longer set: the adapter marked each week, and y would be too small
+  if (series.some((point) => shareNoteOf(point.share_of_voice) === 'capped')) return CAPPED;
   return {
     status: 'read',
     points: series.map((point) => {
@@ -81,6 +90,8 @@ export function foldOthers(point: WeeklyPoint, set: TrackedSet): FoldedPoint {
     folded.length === 0 || values.some((value) => value === null)
       ? null
       : values.reduce<number>((total, value) => total + (value ?? 0), 0);
+  const averaged = folded.some((entry) => entry.counts !== undefined);
+  const platforms = folded[0]?.counts ?? [];
   return {
     weekStart: point.weekStart,
     answers: point.answers,
@@ -88,6 +99,15 @@ export function foldOthers(point: WeeklyPoint, set: TrackedSet): FoldedPoint {
     pool: point.pool,
     entities: drawn,
     other,
+    otherNumerator: other === null || averaged ? null : folded.reduce((total, entry) => total + entry.numerator, 0),
+    otherCounts:
+      other === null || !averaged
+        ? null
+        : platforms.map(({ code, n }) => ({
+            code,
+            n,
+            k: folded.reduce((total, entry) => total + (entry.counts?.find((part) => part.code === code)?.k ?? 0), 0),
+          })),
   };
 }
 
@@ -158,6 +178,7 @@ export function rankSeries(
       weekStart: point.weekStart,
       answers,
       poolWeeks: asRead ? (point.pool?.weeks ?? null) : window.length,
+      pool: asRead ? point.pool : null,
       entities: entities.map((entity, position) => ({ ...entity, rank: ranks[position] ?? null })),
     };
   });

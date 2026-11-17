@@ -156,30 +156,30 @@ describe('stripItems', () => {
     expect(items.map((item) => item.label)).toEqual([
       'Citation units',
       'Distinct domains',
-      'Effective sources',
-      'Own citation share',
-      'New sources',
-      'Lost sources',
+      'Effective domains',
+      'Your citation share',
+      'New domains',
+      'Lost domains',
     ]);
     expect(items.map((item) => item.value)).toEqual(['18,420', '1,204', '86.3', '9.1%', '37', '12']);
-    expect(items[0]?.context).toBe('4,812 answers, all engines');
+    expect(items[0]?.context).toBe('4,812 answers, all platforms');
     expect(items[1]?.context).toBe('registrable domains');
   });
 
-  it('names the engines in the units context when the scope chooses some', () => {
+  it('names the platforms in the units context when the scope chooses some', () => {
     const items = byId(readsOf(), scopeOf({ engine: 'chatgpt_web,gemini_web' }));
     expect(items['units']?.context).toBe('4,812 answers, ChatGPT and Gemini');
   });
 
-  it('carries the whole units context in a tip, so a narrow strip never drops all engines', () => {
+  it('carries the whole units context in a tip, so a narrow strip never drops all platforms', () => {
     const units = byId(readsOf(), scopeOf())['units'];
-    expect(units?.tip).toBe('18,420 citation units in 4,812 answers, all engines');
+    expect(units?.tip).toBe('18,420 citation units in 4,812 answers, all platforms');
     const some = byId(readsOf(), scopeOf({ engine: 'chatgpt_web,gemini_web' }))['units'];
     expect(some?.tip).toBe('18,420 citation units in 4,812 answers, ChatGPT and Gemini');
   });
 
   it('says in a tip what the distinct domains are, so its context wraps instead of clipping', () => {
-    expect(byId(readsOf(), scopeOf())['distinct']?.tip).toBe('1,204 registrable domains are cited in this window.');
+    expect(byId(readsOf(), scopeOf())['distinct']?.tip).toBe('1,204 registrable domains are cited in this period.');
   });
 
   it('own share ignores the role filter', () => {
@@ -277,21 +277,21 @@ describe('stripItems', () => {
     const own = byId(readsOf({ scope: ready(domainPage(none)) }))['own-share'];
     expect(own?.value).toBe('n/a');
     expect(own?.unknown).toEqual({ kind: 'not-applicable' });
-    expect(own?.tip).toBe('No citation unit in this window, so there is no share.');
+    expect(own?.tip).toBe('No citation unit in this period, so there is no share.');
     expect(byId(readsOf({ scope: ready(domainPage(none)) }))['units']?.value).toBe('0');
   });
 
-  it('effective sources is the engine average and the tip lists each engine with its units', () => {
+  it('effective sources is the platform average and the tip lists each platform with its units', () => {
     const effective = byId(readsOf())['effective'];
     expect(effective?.value).toBe('86.3');
-    expect(effective?.context).toBe('avg of 2 engines');
+    expect(effective?.context).toBe('average of 2 platforms');
     expect(effective?.tip).toBe(
-      'ChatGPT 90.0, over 9,000 units and Gemini 82.6, over 9,420 units. Each engine is counted alone and the engines are averaged with equal weight.',
+      'ChatGPT 90.0, over 9,000 units and Gemini 82.6, over 9,420 units. Each platform is counted alone and the platforms are averaged with equal weight.',
     );
     expect(isValidElement(effective?.labelAddon)).toBe(true);
   });
 
-  it('effective sources is n/a with its reason when no engine has a unit', () => {
+  it('effective sources is n/a with its reason when no platform has a unit', () => {
     const empty: SourceDiversity = {
       ...diversity(null),
       data: diversity().data.map((engine) => ({ ...engine, citation_units: 0, effective_sources: cell(null, 0) })),
@@ -299,7 +299,7 @@ describe('stripItems', () => {
     const effective = byId(readsOf({ diversity: ready(empty) }))['effective'];
     expect(effective?.value).toBe('n/a');
     expect(effective?.unknown).toEqual({ kind: 'not-applicable' });
-    expect(effective?.tip).toBe('No engine has a citation in this window, so there is nothing to average.');
+    expect(effective?.tip).toBe('No platform has a citation in this period, so there is nothing to average.');
   });
 
   it('new and lost use min support', () => {
@@ -307,7 +307,7 @@ describe('stripItems', () => {
       readsOf({ newSources: ready(changes('new', 37, 3)), lostSources: ready(changes('lost', 12, 3)) }),
     );
     expect(items['new']?.context).toBe('at least 3 units');
-    expect(items['lost']?.context).toBe('after 2 windows');
+    expect(items['lost']?.context).toBe('after 2 periods');
     expect([items['new']?.value, items['lost']?.value]).toEqual(['37', '12']);
   });
 

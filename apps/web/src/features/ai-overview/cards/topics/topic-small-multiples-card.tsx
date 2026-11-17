@@ -54,7 +54,7 @@ export default function TopicSmallMultiplesCard({ item, options, live }: CardPro
   const trend = model.state === 'ok' ? model.trend : NO_TREND;
   const multiplesWords: MultiplesWords = {
     rateTip: words.rateTip,
-    share: (value, answers) => common('tipShare', { value: words.percent(value), count: answers }),
+    share: (value, mentions, all) => common('tipShare', { value: words.percent(value), k: mentions, n: all }),
     pooledTo: (weeks, to) => t('pooledTo', { weeks, date: formatChartDate(to) }),
     panelName: (topic, prompts) => t('panelName', { topic, count: prompts }),
   };

@@ -15,6 +15,7 @@ import { membershipFactory } from '@/mocks/factories/identity';
 import { MOCK_WORKSPACE, mockUser } from '@/mocks/fixtures';
 import { SESSION_COOKIE } from '@/mocks/session';
 import { overviewProject, type OverviewWorld } from '@/test/ai-overview-harness';
+import { isBrandMentionRead } from '@/test/brand-mention-read';
 import { server } from '@/test/msw';
 
 /** The window of the strip's own tests: Oct 16 to Nov 12 and the 28 days before it. */
@@ -35,7 +36,7 @@ function recordRequests(suffix: string): URL[] {
   const seen: URL[] = [];
   const listener = ({ request }: { request: Request }): void => {
     const url = new URL(request.url);
-    if (url.pathname.endsWith(suffix)) seen.push(url);
+    if (url.pathname.endsWith(suffix) && !isBrandMentionRead(url)) seen.push(url);
   };
   listeners.push(listener);
   server.events.on('request:start', listener);
@@ -317,7 +318,11 @@ describe('useCardData', () => {
     expect(prompts.length).toBeGreaterThan(0);
     for (const engine of result.current.aggregates?.engines ?? []) {
       if (!engine.asked) continue;
-      const strip = engineRates(prompts, engine.engineCode);
+      // Share of voice is read from the `total` row, which carries the entity cells the prompt rows do not
+      const total = result.current.current.data?.total?.engines.find(
+        (entry) => entry.engine_code === engine.engineCode,
+      );
+      const strip = engineRates(prompts, engine.engineCode, total);
       expect(engine.mentioned).toEqual(strip.mentioned);
       expect(engine.cited).toEqual(strip.cited);
       expect(engine.shareOfVoice).toEqual(strip.shareOfVoice);

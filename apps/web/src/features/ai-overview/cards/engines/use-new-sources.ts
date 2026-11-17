@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 
 import type { NewSourcesCount } from './facts-model';
-import { askedEngines, brandedAskable, comparisonWindow } from '../../data/overview-queries';
+import { askedEngines, brandedAskable, sourcesComparable } from '../../data/overview-queries';
 import { mapRead, useRead, type Read } from '../../data/read-state';
 import type { ReadOptions } from '../../data/use-overview-reads';
 import { useOverview } from '../../overview-context';
@@ -33,7 +33,7 @@ const countOf = (page: Schemas['SourceChangePage']): NewSourcesCount => ({
 export function useNewSources({ subscribed = true }: ReadOptions = {}): Read<NewSourcesCount> {
   const { workspaceId, project, scope, enabledEngines } = useOverview();
   const asked = askedEngines({ scope, enabledEngines });
-  const runs = asked.length > 0 && brandedAskable(scope) && comparisonWindow(scope) !== null;
+  const runs = asked.length > 0 && brandedAskable(scope) && sourcesComparable(scope);
   const query = useQuery({
     ...apiQuery(CHANGES, {
       params: {
@@ -44,8 +44,8 @@ export function useNewSources({ subscribed = true }: ReadOptions = {}): Read<New
           to: scope.range.to,
           include_branded: scope.branded !== 'excluded',
           limit: 1,
-          // Every enabled engine asked is what leaving the filter out means
-          ...(asked.length === enabledEngines.length ? {} : { 'filter[engine_code_in]': [...asked] }),
+          // Always named: left out, the route reads the platform that is off as well
+          'filter[engine_code_in]': [...asked],
           ...(scope.country === null ? {} : { 'filter[country_iso]': scope.country }),
           ...(scope.topic === null ? {} : { 'filter[term]': scope.topic }),
         },

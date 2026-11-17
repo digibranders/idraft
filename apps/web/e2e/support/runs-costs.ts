@@ -43,7 +43,7 @@ export const THEMES = ['light', 'dark'] as const;
 export type Theme = (typeof THEMES)[number];
 
 /** The words the degraded engine of the newest AI run is reported in (mock profile: Gemini 132 of 150). */
-export const GEMINI_NOTICE = /^Gemini: 132 of 150 answers valid, 88%\. Below 90%, so this engine is degraded/;
+export const GEMINI_NOTICE = /^Gemini: 132 of 150 answers valid, 88%\. Below 90%, so this platform is degraded/;
 
 /** The AI run the flow started, with the id its inspector opens under. */
 export interface StartedRun {
@@ -144,7 +144,7 @@ export const inspectAddress = (runId: string): string =>
 
 /** The inspector of a run: beside the table on a wide window, a sheet over it on a narrow one. */
 export const runInspector = (page: Page): Locator =>
-  page.getByRole('complementary').or(page.getByRole('dialog')).filter({ hasText: 'Answers by engine' });
+  page.getByRole('complementary').or(page.getByRole('dialog')).filter({ hasText: 'Answers by platform' });
 
 /** The sidebar's collection line. */
 export const collectionLine = (page: Page): Locator => page.locator('[data-slot="collection-line"]');

@@ -24,7 +24,7 @@ export const COUNTRIES = [
   { code: 'PHL', name: 'Philippines', share: 0.04, ctr: 0.85, pos: 1.3 },
   { code: 'SGP', name: 'Singapore', share: 0.03, ctr: 0.95, pos: 1.1 },
   { code: 'ARE', name: 'United Arab Emirates', share: 0.03, ctr: 0.95, pos: 1.15 },
-  { code: 'OTH', name: 'Other countries', share: 0.1, ctr: 0.8, pos: 1.4 },
+  { code: 'OTH', name: 'Other locations', share: 0.1, ctr: 0.8, pos: 1.4 },
 ];
 export const DEVICES = [
   { code: 'DESKTOP', name: 'Desktop', share: 0.52, ctr: 1.15, pos: 0.95 },

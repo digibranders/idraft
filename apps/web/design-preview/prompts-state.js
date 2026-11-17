@@ -1,18 +1,19 @@
+/* global document */
 /**
  * What the Topics tab, the Prompts tab and both inspectors share: the filters in force, and the pieces of a
  * cell that depend on them (which engines are in scope, whether changes are shown).
  */
-import { formatMetricDelta } from './vendor/format/delta.js';
-import { formatPointsDelta } from './vendor/format/number.js';
 import { ENGINES, PROMPTS, changeFor } from './prompts-data.js';
-import { el } from './prompts-parts.js';
+import { trendIcon } from './prompts-parts.js';
 
 /** A saved view is a set of filters (24 section 9.5). "Branded prompts" is branded only, in every panel. */
 export const VIEWS = {
   default: { label: 'Default', panel: ['Core'], branded: 'exclude' },
   branded: { label: 'Branded prompts', panel: [], branded: 'only' },
-  discovery: { label: 'Discovery panel', panel: ['Discovery'], branded: 'exclude' },
+  discovery: { label: 'Discovery schedule', panel: ['Discovery'], branded: 'exclude' },
 };
+/** The metric names of the select and of the engine columns. */
+export const METRIC_LABEL = { visibility: 'AI visibility rate', mention: 'Mention', citation: 'Citation', sov: 'Share of voice' };
 export const BRANDED_LABEL = { exclude: 'Excluded', include: 'Included', only: 'Only' };
 
 export const state = {
@@ -25,7 +26,8 @@ export const state = {
   type: [],
   detectable: false,
   metric: 'mention',
-  compare: true,
+  // The default view shows no comparison: a change in points and the trend line appear when the person compares
+  compare: false,
   archived: new Set(),
   // The Prompts tab: its table search, sort, page, selection and columns
   search: '',
@@ -41,6 +43,12 @@ export const state = {
   topicColumns: new Set(),
   expanded: new Set(),
 };
+
+/**
+ * Whether the location of the top bar is "All locations". The Location column of the tables shows only then: with one
+ * location chosen the top bar already says which, so the column would repeat it on every row.
+ */
+export const isAllLocations = () => document.querySelector('[data-location-label]')?.textContent.trim() === 'All locations';
 
 export const scopeEngines = () => ENGINES.filter((engine) => state.engines.includes(engine.code));
 export const scopeCodes = () => scopeEngines().map((engine) => engine.code);
@@ -61,23 +69,16 @@ export const scopePrompts = () => PROMPTS.filter(inScope);
 
 /** Says which prompts the numbers are about: "core, not branded". */
 export function scopeText() {
-  const panel = state.panel.length === 0 ? 'all panels' : state.panel.map((name) => name.toLowerCase()).join(' and ');
+  const panel = state.panel.length === 0 ? 'all schedules' : state.panel.map((name) => name.toLowerCase()).join(' and ');
   const branded = { exclude: 'not branded', include: 'branded included', only: 'branded only' }[state.branded];
   return `${panel}, ${branded}`;
 }
 
-export const TONE_CLASS = { positive: 'text-positive-text', negative: 'text-negative-text', neutral: 'text-foreground-secondary' };
-
 /**
- * A change in points, colored only when it is detectable (17 section 6.3). Null when there is nothing to
- * compare, or when the person chose "No comparison".
+ * A change in points as a trend icon: green up, red down, a grey dash when flat; `detail` is what its hover adds (see
+ * trendIcon). Null when there is nothing to compare, or when the person chose "No comparison".
  */
-export function deltaNode(change, decimals = 0) {
+export function deltaNode(change, detail) {
   if (!change || !state.compare) return null;
-  const display = formatMetricDelta({ value: change.value, unit: 'points', polarity: 'higher_is_better', isDetectable: change.detectable });
-  const node = el('span', `num shrink-0 whitespace-nowrap ${TONE_CLASS[display.tone]}`, formatPointsDelta(change.value, { decimals }));
-  node.dataset.tip = change.detectable ? 'Detectable change: its 95% interval excludes zero' : 'Within normal variation';
-  // Color and the tooltip are not enough: the same is said in text for people who get neither
-  node.append(el('span', 'sr-only', change.detectable ? ', detectable change' : ', within normal variation'));
-  return node;
+  return trendIcon(change, detail);
 }

@@ -48,7 +48,8 @@ const WORDS: RateTipWords = {
 };
 const TREND_WORDS: TrendWords = {
   rate: WORDS,
-  share: (value, n) => `${String(Math.round(value * 100))}%, ${String(n)} answers name a brand`,
+  share: (value, k, n) => `${String(Math.round(value * 100))}%, ${String(k)} of ${String(n)} brand mentions`,
+  pooledRange: (weeks, from, to) => `${String(weeks)} weeks together (${from} to ${to})`,
   partial: 'partial week',
 };
 
@@ -98,9 +99,9 @@ describe('projectWeeks', () => {
     expect(point).toMatchObject({ k: 10, n: 12 });
   });
 
-  it('a share of voice point is numerator over denominator with no band and no k', () => {
+  it('a share of voice point is own mentions over tracked-brand mentions, x of y, with no band', () => {
     const [point] = projectWeeks(oneWeek(), 'chatgpt_web', 'share_of_voice', RANGE);
-    expect(point).toMatchObject({ value: 0.5, k: null, n: 8, band: null, thin: false });
+    expect(point).toMatchObject({ value: 0.5, k: 4, n: 8, band: null, thin: false });
   });
 
   it('a point with fewer than 4 answers is thin with no band', () => {
@@ -380,7 +381,7 @@ describe('panelsOf', () => {
       () => 'ChatGPT',
       TREND_WORDS,
     );
-    expect(share[0]?.points[0]).toMatchObject({ band: null, tip: '50%, 8 answers name a brand' });
+    expect(share[0]?.points[0]).toMatchObject({ band: null, tip: '50%, 4 of 8 brand mentions' });
   });
 });
 
@@ -409,7 +410,7 @@ describe('trendSummary', () => {
     expect(item?.change?.detectable).toBe(true);
     // Citation did not move, and share of voice has no test
     expect(trendSummary(aggregates, ['chatgpt_web'], 'citation')[0]?.change?.detectable).toBe(false);
-    expect(trendSummary(aggregates, ['chatgpt_web'], 'share_of_voice')[0]).toMatchObject({ k: null, n: 50 });
+    expect(trendSummary(aggregates, ['chatgpt_web'], 'share_of_voice')[0]).toMatchObject({ k: 20, n: 50 });
     expect(trendSummary(aggregates, ['chatgpt_web'], 'share_of_voice')[0]?.change?.detectable).toBeNull();
   });
 

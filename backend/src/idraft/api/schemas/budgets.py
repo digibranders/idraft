@@ -32,6 +32,7 @@ BudgetGroup = Literal[
     "ai_benchmark",
     "extraction_llm",
     "first_party",
+    "site_crawl",
     "all",
 ]
 ActionOnHard = Literal["pause", "alert_only"]

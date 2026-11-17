@@ -48,7 +48,7 @@ function show(
 
 const section = (): HTMLElement =>
   screen
-    .getByRole('heading', { name: 'Change since the last answer that named the brand' })
+    .getByRole('heading', { name: 'Change since the last answer that mentioned the brand' })
     .closest('section') as HTMLElement;
 
 describe('AnswerComparePanel', () => {
@@ -117,14 +117,14 @@ describe('AnswerComparePanel', () => {
   it('says in words whether each answer names the brand and cites its domain', () => {
     show({ status: 'ready', compare: COMPARE });
     const view = within(section());
-    expect(view.getByText('Names the brand, cites its domain')).toBeInTheDocument();
-    expect(view.getByText('Names the brand, does not cite its domain')).toBeInTheDocument();
+    expect(view.getByText('Mentions the brand, cites its domain')).toBeInTheDocument();
+    expect(view.getByText('Mentions the brand, does not cite its domain')).toBeInTheDocument();
   });
 
   it('says there is no earlier answer to compare, as a reason and not as a failure', async () => {
     const { container } = show({ status: 'empty' });
     expect(screen.getByText('No earlier answer to compare')).toBeInTheDocument();
-    expect(screen.getByText(/There is no earlier answer of this engine to compare with yet/)).toBeInTheDocument();
+    expect(screen.getByText(/There is no earlier answer of this platform to compare with yet/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
     expect(container.querySelector('[data-slot="inline-error"]')).toBeNull();
     expect(await axe(container)).toHaveNoViolations();

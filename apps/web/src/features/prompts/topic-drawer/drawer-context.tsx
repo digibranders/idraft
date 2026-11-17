@@ -18,6 +18,8 @@ export interface TopicDrawerExtras {
   scope: PromptScope;
   range: DateRange;
   includeBranded: boolean;
+  /** The Branded filter is `Only`; false when left out. */
+  brandedOnly?: boolean;
   country: string | null;
   workspaceSlug: string;
   projectSlug: string;

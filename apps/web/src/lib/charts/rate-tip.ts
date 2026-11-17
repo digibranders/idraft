@@ -34,15 +34,35 @@ export interface RateTipWords {
   thin: (n: number) => string;
   pooled: (weeks: number) => string;
   noAnswers: string;
+  /** "average of 4 prompts, each counting once": what a prompt-weighted percent is. Without it `prompts` is used. */
+  averageOfPrompts?: ((count: number) => string) | undefined;
+  /** The sentence of the pooled answers of a prompt-weighted rate ("All answers pooled: 74%, 17 of 23 answers"). */
+  pooledAnswers?: ((text: string) => string) | undefined;
 }
 
-/** Plain text, not escaped: "34.0%, 612 of 1,800 answers, 28% to 41%, 250 prompts, each counts once". */
+/**
+ * Plain text, not escaped: "34.0%, 612 of 1,800 answers, 28% to 41%, 250 prompts, each counts once". A prompt-weighted
+ * rate (`prompts` of more than 1) is a mean of the prompts' own rates, so its percent is not the one of its answers:
+ * "34.0%, average of 250 prompts, each counting once. All answers pooled: 34.0%, 612 of 1,800 answers, 28% to 41%". The
+ * percent beside "k of n" is always k over n (one denominator per number), and the weighted one says what it averages.
+ */
 export function rateTipText(input: RateTipValue, words: RateTipWords): string {
   const { value, k, n, prompts, band, thin, pooledWeeks } = input;
   if (n === 0) return words.noAnswers;
   if (thin) return words.thin(n);
   // R1: a percent and its interval are written only beside the answers they come from
   const counted = k !== null;
+  if (counted && prompts !== undefined && prompts > 1) {
+    const weighted = [
+      value === null ? null : words.value(value),
+      (words.averageOfPrompts ?? words.prompts)(prompts),
+      pooledWeeks === undefined ? null : words.pooled(pooledWeeks),
+    ].filter((part): part is string => part !== null);
+    const pooled = [words.value(k / n), words.answers(k, n), band === null ? null : words.interval(band)]
+      .filter((part): part is string => part !== null)
+      .join(', ');
+    return `${weighted.join(', ')}. ${words.pooledAnswers === undefined ? pooled : words.pooledAnswers(pooled)}`;
+  }
   return [
     counted && value !== null ? words.value(value) : null,
     counted ? words.answers(k, n) : null,

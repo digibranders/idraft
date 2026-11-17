@@ -76,7 +76,7 @@ test.describe('Add prompts', () => {
     // The plan block: what the add takes in answers, cost and workspace places, and the button counts the same lines
     const plan = dialog.getByLabel('What this add takes');
     await expect(
-      plan.getByText(/^About [\d,]+ answers a month: 3 prompts x \d+ engines? x 2 runs a week\.$/),
+      plan.getByText(/^About [\d,]+ answers a month: 3 prompts x \d+ platforms? x 2 runs a week\.$/),
     ).toBeVisible();
     const places = /^Workspace prompts: (\d+) of 150 used, (\d+) after this add\.$/;
     await expect(plan.getByText(places)).toBeVisible();
@@ -85,7 +85,7 @@ test.describe('Add prompts', () => {
     await expect(dialog.getByRole('button', { name: 'Add 3 prompts' })).toBeEnabled();
   });
 
-  test('an existing topic is chosen by typing and Enter, and the new prompts appear tinted with a toast and Undo', async ({
+  test('an existing group is chosen by typing and Enter, and the new prompts appear tinted with a toast and Undo', async ({
     page,
   }) => {
     const writes = watchWrites(page);
@@ -115,7 +115,7 @@ test.describe('Add prompts', () => {
     expect(termIds.size).toBe(1);
   });
 
-  test('a new topic is made when the form is submitted and not while it is typed, and the prompts are filed under it', async ({
+  test('a new group is made when the form is submitted and not while it is typed, and the prompts are filed under it', async ({
     page,
   }) => {
     const writes = watchWrites(page);
@@ -140,7 +140,7 @@ test.describe('Add prompts', () => {
     await expectTopicListed(await openAddDialog(page), NEW_TOPIC);
   });
 
-  test('typing a topic and cancelling makes no topic', async ({ page }) => {
+  test('typing a group and cancelling makes no group', async ({ page }) => {
     const writes = watchWrites(page);
     await signIn(page, EDITOR);
     await openPromptsTab(page, 1280);
@@ -152,12 +152,12 @@ test.describe('Add prompts', () => {
     await expect(dialog).toBeHidden();
     expect(writes.terms).toEqual([]);
     expect(writes.creates).toEqual([]);
-    await page.getByRole('radio', { name: 'Topics' }).click();
-    await expect(topicsGrid(page).getByText('SEO', { exact: true })).toBeVisible();
+    await page.getByRole('radio', { name: 'Groups' }).click();
+    await expect(topicsGrid(page).getByText('Technical SEO', { exact: true })).toBeVisible();
     await expect(topicsGrid(page).getByText(NEW_TOPIC, { exact: true })).toHaveCount(0);
   });
 
-  test('a failed add says the topic was created and the prompts were not added, and a retry adds them under it once', async ({
+  test('a failed add says the group was created and the prompts were not added, and a retry adds them under it once', async ({
     page,
   }) => {
     const writes = watchWrites(page);
@@ -171,7 +171,7 @@ test.describe('Add prompts', () => {
     await setAddFault(page, 'create-500');
     await dialog.getByRole('button', { name: 'Add 3 prompts' }).click();
     await expect(dialog.getByRole('alert')).toContainText(
-      `Topic “${NEW_TOPIC}” was created. The prompts were not added.`,
+      `Group “${NEW_TOPIC}” was created. The prompts were not added.`,
     );
     expect(writes.terms).toHaveLength(1);
     // The dialog stays open with what was typed, and nothing was added
@@ -216,7 +216,7 @@ test.describe('Add prompts', () => {
     expect(archived?.ids).toHaveLength(3);
   });
 
-  test('a project with no topic vocabulary offers to create the first topic, and still adds without one', async ({
+  test('a project with no group vocabulary offers to create the first group, and still adds without one', async ({
     page,
   }) => {
     // The mock world has no such project (every project sees the workspace's Topics vocabulary), so the list of
@@ -231,7 +231,7 @@ test.describe('Add prompts', () => {
     const dialog = await openAddDialog(page);
     await topicField(dialog).fill(NEW_TOPIC);
     // Nothing to choose, but one row makes the topic: on submit the project's topic vocabulary is made first
-    await expect(page.getByRole('option', { name: `Create topic “${NEW_TOPIC}”` })).toBeVisible();
+    await expect(page.getByRole('option', { name: `Create group “${NEW_TOPIC}”` })).toBeVisible();
     await expect(page.getByRole('option')).toHaveCount(1);
     await expectAccessible(page);
     await topicField(dialog).press('Escape');

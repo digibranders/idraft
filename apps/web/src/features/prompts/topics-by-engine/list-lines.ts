@@ -23,7 +23,7 @@ export function topicListLines(
   const values = engines.map(({ engine }) => engineValue(head.engines, engine.engine_code, 'mentioned'));
   const best = bestEngine(values);
   return {
-    identity: head.path,
+    identity: head.name,
     best:
       best === null || best.value === null
         ? null

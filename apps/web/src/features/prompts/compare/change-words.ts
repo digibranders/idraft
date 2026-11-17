@@ -6,6 +6,8 @@ import { useMemo } from 'react';
 import { useRateWords } from '../rate-view';
 import { SENTENCE_BREAK } from '@/components/app/metric/delta';
 import type { RateChange, Side } from '@/lib/compare/change-model';
+import { useShownMode } from './compared-window';
+import { formatPercent, formatPointsDelta } from '@/lib/format';
 import type { CellMetric } from '@/lib/rates/rate-model';
 import type { RateReading } from '@/lib/rates/strip-model';
 
@@ -23,6 +25,8 @@ export interface ChangeTipOptions {
   shown?: number | undefined;
   /** `average` only: the label of the one engine a change of one of several is of, so the tip can name it. */
   engine?: string | undefined;
+  /** Open the tip with how far the rate moved, in points, from and to: the figures an icon does not write. */
+  move?: boolean | undefined;
 }
 
 export interface ChangeWords {
@@ -53,9 +57,20 @@ const readingOf = (side: Side): RateReading => ({
  */
 export function useChangeWords(): ChangeWords {
   const t = useTranslations('prompts.compare');
+  const shell = useTranslations('prompts.shell.columns');
   const delta = useTranslations('common.delta');
   const words = useRateWords();
+  // What the comparison is with, as the rows on screen were read, which the words about the compared window name
+  const mode = useShownMode();
   return useMemo(() => {
+    /** How far the rate moved, from and to: "Up 3.5 pts against the previous period, from 30% to 27%". */
+    const move = (change: RateChange): string =>
+      shell(change.points === 0 ? 'moveFlat' : change.points > 0 ? 'moveUp' : 'moveDown', {
+        kind: mode,
+        points: formatPointsDelta(Math.abs(change.points), { decimals: 1 }).replace(/^\+/, ''),
+        before: formatPercent(change.before.value, { decimals: 0 }),
+        now: formatPercent(change.now.value, { decimals: 0 }),
+      });
     const label = (change: RateChange | null): string => {
       if (change === null) return '';
       const { before } = change;
@@ -67,10 +82,10 @@ export function useChangeWords(): ChangeWords {
     };
     const tip = (
       change: RateChange | null,
-      { kind, range, metric = 'mentioned', shown, engine }: ChangeTipOptions,
+      { kind, range, metric = 'mentioned', shown, engine, move: withMove = false }: ChangeTipOptions,
     ): string => {
       if (change === null) return '';
-      const sentences: string[] = [];
+      const sentences: string[] = withMove ? [move(change)] : [];
       // First what the figures are of: an average of engines, or the one engine that took part, so the points are never
       // read as the average's change
       if (kind === 'average' && change.engines > 1) {
@@ -86,14 +101,20 @@ export function useChangeWords(): ChangeWords {
       } else if (kind === 'average' && engine !== undefined && (shown ?? 1) > 1) {
         sentences.push(t('tip.onlyEngine', { engine }));
       }
-      // Share of voice has no count of answers that count: its answers are those that name a brand, which the tip says
+      // Share of voice counts brand mentions: its previous figure is "x of y brand mentions"
       sentences.push(
         metric === 'share_of_voice'
-          ? t('tip.previousShare', { rate: words.text(readingOf(change.before)), count: change.before.answers })
+          ? t('tip.previousShare', {
+              rate: words.text(readingOf(change.before)),
+              k: change.before.successes ?? 0,
+              count: change.before.answers,
+            })
           : label(change),
       );
       if (range !== null) {
-        sentences.push(kind === 'strip' ? t('strip.previousLabel', { range }) : t('windowTip', { range }));
+        sentences.push(
+          kind === 'strip' ? t('strip.previousLabel', { kind: mode, range }) : t('windowTip', { kind: mode, range }),
+        );
       }
       if (metric === 'share_of_voice') {
         sentences.push(t('change.shareNoTest'));
@@ -109,10 +130,10 @@ export function useChangeWords(): ChangeWords {
       return sentences.join(SENTENCE_BREAK);
     };
     const gaps: Record<ChangeGap, string> = {
-      noPrevious: t('change.noPrevious'),
+      noPrevious: t('change.noPrevious', { kind: mode }),
       tooFew: t('change.tooFew'),
       noEngineInBoth: t('change.noEngineInBoth'),
     };
     return { tip, label, gap: (reason) => gaps[reason] };
-  }, [t, delta, words]);
+  }, [t, shell, delta, words, mode]);
 }

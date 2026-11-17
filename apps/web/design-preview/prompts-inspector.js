@@ -6,7 +6,7 @@
  */
 import { formatInteger, formatInterval, formatSampleCount } from './vendor/format/number.js';
 import { rateState, wilsonInterval } from './vendor/stats/index.js';
-import { COMPETITORS, ENGINES, NOT_CLASSIFIED, OWN, absenceOf, absenceSentence, linkedKeywordOf, relatedKeywordsOf, PROMPT_BY_ID, TYPE_LABEL, WEEKS, answerFor, averageFor, countsOf, engineOf, observationsOf, measures, rollingCounts, seeded, topicPath, updatedOf } from './prompts-data.js';
+import { COMPETITORS, ENGINES, NOT_CLASSIFIED, OWN, absenceOf, absenceSentence, linkedKeywordOf, relatedKeywordsOf, PROMPT_BY_ID, TYPE_LABEL, WEEKS, answerFor, averageFor, countsOf, engineOf, observationsOf, measures, rollingCounts, seeded, updatedOf } from './prompts-data.js';
 import { NEUTRAL_BADGE, el, insufficient, keywordRow, percent0, plural } from './prompts-parts.js';
 
 const ui = window.PreviewUI;
@@ -61,10 +61,10 @@ function overviewPreview(prompt, card, header, answer, facts) {
 function responsePreview(prompt, engine) {
   const card = el('article', 'rounded-lg border border-border bg-surface p-4 flex flex-col gap-2');
   const header = el('header', 'flex items-center gap-2 min-w-0');
-  header.append(engineLogo(engine.name), el('h3', 'type-subsection-title', engine.name));
+  header.append(engineLogo(engine.name), el('h3', 'type-subsection-title', engine.label));
   const latest = observationsOf(prompt).find((observation) => observation.engine.code === engine.code);
   if (!latest) {
-    const waiting = engine.asked ? 'Not observed yet. The first answer arrives with the next run.' : 'Not observed yet. Link a keyword to read its AI Overview.';
+    const waiting = engine.asked ? 'Not collected yet. The first answer arrives with the next run.' : 'Not collected yet. Link a keyword to get its Google AI Overview.';
     card.append(header, el('p', 'type-meta', prompt.pending ? waiting : absenceSentence(prompt, engine.code)));
     return card;
   }
@@ -96,7 +96,7 @@ let openPromptId = null;
 let explorer = null;
 
 function inspectorContext(prompt) {
-  const updated = prompt.pending ? 'Not observed yet' : `Updated ${updatedOf(prompt).text}`;
+  const updated = prompt.pending ? 'Not collected yet' : `Updated ${updatedOf(prompt).text}`;
   $('[data-inspector-context]', inspector).textContent = `Prompt · ${explorer.positionOf(prompt)} · ${updated}`;
 }
 
@@ -116,12 +116,12 @@ function fillStrip(prompt) {
     const counts = countsOf(prompt, engine.code, 'mention');
     const status = rateState(counts.n);
     const value = status === 'ok' ? el('span', 'type-metric-sm num shrink-0', percent0(counts.k / counts.n)) : el('span', 'type-metric-sm num shrink-0 text-foreground-tertiary', 'n/a');
-    const note = status === 'ok' ? `${formatSampleCount(counts.k, counts.n)} obs` : status === 'insufficient' ? `${plural(counts.n, 'observation')}, too few` : absenceOf(prompt, engine.code).note;
-    return strengthCard(engine.name, engine.name, value, note);
+    const note = status === 'ok' ? `${formatSampleCount(counts.k, counts.n)} answers` : status === 'insufficient' ? `${plural(counts.n, 'answer')}, too few` : absenceOf(prompt, engine.code).note;
+    return strengthCard(engine.label, engine.name, value, note);
   });
   const citation = averageFor(prompt, ENGINES.map((engine) => engine.code), 'citation');
   const value = el('span', `type-metric-sm num shrink-0${citation.value === null ? ' text-foreground-tertiary' : ''}`, citation.value === null ? 'n/a' : percent0(citation.value));
-  const citationCard = strengthCard('Citation rate', null, value, citation.used > 0 ? `avg of ${citation.used}` : ENGINES.some((engine) => prompt.engines[engine.code].n > 0) ? 'insufficient data' : 'not observed');
+  const citationCard = strengthCard('Citation rate', null, value, citation.used > 0 ? `average of ${citation.used}` : ENGINES.some((engine) => prompt.engines[engine.code].n > 0) ? 'not enough data' : 'not collected yet');
   // Four engines fill two rows of two; the average of them takes the full width below
   citationCard.classList.add('col-span-2');
   cards.push(citationCard);
@@ -150,7 +150,7 @@ function fillHistory(prompt) {
         const row = el('tr', 'h-row-compact border-t border-border-subtle');
         const first = el('td', 'pl-4');
         const line = el('span', 'flex items-center gap-2 min-w-0');
-        line.append(el('span', 'w-12 shrink-0 type-meta num', observation.day), engineLogo(observation.engine.name), el('span', 'truncate', observation.engine.name));
+        line.append(el('span', 'w-12 shrink-0 type-meta num', observation.day), engineLogo(observation.engine.name), el('span', 'truncate', observation.engine.label));
         first.append(line);
         first.dataset.tip = `${observation.day}, ${observation.time} · ${sourceOf(observation)}`;
         const recommended = yesNo(observation.recommended, 'Recommended');
@@ -161,19 +161,19 @@ function fillHistory(prompt) {
   );
   if (observationsOf(prompt).length === 0) {
     const row = el('tr', 'h-row-compact border-t border-border-subtle');
-    const cell = el('td', 'px-4 type-meta', 'No observations yet.');
+    const cell = el('td', 'px-4 type-meta', 'No answers yet.');
     cell.colSpan = 4;
     row.append(cell);
     $('[data-prompt-observations]', inspector).replaceChildren(row);
   }
 
   const events = [];
-  if (prompt.pending) events.push(['Sep 30', 'plus', `Added to the ${prompt.panel} panel by Ana Brandt`]);
+  if (prompt.pending) events.push(['Sep 30', 'plus', `Added to the ${prompt.panel} schedule by Ana Brandt`]);
   if (prompt.versionChanged) events.push([prompt.versionDay, 'git-commit-vertical', `Version ${prompt.version}: wording changed. Charts show a boundary here`]);
-  if (prompt.stale) events.push(['Sep 28', 'triangle-alert', 'No valid observation in the weekly run']);
+  if (prompt.stale) events.push(['Sep 28', 'triangle-alert', 'No valid answer in the weekly run']);
   if (!prompt.pending) events.push(['Aug 31', 'sparkles', 'Gemini reported a new model']);
-  if (prompt.panel === 'Core') events.push(['Jun 1', 'lock', 'Added to the core panel']);
-  else if (!prompt.pending) events.push(['Aug 4', 'plus', `Added to the ${prompt.panel} panel`]);
+  if (prompt.panel === 'Core') events.push(['Jun 1', 'lock', 'Added to the core schedule']);
+  else if (!prompt.pending) events.push(['Aug 4', 'plus', `Added to the ${prompt.panel} schedule`]);
   $('[data-prompt-events]', inspector).replaceChildren(
     ...events.map(([day, glyph, text]) => {
       const item = el('li', 'min-h-9 px-4 py-2 flex items-center gap-3 border-t border-border-subtle');
@@ -193,9 +193,9 @@ function fillCitations(prompt) {
   const random = seeded(prompt.seed + 301);
   const observed = ENGINES.reduce((sum, engine) => sum + prompt.engines[engine.code].n, 0);
   const own = ENGINES.reduce((sum, engine) => sum + prompt.engines[engine.code].citation, 0);
-  $('[data-prompt-citation-scope]', inspector).textContent = `${plural(observed, 'observation')}, all engines`;
+  $('[data-prompt-citation-scope]', inspector).textContent = `${plural(observed, 'answer')}, all platforms`;
   const domains = [
-    { domain: 'northwind.com', role: 'Own', count: own, page: '/crm/startups' },
+    { domain: 'northwind.com', role: 'Your site', count: own, page: '/crm/startups' },
     { domain: 'hubspot.com', role: 'Competitor', count: Math.round(observed * (0.2 + random() * 0.35)), page: '/products/crm' },
     { domain: 'pipedrive.com', role: 'Competitor', count: Math.round(observed * (0.1 + random() * 0.25)), page: '/en/features' },
     { domain: 'g2.com', role: 'Third party', count: Math.round(observed * (0.25 + random() * 0.4)), page: '/categories/crm' },
@@ -213,20 +213,20 @@ function fillCitations(prompt) {
   };
   $('[data-prompt-domains]', inspector).replaceChildren(
     ...(domains.length === 0
-      ? [none(3, 'No citations in this window.')]
+      ? [none(3, 'No citations in this period.')]
       : domains.map((entry) => {
-          const name = el('td', `pl-4 truncate max-w-40${entry.role === 'Own' ? ' text-primary-text type-body-strong' : ''}`, entry.domain);
+          const name = el('td', `pl-4 truncate max-w-40${entry.role === 'Your site' ? ' text-primary-text type-body-strong' : ''}`, entry.domain);
           const role = el('td', '');
-          role.append(el('span', entry.role === 'Own' ? 'h-badge inline-flex items-center px-2 rounded-sm bg-positive-subtle text-positive-text type-micro' : NEUTRAL_BADGE, entry.role));
-          return simpleRow([name, role, el('td', 'pr-4 num whitespace-nowrap', `${formatSampleCount(entry.count, observed)} obs`)]);
+          role.append(el('span', entry.role === 'Your site' ? 'h-badge inline-flex items-center px-2 rounded-sm bg-positive-subtle text-positive-text type-micro' : NEUTRAL_BADGE, entry.role));
+          return simpleRow([name, role, el('td', 'pr-4 num whitespace-nowrap', `${formatSampleCount(entry.count, observed)} answers`)]);
         })),
   );
   $('[data-prompt-pages]', inspector).replaceChildren(
     ...(domains.length === 0
-      ? [none(2, 'No cited pages in this window.')]
+      ? [none(2, 'No cited pages in this period.')]
       : domains.map((entry) => {
           const page = el('td', 'pl-4 max-w-60');
-          page.append(el('span', `block truncate type-mono ${entry.role === 'Own' ? 'text-primary-text' : 'text-foreground-secondary'}`, `${entry.domain}${entry.page}`));
+          page.append(el('span', `block truncate type-mono ${entry.role === 'Your site' ? 'text-primary-text' : 'text-foreground-secondary'}`, `${entry.domain}${entry.page}`));
           return simpleRow([page, el('td', 'pr-4 num', formatInteger(Math.max(1, Math.round(entry.count * 0.7))))]);
         })),
   );
@@ -240,7 +240,7 @@ function countCell(counts, className) {
     none.dataset.tip = counts.reason;
     cell.append(none);
   } else if (status === 'none') cell.append(el('span', 'text-foreground-tertiary', 'n/a'));
-  else if (status === 'insufficient') cell.append(el('span', 'text-foreground-tertiary', `${counts.n} obs`));
+  else if (status === 'insufficient') cell.append(el('span', 'text-foreground-tertiary', plural(counts.n, 'answer')));
   else cell.textContent = formatSampleCount(counts.k, counts.n);
   return cell;
 }
@@ -254,7 +254,7 @@ function linkKeywordRow() {
   const link = el('button', 'ml-auto h-control-sm px-2 rounded-md border border-border bg-surface whitespace-nowrap type-body-strong text-foreground hover:bg-surface-hover', 'Link a keyword');
   link.type = 'button';
   link.dataset.previewNote = 'Linking a keyword';
-  line.append(el('span', 'type-meta', 'No keyword is linked, so this prompt has no AI Overview.'), link);
+  line.append(el('span', 'type-meta', 'No keyword is linked, so this prompt has no Google AI Overview.'), link);
   cell.append(line);
   row.append(cell);
   return row;
@@ -263,9 +263,9 @@ function linkKeywordRow() {
 function fillCompetitors(prompt) {
   const metric = $('[data-prompt-entity-metric] [aria-checked="true"]', inspector).dataset.value;
   const headRow = el('tr', 'text-left border-t border-border-subtle bg-surface-subtle');
-  headRow.append(el('th', 'pl-4 h-row-compact type-label whitespace-nowrap', 'Entity'));
+  headRow.append(el('th', 'pl-4 h-row-compact type-label whitespace-nowrap', 'Brand'));
   ENGINES.forEach((engine, i) => {
-    const th = el('th', `${i === ENGINES.length - 1 ? 'pr-4 ' : ''}h-row-compact type-label whitespace-nowrap`, engine.name);
+    const th = el('th', `${i === ENGINES.length - 1 ? 'pr-4 ' : ''}h-row-compact type-label whitespace-nowrap`, engine.label);
     th.dataset.keepCase = '';
     headRow.append(th);
   });
@@ -332,18 +332,18 @@ function fillStats(prompt) {
         const counts = countsOf(prompt, engine.code, metric);
         const name = el('td', 'pl-4');
         const line = el('span', 'flex items-center gap-2 min-w-0');
-        line.append(engineLogo(engine.name), el('span', 'truncate', engine.name));
+        line.append(engineLogo(engine.name), el('span', 'truncate', engine.label));
         name.append(line);
         const status = rateState(counts.n);
         if (status !== 'ok') {
           const gap = el('td', 'pr-4 pl-3');
           gap.colSpan = 3;
-          gap.append(status === 'none' ? el('span', 'type-meta', absenceSentence(prompt, engine.code)) : insufficient(`Insufficient data: ${plural(counts.n, 'observation')}`));
+          gap.append(status === 'none' ? el('span', 'type-meta', absenceSentence(prompt, engine.code)) : insufficient(`Not enough data: ${plural(counts.n, 'answer')}`));
           return simpleRow([name, gap]);
         }
         const interval = el('td', 'pl-3');
         interval.append(confidenceIndicator(counts));
-        return simpleRow([name, el('td', 'num', percent0(counts.k / counts.n)), interval, el('td', 'pr-4 type-label num whitespace-nowrap', `${formatSampleCount(counts.k, counts.n)} obs`)]);
+        return simpleRow([name, el('td', 'num', percent0(counts.k / counts.n)), interval, el('td', 'pr-4 type-label num whitespace-nowrap', `${formatSampleCount(counts.k, counts.n)} answers`)]);
       }),
     );
   }
@@ -363,10 +363,10 @@ function renderHistoryChart() {
   const usable = rateState(counts.n) === 'ok';
   historyEl.hidden = !usable;
   if (!usable) {
-    note.textContent = counts.n === 0 ? `${engine.name}: ${absenceOf(prompt, engine.code).reason}.` : `${plural(counts.n, 'observation')} on ${engine.name}: too few for a trend.`;
+    note.textContent = counts.n === 0 ? `${engine.label}: ${absenceOf(prompt, engine.code).reason}.` : `${plural(counts.n, 'answer')} on ${engine.label}: too few for a trend.`;
     return;
   }
-  note.textContent = `28-day rolling rate at each weekly ${engine.asked ? 'run' : 'rank check'}, with its 95% interval. ${plural(counts.n, 'observation')} per point.`;
+  note.textContent = `28-day rolling rate at each weekly ${engine.asked ? 'run' : 'rank check'}, with its 95% interval. ${plural(counts.n, 'answer')} per point.`;
   if (historyEl.clientWidth === 0) return;
   historyChart ??= echarts.init(historyEl, null, { renderer: 'canvas' });
   const series = rollingCounts(prompt, engine.code);
@@ -374,7 +374,7 @@ function renderHistoryChart() {
   const axes = charts.axisTheme();
   const color = charts.token('chart-1');
   const value = (ratio) => Math.round(ratio * 1000) / 10;
-  historyEl.setAttribute('aria-label', `Mention rate on ${engine.name} over 8 weeks, now ${percent0(counts.mention / counts.n)}`);
+  historyEl.setAttribute('aria-label', `Mention rate on ${engine.label} over 8 weeks, now ${percent0(counts.mention / counts.n)}`);
   historyChart.setOption(
     {
       animation: false,
@@ -436,11 +436,11 @@ function fillPrompt(id) {
   $('#inspector-title').textContent = `“${prompt.text}”`;
   const panel = ui.badge(prompt.panel);
   if (prompt.locked) panel.prepend(icon('lock', 'size-icon-xs mr-1'));
-  const topic = el('button', `${NEUTRAL_BADGE} hover:bg-surface-hover disabled:hover:bg-neutral-subtle`, topicPath(prompt.topic));
+  const topic = el('button', `${NEUTRAL_BADGE} hover:bg-surface-hover disabled:hover:bg-neutral-subtle`, prompt.topic);
   topic.type = 'button';
   topic.dataset.promptTopic = prompt.topic;
   topic.disabled = !explorer.hasTopic(prompt.topic);
-  if (!topic.disabled) topic.dataset.tip = 'Open the topic';
+  if (!topic.disabled) topic.dataset.tip = 'Open the group';
   $('[data-inspector-badges]', inspector).replaceChildren(topic, ui.badge(TYPE_LABEL[prompt.type]), panel, ui.badge(`v${prompt.version}`), ...(prompt.branded ? [ui.badge('Branded')] : []));
   inspectorContext(prompt);
   fillStrip(prompt);

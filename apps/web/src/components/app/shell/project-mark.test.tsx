@@ -1,7 +1,13 @@
 import { fireEvent, render } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { ProjectMark } from './project-mark';
+
+// The seam has no icon route yet; these tests stand in a first-party one to exercise the image path
+vi.mock('@/lib/favicon', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/favicon')>()),
+  faviconUrl: (host: string): string => `/api/v1/favicons/${encodeURIComponent(host)}`,
+}));
 
 /** jsdom loads no images, so a test says how wide the one it "loaded" is. */
 function loaded(image: HTMLElement, width: number): void {
@@ -22,10 +28,10 @@ describe('ProjectMark', () => {
     expect(container.querySelector('img')).toBeNull();
   });
 
-  it('asks the favicon service for the domain, with no referrer, and shows the letter until it arrives', () => {
+  it('asks the icon route for the domain, with no referrer, and shows the letter until it arrives', () => {
     const { container } = render(<ProjectMark name="Eventus" domain="eventussecurity.com" />);
     const image = icon(container);
-    expect(image).toHaveAttribute('src', 'https://www.google.com/s2/favicons?domain=eventussecurity.com&sz=64');
+    expect(image).toHaveAttribute('src', '/api/v1/favicons/eventussecurity.com');
     expect(image).toHaveAttribute('referrerpolicy', 'no-referrer');
     expect(image).toHaveAttribute('alt', '');
     expect(container).toHaveTextContent('E');
@@ -58,6 +64,6 @@ describe('ProjectMark', () => {
     loaded(icon(container), 64);
     rerender(<ProjectMark name="Eventus" domain="other.com" />);
     expect(container).toHaveTextContent('E');
-    expect(icon(container)).toHaveAttribute('src', expect.stringContaining('domain=other.com'));
+    expect(icon(container)).toHaveAttribute('src', '/api/v1/favicons/other.com');
   });
 });

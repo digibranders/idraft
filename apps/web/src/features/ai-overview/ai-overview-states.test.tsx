@@ -2,6 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import { getResponse, http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { MOCK_TERM_IDS } from '@/mocks/entity-fixtures';
 import { handlers } from '@/mocks/handlers';
 import { mswPath } from '@/mocks/respond';
 import { overviewAs } from '@/test/ai-overview-harness';
@@ -22,7 +23,7 @@ const NOW = new Date('2026-11-12T12:00:00Z');
 const ENGINES = mswPath('/api/v1/workspaces/:w/projects/:p/engines');
 const SUMMARY = mswPath('/api/v1/workspaces/:w/projects/:p/ai/prompts-summary');
 const SCHEDULES = mswPath('/api/v1/workspaces/:w/projects/:p/schedules');
-const STRIP = /^AI visibility numbers for /;
+const HEADLINE = 'AI visibility rate (headline)';
 const CARDS = 'AI visibility cards';
 
 beforeEach(() => {
@@ -81,21 +82,21 @@ const precedes = (first: Element, second: Element): boolean =>
 describe('the setup slot of the AI visibility page', () => {
   it('renders without the slot', async () => {
     renderWithProviders(overviewAs('admin'));
-    expect(await screen.findByRole('group', { name: STRIP })).toBeInTheDocument();
+    expect(await screen.findByRole('group', { name: HEADLINE })).toBeInTheDocument();
     expect(screen.queryByText('Setup slot')).not.toBeInTheDocument();
   });
 
-  it('renders the slot between the header and the numbers strip', async () => {
+  it('renders the slot between the header and the headline', async () => {
     renderWithProviders(overviewAs('admin', { setupSlot: <p>Setup slot</p> }));
-    const strip = await screen.findByRole('group', { name: STRIP });
+    const headline = await screen.findByRole('group', { name: HEADLINE });
     const slot = screen.getByText('Setup slot');
     expect(precedes(screen.getByRole('heading', { level: 1 }), slot)).toBe(true);
-    expect(precedes(slot, strip)).toBe(true);
+    expect(precedes(slot, headline)).toBe(true);
   });
 
-  it('is not drawn where the empty state already says the same step: no engine on', async () => {
+  it('is not drawn where the empty state already says the same step: no platform on', async () => {
     renderWithProviders(overviewAs('admin', { world: 'cleanstart', setupSlot: <p>Setup slot</p> }));
-    expect(await screen.findByRole('heading', { name: 'No AI engine is on' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'No AI platform is on' })).toBeInTheDocument();
     expect(screen.queryByText('Setup slot')).not.toBeInTheDocument();
   });
 
@@ -109,23 +110,23 @@ describe('the setup slot of the AI visibility page', () => {
     );
     renderWithProviders(overviewAs('admin', { setupSlot: <p>Setup slot</p> }));
     expect(await screen.findByRole('heading', { name: 'No prompts are asked yet' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Open Topics and prompts' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open Prompts' })).toBeInTheDocument();
     expect(screen.queryByText('Setup slot')).not.toBeInTheDocument();
   });
 });
 
 describe('the empty states of the AI visibility page', () => {
-  it('Cleanstart shows the no engine state and no strip, scope bar or grid, and keeps Customize', async () => {
+  it('Cleanstart shows the no platform state and no headline, scope bar or grid, and keeps Customize', async () => {
     renderWithProviders(overviewAs('admin', { world: 'cleanstart' }));
-    expect(await screen.findByRole('heading', { name: 'No AI engine is on' })).toBeInTheDocument();
-    expect(screen.queryByRole('group', { name: STRIP })).not.toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'No AI platform is on' })).toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: HEADLINE })).not.toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Scope' })).not.toBeInTheDocument();
     expect(screen.queryByRole('region', { name: CARDS })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Customize' })).toBeInTheDocument();
     expect(document.querySelectorAll('[data-slot="banner"]')).toHaveLength(0);
   });
 
-  it('a project with engines on and no prompts shows the no prompts state, with no strip and no scope bar', async () => {
+  it('a project with platforms on and no prompts shows the no prompts state, with no headline and no scope bar', async () => {
     server.use(
       http.get(ENGINES, async ({ request }) => {
         const body = await defaultJson(request);
@@ -135,11 +136,11 @@ describe('the empty states of the AI visibility page', () => {
     );
     renderWithProviders(overviewAs('admin'));
     expect(await screen.findByRole('heading', { name: 'No prompts are asked yet' })).toBeInTheDocument();
-    expect(screen.queryByRole('group', { name: STRIP })).not.toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: HEADLINE })).not.toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Scope' })).not.toBeInTheDocument();
   });
 
-  it('a country with no prompts says so and keeps the scope bar, with Clear location', async () => {
+  it('a location with no prompts says so and keeps the scope bar, with Clear location', async () => {
     server.use(
       http.get(SUMMARY, async ({ request }) => {
         if (new URL(request.url).searchParams.get('rows') === 'none') return undefined;
@@ -152,7 +153,101 @@ describe('the empty states of the AI visibility page', () => {
     expect(await screen.findByRole('heading', { name: /^No prompts ask in .+\.$/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Clear location' })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Scope' })).toBeInTheDocument();
-    expect(screen.queryByRole('group', { name: STRIP })).not.toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: HEADLINE })).not.toBeInTheDocument();
+  });
+
+  it('names the group, never by its id, and resets a platform too', async () => {
+    server.use(
+      http.get(SUMMARY, async ({ request }) => {
+        if (new URL(request.url).searchParams.get('rows') === 'none') return undefined;
+        const body = await defaultJson(request);
+        const data = body.data as Record<string, unknown>;
+        return HttpResponse.json({ ...body, data: { ...data, prompts: [], topics: [], total: undefined } });
+      }),
+    );
+    const topic = MOCK_TERM_IDS.seo;
+    const urls: string[] = [];
+    const { user } = renderWithProviders(overviewAs('admin'), {
+      searchParams: `?topic=${topic}&engine=gemini_web`,
+      onUrlUpdate: (event) => urls.push(event.queryString),
+    });
+    // The page state replaces the grid once the read settles: wait for it, not for a card that says the same
+    expect(await screen.findByText(/No prompts of SEO are counted/)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'No prompts in this scope' })).toBeInTheDocument();
+    expect(screen.queryByText(new RegExp(topic))).not.toBeInTheDocument();
+    const state = document.querySelector<HTMLElement>('[data-slot="empty-state"]');
+    await user.click(within(state as HTMLElement).getByRole('button', { name: 'Reset scope' }));
+    await waitFor(() => {
+      expect(urls.at(-1)).toBe('');
+    });
+  });
+
+  it('a group with no prompts says so, keeps the scope bar, and Show all groups clears the group', async () => {
+    server.use(
+      http.get(SUMMARY, async ({ request }) => {
+        if (new URL(request.url).searchParams.get('rows') === 'none') return undefined;
+        const body = await defaultJson(request);
+        const data = body.data as Record<string, unknown>;
+        return HttpResponse.json({ ...body, data: { ...data, prompts: [], topics: [], total: undefined } });
+      }),
+    );
+    const urls: string[] = [];
+    const { user } = renderWithProviders(overviewAs('admin'), {
+      searchParams: `?topic=${MOCK_TERM_IDS.seo}`,
+      onUrlUpdate: (event) => urls.push(event.queryString),
+    });
+    const showAll = await screen.findByRole('button', { name: 'Show all groups' });
+    expect(screen.getByRole('heading', { name: 'No prompts in this scope' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Scope' })).toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: HEADLINE })).not.toBeInTheDocument();
+    await user.click(showAll);
+    await waitFor(() => {
+      expect(new URLSearchParams(urls.at(-1)).has('topic')).toBe(false);
+    });
+  });
+});
+
+describe('a link from before the Platform select', () => {
+  /** Fynix with the third platform on too, so a link can name two of three. */
+  function threePlatformsOn(): void {
+    server.use(
+      http.get(ENGINES, async ({ request }) => {
+        const body = await defaultJson(request);
+        const list = body.data as Record<string, unknown>[];
+        return HttpResponse.json({ ...body, data: list.map((engine) => ({ ...engine, is_enabled: true })) });
+      }),
+    );
+  }
+
+  it('that names two of three platforms shows All platforms, writes the key away and says so once', async () => {
+    threePlatformsOn();
+    const urls: string[] = [];
+    renderWithProviders(overviewAs('admin'), {
+      searchParams: '?engine=chatgpt_web,gemini_web&win=7d',
+      onUrlUpdate: (event) => urls.push(event.queryString),
+    });
+    expect(await screen.findByText('The link listed several platforms')).toBeInTheDocument();
+    expect(screen.getByText('The page shows one platform at a time, so it shows all platforms.')).toBeInTheDocument();
+    expect(await screen.findByRole('combobox', { name: 'Platform: All platforms' })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(urls.at(-1)).toBe('?win=7d');
+    });
+    // Strict mode runs effects twice and the key is gone after the first: one toast
+    expect(screen.getAllByText('The link listed several platforms')).toHaveLength(1);
+  });
+
+  it('that names every platform that is on is All platforms without a word', async () => {
+    threePlatformsOn();
+    const urls: string[] = [];
+    renderWithProviders(overviewAs('admin'), {
+      searchParams: '?engine=gemini_web,chatgpt_web,google_ai_mode',
+      onUrlUpdate: (event) => urls.push(event.queryString),
+    });
+    expect(await screen.findByRole('combobox', { name: 'Platform: All platforms' })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(urls.at(-1)).toBe('');
+    });
+    expect(screen.queryByText('The link listed several platforms')).not.toBeInTheDocument();
   });
 });
 
@@ -200,7 +295,7 @@ describe('the notice region and the freshness of the AI visibility page', () => 
 
   it('leaves a healthy project alone: about 10% of answers not valid is no banner', async () => {
     renderWithProviders(overviewAs('admin'));
-    await screen.findByRole('group', { name: STRIP });
+    await screen.findByRole('group', { name: HEADLINE });
     await waitFor(() => {
       expect(screen.getByText(/^AI updated /)).toBeInTheDocument();
     });
@@ -208,7 +303,7 @@ describe('the notice region and the freshness of the AI visibility page', () => 
     expect(document.querySelectorAll('[data-slot="banner"]')).toHaveLength(0);
   });
 
-  it('names the engine with the larger share of answers not valid, once, with its counts', async () => {
+  it('names the platform with the larger share of answers not valid, once, with its counts', async () => {
     withManyInvalidAnswers();
     renderWithProviders(overviewAs('admin'));
     expect(
@@ -254,17 +349,24 @@ describe('the notice region and the freshness of the AI visibility page', () => 
       }),
     );
     renderWithProviders(overviewAs('admin'));
-    await screen.findByRole('group', { name: STRIP });
+    await screen.findByRole('group', { name: HEADLINE });
     await waitFor(() => {
-      expect(screen.getByText(/ prompts · 2 engines$/)).toBeInTheDocument();
+      expect(screen.getByRole('group', { name: HEADLINE })).not.toHaveAttribute('aria-busy');
     });
+    // The freshness is a skeleton while it is read and nothing once it has failed: wait for that, then look
+    await waitFor(
+      () => {
+        expect(document.querySelector('[data-slot="overview-meta"]')).toBeNull();
+      },
+      { timeout: 5000 },
+    );
     expect(screen.queryByText(/^AI updated /)).not.toBeInTheDocument();
     expect(screen.queryByText('No AI answers yet')).not.toBeInTheDocument();
   });
 });
 
 describe('the page while it loads and refetches', () => {
-  it('holds the shape of the finished page while the engines load: strip, scope bar and grid at their heights', async () => {
+  it('holds the shape of the finished page while the platforms load: scope bar and grid at their heights', async () => {
     const release = gate();
     server.use(
       http.get(ENGINES, async ({ request }) => {
@@ -273,18 +375,17 @@ describe('the page while it loads and refetches', () => {
       }),
     );
     const { container } = renderWithProviders(overviewAs('admin'));
-    expect(container.querySelector('[data-slot="strip-placeholder"]')).not.toBeNull();
     expect(container.querySelector('[data-slot="scope-bar-placeholder"]')).not.toBeNull();
     expect(screen.getByRole('status', { name: 'Loading AI visibility' })).toBeInTheDocument();
     release.open();
-    expect(await screen.findByRole('group', { name: STRIP })).toBeInTheDocument();
+    expect(await screen.findByRole('group', { name: HEADLINE })).toBeInTheDocument();
   });
 
   it('keeps the values at full opacity with aria-busy and the bar while a scope change refetches', async () => {
     const { user, container } = renderWithProviders(overviewAs('admin'));
-    const strip = await screen.findByRole('group', { name: STRIP });
+    const headline = await screen.findByRole('group', { name: HEADLINE });
     await waitFor(() => {
-      expect(strip).not.toHaveAttribute('aria-busy');
+      expect(headline).not.toHaveAttribute('aria-busy');
     });
     const release = gate();
     server.use(
@@ -293,20 +394,21 @@ describe('the page while it loads and refetches', () => {
         return getResponse([...handlers], new Request(request.url, { headers: request.headers }));
       }),
     );
-    await user.click(await screen.findByRole('button', { name: 'vs previous period' }));
+    await user.click(await screen.findByRole('button', { name: 'Compare with: vs previous period' }));
     await user.click(await screen.findByRole('menuitemradio', { name: 'No comparison' }));
-    await user.click(await screen.findByRole('button', { name: 'Engines: 2 of 2' }));
-    await user.click(await screen.findByRole('checkbox', { name: 'ChatGPT' }));
-    await user.keyboard('{Escape}');
+    await user.click(await screen.findByRole('combobox', { name: 'Platform: All platforms' }));
+    await user.click(await screen.findByRole('option', { name: 'Gemini' }));
     await waitFor(() => {
       expect(container.querySelector('[data-slot="refetch-bar"]')).not.toBeNull();
     });
-    const busy = screen.getByRole('group', { name: STRIP });
+    const busy = screen.getByRole('group', { name: HEADLINE });
     expect(busy).toHaveAttribute('aria-busy', 'true');
     expect(busy.className).not.toMatch(/opacity/);
     expect(container.querySelector('[data-slot="refetch-bar"]')).toHaveAttribute('aria-hidden', 'true');
     // The figures of the scope before are still there while the new ones are read
-    expect(within(busy).getAllByRole('definition')[2]).toHaveTextContent(/\d+%/);
+    expect(
+      within(busy).getByRole('region', { name: 'AI visibility rate' }).querySelector('.type-metric'),
+    ).toHaveTextContent(/\d+%/);
     release.open();
     await waitFor(() => {
       expect(container.querySelector('[data-slot="refetch-bar"]')).toBeNull();

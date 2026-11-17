@@ -7,7 +7,7 @@ import { mapReadToFrame, type FrameContext, type FrameInput, type FrameWords } f
 import messages from '../../../../../../messages/en.json';
 import { drillHref } from '../../../drilldown/drill-links';
 import { scopeOf } from '../model/source-fixtures';
-import type { Say } from '../../../numbers/number-model';
+import type { Say } from '../../say';
 
 const translator = (namespace: string): Say => {
   const translate = createTranslator({ locale: 'en', messages, namespace: namespace as never });
@@ -43,8 +43,8 @@ describe('mapReadToFrame with no own page cited', () => {
   it('says no answer cited your pages, and why, with a link to Prompts when there is one', () => {
     const state = mapReadToFrame(input, words, context({ promptsHref: '/acme/fynix/prompts' as Route }));
     if (state.status !== 'empty') throw new Error('expected an empty state');
-    expect(state.empty.title).toBe('No answer cited your pages in this window');
-    expect(state.empty.reason).toContain('named');
+    expect(state.empty.title).toBe('No answer cited your pages in this period');
+    expect(state.empty.reason).toContain('mentioned');
     expect(isValidElement(state.empty.action)).toBe(true);
   });
 

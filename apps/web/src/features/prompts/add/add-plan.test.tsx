@@ -197,7 +197,7 @@ describe('Add prompts: the plan', () => {
     const dialog = await openDialog(user);
     await typeList(user, dialog, FIRST);
     expect(
-      await within(dialog).findByText('About 16 answers a month: 1 prompt x 2 engines x 2 runs a week.'),
+      await within(dialog).findByText('About 16 answers a month: 1 prompt x 2 platforms x 2 runs a week.'),
     ).toBeInTheDocument();
     expect(
       within(dialog).getByText('About $0.06 a month: ChatGPT $0.03 and Gemini $0.03 (standard queue).'),
@@ -316,7 +316,7 @@ describe('Add prompts: the plan', () => {
     const { user } = renderWithProviders(asEditor({ countryIso: null }));
     const dialog = await openDialog(user);
     await typeList(user, dialog, `${FIRST}\n${SECOND}`);
-    expect(await within(dialog).findByText('Choose a country to check what is tracked.')).toBeInTheDocument();
+    expect(await within(dialog).findByText('Choose a location to check what is tracked.')).toBeInTheDocument();
     expect(within(dialog).queryByText(/answers a month/)).toBeNull();
     expect(within(dialog).queryByText(/Workspace prompts/)).toBeNull();
     expect(within(dialog).queryByText(/\$/)).toBeNull();

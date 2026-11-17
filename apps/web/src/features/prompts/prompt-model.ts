@@ -12,7 +12,6 @@ import type {
 import { formatIsoDate, formatSampleCount } from '@/lib/format';
 import type { NamedTerm } from '@/lib/keywords/taxonomy-reads';
 import type { Country } from '@/lib/locations/countries';
-import type { StripPrompt } from '@/lib/rates/strip-model';
 import type { SortKey } from '@/lib/tables/table-state';
 
 /**
@@ -68,14 +67,15 @@ export const cellsOfPrompt = (row: PromptRow): readonly EngineSummary[] | undefi
  * The ids `?sort=` names (`-id` for descending, two keys at most). A value a column does not have, or a rate
  * that is insufficient, sorts after every row that has one, whichever way the sort runs.
  * - Prompts tab: `prompt`, `topic` and `country` (A to Z first); `mention` and `citation`, the average of the
- *   engines shown; `<engine_code>_rate`, the engine's value of the chosen metric; `<engine_code>_mentioned` and
+ *   engines shown; `<engine_code>_rate`, the engine's mention rate; `<engine_code>_mentioned` and
  *   `<engine_code>_cited`, its rate of Mentioned and Cited (the count columns of the chooser). All but the text
- *   columns sort high to low first.
+ *   columns sort high to low first. The ids from `intent` to `screenshot` belong to columns that later packages
+ *   register through `seams/columns.ts`: `links`, `brands` and `screenshot` open something and do not sort.
  * - Topics tab: `prompts` (how many prompts the topic holds), `mention`, `citation`, `top_engine` (by the
  *   engine's name, A to Z first), and `<engine_code>_mentioned` and `<engine_code>_cited`. The sort orders the
  *   topics; the prompts under an open topic keep their order, most mentioned first.
- * A tie goes to the name on the Topics tab, and on the Prompts tab under the default sort (the prompt is its second
- * key); under a sort the person chose, rows that tie keep the table's order (DataTable breaks a tie by row id).
+ * A tie goes to the name on the Topics tab; on the Prompts tab rows that tie keep the table's order (DataTable breaks a
+ * tie by row id).
  * An id the open tab has no sort for is ignored, so one `sort` serves both tabs.
  */
 export const SORT_ID = {
@@ -86,6 +86,15 @@ export const SORT_ID = {
   mention: 'mention',
   citation: 'citation',
   topEngine: 'top_engine',
+  intent: 'intent',
+  volume: 'volume',
+  position: 'position',
+  recommendation: 'recommendation',
+  shareOfVoice: 'sov',
+  sentiment: 'sentiment',
+  links: 'links',
+  brands: 'brands',
+  screenshot: 'screenshot',
 } as const;
 
 /** The id of an engine's column: the metric chosen (`rate`), or its count columns of Mentioned and Cited. */
@@ -94,11 +103,11 @@ export const engineSortId = (engineCode: string, shown: 'rate' | 'mentioned' | '
 
 /** Both tables open on the highest Mention rate, the rows without one last (parity spec G23, G40). */
 export const DEFAULT_TOPIC_SORT: readonly SortKey[] = [{ id: SORT_ID.mention, desc: true }];
-/** The Prompts tab breaks a tie by the text of the prompt, A to Z. */
-export const DEFAULT_PROMPT_SORT: readonly SortKey[] = [
-  { id: SORT_ID.mention, desc: true },
-  { id: SORT_ID.prompt, desc: false },
-];
+/**
+ * The Prompts tab opens on the highest Mention rate alone, so one arrow shows on its header (the preview's). A tie keeps
+ * the table's own order (the DataTable breaks it by row id).
+ */
+export const DEFAULT_PROMPT_SORT: readonly SortKey[] = [{ id: SORT_ID.mention, desc: true }];
 
 /** The tabs of slice 1 (ADR-DS-022): Panels and Versions wait for slice 4. */
 export const PROMPTS_TABS = ['topics', 'prompts'] as const;
@@ -191,60 +200,43 @@ export function topicMembers<T extends Pick<PromptSummaryRow, 'topic_term_ids'>>
   return prompts.filter((prompt) => prompt.topic_term_ids.some((id) => below.has(id)));
 }
 
-/**
- * How many topics the prompts in scope span: the topics of the summary that hold at least one of them, as the
- * Topics tab lists them (the topic a prompt is given and every topic above it; the "No topic" row is not a
- * topic), within `kept` when a topic filter is set (`null` otherwise). The caller must not ask before the
- * vocabulary trees are read: a topic the tree does not hold cannot be rolled up, and this counts it only when a
- * prompt carries it itself.
- */
-export function topicsSpanned(
-  topics: readonly TopicSummaryRow[],
-  prompts: readonly StripPrompt[],
-  descendants: TopicDescendants,
-  kept: ReadonlySet<string> | null,
-): number {
-  return topics.filter((topic) => {
-    // The row of no topic is not a topic the prompts span
-    const termId = topic.term_id;
-    if (termId === null || (kept !== null && !topicRowKept(termId, kept))) return false;
-    const members = topicMembers(termId, prompts, descendants);
-    return members === null ? prompts.some((prompt) => prompt.topic_term_ids.includes(termId)) : members.length > 0;
-  }).length;
-}
-
 /** The topic key of the prompts without a topic, in the address (`topic:__none`) and in the table's row ids. */
 export const NO_TOPIC = '__none';
 
-/** The most prompts an opened topic lists in the table, before "Show all" (ADR-DS-022 decision 2). */
-export const TOPIC_ROW_PROMPTS = 8;
-
-/** The prompts the topic drawer's Overview lists. */
+/** The prompts the group drawer's Overview lists. */
 export const TOPIC_TOP_PROMPTS = 5;
 
-/** The mention rate of the prompts on the engine; one without a rate comes after every one that has. */
-const mentionedOn = (prompt: PromptSummaryRow, engineCode: string | undefined): number =>
-  prompt.engines.find((engine) => engine.engine_code === engineCode)?.mentioned.value ?? -1;
+/**
+ * The mention rate of a prompt over the platforms `codes`: the equal-weight average of those that have a rate; -1 for a
+ * prompt with none, which comes after every one that has (PR-TOPICS-09).
+ */
+const mentionedOver = (prompt: PromptSummaryRow, codes: readonly string[]): number => {
+  const rates = codes.flatMap((code) => {
+    const value = prompt.engines.find((engine) => engine.engine_code === code)?.mentioned.value;
+    return value === null || value === undefined ? [] : [value];
+  });
+  return rates.length === 0 ? -1 : rates.reduce((sum, rate) => sum + rate, 0) / rates.length;
+};
 
-/** The prompts, most mentioned on the engine first (a stable sort: equals keep their order). */
+/** The prompts, most mentioned first over the platforms `codes` (a stable sort: equals keep their order). */
 export const mostMentionedFirst = (
   prompts: readonly PromptSummaryRow[],
-  engineCode: string | undefined,
-): PromptSummaryRow[] => [...prompts].sort((a, b) => mentionedOn(b, engineCode) - mentionedOn(a, engineCode));
+  codes: readonly string[],
+): PromptSummaryRow[] => [...prompts].sort((a, b) => mentionedOver(b, codes) - mentionedOver(a, codes));
 
 /**
- * The prompts of a topic as its row lists them and its drawer does, most mentioned on `engineCode` first;
+ * The prompts of a group as its row lists them and its drawer does, most mentioned over the platforms `codes` first;
  * `null` while they cannot be told (no summary, or a topic the tree does not hold yet).
  */
 export function topicPrompts(
   summary: PromptsSummary | undefined,
   key: string,
   descendants: TopicDescendants,
-  engineCode: string | undefined,
+  codes: readonly string[],
 ): PromptSummaryRow[] | null {
   if (summary === undefined) return null;
   const members = topicMembers(key === NO_TOPIC ? null : key, summary.prompts, descendants);
-  return members === null ? null : mostMentionedFirst(members, engineCode);
+  return members === null ? null : mostMentionedFirst(members, codes);
 }
 
 /** The summary's row of a topic by its key: the term id, or `NO_TOPIC` for the prompts without one. */
@@ -283,34 +275,6 @@ export function topicOriginOf(
 ): TopicOrigin | null {
   if (origin === null || open.promptId === null || origin.projectId !== open.projectId) return null;
   return origin.promptId === open.promptId || open.order?.includes(open.promptId) === true ? origin : null;
-}
-
-export interface TopicChoice {
-  termId: string;
-  name: string;
-  /** Where the topic sits, to tell two of one name apart. */
-  path: string;
-}
-
-/**
- * The topics a filter offers: those the prompts carry and every topic above them, so a topic no prompt is
- * given itself can be chosen (the summary has a row for it). The tree's order first; a carried topic the tree
- * does not hold comes after, as the prompt describes it.
- */
-export function topicChoices(tree: readonly NamedTerm[], carried: ReadonlyMap<string, TopicTerm>): TopicChoice[] {
-  const byId = new Map(tree.map((term) => [term.termId, term]));
-  const wanted = new Set<string>();
-  for (const id of carried.keys()) {
-    for (let at = byId.get(id); at !== undefined && !wanted.has(at.termId); at = byId.get(at.parentId ?? '')) {
-      wanted.add(at.termId);
-    }
-  }
-  return [
-    ...tree.filter((term) => wanted.has(term.termId)).map(({ termId, name, path }) => ({ termId, name, path })),
-    ...[...carried.values()]
-      .filter((term) => !byId.has(term.term_id))
-      .map((term) => ({ termId: term.term_id, name: term.name, path: term.path })),
-  ];
 }
 
 /**

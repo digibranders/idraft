@@ -44,6 +44,7 @@ export default function AnswerCalendarCard({ item, live }: CardProps): ReactElem
       title={t('title')}
       meta={card.meta}
       summary={summary}
+      info={{ what: t('info.what'), how: t('info.how') }}
       controls={card.controls}
       footnote={
         <>

@@ -41,7 +41,7 @@ beforeEach(() => {
   state.open = [fynix, cleanstart];
 });
 
-describe('Topics & Prompts of a project', () => {
+describe('Prompts of a project', () => {
   it('shows the prompts of the project in the route, with its time zone and its defaults', async () => {
     expect(await page('cleanstart')).toMatchObject({
       type: PromptsScreen,

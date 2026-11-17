@@ -36,7 +36,7 @@ afterEach(() => {
 });
 
 const SUMMARY_PATH = mswPath('/api/v1/workspaces/:w/projects/:p/ai/prompts-summary');
-const TITLE = 'What each topic adds';
+const TITLE = 'What each group adds';
 const PREVIOUS_TO = '2026-10-15';
 
 const TERMS: TermSpec[] = [
@@ -122,7 +122,7 @@ const frameOf = async (): Promise<HTMLElement> => {
   if (section === null) throw new Error('The card has no frame');
   return section;
 };
-const listOf = (): Promise<HTMLElement> => screen.findByRole('list', { name: /^What each topic add(s|ed)/ });
+const listOf = (): Promise<HTMLElement> => screen.findByRole('list', { name: /^What each group add(s|ed)/ });
 const itemsOf = async (): Promise<HTMLElement[]> => within(await listOf()).getAllByRole('listitem');
 const labelOf = (item: HTMLElement): string => item.querySelector('[data-slot="bar-list-label"]')?.textContent ?? '';
 
@@ -133,13 +133,13 @@ const failing = (): ReturnType<typeof HttpResponse.json> =>
   );
 
 describe('TopicContributionCard level view', () => {
-  it('a bar per top level topic with points and prompts', async () => {
+  it('a bar per top level group with points and prompts', async () => {
     renderCard();
     const items = await itemsOf();
-    expect(items.map(labelOf)).toEqual(['SEO tools', 'Email', 'Prompts without a topic']);
+    expect(items.map(labelOf)).toEqual(['SEO tools', 'Email', 'Prompts without a group']);
     expect(items[0]).toHaveTextContent('SEO tools: 35.0 points of the 53.8%, 2 prompts');
     expect(items[1]).toHaveTextContent('Email: 12.5 points of the 53.8%, 2 prompts');
-    expect(items[2]).toHaveTextContent('Prompts without a topic: 18.8 points of the 53.8%, 1 prompt');
+    expect(items[2]).toHaveTextContent('Prompts without a group: 18.8 points of the 53.8%, 1 prompt');
   });
 
   it('the footnote gives the sum and the overlapping prompts', async () => {
@@ -148,9 +148,9 @@ describe('TopicContributionCard level view', () => {
     await listOf();
     expect(within(frame).getByText(/Bars add up to 66\.[23] points for a rate of 53\.8%/)).toBeInTheDocument();
     await waitFor(() => {
-      expect(within(frame).getByText(/1 prompt is in more than one topic/)).toBeInTheDocument();
+      expect(within(frame).getByText(/1 prompt is in more than one group/)).toBeInTheDocument();
     });
-    expect(within(frame).getByText(/Topics overlap/)).toBeInTheDocument();
+    expect(within(frame).getByText(/Groups overlap/)).toBeInTheDocument();
   });
 
   it('a row links to the drawer', async () => {
@@ -167,11 +167,11 @@ describe('TopicContributionCard level view', () => {
       }),
     });
     expect(await screen.findByText(/ChatGPT has 3 valid answers/)).toBeInTheDocument();
-    expect(screen.queryByRole('list', { name: /^What each topic add(s|ed)/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: /^What each group add(s|ed)/ })).not.toBeInTheDocument();
     expect(screen.queryByText(/%/)).not.toBeInTheDocument();
   });
 
-  it('no valid answers names the engine and the days', async () => {
+  it('no valid answers names the platform and the days', async () => {
     renderCard({
       summary: summaryOf({ topics: [topic('t1', 'SEO tools', 1)], prompts: [prompt('p1', ['t1'], [0, 0])] }),
     });
@@ -180,12 +180,12 @@ describe('TopicContributionCard level view', () => {
     ).toBeInTheDocument();
   });
 
-  it('no topics is an empty state with Open Topics and prompts', async () => {
+  it('no groups is an empty state with Open Prompts', async () => {
     renderCard({ summary: summaryOf({ topics: [], prompts: [], engineCodes: ['chatgpt_web'] }) });
-    expect(await screen.findByRole('heading', { name: 'No topics yet' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'No groups yet' })).toBeInTheDocument();
   });
 
-  it('engine outside the filter is an empty state with Use all engines', async () => {
+  it('platform outside the filter is an empty state with Use all platforms', async () => {
     const updates: string[] = [];
     server.use(summaryHandler(periods(NOW, NOW)), ...vocabularyHandlers(TERMS));
     function Card(props: CardProps): ReactElement {
@@ -200,7 +200,7 @@ describe('TopicContributionCard level view', () => {
     const title = await screen.findByRole('heading', { name: 'Gemini is not part of this view' });
     const box = within(title.closest('[data-slot="empty-state"]') as HTMLElement);
     expect([...box.queryAllByRole('button'), ...box.queryAllByRole('link')]).toHaveLength(1);
-    await user.click(box.getByRole('button', { name: 'Use all engines' }));
+    await user.click(box.getByRole('button', { name: 'Use all platforms' }));
     await waitFor(() => {
       expect(updates.length).toBeGreaterThan(0);
     });
@@ -232,12 +232,12 @@ describe('TopicContributionCard level view', () => {
     await new Promise((resolve) => setTimeout(resolve, 100));
     expect(frame).toHaveAttribute('aria-busy', 'true');
     expect(frame.querySelector('[data-slot="skeleton"]')).not.toBeNull();
-    expect(screen.queryByRole('list', { name: /^What each topic add(s|ed)/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: /^What each group add(s|ed)/ })).not.toBeInTheDocument();
     release.open();
     expect(await itemsOf()).toHaveLength(3);
   });
 
-  it('the Table form has the topic, the points and the prompts', async () => {
+  it('the Table form has the group, the points and the prompts', async () => {
     const { user } = renderCard();
     await listOf();
     await user.click(screen.getByRole('button', { name: 'Table' }));
@@ -246,7 +246,7 @@ describe('TopicContributionCard level view', () => {
       within(grid)
         .getAllByRole('columnheader')
         .map((cell) => cell.textContent),
-    ).toEqual(['Topic', 'Adds', 'Prompts']);
+    ).toEqual(['Group', 'Adds', 'Prompts']);
   });
 
   it('has no axe violations', async () => {
@@ -288,7 +288,7 @@ describe('TopicContributionCard change view', () => {
     const frame = await frameOf();
     await listOf();
     expect(within(frame).getByText(/0\.8 points .* prompts added or left/)).toBeInTheDocument();
-    expect(within(frame).getByText(/3 prompts in both windows/)).toBeInTheDocument();
+    expect(within(frame).getByText(/3 prompts in both periods/)).toBeInTheDocument();
   });
 
   it('change view with compare off is an empty state with an action', async () => {
@@ -342,7 +342,7 @@ describe('TopicContributionCard change view', () => {
     const frame = await frameOf();
     await new Promise((resolve) => setTimeout(resolve, 100));
     expect(frame).toHaveAttribute('aria-busy', 'true');
-    expect(screen.queryByRole('list', { name: /^What each topic add(s|ed)/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: /^What each group add(s|ed)/ })).not.toBeInTheDocument();
     release.open();
     expect(await itemsOf()).toHaveLength(2);
   });
@@ -394,7 +394,7 @@ describe('TopicContributionCard states', () => {
     const frame = await frameOf();
     expect(frame).toHaveAttribute('aria-busy', 'true');
     expect(frame.querySelector('[style*="height: 240px"] [data-slot="skeleton"]')).not.toBeNull();
-    expect(screen.queryByRole('list', { name: /^What each topic add(s|ed)/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: /^What each group add(s|ed)/ })).not.toBeInTheDocument();
     release.open();
     await listOf();
   });
@@ -446,7 +446,7 @@ describe('TopicContributionCard export block', () => {
     expect(block?.rows).toEqual([
       ['SEO tools', 2, 35],
       ['Email', 2, 12.5],
-      ['Prompts without a topic', 1, 18.75],
+      ['Prompts without a group', 1, 18.75],
     ]);
   });
 });

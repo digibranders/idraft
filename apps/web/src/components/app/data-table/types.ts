@@ -62,6 +62,11 @@ export interface DataTableColumn<TRow> {
   /** The definition of an abbreviated or methodological header ("KD", "Volume" as an estimate). */
   headerTooltip?: string | undefined;
   /**
+   * A mark drawn before the header label and beside the name in the column chooser (a platform's logo). It is hidden
+   * from assistive technology: the column's name stays its `header` text. The sort button and tooltips are unchanged.
+   */
+  headerIcon?: ReactNode;
+  /**
    * The tooltip of a row's cell, when it has one (the reason for "Pending", the detail of a keyword). The
    * table puts it on the cell itself, which is what holds the focus: it opens when the cell takes keyboard
    * focus and is the cell's description for assistive technology.
@@ -174,6 +179,16 @@ export interface RowTree {
   label?: string | undefined;
 }
 
+/** The parts of the table toolbar a screen can leave out; each is drawn unless it says `false`. */
+export interface ToolbarParts {
+  /** The density menu. Off: rows are always compact, whatever `density` says. */
+  density?: boolean;
+  /** The record count in the toolbar (the footer keeps it, and a changed count is still announced). */
+  count?: boolean;
+  /** The "Sorted by ..." note for two sort keys: it stays readable to assistive technology, but is never drawn. */
+  sortNote?: boolean;
+}
+
 export type TableStatus = 'loading' | 'ready' | 'refetching' | 'error' | 'empty' | 'filtered-empty';
 
 /**
@@ -195,6 +210,14 @@ export interface DataTableProps<TRow> {
   /** Client mode while the background pages load: "Loading 1,200 of 4,812 keywords". */
   loadProgress?: { loaded: number; total: number } | null | undefined;
   sort: readonly SortKey[];
+  /**
+   * Opt in: what sorts the table while a column of the sort (`sort`) is hidden in the column chooser, or the
+   * screen's scope removed it. The fallback then sorts and shows its indicator (none when its own column is hidden
+   * too: the rows still follow it), and the caller's `sort` is not changed. Keep its identity between renders. The table sorts only in client
+   * mode: in tree and server mode the caller orders its rows by `effectiveSort(sort, fallback, shownIds)`, which is
+   * what the table draws, or the indicator and the rows disagree.
+   */
+  sortFallback?: readonly SortKey[] | undefined;
   onSortChange: (sort: readonly SortKey[]) => void;
   defaultSort: readonly SortKey[];
   density: Density;
@@ -215,10 +238,19 @@ export interface DataTableProps<TRow> {
   rowTree?: ((row: TRow) => RowTree | undefined) | undefined;
   /** Called to open or close a group row. */
   onToggleGroup?: ((row: TRow) => void) | undefined;
+  /**
+   * Opt in: a click or Enter on a group row opens it through `onRowOpen`, like any row (a topic row opens its
+   * drawer), and only the disclosure button and Right and Left Arrow toggle it. Off: the click and Enter toggle.
+   */
+  groupRowOpens?: boolean | undefined;
   /** A slot at the end of the toolbar, before density and columns: the view switch. */
   toolbarEnd?: ReactNode;
+  /** Opt out of parts of the toolbar: `{ density: false, count: false, sortNote: false }`. Absent: every part is drawn. */
+  toolbarParts?: ToolbarParts | undefined;
   /** Opt in to the compact toolbar (`DataTableToolbar` `compact`): the sort summary is drawn from 1440 px, not 1280. */
   compactToolbar?: boolean;
+  /** Opt in to the column chooser at the narrow popover width (280 px) instead of the width of its content (up to 360 px). */
+  compactChooser?: boolean;
   /**
    * Hold the identity column at its type maximum while the other columns can still widen toward theirs
    * (`resolveWidths` with `capIdentity`): for a table that shows few columns, the By group view.

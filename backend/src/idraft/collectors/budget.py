@@ -28,7 +28,13 @@ from idraft.db.tables import (
     collection_tasks,
     provider_cost_events,
 )
-from idraft.domain.workloads import BudgetGroup, TaskWorkload, budget_group, cost_workloads
+from idraft.domain.workloads import (
+    BudgetGroup,
+    CostWorkload,
+    TaskWorkload,
+    budget_group,
+    cost_workloads,
+)
 
 _events = provider_cost_events
 _runs = collection_runs
@@ -142,7 +148,7 @@ async def check(
     *,
     workspace_id: UUID,
     project_id: UUID,
-    workload: TaskWorkload,
+    workload: TaskWorkload | CostWorkload,
     now: datetime,
     estimate: Decimal | None = None,
     memo: SpendMemo | None = None,

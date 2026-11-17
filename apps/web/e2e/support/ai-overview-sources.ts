@@ -20,32 +20,41 @@ export const FYNIX_PATH = '/digibranders/fynix/ai';
 export const EVENTUS_PATH = '/digibranders/eventus-security/ai';
 export const POLITE = '#live-region-polite';
 
-/** The built-in layout of the screen holds these two source and activity cards; the others are real once added. */
-export const BUILTIN_IDS = { topDomains: 'top-domains', keyChanges: 'key-changes' } as const;
+/** The built-in layout of the screen holds the top cited domains card; Key changes is real once added. */
+export const BUILTIN_IDS = { topDomains: 'top-domains' } as const;
 
-/** The cards the layout leaves out to make room: a layout holds 12 cards at most and the built-in one holds 9. */
+/**
+ * The cards of the built-in layout that Customize hides to make room: a layout holds 12 cards at most and the built-in
+ * one holds 11. Only the top cited domains card stays, so Key changes and the ten others fit beside it.
+ */
 const MAKE_ROOM_FOR_ADDED = [
-  'change-summary',
+  'visibility-split',
   'rate-trend',
   'outcome-mix',
+  'share-of-voice',
+  'lost-to-competitor',
   'topic-heatmap',
-  'share-of-voice-chatgpt',
-  'competitor-trend-chatgpt',
-  'opportunities',
+  'position-distribution',
+  'sentiment-by-engine',
+  'ai-referrals',
+  'fanout-top',
 ] as const;
+
+/** The catalog name of the Key changes card, which the built-in layout no longer holds. */
+const KEY_CHANGES_CATALOG = 'Key changes';
 
 /** The ten cards added through Add card: the name of the catalog (the dialog's button) and the title the card draws. */
 export const ADDED_CARDS = {
-  ownPages: { catalog: 'Your pages AI engines cite', title: 'Your pages AI engines cite' },
-  roleShare: { catalog: 'Citation share by domain type', title: 'Citation share by source role and engine' },
-  fanout: { catalog: 'What ChatGPT searched', title: 'What ChatGPT searched' },
-  newLost: { catalog: 'New and lost sources', title: 'New and lost sources' },
-  diversity: { catalog: 'Source diversity', title: 'Source diversity over time' },
+  ownPages: { catalog: 'Your pages cited', title: 'Your pages cited' },
+  roleShare: { catalog: 'Citations by domain type', title: 'Citations by domain type' },
+  fanout: { catalog: 'Top fan-out queries', title: 'Top fan-out queries' },
+  newLost: { catalog: 'New and lost domains', title: 'New and lost domains' },
+  diversity: { catalog: 'Cited domain diversity', title: 'Domain diversity over time' },
   collection: { catalog: 'Collection status', title: 'Collection status' },
-  engines: { catalog: 'Engines and schedule', title: 'Engines and schedule' },
+  engines: { catalog: 'Platforms and schedule', title: 'Platforms and schedule' },
   spend: { catalog: 'AI spend', title: 'AI spend' },
-  calendar: { catalog: 'Answers collected', title: 'Answer collection calendar' },
-  status: { catalog: 'Answer status by engine', title: 'Answer status by engine and day' },
+  calendar: { catalog: 'Run calendar', title: 'Run calendar' },
+  status: { catalog: 'Answer status by platform', title: 'Answer status by platform and day' },
 } as const;
 export type AddedCard = keyof typeof ADDED_CARDS;
 
@@ -74,7 +83,7 @@ export const tableToggle = (card: Locator): Locator =>
 /** The Ranked and By role choice of the top cited domains card: a radio group named View. */
 export const viewChoice = (card: Locator): Locator => card.getByRole('radiogroup', { name: 'View', exact: true });
 /** The engine toolbar of the collection calendar and status cards: one engine at a time. */
-export const engineTabs = (card: Locator): Locator => card.getByRole('toolbar', { name: 'Engine', exact: true });
+export const engineTabs = (card: Locator): Locator => card.getByRole('toolbar', { name: 'Platform', exact: true });
 
 // -------------------------------------------------------------------------------------------------
 // Opening the page and the layout
@@ -88,7 +97,7 @@ export async function openScreen(page: Page, path: string, width = 1280, search 
 
 /** True once the project's cards are on the page; false when it says that no AI engine is on (an unseeded Eventus). */
 export async function hasAiEngines(page: Page): Promise<boolean> {
-  const none = page.getByText('No AI engine is on', { exact: true });
+  const none = page.getByText('No AI platform is on', { exact: true });
   await none.or(cardGrid(page)).first().waitFor();
   return (await none.count()) === 0;
 }
@@ -112,25 +121,26 @@ export async function addCatalogCard(page: Page, catalog: string): Promise<void>
   await expect(dialog).toHaveCount(0);
 }
 
-/** In Customize mode, hides the seven cards of the built-in layout that this package does not need (room for ten). */
+/** In Customize mode, hides the ten cards of the built-in layout that this package does not need (room for eleven). */
 export async function makeRoom(page: Page): Promise<void> {
   for (const id of MAKE_ROOM_FOR_ADDED) await hideCard(page, id);
 }
 
-/** In Customize mode, adds the ten cards of this package one after the other. */
-export async function addTenCards(page: Page): Promise<void> {
+/** In Customize mode, adds Key changes and the ten cards of this package one after the other. */
+export async function addPackageCards(page: Page): Promise<void> {
+  await addCatalogCard(page, KEY_CHANGES_CATALOG);
   for (const card of Object.values(ADDED_CARDS)) await addCatalogCard(page, card.catalog);
 }
 
 /**
- * Starts from the built-in layout (the top cited domains and key changes cards among its nine), hides the seven
- * others, adds the ten cards of this package and saves: twelve cards, the most a layout holds. Customize mode needs a
- * window of tablet width or more.
+ * Starts from the built-in layout (the top cited domains card among its eleven), hides the ten others, adds Key changes
+ * and the ten cards of this package and saves: twelve cards, the most a layout holds. Customize mode needs a window of
+ * tablet width or more.
  */
 export async function saveSourcesLayout(page: Page): Promise<void> {
   await startCustomizing(page);
   await makeRoom(page);
-  await addTenCards(page);
+  await addPackageCards(page);
   await saveLayout(page);
   await expect(cardGrid(page).locator('[data-layout-card]')).toHaveCount(12);
 }

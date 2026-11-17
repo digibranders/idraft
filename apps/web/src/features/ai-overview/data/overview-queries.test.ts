@@ -8,6 +8,7 @@ import {
   overviewSchedulesQuery,
   overviewSourcesQuery,
   overviewSummaryQuery,
+  sourcesComparable,
   type ProjectRef,
   type ReadScope,
 } from './overview-queries';
@@ -23,11 +24,13 @@ function scopeOf(patch: Partial<OverviewScope> = {}): OverviewScope {
     range: { from: '2026-10-16', to: '2026-11-12', days: 28 },
     rangeValue: { kind: 'preset', preset: '28d' },
     compare: true,
+    compareKind: 'previous_period',
     previous: { from: '2026-09-18', to: '2026-10-15' },
     country: null,
     engines: null,
     topic: null,
     branded: 'excluded',
+    metric: 'visibility',
     ...patch,
   };
 }
@@ -146,6 +149,20 @@ describe('askedEngines', () => {
   });
 });
 
+describe('sourcesComparable', () => {
+  it('is on for the period before only: the sources routes have no compare=previous_year', () => {
+    expect(sourcesComparable(scopeOf())).toBe(true);
+    expect(sourcesComparable(scopeOf({ compare: false }))).toBe(false);
+    const year = scopeOf({ compareKind: 'previous_year', previous: { from: '2025-10-16', to: '2025-11-12' } });
+    expect(sourcesComparable(year)).toBe(false);
+    // The summary reads the year window by its dates, so the Overview still has it
+    expect(comparisonWindow(year)).toEqual({ from: '2025-10-16', to: '2025-11-12' });
+    expect(queryOf(overviewSourcesQuery(PROJECT, readOf({ compareKind: 'previous_year' })))).not.toHaveProperty(
+      'compare',
+    );
+  });
+});
+
 describe('comparisonWindow', () => {
   it('is the previous window while the comparison is on', () => {
     expect(comparisonWindow(scopeOf())).toEqual({ from: '2026-09-18', to: '2026-10-15' });
@@ -172,6 +189,8 @@ describe('overviewSourcesQuery', () => {
       to: '2026-11-12',
       include_branded: false,
       limit: 1,
+      // Named, so the platform that is off is not read (the summary leaves the filter out for all of them)
+      'filter[engine_code_in]': ALL,
       include: ['by_role_by_engine'],
     });
   });

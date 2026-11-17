@@ -81,8 +81,8 @@ test.describe('The New and lost tab', () => {
 
   test('the strip counts equal the segment counts', async ({ page }) => {
     await openNewLost(page, 1280);
-    const added = await stripCount(page, 'New sources');
-    const lost = await stripCount(page, 'Lost sources');
+    const added = await stripCount(page, 'New domains');
+    const lost = await stripCount(page, 'Lost domains');
     // Both listed domains are counted, and a count is the same figure wherever it is drawn
     expect(added).toBeGreaterThan(0);
     expect(lost).toBeGreaterThan(0);
@@ -93,7 +93,7 @@ test.describe('The New and lost tab', () => {
   test('the Lost list says how many days it reads', async ({ page }) => {
     await openNewLost(page, 1280, 'lost');
     const note = page.getByText(
-      /^Lost sources read [\d,]+ days of answers, three windows of [\d,]+ days, so this list can take a moment\.$/,
+      /^Lost domains read [\d,]+ days of answers, three periods of [\d,]+ days, so this list can take a moment\.$/,
     );
     await expect(note).toBeVisible();
     const [read = 0, window = 0] =
@@ -152,10 +152,10 @@ test.describe('The flag toggles and the country scope', () => {
     const everywhere = await stripCount(page, 'Citation units');
     await expect(page).not.toHaveURL(/[?&]country=/);
 
-    await page.getByRole('combobox', { name: 'Country: All countries' }).click();
+    await page.getByRole('combobox', { name: 'Location: All locations' }).click();
     await page.getByRole('option', { name: 'Germany' }).click();
     await expect(page).toHaveURL(/[?&]country=DE(&|$)/);
-    await expect(page.getByRole('combobox', { name: 'Country: Germany' })).toBeVisible();
+    await expect(page.getByRole('combobox', { name: 'Location: Germany' })).toBeVisible();
     await expect(page.getByText(/^Only the prompts set in Germany are read\./)).toBeVisible();
     // The Hindi prompt is set in India, so Germany reads fewer units
     await expect.poll(() => stripCount(page, 'Citation units')).toBeLessThan(everywhere);
@@ -166,7 +166,7 @@ test.describe('The flag toggles and the country scope', () => {
     await page.getByRole('button', { name: 'Clear filters' }).click();
     await expect(page).not.toHaveURL(/[?&]redirects=/);
     await expect(page).toHaveURL(/[?&]country=DE(&|$)/);
-    await expect(page.getByRole('combobox', { name: 'Country: Germany' })).toBeVisible();
+    await expect(page.getByRole('combobox', { name: 'Location: Germany' })).toBeVisible();
     await expect(page.getByText(/^Only the prompts set in Germany are read\./)).toBeVisible();
   });
 });
@@ -197,24 +197,24 @@ test.describe('The domain inspector', () => {
     await expect.poll(() => inspectParam(page)).toBeNull();
   });
 
-  test('the engine table, the trend and the entities show, and search share says not available', async ({ page }) => {
+  test('the platform table, the trend and the entities show, and search share says not available', async ({ page }) => {
     const inspector = await openDomainInspector(page, 1280);
     await expect(inspector.getByRole('group', { name: 'Domain summary' })).toBeVisible();
 
     // One row for each engine, never a pooled one
-    const engines = tableOf(inspector, `Citations of ${FIRST_DOMAIN} by engine`);
+    const engines = tableOf(inspector, `Citations of ${FIRST_DOMAIN} by platform`);
     await expect(engines.getByRole('rowheader', { name: 'ChatGPT' })).toBeVisible();
     await expect(engines.getByRole('rowheader', { name: 'Gemini' })).toBeVisible();
     await expect(engines.getByRole('rowheader', { name: /^(All|Total)/ })).toHaveCount(0);
 
-    await expect(inspector.getByRole('heading', { level: 3, name: 'Share of citations by engine' })).toBeVisible();
-    await expect(inspector.getByRole('img', { name: 'Share of citations by engine' })).toBeVisible();
+    await expect(inspector.getByRole('heading', { level: 3, name: 'Share of citations by platform' })).toBeVisible();
+    await expect(inspector.getByRole('img', { name: 'Share of citations by platform' })).toBeVisible();
 
     // The entities are named, or the card says none is: it has stopped reading either way
-    const entities = sectionOf(inspector, 'Named when cited');
+    const entities = sectionOf(inspector, 'Mentioned when cited');
     await expect(entities).toBeVisible();
     await expect(entities).not.toHaveAttribute('aria-busy', 'true');
-    await expect(entities.getByRole('listitem').or(entities.getByText('None named')).first()).toBeVisible();
+    await expect(entities.getByRole('listitem').or(entities.getByText('None mentioned')).first()).toBeVisible();
 
     // No read of search share of voice exists: the card says so and draws no figure
     const share = sectionOf(inspector, 'Search share of voice');
@@ -239,11 +239,11 @@ test.describe('The domain inspector', () => {
     await expect(domainInspectorOf(page)).toHaveCount(0);
   });
 
-  test('the Prompts tab shows the engines of each prompt, or n/a', async ({ page }) => {
+  test('the Prompts tab shows the platforms of each prompt, or n/a', async ({ page }) => {
     const inspector = await openDomainInspector(page, 1280);
     await chooseTab(inspector, 'Prompts');
     const prompts = tableOf(inspector, `Prompts whose answers cite ${FIRST_DOMAIN}`);
-    await expect(prompts.getByRole('columnheader', { name: 'Engines' })).toBeVisible();
+    await expect(prompts.getByRole('columnheader', { name: 'Platforms' })).toBeVisible();
     await expectCells(prompts, /ChatGPT|Gemini|n\/a/);
   });
 });
@@ -263,7 +263,7 @@ test.describe('The source inspector', () => {
       await expect(inspector.getByRole('tab', { name: tab, exact: true })).toBeVisible();
     }
     await expect(inspector.getByRole('heading', { level: 3, name: 'Citation trend' })).toBeVisible();
-    await expect(inspector.getByRole('heading', { level: 3, name: 'Engines citing it' })).toBeVisible();
+    await expect(inspector.getByRole('heading', { level: 3, name: 'Platforms citing it' })).toBeVisible();
 
     await page.keyboard.press('Escape');
     await expect(inspector).toHaveCount(0);
@@ -273,7 +273,7 @@ test.describe('The source inspector', () => {
   test('the Answers tab link goes to the prompts page with the answer open', async ({ page }) => {
     const inspector = await openSourceInspector(page, 1280);
     await chooseTab(inspector, 'Answers');
-    const link = inspector.getByRole('link', { name: /^Open the evidence of the answer of .+, source \d+$/ }).first();
+    const link = inspector.getByRole('link', { name: /^Open the evidence of the answer of .+, citation \d+$/ }).first();
     await expect(link).toBeVisible();
 
     // The link names the answer (colon encoded) and the source to show
@@ -289,7 +289,7 @@ test.describe('The source inspector', () => {
     await link.click();
     await expect(page).toHaveURL(new RegExp(`${PROMPTS_PATH}\\?`));
     const viewer = viewerOf(page);
-    const sources = viewer.getByRole('list', { name: 'Sources cited in this answer' });
+    const sources = viewer.getByRole('list', { name: 'Citations in this answer' });
     await expect(sources).toBeVisible();
     // The key is read and spent: the cited source is the current one and has focus, and the address no longer names it
     const cited = sources.locator('li[aria-current="true"]');
@@ -300,11 +300,11 @@ test.describe('The source inspector', () => {
     expect(inspectParam(page)).toBe(answer);
   });
 
-  test('the Prompts tab shows the engines of each prompt', async ({ page }) => {
+  test('the Prompts tab shows the platforms of each prompt', async ({ page }) => {
     const inspector = await openSourceInspector(page, 1280);
     await chooseTab(inspector, 'Prompts');
     const prompts = tableOf(inspector, 'Prompts whose answers cite this page');
-    await expect(prompts.getByRole('columnheader', { name: 'Engines' })).toBeVisible();
+    await expect(prompts.getByRole('columnheader', { name: 'Platforms' })).toBeVisible();
     await expectCells(prompts, ENGINE_NAMES);
   });
 });
@@ -351,7 +351,7 @@ test.describe('Where the inspector is drawn', () => {
       await chooseTab(inspector, 'Pages');
       await tableOf(inspector, `Most cited pages of ${FIRST_DOMAIN}`).getByRole('link').first().click();
       await awaitSourceInspector(page);
-      expect(await expectPlacement(page, 'Source views')).toBe(mode);
+      expect(await expectPlacement(page, 'Page tabs')).toBe(mode);
     });
   }
 });
@@ -385,7 +385,7 @@ for (const theme of THEMES) {
 
           // The domain inspector, on each of its tabs
           const domain = await visitDomainInspector(page, FIRST_DOMAIN, params);
-          await expect(domain.getByRole('img', { name: 'Share of citations by engine' })).toBeVisible();
+          await expect(domain.getByRole('img', { name: 'Share of citations by platform' })).toBeVisible();
           await expect(sectionOf(domain, 'Search share of voice').getByText('Not available yet')).toBeVisible();
           await expectAccessible(page);
           await chooseTab(domain, 'Pages');
@@ -400,7 +400,7 @@ for (const theme of THEMES) {
           await chooseTab(domain, 'Pages');
           await pages.getByRole('row').nth(1).getByRole('link').first().click();
           const source = await awaitSourceInspector(page);
-          await expect(source.getByRole('heading', { level: 3, name: 'Engines citing it' })).toBeVisible();
+          await expect(source.getByRole('heading', { level: 3, name: 'Platforms citing it' })).toBeVisible();
           await expectAccessible(page);
           await chooseTab(source, 'Prompts');
           await expectCells(tableOf(source, 'Prompts whose answers cite this page'), ENGINE_NAMES);

@@ -176,8 +176,9 @@ describe('entityTable: the tracked entities by engine', () => {
     expect(mentioned?.cells[0]?.figure).toMatchObject({ state: 'ok', value: 0.6, answers: 10, successes: 6 });
     const share = entityTable(topic, TRACKED, CODES, 'share_of_voice').find((entry) => entry.entityId === 'beta');
     expect(share?.cells[0]?.value?.value).toBe(0.5);
-    // Share of voice counts the answers that name a brand and has no count of successes
-    expect(share?.cells[0]?.figure).toMatchObject({ state: 'ok', value: 0.5, answers: 10, successes: null });
+    // Share of voice counts brand mentions: its mentions over all of them
+    expect(share?.cells[0]?.figure).toMatchObject({ state: 'ok', value: 0.5, answers: 10 });
+    expect(share?.cells[0]?.figure?.successes).not.toBeNull();
   });
 
   it('is only the tracked entities when the topic is not read yet', () => {

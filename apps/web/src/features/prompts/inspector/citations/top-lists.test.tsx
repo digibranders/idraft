@@ -3,8 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { CitationRead } from './citations-reads';
 import { TopDomains, TopPages } from './top-lists';
-import type { PromptCounts } from '../../inspector-reads';
-import type { MetricCell, PromptSummaryRow } from '@/lib/api/types';
+import type { MetricCell } from '@/lib/api/types';
 import type {
   DomainRole,
   SourceChangePage,
@@ -106,22 +105,6 @@ function read<TPage>(data: TPage | undefined, over: Partial<CitationRead<TPage>>
   };
 }
 
-const counts: PromptCounts = {
-  status: 'ready',
-  row: {
-    engines: [
-      { engine_code: 'chatgpt_web', cited: cell(2, 4) },
-      // No valid answer on Gemini in the window: its counts are n/a
-      { engine_code: 'gemini_web', cited: cell(0, 0) },
-    ],
-  } as unknown as PromptSummaryRow,
-  entities: [],
-  brandedIncluded: false,
-  errorId: null,
-  retry: () => undefined,
-  retrying: false,
-};
-
 const noLost = read<SourceChangePage>({
   data: [],
   meta: {
@@ -147,18 +130,12 @@ const SIX_DOMAINS = [
 interface DomainsOver {
   domains?: CitationRead<SourceDomainPage>;
   lost?: CitationRead<SourceChangePage>;
-  columns?: readonly { code: string; label: string }[];
+  engine?: string;
 }
 
-function renderDomains({ domains, lost, columns = [] }: DomainsOver = {}): ProvidedRender {
+function renderDomains({ domains, lost, engine = 'all' }: DomainsOver = {}): ProvidedRender {
   return renderWithProviders(
-    <TopDomains
-      read={domains ?? read(pageOf(SIX_DOMAINS))}
-      lost={lost ?? noLost}
-      columns={columns}
-      counts={counts}
-      minSupport={1}
-    />,
+    <TopDomains read={domains ?? read(pageOf(SIX_DOMAINS))} lost={lost ?? noLost} engine={engine} />,
   );
 }
 
@@ -171,15 +148,16 @@ const sectionOf = (title: string): HTMLElement => {
 const bodyRows = (table: HTMLElement): HTMLElement[] => within(table).getAllByRole('row').slice(1);
 
 describe('Top domains', () => {
-  it('lists at most 5 domains with role, units and the share with its units', () => {
+  it('lists at most 5 domains with role and the answers that cite each, with no rate over all platforms', () => {
     renderDomains();
     const rows = bodyRows(screen.getByRole('table', { name: 'Most cited domains for this prompt' }));
     expect(rows).toHaveLength(5);
     const [first, second, third] = rows as [HTMLElement, HTMLElement, HTMLElement];
     expect(first).toHaveTextContent('fynix.digital');
-    expect(first).toHaveTextContent('Own');
-    expect(first).toHaveTextContent('12');
-    expect(first).toHaveTextContent('25.0% of 48 units');
+    expect(first).toHaveTextContent('Your site');
+    expect(first).toHaveTextContent('3 of 8 answers');
+    expect(first).not.toHaveTextContent('%');
+    expect(first).not.toHaveTextContent(/units?/);
     expect(second).toHaveTextContent('g2.com');
     expect(second).not.toHaveTextContent('Third party');
     expect(third).toHaveTextContent('rival.io');
@@ -192,7 +170,7 @@ describe('Top domains', () => {
     const rows = bodyRows(screen.getByRole('table', { name: 'Most cited domains for this prompt' }));
     const [own, , competitor] = rows as [HTMLElement, HTMLElement, HTMLElement];
     for (const [row, domain, role] of [
-      [own, 'fynix.digital', 'Own'],
+      [own, 'fynix.digital', 'Your site'],
       [competitor, 'rival.io', 'Competitor'],
     ] as const) {
       const line = within(row).getByText(domain).closest('[data-slot="domain-line"]');
@@ -202,13 +180,23 @@ describe('Top domains', () => {
     }
   });
 
-  it('says the unit in the singular for a share of one unit', () => {
+  it('says the answer in the singular, and a rate only for one platform with enough answers', () => {
     renderDomains({
-      domains: read(pageOf([domainRow('g2.com', 'third_party', 1, { source_share: cell(1, 1) })], metaOf())),
+      engine: 'chatgpt_web',
+      domains: read(
+        pageOf([domainRow('g2.com', 'third_party', 1, { observations: 1 })], metaOf({ answers: 1, answers_citing: 1 })),
+      ),
     });
+    const [thin] = bodyRows(screen.getByRole('table')) as [HTMLElement];
+    expect(thin).toHaveTextContent('1 of 1 answer');
+    expect(thin).not.toHaveTextContent('%');
+  });
+
+  it('draws the rate of one platform from four valid answers', () => {
+    renderDomains({ engine: 'chatgpt_web' });
     const [first] = bodyRows(screen.getByRole('table')) as [HTMLElement];
-    expect(first).toHaveTextContent('100.0% of 1 unit');
-    expect(first).not.toHaveTextContent('1 units');
+    expect(first).toHaveTextContent('38%');
+    expect(first).toHaveTextContent('3 of 8 answers');
   });
 
   it('names the own row with the Own badge and primary text', () => {
@@ -245,24 +233,13 @@ describe('Top domains', () => {
     expect(screen.queryByText('New')).toBeNull();
   });
 
-  it('shows one count column for each engine and n/a for an engine with no valid answer', () => {
-    renderDomains({
-      columns: [
-        { code: 'chatgpt_web', label: 'ChatGPT' },
-        { code: 'gemini_web', label: 'Gemini' },
-      ],
-    });
-    const table = screen.getByRole('table');
-    expect(within(table).getByRole('columnheader', { name: /ChatGPT/ })).toBeInTheDocument();
-    expect(within(table).getByRole('columnheader', { name: /Gemini/ })).toBeInTheDocument();
-    const [first] = bodyRows(table) as [HTMLElement];
-    const cells = within(first).getAllByRole('cell');
-    // Units, ChatGPT, Gemini
-    expect(cells[1]).toHaveTextContent('12');
-    expect(within(cells[2] as HTMLElement).getByText('n/a')).toBeInTheDocument();
-    expect(cells[2]).not.toHaveTextContent(/^0/);
-    // The reason is the cell's description, one for each row
-    expect(screen.getAllByText('No valid answer on Gemini in this window.').length).toBeGreaterThan(0);
+  it('has the columns Domain and Citations only: no unit column and no column of another unit for a platform', () => {
+    renderDomains();
+    expect(
+      within(screen.getByRole('table'))
+        .getAllByRole('columnheader')
+        .map((header) => header.textContent),
+    ).toEqual(['Domain', 'Citations']);
   });
 
   it('says Cited instead when no own domain is cited', () => {
@@ -281,7 +258,7 @@ describe('Top domains', () => {
       ),
     });
     expect(
-      screen.getByText('Your domain is not cited in any of the 8 answers read. These sources are cited instead.'),
+      screen.getByText('Your site is not cited in any of the 8 answers read. These domains are cited instead.'),
     ).toBeInTheDocument();
   });
 
@@ -310,15 +287,15 @@ describe('Top domains', () => {
   it('says why when no domain is cited and how to change it', () => {
     renderDomains({ domains: read(pageOf<SourceDomainRow>([])) });
     const section = sectionOf('Top domains');
-    expect(within(section).getByText('No citations in this window')).toBeInTheDocument();
-    expect(within(section).getByText(/choose a longer window/)).toBeInTheDocument();
+    expect(within(section).getByText('No citations in this period')).toBeInTheDocument();
+    expect(within(section).getByText(/choose a longer period/)).toBeInTheDocument();
   });
 
   it('uses the answers pair for a window with no answer at all', () => {
     renderDomains({
       domains: read(pageOf<SourceDomainRow>([], metaOf({ answers: 0, answers_citing: 0, citation_units: 0 }))),
     });
-    expect(within(sectionOf('Top domains')).getByText('No answers in this window')).toBeInTheDocument();
+    expect(within(sectionOf('Top domains')).getByText('No answers in this period')).toBeInTheDocument();
   });
 
   it('keeps the rows while a new choice is read', () => {
@@ -329,12 +306,7 @@ describe('Top domains', () => {
   });
 
   it('is axe clean', async () => {
-    const { container } = renderDomains({
-      columns: [
-        { code: 'chatgpt_web', label: 'ChatGPT' },
-        { code: 'gemini_web', label: 'Gemini' },
-      ],
-    });
+    const { container } = renderDomains();
     expect(await axe(container)).toHaveNoViolations();
   });
 });
@@ -372,11 +344,11 @@ describe('the Lost line', () => {
     page: { limit: 5, offset: 0, total: 2 },
   });
 
-  it('names the domains and the units they had before', () => {
+  it('names the domains, with no count of another unit than the lists show', () => {
     renderDomains({ lost: read(lostPage()) });
     const section = sectionOf('Top domains');
     expect(within(section).getByText('Lost since the previous period')).toBeInTheDocument();
-    expect(within(section).getByText('g2.com, 3 units before and rival.io, 1 unit before')).toBeInTheDocument();
+    expect(within(section).getByText('g2.com and rival.io')).toBeInTheDocument();
   });
 
   it('is left out with nothing lost, and while it loads', () => {
@@ -391,7 +363,7 @@ describe('the Lost line', () => {
     const retry = vi.fn();
     const { user } = renderDomains({ lost: read<SourceChangePage>(undefined, { status: 'error', retry }) });
     const section = sectionOf('Top domains');
-    expect(within(section).getByText('Lost sources could not be loaded.')).toBeInTheDocument();
+    expect(within(section).getByText('Lost domains could not be loaded.')).toBeInTheDocument();
     expect(within(section).getByRole('table')).toBeInTheDocument();
     await user.click(within(section).getByRole('button', { name: 'Try again' }));
     expect(retry).toHaveBeenCalledOnce();
@@ -412,10 +384,10 @@ describe('Top pages', () => {
     pages = read(pageOf(SIX_PAGES)),
     ownPages = read(pageOf([pageRow('https://fynix.digital/a', 1)])),
   ): ProvidedRender {
-    return renderWithProviders(<TopPages read={pages} ownPages={ownPages} minSupport={1} />);
+    return renderWithProviders(<TopPages read={pages} ownPages={ownPages} engine="all" />);
   }
 
-  it('lists at most 5 pages with host, escaped title and units', () => {
+  it('lists at most 5 pages with host, escaped title and the answers that cite each', () => {
     renderPages();
     const rows = bodyRows(screen.getByRole('table', { name: 'Most cited pages for this prompt' }));
     expect(rows).toHaveLength(5);
@@ -423,8 +395,8 @@ describe('Top pages', () => {
     expect(first).toHaveTextContent('docs.fynix.digital');
     expect(first).toHaveTextContent('/guides/seo');
     expect(first).toHaveTextContent('The SEO guide');
-    expect(first).toHaveTextContent('12');
-    expect(first).toHaveTextContent('25.0% of 48 units');
+    expect(first).toHaveTextContent('3 of 8 answers');
+    expect(first).not.toHaveTextContent('%');
     expect(screen.queryByText(/example.org/)).toBeNull();
   });
 
@@ -465,7 +437,7 @@ describe('Top pages', () => {
 
   it('says why when no page is cited', () => {
     renderPages(read(pageOf<SourcePageRow>([])));
-    expect(within(sectionOf('Top pages')).getByText('No cited pages in this window')).toBeInTheDocument();
+    expect(within(sectionOf('Top pages')).getByText('No cited pages in this period')).toBeInTheDocument();
   });
 
   it('shows an inline error with Retry for the pages and no table', async () => {

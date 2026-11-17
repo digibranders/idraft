@@ -346,7 +346,7 @@ describe('Schedules: making one', () => {
         .getAllByRole('radio')
         .map((radio) => radio.getAttribute('aria-checked')),
     ).toEqual(['true', 'false', 'false']);
-    await user.click(within(dialog).getByRole('radio', { name: /^Groups and terms/ }));
+    await user.click(within(dialog).getByRole('radio', { name: /^Groups and tags/ }));
     await user.click(await within(dialog).findByRole('combobox', { name: /^Groups/ }));
     await user.click(await screen.findByRole('option', { name: 'Local' }));
     await user.keyboard('{Escape}');
@@ -450,10 +450,10 @@ describe('Schedules: making one', () => {
     expect(await within(dialog).findByText('Enter a name.')).toBeInTheDocument();
     expect(within(dialog).getByText('Enter the time as hours and minutes, such as 06:00.')).toBeInTheDocument();
     expect(within(dialog).getByText('Enter a whole number of days from 0 to 365.')).toBeInTheDocument();
-    // The selector that names groups or terms names at least one
-    await user.click(within(dialog).getByRole('radio', { name: /^Groups and terms/ }));
+    // The selector that names groups or tags names at least one
+    await user.click(within(dialog).getByRole('radio', { name: /^Groups and tags/ }));
     await user.click(within(dialog).getByRole('button', { name: 'Create schedule' }));
-    expect(await within(dialog).findByText('Choose at least one group or term.')).toBeInTheDocument();
+    expect(await within(dialog).findByText('Choose at least one group or tag.')).toBeInTheDocument();
     expect(bodies).toEqual([]);
   });
 
@@ -499,7 +499,7 @@ describe('Schedules: making one', () => {
     await user.click(screen.getByRole('button', { name: 'New schedule' }));
     const dialog = await screen.findByRole('dialog', { name: 'New schedule' });
     await user.type(within(dialog).getByRole('textbox', { name: 'Name' }), 'Refused');
-    await user.click(within(dialog).getByRole('radio', { name: /^Groups and terms/ }));
+    await user.click(within(dialog).getByRole('radio', { name: /^Groups and tags/ }));
     await user.click(await within(dialog).findByRole('combobox', { name: /^Groups/ }));
     await user.click(await screen.findByRole('option', { name: 'Local' }));
     await user.keyboard('{Escape}');
@@ -552,9 +552,9 @@ describe('Schedules: making one', () => {
     await user.type(within(dialog).getByRole('textbox', { name: 'Name' }), 'Refused mode');
     await choose(user, dialog, 'What to collect', 'SEO rank');
     await user.click(within(dialog).getByRole('button', { name: 'Create schedule' }));
-    const message = await within(dialog).findByText('This workload does not take that provider mode.');
+    const message = await within(dialog).findByText('This job type does not take that provider mode.');
     expect(within(dialog).getByRole('combobox', { name: 'Provider mode' })).toHaveAccessibleDescription(
-      'This workload does not take that provider mode.',
+      'This job type does not take that provider mode.',
     );
     expect(dialog).toContainElement(message);
     // The error is on the field, not in the alert for what belongs to none
@@ -577,8 +577,8 @@ describe('Schedules: making one', () => {
     await user.click(screen.getByRole('button', { name: 'New schedule' }));
     const dialog = await screen.findByRole('dialog', { name: 'New schedule' });
     await user.type(within(dialog).getByRole('textbox', { name: 'Name' }), 'Waiting');
-    await user.click(within(dialog).getByRole('radio', { name: /^Groups and terms/ }));
-    expect(within(dialog).getByText('Reading the groups and terms')).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('radio', { name: /^Groups and tags/ }));
+    expect(within(dialog).getByText('Reading the groups and tags')).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Create schedule' })).toBeDisabled();
     release();
     expect(await within(dialog).findByRole('combobox', { name: /^Groups/ })).toBeInTheDocument();
@@ -596,9 +596,9 @@ describe('Schedules: making one', () => {
     await rowOf('Daily rankings');
     await user.click(screen.getByRole('button', { name: 'New schedule' }));
     const dialog = await screen.findByRole('dialog', { name: 'New schedule' });
-    await user.click(within(dialog).getByRole('radio', { name: /^Groups and terms/ }));
+    await user.click(within(dialog).getByRole('radio', { name: /^Groups and tags/ }));
     const alert = await within(dialog).findByText(
-      'The groups and terms could not be loaded, so they cannot be chosen yet.',
+      'The groups and tags could not be loaded, so they cannot be chosen yet.',
     );
     // House rule: what belongs to no field is an alert at the top of the body, above the first field
     const name = within(dialog).getByRole('textbox', { name: 'Name' });
@@ -608,7 +608,7 @@ describe('Schedules: making one', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Try again' }));
     expect(await within(dialog).findByRole('combobox', { name: /^Groups/ })).toBeInTheDocument();
     expect(
-      within(dialog).queryByText('The groups and terms could not be loaded, so they cannot be chosen yet.'),
+      within(dialog).queryByText('The groups and tags could not be loaded, so they cannot be chosen yet.'),
     ).toBeNull();
     expect(within(dialog).getByRole('button', { name: 'Create schedule' })).toBeEnabled();
   });
@@ -639,7 +639,7 @@ describe('Schedules: changing one', () => {
     await openMenu(user, 'Daily rankings', 'Edit');
     const dialog = await screen.findByRole('dialog', { name: 'Edit Daily rankings' });
     // The workload is fixed once a schedule is made
-    expect(within(dialog).getByText('A schedule keeps the workload it was made for.')).toBeInTheDocument();
+    expect(within(dialog).getByText('A schedule keeps the job type it was made for.')).toBeInTheDocument();
     expect(within(dialog).queryByRole('combobox', { name: 'What to collect' })).toBeNull();
     expect(within(dialog).getByRole('textbox', { name: 'Start time' })).toHaveValue('02:00');
     await choose(user, dialog, 'Window', '4 hours');
@@ -764,7 +764,7 @@ describe('Schedules: changing one', () => {
     await rowOf('Keyword metrics');
     await openMenu(user, 'Keyword metrics', 'Edit');
     const dialog = await screen.findByRole('dialog', { name: 'Edit Keyword metrics' });
-    await user.click(within(dialog).getByRole('radio', { name: /^Groups and terms/ }));
+    await user.click(within(dialog).getByRole('radio', { name: /^Groups and tags/ }));
     await user.click(await within(dialog).findByRole('combobox', { name: /^Groups/ }));
     await user.click(await screen.findByRole('option', { name: 'Local' }));
     await user.keyboard('{Escape}');

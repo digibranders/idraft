@@ -32,11 +32,13 @@ function scopeOf(patch: Partial<OverviewScope> = {}): OverviewScope {
     range: { from: '2026-10-16', to: '2026-11-12', days: 28 },
     rangeValue: { kind: 'preset', preset: '28d' },
     compare: true,
+    compareKind: 'previous_period',
     previous: { from: '2026-09-18', to: '2026-10-15' },
     country: null,
     engines: null,
     topic: null,
     branded: 'excluded',
+    metric: 'visibility',
     ...patch,
   };
 }
@@ -79,11 +81,29 @@ describe('drillHref carries the scope', () => {
     expect(query.get('from')).toBe('2026-10-01');
     expect(query.get('to')).toBe('2026-10-20');
     expect(query.get('win')).toBeNull();
-    expect(query.get('cmp')).toBe('off');
+    // Citations compares by default and turns off with cmp=off; the Prompts page compares only for cmp=previous
+    expect(query.get('cmp')).toBe(kind === 'citations' ? 'off' : null);
     expect(query.get('country')).toBe(kind === 'citations' ? null : 'DE');
     expect(query.get('engine')).toBe('chatgpt_web,gemini_web');
     expect(query.get('topic')).toBe(TOPIC);
     expect(query.get('branded')).toBe('include');
+  });
+
+  it.each<[DrillKind, string | null]>([
+    ['prompts', 'previous'],
+    ['topic', 'previous'],
+    ['topicDrawer', 'previous'],
+    ['prompt', 'previous'],
+    ['citations', null],
+  ])('%s: a comparison that is on writes cmp=%s, so the page opens as the Overview does', (kind, expected) => {
+    const scope = scopeOf({ ...NARROWED, country: null, compare: true });
+    const href = drillHref(
+      kind,
+      scope,
+      { term: OTHER_TOPIC, promptId: '7c1d2e3f-4a5b-4c6d-8e7f-0a1b2c3d4e5f' },
+      PROJECT,
+    );
+    expect(queryOf(href).get('cmp')).toBe(expected);
   });
 
   it('writes a preset window as win, and nothing for the default 28 days', () => {
@@ -93,10 +113,10 @@ describe('drillHref carries the scope', () => {
     expect(queryOf(drillHref('prompts', scopeOf(), {}, PROJECT)).get('win')).toBeNull();
   });
 
-  it('branded excluded and compare on write nothing: the default scope has no query beyond the tab', () => {
-    expect(drillHref('topic', scopeOf(), {}, PROJECT)).toBe('/acme/eventus/ai/prompts');
+  it('branded excluded and compare on: the Prompts page needs cmp=previous to compare, Citations needs nothing', () => {
+    expect(drillHref('topic', scopeOf(), {}, PROJECT)).toBe('/acme/eventus/ai/prompts?cmp=previous');
     expect(drillHref('citations', scopeOf(), {}, PROJECT)).toBe('/acme/eventus/ai/citations');
-    expect(queryOf(drillHref('prompts', scopeOf(), {}, PROJECT)).toString()).toBe('tab=prompts');
+    expect(queryOf(drillHref('prompts', scopeOf(), {}, PROJECT)).toString()).toBe('cmp=previous&tab=prompts');
   });
 
   it('encodes a slug and writes the engine of the scope in the order given', () => {
@@ -206,6 +226,21 @@ describe('engine numbers', () => {
   });
 });
 
+describe('a link that sorts by a platform rate names the columns that make the sort apply', () => {
+  it('writes cols with the tab columns and the platform rate, Location only while no location is chosen', () => {
+    const none = queryOf(drillHref('prompts', scopeOf(), { engine: 'chatgpt_web' }, PROJECT));
+    expect(none.get('sort')).toBe('-chatgpt_web_rate');
+    expect(none.get('cols')).toBe('topic,country,mention,citation,chatgpt_web_rate');
+    const located = queryOf(drillHref('prompts', scopeOf({ country: 'DE' }), { engine: 'chatgpt_web' }, PROJECT));
+    expect(located.get('cols')).toBe('topic,mention,citation,chatgpt_web_rate');
+  });
+
+  it('writes no cols for a link with no platform sort, or for the Topics tab', () => {
+    expect(queryOf(drillHref('prompts', scopeOf(), {}, PROJECT)).get('cols')).toBeNull();
+    expect(queryOf(drillHref('topic', scopeOf(), { engine: 'chatgpt_web' }, PROJECT)).get('cols')).toBeNull();
+  });
+});
+
 describe('the topic drawer', () => {
   it('is inspect=topic:<term> on the Prompts page, with the scope beside it', () => {
     const href = drillHref('topicDrawer', scopeOf({ country: 'DE' }), { term: TOPIC }, PROJECT);
@@ -235,7 +270,7 @@ describe('a prompt', () => {
     expect(query.get('tab')).toBeNull();
     expect(query.get('from')).toBe('2026-10-01');
     expect(query.get('to')).toBe('2026-10-20');
-    expect(query.get('cmp')).toBe('off');
+    expect(query.get('cmp')).toBeNull();
     expect(query.get('country')).toBe('DE');
     expect(query.get('engine')).toBe('chatgpt_web,gemini_web');
     expect(query.get('topic')).toBe(TOPIC);
@@ -244,15 +279,37 @@ describe('a prompt', () => {
     expect(parseEnumList(query.get('engine'), new Set(ENGINES))).toEqual(['chatgpt_web', 'gemini_web']);
   });
 
-  it('is null without a prompt id, for branded only, for a 92 day window and when Prompts is not live', () => {
+  it('is null without a prompt id, for a 92 day window and when Prompts is not live', () => {
     expect(drillHref('prompt', scopeOf(), {}, PROJECT)).toBeNull();
-    expect(drillHref('prompt', scopeOf({ branded: 'only' }), { promptId: PROMPT }, PROJECT)).toBeNull();
     const long = scopeOf({
       rangeValue: { kind: 'custom', from: '2026-08-13', to: '2026-11-12' },
       range: { from: '2026-08-13', to: '2026-11-12', days: 92 },
     });
     expect(drillHref('prompt', long, { promptId: PROMPT }, PROJECT)).toBeNull();
     expect(isLive('prompts')).toBe(true);
+  });
+});
+
+describe('comparison with last year and branded only reach the Prompts page', () => {
+  const PROMPT_ID = '7c1d2e3f-4a5b-4c6d-8e7f-0a1b2c3d4e5f';
+  const YEAR = scopeOf({ compareKind: 'previous_year', previous: { from: '2025-10-16', to: '2025-11-12' } });
+
+  it.each(['prompts', 'topic', 'topicDrawer', 'prompt'] as const)('%s: cmp=year', (kind) => {
+    const href = drillHref(kind, YEAR, { term: OTHER_TOPIC, promptId: PROMPT_ID }, PROJECT);
+    expect(queryOf(href).get('cmp')).toBe('year');
+  });
+
+  it.each(['prompts', 'topic', 'topicDrawer', 'prompt'] as const)('%s: branded=only, which the page reads', (kind) => {
+    const href = drillHref(kind, scopeOf({ branded: 'only' }), { term: OTHER_TOPIC, promptId: PROMPT_ID }, PROJECT);
+    expect(queryOf(href).get('branded')).toBe('only');
+    // And the Overview reads back what the Prompts page writes
+    expect(parseBranded(queryOf(href).get('branded'))).toBe('only');
+  });
+
+  it('writes no cmp when the comparison is off, whatever the kind', () => {
+    expect(
+      queryOf(drillHref('prompts', scopeOf({ compare: false, compareKind: 'previous_year' }), {}, PROJECT)).get('cmp'),
+    ).toBeNull();
   });
 });
 
@@ -276,8 +333,12 @@ describe('outcome and opportunity', () => {
 });
 
 describe('a scope the destination cannot express gives null, never a link that shows other numbers', () => {
-  it.each(['prompts', 'topic', 'topicDrawer', 'citations'] as const)('%s: branded only', (kind) => {
-    expect(drillHref(kind, scopeOf({ branded: 'only' }), { term: TOPIC }, PROJECT)).toBeNull();
+  it('citations: branded only', () => {
+    expect(drillHref('citations', scopeOf({ branded: 'only' }), { term: TOPIC }, PROJECT)).toBeNull();
+  });
+
+  it.each(['citations', 'competitors', 'sources'] as const)('%s: a comparison with last year', (kind) => {
+    expect(drillHref(kind, scopeOf({ compareKind: 'previous_year' }), {}, PROJECT)).toBeNull();
   });
 
   it('citations does not read the country, so a country scope has no link', () => {

@@ -65,10 +65,10 @@ describe('Import dialog', () => {
       await within(dialog).findByText(/^Choose what each column of the file holds/, undefined, PARSED);
       expect(within(dialog).getByRole('combobox', { name: 'keyword' })).toHaveTextContent('Keyword');
       expect(within(dialog).getByRole('combobox', { name: 'tags' })).toHaveTextContent('Tags');
-      expect(within(dialog).getByText('Choose the vocabulary these terms belong to.')).toBeInTheDocument();
+      expect(within(dialog).getByText('Choose the tag set these tags belong to.')).toBeInTheDocument();
       expect(await axe(dialog)).toHaveNoViolations();
 
-      await choose(user, dialog, 'Vocabulary for tags', 'Topics');
+      await choose(user, dialog, 'Tag set for tags', 'Topics');
       await press(dialog, 'Continue');
       await within(dialog).findByText('Search operators such as site: are not tracked.', undefined, PARSED);
       expect(patches.bodies).toMatchObject([
@@ -240,8 +240,8 @@ describe('Import dialog', () => {
       await user.click(within(dialog).getByRole('textbox', { name: 'Keywords' }));
       await user.paste('rank tracker api\tblog|guides');
       await press(dialog, 'Continue');
-      expect(within(dialog).getByText('Choose the vocabulary these terms belong to.')).toBeInTheDocument();
-      await choose(user, dialog, 'Vocabulary for tags', 'Topics');
+      expect(within(dialog).getByText('Choose the tag set these tags belong to.')).toBeInTheDocument();
+      await choose(user, dialog, 'Tag set for tags', 'Topics');
       await press(dialog, 'Continue');
       await within(dialog).findByRole('heading', { name: 'New' }, PARSED);
     },

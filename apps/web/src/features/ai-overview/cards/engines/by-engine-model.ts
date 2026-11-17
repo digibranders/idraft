@@ -180,6 +180,8 @@ const REASON_STATUS = {
   noAnswers: 'no_answers',
   noneValid: 'no_valid_answers',
   noBrandNamed: 'no_brand_named',
+  notCollected: 'not_collected',
+  capped: 'over_cap',
 } as const satisfies Record<RateReason, string>;
 
 const statusOf = (cell: RateCell): string =>

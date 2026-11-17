@@ -113,6 +113,25 @@ describe('entities', () => {
     expect(detail).toMatchObject({ projects: [], created_at: entity.created_at });
   });
 
+  it('keeps the name of a brand as its own alias, as the Prompts popovers send it (word match, any case)', async () => {
+    const editor = mockBrowser('editor');
+    const created = await editor.call('POST', `${W}/entities`, {
+      entity_type: 'brand',
+      canonical_name: 'Copper',
+      aliases: [{ alias: 'Copper', match_mode: 'word_boundary', case_sensitive: false }],
+      domains: [],
+    });
+    expect(created.status).toBe(201);
+    const entity = dataOf(created, ENTITY);
+    expect(entity).toMatchObject({ canonical_name: 'Copper', alias_count: 1 });
+    const detail = dataOf(await editor.call('GET', `${W}/entities/${entity.entity_id}`), ENTITY_DETAIL);
+    expect(detail.aliases.map((alias) => [alias.alias, alias.match_mode, alias.case_sensitive])).toEqual([
+      ['Copper', 'word_boundary', false],
+    ]);
+    // The brand is found by its alias in a text search of the workspace
+    expect(await namesOf(editor, 'filter[q]=copper')).toContain('Copper');
+  });
+
   it('refuses a name another entity of the same type has, ignoring case', async () => {
     const editor = mockBrowser('editor');
     const brand = await editor.call('POST', `${W}/entities`, { entity_type: 'brand', canonical_name: 'RANKFORGE' });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { cmpParam, compareParams, comparedWindow, isCompared, parseCompare } from './compare-model';
+import { cmpParam, compareKindOf, compareParams, comparedWindow, isCompared, parseCompare } from './compare-model';
 
 const WINDOW = { from: '2026-09-18', to: '2026-10-15', timezone: 'Asia/Kolkata' };
 
@@ -25,6 +25,22 @@ describe('cmpParam', () => {
   it('round trips through parseCompare', () => {
     expect(parseCompare(cmpParam(true))).toBe(true);
     expect(parseCompare(cmpParam(false))).toBe(false);
+  });
+
+  it('writes year for the same dates a year earlier, and off whatever the kind', () => {
+    expect(cmpParam(true, 'previous_year')).toBe('year');
+    expect(cmpParam(true, 'previous_period')).toBeNull();
+    expect(cmpParam(false, 'previous_year')).toBe('off');
+    expect(compareKindOf(cmpParam(true, 'previous_year'))).toBe('previous_year');
+  });
+});
+
+describe('compareKindOf', () => {
+  it('is the year only for cmp=year', () => {
+    expect(compareKindOf('year')).toBe('previous_year');
+    for (const value of ['previous', 'off', null, undefined, '', 'YEAR']) {
+      expect(compareKindOf(value)).toBe('previous_period');
+    }
   });
 });
 

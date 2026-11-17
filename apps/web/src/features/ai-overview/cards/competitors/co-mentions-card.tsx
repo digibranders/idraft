@@ -14,7 +14,7 @@ import { loadingBodyHeight } from './skeletons';
 import { useCardDensity } from '../engines/use-card-density';
 import { useCardDrill, useCardExport, type CardDrill } from '../engines/use-card-seams';
 import { useOverview, useOverviewSummary } from '../../overview-context';
-import type { Say } from '../../numbers/number-model';
+import type { Say } from '../say';
 import { ChartFrame } from '@/components/app/chart/chart-frame';
 import { heatmapCsv } from '@/components/app/chart/heat-bins';
 import { HeatmapGrid, type HeatCell, type HeatRow } from '@/components/app/chart/heatmap-grid';

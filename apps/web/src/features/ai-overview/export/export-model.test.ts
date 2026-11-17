@@ -150,11 +150,13 @@ function scopeOf(over: Partial<OverviewScope> = {}): OverviewScope {
     range: { from: '2026-10-16', to: '2026-11-12', days: 28 },
     rangeValue: { kind: 'custom', from: '2026-10-16', to: '2026-11-12' },
     compare: true,
+    compareKind: 'previous_period',
     previous: { from: '2026-09-18', to: '2026-10-15' },
     country: null,
     engines: null,
     topic: null,
     branded: 'excluded',
+    metric: 'visibility',
     ...over,
   };
 }
@@ -264,12 +266,12 @@ describe('the Numbers table', () => {
     });
   });
 
-  it('leaves the numerator of the share of voice empty: it is a sum of shares, not a count', () => {
+  it('writes the share of voice as brand mentions: the own mentions over all tracked-brand mentions', () => {
     expect(rowOf(tableOf(), 'ai.share_of_voice', 'chatgpt_web')).toMatchObject({
       value: 37.5,
-      numerator: null,
+      numerator: 3,
       denominator: 8,
-      n_observations: 15,
+      n_observations: 8,
       prompts: 2,
       status: 'ok',
     });

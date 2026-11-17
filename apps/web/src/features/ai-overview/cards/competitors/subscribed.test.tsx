@@ -105,10 +105,10 @@ describe('the competitor cards in customize mode', () => {
 describe('the titles of the competitor cards', () => {
   const family = messages.aiOverview.competitors;
   const titles = [
-    family.shareOfVoice.title,
+    family.scopeShare.title,
     family.lostTo.title,
     family.trend.title,
-    family.sovOverTime.title,
+    family.scopeShareOverTime.title,
     family.sovRank.title,
     family.coMentions.title,
     family.table.title,
@@ -119,7 +119,7 @@ describe('the titles of the competitor cards', () => {
   });
 
   it('names share of voice over time as over time, apart from the share of voice of one engine', () => {
-    expect(family.sovOverTime.title).toContain('over time');
-    expect(family.shareOfVoice.title).not.toContain('over time');
+    expect(family.scopeShareOverTime.title).toContain('over time');
+    expect(family.scopeShare.title).not.toContain('over time');
   });
 });

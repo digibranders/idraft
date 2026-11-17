@@ -123,9 +123,9 @@ describe('Add prompts: shell and fields', () => {
     const created = record('/prompts/bulk-create');
     const { user } = renderWithProviders(asEditor({ engines: [] }));
     const dialog = await openDialog(user);
-    expect(within(dialog).getByText('No engine is on, so these prompts are not asked yet.')).toBeInTheDocument();
+    expect(within(dialog).getByText('No platform is on, so these prompts are not asked yet.')).toBeInTheDocument();
     expect(
-      within(dialog).getAllByText('No engine is on, so these prompts will not be asked until one is.'),
+      within(dialog).getAllByText('No platform is on, so these prompts will not be asked until one is.'),
     ).not.toHaveLength(0);
     await typeList(user, dialog, QUESTION);
     await user.click(await within(dialog).findByRole('button', { name: 'Add 1 prompt' }));
@@ -160,11 +160,13 @@ describe('Add prompts: shell and fields', () => {
     );
     const { user } = renderWithProviders(asEditor());
     const dialog = await openDialog(user);
-    expect(await within(dialog).findByText('Countries could not be loaded.')).toBeInTheDocument();
+    expect(await within(dialog).findByText('Locations could not be loaded.')).toBeInTheDocument();
     failing = false;
     await user.click(within(dialog).getByRole('button', { name: 'Try again' }));
-    await waitFor(() => expect(within(dialog).queryByText('Countries could not be loaded.')).toBeNull());
-    await waitFor(() => expect(within(dialog).getByRole('combobox', { name: /Country/ })).toHaveTextContent('Germany'));
+    await waitFor(() => expect(within(dialog).queryByText('Locations could not be loaded.')).toBeNull());
+    await waitFor(() =>
+      expect(within(dialog).getByRole('combobox', { name: /Location/ })).toHaveTextContent('Germany'),
+    );
   });
 
   it('sends no prompt_type for "Set from wording" and the type when one is chosen', async () => {
@@ -244,7 +246,7 @@ describe('Add prompts: shell and fields', () => {
     // The warning is on the line, in the check list, which a warning does not open by itself
     await user.click(await within(dialog).findByRole('button', { name: /Check the list/ }));
     expect(
-      await within(dialog).findByText('Names Fynix but is marked not branded. Its answers will count in the rates.'),
+      await within(dialog).findByText('Mentions Fynix but is marked not branded. Its answers will count in the rates.'),
     ).toBeInTheDocument();
     expect(within(dialog).getByRole('heading', { level: 3, name: 'Warnings (1)' })).toBeInTheDocument();
   });
@@ -339,11 +341,11 @@ describe('Add prompts: shell and fields', () => {
     );
     const { user } = renderWithProviders(asEditor());
     const dialog = await openDialog(user);
-    const field = within(dialog).getByRole('combobox', { name: /Topics/ });
+    const field = within(dialog).getByRole('combobox', { name: /Groups/ });
     await waitFor(() => expect(field).toBeEnabled());
     await user.click(field);
     await user.type(field, 'Startups');
-    await user.click(await screen.findByRole('option', { name: /Create topic/ }));
+    await user.click(await screen.findByRole('option', { name: /Create group/ }));
     await user.keyboard('{Escape}');
     await typeList(user, dialog, QUESTION);
     expect(seen.writes.filter((path) => path.endsWith('terms'))).toEqual([]);
@@ -372,11 +374,11 @@ describe('Add prompts: shell and fields', () => {
     );
     const { user } = renderWithProviders(asEditor());
     const dialog = await openDialog(user);
-    const field = within(dialog).getByRole('combobox', { name: /Topics/ });
+    const field = within(dialog).getByRole('combobox', { name: /Groups/ });
     await waitFor(() => expect(field).toBeEnabled());
     await user.click(field);
     await user.type(field, 'Startups');
-    await user.click(await screen.findByRole('option', { name: /Create topic/ }));
+    await user.click(await screen.findByRole('option', { name: /Create group/ }));
     await user.keyboard('{Escape}');
     await typeList(user, dialog, QUESTION);
     await user.click(await within(dialog).findByRole('button', { name: 'Add 1 prompt' }));
@@ -406,11 +408,11 @@ describe('Add prompts: shell and fields', () => {
     }
 
     async function typeTopic(user: User, dialog: HTMLElement, name: string): Promise<void> {
-      const field = within(dialog).getByRole('combobox', { name: /Topics/ });
+      const field = within(dialog).getByRole('combobox', { name: /Groups/ });
       await waitFor(() => expect(field).toBeEnabled());
       await user.click(field);
       await user.type(field, name);
-      await user.click(await screen.findByRole('option', { name: `Create topic “${name}”` }));
+      await user.click(await screen.findByRole('option', { name: `Create group “${name}”` }));
       await user.keyboard('{Escape}');
     }
 
@@ -452,7 +454,7 @@ describe('Add prompts: shell and fields', () => {
       await typeList(user, dialog, QUESTION);
       await user.click(await within(dialog).findByRole('button', { name: 'Add 1 prompt' }));
       expect(
-        await within(dialog).findByText('Topic “Startups” was created. The prompts were not added.'),
+        await within(dialog).findByText('Group “Startups” was created. The prompts were not added.'),
       ).toBeInTheDocument();
       expect(within(dialog).getByRole('textbox', { name: 'Prompts' })).toHaveValue(QUESTION);
     });
@@ -462,16 +464,16 @@ describe('Add prompts: shell and fields', () => {
     server.use(http.post(bulkCreate, () => HttpResponse.error()));
     const { user } = renderWithProviders(asEditor());
     const dialog = await openDialog(user);
-    const field = within(dialog).getByRole('combobox', { name: /Topics/ });
+    const field = within(dialog).getByRole('combobox', { name: /Groups/ });
     await waitFor(() => expect(field).toBeEnabled());
     await user.click(field);
     await user.type(field, 'Startups');
-    await user.click(await screen.findByRole('option', { name: /Create topic/ }));
+    await user.click(await screen.findByRole('option', { name: /Create group/ }));
     await user.keyboard('{Escape}');
     await typeList(user, dialog, QUESTION);
     await user.click(await within(dialog).findByRole('button', { name: 'Add 1 prompt' }));
     expect(
-      await within(dialog).findByText('Topic “Startups” was created. The prompts were not added.'),
+      await within(dialog).findByText('Group “Startups” was created. The prompts were not added.'),
     ).toBeInTheDocument();
     expect(within(dialog).getByRole('textbox', { name: 'Prompts' })).toHaveValue(QUESTION);
   });
@@ -491,16 +493,16 @@ describe('Add prompts: shell and fields', () => {
     );
     const { user } = renderWithProviders(asEditor());
     const dialog = await openDialog(user);
-    const field = within(dialog).getByRole('combobox', { name: /Topics/ });
+    const field = within(dialog).getByRole('combobox', { name: /Groups/ });
     await waitFor(() => expect(field).toBeEnabled());
     await user.click(field);
     await user.type(field, 'Startups');
-    await user.click(await screen.findByRole('option', { name: /Create topic/ }));
+    await user.click(await screen.findByRole('option', { name: /Create group/ }));
     await user.keyboard('{Escape}');
     await typeList(user, dialog, QUESTION);
     await user.click(await within(dialog).findByRole('button', { name: 'Add 1 prompt' }));
     expect(
-      await within(dialog).findByText('Topic “Startups” was created. The prompts were not added.'),
+      await within(dialog).findByText('Group “Startups” was created. The prompts were not added.'),
     ).toBeInTheDocument();
     expect(within(dialog).getByText('Startups')).toBeInTheDocument();
     expect(within(dialog).queryByText('Startups (new)')).toBeNull();

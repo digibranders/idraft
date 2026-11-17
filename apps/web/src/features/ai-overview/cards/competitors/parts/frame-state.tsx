@@ -8,7 +8,7 @@ import { useMemo, type ReactNode } from 'react';
 import type { CardEngine } from './card-engine';
 import { useOverview } from '../../../overview-context';
 import type { Read } from '../../../data/read-state';
-import type { Say } from '../../../numbers/number-model';
+import type { Say } from '../../say';
 import type { ChartEmpty, ChartError, ChartNotice } from '@/components/app/chart/chart-frame';
 import { TextLink } from '@/components/ui/text-link';
 import { formatInteger } from '@/lib/format';

@@ -100,24 +100,24 @@ describe('the mention trend card', () => {
 
   it('says an engine that is off in the project is off, and offers Settings to a member who may turn it on', async () => {
     render('google_ai_mode');
-    expect(await screen.findByText('AI Mode is off for this project')).toBeInTheDocument();
+    expect(await screen.findByText('Google AI Mode is off for this project')).toBeInTheDocument();
     expect(screen.getByText('Turn it on to see its trend.')).toBeInTheDocument();
-    const link = screen.getByRole('link', { name: 'Turn on engines' });
+    const link = screen.getByRole('link', { name: 'Turn on platforms' });
     expect(link.getAttribute('href')).toBe('/digibranders/fynix/settings/engines');
-    expect(screen.queryByRole('img', { name: 'AI Mode' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: 'Google AI Mode' })).not.toBeInTheDocument();
   });
 
   it('sends a member who may not turn engines on to a workspace admin, with no link', async () => {
     render('google_ai_mode', WINDOW, 'viewer');
-    expect(await screen.findByText('AI Mode is off for this project')).toBeInTheDocument();
-    expect(screen.getByText('Ask a workspace admin to turn on an engine')).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Turn on engines' })).not.toBeInTheDocument();
+    expect(await screen.findByText('Google AI Mode is off for this project')).toBeInTheDocument();
+    expect(screen.getByText('Ask a workspace admin to turn on a platform')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Turn on platforms' })).not.toBeInTheDocument();
   });
 
   it('says an engine outside the page filter is not in it', async () => {
     render('chatgpt_web', `${WINDOW}&engine=gemini_web`);
-    expect(await screen.findByText('ChatGPT is not in the engine filter')).toBeInTheDocument();
-    expect(screen.getByText('Add it to the engines of this page to see its trend.')).toBeInTheDocument();
+    expect(await screen.findByText('ChatGPT is not in the platform filter')).toBeInTheDocument();
+    expect(screen.getByText('Add it to the platforms of this page to see its trend.')).toBeInTheDocument();
     expect(screen.queryByRole('img', { name: 'ChatGPT' })).not.toBeInTheDocument();
   });
 
@@ -127,7 +127,7 @@ describe('the mention trend card', () => {
     expect(await axe(drawn.container)).toHaveNoViolations();
     drawn.unmount();
     const off = render('google_ai_mode');
-    const empty = await screen.findByText('AI Mode is off for this project');
+    const empty = await screen.findByText('Google AI Mode is off for this project');
     expect(within(off.container).getByText('Turn it on to see its trend.')).toBeInTheDocument();
     expect(empty).toBeInTheDocument();
     expect(await axe(off.container)).toHaveNoViolations();

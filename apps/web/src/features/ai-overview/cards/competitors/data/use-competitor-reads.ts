@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 
 import { trackedSetQuery } from './tracked-set-query';
-import type { SummaryOptions } from '../../../data/overview-queries';
+import { WEEKLY_SHARE_READ, type SummaryOptions } from '../../../data/overview-queries';
 import type { OverviewPeriods, ReadOptions } from '../../../data/use-overview-reads';
 import { useOverview, useOverviewPeriods } from '../../../overview-context';
 import { trackedSetOf } from '../model/tracked-set';
@@ -27,7 +27,7 @@ export const SHAPE_OPTIONS: Readonly<Record<ReadShape, SummaryOptions>> = {
   'prompt-rows': { include: ['entities', 'total'] },
   totals: { include: ['entities', 'total'], rows: 'none' },
   pairs: { include: ['co_mentions', 'entities', 'total'], rows: 'none' },
-  weekly: { include: ['entities', 'series', 'total'], rows: 'none' },
+  weekly: WEEKLY_SHARE_READ,
 };
 
 /**

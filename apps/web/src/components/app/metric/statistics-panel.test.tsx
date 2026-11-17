@@ -50,7 +50,7 @@ describe('StatisticsPanel', () => {
       expect(screen.getByRole('heading', { level: 3, name })).toBeInTheDocument();
     }
     expect(screen.getByText('The share of valid answers that name your brand.')).toBeInTheDocument();
-    expect(screen.getByRole('img', { name: '95% interval 31.2% to 36.9%' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: '95% interval 31% to 37%' })).toBeInTheDocument();
     expect(screen.getByText('Normal interval over prompts, fixed panel')).toBeInTheDocument();
   });
 
@@ -73,7 +73,8 @@ describe('StatisticsPanel', () => {
       /^\d+(\.\d+)?%$/.test(node.textContent),
     );
     expect(percents).toHaveLength(1);
-    expect(percents[0]).toHaveTextContent('34.0%');
+    // Whole percents, as the cells of the table show them
+    expect(percents[0]).toHaveTextContent('34%');
     // The count sits in the same line as the percent, not further down with the prompt count
     expect(percents[0]?.parentElement?.querySelector('[data-slot="sample-count"]')).toHaveTextContent('612 of 1,800');
   });
@@ -86,7 +87,7 @@ describe('StatisticsPanel', () => {
         comparison: null,
       }),
     );
-    expect(screen.getByText('Insufficient data')).toBeInTheDocument();
+    expect(screen.getByText('Not enough data')).toBeInTheDocument();
     expect(screen.getByText('3 valid answers; 7 needed')).toBeInTheDocument();
     expect(insufficient.container).not.toHaveTextContent('%');
     insufficient.unmount();
@@ -99,7 +100,7 @@ describe('StatisticsPanel', () => {
         comparison: null,
       }),
     );
-    expect(screen.getByText('Insufficient data')).toBeInTheDocument();
+    expect(screen.getByText('Not enough data')).toBeInTheDocument();
     expect(hostile.container).not.toHaveTextContent('%');
     hostile.unmount();
 
@@ -147,7 +148,7 @@ describe('StatisticsPanel', () => {
   it('says there is no comparison, and no version change, in words', () => {
     render(ready({ comparison: null, boundaries: [] }));
     expect(screen.getByText('No earlier period to compare with in this view')).toBeInTheDocument();
-    expect(screen.getByText('No version change in this window')).toBeInTheDocument();
+    expect(screen.getByText('No version change in this period')).toBeInTheDocument();
   });
 
   it('says why there is no interval', () => {
@@ -167,10 +168,10 @@ describe('StatisticsPanel', () => {
     const base = DATA.comparison;
     if (base === null) throw new Error('The fixture has a comparison');
     const paired = render(ready());
-    expect(screen.queryByText(/Interim test/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Provisional/)).not.toBeInTheDocument();
     paired.unmount();
     render(ready({ comparison: { ...base, test: 'interim' } }));
-    expect(screen.getByText('Interim test: unpaired, may understate uncertainty')).toBeInTheDocument();
+    expect(screen.getByText('Provisional: unpaired, may understate uncertainty')).toBeInTheDocument();
   });
 
   it('draws skeletons while loading and keeps data while refetching', () => {
@@ -185,7 +186,7 @@ describe('StatisticsPanel', () => {
     const panel = refetching.container.querySelector('[data-slot="statistics-panel"]');
     expect(panel).toHaveAttribute('aria-busy', 'true');
     expect(panel).not.toHaveClass('opacity-50');
-    expect(screen.getByText('34.0%')).toBeInTheDocument();
+    expect(screen.getByText('34%')).toBeInTheDocument();
     expect(refetching.container.querySelector('[data-slot="skeleton"]')).toBeNull();
     refetching.unmount();
 
@@ -303,6 +304,6 @@ describe('StatisticsPanel', () => {
     render(ready());
     const estimate = screen.getByRole('heading', { level: 3, name: 'Estimate' }).closest('section');
     expect(estimate).not.toBeNull();
-    if (estimate !== null) expect(within(estimate).getByText('34.0%')).toBeInTheDocument();
+    if (estimate !== null) expect(within(estimate).getByText('34%')).toBeInTheDocument();
   });
 });

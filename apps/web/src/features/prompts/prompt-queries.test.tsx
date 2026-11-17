@@ -137,6 +137,16 @@ describe('the keys of the AI prompt queries', () => {
     expect(summaryQuery(scope, RANGE, false, { compare: false }).queryKey).toEqual(plain);
   });
 
+  it('send compare=previous_year for the same dates a year earlier, a key of its own, and nothing while off', () => {
+    const previous = summaryQuery(scope, RANGE, false, { compare: true }).queryKey;
+    const year = summaryQuery(scope, RANGE, false, { compare: true, compareKind: 'previous_year' }).queryKey;
+    expect(year.at(-1)).toEqual({ from: RANGE.from, to: RANGE.to, include_branded: false, compare: 'previous_year' });
+    expect(year).not.toEqual(previous);
+    expect(summaryQuery(scope, RANGE, false, { compare: false, compareKind: 'previous_year' }).queryKey).toEqual(
+      summaryQuery(scope, RANGE, false).queryKey,
+    );
+  });
+
   it('keep the entities of the project out of the prefixes a prompt change refreshes', () => {
     const key = projectEntitiesQuery(scope).queryKey;
     for (const prefix of [promptsKey(scope), aiKey(scope), enginesKey(scope)]) {

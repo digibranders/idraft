@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { engineRates, shareOfVoiceTotals, type StripPrompt } from './strip-model';
+import { engineRates, type StripPrompt } from './strip-model';
 import { MIN_OBSERVATIONS } from '@/lib/stats';
 import { NO_COUNTS, promptCells, topicCells, type Counts } from '@/mocks/prompt-summary';
 
@@ -128,26 +128,44 @@ describe('the states of a rate', () => {
   });
 });
 
-describe('shareOfVoiceTotals: one answer, one weight', () => {
-  it('sums the shares and the answers of the prompts, and reads no count out of them', () => {
+describe('share of voice: brand mentions, one mention one weight', () => {
+  it('sums the own mentions and the tracked-brand mentions of the prompts, so x of y is read out of them', () => {
+    // The cells hold the count share (`withBrandMentionShare`): numerator the own mentions, denominator all of them
     const prompts = [
-      promptOf(counted(5, 2, { naming: 4, share: 1.5 })),
-      promptOf(counted(10, 5, { naming: 6, share: 4.5 })),
+      promptOf(counted(5, 2, { naming: 4, share: 1 })),
+      promptOf(counted(10, 5, { naming: 6, share: 5 })),
     ];
-    expect(shareOfVoiceTotals(prompts, CHATGPT)).toEqual({ numerator: 6, denominator: 10 });
     const { shareOfVoice } = engineRates(prompts, CHATGPT);
-    expect(shareOfVoice).toEqual({
-      state: 'ok',
-      value: 0.6,
-      answers: 10,
-      successes: null,
-      prompts: 2,
-      reason: null,
-    });
+    expect(shareOfVoice).toEqual({ state: 'ok', value: 0.6, answers: 10, successes: 6, prompts: 2, reason: null });
   });
 
-  it('is insufficient under the minimum of answers that name a brand', () => {
+  it('is insufficient under the minimum of brand mentions', () => {
     const { shareOfVoice } = engineRates([promptOf(counted(9, 4, { naming: 3, share: 1 }))], CHATGPT);
     expect(shareOfVoice).toMatchObject({ state: 'insufficient', value: null, answers: 3 });
+  });
+
+  it('reads the engine of the total row when it is given', () => {
+    const [total] = promptOf(counted(9, 4, { naming: 20, share: 5 })).engines;
+    const { shareOfVoice } = engineRates([promptOf(NO_COUNTS)], CHATGPT, total);
+    expect(shareOfVoice).toMatchObject({ state: 'ok', value: 0.25, answers: 20, successes: 5 });
+  });
+
+  it('says not collected, or cut by the cap, and never a percent without its counts', () => {
+    const noted = (note: 'notCollected' | 'capped'): StripPrompt => {
+      const row = promptOf(counted(9, 4, { naming: 20, share: 5 }));
+      return {
+        ...row,
+        engines: row.engines.map((engine) => ({
+          ...engine,
+          share_of_voice: { ...engine.share_of_voice, share_note: note },
+        })),
+      };
+    };
+    expect(engineRates([noted('notCollected')], CHATGPT).shareOfVoice).toMatchObject({
+      state: 'none',
+      value: null,
+      reason: 'notCollected',
+    });
+    expect(engineRates([noted('capped')], CHATGPT).shareOfVoice).toMatchObject({ state: 'none', reason: 'capped' });
   });
 });

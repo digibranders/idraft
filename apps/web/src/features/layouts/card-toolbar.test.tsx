@@ -239,7 +239,9 @@ describe('the toolbar of a card', () => {
 describe('Width', () => {
   it('offers exactly the widths of the type, by name, and shows the current one', async () => {
     const view = await customize();
-    const select = within(toolbarOf('trend')).getByRole('combobox', { name: 'Width of Visibility and mention rate' });
+    const select = within(toolbarOf('trend')).getByRole('combobox', {
+      name: 'Width of SEO visibility and mention rate',
+    });
     expect(select).toHaveTextContent('Two thirds');
     await view.user.click(select);
     const list = await screen.findByRole('listbox');
@@ -253,10 +255,10 @@ describe('Width', () => {
     await view.user.click(select);
     await view.user.click(await screen.findByRole('option', { name: 'Full' }));
     await waitFor(() => {
-      expect(polite()).toBe('Visibility and mention rate width: Full');
+      expect(polite()).toBe('SEO visibility and mention rate width: Full');
     });
     // The provider says it; the toolbar adds nothing
-    expect(said()).toEqual(['Visibility and mention rate width: Full']);
+    expect(said()).toEqual(['SEO visibility and mention rate width: Full']);
     expect(frameOf('trend')).toHaveClass('col-span-12');
     expect(frameOf('trend')).not.toHaveClass('xl:col-span-8');
     await waitFor(() => {
@@ -341,7 +343,7 @@ describe('More', () => {
 
   it('keeps the moves that are impossible on the first card, disabled, with the reason', async () => {
     const view = await customize();
-    const menu = await openMenu(view, 'trend', 'Visibility and mention rate');
+    const menu = await openMenu(view, 'trend', 'SEO visibility and mention rate');
     const item = (name: string): HTMLElement => within(menu).getByRole('menuitem', { name });
     for (const name of ['Move earlier', 'Move to start']) {
       expect(item(name)).toHaveAttribute('aria-disabled', 'true');
@@ -414,7 +416,7 @@ describe('More', () => {
 
   it('leaves the order alone when a disabled move is chosen', async () => {
     const view = await customize();
-    const menu = await openMenu(view, 'trend', 'Visibility and mention rate');
+    const menu = await openMenu(view, 'trend', 'SEO visibility and mention rate');
     await view.user.click(within(menu).getByRole('menuitem', { name: 'Move to start' }));
     expect(ids()).toEqual(BUILTIN_CARDS.map((card) => card.id));
   });

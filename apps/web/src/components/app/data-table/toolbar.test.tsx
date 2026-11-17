@@ -29,4 +29,18 @@ describe('DataTableToolbar', () => {
     expect(screen.getByText(/^Sorted by Volume/)).toHaveClass('sr-only', '2xl:not-sr-only');
     expect(screen.getByText(/^Sorted by Volume/)).not.toHaveClass('xl:not-sr-only');
   });
+
+  it('leaves out the density menu, the count and the visible sort note when asked', () => {
+    renderWithProviders(<DataTableToolbar {...PROPS} parts={{ density: false, count: false, sortNote: false }} />);
+    expect(screen.queryByRole('button', { name: 'Density' })).toBeNull();
+    expect(screen.queryByText('3 keywords')).toBeNull();
+    const note = screen.getByText(/^Sorted by Volume/);
+    expect(note).toHaveClass('sr-only');
+    expect(note).not.toHaveClass('xl:not-sr-only');
+  });
+
+  it('draws all of them when parts is absent', () => {
+    renderWithProviders(<DataTableToolbar {...PROPS} />);
+    expect(screen.getByRole('button', { name: 'Density' })).toBeInTheDocument();
+  });
 });

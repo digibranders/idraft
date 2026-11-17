@@ -473,6 +473,54 @@ EXPECTED: dict[tuple[str, str], str] = {
     # WP-30 runs-costs-health
     ("GET", "/api/v1/workspaces/{workspace_id}/budgets"): "costs:read",
     ("POST", "/api/v1/workspaces/{workspace_id}/budgets"): "budgets:manage",
+    ("GET", "/api/v1/workspaces/{workspace_id}/page-tiers"): "data:read",
+    ("POST", "/api/v1/workspaces/{workspace_id}/page-tiers"): "workspace:update",
+    ("PATCH", "/api/v1/workspaces/{workspace_id}/page-tiers/{tier_id}"): "workspace:update",
+    ("DELETE", "/api/v1/workspaces/{workspace_id}/page-tiers/{tier_id}"): "workspace:update",
+    ("PUT", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/pages/tiers"): (
+        "projects:write"
+    ),
+    ("POST", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/pages/tiers/reset"): (
+        "projects:write"
+    ),
+    ("POST", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/pages/tiers/import"): (
+        "projects:write"
+    ),
+    ("PUT", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/pages/tags"): (
+        "projects:write"
+    ),
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tier-rules"): "data:read",
+    ("POST", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tier-rules"): (
+        "projects:write"
+    ),
+    ("PATCH", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tier-rules/{rule_id}"): (
+        "projects:write"
+    ),
+    ("DELETE", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tier-rules/{rule_id}"): (
+        "projects:write"
+    ),
+    ("POST", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tier-rules/preview"): (
+        "data:read"
+    ),
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"): (
+        "data:read"
+    ),
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}",
+    ): "data:read",
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/edges"): (
+        "data:read"
+    ),
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/neighbors"): (
+        "data:read"
+    ),
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/tier-flow"): (
+        "data:read"
+    ),
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/worklists"): (
+        "data:read"
+    ),
     ("PATCH", "/api/v1/workspaces/{workspace_id}/budgets/{budget_id}"): "budgets:manage",
     ("DELETE", "/api/v1/workspaces/{workspace_id}/budgets/{budget_id}"): "budgets:manage",
     ("GET", "/api/v1/workspaces/{workspace_id}/costs/forecast"): "costs:read",
@@ -562,6 +610,15 @@ PATH_PARAMETERS = {
     "entity_id",
     "alias_id",
     "entity_domain_id",
+    # A page tier belongs to the workspace and is shared by its projects.
+    "tier_id",
+    # Inside one project, after `{project_id}`: the service finds the rule within that project,
+    # so a rule of another project or workspace is a 404.
+    "rule_id",
+    # Inside one project, after `{project_id}`: a `core.urls` id is a shared dictionary key, not
+    # a tenant row, and the service reads the page within the crawl of that project, so a URL
+    # the crawl does not hold is a 404.
+    "url_id",
     # A vocabulary may belong to a project, but its routes check that project's scope in the
     # service: a vocabulary id is not a project id, and a workspace-wide one has none.
     "vocabulary_id",

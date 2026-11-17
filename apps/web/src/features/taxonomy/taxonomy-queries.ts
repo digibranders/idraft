@@ -19,6 +19,15 @@ export const VOCABULARY_KINDS: readonly VocabularyKind[] = [
   'custom',
 ];
 
+/**
+ * The types a person can pick when making a tag set. Groups (kind `topic`) are made by the group screens, a tag set of
+ * kind `cluster` is not offered any more (glossary decision D19), and Tags is the page, not a type. Existing tag sets
+ * of those kinds still show their label.
+ */
+export const CREATABLE_VOCABULARY_KINDS: readonly VocabularyKind[] = VOCABULARY_KINDS.filter(
+  (kind) => kind !== 'topic' && kind !== 'cluster' && kind !== 'tag',
+);
+
 /** The most vocabularies one page holds; a project uses a handful. */
 const PAGE = 200;
 const VOCABULARIES = '/api/v1/workspaces/{workspace_id}/vocabularies';

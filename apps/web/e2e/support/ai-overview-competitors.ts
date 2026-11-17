@@ -18,21 +18,21 @@ export const RETRY = 'Try again';
 /** What every share of voice footnote starts with: the tracked set, named. */
 export const TRACKED_SET = /Tracked brands: you and \d+ competitors?\./;
 
-/** The ids the Competitive preset gives its cards of the family (`presets/presets.ts`). */
+/**
+ * The ids the Competitive preset gives the three competitor cards that follow the page scope (`presets/presets.ts`):
+ * they have no platform option, so one instance of each answers for the Platform the page is on.
+ */
 export const PRESET_FAMILY = {
-  shareOfVoiceChatgpt: 'share-of-voice-chatgpt',
-  shareOfVoiceGemini: 'share-of-voice-gemini',
-  trend: 'competitor-trend-chatgpt',
-  lostTo: 'lost-to-competitor-chatgpt',
-  table: 'competitor-table',
-  overTime: 'sov-over-time-chatgpt',
-  coMentions: 'co-mentions-chatgpt',
+  shareOfVoice: 'share-of-voice',
+  overTime: 'sov-over-time',
+  lostTo: 'lost-to-competitor',
 } as const;
 
 // -------------------------------------------------------------------------------------------------
 // Locators
 
-export const pageHeading = (page: Page): Locator => page.getByRole('heading', { level: 1, name: 'AI visibility' });
+export const pageHeading = (page: Page): Locator =>
+  page.getByRole('heading', { level: 1, name: 'AI visibility overview' });
 export const cardGrid = (page: Page): Locator => page.getByRole('region', { name: 'AI visibility cards', exact: true });
 export const cardById = (page: Page, id: string): Locator => cardGrid(page).locator(`[data-layout-card="${id}"]`);
 /** A card by the title of its frame; two cards may share a title, so a preset card is better found by id. */
@@ -44,17 +44,11 @@ const customizeButton = (page: Page): Locator => page.getByRole('button', { name
 const saveBar = (page: Page): Locator => page.locator('[data-slot="layout-save-bar"]');
 const polite = (page: Page): Locator => page.locator('#live-region-polite');
 
-/** The nine cards of the saved layout of `saveFamilyLayout`: every type of the family, the engine ones for ChatGPT. */
+/** The three competitor cards of the Competitive preset, by the headings they draw. */
 export const familyCards = (page: Page): ReadonlyArray<{ name: string; card: Locator }> => [
-  { name: 'Share of voice on ChatGPT', card: cardById(page, PRESET_FAMILY.shareOfVoiceChatgpt) },
-  { name: 'Share of voice on Gemini', card: cardById(page, PRESET_FAMILY.shareOfVoiceGemini) },
-  { name: 'Mention rate on ChatGPT', card: cardById(page, PRESET_FAMILY.trend) },
-  { name: 'Prompts lost to a competitor on ChatGPT', card: cardById(page, PRESET_FAMILY.lostTo) },
-  { name: 'Mention rate by engine', card: cardById(page, PRESET_FAMILY.table) },
-  { name: 'Share of voice over time, ChatGPT', card: cardById(page, PRESET_FAMILY.overTime) },
-  { name: 'Who we are named with on ChatGPT', card: cardById(page, PRESET_FAMILY.coMentions) },
-  { name: 'Share of voice rank', card: cardTitled(page, /^Share of voice rank on /) },
-  { name: 'AI opportunities', card: cardTitled(page, 'AI opportunities') },
+  { name: 'Share of voice', card: cardById(page, PRESET_FAMILY.shareOfVoice) },
+  { name: 'Share of voice over time', card: cardById(page, PRESET_FAMILY.overTime) },
+  { name: 'Lost to competitor', card: cardById(page, PRESET_FAMILY.lostTo) },
 ];
 
 /** The Table view button of a card: the toggle in the group "<title> view" of its frame. */
@@ -116,18 +110,13 @@ export async function changeEngine(page: Page, id: string, name: string, engine:
   await expect(popover).toHaveCount(0);
 }
 
-/**
- * Signed in as the editor, saves a layout of the Competitive preset plus the two cards of the family it leaves out
- * (share of voice rank and AI opportunities): every type of the family on the page once, nine cards in all.
- */
+/** Signed in as the editor, saves the layout of the Competitive preset: the three competitor cards are on the page. */
 export async function saveFamilyLayout(page: Page): Promise<void> {
   await openOverview(page);
   await startCustomizing(page);
   await startFrom(page, 'Competitive');
-  await addCard(page, 'Share of voice rank');
-  await addCard(page, 'AI opportunities');
   await saveLayout(page);
-  await expect(cardGrid(page).locator('[data-layout-card]')).toHaveCount(11);
+  await expect(cardGrid(page).locator('[data-layout-card]')).toHaveCount(10);
 }
 
 // -------------------------------------------------------------------------------------------------

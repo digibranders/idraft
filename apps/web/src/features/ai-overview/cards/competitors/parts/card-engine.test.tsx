@@ -83,7 +83,7 @@ describe('useCardEngine', () => {
     await waitFor(() => {
       expect(screen.getByTestId('availability')).toHaveTextContent('off');
     });
-    expect(screen.getByTestId('empty')).toHaveTextContent('AI Mode is not asked in this scope');
+    expect(screen.getByTestId('empty')).toHaveTextContent('Google AI Mode is not asked in this scope');
     expect(screen.getByTestId('empty')).toHaveTextContent('turned off for this project');
   });
 
@@ -93,12 +93,12 @@ describe('useCardEngine', () => {
       expect(screen.getByTestId('availability')).toHaveTextContent('outside');
     });
     expect(screen.getByTestId('empty')).toHaveTextContent('Gemini is not asked in this scope');
-    expect(screen.getByTestId('empty')).toHaveTextContent('outside the engine filter');
+    expect(screen.getByTestId('empty')).toHaveTextContent('outside the platform filter');
   });
 
   it('shows an editor a link to the engines of the project', async () => {
     renderProbe('admin', 'google_ai_mode');
-    const link = await screen.findByRole('link', { name: 'Turn on engines' });
+    const link = await screen.findByRole('link', { name: 'Turn on platforms' });
     expect(link).toHaveAttribute('href', `/${MOCK_WORKSPACE.slug}/fynix/settings/engines`);
   });
 
@@ -107,7 +107,7 @@ describe('useCardEngine', () => {
     await waitFor(() => {
       expect(screen.getByTestId('availability')).toHaveTextContent('off');
     });
-    expect(screen.getByTestId('empty')).toHaveTextContent('Ask a workspace admin to turn on an engine');
-    expect(screen.queryByRole('link', { name: 'Turn on engines' })).not.toBeInTheDocument();
+    expect(screen.getByTestId('empty')).toHaveTextContent('Ask a workspace admin to turn on a platform');
+    expect(screen.queryByRole('link', { name: 'Turn on platforms' })).not.toBeInTheDocument();
   });
 });

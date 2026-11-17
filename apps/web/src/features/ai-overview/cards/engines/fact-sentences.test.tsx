@@ -47,7 +47,7 @@ const SENTENCES: readonly (readonly [fact: Fact, sentence: string])[] = [
   ],
   [
     { id: 'w', kind: 'withinVariation', params: { engines: 1 }, link: null },
-    'Mention rates moved within normal variation on 1 engine.',
+    'Mention rates moved within normal variation on 1 platform.',
   ],
   [
     { id: 'n1', kind: 'noPrevious', params: { reason: 'off', days: 28 }, link: null },
@@ -63,11 +63,11 @@ const SENTENCES: readonly (readonly [fact: Fact, sentence: string])[] = [
   ],
   [
     { id: 'n4', kind: 'noPrevious', params: { reason: 'tooFew', days: 28 }, link: null },
-    'There are too few answers in one of the two windows to compare mention rates.',
+    'There are too few answers in one of the two periods to compare mention rates.',
   ],
   [
     { id: 'n5', kind: 'noPrevious', params: { reason: 'noClaim', days: 28 }, link: null },
-    'The mention rates of the two windows give no clear direction of change, so nothing is said about it.',
+    'The mention rates of the two periods give no clear direction of change, so nothing is said about it.',
   ],
   [
     {
@@ -84,7 +84,7 @@ const SENTENCES: readonly (readonly [fact: Fact, sentence: string])[] = [
       },
       link: null,
     },
-    'On AI Mode, 12 of 90 prompts that named you before no longer do, and 7 of 40 prompts that did not name you before now do.',
+    'On Google AI Mode, 12 of 90 prompts that mentioned you before no longer do, and 7 of 40 prompts that did not mention you before now do.',
   ],
   [
     {
@@ -93,7 +93,7 @@ const SENTENCES: readonly (readonly [fact: Fact, sentence: string])[] = [
       params: { engine: 'chatgpt_web', lost: 1, namedBefore: 1, gained: 0, notNamedBefore: 1, compared: 2, leftOut: 0 },
       link: null,
     },
-    'On ChatGPT, 1 of 1 prompt that named you before no longer does, and 0 of 1 prompt that did not name you before now does.',
+    'On ChatGPT, 1 of 1 prompt that mentioned you before no longer does, and 0 of 1 prompt that did not mention you before now does.',
   ],
   [
     { id: 's', kind: 'newSources', params: { count: 37, minSupport: 2, days: 28 }, link: null },
@@ -145,7 +145,7 @@ describe('FactSentence', () => {
     expect(items.map((item) => item.textContent)).toEqual(SENTENCES.map(([, sentence]) => sentence));
   });
 
-  it('links the figure of an engine change through the card drill, to the Prompts page with the engine', async () => {
+  it('links the figure of a platform change through the card drill, to the Prompts page with the platform', async () => {
     render();
     const [, up] = await lines();
     const link = within(up as HTMLElement).getByRole('link');
@@ -154,11 +154,14 @@ describe('FactSentence', () => {
     expect(link.getAttribute('href')).toContain('engine=chatgpt_web');
   });
 
-  it('is plain text, with the same words, where the drill gives no link', async () => {
-    // The Prompts page cannot show "branded prompts only": the drill answers null
+  it('links with branded=only, which the Prompts page reads (owner decision 15), with the same words', async () => {
     render(`${WINDOW}&branded=only`);
     const [, up] = await lines();
-    expect(within(up as HTMLElement).queryByRole('link')).toBeNull();
+    expect(
+      within(up as HTMLElement)
+        .getByRole('link')
+        .getAttribute('href'),
+    ).toContain('branded=only');
     expect(up).toHaveTextContent(SENTENCES[1]?.[1] ?? 'missing');
   });
 });
@@ -171,9 +174,9 @@ describe('HowThisIsWritten', () => {
     await user.click(button);
     const dialog = await screen.findByRole('dialog', { name: 'How this is written' });
     expect(within(dialog).getAllByRole('listitem')).toHaveLength(5);
-    expect(dialog).toHaveTextContent('No sentence names a cause or judges a change, and engines are never pooled.');
+    expect(dialog).toHaveTextContent('No sentence names a cause or judges a change, and platforms are never pooled.');
     expect(dialog).toHaveTextContent('Answers that were not valid come first');
-    expect(dialog).toHaveTextContent('A prompt names you when at least one of its valid answers does.');
+    expect(dialog).toHaveTextContent('A prompt mentions you when at least one of its valid answers does.');
     await user.keyboard('{Escape}');
     await waitFor(() => {
       expect(screen.queryByRole('dialog')).toBeNull();

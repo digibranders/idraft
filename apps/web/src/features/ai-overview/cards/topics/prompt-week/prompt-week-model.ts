@@ -119,8 +119,8 @@ export interface PromptWeekWords {
   pooledTitle: (weeks: number, date: string) => string;
   /** A point that holds only its own week: "Week of Oct 26". */
   weekTitle: (date: string) => string;
-  /** Share of voice has no count of successes: its percent and the valid answers that name a brand. */
-  share: (percent: string, answers: number) => string;
+  /** Share of voice counts brand mentions: its percent and "x of y brand mentions". */
+  share: (percent: string, mentions: number, all: number) => string;
   /** "{prompt}, {title}: {value}" */
   subject: (prompt: string, title: string, value: string) => string;
 }
@@ -157,7 +157,7 @@ function cellOf(
     tip: say(
       counted
         ? rateTipText({ value: point.value, k: point.k, n: point.n, band: point.band, thin: false }, words.rateTip)
-        : words.share(words.rateTip.value(point.value), point.n),
+        : words.share(words.rateTip.value(point.value), point.k ?? 0, point.n),
     ),
   };
 }

@@ -86,6 +86,7 @@ const deltaOf = (points: number): MetricDeltaInput => ({
  */
 export default function KeyChangesCard({ item, options, live }: CardProps): ReactElement {
   const t = useTranslations('aiOverview.activity.keyChanges');
+  const words = useTranslations('aiOverview.sourcesTracking.keyChanges');
   const drill = useCardDrill();
   const citations = useCitationsDrill();
   const data = useCardData({ previous: 'optional', subscribed: live });
@@ -311,6 +312,8 @@ export default function KeyChangesCard({ item, options, live }: CardProps): Reac
       title={t('title')}
       state={state}
       windowText={windowText}
+      meta={words('meta', { days: scope.range.days })}
+      info={{ what: words('infoWhat', { days: scope.range.days }), how: words('infoHow') }}
       notice={notice}
       holdText={holdText}
       timeZone={timeZone}

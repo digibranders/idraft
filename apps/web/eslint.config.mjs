@@ -366,6 +366,18 @@ export default tseslint.config(
       'no-restricted-globals': NO_FETCH_GLOBAL,
     },
   },
+  // The fixtures of the Overview cards (`*-fixtures.ts` in its cards folders) are for tests and the mock handlers: a
+  // card, a model or a hook of the feature never imports them, so no sample value can ship in its bundle.
+  {
+    files: ['src/features/ai-overview/**/*.{ts,tsx}'],
+    ignores: [...TESTS, 'src/features/ai-overview/**/*-fixtures.ts'],
+    rules: {
+      'no-restricted-imports': restrictedImports({
+        group: ['**/*-fixtures'],
+        message: 'Fixtures are for tests and the mock handlers, not for the code of a card.',
+      }),
+    },
+  },
   // The form components hold form state, and the component preview shows them in a live form. Neither fetches.
   {
     files: ['src/components/app/forms/**/*.{ts,tsx}', 'src/components/design-system/**/*.{ts,tsx}'],

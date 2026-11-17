@@ -23,8 +23,8 @@ vi.mock('@/components/app/chart/echart', async () => (await import('@/test/weekl
 
 const DAILY = `${PROJECT}/ai/collection/daily`;
 const CARDS: readonly (readonly [string, ComponentType<CardProps>, string, readonly string[]])[] = [
-  ['ops.answer_calendar', AnswerCalendarCard, 'Answer collection calendar', ['h-0 @max-md:h-5', 'h-0 @max-md:h-6']],
-  ['ops.answer_status', AnswerStatusCard, 'Answer status by engine and day', ['h-0 @max-md:h-5']],
+  ['ops.answer_calendar', AnswerCalendarCard, 'Run calendar', ['h-0 @max-md:h-5', 'h-0 @max-md:h-6']],
+  ['ops.answer_status', AnswerStatusCard, 'Answer status by platform and day', ['h-0 @max-md:h-5']],
 ];
 
 beforeEach(() => {
@@ -58,7 +58,7 @@ describe.each(CARDS)('%s while it loads', (type, Card, title, reserve) => {
     // The tabs placeholder wraps like the real toolbar, and is as tall as a control
     expect(tabs).toHaveClass('flex', 'flex-wrap', 'gap-2');
     expect(tabs?.querySelector('[data-slot="skeleton"]')).not.toBeNull();
-    expect(screen.queryByRole('toolbar', { name: 'Engine' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('toolbar', { name: 'Platform' })).not.toBeInTheDocument();
   });
 
   it('reserves, by the width of the card, the room the loaded card takes when it is narrow', async () => {
@@ -78,7 +78,7 @@ describe.each(CARDS)('%s while it loads', (type, Card, title, reserve) => {
     server.use(http.get(DAILY, () => HttpResponse.json(twoWeeks())));
     renderActivityCard(type, Card);
     await waitFor(() => {
-      expect(screen.getByRole('toolbar', { name: 'Engine' })).toBeInTheDocument();
+      expect(screen.getByRole('toolbar', { name: 'Platform' })).toBeInTheDocument();
     });
     const frame = await frameOf(title);
     expect(frame.querySelector('[data-slot="controls-placeholder"]')).toBeNull();

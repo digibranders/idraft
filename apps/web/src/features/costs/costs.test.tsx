@@ -184,7 +184,7 @@ describe('Costs', () => {
       ),
     );
     renderWithProviders(costsAs('admin'), { searchParams: '?month=2026-08' });
-    expect(await screen.findByText(/^Spend per day in August 2026, stacked by workload\./)).toBeInTheDocument();
+    expect(await screen.findByText(/^Spend per day in August 2026, stacked by job type\./)).toBeInTheDocument();
     expect(screen.queryByText(/this month/)).toBeNull();
     await waitFor(() => expect(stripValue('Blocked runs')).toBe('1,234'));
   });
@@ -260,7 +260,7 @@ describe('Costs', () => {
   it('draws spend by day as a table of every day of the month and a column per workload', async () => {
     const { user } = renderWithProviders(costsAs('admin'));
     await user.click(await screen.findByRole('button', { name: 'Table' }));
-    const table = await screen.findByRole('table', { name: 'Spend by day, by workload' });
+    const table = await screen.findByRole('table', { name: 'Spend by day, by job type' });
     const headers = within(table)
       .getAllByRole('columnheader')
       .map((header) => header.textContent);
@@ -309,7 +309,7 @@ describe('Costs', () => {
       }),
     );
     renderWithProviders(costsAs('admin'));
-    const table = await screen.findByRole('table', { name: 'By workload' });
+    const table = await screen.findByRole('table', { name: 'By job type' });
     await waitFor(() => expect(within(table).getByRole('row', { name: /SEO rank/ })).toBeInTheDocument());
     expect(within(within(table).getByRole('row', { name: /SEO rank/ })).getAllByRole('cell')).toHaveLength(2);
     expect(within(table).getByRole('row', { name: /SEO rank/ })).toHaveTextContent('$3.0075.0%');
@@ -345,7 +345,7 @@ describe('Costs', () => {
     await user.click(screen.getByRole('tab', { name: 'Budgets' }));
     const budgets = await screen.findByRole('table', { name: 'Budgets' });
     await waitFor(() => expect(within(budgets).getAllByRole('meter')).toHaveLength(3));
-    expect(within(budgets).getByRole('row', { name: /Workspace.*All workloads/ })).toHaveTextContent('$250.00');
+    expect(within(budgets).getByRole('row', { name: /Workspace.*All job types/ })).toHaveTextContent('$250.00');
     expect(within(budgets).getByRole('row', { name: /Fynix.*SEO rank/ })).toHaveTextContent('$40.00');
     expect(within(budgets).getAllByText('Within budget')).toHaveLength(3);
   });
@@ -485,7 +485,7 @@ describe('Costs', () => {
     const url = urlWrites();
     const { user } = renderWithProviders(costsAs('admin'), { onUrlUpdate: url.onUrlUpdate });
     await user.click(await screen.findByRole('button', { name: 'Add a filter' }));
-    await user.click(await screen.findByRole('button', { name: 'Workload' }));
+    await user.click(await screen.findByRole('button', { name: 'Job type' }));
     await user.click(await screen.findByRole('checkbox', { name: 'SEO rank' }));
     await user.click(screen.getByRole('button', { name: 'Apply' }));
     await waitFor(() => expect(url.latest().get('workload')).toBe('seo_rank'));
@@ -634,7 +634,7 @@ describe('Costs', () => {
     const { user } = renderWithProviders(costsAs('admin'));
     expect(await screen.findByText('The costs could not be loaded')).toBeInTheDocument();
     // The rest of the page stays
-    expect(screen.getByRole('table', { name: 'By workload' })).toBeInTheDocument();
+    expect(screen.getByRole('table', { name: 'By job type' })).toBeInTheDocument();
     fail = false;
     // The provider list of the filter fails with the table, and says so beside the filters: the table's own Retry
     const tableRetry = screen

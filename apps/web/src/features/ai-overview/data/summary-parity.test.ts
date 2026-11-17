@@ -6,7 +6,7 @@ import { summaryQuery } from '@/features/prompts/prompt-queries';
 import type { EngineCode } from '@/lib/api/types';
 
 /**
- * The Overview's summary and the Topics and Prompts page's are one read of the same scope (R12): the same request
+ * The Overview's summary and the Prompts page's are one read of the same scope (R12): the same request
  * parameters, so the same prompt rows and the same counts. The Prompts page's factory cannot be imported by the
  * feature (a feature may not import another), so this test is what keeps the two from drifting apart.
  */
@@ -20,11 +20,13 @@ function scopeOf(patch: Partial<OverviewScope>): OverviewScope {
     range: { ...WINDOW, days: 28 },
     rangeValue: { kind: 'preset', preset: '28d' },
     compare: true,
+    compareKind: 'previous_period',
     previous: { from: '2026-09-18', to: '2026-10-15' },
     country: null,
     engines: null,
     topic: null,
     branded: 'excluded',
+    metric: 'visibility',
     ...patch,
   };
 }
@@ -41,8 +43,8 @@ interface Case {
 
 const CASES: readonly Case[] = [
   { name: 'the default scope', patch: {}, includeBranded: false, brandedOnly: false },
-  { name: 'a country', patch: { country: 'DE' }, includeBranded: false, brandedOnly: false },
-  { name: 'a topic', patch: { topic: TOPIC }, includeBranded: false, brandedOnly: false },
+  { name: 'a location', patch: { country: 'DE' }, includeBranded: false, brandedOnly: false },
+  { name: 'a group', patch: { topic: TOPIC }, includeBranded: false, brandedOnly: false },
   { name: 'branded prompts included', patch: { branded: 'included' }, includeBranded: true, brandedOnly: false },
   { name: 'branded prompts alone', patch: { branded: 'only' }, includeBranded: true, brandedOnly: true },
   {

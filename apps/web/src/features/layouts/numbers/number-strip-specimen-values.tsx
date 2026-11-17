@@ -74,13 +74,23 @@ const ROWS: Readonly<Record<string, Row>> = {
   'ai.recommendation_rate|chatgpt_web': rate(0.18, 0.9, false, responses(324, 1800)),
   'ai.recommendation_rate|gemini_web': rate(0.15, -0.4, false, responses(194, 1296)),
   'ai.recommendation_rate|google_ai_mode': NOT_CLASSIFIED,
-  'ai.share_of_voice|chatgpt_web': rate(0.27, 1, false, `${formatInteger(1204)} responses with a tracked entity`),
-  'ai.share_of_voice|gemini_web': rate(0.24, -0.5, false, `${formatInteger(842)} responses with a tracked entity`),
+  'ai.share_of_voice|chatgpt_web': rate(
+    0.27,
+    1,
+    false,
+    `${formatInteger(325)} of ${formatInteger(1204)} brand mentions`,
+  ),
+  'ai.share_of_voice|gemini_web': rate(
+    0.24,
+    -0.5,
+    false,
+    `${formatInteger(202)} of ${formatInteger(842)} brand mentions`,
+  ),
   'ai.share_of_voice|google_ai_mode': rate(
     0.31,
     -2.2,
     false,
-    `${formatInteger(711)} observations with a tracked entity`,
+    `${formatInteger(220)} of ${formatInteger(711)} brand mentions`,
   ),
 };
 

@@ -144,14 +144,14 @@ describe('the grid', () => {
     render();
     expect(await rowNames()).toEqual(['Best CRM for startups', 'CRM pricing compared']);
     expect(await headers()).toEqual(['Prompt', 'Oct 19', 'Oct 26']);
-    expect(screen.getByRole('combobox', { name: 'Topic' })).toHaveTextContent('CRM');
-    expect(screen.getByRole('combobox', { name: 'Engine' })).toHaveTextContent('ChatGPT');
+    expect(screen.getByRole('combobox', { name: 'Group' })).toHaveTextContent('CRM');
+    expect(screen.getByRole('combobox', { name: 'Platform' })).toHaveTextContent('ChatGPT');
   });
 
   it('follows the scope topic', async () => {
     render({ searchParams: `topic=${SECURITY}` });
     expect(await rowNames()).toEqual(['Is it secure']);
-    expect(screen.getByRole('combobox', { name: 'Topic' })).toHaveTextContent('Security');
+    expect(screen.getByRole('combobox', { name: 'Group' })).toHaveTextContent('Security');
   });
 
   it('a topic picked here gives way when the scope topic changes', async () => {
@@ -176,7 +176,7 @@ describe('the grid', () => {
       cardInOverview({ type: 'ai.prompt_heatmap', Card: Card as ComponentType<CardProps>, width: 'two_thirds' }),
     );
     await grid();
-    await user.click(screen.getByRole('combobox', { name: 'Topic' }));
+    await user.click(screen.getByRole('combobox', { name: 'Group' }));
     await user.click(await screen.findByRole('option', { name: 'CRM / Pricing' }));
     await waitFor(async () => {
       expect(await rowNames()).toEqual(['CRM pricing compared']);
@@ -186,18 +186,18 @@ describe('the grid', () => {
     await waitFor(async () => {
       expect(await rowNames()).toEqual(['Best CRM for startups', 'CRM pricing compared']);
     });
-    expect(screen.getByRole('combobox', { name: 'Topic' })).toHaveTextContent('CRM');
+    expect(screen.getByRole('combobox', { name: 'Group' })).toHaveTextContent('CRM');
   });
 
   it('changing the topic or the engine changes the rows', async () => {
     const { user } = render();
     expect(await rowNames()).toEqual(['Best CRM for startups', 'CRM pricing compared']);
-    await user.click(screen.getByRole('combobox', { name: 'Topic' }));
+    await user.click(screen.getByRole('combobox', { name: 'Group' }));
     await user.click(await screen.findByRole('option', { name: 'Security' }));
     await waitFor(async () => {
       expect(await rowNames()).toEqual(['Is it secure']);
     });
-    await user.click(screen.getByRole('combobox', { name: 'Engine' }));
+    await user.click(screen.getByRole('combobox', { name: 'Platform' }));
     await user.click(await screen.findByRole('option', { name: 'Gemini' }));
     // Gemini has one week, and the prompt has its point in it (3 answers: thin)
     await waitFor(async () => {
@@ -210,7 +210,7 @@ describe('the grid', () => {
   it('the topics to choose from are real topics, never the prompts without one', async () => {
     const { user } = render();
     await grid();
-    await user.click(screen.getByRole('combobox', { name: 'Topic' }));
+    await user.click(screen.getByRole('combobox', { name: 'Group' }));
     const options = (await screen.findAllByRole('option')).map((option) => option.textContent);
     expect(options).toEqual(['CRM', 'CRM / Pricing', 'Security']);
     expect(screen.queryByText(/Never filed/)).not.toBeInTheDocument();
@@ -265,7 +265,7 @@ describe('words', () => {
     await grid();
     const text = section.querySelector('[data-slot="chart-footnote"]')?.textContent ?? section.textContent;
     expect(text).toContain('a prompt point always shows 4 weeks');
-    expect(text).toContain('Topics overlap');
+    expect(text).toContain('Groups overlap');
     expect(text).toContain('A rate under 4 valid answers shows its answer count and no percent.');
     for (const bin of ['seq1', 'seq4', 'seq7'] as const) expect(text).toContain(messages.chart.heatmap.bins[bin]);
   });
@@ -410,17 +410,17 @@ describe('states', () => {
 
   it('no engine asked says so and offers Use all engines', async () => {
     render({ searchParams: 'engine=google_ai_mode' });
-    expect(await screen.findByText('No engine is part of this view')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Use all engines' })).toBeInTheDocument();
+    expect(await screen.findByText('No platform is part of this view')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Use all platforms' })).toBeInTheDocument();
     expect(screen.queryByRole('grid')).not.toBeInTheDocument();
   });
 
   it('no topics teaches how to get some, with one action', async () => {
     render({ summary: summaryOf({ topics: [], prompts: [], engineCodes: ['chatgpt_web', 'gemini_web'] }) });
-    const state = (await screen.findByRole('heading', { name: 'No topics yet' })).closest('[data-slot="empty-state"]');
+    const state = (await screen.findByRole('heading', { name: 'No groups yet' })).closest('[data-slot="empty-state"]');
     const box = within(state as HTMLElement);
     expect([...box.queryAllByRole('link'), ...box.queryAllByRole('button')]).toHaveLength(1);
-    expect(box.getByRole('link', { name: 'Open Topics and prompts' })).toBeInTheDocument();
+    expect(box.getByRole('link', { name: 'Open Prompts' })).toBeInTheDocument();
   });
 
   it('a topic filter that empties the card offers Clear topic', async () => {
@@ -428,8 +428,8 @@ describe('states', () => {
       summary: summaryOf({ topics: [], prompts: [], engineCodes: ['chatgpt_web', 'gemini_web'] }),
       searchParams: `topic=${CRM}`,
     });
-    const box = (await screen.findByRole('heading', { name: 'No topics yet' })).closest('[data-slot="empty-state"]');
-    expect(within(box as HTMLElement).getByRole('button', { name: 'Clear topic' })).toBeInTheDocument();
+    const box = (await screen.findByRole('heading', { name: 'No groups yet' })).closest('[data-slot="empty-state"]');
+    expect(within(box as HTMLElement).getByRole('button', { name: 'Clear group' })).toBeInTheDocument();
   });
 
   it('no valid answer in any week names the engine and the days', async () => {

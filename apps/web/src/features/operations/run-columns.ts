@@ -3,11 +3,11 @@
 import { useTranslations } from 'next-intl';
 import { useMemo } from 'react';
 
-import { RUN_STATUS_KEYS, TRIGGER_KEYS } from './run-model';
+import { RUN_STATUS_KEYS, runDurationMs, TRIGGER_KEYS } from './run-model';
 import { col } from '@/components/app/data-table/columns';
 import type { DataTableColumn } from '@/components/app/data-table/types';
 import type { Run } from '@/lib/api/types';
-import { formatInteger, formatTableDateTime } from '@/lib/format';
+import { EMPTY_VALUE, formatInteger, formatTableDateTime } from '@/lib/format';
 import { money } from '@/lib/format/money';
 import { collectionStatusOf } from '@/lib/runs/run-status';
 import { taskSummary } from '@/lib/runs/task-summary';
@@ -15,8 +15,8 @@ import type { SortKey } from '@/lib/tables/table-state';
 import { useWorkloadName } from '@/lib/workloads/use-workload-name';
 
 /**
- * The columns of Runs (20-frontend-specification.md section 5.18): Workload, Status, Started, Trigger, Tasks,
- * Actual, Estimate, Window, Finished. The workload is the row's name. The ids of the sortable ones are what
+ * The columns of Runs (20-frontend-specification.md section 5.18): Workload, Status, Started, Duration, Trigger,
+ * Tasks, Actual, Estimate, Window, Finished. The workload is the row's name. The ids of the sortable ones are what
  * `?sort=` holds; the table sorts the loaded rows itself.
  */
 
@@ -28,6 +28,7 @@ export const SORT_FIELDS: ReadonlySet<string> = new Set([
   'workload',
   'status',
   'created_at',
+  'duration',
   'trigger',
   'actual',
   'estimate',
@@ -62,6 +63,14 @@ export function useRunColumns(timeZone: string): RunColumns {
         header: t('columns.created'),
         headerTooltip: common('timesIn', { timeZone }),
         timeZone,
+      }),
+      col.duration<Run>('duration', runDurationMs, {
+        header: t('columns.duration'),
+        priority: 2,
+        width: 112,
+        // A run that has not ended has no span yet, and its cell says why
+        unknown: (row) =>
+          row.completed_at === null ? { label: EMPTY_VALUE, tooltip: t('durationOpen') } : { label: EMPTY_VALUE },
       }),
       col.badge<Run>('trigger', (row) => ({ label: triggerLabel(row) }), {
         header: t('columns.trigger'),

@@ -1,9 +1,12 @@
 import { ACTIVITY_CARDS } from './activity';
 import { COMPETITOR_CARDS } from './competitors';
 import { ENGINE_CARDS } from './engines';
+import { HEADLINE_CARDS } from './headline';
 import { PendingSkeleton } from './pending-skeleton';
 import { SOURCE_CARDS } from './sources';
 import { TOPIC_CARDS } from './topics';
+import { TRACKING_CARDS } from './tracking';
+import { TRAFFIC_CARDS } from './traffic';
 import { defineCards, type CardRegistration } from '@/features/layouts';
 import { CARD_TYPES } from '@/lib/layouts';
 
@@ -35,5 +38,14 @@ export function cardEntries(
 
 /** The registry of the page, built once at module level as `defineCards` asks. */
 export const AI_OVERVIEW_CARDS = defineCards(
-  cardEntries([ENGINE_CARDS, COMPETITOR_CARDS, TOPIC_CARDS, SOURCE_CARDS, ACTIVITY_CARDS]),
+  cardEntries([
+    HEADLINE_CARDS,
+    ENGINE_CARDS,
+    COMPETITOR_CARDS,
+    TOPIC_CARDS,
+    SOURCE_CARDS,
+    TRACKING_CARDS,
+    TRAFFIC_CARDS,
+    ACTIVITY_CARDS,
+  ]),
 );

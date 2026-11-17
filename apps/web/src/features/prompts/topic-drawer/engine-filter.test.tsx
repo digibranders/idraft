@@ -45,12 +45,12 @@ describe('EngineFilteredPrompts: the Prompts tab of a topic', () => {
     renderFilter();
     const list = screen.getByRole('list', { name: 'Every engine list' });
     expect(within(list).getAllByRole('listitem')).toHaveLength(3);
-    expect(screen.queryByText(/Engine: /)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Platform: /)).not.toBeInTheDocument();
   });
 
   it('shows the chip and only the prompts of that engine with eng, high to low, and says how many it hides', () => {
     renderFilter('eng=chatgpt_web');
-    expect(screen.getByText('Engine: ChatGPT')).toBeInTheDocument();
+    expect(screen.getByText('Platform: ChatGPT')).toBeInTheDocument();
     const rows = screen.getAllByRole('listitem');
     expect(rows).toHaveLength(2);
     expect(rows[0]).toHaveTextContent('Best prompt');
@@ -95,7 +95,7 @@ describe('EngineFilteredPrompts: the Prompts tab of a topic', () => {
 
   it('drops an eng that is not an engine shown, and lists every prompt', () => {
     renderFilter('eng=perplexity');
-    expect(screen.queryByText(/Engine: /)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Platform: /)).not.toBeInTheDocument();
     expect(within(screen.getByRole('list', { name: 'Every engine list' })).getAllByRole('listitem')).toHaveLength(3);
   });
 
@@ -105,18 +105,18 @@ describe('EngineFilteredPrompts: the Prompts tab of a topic', () => {
       <EngineFilteredPrompts prompts={PROMPTS} onOpen={vi.fn()} renderList={everything} />,
       { searchParams: 'metric=citation&eng=chatgpt_web', onUrlUpdate: ({ queryString }) => writes.push(queryString) },
     );
-    await user.click(screen.getByRole('button', { name: 'Show every engine' }));
+    await user.click(screen.getByRole('button', { name: 'Show every platform' }));
     expect(writes.at(-1)).toBe('?metric=citation');
-    expect(screen.queryByText(/Engine: /)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Platform: /)).not.toBeInTheDocument();
     expect(within(screen.getByRole('list', { name: 'Every engine list' })).getAllByRole('listitem')).toHaveLength(3);
   });
 
   it('says no prompt has an answer on the engine', () => {
     renderFilter('eng=chatgpt_web', [GEMINI_ONLY]);
     expect(screen.getByRole('heading', { name: 'No prompt has an answer on ChatGPT' })).toBeInTheDocument();
-    expect(screen.getByText('Show every engine to list the prompts of this topic.')).toBeInTheDocument();
+    expect(screen.getByText('Show every platform to list the prompts of this group.')).toBeInTheDocument();
     // The chip stays, so the filter can be removed from here
-    expect(screen.getByRole('button', { name: 'Show every engine' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Show every platform' })).toBeInTheDocument();
   });
 
   it('drops eng with the drawer, so a close removes the chip and the key in one write', async () => {
@@ -139,9 +139,9 @@ describe('EngineFilteredPrompts: the Prompts tab of a topic', () => {
         onUrlUpdate: ({ queryString }) => writes.push(queryString),
       },
     );
-    expect(screen.getByText('Engine: ChatGPT')).toBeInTheDocument();
+    expect(screen.getByText('Platform: ChatGPT')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Close the drawer' }));
     expect(writes).toEqual(['']);
-    expect(screen.queryByText(/Engine: /)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Platform: /)).not.toBeInTheDocument();
   });
 });

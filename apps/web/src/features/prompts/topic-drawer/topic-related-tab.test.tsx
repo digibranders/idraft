@@ -16,7 +16,7 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(''),
 }));
 
-/** SEO holds the open topic (DRAWER_TOPIC_ID) beside Content and Links; Sales stands alone at the top. */
+/** SEO holds the open group (DRAWER_TOPIC_ID) beside Content and Links; Sales stands alone: four groups, SEO is no row. */
 const TREE = [
   term('seo', 'SEO'),
   term(DRAWER_TOPIC_ID, 'Technical SEO', 'seo', 'SEO / Technical SEO'),
@@ -36,48 +36,63 @@ const SUMMARY = summaryOf([
   rowOf(DRAWER_TOPIC_ID, 'Technical SEO', 4),
   rowOf('content', 'Content', 6),
   rowOf('links', 'Links', 2, 1, 4),
+  rowOf('sales', 'Sales', 3),
 ]);
 
 const renderTab = (options: Parameters<typeof renderDrawerPart>[1] = {}) =>
-  renderDrawerPart(<RelatedTab />, { summary: SUMMARY, descendants: DESCENDANTS, ...options });
+  renderDrawerPart(<RelatedTab />, {
+    summary: SUMMARY,
+    descendants: DESCENDANTS,
+    ...options,
+    extras: { tree: TREE, ...options.extras },
+  });
 const rows = (): HTMLElement[] =>
-  within(screen.getByRole('table', { name: 'Topics beside this one' }))
+  within(screen.getByRole('table', { name: 'Related groups' }))
     .getAllByRole('row')
     .slice(1);
 
-describe('RelatedTab: the topics beside this one', () => {
-  it('lists sibling topics with prompts and mention and opens one on the Related tab', async () => {
+describe('RelatedTab: the other groups of the scope', () => {
+  it('lists the other groups with prompts and mention, most prompts first, and opens one on the Related tab', async () => {
     const writes: string[] = [];
     const { user } = renderTab({ onUrlUpdate: ({ queryString }) => writes.push(queryString) });
-    expect(screen.getByRole('heading', { name: 'Topics beside this one' })).toBeInTheDocument();
-    const [content, links] = rows();
-    // Most prompts first: Content has 6, Links 2
+    expect(screen.getByRole('heading', { name: 'Related groups' })).toBeInTheDocument();
+    expect(screen.getByText('other groups in this scope')).toBeInTheDocument();
+    const [content, sales, links] = rows();
+    // No parent row (SEO) and not the open group itself; Content has 6 prompts, Sales 3, Links 2
+    expect(rows()).toHaveLength(3);
     expect(content).toHaveTextContent('Content');
     expect(content).toHaveTextContent('6');
     expect(content).toHaveTextContent('50%');
-    expect(content).toHaveTextContent('avg of 2');
+    expect(sales).toHaveTextContent('Sales');
     expect(links).toHaveTextContent('Links');
     expect(links).toHaveTextContent('25%');
-    expect(rows()).toHaveLength(2);
 
-    await user.click(screen.getByRole('button', { name: 'Open the topic Content' }));
+    await user.click(screen.getByRole('button', { name: 'Open the group Content' }));
     const params = new URLSearchParams(writes.at(-1));
     expect(params.get('inspect')).toBe('topic:content');
     expect(params.get('itab')).toBe('related');
   });
 
-  it('names the count behind the mention rate and the engines averaged in its tooltip', async () => {
+  it('shows the Related keywords card as not collected yet: the API has no keywords per group', () => {
+    renderTab();
+    const card = screen.getByRole('heading', { name: 'Related keywords' }).closest('section');
+    if (card === null) throw new Error('The Related keywords card is missing');
+    expect(within(card).getByText('Not collected yet')).toBeInTheDocument();
+    expect(within(card).queryByRole('table')).toBeNull();
+  });
+
+  it('names the count behind the mention rate and the platforms averaged in its tooltip', async () => {
     const { user } = renderTab();
     await user.hover(within(rows()[0] ?? document.body).getByText('50%'));
-    // Each engine's own count, since a pooled count beside an equal weight percent would read as another rate: in the
+    // Each platform's own count, since a pooled count beside an equal weight percent would read as another rate: in the
     // tooltip for sighted users and in the cell for everyone else
-    expect(await screen.findAllByText('ChatGPT 4 of 8 and Gemini 4 of 8')).toHaveLength(2);
+    expect((await screen.findAllByText('ChatGPT 4 of 8 and Gemini 4 of 8')).length).toBeGreaterThanOrEqual(2);
     expect(
-      screen.getByText('Equal weight average of ChatGPT and Gemini, each engine counting once'),
+      screen.getByText('Equal weight average of ChatGPT and Gemini, each platform and each prompt counting once'),
     ).toBeInTheDocument();
   });
 
-  it('never writes a rate of 0 for a topic with no answer', () => {
+  it('never writes a rate of 0 for a group with no answer', () => {
     renderTab({
       summary: summaryOf([rowOf(DRAWER_TOPIC_ID, 'Technical SEO', 4), topicRow('content', 'Content', 6, [])]),
     });
@@ -86,51 +101,21 @@ describe('RelatedTab: the topics beside this one', () => {
     expect(content?.textContent).not.toMatch(/(^|\s)0%/);
   });
 
-  it('lists the other top level topics beside a top level topic', () => {
-    renderTab({ topicKey: 'seo', summary: summaryOf([rowOf('seo', 'SEO', 12), rowOf('sales', 'Sales', 3)]) });
-    expect(rows()).toHaveLength(1);
-    expect(rows()[0]).toHaveTextContent('Sales');
-  });
-
-  it('counts the topics it does not list', () => {
-    const tree = [
-      term('root', 'Root'),
-      term('me', 'Me', 'root'),
-      ...Array.from({ length: 13 }, (_, at) =>
-        term(`s${String(at)}`, `Sibling ${String(at).padStart(2, '0')}`, 'root'),
-      ),
-    ];
-    const summary = summaryOf([
-      rowOf('me', 'Me', 1),
-      ...Array.from({ length: 13 }, (_, at) =>
-        rowOf(`s${String(at)}`, `Sibling ${String(at).padStart(2, '0')}`, at + 1),
-      ),
-    ]);
-    renderTab({ topicKey: 'me', summary, descendants: topicDescendants(tree, []) });
-    expect(rows()).toHaveLength(10);
-    expect(screen.getByText('3 more topics are in the Topics table.')).toBeInTheDocument();
-    // The ten with the most prompts: Sibling 12 (13 prompts) down to Sibling 03 (4 prompts)
-    expect(rows()[0]).toHaveTextContent('Sibling 12');
-    expect(rows()[9]).toHaveTextContent('Sibling 03');
+  it('lists five at most', () => {
+    const tree = Array.from({ length: 8 }, (_, at) => term(`g${at}`, `Group ${at}`));
+    const summary = summaryOf(tree.map((entry, at) => rowOf(entry.termId, entry.name, at + 1)));
+    renderTab({ topicKey: 'g0', summary, descendants: topicDescendants(tree, []), extras: { tree } });
+    expect(rows()).toHaveLength(5);
+    // Largest first: Group 7 holds 8 prompts
+    expect(rows()[0]).toHaveTextContent('Group 7');
   });
 
   it('is a skeleton while the summary is on its way', () => {
     renderTab({ summary: undefined, counts: { ...READY_COUNTS, status: 'loading' } });
-    expect(screen.getByRole('heading', { name: 'Topics beside this one' }).closest('section')).toHaveAttribute(
+    expect(screen.getByRole('heading', { name: 'Related groups' }).closest('section')).toHaveAttribute(
       'aria-busy',
       'true',
     );
-  });
-
-  it('says why when the topic tree does not hold the topic, and is no endless skeleton', () => {
-    renderTab({ descendants: new Map() });
-    const section = screen.getByRole('heading', { name: 'Topics beside this one' }).closest('section');
-    expect(section).not.toHaveAttribute('aria-busy');
-    expect(screen.getByText('No topic beside this one')).toBeInTheDocument();
-    expect(
-      screen.getByText('The topic tree does not list this topic, so the topics beside it cannot be told.'),
-    ).toBeInTheDocument();
-    expect(screen.queryByRole('table')).toBeNull();
   });
 
   it('says a failed read of the page with Retry and keeps the drawer', async () => {
@@ -144,40 +129,27 @@ describe('RelatedTab: the topics beside this one', () => {
     expect(screen.queryByRole('table')).toBeNull();
   });
 
-  it('says there is no sibling when the topic has none in the tree', () => {
-    renderTab({
-      topicKey: 'content',
-      descendants: topicDescendants([term('seo', 'SEO'), term('content', 'Content', 'seo')], []),
-      summary: summaryOf([rowOf('content', 'Content', 6)]),
-    });
-    expect(screen.getByText('No topic beside this one')).toBeInTheDocument();
-    expect(screen.getByText('This topic has no sibling in the tree.')).toBeInTheDocument();
+  it('says there is no other group when the scope holds only this one', () => {
+    renderTab({ summary: summaryOf([rowOf(DRAWER_TOPIC_ID, 'Technical SEO', 4)]) });
+    expect(screen.getByText('No other group is in this scope.')).toBeInTheDocument();
+    expect(screen.queryByRole('table')).toBeNull();
   });
 });
 
 describe('topicRelatedTab: the tab entry', () => {
-  const context = (topicKey: string, descendants: TopicTabContext['descendants']): TopicTabContext => ({
+  const context = (topicKey: string): TopicTabContext => ({
     topicKey,
     summary: SUMMARY,
     counts: READY_COUNTS,
     engines: [projectEngine('chatgpt_web')],
-    descendants,
+    descendants: DESCENDANTS,
     onOpenPrompt: () => undefined,
   });
 
-  it('is offered only with siblings', () => {
+  it('is always offered, as the preview offers it', () => {
     expect(topicRelatedTab.id).toBe('related');
-    const available = topicRelatedTab.available;
-    if (available === undefined) throw new Error('The tab has no availability rule');
-    expect(available(context(DRAWER_TOPIC_ID, DESCENDANTS))).toBe(true);
-    // A top level topic has the other top level topics beside it
-    expect(available(context('seo', DESCENDANTS))).toBe(true);
-    expect(available(context('sales', topicDescendants([term('sales', 'Sales')], [])))).toBe(false);
-    expect(available(context('__none', DESCENDANTS))).toBe(false);
-  });
-
-  it('is offered while the tree is not read, so an address that names it keeps its tab', () => {
-    expect(topicRelatedTab.available?.(context(DRAWER_TOPIC_ID, new Map()))).toBe(true);
+    expect(topicRelatedTab.available).toBeUndefined();
+    expect(context(DRAWER_TOPIC_ID).topicKey).toBe(DRAWER_TOPIC_ID);
   });
 
   it('is named Related and placed after the Competitors tab', () => {
@@ -190,10 +162,11 @@ describe('topicRelatedTab: the tab entry', () => {
   });
 
   it('renders the Related section as its panel', () => {
-    renderDrawerPart(<>{topicRelatedTab.render(context(DRAWER_TOPIC_ID, DESCENDANTS))}</>, {
+    renderDrawerPart(<>{topicRelatedTab.render(context(DRAWER_TOPIC_ID))}</>, {
       summary: SUMMARY,
       descendants: DESCENDANTS,
+      extras: { tree: TREE },
     });
-    expect(screen.getByRole('table', { name: 'Topics beside this one' })).toBeInTheDocument();
+    expect(screen.getByRole('table', { name: 'Related groups' })).toBeInTheDocument();
   });
 });

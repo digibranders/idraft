@@ -1,6 +1,6 @@
 'use client';
 
-import { CircleDashed, Clock } from 'lucide-react';
+import { CircleDashed, Clock, Table2 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
 import {
@@ -14,6 +14,7 @@ import {
   type RefObject,
 } from 'react';
 
+import { CardInfoButton, hasFootnote, useCardInfo, type CardInfo } from './card-info';
 import { useCardReadiness, useCurrentCardId } from './card-readiness';
 import { ChartLegend, type LegendItem } from './chart-legend';
 import { ChartMenu, type ChartMenuAction } from './chart-menu';
@@ -23,7 +24,7 @@ import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
-import { categoryChartOption, seriesColor, type CategorySeries } from '@/lib/charts/category-chart';
+import { categoryChartOption, lineSymbolOf, seriesColor, type CategorySeries } from '@/lib/charts/category-chart';
 import { chartCsv } from '@/lib/charts/chart-csv';
 import { readLightChartColors, type LightChartColors } from '@/lib/charts/light-tokens';
 import type { PngFrameText } from '@/lib/charts/png-layout';
@@ -93,6 +94,12 @@ interface ChartFrameCommon {
   notice?: ChartNotice | undefined;
   /** Method and filters that change how to read it. */
   footnote?: ReactNode;
+  /**
+   * What the card shows and how it is counted. In info mode (`CardInfoProvider`) the "i" button shows it, as two
+   * paragraphs, in place of the footnote; the footnote stays in the document, hidden, for the PNG and for screen
+   * readers. Outside info mode it is not drawn.
+   */
+  info?: CardInfo | undefined;
   /** Controls that change what is drawn (a window, layers), between the header and the chart. */
   controls?: ReactNode;
   /** Reserved for the skeleton, the empty and the error state; the canvas height of line and bar. */
@@ -105,6 +112,12 @@ interface ChartFrameCommon {
   loadingHeight?: number | undefined;
   /** What the chart shows, in one or two sentences, for people who cannot see it. */
   summary: string;
+  /**
+   * An empty state keeps the card's normal header (title, controls, info button) and says its reason in the body, at
+   * the height the card reserves, instead of the compact one-line state. For a card whose controls and place on the
+   * page must not change when it has nothing to draw (the AI visibility Overview). Default: the compact state.
+   */
+  keepHeaderWhenEmpty?: boolean | undefined;
 }
 
 type ChartFrameState =
@@ -128,6 +141,16 @@ export interface CategoryFrameProps extends ChartFrameCommon {
   extendOption?: ((option: Record<string, unknown>, tokens: ChartTokens) => Record<string, unknown>) | undefined;
   /** Bars of a category stack into one column; lines ignore it. */
   stacked?: boolean | undefined;
+  /**
+   * The latest value of each series by id ("34%"; "n/a" for none). Given: the legend sits below the chart, names each
+   * value after its series, and goes away in the Table view (15-data-visualization.md section 2, "legend below, with
+   * values"). Left out: the plain legend of the header.
+   */
+  legendValues?: Readonly<Record<string, string>> | undefined;
+  /** A line chart's legend shows each line's marker shape (20-accessibility.md section 12.2), not a dot. */
+  legendMarkers?: boolean | undefined;
+  /** A small table icon on the Table button, for a card whose view toggle is an icon button elsewhere. */
+  tableIcon?: boolean | undefined;
   menu?: CategoryChartMenu | undefined;
 }
 
@@ -177,6 +200,7 @@ export function ChartFrame(props: ChartFrameProps): ReactElement {
 
 function CategoryFrame(props: CategoryProps): ReactElement {
   const { kind, categories, categoryHeader, series, formatValue, cellText, stacked, extendOption, menu } = props;
+  const { legendValues, legendMarkers, tableIcon } = props;
   const { title, meta, notice, height } = props;
   const t = useTranslations('chart');
   const summaryId = useId();
@@ -199,11 +223,16 @@ function CategoryFrame(props: CategoryProps): ReactElement {
     },
     [kind, categories, series, hidden, patterns, formatValue, stacked, extendOption],
   );
-  const legend: LegendItem[] = series.map((entry) => ({
+  const legend: LegendItem[] = series.map((entry, position) => ({
     id: entry.id,
     name: entry.name,
     role: entry.role,
+    // A line drawn with markers shows its marker shape in the legend (15 section 2); dashed roles keep their line
+    ...(legendMarkers === true && kind === 'line' && entry.role.kind !== 'other' && entry.role.kind !== 'reference'
+      ? { swatch: { marker: lineSymbolOf(entry.role, position) } }
+      : {}),
     pressed: !hidden.has(entry.id),
+    valueText: legendValues?.[entry.id],
   }));
   const csv = menu?.csv;
   const actions: ChartMenuAction = {
@@ -230,10 +259,16 @@ function CategoryFrame(props: CategoryProps): ReactElement {
       summaryId={summaryId}
       section={section}
       footnoteRef={footnote}
-      legend={<ChartLegend title={title} items={legend} onToggle={toggleSeries} />}
+      legend={legendValues === undefined ? <ChartLegend title={title} items={legend} onToggle={toggleSeries} /> : null}
+      legendBelow={
+        legendValues === undefined || table ? null : (
+          <ChartLegend title={title} items={legend} onToggle={toggleSeries} />
+        )
+      }
       views={{
         patterns: kind === 'bar' ? { on: patterns, onToggle: () => setPatterns((on) => !on) } : null,
         table: { on: table, onToggle: () => setTable((on) => !on) },
+        tableIcon: tableIcon === true,
         fileName: menu?.fileName ?? '',
         actions,
       }}
@@ -379,6 +414,8 @@ interface ViewsProps {
   /** `null` where the chart has no patterns. */
   patterns: { on: boolean; onToggle: () => void } | null;
   table: { on: boolean; onToggle: () => void };
+  /** The Table button carries a table icon. */
+  tableIcon?: boolean | undefined;
   /** The menu's file name and actions; no menu when `actions` has none. */
   fileName: string;
   actions: ChartMenuAction;
@@ -391,6 +428,8 @@ interface FrameShellProps {
   section: RefObject<HTMLElement | null>;
   footnoteRef: RefObject<HTMLDivElement | null>;
   legend: ReactNode;
+  /** A legend under the chart, before the footnote, when the legend carries values. */
+  legendBelow?: ReactNode;
   views: ViewsProps;
   /** What a ready or refetching chart shows. */
   children: ReactNode;
@@ -404,11 +443,25 @@ function FrameShell({
   section,
   footnoteRef,
   legend,
+  legendBelow,
   views,
   children,
 }: FrameShellProps): ReactElement {
   const t = useTranslations('chart');
-  const { title, variant, meta, notice, footnote, controls, height, loadingHeight, summary } = common;
+  const titleId = useId();
+  const {
+    title,
+    variant,
+    meta,
+    notice,
+    footnote,
+    info,
+    controls,
+    height,
+    loadingHeight,
+    summary,
+    keepHeaderWhenEmpty,
+  } = common;
   const { status } = state;
   // "Updating" appears when a refetch has run for 400 ms (the table's rule)
   const [showUpdating, setShowUpdating] = useState(false);
@@ -420,6 +473,11 @@ function FrameShell({
       setShowUpdating(false);
     };
   }, [status]);
+  // No button for a card with nothing to say: an empty footnote is nothing
+  const infoMode = useCardInfo() && (info !== undefined || hasFootnote(footnote));
+  const infoButton = infoMode ? (
+    <CardInfoButton title={title} footnote={footnote} footnoteRef={footnoteRef} info={info} />
+  ) : null;
   const hasControls = controls !== undefined && controls !== null;
   const hasMeta = meta !== null && meta !== undefined;
   const showViews = status === 'ready' || status === 'refetching';
@@ -427,7 +485,7 @@ function FrameShell({
   const inspector = variant === 'inspector';
   const Title = inspector ? 'h3' : 'h2';
 
-  if (status === 'empty') {
+  if (status === 'empty' && keepHeaderWhenEmpty !== true) {
     const { empty } = state;
     return (
       <section
@@ -435,7 +493,7 @@ function FrameShell({
         aria-label={title}
         data-slot="empty-state"
         className={cn(
-          'flex min-w-0 flex-col justify-center transition-colors',
+          'flex h-full min-w-0 flex-col justify-center transition-colors',
           inspector ? 'py-1' : 'rounded-lg border border-border bg-surface px-4 py-3',
         )}
       >
@@ -446,53 +504,76 @@ function FrameShell({
         <div data-slot="chart-state" className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2">
           <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-0.5">
             <Title className={inspector ? 'type-subsection-title' : 'shrink-0 type-section-title'}>{title}</Title>
+            {infoButton}
             <h3 className="sr-only">{empty.title}</h3>
             {hasMeta ? <p className="max-w-full truncate type-meta text-foreground-secondary">{meta}</p> : null}
             <p className="max-w-full truncate type-meta text-foreground-secondary">{empty.reason || empty.title}</p>
           </div>
           {empty.action ? <div className="shrink-0">{empty.action}</div> : null}
         </div>
-        {footnote ? <div className="sr-only">{footnote}</div> : null}
+        {footnote ? (
+          <div ref={footnoteRef} className="sr-only">
+            {footnote}
+          </div>
+        ) : null}
       </section>
     );
   }
 
+  const header = (
+    <>
+      {/* The title keeps a readable measure: the legend and the views wrap to the next line before it narrows */}
+      <div className="flex min-w-0 shrink grow basis-64 flex-col">
+        <div className="flex items-center gap-2">
+          <Title id={titleId} className={inspector ? 'type-subsection-title' : 'type-section-title'}>
+            {title}
+          </Title>
+          {showUpdating ? (
+            <span className="inline-flex items-center gap-1 type-meta">
+              <Spinner size="sm" />
+              {t('updating')}
+            </span>
+          ) : null}
+        </div>
+        {hasMeta || notice !== undefined ? (
+          <div className="flex flex-wrap items-center gap-x-2">
+            {hasMeta ? <p className="type-meta">{meta}</p> : null}
+            {notice === undefined ? null : (
+              <p className="inline-flex items-center gap-1 type-meta text-warning-text">
+                <Icon icon={notice.kind === 'stale' ? Clock : CircleDashed} size="sm" />
+                {notice.text}
+              </p>
+            )}
+          </div>
+        ) : null}
+      </div>
+      {legend}
+      {hasControls ? null : viewsGroup}
+    </>
+  );
+
   return (
     <section
       ref={section}
+      // The card is a region named by its title, as the empty state already is
+      aria-labelledby={titleId}
       aria-busy={status === 'loading' || status === 'refetching' ? true : undefined}
       className={cn(
         'flex h-full flex-col gap-3',
+        // The hidden footnote is positioned, so it stays inside its own card
+        infoMode && 'relative',
         inspector ? 'py-1' : 'rounded-lg border border-border bg-surface p-4',
       )}
     >
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        {/* The title keeps a readable measure: the legend and the views wrap to the next line before it narrows */}
-        <div className="flex min-w-0 shrink grow basis-64 flex-col">
-          <div className="flex items-center gap-2">
-            <Title className={inspector ? 'type-subsection-title' : 'type-section-title'}>{title}</Title>
-            {showUpdating ? (
-              <span className="inline-flex items-center gap-1 type-meta">
-                <Spinner size="sm" />
-                {t('updating')}
-              </span>
-            ) : null}
-          </div>
-          {hasMeta || notice !== undefined ? (
-            <div className="flex flex-wrap items-center gap-x-2">
-              {hasMeta ? <p className="type-meta">{meta}</p> : null}
-              {notice === undefined ? null : (
-                <p className="inline-flex items-center gap-1 type-meta text-warning-text">
-                  <Icon icon={notice.kind === 'stale' ? Clock : CircleDashed} size="sm" />
-                  {notice.text}
-                </p>
-              )}
-            </div>
-          ) : null}
+      {infoButton ? (
+        // The "i" button sits at the right edge of the header, as on the Overview cards
+        <div className="flex items-start gap-2">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-2">{header}</div>
+          {infoButton}
         </div>
-        {legend}
-        {hasControls ? null : viewsGroup}
-      </div>
+      ) : (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">{header}</div>
+      )}
       {hasControls ? (
         <div className="flex flex-wrap items-center gap-x-2 gap-y-2">
           {controls}
@@ -506,11 +587,13 @@ function FrameShell({
       <FrameBody state={state} height={height} loadingHeight={loadingHeight}>
         {children}
       </FrameBody>
-      {footnote === undefined || footnote === null ? null : (
-        <div ref={footnoteRef} className="mt-auto type-meta">
+      {showViews ? legendBelow : null}
+      {hasFootnote(footnote) ? (
+        // Info mode keeps the text in the document, for the PNG and for screen readers, and prints none of it
+        <div ref={footnoteRef} className={infoMode ? 'sr-only' : 'mt-auto type-meta'}>
           {footnote}
         </div>
-      )}
+      ) : null}
     </section>
   );
 }
@@ -569,6 +652,7 @@ function ChartViews({
   title,
   patterns,
   table,
+  tableIcon,
   fileName,
   actions,
   alignEnd,
@@ -586,7 +670,13 @@ function ChartViews({
           {t('patterns')}
         </Button>
       ) : null}
-      <Button size="sm" variant="ghost" aria-pressed={table.on} onClick={table.onToggle}>
+      <Button
+        size="sm"
+        variant="ghost"
+        icon={tableIcon === true ? Table2 : undefined}
+        aria-pressed={table.on}
+        onClick={table.onToggle}
+      >
         {t('table')}
       </Button>
       <ChartMenu title={title} fileName={fileName} actions={actions} />

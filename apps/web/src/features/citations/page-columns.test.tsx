@@ -148,7 +148,7 @@ describe('usePageColumns', () => {
       .filter((column) => column.group !== undefined)
       .map((column) => column.id);
     expect(grouped).toEqual(['engine-chatgpt_web', 'engine-gemini_web', 'engine-google_ai_mode']);
-    expect(columnOf('engine-chatgpt_web').group).toEqual({ id: 'engines', label: 'Share by engine' });
+    expect(columnOf('engine-chatgpt_web').group).toEqual({ id: 'engines', label: 'Share by platform' });
   });
 
   it('with one engine the engine group collapses', () => {
@@ -277,7 +277,7 @@ describe('the figure cells', () => {
     expect(none.container).toHaveTextContent('n/a');
     expect(none.container).not.toHaveTextContent('0.0%');
     expect(columnOf('engine-google_ai_mode').cellTip?.(pageOf())?.content).toBe(
-      'AI Mode has no citation in this window.',
+      'AI Mode has no citation in this period.',
     );
   });
 
@@ -325,10 +325,10 @@ describe('Cited with', () => {
   it('says it is the domain and not the page in its header and its tooltip', () => {
     expect(columnOf('citedWith').header).toBe('Cited with (domain)');
     expect(columnOf('citedWith').headerTooltip).toBe(
-      'The entity named most often beside the domain of this page. It is a figure of the domain, not of the page.',
+      'The brand mentioned most often beside the domain of this page. It is a figure of the domain, not of the page.',
     );
     expect(columnOf('citedWith').cellTip?.(pageOf())?.content).toBe(
-      'HubSpot, named in 12 answers that cite this domain, not only this page',
+      'HubSpot, mentioned in 12 answers that cite this domain, not only this page',
     );
   });
 
@@ -338,21 +338,21 @@ describe('Cited with', () => {
 
   it('says None named when the domain names no entity', () => {
     const { container } = renderCell('citedWith', pageOf(), { citedWith: { rows: [domainOf()], failed: false } });
-    expect(container).toHaveTextContent('None named');
+    expect(container).toHaveTextContent('None mentioned');
   });
 
   it('says in words that the domain is outside the 200 most cited ones', () => {
     const row = pageOf({ registrable_domain: 'elsewhere.org', host: 'elsewhere.org' });
     const { container } = renderCell('citedWith', row);
     expect(container).toHaveTextContent('Outside the 200 most cited domains');
-    expect(container).not.toHaveTextContent('None named');
+    expect(container).not.toHaveTextContent('None mentioned');
     expect(columnOf('citedWith').cellTip?.(row)?.content).toBe('Outside the 200 most cited domains');
   });
 
   it('is n/a, with its reason, while the domains are read', () => {
     const { container } = renderCell('citedWith', pageOf(), { citedWith: { rows: undefined, failed: false } });
     expect(container).toHaveTextContent('n/a');
-    expect(container).not.toHaveTextContent('None named');
+    expect(container).not.toHaveTextContent('None mentioned');
     expect(container).not.toHaveTextContent('Outside');
     expect(columnOf('citedWith', { citedWith: { rows: undefined, failed: false } }).cellTip?.(pageOf())?.content).toBe(
       'Cited with is still loading.',
@@ -372,7 +372,7 @@ describe('Cited with', () => {
     const { container } = renderCell('citedWith', pageOf(), { entities: undefined });
     expect(container).toHaveTextContent('n/a');
     expect(columnOf('citedWith', { entities: undefined }).cellTip?.(pageOf())?.content).toBe(
-      'The name of this entity is not loaded yet.',
+      'The name of this brand is not loaded yet.',
     );
   });
 });

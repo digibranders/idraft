@@ -222,7 +222,7 @@ describe('the Prompts tab of the domain inspector', () => {
     server.use(http.get(CITATIONS, () => HttpResponse.json({ title: 'down' }, { status: 500 })));
     renderWithProviders(<Tab />);
     expect(
-      await screen.findByText('The engines of the prompts could not be loaded, so they read n/a.'),
+      await screen.findByText('The platforms of the prompts could not be loaded, so they read n/a.'),
     ).toBeInTheDocument();
     expect(await rowOf(textOf(1))).toBeInTheDocument();
     expect(within(await rowOf(textOf(1))).getByText('n/a')).toBeInTheDocument();
@@ -252,7 +252,7 @@ describe('the Prompts tab of the domain inspector', () => {
   it('says so, with the reason, when no prompt cites the domain', async () => {
     renderWithProviders(<Tab prompts={[]} />);
     expect(await screen.findByText('No prompt cites this domain')).toBeInTheDocument();
-    expect(screen.getByText('No answer read in this window cites it.')).toBeInTheDocument();
+    expect(screen.getByText('No answer read in this period cites it.')).toBeInTheDocument();
     expect(screen.queryByRole('table')).toBeNull();
   });
 

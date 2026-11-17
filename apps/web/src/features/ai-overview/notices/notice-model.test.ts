@@ -26,6 +26,7 @@ const HEALTHY: NoticeInputs = {
   enginesOn: 2,
   activePrompts: 24,
   country: null,
+  topic: null,
   promptsInScope: 24,
   schedule: { nextRunAt: '2026-11-13T02:00:00Z', paused: false },
   freshness: { lastObservedAt: ago(1), lastValidAt: ago(1) },
@@ -74,6 +75,17 @@ describe('noticeOf', () => {
     expect(noticeWith({ country: 'DE', promptsInScope: 0 })).toEqual({ kind: 'noCountryPrompts', country: 'DE' });
     expect(noticeWith({ country: null, promptsInScope: 0 })).toBeNull();
     expect(noticeWith({ country: 'DE', promptsInScope: 3 })).toBeNull();
+  });
+
+  it('a group with no prompts is its own state, after the location and only while a group is chosen', () => {
+    const topic = '0b6f6d2a-0000-4000-8000-000000000001';
+    expect(noticeWith({ topic, promptsInScope: 0 })).toEqual({ kind: 'noGroupPrompts', topic });
+    expect(noticeWith({ topic, promptsInScope: null })).toBeNull();
+    expect(noticeWith({ topic, promptsInScope: 2 })).toBeNull();
+    expect(noticeWith({ topic, country: 'DE', promptsInScope: 0 })).toEqual({
+      kind: 'noCountryPrompts',
+      country: 'DE',
+    });
   });
 
   it('first collection pending names the next run from the schedule', () => {

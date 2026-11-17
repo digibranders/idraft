@@ -221,7 +221,7 @@ describe('the other rates', () => {
       figureOf(readNumber(aggregates, { id: 'n', metric, engine: 'chatgpt_web' }));
     expect(read('ai.citation_rate')).toMatchObject({ value: 0.6, k: 60, n: 100, unit: 'answers' });
     expect(read('ai.mention_and_citation_rate')).toMatchObject({ value: 0.3, k: 30, n: 100 });
-    expect(read('ai.share_of_voice')).toMatchObject({ value: 0.27, k: null, n: 100, unit: 'namingAnswers' });
+    expect(read('ai.share_of_voice')).toMatchObject({ value: 0.27, k: 27, n: 100, unit: 'brandMentions' });
   });
 
   it('has a share of voice change that is never coloured: no test', () => {

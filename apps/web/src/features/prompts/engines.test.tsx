@@ -124,20 +124,20 @@ const costSummary = (): HTMLElement | null => {
   return banner instanceof HTMLElement ? banner : null;
 };
 
-describe('Project settings > Engines', () => {
+describe('Project settings > Platforms', () => {
   it('shows each engine with its switch, its monthly cost and its countries, and says it starts spend', async () => {
     const { container } = renderWithProviders(enginesAs('editor', fynix, 'DE'));
     expect(await screen.findByRole('switch', { name: 'ChatGPT' })).toBeChecked();
     expect(screen.getByRole('switch', { name: 'Gemini' })).toBeChecked();
     expect(screen.getByRole('switch', { name: 'Google AI Mode' })).not.toBeChecked();
     expect(screen.getAllByText('About $0.25 a month for 24 active prompts, twice a week')).toHaveLength(3);
-    expect(screen.getByText(/Turning an engine on starts scheduled spend/)).toBeInTheDocument();
-    const chatgptCountries = await screen.findByRole('toolbar', { name: 'Countries of ChatGPT' });
+    expect(screen.getByText(/Turning a platform on starts scheduled spend/)).toBeInTheDocument();
+    const chatgptCountries = await screen.findByRole('toolbar', { name: 'Locations of ChatGPT' });
     expect(await within(chatgptCountries).findByText('Germany')).toBeInTheDocument();
     expect(within(chatgptCountries).getByText('India')).toBeInTheDocument();
     // Each field of countries is named for its engine
     for (const engine of ['ChatGPT', 'Gemini', 'Google AI Mode']) {
-      expect(screen.getByText(`Countries of ${engine}`, { selector: 'label' })).toBeInTheDocument();
+      expect(screen.getByText(`Locations of ${engine}`, { selector: 'label' })).toBeInTheDocument();
     }
     expect(await axe(container)).toHaveNoViolations();
   });
@@ -243,7 +243,7 @@ describe('Project settings > Engines', () => {
   it('saves the countries of an engine that is on as they change', async () => {
     const puts = recordPuts();
     const { user } = renderWithProviders(enginesAs('editor', fynix, 'DE'));
-    const chatgpt = await screen.findByRole('toolbar', { name: 'Countries of ChatGPT' });
+    const chatgpt = await screen.findByRole('toolbar', { name: 'Locations of ChatGPT' });
     await user.click(await within(chatgpt).findByRole('button', { name: 'Remove Germany' }));
     await waitFor(() => expect(puts).toEqual([{ location_ids: [2356], is_enabled: true }]));
   });
@@ -254,7 +254,7 @@ describe('Project settings > Engines', () => {
     await user.click(await screen.findByRole('switch', { name: 'Gemini' }));
     await user.click(await screen.findByRole('button', { name: 'Turn on Gemini' }));
     await waitFor(() => expect(screen.getByRole('switch', { name: 'Gemini' })).toBeChecked());
-    const countries = await screen.findByRole('toolbar', { name: 'Countries of Gemini' });
+    const countries = await screen.findByRole('toolbar', { name: 'Locations of Gemini' });
     await user.click(within(countries).getByRole('button', { name: 'Remove United States' }));
     // Nothing is sent for an empty field, which says what is missing
     expect(await screen.findByText('Choose at least one country.')).toBeInTheDocument();
@@ -278,7 +278,7 @@ describe('Project settings > Engines', () => {
       ),
     );
     const { user } = renderWithProviders(enginesAs('editor', fynix, 'DE'));
-    const chatgpt = await screen.findByRole('toolbar', { name: 'Countries of ChatGPT' });
+    const chatgpt = await screen.findByRole('toolbar', { name: 'Locations of ChatGPT' });
     await user.click(await within(chatgpt).findByRole('button', { name: 'Remove Germany' }));
     expect(await screen.findByText('One of the countries cannot be used. Choose another.')).toBeInTheDocument();
     await user.click(screen.getByRole('switch', { name: 'ChatGPT' }));
@@ -313,7 +313,7 @@ describe('Project settings > Engines', () => {
     const { user } = renderWithProviders(enginesAs('editor', fynix, 'DE'));
     await user.click(await screen.findByRole('switch', { name: 'ChatGPT' }));
     expect(
-      await screen.findByText('You do not have permission to change the engines of this project.'),
+      await screen.findByText('You do not have permission to change the platforms of this project.'),
     ).toBeInTheDocument();
     expect(screen.getByRole('switch', { name: 'ChatGPT' })).toBeChecked();
   });
@@ -322,7 +322,7 @@ describe('Project settings > Engines', () => {
     renderWithProviders(enginesAs('viewer', fynix, 'DE'));
     // The switch is a span with `aria-disabled`, not a form control
     expect(await screen.findByRole('switch', { name: 'ChatGPT' })).toHaveAttribute('aria-disabled', 'true');
-    expect(screen.getByText('Owners, admins and editors can turn engines on and off.')).toBeInTheDocument();
+    expect(screen.getByText('Owners, admins and editors can turn platforms on and off.')).toBeInTheDocument();
   });
 
   // WB-SET-03: the schedule the runs follow is said on the page
@@ -346,7 +346,7 @@ const rowOf = (switchName: string): HTMLElement => {
  * not apply: a refetch keeps the engines on screen and the summary is derived from them). Partial is the
  * missing price, tested below.
  */
-describe('Project settings > Engines: class, Perplexity row and cost change summary', () => {
+describe('Project settings > Platforms: class, Perplexity row and cost change summary', () => {
   it('names the class of each engine beside its name, with a hidden prefix', async () => {
     renderWithProviders(enginesAs('editor', fynix, 'DE'));
     await screen.findByRole('switch', { name: 'ChatGPT' });
@@ -419,7 +419,7 @@ describe('Project settings > Engines: class, Perplexity row and cost change summ
       return found;
     });
     expect(summary).toHaveTextContent(
-      'Estimated cost change: about $1.56 a month more. Estimated total for 1 engine that is on: $1.56 a month. Estimate from the price book.',
+      'Estimated cost change: about $1.56 a month more. Estimated total for 1 platform that is on: $1.56 a month. Estimate from the price book.',
     );
     // Told to assistive technology when it appears
     expect(summary).toHaveAttribute('role', 'status');
@@ -435,11 +435,11 @@ describe('Project settings > Engines: class, Perplexity row and cost change summ
     await user.click(await screen.findByRole('switch', { name: 'ChatGPT' }));
     await waitFor(() => expect(costSummary()).not.toBeNull());
     expect(costSummary()).toHaveTextContent(
-      'Estimated cost change: about $1.56 a month less. Estimated total for 1 engine that is on: $1.56 a month.',
+      'Estimated cost change: about $1.56 a month less. Estimated total for 1 platform that is on: $1.56 a month.',
     );
     await user.click(screen.getByRole('switch', { name: 'Gemini' }));
     await waitFor(() =>
-      expect(costSummary()).toHaveTextContent('about $1.56 a month less. Estimated total for 0 engines'),
+      expect(costSummary()).toHaveTextContent('about $1.56 a month less. Estimated total for 0 platforms'),
     );
     expect(costSummary()).toHaveTextContent('$0.00 a month');
   });
@@ -454,7 +454,7 @@ describe('Project settings > Engines: class, Perplexity row and cost change summ
     await user.click(await screen.findByRole('switch', { name: 'Gemini' }));
     await user.click(await screen.findByRole('button', { name: 'Turn on Gemini' }));
     await waitFor(() => expect(costSummary()).not.toBeNull());
-    expect(costSummary()).toHaveTextContent('Estimated total for 2 engines that are on: $3.12 a month.');
+    expect(costSummary()).toHaveTextContent('Estimated total for 2 platforms that are on: $3.12 a month.');
   });
 
   it('does not estimate the change of an engine with no price, and shows no number for it', async () => {
@@ -486,7 +486,7 @@ describe('Project settings > Engines: class, Perplexity row and cost change summ
     const summary = costSummary();
     expect(summary).toHaveTextContent('Estimated cost change: about $1.56 a month more.');
     expect(summary).toHaveTextContent(
-      'The total is not estimated because an engine that is on has no price on record.',
+      'The total is not estimated because a platform that is on has no price on record.',
     );
     expect(summary).not.toHaveTextContent('Estimated total for');
   });
@@ -494,7 +494,7 @@ describe('Project settings > Engines: class, Perplexity row and cost change summ
   it('shows no summary for a change of countries, and none before any save', async () => {
     const puts = recordPuts();
     const { user } = renderWithProviders(enginesAs('editor', fynix, 'DE'));
-    const chatgpt = await screen.findByRole('toolbar', { name: 'Countries of ChatGPT' });
+    const chatgpt = await screen.findByRole('toolbar', { name: 'Locations of ChatGPT' });
     expect(costSummary()).toBeNull();
     await user.click(await within(chatgpt).findByRole('button', { name: 'Remove Germany' }));
     await waitFor(() => expect(puts).toEqual([{ location_ids: [2356], is_enabled: true }]));
@@ -607,7 +607,7 @@ function held(): { hold: Promise<void>; release: () => void } {
  * says. A save that fails keeps the old value and says so on the row. Phone width is not asserted here (class
  * checks prove nothing about overflow): the reviewer opens the page at 390 px.
  */
-describe('Project settings > Engines: device of Google AI Mode', () => {
+describe('Project settings > Platforms: device of Google AI Mode', () => {
   it('shows the control on Google AI Mode only, with the device it holds and what the choice changes', async () => {
     stubAiMode(true, 'mobile');
     renderWithProviders(enginesAs('editor', fynix, 'DE'));
@@ -667,7 +667,7 @@ describe('Project settings > Engines: device of Google AI Mode', () => {
     await user.click(within(group).getByRole('radio', { name: 'Mobile' }));
     expectDevice('Mobile');
     expect(document.getElementById(LIVE_REGION_ID.polite)).toHaveTextContent(
-      'Device of Google AI Mode set to Mobile. It applies once the engine is turned on.',
+      'Device of Google AI Mode set to Mobile. It applies once the platform is turned on.',
     );
     expect(puts).toEqual([]);
     await user.click(screen.getByRole('switch', { name: 'Google AI Mode' }));
@@ -691,7 +691,7 @@ describe('Project settings > Engines: device of Google AI Mode', () => {
     stubAiMode(true, 'mobile', [2276, 2356]);
     const puts = recordPuts();
     const { user } = renderWithProviders(enginesAs('editor', fynix, 'DE'));
-    const countries = await screen.findByRole('toolbar', { name: 'Countries of Google AI Mode' });
+    const countries = await screen.findByRole('toolbar', { name: 'Locations of Google AI Mode' });
     await user.click(await within(countries).findByRole('button', { name: 'Remove Germany' }));
     await waitFor(() => expect(puts).toEqual([{ location_ids: [2356], is_enabled: true }]));
     await waitFor(() =>
@@ -779,7 +779,7 @@ describe('Project settings > Engines: device of Google AI Mode', () => {
     stubAiMode(true, 'desktop', [2276, 2356], hold);
     const puts = recordPuts();
     const { user } = renderWithProviders(enginesAs('editor', fynix, 'DE'));
-    const countries = await screen.findByRole('toolbar', { name: 'Countries of Google AI Mode' });
+    const countries = await screen.findByRole('toolbar', { name: 'Locations of Google AI Mode' });
     const group = screen.getByRole('group', { name: DEVICE_LABEL });
     await user.click(await within(countries).findByRole('button', { name: 'Remove Germany' }));
     await waitFor(() => expect(puts).toHaveLength(1));

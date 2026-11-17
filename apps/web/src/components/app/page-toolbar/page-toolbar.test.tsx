@@ -36,6 +36,11 @@ describe('PageToolbar', () => {
     expect(screen.getByRole('button', { name: 'Primary action' })).toBeInTheDocument();
   });
 
+  it('keeps the filters slot inside the row, so a wrapping filter row wraps instead of overflowing', () => {
+    renderWithProviders(<PageToolbar title="Overview" filters={<span data-testid="filters-slot">Filters</span>} />);
+    expect(screen.getByTestId('filters-slot').parentElement).toHaveClass('max-w-full', 'min-w-0');
+  });
+
   it('passes axe accessibility checks', async () => {
     const { container } = renderWithProviders(
       <PageToolbar

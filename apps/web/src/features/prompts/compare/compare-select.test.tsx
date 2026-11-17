@@ -5,6 +5,8 @@ import { CompareSelect } from './compare-select';
 import { axe } from '@/test/axe';
 import { renderWithProviders } from '@/test/render';
 
+/** The address that turns the comparison on: the page opens without one. */
+const ON = '?cmp=previous';
 const WINDOW = { from: '2026-09-18', to: '2026-10-15', timezone: 'Europe/Berlin' };
 
 interface Write {
@@ -25,38 +27,59 @@ function render(
 }
 
 describe('CompareSelect', () => {
-  it('shows vs previous period by default, named Compare with', () => {
+  it('shows No comparison by default, named Compare with', () => {
     render();
-    expect(screen.getByRole('combobox', { name: 'Compare with' })).toHaveTextContent('vs previous period');
-  });
-
-  it('shows No comparison for cmp=off', () => {
-    render('?cmp=off');
     expect(screen.getByRole('combobox', { name: 'Compare with' })).toHaveTextContent('No comparison');
   });
 
-  it('writes cmp=off with history replace for No comparison and removes it again', async () => {
+  it('shows vs previous period for cmp=previous', () => {
+    render(ON);
+    expect(screen.getByRole('combobox', { name: 'Compare with' })).toHaveTextContent('vs previous period');
+  });
+
+  it('writes cmp=previous with history replace for the previous period and removes it again', async () => {
     const { user, writes } = render();
     await user.click(screen.getByRole('combobox', { name: 'Compare with' }));
-    await user.click(await screen.findByRole('option', { name: 'No comparison' }));
-    await waitFor(() => expect(writes.at(-1)?.queryString).toContain('cmp=off'));
+    await user.click(await screen.findByRole('option', { name: 'vs previous period' }));
+    await waitFor(() => expect(writes.at(-1)?.queryString).toContain('cmp=previous'));
     expect(writes.at(-1)?.history).toBe('replace');
     await user.click(screen.getByRole('combobox', { name: 'Compare with' }));
-    await user.click(await screen.findByRole('option', { name: 'vs previous period' }));
+    await user.click(await screen.findByRole('option', { name: 'No comparison' }));
     await waitFor(() => expect(writes.at(-1)?.queryString).not.toContain('cmp'));
   });
 
-  it('offers the two choices only', async () => {
+  it('offers the previous period, the same period last year and no comparison', async () => {
     const { user } = render();
     await user.click(screen.getByRole('combobox', { name: 'Compare with' }));
     expect((await screen.findAllByRole('option')).map((option) => option.textContent)).toEqual([
       'vs previous period',
+      'vs same period last year',
       'No comparison',
     ]);
   });
 
+  it('shows vs same period last year for cmp=year, and writes it', async () => {
+    const { user, writes } = render('?cmp=year');
+    const trigger = screen.getByRole('combobox', { name: 'Compare with' });
+    expect(trigger).toHaveTextContent('vs same period last year');
+    await user.click(trigger);
+    await user.click(await screen.findByRole('option', { name: 'vs previous period' }));
+    await waitFor(() => expect(writes.at(-1)?.queryString).toContain('cmp=previous'));
+    await user.click(screen.getByRole('combobox', { name: 'Compare with' }));
+    await user.click(await screen.findByRole('option', { name: 'vs same period last year' }));
+    await waitFor(() => expect(writes.at(-1)?.queryString).toContain('cmp=year'));
+    expect(writes.at(-1)?.history).toBe('replace');
+  });
+
+  it('names the same dates a year earlier in the tooltip of cmp=year', () => {
+    render('?cmp=year', { from: '2025-09-18', to: '2025-10-15', timezone: 'Europe/Berlin' });
+    expect(screen.getByRole('combobox', { name: 'Compare with' })).toHaveAccessibleDescription(
+      'Same period last year: Sep 18 to Oct 15, 2025',
+    );
+  });
+
   it('names the previous window in a tooltip when the response has one', async () => {
-    const { user } = render('', WINDOW);
+    const { user } = render(ON, WINDOW);
     const trigger = screen.getByRole('combobox', { name: 'Compare with' });
     expect(trigger).toHaveAccessibleDescription('Previous period: Sep 18 to Oct 15, 2026');
     await user.hover(trigger);
@@ -65,12 +88,12 @@ describe('CompareSelect', () => {
   });
 
   it('has no tooltip while the response has no window', () => {
-    render();
+    render(ON);
     expect(screen.getByRole('combobox', { name: 'Compare with' })).not.toHaveAccessibleDescription();
   });
 
   it('says in the tooltip that no change is read while comparison is off', () => {
-    render('?cmp=off', WINDOW);
+    render('', WINDOW);
     expect(screen.getByRole('combobox', { name: 'Compare with' })).toHaveAccessibleDescription(
       'No change is read while comparison is off',
     );
@@ -94,9 +117,10 @@ describe('CompareSelect', () => {
     await waitFor(() =>
       expect(document.querySelector('[data-slot="select-popup"]')?.contains(document.activeElement)).toBe(true),
     );
-    await user.keyboard('{ArrowDown}');
+    // The choice above No comparison is the same period last year
+    await user.keyboard('{ArrowUp}');
     await user.keyboard('{Enter}');
-    await waitFor(() => expect(writes.at(-1)?.queryString).toContain('cmp=off'));
+    await waitFor(() => expect(writes.at(-1)?.queryString).toContain('cmp=year'));
   });
 
   it('is axe clean', async () => {

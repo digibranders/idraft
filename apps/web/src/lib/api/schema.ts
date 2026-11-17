@@ -1026,6 +1026,48 @@ export interface paths {
         patch: operations["update_member_api_v1_workspaces__workspace_id__members__user_id__patch"];
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/page-tiers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The workspace's page tiers, T1 first */
+        get: operations["list_tiers_api_v1_workspaces__workspace_id__page_tiers_get"];
+        put?: never;
+        /**
+         * Add the next tier
+         * @description Appends the next position (T5, then up to T8); `422 tier_limit` at 8.
+         */
+        post: operations["add_tier_api_v1_workspaces__workspace_id__page_tiers_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/page-tiers/{tier_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a tier, moving its pages and rules
+         * @description `move_to` is another tier's id or `none` (Untiered). A tier that pages or rules use and no `move_to` is `422 tier_in_use` with `page_count` and `rule_count`. Positions close up: deleting T2 makes T3 the new T2.
+         */
+        delete: operations["delete_tier_api_v1_workspaces__workspace_id__page_tiers__tier_id__delete"];
+        options?: never;
+        head?: never;
+        /** Rename a tier or change its description */
+        patch: operations["rename_tier_api_v1_workspaces__workspace_id__page_tiers__tier_id__patch"];
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/price-book": {
         parameters: {
             query?: never;
@@ -1706,6 +1748,114 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/edges": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Link edges of a crawl
+         * @description Template links first, then auto-generated, then editorial, so template fixes come first; then by target path.
+         */
+        get: operations["list_edges_api_v1_workspaces__workspace_id__projects__project_id__internal_links_edges_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/neighbors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One journey step, links out or links in
+         * @description The pages on one side of `url_id` in the scope in view, 8 at a time (`offset` for more), sorted by tier then equity share, with the link between, `has_children` and `reciprocal`; `meta.other_scopes` counts the pages of the other scopes for the group cards. A redirect's one child, links out, is its target. The canvas decides new pages, back links and pages seen elsewhere itself.
+         */
+        get: operations["neighbors_api_v1_workspaces__workspace_id__projects__project_id__internal_links_neighbors_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Pages of a crawl, with link counts in the scope in view */
+        get: operations["list_pages_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One page: the inspector */
+        get: operations["get_page_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/tier-flow": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Links from tier to tier, and each tier's share */
+        get: operations["tier_flow_api_v1_workspaces__workspace_id__projects__project_id__internal_links_tier_flow_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/worklists": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Counts of the saved worklists */
+        get: operations["worklists_api_v1_workspaces__workspace_id__projects__project_id__internal_links_worklists_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-groups": {
         parameters: {
             query?: never;
@@ -2028,6 +2178,83 @@ export interface paths {
         get: operations["overview_competitors_api_v1_workspaces__workspace_id__projects__project_id__overview_competitors_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/pages/tags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Add and remove tags on pages of the latest crawl
+         * @description Terms of the project's or the workspace's `tag` vocabularies; any other term is `422 validation_failed` with `not_a_tag`. Adding a tag a page has, or removing one it has not, changes nothing.
+         */
+        put: operations["change_page_tags_api_v1_workspaces__workspace_id__projects__project_id__pages_tags_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/pages/tiers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set or clear a tier on pages of the latest crawl
+         * @description `url_ids` (up to 5,000) or `filter` (the Pages filters; `422 too_many_subjects` over 20,000). `tier_id: null` sets Untiered by hand, which beats every rule; `POST .../pages/tiers/reset` gives the pages back to their rules. An id the crawl does not hold is left out of `matched`. `404 no_crawl` before the first finished crawl.
+         */
+        put: operations["set_page_tiers_api_v1_workspaces__workspace_id__projects__project_id__pages_tiers_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/pages/tiers/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set tiers from a CSV of url and tier
+         * @description `tier` is a code (T1), a name, `T1 Money pages`, or `none`. A URL the latest crawl did not find is stored and listed in `pending`; it applies when a crawl finds it. While any row has an error (`errors`, by line) nothing is changed and `applied` is false.
+         */
+        post: operations["import_page_tiers_api_v1_workspaces__workspace_id__projects__project_id__pages_tiers_import_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/pages/tiers/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Give pages back to their rule tier */
+        post: operations["reset_page_tiers_api_v1_workspaces__workspace_id__projects__project_id__pages_tiers_reset_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2471,6 +2698,65 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tier-rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The project's tier rules, first rule first */
+        get: operations["list_tier_rules_api_v1_workspaces__workspace_id__projects__project_id__tier_rules_get"];
+        put?: never;
+        /**
+         * Add a tier rule
+         * @description `exact` (the path, a trailing slash aside), `prefix` (the path starts with it) or `pattern` (`*` is any run of characters). Left without `position` it goes last; with one, the rules from there move down. The rules apply to every page at once.
+         */
+        post: operations["create_tier_rule_api_v1_workspaces__workspace_id__projects__project_id__tier_rules_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tier-rules/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * How many pages a rule would match and decide
+         * @description Counts on the latest crawl, as if the rule stood at `position` (last when left out) among the others; `rule_id` is the rule being edited, left out of the others.
+         */
+        post: operations["preview_tier_rule_api_v1_workspaces__workspace_id__projects__project_id__tier_rules_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tier-rules/{rule_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a tier rule */
+        delete: operations["delete_tier_rule_api_v1_workspaces__workspace_id__projects__project_id__tier_rules__rule_id__delete"];
+        options?: never;
+        head?: never;
+        /** Change or move a tier rule */
+        patch: operations["update_tier_rule_api_v1_workspaces__workspace_id__projects__project_id__tier_rules__rule_id__patch"];
         trace?: never;
     };
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords": {
@@ -3843,6 +4129,13 @@ export interface components {
             /** Data */
             data: components["schemas"]["AnalyticsProperty"][];
         };
+        /** AnchorCount */
+        AnchorCount: {
+            /** Anchor */
+            anchor: string;
+            /** Links */
+            links: number;
+        };
         /**
          * Annotation
          * @description A boundary drawn on every time chart (overview-and-charts N9).
@@ -3994,7 +4287,7 @@ export interface components {
              * Workload
              * @enum {string}
              */
-            workload: "seo_rank" | "ai_prompt" | "keyword_research" | "ai_benchmark" | "extraction_llm" | "first_party" | "all";
+            workload: "seo_rank" | "ai_prompt" | "keyword_research" | "ai_benchmark" | "extraction_llm" | "first_party" | "site_crawl" | "all";
         };
         /** BudgetPage */
         BudgetPage: {
@@ -4103,6 +4396,20 @@ export interface components {
             index: number;
             /** Message */
             message: string;
+        };
+        /** BulkResponse */
+        BulkResponse: {
+            data: components["schemas"]["BulkResult"];
+        };
+        /** BulkResult */
+        BulkResult: {
+            /** Changed */
+            changed: number;
+            /**
+             * Matched
+             * @description Pages of the latest crawl the selection named.
+             */
+            matched: number;
         };
         /** BulkSkipped */
         BulkSkipped: {
@@ -4649,7 +4956,7 @@ export interface components {
          * CostWorkload
          * @enum {string}
          */
-        CostWorkload: "seo_rank" | "ai_prompt" | "ai_mode_keyword" | "keyword_metrics" | "discovery" | "ai_benchmark" | "gsc_sync" | "bing_sync" | "ga4_sync" | "cloudflare_sync" | "ai_overview" | "extraction_llm" | "keyword_research" | "first_party";
+        CostWorkload: "seo_rank" | "ai_prompt" | "ai_mode_keyword" | "keyword_metrics" | "discovery" | "ai_benchmark" | "gsc_sync" | "bing_sync" | "ga4_sync" | "cloudflare_sync" | "ai_overview" | "extraction_llm" | "keyword_research" | "first_party" | "site_crawl";
         /** CountrySummary */
         CountrySummary: {
             /** Country Iso */
@@ -4781,6 +5088,65 @@ export interface components {
              * @constant
              */
             status: "ok";
+        };
+        /** EdgePage */
+        EdgePage: {
+            /** Is Indexable */
+            is_indexable: boolean | null;
+            /** Path */
+            path: string;
+            /** Redirect Url */
+            redirect_url: string | null;
+            /** Status Code */
+            status_code: number | null;
+            tier: components["schemas"]["TierRef"] | null;
+            /** Url */
+            url: string;
+            /**
+             * Url Id
+             * @description A `core.urls` id: a 64-bit integer as a string.
+             */
+            url_id: string;
+        };
+        /** EdgeRow */
+        EdgeRow: {
+            /** Anchor */
+            anchor: string;
+            /** Is Followed */
+            is_followed: boolean;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "text" | "image";
+            /**
+             * Link Id
+             * @description A `core.urls` id: a 64-bit integer as a string.
+             */
+            link_id: string;
+            /** Occurrences */
+            occurrences: number;
+            /**
+             * Placement
+             * @enum {string}
+             */
+            placement: "content" | "auto_generated" | "navigation" | "header" | "footer" | "sidebar" | "breadcrumb";
+            /** Rel */
+            rel: string[];
+            /**
+             * Scope
+             * @enum {string}
+             */
+            scope: "editorial" | "auto_generated" | "template";
+            source: components["schemas"]["EdgePage"];
+            target: components["schemas"]["EdgePage"];
+        };
+        /** EdgeRowPage */
+        EdgeRowPage: {
+            /** Data */
+            data: components["schemas"]["EdgeRow"][];
+            meta: components["schemas"]["ListMeta"];
+            page: components["schemas"]["CursorPageInfo"];
         };
         /** EmailRequest */
         EmailRequest: {
@@ -5680,6 +6046,25 @@ export interface components {
          * @enum {string}
          */
         ImportField: "keyword" | "country" | "location" | "language" | "device" | "tags" | "topic" | "group" | "intent" | "funnel_stage" | "priority" | "target_url" | "depth_profile";
+        /** ImportPending */
+        ImportPending: {
+            /** Line */
+            line: number;
+            /** Url */
+            url: string;
+        };
+        /** ImportProblem */
+        ImportProblem: {
+            /**
+             * Code
+             * @enum {string}
+             */
+            code: "invalid_url" | "other_site" | "unknown_tier" | "missing_column" | "too_many_rows";
+            /** Line */
+            line: number;
+            /** Message */
+            message: string;
+        };
         /** ImportQuota */
         ImportQuota: {
             /** Limit */
@@ -6355,6 +6740,21 @@ export interface components {
             /** @description UTF-16 code units, as a JavaScript string indexes the text. */
             span: components["schemas"]["LintSpan"] | null;
         };
+        /** ListMeta */
+        ListMeta: {
+            /**
+             * Run Id
+             * Format: uuid
+             */
+            run_id: string;
+            /**
+             * Scope
+             * @enum {string}
+             */
+            scope: "editorial" | "auto_generated" | "template" | "all";
+            /** Total */
+            total: number;
+        };
         /** Location */
         Location: {
             /** Country Iso */
@@ -6769,6 +7169,106 @@ export interface components {
             /** Year */
             year: number;
         };
+        /** Neighbor */
+        Neighbor: {
+            /** Anchor */
+            anchor: string | null;
+            /** Click Depth */
+            click_depth: number | null;
+            /** Equity Share */
+            equity_share: number | null;
+            /** Has Children */
+            has_children: boolean;
+            /** Is Followed */
+            is_followed: boolean;
+            /** Linking Pages */
+            linking_pages: number;
+            /** Linking Pages All */
+            linking_pages_all: number;
+            /**
+             * Links
+             * @description Link rows between the two pages in the scope in view.
+             */
+            links: number;
+            /** Occurrences */
+            occurrences: number;
+            /** Path */
+            path: string;
+            /** Placement */
+            placement: ("content" | "auto_generated" | "navigation" | "header" | "footer" | "sidebar" | "breadcrumb") | null;
+            /**
+             * Reciprocal
+             * @description The two pages link both ways in the scope in view.
+             */
+            reciprocal: boolean;
+            /** Redirect Url Id */
+            redirect_url_id: string | null;
+            /** Rel */
+            rel: string[];
+            /** Scope */
+            scope: ("editorial" | "auto_generated" | "template") | null;
+            /**
+             * Status Code
+             * @description null when the page was not crawled.
+             */
+            status_code: number | null;
+            tier: components["schemas"]["TierRef"] | null;
+            /** Title */
+            title: string | null;
+            /** Url */
+            url: string;
+            /**
+             * Url Id
+             * @description A `core.urls` id: a 64-bit integer as a string.
+             */
+            url_id: string;
+        };
+        /** NeighborFocus */
+        NeighborFocus: {
+            /** Redirect Url Id */
+            redirect_url_id: string | null;
+            /** Status Code */
+            status_code: number | null;
+            /**
+             * Url Id
+             * @description A `core.urls` id: a 64-bit integer as a string.
+             */
+            url_id: string;
+        };
+        /** NeighborList */
+        NeighborList: {
+            /** Data */
+            data: components["schemas"]["Neighbor"][];
+            meta: components["schemas"]["NeighborMeta"];
+        };
+        /** NeighborMeta */
+        NeighborMeta: {
+            /**
+             * Direction
+             * @enum {string}
+             */
+            direction: "in" | "out";
+            focus: components["schemas"]["NeighborFocus"];
+            /** Other Scopes */
+            other_scopes: components["schemas"]["ScopeCount"][];
+            /**
+             * Run Id
+             * Format: uuid
+             */
+            run_id: string;
+            /**
+             * Scope
+             * @enum {string}
+             */
+            scope: "editorial" | "auto_generated" | "template" | "all";
+            /** Total */
+            total: number;
+            /**
+             * Url Id
+             * @description A `core.urls` id: a 64-bit integer as a string.
+             */
+            url_id: string;
+        };
         /** Note */
         Note: {
             /**
@@ -7163,6 +7663,232 @@ export interface components {
             /** Url Id */
             url_id: number;
         };
+        /** PageDetail */
+        PageDetail: {
+            /** Linking By Placement */
+            linking_by_placement: components["schemas"]["PlacementCount"][];
+            /** Linking By Tier */
+            linking_by_tier: components["schemas"]["TierCount"][];
+            /** Linking Pages */
+            linking_pages: components["schemas"]["Neighbor"][];
+            /** Linking Pages Total */
+            linking_pages_total: number;
+            /** Outlinks */
+            outlinks: components["schemas"]["Neighbor"][];
+            /** Outlinks Total */
+            outlinks_total: number;
+            page: components["schemas"]["PageRow"];
+            /** Top Anchors */
+            top_anchors: components["schemas"]["AnchorCount"][];
+        };
+        /** PageDetailResponse */
+        PageDetailResponse: {
+            data: components["schemas"]["PageDetail"];
+        };
+        /**
+         * PageFilter
+         * @description The Pages list's filters as a bulk body (`run` is always the latest crawl).
+         */
+        PageFilter: {
+            /** Flags */
+            flags?: ("orphan" | "editorial_orphan" | "deep_only_through_auto" | "placement_unknown" | "has_broken_outlinks")[] | null;
+            /** Indexable */
+            indexable?: boolean | null;
+            /** Q */
+            q?: string | null;
+            /** Status */
+            status?: ("2xx" | "3xx" | "4xx" | "5xx")[] | null;
+            /** Tag Ids */
+            tag_ids?: string[] | null;
+            /** Tier Ids */
+            tier_ids?: (string | "none")[] | null;
+            /** Worklist */
+            worklist?: ("under_linked_t1" | "orphans" | "editorial_orphans" | "deep_only_through_auto") | null;
+        };
+        /** PageRow */
+        PageRow: {
+            /** Broken Outlinks */
+            broken_outlinks: number;
+            /** Canonical Url */
+            canonical_url: string | null;
+            /** Click Depth */
+            click_depth: number | null;
+            /** Depth Without Auto */
+            depth_without_auto: number | null;
+            /** Equity Share */
+            equity_share: number | null;
+            /** Flags */
+            flags: ("orphan" | "editorial_orphan" | "deep_only_through_auto" | "placement_unknown" | "broken" | "redirect" | "non_indexable")[];
+            /** In Sitemap */
+            in_sitemap: boolean;
+            /** Is Indexable */
+            is_indexable: boolean;
+            /** Linked From Tiers */
+            linked_from_tiers: components["schemas"]["TierCount"][];
+            /**
+             * Linking Pages
+             * @description Unique pages linking here, in the scope in view.
+             */
+            linking_pages: number;
+            /** Linking Pages All */
+            linking_pages_all: number;
+            /** Non Indexable Outlinks */
+            non_indexable_outlinks: number;
+            /** Non Indexable Reason */
+            non_indexable_reason: string | null;
+            /**
+             * Outlinks
+             * @description Unique pages linked from here, in the scope in view.
+             */
+            outlinks: number;
+            /** Outlinks All */
+            outlinks_all: number;
+            /** Outlinks To T1 */
+            outlinks_to_t1: number;
+            /** Path */
+            path: string;
+            /** Redirect Outlinks */
+            redirect_outlinks: number;
+            /** Redirect Url */
+            redirect_url: string | null;
+            /**
+             * Resource Type
+             * @enum {string}
+             */
+            resource_type: "html" | "redirect" | "broken" | "other";
+            /** Status Code */
+            status_code: number | null;
+            /** Tags */
+            tags: components["schemas"]["PageTagRef"][];
+            tier: components["schemas"]["TierRef"] | null;
+            /** Tier Rule Id */
+            tier_rule_id: string | null;
+            /** Tier Set At */
+            tier_set_at: string | null;
+            tier_set_by: components["schemas"]["UserRef"] | null;
+            /** Tier Source */
+            tier_source: ("manual" | "rule") | null;
+            /** Title */
+            title: string | null;
+            /** Top Anchor */
+            top_anchor: string | null;
+            /** Url */
+            url: string;
+            /**
+             * Url Id
+             * @description A `core.urls` id: a 64-bit integer as a string.
+             */
+            url_id: string;
+        };
+        /** PageRowPage */
+        PageRowPage: {
+            /** Data */
+            data: components["schemas"]["PageRow"][];
+            meta: components["schemas"]["ListMeta"];
+            page: components["schemas"]["CursorPageInfo"];
+        };
+        /**
+         * PageSelection
+         * @description Exactly one of `url_ids` and `filter`.
+         */
+        PageSelection: {
+            filter?: components["schemas"]["PageFilter"] | null;
+            /** Url Ids */
+            url_ids?: number[] | null;
+        };
+        /** PageTagChange */
+        PageTagChange: {
+            /** Add */
+            add: string[];
+            filter?: components["schemas"]["PageFilter"] | null;
+            /** Remove */
+            remove: string[];
+            /** Url Ids */
+            url_ids?: number[] | null;
+        };
+        /** PageTagRef */
+        PageTagRef: {
+            /** Name */
+            name: string;
+            /**
+             * Term Id
+             * Format: uuid
+             */
+            term_id: string;
+        };
+        /** PageTier */
+        PageTier: {
+            /**
+             * Code
+             * @description T1 to T8, from the position.
+             */
+            code: string;
+            /** Description */
+            description: string;
+            /**
+             * Label
+             * @description Code and name as filters show it: "T1 Money pages".
+             */
+            label: string;
+            /** Name */
+            name: string;
+            /**
+             * Page Count
+             * @description Pages of the workspace's projects on this tier.
+             */
+            page_count: number;
+            /** Position */
+            position: number;
+            /** Rule Count */
+            rule_count: number;
+            /**
+             * Tier Id
+             * Format: uuid
+             */
+            tier_id: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** PageTierCreate */
+        PageTierCreate: {
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /** Name */
+            name: string;
+        };
+        /** PageTierList */
+        PageTierList: {
+            /** Data */
+            data: components["schemas"]["PageTier"][];
+        };
+        /** PageTierPatch */
+        PageTierPatch: {
+            /** Description */
+            description?: string;
+            /** Name */
+            name?: string;
+        };
+        /** PageTierResponse */
+        PageTierResponse: {
+            data: components["schemas"]["PageTier"];
+        };
+        /** PageTierSet */
+        PageTierSet: {
+            filter?: components["schemas"]["PageFilter"] | null;
+            /**
+             * Tier Id
+             * @description null sets the pages to Untiered by hand.
+             */
+            tier_id: string | null;
+            /** Url Ids */
+            url_ids?: number[] | null;
+        };
         /** PasswordChangeRequest */
         PasswordChangeRequest: {
             /** Current Password */
@@ -7176,6 +7902,16 @@ export interface components {
             new_password: string;
             /** Token */
             token: string;
+        };
+        /** PlacementCount */
+        PlacementCount: {
+            /** Pages */
+            pages: number;
+            /**
+             * Placement
+             * @enum {string}
+             */
+            placement: "content" | "auto_generated" | "navigation" | "header" | "footer" | "sidebar" | "breadcrumb";
         };
         /**
          * PointPool
@@ -8932,6 +9668,16 @@ export interface components {
              */
             window_start_local?: string;
         };
+        /** ScopeCount */
+        ScopeCount: {
+            /** Pages */
+            pages: number;
+            /**
+             * Scope
+             * @enum {string}
+             */
+            scope: "editorial" | "auto_generated" | "template";
+        };
         /** Seasonality */
         Seasonality: {
             /**
@@ -9767,6 +10513,19 @@ export interface components {
              */
             prompt_count: number;
         };
+        /** TagChangeResponse */
+        TagChangeResponse: {
+            data: components["schemas"]["TagChangeResult"];
+        };
+        /** TagChangeResult */
+        TagChangeResult: {
+            /** Added */
+            added: number;
+            /** Matched */
+            matched: number;
+            /** Removed */
+            removed: number;
+        };
         /** Term */
         Term: {
             /**
@@ -9975,6 +10734,200 @@ export interface components {
             parent_id?: string | null;
             /** Slug */
             slug?: string;
+        };
+        /** TierCount */
+        TierCount: {
+            /** Pages */
+            pages: number;
+            /** @description null is Untiered. */
+            tier: components["schemas"]["TierRef"] | null;
+        };
+        /** TierFlow */
+        TierFlow: {
+            /** Cells */
+            cells: components["schemas"]["TierFlowCell"][];
+            /**
+             * Run Id
+             * Format: uuid
+             */
+            run_id: string;
+            /**
+             * Scope
+             * @enum {string}
+             */
+            scope: "editorial" | "auto_generated" | "template" | "all";
+            /**
+             * Stale
+             * @description A tier change is being applied; read again in a minute.
+             */
+            stale: boolean;
+            /** Tiers */
+            tiers: components["schemas"]["TierStat"][];
+        };
+        /** TierFlowCell */
+        TierFlowCell: {
+            from_tier: components["schemas"]["TierRef"] | null;
+            /** Links */
+            links: number;
+            to_tier: components["schemas"]["TierRef"] | null;
+        };
+        /** TierFlowResponse */
+        TierFlowResponse: {
+            data: components["schemas"]["TierFlow"];
+        };
+        /** TierImportRequest */
+        TierImportRequest: {
+            /**
+             * Csv
+             * @description Columns `url` and `tier` (a code such as T1, a name, or `none`).
+             */
+            csv: string;
+        };
+        /** TierImportResponse */
+        TierImportResponse: {
+            data: components["schemas"]["TierImportResult"];
+        };
+        /** TierImportResult */
+        TierImportResult: {
+            /** Accepted */
+            accepted: number;
+            /**
+             * Applied
+             * @description False while `errors` is not empty: nothing was changed.
+             */
+            applied: boolean;
+            /** Errors */
+            errors: components["schemas"]["ImportProblem"][];
+            /**
+             * Pending
+             * @description Valid rows whose URL the latest crawl did not find; they apply when a crawl finds it.
+             */
+            pending: components["schemas"]["ImportPending"][];
+        };
+        /** TierRef */
+        TierRef: {
+            /** Code */
+            code: string;
+            /** Name */
+            name: string;
+            /**
+             * Tier Id
+             * Format: uuid
+             */
+            tier_id: string;
+        };
+        /** TierRuleCreate */
+        TierRuleCreate: {
+            /**
+             * Match Type
+             * @enum {string}
+             */
+            match_type: "exact" | "prefix" | "pattern";
+            /**
+             * Position
+             * @description Left out, the rule goes last.
+             */
+            position?: number | null;
+            /**
+             * Tier Id
+             * Format: uuid
+             */
+            tier_id: string;
+            /** Value */
+            value: string;
+        };
+        /** TierRuleList */
+        TierRuleList: {
+            /** Data */
+            data: components["schemas"]["TierRuleView"][];
+        };
+        /** TierRulePatch */
+        TierRulePatch: {
+            /**
+             * Match Type
+             * @enum {string}
+             */
+            match_type?: "exact" | "prefix" | "pattern";
+            /** Position */
+            position?: number;
+            /**
+             * Tier Id
+             * Format: uuid
+             */
+            tier_id?: string;
+            /** Value */
+            value?: string;
+        };
+        /** TierRulePreview */
+        TierRulePreview: {
+            /**
+             * Matching Pages
+             * @description Pages of the latest crawl whose path matches.
+             */
+            matching_pages: number;
+            /**
+             * Would Apply
+             * @description Of those, the pages with no manual tier that no earlier rule claims.
+             */
+            would_apply: number;
+        };
+        /** TierRulePreviewRequest */
+        TierRulePreviewRequest: {
+            /**
+             * Match Type
+             * @enum {string}
+             */
+            match_type: "exact" | "prefix" | "pattern";
+            /** Position */
+            position?: number | null;
+            /**
+             * Rule Id
+             * @description The rule being edited, if any.
+             */
+            rule_id?: string | null;
+            /** Value */
+            value: string;
+        };
+        /** TierRulePreviewResponse */
+        TierRulePreviewResponse: {
+            data: components["schemas"]["TierRulePreview"];
+        };
+        /** TierRuleResponse */
+        TierRuleResponse: {
+            data: components["schemas"]["TierRuleView"];
+        };
+        /** TierRuleView */
+        TierRuleView: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Match Type
+             * @enum {string}
+             */
+            match_type: "exact" | "prefix" | "pattern";
+            /** Position */
+            position: number;
+            /**
+             * Rule Id
+             * Format: uuid
+             */
+            rule_id: string;
+            tier: components["schemas"]["TierRef"];
+            /** Value */
+            value: string;
+        };
+        /** TierStat */
+        TierStat: {
+            /** Average Depth */
+            average_depth: number | null;
+            /** Equity Share */
+            equity_share: number;
+            /** Pages */
+            pages: number;
+            tier: components["schemas"]["TierRef"] | null;
         };
         /** TopicSummaryRow */
         TopicSummaryRow: {
@@ -10891,6 +11844,36 @@ export interface components {
              * @description The Monday the week starts on, in the project's zone.
              */
             week_start: string;
+        };
+        /** Worklists */
+        Worklists: {
+            /**
+             * Broken And Redirected
+             * @description Links of every scope.
+             */
+            broken_and_redirected: number;
+            /** Deep Only Through Auto */
+            deep_only_through_auto: number;
+            /** Editorial Orphans */
+            editorial_orphans: number;
+            /**
+             * Links To Non Indexable
+             * @description Links of every scope.
+             */
+            links_to_non_indexable: number;
+            /** Orphans */
+            orphans: number;
+            /**
+             * Run Id
+             * Format: uuid
+             */
+            run_id: string;
+            /** Under Linked T1 */
+            under_linked_t1: number;
+        };
+        /** WorklistsResponse */
+        WorklistsResponse: {
+            data: components["schemas"]["Worklists"];
         };
         /** Workspace */
         Workspace: {
@@ -13190,6 +14173,140 @@ export interface operations {
             };
         };
     };
+    list_tiers_api_v1_workspaces__workspace_id__page_tiers_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageTierList"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    add_tier_api_v1_workspaces__workspace_id__page_tiers_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PageTierCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageTierResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_tier_api_v1_workspaces__workspace_id__page_tiers__tier_id__delete: {
+        parameters: {
+            query?: {
+                move_to?: string | "none" | null;
+            };
+            header?: never;
+            path: {
+                tier_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    rename_tier_api_v1_workspaces__workspace_id__page_tiers__tier_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tier_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PageTierPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageTierResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     price_book_api_v1_workspaces__workspace_id__price_book_get: {
         parameters: {
             query?: {
@@ -14849,6 +15966,254 @@ export interface operations {
             };
         };
     };
+    list_edges_api_v1_workspaces__workspace_id__projects__project_id__internal_links_edges_get: {
+        parameters: {
+            query?: {
+                /** @description `latest` or a crawl id. */
+                run?: "latest" | string;
+                scope?: "editorial" | "auto_generated" | "template" | "all";
+                "filter[source_tier]"?: (string | "none")[] | null;
+                "filter[target_tier]"?: (string | "none")[] | null;
+                "filter[tag]"?: string[] | null;
+                "filter[placement]"?: ("content" | "auto_generated" | "navigation" | "header" | "footer" | "sidebar" | "breadcrumb")[] | null;
+                "filter[target_status]"?: ("2xx" | "3xx" | "4xx" | "5xx")[] | null;
+                "filter[source]"?: number | null;
+                "filter[target]"?: number | null;
+                "filter[worklist]"?: ("broken_and_redirected" | "links_to_non_indexable") | null;
+                q_source?: string | null;
+                q_target?: string | null;
+                format?: "json" | "csv";
+                /** @description `page.next_cursor` of the previous page. */
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description With `format=csv`: the rows as CSV. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EdgeRowPage"];
+                    "text/csv": unknown;
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    neighbors_api_v1_workspaces__workspace_id__projects__project_id__internal_links_neighbors_get: {
+        parameters: {
+            query: {
+                url_id: number;
+                direction: "in" | "out";
+                /** @description `latest` or a crawl id. */
+                run?: "latest" | string;
+                scope?: "editorial" | "auto_generated" | "template" | "all";
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NeighborList"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_pages_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages_get: {
+        parameters: {
+            query?: {
+                /** @description `latest` or a crawl id. */
+                run?: "latest" | string;
+                scope?: "editorial" | "auto_generated" | "template" | "all";
+                "filter[tier]"?: (string | "none")[] | null;
+                "filter[tag]"?: string[] | null;
+                "filter[status]"?: ("2xx" | "3xx" | "4xx" | "5xx")[] | null;
+                "filter[indexable]"?: boolean | null;
+                "filter[flags]"?: ("orphan" | "editorial_orphan" | "deep_only_through_auto" | "placement_unknown" | "has_broken_outlinks")[] | null;
+                "filter[worklist]"?: ("under_linked_t1" | "orphans" | "editorial_orphans" | "deep_only_through_auto") | null;
+                q?: string | null;
+                sort?: "path" | "-path" | "click_depth" | "-click_depth" | "linking_pages" | "-linking_pages" | "outlinks" | "-outlinks" | "equity_share" | "-equity_share" | "status_code" | "-status_code";
+                format?: "json" | "csv";
+                /** @description `page.next_cursor` of the previous page. */
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description With `format=csv`: the rows as CSV. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageRowPage"];
+                    "text/csv": unknown;
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_page_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__get: {
+        parameters: {
+            query?: {
+                /** @description `latest` or a crawl id. */
+                run?: "latest" | string;
+                scope?: "editorial" | "auto_generated" | "template" | "all";
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                url_id: number;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageDetailResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    tier_flow_api_v1_workspaces__workspace_id__projects__project_id__internal_links_tier_flow_get: {
+        parameters: {
+            query?: {
+                /** @description `latest` or a crawl id. */
+                run?: "latest" | string;
+                scope?: "editorial" | "auto_generated" | "template" | "all";
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TierFlowResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    worklists_api_v1_workspaces__workspace_id__projects__project_id__internal_links_worklists_get: {
+        parameters: {
+            query?: {
+                /** @description `latest` or a crawl id. */
+                run?: "latest" | string;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorklistsResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     list_groups_api_v1_workspaces__workspace_id__projects__project_id__keyword_groups_get: {
         parameters: {
             query?: {
@@ -15613,6 +16978,150 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OverviewCompetitorsResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    change_page_tags_api_v1_workspaces__workspace_id__projects__project_id__pages_tags_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PageTagChange"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TagChangeResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    set_page_tiers_api_v1_workspaces__workspace_id__projects__project_id__pages_tiers_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PageTierSet"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BulkResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    import_page_tiers_api_v1_workspaces__workspace_id__projects__project_id__pages_tiers_import_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TierImportRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TierImportResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    reset_page_tiers_api_v1_workspaces__workspace_id__projects__project_id__pages_tiers_reset_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PageSelection"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BulkResponse"];
                 };
             };
             /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
@@ -16647,6 +18156,178 @@ export interface operations {
             };
         };
     };
+    list_tier_rules_api_v1_workspaces__workspace_id__projects__project_id__tier_rules_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TierRuleList"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_tier_rule_api_v1_workspaces__workspace_id__projects__project_id__tier_rules_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TierRuleCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TierRuleResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    preview_tier_rule_api_v1_workspaces__workspace_id__projects__project_id__tier_rules_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TierRulePreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TierRulePreviewResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_tier_rule_api_v1_workspaces__workspace_id__projects__project_id__tier_rules__rule_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                rule_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_tier_rule_api_v1_workspaces__workspace_id__projects__project_id__tier_rules__rule_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                rule_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TierRulePatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TierRuleResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     list_tracked_keywords_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords_get: {
         parameters: {
             query?: {
@@ -17654,6 +19335,21 @@ export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiSourcesPagesGet
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiSourcesPagesGetParametersQueryFilterDomain_role_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/pages"]["get"]["parameters"]["query"]["filter[domain_role_in]"]> = ["own", "competitor", "third_party"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idDomainsGetParametersQueryFilterRoleAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/domains"]["get"]["parameters"]["query"]["filter[role]"]> = ["own", "competitor", "watch"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idEntitiesGetParametersQueryFilterRoleAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/entities"]["get"]["parameters"]["query"]["filter[role]"]> = ["own", "competitor", "watch"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksEdgesGetParametersQueryScopeValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/edges"]["get"]["parameters"]["query"]["scope"]> = ["editorial", "auto_generated", "template", "all"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksEdgesGetParametersQueryFilterPlacementAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/edges"]["get"]["parameters"]["query"]["filter[placement]"]> = ["content", "auto_generated", "navigation", "header", "footer", "sidebar", "breadcrumb"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksEdgesGetParametersQueryFilterTarget_statusAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/edges"]["get"]["parameters"]["query"]["filter[target_status]"]> = ["2xx", "3xx", "4xx", "5xx"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksEdgesGetParametersQueryFilterWorklistAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/edges"]["get"]["parameters"]["query"]["filter[worklist]"]> = ["broken_and_redirected", "links_to_non_indexable"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksEdgesGetParametersQueryFormatValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/edges"]["get"]["parameters"]["query"]["format"]> = ["json", "csv"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksNeighborsGetParametersQueryDirectionValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/neighbors"]["get"]["parameters"]["query"]["direction"]> = ["in", "out"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksNeighborsGetParametersQueryScopeValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/neighbors"]["get"]["parameters"]["query"]["scope"]> = ["editorial", "auto_generated", "template", "all"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQueryScopeValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["scope"]> = ["editorial", "auto_generated", "template", "all"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQueryFilterStatusAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["filter[status]"]> = ["2xx", "3xx", "4xx", "5xx"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQueryFilterFlagsAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["filter[flags]"]> = ["orphan", "editorial_orphan", "deep_only_through_auto", "placement_unknown", "has_broken_outlinks"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQueryFilterWorklistAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["filter[worklist]"]> = ["under_linked_t1", "orphans", "editorial_orphans", "deep_only_through_auto"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQuerySortValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["sort"]> = ["path", "-path", "click_depth", "-click_depth", "linking_pages", "-linking_pages", "outlinks", "-outlinks", "equity_share", "-equity_share", "status_code", "-status_code"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQueryFormatValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["format"]> = ["json", "csv"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesUrl_idGetParametersQueryScopeValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}"]["get"]["parameters"]["query"]["scope"]> = ["editorial", "auto_generated", "template", "all"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksTierFlowGetParametersQueryScopeValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/tier-flow"]["get"]["parameters"]["query"]["scope"]> = ["editorial", "auto_generated", "template", "all"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idKeywordGroupsGetParametersQueryFormatValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-groups"]["get"]["parameters"]["query"]["format"]> = ["tree", "flat"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idKeywordImportsGetParametersQueryFilterStatusAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-imports"]["get"]["parameters"]["query"]["filter[status]"]> = ["uploaded", "parsing", "needs_mapping", "preview_ready", "writing", "completed", "completed_with_errors", "failed", "cancelled", "expired"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idKeywordImportsImport_idRowsGetParametersQueryFilterOutcome_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-imports/{import_id}/rows"]["get"]["parameters"]["query"]["filter[outcome_in]"]> = ["new", "duplicate", "variant", "conflict", "invalid"];
@@ -17704,7 +19400,7 @@ export const annotationKindValues: ReadonlyArray<FlattenedDeepRequired<component
 export const budgetAction_on_hardValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Budget"]["action_on_hard"]> = ["pause", "alert_only"];
 export const budgetWorkloadValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Budget"]["workload"]> = ["seo_rank", "ai_prompt", "keyword_research", "ai_benchmark", "extraction_llm", "first_party", "all"];
 export const budgetCreateAction_on_hardAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["BudgetCreate"]["action_on_hard"]> = ["pause", "alert_only"];
-export const budgetCreateWorkloadValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["BudgetCreate"]["workload"]> = ["seo_rank", "ai_prompt", "keyword_research", "ai_benchmark", "extraction_llm", "first_party", "all"];
+export const budgetCreateWorkloadValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["BudgetCreate"]["workload"]> = ["seo_rank", "ai_prompt", "keyword_research", "ai_benchmark", "extraction_llm", "first_party", "site_crawl", "all"];
 export const budgetStatusStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["BudgetStatus"]["state"]> = ["ok", "soft_exceeded", "hard_exceeded"];
 export const budgetUpdateAction_on_hardValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["BudgetUpdate"]["action_on_hard"]> = ["pause", "alert_only"];
 export const cardItemWidthAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CardItem"]["width"]> = ["third", "half", "two_thirds", "full"];
@@ -17717,9 +19413,12 @@ export const configVersionDepth_profileValues: ReadonlyArray<FlattenedDeepRequir
 export const connectionAuth_methodValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Connection"]["auth_method"]> = ["oauth", "api_key", "api_token", "service_account"];
 export const connectionProductValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Connection"]["product"]> = ["google", "bing_wmt", "cloudflare"];
 export const connectionStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Connection"]["status"]> = ["active", "reauth_required", "revoked", "error"];
-export const costWorkloadValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CostWorkload"]> = ["seo_rank", "ai_prompt", "ai_mode_keyword", "keyword_metrics", "discovery", "ai_benchmark", "gsc_sync", "bing_sync", "ga4_sync", "cloudflare_sync", "ai_overview", "extraction_llm", "keyword_research", "first_party"];
+export const costWorkloadValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CostWorkload"]> = ["seo_rank", "ai_prompt", "ai_mode_keyword", "keyword_metrics", "discovery", "ai_benchmark", "gsc_sync", "bing_sync", "ga4_sync", "cloudflare_sync", "ai_overview", "extraction_llm", "keyword_research", "first_party", "site_crawl"];
 export const domainInputMatch_scopeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["DomainInput"]["match_scope"]> = ["path_prefix", "host", "registrable"];
 export const domainRefCategory_sourceAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["DomainRef"]["category_source"]> = ["seed_list", "rule", "llm", "manual", "tenant_override"];
+export const edgeRowKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EdgeRow"]["kind"]> = ["text", "image"];
+export const edgeRowPlacementValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EdgeRow"]["placement"]> = ["content", "auto_generated", "navigation", "header", "footer", "sidebar", "breadcrumb"];
+export const edgeRowScopeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EdgeRow"]["scope"]> = ["editorial", "auto_generated", "template"];
 export const engineCodeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EngineCode"]> = ["chatgpt_web", "gemini_web", "google_ai_mode"];
 export const engineProviderParamsDeviceAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EngineProviderParams"]["device"]> = ["desktop", "mobile"];
 export const engineProviderParamsUpdateDeviceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EngineProviderParamsUpdate"]["device"]> = ["desktop", "mobile"];
@@ -17746,6 +19445,7 @@ export const historyPointStateValues: ReadonlyArray<FlattenedDeepRequired<compon
 export const importDefaultsDepth_profileAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ImportDefaults"]["depth_profile"]> = ["light", "standard", "deep", "full", "weekly", "weekly_light", "until_own_match_100"];
 export const importDefaultsDeviceAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ImportDefaults"]["device"]> = ["desktop", "mobile", "both"];
 export const importFieldValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ImportField"]> = ["keyword", "country", "location", "language", "device", "tags", "topic", "group", "intent", "funnel_stage", "priority", "target_url", "depth_profile"];
+export const importProblemCodeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ImportProblem"]["code"]> = ["invalid_url", "other_site", "unknown_tier", "missing_column", "too_many_rows"];
 export const importRowActionValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ImportRow"]["action"]> = ["create", "skip", "merge", "force_separate"];
 export const importRowOutcomeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ImportRow"]["outcome"]> = ["new", "duplicate", "variant", "conflict", "invalid"];
 export const integrationConnection_statusAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Integration"]["connection_status"]> = ["active", "reauth_required", "revoked", "error"];
@@ -17763,18 +19463,30 @@ export const keywordMetricsCompetition_levelAnyOf0Values: ReadonlyArray<Flattene
 export const keywordMetricsSourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["KeywordMetrics"]["source"]> = ["dataforseo_labs", "dataforseo_google_ads", "dataforseo_clickstream"];
 export const lintWarningRuleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["LintWarning"]["rule"]> = ["contains_brand_alias", "engine_limit", "word_count", "multiple_questions", "leading_wording", "language_mismatch", "contains_competitor_alias"];
 export const lintWarningSeverityValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["LintWarning"]["severity"]> = ["info", "warning", "error"];
+export const listMetaScopeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ListMeta"]["scope"]> = ["editorial", "auto_generated", "template", "all"];
 export const meWorkspaceStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["MeWorkspace"]["status"]> = ["active", "suspended", "deleting"];
 export const mentionOutMention_statusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["MentionOut"]["mention_status"]> = ["accepted", "uncertain"];
 export const mentionOutRoleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["MentionOut"]["role"]> = ["own", "competitor", "watch", "untracked"];
 export const metricContextPrompt_rowsValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["MetricContext"]["prompt_rows"]> = ["observation_weighted", "prompt_weighted"];
 export const metricContextTopic_rowsValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["MetricContext"]["topic_rows"]> = ["observation_weighted", "prompt_weighted"];
 export const metricValueUnitValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["MetricValue"]["unit"]> = ["ratio", "count", "rank", "score", "usd", "clicks"];
+export const neighborPlacementAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Neighbor"]["placement"]> = ["content", "auto_generated", "navigation", "header", "footer", "sidebar", "breadcrumb"];
+export const neighborScopeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Neighbor"]["scope"]> = ["editorial", "auto_generated", "template"];
+export const neighborMetaDirectionValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["NeighborMeta"]["direction"]> = ["in", "out"];
+export const neighborMetaScopeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["NeighborMeta"]["scope"]> = ["editorial", "auto_generated", "template", "all"];
 export const observationClassValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ObservationClass"]> = ["consumer_ui", "official_api", "serp_ai"];
 export const observationDetailStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ObservationDetail"]["status"]> = ["complete", "partial", "empty", "refused", "error"];
 export const observationFactsOutcomeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ObservationFacts"]["outcome"]> = ["mentioned_and_cited", "mentioned_only", "cited_only", "neither"];
 export const observationSummaryStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ObservationSummary"]["status"]> = ["complete", "partial", "empty", "refused", "error"];
 export const operationKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Operation"]["kind"]> = ["collection_run", "keyword_import"];
 export const operationStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Operation"]["status"]> = ["queued", "running", "waiting_for_input", "succeeded", "succeeded_with_errors", "failed", "cancelled", "blocked"];
+export const pageFilterFlagsAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageFilter"]["flags"]> = ["orphan", "editorial_orphan", "deep_only_through_auto", "placement_unknown", "has_broken_outlinks"];
+export const pageFilterStatusAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageFilter"]["status"]> = ["2xx", "3xx", "4xx", "5xx"];
+export const pageFilterWorklistAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageFilter"]["worklist"]> = ["under_linked_t1", "orphans", "editorial_orphans", "deep_only_through_auto"];
+export const pageRowFlagsValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageRow"]["flags"]> = ["orphan", "editorial_orphan", "deep_only_through_auto", "placement_unknown", "broken", "redirect", "non_indexable"];
+export const pageRowResource_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageRow"]["resource_type"]> = ["html", "redirect", "broken", "other"];
+export const pageRowTier_sourceAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageRow"]["tier_source"]> = ["manual", "rule"];
+export const placementCountPlacementValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PlacementCount"]["placement"]> = ["content", "auto_generated", "navigation", "header", "footer", "sidebar", "breadcrumb"];
 export const pointPoolReasonValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PointPool"]["reason"]> = ["prompt_point", "few_prompts"];
 export const progressUnitValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Progress"]["unit"]> = ["tasks", "rows", "observations", "days", "items"];
 export const projectStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Project"]["status"]> = ["active", "paused", "archived"];
@@ -17832,6 +19544,7 @@ export const scheduleInputWorkloadValues: ReadonlyArray<FlattenedDeepRequired<co
 export const scheduleUpdateCadenceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ScheduleUpdate"]["cadence"]> = ["daily", "weekly", "monthly", "cron"];
 export const scheduleUpdatePriorityValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ScheduleUpdate"]["priority"]> = ["high", "standard", "low"];
 export const scheduleUpdateProvider_modeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ScheduleUpdate"]["provider_mode"]> = ["standard_queue", "priority_queue", "live"];
+export const scopeCountScopeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ScopeCount"]["scope"]> = ["editorial", "auto_generated", "template"];
 export const seoSettingsDefault_depth_profileValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SeoSettings"]["default_depth_profile"]> = ["light", "standard", "deep", "full", "weekly", "weekly_light", "until_own_match_100"];
 export const seoSettingsDefault_deviceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SeoSettings"]["default_device"]> = ["desktop", "mobile", "both"];
 export const seoSettingsDefault_frequencyValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SeoSettings"]["default_frequency"]> = ["daily", "weekly"];
@@ -17859,6 +19572,11 @@ export const termAssignmentOpValues: ReadonlyArray<FlattenedDeepRequired<compone
 export const termAssignmentSubject_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TermAssignment"]["subject_type"]> = ["tracked_keyword", "prompt"];
 export const termNodeSourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TermNode"]["source"]> = ["manual", "import", "auto_cluster", "ai_suggestion"];
 export const termNoteScopeKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TermNoteScope"]["kind"]> = ["term"];
+export const tierFlowScopeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TierFlow"]["scope"]> = ["editorial", "auto_generated", "template", "all"];
+export const tierRuleCreateMatch_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TierRuleCreate"]["match_type"]> = ["exact", "prefix", "pattern"];
+export const tierRulePatchMatch_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TierRulePatch"]["match_type"]> = ["exact", "prefix", "pattern"];
+export const tierRulePreviewRequestMatch_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TierRulePreviewRequest"]["match_type"]> = ["exact", "prefix", "pattern"];
+export const tierRuleViewMatch_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TierRuleView"]["match_type"]> = ["exact", "prefix", "pattern"];
 export const trackedKeywordDepth_profileValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeyword"]["depth_profile"]> = ["light", "standard", "deep", "full", "weekly", "weekly_light", "until_own_match_100"];
 export const trackedKeywordDeviceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeyword"]["device"]> = ["desktop", "mobile"];
 export const trackedKeywordFrequencyValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeyword"]["frequency"]> = ["daily", "weekly", "custom"];

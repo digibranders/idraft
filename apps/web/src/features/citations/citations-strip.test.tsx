@@ -103,10 +103,10 @@ describe('CitationsStrip', () => {
     ).toEqual([
       'Citation units',
       'Distinct domains',
-      'Effective sources',
-      'Own citation share',
-      'New sources',
-      'Lost sources',
+      'Effective domains',
+      'Your citation share',
+      'New domains',
+      'Lost domains',
     ]);
     expect(within(strip).getAllByRole('definition')).toHaveLength(6);
     expect(strip).not.toHaveAttribute('aria-busy');
@@ -115,7 +115,7 @@ describe('CitationsStrip', () => {
 
   it('shows every percent with its units', async () => {
     const { user } = renderWithProviders(<CitationsStrip reads={readsOf()} scope={scope} labelOf={labelOf} />);
-    const own = screen.getByText('Own citation share').closest('div');
+    const own = screen.getByText('Your citation share').closest('div');
     if (own === null) throw new Error('The own share cell is missing');
     expect(own).toHaveTextContent('9.1%');
     expect(own).toHaveTextContent('1,676 of 18,420 units');
@@ -125,7 +125,7 @@ describe('CitationsStrip', () => {
 
   it('shows the own share change without a colour and says there is no test', async () => {
     const { user } = renderWithProviders(<CitationsStrip reads={readsOf()} scope={scope} labelOf={labelOf} />);
-    const own = screen.getByText('Own citation share').closest('div');
+    const own = screen.getByText('Your citation share').closest('div');
     if (own === null) throw new Error('The own share cell is missing');
     expect(own).toHaveTextContent('+0.8 pts');
     expect(own.innerHTML).not.toMatch(/positive|negative/);
@@ -141,7 +141,7 @@ describe('CitationsStrip', () => {
     renderWithProviders(
       <CitationsStrip reads={readsOf()} scope={parseScope({ role: 'competitor' }, [])} labelOf={labelOf} />,
     );
-    const own = screen.getByText('Own citation share').closest('div');
+    const own = screen.getByText('Your citation share').closest('div');
     expect(own).toHaveTextContent('9.1%');
     expect(own).toHaveTextContent('1,676 of 18,420 units');
   });
@@ -174,7 +174,7 @@ describe('CitationsStrip', () => {
       .getAllByRole('definition')
       .filter((item) => item.getAttribute('tabindex') === '0')
       .map((item) => item.closest('div')?.querySelector('dt')?.textContent);
-    expect(stops).toEqual(['Citation units', 'Distinct domains', 'Effective sources', 'Own citation share']);
+    expect(stops).toEqual(['Citation units', 'Distinct domains', 'Effective domains', 'Your citation share']);
   });
 
   it('says n/a with its reason for a read that failed, and keeps the rest', () => {

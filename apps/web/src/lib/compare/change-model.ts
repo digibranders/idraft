@@ -137,9 +137,11 @@ export function averageChangeOf(
     state: 'ok',
     value: sum(readings.map((reading) => reading.value)) / readings.length,
     answers: sum(readings.map((reading) => reading.answers)),
-    successes: readings.every((reading) => reading.successes !== null)
-      ? sum(readings.map((reading) => reading.successes ?? 0))
-      : null,
+    // Brand mentions of different platforms are not pooled beside an average of shares (R3)
+    successes:
+      metric !== 'share_of_voice' && readings.every((reading) => reading.successes !== null)
+        ? sum(readings.map((reading) => reading.successes ?? 0))
+        : null,
     reason: null,
     prompts: null,
   });

@@ -393,7 +393,7 @@ describe('a refetch of the same scope', () => {
   });
 });
 
-describe('the engines asked', () => {
+describe('the platforms asked', () => {
   it('no asked engine is idle and asks nothing', async () => {
     const urls = recordRequests();
     renderBare(() => useTopicSummary(), 'cleanstart');

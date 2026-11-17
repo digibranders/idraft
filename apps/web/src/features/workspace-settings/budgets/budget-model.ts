@@ -6,8 +6,13 @@ import { money } from '@/lib/format/money';
 /** A budget group, as the API names it: a workload, or `all` for every workload together. */
 export type BudgetGroup = Budget['workload'];
 
-/** The groups the Group select offers, in the API's order. */
-export const BUDGET_GROUPS: readonly BudgetGroup[] = budgetCreateWorkloadValues;
+/**
+ * The groups the Group select offers, in the API's order. The API accepts `site_crawl` on create but its Budget
+ * read model does not list it yet, so a budget made for it could not be read back: it is left out until it does.
+ */
+export const BUDGET_GROUPS: readonly BudgetGroup[] = budgetCreateWorkloadValues.filter(
+  (group): group is BudgetGroup => group !== 'site_crawl',
+);
 
 /** The catalog key of a group under `budgets.groups`: the AI group is named AI prompts, as on the Costs page. */
 export const GROUP_KEYS = {

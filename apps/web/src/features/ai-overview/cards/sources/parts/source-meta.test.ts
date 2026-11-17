@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import { engineNames, footnoteLines, metaLine } from './source-meta';
 import messages from '../../../../../../messages/en.json';
-import type { Say } from '../../../numbers/number-model';
+import type { Say } from '../../say';
 import { sourcesMeta } from '../model/source-fixtures';
 import { formatList } from '@/lib/format';
 
@@ -14,7 +14,7 @@ const DASHES = new RegExp(`[${String.fromCharCode(0x2012, 0x2013, 0x2014, 0x2015
 
 describe('engineNames', () => {
   it('names the engines in the order of the catalog, whatever order the read had them in', () => {
-    expect(engineNames(['google_ai_mode', 'chatgpt_web'])).toEqual(['ChatGPT', 'AI Mode']);
+    expect(engineNames(['google_ai_mode', 'chatgpt_web'])).toEqual(['ChatGPT', 'Google AI Mode']);
   });
 });
 
@@ -39,8 +39,8 @@ describe('footnoteLines', () => {
   it('says the units are pooled over the engines named, which flagged citations are left out and the minimum', () => {
     const lines = footnoteLines(sourcesMeta({ engines: ['chatgpt_web', 'gemini_web'] }), say, 2);
     expect(lines).toEqual([
-      `Citation units are pooled over ${formatList(['ChatGPT', 'Gemini'])}. The split by engine is in the tooltip of each row and in the Table view.`,
-      'Citations flagged as unresolved redirects or engine-internal links are left out.',
+      `Citation units are pooled over ${formatList(['ChatGPT', 'Gemini'])}. The split by platform is in the tooltip of each row and in the Table view.`,
+      'Citations flagged as unresolved redirects or platform-internal links are left out.',
       'Domains with fewer than 2 citation units are not listed.',
     ]);
   });
