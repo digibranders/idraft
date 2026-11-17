@@ -244,6 +244,32 @@ describe('Inspector', () => {
   });
 });
 
+describe('InspectorSection', () => {
+  it('draws a meta after the title and a flush body for a table (WP-77)', () => {
+    renderWithProviders(
+      <InspectorSection
+        title="Prompts that cite this page"
+        meta="31 prompts · cited in 76 answers"
+        status="ready"
+        flush
+      >
+        <table aria-label="t" />
+      </InspectorSection>,
+    );
+    expect(screen.getByText('31 prompts · cited in 76 answers')).toHaveClass('type-meta');
+    expect(screen.getByRole('table', { name: 't' }).parentElement?.className ?? '').not.toContain('px-4');
+  });
+
+  it('still draws its icon and a padded body without them', () => {
+    renderWithProviders(
+      <InspectorSection title="Demand" icon={FileText} status="ready">
+        <p>8,100 searches a month</p>
+      </InspectorSection>,
+    );
+    expect(screen.getByText('8,100 searches a month').parentElement).toHaveClass('px-4');
+  });
+});
+
 describe('InspectorBody', () => {
   it('without a label is a plain scroll container, as before', () => {
     renderWithProviders(

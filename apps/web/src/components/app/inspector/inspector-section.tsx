@@ -5,14 +5,19 @@ import type { ReactElement, ReactNode } from 'react';
 
 import { Icon } from '@/components/ui/icon';
 import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
 
 export type InspectorSectionStatus = 'loading' | 'ready' | 'error' | 'empty';
 
 export interface InspectorSectionProps {
   /** h3 in the card header. */
   title: string;
-  /** 16 px, naming the kind of content: `ChartLine` for a trend, `History` for events. */
-  icon: LucideIcon;
+  /** 16 px, naming the kind of content: `ChartLine` for a trend, `History` for events. Left out in the Citations drawers (WP-77). */
+  icon?: LucideIcon | undefined;
+  /** A short fact after the title, in meta type: "31 prompts · cited in 76 answers" (aiov-parts.js `cardFrame`). */
+  meta?: string | undefined;
+  /** The ready body has no padding, for a table or a list whose rows draw their own 16 px edges. */
+  flush?: boolean | undefined;
   /** At most one control, right-aligned: "View all", a `Select`, a badge or Edit. */
   action?: ReactNode;
   status: InspectorSectionStatus;
@@ -33,6 +38,8 @@ export interface InspectorSectionProps {
 export function InspectorSection({
   title,
   icon,
+  meta,
+  flush,
   action,
   status,
   error,
@@ -41,13 +48,21 @@ export function InspectorSection({
   children,
 }: InspectorSectionProps): ReactElement {
   return (
-    <section aria-busy={status === 'loading' ? true : undefined} className="rounded-lg border border-border bg-surface">
+    <section
+      aria-busy={status === 'loading' ? true : undefined}
+      // A flush table's header band runs to the card's edge, so the 8 px corners clip it
+      className={cn('rounded-lg border border-border bg-surface', flush === true && 'overflow-hidden')}
+    >
       <div className="flex h-12 items-center gap-2 px-4">
-        <Icon icon={icon} size="default" className="shrink-0 text-foreground-tertiary" />
-        <h3 className="min-w-0 flex-1 truncate type-subsection-title">{title}</h3>
+        {icon === undefined ? null : <Icon icon={icon} size="default" className="shrink-0 text-foreground-tertiary" />}
+        <div className="flex min-w-0 flex-1 items-baseline gap-2">
+          <h3 className="min-w-0 truncate type-subsection-title">{title}</h3>
+          {meta === undefined ? null : <span className="min-w-0 truncate num type-meta">{meta}</span>}
+        </div>
         {action === undefined || action === null ? null : <div className="shrink-0">{action}</div>}
       </div>
-      <div className="px-4 pb-4">
+      {/* Only the ready body is flush: a skeleton, an error and an empty state keep the 16 px edges */}
+      <div className={flush === true && status === 'ready' ? undefined : 'px-4 pb-4'}>
         {status === 'loading'
           ? (skeleton ?? (
               <div className="flex flex-col gap-2">

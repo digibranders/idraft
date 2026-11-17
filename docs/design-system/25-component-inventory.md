@@ -3024,7 +3024,7 @@ interface SparklineCellProps {
 - **Variants:** density (height). **States:** data, gaps, empty (1 px dashed `border` line).
 - **A11y:** `role="img"` with `summary`; canvas not focusable. **Use:** `col.sparkline`, metric strip on Overview. **Not for:** anything with axes (`ChartFrame`); red or green lines (never).
 
-> As built (WP-77): four optional props on the component in `sparkline-cell.tsx`. `width` (pixels, 64 by default; the Citations Trend column draws 96) and `height` (pixels, overrides `density`; the page drawer's trend is 56). `entity` (`{ own, colorIndex }`) draws in the entity's colour as `EntitySwatch` does: `chart-1` for the own brand, `chart-N` for its color index, `chart-other` past six or without one; it overrides `tone`. `endDot` (default true) turns off the dot on the last point, which the Citations preview's sparklines do not have.
+> As built (WP-77): four optional props on the component in `sparkline-cell.tsx`. `width` (pixels, 64 by default; the Citations Trend column draws 96; `'fill'` takes the width of its parent, measured with a `ResizeObserver`, for a sparkline that spans a card) and `height` (pixels, overrides `density`; the page drawer's trend is 56). `entity` (`{ own, colorIndex }`) draws in the entity's colour as `EntitySwatch` does: `chart-1` for the own brand, `chart-N` for its color index, `chart-other` past six or without one; it overrides `tone`. `endDot` (default true) turns off the dot on the last point, which the Citations preview's sparklines do not have.
 
 ### 8.11 EngineCell
 `app/cells/engine-cell.tsx` · V1 · [12 §6](12-tables.md)
@@ -3569,7 +3569,7 @@ Purpose: says what is missing, why, and the one action that changes it.
 
 ```ts
 interface EmptyStateProps {
-  variant?: 'region' | 'inline' | 'table';    // inline: inspector sections, strip slots, small panels; table (WP-77): the body of a BoardTable panel
+  variant?: 'region' | 'inline' | 'table' | 'card';    // inline: inspector sections, strip slots, small panels; table (WP-77): the body of a BoardTable panel; card (WP-77): the body of a card that cannot be drawn
   icon?: LucideIcon;                // object glyph, 20 px; omitted inline
   title: string;                    // a fact: "No keywords tracked yet"
   reason: string;                   // exactly one sentence with real numbers, times or names
@@ -3580,7 +3580,7 @@ interface EmptyStateProps {
 }
 ```
 
-- **Variants:** `variant` 3 values (`table`, WP-77: no icon, centered, 48 px above and below, the reason in `type-meta` at reading width, one button; [17 §2.1](17-empty-loading-error-states.md)). **States:** empty, filtered empty, no permission (names the permission and who can grant it), not found, feature not available yet, no observations yet (with compact `CollectionProgress` when a run is in progress).
+- **Variants:** `variant` 4 values (`table`, WP-77: no icon, centered, 48 px above and below, the reason in `type-meta` at reading width, one button; [17 §2.1](17-empty-loading-error-states.md); `card`, WP-77: the body of a card that cannot be drawn, no icon, centered, at least 96 px, the title in `type-body-strong` and the reason in `type-meta`). **States:** empty, filtered empty, no permission (names the permission and who can grant it), not found, feature not available yet, no observations yet (with compact `CollectionProgress` when a run is in progress).
 - **A11y:** heading level fits the region; action names the fix. **Use:** any region whose query succeeded with nothing to show (copy catalogue 17 §2.3). **Not for:** errors (`InlineError`), loading (skeletons), illustrations (never).
 
 ### 11.2 StatusBadge
@@ -4826,6 +4826,8 @@ interface InspectorSectionProps {
 
 - **Rules:** own query and error boundary; lists capped at 10 rows then "View all N" (section 23, item 34); charts full width at 180 px (section 23, item 33); tables at most 4 columns, not sortable, never virtualized; not collapsible; nothing uses `type-metric`.
 - **A11y:** heading level 3. **Not for:** bordered panels inside the inspector.
+
+> As built (WP-77): `icon` is optional (the Citations drawers draw none), and two optional props were added: `meta` (a short fact after the title in `type-meta`, such as "31 prompts · cited in 76 answers") and `flush` (the ready body has no padding and the card clips its corners, for a table or a list whose rows draw their own 16 px edges; a skeleton, an error and an empty state keep the 16 px edges). Callers that pass neither draw as before. The specimen is in the `/design-system` Inspector section.
 
 ### 18.5 InspectorFooter
 `app/inspector/inspector-footer.tsx` · V1 · [16 §2.5](16-drawers-dialogs-popovers.md)

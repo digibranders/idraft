@@ -58,6 +58,22 @@ describe('EmptyState', () => {
     expect(screen.getByRole('button', { name: 'Clear search' })).toBeVisible();
     expect(await axe(container)).toHaveNoViolations();
   });
+
+  it('draws the card empty state centred, title in body strong (WP-77, aiov-parts.js emptyBody)', () => {
+    renderWithProviders(
+      <EmptyState
+        variant="card"
+        headingLevel={3}
+        title="Cited alone"
+        reason="No other domain is cited in the answers that cite this page."
+      />,
+    );
+    expect(screen.getByRole('heading', { level: 3, name: 'Cited alone' })).toHaveClass('type-body-strong');
+    expect(screen.getByText('No other domain is cited in the answers that cite this page.')).toHaveClass(
+      'type-meta',
+      'max-w-reading',
+    );
+  });
 });
 
 describe('InlineError', () => {

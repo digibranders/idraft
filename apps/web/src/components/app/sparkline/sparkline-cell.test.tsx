@@ -148,6 +148,13 @@ describe('SparklineCell', () => {
     expect(read).not.toHaveBeenCalledWith('--positive-solid');
   });
 
+  it('fills the width of its parent with width="fill" (WP-77, the page drawer trend)', () => {
+    render(<SparklineCell values={[1, 2, 3]} label="Trend: 1, 2, 3" width="fill" height={56} />);
+    const box = screen.getByRole('img', { name: 'Trend: 1, 2, 3' });
+    expect(box).toHaveClass('w-full');
+    expect(box).toHaveStyle({ height: '56px' });
+  });
+
   it('sizes the empty line to the density as well', () => {
     render(<SparklineCell values={[null]} label="Trend: none" density="compact" />);
     expect(screen.getByRole('img', { name: 'Trend: none' })).toHaveStyle({ width: '64px', height: '16px' });

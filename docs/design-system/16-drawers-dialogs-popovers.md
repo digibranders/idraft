@@ -30,6 +30,7 @@ The product has four disclosure levels (scan, hover, inspect, study; [00-design-
 | Keyword detail | Inspector 400 px from any list; full page `/seo/keywords/[tkId]` for study | Inspector tabs: Overview, SERP, AI, Timeline |
 | Prompt detail | Inspector 440 px; full page `/ai/prompts/[promptId]` | Prompt text needs width; answers are long |
 | Citation | Inspector 440 px only | Shows the answer context and the cited page; no full page |
+| Cited page, gap prompt (Citations board, WP-77) | Inspector 440 px only | Tabs Prompts and Overview for a page, Gap and By platform for a prompt; a page no answer of the scope cites says "Not cited in this scope"; no full page |
 | Answer (observation evidence) | Inspector 440 px | Evidence viewer with the entity side panel stacked below the answer ([20-frontend-specification.md](../20-frontend-specification.md) section 4.9) |
 | Page (owned URL) | Inspector 400 px; full page `/seo/pages/[urlId]` (Page Intelligence) | |
 | Competitor | Inspector 400 px | Study happens in Competitor Intelligence filtered to that entity; no separate page in V1 |
@@ -114,7 +115,7 @@ Header actions never exceed five: the command button, More and Close in row 1, P
 | Inspector type | Default width |
 |---|---|
 | Keyword, page, competitor, domain, source, run, candidate | 400 px (`--size-inspector`) |
-| Prompt, topic, citation, answer evidence | 440 px (`--size-inspector-wide`, section 10) |
+| Prompt, topic, citation, answer evidence, cited page, gap prompt | 440 px (`--size-inspector-wide`, section 10) |
 | Minimum, maximum (all types) | 360 px (`--size-inspector-min`), 640 px (`--size-inspector-max`) |
 
 Resizing:
@@ -199,7 +200,7 @@ Decision: the inspector is addressed by **query parameters** on the list page, m
 
 | Parameter | Format | Default (omitted from the URL) |
 |---|---|---|
-| `inspect` | `<type>:<id>`; types `keyword`, `prompt`, `citation`, `answer`, `page`, `competitor`, `domain` (a registrable domain), `source` (a cited URL), `run`, `candidate` (a Discover candidate) | none (inspector closed) |
+| `inspect` | `<type>:<id>`; types `keyword`, `prompt`, `citation`, `answer`, `page`, `competitor`, `domain` (a registrable domain), `source` (a cited URL), `cited-page` (a page of the Citations board, by its `url_id`; WP-77, 440 px), `gap-prompt` (a prompt of the Citations gap analysis, by its prompt id; WP-77, 440 px), `run`, `candidate` (a Discover candidate) | none (inspector closed) |
 | `itab` | tab slug of that inspector type | `overview` |
 
 The inspector tab uses `itab` because page-level tabs already own `tab` ([20-frontend-specification.md](../20-frontend-specification.md) section 3.6), and a prompt detail page can show its own tab and a citation inspector at once.

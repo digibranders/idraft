@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, type ReactElement } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 
 import {
   RATE_SPAN,
@@ -34,6 +34,8 @@ const TONE_TOKEN: Readonly<Record<SparklineTone, string>> = {
  */
 export type SparklineKind = 'count' | 'rate' | 'rank';
 
+const dprOf = (): number => (typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1);
+
 /** The bottom of the rank scale unless a table says otherwise. */
 const RANK_DEPTH = 20;
 
@@ -54,8 +56,11 @@ export interface SparklineCellProps {
   rankDepth?: number | undefined;
   /** `compact` is 64 x 16 px, `default` 64 x 20 px; left out, 20 px as it has been. */
   density?: Density | undefined;
-  /** Pixels; 64 unless a board column asks for more (the Citations Trend column: 96, C 536). */
-  width?: number | undefined;
+  /**
+   * Pixels; 64 unless a board column asks for more (the Citations Trend column: 96, C 536). `fill` (WP-77): the width
+   * of its parent, measured, for a sparkline that spans a card (the page drawer's trend, I 166).
+   */
+  width?: number | 'fill' | undefined;
   /** Pixels; overrides `density` (the page drawer's 56 px trend, I 166). */
   height?: number | undefined;
   /**
@@ -88,7 +93,20 @@ export function SparklineCell({
   className,
 }: SparklineCellProps): ReactElement {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const boxWidth = width ?? SPARK_WIDTH;
+  const box = useRef<HTMLSpanElement | null>(null);
+  const [measured, setMeasured] = useState<number | null>(null);
+  useEffect(() => {
+    if (width !== 'fill') return undefined;
+    const element = box.current;
+    if (element === null || typeof ResizeObserver === 'undefined') return undefined;
+    // As MetricStrip measures its panel: the canvas is drawn again at each new width
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry !== undefined) setMeasured(Math.floor(entry.contentRect.width));
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [width]);
+  const boxWidth = width === 'fill' ? (measured ?? 0) : (width ?? SPARK_WIDTH);
   const height = heightProp ?? (density === 'compact' ? SPARK_HEIGHT_COMPACT : SPARK_HEIGHT);
   const token = entity === undefined ? TONE_TOKEN[tone] : entityToken(entity);
 
@@ -155,6 +173,28 @@ export function SparklineCell({
       theme.disconnect();
     };
   }, [hasSegments, geo, token, endDot]);
+
+  if (width === 'fill') {
+    // The box has its height before the first measure; the line appears once the width is known
+    return (
+      <span ref={box} role="img" aria-label={label} className={cn('block w-full', className)} style={{ height }}>
+        {boxWidth === 0 ? null : hasSegments ? (
+          <canvas
+            ref={canvasRef}
+            aria-hidden="true"
+            width={boxWidth * dprOf()}
+            height={height * dprOf()}
+            style={{ width: boxWidth, height }}
+            className="block"
+          />
+        ) : (
+          <span className="flex h-full items-center">
+            <span className="w-full border-b border-dashed border-border" />
+          </span>
+        )}
+      </span>
+    );
+  }
 
   if (!hasSegments) {
     return (
