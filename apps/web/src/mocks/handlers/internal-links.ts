@@ -29,7 +29,7 @@ import { csvLines } from '@/lib/csv/csv-write';
 import type { Problem, ValidationItem } from '@/lib/api/types';
 import { textLength } from '@/lib/text/length';
 import { parseLinkScope, type LinkScope } from '@/lib/internal-links/scopes';
-import { parseTierCsv } from '@/lib/internal-links/tier-csv';
+import { MAX_CSV_CHARS, parseTierCsv } from '@/lib/internal-links/tier-csv';
 import { MAX_TIERS } from '@/lib/internal-links/tiers';
 import type { PageFilter, PageRow, TierImportResult } from '@/lib/internal-links/types';
 
@@ -486,14 +486,25 @@ export const internalLinkHandlers: HttpHandler[] = [
     });
     if (caller instanceof Response) return caller;
     const { csv: text } = await request.json();
-    const parsed = parseTierCsv(text, pageTierViews());
-    const errors: TierImportResult['errors'] = parsed.errors.map((error) => ({
-      line: error.line,
-      code: error.code,
-      message: `Line ${String(error.line)}: ${error.code}.`,
-    }));
+    // The API caps the body (CSV_MAX) and answers 422 over it
+    if (typeof text === 'string' && text.length > MAX_CSV_CHARS) {
+      return invalidField(request, 'csv', 'string_too_long', 'Over 900,000 characters.');
+    }
+    // The API wants a header naming url and tier, and an absolute http(s) address on every row
+    const parsed = parseTierCsv(text, pageTierViews(), { strict: true });
+    const errors: TierImportResult['errors'] = parsed.errors.flatMap((error) =>
+      error.code === 'too_large'
+        ? []
+        : [
+            {
+              line: error.line,
+              code: error.code === 'missing_header' ? ('missing_column' as const) : error.code,
+              message: `Line ${String(error.line)}: ${error.code}.`,
+            },
+          ],
+    );
     const byPath = new Map(crawledPages().map((page) => [page.path, page.id]));
-    const found: { id: string; tierId: string }[] = [];
+    const found: { id: string; tierId: string | null }[] = [];
     const pending: { line: number; url: string }[] = [];
     for (const row of parsed.rows) {
       const where = importedPath(row.url);
@@ -513,7 +524,8 @@ export const internalLinkHandlers: HttpHandler[] = [
         linksWorld().manual.set(id, { tier_id: tierId, set_at: new Date().toISOString() });
       }
     }
-    return HttpResponse.json({ data: { accepted: found.length, pending, errors, applied } });
+    // As the API: `accepted` counts every valid row, the ones that wait for a crawl included (they are in `pending`)
+    return HttpResponse.json({ data: { accepted: found.length + pending.length, pending, errors, applied } });
   }),
 
   mock('put', `${P}/pages/tags`, async ({ request, cookies, params }) => {

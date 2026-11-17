@@ -1,3 +1,6 @@
+import { queryOptions } from '@tanstack/react-query';
+
+import { api, unwrap } from '@/lib/api/client';
 import { apiQuery, type ApiQueryOptions } from '@/lib/api/query';
 import { projectKey, workspaceKey, type QueryKey } from '@/lib/api/keys';
 import type { paths } from '@/lib/api/schema';
@@ -32,6 +35,7 @@ const WORKLISTS = `${P}/internal-links/worklists` as const;
 const CRAWLS = `${P}/link-crawls` as const;
 const SETTINGS = `${P}/settings` as const;
 const RULES = `${P}/tier-rules` as const;
+const PREVIEW = `${P}/tier-rules/preview` as const;
 const TIERS = `${W}/page-tiers` as const;
 
 /** The query parameters the generated client takes for the two lists. */
@@ -280,6 +284,38 @@ export const linkSettingsQuery = (scope: LinksScope): ApiQueryOptions<typeof SET
 
 export const tierRulesQuery = (scope: LinksScope): ApiQueryOptions<typeof RULES> =>
   apiQuery(RULES, { params: { path: pathOf(scope) } });
+
+/** A rule as the dialog holds it, for the count of pages it matches (decision W16). */
+export interface RulePreviewInput {
+  matchType: 'exact' | 'prefix' | 'pattern';
+  value: string;
+  /** Where the rule stands among the others (1 first). */
+  position: number;
+  /** The saved rule being edited, `null` for a new one. */
+  ruleId: string | null;
+}
+
+/**
+ * Pages the latest crawl holds that a rule matches, and how many of them it would decide. A POST that only reads,
+ * so it is a query: its key sits under `tier-rules` and a rule change refreshes it.
+ */
+export const tierRulePreviewQuery = (scope: LinksScope, input: RulePreviewInput) =>
+  queryOptions({
+    queryKey: [...projectKey(scope.workspaceId, scope.projectId), 'tier-rules', 'preview', input],
+    queryFn: ({ signal }) =>
+      unwrap(
+        api.POST(PREVIEW, {
+          params: { path: pathOf(scope) },
+          body: {
+            match_type: input.matchType,
+            value: input.value,
+            position: input.position,
+            ...(input.ruleId === null ? {} : { rule_id: input.ruleId }),
+          },
+          signal,
+        }),
+      ).then((answer) => answer.data),
+  });
 
 export const pageTiersQuery = (workspaceId: string): ApiQueryOptions<typeof TIERS> =>
   apiQuery(TIERS, { params: { path: { workspace_id: workspaceId } } });

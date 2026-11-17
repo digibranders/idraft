@@ -113,15 +113,38 @@ describe('the internal links mock API', () => {
 
   it('checks the CSV import and applies nothing while a line has an error', async () => {
     const browser = mockBrowser('editor');
-    const bad = await browser.call('POST', `${P}/pages/tiers/import`, { csv: 'url,tier\n/pricing,T4\n/about,T9\n' });
+    const site = 'https://eventussecurity.com';
+    const bad = await browser.call('POST', `${P}/pages/tiers/import`, {
+      csv: `url,tier\n${site}/pricing,T4\n${site}/about,T9\n`,
+    });
     expect(bad.body).toMatchObject({
       data: { applied: false, errors: [{ line: 3, code: 'unknown_tier' }] },
+    });
+    // The header is needed, a path is not an address, and another site is not this one
+    const headerless = await browser.call('POST', `${P}/pages/tiers/import`, { csv: `${site}/pricing,T4\n` });
+    expect(headerless.body).toMatchObject({ data: { applied: false, errors: [{ line: 1, code: 'missing_column' }] } });
+    const odd = await browser.call('POST', `${P}/pages/tiers/import`, {
+      csv: `url,tier\n/pricing,T4\nhttps://other.example/x,T4\n`,
+    });
+    expect(odd.body).toMatchObject({
+      data: {
+        applied: false,
+        errors: [
+          { line: 2, code: 'invalid_url' },
+          { line: 3, code: 'other_site' },
+        ],
+      },
     });
     const pricing = ROWS.parse((await browser.call('GET', `${P}/internal-links/pages?q=%2Fpricing&limit=100`)).body)
       .data[0];
     expect(pricing?.tier?.code).toBe('T1');
-    const good = await browser.call('POST', `${P}/pages/tiers/import`, { csv: 'url,tier\n/pricing,T4\n/nowhere,T2\n' });
-    expect(good.body).toMatchObject({ data: { applied: true, accepted: 1, pending: [{ line: 3, url: '/nowhere' }] } });
+    const good = await browser.call('POST', `${P}/pages/tiers/import`, {
+      csv: `url,tier\n${site}/pricing,T4\n${site}/nowhere,none\n`,
+    });
+    // `accepted` counts the row that waits for a crawl too, as the API does
+    expect(good.body).toMatchObject({
+      data: { applied: true, accepted: 2, pending: [{ line: 3, url: `${site}/nowhere` }] },
+    });
   });
 
   it('answers the CSV downloads with the server columns in the server order, and no equity', async () => {

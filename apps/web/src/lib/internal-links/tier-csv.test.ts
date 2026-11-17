@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { MAX_CSV_ROWS, parseTierCsv } from './tier-csv';
+import { countByTier, MAX_CSV_CHARS, MAX_CSV_ROWS, parseTierCsv } from './tier-csv';
 
 const TIERS = [
   { tier_id: 't1', code: 'T1', name: 'Money pages' },
@@ -60,6 +60,77 @@ describe('parseTierCsv (spec 5.2, the Check step)', () => {
     const result = parseTierCsv('/a,T1\n/b,Money', tiers);
     expect(result.rows).toEqual([{ line: 1, url: '/a', tierId: 'a' }]);
     expect(result.errors).toEqual([{ line: 2, code: 'unknown_tier', value: 'Money' }]);
+  });
+
+  it('reads none, Untiered and a label such as T1 Money pages, as the API does', () => {
+    const result = parseTierCsv('/a,none\n/b, UNTIERED \n/c,T1  money   pages', TIERS);
+    expect(result.rows).toEqual([
+      { line: 1, url: '/a', tierId: null },
+      { line: 2, url: '/b', tierId: null },
+      { line: 3, url: '/c', tierId: 't1' },
+    ]);
+    expect(result.errors).toEqual([]);
+  });
+
+  it('counts rows by tier, Untiered under null', () => {
+    const { rows } = parseTierCsv('/a,T1\n/b,none\n/c,T1\n/d,T2', TIERS);
+    expect([...countByTier(rows)]).toEqual([
+      ['t1', 2],
+      [null, 1],
+      ['t2', 1],
+    ]);
+  });
+});
+
+describe('parseTierCsv, strict (the API contract of the import)', () => {
+  const strict = { strict: true } as const;
+  const SITE = 'https://a.com';
+
+  it('reads the columns the header names, in any order, after a byte order mark', () => {
+    const result = parseTierCsv(`${String.fromCharCode(0xfeff)}tier,Url\nT1,${SITE}/pricing\n`, TIERS, strict);
+    expect(result).toEqual({ rows: [{ line: 2, url: `${SITE}/pricing`, tierId: 't1' }], errors: [] });
+  });
+
+  it('needs a header that names url and tier, and says so once', () => {
+    expect(parseTierCsv(`${SITE}/a,T1\n${SITE}/b,T2`, TIERS, strict)).toEqual({
+      rows: [],
+      errors: [{ line: 1, code: 'missing_header', value: '' }],
+    });
+    expect(parseTierCsv('url,name\nx,y', TIERS, strict).errors).toEqual([
+      { line: 1, code: 'missing_header', value: '' },
+    ]);
+    expect(parseTierCsv('', TIERS, strict).errors).toEqual([{ line: 1, code: 'missing_header', value: '' }]);
+  });
+
+  it('refuses what is not an absolute http or https address, keeping the line', () => {
+    const text = [
+      'url,tier',
+      '/about,T1',
+      'ftp://a.com/x,T1',
+      'javascript:alert(1),T1',
+      `${SITE}/ok,T1`,
+      'https://,T1',
+    ].join('\n');
+    const result = parseTierCsv(text, TIERS, strict);
+    expect(result.rows).toEqual([{ line: 5, url: `${SITE}/ok`, tierId: 't1' }]);
+    expect(result.errors).toEqual([
+      { line: 2, code: 'invalid_url', value: '' },
+      { line: 3, code: 'invalid_url', value: '' },
+      { line: 4, code: 'invalid_url', value: '' },
+      { line: 6, code: 'invalid_url', value: '' },
+    ]);
+  });
+
+  it('counts the header against nothing: the row cap is on rows', () => {
+    const body = Array.from({ length: MAX_CSV_ROWS + 1 }, (_, index) => `${SITE}/p${String(index)},T1`).join('\n');
+    expect(parseTierCsv(`url,tier\n${body}`, TIERS, strict).errors).toEqual([
+      { line: MAX_CSV_ROWS + 2, code: 'too_many_rows', value: '' },
+    ]);
+  });
+
+  it('refuses text over the size the API takes before reading it', () => {
+    const big = `url,tier\n${'x'.repeat(MAX_CSV_CHARS)}`;
+    expect(parseTierCsv(big, TIERS, strict)).toEqual({ rows: [], errors: [{ line: 1, code: 'too_large', value: '' }] });
   });
 
   it('refuses more rows than the API takes', () => {

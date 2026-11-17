@@ -1,6 +1,6 @@
 'use client';
 
-import { Ban } from 'lucide-react';
+import { Ban, ListFilter, Upload } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useCallback, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
 
@@ -18,6 +18,8 @@ import {
 } from './crawl-states';
 import { PageInspector, PageNotFoundInspector } from './inspector/page-inspector';
 import { UNTIERED_QUERY } from './pages/page-filters';
+import { ImportDialog } from './rules/import-dialog';
+import { RulesDialog } from './rules/rules-dialog';
 import { SummaryStrip } from './summary-strip';
 import { activeLinksTab, LINKS_TABS, type LinksTabContext } from './tabs';
 import { inspectedPage, useLinksState } from './url-state';
@@ -27,6 +29,8 @@ import { PageToolbar } from '@/components/app/page-toolbar';
 import { PAGE_CLASS } from '@/components/app/shell/page-header';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { InlineError } from '@/components/app/status/inline-error';
+import { Button } from '@/components/ui/button';
+import type { MenuItemDef } from '@/components/ui/menu';
 import { Tabs, TabsPanel } from '@/components/ui/tabs';
 import { toast } from '@/components/ui/toast';
 import { announce } from '@/lib/a11y/announcer';
@@ -109,6 +113,22 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
   // The rows the open tab shows, in order: the inspector's "12 of 986" and its J and K step through them
   const [order, setOrder] = useState<readonly string[]>([]);
   const canWrite = useCan('projects:write');
+  // Anyone who reads the project reads the rules; only a member who may write sets them or imports tiers
+  const [dialog, setDialog] = useState<'rules' | 'import' | null>(null);
+  const ruleItems: MenuItemDef[] = [
+    { id: 'rules', label: t('rules.open'), icon: ListFilter, onSelect: () => setDialog('rules') },
+    ...(canWrite ? [{ id: 'import', label: t('csv.open'), icon: Upload, onSelect: () => setDialog('import') }] : []),
+  ];
+  const ruleButtons = canWrite ? (
+    <>
+      <Button variant="secondary" size="sm" onClick={() => setDialog('rules')}>
+        {t('rules.setUp')}
+      </Button>
+      <Button variant="secondary" size="sm" onClick={() => setDialog('import')}>
+        {t('csv.open')}
+      </Button>
+    </>
+  ) : undefined;
   const inspectorWords = useTranslations('internalLinks.inspector');
   const stepping = useInspectorStepping({
     inspector,
@@ -211,7 +231,7 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
       );
       break;
     case 'first':
-      body = <FirstCrawl run={view.run} host={host} timeZone={project.timeZone} />;
+      body = <FirstCrawl run={view.run} host={host} timeZone={project.timeZone} actions={ruleButtons} />;
       break;
     case 'failed-first':
       body = (
@@ -266,6 +286,7 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
         onCrawlNow={() => crawl.start()}
         onExport={ready ? onExport : null}
         exporting={exporting}
+        extraItems={ruleItems}
         settingsHref={settingsHref}
         tiersHref={tiersHref}
       />
@@ -328,6 +349,21 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
           </>
         )}
       </div>
+      <RulesDialog
+        open={dialog === 'rules'}
+        onOpenChange={(next) => setDialog(next ? 'rules' : null)}
+        scope={scope}
+        tiers={context.tiers}
+        canWrite={canWrite}
+      />
+      {canWrite ? (
+        <ImportDialog
+          open={dialog === 'import'}
+          onOpenChange={(next) => setDialog(next ? 'import' : null)}
+          scope={scope}
+          tiers={context.tiers}
+        />
+      ) : null}
     </InspectorLayout>
   );
 }

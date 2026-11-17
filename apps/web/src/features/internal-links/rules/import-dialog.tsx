@@ -1,0 +1,274 @@
+'use client';
+
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useTranslations } from 'next-intl';
+import { useState, type ReactElement } from 'react';
+
+import { TierBadge } from '@/components/app/tier/tier-badge';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogBody, DialogClose, DialogFooter, DialogHeader } from '@/components/ui/dialog';
+import { Field, FieldDescription, FieldLabel } from '@/components/ui/field';
+import { FormAlert } from '@/components/ui/form-alert';
+import { Textarea } from '@/components/ui/textarea';
+import { toast } from '@/components/ui/toast';
+import { isApiProblem } from '@/lib/api/problem';
+import { importTiersMutation } from '@/lib/internal-links/mutations';
+import { internalLinksKeys } from '@/lib/internal-links/queries';
+import { countByTier, parseTierCsv, type CsvTierError, type CsvTierRow } from '@/lib/internal-links/tier-csv';
+import type { LinksScope, PageTier, TierImportResult } from '@/lib/internal-links/types';
+
+/** Lines and rows the dialog lists; the count of the rest is said. The API takes up to 20,000 rows. */
+const SHOWN = 20;
+
+interface Checked {
+  rows: CsvTierRow[];
+  errors: CsvTierError[];
+}
+
+/**
+ * Import tiers from CSV (spec 5.2, mock `openImportTiers`). The API has no dry run (gap G6), so Check reads the text
+ * on this page with the rules of the API and shows what would change; Apply sends the same text, and the API checks
+ * it again, applies all of it or none of it, and answers per line. A refusal or a failure leaves the dialog open
+ * with the text and the reason, and sending again is safe: the same rows set the same tiers.
+ */
+export function ImportDialog({
+  open,
+  onOpenChange,
+  scope,
+  tiers,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  scope: LinksScope;
+  tiers: readonly PageTier[];
+}): ReactElement {
+  const t = useTranslations('internalLinks.csv');
+  const common = useTranslations('common');
+  const queryClient = useQueryClient();
+  const apply = useMutation(importTiersMutation);
+  const [text, setText] = useState('');
+  const [checked, setChecked] = useState<Checked | null>(null);
+  const [refused, setRefused] = useState<TierImportResult['errors'] | null>(null);
+  const [failure, setFailure] = useState<string | null>(null);
+  const tierOf = (tierId: string | null): PageTier | null => tiers.find((tier) => tier.tier_id === tierId) ?? null;
+  const errorText = (error: CsvTierError): string => {
+    switch (error.code) {
+      case 'unknown_tier':
+        return t('unknownTier', { line: error.line, value: error.value });
+      case 'missing_column':
+        return t('missingColumn', { line: error.line });
+      case 'missing_header':
+        return t('missingHeader', { line: error.line });
+      case 'invalid_url':
+        return t('invalidUrl', { line: error.line });
+      case 'too_many_rows':
+        return t('tooManyRows', { line: error.line });
+      case 'too_large':
+        return t('tooLarge');
+    }
+  };
+  const ready = checked !== null && checked.rows.length > 0 && checked.errors.length === 0;
+  const counts = checked === null ? [] : [...countByTier(checked.rows)];
+  const lines = checked === null ? [] : checked.errors.map(errorText);
+  const refusedLines =
+    refused === null ? [] : refused.map((error) => t('serverLine', { line: error.line, message: error.message }));
+
+  const reset = (): void => {
+    setText('');
+    setChecked(null);
+    setRefused(null);
+    setFailure(null);
+  };
+  const close = (next: boolean): void => {
+    // The import finishes first, so its answer is not lost
+    if (!next && apply.isPending) return;
+    if (!next) reset();
+    onOpenChange(next);
+  };
+  const edit = (next: string): void => {
+    setText(next);
+    setChecked(null);
+    setRefused(null);
+    setFailure(null);
+  };
+
+  const submit = (): void => {
+    if (!ready || apply.isPending) return;
+    setRefused(null);
+    setFailure(null);
+    apply.mutate(
+      { params: { path: { workspace_id: scope.workspaceId, project_id: scope.projectId } }, body: { csv: text } },
+      {
+        onSuccess: (answer) => {
+          const result = answer.data;
+          for (const queryKey of internalLinksKeys(scope)) void queryClient.invalidateQueries({ queryKey });
+          if (!result.applied) {
+            setRefused(result.errors);
+            return;
+          }
+          // `accepted` counts the rows that wait for a crawl too: those are stored, and apply when a crawl finds them
+          const tagged = Math.max(result.accepted - result.pending.length, 0);
+          toast({
+            type: 'success',
+            title: t('imported'),
+            description: [
+              ...(tagged > 0 ? [t('importedText', { count: tagged })] : []),
+              ...(result.pending.length > 0 ? [t('pending', { count: result.pending.length })] : []),
+            ].join(' '),
+          });
+          reset();
+          onOpenChange(false);
+        },
+        onError: (error) => {
+          const reason = isApiProblem(error) ? (error.detail ?? error.string('title') ?? '') : '';
+          setFailure([t('failed'), reason].filter((part) => part !== '').join(' '));
+        },
+      },
+    );
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={close}
+      size="md"
+      dirty={text !== ''}
+      discard={{
+        title: t('discardTitle'),
+        description: t('discardText'),
+        keepEditingLabel: t('keepEditing'),
+        discardLabel: t('discard'),
+      }}
+    >
+      <DialogHeader title={t('title')} description={t('description')} closeLabel={common('close')} />
+      <DialogBody>
+        {failure === null ? null : <FormAlert message={failure} />}
+        {refused === null ? null : (
+          <div className="flex flex-col gap-2">
+            <FormAlert message={t('serverErrors')} />
+            <ul className="flex flex-col gap-1 pl-4 type-body text-foreground">
+              {refusedLines.slice(0, SHOWN).map((line, index) => (
+                <li key={`${String(refused[index]?.line)}-${String(index)}`} className="list-disc">
+                  {line}
+                </li>
+              ))}
+            </ul>
+            {refusedLines.length > SHOWN ? (
+              <p className="type-meta text-foreground-secondary">
+                {t('errorsMore', { count: refusedLines.length - SHOWN })}
+              </p>
+            ) : null}
+          </div>
+        )}
+        <Field>
+          <FieldLabel>{t('field')}</FieldLabel>
+          <Textarea
+            value={text}
+            placeholder={t('placeholder')}
+            spellCheck={false}
+            autoComplete="off"
+            onChange={(event) => edit(event.target.value)}
+          />
+          <FieldDescription>{t('hint')}</FieldDescription>
+        </Field>
+        <Button
+          variant="secondary"
+          size="sm"
+          className="mt-2 self-start"
+          onClick={() => setChecked(parseTierCsv(text, tiers, { strict: true }))}
+        >
+          {t('check')}
+        </Button>
+        {checked === null ? null : checked.rows.length === 0 && checked.errors.length === 0 ? (
+          <p className="mt-3 type-body text-foreground-secondary">{t('nothing')}</p>
+        ) : (
+          <div className="mt-3 flex flex-col gap-3">
+            {checked.errors.length === 0 ? null : (
+              <div className="flex flex-col gap-2">
+                <FormAlert message={`${t('errorsTitle', { count: checked.errors.length })}. ${t('errorsText')}`} />
+                <ul className="flex flex-col gap-1 pl-4 type-body text-foreground">
+                  {lines.slice(0, SHOWN).map((line, index) => (
+                    <li key={`${String(checked.errors[index]?.line)}-${String(index)}`} className="list-disc">
+                      {line}
+                    </li>
+                  ))}
+                </ul>
+                {lines.length > SHOWN ? (
+                  <p className="type-meta text-foreground-secondary">
+                    {t('errorsMore', { count: lines.length - SHOWN })}
+                  </p>
+                ) : null}
+              </div>
+            )}
+            {checked.rows.length === 0 ? null : (
+              <section className="flex flex-col gap-2">
+                <h3 className="type-body-strong">{t('readyTitle', { count: checked.rows.length })}</h3>
+                <ul className="flex flex-wrap items-center gap-2">
+                  {counts.map(([tierId, count]) => (
+                    <li
+                      key={tierId ?? 'none'}
+                      className="flex items-center gap-1.5 num type-meta text-foreground-secondary"
+                    >
+                      <TierBadge tier={tierOf(tierId)} withName />
+                      <span>{t('tierCount', { count })}</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="type-meta text-foreground-secondary">{t('readyText')}</p>
+                <p className="type-meta text-foreground-secondary">{t('previewNote')}</p>
+                <table className="w-full border-collapse">
+                  <caption className="sr-only">{t('rowsCaption')}</caption>
+                  <thead>
+                    <tr>
+                      {[t('line'), t('url'), t('tier')].map((header) => (
+                        <th
+                          key={header}
+                          scope="col"
+                          className="h-row-header border-b border-border bg-surface-subtle px-3 text-left type-table-header text-foreground-tertiary"
+                        >
+                          {header}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {checked.rows.slice(0, SHOWN).map((row) => (
+                      <tr key={row.line} className="h-row-compact border-b border-border-subtle">
+                        <td className="px-3 num type-table">{row.line}</td>
+                        <td className="max-w-72 truncate px-3 type-table" title={row.url}>
+                          {row.url}
+                        </td>
+                        <td className="px-3">
+                          <TierBadge tier={tierOf(row.tierId)} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {checked.rows.length > SHOWN ? (
+                  <p className="type-meta text-foreground-secondary">
+                    {t('rowsShown', { shown: SHOWN, count: checked.rows.length })}
+                  </p>
+                ) : null}
+              </section>
+            )}
+          </div>
+        )}
+      </DialogBody>
+      <DialogFooter
+        primary={
+          <Button variant="primary" disabled={!ready} loading={apply.isPending} onClick={submit}>
+            {ready ? t('apply', { count: checked.rows.length }) : t('applyNone')}
+          </Button>
+        }
+        secondary={
+          <DialogClose>
+            <Button type="button" variant="secondary" disabled={apply.isPending}>
+              {common('cancel')}
+            </Button>
+          </DialogClose>
+        }
+      />
+    </Dialog>
+  );
+}
