@@ -105,7 +105,11 @@ export function lineOption({ labels, lines, band, boundary, format = pctAxis, to
   };
 }
 
-/** A stacked 100% area: share of voice over the weekly runs. `layers`: `{ name, token, values }` that add up to 1 per week. */
+/**
+ * A stacked 100% area: share of voice over the weekly runs. `layers`: `{ name, token, values, notes }` that add up to 1 per
+ * week; `notes[week]` is `{ text, detail }`, the tooltip's words for the layer's week: the percent with its brand mentions
+ * (D17), and for an average of platforms the counts of each platform as a line below.
+ */
 export function shareAreaOption({ labels, layers }) {
   const axes = charts.axisTheme();
   return {
@@ -113,7 +117,12 @@ export function shareAreaOption({ labels, layers }) {
     grid: { left: 44, right: 28, top: 8, bottom: 24, outerBoundsMode: 'none' },
     xAxis: { type: 'category', data: labels, boundaryGap: false, ...axes.x },
     yAxis: { type: 'value', min: 0, max: 1, interval: 0.25, ...axes.y, axisLabel: { ...axes.y.axisLabel, formatter: pctAxis } },
-    tooltip: charts.tooltipTheme((list) => list.map((param) => ({ color: param.color, name: param.seriesName, value: param.value === null ? 'n/a' : `${(param.value * 100).toFixed(1)}%` }))),
+    tooltip: charts.tooltipTheme((list) =>
+      list.map((param) => {
+        const note = layers[param.seriesIndex]?.notes?.[param.dataIndex];
+        return { color: param.color, name: param.seriesName, value: param.value === null ? 'n/a' : note?.text ?? `${(param.value * 100).toFixed(1)}%`, detail: note?.detail };
+      }),
+    ),
     series: layers.map((layer) => ({
       name: layer.name,
       type: 'line',

@@ -126,10 +126,12 @@
         const list = Array.isArray(params) ? params : [params];
         const rows = renderRows(list)
           .map(
-            ({ color, name, value }) =>
+            ({ color, name, value, detail }) =>
               `<div class="flex items-center gap-2 h-6"><span class="size-2 rounded-full" style="background:${color}"></span>` +
               `<span class="type-table text-foreground-secondary">${escape(name)}</span>` +
-              `<span class="ml-auto pl-6 type-table num text-foreground">${escape(value)}</span></div>`,
+              `<span class="ml-auto pl-6 type-table num text-foreground">${escape(value)}</span></div>` +
+              // A row may carry a detail line of its own (the brand mentions of each platform of an average), wrapped under it
+              (detail ? `<div class="type-meta text-foreground-secondary pl-4 pb-1 max-w-72 whitespace-normal">${escape(detail)}</div>` : ''),
           )
           .join('');
         const title = escape(list[0]?.axisValueLabel ?? '');

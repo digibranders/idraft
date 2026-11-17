@@ -331,18 +331,43 @@ export function entitiesFor(model) {
   }));
 }
 
-/** Weekly share of voice per entity, each week normalized to 100%. Competitors move a little around their share. */
-export function sovSeries(model, entities) {
+/** `y` split in whole parts in proportion to `weights` (largest remainder), so the parts add up to `y` exactly. */
+function splitWhole(weights, y) {
+  const total = weights.reduce((sum, weight) => sum + weight, 0);
+  const raw = weights.map((weight) => (total === 0 ? 0 : (weight / total) * y));
+  const parts = raw.map(Math.floor);
+  const order = raw.map((value, index) => ({ index, rest: value - parts[index] })).sort((a, b) => b.rest - a.rest || a.index - b.index);
+  for (let left = y - parts.reduce((sum, part) => sum + part, 0), at = 0; left > 0; left--, at++) parts[order[at % order.length].index]++;
+  return parts;
+}
+
+/**
+ * Weekly share of voice per entity as brand-mention counts (D17), the 8 weekly runs. Each platform of the scope has, week by
+ * week, a y (the brand mentions of every tracked brand that week, around an eighth of its window total) and for each brand an
+ * x (its mentions, the x of one week adding up to y), so a platform's share of a week is exactly x over y and a week under 4
+ * mentions has no share (R2). All platforms is the average of the platforms' shares, each counting once (R3), and keeps
+ * each platform's x of y. A week's split follows the brands' smooth weekly lines, so the shares drift around the window's.
+ * Returns, for each week, `shares` (one per entity, `null` where no platform has a share) and `platforms`, `{ code, y, counts }`.
+ */
+export function sovWeeks(model, entities) {
   const own = entities[0];
   const previousOwn = model.scope.platform === 'all' ? model.average.sov.previous : model.cells.sov[model.scope.platform].previous;
-  const series = entities.map((entity, index) => {
+  const lines = entities.map((entity, index) => {
     if (entity.sov === null) return Array(8).fill(null);
     const before = index === 0 ? previousOwn ?? entity.sov : entity.sov * (1 + (rng(`${model.key}|${entity.name}|prev`)() - 0.5) * 0.12);
     return weekly(before, entity.sov, `${model.key}|sov|${entity.name}`, index === 0 ? 0.008 : 0.01);
   });
   return Array.from({ length: 8 }, (_, week) => {
-    const total = series.reduce((sum, line) => sum + (line[week] ?? 0), 0);
-    return series.map((line) => (line[week] === null || own.sov === null ? null : line[week] / total));
+    const split = lines.map((line) => line[week] ?? 0);
+    const platforms = own.sov === null ? [] : own.platformCounts.map(({ code, n }) => {
+      const y = Math.round((n / 8) * (0.8 + 0.4 * rng(`${model.key}|${code}|y|${week}`)()));
+      return { code, y, counts: splitWhole(split, y) };
+    });
+    const rated = platforms.filter((platform) => rateState(platform.y) === 'ok');
+    return {
+      shares: entities.map((_, index) => (rated.length === 0 ? null : rated.reduce((sum, platform) => sum + platform.counts[index] / platform.y, 0) / rated.length)),
+      platforms,
+    };
   });
 }
 
