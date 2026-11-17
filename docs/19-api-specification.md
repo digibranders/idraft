@@ -2429,6 +2429,40 @@ Sensitive action without a fresh session:
 }
 ```
 
+### 4.8 Internal links (plan 02)
+
+`{W}` is `/api/v1/workspaces/{workspace_id}` and `{P}` is `{W}/projects/{project_id}`. Ids are UUID strings, except `url_id` and `link_id`, which are 64-bit integers sent as strings in responses. In request bodies `url_ids` are typed as integers in the OpenAPI document. `run` is `latest` (default) or a crawl id; `scope` is `editorial` (default), `auto_generated`, `template` or `all`. A list with no finished crawl answers `404 no_crawl`, except that an unknown project is `404 not_found` first. Unknown query parameters are `422`. An empty `filter[tier]`, `filter[source_tier]` or `filter[target_tier]` is `422`, and so is a `null` member in a patch body. A bad or foreign cursor is `400 invalid_cursor`. The page tags of a row are `PageTagRef {term_id, name}`. Equity share is carried in page rows, the page detail, the tier flow and the CSV files.
+
+| Method and path | Permission | Query or body | Response |
+|---|---|---|---|
+| `GET {W}/page-tiers` | data:read | none | `PageTierList` |
+| `POST {W}/page-tiers` | workspace:update | `PageTierCreate {name 1..60, description 0..200}` | 201 `PageTierResponse`; 422 `tier_limit` at 8 |
+| `PATCH {W}/page-tiers/{tier_id}` | workspace:update | `PageTierPatch {name?, description?}` | `PageTierResponse` |
+| `DELETE {W}/page-tiers/{tier_id}` | workspace:update | query `move_to` (a tier id or `none`) | 204; 422 `tier_in_use`; 422 `validation_failed` `move_to_self` |
+| `GET {P}/tier-rules` | data:read | none | `TierRuleList` |
+| `POST {P}/tier-rules` | projects:write | `TierRuleCreate {match_type, value, tier_id, position?}` | 201 `TierRuleResponse` |
+| `PATCH {P}/tier-rules/{rule_id}` | projects:write | `TierRulePatch` | `TierRuleResponse` |
+| `DELETE {P}/tier-rules/{rule_id}` | projects:write | none | 204 |
+| `POST {P}/tier-rules/preview` | data:read | `TierRulePreviewRequest` | `TierRulePreviewResponse {matching_pages, would_apply}` |
+| `PUT {P}/pages/tiers` | projects:write | `PageTierSet {url_ids or filter, tier_id}` | `BulkResponse {matched, changed}`; 422 `too_many_subjects` over 20,000 |
+| `POST {P}/pages/tiers/reset` | projects:write | `PageSelection` | `BulkResponse` |
+| `POST {P}/pages/tiers/import` | projects:write | `TierImportRequest {csv up to 1 MB}` | `TierImportResponse {accepted, pending, errors, applied}`; nothing applies while `errors` is not empty |
+| `PUT {P}/pages/tags` | projects:write | `PageTagChange {url_ids or filter, add, remove}` | `TagChangeResponse {matched, added, removed}` |
+| `GET {P}/link-crawls` | data:read | `cursor`, `limit` (50, max 200) | `CrawlRunPage`, newest first |
+| `POST {P}/link-crawls` | runs:trigger | `CrawlCreate {higher_limit}` | 202 `CrawlRunResponse`; 409 `crawl_in_progress` (`run_id`); 422 `no_website`; 422 `budget_exceeded` (`budget_id`); 422 `validation_failed` `no_stopped_crawl` |
+| `GET {P}/link-crawls/{run_id}` | data:read | none | `CrawlRunResponse` |
+| `POST {P}/link-crawls/{run_id}/cancel` | runs:trigger | none | `CrawlRunResponse`; a queued crawl ends `cancelled` at once, a crawling one is asked to stop; 409 `invalid_state_transition` otherwise |
+| `GET {P}/internal-links/pages` | data:read | `run`, `scope`, `filter[tier]`, `filter[tag]`, `filter[status]`, `filter[indexable]`, `filter[flags]`, `filter[worklist]`, `q`, `sort`, `cursor`, `limit`, `format` (`json`, `csv`) | `PageRowPage`, or `text/csv` |
+| `GET {P}/internal-links/pages/{url_id}` | data:read | `run`, `scope` | `PageDetailResponse`; 404 when the URL is not in the crawl |
+| `GET {P}/internal-links/edges` | data:read | `run`, `scope`, `filter[source_tier]`, `filter[target_tier]`, `filter[tag]`, `filter[placement]`, `filter[target_status]`, `filter[source]`, `filter[target]`, `filter[worklist]`, `q_source`, `q_target`, `cursor`, `limit`, `format` | `EdgeRowPage`, or `text/csv` |
+| `GET {P}/internal-links/neighbors` | data:read | `url_id`, `direction`, `run`, `scope`, `limit` (8, max 50), `offset` | `NeighborList` |
+| `GET {P}/internal-links/tier-flow` | data:read | `run`, `scope` | `TierFlowResponse` |
+| `GET {P}/internal-links/worklists` | data:read | `run` | `WorklistsResponse` |
+| `PATCH {P}/settings` | projects:write | `ProjectSettingsPatch {seo?, internal_links?}`, at least one | `ProjectSettingsResponse` with `internal_links {schedule, render_javascript, allowed_subdomains}` |
+| `POST {W}/projects` | projects:write | `ProjectCreate` gains `map_internal_links` (default false) | unchanged; a ticked box queues the first crawl in the same transaction |
+
+CSV files hold at most 100,000 rows. Full field lists are in `backend/openapi/v1.json` and in docs/superpowers/plans/2026-11-16-internal-links-02-backend-slice-1.md, section "API contract".
+
 ## 5. Outbound webhooks (alerts to Slack and custom URLs)
 
 ### 5.1 Endpoints and events

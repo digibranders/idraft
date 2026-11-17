@@ -410,6 +410,8 @@ Intent, funnel stage and priority are **columns** on keywords and prompts, not t
 
 Topic, cluster, product, service, market, campaign, persona and tags are terms. A keyword can have many terms per vocabulary unless the vocabulary is `is_single_valued`.
 
+**As built (migration 0025, internal links).** Page tags are `core.page_terms` rows of `tag` vocabularies. Tiers: `core.page_tier_levels` (workspace, positions 1 to 8), `core.tier_rules`, `core.project_pages`. Crawls live in `seo.crawl_runs`, `seo.crawl_pages`, `seo.crawl_links` (partitioned by crawl, made and dropped by `seo.add_crawl_links_partition` and `seo.drop_crawl_links_partition`), `seo.crawl_tier_flow` and `seo.crawl_tier_stats`. Plan: docs/superpowers/plans/2026-11-16-internal-links-02-backend-slice-1.md.
+
 ## 6. Entities: brands, aliases, competitors
 
 A competitor is an entity with a project role, not a separate table. This keeps SEO competitor tracking (by domain) and AI competitor tracking (by name and domain) on the same object.
