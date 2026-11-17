@@ -194,6 +194,13 @@ A new SEO sidebar item, "Internal links", with tabs Pages, Links, Journey and Ti
 
 The page header shows the crawl in scope ("Crawled 14 Nov, 2,148 pages") with a menu of earlier runs, plus Crawl now and Export.
 
+**Page header layout** (decided 2026-11-17; the same on every tab; two lines, so the content starts about 140 px down at desktop width):
+- **Line 1:** the tabs on the left, the actions on the right: Crawl now (primary), Export, More. Tab icons show from xl; below that the labels alone keep the tabs and the actions on one line.
+- **Line 2, the context line:** the crawl in scope with its menu (with "Older crawl" and "Back to latest" when an earlier run is shown), then the key numbers (Tiered, T1 pages, T1 average depth, No editorial links in, and the lost-links figure when there is one). "Pages" is not repeated: the crawl button already gives the page count. The line never wraps: when it is too long it scrolls sideways.
+- **Below md:** the tabs take the whole first line and scroll sideways (the selected tab is scrolled into view); the actions drop to a line of their own, right aligned; Export moves into More. The mock's "Preview state" control is icon only below xl.
+- **Tab toolbars follow the same rule:** controls that act together stay together and move as a group to the next line, right aligned; a row of chips that can run to seven (the Pages tab's views) is one line that scrolls sideways below lg and wraps from lg up.
+
+
 ### 7.2 Pages tab
 
 A `DataTable` with selection, the bulk bar, the `FilterBar` (tier, tag, status, indexable, link scope, flags) and the column chooser. The link scope is one chip with Editorial (default), Auto-generated, Template and All. It changes every link count on the screen, but never equity share or click depth.
@@ -297,7 +304,7 @@ The canvas and the tree list share one state: focus page, link scope and opened 
   - **Pan:** drag the empty background, two-finger scroll on a trackpad, wheel, or Space and drag. A fast drag glides to a stop (not under reduced motion). On touch, one finger pans from anywhere.
   - **Zoom:** pinch, or Ctrl or Cmd and scroll, toward the cursor; 25% to 200%, continuous. On touch, two fingers pinch and pan together. Buttons zoom in 25% steps around the centre.
   - **View controls** (bottom left, a toolbar named "Canvas view"): zoom out, the percentage (activating it returns to 100%), zoom in, Fit everything, Centre on the focus page, Reset card positions, Legend and controls (the gestures and keys, and what the line styles and box styles mean). There is no permanent legend row under the canvas: it took too much height.
-  - **Minimap** (bottom right, hidden below 640 px): every card and the part in view; press or drag on it to move the view.
+  - **Minimap** (bottom right, hidden below 640 px, off until the user turns it on with the map button in the controls, because it sat over the cards and few journeys need it): every card and the part in view; press or drag on it to move the view.
   - **First view:** the whole journey when it is readable at 70% or more; otherwise the focus page at 85%, so the first thing seen is never a blur. The last view of a journey is restored when the page re-renders, for example after a tier change.
   - **Growing never loses the place** (decided 2026-11-17, after the layout jumped on every click): when a card opens or closes, the card the user pressed stays exactly where it is on screen, every other card glides from its old place to its new one (300 ms, ease in and out), new cards fade in, the lines follow frame by frame, and the view pans the least it takes to show the card and its new children, all as one movement. Nothing teleports. Under reduced motion all of it is instant.
   - **Dot grid** behind the cards moves and scales with the view, so panning always reads as movement.

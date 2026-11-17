@@ -32,6 +32,8 @@ let pinnedTip = null;
 // Cards the user selected on the canvas (keys), and where the user moved cards, kept for the session
 const selection = new Set();
 const offsets = new Map();
+// Whether the minimap is shown; it is off until asked for, because it sits over the cards and few journeys need it
+let minimapOn = false;
 // The last view of the canvas, so a re-render of the same journey does not jump
 let savedView = null;
 // A data-restore value to focus after the next render (the control that caused it was rebuilt)
@@ -601,7 +603,19 @@ function buildCanvas() {
     help.classList.toggle('block', open);
   });
   helpButton.setAttribute('aria-expanded', 'false');
-  controls.append(zoomOut, percent, zoomIn, el('span', 'mx-0.5 h-4 w-px bg-border'), control('scan', 'Fit everything', fitView), control('crosshair', 'Centre on the focus page', centreOnFocus), resetLayout, helpButton);
+  const mapButton = control('square-dashed', 'Show the minimap', () => {
+    minimapOn = !minimapOn;
+    minimap.root.style.display = minimapOn ? '' : 'none';
+    mapButton.setAttribute('aria-pressed', String(minimapOn));
+    mapButton.setAttribute('aria-label', minimapOn ? 'Hide the minimap' : 'Show the minimap');
+    mapButton.dataset.tip = mapButton.getAttribute('aria-label');
+    mapButton.classList.toggle('bg-primary-subtle', minimapOn);
+    if (minimapOn) minimap.update();
+  });
+  mapButton.setAttribute('aria-pressed', String(minimapOn));
+  mapButton.classList.toggle('bg-primary-subtle', minimapOn);
+  minimap.root.style.display = minimapOn ? '' : 'none';
+  controls.append(zoomOut, percent, zoomIn, el('span', 'mx-0.5 h-4 w-px bg-border'), control('scan', 'Fit everything', fitView), control('crosshair', 'Centre on the focus page', centreOnFocus), resetLayout, mapButton, helpButton);
   function syncControls() {
     percent.textContent = `${Math.round(viewport.v.k * 100)}%`;
     zoomOut.disabled = viewport.v.k <= MIN_K + 0.001;
@@ -1462,7 +1476,10 @@ function viewSwitch() {
     node.type = 'button';
     node.setAttribute('aria-pressed', String(on));
     node.dataset.restore = `journey-view:${value}`;
-    node.append(icon(name, 'size-icon-sm'), el('span', '', label));
+    node.setAttribute('aria-label', label);
+    node.dataset.tip = label;
+    // Labels from xl; below that the icons carry the three views, which leaves room for the controls on one line
+    node.append(icon(name, 'size-icon-sm'), el('span', 'hidden xl:inline', label));
     node.addEventListener('click', () => {
       if (j().view === value) return;
       j().view = value;
@@ -1544,42 +1561,69 @@ function layoutSwitch() {
   return group;
 }
 
-/** By tier: which tier lanes are shown. The focus page's own lane always is. */
-function laneChips() {
-  const wrap = el('div', 'flex items-center gap-1');
-  wrap.setAttribute('role', 'group');
-  wrap.setAttribute('aria-label', 'Tiers shown');
-  wrap.append(el('span', 'mr-1 type-label text-foreground-tertiary', 'Tiers shown'));
+/** By tier: which tier lanes are shown, as one menu with a count instead of a chip per tier. The focus page's own lane always is. */
+function tiersMenu() {
   const focusLane = lanePos(j().focus);
-  [{ pos: 99, label: 'Untiered' }, ...tiers.slice().reverse().map((tier) => ({ pos: tierPosition(tier.id), label: tierCode(tier.id) }))].forEach((lane) => {
-    const on = lane.pos === focusLane || !j().laneHide.has(lane.pos);
-    const chip = el('button', `h-control-sm rounded-sm border px-2 type-label whitespace-nowrap ${on ? 'border-primary-border bg-primary-subtle text-primary-text' : 'border-border bg-surface text-foreground-tertiary hover:bg-surface-hover'} ${FOCUS_RING}`, lane.label);
-    chip.type = 'button';
-    chip.setAttribute('aria-pressed', String(on));
-    chip.dataset.restore = `journey-lane:${lane.pos}`;
-    if (lane.pos === focusLane) {
-      chip.disabled = true;
-      chip.title = 'The focus page is in this tier, so it stays';
-    }
-    chip.addEventListener('click', () => {
-      if (j().laneHide.has(lane.pos)) j().laneHide.delete(lane.pos);
-      else j().laneHide.add(lane.pos);
-      restore = `journey-lane:${lane.pos}`;
-      refresh();
+  const lanes = [{ pos: 99, label: 'Untiered' }, ...tiers.slice().reverse().map((tier) => ({ pos: tierPosition(tier.id), label: tierLabel(tier.id) }))];
+  const on = (lane) => lane.pos === focusLane || !j().laneHide.has(lane.pos);
+  const trigger = el('button', `${BUTTON_SM} aria-expanded:bg-surface-selected ${FOCUS_RING}`);
+  trigger.type = 'button';
+  trigger.dataset.restore = 'journey-tiers';
+  const count = el('span', 'num type-label text-foreground-tertiary', '');
+  trigger.append(icon('layers', 'size-icon-sm text-foreground-tertiary'), el('span', '', 'Tiers'), count, icon('chevron-down', 'size-icon-sm text-foreground-tertiary'));
+  const sync = () => {
+    count.textContent = `${lanes.filter(on).length} of ${lanes.length}`;
+    trigger.setAttribute('aria-label', `Tiers shown: ${count.textContent}`);
+  };
+  popover(trigger, (panel) => {
+    panel.classList.add('p-1');
+    lanes.forEach((lane) => {
+      const row = el('button', `${MENU_ROW} ${FOCUS_RING}`);
+      row.type = 'button';
+      row.setAttribute('role', 'menuitemcheckbox');
+      const mark = icon('check', 'size-icon-sm text-primary-text');
+      row.append(el('span', 'flex-1 truncate', lane.label), mark);
+      const paint = () => {
+        mark.style.visibility = on(lane) ? 'visible' : 'hidden';
+        row.setAttribute('aria-checked', String(on(lane)));
+      };
+      paint();
+      if (lane.pos === focusLane) {
+        row.disabled = true;
+        row.title = 'The focus page is in this tier, so it stays';
+      }
+      // The menu stays open, so several tiers can be turned off in one go; the canvas redraws behind it
+      row.addEventListener('click', () => {
+        if (j().laneHide.has(lane.pos)) j().laneHide.delete(lane.pos);
+        else j().laneHide.add(lane.pos);
+        paint();
+        sync();
+        active?.rebuild(null);
+      });
+      panel.append(row);
     });
-    wrap.append(chip);
-  });
-  return wrap;
+  }, { label: 'Tiers shown' });
+  sync();
+  return trigger;
 }
 
+/**
+ * One line when it fits: the view switch and the focus page on the left, the controls for what the canvas shows on the
+ * right. When it does not fit, the controls drop together to a second line, right aligned, instead of breaking apart.
+ */
 function toolbar() {
-  const bar = el('div', 'flex flex-wrap items-center gap-3 border-b border-border-subtle px-3 py-2');
-  bar.append(viewSwitch(), focusPicker());
+  const bar = el('div', 'flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border-subtle px-3 py-2');
+  const picker = focusPicker();
+  picker.classList.add('w-full');
+  const pickerBox = el('div', 'min-w-0 max-w-80 flex-[1_1_11rem]');
+  pickerBox.append(picker);
+  bar.append(viewSwitch(), pickerBox);
   if (j().view === 'path') return bar;
-  bar.append(cardsSwitch());
+  const controls = el('div', 'ml-auto flex flex-wrap items-center justify-end gap-x-3 gap-y-2');
+  controls.append(cardsSwitch());
   if (j().view === 'canvas') {
-    bar.append(layoutSwitch());
-    if (j().layout === 'tier') bar.append(laneChips());
+    controls.append(layoutSwitch());
+    if (j().layout === 'tier') controls.append(tiersMenu());
   }
   if (j().view === 'tree') {
     const follow = selectField([['out', 'Links out'], ['in', 'Links in']], j().treeDir, (value) => {
@@ -1589,9 +1633,9 @@ function toolbar() {
       refresh();
     }, 'Follow');
     follow.dataset.restore = 'journey-follow';
-    bar.append(follow);
-    return bar;
+    controls.append(follow);
   }
+  bar.append(controls);
   return bar;
 }
 
