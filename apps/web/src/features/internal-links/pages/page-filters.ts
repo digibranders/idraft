@@ -12,9 +12,9 @@ export const UNTIERED_VALUE = 'none';
 export const UNTIERED_QUERY = `tier=${UNTIERED_VALUE}`;
 
 /** The most ids the API takes for each list filter (a workspace has 8 tiers and Untiered, so the tier cap cannot bite). */
-const MAX_TIERS = 9;
+export const MAX_TIERS = 9;
 export const MAX_TAGS = 50;
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const STATUSES: readonly StatusClass[] = ['2xx', '3xx', '4xx', '5xx'];
 const FLAGS: readonly (readonly [

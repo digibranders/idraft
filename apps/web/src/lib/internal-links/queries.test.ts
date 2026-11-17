@@ -9,6 +9,7 @@ import {
   DEFAULT_PAGE_QUERY,
   edgeParams,
   internalLinksKeys,
+  isEdgeRowPage,
   isPageRowPage,
   linkSettingsQuery,
   neighborsQuery,
@@ -143,6 +144,22 @@ describe('crawls and settings (the backend OpenAPI)', () => {
 
   it('reads the internal links settings from the project settings, the key the keyword defaults use', () => {
     expect(linkSettingsQuery(SCOPE).queryKey).toEqual(['ws', 'w1', 'p', 'p1', 'settings', {}]);
+  });
+});
+
+describe('isEdgeRowPage (the edges answer is typed unknown too)', () => {
+  const answer = {
+    data: [],
+    page: { limit: 100, next_cursor: 'c', has_more: true },
+    meta: { run_id: 'r', scope: 'editorial', total: 0 },
+  };
+
+  it('takes a page with a cursor text or none, and refuses a CSV text or a missing run id', () => {
+    expect(isEdgeRowPage(answer)).toBe(true);
+    expect(isEdgeRowPage({ ...answer, page: { ...answer.page, next_cursor: null } })).toBe(true);
+    expect(isEdgeRowPage('a,b\n')).toBe(false);
+    expect(isEdgeRowPage({ ...answer, meta: { total: 0 } })).toBe(false);
+    expect(isEdgeRowPage({ ...answer, page: { ...answer.page, next_cursor: 4 } })).toBe(false);
   });
 });
 

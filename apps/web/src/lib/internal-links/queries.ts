@@ -4,6 +4,7 @@ import type { paths } from '@/lib/api/schema';
 import { READ_LIMIT, type Direction } from './journey-layout';
 import type { LinkScope, Placement } from './scopes';
 import type {
+  EdgeRowPage,
   EdgeWorklist,
   LinksScope,
   PageFilter,
@@ -148,6 +149,15 @@ const isRecord = (value: unknown): value is Record<string, unknown> => typeof va
  * boundary: the parts every reader uses (`data`, `page` with its cursor, `meta`), not each row.
  */
 export function isPageRowPage(value: unknown): value is PageRowPage {
+  return hasCursorShape(value);
+}
+
+/** The edges list answers the same way (JSON and CSV declared, so `unknown`): the same parts are checked. */
+export function isEdgeRowPage(value: unknown): value is EdgeRowPage {
+  return hasCursorShape(value);
+}
+
+function hasCursorShape(value: unknown): boolean {
   if (!isRecord(value)) return false;
   const { data, page, meta } = value;
   return (

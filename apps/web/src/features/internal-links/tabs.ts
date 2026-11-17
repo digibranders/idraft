@@ -2,6 +2,7 @@ import type { Route } from 'next';
 import type { useTranslations } from 'next-intl';
 import { createElement, type ReactNode } from 'react';
 
+import { LinksTab } from './links/links-tab';
 import { PagesTab } from './pages/pages-tab';
 import type { LinksState, LinksTabId, SetLinksSearch } from './url-state';
 import type { LinksScope, PageTier } from '@/lib/internal-links/types';
@@ -59,6 +60,7 @@ export function defineLinksTabs(entries: readonly LinksTabEntry[]): readonly Lin
 /** The tabs built so far: each tab's task adds its entry here (Pages in Task 7, Links 10, Journey 11, Tier flow 12). */
 export const LINKS_TABS: readonly LinksTabEntry[] = defineLinksTabs([
   { id: 'pages', label: (t) => t('tabs.pages'), render: (context) => createElement(PagesTab, { context }) },
+  { id: 'links', label: (t) => t('tabs.links'), render: (context) => createElement(LinksTab, { context }) },
 ]);
 
 export const activeLinksTab = (tabs: readonly LinksTabEntry[], wanted: LinksTabId): LinksTabEntry | null =>
