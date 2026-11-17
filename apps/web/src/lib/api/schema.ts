@@ -4258,7 +4258,7 @@ export interface components {
              * Workload
              * @enum {string}
              */
-            workload: "seo_rank" | "ai_prompt" | "keyword_research" | "ai_benchmark" | "extraction_llm" | "first_party" | "all";
+            workload: "seo_rank" | "ai_prompt" | "keyword_research" | "ai_benchmark" | "extraction_llm" | "first_party" | "site_crawl" | "all";
         };
         /** BudgetCreate */
         BudgetCreate: {
@@ -19398,7 +19398,7 @@ export const aliasUpdateMatch_modeValues: ReadonlyArray<FlattenedDeepRequired<co
 export const analyticsPropertyProperty_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AnalyticsProperty"]["property_type"]> = ["ordinary", "subproperty", "rollup", "unspecified"];
 export const annotationKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Annotation"]["kind"]> = ["model_changed", "entity_set_changed", "extractor_changed", "prompt_set_changed"];
 export const budgetAction_on_hardValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Budget"]["action_on_hard"]> = ["pause", "alert_only"];
-export const budgetWorkloadValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Budget"]["workload"]> = ["seo_rank", "ai_prompt", "keyword_research", "ai_benchmark", "extraction_llm", "first_party", "all"];
+export const budgetWorkloadValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Budget"]["workload"]> = ["seo_rank", "ai_prompt", "keyword_research", "ai_benchmark", "extraction_llm", "first_party", "site_crawl", "all"];
 export const budgetCreateAction_on_hardAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["BudgetCreate"]["action_on_hard"]> = ["pause", "alert_only"];
 export const budgetCreateWorkloadValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["BudgetCreate"]["workload"]> = ["seo_rank", "ai_prompt", "keyword_research", "ai_benchmark", "extraction_llm", "first_party", "site_crawl", "all"];
 export const budgetStatusStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["BudgetStatus"]["state"]> = ["ok", "soft_exceeded", "hard_exceeded"];
