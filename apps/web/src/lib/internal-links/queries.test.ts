@@ -9,6 +9,7 @@ import {
   DEFAULT_PAGE_QUERY,
   edgeParams,
   internalLinksKeys,
+  isPageRowPage,
   linkSettingsQuery,
   neighborsQuery,
   pageDetailQuery,
@@ -142,5 +143,29 @@ describe('crawls and settings (the backend OpenAPI)', () => {
 
   it('reads the internal links settings from the project settings, the key the keyword defaults use', () => {
     expect(linkSettingsQuery(SCOPE).queryKey).toEqual(['ws', 'w1', 'p', 'p1', 'settings', {}]);
+  });
+});
+
+describe('isPageRowPage (the pages answer is typed unknown: its 200 declares a CSV body too)', () => {
+  const answer = {
+    data: [],
+    page: { limit: 100, next_cursor: null, has_more: false },
+    meta: { run_id: 'r', scope: 'editorial', total: 0 },
+  };
+
+  it('takes a page of rows with its cursor facts and its meta', () => {
+    expect(isPageRowPage(answer)).toBe(true);
+  });
+
+  it('refuses what is not one: a CSV text, nothing, a list, or an answer missing a part', () => {
+    expect(isPageRowPage('url,path\n')).toBe(false);
+    expect(isPageRowPage(null)).toBe(false);
+    expect(isPageRowPage(undefined)).toBe(false);
+    expect(isPageRowPage([])).toBe(false);
+    expect(isPageRowPage({ ...answer, data: 'x' })).toBe(false);
+    expect(isPageRowPage({ data: [], meta: answer.meta })).toBe(false);
+    expect(isPageRowPage({ data: [], page: answer.page })).toBe(false);
+    expect(isPageRowPage({ ...answer, page: { limit: 100 } })).toBe(false);
+    expect(isPageRowPage({ ...answer, meta: { total: 'many' } })).toBe(false);
   });
 });

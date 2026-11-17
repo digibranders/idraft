@@ -527,10 +527,12 @@ describe('accessibility of the shell', () => {
     expect(await axe(container)).toHaveNoViolations();
   });
 
-  it('has no axe violations with the tab registry as it ships, before any tab is added', async () => {
+  it('has no axe violations with the tab registry as it ships (the Pages tab)', async () => {
     registry.real = true;
     const { container } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
     await screen.findByRole('group', { name: 'Crawl summary' });
+    await screen.findByRole('grid', { name: 'Pages' });
+    expect(screen.getByRole('tab', { name: 'Pages' })).toBeInTheDocument();
     expect(await axe(container)).toHaveNoViolations();
   });
 

@@ -8,6 +8,7 @@ import { CrawlButton } from './crawl-button';
 import { CrawlHeader } from './crawl-header';
 import { crawlView, useCrawlNow, useCrawls, useWorkspaceTiers } from './crawl-reads';
 import { CrawlBanners, FirstCrawl, failedText, NeverCrawled, NoWebsite, SkeletonRows } from './crawl-states';
+import { UNTIERED_QUERY } from './pages/page-filters';
 import { SummaryStrip } from './summary-strip';
 import { activeLinksTab, LINKS_TABS, type LinksTabContext } from './tabs';
 import { inspectedPage, useLinksState } from './url-state';
@@ -23,9 +24,6 @@ import { announce } from '@/lib/a11y/announcer';
 import type { CrawlRun, LinksScope } from '@/lib/internal-links/types';
 import { useCan } from '@/lib/permissions';
 import { projectPath, withQuery, workspaceSettingsPath } from '@/lib/routes/paths';
-
-/** The Pages tab filtered to the pages without a tier (the `tier` key of the filter bar, Task 7). */
-const UNTIERED_QUERY = 'tier=none';
 
 export interface InternalLinksProject {
   id: string;

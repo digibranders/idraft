@@ -8,6 +8,7 @@ import type {
   LinksScope,
   PageFilter,
   PageFlagFilter,
+  PageRowPage,
   PageSort,
   PageWorklist,
   StatusClass,
@@ -138,6 +139,25 @@ export function pageFilterOf(query: PageQuery): PageFilter {
 
 export const pagesQuery = (scope: LinksScope, query: PageQuery): ApiQueryOptions<typeof PAGES> =>
   apiQuery(PAGES, { params: { path: pathOf(scope), query: pageParams(query) } });
+
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
+
+/**
+ * The pages list's 200 declares a JSON body and a CSV body in the OpenAPI, so the generated type of its answer is
+ * `unknown`. The JSON read (never `format=csv`, which goes through `downloadApiFile`) is checked here, at the
+ * boundary: the parts every reader uses (`data`, `page`, `meta`), not each row.
+ */
+export function isPageRowPage(value: unknown): value is PageRowPage {
+  if (!isRecord(value)) return false;
+  const { data, page, meta } = value;
+  return (
+    Array.isArray(data) &&
+    isRecord(page) &&
+    typeof page.has_more === 'boolean' &&
+    isRecord(meta) &&
+    typeof meta.total === 'number'
+  );
+}
 
 /**
  * One page, the inspector. Throws `UrlIdError` for an id that is no url id: a screen that reads the id from the
