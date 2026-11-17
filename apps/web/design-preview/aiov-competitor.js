@@ -26,7 +26,7 @@ const ids = () => COMPETITORS.map(competitorId);
 const indexOf = (id) => ids().indexOf(id);
 const scope = () => ({ ...state });
 
-/** Competitors in the order of the Competitor gap card (most prompts led by them first), for stepping. */
+/** Competitors in the order of the Lost to competitor card (most prompts led by them first), for stepping. */
 function order() {
   const { competitors } = leadsFor(buildModel(scope()));
   return [...competitors].sort((a, b) => b.lost - a.lost).map((competitor) => competitor.id);

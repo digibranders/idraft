@@ -126,7 +126,7 @@ export function groupHeatmapCard(ctx) {
 export function groupExtremesCard(ctx) {
   const measure = ctx.scope.metric;
   const rows = groupRows(ctx.scope, measure).filter((row) => row.average.state === 'ok');
-  if (rows.length < 4) return cardFrame({ key: 'ai.topic_extremes', title: 'Top and bottom groups', body: emptyBody('Not enough groups', 'At least 4 groups with a rate are needed.') });
+  if (rows.length < 4) return cardFrame({ key: 'ai.topic_extremes', title: 'Strongest and weakest groups', body: emptyBody('Not enough groups', 'At least 4 groups with a rate are needed.') });
   const sorted = [...rows].sort((a, b) => b.average.value - a.average.value);
   const list = (items, token) => barList(items.map((row) => ({ label: row.name, value: row.average.value, barToken: token, strong: false, note: `${row.prompts} prompts` })), { max: sorted[0].average.value, always: true });
   // Never list a group on both sides: take at most half of the groups
@@ -135,7 +135,7 @@ export function groupExtremesCard(ctx) {
   strongest.append(el('p', 'type-label text-foreground-secondary mb-1', 'Strongest'), list(sorted.slice(0, count), 'chart-1'));
   const weakest = el('div', 'mt-3');
   weakest.append(el('p', 'type-label text-foreground-secondary mb-1', 'Weakest'), list(sorted.slice(-count).reverse(), 'chart-bar-neutral'));
-  return cardFrame({ key: 'ai.topic_extremes', title: 'Top and bottom groups', meta: MEASURES[measure].label.toLowerCase(), body: [strongest, weakest] });
+  return cardFrame({ key: 'ai.topic_extremes', title: 'Strongest and weakest groups', meta: MEASURES[measure].label.toLowerCase(), body: [strongest, weakest] });
 }
 
 /** The chosen group against all groups, one bar per platform and the average. */

@@ -338,7 +338,7 @@ export function sovSeries(model, entities) {
 }
 
 /**
- * Who leads each prompt, for every competitor (the Competitor gap card and the competitor drawer read the same
+ * Who leads each prompt, for every competitor (the Lost to competitor card and the competitor drawer read the same
  * counts, so a number is the same in both, R12). A prompt is compared on its answers over the platforms in scope and
  * needs at least 4 of them (R2). One brand leads when it is named in at least `LEAD_MARGIN` more answers than the
  * other; a smaller difference is "equal or too close", because with about 8 answers a prompt a one answer

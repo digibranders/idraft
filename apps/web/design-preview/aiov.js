@@ -26,7 +26,7 @@ const grid = el('div', 'grid grid-cols-1 md:grid-cols-12 gap-4');
 const custom = createCustomizer({ grid, onChange: () => render() });
 
 // As in the app, the page name is in the top bar; the heading stays for screen readers only (11 section 3)
-const title = el('h1', 'sr-only', 'AI visibility');
+const title = el('h1', 'sr-only', 'AI visibility overview');
 // The freshness text does not depend on the scope. It sits in the toolbar when there is room, at the foot otherwise.
 const UPDATED = `Updated ${RUNS.last} · run ${RUNS.number}`;
 const meta = el('span', 'hidden 2xl:inline type-meta whitespace-nowrap', UPDATED);

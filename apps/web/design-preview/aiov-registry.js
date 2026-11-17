@@ -15,14 +15,14 @@ const extremes = (ctx) => (ctx.scope.group === 'all' ? groupExtremesCard(ctx) : 
 export const CARD_GROUPS = ['Overview', 'Competitors', 'Groups', 'Citations', 'Prompt tracking', 'Traffic', 'Activity'];
 
 export const CARD_REGISTRY = [
-  { key: 'ai.visibility_split', title: 'Headline numbers', description: 'AI visibility rate with its four outcomes, and the key numbers beside it.', group: 'Overview', widths: ['full'], build: headlineRow },
-  { key: 'ai.rate_trend_by_engine', title: 'Trend over time', description: 'Visibility, mention, citation or share of voice over the weekly runs.', group: 'Overview', widths: ['two_thirds', 'full', 'half'], build: trendCard },
-  { key: 'ai.outcome_mix', title: 'Answer outcomes', description: 'Mentioned and cited, mentioned only, cited only and neither, per platform.', group: 'Overview', widths: ['third', 'half'], build: outcomeCard },
+  { key: 'ai.visibility_split', title: 'AI visibility rate (headline)', description: 'AI visibility rate with its four outcomes, and the key numbers beside it.', group: 'Overview', widths: ['full'], build: headlineRow },
+  { key: 'ai.rate_trend_by_engine', title: 'Rate by platform over time', description: 'Visibility, mention, citation or share of voice over the weekly runs.', group: 'Overview', widths: ['two_thirds', 'full', 'half'], build: trendCard },
+  { key: 'ai.outcome_mix', title: 'Outcome split by platform', description: 'Mentioned and cited, mentioned only, cited only and neither, per platform.', group: 'Overview', widths: ['third', 'half'], build: outcomeCard },
   { key: 'ai.share_of_voice', title: 'Share of voice', description: 'Your share of tracked-brand mentions beside each competitor.', group: 'Competitors', widths: ['half', 'third'], build: sovCard },
   { key: 'ai.sov_over_time', title: 'Share of voice over time', description: 'The share of every tracked brand over the weekly runs, stacked to 100%.', group: 'Competitors', widths: ['half', 'two_thirds', 'full'], build: sovOverTimeCard },
-  { key: 'ai.lost_to_competitor', title: 'Competitor gap', description: 'For each competitor, the prompts where they are mentioned more often than you, and where you lead.', group: 'Competitors', widths: ['half', 'full'], build: gapCard },
+  { key: 'ai.lost_to_competitor', title: 'Lost to competitor', description: 'For each competitor, the prompts where they are mentioned more often than you, and where you lead.', group: 'Competitors', widths: ['half', 'full'], build: gapCard },
   { key: 'ai.topic_heatmap', title: 'Groups by platform', description: 'A rate for every group on every platform. With one group chosen, its prompts.', group: 'Groups', widths: ['two_thirds', 'full'], build: heatmapOrPrompts },
-  { key: 'ai.topic_extremes', title: 'Top and bottom groups', description: 'The groups where the brand is strongest and weakest. With one group chosen, how it compares with all groups.', group: 'Groups', widths: ['third', 'half'], build: extremes },
+  { key: 'ai.topic_extremes', title: 'Strongest and weakest groups', description: 'The groups where the brand is strongest and weakest. With one group chosen, how it compares with all groups.', group: 'Groups', widths: ['third', 'half'], build: extremes },
   { key: 'sources.top_domains', title: 'Top cited domains', description: 'The domains answers cite most, with your site highlighted.', group: 'Citations', widths: ['half', 'third'], build: domainsCard },
   { key: 'ai.citation_share_by_domain_type', title: 'Citations by domain type', description: 'Citation units by domain type, as a treemap.', group: 'Citations', widths: ['half', 'third'], build: sourceTypesCard },
   { key: 'sources.own_pages', title: 'Your pages cited', description: 'The pages of your domain that answers cite.', group: 'Citations', widths: ['half', 'third'], build: ownPagesCard },

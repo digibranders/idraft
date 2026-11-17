@@ -38,7 +38,7 @@ import { initPromptInspector, refreshPromptInspector } from './prompts-inspector
 import { initTopicInspector, refreshTopicInspector } from './prompts-topic-inspector.js';
 import { initTopics, promptsByMention, renderTopics, topicOrder, topicsInScope } from './prompts-topics.js';
 import { CELL, IDENTITY_RESIZE, focusSearchOnSlash, identityHandle, plainHeaderCell, promptLine, promptRateCell, rowMenuCell, sortHeaderCell, wireColumnChooser } from './prompts-cells.js';
-import { NEUTRAL_BADGE, checkbox, el, insufficient, intervalText, percent0, plural } from './prompts-parts.js';
+import { NEUTRAL_BADGE, checkbox, el, insufficient, intervalText, percent0, plural, setComparedWithYear } from './prompts-parts.js';
 import { BRANDED_LABEL, METRIC_LABEL, VIEWS, deltaNode, inScope, isAllLocations, scopeCodes, scopeEngines, scopePrompts, scopeText, state } from './prompts-state.js';
 
 const ui = window.PreviewUI;
@@ -674,6 +674,7 @@ $('#ed-compare').addEventListener('click', (event) => {
   const option = event.target.closest('[role="menuitemradio"]');
   if (!option) return;
   state.compare = option.dataset.value !== 'No comparison';
+  setComparedWithYear(option.dataset.value === 'vs same period last year');
   render();
 });
 

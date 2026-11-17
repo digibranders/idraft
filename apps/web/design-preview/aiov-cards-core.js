@@ -131,7 +131,7 @@ export function headlineRow(ctx) {
   const grid = el('div', 'grid grid-cols-1 xl:grid-cols-12 gap-4');
   grid.dataset.card = 'ai.visibility_split';
   grid.setAttribute('role', 'group');
-  grid.setAttribute('aria-label', 'Headline numbers');
+  grid.setAttribute('aria-label', 'AI visibility rate (headline)');
 
   // The hero: a plain rate, with the four outcomes that make it up (decision D1)
   const visibility = model.shown('visibility');
@@ -300,15 +300,15 @@ export function trendCard(ctx) {
 export function outcomeCard(ctx) {
   const { model } = ctx;
   const rows = outcomesFor(model);
-  if (rows.length === 0) return cardFrame({ key: 'ai.outcome_mix', title: 'Answer outcomes', body: emptyBody('No rate yet', 'These prompts have too few valid answers.') });
+  if (rows.length === 0) return cardFrame({ key: 'ai.outcome_mix', title: 'Outcome split by platform', body: emptyBody('No rate yet', 'These prompts have too few valid answers.') });
   const body = stackedRows({
     segments: OUTCOME_SEGMENTS,
     rows: rows.map((row) => ({ label: platformLabel(row.code), shares: row.shares, counts: row.counts, note: `${formatInteger(row.observations)} answers` })),
   });
   return cardFrame({
     key: 'ai.outcome_mix',
-    title: 'Answer outcomes',
-    meta: ctx.scope.platform === 'all' ? 'by platform' : engineName(ctx.scope.platform),
+    title: 'Outcome split by platform',
+    meta: ctx.scope.platform === 'all' ? null : engineName(ctx.scope.platform),
     body,
   });
 }
@@ -355,7 +355,7 @@ export function sovOverTimeCard(ctx) {
 
 export function gapCard(ctx) {
   const gaps = gapFor(ctx.model).filter((entry) => entry.gap !== null).sort((a, b) => b.lost - a.lost);
-  if (gaps.length === 0) return cardFrame({ key: 'ai.lost_to_competitor', title: 'Competitor gap', body: emptyBody('No rate yet', 'Too few answers on this platform.') });
+  if (gaps.length === 0) return cardFrame({ key: 'ai.lost_to_competitor', title: 'Lost to competitor', body: emptyBody('No rate yet', 'Too few answers on this platform.') });
   const table = el('table', 'w-full type-table');
   const head = el('thead');
   const headRow = el('tr', 'border-t border-border-subtle bg-surface-subtle h-row-header');
@@ -397,7 +397,7 @@ export function gapCard(ctx) {
   wrap.append(table);
   return cardFrame({
     key: 'ai.lost_to_competitor',
-    title: 'Competitor gap',
+    title: 'Lost to competitor',
     meta: 'prompts, on the same answers',
     body: wrap,
     flush: true,
