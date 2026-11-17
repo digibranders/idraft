@@ -140,9 +140,19 @@ describe('the Journey tab: renders and views', () => {
     // what the person has moved on it)
     const area = await canvas();
     await within(area).findByRole('button', { name: /^\/, .* focus page$/ });
+    // A modal menu puts `pointer-events: none` on the page while it is open and while it closes: the next press
+    // waits until the menu is gone and the page takes the pointer again
     const choose = async (name: string): Promise<void> => {
+      await waitFor(() => expect(getComputedStyle(document.body).pointerEvents).not.toBe('none'));
       await user.click(screen.getByRole('button', { name: /^Link scope:/ }));
       await user.click(await screen.findByRole('menuitemradio', { name }));
+      // A radio item does not close its menu, so the menu is closed with Escape; it counts as closed when its
+      // button says so (the popup itself may stay in the page while it fades out)
+      await user.keyboard('{Escape}');
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: /^Link scope:/ })).not.toHaveAttribute('aria-expanded', 'true'),
+      );
+      await waitFor(() => expect(getComputedStyle(document.body).pointerEvents).not.toBe('none'));
     };
     for (const [name, value] of [
       ['Auto-generated', 'auto_generated'],
@@ -364,6 +374,7 @@ describe('the Journey tab: Set tier on the canvas', () => {
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     await waitFor(() => expect(document.activeElement?.closest('[data-node]')).not.toBeNull());
+    await waitFor(() => expect(getComputedStyle(document.body).pointerEvents).not.toBe('none'));
     await user.click(screen.getByRole('button', { name: 'Set tier' }));
     await screen.findByRole('dialog');
     expect(screen.queryByText('The change could not be saved')).toBeNull();
