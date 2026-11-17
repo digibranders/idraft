@@ -88,8 +88,8 @@ function metricCell(row, key) {
     return td;
   }
   const tile = row.model.tiles[key];
-  td.append(el('span', 'num type-table text-foreground', tile.cur === null ? 'No data' : formatMetric(key, tile.cur)));
-  if (tile.change && tile.cur !== null && tile.change.text !== 'No data') td.append(' ', changeSpan(tile.change, 'ml-1'));
+  td.append(el('span', 'num type-table text-foreground', tile.cur === null ? 'Not collected yet' : formatMetric(key, tile.cur)));
+  if (tile.change && tile.cur !== null && tile.change.text !== 'Not collected yet') td.append(' ', changeSpan(tile.change, 'ml-1'));
   return td;
 }
 
@@ -127,7 +127,7 @@ function renderTable(rows, ranges) {
   head.append(el('th', 'hidden xl:table-cell px-3 type-label border-r border-border-subtle', 'Group'));
   head.append(headerCell('Health', 'attention'));
   head.append(el('th', 'hidden 2xl:table-cell px-3 type-label border-r border-border-subtle', 'Indexing'));
-  head.append(headerCell('Clicks', 'clicks'), headerCell('Impressions', 'impressions'), headerCell('CTR', 'ctr'), headerCell('Position', 'position'));
+  head.append(headerCell('Clicks', 'clicks'), headerCell('Impressions', 'impressions'), headerCell('CTR', 'ctr'), headerCell('Average position', 'position'));
   head.append(el('th', 'hidden xl:table-cell px-3 type-label', 'Trend'));
   thead.append(head);
   const tbody = el('tbody');
@@ -229,7 +229,7 @@ function renderBulk(rows) {
 
 function exportRows(rows) {
   const ranges = rangesOf(state);
-  const out = [['Page', 'Group', 'Health', 'Index status', 'Clicks', 'Clicks before', 'Impressions', 'Impressions before', 'CTR', 'CTR before', 'Position', 'Position before']];
+  const out = [['Page', 'Group', 'Health', 'Index status', 'Clicks', 'Clicks before', 'Impressions', 'Impressions before', 'CTR', 'CTR before', 'Average position', 'Average position before']];
   rows.forEach(({ page, model }) => {
     const t = model.tiles;
     const cell = (key, which) => (t[key]?.[which] === null || t[key]?.[which] === undefined ? '' : key === 'ctr' ? Number(t[key][which].toFixed(4)) : key === 'position' ? Number(t[key][which].toFixed(1)) : Math.round(t[key][which]));
@@ -403,7 +403,7 @@ function render() {
     refs.add.hidden = true;
     refs.export.hidden = true;
     unmountDetail();
-    refs.body.append(emptyState({ heading: 'Landing pages are not part of this preview', text: 'Page Intelligence (rankings, AI citations and Search Console numbers per page) keeps its own screen. The Performance tab is the part under review.', actions: [button('Open Performance', { className: BUTTON, onClick: () => { location.hash = '#/pages'; } })] }));
+    refs.body.append(emptyState({ heading: 'Landing pages are not part of this preview', text: 'Page Intelligence (ranks, AI citations and Search Console numbers per page) keeps its own screen. The Performance tab is the part under review.', actions: [button('Open Performance', { className: BUTTON, onClick: () => { location.hash = '#/pages'; } })] }));
     return;
   }
 
@@ -412,7 +412,7 @@ function render() {
     const connect = button('Connect Search Console', { className: BUTTON_PRIMARY, onClick: () => { toast({ title: 'Preview: connected', description: 'In the product this opens Google sign-in for an owner or admin.', tone: 'info' }); set({ review: 'connected' }); } });
     refs.body.append(emptyState({
       heading: 'Connect Search Console to see how your pages perform',
-      text: 'Pick the pages that matter and see clicks, impressions, CTR and position for each one, compared with the previous month, with the country, device and query that explain every change. Owners and admins can connect.',
+      text: 'Pick the pages that matter and see clicks, impressions, CTR and average position for each one, compared with the previous month, with the location, device and query that explain every change. Owners and admins can connect.',
       actions: [connect],
     }));
     return;

@@ -6,7 +6,7 @@
  * (customize.js); the layout rules are in aiov-layout.js. In the app the layouts come from the layouts API and the
  * drag handling from dnd-kit; here browser storage and pointer events stand in for them.
  */
-import { CARD_GROUPS, WIDTH_CLASS, WIDTH_LABEL, cardDef } from './aiov-registry.js';
+import { CARD_GROUPS, MIN_HEIGHT, WIDTH_CLASS, WIDTH_LABEL, cardDef } from './aiov-registry.js';
 import {
   LIMIT,
   PRESETS,
@@ -337,16 +337,13 @@ export function createCustomizer({ grid, onChange }) {
   }
 
   /**
-   * The frame of one card: its width in the grid and, while customizing, its toolbar. `node` is null when the card
-   * cannot be drawn for the scope; then a placeholder shows while customizing and nothing shows otherwise.
+   * The frame of one card: its width in the grid, its smallest height and, while customizing, its toolbar. `node` is
+   * null when the card cannot be drawn for the scope; then a placeholder with the reason takes its place.
    */
   function frameFor(item, node, { unavailableText }) {
     const def = cardDef(item.type);
-    let body = node;
-    if (!body) {
-      if (!customizing()) return null;
-      body = cardFrame({ key: item.type, title: def.title, body: emptyBody('Not drawn for this scope', unavailableText) });
-    }
+    // A card that has nothing for this scope stays in its place with the reason, so the page keeps its shape
+    const body = node ?? cardFrame({ key: item.type, title: def.title, body: emptyBody('Not available for this scope', unavailableText) });
     const frame = el('div', `min-w-0 flex flex-col ${WIDTH_CLASS[item.width]}`);
     frame.dataset.cardId = item.id;
     body.classList.add('flex-1');
@@ -354,7 +351,7 @@ export function createCustomizer({ grid, onChange }) {
       frame.classList.add(...FRAME_EDIT);
       frame.prepend(toolbar(item, def));
       body.inert = true;
-    }
+    } else if (MIN_HEIGHT[item.type]) frame.classList.add(...MIN_HEIGHT[item.type].split(' '));
     frame.append(body);
     return frame;
   }

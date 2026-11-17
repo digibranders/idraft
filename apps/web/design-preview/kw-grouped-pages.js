@@ -59,7 +59,7 @@ function row(page, devices, best) {
   const note = [best ? 'Best rank' : '', page.shared ? 'Sub-result of the page above' : ''].filter(Boolean).join(' · ');
   if (note) name.append(el('span', 'type-label text-foreground-tertiary', note));
   line.append(name);
-  devices.forEach((device) => line.append(el('td', 'py-1.5 pl-3 text-right type-table num text-foreground', page.ranks[device] === null || page.ranks[device] === undefined ? '>100' : String(page.ranks[device]))));
+  devices.forEach((device) => line.append(el('td', 'py-1.5 pl-3 text-right type-table num text-foreground', page.ranks[device] === null || page.ranks[device] === undefined ? 'Beyond depth' : String(page.ranks[device]))));
   return line;
 }
 

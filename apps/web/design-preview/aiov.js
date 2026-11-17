@@ -8,12 +8,12 @@
  * width) from aiov-layout.js, and customize mode from aiov-customize.js. Every control writes the address and the
  * whole page draws again from one scope, so every number has one denominator (inventory R12).
  */
-import { RUNS, buildModel, platformsIn } from './aiov-data.js';
+import { RUNS, buildModel } from './aiov-data.js';
 import { disposeCharts } from './aiov-charts.js';
 import { createSelect, groupOptions, platformOptions, readUrl, setScope, state, subscribe } from './aiov-controls.js';
 import { initCompetitorDrawer, openCompetitor, refreshCompetitorDrawer } from './aiov-competitor.js';
 import { createCustomizer } from './aiov-customize.js';
-import { cardFrame, el, emptyBody, engineName, plural } from './aiov-parts.js';
+import { cardFrame, el, emptyBody, engineName, icon } from './aiov-parts.js';
 import { cardDef } from './aiov-registry.js';
 
 const ui = window.PreviewUI;
@@ -27,8 +27,11 @@ const custom = createCustomizer({ grid, onChange: () => render() });
 
 // As in the app, the page name is in the top bar; the heading stays for screen readers only (11 section 3)
 const title = el('h1', 'sr-only', 'AI visibility');
-const meta = el('span', 'type-meta');
-const status = el('div', 'flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0');
+// The freshness text does not depend on the scope. It sits in the toolbar when there is room, at the foot otherwise.
+const UPDATED = `Updated ${RUNS.last} · run ${RUNS.number}`;
+const meta = el('span', 'hidden 2xl:inline type-meta whitespace-nowrap', UPDATED);
+const footnote = el('p', '2xl:hidden type-meta', UPDATED);
+const status = el('div', 'flex items-center gap-x-3 min-w-0');
 status.append(meta, custom.badge);
 const actions = el('div', 'flex items-center gap-2');
 const exportButton = el('button', 'h-control px-3 rounded-md border border-border bg-surface flex items-center gap-2 whitespace-nowrap type-body-strong text-foreground hover:bg-surface-hover', 'Export');
@@ -38,10 +41,10 @@ actions.append(custom.presetsButton, custom.toggle, exportButton);
 
 const scopeBar = el('div', 'grid grid-cols-2 gap-2 w-full sm:w-auto sm:flex sm:flex-wrap sm:items-center');
 scopeBar.setAttribute('aria-label', 'Scope');
-const platformSelect = createSelect({ name: 'Platform', options: platformOptions, get: () => state.platform, set: (id) => setScope({ platform: id }), width: 'min-w-52' });
-const groupSelect = createSelect({ name: 'Group', options: groupOptions, get: () => state.group, set: (id) => setScope({ group: id }), searchable: true, width: 'min-w-60' });
+const platformSelect = createSelect({ name: 'Platform', options: platformOptions, get: () => state.platform, set: (id) => setScope({ platform: id }), width: 'min-w-52', triggerWidth: 'sm:w-60' });
+const groupSelect = createSelect({ name: 'Group', options: groupOptions, get: () => state.group, set: (id) => setScope({ group: id }), searchable: true, width: 'min-w-60', triggerWidth: 'sm:w-60' });
 const compareSelect = createSelect({
-  name: 'Compare',
+  name: 'Compare with',
   options: [
     { id: 'prev', label: 'vs previous period' },
     { id: 'off', label: 'No comparison' },
@@ -49,21 +52,27 @@ const compareSelect = createSelect({
   get: () => (state.compare ? 'prev' : 'off'),
   set: (id) => setScope({ compare: id === 'prev' }),
   width: 'min-w-52',
+  triggerWidth: 'sm:w-60',
 });
-const reset = el('button', 'h-control px-3 rounded-md type-body text-foreground-secondary hover:bg-surface-hover hover:text-foreground whitespace-nowrap', 'Reset scope');
+// Icon only and always in its place (invisible, not removed, while the scope is the default), so it never moves the row
+const reset = el('button', 'size-control shrink-0 rounded-md flex items-center justify-center text-foreground-secondary hover:bg-surface-hover hover:text-foreground');
 reset.type = 'button';
+reset.dataset.tip = 'Reset scope';
+reset.setAttribute('aria-label', 'Reset scope');
+reset.append(icon('undo-2', 'size-icon'));
 reset.addEventListener('click', () => setScope({ platform: 'all', group: 'all', branded: 'exclude', compare: true, metric: 'visibility' }));
 scopeBar.append(platformSelect.trigger, groupSelect.trigger, compareSelect.trigger, reset);
 
-const note = el('p', 'type-meta');
-note.setAttribute('role', 'status');
-// One compact toolbar, as in the app: the scope on the left, the status and the actions on the right
-const toolbar = el('section', 'flex flex-wrap items-center gap-x-4 gap-y-2');
+// One compact toolbar, as in the app: the scope on the left, the status and the actions on the right. Nothing in it
+// changes size with the scope: the selects have a fixed width and the reset button keeps its place.
+// It stays under the top bar while the page scrolls, so the scope can be changed from any card. The negative margins
+// and the padding cancel out: unstuck, it sits exactly where it would without them.
+const toolbar = el('section', 'sticky top-13 z-(--z-sticky) -mx-3 md:-mx-4 lg:-mx-5 -my-2.5 px-3 md:px-4 lg:px-5 py-2.5 bg-background flex flex-wrap items-center gap-x-4 gap-y-2');
 toolbar.setAttribute('aria-label', 'Scope and actions');
-const right = el('div', 'flex flex-wrap items-center gap-x-4 gap-y-2 min-w-0 xl:ml-auto');
+const right = el('div', 'flex items-center gap-x-4 min-w-0 xl:ml-auto');
 right.append(status, actions);
 toolbar.append(title, scopeBar, right);
-view.replaceChildren(toolbar, grid, note, custom.bar, custom.live);
+view.replaceChildren(toolbar, grid, footnote, custom.bar, custom.live);
 
 // -------------------------------------------------------------------------------------------------
 // Drawing
@@ -72,7 +81,7 @@ function safeBuild(def, ctx) {
   try {
     return def.build(ctx);
   } catch (error) {
-    console.error(`AI Overview card "${def.key}" failed`, error);
+    console.error(`AI visibility card "${def.key}" failed`, error);
     return cardFrame({ key: `error.${def.key}`, title: def.title, body: emptyBody('This card could not be drawn', 'Reload the preview. The error is in the console.') });
   }
 }
@@ -85,10 +94,8 @@ function render() {
   const model = buildModel(scope);
   // With one group selected, cards can show the project value beside it
   const ctx = { model, scope, compare: state.compare, baseline: scope.group === 'all' ? null : buildModel({ ...scope, group: 'all' }), openCompetitor };
-  const names = platformsIn(scope).length;
-  meta.textContent = `Updated ${RUNS.last} · run ${RUNS.number} · ${plural(model.prompts.length, 'prompt')} · ${scope.platform === 'all' ? `${names} platforms` : engineName(scope.platform)}${scope.group === 'all' ? '' : ` · ${scope.group.split(':')[1]}`}`;
   [platformSelect, groupSelect, compareSelect].forEach((select) => select.refresh());
-  reset.hidden = state.platform === 'all' && state.group === 'all' && state.compare && state.metric === 'visibility';
+  reset.classList.toggle('invisible', state.platform === 'all' && state.group === 'all' && state.compare && state.metric === 'visibility');
   custom.updateBar();
 
   grid.replaceChildren();
@@ -96,17 +103,15 @@ function render() {
     const empty = cardFrame({ key: 'empty', title: 'No prompts in this scope', body: emptyBody('Nothing to show', 'No prompts match this group and branded setting. Reset the scope.') });
     empty.className += ' md:col-span-12';
     grid.append(empty);
-    note.textContent = '';
     return;
   }
 
-  const hidden = [];
   const items = custom.current().cards;
   items.forEach((item) => {
     const def = cardDef(item.type);
-    const frame = custom.frameFor(item, safeBuild(def, ctx), { unavailableText: `${def.title} has nothing to show on ${engineName(scope.platform)}${scope.group === 'all' ? '' : ' in this group'}. It stays in your layout.` });
-    if (frame) grid.append(frame);
-    else hidden.push(def.title);
+    // Why a card has nothing for this scope: the platform does not measure it, or it compares groups
+    const unavailableText = scope.platform !== 'all' ? `${def.title} is not measured on ${engineName(scope.platform)}. Choose All platforms or another platform.` : `${def.title} compares groups, so it needs All groups.`;
+    grid.append(custom.frameFor(item, safeBuild(def, ctx), { unavailableText }));
   });
   if (custom.customizing()) grid.append(custom.addSlot());
   else if (items.length === 0) {
@@ -114,7 +119,6 @@ function render() {
     empty.className += ' md:col-span-12';
     grid.append(empty);
   }
-  note.textContent = hidden.length === 0 ? '' : `${plural(hidden.length, 'card')} not drawn for ${engineName(scope.platform)}${scope.group === 'all' ? '' : ' in this group'}: ${hidden.join(', ')}.`;
 }
 
 subscribe(render);

@@ -183,7 +183,7 @@ export const CORE_METRICS = ['clicks', 'impressions', 'ctr', 'position'];
 export const OPTIONAL_METRICS = Object.keys(METRICS).filter((key) => METRICS[key].optional);
 
 export function formatMetric(key, value) {
-  if (value === null || Number.isNaN(value)) return 'No data';
+  if (value === null || Number.isNaN(value)) return 'Not collected yet';
   if (key === 'ctr' || key === 'share') return formatPercent1(value);
   if (key === 'position' || key === 'rank') return formatPosition(value);
   return formatCompact(value);
@@ -229,7 +229,7 @@ const ENOUGH_IMPRESSIONS = 100; // CTR and position changes need this many in bo
  */
 export function describeChange(key, cur, prev, context) {
   const metric = METRICS[key];
-  const none = { text: 'No data', tone: 'neutral', note: null, material: false, direction: 0, pct: null };
+  const none = { text: 'Not collected yet', tone: 'neutral', note: null, material: false, direction: 0, pct: null };
   if (cur === null || prev === null || Number.isNaN(cur) || Number.isNaN(prev)) return none;
 
   if (metric.kind === 'sum') {
@@ -243,7 +243,7 @@ export function describeChange(key, cur, prev, context) {
     return {
       text: signed(pct, `${Math.abs(pct * 100).toFixed(1)}%`),
       tone: material ? (good ? 'positive' : 'negative') : 'neutral',
-      note: material ? null : 'Within normal range',
+      note: material ? null : 'Within normal variation',
       material,
       direction: Math.sign(pct),
       pct,
@@ -255,13 +255,13 @@ export function describeChange(key, cur, prev, context) {
     const points = (cur - prev) * 100;
     const relative = prev > 0 ? (cur - prev) / prev : 0;
     const enough = key !== 'ctr' || ((context.curImpressions ?? 0) >= ENOUGH_IMPRESSIONS && (context.prevImpressions ?? 0) >= ENOUGH_IMPRESSIONS);
-    if (!enough) return { text: signed(points, `${Math.abs(points).toFixed(1)} pts`), tone: 'neutral', note: 'Low data', material: false, direction: 0, pct: relative };
+    if (!enough) return { text: signed(points, `${Math.abs(points).toFixed(1)} pts`), tone: 'neutral', note: 'Not enough data', material: false, direction: 0, pct: relative };
     const material = Math.abs(relative) >= 0.15 && Math.abs(points) >= 0.1;
     const flat = Math.abs(points) < 0.05;
     return {
       text: flat ? 'No change' : signed(points, `${Math.abs(points).toFixed(1)} pts`),
       tone: material ? (points > 0 ? 'positive' : 'negative') : 'neutral',
-      note: material ? null : 'Within normal range',
+      note: material ? null : 'Within normal variation',
       material,
       direction: Math.sign(points),
       pct: relative,
@@ -271,14 +271,14 @@ export function describeChange(key, cur, prev, context) {
   // Position and rank: a lower number is better, and the words follow the direction of improvement (S4).
   const shift = cur - prev;
   const lowData = key === 'position' && ((context.curImpressions ?? 0) < LOW_IMPRESSIONS || (context.prevImpressions ?? 0) < LOW_IMPRESSIONS);
-  if (lowData) return { text: 'Insufficient data', tone: 'neutral', note: 'Low data', material: false, direction: 0, pct: null, shift };
+  if (lowData) return { text: 'Not enough data', tone: 'neutral', note: 'Not enough data', material: false, direction: 0, pct: null, shift };
   const enough = key !== 'position' || ((context.curImpressions ?? 0) >= ENOUGH_IMPRESSIONS && (context.prevImpressions ?? 0) >= ENOUGH_IMPRESSIONS);
   const material = enough && Math.abs(shift) >= metric.minShift;
   const word = shift < 0 ? 'improved' : 'slipped';
   return {
     text: Math.abs(shift) < 0.05 ? 'No change' : `${word} ${Math.abs(shift).toFixed(1)}`,
     tone: material ? (shift < 0 ? 'positive' : 'negative') : 'neutral',
-    note: material ? null : enough ? 'Within normal range' : 'Low data',
+    note: material ? null : enough ? 'Within normal variation' : 'Not enough data',
     material,
     direction: shift < 0 ? 1 : shift > 0 ? -1 : 0,
     pct: null,
@@ -291,10 +291,10 @@ export function describeChange(key, cur, prev, context) {
 
 export const HEALTH_VERSION = 'page_health_v1';
 export const HEALTH = {
-  no_data: { label: 'No data', tone: 'neutral', rank: 6 },
+  no_data: { label: 'Not collected yet', tone: 'neutral', rank: 6 },
   new: { label: 'New', tone: 'info', rank: 5 },
   lost: { label: 'Lost traffic', tone: 'negative', rank: 0 },
-  low_data: { label: 'Low data', tone: 'insufficient', rank: 7 },
+  low_data: { label: 'Not enough data', tone: 'insufficient', rank: 7 },
   sharp_drop: { label: 'Sharp drop', tone: 'negative', rank: 1 },
   declining: { label: 'Declining', tone: 'warning', rank: 2 },
   growing: { label: 'Growing', tone: 'positive', rank: 4 },

@@ -12,7 +12,7 @@ import { WEEK_LABELS, buildModel, competitorId, groupOf, headToHead, leadsFor, s
 import { chartHost, lineOption, mountChart } from './aiov-charts.js';
 import { segmented } from './aiov-cards-core.js';
 import { state } from './aiov-controls.js';
-import { NEUTRAL_BADGE, cardFrame, el, emptyBody, engineName, pct0, pct1, platformLabel } from './aiov-parts.js';
+import { NEUTRAL_BADGE, cardFrame, el, emptyBody, engineName, gapIcon, gapSentence, pct0, pct1, platformLabel } from './aiov-parts.js';
 
 const ui = window.PreviewUI;
 const inspector = ui.$('#inspector');
@@ -42,7 +42,18 @@ const dot = (token) => {
 /** "612 of 1,800 answers", or nothing when a count is missing. */
 const countsOf = (total, part, noun) => (typeof total === 'number' && typeof part === 'number' ? `${formatInteger(part)} of ${formatInteger(total)} ${noun}` : undefined);
 
-const signedPoints =(diff) => (Math.abs(diff) < 0.0005 ? '0 pts' : `${diff > 0 ? '+' : '−'}${(Math.abs(diff) * 100).toFixed(1)} pts`);
+/** The gap column: you against the competitor as the trend icon, green when you are ahead, "n/a" when either has no rate. */
+function gapCell(own, rival, name) {
+  const cell = el('td', 'px-3 pr-4 text-right');
+  if (own === null || rival === null) {
+    cell.append(el('span', 'text-foreground-tertiary', 'n/a'));
+    return cell;
+  }
+  const holder = el('span', 'inline-flex justify-end');
+  holder.append(gapIcon(own - rival, gapSentence('You', own - rival, name, own, rival)));
+  cell.append(holder);
+  return cell;
+}
 
 // -------------------------------------------------------------------------------------------------
 // Overview: you against the competitor
@@ -73,9 +84,7 @@ function overviewTable(rival, rows) {
       if (tip) cell.dataset.tip = tip;
       return cell;
     };
-    const gap = el('td', 'px-3 pr-4 text-right num text-foreground-secondary', row.own === null || row.rival === null ? 'n/a' : signedPoints(row.own - row.rival));
-    gap.dataset.tip = 'Your value minus theirs, in points. Not tested for detectability';
-    tr.append(name, value(row.own, row.decimals, row.ownTip), value(row.rival, row.decimals, row.rivalTip), gap);
+    tr.append(name, value(row.own, row.decimals, row.ownTip), value(row.rival, row.decimals, row.rivalTip), gapCell(row.own, row.rival, rival.name));
     body.append(tr);
   });
   table.append(head, body);
@@ -92,9 +101,9 @@ function fillOverview(model, index) {
   }
   const rows = [
     // The counts behind each rate are in the tooltips (R1): pooled answers, while the rate is prompt-weighted
-    { label: 'Mention rate', own: data.own.mention, rival: data.rival.mention, tip: 'Share of valid answers that name the brand. Each prompt counts once.', ownTip: countsOf(model.average.mention.counts?.n, data.own.answers, 'answers'), rivalTip: countsOf(model.average.mention.counts?.n, data.rival.answers, 'answers') },
+    { label: 'Mention rate', own: data.own.mention, rival: data.rival.mention, tip: 'Share of valid answers that mention the brand. Each prompt counts once.', ownTip: countsOf(model.average.mention.counts?.n, data.own.answers, 'answers'), rivalTip: countsOf(model.average.mention.counts?.n, data.rival.answers, 'answers') },
     { label: 'Share of voice', own: data.own.sov, rival: data.rival.sov, tip: 'Share of tracked-brand mentions, within the tracked set.', ownTip: countsOf(data.own.answersOfTracked, data.own.answers, 'brand mentions'), rivalTip: countsOf(data.rival.answersOfTracked, data.rival.answers, 'brand mentions') },
-    { label: 'Source share', own: data.sourceShare.own, rival: data.sourceShare.rival, decimals: 1, tip: 'Share of citation units that are pages of the brand’s own domain.' },
+    { label: 'Citation share', own: data.sourceShare.own, rival: data.sourceShare.rival, decimals: 1, tip: 'Share of citation units that are pages of the brand’s domain.' },
   ];
   const summary = cardFrame({
     key: 'competitor.summary',
@@ -125,8 +134,7 @@ function fillOverview(model, index) {
     name.scope = 'row';
     name.append(platformLabel(entry.code));
     const cell = (ratio) => (ratio === null ? el('td', 'px-3 text-right text-foreground-tertiary', 'n/a') : el('td', 'px-3 text-right num', pct0(ratio)));
-    const gap = el('td', 'px-3 pr-4 text-right num text-foreground-secondary', entry.own === null || entry.rival === null ? 'n/a' : signedPoints(entry.own - entry.rival));
-    tr.append(name, cell(entry.own), cell(entry.rival), gap);
+    tr.append(name, cell(entry.own), cell(entry.rival), gapCell(entry.own, entry.rival, rival.name));
     body.append(tr);
   });
   table.append(body);
@@ -201,7 +209,7 @@ function fillPrompts(model, index) {
     const chip = el('button', `h-control-sm px-2.5 self-start rounded-md border type-body whitespace-nowrap ${view.absent ? 'border-primary-border bg-primary-subtle text-primary-text type-body-strong' : 'border-border bg-surface text-foreground hover:bg-surface-hover'}`, `You are absent ${absentCount}`);
     chip.type = 'button';
     chip.setAttribute('aria-pressed', String(view.absent));
-    chip.dataset.tip = `${rival.name} is named and you are not named at all: the plan’s “lost to” prompts`;
+    chip.dataset.tip = `${rival.name} is mentioned and you are not mentioned at all: the plan’s “lost to” prompts`;
     chip.addEventListener('click', () => {
       view.absent = !view.absent;
       fillPrompts(model, index);
@@ -303,11 +311,11 @@ function fillSources(model, index) {
   const data = sourcesBehind(model, index);
   const target = panel('comp-sources');
   if (data.theirs.length === 0) {
-    target.replaceChildren(cardFrame({ key: 'competitor.sources', title: 'Sources', body: emptyBody('No citations in this scope', 'No answer in this scope cited a page, so there is nothing to compare.') }));
+    target.replaceChildren(cardFrame({ key: 'competitor.sources', title: 'Cited domains', body: emptyBody('No citations in this scope', 'No answer in this scope cited a page, so there is nothing to compare.') }));
     return;
   }
-  const theirs = cardFrame({ key: 'competitor.sources.theirs', title: `When ${rival.name} is named`, meta: 'top domains cited', body: sourceList('theirs', data.theirs, rival.token), flush: true });
-  const yours = cardFrame({ key: 'competitor.sources.yours', title: 'When you are named', meta: 'top domains cited', body: sourceList('yours', data.yours, 'chart-1'), flush: true });
+  const theirs = cardFrame({ key: 'competitor.sources.theirs', title: `When ${rival.name} is mentioned`, meta: 'top domains cited', body: sourceList('theirs', data.theirs, rival.token), flush: true });
+  const yours = cardFrame({ key: 'competitor.sources.yours', title: 'When you are mentioned', meta: 'top domains cited', body: sourceList('yours', data.yours, 'chart-1'), flush: true });
   const only = el('div', 'px-4 pb-4 flex flex-col gap-3');
   only.append(el('p', 'type-body text-foreground-secondary', `The top 8 of the two lists share ${pct0(data.overlap)} of their domains (Jaccard overlap).`));
   const chips = el('div', 'flex flex-wrap gap-1.5');

@@ -34,7 +34,7 @@ export function textCell(text, tip) {
 export function intentCell(prompt) {
   const intent = intentOf(prompt);
   const cell = el('td', CELL);
-  cell.append(el('span', NEUTRAL_BADGE, intent));
+  cell.append(el('span', 'block truncate text-foreground', intent));
   cell.dataset.tip = INTENT_TIP[intent];
   return cell;
 }
@@ -55,24 +55,25 @@ export function volumeCell({ value, keyword, keywords, prompts }) {
  * The mean position. `absent` is the reason when nothing was observed, for one engine its own (an AI Overview that did
  * not show, a keyword that is not linked). Zero mentions is only a finding once there are enough answers to say it.
  */
-export function positionCell({ value, used, names, lists, mentions, answers }, absent = 'Not observed in this window') {
+export function positionCell({ value, used, names, lists, mentions, answers }, absent = 'No answers in this period') {
   if (answers === 0) return unknown('n/a', absent);
   if (value === null) {
     if (mentions === 0) {
       return answers < MIN_OBSERVATIONS
         ? unknown('n/a', `${plural(answers, 'answer')} so far, too few to say where the brand sits`)
-        : unknown('n/a', `Your brand was not named in any of ${plural(answers, 'answer')}, so it has no position`);
+        : unknown('n/a', `Your brand was not mentioned in any of ${plural(answers, 'answer')}, so it has no mention position`);
     }
     const cell = el('td', CELL);
-    cell.append(insufficient(plural(lists, 'list')));
-    cell.dataset.tip = `Only answers that are an ordered list have a position, and an engine needs at least ${POSITION_MIN_LISTS}. ${plural(mentions, 'mention')}, ${plural(lists, 'ordered answer')}.`;
+    // The number alone: the tooltip says it counts ordered answers, and a bare count reads cleaner in a column of positions
+    cell.append(insufficient(String(lists)));
+    cell.dataset.tip = `Only answers that are an ordered list have a mention position, and a platform needs at least ${POSITION_MIN_LISTS}. ${plural(mentions, 'mention')}, ${plural(lists, 'ordered answer')}.`;
     return cell;
   }
   const cell = el('td', CELL);
   const line = el('span', 'inline-flex items-baseline gap-1 whitespace-nowrap');
   line.append(el('span', 'num', formatDecimal(value, 1)));
   cell.append(line);
-  cell.dataset.tip = `${used > 1 ? `Equal-weight average of ${names.join(', ')}, each from its own ordered answers. ` : `${names[0]}: `}${plural(lists, 'ordered answer')} of ${plural(mentions, 'mention')}. 1 means named first, so lower is better.`;
+  cell.dataset.tip = `${used > 1 ? `Equal-weight average of ${names.join(', ')}, each from its own ordered answers. ` : `${names[0]}: `}${plural(lists, 'ordered answer')} of ${plural(mentions, 'mention')}. 1 means mentioned first, so lower is better.`;
   return cell;
 }
 
@@ -84,13 +85,13 @@ const SENTIMENT = [
 ];
 
 /** The share of positive mentions with the four shares as a bar. Never one score: the split is the value. */
-export function sentimentCell(sentiment, absent = 'Not observed in this window') {
+export function sentimentCell(sentiment, absent = 'No answers in this period') {
   if (sentiment.state === 'none') return unknown('n/a', 'Sentiment is classified on ChatGPT and Gemini answers, and none of them is in view');
   if (sentiment.state === 'unobserved') return unknown('n/a', absent);
   const cell = el('td', CELL);
   if (sentiment.state === 'insufficient') {
     cell.append(insufficient(plural(sentiment.mentions, 'mention')));
-    cell.dataset.tip = `${plural(sentiment.mentions, 'classified mention')} in ${plural(sentiment.answers, 'answer')}. The shares need at least ${SENTIMENT_MIN} on an engine.`;
+    cell.dataset.tip = `${plural(sentiment.mentions, 'classified mention')} in ${plural(sentiment.answers, 'answer')}. The shares need at least ${SENTIMENT_MIN} on a platform.`;
     return cell;
   }
   const { shares, used, names } = sentiment;
@@ -193,6 +194,26 @@ function opener(trigger, build) {
 
 const LINK_BUTTON = 'flex min-w-0 max-w-full items-center gap-1.5 rounded-sm text-left type-body text-foreground hover:underline focus-visible:focus-ring';
 
+/**
+ * A mark before a list that answers "is my brand in it?" at a glance: a green check when it is, a quiet dash when it
+ * is not. The meaning is also in its label and tooltip, so color is not the only carrier.
+ */
+function presenceMark(present, yes, no) {
+  const mark = el('span', `flex size-icon shrink-0 items-center justify-center ${present ? 'text-positive-text' : 'text-foreground-tertiary'}`);
+  mark.setAttribute('role', 'img');
+  mark.setAttribute('aria-label', present ? yes : no);
+  mark.dataset.tip = present ? yes : no;
+  mark.append(icon(present ? 'circle-check' : 'minus', 'size-icon-sm'));
+  return mark;
+}
+
+/** The list opener and its mark side by side, the mark never shrinking. */
+function markedList(mark, button) {
+  const wrap = el('div', 'flex min-w-0 items-center gap-2');
+  wrap.append(mark, button);
+  return wrap;
+}
+
 /** Which engines a list rests on, as a sentence. */
 const scopeSentence = (names, answers) => `${names.length === 1 ? `${names[0]} only` : `Equal-weight average of ${names.join(', ')}`} · ${plural(answers, 'answer')}`;
 
@@ -200,23 +221,25 @@ export function brandsCell(brands, label) {
   const cell = el('td', CELL);
   if (brands.shown.length === 0) {
     cell.append(el('span', 'text-foreground-tertiary', 'n/a'));
-    cell.dataset.tip = 'Too few answers to list the brands they name';
+    cell.dataset.tip = 'Too few answers to list the brands they mention';
     return cell;
   }
   const names = brands.shown.slice(0, 3).map((row) => row.name).join(', ');
   const more = brands.shown.length - 3;
   const button = el('button', LINK_BUTTON);
   button.type = 'button';
-  button.setAttribute('aria-label', `Brands named in the answers for ${label}: ${plural(brands.total, 'brand')}. Open the list`);
+  button.setAttribute('aria-label', `Brands mentioned in the answers for ${label}: ${plural(brands.total, 'brand')}. Open the list`);
   button.append(el('span', 'truncate', names), more > 0 ? el('span', 'shrink-0 type-label text-foreground-tertiary', `+${more}`) : '');
   opener(button, () => ({
-    title: 'Brands named in answers',
+    title: 'Brands mentioned in answers',
     subtitle: `${label} · ${scopeSentence(brands.names, brands.answers)}`,
     rows: brands.shown.map((row) => brandRow(row, brands)),
     ownRow: brands.own ? brandRow(brands.own, brands) : null,
-    note: 'The share of answers that name each brand. A brand marked Not a competitor is in the answers but not in your competitor list: add it to include it in share of voice and the competitor gap.',
+    note: 'The share of answers that mention each brand. A brand marked Not a competitor is in the answers but not in your competitor list: add it to include it in share of voice and the competitor gap.',
   }));
-  cell.append(button);
+  // The own brand is in the list, or pinned under it when it ranks lower
+  const named = [...brands.shown, brands.own].some((row) => row?.own && row.rate > 0);
+  cell.append(markedList(presenceMark(named, 'Your brand is mentioned in these answers', 'Your brand is not mentioned in these answers'), button));
   return cell;
 }
 
@@ -266,7 +289,7 @@ function brandRow(row, brands, holder = { node: null }) {
   if (row.own) main.append(el('span', `${NEUTRAL_BADGE} shrink-0`, 'You'));
   else if (!row.tracked) {
     const tag = el('span', 'shrink-0 type-meta', 'Not a competitor');
-    tag.dataset.tip = 'The answers name it, but it is not in your competitor list, so share of voice and the competitor gap leave it out';
+    tag.dataset.tip = 'The answers mention it, but it is not in your competitor list, so share of voice and the competitor gap leave it out';
     main.append(tag);
     const add = el('button', 'h-6 shrink-0 rounded-sm border border-border bg-surface px-2 type-label text-foreground hover:bg-surface-hover focus-visible:focus-ring', 'Add');
     add.type = 'button';
@@ -286,13 +309,13 @@ function brandRow(row, brands, holder = { node: null }) {
   if (single) value.append(el('span', 'type-meta num', formatSampleCount(row.k, row.n)));
   const item = listRow({ place: row.place, main, value, own: row.own });
   holder.node = item;
-  if (brands.prompts > 1) item.dataset.tip = `Mean over ${plural(brands.prompts, 'prompt')}, each prompt counting once${brands.names.length > 1 ? ', averaged over the engines' : ''}`;
+  if (brands.prompts > 1) item.dataset.tip = `Mean over ${plural(brands.prompts, 'prompt')}, each prompt counting once${brands.names.length > 1 ? ', averaged over the platforms' : ''}`;
   else if (!single) item.dataset.tip = [...row.counts.entries()].map(([name, counts]) => `${name} ${formatSampleCount(counts.k, counts.n)} answers`).join(', ');
   return item;
 }
 
 /** The links one engine cited: the most cited as text, the rest in the popover. */
-export function citedLinksCell({ links, answers }, label, absent = 'Not observed in this window') {
+export function citedLinksCell({ links, answers }, label, absent = 'No answers in this period') {
   const cell = el('td', CELL);
   if (answers === 0) {
     cell.append(el('span', 'text-foreground-tertiary', 'n/a'));
@@ -301,15 +324,15 @@ export function citedLinksCell({ links, answers }, label, absent = 'Not observed
   }
   if (links.length === 0) {
     cell.append(el('span', 'text-foreground-tertiary', 'None'));
-    cell.dataset.tip = `None of ${plural(answers, 'answer')} cited a link`;
+    cell.dataset.tip = `None of ${plural(answers, 'answer')} cited a page`;
     return cell;
   }
   const button = el('button', LINK_BUTTON);
   button.type = 'button';
-  button.setAttribute('aria-label', `Links cited in the answers for ${label}: ${plural(links.length, 'link')}. Open the list`);
+  button.setAttribute('aria-label', `Pages cited in the answers for ${label}: ${plural(links.length, 'page')}. Open the list`);
   button.append(el('span', 'truncate', links[0].url), links.length > 1 ? el('span', 'shrink-0 type-label text-foreground-tertiary', `+${links.length - 1}`) : '');
   opener(button, () => ({
-    title: 'Links cited in answers',
+    title: 'Pages cited in answers',
     subtitle: `${label} · ${plural(answers, 'answer')}`,
     rows: links.slice(0, LIST_SIZE).map((link, index) => {
       const main = el('span', 'flex min-w-0 items-center gap-2');
@@ -318,9 +341,9 @@ export function citedLinksCell({ links, answers }, label, absent = 'Not observed
       const value = el('span', 'type-meta num whitespace-nowrap', formatSampleCount(link.count, answers));
       return listRow({ place: index + 1, main, value, own: link.own });
     }),
-    note: 'How many of the answers cite each link, most cited first.',
+    note: 'How many of the answers cite each page, most cited first.',
   }));
-  cell.append(button);
+  cell.append(markedList(presenceMark(links.some((link) => link.own), 'Your site is cited in these answers', 'Your site is not cited in these answers'), button));
   return cell;
 }
 
@@ -382,15 +405,15 @@ function openShot(prompt, code, latest, trigger) {
   shotOpener = trigger;
   const engine = engineOf(code);
   const { observation, answer } = latest;
-  $('[data-shot-sub]', dialog).textContent = `${engine.name} · ${observation.day}, ${observation.time}`;
+  $('[data-shot-sub]', dialog).textContent = `${engine.label} · ${observation.day}, ${observation.time}`;
   const frame = el('div', 'flex flex-col gap-3 rounded-lg border border-border bg-surface p-4');
   const top = el('div', 'flex items-center gap-2');
-  top.append(engineLogo(engine.name), el('span', 'type-body-strong text-foreground', engine.name));
+  top.append(engineLogo(engine.name), el('span', 'type-body-strong text-foreground', engine.label));
   frame.append(top, el('p', 'type-body-strong text-foreground', prompt.text), el('p', 'whitespace-pre-line type-body text-foreground', plainAnswer(answer.text)));
   const sources = el('ol', 'flex flex-col gap-1 border-t border-border-subtle pt-3');
   answer.sources.forEach((domain, index) => sources.append(el('li', 'type-meta num', `[${index + 1}] ${domain}`)));
   frame.append(sources);
-  $('[data-shot-body]', dialog).replaceChildren(frame, el('p', 'type-meta', 'A sample of the capture. The app stores an image of the answer page for every observation.'));
+  $('[data-shot-body]', dialog).replaceChildren(frame, el('p', 'type-meta', 'A sample of the screenshot. The app stores an image of the answer page for every answer.'));
   ui.openModal(dialog);
   dialog.querySelector('[data-dialog-cancel]').focus();
 }
@@ -399,12 +422,12 @@ export function screenshotCell(prompt, code, latest) {
   const cell = el('td', CELL);
   if (!latest) {
     cell.append(el('span', 'text-foreground-tertiary', 'No answer'));
-    cell.dataset.tip = 'No answer in this window yet';
+    cell.dataset.tip = 'No answer in this period yet';
     return cell;
   }
   const button = el('button', 'inline-flex h-6 items-center gap-1.5 rounded-sm border border-border bg-surface px-1.5 type-body text-foreground hover:bg-surface-hover focus-visible:focus-ring');
   button.type = 'button';
-  button.setAttribute('aria-label', `Open the latest ${engineOf(code).name} answer screenshot for ${prompt.text}`);
+  button.setAttribute('aria-label', `Open the latest ${engineOf(code).label} answer screenshot for ${prompt.text}`);
   button.append(icon('image', 'size-icon-sm text-foreground-tertiary'), el('span', 'num', latest.observation.day));
   button.addEventListener('click', () => openShot(prompt, code, latest, button));
   cell.append(button);
@@ -420,7 +443,7 @@ export function screenshotCell(prompt, code, latest) {
  * `choose(codes)` receives the engine codes of the choice.
  */
 export function initEngineSelect({ before, choose }) {
-  const wrap = el('div', 'w-44 shrink-0');
+  const wrap = el('div', 'min-w-0 md:w-44 md:shrink-0');
   const trigger = el('button', 'flex h-control-sm w-full min-w-0 items-center gap-2 rounded-md border border-border bg-surface px-2 text-left type-body text-foreground hover:bg-surface-hover aria-expanded:bg-surface-hover focus-visible:focus-ring');
   trigger.type = 'button';
   trigger.setAttribute('aria-haspopup', 'listbox');
@@ -429,10 +452,10 @@ export function initEngineSelect({ before, choose }) {
   const menu = el('div', 'hidden fixed z-(--z-dropdown) min-w-52 rounded-lg border border-border bg-surface-elevated p-1 shadow-popover');
   const list = el('div');
   list.setAttribute('role', 'listbox');
-  list.setAttribute('aria-label', 'Engine in view');
+  list.setAttribute('aria-label', 'Platform in view');
   menu.append(list);
   document.body.append(menu);
-  const options = [{ id: 'all', label: 'All engines' }, ...ENGINES.map((engine) => ({ id: engine.code, label: engine.name, logo: engine.name }))];
+  const options = [{ id: 'all', label: 'All platforms' }, ...ENGINES.map((engine) => ({ id: engine.code, label: engine.label, logo: engine.name }))];
   const buttons = options.map((option) => {
     const button = el('button', 'group flex h-control-sm w-full items-center gap-2 whitespace-nowrap rounded-md px-2 text-left type-body text-foreground outline-none hover:bg-surface-hover focus-visible:bg-surface-hover');
     button.type = 'button';
@@ -461,9 +484,12 @@ export function initEngineSelect({ before, choose }) {
     const codes = state.engines;
     const selected = codes.length === ENGINES.length ? 'all' : codes.length === 1 ? codes[0] : 'custom';
     const current = options.find((option) => option.id === selected);
-    const label = current?.label ?? `${codes.length} engines`;
-    trigger.replaceChildren(el('span', 'shrink-0 text-foreground-secondary', 'Engine:'), el('span', 'min-w-0 flex-1 truncate', label), icon('chevron-down', 'size-icon-sm shrink-0 text-foreground-muted'));
-    trigger.setAttribute('aria-label', `Engine: ${label}`);
+    const label = current?.label ?? `${codes.length} platforms`;
+    // A fixed 16 px slot for the mark: the engine's own, or the layers glyph for all of them or a set, so the label never moves
+    const mark = el('span', 'flex size-icon shrink-0 items-center justify-center');
+    mark.append(selected !== 'all' && selected !== 'custom' ? engineLogo(engineOf(selected).name) : icon('layers', 'size-icon-sm text-foreground-secondary'));
+    trigger.replaceChildren(mark, el('span', 'min-w-0 flex-1 truncate', label), icon('chevron-down', 'size-icon-sm shrink-0 text-foreground-muted'));
+    trigger.setAttribute('aria-label', `Platform: ${label}`);
     buttons.forEach(({ button, option }) => button.setAttribute('aria-selected', String(option.id === selected)));
   };
 }

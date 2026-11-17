@@ -74,7 +74,7 @@ export function countryMenu(trigger) {
         },
       }),
     );
-  }, { label: 'Country' });
+  }, { label: 'Location' });
 }
 
 /** Filter: pick a field, then a value; one chip for each field, a new value replacing the old one. */

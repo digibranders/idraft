@@ -14,14 +14,11 @@
 import { formatInteger, formatSampleCount } from './vendor/format/number.js';
 import { MIN_OBSERVATIONS, isDetectableChange, pooledCounts, promptWeightedRate, rateState } from './vendor/stats/index.js';
 import {
-  COMPETITORS,
   ENGINES,
   NOT_CLASSIFIED,
-  OWN,
   PANELS,
   PROMPTS,
   PROMPT_BY_ID,
-  PROMPT_QUOTA,
   TOPIC_PARENT,
   TYPE_LABEL,
   absenceOf,
@@ -31,20 +28,22 @@ import {
   engineOf,
   measures,
   rateFor,
-  seeded,
 } from './prompts-data.js';
+import { visibilityCounts } from './aiov-data.js';
+import { infoButton } from './aiov-parts.js';
 import { brandsOf, citedLinksOf, intentOf, latestAnswerOf, positionOf, sentimentOf, volumeOf } from './prompts-extra.js';
 import { brandsCell, citedLinksCell, closeStaleList, initEngineSelect, onCompetitorsChange, intentCell, positionCell, screenshotCell, sentimentCell, textCell, volumeCell } from './prompts-extra-cells.js';
+import { initAddPrompts } from './prompts-add.js';
 import { initPromptInspector, refreshPromptInspector } from './prompts-inspector.js';
 import { initTopicInspector, refreshTopicInspector } from './prompts-topic-inspector.js';
 import { initTopics, promptsByMention, renderTopics, topicOrder, topicsInScope } from './prompts-topics.js';
-import { CELL, IDENTITY_RESIZE, focusSearchOnSlash, identityHandle, plainHeaderCell, promptLine, promptRateCell, promptTrendCell, rowMenuCell, sortHeaderCell, wireColumnChooser } from './prompts-cells.js';
+import { CELL, IDENTITY_RESIZE, focusSearchOnSlash, identityHandle, plainHeaderCell, promptLine, promptRateCell, rowMenuCell, sortHeaderCell, wireColumnChooser } from './prompts-cells.js';
 import { NEUTRAL_BADGE, checkbox, el, insufficient, intervalText, percent0, plural } from './prompts-parts.js';
 import { BRANDED_LABEL, METRIC_LABEL, VIEWS, deltaNode, inScope, isAllLocations, scopeCodes, scopeEngines, scopePrompts, scopeText, state } from './prompts-state.js';
 
 const ui = window.PreviewUI;
 const charts = window.PreviewCharts;
-const { $, $$, icon, toast, openPopup, closePopup, openModal, closeModal, trapFocus, askDiscard, setSelectValue, engineLogo } = ui;
+const { $, $$, icon, toast, openPopup, closePopup, engineLogo } = ui;
 
 const view = $('[data-view="prompts"]');
 
@@ -59,29 +58,30 @@ const PAGE_SIZE = Number.MAX_SAFE_INTEGER;
  * view is that engine's own value. Cited links and the answer screenshot belong to one engine's answers, so they are
  * there only while one engine is in view. The per-engine columns and counts are off until they are chosen.
  */
-const WIDTH = { select: 40, prompt: 300, topic: 160, country: 120, intent: 128, volume: 132, position: 120, mention: 168, citation: 136, recommendation: 196, sov: 140, sentiment: 168, trend: 96, links: 320, brands: 248, shot: 120, e: 176, count: 152, actions: 40 };
+const WIDTH = { select: 40, prompt: 300, topic: 160, country: 120, intent: 128, volume: 132, position: 120, mention: 168, citation: 136, recommendation: 196, sov: 140, sentiment: 168, links: 344, brands: 272, shot: 120, e: 176, count: 152, actions: 40 };
+// The Mention rate column also holds the trend line (64 px) when the person compares, so it is wider then
+const MENTION_COMPARE_WIDTH = 204;
 const columnsOf = () => {
   const single = scopeEngines().length === 1;
   return [
     { key: 'prompt', label: 'Prompt', width: WIDTH.prompt, locked: true },
-    { key: 'topic', label: 'Topic', width: WIDTH.topic },
+    { key: 'topic', label: 'Group', width: WIDTH.topic },
     ...(isAllLocations() ? [{ key: 'country', label: 'Location', width: WIDTH.country }] : []),
     { key: 'intent', label: 'Intent', width: WIDTH.intent },
     { key: 'volume', label: 'Search volume', width: WIDTH.volume },
-    { key: 'position', label: 'Avg position', width: WIDTH.position },
-    { key: 'mention', label: 'Mention rate', width: WIDTH.mention },
+    { key: 'position', label: 'Mention position', width: WIDTH.position },
+    { key: 'mention', label: 'Mention rate', width: state.compare ? MENTION_COMPARE_WIDTH : WIDTH.mention },
     { key: 'citation', label: 'Citation rate', width: WIDTH.citation },
     { key: 'recommendation', label: 'Recommendation rate', width: WIDTH.recommendation },
     { key: 'sov', label: 'Share of voice', width: WIDTH.sov },
     { key: 'sentiment', label: 'Sentiment', width: WIDTH.sentiment },
-    { key: 'trend', label: 'Trend', width: WIDTH.trend },
-    ...(single ? [{ key: 'links', label: 'Cited links', width: WIDTH.links }] : []),
+    ...(single ? [{ key: 'links', label: 'Cited pages', width: WIDTH.links, engine: scopeEngines()[0].name }] : []),
     { key: 'brands', label: 'Brands', width: WIDTH.brands },
-    ...(single ? [{ key: 'shot', label: 'Screenshot', width: WIDTH.shot }] : []),
-    ...scopeEngines().map((engine) => ({ key: `e:${engine.code}`, label: `${engine.name} ${METRIC_LABEL[state.metric].toLowerCase()}`, width: WIDTH.e })),
+    ...(single ? [{ key: 'shot', label: 'Screenshot', width: WIDTH.shot, engine: scopeEngines()[0].name }] : []),
+    ...scopeEngines().map((engine) => ({ key: `e:${engine.code}`, label: `${engine.label} ${METRIC_LABEL[state.metric].toLowerCase()}`, width: WIDTH.e, engine: engine.name })),
     ...scopeEngines().flatMap((engine) => [
-      { key: `m:${engine.code}`, label: `${engine.name} mentioned`, width: WIDTH.count },
-      { key: `c:${engine.code}`, label: `${engine.name} cited`, width: WIDTH.count },
+      { key: `m:${engine.code}`, label: `${engine.label} mentioned`, width: WIDTH.count, engine: engine.name },
+      { key: `c:${engine.code}`, label: `${engine.label} cited`, width: WIDTH.count, engine: engine.name },
     ]),
   ];
 };
@@ -142,23 +142,23 @@ const pageRows = () => state.rows.slice((state.page - 1) * PAGE_SIZE, state.page
 function engineValue(prompt, engine, metric) {
   const counts = countsOf(prompt, engine.code, metric);
   const status = rateState(counts.observations);
-  if (counts.reason) return { node: el('span', 'text-foreground-tertiary', 'n/a'), tip: `${engine.name}: ${counts.reason}`, text: 'n/a' };
+  if (counts.reason) return { node: el('span', 'text-foreground-tertiary', 'n/a'), tip: `${engine.label}: ${counts.reason}`, text: 'n/a' };
   if (status === 'none') {
     const absence = absenceOf(prompt, engine.code);
-    return { node: el('span', 'text-foreground-tertiary whitespace-nowrap', absence.text), tip: `${engine.name}: ${absence.reason}`, text: absence.text };
+    return { node: el('span', 'text-foreground-tertiary whitespace-nowrap', absence.text), tip: `${engine.label}: ${absence.reason}`, text: absence.text };
   }
   if (status === 'insufficient') {
     return {
-      node: insufficient(`${counts.observations} obs`),
-      tip: `${engine.name}: ${plural(counts.observations, 'observation')}. A rate needs at least ${MIN_OBSERVATIONS}.`,
-      text: `${counts.observations} obs`,
+      node: insufficient(plural(counts.observations, 'answer')),
+      tip: `${engine.label}: ${plural(counts.observations, 'answer')}. A rate needs at least ${MIN_OBSERVATIONS}.`,
+      text: plural(counts.observations, 'answer'),
     };
   }
-  if (counts.n === 0) return { node: el('span', 'text-foreground-tertiary', 'n/a'), tip: `${engine.name}: no entity was mentioned`, text: 'n/a' };
+  if (counts.n === 0) return { node: el('span', 'text-foreground-tertiary', 'n/a'), tip: `${engine.label}: no brand was mentioned`, text: 'n/a' };
   const text = percent0(counts.k / counts.n);
-  const unit = metric === 'sov' ? 'entity mentions' : engine.unit;
+  const unit = metric === 'sov' ? 'brand mentions' : engine.unit;
   const interval = metric === 'sov' ? null : intervalText(counts);
-  return { node: el('span', 'num', text), tip: `${engine.name}: ${formatSampleCount(counts.k, counts.n)} ${unit}${interval ? `, 95% interval ${interval}` : ''}`, text };
+  return { node: el('span', 'num', text), tip: `${engine.label}: ${formatSampleCount(counts.k, counts.n)} ${unit}${interval ? `, 95% interval ${interval}` : ''}`, text };
 }
 
 /** Every prompt of the fixture is asked for the project's one country, the one the top bar shows. */
@@ -191,7 +191,7 @@ function countCell(prompt, code, metric) {
   const counts = countsOf(prompt, code, metric);
   if (counts.n === 0) {
     cell.append(el('span', 'text-foreground-tertiary', 'No answers'));
-    cell.dataset.tip = 'No answer in this window yet. Each prompt is asked twice a week.';
+    cell.dataset.tip = 'No answer in this period yet. Each prompt is asked twice a week.';
   } else cell.append(el('span', 'num', formatSampleCount(counts.k, counts.n)));
   return cell;
 }
@@ -214,7 +214,7 @@ function engineCell(prompt, engine) {
 function extraCell(prompt, key) {
   const scope = scopeCodes();
   // With one engine in view, nothing observed has that engine's own reason (an AI Overview that did not show)
-  const absent = scope.length === 1 ? absenceSentence(prompt, scope[0]) : 'Not observed in this window';
+  const absent = scope.length === 1 ? absenceSentence(prompt, scope[0]) : 'No answers in this period';
   if (key === 'intent') return intentCell(prompt);
   if (key === 'volume') return volumeCell(volumeOf(prompt));
   if (key === 'position') return positionCell(positionOf([prompt], scope), absent);
@@ -238,7 +238,6 @@ function rowFor(prompt) {
       if (column.key === 'country') return textCell(COUNTRY, 'Every prompt is asked for the project location, the one the top bar shows');
       if (column.key === 'mention') return promptRateCell(prompt, 'mention', true);
       if (['citation', 'recommendation', 'sov'].includes(column.key)) return promptRateCell(prompt, column.key, false);
-      if (column.key === 'trend') return promptTrendCell(prompt, '');
       if (['intent', 'volume', 'position', 'sentiment', 'brands', 'links', 'shot'].includes(column.key)) return extraCell(prompt, column.key);
       if (column.key.startsWith('e:')) return engineCell(prompt, engineOf(column.key.slice(2)));
       return countCell(prompt, column.key.slice(2), column.key.startsWith('c:') ? 'citation' : 'mention');
@@ -253,24 +252,26 @@ function rowFor(prompt) {
 const head = $('[data-prompt-head]', view);
 const cols = $('[data-prompt-cols]', view);
 const promptTable = $('[data-prompt-table]', view);
-const sortHeader = (column) => sortHeaderCell({ key: column.key, label: column.label, sort: state.sort, attr: 'promptSort', tip: HEAD_TIP[column.key] });
+const sortHeader = (column) => sortHeaderCell({ key: column.key, label: column.label, sort: state.sort, attr: 'promptSort', tip: HEAD_TIP[column.key], logo: column.engine });
 const HEAD_TIP = {
-  mention: 'The share of valid answers that name your brand, averaged over the engines shown',
-  citation: 'The share of valid answers that cite your domain, averaged over the engines shown',
-  trend: 'The mention rate for each week of the window, averaged over the engines shown. A week with no valid answer is a gap in the line.',
+  get mention() {
+    const base = 'The share of valid answers that mention your brand, averaged over the platforms shown';
+    return state.compare ? `${base}. The change is against the comparison period, and the line is the rate of each week of the period (a week with no valid answer is a gap).` : base;
+  },
+  citation: 'The share of valid answers that cite your site, averaged over the platforms shown',
   country: 'The location the prompt is asked for',
   intent: 'What the asker wants: to learn, to choose, to buy or to find a brand',
   volume: 'Monthly searches of the keyword the prompt is linked to. Sample values.',
-  position: 'Where your brand sits in an ordered answer, 1 being first. Lower is better. Only ordered lists have a position.',
-  recommendation: 'The share of valid answers that recommend your brand, on the engines that classify recommendations',
+  position: 'Where your brand sits in an ordered answer, 1 being first. Lower is better. Only ordered lists have a mention position.',
+  recommendation: 'The share of valid answers that recommend your brand, on the platforms that classify recommendations',
   sov: 'Your mentions as a share of every brand mention in the answers',
-  sentiment: 'The tone of the answers that name your brand, as four shares. Sample values.',
-  links: 'The links the engine cited in its answers, most cited first',
-  brands: 'The brands the answers name, most named first. Opens the list.',
-  shot: 'The latest answer of the engine, as the page showed it',
+  sentiment: 'The tone of the answers that mention your brand, as four shares. Sample values.',
+  links: 'The pages the platform cited in its answers, most cited first',
+  brands: 'The brands the answers mention, most mentioned first. Opens the list.',
+  shot: 'The latest answer of the platform, as the page showed it',
 };
 /** Columns that open something or show a picture: they have no order. */
-const PLAIN_COLUMNS = ['trend', 'links', 'brands', 'shot'];
+const PLAIN_COLUMNS = ['links', 'brands', 'shot'];
 
 /** Sets the width of every column and of the table. Dragging the Prompt column calls this, so it never draws the header again. */
 function applyWidths() {
@@ -301,7 +302,7 @@ function renderHead() {
   all.input.dataset.promptAll = '';
   select.append(all.wrap);
   const cells = shown.map((column) => {
-    if (PLAIN_COLUMNS.includes(column.key)) return plainHeaderCell(column.label, '', HEAD_TIP[column.key]);
+    if (PLAIN_COLUMNS.includes(column.key)) return plainHeaderCell(column.label, '', HEAD_TIP[column.key], column.engine);
     const th = sortHeader(column);
     if (column.key === 'prompt') {
       // The pinned header must sit above the headers that scroll under it: it takes the sticky layer, not the header one
@@ -319,54 +320,85 @@ function renderHead() {
 }
 
 // -------------------------------------------------------------------------------------------------
-// Strip (ADR-DS-022 decision 12): the chips of the toolbar, the prompts in view and one mention rate per engine
+// Strip (ADR-DS-022 decision 12): the chips of the toolbar, the prompts in view and one AI visibility rate per engine
 
 const strip = $('[data-prompt-strip]', view);
+// The "i" button says what the percentages are; it sits beside the chips, and the chips scroll on their own
+const STRIP_INFO = {
+  what: 'The percentage for each platform is its AI visibility rate: how often that platform’s answers mention or cite your brand.',
+  how: 'The share of valid answers that mention your brand, cite your site, or both. Each prompt counts once. Hover a figure for the counts behind it, with the mention, citation and share of voice figures.',
+};
+strip.parentElement.classList.remove('overflow-x-auto');
+strip.parentElement.classList.add('flex');
+strip.classList.add('min-w-0', 'flex-1', 'overflow-x-auto', 'scrollbar-none');
+const stripInfo = el('div', 'flex shrink-0 items-center border-l border-border-subtle px-1');
+stripInfo.append(infoButton('AI visibility rate', STRIP_INFO));
+strip.parentElement.append(stripInfo);
 
 /** One rate of the filtered scope on one engine: prompt-weighted, with the pooled counts as its context. */
 function scopeRate(code, metric) {
   const usable = scopePrompts().filter((prompt) => prompt.engines[code].n > 0);
-  const current = usable.map((prompt) => countsOf(prompt, code, metric));
+  // AI visibility (named or cited) is derived in the Overview's data layer, so both pages show the same figure
+  const countsFor = (prompt, period) => (metric === 'visibility' ? visibilityCounts(prompt, code, period) : countsOf(prompt, code, metric, period));
+  const current = usable.map((prompt) => countsFor(prompt, 'current'));
   const pooled = pooledCounts(current);
   const engine = engineOf(code);
-  if (!measures(code, metric)) return { value: 'n/a', delta: null, context: NOT_CLASSIFIED };
+  if (metric !== 'visibility' && !measures(code, metric)) return { value: 'n/a', delta: null, context: NOT_CLASSIFIED };
   const observations = current.reduce((sum, entry) => sum + entry.observations, 0);
   if (observations === 0 || pooled.n === 0) return { value: 'n/a', delta: null, context: `no ${engine.unit} in this scope` };
   // A narrow scope can leave an engine with fewer observations than a rate needs, like a single prompt
-  if (rateState(observations) !== 'ok') return { value: 'n/a', delta: null, context: `${formatInteger(observations)} ${engine.unit}, too few for a rate` };
+  if (rateState(observations) !== 'ok') return { value: 'n/a', delta: null, context: `${formatInteger(observations)} ${engine.unit}, not enough for a rate` };
   const rate = metric === 'sov' ? pooled.k / pooled.n : promptWeightedRate(current);
   let delta = null;
-  if (metric === 'mention' || metric === 'citation') {
-    const previous = usable.map((prompt) => countsOf(prompt, code, metric, 'previous'));
+  if (metric !== 'sov') {
+    const previous = usable.map((prompt) => countsFor(prompt, 'previous'));
     const change = { value: rate - promptWeightedRate(previous), detectable: isDetectableChange(pooled, pooledCounts(previous)) };
-    delta = deltaNode(change, 1);
+    delta = deltaNode(change, { value: rate, sample: `${formatSampleCount(pooled.k, pooled.n)} ${engine.unit}` });
   }
-  return { value: percent0(rate), delta, context: `${formatSampleCount(pooled.k, pooled.n)} ${metric === 'sov' ? 'entity mentions' : engine.unit}` };
+  return { value: percent0(rate), delta, context: `${formatSampleCount(pooled.k, pooled.n)} ${metric === 'sov' ? 'brand mentions' : engine.unit}` };
 }
 
 /** One chip of the toolbar: a label, the figure, and its change. The counts behind it are one hover away (P5). */
-function stripChip({ label, value, delta, tip }) {
-  const item = el('div', 'flex min-w-0 shrink-0 items-baseline gap-1.5');
-  const dd = el('dd', 'flex items-baseline gap-1.5 -mx-1 rounded-sm px-1 outline-none focus-visible:focus-ring-inset');
+function stripChip({ label, logo, value, delta, tip, quiet }) {
+  // One slot of the strip: the name (with the engine's mark), the figure, its change. The change comes after the figure,
+  // so it appearing or going never moves anything else, and a slot keeps its width whatever it holds.
+  const item = el('div', `flex h-control min-w-0 items-center gap-2 px-3${quiet ? ' bg-surface-subtle' : ''}`);
+  const dt = el('dt', 'flex min-w-0 items-center gap-1.5 type-meta text-foreground-secondary');
+  if (logo) dt.append(engineLogo(logo));
+  dt.append(el('span', 'truncate', label));
+  const dd = el('dd', 'flex shrink-0 items-baseline gap-1.5 rounded-sm px-1 -mx-1 outline-none focus-visible:focus-ring-inset');
   dd.tabIndex = 0;
   dd.append(el('span', `num type-body-strong ${value === 'n/a' ? 'text-foreground-tertiary' : 'text-foreground'}`, value));
   if (delta) {
     delta.classList.add('type-body-strong');
     dd.append(delta);
   }
-  item.append(el('dt', 'type-meta text-foreground-tertiary', label), dd);
+  if (quiet) dd.append(el('span', 'sr-only', ', not in the Platform filter'));
+  item.append(dt, dd);
   if (tip) item.dataset.tip = tip;
   return item;
 }
 
+/**
+ * The summary strip: the prompts in view and one mention rate for each of the four engines, in that order, always. An
+ * engine the Engine select leaves out stays in its place on a quiet ground, so choosing an engine, comparing or
+ * filtering changes figures but never the shape of the strip.
+ */
 function renderStrip() {
-  const engines = scopeEngines();
   const count = scopePrompts().length;
-  const items = [{ label: 'Prompts', value: formatInteger(count), tip: `Across ${plural(topicsInScope().length, 'topic')}` }];
-  for (const engine of engines) {
-    const rate = scopeRate(engine.code, 'mention');
-    const others = ['citation', 'sov'].map((metric) => `${METRIC_LABEL[metric]}: ${scopeRate(engine.code, metric).context}`);
-    items.push({ label: engine.name, value: rate.value, delta: rate.delta, tip: `${engine.name}. Mention: ${rate.context}. ${others.join('. ')}.` });
+  const items = [{ label: 'Prompts', value: formatInteger(count), tip: `Across ${plural(topicsInScope().length, 'group')}` }];
+  for (const engine of ENGINES) {
+    const rate = scopeRate(engine.code, 'visibility');
+    const others = ['mention', 'citation', 'sov'].map((metric) => `${METRIC_LABEL[metric]}: ${scopeRate(engine.code, metric).context}`);
+    const quiet = !state.engines.includes(engine.code);
+    items.push({
+      label: engine.label,
+      logo: engine.name,
+      value: rate.value,
+      delta: rate.delta,
+      quiet,
+      tip: `${engine.label}. AI visibility rate (mentioned or cited): ${rate.context}. ${others.join('. ')}.${quiet ? ' Not in the Platform filter, so the table leaves it out.' : ''}`,
+    });
   }
   $('[data-prompt-updated]', view).textContent = 'Updated Sep 28, 02:10';
   strip.replaceChildren(...items.map(stripChip));
@@ -396,32 +428,8 @@ function renderRows() {
   ui.syncActiveRow();
 }
 
-const SORT_LABEL = {
-  mention: 'Mention rate',
-  citation: 'Citation rate',
-  recommendation: 'Recommendation rate',
-  sov: 'Share of voice',
-  prompt: 'Prompt',
-  topic: 'Topic',
-  country: 'Location',
-  intent: 'Intent',
-  volume: 'Search volume',
-  position: 'Avg position',
-  sentiment: 'Sentiment',
-};
-
-/** "Sorted by Mention rate descending", beside the count, as the app's toolbar says it. */
-function sortNote() {
-  const { key, dir } = state.sort;
-  const label = key.includes(':') ? columnsOf().find((column) => column.key === key)?.label ?? key : SORT_LABEL[key];
-  return `Sorted by ${label} ${dir === 'asc' ? 'ascending' : 'descending'}`;
-}
-
 function renderFooter() {
-  const count = plural(state.rows.length, 'prompt');
-  $('[data-prompt-range]', view).textContent = count;
-  $('[data-prompt-count]', view).textContent = count;
-  $('[data-prompt-sort-note]', view).textContent = sortNote();
+  $('[data-prompt-range]', view).textContent = plural(state.rows.length, 'prompt');
 }
 
 /** Selection survives sorting, paging and filtering (12 section 14); rows a filter hides are reported, not dropped. */
@@ -465,9 +473,9 @@ function render() {
 
 const chips = $('[data-prompt-chips]', view);
 const FIELDS = {
-  engines: { title: 'Engines', values: () => ENGINES.map((engine) => [engine.code, engine.name]) },
-  panel: { title: 'Panel', values: () => PANELS.map((panel) => [panel.name, panel.name]) },
-  topic: { title: 'Topic', values: () => Object.keys(TOPIC_PARENT).map((topic) => [topic, topic]) },
+  engines: { title: 'Platforms', values: () => ENGINES.map((engine) => [engine.code, engine.label]) },
+  panel: { title: 'Schedule', values: () => PANELS.map((panel) => [panel.name, panel.name]) },
+  topic: { title: 'Group', values: () => Object.keys(TOPIC_PARENT).map((topic) => [topic, topic]) },
   type: { title: 'Type', values: () => Object.entries(TYPE_LABEL) },
   branded: { title: 'Branded', single: true, values: () => Object.entries(BRANDED_LABEL) },
 };
@@ -480,7 +488,8 @@ function chipLabel(field) {
 }
 
 function chip(label, editField, onRemove) {
-  const node = el('span', 'flex h-control max-w-60 pl-1 pr-1 rounded-md bg-neutral-subtle items-center gap-0.5 type-body text-foreground');
+  // The height of every control of the row, so a chip appearing never makes the row taller
+  const node = el('span', 'flex h-control-sm shrink-0 max-w-60 pl-0.5 pr-0.5 rounded-md bg-neutral-subtle items-center gap-0.5 type-body text-foreground');
   const edit = el('button', 'h-7 min-w-0 px-2 rounded-sm truncate hover:bg-surface-hover', label);
   edit.type = 'button';
   if (editField) {
@@ -589,7 +598,7 @@ function openEditor(field, anchor) {
       input.value = value;
       input.checked = applied.has(value);
       row.append(input);
-      if (field === 'engines') row.append(engineLogo(label));
+      if (field === 'engines') row.append(engineLogo(engineOf(value).name));
       row.append(el('span', 'truncate', label));
       if (countOf) row.append(el('span', 'ml-auto pl-4 type-meta num', formatInteger(countOf(value))));
       return row;
@@ -647,7 +656,7 @@ $('[data-prompt-empty-reset]', view).addEventListener('click', () => {
 
 // Engine: one engine or all of them, beside the filters. One engine adds the columns that belong to one engine's answers.
 const refreshEngineSelect = initEngineSelect({
-  before: $('[role="group"][aria-label="Filters"]', view),
+  before: $('[data-compare-wrap]', view),
   choose: (codes) => {
     state.engines = codes;
     applyFilters();
@@ -669,25 +678,12 @@ $('#ed-compare').addEventListener('click', (event) => {
 });
 
 // -------------------------------------------------------------------------------------------------
-// Toolbar: search, the metric of the engine columns, the column chooser
+// Toolbar: search, the column chooser (the engine columns always show the mention rate)
 
 $('[data-prompt-search]', view).addEventListener('input', (event) => {
   state.search = event.target.value.trim().toLowerCase();
   applyFilters();
 });
-// The metric of the engine columns, chosen in the Prompts toolbar or, for the topics by engine, in the Topics one
-$$('[data-select="lb-prompt-metric"]', view).forEach((trigger) =>
-  trigger.addEventListener('change', (event) => {
-    state.metric = event.target.dataset.value;
-    // The other trigger shows the metric too, and a column of the old metric is no longer there to sort by
-    $$('[data-select="lb-prompt-metric"]', view).forEach((other) => {
-      other.dataset.value = state.metric;
-      $('[data-select-value]', other).textContent = METRIC_LABEL[state.metric];
-    });
-    render();
-  }),
-);
-
 wireColumnChooser({
   popover: $('#pop-prompt-columns'),
   identity: { label: 'Prompt', current: identityWidth, isDefault: () => state.promptIdentity === null, set: setIdentityWidth, max: identityMax },
@@ -775,21 +771,21 @@ function runNow(ids) {
   // A run asks the prompt. AI Overview is not asked: it arrives with the next rank check of the linked keyword
   const asked = scopeEngines().filter((engine) => engine.asked);
   if (asked.length === 0) {
-    toast({ title: 'Nothing to run', description: 'AI Overview is read from rank checks, not asked. Add ChatGPT, Gemini or AI Mode to the scope to run these prompts.', tone: 'info' });
+    toast({ title: 'Nothing to run', description: 'Google AI Overview is taken from rank checks, not asked. Add ChatGPT, Gemini or Google AI Mode to the scope to run these prompts.', tone: 'info' });
     return;
   }
   const runs = ids.length * asked.length;
   if (runs > MANUAL_RUNS_LEFT) {
     toast({
       title: 'Not queued',
-      description: `${plural(ids.length, 'prompt')} need ${plural(runs, 'observation')}, and ${MANUAL_RUNS_LEFT} manual runs are left this month. Select fewer prompts, or wait for the next scheduled run.`,
+      description: `${plural(ids.length, 'prompt')} need ${plural(runs, 'answer')}, and ${MANUAL_RUNS_LEFT} manual runs are left this month. Select fewer prompts, or wait for the next scheduled run.`,
       tone: 'info',
     });
     return;
   }
   toast({
     title: ids.length === 1 ? 'Run queued' : `Run queued for ${plural(ids.length, 'prompt')}`,
-    description: `${plural(runs, 'observation')} on ${asked.map((engine) => engine.name).join(', ')}. ${formatInteger(MANUAL_RUNS_LEFT - runs)} of ${MANUAL_RUNS_LEFT} manual runs are left this month.`,
+    description: `${plural(runs, 'answer')} on ${asked.map((engine) => engine.label).join(', ')}. ${formatInteger(MANUAL_RUNS_LEFT - runs)} of ${MANUAL_RUNS_LEFT} manual runs are left this month.`,
   });
 }
 
@@ -799,7 +795,7 @@ async function archive(ids) {
   if (ids.length > 100) {
     const ok = await ui.confirmAction({
       title: `Archive ${plural(ids.length, 'prompt')}?`,
-      body: 'They stop being observed from the next run. Their history is kept, and they can be restored.',
+      body: 'They stop being asked from the next run. Their history is kept, and they can be restored.',
       confirmLabel: `Archive ${formatInteger(ids.length)}`,
     });
     if (!ok) return;
@@ -813,7 +809,7 @@ async function archive(ids) {
     focusTable();
     toast({
       title: ids.length === 1 ? 'Prompt archived' : `${plural(ids.length, 'prompt')} archived`,
-      description: 'History is kept. Observation stops from the next run.',
+      description: 'History is kept. No answers are collected from the next run.',
       action: {
         label: 'Undo',
         run: () => {
@@ -857,7 +853,7 @@ $('#menu-prompt-panel').addEventListener('click', (event) => {
   update();
   toast({
     title: `${plural(ids.length, 'prompt')} moved to ${target}`,
-    description: skipped > 0 ? `${plural(skipped, 'core prompt')} stayed: the core panel is locked.` : undefined,
+    description: skipped > 0 ? `${plural(skipped, 'core prompt')} stayed: the core schedule is locked.` : undefined,
     tone: ids.length === 0 ? 'info' : 'success',
   });
 });
@@ -933,181 +929,11 @@ $('[data-prompt-run]').addEventListener('click', () => runNow([ui.inspectorState
 focusSearchOnSlash($('[data-prompt-search]', view));
 
 // -------------------------------------------------------------------------------------------------
-// Add prompts (16 section 4). The text is checked against the prompt guidelines while it is typed (11 section 4).
+// Add prompts (16 section 4): the dialog is prompts-add.js. An added prompt joins PROMPTS, and the page is drawn again.
 
-const addDialog = $('#dlg-add-prompts');
-const addInput = $('#prompt-input');
-const addPanel = $('#prompt-panel');
-const addTopic = $('#prompt-topic');
-const addReason = $('#prompt-reason');
-const addSubmit = $('[data-prompt-submit]', addDialog);
-let addOpener = null;
-
-const BRAND_ALIASES = [OWN, ...COMPETITORS.map((competitor) => competitor.name)].map((name) => name.toLowerCase());
-const wordCount = (text) => text.split(/\s+/).filter(Boolean).length;
-const isBrandedText = (text) => BRAND_ALIASES.some((alias) => text.toLowerCase().includes(alias));
-
-/** The prompts typed so far, each with the number of its line in the field. Blank and repeated lines are left out. */
-function typedPrompts() {
-  const seen = new Set();
-  return addInput.value
-    .split('\n')
-    .map((line, i) => ({ text: line.trim(), line: i + 1 }))
-    .filter(({ text }) => text !== '' && !seen.has(text.toLowerCase()) && seen.add(text.toLowerCase()));
-}
-
-/** One finding per line at most, the most serious first: errors block, warnings and notes do not. */
-function lint(lines) {
-  const tracked = new Set(PROMPTS.filter((prompt) => !state.archived.has(prompt.id)).map((prompt) => prompt.text.toLowerCase()));
-  const core = addPanel.dataset.value === 'Core';
-  return lines.flatMap(({ text, line }) => {
-    const where = `Line ${line}`;
-    const words = wordCount(text);
-    if (tracked.has(text.toLowerCase())) return [{ level: 'error', text: `${where} is already tracked.` }];
-    if (words < 5) return [{ level: 'error', text: `${where} is too short. A prompt needs at least 5 words.` }];
-    if (words > 60) return [{ level: 'error', text: `${where} has ${words} words. The limit is 60.` }];
-    if (isBrandedText(text) && core) return [{ level: 'error', text: `${where} names a brand. Branded prompts cannot join the core panel.` }];
-    if (isBrandedText(text)) return [{ level: 'note', text: `${where} names a brand, so it is tracked as branded and left out of unbranded rates.` }];
-    if ((text.match(/\?/g) ?? []).length > 1) return [{ level: 'warning', text: `${where} asks more than one question. Answers to it will be mixed.` }];
-    return [];
-  });
-}
-
-const LINT_STYLE = {
-  error: ['circle-alert', 'text-negative-text'],
-  warning: ['triangle-alert', 'text-warning-text'],
-  note: ['info', 'text-foreground-secondary'],
-};
-
-function refreshAdd() {
-  const lines = typedPrompts();
-  const findings = lint(lines);
-  const errors = findings.filter((finding) => finding.level === 'error').length;
-  const core = addPanel.dataset.value === 'Core';
-  $('[data-prompt-reason]', addDialog).hidden = !core;
-  $('[data-prompt-help]', addDialog).textContent =
-    lines.length === 0 ? 'One prompt per line, written as a buyer would ask it.' : `${plural(lines.length, 'prompt')}${errors > 0 ? `. ${errors} cannot be added` : ''}.`;
-  const shown = findings.slice(0, 4);
-  const rows = shown.map((finding) => {
-    const [glyph, tone] = LINT_STYLE[finding.level];
-    const row = el('li', `flex items-start gap-1.5 type-meta ${tone}`);
-    row.append(icon(glyph, 'mt-0.5 size-icon-sm shrink-0'), el('span', '', finding.text));
-    return row;
-  });
-  if (findings.length > shown.length) rows.push(el('li', 'type-meta', `And ${findings.length - shown.length} more.`));
-  $('[data-prompt-lint]', addDialog).replaceChildren(...rows);
-  const used = PROMPTS.filter((prompt) => !state.archived.has(prompt.id)).length;
-  const over = used + lines.length > PROMPT_QUOTA;
-  $('[data-prompt-quota]', addDialog).textContent = over
-    ? `${formatInteger(used + lines.length)} of ${PROMPT_QUOTA} prompts: over the plan limit`
-    : `${formatInteger(used)} of ${PROMPT_QUOTA} prompts used${lines.length > 0 ? `, ${formatInteger(used + lines.length)} after adding` : ''}`;
-  addSubmit.disabled = lines.length === 0 || errors > 0 || over || (core && addReason.value.trim() === '');
-  addSubmit.textContent = lines.length > 1 ? `Add ${lines.length} prompts` : 'Add prompt';
-}
-
-function resetAdd() {
-  addInput.value = '';
-  addReason.value = '';
-  setSelectValue(addPanel, 'Discovery');
-  setSelectValue(addTopic, 'Startups');
-  refreshAdd();
-}
-
-const closeAdd = () => closeModal(addDialog, () => addOpener?.focus());
-function requestCloseAdd() {
-  if (typedPrompts().length === 0) {
-    closeAdd();
-    return;
-  }
-  askDiscard('The prompts you typed will be lost.', {
-    onKeep: () => addInput.focus(),
-    onDiscard: () => {
-      closeAdd();
-      resetAdd();
-    },
-  });
-}
-
-/** Opens the dialog. From a topic, that topic is already chosen. */
-function openAdd(opener, topic) {
-  addOpener = opener;
-  if (topic) setSelectValue(addTopic, topic);
-  refreshAdd();
-  openModal(addDialog);
-  addInput.focus();
-}
+const addDialog = initAddPrompts({ update, showPrompt: (id) => openPrompt(id) });
+const openAdd = (opener, topic) => addDialog.open(opener, topic);
 $('[data-prompt-add]', view).addEventListener('click', (event) => openAdd(event.currentTarget));
-addInput.addEventListener('input', refreshAdd);
-addReason.addEventListener('input', refreshAdd);
-addPanel.addEventListener('change', refreshAdd);
-addInput.addEventListener('keydown', (event) => {
-  if (event.key === 'Enter' && (event.metaKey || event.ctrlKey) && !addSubmit.disabled) {
-    event.preventDefault();
-    $('form', addDialog).requestSubmit();
-  }
-});
-$$('[data-dialog-close]', addDialog).forEach((button) => button.addEventListener('click', requestCloseAdd));
-$('[data-scrim]', addDialog).addEventListener('click', () => typedPrompts().length === 0 && closeAdd());
-addDialog.addEventListener('keydown', (event) => {
-  trapFocus(addDialog, event);
-  // Escape closes an open listbox first; only then the dialog
-  if (event.key === 'Escape' && !ui.popupOpen() && $('#dlg-discard').hidden) {
-    event.preventDefault();
-    requestCloseAdd();
-  }
-});
-
-$('form', addDialog).addEventListener('submit', (event) => {
-  event.preventDefault();
-  if (addSubmit.disabled) return;
-  const panel = addPanel.dataset.value;
-  const topic = addTopic.dataset.value;
-  const lines = typedPrompts();
-  const random = seeded(PROMPTS.length + 1);
-  const guess = (text) => (/^(how do|what is the easiest way)/i.test(text) ? 'how_to' : /\b(best|recommend)\b/i.test(text) ? 'recommendation' : /\b(or|vs)\b/i.test(text) ? 'comparison' : 'question');
-  for (const { text } of lines) {
-    const prompt = {
-      id: `p${PROMPTS.length + 1}`,
-      text,
-      type: guess(text),
-      topic,
-      panel,
-      branded: isBrandedText(text),
-      locked: panel === 'Core',
-      version: 1,
-      versionChanged: false,
-      stale: false,
-      pending: true,
-      linked: false,
-      seed: Math.floor(random() * 2 ** 31),
-      engines: Object.fromEntries(
-        ENGINES.map((engine) => [engine.code, { n: 0, mention: 0, citation: 0, recommendation: measures(engine.code, 'recommendation') ? 0 : null, prevMention: 0, prevCitation: 0, competitors: COMPETITORS.map(() => 0) }]),
-      ),
-    };
-    PROMPTS.push(prompt);
-    PROMPT_BY_ID.set(prompt.id, prompt);
-  }
-  closeAdd();
-  resetAdd();
-  update();
-  const schedule = PANELS.find((entry) => entry.name === panel).schedule.toLowerCase();
-  const visible = lines.some(({ text }) => state.rows.some((prompt) => prompt.text === text));
-  toast({
-    title: `${plural(lines.length, 'prompt')} added to ${panel}`,
-    description: `The first observations arrive with the next ${schedule} run.`,
-    action: visible
-      ? undefined
-      : {
-          label: 'Show',
-          run: () => {
-            Object.assign(state, { panel: [panel], branded: 'include', topic: [], type: [], detectable: false, search: '' });
-            $('[data-prompt-search]', view).value = '';
-            setSort('updated', 'asc');
-            goToPrompts();
-          },
-        },
-  });
-});
 
 // -------------------------------------------------------------------------------------------------
 // Tabs follow the route: #/prompts is Topics, then #/prompts/explorer. The switch is in each table's toolbar.
@@ -1160,21 +986,13 @@ function showInPrompts(topics) {
   goToPrompts();
 }
 
-/** A density chosen in either table's menu applies to both. */
-function renderDensity() {
-  renderTopics();
-  renderRows();
-  $$('#menu-topic-density [data-density]').forEach((item) => item.setAttribute('aria-checked', String(item.dataset.density === state.density)));
-}
-
-initTopics({ openPrompt, openTopic, openPromptMenu, runNow, exportRows, resetFilters, showInPrompts, renderDensity, addPrompt: (topic, opener) => openAdd(opener, topic) });
+initTopics({ openPrompt, openTopic, openPromptMenu, runNow, exportRows, resetFilters, showInPrompts, addPrompt: (topic, opener) => openAdd(opener, topic) });
 initTopicInspector({ topics: topicsInScope, order: topicOrder, promptsOf: promptsByMention, openPrompt, openTopic, addPrompt: (topic, opener) => openAdd(opener, topic) });
 
 // -------------------------------------------------------------------------------------------------
 // Start
 
 render();
-resetAdd();
 const route = ui.currentRoute();
 if (route.view === 'prompts') {
   showTab(route.section);

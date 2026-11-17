@@ -62,11 +62,11 @@ const pending = (keyword) => keyword.ranks[state.device] === 'p';
 function aioCell(info) {
   if (info.aio.kind === 'cited') return el('span', 'inline-flex h-6 items-center gap-1 rounded-sm bg-positive-subtle px-1.5 type-label text-positive-text', `✓ Cited #${info.aio.position}`);
   if (info.aio.kind === 'present') return icon('check', 'size-icon-sm text-primary-text');
-  return muted(info.aio.kind === 'pending' ? 'Pending' : 'No AIO');
+  return muted(info.aio.kind === 'pending' ? 'Not collected yet' : 'None');
 }
 
 function featuresCell(info) {
-  if (info.features.length === 0) return muted('Pending');
+  if (info.features.length === 0) return muted('Not collected yet');
   const row = el('span', 'flex items-center gap-1.5');
   info.features.forEach((name) => row.append(icon(name, 'size-icon-sm text-foreground-tertiary')));
   return row;
@@ -141,12 +141,12 @@ function keywordRow(keyword, columns, grouped) {
     country: () => td(el('span', 'type-table text-foreground', keyword.country)),
     rank: () => td(rankCell(keyword, state.device)),
     url: () => td(info.url ? el('span', 'block truncate type-table text-link', info.url.replace('https://', '')) : muted('n/a')),
-    volume: () => td(pending(keyword) ? muted('Pending') : keyword.volume === 0 ? muted('No data') : num(volumeText(keyword.volume))),
-    impressions: () => td(pending(keyword) || keyword.volume === 0 ? muted(pending(keyword) ? 'Pending' : 'No data') : num(impressions(keyword).toLocaleString('en-US'))),
-    clicks: () => td(pending(keyword) || keyword.volume === 0 ? muted(pending(keyword) ? 'Pending' : 'No data') : num(clicks(keyword).toLocaleString('en-US'))),
-    kd: () => td(pending(keyword) ? muted('Pending') : keyword.kd === null ? muted('No data') : num(String(keyword.kd))),
-    cpc: () => td(keyword.cpc ? num(`$${keyword.cpc.toFixed(2)}`) : muted(pending(keyword) ? 'Pending' : 'No data')),
-    intent: () => td(pending(keyword) ? muted('Pending') : el('span', 'type-table text-foreground', keyword.intent[0].toUpperCase() + keyword.intent.slice(1))),
+    volume: () => td(pending(keyword) ? muted('Not collected yet') : keyword.volume === 0 ? muted('Not collected yet') : num(volumeText(keyword.volume))),
+    impressions: () => td(pending(keyword) || keyword.volume === 0 ? muted('Not collected yet') : num(impressions(keyword).toLocaleString('en-US'))),
+    clicks: () => td(pending(keyword) || keyword.volume === 0 ? muted('Not collected yet') : num(clicks(keyword).toLocaleString('en-US'))),
+    kd: () => td(pending(keyword) ? muted('Not collected yet') : keyword.kd === null ? muted('Not collected yet') : num(String(keyword.kd))),
+    cpc: () => td(keyword.cpc ? num(`$${keyword.cpc.toFixed(2)}`) : muted('Not collected yet')),
+    intent: () => td(pending(keyword) ? muted('Not collected yet') : el('span', 'type-table text-foreground', keyword.intent[0].toUpperCase() + keyword.intent.slice(1))),
     features: () => td(featuresCell(info)),
     aio: () => td(aioCell(info)),
     trend: () => td(trendCell(keyword)),
@@ -179,7 +179,7 @@ function groupRow(group, items, columns) {
   const text = el('span', 'min-w-0 flex flex-col');
   text.append(el('span', 'truncate type-body-strong text-foreground', group.name));
   const movers = [m.up > 0 ? `↑${m.up}` : '', m.down > 0 ? `↓${m.down}` : ''].filter(Boolean).join(' ');
-  text.append(el('span', 'truncate type-label text-foreground-tertiary', `${plural(m.count, 'keyword')}${m.countries > 1 ? ` · ${m.countries} countries` : ''}${movers ? ` · ${movers}` : ''}`));
+  text.append(el('span', 'truncate type-label text-foreground-tertiary', `${plural(m.count, 'keyword')}${m.countries > 1 ? ` · ${m.countries} locations` : ''}${movers ? ` · ${movers}` : ''}`));
   line.append(toggle, text);
   name.append(line);
   const rankOf = (device) => td(num(`${m[device].top10} in top 10`));
@@ -426,8 +426,8 @@ function render() {
   if (items.length === 0) {
     const none = state.archived
       ? emptyState('No archived keywords', 'Keywords you archive are listed here. Restore one to track it again.')
-      : state.country !== 'India' && state.country !== 'All countries'
-        ? emptyState(`No keywords tracked in ${state.country}`, 'Add keywords for this country to start tracking them.', actionButton('Add keywords', () => openAdd({ countries: [state.country] }), true))
+      : state.country !== 'India' && state.country !== 'All locations'
+        ? emptyState(`No keywords tracked in ${state.country}`, 'Add keywords for this location to start tracking them.', actionButton('Add keywords', () => openAdd({ countries: [state.country] }), true))
         : emptyState('No keywords match', 'Change the search or the filters.', actionButton('Clear filters', () => {
             state.search = '';
             state.filters = [];
@@ -537,7 +537,7 @@ function pageRow(items) {
     const archived = el('button', BUTTON_SM);
     archived.type = 'button';
     archived.dataset.leaveArchived = '';
-    archived.setAttribute('aria-label', 'Show active keywords');
+    archived.setAttribute('aria-label', 'Show tracked keywords');
     archived.append(icon('x', 'size-icon-sm'), el('span', '', 'Archived keywords'));
     left.append(archived);
   }
@@ -673,7 +673,7 @@ function syncCountry() {
   if (!countryButton) return;
   const several = usedCountries().length > 1;
   countryButton.replaceChildren(icon('map-pin', 'size-icon text-foreground-tertiary'), el('span', '', state.country), ...(several ? [icon('chevron-down', 'size-icon-sm text-foreground-tertiary')] : []));
-  countryButton.setAttribute('aria-label', `Country: ${state.country}`);
+  countryButton.setAttribute('aria-label', `Location: ${state.country}`);
   countryButton.disabled = !several;
 }
 
