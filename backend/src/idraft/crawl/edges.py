@@ -13,9 +13,10 @@ pass works per container), whether the first pass left it open, or whether it pa
 A port other than the scheme's default is part of the URL, so a link to `example.com:8443` is an
 edge to another page than `example.com`.
 
-Pages are untrusted input. Anchors are read up to `_ANCHOR_SCAN` characters, lose control
-characters, lone surrogates and invisible or bidi marks (a NUL or a lone surrogate would be
-refused by the database; the joiners U+200C and U+200D stay, they carry meaning in Persian,
+Pages are untrusted input. Anchors are read up to eight times `ANCHOR_MAX` characters
+(`clean_text`), lose control characters, lone surrogates and invisible or bidi marks (a NUL or
+a lone surrogate would be refused by the database; the joiners U+200C and U+200D stay, they
+carry meaning in Persian,
 Indic scripts and emoji), are put in NFC, have their whitespace collapsed and are cut to
 `ANCHOR_MAX`. Each distinct href is canonicalized once per page.
 """
@@ -34,7 +35,6 @@ from idraft.crawl.scopes import LinkScope, scope_of
 from idraft.extraction.urls import CanonicalUrl, UrlRejectedError, canonicalize
 
 ANCHOR_MAX: Final = 500
-_ANCHOR_SCAN: Final = 8 * ANCHOR_MAX
 _OCCURRENCES_MAX: Final = 32_767
 # Control characters that are not whitespace, U+200B, the left-to-right and right-to-left marks,
 # the bidi embeddings, overrides and isolates (U+202A to U+202E, U+2066 to U+2069), U+061C, the
@@ -67,9 +67,22 @@ def container_hash(container: str) -> int:
     return int.from_bytes(digest, "big", signed=True)
 
 
+def clean_text(text: str, *, limit: int) -> str:
+    """Text of a page as it may be stored: read up to eight times `limit` characters, stripped
+    of what the database refuses and of invisible marks, in NFC, whitespace collapsed, and cut
+    to `limit`. The anchors of a page and the titles the provider reports go through it."""
+    cleaned = unicodedata.normalize("NFC", _INVISIBLE.sub("", text[: 8 * limit]))
+    return " ".join(cleaned.split())[:limit].rstrip()
+
+
+def is_clean(text: str) -> bool:
+    """Whether the text holds none of what `clean_text` removes (control characters, lone
+    surrogates, invisible and bidi marks). An address that does not is not stored."""
+    return _INVISIBLE.search(text) is None
+
+
 def _anchor(text: str) -> str:
-    cleaned = unicodedata.normalize("NFC", _INVISIBLE.sub("", text[:_ANCHOR_SCAN]))
-    return " ".join(cleaned.split())[:ANCHOR_MAX].rstrip()
+    return clean_text(text, limit=ANCHOR_MAX)
 
 
 def page_edges(
