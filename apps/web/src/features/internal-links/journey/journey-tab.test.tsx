@@ -31,9 +31,21 @@ afterEach(() => {
 const canvas = (): Promise<HTMLElement> =>
   screen.findByRole('group', { name: 'Link journey canvas. The tree list shows the same journey as a table.' });
 /** The address after each write of the tab, decoded. */
-const addresses = (): { seen: string[]; onUrlUpdate: (update: { queryString: string }) => void } => {
+const addresses = (): {
+  seen: string[];
+  histories: string[];
+  onUrlUpdate: (update: { queryString: string; options: { history: string } }) => void;
+} => {
   const seen: string[] = [];
-  return { seen, onUrlUpdate: (update) => seen.push(decodeURIComponent(update.queryString)) };
+  const histories: string[] = [];
+  return {
+    seen,
+    histories,
+    onUrlUpdate: (update) => {
+      seen.push(decodeURIComponent(update.queryString));
+      histories.push(update.options.history);
+    },
+  };
 };
 
 describe('the Journey tab (spec 7.5)', () => {
@@ -66,7 +78,7 @@ describe('the Journey tab (spec 7.5)', () => {
     });
     const area = await canvas();
     await user.click(await within(area).findByRole('button', { name: /^\/pricing, T1/ }));
-    expect(seen.at(-1)).toContain('open=o:108');
+    await waitFor(() => expect(seen.at(-1)).toContain('open=o:108'));
     expect(await within(area).findByRole('heading', { name: 'Step 2 out' })).toBeInTheDocument();
   });
 
@@ -80,7 +92,7 @@ describe('the Journey tab (spec 7.5)', () => {
     await user.click(
       await within(area).findByRole('button', { name: /^\/services\/managed-detection-and-response, / }),
     );
-    expect(seen.at(-1)).toContain('open=o:104');
+    await waitFor(() => expect(seen.at(-1)).toContain('open=o:104'));
     expect(seen.at(-1)).not.toContain('o:108');
   });
 
@@ -104,7 +116,7 @@ describe('the Journey tab (spec 7.5)', () => {
   });
 
   it('refocuses from a card, pushing the new focus and clearing the opened cards', async () => {
-    const { seen, onUrlUpdate } = addresses();
+    const { seen, histories, onUrlUpdate } = addresses();
     const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
       searchParams: 'tab=journey&focus=103&open=o%3A108',
       onUrlUpdate,
@@ -115,8 +127,10 @@ describe('the Journey tab (spec 7.5)', () => {
     await user.click(
       within(card.closest('.group') as HTMLElement).getByRole('button', { name: 'Make /contact the focus' }),
     );
-    expect(seen.at(-1)).toContain('focus=109');
+    await waitFor(() => expect(seen.at(-1)).toContain('focus=109'));
     expect(seen.at(-1)).not.toContain('open=');
+    // A new focus is a history entry of its own: Back returns to the page before
+    expect(histories.at(-1)).toBe('push');
   });
 
   it('opens the page inspector from a card and writes it to the address', async () => {
@@ -130,7 +144,7 @@ describe('the Journey tab (spec 7.5)', () => {
     await user.click(
       within(card.closest('.group') as HTMLElement).getByRole('button', { name: 'Details of /pricing' }),
     );
-    expect(seen.at(-1)).toContain('inspect=page:108');
+    await waitFor(() => expect(seen.at(-1)).toContain('inspect=page:108'));
   });
 
   it('closes the inspector when the person leaves the tab', async () => {
@@ -141,8 +155,8 @@ describe('the Journey tab (spec 7.5)', () => {
     });
     await canvas();
     await user.click(screen.getByRole('tab', { name: 'Links' }));
+    await waitFor(() => expect(seen.at(-1)).toContain('tab=links'));
     expect(seen.at(-1)).not.toContain('inspect=');
-    expect(seen.at(-1)).toContain('tab=links');
   });
 
   it('offers Set tier for the selected cards only to someone who can write', async () => {
@@ -181,7 +195,7 @@ describe('the Journey tab (spec 7.5)', () => {
     const toggle = await within(table).findByRole('button', { name: 'Expand /pricing' });
     toggle.focus();
     await user.keyboard('{ArrowRight}');
-    expect(seen.at(-1)).toContain('topen=');
+    await waitFor(() => expect(seen.at(-1)).toContain('topen='));
     expect(await within(table).findByRole('button', { name: 'Collapse /pricing' })).toHaveAttribute(
       'aria-expanded',
       'true',
@@ -204,11 +218,11 @@ describe('the Journey tab (spec 7.5)', () => {
     });
     await canvas();
     await user.click(screen.getByRole('radio', { name: 'Tree list' }));
-    expect(seen.at(-1)).toContain('jv=tree');
+    await waitFor(() => expect(seen.at(-1)).toContain('jv=tree'));
   });
 
   it('refocuses from the search of the focus picker', async () => {
-    const { seen, onUrlUpdate } = addresses();
+    const { seen, histories, onUrlUpdate } = addresses();
     const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
       searchParams: 'tab=journey&focus=103',
       onUrlUpdate,
@@ -219,7 +233,8 @@ describe('the Journey tab (spec 7.5)', () => {
     );
     await user.type(await screen.findByRole('combobox', { name: 'Search pages' }), 'pric');
     await user.click(await screen.findByRole('option', { name: /\/pricing/ }));
-    expect(seen.at(-1)).toContain('focus=108');
+    await waitFor(() => expect(seen.at(-1)).toContain('focus=108'));
+    expect(histories.at(-1)).toBe('push');
   });
 
   it('says so when no page matches the picker search', async () => {
@@ -259,7 +274,8 @@ describe('the Journey tab (spec 7.5)', () => {
   it('shows an empty state for a focus page with no links at all', async () => {
     renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: 'tab=journey&focus=117' });
     expect(await screen.findByRole('heading', { name: 'This page has no links in this view' })).toBeInTheDocument();
-    expect(screen.queryByRole('group', { name: /Link journey canvas/ })).toBeNull();
+    // The canvas stays: the focus card and its note are the page
+    expect(await canvas()).toBeInTheDocument();
   });
 
   it('shows a failed page read with Try again, and reads again on the press', async () => {

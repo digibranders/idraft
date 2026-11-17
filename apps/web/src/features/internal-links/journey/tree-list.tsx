@@ -2,7 +2,9 @@
 
 import { ChevronDown, ChevronRight, Crosshair, PanelRightOpen } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import type { KeyboardEvent, ReactElement } from 'react';
+import type { Route } from 'next';
+import Link from 'next/link';
+import { useEffect, type KeyboardEvent, type ReactElement } from 'react';
 
 import { useNeighborLookup } from './use-neighbor-lookup';
 import { TierBadge } from '@/components/app/tier/tier-badge';
@@ -10,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import { IconButton } from '@/components/ui/icon-button';
+import { TextLink } from '@/components/ui/text-link';
 import { formatInteger } from '@/lib/format';
 import { buildTree, type Direction, type TreeRow } from '@/lib/internal-links/journey-layout';
 import { PLACEMENT_KEY, type LinkScope, type Placement } from '@/lib/internal-links/scopes';
@@ -37,6 +40,8 @@ export function TreeList({
   onToggle,
   onRefocus,
   onDetails,
+  onOrder,
+  linksHref,
 }: {
   scope: LinksScope;
   focus: PageRow;
@@ -46,6 +51,10 @@ export function TreeList({
   onToggle: (key: string) => void;
   onRefocus: (urlId: string) => void;
   onDetails: (urlId: string) => void;
+  /** Tells the inspector which pages the list shows, in order, so it can step through them. */
+  onOrder: (urlIds: readonly string[]) => void;
+  /** The Links tab for the links of one page in the direction followed: where a "more" row sends the person. */
+  linksHref: (urlId: string) => Route;
 }): ReactElement {
   const t = useTranslations('internalLinks.journey');
   const words = useTranslations('internalLinks');
@@ -62,7 +71,20 @@ export function TreeList({
     onToggle(row.key);
   };
 
-  const indent = (level: number) => ({ paddingLeft: level * INDENT });
+  // A "more" row's key is its parent row's key and `.more`; a row key ends in the url id of its page (`t` is the focus)
+  const parentOf = (key: string): string => {
+    const id = key.split('.').at(-2);
+    return id === undefined || id === 't' ? focus.url_id : id;
+  };
+  const indent = (level: number) => ({ paddingInlineStart: level * INDENT });
+
+  // The inspector steps through the pages of the list, as the rows read
+  const order = [...new Set(tree.rows.flatMap((row) => (row.kind === 'page' ? [row.urlId] : [])))];
+  const orderText = order.join(',');
+  useEffect(() => {
+    onOrder(orderText === '' ? [] : orderText.split(','));
+    return () => onOrder([]);
+  }, [orderText, onOrder]);
   const levelText = (level: number): ReactElement => <span className="sr-only">{t('level', { level })}</span>;
 
   const renderRow = (row: TreeRow<Neighbor>): ReactElement => {
@@ -103,6 +125,7 @@ export function TreeList({
               {levelText(row.level)}
               <span className="size-6 shrink-0" />
               <span className="type-table text-foreground-tertiary">{t('moreRows', { count: row.count })}</span>
+              <TextLink render={<Link href={linksHref(parentOf(row.key))} />}>{t('seeInLinks')}</TextLink>
             </div>
           </th>
         </tr>
@@ -140,13 +163,9 @@ export function TreeList({
             <span className={cn('truncate type-table', muted ? 'text-foreground-tertiary' : 'text-foreground')}>
               {label}
             </span>
-            {row.kind === 'page' && row.bothWays ? (
-              <span className="inline-flex h-badge items-center rounded-sm bg-primary-subtle px-1.5 type-label whitespace-nowrap text-primary-text">
-                {bothWays}
-              </span>
-            ) : null}
+            {row.kind === 'page' && row.bothWays ? <Badge tone="info">{bothWays}</Badge> : null}
             {row.kind === 'page' ? (
-              <span className="ml-auto flex shrink-0 gap-1 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100">
+              <span className="ml-auto flex shrink-0 gap-1 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 pointer-coarse:opacity-100">
                 {row.level > 0 ? (
                   <IconButton
                     icon={Crosshair}

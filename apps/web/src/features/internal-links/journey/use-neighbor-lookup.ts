@@ -1,13 +1,15 @@
 'use client';
 
 import { useQueries, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useRef, useSyncExternalStore } from 'react';
+import { useCallback, useLayoutEffect, useRef, useSyncExternalStore } from 'react';
 
 import { READ_LIMIT, type ListLookup, type ListRequest, type LoadedList } from '@/lib/internal-links/journey-layout';
 import { neighborsQuery } from '@/lib/internal-links/queries';
 import type { LinksScope, Neighbor, NeighborList } from '@/lib/internal-links/types';
 
 const STALE_MS = 60_000;
+/** What changes a list in the cache: an answer, a failure, or data put there. A fetch starting changes nothing to read. */
+const CHANGES = new Set(['success', 'error', 'setState']);
 
 const pagesOf = (scope: LinksScope, request: ListRequest) =>
   Array.from({ length: request.pages }, (_, index) =>
@@ -21,9 +23,10 @@ const pagesOf = (scope: LinksScope, request: ListRequest) =>
 
 /**
  * A number that changes whenever a neighbor list of the project changes in the cache. The lookup reads the cache and
- * is no subscription, so a host that keeps its layout in `useMemo` lists it as a dependency.
+ * is no subscription, so a host that keeps its layout in `useMemo` lists the lookup (which carries this number) as a
+ * dependency.
  */
-export function useNeighborVersion(scope: LinksScope): number {
+export function useNeighborVersion(scope: LinksScope, watched?: { current: ReadonlySet<string> }): number {
   const queryClient = useQueryClient();
   const version = useRef(0);
   const subscribe = useCallback(
@@ -33,16 +36,19 @@ export function useNeighborVersion(scope: LinksScope): number {
         const key = event.query.queryKey;
         if (
           event.type !== 'updated' ||
+          !CHANGES.has(event.action.type) ||
           key[3] !== scope.projectId ||
           key[4] !== 'internal-links' ||
-          key[5] !== 'neighbors'
+          key[5] !== 'neighbors' ||
+          // Another reader of the same route (the inspector's lists) does not change what this layout reads
+          (watched !== undefined && !watched.current.has(JSON.stringify(key)))
         ) {
           return;
         }
         version.current += 1;
         notify();
       }),
-    [queryClient, scope.projectId],
+    [queryClient, scope.projectId, watched],
   );
   return useSyncExternalStore(
     subscribe,
@@ -53,43 +59,60 @@ export function useNeighborVersion(scope: LinksScope): number {
 
 /**
  * The neighbor lists of the journey (decision W7). `lookup` reads what the cache holds for a list, page by page of
- * 50; `useLoad` subscribes to every page the layout asked for, so an answer renders the journey again. The layout is
- * pure: it is computed again from the cache on each render.
+ * 50: a list is loading until its first page is there and failed only when its first page failed; with the first
+ * page read it is ready with the pages that have arrived (`partial` while a later one is missing or failed), so
+ * pressing "+N more" never empties the column. `useLoad` subscribes to every page the layout asked for, so an answer
+ * renders the journey again. The layout is pure: it is computed again from the cache whenever the lookup changes.
  */
 export function useNeighborLookup(scope: LinksScope): {
   lookup: ListLookup<Neighbor>;
   useLoad: (requests: readonly ListRequest[]) => void;
   retry: (request: ListRequest) => void;
+  /** Reads again every page of these lists that failed (a failed page after the first is otherwise never asked again). */
+  retryFailed: (requests: readonly ListRequest[]) => void;
 } {
   const queryClient = useQueryClient();
+  // The keys of the lists the layout last asked for: only their changes render the layout again
+  const watched = useRef<ReadonlySet<string>>(new Set());
+  const version = useNeighborVersion(scope, watched);
   const lookup = useCallback<ListLookup<Neighbor>>(
     (request) => {
-      const pages = pagesOf(scope, request).map((options) => queryClient.getQueryState<NeighborList>(options.queryKey));
-      if (pages.some((page) => page?.status === 'error' && page.data === undefined)) {
-        return { status: 'error', items: [], total: 0, otherScopes: [] };
+      void version;
+      const states = pagesOf(scope, request).map((options) =>
+        queryClient.getQueryState<NeighborList>(options.queryKey),
+      );
+      const [first] = states;
+      if (first?.data === undefined) {
+        return first?.status === 'error'
+          ? { status: 'error', items: [], total: 0, otherScopes: [] }
+          : { status: 'loading', items: [], total: 0, otherScopes: [] };
       }
-      const answers = pages.map((page) => page?.data);
-      const [first] = answers;
-      if (first === undefined || answers.some((answer) => answer === undefined)) {
-        return { status: 'loading', items: [], total: 0, otherScopes: [] };
+      // The pages that have arrived in a row from the first; a page after a gap waits for the gap
+      const arrived: NeighborList[] = [];
+      for (const state of states) {
+        if (state?.data === undefined) break;
+        arrived.push(state.data);
       }
       const list: LoadedList<Neighbor> = {
         status: 'ready',
-        items: answers.flatMap((answer) => answer?.data ?? []),
-        total: first.meta.total,
-        otherScopes: first.meta.other_scopes,
+        items: arrived.flatMap((answer) => answer.data),
+        total: first.data.meta.total,
+        otherScopes: first.data.meta.other_scopes,
+        partial: arrived.length < states.length,
       };
       return list;
     },
-    [queryClient, scope],
+    [queryClient, scope, version],
   );
   // A hook that the host calls once per render with the requests of the layout it just built
   const useLoad = (requests: readonly ListRequest[]): void => {
-    useQueries({
-      queries: requests
-        .flatMap((request) => pagesOf(scope, request))
-        .map((options) => ({ ...options, staleTime: STALE_MS })),
-    });
+    const queries = requests.flatMap((request) => pagesOf(scope, request));
+    const keys = queries.map((options) => JSON.stringify(options.queryKey)).join('\n');
+    // Before the queries below start (a layout effect runs first), so no answer is missed
+    useLayoutEffect(() => {
+      watched.current = new Set(keys === '' ? [] : keys.split('\n'));
+    }, [keys]);
+    useQueries({ queries: queries.map((options) => ({ ...options, staleTime: STALE_MS })) });
   };
   // Try again on a failed list: every page of it is read again
   const retry = useCallback(
@@ -98,5 +121,15 @@ export function useNeighborLookup(scope: LinksScope): {
     },
     [queryClient, scope],
   );
-  return { lookup, useLoad, retry };
+  const retryFailed = useCallback(
+    (requests: readonly ListRequest[]): void => {
+      for (const request of requests) {
+        for (const { queryKey } of pagesOf(scope, request)) {
+          if (queryClient.getQueryState(queryKey)?.status === 'error') void queryClient.refetchQueries({ queryKey });
+        }
+      }
+    },
+    [queryClient, scope],
+  );
+  return { lookup, useLoad, retry, retryFailed };
 }

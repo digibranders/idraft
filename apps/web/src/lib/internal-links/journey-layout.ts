@@ -52,6 +52,8 @@ export interface LoadedList<N> {
   items: readonly N[];
   total: number;
   otherScopes: readonly { scope: EdgeScope; pages: number }[];
+  /** Ready with the pages read so far while a later page is still arriving (or failed): keys are not judged stale yet. */
+  partial?: boolean;
 }
 
 export type ListLookup<N> = (request: ListRequest) => LoadedList<N>;
@@ -168,7 +170,7 @@ export function buildJourney<N extends JourneyNeighbor>(state: JourneyState, loo
     if (known === undefined || known.pages < pages) requests.set(id, { urlId, direction, scope, pages });
     const list = lookup({ urlId, direction, scope, pages: Math.max(pages, known?.pages ?? 0) });
     // A failed list hides the cards below it just as a loading one does: their keys must survive until Try again
-    if (list.status !== 'ready') pending = true;
+    if (list.status !== 'ready' || list.partial === true) pending = true;
     return list;
   };
   const moreOf = (key: string): number => state.more.get(key) ?? 0;

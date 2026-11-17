@@ -323,3 +323,20 @@ describe('buildTree (spec 7.5 tree list)', () => {
     expect(back).toEqual(expect.objectContaining({ kind: 'back', step: 0 }));
   });
 });
+
+describe('a list that is read in pages', () => {
+  it('keeps the rows and the opened cards while a later page is still arriving, and does not judge stale keys yet', () => {
+    const pricingKey = cardKey('out', ['2']);
+    const partial: ListLookup<JourneyNeighbor> = (request) =>
+      request.urlId === '1'
+        ? { status: 'ready', items: [BLOG, PRICING], total: 60, otherScopes: [], partial: true }
+        : lookupFrom(LISTS)(request);
+    const layout = buildJourney(state({ open: new Set([pricingKey]) }), partial);
+    expect(layout.pending).toBe(true);
+    const cards = layout.out.flatMap((column) => column.items).filter((item) => item.kind === 'card');
+    expect(cards.map((item) => item.kind === 'card' && item.urlId)).toContain('2');
+    expect(
+      pruneJourney({ open: new Set([pricingKey, 'o:99.98']), groups: new Set(), more: new Map() }, layout),
+    ).toBeNull();
+  });
+});

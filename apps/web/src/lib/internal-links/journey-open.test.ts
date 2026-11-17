@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
 import { FOCUS_KEY, cardKey, groupKey, moreKey } from './journey-layout';
-import { openExclusive, openTogether, parseCardKey, type OpenSets } from './journey-open';
+import {
+  clampJourney,
+  MAX_MORE_PRESSES,
+  MAX_OPEN_LISTS,
+  openExclusive,
+  openTogether,
+  parseCardKey,
+  type OpenSets,
+} from './journey-open';
 
 const sets = (open: string[], groups: string[] = [], more: [string, number][] = []): OpenSets => ({
   open: new Set(open),
@@ -160,5 +168,19 @@ describe('openTogether', () => {
     const c = cardKey('out', ['3']);
     const next = openTogether(sets([a]), [b, c]);
     expect([...next.open].sort()).toEqual([a, b, c].sort());
+  });
+});
+
+describe('clampJourney', () => {
+  it('keeps what a person can read and cuts a hand typed address that would fire hundreds of reads', () => {
+    const open = new Set(Array.from({ length: 200 }, (_, index) => cardKey('out', [String(index + 1)])));
+    const more = new Map(Array.from({ length: 200 }, (_, index) => [moreKey(`o|o:${String(index + 1)}`), 40] as const));
+    const clamped = clampJourney({ open, groups: new Set(), more });
+    expect(clamped.open.size).toBe(MAX_OPEN_LISTS);
+    expect(clamped.more.size).toBeLessThanOrEqual(MAX_OPEN_LISTS);
+    for (const count of clamped.more.values()) expect(count).toBeLessThanOrEqual(MAX_MORE_PRESSES);
+    // Small journeys come back as they are, the same object
+    const small = sets([cardKey('out', ['1'])], [], [[moreKey('o|f'), 2]]);
+    expect(clampJourney(small)).toBe(small);
   });
 });

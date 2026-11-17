@@ -20,7 +20,11 @@ export function parseKeySet(text: string | null | undefined): Set<string> {
   return keys;
 }
 
-/** A shared link stays under the 8 KB many servers and proxies allow for a whole address. */
+/**
+ * The most characters one address value (`open`, `grp`, `more` or `topen`) takes; each is cut on its own. A journey
+ * the canvas can show (300 cards, `clampJourney`) writes far less than this in all four together, so the whole address
+ * stays under the 8 KB many servers and proxies allow.
+ */
 export const MAX_ADDRESS_LENGTH = 4000;
 
 /** The items that fit `MAX_ADDRESS_LENGTH` once joined; the longest (deepest) are the ones left out. */

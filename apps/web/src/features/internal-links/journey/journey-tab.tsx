@@ -3,7 +3,8 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { ListTree, Workflow } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useCallback, useState, type ReactElement } from 'react';
+import type { Route } from 'next';
+import { useEffect, useRef, useState, type ReactElement } from 'react';
 
 import { FocusPicker } from './focus-picker';
 import { JourneyCanvas } from './journey-canvas';
@@ -17,14 +18,16 @@ import { Button } from '@/components/ui/button';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { Select } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { announce } from '@/lib/a11y/announcer';
 import { isApiProblem } from '@/lib/api/problem';
 import type { View } from '@/lib/internal-links/canvas-view';
 import { formatKeySet } from '@/lib/internal-links/journey-codec';
 import type { Direction } from '@/lib/internal-links/journey-layout';
 import { DEFAULT_PAGE_QUERY, pageDetailQuery, pagesQuery } from '@/lib/internal-links/queries';
+import { withQuery } from '@/lib/routes/paths';
 
-/** Before the canvas has set the first view of a focus page. */
-const START_VIEW: View = { x: 0, y: 0, scale: 1 };
+/** A load that takes this long is spoken once. */
+const LOADING_SAYS_MS = 2000;
 /** What a new focus clears: the opened cards, groups and counts of the canvas and the opened rows of the tree. */
 const CLEARED = { open: null, grp: null, more: null, topen: null } as const;
 /** The page the detail read is asked about while no focus is known: the read is off then. */
@@ -40,8 +43,10 @@ export function JourneyTab({ context }: { context: LinksTabContext }): ReactElem
   const common = useTranslations('common');
   const { scope, state, setSearch } = context;
   const refused = state.invalid.focus !== null;
+  // The home page is the first by path in any scope, so the link scope is not part of this read: a change of scope
+  // must not send the tab back to loading (which would end the canvas's selection and moved cards)
   const home = useQuery({
-    ...pagesQuery(scope, { ...DEFAULT_PAGE_QUERY, scope: state.scope, sort: 'path', limit: 1 }),
+    ...pagesQuery(scope, { ...DEFAULT_PAGE_QUERY, sort: 'path', limit: 1 }),
     enabled: state.focus === null && !refused,
     select: readPageRows,
   });
@@ -53,17 +58,29 @@ export function JourneyTab({ context }: { context: LinksTabContext }): ReactElem
     placeholderData: keepPreviousData,
   });
   const loaded = detail.data?.data.page.url_id === focusId ? detail.data.data.page : null;
-  // One view for each focus page the tab has shown
-  const [views, setViews] = useState<ReadonlyMap<string, View>>(new Map());
-  const changeView = useCallback(
-    (next: View): void => {
-      if (focusId !== null) setViews((held) => new Map(held).set(focusId, next));
-    },
-    [focusId],
-  );
+  // The view of each focus page the tab has shown, for as long as the tab is open. Written by the canvas as it pans
+  // and never read while rendering this tab: a pan is not a render of the tab.
+  const [held] = useState<Map<string, View>>(() => new Map());
+  // Where "more" rows of the tree list send the person: the Links tab for the links of one page
+  const linksHref = (urlId: string): Route => {
+    const side = state.treeDir === 'in' ? 'tgt' : 'src';
+    const scopeKey = state.scope === 'editorial' ? '' : `&scope=${state.scope}`;
+    return withQuery(context.hrefOf('/seo/internal-links'), `tab=links&${side}=${urlId}${scopeKey}`);
+  };
+  const section = useRef<HTMLElement>(null);
+  // A refocus moves focus to the new focus page once it is on screen (the control that asked for it is gone)
+  const moveFocus = useRef(false);
 
-  const refocus = (urlId: string): void => setSearch({ focus: urlId, ...CLEARED }, { history: 'push' });
-  const goHome = (): void => setSearch({ focus: null, ...CLEARED }, { history: 'push' });
+  // Choosing the page that is already the focus changes nothing: no history entry, the opened cards stay
+  const refocus = (urlId: string): void => {
+    if (urlId === focusId) return;
+    moveFocus.current = true;
+    setSearch({ focus: urlId, ...CLEARED }, { history: 'push' });
+  };
+  const goHome = (): void => {
+    moveFocus.current = true;
+    setSearch({ focus: null, ...CLEARED }, { history: 'push' });
+  };
   const backToHome = (
     <Button variant="secondary" size="sm" onClick={goHome}>
       {t('backToHome')}
@@ -102,6 +119,7 @@ export function JourneyTab({ context }: { context: LinksTabContext }): ReactElem
   );
 
   let body: ReactElement;
+  let waiting = false;
   if (refused) {
     body = (
       <EmptyState title={t('notFoundTitle')} reason={t('notFoundReason')} headingLevel={3} primaryAction={backToHome} />
@@ -129,6 +147,7 @@ export function JourneyTab({ context }: { context: LinksTabContext }): ReactElem
   } else if (state.focus === null && home.isSuccess && focusId === null) {
     body = <EmptyState title={t('noPagesTitle')} reason={t('noPagesReason')} headingLevel={3} />;
   } else if (loaded === null) {
+    waiting = true;
     body = (
       <div className="flex flex-col gap-2 p-4" aria-hidden="true">
         {Array.from({ length: 6 }, (_, index) => (
@@ -151,24 +170,48 @@ export function JourneyTab({ context }: { context: LinksTabContext }): ReactElem
         }}
         onRefocus={refocus}
         onDetails={context.inspect.open}
+        onOrder={context.inspect.setOrder}
+        linksHref={linksHref}
       />
     );
   } else {
     body = (
-      <JourneyCanvas
-        context={context}
-        page={loaded}
-        view={views.get(loaded.url_id) ?? START_VIEW}
-        onViewChange={changeView}
-        onRefocus={refocus}
-      />
+      // One canvas for each focus page: pinned return arrows are of the page they were pinned on
+      <JourneyCanvas key={loaded.url_id} context={context} page={loaded} held={held} onRefocus={refocus} />
     );
   }
 
+  // Focus follows a refocus onto the new focus page, or onto the section's heading in the tree list
+  const loadedId = loaded?.url_id ?? null;
+  const { journeyView } = state;
+  useEffect(() => {
+    if (!moveFocus.current || loadedId === null) return;
+    moveFocus.current = false;
+    const root = section.current;
+    const target =
+      journeyView === 'tree'
+        ? root?.querySelector<HTMLElement>('#journey-title')
+        : root?.querySelector<HTMLElement>('[data-node][data-key="f"]');
+    target?.focus({ preventScroll: true });
+  }, [loadedId, journeyView]);
+  // A page that takes longer than 2 seconds says so once (20-accessibility.md section 6.9)
+  useEffect(() => {
+    if (!waiting) return undefined;
+    const timer = window.setTimeout(
+      () => announce(t('loadingJourney'), { key: 'internal-links-journey-loading' }),
+      LOADING_SAYS_MS,
+    );
+    return () => window.clearTimeout(timer);
+  }, [waiting, t]);
+
   return (
-    <section aria-labelledby="journey-title" className="overflow-hidden rounded-lg border border-border bg-surface">
+    <section
+      ref={section}
+      aria-labelledby="journey-title"
+      className="overflow-hidden rounded-lg border border-border bg-surface"
+    >
       {/* The canvas's column titles are h3: this names the section above them */}
-      <h2 id="journey-title" className="sr-only">
+      <h2 id="journey-title" tabIndex={-1} className="sr-only">
         {t('heading')}
       </h2>
       {toolbar}

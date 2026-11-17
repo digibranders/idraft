@@ -120,7 +120,33 @@ export function openExclusive(current: OpenSets, key: string): OpenSets {
   return { open, groups, more: new Map([...current.more].filter(([moreKey]) => alive(moreKey))) };
 }
 
+/** Cards that "Show their links" opens in one press; the rest stay as they are. */
+export const MAX_TOGETHER = 12;
+/** Opened cards, and opened groups, a journey reads lists for: each is a request, so a typed address cannot ask for hundreds. */
+export const MAX_OPEN_LISTS = 24;
+/** "+N more" presses that count: 8 cards a press, so this reads at most 3 pages of 50 for a list. */
+export const MAX_MORE_PRESSES = 12;
+
 /** The selection bar's "Show their links": several cards open together, nothing closes. */
 export function openTogether(current: OpenSets, keys: readonly string[]): OpenSets {
   return { open: new Set([...current.open, ...keys]), groups: current.groups, more: current.more };
+}
+
+/**
+ * The sets a journey reads lists for: at most `MAX_OPEN_LISTS` opened cards, groups and counts, each count at most
+ * `MAX_MORE_PRESSES`. The same object comes back when nothing is cut. Pure; the address keeps what it holds.
+ */
+export function clampJourney(sets: OpenSets): OpenSets {
+  const counts = [...sets.more].map(([key, count]) => [key, Math.min(count, MAX_MORE_PRESSES)] as const);
+  const cut =
+    sets.open.size > MAX_OPEN_LISTS ||
+    sets.groups.size > MAX_OPEN_LISTS ||
+    sets.more.size > MAX_OPEN_LISTS ||
+    counts.some(([key, count]) => count !== sets.more.get(key));
+  if (!cut) return sets;
+  return {
+    open: new Set([...sets.open].slice(0, MAX_OPEN_LISTS)),
+    groups: new Set([...sets.groups].slice(0, MAX_OPEN_LISTS)),
+    more: new Map(counts.slice(0, MAX_OPEN_LISTS)),
+  };
 }

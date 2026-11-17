@@ -96,6 +96,11 @@ export interface LinkCanvasProps<N extends JourneyNeighbor> {
   /** Where the world is and how far it is zoomed; the host keeps it (the canvas sets a first view for each focus page). */
   view: View;
   onViewChange: (view: View) => void;
+  /**
+   * The host already holds a view of this focus page (a return to it, Back, the canvas shown again): the canvas then
+   * sets no first view for it and leaves `view` as the person had it.
+   */
+  holdsView?: boolean | undefined;
   /** Cards whose return arrows stay drawn. */
   pinned: ReadonlySet<string>;
   onTogglePin: (key: string) => void;
@@ -343,6 +348,7 @@ export function LinkCanvas<N extends JourneyNeighbor>({
   focusNote,
   view,
   onViewChange,
+  holdsView = false,
   pinned,
   onTogglePin,
   onToggleCard,
@@ -650,14 +656,20 @@ export function LinkCanvas<N extends JourneyNeighbor>({
 
   // The first view of each focus page, once the journey has a size and no list is still loading (spec 7.5 "First view")
   useEffect(() => {
-    if (layout.pending || edges.width === 0 || firstFor.current === focus.urlId) return;
+    if (firstFor.current === focus.urlId) return;
+    // The host holds the person's own view of this page: it is not replaced
+    if (holdsView) {
+      firstFor.current = focus.urlId;
+      return;
+    }
+    if (layout.pending || edges.width === 0) return;
     // The drawing must be of this journey: right after a refocus it can still be the last page's
     if (edges.layout !== layout || edges.focusId !== focus.urlId) return;
     const box = edges.cards.find((card) => card.key === FOCUS_KEY);
     if (box === undefined) return;
     firstFor.current = focus.urlId;
     onViewChange(firstView(content, box, size, JOURNEY_MARGIN));
-  }, [layout, edges, content, size, focus.urlId, onViewChange]);
+  }, [layout, edges, content, size, focus.urlId, holdsView, onViewChange]);
 
   useEffect(() => {
     if (flashKey === null) return undefined;

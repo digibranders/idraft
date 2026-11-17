@@ -1,7 +1,7 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { useState, type ReactElement } from 'react';
+import { useState, type ReactElement, type RefObject } from 'react';
 
 import { gridFocus } from '@/components/app/data-table/grid-focus';
 import { Button } from '@/components/ui/button';
@@ -24,7 +24,10 @@ export function BulkTierDialog({
   alert,
   onSetTier,
   onReset,
+  finalFocus = gridFocus,
 }: {
+  /** Where focus goes when the dialog closes: the table's tab stop unless a screen without a table says otherwise. */
+  finalFocus?: RefObject<HTMLElement | null>;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   count: number;
@@ -62,7 +65,7 @@ export function BulkTierDialog({
         else if (!pending) close();
       }}
       size="sm"
-      finalFocus={gridFocus}
+      finalFocus={finalFocus}
     >
       <form
         noValidate

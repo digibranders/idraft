@@ -476,6 +476,25 @@ describe('LinkCanvas, behaviour found in review', () => {
     expect(onViewChange).toHaveBeenCalledTimes(1);
   });
 
+  it('leaves the view alone when the host holds one for this focus page (a return, Back, the canvas shown again)', () => {
+    stubGeometry();
+    const onViewChange = vi.fn();
+    const { props, rerender } = canvas({ onViewChange, holdsView: true });
+    expect(onViewChange).not.toHaveBeenCalled();
+    // A new focus page the host holds no view for gets its first view
+    geometry.world = [2000, 300];
+    rerender(
+      <LinkCanvas
+        {...props}
+        onViewChange={onViewChange}
+        holdsView={false}
+        layout={buildJourney({ ...base, focus: '2' }, lookup)}
+        focus={{ ...FOCUS, urlId: '2', path: '/pricing' }}
+      />,
+    );
+    expect(onViewChange).toHaveBeenCalledTimes(1);
+  });
+
   it('sets the first view of a new focus page from its own journey, not from the one before', () => {
     stubGeometry();
     const onViewChange = vi.fn();
