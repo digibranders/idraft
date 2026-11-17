@@ -17,6 +17,7 @@ import { PageDrawer } from './drawers/page-drawer';
 import { GapsTab } from './gaps/gaps-tab';
 import { MeasuresStrip } from './measures-strip';
 import { ScopeToolbar } from './scope-toolbar';
+import { useFocusReturn } from './use-focus-return';
 import { useSearchDraft } from './use-search-draft';
 import { InspectorLayout } from '@/components/app/inspector/inspector-layout';
 import { DEFAULT_INSPECTOR_TAB, useInspector } from '@/components/app/inspector/use-inspector';
@@ -145,11 +146,22 @@ function BoardContent({ workspaceId, workspaceSlug, project, tab, promptDrawer }
     typeNoun: t('gapDrawer.noun'),
   });
   const { open } = inspector;
+  // Closing the drawer returns focus to the row that opened it
+  const rememberOpener = useFocusReturn(inspector.target !== null);
   const openPage = useCallback(
-    (row: { url_id: number }) => open({ type: 'cited-page', id: String(row.url_id) }),
-    [open],
+    (row: { url_id: number }, opener: HTMLElement | null) => {
+      rememberOpener(opener);
+      open({ type: 'cited-page', id: String(row.url_id) });
+    },
+    [open, rememberOpener],
   );
-  const openGap = useCallback((row: { prompt_id: string }) => open({ type: 'gap-prompt', id: row.prompt_id }), [open]);
+  const openGap = useCallback(
+    (row: { prompt_id: string }, opener: HTMLElement | null) => {
+      rememberOpener(opener);
+      open({ type: 'gap-prompt', id: row.prompt_id });
+    },
+    [open, rememberOpener],
+  );
   // The prompt inspector starts on its first tab, not on the tab the drawer it replaces was on
   const openPrompt = (promptId: string, ids: readonly string[]): void => {
     setPromptOrder(ids);
