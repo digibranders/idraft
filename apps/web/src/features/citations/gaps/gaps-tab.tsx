@@ -194,13 +194,13 @@ export function GapsTab(props: GapsTabProps): ReactElement {
         }
       />
     );
-  } else if (visible.length === 0 && search !== '') {
+  } else if (visible.length === 0 && search.trim() !== '') {
     body = (
       <EmptyState
         variant="table"
         headingLevel={2}
         title={t('gaps.noMatchTitle')}
-        reason={t('gaps.noMatchReason', { query: search })}
+        reason={t('gaps.noMatchReason', { query: search.trim() })}
         primaryAction={
           <Button variant="secondary" size="sm" onClick={() => props.onSearchChange('')}>
             {t('gaps.clearSearch')}

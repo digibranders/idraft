@@ -14,7 +14,7 @@ export function visibleGapRows(
   rows: readonly CitationGapRow[],
   { gapsOnly, search }: { gapsOnly: boolean; search: string },
 ): CitationGapRow[] {
-  const needle = search.toLowerCase();
+  const needle = search.trim().toLowerCase();
   return rows.filter(
     (row) =>
       (!gapsOnly || row.gap > 0) &&

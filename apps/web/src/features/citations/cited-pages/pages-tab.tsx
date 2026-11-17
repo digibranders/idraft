@@ -56,7 +56,8 @@ export function PagesTab(props: PagesTabProps): ReactElement {
   const t = useTranslations('citations');
   const { owner, search, engines, previous, timeZone, onOwnerChange, onOrderChange, onOpen } = props;
   const [sort, setSort] = useState<BoardSort>(PAGE_SORT_DEFAULT);
-  const q = useDebouncedValue(search, SEARCH_DELAY_MS);
+  // The input's text, with the spaces typed so far: the API is asked the trimmed text
+  const q = useDebouncedValue(search.trim(), SEARCH_DELAY_MS);
   const list = useMemo(() => ({ role: ownerRole(owner), q, sort: apiSort(sort) }), [owner, q, sort]);
   // Not before the engines are known: an empty engine list would mean every engine (D-4)
   const read = useCitedPages(props.project, props.scope, list, props.ready);
@@ -144,12 +145,13 @@ export function PagesTab(props: PagesTabProps): ReactElement {
       />
     );
   } else if (read.total === 0) {
-    const searching = search !== '';
+    const query = search.trim();
+    const searching = query !== '';
     let reason: string;
     if (searching) {
-      if (owner === 'own') reason = t('pages.noMatchSearchOwn', { query: search });
-      else if (noun === null) reason = t('pages.noMatchSearchAll', { query: search });
-      else reason = t('pages.noMatchSearch', { noun, query: search });
+      if (owner === 'own') reason = t('pages.noMatchSearchOwn', { query });
+      else if (noun === null) reason = t('pages.noMatchSearchAll', { query });
+      else reason = t('pages.noMatchSearch', { noun, query });
     } else if (owner === 'own') {
       reason = t('pages.noMatchOwnerOwn', { scope: props.scopeText });
     } else {
