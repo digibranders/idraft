@@ -80,8 +80,10 @@ describe('opening the competitor drawer', () => {
     const mention = within(rows[1] as HTMLElement).getAllByRole('cell');
     expect(mention[0]?.textContent).toMatch(/^\d+%/);
     expect(mention[1]?.textContent).toMatch(/^\d+%/);
-    // The gap is an icon whose words say it is not tested for detectability
-    expect(within(mention[2] as HTMLElement).getAllByText(/Not tested for detectability/).length).toBeGreaterThan(0);
+    // The gap is an icon whose words say whether the difference is detectable; it is coloured only when it is
+    expect(
+      within(mention[2] as HTMLElement).getAllByText(/Detectable: its 95%|not detectable, small sample/).length,
+    ).toBeGreaterThan(0);
   });
 
   it('gives the focus back to the name that opened it when it closes', async () => {

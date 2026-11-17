@@ -305,11 +305,11 @@ describe('DataTable house style (owner decisions of 2026-10-29)', () => {
         return screen.findByRole('group', { name: 'Keyword column width' });
       };
 
-      it('names the column, and sets Narrower, Wider and Reset width', async () => {
+      it('names the column, and sets Narrower, Wider and Reset', async () => {
         const { user } = renderWithProviders(<Harness rows={rowsOf(3)} />);
         const before = keywordWidth();
         const row = await widthRow(user);
-        const reset = within(row).getByRole('button', { name: 'Reset width' });
+        const reset = within(row).getByRole('button', { name: 'Reset' });
         expect(reset).toHaveAttribute('aria-disabled', 'true');
         await user.click(within(row).getByRole('button', { name: 'Narrower' }));
         expect(keywordWidth()).toBe(before - 40);

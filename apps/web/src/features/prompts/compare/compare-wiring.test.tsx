@@ -598,10 +598,10 @@ describe('Prompts: the Detectable changes only chip', () => {
     expect(screen.queryByRole('heading', { name: 'No detectable change in these rows' })).toBeNull();
   });
 
-  it('keeps the compare choice when Clear filters clears the chip', async () => {
+  it('keeps the compare choice when Reset filters clears the chip', async () => {
     serve();
     const { user, writes } = render('?tab=prompts&detectable=only&cmp=previous');
-    await user.click(await screen.findByRole('button', { name: 'Clear filters' }));
+    await user.click(await screen.findByRole('button', { name: 'Reset filters' }));
     await waitFor(() => expect(writes.some((write) => !write.queryString.includes('detectable'))).toBe(true));
     expect(writes.at(-1)?.queryString).toContain('cmp=previous');
     expect(await screen.findByText('Question number 1?')).toBeInTheDocument();

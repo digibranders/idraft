@@ -80,6 +80,12 @@ export function EnginePanel(): ReactElement {
         ? null
         : { value: change.points, unit: 'points', polarity: 'higher_is_better', isDetectable: change.detectable };
     const href = value.state === 'none' ? undefined : drillHref(pathname, search, topicKey, code);
+    // A group's rate is the mean of its prompts' rates: the percent says "average of N prompts" and the pooled answers
+    // (a different rate, with its own percent) are in the tip, so the percent beside "x of y" is always x over y
+    const averaged =
+      value.state === 'ok' && value.prompts !== null && metric !== 'sov' && value.successes !== null
+        ? { prompts: value.prompts, percent: formatPercent(value.successes / value.answers, { decimals: 0 }) }
+        : null;
     return {
       code,
       label,
@@ -89,23 +95,34 @@ export function EnginePanel(): ReactElement {
       contextText:
         value.state !== 'ok'
           ? null
-          : value.prompts === null
-            ? basis
-            : metric === 'sov'
-              ? panel('shareContext', { answers: value.answers, prompts: value.prompts })
-              : panel('context', { basis, prompts: value.prompts }),
+          : averaged !== null
+            ? panel('contextAverage', { prompts: averaged.prompts })
+            : value.prompts === null
+              ? basis
+              : metric === 'sov'
+                ? panel('shareContext', { answers: value.answers, prompts: value.prompts })
+                : panel('context', { basis, prompts: value.prompts }),
       answers: value.answers,
       noneText,
       accessibleText:
         value.state === 'none'
           ? panel('rowNone', { engine: label, reason: noneText })
-          : panel('rowName', { engine: label, value: words.inline(value), basis }),
+          : averaged !== null
+            ? panel('rowNameAverage', {
+                engine: label,
+                value: words.inline(value),
+                prompts: averaged.prompts,
+                percent: averaged.percent,
+                basis,
+              })
+            : panel('rowName', { engine: label, value: words.inline(value), basis }),
       // The icon carries no figures: the move in points, the period and the verdict follow the row's own tip
       tip:
         href === undefined
           ? undefined
           : [
               panel('rowTip', { engine: label }),
+              ...(averaged === null ? [] : [panel('pooledTip', { percent: averaged.percent, basis })]),
               ...(rateChange === null
                 ? []
                 : [changeWords.tip(rateChange, { kind: 'engine', range, metric: key, move: true })]),

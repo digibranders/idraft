@@ -155,7 +155,9 @@ describe('useByEngineColumns: the rate columns', () => {
 
   it('names the value of a drill cell for the table, whatever the button is called', () => {
     const columns = columnsOf({ rows: [MIXED] });
-    expect(byId(columns, 'gemini_web_rate').cellLabel?.(MIXED)).toBe('75%, 6 of 8 answers');
+    expect(byId(columns, 'gemini_web_rate').cellLabel?.(MIXED)).toBe(
+      '75%, average of 2 prompts. All answers pooled: 75%, 6 of 8 answers',
+    );
   });
 
   it('a prompt row platform cell is plain text', () => {

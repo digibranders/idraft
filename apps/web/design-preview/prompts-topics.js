@@ -11,7 +11,7 @@ import { MIN_OBSERVATIONS } from './vendor/stats/index.js';
 import { ENGINES, NOT_CLASSIFIED, absenceSentence, countsOf, engineOf, groupAverage, groupChange, groupRate, groupTrend, groupUpdated, measures, rateFor, seoOf, topicsOf } from './prompts-data.js';
 import { brandsOf, groupVolume, positionOf, sentimentOf, volumeOf } from './prompts-extra.js';
 import { brandsCell, closeStaleList, positionCell, sentimentCell, textCell, volumeCell } from './prompts-extra-cells.js';
-import { CELL, IDENTITY_RESIZE, focusSearchOnSlash, identityHandle, plainHeaderCell, promptLine, promptRateCell, promptTrendCell, rateCell, rowMenuCell, sortHeaderCell, sparkCell, topEngineCell, wireColumnChooser } from './prompts-cells.js';
+import { CELL, IDENTITY_RESIZE, focusSearchOnSlash, identityHandle, plainHeaderCell, promptLine, promptRateCell, rateCell, rowMenuCell, sortHeaderCell, topEngineCell, wireColumnChooser } from './prompts-cells.js';
 import { checkbox, el, percent0, plural } from './prompts-parts.js';
 import { METRIC_LABEL, isAllLocations, scopeCodes, scopeEngines, scopePrompts, scopeText, state } from './prompts-state.js';
 
@@ -153,35 +153,37 @@ export function promptsByMention(topic) {
 // -------------------------------------------------------------------------------------------------
 // Columns of the three views
 
-const WIDTH = { select: 40, topic: 260, country: 120, volume: 132, position: 120, mention: 168, citation: 136, recommendation: 196, sov: 140, sentiment: 168, brands: 248, engine: 140, trend: 96, count: 152, e: 176, gap: 120, actions: 40 };
+const WIDTH = { select: 40, topic: 260, country: 120, volume: 132, position: 120, mention: 168, citation: 136, recommendation: 196, sov: 140, sentiment: 168, brands: 272, engine: 140, count: 152, e: 176, gap: 120, actions: 40 };
+
+/** The Mention rate column also holds the trend line (64 px) when the person compares, so it is wider then. */
+const mentionWidth = () => (state.compare ? 204 : WIDTH.mention);
 
 /** The columns of the view in force, in table order. `locked` columns cannot be turned off. */
 function columnsOf() {
   const engines = scopeEngines();
   if (state.topicView === 'engines') {
     return [
-      { key: 'topic', label: 'Topic', width: WIDTH.topic, locked: true },
-      { key: 'mention', label: 'Mention rate', width: WIDTH.mention },
-      ...engines.map((engine) => ({ key: `e:${engine.code}`, label: `${engine.name} ${METRIC_LABEL[state.metric].toLowerCase()}`, width: WIDTH.e })),
-      { key: 'gap', label: 'Engine gap', width: WIDTH.gap },
+      { key: 'topic', label: 'Group', width: WIDTH.topic, locked: true },
+      { key: 'mention', label: 'Mention rate', width: mentionWidth() },
+      ...engines.map((engine) => ({ key: `e:${engine.code}`, label: `${engine.label} ${METRIC_LABEL[state.metric].toLowerCase()}`, width: WIDTH.e, engine: engine.name })),
+      { key: 'gap', label: 'Platform gap', width: WIDTH.gap },
     ];
   }
   return [
-    { key: 'topic', label: 'Topic', width: WIDTH.topic, locked: true },
+    { key: 'topic', label: 'Group', width: WIDTH.topic, locked: true },
     ...(isAllLocations() ? [{ key: 'country', label: 'Location', width: WIDTH.country }] : []),
     { key: 'volume', label: 'Search volume', width: WIDTH.volume },
-    { key: 'position', label: 'Avg position', width: WIDTH.position },
-    { key: 'mention', label: 'Mention rate', width: WIDTH.mention },
+    { key: 'position', label: 'Mention position', width: WIDTH.position },
+    { key: 'mention', label: 'Mention rate', width: mentionWidth() },
     { key: 'citation', label: 'Citation rate', width: WIDTH.citation },
     { key: 'recommendation', label: 'Recommendation rate', width: WIDTH.recommendation },
     { key: 'sov', label: 'Share of voice', width: WIDTH.sov },
     { key: 'sentiment', label: 'Sentiment', width: WIDTH.sentiment },
-    { key: 'trend', label: 'Trend', width: WIDTH.trend },
     { key: 'brands', label: 'Brands', width: WIDTH.brands },
-    { key: 'engine', label: 'Top engine', width: WIDTH.engine },
+    { key: 'engine', label: 'Top platform', width: WIDTH.engine },
     ...engines.flatMap((engine) => [
-      { key: `m:${engine.code}`, label: `${engine.name} mentioned`, width: WIDTH.count },
-      { key: `c:${engine.code}`, label: `${engine.name} cited`, width: WIDTH.count },
+      { key: `m:${engine.code}`, label: `${engine.label} mentioned`, width: WIDTH.count, engine: engine.name },
+      { key: `c:${engine.code}`, label: `${engine.label} cited`, width: WIDTH.count, engine: engine.name },
     ]),
   ];
 }
@@ -189,20 +191,22 @@ const shownColumns = () => columnsOf().filter((column) => column.locked || !stat
 const rowClass = () => (state.density === 'compact' ? 'h-row-compact' : 'h-row');
 
 const HEAD_TIP = {
-  mention: 'The share of valid answers that name your brand, averaged over the engines shown',
-  citation: 'The share of valid answers that cite your domain, averaged over the engines shown',
-  engine: 'The engine with the highest mention rate. A pointer, not a ranking.',
-  trend: 'The mention rate for each week of the window, averaged over the engines shown. A week with no valid answer is a gap in the line.',
+  get mention() {
+    const base = 'The share of valid answers that mention your brand, averaged over the platforms shown';
+    return state.compare ? `${base}. The change is against the comparison period, and the line is the rate of each week of the period (a week with no valid answer is a gap).` : base;
+  },
+  citation: 'The share of valid answers that cite your site, averaged over the platforms shown',
+  engine: 'The platform with the highest mention rate. A pointer, not a ranking.',
   country: 'The location the prompts are asked for',
   volume: 'Monthly searches of the keywords the prompts are linked to, each keyword counted once. Sample values.',
-  position: 'Where your brand sits in an ordered answer, 1 being first. Lower is better. Only ordered lists have a position.',
-  recommendation: 'The share of valid answers that recommend your brand, on the engines that classify recommendations',
+  position: 'Where your brand sits in an ordered answer, 1 being first. Lower is better. Only ordered lists have a mention position.',
+  recommendation: 'The share of valid answers that recommend your brand, on the platforms that classify recommendations',
   sov: 'Your mentions as a share of every brand mention in the answers',
-  sentiment: 'The tone of the answers that name your brand, as four shares. Sample values.',
-  brands: 'The brands the answers name, most named first. Opens the list.',
-  gap: 'The distance in points between the engine with the highest rate and the one with the lowest',
+  sentiment: 'The tone of the answers that mention your brand, as four shares. Sample values.',
+  brands: 'The brands the answers mention, most mentioned first. Opens the list.',
+  gap: 'The distance in points between the platform with the highest rate and the one with the lowest',
 };
-const sortHeader = (column) => sortHeaderCell({ key: column.key, label: column.label, sort: state.topicSort, attr: 'topicSort', tip: HEAD_TIP[column.key] });
+const sortHeader = (column) => sortHeaderCell({ key: column.key, label: column.label, sort: state.topicSort, attr: 'topicSort', tip: HEAD_TIP[column.key], logo: column.engine });
 
 /** The width the person gave the Topic column, or null for its default. */
 state.topicIdentity = null;
@@ -234,7 +238,7 @@ function renderHead() {
   applyWidths();
   const row = el('tr', 'h-row-header');
   const select = el('th', 'sticky top-0 left-0 z-(--z-sticky) border-b border-border border-r border-r-border-subtle bg-surface-subtle px-0 text-center align-middle font-normal');
-  const all = checkbox('Select all topics');
+  const all = checkbox('Select all groups');
   all.input.dataset.topicAll = '';
   select.append(all.wrap);
   const cells = shown.map((column) => {
@@ -247,7 +251,7 @@ function renderHead() {
       th.append(identityHandle({ current: identityWidth, set: setIdentityWidth, max: identityMax }));
       return th;
     }
-    return ['trend', 'engine', 'country', 'brands'].includes(column.key) ? plainHeaderCell(column.label, '', HEAD_TIP[column.key]) : sortHeader(column);
+    return ['engine', 'country', 'brands'].includes(column.key) ? plainHeaderCell(column.label, '', HEAD_TIP[column.key]) : sortHeader(column);
   });
   const actions = el('th', 'sticky top-0 z-(--z-table-header) border-b border-border bg-surface-subtle');
   actions.append(el('span', 'sr-only', 'Row actions'));
@@ -275,21 +279,27 @@ function topicRateCell(topic, metric) {
   if (scope.every((code) => !measures(code, metric))) {
     const cell = el('td', CELL);
     cell.append(el('span', 'text-foreground-tertiary', 'n/a'));
-    cell.dataset.tip = `${scope.map((code) => engineOf(code).name).join(', ')}: ${NOT_CLASSIFIED}`;
+    cell.dataset.tip = `${scope.map((code) => engineOf(code).label).join(', ')}: ${NOT_CLASSIFIED}`;
     return cell;
   }
   // The engines that took part: one without enough observations in this topic is left out of the average
   const engines = scopeEngines()
     .filter((engine) => groupRate(topic.prompts, engine.code, metric).rate !== null)
-    .map((engine) => engine.name)
+    .map((engine) => engine.label)
     .join(', ');
   const observed = topic.prompts.reduce((sum, prompt) => sum + scopeCodes().reduce((total, code) => total + prompt.engines[code].n, 0), 0);
+  // Each platform's own pooled counts (a different rate from the percent, which averages the prompts and then the platforms)
+  const perEngine = scopeEngines()
+    .filter((engine) => groupRate(topic.prompts, engine.code, metric).rate !== null)
+    .map((engine) => { const { pooled } = groupRate(topic.prompts, engine.code, metric); return `${engine.label} ${formatSampleCount(pooled.k, pooled.n)}`; })
+    .join(' and ');
   return rateCell({
     value: average.value,
     change: metric === 'mention' ? topic.mentionChange : null,
-    sample: `${formatSampleCount(average.pooled.k, average.pooled.n)} obs`,
-    tip: average.used === 1 ? `${engines} only` : `Equal-weight average of ${engines}, each prompt counting once`,
-    gap: { text: observed === 0 ? 'n/a' : 'Insufficient', tip: observed === 0 ? 'Not observed in this window' : `${plural(observed, 'observation')} in this topic. A rate needs at least ${MIN_OBSERVATIONS} on an engine.` },
+    trend: metric === 'mention' ? topic.trend : null,
+    sample: `${perEngine} ${metric === 'sov' ? 'brand mentions' : 'answers'}`,
+    tip: average.used === 1 ? `${engines} only` : `Average of ${engines}, each platform and each prompt counting once`,
+    gap: { text: observed === 0 ? 'n/a' : 'Not enough data', tip: observed === 0 ? 'No answers in this period' : `${plural(observed, 'answer')} in this group. A rate needs at least ${MIN_OBSERVATIONS} on a platform.` },
   });
 }
 
@@ -299,10 +309,10 @@ function countCell(topic, code, metric) {
   const counts = engineCounts(topic, code, metric);
   if (counts.n === 0) {
     cell.append(el('span', 'text-foreground-tertiary', 'No answers'));
-    cell.dataset.tip = 'No answer in this window yet. Each prompt is asked twice a week.';
+    cell.dataset.tip = 'No answer in this period yet. Each prompt is asked twice a week.';
   } else {
     cell.append(el('span', 'num', formatSampleCount(counts.k, counts.n)));
-    cell.dataset.tip = metric === 'citation' ? 'Answers that cite your domain, of the valid answers in the window' : 'Answers that name your brand, of the valid answers in the window';
+    cell.dataset.tip = metric === 'citation' ? 'Answers that cite your site, of the valid answers in the period' : 'Answers that mention your brand, of the valid answers in the period';
   }
   return cell;
 }
@@ -313,11 +323,18 @@ function engineRateCell(topic, code) {
   const { rate } = groupRate(topic.prompts, code, state.metric);
   const counts = engineCounts(topic, code, state.metric);
   if (rate === null) {
-    cell.append(el('span', 'text-foreground-tertiary', counts.n === 0 ? 'No answers' : `${counts.observations} obs`));
+    cell.append(el('span', 'text-foreground-tertiary', counts.n === 0 ? 'No answers' : plural(counts.observations, 'answer')));
     return cell;
   }
   const line = el('span', 'inline-flex items-baseline gap-2 whitespace-nowrap');
-  line.append(el('span', 'num', percent0(rate)), el('span', 'type-meta num text-foreground-secondary', formatSampleCount(counts.k, counts.n)));
+  // Share of voice is a ratio of sums: its percent is exactly x of y. A rate is the mean of the prompts' rates, so it says
+  // "average of N prompts" and the pooled answers, with their own percent, are in the tip (one denominator per number)
+  if (state.metric === 'sov') line.append(el('span', 'num', percent0(rate)), el('span', 'type-meta num text-foreground-secondary', formatSampleCount(counts.k, counts.n)));
+  else {
+    const prompts = topic.prompts.filter((prompt) => countsOf(prompt, code, state.metric).observations > 0).length;
+    line.append(el('span', 'num', percent0(rate)), el('span', 'type-meta text-foreground-secondary', `average of ${prompts}`));
+    cell.dataset.tip = `Average of ${plural(prompts, 'prompt')}, each counting once. Answers pooled: ${percent0(counts.k / counts.n)}, ${formatSampleCount(counts.k, counts.n)} answers`;
+  }
   cell.append(line);
   return cell;
 }
@@ -342,7 +359,6 @@ function dataCells(topic) {
     sentiment: () => sentimentCell(topic.sentiment),
     brands: () => brandsCell(topic.brands, topic.name),
     engine: () => topEngineCell(topic.engineRates),
-    trend: () => sparkCell(topic.trend, ''),
     gap: () => gapCell(topic),
   };
   return shownColumns()
@@ -404,7 +420,7 @@ function promptCountCell(prompt, code, metric) {
 function promptDataCells(prompt) {
   const scope = scopeCodes();
   // With one engine in view, nothing observed has that engine's own reason (an AI Overview that did not show)
-  const absent = scope.length === 1 ? absenceSentence(prompt, scope[0]) : 'Not observed in this window';
+  const absent = scope.length === 1 ? absenceSentence(prompt, scope[0]) : 'No answers in this period';
   return shownColumns()
     .filter((column) => column.key !== 'topic')
     .map((column) => {
@@ -415,7 +431,6 @@ function promptDataCells(prompt) {
       if (key === 'mention') return promptRateCell(prompt, 'mention', true);
       if (['citation', 'recommendation', 'sov'].includes(key)) return promptRateCell(prompt, key, false);
       if (key === 'sentiment') return sentimentCell(sentimentOf([prompt], scope), absent);
-      if (key === 'trend') return promptTrendCell(prompt, '');
       if (key === 'brands') return brandsCell(brandsOf([prompt], scope), 'This prompt');
       if (key === 'engine') return topEngineCell(scopeEngines().map((engine) => ({ engine, rate: rateFor(prompt, engine.code, 'mention') })));
       return promptCountCell(prompt, key.slice(2), key.startsWith('c:') ? 'citation' : 'mention');
@@ -452,7 +467,7 @@ function renderRows() {
   heatmap.hidden = none || state.topicView !== 'heatmap';
   if (none) {
     $('[data-topic-empty-text]', empty).textContent =
-      state.topicSearch !== '' ? `No topic in this scope (${scopeText()}) is called "${state.topicSearch}".` : `The scope is ${scopeText()}. Remove a filter, or reset them all.`;
+      state.topicSearch !== '' ? `No group in this scope (${scopeText()}) is called "${state.topicSearch}".` : `The scope is ${scopeText()}. Remove a filter, or reset them all.`;
   }
   charts.sparklines(body);
   charts.syncRows();
@@ -483,14 +498,14 @@ function renderHeatmap() {
   const label = METRIC_LABEL[metric];
   const wrap = el('div', 'flex min-w-0 flex-col gap-3');
   const title = el('div', 'flex flex-col');
-  title.append(el('h2', 'type-section-title', `${label} by topic and engine`), el('p', 'type-meta num', `${plural(allTopics.length, 'topic')}, ${plural(engines.length, 'engine')}`));
+  title.append(el('h2', 'type-section-title', `${label} by group and platform`), el('p', 'type-meta num', `${plural(allTopics.length, 'group')}, ${plural(engines.length, 'platform')}`));
   const frame = el('div', 'min-w-0 overflow-x-auto rounded-md border border-border-subtle');
   const grid = el('table', 'w-full table-fixed border-separate border-spacing-0 type-table');
   const header = el('tr', 'h-row-header');
   const headClass = 'border-b border-border bg-surface-subtle px-3 align-middle font-normal type-table-header';
-  header.append(el('th', `${headClass} w-64 text-left border-r border-r-border-subtle`, 'Topic'), el('th', `${headClass} w-22 text-right`, 'Prompts'));
-  engines.forEach((engine) => header.append(el('th', `${headClass} text-center`, engine.name)));
-  if (engines.length > 1) header.append(el('th', `${headClass} text-center`, `Avg of ${engines.length}`));
+  header.append(el('th', `${headClass} w-64 text-left border-r border-r-border-subtle`, 'Group'), el('th', `${headClass} w-22 text-right`, 'Prompts'));
+  engines.forEach((engine) => header.append(el('th', `${headClass} text-center`, engine.label)));
+  if (engines.length > 1) header.append(el('th', `${headClass} text-center`, `Average of ${engines.length}`));
   const rows = shownTopics.map((topic) => {
     const row = el('tr', rowClass());
     row.append(el('th', 'border-b border-border-subtle border-r border-r-border-subtle bg-surface px-3 text-left font-normal', topic.name), el('td', 'border-b border-border-subtle px-3 text-right num', formatInteger(topic.prompts.length)));
@@ -512,15 +527,15 @@ function renderHeatmap() {
     item.append(el('span', `size-4 shrink-0 rounded-xs ${bin.fill}`), bin.label);
     key.append(item);
   });
-  wrap.append(title, frame, key, el('p', 'type-meta', 'Each prompt is in one topic, so the topics add up to the prompts in view. Each cell is prompt weighted.'));
+  wrap.append(title, frame, key, el('p', 'type-meta', 'Each prompt is in one group, so the groups add up to the prompts in view. Each cell is prompt weighted.'));
   heatmap.replaceChildren(wrap);
 }
 
 function renderChrome() {
   const topics = shownTopics.length;
   const prompts = shownTopics.reduce((sum, topic) => sum + topic.shown.length, 0);
-  $('[data-topic-count]', view).textContent = plural(topics, 'topic');
-  $('[data-topic-range]', view).textContent = `${plural(topics, 'topic')} · ${plural(prompts, 'prompt')}`;
+  $('[data-topic-count]', view).textContent = plural(topics, 'group');
+  $('[data-topic-range]', view).textContent = `${plural(topics, 'group')} ·${plural(prompts, 'prompt')}`;
   const allOpen = topics > 0 && shownTopics.every(isOpen);
   const expand = $('[data-topic-expand-all]', view);
   const label = $('[data-topic-expand-label]', view);
@@ -530,13 +545,12 @@ function renderChrome() {
   expand.hidden = state.topicView !== 'list';
   $('[data-topic-engines-only]', view).hidden = state.topicView !== 'engines';
   $$topicView().forEach((button) => button.setAttribute('aria-checked', String(button.dataset.topicView === state.topicView)));
-  $$topicDensity().forEach((item) => item.setAttribute('aria-checked', String(item.dataset.density === state.density)));
 
   const visible = new Set(shownTopics.map((topic) => topic.id));
   const selected = [...state.topicSelected].filter((id) => visible.has(id));
   toolbar.hidden = selected.length > 0;
   bulkBar.hidden = selected.length === 0;
-  $('[data-topic-selected]', bulkBar).textContent = `${plural(selected.length, 'topic')} selected · ${plural(selectedPromptIds().length, 'prompt')}`;
+  $('[data-topic-selected]', bulkBar).textContent = `${plural(selected.length, 'group')} selected · ${plural(selectedPromptIds().length, 'prompt')}`;
   const all = $('[data-topic-all]', head);
   if (all) {
     const rows = shownTopics.map((topic) => topic.id);
@@ -546,7 +560,6 @@ function renderChrome() {
 }
 
 const $$topicView = () => [...view.querySelectorAll('[data-topic-view]')];
-const $$topicDensity = () => [...document.querySelectorAll('#menu-topic-density [data-density]')];
 
 export function renderTopics() {
   compute();
@@ -655,13 +668,6 @@ export function initTopics(page) {
     state.topicSort = { key: 'mention', dir: 'desc' };
     renderTopics();
   });
-  document.querySelector('#menu-topic-density').addEventListener('click', (event) => {
-    const next = event.target.closest('[data-density]')?.dataset.density;
-    if (!next) return;
-    state.density = next;
-    closePopup();
-    host.renderDensity();
-  });
   $('[data-topic-empty-reset]', view).addEventListener('click', () => {
     state.topicSearch = '';
     $('[data-topic-search]', view).value = '';
@@ -681,7 +687,7 @@ export function initTopics(page) {
 
   wireColumnChooser({
     popover: $('#pop-topic-columns'),
-    identity: { label: 'Topic', current: identityWidth, isDefault: () => state.topicIdentity === null, set: setIdentityWidth, max: identityMax },
+    identity: { label: 'Group', current: identityWidth, isDefault: () => state.topicIdentity === null, set: setIdentityWidth, max: identityMax },
     columns: columnsOf,
     shown: () => ({ has: (key) => !state.topicHidden.has(key) }),
     change: (key, on) => {

@@ -289,9 +289,13 @@ describe('TopicTrendsCard', () => {
     render();
     await charts();
     expect(
-      within(figureOf('SEO tools, ChatGPT')).getByText(/Nov 9: 25\.0%, 10 of 40 answers.*5 prompts/),
+      within(figureOf('SEO tools, ChatGPT')).getByText(
+        /Nov 9: 25\.0%, average of 5 prompts.*All answers pooled: 25\.0%, 10 of 40 answers/,
+      ),
     ).toBeInTheDocument();
-    expect(within(figureOf('CRM, Gemini')).getByText(/Nov 9: 25\.0%, 5 of 20 answers/)).toBeInTheDocument();
+    expect(
+      within(figureOf('CRM, Gemini')).getByText(/Nov 9: 25\.0%.*All answers pooled: 25\.0%, 5 of 20 answers/),
+    ).toBeInTheDocument();
   });
 
   it('a panel with no series says no weekly data in text, never a line at 0', async () => {

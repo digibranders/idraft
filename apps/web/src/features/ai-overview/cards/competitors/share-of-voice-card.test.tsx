@@ -64,14 +64,14 @@ describe('the share of voice card follows the page scope', () => {
       expect.stringContaining('Fynix (you)'),
       expect.stringContaining('Zoho'),
     ]);
-    expect(screen.getByText('of 100 answers that mention a tracked brand')).toBeInTheDocument();
+    expect(screen.getByText('of 100 brand mentions')).toBeInTheDocument();
   });
 
-  it('is the equal-weight average of the platforms for All platforms, labelled avg of N, not a pooled ratio', async () => {
+  it('is the equal-weight average of the platforms for All platforms, labelled average of N, not a pooled ratio', async () => {
     serve(totalOf('chatgpt_web', [40, 30, 30], 100), totalOf('gemini_web', [10, 10, 0], 20));
     renderCard('cmp=off');
     await list();
-    expect(screen.getByText('avg of 2 platforms')).toBeInTheDocument();
+    expect(screen.getByText('average of 2 platforms')).toBeInTheDocument();
     // (40% + 50%) / 2 = 45% for you; pooled it would be 50 of 120
     expect(within(await list()).getByText('45%')).toBeInTheDocument();
     expect(within(await list()).getByText('40%')).toBeInTheDocument();
@@ -81,7 +81,7 @@ describe('the share of voice card follows the page scope', () => {
     serve(totalOf('chatgpt_web', [40, 40, 20], 100), totalOf('gemini_web', [10, 10, 0], 20));
     renderCard('cmp=off', { engine: 'gemini_web' });
     await list();
-    expect(screen.getByText('avg of 2 platforms')).toBeInTheDocument();
+    expect(screen.getByText('average of 2 platforms')).toBeInTheDocument();
   });
 
   it('opens the competitor drawer from a competitor name, and offers no button on your own row', async () => {

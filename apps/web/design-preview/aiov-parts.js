@@ -3,11 +3,10 @@
  * Small pieces the AI visibility Overview is drawn with: formatted values and changes, the card frame, a headline
  * tile, a sparkline, a bar list and stacked share bars. Plain DOM, tokens only (14, 15, 12 in docs/design-system).
  */
-import { formatMetricDelta } from './vendor/format/delta.js';
-import { MINUS, formatInteger, formatPercent, formatPointsDelta } from './vendor/format/number.js';
+import { formatInteger, formatPercent } from './vendor/format/number.js';
 import { MEASURES, platformOf } from './aiov-data.js';
 import { CARD_INFO, infoText } from './aiov-info.js';
-import { NEUTRAL_BADGE, el, insufficient, plural } from './prompts-parts.js';
+import { NEUTRAL_BADGE, el, insufficient, plural, trendIcon } from './prompts-parts.js';
 
 export { NEUTRAL_BADGE, el, insufficient, plural };
 
@@ -18,13 +17,11 @@ export const pct0 = (ratio) => formatPercent(ratio, { decimals: 0 });
 export const pct1 = (ratio) => formatPercent(ratio, { decimals: 1 });
 export const orderText = (value) => (Math.round(value * 10) / 10).toFixed(1);
 
-const TONE = { positive: 'text-positive-text', negative: 'text-negative-text', neutral: 'text-foreground-secondary' };
-
 /** The value of a cell as text: a rate, an order, or why there is none. */
 export function valueText(cell) {
   if (!cell || cell.state === 'unavailable') return 'n/a';
   if (cell.state === 'insufficient') return 'n/a';
-  if (cell.state === 'none') return 'No data';
+  if (cell.state === 'none') return 'n/a';
   return MEASURES[cell.measure].unit === 'order' ? orderText(cell.value) : pct0(cell.value);
 }
 
@@ -47,27 +44,17 @@ export function insufficientText(cell) {
 }
 
 /**
- * A change against the previous period, in points (R5), colored only when detectable. An order (mention position)
- * changes in places, and a lower number is better, so it is never colored. Null when there is nothing to compare.
+ * The difference between two rates, in points, as the trend icon of the Prompts page: green when the first is higher and
+ * red when it is lower, only when the difference is detectable (`isDetectableDifference`, the test of every change icon,
+ * on the counts of both); otherwise a grey dash. `say` is the sentence of its hover.
  */
-export function deltaNode(cell, compare, { decimals = 1 } = {}) {
-  if (!compare || !cell?.change || cell.state !== 'ok') return null;
-  const { value, detectable } = cell.change;
-  const untested = detectable === null || detectable === undefined;
-  if (MEASURES[cell.measure].unit === 'order' || untested) {
-    const rounded = Math.round(Math.abs(value) * 100) / 100;
-    const sign = rounded === 0 ? '' : value > 0 ? '+' : MINUS;
-    const text = MEASURES[cell.measure].unit === 'order' ? `${sign}${rounded.toFixed(2)}` : formatPointsDelta(value, { decimals });
-    const node = el('span', `num shrink-0 whitespace-nowrap ${TONE.neutral}`, text);
-    node.dataset.tip = `${MEASURES[cell.measure].unit === 'order' ? 'A lower number means named earlier. ' : ''}Not tested for detectability`;
-    node.append(el('span', 'sr-only', ', not tested for detectability'));
-    return node;
-  }
-  const display = formatMetricDelta({ value, unit: 'points', polarity: 'higher_is_better', isDetectable: detectable });
-  const node = el('span', `num shrink-0 whitespace-nowrap ${TONE[display.tone]}`, formatPointsDelta(value, { decimals }));
-  node.dataset.tip = detectable ? 'Detectable change: its 95% interval excludes zero' : 'Within normal variation';
-  node.append(el('span', 'sr-only', detectable ? ', detectable change' : ', within normal variation'));
-  return node;
+export const gapIcon = (difference, say, detectable) => trendIcon({ value: detectable === true ? difference : 0, detectable: detectable === true }, { say });
+
+/** The sentence of a gap's hover: "Pricing is 10 pts below all groups", with the two figures and the verdict. */
+export function gapSentence(subject, difference, other, ours, theirs, detectable) {
+  const points = `${(Math.abs(difference) * 100).toFixed(1)}`;
+  if (detectable !== true || difference === 0) return `${subject} ${subject === 'You' ? 'are' : 'is'} level with ${other}: the difference of ${points} pts is not detectable, small sample: ${pct0(ours)} against ${pct0(theirs)}.`;
+  return `${subject} ${subject === 'You' ? 'are' : 'is'} ${points} pts ${difference > 0 ? 'above' : 'below'} ${other}: ${pct0(ours)} against ${pct0(theirs)}. Detectable: its 95% interval excludes zero.`;
 }
 
 export function engineName(code) {
@@ -82,9 +69,9 @@ export function platformLabel(code, { strong = false } = {}) {
   return wrap;
 }
 
-/** "avg of 3" beside a value that is an equal-weight average (R3). */
+/** "average of 3" beside a value that is an equal-weight average (R3). */
 export const averageBadge = (used) => {
-  const badge = el('span', NEUTRAL_BADGE, `avg of ${used}`);
+  const badge = el('span', NEUTRAL_BADGE, `average of ${used}`);
   badge.dataset.tip = 'The equal-weight average of the platforms that have this measure. Platforms are never pooled';
   return badge;
 };
@@ -168,7 +155,7 @@ export function cardFrame({ key, title, meta, tools = [], body, flush = false })
     head.append(holder);
   }
   section.append(head);
-  const content = el('div', flush ? 'flex-1 min-h-0' : 'flex-1 min-h-0 px-4 pb-4');
+  const content = el('div', flush ? 'flex-1 min-h-0 flex flex-col' : 'flex-1 min-h-0 px-4 pb-4 flex flex-col');
   content.append(...(Array.isArray(body) ? body : [body]));
   section.append(content);
   return section;
@@ -176,7 +163,8 @@ export function cardFrame({ key, title, meta, tools = [], body, flush = false })
 
 /** A card that cannot be drawn for this scope: says why, and what to do. */
 export function emptyBody(title, text) {
-  const box = el('div', 'min-h-24 py-6 flex flex-col items-center justify-center gap-1 text-center');
+  // `my-auto` centres the message in a card that is taller than it, so a card without data keeps its size
+  const box = el('div', 'min-h-24 py-6 my-auto flex flex-col items-center justify-center gap-1 text-center');
   box.append(el('p', 'type-body-strong text-foreground', title), el('p', 'type-meta max-w-md', text));
   return box;
 }

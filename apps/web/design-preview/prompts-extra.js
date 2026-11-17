@@ -18,7 +18,7 @@ export const INTENT_TIP = {
   Informational: 'The asker wants to learn something',
   Commercial: 'The asker is choosing between options',
   Transactional: 'The asker is ready to buy or sign up',
-  Navigational: 'The asker is looking for a named brand',
+  Navigational: 'The asker is looking for a specific brand',
 };
 
 export function intentOf(prompt) {
@@ -99,7 +99,7 @@ export function positionOf(prompts, scope) {
   return {
     value: used.length === 0 ? null : used.reduce((sum, engine) => sum + engine.mean, 0) / used.length,
     used: used.length,
-    names: used.map((engine) => engineOf(engine.code).name),
+    names: used.map((engine) => engineOf(engine.code).label),
     lists: total('lists'),
     mentions: total('mentions'),
     answers: total('answers'),
@@ -148,7 +148,7 @@ export function sentimentOf(prompts, scope) {
   if (answers === 0) return { state: 'unobserved', shares: null, used: 0, names: [], mentions, answers };
   if (used.length === 0) return { state: 'insufficient', shares: null, used: 0, names: [], mentions, answers };
   const shares = Object.fromEntries(SHARES.map((key) => [key, used.reduce((sum, engine) => sum + engine.counts[key] / engine.mentions, 0) / used.length]));
-  return { state: 'ok', shares, used: used.length, names: used.map((engine) => engineOf(engine.code).name), mentions, answers };
+  return { state: 'ok', shares, used: used.length, names: used.map((engine) => engineOf(engine.code).label), mentions, answers };
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -192,7 +192,7 @@ export function brandsOf(prompts, scope) {
     const observed = prompts.filter((prompt) => prompt.engines[code].n > 0);
     const observations = observed.reduce((sum, prompt) => sum + prompt.engines[code].n, 0);
     if (rateState(observations) !== 'ok') return;
-    names.push(engineOf(code).name);
+    names.push(engineOf(code).label);
     answers += observations;
     observed.forEach((prompt) =>
       entityCounts(prompt, code).forEach((entity) => {
@@ -201,10 +201,10 @@ export function brandsOf(prompts, scope) {
         rate.sum += entity.k / prompt.engines[code].n;
         rate.count += 1;
         row.rates.set(code, rate);
-        const counts = row.counts.get(engineOf(code).name) ?? { k: 0, n: 0 };
+        const counts = row.counts.get(engineOf(code).label) ?? { k: 0, n: 0 };
         counts.k += entity.k;
         counts.n += prompt.engines[code].n;
-        row.counts.set(engineOf(code).name, counts);
+        row.counts.set(engineOf(code).label, counts);
         row.k += entity.k;
         row.n += prompt.engines[code].n;
         rows.set(entity.name, row);

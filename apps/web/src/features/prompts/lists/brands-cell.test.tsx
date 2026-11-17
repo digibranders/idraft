@@ -235,7 +235,7 @@ describe('Add as competitor', () => {
     expect(within(dialog).queryByRole('button', { name: /^Add Copper/ })).not.toBeInTheDocument();
     expect(await screen.findByText('Copper added to your competitors')).toBeInTheDocument();
     expect(
-      screen.getByText('It counts in share of voice and the competitor gap from the next run.'),
+      screen.getByText('It counts in share of voice and the Lost to competitor card from the next run.'),
     ).toBeInTheDocument();
     expect(calls).toEqual(['create', 'attach']);
     // The name goes in as an alias too (decision 17), as the backend request says

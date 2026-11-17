@@ -328,8 +328,8 @@
 
   const TOASTS = {
     export: { title: 'Export started', description: 'keywords.csv downloads when it is ready, usually within a minute.' },
-    link: { title: 'Link copied', description: 'The link keeps the current filters and date range.', tone: 'info' },
-    check: { title: 'Check queued', description: 'Results arrive in about 2 minutes.', tone: 'info' },
+    link: { title: 'Link copied', description: 'The link keeps the current filters and period.', tone: 'info' },
+    check: { title: 'Check queued', description: 'The new rank arrives in about 2 minutes.', tone: 'info' },
     copy: { title: 'Keyword copied', tone: 'info' },
   };
   document.addEventListener('click', (event) => {
@@ -438,7 +438,7 @@
   // ---------------------------------------------------------------------------------------------
   // EngineLogo (07 section 5): a 16 px mark beside the engine's name. Decorative, because the name is always there.
   // Both Google surfaces use the Google mark; the monochrome OpenAI mark is inverted in the dark theme.
-  const ENGINE_LOGOS = { ChatGPT: 'chatgpt', Gemini: 'gemini', 'AI Mode': 'google', 'AI Overview': 'google' };
+  const ENGINE_LOGOS = { ChatGPT: 'chatgpt', Gemini: 'gemini', 'AI Mode': 'google', 'AI Overview': 'google', 'Google AI Mode': 'google', 'Google AI Overview': 'google' };
   function engineLogo(name) {
     const img = document.createElement('img');
     img.src = `./vendor/logos/${ENGINE_LOGOS[name]}.svg`;
@@ -942,7 +942,7 @@
     Object.assign(applied, { preset, from, to });
     const label = preset === 'custom' ? formatDateRange(from, to) : PRESETS[preset].label;
     $('[data-date-label]').textContent = label;
-    dateButton.setAttribute('aria-label', `Date range: ${label}`);
+    dateButton.setAttribute('aria-label', `Period: ${label}`);
     dateButton.dataset.tip = `${formatDateRange(from, to)} (America/New_York)`;
   }
 
@@ -1098,7 +1098,7 @@
     ...['Keywords', 'Prompts', 'Citations', 'Competitors'].map((page) => ({
       group: 'Pages',
       label: page,
-      context: ['Keywords'].includes(page) ? 'SEO' : page === 'Competitors' ? 'Project' : 'AI Visibility',
+      context: ['Keywords'].includes(page) ? 'SEO' : page === 'Competitors' ? 'Project' : 'AI visibility',
       icon: 'file-text',
       run: () => toast({ title: `Opens ${page}`, description: 'Navigation is not part of this preview.', tone: 'info' }),
     })),
@@ -1265,7 +1265,7 @@
   // Settings (24 section 6): sections, the dirty form with its SaveBar and cost notice, and project deletion
 
   const SETTINGS_LABELS = Object.fromEntries($$('[data-settings-link]').map((a) => [a.dataset.settingsLink, a.textContent.trim()]));
-  const BUILT_SECTIONS = new Set(['profile', 'security', 'preferences', 'general', 'engines']);
+  const BUILT_SECTIONS = new Set(['profile', 'security', 'preferences', 'general', 'engines', 'internal-links', 'page-tiers']);
   const NAV_ON = ['type-body-strong', 'text-primary-text', 'bg-surface-selected'];
   const NAV_OFF = ['type-body', 'text-foreground-secondary', 'hover:bg-surface-hover'];
   function setNavState(link, on) {
@@ -1337,11 +1337,11 @@
       const name = row.dataset.name;
       changes += Number(before.on !== after.on) + Number(before.reps !== after.reps);
       delta += ((after.on ? after.reps : 0) - (before.on ? before.reps : 0)) * REPLICATE_MONTHLY_USD;
-      if (before.on && !after.on) notes.push(`${name} is no longer observed.`);
-      else if (!before.on && after.on) notes.push(`${name} is observed again.`);
+      if (before.on && !after.on) notes.push(`${name} is no longer collected.`);
+      else if (!before.on && after.on) notes.push(`${name} is collected again.`);
       else if (after.on && before.reps !== after.reps) {
         const diff = Math.abs(after.reps - before.reps);
-        notes.push(`${name} replicates ${before.reps} → ${after.reps} ${after.reps > before.reps ? 'adds' : 'removes'} ${diff} observation${diff === 1 ? '' : 's'} per prompt per week.`);
+        notes.push(`${name} replicates ${before.reps} → ${after.reps} ${after.reps > before.reps ? 'adds' : 'removes'} ${diff} answer${diff === 1 ? '' : 's'} per prompt per week.`);
       }
     });
     return { changes, delta: Math.round(delta * 100) / 100, notes };
@@ -1533,9 +1533,9 @@
   // carry ?inspect= keep working. The old #/rankings address still opens it. Destinations that are not built say so
   // instead of navigating.
 
-  const VIEWS = { overview: 'Overview', ai: 'AI visibility', keywords: 'Keywords', pages: 'Pages', prompts: 'Prompts', settings: 'Settings' };
+  const VIEWS = { overview: 'Overview', ai: 'AI visibility', keywords: 'Keywords', pages: 'Pages', 'internal-links': 'Internal links', prompts: 'Prompts', citations: 'Citations', settings: 'Settings' };
   // Pages with tabs keep the tab in the route: #/prompts (Topics), #/prompts/explorer
-  const PAGE_TABS = { pages: ['performance', 'landing'], prompts: ['topics', 'explorer'] };
+  const PAGE_TABS = { pages: ['performance', 'landing'], 'internal-links': ['pages', 'links', 'journey', 'flow', 'changes', 'opportunities'], prompts: ['topics', 'explorer'], citations: ['pages', 'gaps'] };
   let route = { view: 'keywords', section: null };
 
   function parseRoute(hash) {
@@ -1568,8 +1568,10 @@
     $('[data-crumb-current]').textContent = label;
     $('[data-crumb-parent]').hidden = !settings;
     // Date range and location are hidden where they do not apply (11 section 4)
-    $$('[data-scope-control]').forEach((el) => (el.hidden = settings || next.view === 'pages'));
-    document.title = `${settings ? `${label}, Settings` : label} · Design System Preview`;
+    $$('[data-scope-control]').forEach((el) => (el.hidden = settings || next.view === 'pages' || next.view === 'internal-links'));
+    // The tab title is the page title (glossary A3): "AI visibility overview", while the breadcrumb says "AI visibility"
+    const pageTitle = next.view === 'ai' ? 'AI visibility overview' : label;
+    document.title = `${settings ? `${label}, Settings` : pageTitle} · Design System Preview`;
     if (viewChanged) window.scrollTo(0, 0);
     // Pages built in their own script (prompts.js) show their tab from this
     // A page lets go of its address first (preview-leave), so the page that opens next never reads its query

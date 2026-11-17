@@ -70,7 +70,7 @@ describe('the AI visibility page without access', () => {
     };
     server.events.on('request:start', listener);
     renderWithProviders(overviewAs('viewer', { withoutPermissions: ['data:read'] }));
-    expect(screen.getByRole('heading', { level: 1, name: 'AI visibility' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'AI visibility overview' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'You cannot see AI visibility for this project' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Customize' })).not.toBeInTheDocument();
     await new Promise((resolve) => setTimeout(resolve, 50));
@@ -83,7 +83,7 @@ describe('the AI visibility page of a project with platforms on', () => {
   it('has the title, the freshness of the answers, Customize, Export and More actions in the header', async () => {
     renderWithProviders(overviewAs('admin'));
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
-    expect(screen.getByRole('heading', { level: 1, name: 'AI visibility' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'AI visibility overview' })).toBeInTheDocument();
     await waitFor(() => {
       expect(screen.getByText(/^AI updated .+$/)).toBeInTheDocument();
     });
@@ -101,7 +101,7 @@ describe('the AI visibility page of a project with platforms on', () => {
     expect(toolbar).toHaveClass('sticky', 'top-topbar');
     // The scope controls are a named group of their own inside it
     expect(await within(toolbar).findByRole('region', { name: 'Scope' })).toBeInTheDocument();
-    const headline = await screen.findByRole('group', { name: 'Headline numbers' });
+    const headline = await screen.findByRole('group', { name: 'AI visibility rate (headline)' });
     expect(toolbar.contains(headline)).toBe(false);
     expect(toolbar.compareDocumentPosition(headline) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
   });
@@ -182,7 +182,7 @@ describe('the AI visibility page of a project with platforms on', () => {
       }),
     );
     renderWithProviders(overviewAs('admin'));
-    expect(screen.getByRole('heading', { level: 1, name: 'AI visibility' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'AI visibility overview' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Customize' })).not.toBeInTheDocument();
     expect(screen.queryByRole('region', { name: CARDS })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'No AI platform is on' })).not.toBeInTheDocument();
@@ -199,7 +199,7 @@ describe('the AI visibility page of a project with platforms on', () => {
     });
     await user.click(button);
     expect(await screen.findByText('Customizing')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { level: 1 })).toHaveAccessibleName('AI visibility');
+    expect(screen.getByRole('heading', { level: 1 })).toHaveAccessibleName('AI visibility overview');
     expect(button).toHaveAttribute('aria-pressed', 'true');
     await user.keyboard('{Escape}');
     await waitFor(() => {
@@ -230,7 +230,7 @@ describe('the AI visibility page of a project with AI off', () => {
       'href',
       '/digibranders/cleanstart/settings/engines',
     );
-    expect(screen.getByRole('heading', { level: 1, name: 'AI visibility' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'AI visibility overview' })).toBeInTheDocument();
   });
 
   it('asks a viewer to ask a workspace admin, with no link', async () => {
@@ -307,7 +307,7 @@ describe('the headline of the AI visibility page', () => {
       ),
     );
     renderWithProviders(overviewAs('admin'));
-    expect(await screen.findByText('Could not load Headline numbers')).toBeInTheDocument();
+    expect(await screen.findByText('Could not load AI visibility rate (headline)')).toBeInTheDocument();
     await waitFor(() => {
       expect(cardIds()).toHaveLength(11);
     });

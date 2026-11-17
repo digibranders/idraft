@@ -81,7 +81,10 @@ describe('HeadlineCard', () => {
   it('has the hero and the eight tiles in order, named as the register says', async () => {
     serve();
     renderCard();
-    expect(await screen.findByRole('group', { name: 'Headline numbers' })).toHaveAttribute('data-card', TYPE);
+    expect(await screen.findByRole('group', { name: 'AI visibility rate (headline)' })).toHaveAttribute(
+      'data-card',
+      TYPE,
+    );
     const labels = [...(await tiles()).querySelectorAll('span.type-label')].map((label) => label.textContent);
     expect(labels).toEqual([
       'Mention rate',
@@ -158,7 +161,9 @@ describe('HeadlineCard', () => {
     serve();
     renderCard('&engine=google_ai_mode');
     expect(await screen.findByText('Not available for this scope')).toBeInTheDocument();
-    expect(screen.getAllByText(/Headline numbers is not measured on Google AI Mode/).length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText(/AI visibility rate \(headline\) is not measured on Google AI Mode/).length,
+    ).toBeGreaterThan(0);
   });
 
   it('a platform under 4 valid answers has no rate, says how many it has, and is not a 0', async () => {

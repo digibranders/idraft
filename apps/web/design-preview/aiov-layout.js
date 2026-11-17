@@ -19,7 +19,7 @@ const doc = (list) => ({ schema: 1, cards: list.map(([key, width]) => card(key, 
 export const PRESETS = {
   default: {
     label: 'Default',
-    description: 'One card for each section of the sheet: headline, competitors, groups, citations, position, sentiment, traffic, fan-out.',
+    description: 'One card for each section of the sheet: headline, competitors, groups, citations, mention position, sentiment, AI referral visits, fan-out queries.',
     document: doc([
       ['ai.visibility_split', 'full'],
       ['ai.rate_trend_by_engine', 'two_thirds'],
@@ -52,7 +52,7 @@ export const PRESETS = {
   },
   analyst: {
     label: 'Analyst',
-    description: 'Position, sentiment, unlinked mentions, your cited pages and collection health.',
+    description: 'Mention position, sentiment, mentions without a citation, your cited pages and run health.',
     document: doc([
       ['ai.visibility_split', 'full'],
       ['ai.rate_trend_by_engine', 'two_thirds'],
@@ -69,7 +69,7 @@ export const PRESETS = {
   },
   competitive: {
     label: 'Competitive',
-    description: 'Share of voice, the gap to each competitor and the sources behind it.',
+    description: 'Share of voice, the gap to each competitor and the cited domains behind it.',
     document: doc([
       ['ai.visibility_split', 'full'],
       ['ai.rate_trend_by_engine', 'two_thirds'],

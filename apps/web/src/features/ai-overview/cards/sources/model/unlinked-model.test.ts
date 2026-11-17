@@ -35,14 +35,37 @@ describe('unlinkedPrompts', () => {
     expect(unlinkedPrompts(rows, ['chatgpt_web']).map((entry) => entry.text)).toEqual(['Prompt 3']);
   });
 
-  it('counts only the platforms in scope, adds their counts, and keeps six prompts at most', () => {
+  it('ranks on the equal-weight average of the platforms rates, never on counts added across platforms (R3)', () => {
+    // ChatGPT 2 of 6 (33%) and Gemini 3 of 30 (10%): the average is 21.7%; pooled it would be 5 of 36 (14%)
+    const both = promptRow(1, [...prompt(1, 'chatgpt_web', 6, 2).engines, ...prompt(1, 'gemini_web', 30, 3).engines]);
+    // A second prompt on ChatGPT alone at 25% comes first, above the 21.7% of the first
+    const single = { ...prompt(2, 'chatgpt_web', 8, 2), text: 'Single' };
+    const [first, second] = unlinkedPrompts([{ ...both, text: 'Both' }, single], ['chatgpt_web', 'gemini_web']);
+    expect(first?.text).toBe('Single');
+    expect(second?.text).toBe('Both');
+    expect(second?.rate).toBeCloseTo((2 / 6 + 3 / 30) / 2);
+    expect(second?.counts).toEqual([
+      { code: 'chatgpt_web', k: 2, n: 6 },
+      { code: 'gemini_web', k: 3, n: 30 },
+    ]);
+  });
+
+  it('ranks on the one platform when the scope is one platform', () => {
     const both = promptRow(1, [...prompt(1, 'chatgpt_web', 6, 2).engines, ...prompt(1, 'gemini_web', 6, 1).engines]);
-    expect(unlinkedPrompts([{ ...both, text: 'Both' }], ['chatgpt_web', 'gemini_web'])).toEqual([
-      { id: both.prompt_id, text: 'Both', unlinked: 3, answers: 12 },
-    ]);
     expect(unlinkedPrompts([{ ...both, text: 'Both' }], ['gemini_web'])).toEqual([
-      { id: both.prompt_id, text: 'Both', unlinked: 1, answers: 6 },
+      { id: both.prompt_id, text: 'Both', rate: 1 / 6, counts: [{ code: 'gemini_web', k: 1, n: 6 }], leftOut: [] },
     ]);
+  });
+
+  it('leaves out, and names, a platform with fewer than 4 valid answers for the prompt', () => {
+    const both = promptRow(1, [...prompt(1, 'chatgpt_web', 8, 2).engines, ...prompt(1, 'gemini_web', 3, 2).engines]);
+    const [row] = unlinkedPrompts([{ ...both, text: 'Both' }], ['chatgpt_web', 'gemini_web']);
+    expect(row?.rate).toBeCloseTo(0.25);
+    expect(row?.counts).toEqual([{ code: 'chatgpt_web', k: 2, n: 8 }]);
+    expect(row?.leftOut).toEqual(['gemini_web']);
+  });
+
+  it('keeps six prompts at most', () => {
     const many = Array.from({ length: 9 }, (_, index) => prompt(index + 1, 'chatgpt_web', 10, 1));
     expect(unlinkedPrompts(many, ['chatgpt_web'])).toHaveLength(6);
   });

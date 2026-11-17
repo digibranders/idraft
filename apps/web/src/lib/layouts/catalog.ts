@@ -189,7 +189,7 @@ function drawerCard(
 const AI_OVERVIEW_CARDS: ReadonlyArray<CardTypeDefinition> = [
   aiCard(
     'ai.visibility_split',
-    'Headline numbers',
+    'AI visibility rate (headline)',
     'AI visibility rate with its four outcomes, and the key numbers beside it.',
     'ai',
     ['full'],
@@ -205,7 +205,7 @@ const AI_OVERVIEW_CARDS: ReadonlyArray<CardTypeDefinition> = [
   ),
   aiCard(
     'ai.rate_trend_by_engine',
-    'Rates by platform over time',
+    'Rate by platform over time',
     'How each platform’s rate moved week by week, with its interval.',
     'ai',
     ['two_thirds', 'full', 'half'],
@@ -213,7 +213,7 @@ const AI_OVERVIEW_CARDS: ReadonlyArray<CardTypeDefinition> = [
   ),
   aiCard(
     'ai.outcome_mix',
-    'Mentioned and cited',
+    'Outcome split by platform',
     'How answers split between mentioned and cited, mentioned only, cited only and neither.',
     'ai',
     ['third', 'half'],
@@ -267,7 +267,7 @@ const AI_OVERVIEW_CARDS: ReadonlyArray<CardTypeDefinition> = [
   ),
   aiCard(
     'ai.lost_to_competitor',
-    'Competitor gap',
+    'Lost to competitor',
     'For each competitor, the prompts where they are mentioned more often than you, and where you lead.',
     'ai',
     ['half', 'full'],

@@ -26,7 +26,7 @@ const lines = (text) => text.split('\n').map((line) => line.trim()).filter(Boole
 
 function report(result) {
   const parts = result.countries
-    ? [`${plural(result.keywords, 'keyword')} in ${plural(result.countries, 'country')} on ${plural(result.devices, 'device')}: ${plural(result.checks, 'check')} a day`]
+    ? [`${plural(result.keywords, 'keyword')} in ${plural(result.countries, 'location')} on ${plural(result.devices, 'device')}: ${plural(result.checks, 'check')} a day`]
     : [`${plural(result.added, 'keyword')} added`];
   if (result.skipped > 0) parts.push(`${plural(result.skipped, 'keyword')} already tracked`);
   toast({ title: 'Keywords added', description: `${parts.join('. ')}. Their first check runs within minutes.`, tone: 'success' });
@@ -40,7 +40,7 @@ function countryPicker(chosen, onChange) {
   const wrap = el('div', 'flex flex-col gap-1');
   const trigger = el('button', `${INPUT} flex items-center gap-2 text-left h-auto min-h-control py-1.5`);
   trigger.type = 'button';
-  trigger.setAttribute('aria-label', 'Countries');
+  trigger.setAttribute('aria-label', 'Locations');
   trigger.setAttribute('aria-expanded', 'false');
   const summary = el('span', 'flex flex-1 flex-wrap items-center gap-1.5 min-w-0');
   trigger.append(summary, icon('chevron-down', 'size-icon-sm shrink-0 text-foreground-tertiary'));
@@ -53,7 +53,7 @@ function countryPicker(chosen, onChange) {
   const list = el('div', 'flex max-h-44 flex-col overflow-auto');
   const drawSummary = () => {
     summary.replaceChildren();
-    if (chosen.size === 0) summary.append(el('span', 'text-foreground-tertiary', 'Choose countries'));
+    if (chosen.size === 0) summary.append(el('span', 'text-foreground-tertiary', 'Choose locations'));
     chosen.forEach((name) => summary.append(el('span', 'h-6 px-2 rounded-sm bg-neutral-subtle text-neutral-text type-label flex items-center', name)));
   };
   const drawList = () => {
@@ -115,10 +115,10 @@ export function openAdd({ group = UNGROUPED, countries = [] } = {}) {
     const over = used + checks > PLAN_LIMIT;
     const daily = checks * CHECK_COST_USD;
     plan.replaceChildren();
-    if (checks === 0) plan.append(el('span', '', 'Each keyword is checked once a day for every country and device chosen.'));
+    if (checks === 0) plan.append(el('span', '', 'Each keyword is checked once a day for every location and device chosen.'));
     else {
       plan.append(
-        el('span', 'type-body-strong text-foreground', `${plural(total, 'keyword')} × ${plural(chosenDevices().length, 'device')} × ${plural(chosen.size, 'country')} = ${plural(checks, 'check')} a day`),
+        el('span', 'type-body-strong text-foreground', `${plural(total, 'keyword')} × ${plural(chosenDevices().length, 'device')} × ${plural(chosen.size, 'location')} = ${plural(checks, 'check')} a day`),
         el('span', '', `Estimated cost about $${daily.toFixed(2)} a day, $${(daily * 30).toFixed(2)} a month, at $${CHECK_COST_USD} a check.`),
         el('span', over ? 'text-negative-text' : '', over ? `This passes the plan's ${PLAN_LIMIT.toLocaleString('en-US')} tracked keywords: ${used.toLocaleString('en-US')} are used and this adds ${checks.toLocaleString('en-US')}.` : `Plan: ${used.toLocaleString('en-US')} of ${PLAN_LIMIT.toLocaleString('en-US')} tracked keywords used, ${(used + checks).toLocaleString('en-US')} after this.`),
       );
@@ -132,7 +132,7 @@ export function openAdd({ group = UNGROUPED, countries = [] } = {}) {
     frame.close();
     refresh();
   });
-  frame.body.append(field('Keywords', text), count, field('Countries', countryField, { hint: 'A keyword is tracked in each country you choose, on each device.' }), field('Group', groupField, { hint: 'Keywords with no group are listed as not grouped.' }));
+  frame.body.append(field('Keywords', text), count, field('Locations', countryField, { hint: 'A keyword is tracked in each location you choose, on each device.' }), field('Group', groupField, { hint: 'Keywords with no group are listed as not grouped.' }));
   const row = el('fieldset', 'flex flex-col gap-1');
   row.append(el('legend', 'type-label mb-1', 'Track on'), desktop, mobile, error);
   frame.body.append(row, plan);

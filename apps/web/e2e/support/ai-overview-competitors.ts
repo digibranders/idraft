@@ -31,7 +31,8 @@ export const PRESET_FAMILY = {
 // -------------------------------------------------------------------------------------------------
 // Locators
 
-export const pageHeading = (page: Page): Locator => page.getByRole('heading', { level: 1, name: 'AI visibility' });
+export const pageHeading = (page: Page): Locator =>
+  page.getByRole('heading', { level: 1, name: 'AI visibility overview' });
 export const cardGrid = (page: Page): Locator => page.getByRole('region', { name: 'AI visibility cards', exact: true });
 export const cardById = (page: Page, id: string): Locator => cardGrid(page).locator(`[data-layout-card="${id}"]`);
 /** A card by the title of its frame; two cards may share a title, so a preset card is better found by id. */
@@ -47,7 +48,7 @@ const polite = (page: Page): Locator => page.locator('#live-region-polite');
 export const familyCards = (page: Page): ReadonlyArray<{ name: string; card: Locator }> => [
   { name: 'Share of voice', card: cardById(page, PRESET_FAMILY.shareOfVoice) },
   { name: 'Share of voice over time', card: cardById(page, PRESET_FAMILY.overTime) },
-  { name: 'Competitor gap', card: cardById(page, PRESET_FAMILY.lostTo) },
+  { name: 'Lost to competitor', card: cardById(page, PRESET_FAMILY.lostTo) },
 ];
 
 /** The Table view button of a card: the toggle in the group "<title> view" of its frame. */

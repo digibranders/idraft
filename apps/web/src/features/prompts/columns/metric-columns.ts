@@ -3,7 +3,7 @@ import type { PromptRow } from '../prompt-columns';
 import { cellsOfPrompt } from '../prompt-model';
 import { COLUMN_AFTER, type PromptColumnContext, type PromptColumnEntry } from '../seams/columns';
 import { intentColumn } from './intent-column';
-import type { MetricContext } from './metric-shared';
+import { ownEntityIdsOf, type MetricContext } from './metric-shared';
 import { positionColumn } from './position-column';
 import { recommendationColumn } from './recommendation-column';
 import { sentimentColumn } from './sentiment-column';
@@ -11,11 +11,12 @@ import { shareOfVoiceColumn } from './sov-column';
 import { volumeColumn } from './volume-column';
 import type { DataTableColumn } from '@/components/app/data-table/types';
 
-const metricContext = ({ t, locale, engines, scope }: PromptColumnContext): MetricContext => ({
+const metricContext = ({ t, locale, engines, scope, facts }: PromptColumnContext): MetricContext => ({
   t,
   locale,
   engines,
   scope,
+  ownEntityIds: ownEntityIdsOf(facts?.entities),
 });
 
 const NO_ANSWERS: FactsRow = { engines: [] };

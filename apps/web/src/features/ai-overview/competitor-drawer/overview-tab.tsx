@@ -4,6 +4,7 @@ import { Layers, Scale } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useMemo, type ReactElement } from 'react';
 
+import type { CitationShare } from './data/citation-share';
 import { useCitationShare } from './data/use-citation-share';
 import { useScopeParts } from './data/use-scope-parts';
 import { useEveryPlatformRead, useWeeklyReads, type CompetitorRead } from './data/use-competitor-read';
@@ -108,7 +109,7 @@ function SummaryCard({
 }: {
   read: CompetitorRead;
   competitor: TrackedEntity;
-  citation: Read<{ own: number | null; rival: number | null }>;
+  citation: Read<CitationShare>;
 }): ReactElement {
   const t = useTranslations('aiOverview.competitorDrawer');
   const slots = read.set === null ? null : colorSlots(read.set);
@@ -131,9 +132,11 @@ function SummaryCard({
   const valueTip = (figure: Figure, kind: 'mention' | 'share', platforms: number): string | null => {
     if (read.platforms.average) return t('summary.valueAverage', { count: platforms });
     if (figure.answers === null) return null;
-    return kind === 'mention' && figure.successes !== null
-      ? t('summary.valueMention', { k: figure.successes, n: figure.answers })
-      : t('summary.valueShare', { n: figure.answers });
+    if (figure.successes === null) return null;
+    return t(kind === 'mention' ? 'summary.valueMention' : 'summary.valueShare', {
+      k: figure.successes,
+      n: figure.answers,
+    });
   };
   const rows =
     comparison === null
@@ -165,8 +168,18 @@ function SummaryCard({
             id: 'citation',
             label: t('summary.citation'),
             tip: t('summary.citationTip'),
-            own: { value: citation.data?.own ?? null, answers: null, successes: null },
-            rival: { value: citation.data?.rival ?? null, answers: null, successes: null },
+            own: {
+              value: citation.data?.own ?? null,
+              answers: null,
+              successes: null,
+              counts: citation.data?.ownCounts ?? null,
+            },
+            rival: {
+              value: citation.data?.rival ?? null,
+              answers: null,
+              successes: null,
+              counts: citation.data?.rivalCounts ?? null,
+            },
             ownTip: null,
             rivalTip: null,
             decimals: 1 as const,
@@ -226,7 +239,14 @@ function SummaryCard({
               <ValueCell value={row.own.value} tip={row.ownTip} decimals={row.decimals} state={row.state} />
               <ValueCell value={row.rival.value} tip={row.rivalTip} decimals={row.decimals} state={row.state} />
               <td className="px-3 pr-4 text-right">
-                <GapCell own={row.own.value} rival={row.rival.value} name={competitor.name} decimals={row.decimals} />
+                <GapCell
+                  own={row.own.value}
+                  rival={row.rival.value}
+                  ownCounts={row.own.counts}
+                  rivalCounts={row.rival.counts}
+                  name={competitor.name}
+                  decimals={row.decimals}
+                />
               </td>
             </tr>
           ))}
@@ -273,7 +293,10 @@ function TrendCard({
     variant: 'inspector' as const,
     title: t('trend.title'),
     meta: t('trend.meta'),
-    info: { what: t('trend.info.what'), how: t('trend.info.how', { days: scope.range.days }) },
+    info: {
+      what: t('trend.info.what'),
+      how: t('trend.info.how', { days: scope.range.days, weeks: weeks.length, compare: String(scope.compare) }),
+    },
     height: 180 as const,
     summary: t('trend.label', { name: competitor.name, count: weeks.length }),
     categories,
@@ -366,7 +389,13 @@ function PlatformsCard({
               <ValueCell value={row.own} tip={null} />
               <ValueCell value={row.rival} tip={null} />
               <td className="px-3 pr-4 text-right">
-                <GapCell own={row.own} rival={row.rival} name={competitor.name} />
+                <GapCell
+                  own={row.own}
+                  rival={row.rival}
+                  ownCounts={row.ownCounts}
+                  rivalCounts={row.rivalCounts}
+                  name={competitor.name}
+                />
               </td>
             </tr>
           ))}

@@ -85,7 +85,7 @@ const labels = (items: HTMLElement): string[] =>
 describe('the strongest and weakest groups', () => {
   it('lists 3 a side for 6 groups, strongest high to low and weakest low to high, by the platform average', async () => {
     render();
-    expect(await screen.findByRole('heading', { name: 'Top and bottom groups' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Strongest and weakest groups' })).toBeInTheDocument();
     const strongest = await list(/^Strongest groups by AI visibility rate/);
     expect(labels(strongest)).toEqual(['Alpha', 'Bravo', 'Charlie']);
     const weakest = await list(/^Weakest groups by AI visibility rate/);
@@ -119,7 +119,7 @@ describe('the strongest and weakest groups', () => {
   it('keeps the card info behind the i button', async () => {
     const { user } = render();
     await list(/^Strongest groups/);
-    await user.click(await screen.findByRole('button', { name: 'About Top and bottom groups' }));
+    await user.click(await screen.findByRole('button', { name: 'About Strongest and weakest groups' }));
     expect(await screen.findByText('The groups where your brand does best and worst.')).toBeInTheDocument();
   });
 });
@@ -159,9 +159,15 @@ describe('with one group chosen: the group against all groups', () => {
     render({ searchParams: GROUP });
     await screen.findByRole('heading', { name: 'Alpha vs all groups' });
     // Alpha is 90% on ChatGPT against 40% of all groups
+    // 9 of 10 answers against all groups' counts: detectable, so the icon is coloured and the words say so
     expect(
-      await screen.findByText('Alpha is 50.0 pts above all groups: 90% against 40%. Not tested for detectability.'),
-    ).toBeInTheDocument();
+      (
+        await screen.findAllByText(
+          'Alpha is 50.0 pts above all groups: 90% against 40%. Detectable: its 95% interval excludes zero.',
+        )
+      ).length,
+    ).toBeGreaterThan(0);
+    expect(document.querySelector('[data-slot="gap-icon"][data-direction="up"]')).not.toBeNull();
   });
 
   it('has the counts of every rate in its tooltip text for screen readers', async () => {

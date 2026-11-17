@@ -14,7 +14,17 @@ export interface MetricContext {
   engines: readonly ProjectEngine[];
   /** Their codes, in the same order. */
   scope: readonly string[];
+  /** The tracked entities that are the own brand, for the counts of share of voice; `undefined` until the read has them. */
+  ownEntityIds?: ReadonlySet<string> | undefined;
 }
+
+/** The own entities of a summary's tracked set, or `undefined` while there is none to look at. */
+export const ownEntityIdsOf = (
+  entities: readonly { entity_id: string; role: string }[] | undefined,
+): ReadonlySet<string> | undefined =>
+  entities === undefined
+    ? undefined
+    : new Set(entities.filter((entity) => entity.role === 'own').map((entity) => entity.entity_id));
 
 /**
  * Whether the facts of a row were read and hold no entry for any platform in view: the row has no answer there. An entry

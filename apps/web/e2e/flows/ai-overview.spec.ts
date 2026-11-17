@@ -102,9 +102,10 @@ test.describe('the AI visibility Overview', () => {
     await page.goto(PROMPTS_PATH);
     const link = overviewLink(page);
     await expect(link).toHaveAttribute('href', '/digibranders/fynix/ai');
+    // The group heading and its item both read "AI visibility"
     await expect(
       page.getByRole('navigation', { name: 'Primary' }).getByText('AI visibility', { exact: true }),
-    ).toBeVisible();
+    ).toHaveCount(2);
     await expect(link).not.toHaveAttribute('aria-current', 'page');
     await link.click();
     await expect(page).toHaveURL(/\/digibranders\/fynix\/ai$/);
@@ -119,7 +120,7 @@ test.describe('the AI visibility Overview', () => {
     await openOverview(page, 'Fynix');
 
     await test.step('the header names the page and the freshness line does not change with the scope', async () => {
-      await expect(pageHeading(page)).toHaveText('AI visibility');
+      await expect(pageHeading(page)).toHaveText('AI visibility overview');
       await expect(metaLine(page)).toHaveCount(1);
       await expect(metaLine(page)).toContainText(/^AI updated /);
       await expect(metaLine(page)).not.toContainText('prompts');

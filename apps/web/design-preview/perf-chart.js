@@ -95,7 +95,7 @@ function provisionalArea(bucket) {
 function valueRow(key, param, bucket) {
   const isPrevious = param.seriesName.endsWith(' before');
   const when = isPrevious ? bucket.prevDates[param.dataIndex] : bucket.curDates[param.dataIndex];
-  const value = param.value === null || param.value === undefined ? 'No data' : formatMetric(key, param.value);
+  const value = param.value === null || param.value === undefined ? 'Not collected yet' : formatMetric(key, param.value);
   return { color: param.color, name: isPrevious ? `Before (${when})` : `${METRICS[key].label} (${when})`, value };
 }
 
@@ -215,8 +215,8 @@ function seriesTable(spec) {
     row.append(el('td', 'px-3 whitespace-nowrap', label));
     spec.metrics.forEach((metric) => {
       const bucket = spec.buckets[metric.key];
-      row.append(el('td', 'px-3 num', bucket.cur[index] === null ? 'No data' : formatMetric(metric.key, bucket.cur[index])));
-      if (bucket.prev) row.append(el('td', 'px-3 num text-foreground-tertiary', bucket.prev[index] === null ? 'No data' : formatMetric(metric.key, bucket.prev[index])));
+      row.append(el('td', 'px-3 num', bucket.cur[index] === null ? 'Not collected yet' : formatMetric(metric.key, bucket.cur[index])));
+      if (bucket.prev) row.append(el('td', 'px-3 num text-foreground-tertiary', bucket.prev[index] === null ? 'Not collected yet' : formatMetric(metric.key, bucket.prev[index])));
     });
     body.append(row);
   });

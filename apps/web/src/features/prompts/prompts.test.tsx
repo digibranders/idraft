@@ -1,4 +1,4 @@
-import { act, screen, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { Suspense, type ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -1052,10 +1052,9 @@ describe('Prompts: Mentioned and Cited per platform, filters and sort', () => {
       searchParams: `?topic=${idOf(3, 1)}&country=AT`,
     });
     expect(await screen.findByRole('heading', { name: NO_MATCH_TITLE })).toBeInTheDocument();
-    // The filter bar has the same button, above the empty state's
-    const clears = screen.getAllByRole('button', { name: 'Clear filters' });
-    expect(clears).toHaveLength(2);
-    await user.click(clears[1] as HTMLElement);
+    // The filter bar has its own button, Reset filters, above the empty state's Clear filters
+    expect(screen.getAllByRole('button', { name: 'Reset filters' })).toHaveLength(1);
+    await user.click(screen.getByRole('button', { name: 'Clear filters' }));
     const table = await grid();
     expect(await within(table).findByText('Question number 1?')).toBeInTheDocument();
     expect(within(table).getByText('Question number 2?')).toBeInTheDocument();
@@ -1159,14 +1158,38 @@ describe('Prompts: Mentioned and Cited per platform, filters and sort', () => {
       ]);
     });
 
-    it('keeps a sort on a column the chooser leaves out in the link, applies the default order, and applies it once the column is shown', async () => {
+    it('drops a sort on a column that is not shown from the link and applies the default order; the column in view keeps its sort', async () => {
       serve();
-      const hidden = renderOnPrompts(promptsAs('viewer'), { searchParams: '?sort=chatgpt_web_rate' });
+      const writes: string[] = [];
+      const hidden = renderOnPrompts(promptsAs('viewer'), {
+        searchParams: '?sort=chatgpt_web_rate',
+        onUrlUpdate: ({ queryString }) => writes.push(queryString),
+      });
       // The default order: the highest Mention rate first, not the order of the hidden platform column
       expect((await order())[0]).toBe('Question number 2?');
+      // The address says what the table does: the stale sort is gone
+      await waitFor(() => expect(writes.at(-1)).not.toContain('sort='));
       hidden.unmount();
       renderOnPrompts(promptsAs('viewer'), { searchParams: `?sort=chatgpt_web_rate&${PLATFORM_COLUMNS}` });
       expect((await order())[0]).toBe('Question number 3?');
+    });
+
+    it('keeps ordering by Mention rate, highest first, while that column is hidden: no header is marked and the address has no sort', async () => {
+      serve();
+      const writes: string[] = [];
+      renderOnPrompts(promptsAs('viewer'), {
+        searchParams: '?cols=prompt,citation&sort=topic',
+        onUrlUpdate: ({ queryString }) => writes.push(queryString),
+      });
+      expect((await order())[0]).toBe('Question number 2?');
+      const table = await grid();
+      expect(within(table).queryByRole('columnheader', { name: /^Mention rate/ })).toBeNull();
+      expect(
+        within(table)
+          .getAllByRole('columnheader')
+          .filter((header) => header.getAttribute('aria-sort') !== null && header.getAttribute('aria-sort') !== 'none'),
+      ).toEqual([]);
+      await waitFor(() => expect(writes.at(-1)).not.toContain('sort='));
     });
 
     it('sorts rates a text order would get wrong: 5, 10, 25, 50 and 100 percent', async () => {
@@ -2118,7 +2141,7 @@ describe('Prompts: the metric strip', () => {
     expect(gemini).toHaveTextContent(/^2 answers$/);
     expect(prompts).toHaveAccessibleDescription('Across 2 groups');
     expect(chatgpt).toHaveAccessibleDescription(
-      'ChatGPT. AI visibility rate (mentioned or cited): 9 of 12 answers. Mentioned: 8 of 12 answers. Cited: 6 of 12 answers. Over 3 prompts, each counted once. Share of voice: 8 answers that mention a brand.',
+      'ChatGPT. AI visibility rate (mentioned or cited): 9 of 12 answers. Mentioned: 8 of 12 answers. Cited: 6 of 12 answers. Over 3 prompts, each counted once. Share of voice: Not collected yet.',
     );
     // The two platforms this project has off keep their place, and say they are not collected, never a number
     expect(aiMode).toHaveTextContent(/^n\/a$/);
@@ -2195,7 +2218,7 @@ describe('Prompts: the metric strip', () => {
     expect(within(gemini).getByText('2 answers')).toHaveClass('bg-insufficient');
     expect(gemini).not.toHaveTextContent('%');
     expect(gemini).toHaveAccessibleDescription(
-      'Gemini. AI visibility rate (mentioned or cited): 1 of 2 answers, too few for a rate. Mentioned: 1 of 2 answers, too few for a rate. Cited: 0 of 2 answers, too few for a rate. Over 1 prompt, each counted once. Share of voice: no brand mentioned.',
+      'Gemini. AI visibility rate (mentioned or cited): 1 of 2 answers, too few for a rate. Mentioned: 1 of 2 answers, too few for a rate. Cited: 0 of 2 answers, too few for a rate. Over 1 prompt, each counted once. Share of voice: Not collected yet.',
     );
   });
 
@@ -2924,7 +2947,7 @@ describe('Prompts: the Platform select and the controls row', () => {
     expect(await platform()).toHaveTextContent('All platforms');
   });
 
-  it('takes a Platform filter that names every platform that is on for All platforms: no chip, no Clear filters, and the address drops it', async () => {
+  it('takes a Platform filter that names every platform that is on for All platforms: no chip, no Reset filters, and the address drops it', async () => {
     const writes: string[] = [];
     renderOnPrompts(promptsAs('viewer'), {
       searchParams: '?engine=chatgpt_web,gemini_web',
@@ -2934,7 +2957,7 @@ describe('Prompts: the Platform select and the controls row', () => {
     await vi.waitFor(() => expect(writes.length).toBeGreaterThan(0));
     expect(lastEngine(writes)).toBeNull();
     expect(screen.queryByRole('button', { name: /^Platform:/ })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Clear filters' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Reset filters' })).toBeNull();
   });
 
   it('puts the status, the update time, More actions and Add prompts at the right edge of the row', async () => {

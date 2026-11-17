@@ -204,6 +204,37 @@ Smallest change: add `run_number` (an integer that counts the collecting runs of
 `engine_codes` (the platforms the run asked) so a platform's last run is the newest run whose `engine_codes` holds it.
 The web then writes `Run 48` and the per-platform time. Until then the line and the tooltip carry no run number.
 
+## 13. Share of voice as brand-mention counts (D17)
+
+What: the owner decided on 2026-11-17 (D17) that share of voice is the brand's mentions over all tracked-brand
+mentions, and that the web always writes it as "x of y brand mentions" beside the percent (`docs/16-metrics-methodology.md`
+section 5, `docs/glossary/terms.md` M5).
+
+Today: the `share_of_voice` cell (`EngineSummary`, `EntityCells`, `WeekCells`, `SummaryTotal`) is the old equal split:
+its numerator is a sum of `1 / (tracked brands the answer names)` and its denominator the valid answers that name a
+tracked brand, so it holds no count of brand mentions and the web cannot write "x of y brand mentions" from it. The
+`entities[].mentioned` cells do hold the counts (answers that name each tracked brand), which the web sums to build x
+and y where a read carries `include=entities`; that is capped at 20 entities, own ones first, so a project with more
+tracked brands gets a y that is too small.
+
+Smallest change: make the `share_of_voice` cell of every block above a count share. `numerator` is the brand's
+mentions (the valid answers that name it, summed over prompts for a topic row or the total, never prompt weighted, no
+`pooled`), `denominator` the sum of those numerators over every tracked entity of the set, `value` their ratio, null
+when the denominator is under 4 (R2). The own brand's cell sums its own entities. Do it for the weekly points of
+`include=series,entities` too (item 10), and add `n_observations` as today. Keep the key name, so the web reads the
+same field and drops its derivation.
+
+Until it lands the web derives the share from `entities[].mentioned` where it has them (the Overview competitor cards,
+the competitor drawer, the Prompts page cells) and writes "Not collected yet" for the whole figure where it has not
+(a read without `include=entities`, the weekly lines). It never writes a percent without its counts.
+
+Not yet moved to the count share (they still read the old cell and say so in their tooltips until this item lands, then
+they switch with no web change to the cell): the headline tile and the by-platform, trend, location and period
+comparison cards of the Overview, Share of voice over time, the group cards (heat map, extremes, movers, versus), the
+share-of-voice metric of the group drawer and its Competitors tab, and the Groups tab platform columns and heat map
+for that metric. Done: the Overview competitor cards, the competitor drawer, the Prompts page Share of voice column
+(prompts and groups) and the strip tooltip. Each is listed in the report of the statistics package of 2026-11-17.
+
 ## What the web does until each item lands
 
 | Item | Card state until the backend lands |
@@ -219,3 +250,4 @@ The web then writes `Run 48` and the per-platform time. Until then the line and 
 | 10 | Share of voice over time and the competitor trend say "not collected yet" |
 | 11 | The three tiles have no line |
 | 12 | The status line and the Runs tile tooltip carry no run number and no per-platform time |
+| 13 | Share of voice is derived from the entity mention cells; where there are none it says "Not collected yet" |

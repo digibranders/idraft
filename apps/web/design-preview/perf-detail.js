@@ -152,7 +152,7 @@ export function createDetail({ get, set, shell, pageId, onClose, onStep, canStep
     box.checked = checked;
     box.disabled = disabled;
     box.setAttribute('aria-label', `Show ${info.label} in the chart`);
-    if (!tile) box.dataset.tip = MORE_NOTES[key] ?? 'No data for this page';
+    if (!tile) box.dataset.tip = MORE_NOTES[key] ?? 'Not collected yet for this page';
     else if (disabled) box.dataset.tip = 'Up to 4 metrics at once';
     box.addEventListener('change', () => {
       const metrics = box.checked ? [...state.metrics, key] : state.metrics.filter((item) => item !== key);
@@ -169,12 +169,12 @@ export function createDetail({ get, set, shell, pageId, onClose, onStep, canStep
     card.append(head);
     if (info.source !== 'gsc') card.append(el('span', 'type-micro text-foreground-tertiary truncate', SOURCES[info.source]));
     if (!tile) {
-      card.append(el('span', 'type-body text-foreground-tertiary', 'No data'), el('span', 'type-meta', MORE_NOTES[key] ?? 'Nothing recorded for this page.'));
+      card.append(el('span', 'type-body text-foreground-tertiary', 'Not collected yet'), el('span', 'type-meta', MORE_NOTES[key] ?? 'Nothing recorded for this page.'));
       return card;
     }
     card.append(el('span', 'type-metric num', formatMetric(key, tile.cur)));
     if (tile.prev !== null) card.append(el('span', 'type-meta num', `vs ${formatMetric(key, tile.prev)}`));
-    if (tile.change && tile.change.text !== 'No data') card.append(changeSpan(tile.change));
+    if (tile.change && tile.change.text !== 'Not collected yet') card.append(changeSpan(tile.change));
     return card;
   }
 
@@ -204,7 +204,7 @@ export function createDetail({ get, set, shell, pageId, onClose, onStep, canStep
           set({ extras, metrics: checked ? get().metrics : get().metrics.filter((item) => item !== key) });
         })));
       });
-      panel.append(el('p', 'px-2 py-1 type-meta', 'Each source is labeled and never added to Google numbers.'));
+      panel.append(el('p', 'px-2 py-1 type-meta', 'Each data source is labeled and never added to Google numbers.'));
     }, { label: 'More metrics' });
     bar.append(more);
     tiles.append(bar, grid);
@@ -239,7 +239,7 @@ export function createDetail({ get, set, shell, pageId, onClose, onStep, canStep
   }
 
   // --- What changed
-  const BREAKDOWN_TABS = [['countries', 'Countries'], ['devices', 'Devices'], ['queries', 'Queries'], ['appearance', 'Search appearance']];
+  const BREAKDOWN_TABS = [['countries', 'Locations'], ['devices', 'Devices'], ['queries', 'Queries'], ['appearance', 'Search appearance']];
 
   function renderChanged(state, ranges) {
     changed.replaceChildren();
@@ -317,9 +317,9 @@ export function createDetail({ get, set, shell, pageId, onClose, onStep, canStep
     });
     rows.sort((a, b) => (additive ? Math.abs(b.delta) - Math.abs(a.delta) : (b.cur ?? 0) - (a.cur ?? 0)));
     const net = rows.reduce((sum, row) => sum + row.delta, 0);
-    const { wrap, tbody } = tableShell([[state.tab === 'countries' ? 'Country' : 'Device'], [`${METRICS[metric].label} now`], ['Before'], ['Change'], [additive ? 'Share of the change' : '']]);
+    const { wrap, tbody } = tableShell([[state.tab === 'countries' ? 'Location' : 'Device'], [`${METRICS[metric].label} now`], ['Before'], ['Change'], [additive ? 'Share of the change' : '']]);
     const visible = rows.filter((row) => row.cur !== null || row.prev !== null).slice(0, 12);
-    if (visible.length === 0) content.append(el('p', 'type-body text-foreground-secondary py-4', 'No data for these filters.'));
+    if (visible.length === 0) content.append(el('p', 'type-body text-foreground-secondary py-4', 'Not collected yet for these filters.'));
     visible.forEach((row) => {
       const tr = el('tr', 'h-row-compact border-t border-border-subtle hover:bg-surface-hover');
       const name = state.tab === 'countries' ? countryName(row.key) : deviceName(row.key);
@@ -337,7 +337,7 @@ export function createDetail({ get, set, shell, pageId, onClose, onStep, canStep
         : before && row.cur !== null && row.prev !== null
           ? { text: metric === 'position' ? `${row.delta < 0 ? 'improved' : 'slipped'} ${Math.abs(row.delta).toFixed(1)}` : signed(row.delta, `${Math.abs(row.delta * 100).toFixed(1)} pts`), tone: Math.abs(row.delta) < 0.001 ? 'neutral' : (metric === 'position' ? row.delta < 0 : row.delta > 0) ? 'positive' : 'negative' }
           : null;
-      const cells = [first, el('td', 'px-3 num', row.cur === null ? 'No data' : formatMetric(metric, row.cur)), el('td', 'px-3 num text-foreground-secondary', row.prev === null ? '' : formatMetric(metric, row.prev))];
+      const cells = [first, el('td', 'px-3 num', row.cur === null ? 'Not collected yet' : formatMetric(metric, row.cur)), el('td', 'px-3 num text-foreground-secondary', row.prev === null ? '' : formatMetric(metric, row.prev))];
       const changeCell = el('td', 'px-3');
       if (change) changeCell.append(changeSpan({ ...change, note: null }));
       const shareCell = el('td', 'px-3');
@@ -357,14 +357,14 @@ export function createDetail({ get, set, shell, pageId, onClose, onStep, canStep
     const key = `${pageId}|${state.tab}|${state.type}|${state.period}|${state.compare}|${state.provisional}|${[...state.countries]}|${[...state.devices]}|${state.query?.op}:${state.query?.value}`;
     if (state.review === 'quota') {
       const retry = el('div', 'rounded-lg border border-warning-border bg-warning-subtle px-4 py-3 flex items-center gap-3');
-      retry.append(icon('triangle-alert', 'size-icon text-warning-text shrink-0'), el('span', 'type-body text-foreground', 'Google is busy. Retrying in 20 seconds. The countries and devices tabs keep working.'), button('Retry now', { className: `${BUTTON_SM} ml-auto`, onClick: () => set({ review: 'connected' }) }));
+      retry.append(icon('triangle-alert', 'size-icon text-warning-text shrink-0'), el('span', 'type-body text-foreground', 'Google is busy. Retrying in 20 seconds. The locations and devices tabs keep working.'), button('Retry now', { className: `${BUTTON_SM} ml-auto`, onClick: () => set({ review: 'connected' }) }));
       content.append(retry);
       return;
     }
     const cached = liveCache.get(key);
     let result = cached?.result;
     if (!result) {
-      const skeleton = tableShell([['Query'], ['Clicks now'], ['Before'], ['Change'], ['Position']]);
+      const skeleton = tableShell([['Query'], ['Clicks now'], ['Before'], ['Change'], ['Average position']]);
       skeleton.tbody.append(skeletonRows(6, 5));
       content.append(skeleton.wrap, el('p', 'type-meta', 'Asking Google for this page and these filters...'));
       const f = filtersOf(state);
@@ -385,7 +385,7 @@ export function createDetail({ get, set, shell, pageId, onClose, onStep, canStep
       .filter((row) => (mode === 'losers' ? row.delta < 0 && row.before : mode === 'gainers' ? row.delta > 0 && row.before : mode === 'new' ? row.now.clicks > 0 && (!row.before || row.before.clicks === 0) : mode === 'lost' ? row.now.clicks === 0 && row.before?.clicks > 0 : true))
       .sort((a, b) => (mode === 'gainers' ? b.delta - a.delta : mode === 'losers' ? a.delta - b.delta : mode === 'all' ? b.now.clicks - a.now.clicks : Math.abs(b.delta) - Math.abs(a.delta)))
       .slice(0, 15);
-    const { wrap, tbody } = tableShell([[isQueries ? 'Query' : 'Appearance'], ['Clicks now'], ['Before'], ['Change'], [isQueries ? 'Position' : 'Impressions']]);
+    const { wrap, tbody } = tableShell([[isQueries ? 'Query' : 'Appearance'], ['Clicks now'], ['Before'], ['Change'], [isQueries ? 'Average position' : 'Impressions']]);
     if (filtered.length === 0) content.append(el('p', 'type-body text-foreground-secondary py-4', hasBefore ? 'Nothing in this group for these filters.' : 'No rows for these filters.'));
     filtered.forEach((row) => {
       const tr = el('tr', 'h-row-compact border-t border-border-subtle hover:bg-surface-hover');

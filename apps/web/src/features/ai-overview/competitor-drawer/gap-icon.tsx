@@ -7,33 +7,42 @@ import { Icon } from '@/components/ui/icon';
 import { Tooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
-/** Two rates on the 0 to 1 scale that differ by less than this are level. */
-const LEVEL = 0.0005;
 const TAB_STOP = { tabIndex: 0 } as const;
 
-export const isLevel = (difference: number): boolean => Math.abs(difference) < LEVEL;
-
 /**
- * Your value against theirs as the trend icon of the Prompts page (the served preview's `gapIcon`): green and up when you
- * are ahead, red and down when you are behind, a grey dash when level. It is a difference between two things, not a
- * change over time, and is never tested for detectability, so `sentence` says that; it is the hover text and the words a
- * screen reader hears. The icon is a tab stop that opens the sentence.
+ * Your value against theirs as the trend icon of the Prompts page: green and up when you are ahead, red and down when
+ * you are behind, and only when the difference is detectable (`isDetectableDifference`, the test of every change
+ * icon). Anything else, a small sample or a difference within normal variation, is a grey dash: the icon never takes
+ * a side it cannot back. `sentence` is the hover text and the words a screen reader hears, and says which it is. The
+ * icon is a tab stop that opens the sentence.
  */
-export function GapIcon({ difference, sentence }: { difference: number; sentence: string }): ReactElement {
-  const level = isLevel(difference);
+export function GapIcon({
+  difference,
+  detectable,
+  sentence,
+}: {
+  difference: number;
+  detectable: boolean | null;
+  sentence: string;
+}): ReactElement {
+  const direction = detectable === true && difference !== 0 ? (difference > 0 ? 'up' : 'down') : 'flat';
   return (
     <Tooltip content={sentence}>
       <span
         data-slot="gap-icon"
-        data-direction={level ? 'flat' : difference > 0 ? 'up' : 'down'}
+        data-direction={direction}
         // An icon with a tooltip is a tab stop that opens it (20 section 6.2 rule 6); the lint rule cannot see why
         {...TAB_STOP}
         className={cn(
           'inline-flex shrink-0 self-center rounded-xs outline-none focus-visible:focus-ring',
-          level ? 'text-foreground-secondary' : difference > 0 ? 'text-positive-text' : 'text-negative-text',
+          direction === 'up'
+            ? 'text-positive-text'
+            : direction === 'down'
+              ? 'text-negative-text'
+              : 'text-foreground-secondary',
         )}
       >
-        <Icon icon={level ? Minus : difference > 0 ? TrendingUp : TrendingDown} size="sm" />
+        <Icon icon={direction === 'flat' ? Minus : direction === 'up' ? TrendingUp : TrendingDown} size="sm" />
         <span className="sr-only">{sentence}</span>
       </span>
     </Tooltip>

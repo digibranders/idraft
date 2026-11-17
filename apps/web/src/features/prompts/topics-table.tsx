@@ -8,6 +8,7 @@ import { brandsColumn } from './columns/brands-column';
 import { positionColumn } from './columns/position-column';
 import { recommendationColumn } from './columns/recommendation-column';
 import { sentimentColumn } from './columns/sentiment-column';
+import { ownEntityIdsOf } from './columns/metric-shared';
 import { shareOfVoiceColumn } from './columns/sov-column';
 import { volumeColumn } from './columns/volume-column';
 import { asRecordActions, type PromptAction } from './prompt-action';
@@ -221,7 +222,7 @@ export function TopicsTable({
   );
   const rowName = useCallback((row: TopicRow): string => row.name, []);
   const columns = useMemo((): DataTableColumn<TopicRow>[] => {
-    const shared = { t: root, locale, engines, scope: codes };
+    const shared = { t: root, locale, engines, scope: codes, ownEntityIds: ownEntityIdsOf(facts?.entities) };
     /** The facts of a row: a prompt's own summary row, a group's topic row; a row the read has none for has no answers. */
     const factsOf = (row: TopicRow): FactsRow | undefined => {
       if (facts === undefined) return undefined;
@@ -384,6 +385,12 @@ export function TopicsTable({
     [visible, columns],
   );
   const sorting = useMemo(() => effectiveSort(sort, DEFAULT_TOPIC_SORT, shownIds), [sort, shownIds]);
+  // The address follows the sort applied: one on a column that is not shown is dropped from it
+  const staleSort = sortText !== null && sort.some((key) => !shownIds.includes(key.id));
+  const dataLoaded = summary !== undefined;
+  useEffect(() => {
+    if (staleSort && dataLoaded) onSortTextChange(null);
+  }, [staleSort, dataLoaded, onSortTextChange]);
   const groups = useMemo(
     (): Group[] =>
       summary === undefined

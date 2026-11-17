@@ -1,6 +1,6 @@
 # idraft glossary: terms
 
-Status: DECIDED 2026-11-16, except D17, D18 and D20 (see `final-list.md`). The owner chose Group (D1) and delegated
+Status: DECIDED 2026-11-16, except D18 and D20 (see `final-list.md`); D17 was decided 2026-11-17 (a count share). The owner chose Group (D1) and delegated
 every other word choice to the glossary session, which took its own recommendation. Where a row says **Firm**, none of
 the three independent proposals (Opus, Fable, Codex) chose a different word for that term. Where it says **D1** to
 **D22**, a proposal split on it or the owner had to choose; the options and reasons are in `decisions-for-owner.md`,
@@ -28,7 +28,7 @@ Columns: **ID**, **Label** (singular / plural), **Definition** (one sentence, st
 |---|---|---|---|---|---|---|---|
 | A1 | AI visibility (navigation group, page titles) | The area of the app about how AI answers treat your brand. | Not the headline number (see M1). Not GEO. | AI Visibility (capital V), GEO, AEO, AI search, LLM tracking | Navigation group, breadcrumbs, page titles | Keep "AI" untranslated; translate "visibility" with the usual marketing word | D7 |
 | A2 | SEO (navigation group) | The area of the app about Google search: keywords, pages, links. | Not a metric. | Search, Organic (as a nav name) | Navigation group, breadcrumbs | Acronym, not translated | Firm |
-| A3 | Overview / Overviews | The first page of an area. Written "SEO overview" and "AI visibility overview" in titles and breadcrumbs, "Overview" in the navigation under its group. | Not Google AI Overview. | Dashboard, Home, Summary, AI Overview (for this page) | Navigation, page titles, breadcrumbs | German Übersicht, French Vue d'ensemble. Google's feature has a different local name, so the Google prefix rule (P3) matters | D11 |
+| A3 | Overview / Overviews | The first page of an area. Written "SEO overview" and "AI visibility overview" in page titles (h1, tab title). The AI breadcrumb and navigation item read "AI visibility" (owner decision 2026-11-17); the SEO item stays "Overview". | Not Google AI Overview. | Dashboard, Home, Summary, AI Overview (for this page) | Navigation, page titles, breadcrumbs | German Übersicht, French Vue d'ensemble. Google's feature has a different local name, so the Google prefix rule (P3) matters | D11 |
 | A4 | Keywords | The SEO page that lists tracked keywords with their rank. | Not Prompts. | Rankings, Rank tracker (as a page name) | Navigation, page title | Safe | Firm |
 | A5 | Pages | The SEO page that shows how each page of your site performs in Google. | Not cited pages (see E4). | Landing pages (unless the URL is one) | Navigation | Safe | Firm |
 | A6 | Prompts | The AI visibility page that lists the prompts we ask and how your brand does on each. | Not Keywords. | Topics and prompts, Queries, Questions | Navigation, page title | Loanword in most languages | Firm |
@@ -56,7 +56,7 @@ Columns: **ID**, **Label** (singular / plural), **Definition** (one sentence, st
 | P12 | All locations | The scope value that includes every location of the project. | Not worldwide. | All countries, Global, Worldwide | Scope pickers, top bar | Safe | D3 |
 | P13 | Depth / Beyond depth | How many Google results a check reads (top 10, 20, 50, 100). Beyond depth means your site was not in the results read. | Not "does not rank". | Unranked, Not ranking, Over 100 | Keywords filter and column | "Beyond depth" needs a gloss: not in the results read | Firm |
 | P14 | Period | The date range the numbers cover. | Not a run. | Window (in UI), Date window, Date range, Timeframe | Date control, info texts, Compare | Safe | D21 |
-| P15 | Compare with (control) / "vs previous period", "vs same period last year" and "No comparison" (values; Overview and Prompts have all three since owner decision 15, 2026-11-17, Citations the first and last) | A control that shows the period just before the chosen one, of equal length, next to it, or the same dates a year earlier. | Not a comparison with a competitor. | Compare period, Benchmark, Baseline, vs last period | Top bar | Safe | D22 |
+| P15 | Compare with (control) / "vs previous period", "vs same period last year" and "No comparison" (values; Overview and Prompts have all three since owner decision 15, 2026-11-17, Citations the first and last) | A control that shows the period just before the chosen one, or the same dates a year earlier, of equal length, next to it. The words that follow the chosen mode are "Previous period: range" or "Same period last year: range" (a period tooltip) and "against the previous period" or "against the same period last year" (a change sentence). | Not a comparison with a competitor. | Compare period, Benchmark, Baseline, vs last period | Top bar | Safe | D22 |
 
 ## 3. How keywords and prompts are organised
 
@@ -116,7 +116,7 @@ Columns: **ID**, **Label** (singular / plural), **Definition** (one sentence, st
 | M2 | SEO visibility | An estimate of how visible your tracked keywords are in Google, weighted by rank and by search volume. | Not a share of answers. Not comparable with M1. | Visibility (alone), Search visibility, Visibility index | SEO overview | Always carries the prefix | Firm |
 | M3 | Mention rate | The share of valid answers that mention your brand. | Not a count of mentions. | Brand mention rate, Mention frequency, Visibility | AI screens | Safe | Firm |
 | M4 | Citation rate | The share of valid answers that cite at least one page of your domains. | Not citation share. | Source citation rate, Domain citation rate, Link rate | AI screens | Follows E2 | Firm |
-| M5 | Share of voice (abbreviation SOV only in a narrow column) | Your part of the brand mentions among you and the tracked competitors. On the SEO side written "SEO share of voice". | Not mention rate: it changes when a competitor is added. | Voice share, Share of mentions, Mention share | Overview, Competitors, Keywords | Often left in English; French "part de voix" is established | D17, D22 |
+| M5 | Share of voice (abbreviation SOV only in a narrow column) | Your brand's mentions over all tracked-brand mentions (yours and the tracked competitors'), decided 2026-11-17 (D17). It is always shown as "x of y brand mentions" beside the percent. On the SEO side written "SEO share of voice". | Not mention rate: it changes when a competitor is added. | Voice share, Share of mentions, Mention share | Overview, Competitors, Keywords | Often left in English; French "part de voix" is established | D17, D22 |
 | M6 | Citation share | A domain's part of all citations in scope. For your domains, "Your citation share". | Not citation rate: the base is citations, not answers. | Source share, Domain share, Share of citations | Citations, Overview | Follows E2 | D4 |
 | M7 | Mention position (card "Average mention position"; never bare "Position" on an AI screen) | The order in which your brand is first mentioned in an answer, among the brands you track. 1 is first; lower is better. | Not a Google rank. Not a place in a numbered list inside an answer. | Position (alone), Rank, AI rank, Mention order, Prominence | Overview, prompt tables | Safe with the qualifier | D5 |
 | M8 | Rank / Ranks (best rank, average rank, Top 3) | Where your page appears in Google's organic results for a keyword, counted from the top. 1 is first. | Not a mention position. Not Search Console's average position. | Position (for tracked keywords), Ranking (as a noun), SERP position | Keywords, keyword detail, SEO overview | Safe | D5 |
@@ -188,9 +188,9 @@ sentences move to the Sample data badge. The same text is used for the card, its
 - What it shows: What happens to your brand in each platform's answers.
 - How it is counted: Each valid answer is mentioned and cited, mentioned only, cited only, or neither. The four shares add up to 100%. Mentioned only means your brand is mentioned and none of your pages is cited.
 
-**ai.share_of_voice: Share of voice** (wording depends on D17)
+**ai.share_of_voice: Share of voice** (D17 decided 2026-11-17: a count share)
 - What it shows: How much of the brand talk in answers is about you, compared with your competitors.
-- How it is counted: In each answer that mentions you or a tracked competitor, the brands mentioned share that answer equally. Your share is the average of those shares across such answers. It depends on which competitors are tracked: adding one lowers every other share. Watched brands do not count. Click a competitor to open it.
+- How it is counted: Your brand's mentions over all tracked-brand mentions: x of y brand mentions, where y adds up the mentions of you and of every tracked competitor (an answer that names three tracked brands adds three). It depends on which competitors are tracked: adding one lowers every other share. Watched brands do not count. A share is shown only from 4 brand mentions. For All platforms it is the average of the platforms' shares, each platform counting once, and the counts are per platform in the tooltip. Click a competitor to open it.
 
 **ai.sov_over_time: Share of voice over time**
 - What it shows: How the split of brand mentions between you and your competitors changes week by week.
@@ -302,7 +302,7 @@ sentences move to the Sample data badge. The same text is used for the card, its
 
 **sov: Share of voice**
 - What it shows: Your share of all brand mentions.
-- How it is counted: As on the Share of voice card: it depends on which competitors are tracked.
+- How it is counted: Your brand's mentions over all tracked-brand mentions, shown as x of y brand mentions (D17). It depends on which competitors are tracked.
 
 **citation: Citation rate**
 - What it shows: How often AI answers cite your site.
@@ -378,3 +378,6 @@ sentences move to the Sample data badge. The same text is used for the card, its
 |---|---|---|---|---|
 | 2026-11-16 | all | | first proposal | Created by the glossary research session |
 | 2026-11-16 | Group (C1, C3) | Group or Topic open | Group decided | Owner chose Group for keywords and prompts (D1) |
+| 2026-11-17 | Overview name (A3) | Navigation item "Overview", page title "AI visibility" | Navigation item and breadcrumb "AI visibility"; page title (h1 and tab title) "AI visibility overview" | Owner decision on the port review: the item names the area it opens, the title says what the page is |
+| 2026-11-17 | Card titles (section 10.1) | Preview "Trend over time", "Answer outcomes", "Top and bottom groups", "Headline numbers", "Competitor gap"; catalog "Rates by platform over time", "Mentioned and cited" | The glossary titles everywhere (catalog, card heading, customize toolbar, Add card, aria labels, preview): "Rate by platform over time", "Outcome split by platform", "Strongest and weakest groups", "AI visibility rate (headline)", "Lost to competitor", "Run calendar" | Owner decision on the port review: one title for a card on every surface |
+| 2026-11-17 | Compare with (P15) | "vs previous period" and "No comparison" | Adds "vs same period last year" and the words that follow each mode | The real Prompts screen already offers the year back; the glossary now knows the words |

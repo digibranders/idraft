@@ -59,9 +59,12 @@ describe('EnginePanel: the By engine section of the drawer', () => {
     expect(labelsOf()).toEqual(['ChatGPT', 'Gemini']);
     const [first, second] = rows();
     expect(first).toHaveTextContent('38%');
-    expect(first).toHaveTextContent('3 of 8 answers, 4 prompts');
+    // The percent is the mean of the prompts' rates: it says "average of 4 prompts" and has no pooled count beside it
+    expect(first).toHaveTextContent('average of 4 prompts');
+    expect(first?.textContent).not.toContain('3 of 8 answers, 4 prompts');
+    expect(first).toHaveTextContent('All answers pooled: 38%, 3 of 8 answers');
     expect(second).toHaveTextContent('25%');
-    expect(second).toHaveTextContent('2 of 8 answers, 4 prompts');
+    expect(second).toHaveTextContent('average of 4 prompts');
     expect(screen.getByRole('heading', { name: 'By platform' })).toBeInTheDocument();
   });
 
@@ -96,7 +99,9 @@ describe('EnginePanel: the By engine section of the drawer', () => {
 
   it('an engine row leads to the Prompts tab filtered to that engine', () => {
     render([chatgpt(), gemini()], '?view=engines&metric=citation');
-    const link = screen.getByRole('link', { name: 'Gemini: 50%, 4 of 8 answers' });
+    const link = screen.getByRole('link', {
+      name: 'Gemini: 50%, average of 4 prompts. All answers pooled: 50%, 4 of 8 answers',
+    });
     const [path, query] = (link.getAttribute('href') ?? '').split('?');
     expect(path).toBe('/digibranders/fynix/ai/prompts');
     const params = new URLSearchParams(query);
@@ -154,9 +159,7 @@ describe('EnginePanel: the By engine section of the drawer', () => {
 
   it('writes the compared engines in the comparison sentence under the rows', () => {
     render();
-    expect(
-      screen.getByText(/^Best on ChatGPT at 37.5%, weakest on Gemini at 25.0%, a gap of 12.5 pts\./),
-    ).toBeVisible();
+    expect(screen.getByText(/^Best on ChatGPT at 38%, weakest on Gemini at 25%, a gap of 13 pts\./)).toBeVisible();
   });
 
   it('loading is a skeleton, a failed read has Retry, an unknown topic says so', async () => {

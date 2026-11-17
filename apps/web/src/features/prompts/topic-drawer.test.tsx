@@ -231,13 +231,20 @@ describe('the topic drawer: the numbers', () => {
     expect(within(rates).getByText('No valid answers')).toBeInTheDocument();
     const byEngine = within(panel).getByRole('heading', { name: 'By platform' }).closest('section');
     if (byEngine === null) throw new Error('The By engine card is missing');
-    // The panel's row of each engine says the rate and the answers behind it, not the sum of the prompts' rates over the
-    // prompts (0.75 of 2); the rate is also in the table form beneath the panel
-    expect(within(byEngine).getByRole('link', { name: 'ChatGPT: 38%, 3 of 8 answers' })).toBeInTheDocument();
-    expect(within(byEngine).getByRole('link', { name: 'Gemini: 100%, 8 of 8 answers' })).toBeInTheDocument();
+    // The panel's row of each engine says the rate as the average of its prompts, with the pooled answers and their own
+    // percent in its words (never a count beside a percent that is not theirs); the rate is also in the table form beneath
+    expect(
+      within(byEngine).getByRole('link', {
+        name: 'ChatGPT: 38%, average of 2 prompts. All answers pooled: 38%, 3 of 8 answers',
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(byEngine).getByRole('link', {
+        name: 'Gemini: 100%, average of 2 prompts. All answers pooled: 100%, 8 of 8 answers',
+      }),
+    ).toBeInTheDocument();
     expect(within(byEngine).getAllByText('38%')).toHaveLength(2);
-    expect(within(byEngine).getByText('3 of 8 answers, 2 prompts')).toBeInTheDocument();
-    expect(within(byEngine).getByText('8 of 8 answers, 2 prompts')).toBeInTheDocument();
+    expect(within(byEngine).getAllByText('average of 2 prompts')).toHaveLength(2);
     expect(within(byEngine).queryByText(/^0\.75/)).toBeNull();
     expect(
       within(byEngine).getByText('Each prompt counts once, whatever the number of its answers.'),

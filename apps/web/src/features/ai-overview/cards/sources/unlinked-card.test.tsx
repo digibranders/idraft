@@ -85,6 +85,26 @@ describe('the mentioned, not cited card', () => {
     expect(screen.getByText('prompts that mention you without citing you')).toBeInTheDocument();
   });
 
+  it('ranks on the average of the platforms, says "average of 2" with no pooled count, and keeps each platform count in the tooltip', async () => {
+    const onGemini = (n: number, named: number): ReturnType<typeof engineCells> =>
+      engineCells('gemini_web', {
+        mentioned: [named + 1, n],
+        outcomes: { both: [1, n], named: [named, n], cited: [0, n], neither: [n - named - 1, n] },
+      });
+    const chatgpt = prompt('p1', 'Pricing compared', 6, 2);
+    render([
+      promptRow('p1', 'Pricing compared', [PRICING], [...chatgpt.engines, onGemini(30, 3)]),
+      prompt('p2', 'Tool for teams', 3, 1),
+    ]);
+    const item = (await screen.findByRole('link', { name: 'Pricing compared' })).closest('li') as HTMLElement;
+    // 2 of 6 and 3 of 30: the average of 33% and 10% is 22%, not the pooled 14%
+    expect(within(item).getByText('22%, average of 2')).toBeInTheDocument();
+    expect(within(item).queryByText(/5 of 36/)).not.toBeInTheDocument();
+    expect(item.getAttribute('title')).toBe(
+      'ChatGPT 2 of 6 and Gemini 3 of 30 answers mention you and cite none of your pages. Average of ChatGPT and Gemini, each platform counting once',
+    );
+  });
+
   it('links View prompts to the Prompts page and each prompt to its inspector', async () => {
     render([prompt('p1', 'Pricing compared', 8, 3)]);
     const view = await screen.findByRole('link', { name: 'View prompts' });

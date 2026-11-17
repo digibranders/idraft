@@ -1,7 +1,7 @@
 import { entityTotals } from '../../cards/competitors/model/entity-totals';
 import type { EngineEntityTotals, EntityFigures, TrackedSet } from '../../cards/competitors/model/types';
 import type { PromptsSummary } from '@/lib/api/types';
-import type { RateState } from '@/lib/stats';
+import type { Counts, RateState } from '@/lib/stats';
 
 /**
  * You against one competitor over the platforms of the page scope (OV-DRW-10 and OV-DRW-12). The same definitions as
@@ -18,6 +18,11 @@ export interface Figure {
   answers: number | null;
   /** One platform only, mention rate only: the answers that mention the brand. */
   successes: number | null;
+  /**
+   * The counts the gap is tested on: the one platform's, or the counts of the platforms in the average added up (the test
+   * of a change of an average does the same). `null` where a platform's count is not known.
+   */
+  counts: Counts | null;
 }
 
 export interface Pair {
@@ -32,7 +37,7 @@ export interface Comparison {
   share: Pair;
 }
 
-const NONE: Figure = { value: null, answers: null, successes: null };
+const NONE: Figure = { value: null, answers: null, successes: null, counts: null };
 
 interface Reading {
   state: RateState;
@@ -51,8 +56,9 @@ const mentionOf = (figures: EntityFigures): Reading => ({
 const shareOf = (figures: EntityFigures): Reading => ({
   state: figures.share.state,
   value: figures.share.value,
+  // x of y brand mentions (D17): the brand's mentions over those of every tracked brand
   answers: figures.share.answers,
-  successes: null,
+  successes: figures.share.numerator,
 });
 
 const brand = (totals: EngineEntityTotals, id: string | null, role: 'own' | 'competitor'): EntityFigures | undefined =>
@@ -60,6 +66,15 @@ const brand = (totals: EngineEntityTotals, id: string | null, role: 'own' | 'com
 
 const rated = (reading: Reading): reading is Reading & { value: number } =>
   reading.state === 'ok' && reading.value !== null;
+
+/** The counts of the readings added up, or `null` when one has no count of successes. */
+function countsOf(readings: readonly Reading[]): Counts | null {
+  if (readings.some((reading) => reading.successes === null)) return null;
+  return {
+    k: readings.reduce((total, reading) => total + (reading.successes ?? 0), 0),
+    n: readings.reduce((total, reading) => total + reading.answers, 0),
+  };
+}
 
 const mean = (values: readonly number[]): number => values.reduce((total, value) => total + value, 0) / values.length;
 
@@ -82,6 +97,7 @@ function pairOf(
     value: mean(used.map((entry) => entry[side].value)),
     answers: single?.[side].answers ?? null,
     successes: single?.[side].successes ?? null,
+    counts: countsOf(used.map((entry) => entry[side])),
   });
   return { own: figure('own'), rival: figure('rival'), platforms: used.length };
 }
@@ -112,6 +128,9 @@ export interface PlatformRow {
   code: string;
   own: number | null;
   rival: number | null;
+  /** The counts behind each rate, for the test of the gap; `null` with the rate. */
+  ownCounts: Counts | null;
+  rivalCounts: Counts | null;
 }
 
 /** Every platform in `codes`, each on its own figures; a platform the summary does not carry is left out. */
@@ -126,10 +145,19 @@ export function platformRows(
     if (totals.status !== 'read') return [];
     const own = brand(totals, null, 'own');
     const rival = brand(totals, rivalId, 'competitor');
-    const valueOf = (figures: EntityFigures | undefined): number | null => {
+    const readingOf = (figures: EntityFigures | undefined): (Reading & { value: number }) | null => {
       const reading = figures === undefined ? undefined : mentionOf(figures);
-      return reading !== undefined && rated(reading) ? reading.value : null;
+      return reading !== undefined && rated(reading) ? reading : null;
     };
-    return [{ code, own: valueOf(own), rival: valueOf(rival) }];
+    const [ownReading, rivalReading] = [readingOf(own), readingOf(rival)];
+    return [
+      {
+        code,
+        own: ownReading?.value ?? null,
+        rival: rivalReading?.value ?? null,
+        ownCounts: ownReading === null ? null : countsOf([ownReading]),
+        rivalCounts: rivalReading === null ? null : countsOf([rivalReading]),
+      },
+    ];
   });
 }

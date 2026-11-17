@@ -40,6 +40,8 @@ export interface FilterBarProps {
    * has no empty bar to clear to: it draws its own reset.
    */
   hideClear?: boolean | undefined;
+  /** The text of the button that removes every chip, where the preview words it otherwise (the Prompts page: "Reset filters"). */
+  clearLabel?: string | undefined;
   /**
    * Fields whose value is applied but whose chip is not drawn, because the screen shows that choice in its own
    * control (the Prompts platform select). They are not offered in "+ Filter" and "Clear filters" leaves them alone.
@@ -71,6 +73,7 @@ export function FilterBar({
   resultCount,
   trailing,
   hideClear = false,
+  clearLabel,
   hiddenChipFields,
   nowrap = false,
   hideAddWhenFull = false,
@@ -159,7 +162,7 @@ export function FilterBar({
         )}
         {active.length === 0 || hideClear ? null : (
           <Button variant="link" size="sm" onClick={clearAll}>
-            {t('clearAll')}
+            {clearLabel ?? t('clearAll')}
           </Button>
         )}
       </div>

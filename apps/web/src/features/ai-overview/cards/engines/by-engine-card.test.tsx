@@ -59,11 +59,11 @@ describe('the AI by platform card', () => {
     expect(rows.map((row) => within(row).getAllByRole('rowheader')[0]?.textContent)).toEqual(['ChatGPT', 'Gemini']);
   });
 
-  it('writes the equal-weight line beside the rows: avg of 2, the platforms named, each counted once', async () => {
+  it('writes the equal-weight line beside the rows: average of 2, the platforms named, each counted once', async () => {
     render();
     await tableOf();
     const section = screen.getByRole('heading', { name: 'AI by platform' }).closest('section') as HTMLElement;
-    expect(section).toHaveTextContent(/avg of 2 \(ChatGPT and Gemini, each counted once\): Mention rate \d/);
+    expect(section).toHaveTextContent(/average of 2 \(ChatGPT and Gemini, each counted once\): Mention rate \d/);
   });
 
   it('says in the footnote that the mean of the prompts can sit outside the interval of the pooled answers', async () => {
@@ -114,7 +114,7 @@ describe('the AI by platform card', () => {
     expect(citation?.textContent).toContain('50.0%');
     // The thin engine is left out of the average, which then has one value and so no line
     const section = screen.getByRole('heading', { name: 'AI by platform' }).closest('section') as HTMLElement;
-    expect(section.textContent).not.toMatch(/avg of \d \([^)]*\): Mention rate/);
+    expect(section.textContent).not.toMatch(/average of \d \([^)]*\): Mention rate/);
   });
 
   it("the numbers equal the strip's for the same scope (R12)", async () => {

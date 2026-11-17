@@ -44,15 +44,18 @@ export interface TrackedSet {
 }
 
 /**
- * Share of voice of one brand on one engine. It has no count of successes (its numerator is a sum of shares of one
- * answer each): `answers` is the denominator, the valid answers that name a tracked brand.
+ * Share of voice of one brand on one engine (D17): the brand's mentions over all tracked-brand mentions, "x of y brand
+ * mentions". `numerator` is x, the valid answers that name the brand; `answers` is y, those counts of every tracked
+ * brand added up, so the percent is exactly x over y.
  */
 export interface ShareFigure {
-  /** `insufficient`: fewer than 4 answers name a tracked brand; `none`: no figure at all. */
+  /** `insufficient`: fewer than 4 brand mentions in the set; `none`: no figure at all. */
   state: RateState;
   /** Only when `state` is `ok`. */
   value: number | null;
+  /** x: the brand's mentions. */
   numerator: number;
+  /** y: the mentions of every tracked brand. */
   answers: number;
 }
 
@@ -79,9 +82,9 @@ export interface EngineEntityTotals {
   engineCode: string;
   /** Every valid answer of the engine in the window, naming a tracked brand or not. */
   validAnswers: number;
-  /** The denominator of every share of voice here. */
-  answersNamingTracked: number;
-  /** `ok`, `insufficient` or `none`, judged on `answersNamingTracked`. */
+  /** The denominator of every share of voice here: the mentions of every tracked brand added up. */
+  brandMentions: number;
+  /** `ok`, `insufficient` or `none`, judged on `brandMentions`. */
   state: RateState;
   /** The tracked set in its own order. */
   entities: EntityFigures[];

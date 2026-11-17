@@ -149,15 +149,15 @@ describe('the grid', () => {
     ]);
   });
 
-  it('a column per asked platform, then avg of 2 from two platforms', async () => {
+  it('a column per asked platform, then average of 2 from two platforms', async () => {
     render();
-    expect(await headers()).toEqual(['Prompt', 'ChatGPT', 'Gemini', 'avg of 2']);
+    expect(await headers()).toEqual(['Prompt', 'ChatGPT', 'Gemini', 'average of 2']);
   });
 
   it('avg column only from 2 platforms', async () => {
     render({ searchParams: 'engine=chatgpt_web' });
     expect(await headers()).toEqual(['Prompt', 'ChatGPT']);
-    expect(screen.queryByRole('columnheader', { name: /avg of/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: /average of/ })).not.toBeInTheDocument();
   });
 
   it('a platform outside the platform filter is not a column', async () => {
@@ -193,7 +193,7 @@ describe('the grid', () => {
 
   it('the average cell says how many platforms took part and names them', async () => {
     render();
-    const startups = await cell(/^Best CRM for startups, avg of 2/);
+    const startups = await cell(/^Best CRM for startups, average of 2/);
     expect(startups).toHaveTextContent('48%');
     expect(startups.getAttribute('aria-label')).toMatch(/Equal weight average of ChatGPT and Gemini/);
     const secure = await cell(/^Is it secure, 1 platform/);
@@ -548,7 +548,7 @@ describe('the whole card', () => {
         world: 'eventus-security',
       }),
     );
-    expect(await headers()).toEqual(['Prompt', 'ChatGPT', 'Gemini', 'avg of 2']);
+    expect(await headers()).toEqual(['Prompt', 'ChatGPT', 'Gemini', 'average of 2']);
     const cells = within(await grid()).getAllByRole('gridcell');
     expect(cells.length).toBeGreaterThan(10);
     for (const one of cells) {

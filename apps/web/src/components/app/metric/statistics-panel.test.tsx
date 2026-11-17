@@ -50,7 +50,7 @@ describe('StatisticsPanel', () => {
       expect(screen.getByRole('heading', { level: 3, name })).toBeInTheDocument();
     }
     expect(screen.getByText('The share of valid answers that name your brand.')).toBeInTheDocument();
-    expect(screen.getByRole('img', { name: '95% interval 31.2% to 36.9%' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: '95% interval 31% to 37%' })).toBeInTheDocument();
     expect(screen.getByText('Normal interval over prompts, fixed panel')).toBeInTheDocument();
   });
 
@@ -73,7 +73,8 @@ describe('StatisticsPanel', () => {
       /^\d+(\.\d+)?%$/.test(node.textContent),
     );
     expect(percents).toHaveLength(1);
-    expect(percents[0]).toHaveTextContent('34.0%');
+    // Whole percents, as the cells of the table show them
+    expect(percents[0]).toHaveTextContent('34%');
     // The count sits in the same line as the percent, not further down with the prompt count
     expect(percents[0]?.parentElement?.querySelector('[data-slot="sample-count"]')).toHaveTextContent('612 of 1,800');
   });
@@ -185,7 +186,7 @@ describe('StatisticsPanel', () => {
     const panel = refetching.container.querySelector('[data-slot="statistics-panel"]');
     expect(panel).toHaveAttribute('aria-busy', 'true');
     expect(panel).not.toHaveClass('opacity-50');
-    expect(screen.getByText('34.0%')).toBeInTheDocument();
+    expect(screen.getByText('34%')).toBeInTheDocument();
     expect(refetching.container.querySelector('[data-slot="skeleton"]')).toBeNull();
     refetching.unmount();
 
@@ -303,6 +304,6 @@ describe('StatisticsPanel', () => {
     render(ready());
     const estimate = screen.getByRole('heading', { level: 3, name: 'Estimate' }).closest('section');
     expect(estimate).not.toBeNull();
-    if (estimate !== null) expect(within(estimate).getByText('34.0%')).toBeInTheDocument();
+    if (estimate !== null) expect(within(estimate).getByText('34%')).toBeInTheDocument();
   });
 });

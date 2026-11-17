@@ -37,6 +37,20 @@ describe('versusRows', () => {
     expect(result[2]?.average).toBe(true);
   });
 
+  it('tests the gap on the counts of both sides: 6 of 10 against 5 of 10 is within normal variation', () => {
+    const result = rows(own, all);
+    expect(result[0]?.detectable).toBe(false);
+    // Gemini has no rate in the group, so there is nothing to test; the average is tested on the platforms with a rate on both sides
+    expect(result[1]?.detectable).toBeNull();
+    expect(result[2]?.detectable).toBe(false);
+    const wide = rows(
+      [engineCells('chatgpt_web', { mentioned: [90, 100], outcomes: OUTCOMES(6), prompts: 4 })],
+      [engineCells('chatgpt_web', { mentioned: [40, 100], outcomes: OUTCOMES(5), prompts: 20 })],
+      'mention',
+    );
+    expect(wide[0]?.detectable).toBe(true);
+  });
+
   it('has no rate for a platform with fewer than 4 valid answers in the group, and no gap', () => {
     const [, gemini] = rows(own, all);
     expect(gemini?.group).toMatchObject({ state: 'insufficient', value: null, answers: 3 });

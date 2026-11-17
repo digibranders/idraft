@@ -52,7 +52,7 @@ function resultRow(result) {
   row.append(el('span', 'type-body text-foreground truncate min-w-0 flex-1', result.path ?? result.line));
   if (result.outcome === 'ok') {
     const { found, forms, clicks28 } = result.probe;
-    if (!found) row.append(badge('No search data yet', 'warning'), el('span', 'type-meta basis-full', 'Allowed. The page shows "No data" until Google reports impressions for it.'));
+    if (!found) row.append(badge('No search data yet', 'warning'), el('span', 'type-meta basis-full', 'Allowed. The page shows "Not collected yet" until Google reports impressions for it.'));
     else if (forms > 1) row.append(badge('Found in 2 URL forms', 'info'), el('span', 'type-meta basis-full', `${formatInt(clicks28)} clicks in 28 days. With and without a trailing slash: added together.`));
     else row.append(badge('Found', 'positive'), el('span', 'type-meta num', `${formatInt(clicks28)} clicks in 28 days`));
   } else row.append(badge(OUTCOME[result.outcome][0], OUTCOME[result.outcome][1]));

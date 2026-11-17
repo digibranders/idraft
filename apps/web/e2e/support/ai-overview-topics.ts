@@ -61,7 +61,7 @@ export type { Density, Theme };
 export const GROUP_CARDS = { heatmap: 'topic-heatmap', extremes: 'topic-extremes' } as const;
 
 export const HEATMAP_TITLE = 'Groups by platform';
-export const EXTREMES_TITLE = 'Top and bottom groups';
+export const EXTREMES_TITLE = 'Strongest and weakest groups';
 /** The first sentence of the footnote of every groups card, and the count that follows it. */
 export const OVERLAP_NOTE =
   /Groups overlap: a prompt in two groups counts in both, so the rows do not add up to the total\./;
