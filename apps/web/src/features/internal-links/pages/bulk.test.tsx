@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -10,7 +10,7 @@ import { axe } from '@/test/axe';
 import { EVENTUS_LINKS, internalLinksAs } from '@/test/internal-links-harness';
 import { server } from '@/test/msw';
 import { restoreWideScreen, stubWideScreen } from '@/test/rankings-harness';
-import { renderWithProviders } from '@/test/render';
+import { renderWithProviders, type ProvidedRender } from '@/test/render';
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
@@ -41,6 +41,33 @@ const tierOf = async (path: string): Promise<string | null> => {
   const text = row === null ? undefined : within(row as HTMLElement).queryByText(/^(T\d|Untiered)/)?.textContent;
   return text?.match(/^(T\d|Untiered)/)?.[0] ?? null;
 };
+
+/** The fixture's rows with a total of 250, so the bulk bar offers "Select all 250 matching". */
+function stubManyPages(): void {
+  const fixture = crawledPages().map((page) => pageRow(page, 'editorial'));
+  server.use(
+    http.get(PAGES, () =>
+      HttpResponse.json({
+        data: fixture,
+        page: { limit: 100, next_cursor: 'next', has_more: true },
+        meta: { run_id: MOCK_RUN_ID, scope: 'editorial', total: 250 },
+      }),
+    ),
+  );
+}
+
+async function chooseAllMatching(user: ProvidedRender['user']): Promise<void> {
+  await grid();
+  await user.click(await screen.findByRole('checkbox', { name: /^Select all \d+ pages loaded/ }));
+  await user.click(await screen.findByRole('button', { name: /Select all 250 matching/ }));
+}
+
+/** Long enough for a request a key press would have sent to have reached the handler. */
+const SETTLE_MS = 150;
+const settle = (): Promise<void> =>
+  act(async () => {
+    await new Promise<void>((resolve) => setTimeout(resolve, SETTLE_MS));
+  });
 
 /** Records the JSON body of each write to `path` and lets the mock answer it. */
 function bodiesOf(path: RegExp | string, method: 'put' | 'post'): unknown[] {
@@ -109,7 +136,55 @@ describe('bulk tiers (spec 5.2)', () => {
     await user.click(await checkbox('/about'));
     // The fixture workspace has four tiers
     await user.keyboard('7');
+    // A valid key settles it: the one request in the end is this one, so the first two sent nothing
+    await user.keyboard('3');
+    expect((await screen.findAllByText('1 page is now T3 Content pages.')).length).toBeGreaterThan(0);
+    expect(bodies).toEqual([{ url_ids: ['116'], tier_id: expect.any(String) }]);
+  });
+
+  it('says a change that changed nothing in words that read true', async () => {
+    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: 'q=%2Fabout' });
+    await user.click(await checkbox('/about'));
+    // /about is T4 already
+    await user.keyboard('4');
+    expect((await screen.findAllByText('No pages changed.')).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/is now/)).toBeNull();
+  });
+
+  it('ignores a key held down: only the first press acts, a repeat never retries a failing request', async () => {
+    server.use(
+      http.put(TIERS, () =>
+        HttpResponse.json({ type: 'about:blank', title: 'Server error', status: 500 }, { status: 500 }),
+      ),
+    );
+    // Added last, so it sees each request first and lets the failing handler answer it
+    const bodies = bodiesOf(TIERS, 'put');
+    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: 'q=%2Fabout' });
+    await user.click(await checkbox('/about'));
+    for (let repeat = 0; repeat < 3; repeat += 1) fireEvent.keyDown(document.body, { key: '2', repeat: true });
+    await settle();
     expect(bodies).toEqual([]);
+    fireEvent.keyDown(document.body, { key: '2' });
+    expect((await screen.findAllByText('The change could not be saved')).length).toBeGreaterThan(0);
+    for (let repeat = 0; repeat < 3; repeat += 1) fireEvent.keyDown(document.body, { key: '2', repeat: true });
+    await settle();
+    expect(bodies).toHaveLength(1);
+  });
+
+  it('does not take a digit typed in a text field', async () => {
+    const bodies = bodiesOf(TIERS, 'put');
+    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: 'q=%2Fabout' });
+    await user.click(await checkbox('/about'));
+    const field = document.createElement('input');
+    document.body.append(field);
+    try {
+      await user.type(field, '2');
+      await settle();
+      expect(field).toHaveValue('2');
+      expect(bodies).toEqual([]);
+    } finally {
+      field.remove();
+    }
   });
 
   it('does not take the keys while a dialog is open', async () => {
@@ -134,29 +209,76 @@ describe('bulk tiers (spec 5.2)', () => {
     await rowOf('/about');
     expect(screen.queryByRole('checkbox')).toBeNull();
     await user.keyboard('2');
+    await settle();
     expect(bodies).toEqual([]);
+    expect(screen.queryByText(/is now/)).toBeNull();
   });
 
   it('sends the filter when every matching page is chosen, and names the count the API answers', async () => {
-    const fixture = crawledPages().map((page) => pageRow(page, 'editorial'));
-    server.use(
-      http.get(PAGES, () =>
-        HttpResponse.json({
-          data: fixture,
-          page: { limit: 100, next_cursor: 'next', has_more: true },
-          meta: { run_id: MOCK_RUN_ID, scope: 'editorial', total: 250 },
-        }),
-      ),
-    );
+    stubManyPages();
     const bodies = bodiesOf(TIERS, 'put');
     const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: 'status=2xx' });
-    await grid();
-    await user.click(await screen.findByRole('checkbox', { name: /^Select all \d+ pages loaded/ }));
-    await user.click(await screen.findByRole('button', { name: /Select all 250 matching/ }));
+    await chooseAllMatching(user);
     await user.keyboard('1');
     await waitFor(() => expect(bodies).toHaveLength(1));
     expect(bodies[0]).toEqual({ filter: { status: ['2xx'] }, tier_id: expect.any(String) });
     expect(bodies[0]).not.toHaveProperty('url_ids');
+  });
+
+  it('sends the whole filter: the search, the worklist and the Untiered choice', async () => {
+    stubManyPages();
+    const bodies = bodiesOf(TIERS, 'put');
+    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
+      searchParams: 'q=%2Fblog&view=orphans&tier=none',
+    });
+    await chooseAllMatching(user);
+    await user.keyboard('2');
+    await waitFor(() => expect(bodies).toHaveLength(1));
+    expect(bodies[0]).toEqual({
+      filter: { q: '/blog', worklist: 'orphans', tier_ids: ['none'] },
+      tier_id: expect.any(String),
+    });
+  });
+
+  it('forgets the selection when the filters change, and does not bring it back with them', async () => {
+    stubManyPages();
+    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    await chooseAllMatching(user);
+    expect(await screen.findByRole('group', { name: /250/ })).toBeInTheDocument();
+    // The worklist chips live outside the bar: another worklist is another query, and so is "All pages" again
+    await user.click(await screen.findByRole('button', { name: /^Orphans/ }));
+    await waitFor(() => expect(screen.queryByRole('group', { name: /selected/ })).toBeNull());
+    await user.click(screen.getByRole('button', { name: 'All pages' }));
+    await grid();
+    expect(screen.queryByRole('group', { name: /selected/ })).toBeNull();
+    expect(screen.queryByRole('group', { name: /250/ })).toBeNull();
+    // No row checkbox is ticked either
+    expect(screen.queryAllByRole('checkbox', { checked: true })).toEqual([]);
+  });
+
+  it('keeps a failed dialog change in the dialog as an alert, and closes it when the retry works', async () => {
+    let fail = true;
+    server.use(
+      http.put(TIERS, () =>
+        fail
+          ? HttpResponse.json({ type: 'about:blank', title: 'Server error', status: 500 }, { status: 500 })
+          : undefined,
+      ),
+    );
+    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: 'q=%2Fabout' });
+    await user.click(await checkbox('/about'));
+    await user.click(await screen.findByRole('button', { name: 'Set tier' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Set the tier of 1 page' });
+    await user.click(within(dialog).getByRole('radio', { name: /^T3 Content pages/ }));
+    await user.click(within(dialog).getByRole('button', { name: 'Apply' }));
+    // The reason is the dialog's own alert, not a toast beside a modal that stays
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('The change could not be saved');
+    expect(screen.getAllByText('The change could not be saved')).toHaveLength(1);
+    fail = false;
+    await user.click(within(dialog).getByRole('button', { name: 'Apply' }));
+    expect((await screen.findAllByText('1 page is now T3 Content pages.')).length).toBeGreaterThan(0);
+    // The success toast is a dialog too: it is the tier dialog that goes
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Set the tier of 1 page' })).toBeNull());
   });
 
   it('says the filter is too big when the API refuses it, and keeps the selection', async () => {
@@ -202,12 +324,45 @@ describe('bulk tiers (spec 5.2)', () => {
 });
 
 describe('bulk tags (spec 5.3)', () => {
+  const VOCABULARIES = mswPath('/api/v1/workspaces/{workspace_id}/vocabularies');
+
+  it('says the tags are loading, not that there are none, while the vocabularies are read', async () => {
+    server.use(http.get(VOCABULARIES, () => new Promise<never>(() => undefined)));
+    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: 'q=%2Fabout' });
+    await user.click(await checkbox('/about'));
+    await user.click(await screen.findByRole('button', { name: 'Add tag' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Add a tag to 1 page' });
+    expect(within(dialog).getByText('Loading the tags')).toBeInTheDocument();
+    expect(within(dialog).queryByText(/no tag vocabulary yet/)).toBeNull();
+    expect(within(dialog).getByRole('button', { name: 'Apply' })).toBeDisabled();
+  });
+
+  it('says the tags could not be read, with Try again, and not that there are none', async () => {
+    let fail = true;
+    server.use(
+      http.get(VOCABULARIES, () =>
+        fail
+          ? HttpResponse.json({ type: 'about:blank', title: 'Server error', status: 500 }, { status: 500 })
+          : undefined,
+      ),
+    );
+    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: 'q=%2Fabout' });
+    await user.click(await checkbox('/about'));
+    await user.click(await screen.findByRole('button', { name: 'Add tag' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Add a tag to 1 page' });
+    expect(await within(dialog).findByText('The tags could not be loaded')).toBeInTheDocument();
+    expect(within(dialog).queryByText(/no tag vocabulary yet/)).toBeNull();
+    fail = false;
+    await user.click(within(dialog).getByRole('button', { name: 'Try again' }));
+    expect(await within(dialog).findByText(/no tag vocabulary yet/)).toBeInTheDocument();
+  });
+
   it('says so, with a way to the taxonomy, when the project has no tags', async () => {
     const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: 'q=%2Fabout' });
     await user.click(await checkbox('/about'));
     await user.click(await screen.findByRole('button', { name: 'Add tag' }));
     const dialog = await screen.findByRole('dialog', { name: 'Add a tag to 1 page' });
-    expect(within(dialog).getByText(/no tag vocabulary yet/)).toBeInTheDocument();
+    expect(await within(dialog).findByText(/no tag vocabulary yet/)).toBeInTheDocument();
     expect(within(dialog).getByRole('link', { name: 'Open Taxonomy' })).toHaveAttribute(
       'href',
       '/digibranders/eventus-security/settings/taxonomy',

@@ -11,7 +11,14 @@ const DIGITS = ['0', '1', '2', '3', '4', '5', '6', '7', '8'] as const;
 
 /** One key: a component per key, so each `useShortcut` is a hook of its own (decision W20). */
 function TierKey({ digit, enabled, onPress }: { digit: string; enabled: boolean; onPress: () => void }): null {
-  useShortcut(digit, onPress, { kind: 'single-key', enabled });
+  // A key held down repeats: only the first press acts, so a failing change is not sent again on every repeat
+  useShortcut(
+    digit,
+    (event) => {
+      if (!event.repeat) onPress();
+    },
+    { kind: 'single-key', enabled },
+  );
   return null;
 }
 

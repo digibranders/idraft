@@ -192,6 +192,9 @@ export function PagesTab({ context }: { context: LinksTabContext }): ReactElemen
     ids: new Set(),
     all: false,
   });
+  // A choice is of one query. Another query discards it for good (changing back does not bring it back), by
+  // setting the state while rendering, which React runs again at once with the empty choice
+  if (picked.key !== filtersKey) setPicked({ key: filtersKey, ids: new Set(), all: false });
   const chosen = picked.key === filtersKey ? picked : { key: filtersKey, ids: new Set<string>(), all: false };
   const clearSelection = (): void => setPicked({ key: filtersKey, ids: new Set(), all: false });
   const bulk = usePageBulk(scope, query, clearSelection);
@@ -199,22 +202,46 @@ export function PagesTab({ context }: { context: LinksTabContext }): ReactElemen
   const targetCount = chosen.all ? (total ?? 0) : chosen.ids.size;
   const [tierDialog, setTierDialog] = useState(false);
   const [tagDialog, setTagDialog] = useState<'add' | 'remove' | null>(null);
+  // The journey opens from a loaded row: one chosen page that is on another page of the list has none to open from
+  const [onlyId] = chosen.all || chosen.ids.size !== 1 ? [] : [...chosen.ids];
+  const journeyReady = onlyId !== undefined && rows.some((row) => row.url_id === onlyId);
   const bulkActions: RecordAction<PageRow>[] = [
-    { id: 'set-tier', label: bulkWords('setTier'), icon: Layers, group: 'object', onSelect: () => setTierDialog(true) },
-    { id: 'add-tag', label: bulkWords('addTag'), icon: Tag, group: 'object', onSelect: () => setTagDialog('add') },
+    {
+      id: 'set-tier',
+      label: bulkWords('setTier'),
+      icon: Layers,
+      group: 'object',
+      onSelect: () => {
+        bulk.clearError();
+        setTierDialog(true);
+      },
+    },
+    {
+      id: 'add-tag',
+      label: bulkWords('addTag'),
+      icon: Tag,
+      group: 'object',
+      onSelect: () => {
+        bulk.clearError();
+        setTagDialog('add');
+      },
+    },
     {
       id: 'remove-tag',
       label: bulkWords('removeTag'),
       icon: Tags,
       group: 'object',
-      onSelect: () => setTagDialog('remove'),
+      onSelect: () => {
+        bulk.clearError();
+        setTagDialog('remove');
+      },
     },
     {
       id: 'open-journey',
       label: bulkWords('openJourney'),
       icon: Workflow,
       group: 'open',
-      disabledReason: !chosen.all && chosen.ids.size === 1 ? null : bulkWords('openJourneyOne'),
+      disabledReason: journeyReady ? null : bulkWords('openJourneyOne'),
       onSelect: (rowsOf) => {
         const [first] = rowsOf;
         if (first !== undefined) context.openJourney(first.url_id);
@@ -332,7 +359,7 @@ export function PagesTab({ context }: { context: LinksTabContext }): ReactElemen
         tiers={tiers}
         listed={canWrite}
         enabled={canWrite && (chosen.all || chosen.ids.size > 0) && !bulk.pending}
-        onTier={(tier) => void bulk.setTier(target, tier)}
+        onTier={(tier) => void bulk.setTier(target, tier, 'key')}
       />
       <BulkTierDialog
         open={tierDialog}
@@ -340,7 +367,8 @@ export function PagesTab({ context }: { context: LinksTabContext }): ReactElemen
         count={targetCount}
         tiers={tiers}
         pending={bulk.pending}
-        onSetTier={(tier) => bulk.setTier(target, tier)}
+        alert={bulk.error}
+        onSetTier={(tier) => bulk.setTier(target, tier, 'dialog')}
         onReset={() => bulk.resetToRule(target)}
       />
       <BulkTagDialog
@@ -348,8 +376,10 @@ export function PagesTab({ context }: { context: LinksTabContext }): ReactElemen
         onClose={() => setTagDialog(null)}
         count={targetCount}
         tags={tags}
+        vocabularies={vocabularies}
         taxonomyHref={context.hrefOf(TAXONOMY_PATH)}
         pending={bulk.pending}
+        alert={bulk.error}
         onApply={(tag, add) => bulk.changeTag(target, tag, add)}
       />
     </div>

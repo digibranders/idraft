@@ -6,6 +6,7 @@ import { useState, type ReactElement } from 'react';
 import { gridFocus } from '@/components/app/data-table/grid-focus';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogBody, DialogClose, DialogFooter, DialogHeader } from '@/components/ui/dialog';
+import { FormAlert } from '@/components/ui/form-alert';
 import { RadioGroup } from '@/components/ui/radio-group';
 import type { PageTier } from '@/lib/internal-links/types';
 
@@ -20,6 +21,7 @@ export function BulkTierDialog({
   count,
   tiers,
   pending,
+  alert,
   onSetTier,
   onReset,
 }: {
@@ -28,6 +30,8 @@ export function BulkTierDialog({
   count: number;
   tiers: readonly PageTier[];
   pending: boolean;
+  /** Why the last change was not made, shown at the top of the body. */
+  alert: string | null;
   /** Each answers whether the change was made; the dialog closes then, and stays open to try again when not. */
   onSetTier: (tier: PageTier | null) => Promise<boolean>;
   onReset: () => Promise<boolean>;
@@ -35,6 +39,9 @@ export function BulkTierDialog({
   const t = useTranslations('internalLinks.bulk');
   const common = useTranslations('common');
   const [choice, setChoice] = useState<string | null>(null);
+  // The change clears the selection before the dialog is gone: the title keeps the count it was opened for
+  const [shown, setShown] = useState(count);
+  if (open && count > 0 && count !== shown) setShown(count);
   const close = (): void => {
     setChoice(null);
     onOpenChange(false);
@@ -57,35 +64,47 @@ export function BulkTierDialog({
       size="sm"
       finalFocus={gridFocus}
     >
-      <DialogHeader title={t('setTierTitle', { count })} closeLabel={common('close')} />
-      <DialogBody>
-        <RadioGroup
-          legend={t('tierLegend')}
-          value={choice}
-          onValueChange={setChoice}
-          options={[
-            ...tiers.map((tier) => ({
-              value: tier.tier_id,
-              label: tier.label,
-              description: tier.description === '' ? undefined : tier.description,
-            })),
-            { value: UNTIERED, label: t('untiered') },
-            { value: RESET, label: t('resetToRule'), description: t('resetToRuleHint') },
-          ]}
+      <form
+        noValidate
+        className="contents"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void apply();
+        }}
+      >
+        <DialogHeader title={t('setTierTitle', { count: shown })} closeLabel={common('close')} />
+        <DialogBody>
+          {alert === null ? null : <FormAlert message={alert} />}
+          <RadioGroup
+            legend={t('tierLegend')}
+            value={choice}
+            onValueChange={setChoice}
+            options={[
+              ...tiers.map((tier) => ({
+                value: tier.tier_id,
+                label: tier.label,
+                description: tier.description === '' ? undefined : tier.description,
+              })),
+              { value: UNTIERED, label: t('untiered') },
+              { value: RESET, label: t('resetToRule'), description: t('resetToRuleHint') },
+            ]}
+          />
+        </DialogBody>
+        <DialogFooter
+          secondary={
+            <DialogClose>
+              <Button type="button" variant="secondary">
+                {common('cancel')}
+              </Button>
+            </DialogClose>
+          }
+          primary={
+            <Button type="submit" variant="primary" disabled={choice === null} loading={pending}>
+              {t('apply')}
+            </Button>
+          }
         />
-      </DialogBody>
-      <DialogFooter
-        secondary={
-          <DialogClose>
-            <Button variant="secondary">{common('cancel')}</Button>
-          </DialogClose>
-        }
-        primary={
-          <Button variant="primary" disabled={choice === null} loading={pending} onClick={() => void apply()}>
-            {t('apply')}
-          </Button>
-        }
-      />
+      </form>
     </Dialog>
   );
 }
