@@ -4,6 +4,7 @@ the reference."""
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Final, Literal
@@ -32,7 +33,8 @@ def is_top(position: int | None, max_position: int) -> bool:
 
 def equity_points(now: float | None, before: float | None) -> float:
     """Change of equity share in points, one decimal (0.0312 against 0.0201 is 1.1)."""
-    points = round(((now or 0.0) - (before or 0.0)) * 1000) / 10
+    # Half rounds up, as the mock's Math.round does; Python's round() goes to the even number.
+    points = math.floor(((now or 0.0) - (before or 0.0)) * 1000 + 0.5) / 10
     return points + 0.0  # turns -0.0 into 0.0
 
 
@@ -66,7 +68,8 @@ def _bounded(value: object, low: int, high: int, default: int) -> int:
 def alert_settings(stored: Mapping[str, Any] | None) -> AlertSettings:
     """The project's `internal_links.alerts` with defaults; a bad stored value falls back to
     its default, so a hand-edited setting never stops an evaluation."""
-    given = (stored or {}).get("alerts") or {}
+    found = stored.get("alerts") if isinstance(stored, Mapping) else None
+    given: Mapping[str, Any] = found if isinstance(found, Mapping) else {}
     channel = given.get("channel")
     return AlertSettings(
         enabled=given.get("enabled") is not False,

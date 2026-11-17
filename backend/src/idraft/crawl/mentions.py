@@ -8,6 +8,7 @@ page and not with the number of phrases."""
 from __future__ import annotations
 
 import re
+import unicodedata
 from collections.abc import Mapping, Sequence
 from collections.abc import Set as AbstractSet
 from dataclasses import dataclass
@@ -24,7 +25,10 @@ CONTEXT_MAX: Final = 240
 type Origin = Literal["keyword", "anchor"]
 type PhraseIndex = dict[str, list[tuple[int, Origin]]]
 
-_WORD = re.compile(r"[^\W_][\w'’-]*", re.UNICODE)  # noqa: RUF001  (curly apostrophe is a word char)
+# A word is a run of letters and digits: "SOC-2" is "soc" and "2", "SOC's" is "soc" and "s", so
+# a phrase matches however the text joins its words. Marks that Python does not count as
+# letters (some Indic scripts) split a word; a known limit, and spaceless scripts are too.
+_WORD = re.compile(r"[^\W_]+")
 _SENTENCE_END = re.compile(r"[.!?]\s")
 # Text in these elements is not the page's own words about a topic.
 _SKIP = frozenset(
@@ -44,6 +48,8 @@ _SKIP = frozenset(
         "textarea",
         "template",
         "iframe",
+        "head",
+        "title",
     }
 )
 _BLOCKS = frozenset(
@@ -77,7 +83,10 @@ _VOID = frozenset({"br", "img", "hr", "input", "meta", "link", "source", "wbr", 
 class _Text(HTMLParser):
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
-        self.skip = 0
+        # The skipped elements that are open, outermost first. A closing tag ends the innermost
+        # open one of its name and every one opened inside it, so an element a page never
+        # closed does not hide the rest of the page; `</body>` ends them all.
+        self.skipping: list[str] = []
         self.main = 0
         self.has_main = False
         self.chunks: list[str] = []
@@ -87,17 +96,22 @@ class _Text(HTMLParser):
         if tag in _VOID:
             self._break(tag)
             return
+        if tag == "a" and "a" in self.skipping:
+            # A link cannot hold a link: a second one means the first was never closed.
+            del self.skipping[len(self.skipping) - 1 - self.skipping[::-1].index("a") :]
         if tag in _SKIP:
-            self.skip += 1
-        if tag in ("main", "article"):
+            self.skipping.append(tag)
+        elif tag in ("main", "article") and not self.skipping:
             self.main += 1
             self.has_main = True
         self._break(tag)
 
     def handle_endtag(self, tag: str) -> None:
-        if tag in _SKIP and self.skip:
-            self.skip -= 1
-        if tag in ("main", "article") and self.main:
+        if tag in self.skipping:
+            del self.skipping[len(self.skipping) - 1 - self.skipping[::-1].index(tag) :]
+        elif tag == "body":
+            self.skipping.clear()
+        elif tag in ("main", "article") and self.main and not self.skipping:
             self.main -= 1
         self._break(tag)
 
@@ -107,7 +121,7 @@ class _Text(HTMLParser):
             self.main_chunks.append(" ")
 
     def handle_data(self, data: str) -> None:
-        if self.skip:
+        if self.skipping:
             return
         self.chunks.append(data)
         if self.main:
@@ -122,15 +136,17 @@ def visible_text(html: str) -> str:
     parser.feed(html)
     parser.close()
     chosen = parser.main_chunks if parser.has_main else parser.chunks
-    return re.sub(r"\s+", " ", "".join(chosen)).strip()
+    return unicodedata.normalize("NFC", re.sub(r"\s+", " ", "".join(chosen)).strip())
 
 
 def phrase_key(phrase: str) -> str | None:
     """The dictionary key of a phrase: its words in lowercase, one space between. None for a
     phrase that is too short, too long, only digits, or a generic anchor."""
-    words = [match.group(0).lower() for match in _WORD.finditer(phrase)]
+    words = [
+        match.group(0).lower() for match in _WORD.finditer(unicodedata.normalize("NFC", phrase))
+    ]
     key = " ".join(words)
-    if not words or len(key) < PHRASE_MIN_CHARS or len(words) > PHRASE_MAX_WORDS:
+    if not words or len("".join(words)) < PHRASE_MIN_CHARS or len(words) > PHRASE_MAX_WORDS:
         return None
     if all(word.isdigit() for word in words) or key in GENERIC_ANCHORS:
         return None

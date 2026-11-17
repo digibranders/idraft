@@ -61,6 +61,12 @@ def test_settings_have_defaults_and_ignore_bad_stored_values() -> None:
     assert alert_settings({"alerts": {"max_position": True, "threshold": True}}) == AlertSettings(
         True, 2, 1, "app"
     )
+    for odd in ({"alerts": "x"}, {"alerts": [1]}, "x", 3):
+        assert alert_settings(odd) == AlertSettings(True, 2, 1, "app")  # type: ignore[arg-type]
+
+
+def test_a_half_point_rounds_up_as_the_mock_does() -> None:
+    assert equity_points(0.0005, 0.0) == 0.1
 
 
 def test_an_alert_is_due_when_enabled_and_the_count_reaches_the_threshold() -> None:

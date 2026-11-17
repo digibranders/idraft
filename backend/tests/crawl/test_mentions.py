@@ -32,6 +32,18 @@ def test_visible_text_is_the_main_content_without_links_scripts_and_template_blo
         assert left_out not in text
 
 
+def test_an_unclosed_menu_or_link_does_not_hide_the_rest_of_the_page() -> None:
+    assert "managed SOC body" in visible_text("<nav><ul><li>menu</ul></nav><p>managed SOC body</p>")
+    assert "after" in visible_text("<a href=x>one<a href=y>two</a><p>after</p>")
+    assert "tail" in visible_text("<body><p>x</p><nav>unclosed</body><p>tail</p>")
+
+
+def test_the_title_and_a_main_inside_an_aside_are_not_the_page_body() -> None:
+    assert visible_text("<title>Managed SOC</title><p>x</p>") == "x"
+    text = visible_text("<aside><article>related</article></aside><div>managed SOC body</div>")
+    assert text == "managed SOC body"
+
+
 def test_a_page_without_main_or_article_uses_its_body() -> None:
     assert "Plain words" in visible_text("<body><p>Plain words here.</p></body>")
 
@@ -77,6 +89,14 @@ def test_a_phrase_must_match_whole_words() -> None:
     index = index_phrases({10: PhraseSet(["soc"], [])})
     assert find_mentions("The sock drawer and socks.", index, source_url_id=1, skip=set()) == []
     assert find_mentions("We run a SOC today.", index, source_url_id=1, skip=set())
+
+
+def test_hyphens_and_apostrophes_join_words_the_same_way_in_phrases_and_text() -> None:
+    index = index_phrases({10: PhraseSet(["managed soc", "SOC 2"], [])})
+    text = "Our managed SOC's team passed a SOC-2 audit."
+    found = find_mentions(text, index, source_url_id=1, skip=set())
+    assert [mention.target_url_id for mention in found] == [10]
+    assert phrase_key("a b") is None
 
 
 def test_at_most_limit_mentions_come_back() -> None:
