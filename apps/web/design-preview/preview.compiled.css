@@ -20,8 +20,10 @@
     --color-foreground-tertiary: var(--foreground-tertiary);
     --color-border-strong: var(--border-strong);
     --color-primary: var(--primary);
+    --color-positive-text: var(--positive-text);
     --color-negative-text: var(--negative-text);
     --color-warning-text: var(--warning-text);
+    --color-info-text: var(--info-text);
     --shadow-popover: var(--shadow-popover);
     --shadow-switch-knob: var(--shadow-switch-knob);
     --shadow-dialog: var(--shadow-dialog);
@@ -1517,6 +1519,9 @@
   .border-info-border {
     border-color: var(--info-border);
   }
+  .border-info-text {
+    border-color: var(--info-text);
+  }
   .border-negative-border {
     border-color: var(--negative-border);
   }
@@ -1528,6 +1533,9 @@
   }
   .border-positive-border {
     border-color: var(--positive-border);
+  }
+  .border-positive-text {
+    border-color: var(--positive-text);
   }
   .border-primary {
     border-color: var(--primary);

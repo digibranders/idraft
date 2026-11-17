@@ -28,7 +28,7 @@ export const state = {
   // opportunityStatus: `${from}>${to}` to 'accepted' or 'dismissed' (absent = open); dismissedTierSuggestions: page ids
   opportunityStatus: {},
   dismissedTierSuggestions: new Set(),
-  journey: { focus: 'soc', view: 'canvas', cards: 'editorial', opened: new Set(), more: new Map(), groups: new Set(), pinned: new Set(), treeDir: 'out', treeOpen: new Set() },
+  journey: { focus: 'soc', view: 'canvas', layout: 'step', laneHide: new Set(), cards: 'editorial', opened: new Set(), more: new Map(), groups: new Set(), pinned: new Set(), treeDir: 'out', treeOpen: new Set() },
 };
 
 let renderer = () => {};

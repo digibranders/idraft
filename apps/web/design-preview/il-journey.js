@@ -262,7 +262,11 @@ const HEADS = {
   'var(--color-border-strong)': 'il-head-menu',
   'var(--color-warning-text)': 'il-head-redirect',
   'var(--color-negative-text)': 'il-head-broken',
+  'var(--color-positive-text)': 'il-head-up',
+  'var(--color-info-text)': 'il-head-down',
 };
+const FLOW_UP = 'var(--color-positive-text)';
+const FLOW_DOWN = 'var(--color-info-text)';
 const headDefs = () => Object.entries(HEADS).map(([colour, id]) => `<marker id="${id}" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path d="M1 1.5L10 5L1 8.5z" style="fill: ${colour}"/></marker>`).join('');
 
 /** Keys of the hovered card, the cards on its path back to the focus page, and its direct children; null when nothing is hovered. */
@@ -275,42 +279,84 @@ function litKeys() {
   return set;
 }
 
+/** Tier of a page as a lane number: 1 is T1, a larger number is a lower tier, 99 is Untiered. */
+const lanePos = (id) => tierPosition(tierIdOf(pageById(id))) || 99;
+
+/**
+ * The path of one line between two card boxes. Normally it leaves the right edge of the source and enters the left edge of
+ * the target. A target in a lane to the left (a link down a tier) is entered from its right edge, and a target in the same
+ * lane is reached around the right gutter, so a line never crosses the cards it passes.
+ */
+function route(from, to) {
+  if (to.l >= from.r - 1) return { d: curve(from, to), sx: from.r, sy: from.m };
+  if (to.r <= from.l + 1) {
+    const reach = Math.max(48, Math.abs(from.l - to.r) * 0.5);
+    return { d: `M${from.l},${from.m} C${from.l - reach},${from.m} ${to.r + reach},${to.m} ${to.r},${to.m}`, sx: from.l, sy: from.m };
+  }
+  // Lines to different cards in the lane swing out by different amounts, so they do not share one vertical stretch
+  const bulge = Math.min(96, 28 + Math.abs(to.m - from.m) * 0.12);
+  return { d: `M${from.r},${from.m} C${from.r + bulge},${from.m} ${to.r + bulge},${to.m} ${to.r},${to.m}`, sx: from.r, sy: from.m };
+}
+
+/** The lines to draw: every link between a card and its parent (By step), or the links collected for the lanes (By tier). */
+function edgeSpecs(byKey) {
+  const { inner, items } = active;
+  const specs = [];
+  if (active.tierEdges) {
+    active.tierEdges.forEach((edge) => {
+      const fromNode = byKey(edge.from);
+      const toNode = byKey(edge.to);
+      if (fromNode && toNode) specs.push({ ...edge, fromNode, toNode, fromKey: edge.from, toKey: edge.to });
+    });
+    return specs;
+  }
+  inner.querySelectorAll('button.node[data-parent]').forEach((node) => {
+    const parent = byKey(node.dataset.parent);
+    if (!parent) return;
+    const isIn = node.dataset.dir === 'in';
+    const item = items.get(node.dataset.key);
+    const link = item?.edge ?? { placement: node.dataset.scope === 'auto' ? 'auto_generated' : node.dataset.scope === 'both' ? 'content' : 'navigation' };
+    const [fromNode, toNode] = isIn ? [node, parent] : [parent, node];
+    specs.push({ fromNode, toNode, fromKey: fromNode.dataset.key, toKey: toNode.dataset.key, link, fromId: fromNode.dataset.id, toId: toNode.dataset.id, real: Boolean(item?.edge) });
+  });
+  return specs;
+}
+
 function drawEdges() {
   if (!active || !live(active.inner)) return;
-  const { inner, svg, items, loops } = active;
+  const { inner, svg, loops } = active;
   const byKey = (key) => inner.querySelector(`button.node[data-key="${CSS.escape(key)}"]`);
   svg.setAttribute('width', String(inner.scrollWidth));
   svg.setAttribute('height', String(inner.scrollHeight));
   const edges = [];
   const hits = [];
   const lit = litKeys();
+  const byTier = Boolean(active.tierEdges);
   active.edgeInfo = [];
   let paths = `<defs>${headDefs()}<marker id="il-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M1 1L9 5L1 9z" style="fill: var(--color-primary)"/></marker></defs>`;
-  inner.querySelectorAll('button.node[data-parent]').forEach((node) => {
-    const parent = byKey(node.dataset.parent);
-    if (!parent) return;
-    const isIn = node.dataset.dir === 'in';
-    const a = boxIn(inner, parent);
-    const b = boxIn(inner, node);
-    const from = isIn ? b : a;
-    const to = isIn ? a : b;
-    const item = items.get(node.dataset.key);
-    const link = item?.edge ?? { placement: node.dataset.scope === 'auto' ? 'auto_generated' : node.dataset.scope === 'both' ? 'content' : 'navigation' };
-    const target = item?.edge ? (isIn ? parent.dataset.id : node.dataset.id) : null;
-    const { colour, dash } = edgeLook(link, target);
-    const status = target ? pageById(target).status : 200;
+  edgeSpecs(byKey).forEach((spec) => {
+    const from = boxIn(inner, spec.fromNode);
+    const to = boxIn(inner, spec.toNode);
+    let { colour, dash } = edgeLook(spec.link, spec.real ? spec.toId : null);
+    const status = spec.real ? pageById(spec.toId).status : 200;
+    if (byTier && spec.real && status === 200) {
+      // By tier the colour says which way the link flows: up toward T1, down to a lower tier, or sideways
+      const [a, b] = [lanePos(spec.fromId), lanePos(spec.toId)];
+      colour = a > b ? FLOW_UP : a < b ? FLOW_DOWN : 'var(--color-foreground-tertiary)';
+      if (a === b && !dash) dash = ' stroke-dasharray="4 4"';
+    }
     // Template and auto edges first, editorial next, redirect and broken last, so a colour shows on its own last segment
-    const rank = status === 301 || status >= 400 ? 2 : scopeOf(link) === 'editorial' ? 1 : 0;
+    const rank = status === 301 || status >= 400 ? 2 : scopeOf(spec.link) === 'editorial' ? 1 : 0;
     // While a card is hovered, the path from the focus page to it stays bold and the rest fades
-    const onPath = !lit || (lit.has(node.dataset.key) && lit.has(node.dataset.parent));
-    const d = curve(from, to);
+    const onPath = !lit || (lit.has(spec.fromKey) && lit.has(spec.toKey));
+    const { d, sx, sy } = route(from, to);
     const look = `opacity: ${onPath ? 1 : 0.15}`;
     // The line, an arrowhead at the target and a small dot where it leaves the source
-    edges.push({ rank, markup: `<path d="${d}" fill="none" stroke-width="${lit && onPath ? 2.5 : 1.5}"${dash} marker-end="url(#${HEADS[colour]})" style="stroke: ${colour}; ${look}"/><circle cx="${from.r}" cy="${from.m}" r="2.5" style="fill: ${colour}; ${look}"/>` });
-    if (item?.edge) {
+    edges.push({ rank, markup: `<path d="${d}" fill="none" stroke-width="${lit && onPath ? 2.5 : 1.5}"${dash} marker-end="url(#${HEADS[colour]})" style="stroke: ${colour}; ${look}"/><circle cx="${sx}" cy="${sy}" r="2.5" style="fill: ${colour}; ${look}"/>` });
+    if (spec.real) {
       // A wide invisible stroke on top, so a thin line can be hovered for its anchor text
       hits.push(`<path data-edge="${active.edgeInfo.length}" d="${d}" fill="none" stroke="transparent" stroke-width="14" style="pointer-events: stroke"/>`);
-      active.edgeInfo.push({ link: item.edge, from: isIn ? node.dataset.id : parent.dataset.id, to: target });
+      active.edgeInfo.push({ link: spec.link, from: spec.fromId, to: spec.toId });
     }
   });
   paths += edges.sort((x, y) => x.rank - y.rank).map((edge) => edge.markup).join('') + hits.join('');
@@ -410,8 +456,9 @@ const SHORTCUTS = [
 const keyed = (inner, key) => inner.querySelector(`button.node[data-key="${CSS.escape(key)}"]`);
 const movable = (node) => (node.parentElement?.classList.contains('group') ? node.parentElement : node);
 const nodeOf = (target) => target.closest?.('button.node') ?? target.closest?.('.group')?.querySelector('button.node') ?? null;
-const offsetKey = (key) => `${j().focus}|${j().cards}|${key}`;
-const hasOffsets = () => [...offsets.keys()].some((key) => key.startsWith(`${j().focus}|${j().cards}|`));
+const offsetPrefix = () => `${j().focus}|${j().cards}|${j().layout}|`;
+const offsetKey = (key) => `${offsetPrefix()}${key}`;
+const hasOffsets = () => [...offsets.keys()].some((key) => key.startsWith(offsetPrefix()));
 
 function menuRow(panel, api, label, run) {
   const node = el('button', `${MENU_ROW} ${FOCUS_RING}`, label);
@@ -449,7 +496,7 @@ function buildCanvas() {
     canPan: (event) => event.button === 0 && !event.shiftKey && !event.target.closest('button'),
     onView: (view) => {
       zoom = view.k;
-      savedView = { focus: j().focus, cards: j().cards, x: view.x, y: view.y, k: view.k };
+      savedView = { focus: j().focus, cards: j().cards, layout: j().layout, x: view.x, y: view.y, k: view.k };
       minimap.update();
       syncControls();
       hideTip();
@@ -505,6 +552,11 @@ function buildCanvas() {
   };
   function initialTarget() {
     const fitted = viewport.fitTarget(ctx.bounds, { pad: 56, maxK: 1 });
+    if (j().layout === 'tier') {
+      // The lanes are the point, so show as many as stay readable, with the focus lane (the last one, or near it) in view
+      if (fitted.k >= 0.5) return fitted;
+      return { k: 0.5, x: Math.min(56, viewport.size().w - 56 - ctx.bounds.r * 0.5), y: 56 - ctx.bounds.t * 0.5 };
+    }
     if (fitted.k >= 0.7) return fitted;
     // Too big to read at once: start at a readable size on the focus page rather than on a blur of cards
     const focus = ctx.boxes.find((box) => box.focus) ?? ctx.bounds;
@@ -531,7 +583,7 @@ function buildCanvas() {
   percent.dataset.tip = 'Zoom to 100%';
   percent.addEventListener('click', actualSize);
   const resetLayout = control('undo-2', 'Reset card positions', () => {
-    [...offsets.keys()].filter((key) => key.startsWith(`${j().focus}|${j().cards}|`)).forEach((key) => offsets.delete(key));
+    [...offsets.keys()].filter((key) => key.startsWith(offsetPrefix())).forEach((key) => offsets.delete(key));
     paintOffsets();
     scheduleEdges();
     syncControls();
@@ -705,6 +757,90 @@ function buildCanvas() {
     return changed;
   }
 
+  const moreButton = (item) => {
+    const more = el('button', `h-control-sm rounded-md border border-border bg-surface type-body-strong text-foreground hover:bg-surface-hover ${FOCUS_RING}`, `+${item.count} more`);
+    more.type = 'button';
+    more.dataset.more = item.moreKey;
+    return more;
+  };
+
+  /**
+   * By tier: one lane per tier, lowest on the left and T1 on the right, so a link that runs left to right is a link up
+   * toward the money pages. A page is one card however many links reach it; every link between cards on the canvas is a
+   * line. An empty lane is a finding: no page of that tier is linked in the part of the site in view.
+   */
+  function buildTierColumns(graph, scope, focusWrap) {
+    const focus = j().focus;
+    const focusLane = lanePos(focus);
+    const lanes = [{ pos: 99, label: 'Untiered' }, ...tiers.slice().reverse().map((tier) => ({ pos: tierPosition(tier.id), label: tierLabel(tier.id) }))];
+    const order = [];
+    for (let step = 0; step < Math.max(graph.out.length, graph.in.length); step += 1) [graph.in[step], graph.out[step]].forEach((col) => col && order.push(...col));
+    const inView = new Set(order.filter((item) => item.kind === 'card').map((item) => lanePos(item.id)));
+    const shownLanes = lanes.filter((lane) => lane.pos === focusLane || (lane.pos === 99 ? inView.has(99) && !j().laneHide.has(99) : !j().laneHide.has(lane.pos)));
+    const nodes = new Map(shownLanes.map((lane) => [lane.pos, []]));
+    const counts = new Map(shownLanes.map((lane) => [lane.pos, 0]));
+    const idByKey = new Map([['f', focus]]);
+    const placed = new Map([[focus, 'f']]);
+    const alias = new Map();
+    nodes.get(focusLane).push(focusWrap);
+    counts.set(focusLane, 1);
+    order.forEach((item) => {
+      if (item.kind !== 'card') return;
+      idByKey.set(item.key, item.id);
+      if (placed.has(item.id)) {
+        alias.set(item.key, placed.get(item.id));
+        return;
+      }
+      placed.set(item.id, item.key);
+      const lane = nodes.get(lanePos(item.id));
+      if (!lane) return;
+      ctx.items.set(item.key, item);
+      lane.push(cardWrap(item, scope, ctx));
+      counts.set(lanePos(item.id), counts.get(lanePos(item.id)) + 1);
+    });
+    const resolve = (key) => alias.get(key) ?? key;
+    const edges = [];
+    const seen = new Set();
+    const add = (from, to, link, fromId, toId, real) => {
+      if (seen.has(`${from}>${to}`)) return;
+      seen.add(`${from}>${to}`);
+      edges.push({ from, to, link, fromId, toId, real });
+    };
+    order.forEach((item) => {
+      const parentKey = resolve(item.parentKey ?? 'f');
+      const parentId = idByKey.get(item.parentKey ?? 'f');
+      if (item.kind === 'card' || item.kind === 'stub') {
+        const target = item.kind === 'stub' ? placed.get(item.id) : resolve(item.key);
+        if (!target) return;
+        if (item.dir === 'in') add(target, parentKey, item.edge, item.id, parentId, true);
+        else add(parentKey, target, item.edge, parentId, item.id, true);
+      } else if (item.kind === 'group') {
+        const lane = nodes.get(lanePos(parentId));
+        if (!lane) return;
+        ctx.items.set(item.key, item);
+        lane.push(groupButton(item));
+        const link = { placement: item.scope === 'auto' ? 'auto_generated' : item.scope === 'both' ? 'content' : 'navigation' };
+        if (item.dir === 'in') add(item.key, parentKey, link, null, null, false);
+        else add(parentKey, item.key, link, null, null, false);
+      } else if (item.kind === 'more') {
+        const tierOfMore = /^in:f:t(\d+)$/.exec(item.moreKey);
+        const lane = nodes.get(tierOfMore ? Number(tierOfMore[1]) : lanePos(parentId));
+        if (lane) lane.push(moreButton(item));
+      }
+    });
+    ctx.tierEdges = edges;
+    return shownLanes.map((lane) => {
+      const mine = lane.pos === focusLane;
+      const col = el('div', `flex ${mine ? 'w-72' : 'w-60'} shrink-0 flex-col gap-1.5 rounded-lg border border-dashed p-2 ${mine ? 'border-primary-border' : 'border-border'}`);
+      if (mine) col.style.background = 'color-mix(in srgb, var(--color-primary) 5%, transparent)';
+      const head = el('div', 'flex items-baseline gap-1.5');
+      head.append(el('h3', `type-label ${mine ? 'text-primary-text' : 'text-foreground-secondary'}`, lane.label), el('span', 'num type-meta text-foreground-tertiary', plural(counts.get(lane.pos), 'page')));
+      const list = nodes.get(lane.pos);
+      col.append(head, ...(counts.get(lane.pos) === 0 ? [el('p', 'type-meta text-foreground-tertiary', `No ${lane.pos === 99 ? 'untiered' : lane.label.split(' ')[0]} page in view`)] : list));
+      return col;
+    });
+  }
+
   // World position of every card, by key
   function snapshot() {
     const map = new Map();
@@ -802,13 +938,18 @@ function buildCanvas() {
       });
       return column(label(index), nodes);
     });
-    const left = render(graph.in, (index) => `Step ${index + 1} in`).reverse();
-    const right = render(graph.out, (index) => `Step ${index + 1} out`);
+    const byTier = j().layout === 'tier';
+    const left = byTier ? [] : render(graph.in, (index) => `Step ${index + 1} in`).reverse();
+    const right = byTier ? [] : render(graph.out, (index) => `Step ${index + 1} out`);
+    ctx.tierEdges = null;
     const focusItem = { kind: 'card', id: j().focus, key: 'f', path: [j().focus], keys: ['f'], dir: null, edge: null };
     ctx.items.set('f', focusItem);
     const focusWrap = el('div', 'flex flex-col gap-2');
     focusWrap.append(cardWrap(focusItem, scope, ctx), focusNote(j().cards));
-    const columns = [...left, column('Focus page', [focusWrap], true), ...right];
+    const columns = byTier ? buildTierColumns(graph, scope, focusWrap) : [...left, column('Focus page', [focusWrap], true), ...right];
+    // Lanes share one height, so each reads as a band; columns of steps start at the top
+    inner.classList.toggle('items-stretch', byTier);
+    inner.classList.toggle('items-start', !byTier);
     inner.replaceChildren(svg, ...columns);
     columns.forEach((col, index) => col.querySelectorAll('button.node').forEach((node) => {
       node.dataset.col = String(index);
@@ -836,7 +977,7 @@ function buildCanvas() {
     ctx.fitHeight();
     refreshBoxes();
     const saved = savedView;
-    if (saved && saved.focus === j().focus && saved.cards === j().cards) viewport.set(saved.x, saved.y, saved.k);
+    if (saved && saved.focus === j().focus && saved.cards === j().cards && saved.layout === j().layout) viewport.set(saved.x, saved.y, saved.k);
     else {
       const target = initialTarget();
       viewport.set(target.x, target.y, target.k);
@@ -1389,11 +1530,57 @@ function cardsSwitch() {
   return group;
 }
 
+function layoutSwitch() {
+  const group = segmented([['step', 'By step'], ['tier', 'By tier']], j().layout, (value) => {
+    if (j().layout === value) return;
+    j().layout = value;
+    restore = `journey-layout:${value}`;
+    refresh();
+  }, 'Canvas layout');
+  group.title = 'By step: the click journey. By tier: lanes from T4 to T1, so links up toward the money pages read left to right.';
+  group.querySelectorAll('button').forEach((node, index) => {
+    node.dataset.restore = `journey-layout:${['step', 'tier'][index]}`;
+  });
+  return group;
+}
+
+/** By tier: which tier lanes are shown. The focus page's own lane always is. */
+function laneChips() {
+  const wrap = el('div', 'flex items-center gap-1');
+  wrap.setAttribute('role', 'group');
+  wrap.setAttribute('aria-label', 'Tiers shown');
+  wrap.append(el('span', 'mr-1 type-label text-foreground-tertiary', 'Tiers shown'));
+  const focusLane = lanePos(j().focus);
+  [{ pos: 99, label: 'Untiered' }, ...tiers.slice().reverse().map((tier) => ({ pos: tierPosition(tier.id), label: tierCode(tier.id) }))].forEach((lane) => {
+    const on = lane.pos === focusLane || !j().laneHide.has(lane.pos);
+    const chip = el('button', `h-control-sm rounded-sm border px-2 type-label whitespace-nowrap ${on ? 'border-primary-border bg-primary-subtle text-primary-text' : 'border-border bg-surface text-foreground-tertiary hover:bg-surface-hover'} ${FOCUS_RING}`, lane.label);
+    chip.type = 'button';
+    chip.setAttribute('aria-pressed', String(on));
+    chip.dataset.restore = `journey-lane:${lane.pos}`;
+    if (lane.pos === focusLane) {
+      chip.disabled = true;
+      chip.title = 'The focus page is in this tier, so it stays';
+    }
+    chip.addEventListener('click', () => {
+      if (j().laneHide.has(lane.pos)) j().laneHide.delete(lane.pos);
+      else j().laneHide.add(lane.pos);
+      restore = `journey-lane:${lane.pos}`;
+      refresh();
+    });
+    wrap.append(chip);
+  });
+  return wrap;
+}
+
 function toolbar() {
   const bar = el('div', 'flex flex-wrap items-center gap-3 border-b border-border-subtle px-3 py-2');
   bar.append(viewSwitch(), focusPicker());
   if (j().view === 'path') return bar;
   bar.append(cardsSwitch());
+  if (j().view === 'canvas') {
+    bar.append(layoutSwitch());
+    if (j().layout === 'tier') bar.append(laneChips());
+  }
   if (j().view === 'tree') {
     const follow = selectField([['out', 'Links out'], ['in', 'Links in']], j().treeDir, (value) => {
       j().treeDir = value;
@@ -1419,6 +1606,7 @@ function legend() {
   };
   const lines = row('Lines');
   [
+    ...(j().layout === 'tier' ? [['Up a tier', 'border-positive-text'], ['Down a tier', 'border-info-text'], ['Same tier', 'border-foreground-tertiary border-dashed']] : []),
     ['Editorial', 'border-foreground-tertiary'],
     ['Auto-generated', 'border-border-strong border-dotted'],
     ['Menu and footer', 'border-border-strong border-dashed'],
