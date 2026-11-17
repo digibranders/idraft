@@ -75,6 +75,17 @@ export type TaskStatusKey = (typeof TASK_STATUS_KEYS)[TaskStatusCode];
 
 const isTaskStatus = (code: string): code is TaskStatusCode => Object.hasOwn(TASK_STATUS_KEYS, code);
 
+/**
+ * How long the run took, in milliseconds: from its start (`created_at`) to its end (`completed_at`). `null` for
+ * a run that has not ended, and for times that do not read as a span (a missing or unreadable one, or an end
+ * before the start).
+ */
+export function runDurationMs(run: Pick<Run, 'created_at' | 'completed_at'>): number | null {
+  if (run.completed_at === null) return null;
+  const span = Date.parse(run.completed_at) - Date.parse(run.created_at);
+  return Number.isFinite(span) && span >= 0 ? span : null;
+}
+
 /** `rows` with the newer reading of the runs among them: each run `newer` holds replaces its row. */
 export function overlayRuns<T extends Pick<Run, 'run_id'>>(rows: readonly T[], newer: readonly T[]): readonly T[] {
   if (newer.length === 0) return rows;
