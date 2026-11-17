@@ -23,7 +23,7 @@ import { isApiProblem } from '@/lib/api/problem';
 import { EMPTY_VALUE, formatCurrency, formatInteger, formatTableDateTime } from '@/lib/format';
 import { failedText } from '@/lib/internal-links/crawl-failure';
 import { updateSettingsMutation } from '@/lib/internal-links/mutations';
-import { crawlsQuery, linkSettingsQuery } from '@/lib/internal-links/queries';
+import { CRAWL_LIMIT, crawlsQuery, linkSettingsQuery } from '@/lib/internal-links/queries';
 import type { CrawlRun, CrawlSchedule, InternalLinksSettingsPatch } from '@/lib/internal-links/types';
 import { useLeaveGuard } from '@/lib/navigation/use-leave-guard';
 import { useCan } from '@/lib/permissions';
@@ -296,7 +296,7 @@ export function InternalLinksSettingsScreen({
       )}
       <h3 className="type-subsection-title">{t('recent')}</h3>
       <PlainTable<CrawlRun>
-        caption={t('recentCaption')}
+        caption={t('recentCaption', { count: CRAWL_LIMIT })}
         rows={crawls.data?.data ?? []}
         rowKey={(run) => run.run_id}
         status={crawls.isError ? 'error' : crawls.isPending ? 'loading' : 'ready'}

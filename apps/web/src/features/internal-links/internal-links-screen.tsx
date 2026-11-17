@@ -7,15 +7,7 @@ import { useCallback, useMemo, useRef, useState, type ReactElement, type ReactNo
 import { CrawlButton } from './crawl-button';
 import { CrawlHeader } from './crawl-header';
 import { crawlView, useCrawlNow, useCrawls, useWorkspaceTiers } from './crawl-reads';
-import {
-  CrawlBanners,
-  CrawlsOffNotice,
-  FirstCrawl,
-  failedText,
-  NeverCrawled,
-  NoWebsite,
-  SkeletonRows,
-} from './crawl-states';
+import { CrawlBanners, CrawlsOffNotice, FirstCrawl, NeverCrawled, NoWebsite, SkeletonRows } from './crawl-states';
 import { PageInspector, PageNotFoundInspector } from './inspector/page-inspector';
 import { UNTIERED_QUERY } from './pages/page-filters';
 import { ImportDialog } from './rules/import-dialog';
@@ -36,6 +28,7 @@ import { toast } from '@/components/ui/toast';
 import { announce } from '@/lib/a11y/announcer';
 import { useInspectorStepping } from '@/lib/inspector/use-inspector-stepping';
 import { isApiProblem } from '@/lib/api/problem';
+import { failedText } from '@/lib/internal-links/crawl-failure';
 import type { CrawlRun, LinksScope } from '@/lib/internal-links/types';
 import { useCan } from '@/lib/permissions';
 import { projectPath, withQuery, workspaceSettingsPath } from '@/lib/routes/paths';

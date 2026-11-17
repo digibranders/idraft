@@ -16,8 +16,6 @@ import { formatRelative, formatTableDate } from '@/lib/format';
 import { failedText } from '@/lib/internal-links/crawl-failure';
 import type { CrawlRun } from '@/lib/internal-links/types';
 
-export { failedText };
-
 /**
  * Crawls are not switched on yet (the API's `503 crawls_disabled`). A condition, not a failure: a neutral banner,
  * no error styling and no role. The press that learned it said it once through `announce()`; a later press that

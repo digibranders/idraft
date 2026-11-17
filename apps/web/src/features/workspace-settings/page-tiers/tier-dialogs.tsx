@@ -19,7 +19,8 @@ const UNTIERED = 'none';
 
 /**
  * Add a tier (`tier` is `null`) or rename one: the name is 1 to 60 characters, the description up to 200, and the
- * code stays. `failure` is the sentence of the catalog for why the last save failed, never the server's words.
+ * code stays. Enter submits. `failure` is the sentence of the catalog for why the last save failed, never the
+ * server's words. The caller keeps `tier` while the dialog closes, so it does not change under the closing fade.
  */
 export function TierFormDialog({
   open,
@@ -43,7 +44,8 @@ export function TierFormDialog({
   const [tried, setTried] = useState(false);
   const nameBad = name.trim().length < 1 || name.trim().length > NAME_MAX;
   const descriptionBad = description.trim().length > DESCRIPTION_MAX;
-  const dirty = name !== (tier?.name ?? '') || description !== (tier?.description ?? '');
+  // Spaces at the ends are not a change: the API trims both texts
+  const dirty = name.trim() !== (tier?.name ?? '').trim() || description.trim() !== (tier?.description ?? '').trim();
   return (
     <Dialog
       open={open}
@@ -57,69 +59,79 @@ export function TierFormDialog({
         discardLabel: t('discard'),
       }}
     >
-      <DialogHeader
-        title={tier === null ? t('addTitle') : t('renameTitle')}
-        description={tier === null ? t('addDescription') : t('renameDescription', { code: tier.code })}
-        closeLabel={common('close')}
-      />
-      <DialogBody>
-        {failure === null ? null : <FormAlert message={failure} />}
-        <Field invalid={tried && nameBad}>
-          <FieldLabel>{t('nameLabel')}</FieldLabel>
-          <Input value={name} onValueChange={setName} />
-          <FieldDescription>{t('nameHint')}</FieldDescription>
-          {tried && nameBad ? <FieldError message={t('nameError')} /> : null}
-        </Field>
-        <Field invalid={tried && descriptionBad}>
-          <FieldLabel>{t('descriptionLabel')}</FieldLabel>
-          <Textarea value={description} onChange={(event) => setDescription(event.target.value)} />
-          <FieldDescription>{t('descriptionHint')}</FieldDescription>
-          {tried && descriptionBad ? <FieldError message={t('descriptionError')} /> : null}
-        </Field>
-      </DialogBody>
-      <DialogFooter
-        primary={
-          <Button
-            variant="primary"
-            loading={pending}
-            onClick={() => {
-              setTried(true);
-              if (!nameBad && !descriptionBad) onSave(name.trim(), description.trim());
-            }}
-          >
-            {t('save')}
-          </Button>
-        }
-        secondary={
-          // Through the dialog's own close, so a form with changes asks first
-          <DialogClose>
-            <Button type="button" variant="secondary" disabled={pending}>
-              {common('cancel')}
+      <form
+        className="contents"
+        noValidate
+        onSubmit={(event) => {
+          event.preventDefault();
+          setTried(true);
+          if (!nameBad && !descriptionBad && !pending) onSave(name.trim(), description.trim());
+        }}
+      >
+        <DialogHeader
+          title={tier === null ? t('addTitle') : t('renameTitle')}
+          description={tier === null ? t('addDescription') : t('renameDescription', { code: tier.code })}
+          closeLabel={common('close')}
+        />
+        <DialogBody>
+          {failure === null ? null : <FormAlert message={failure} />}
+          <Field invalid={tried && nameBad}>
+            <FieldLabel>{t('nameLabel')}</FieldLabel>
+            <Input value={name} onValueChange={setName} />
+            <FieldDescription>{t('nameHint')}</FieldDescription>
+            {tried && nameBad ? <FieldError message={t('nameError')} /> : null}
+          </Field>
+          <Field invalid={tried && descriptionBad}>
+            <FieldLabel>{t('descriptionLabel')}</FieldLabel>
+            <Textarea value={description} onChange={(event) => setDescription(event.target.value)} />
+            <FieldDescription>{t('descriptionHint')}</FieldDescription>
+            {tried && descriptionBad ? <FieldError message={t('descriptionError')} /> : null}
+          </Field>
+        </DialogBody>
+        <DialogFooter
+          primary={
+            <Button type="submit" variant="primary" loading={pending}>
+              {t('save')}
             </Button>
-          </DialogClose>
-        }
-      />
+          }
+          secondary={
+            // Through the dialog's own close, so a form with changes asks first
+            <DialogClose>
+              <Button type="button" variant="secondary" disabled={pending}>
+                {common('cancel')}
+              </Button>
+            </DialogClose>
+          }
+        />
+      </form>
     </Dialog>
   );
 }
 
 /**
- * Delete a tier. One that pages or rules use must say where they go (another tier or Untiered): the choice starts
- * empty and the button waits for it, so nothing moves by default. The words name the page count, and say that the
- * codes close up. An unused tier only asks to confirm.
+ * Delete a tier. `tier` is the freshest copy of it, so counts that changed while the dialog was open show: one
+ * that pages or rules use must say where they go (another tier or Untiered). The choice starts empty and the button
+ * waits for it, so nothing moves by default. Pages move to Untiered as manual Untiered, but the rules cannot: they
+ * are deleted, and the dialog says so. The words name the page count and say that the codes close up. The caller
+ * keeps the last tier while the dialog closes.
  */
 export function DeleteTierDialog({
+  open,
   tier,
   tiers,
   pending,
   failure,
+  finalFocus,
   onClose,
   onDelete,
 }: {
+  open: boolean;
   tier: PageTier | null;
   tiers: readonly PageTier[];
   pending: boolean;
   failure: string | null;
+  /** Where focus goes when the dialog has closed: `true` for the control that opened it. */
+  finalFocus: () => HTMLElement | true;
   onClose: () => void;
   /** `null` for a tier nothing uses; else a tier id or `none`. */
   onDelete: (moveTo: string | null) => void;
@@ -136,7 +148,7 @@ export function DeleteTierDialog({
     { value: UNTIERED, label: t('untiered') },
   ];
   return (
-    <Dialog open={tier !== null} onOpenChange={(next) => (next ? undefined : onClose())} size="sm">
+    <Dialog open={open} onOpenChange={(next) => (next ? undefined : onClose())} size="sm" finalFocus={finalFocus}>
       <DialogHeader title={t('deleteTitle', { code: tier?.code ?? '' })} closeLabel={common('close')} />
       <DialogBody>
         {failure === null ? null : <FormAlert message={failure} />}
@@ -156,6 +168,9 @@ export function DeleteTierDialog({
             options={options}
           />
         ) : null}
+        {inUse && moveTo === UNTIERED && tier.rule_count > 0 ? (
+          <p className="type-meta text-foreground">{t('rulesDropped', { rules: tier.rule_count })}</p>
+        ) : null}
         {later === undefined || tier === null ? null : (
           <p className="type-meta text-foreground-secondary">{t('closeUp', { from: later.code, to: tier.code })}</p>
         )}
@@ -172,7 +187,7 @@ export function DeleteTierDialog({
           </Button>
         }
         secondary={
-          <Button variant="secondary" onClick={onClose}>
+          <Button variant="secondary" disabled={pending} onClick={onClose}>
             {common('cancel')}
           </Button>
         }

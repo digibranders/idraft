@@ -150,7 +150,7 @@ describe('Project settings > Internal links', () => {
 
   it('lists the crawls with state, trigger, pages, cost and date', async () => {
     renderWithProviders(screenAs('editor'));
-    const table = await screen.findByRole('table', { name: 'Recent crawls' });
+    const table = await screen.findByRole('table', { name: 'Latest 10 crawls' });
     expect(await within(table).findByText('Ready')).toBeInTheDocument();
     for (const header of ['When', 'Started by', 'State', 'Pages', 'Cost']) {
       expect(within(table).getByRole('columnheader', { name: header })).toBeInTheDocument();
@@ -173,7 +173,7 @@ describe('Project settings > Internal links', () => {
     };
     server.use(http.get(CRAWLS, () => HttpResponse.json({ ...base, data: [failed] })));
     renderWithProviders(screenAs('editor'));
-    const table = await screen.findByRole('table', { name: 'Recent crawls' });
+    const table = await screen.findByRole('table', { name: 'Latest 10 crawls' });
     expect(await within(table).findByText('Failed')).toBeInTheDocument();
     expect(within(table).getByText(/refuses our crawler/)).toBeInTheDocument();
     expect(screen.queryByText(/RAW PROVIDER TEXT/)).toBeNull();
@@ -195,13 +195,26 @@ describe('Project settings > Internal links', () => {
     };
     server.use(http.get(CRAWLS, () => HttpResponse.json({ ...base, data: [running] })));
     renderWithProviders(screenAs('editor'));
-    const table = await screen.findByRole('table', { name: 'Recent crawls' });
+    const table = await screen.findByRole('table', { name: 'Latest 10 crawls' });
     expect(await within(table).findByText('about $0.15')).toBeInTheDocument();
+  });
+
+  it('shows a cost under a cent with its digits, never as $0.00', async () => {
+    const base = (await mockBrowser('viewer').call('GET', `${P}/link-crawls`)).body as {
+      data: CrawlRun[];
+      page: unknown;
+    };
+    const first = base.data[0];
+    if (first === undefined) throw new Error('The mock has no crawl');
+    server.use(http.get(CRAWLS, () => HttpResponse.json({ ...base, data: [{ ...first, cost_usd: '0.003' }] })));
+    renderWithProviders(screenAs('editor'));
+    const table = await screen.findByRole('table', { name: 'Latest 10 crawls' });
+    expect(await within(table).findByText('$0.0030')).toBeInTheDocument();
   });
 
   it('never names equity', async () => {
     const { container } = renderWithProviders(screenAs('editor'));
-    await screen.findByRole('table', { name: 'Recent crawls' });
+    await screen.findByRole('table', { name: 'Latest 10 crawls' });
     expect(container.textContent?.toLowerCase()).not.toContain('equity');
   });
 
@@ -216,7 +229,7 @@ describe('Project settings > Internal links', () => {
   it.each(['light', 'dark'])('has no axe violations in the %s theme', async (theme) => {
     document.documentElement.classList.toggle('dark', theme === 'dark');
     const { container } = renderWithProviders(screenAs('editor'));
-    await within(await screen.findByRole('table', { name: 'Recent crawls' })).findByText('Ready');
+    await within(await screen.findByRole('table', { name: 'Latest 10 crawls' })).findByText('Ready');
     expect(await axe(container)).toHaveNoViolations();
   });
 });

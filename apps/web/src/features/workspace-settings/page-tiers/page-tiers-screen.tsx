@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useState, type ReactElement } from 'react';
+import { useRef, useState, type ReactElement } from 'react';
 
 import { DeleteTierDialog, TierFormDialog } from './tier-dialogs';
 import { InlineError } from '@/components/app/status/inline-error';
@@ -40,38 +40,57 @@ export function PageTiersScreen({ workspaceId }: { workspaceId: string }): React
   const create = useMutation(createTierMutation);
   const update = useMutation(updateTierMutation);
   const remove = useMutation(deleteTierMutation);
-  const [editing, setEditing] = useState<Editing | null>(null);
-  const [deleting, setDeleting] = useState<PageTier | null>(null);
+  // Both dialogs keep what they showed while they close, so their words do not empty under the closing fade
+  // `serial` remounts a dialog each time it opens, so it starts from the tier it is opened for
+  const [form, setForm] = useState<{ target: Editing; open: boolean; serial: number } | null>(null);
+  const [removal, setRemoval] = useState<{ shown: PageTier; open: boolean; serial: number } | null>(null);
+  const serial = useRef(0);
   const [formFailure, setFormFailure] = useState<string | null>(null);
   const [deleteFailure, setDeleteFailure] = useState<string | null>(null);
+  const heading = useRef<HTMLHeadingElement>(null);
+  const deleted = useRef(false);
   const tiers = read.data?.data ?? [];
   const full = tiers.length >= MAX_TIERS;
   const path = { workspace_id: workspaceId };
+  // The dialog reads the tier from the fresh list, so counts that changed under it (pages tagged by someone else)
+  // show and the choice of where they go appears; the copy it opened with is the fallback
+  const deleting =
+    removal === null ? null : (tiers.find((tier) => tier.tier_id === removal.shown.tier_id) ?? removal.shown);
   // Page counts live in the tier list and in every project's reads, so the whole workspace is read again
   const refresh = (): Promise<void> => queryClient.invalidateQueries({ queryKey: workspaceKey(workspaceId) });
 
-  const openForm = (next: Editing | null): void => {
+  const openForm = (target: Editing): void => {
     setFormFailure(null);
-    setEditing(next);
+    serial.current += 1;
+    setForm({ target, open: true, serial: serial.current });
   };
-  const openDelete = (next: PageTier | null): void => {
+  const closeForm = (): void => setForm((current) => (current === null ? null : { ...current, open: false }));
+  const openDelete = (shown: PageTier): void => {
     setDeleteFailure(null);
-    setDeleting(next);
+    deleted.current = false;
+    serial.current += 1;
+    setRemoval({ shown, open: true, serial: serial.current });
   };
+  const closeDelete = (): void => setRemoval((current) => (current === null ? null : { ...current, open: false }));
 
   const save = (name: string, description: string): void => {
     const done = (title: string, label: string): void => {
       toast({ type: 'success', title, description: label });
-      openForm(null);
+      closeForm();
       void refresh();
     };
-    if (editing === null) return;
+    if (form === null) return;
+    const editing = form.target;
     if (editing === 'new') {
       create.mutate(
         { params: { path }, body: { name, description } },
         {
           onSuccess: (answer) => done(t('added'), answer.data.label),
-          onError: (error) => setFormFailure(isApiProblem(error, 'tier_limit') ? t('limit') : t('saveFailed')),
+          onError: (error) => {
+            setFormFailure(isApiProblem(error, 'tier_limit') ? t('limit') : t('saveFailed'));
+            // The list was stale if the limit was reached: read it again so Add tier is current
+            void refresh();
+          },
         },
       );
       return;
@@ -93,7 +112,9 @@ export function PageTiersScreen({ workspaceId }: { workspaceId: string }): React
       {
         onSuccess: () => {
           toast({ type: 'success', title: t('deleted'), description: label });
-          openDelete(null);
+          // The row and its button are gone: focus goes to the heading of the section
+          deleted.current = true;
+          closeDelete();
           void refresh();
         },
         onError: (error) => {
@@ -126,7 +147,16 @@ export function PageTiersScreen({ workspaceId }: { workspaceId: string }): React
           row.tier.description
         ),
     },
-    { id: 'pages', header: t('pages'), cell: (row) => (row.kind === 'tier' ? formatInteger(row.tier.page_count) : '') },
+    {
+      id: 'pages',
+      header: t('pages'),
+      cell: (row) =>
+        row.kind === 'tier' ? (
+          formatInteger(row.tier.page_count)
+        ) : (
+          <span className="type-meta text-foreground-tertiary">{t('notCounted')}</span>
+        ),
+    },
     {
       id: 'actions',
       header: t('actions'),
@@ -161,7 +191,7 @@ export function PageTiersScreen({ workspaceId }: { workspaceId: string }): React
   return (
     <section aria-labelledby="page-tiers-title" className="flex flex-col gap-4">
       <div className="flex flex-col gap-1">
-        <h2 id="page-tiers-title" className="type-section-title">
+        <h2 id="page-tiers-title" ref={heading} tabIndex={-1} className="type-section-title outline-none">
           {t('title')}
         </h2>
         <p className="type-body text-foreground-secondary">{t('description')}</p>
@@ -182,7 +212,7 @@ export function PageTiersScreen({ workspaceId }: { workspaceId: string }): React
           rowKey={rowKey}
           status={read.isPending ? 'loading' : 'ready'}
           errorState={null}
-          emptyText={t('noDescription')}
+          emptyText={t('noTiers')}
           columns={columns}
         />
       )}
@@ -197,21 +227,23 @@ export function PageTiersScreen({ workspaceId }: { workspaceId: string }): React
         <p className="type-meta text-foreground-secondary">{t('readOnly')}</p>
       )}
       <TierFormDialog
-        key={editing === null ? 'closed' : editing === 'new' ? 'new' : editing.tier_id}
-        open={editing !== null}
-        tier={editing === 'new' ? null : editing}
+        key={form === null ? 'none' : form.serial}
+        open={form?.open === true}
+        tier={form === null || form.target === 'new' ? null : form.target}
         pending={create.isPending || update.isPending}
         failure={formFailure}
-        onClose={() => openForm(null)}
+        onClose={closeForm}
         onSave={save}
       />
       <DeleteTierDialog
-        key={deleting?.tier_id ?? 'none'}
+        key={removal === null ? 'none' : removal.serial}
+        open={removal?.open === true}
         tier={deleting}
         tiers={tiers}
         pending={remove.isPending}
         failure={deleteFailure}
-        onClose={() => openDelete(null)}
+        finalFocus={() => (deleted.current && heading.current !== null ? heading.current : true)}
+        onClose={closeDelete}
         onDelete={confirmDelete}
       />
     </section>
