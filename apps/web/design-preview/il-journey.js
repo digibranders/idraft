@@ -391,7 +391,7 @@ function buildCanvas() {
   scroller.setAttribute('role', 'group');
   scroller.setAttribute('aria-label', CANVAS_LABEL);
   scroller.style.cursor = 'grab';
-  scroller.style.backgroundImage = 'radial-gradient(circle, var(--color-border-strong) 1px, transparent 1.2px)';
+  scroller.style.backgroundImage = 'radial-gradient(circle, color-mix(in srgb, var(--color-border-strong) 35%, transparent) 1px, transparent 1.2px)';
   const inner = el('div', 'relative flex w-max items-start gap-16 p-4');
   inner.style.transformOrigin = '0 0';
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
