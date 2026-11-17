@@ -55,12 +55,13 @@ describe('shareAcrossPlatforms', () => {
     expect(at(result.entities, 0).value).toBeCloseTo(0.4);
   });
 
-  it('is insufficient, with the largest answer count and no value, when no platform has enough', () => {
+  it('is insufficient, with the largest brand-mention count and no value, when no platform has 4', () => {
     const summary = summaryOf({ entities: THREE, total: [engineOf('chatgpt_web', [1, 1, 0], 3)] });
     const result = shareAcrossPlatforms(summary, ['chatgpt_web'], set(summary), false);
     if (result.status !== 'read') throw new Error('unread');
     expect(result.state).toBe('insufficient');
-    expect(result.answers).toBe(3);
+    // 1 + 1 + 0 brand mentions of the three brands
+    expect(result.answers).toBe(2);
     expect(result.entities.every((entry) => entry.value === null)).toBe(true);
   });
 

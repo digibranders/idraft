@@ -23,6 +23,8 @@ export interface ScopeEntityShare {
   value: number | null;
   /** Mentioned of one platform, for the count beside the share; `null` for an average, which has no single count. */
   mention: MentionFigure | null;
+  /** x of y brand mentions of each platform that has a share, in the order read: the counts of the tooltip (D17). */
+  counts: { code: string; k: number; n: number }[];
 }
 
 export interface ScopeShares {
@@ -52,7 +54,7 @@ export function shareAcrossPlatforms(
     .filter((totals): totals is EngineEntityTotals => totals.status === 'read');
   if (read.length === 0) return UNREAD;
   const rated = read.filter((totals) => totals.state === 'ok');
-  const answers = Math.max(...read.map((totals) => totals.answersNamingTracked));
+  const answers = Math.max(...read.map((totals) => totals.brandMentions));
   const validAnswers = read.reduce((total, totals) => total + totals.validAnswers, 0);
   const state: RateState = rated.length > 0 ? 'ok' : answers > 0 ? 'insufficient' : 'none';
   const entities = set.entities.map((entity, index): ScopeEntityShare => {
@@ -65,13 +67,19 @@ export function shareAcrossPlatforms(
       entity,
       value: values.length === 0 ? null : values.reduce((total, value) => total + value, 0) / values.length,
       mention: single,
+      counts: rated.flatMap((totals) => {
+        const share = totals.entities[index]?.share;
+        return share === undefined || share.state !== 'ok'
+          ? []
+          : [{ code: totals.engineCode, k: share.numerator, n: share.answers }];
+      }),
     };
   });
   return {
     status: 'read',
     state,
     used: rated.map((totals) => totals.engineCode),
-    answers: average ? answers : (read[0]?.answersNamingTracked ?? 0),
+    answers: average ? answers : (read[0]?.brandMentions ?? 0),
     validAnswers,
     entities,
   };

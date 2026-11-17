@@ -3,7 +3,7 @@ import type { ReactElement } from 'react';
 
 import { EMPTY_VALUE, formatInteger, formatSampleCount } from '@/lib/format';
 
-export type SampleNoun = 'observations' | 'answers' | 'checks' | 'prompts' | 'keywords';
+export type SampleNoun = 'observations' | 'answers' | 'brandMentions' | 'checks' | 'prompts' | 'keywords';
 
 export interface SampleCountProps {
   /** The part, such as the answers that name the brand. Unknown is `null`, never 0. */

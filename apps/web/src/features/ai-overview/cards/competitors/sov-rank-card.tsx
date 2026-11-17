@@ -242,7 +242,7 @@ export default function SovRankCard({ item, options, live }: CardProps): ReactEl
     ready !== null && ready.totals.validAnswers === 0
       ? { kind: 'no_answers' }
       : ready !== null && ready.weeksWithAnswers >= 2 && ready.weeksRanked === 0
-        ? { kind: 'too_few', answers: ready.totals.answersNamingTracked }
+        ? { kind: 'too_few', answers: ready.totals.brandMentions }
         : { kind: 'ready' };
   const base = useFrameState({
     subject: t('subject'),

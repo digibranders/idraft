@@ -3,8 +3,8 @@
 The glossary is the one list of words the whole app uses: each term, what it means, what it never means, and the exact
 text of its info ("i") button. A word that is not here is not final.
 
-Status: decided 2026-11-16 (Group by the owner, the rest by taking the session's recommendations), except D17, D18 and
-D20. Nothing is applied yet: the real app and the preview keep their current words until the pass in
+Status: decided 2026-11-16 (Group by the owner, the rest by taking the session's recommendations), except D18 and
+D20 (D17, what Share of voice computes, was decided 2026-11-17: the brand's mentions over all tracked-brand mentions). Nothing is applied yet: the real app and the preview keep their current words until the pass in
 `application-plan.md` runs. See `final-list.md` and `decisions-for-owner.md`.
 
 ## The one rule

@@ -281,13 +281,14 @@ describe('the competitor table card', () => {
     expect(cellAt(mention, 'HubSpot', 'Gemini')).toHaveTextContent('50%mentioned in 10 of 20 answers');
   });
 
-  it('prints share of voice with the answers mentioning a tracked brand when the metric option is share of voice', async () => {
+  it('prints share of voice as x of y brand mentions when the metric option is share of voice (D17)', async () => {
     serve(summary());
     renderCard('cmp=off', { metric: 'share_of_voice' });
     expect(await screen.findByRole('heading', { name: SHARE_HEADING })).toBeInTheDocument();
     const element = await table(SHARE_TABLE);
-    expect(cellAt(element, 'HubSpot', 'ChatGPT')).toHaveTextContent('40%of 100 answers mentioning a tracked brand');
-    expect(cellAt(element, 'HubSpot', 'Gemini')).toHaveTextContent('30%of 20 answers mentioning a tracked brand');
+    // ChatGPT: 30 + 65 + 20 = 115 brand mentions, HubSpot has 65. Gemini: 15 + 10 + 2 = 27, HubSpot has 10
+    expect(cellAt(element, 'HubSpot', 'ChatGPT')).toHaveTextContent('57%65 of 115 brand mentions');
+    expect(cellAt(element, 'HubSpot', 'Gemini')).toHaveTextContent('37%10 of 27 brand mentions');
     expect(within(element).queryByText(/mentioned in/)).not.toBeInTheDocument();
   });
 
@@ -329,11 +330,12 @@ describe('the competitor table card', () => {
   });
 
   it('never colours a share of voice change, however large', async () => {
-    const before = summary([{ ...CHATGPT, numerators: [10, 60, 30] }, GEMINI]);
+    const before = summary([{ ...CHATGPT, mentions: [10, 65, 20] }, GEMINI]);
     serve(summary(), before);
     renderCard('', { metric: 'share_of_voice' });
     const element = await table(SHARE_TABLE);
-    const change = within(cellAt(element, 'Fynix', 'ChatGPT')).getByText('+20.0 pts');
+    // 30 of 115 brand mentions now against 10 of 95 before
+    const change = within(cellAt(element, 'Fynix', 'ChatGPT')).getByText('+15.6 pts');
     expect(change.className).toContain('text-foreground-secondary');
     expect(change.className).not.toContain('positive');
     expect(change.className).not.toContain('negative');

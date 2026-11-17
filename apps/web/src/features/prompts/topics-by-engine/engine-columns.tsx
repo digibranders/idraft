@@ -75,7 +75,17 @@ export function useByEngineColumns<TRow>({
           const figure = figureOf(row);
           if (figure.state === 'none') return words.reason(figure) ?? EMPTY_VALUE;
           const basis = words.basis(figure);
-          return basis === null ? words.text(figure) : view('cellName', { value: words.text(figure), basis });
+          if (basis === null) return words.text(figure);
+          // A group's rate is the mean of its prompts' rates: it says so, and the pooled answers have their own percent
+          const cell = summaryOf(row, code)?.[key];
+          return cell?.pooled != null && figure.successes !== null && figure.state === 'ok'
+            ? view('cellNameAverage', {
+                value: words.text(figure),
+                prompts: cell.denominator,
+                percent: percent(figure.successes / figure.answers),
+                basis,
+              })
+            : view('cellName', { value: words.text(figure), basis });
         },
         cell: (row) => {
           const topic = topicOf(row);

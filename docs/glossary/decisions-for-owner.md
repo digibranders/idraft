@@ -290,7 +290,12 @@ using the app. Tables, legends, exports and reports show the real brand name.** 
 without the exception. B uses "own brand", "own domain", "owned pages" (about 60 strings) which are banned in the
 glossary.
 
-### D17. Share of voice: what does the app compute (settle before info texts ship)
+### D17. Share of voice: what does the app compute (DECIDED 2026-11-17: the count share)
+
+**Decision (2026-11-17, the owner took the recommendation):** share of voice is the brand's mentions over all
+tracked-brand mentions, and it is always written "x of y brand mentions" beside the percent. Doc 16 section 5 and
+`terms.md` (M5, `ai.share_of_voice`, `sov`) now say so; the backend change is item 13 of
+`docs/ai-visibility/backend-requests-overview.md`. The text below is the question as it was asked.
 
 The preview info text says "Your mentions divided by all mentions of you and the tracked competitors" (a count share;
 C also wrote it). `docs/16-metrics-methodology.md` section 5 defines something else: inside each answer, the brands

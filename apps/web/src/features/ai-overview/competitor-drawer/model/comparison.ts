@@ -56,8 +56,9 @@ const mentionOf = (figures: EntityFigures): Reading => ({
 const shareOf = (figures: EntityFigures): Reading => ({
   state: figures.share.state,
   value: figures.share.value,
+  // x of y brand mentions (D17): the brand's mentions over those of every tracked brand
   answers: figures.share.answers,
-  successes: null,
+  successes: figures.share.numerator,
 });
 
 const brand = (totals: EngineEntityTotals, id: string | null, role: 'own' | 'competitor'): EntityFigures | undefined =>

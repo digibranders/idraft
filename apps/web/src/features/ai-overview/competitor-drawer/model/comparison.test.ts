@@ -42,8 +42,10 @@ describe('compareInScope', () => {
     expect(result?.mention.own).toEqual({ value: 0.375, answers: 16, successes: 6, counts: { k: 6, n: 16 } });
     expect(result?.mention.rival).toEqual({ value: 0.5, answers: 16, successes: 8, counts: { k: 8, n: 16 } });
     expect(result?.mention.platforms).toBe(1);
-    expect(result?.share.own.value).toBeCloseTo(6 / 16);
-    expect(result?.share.own.successes).toBeNull();
+    // Share of voice is x of y brand mentions: your 6 mentions of the 14 that you and HubSpot have together
+    expect(result?.share.own.value).toBeCloseTo(6 / 14);
+    expect(result?.share.own.successes).toBe(6);
+    expect(result?.share.own.answers).toBe(14);
   });
 
   it('on All platforms averages the platforms and keeps no count, because answers are never pooled (R3)', () => {

@@ -20,13 +20,23 @@ import { pooledCounts, promptWeightedRate, rateState } from '@/lib/stats';
 const sum = (values: readonly number[]): number => values.reduce((total, value) => total + value, 0);
 
 /** No figure at all: a brand with no cell on an engine that was read. `state` says so; the zeros are not a reading. */
-const NO_SHARE = (answers: number): ShareFigure => ({ state: 'none', value: null, numerator: 0, answers });
+const NO_SHARE = (brandMentions: number): ShareFigure => ({
+  state: 'none',
+  value: null,
+  numerator: 0,
+  answers: brandMentions,
+});
 const NO_MENTION: MentionFigure = { state: 'none', value: null, k: 0, n: 0, prompts: 0 };
 
-/** Share of voice from its sum of shares over the answers that name a tracked brand. */
-export function shareFigureOf(numerator: number, answers: number): ShareFigure {
-  const state = rateState(answers);
-  return { state, value: state === 'ok' ? numerator / answers : null, numerator, answers };
+/** Share of voice: the brand's mentions over all tracked-brand mentions, a rate from 4 mentions of the set (R2). */
+export function shareFigureOf(mentions: number, brandMentions: number): ShareFigure {
+  const state = rateState(brandMentions);
+  return {
+    state,
+    value: state === 'ok' ? mentions / brandMentions : null,
+    numerator: mentions,
+    answers: brandMentions,
+  };
 }
 
 /**
@@ -78,47 +88,54 @@ function figuresOf(entity: TrackedEntity, share: ShareFigure, mention: MentionFi
   return { entity, share, mention };
 }
 
+/**
+ * The figures of every brand of the set from each brand's own mention count: share of voice is its mentions over all
+ * tracked-brand mentions (D17), so the denominator is the sum of the counts of the brands that have a cell, and a brand
+ * without a cell has no figure. `brandMentions` is that sum.
+ */
+function figuresFromMentions(
+  set: TrackedSet,
+  mentionOf: (entity: TrackedEntity) => MentionFigure | undefined,
+): { entities: EntityFigures[]; brandMentions: number } {
+  const mentions = set.entities.map((entity) => ({ entity, mention: mentionOf(entity) }));
+  const brandMentions = sum(mentions.map(({ mention }) => mention?.k ?? 0));
+  return {
+    brandMentions,
+    entities: mentions.map(({ entity, mention }) =>
+      mention === undefined
+        ? figuresOf(entity, NO_SHARE(brandMentions), NO_MENTION)
+        : figuresOf(entity, shareFigureOf(mention.k, brandMentions), mention),
+    ),
+  };
+}
+
 function fromTotal(engine: EngineSummary, cells: readonly EntityCells[], set: TrackedSet): EngineEntityTotals {
-  const answersNamingTracked = engine.share_of_voice.denominator;
+  const { entities, brandMentions } = figuresFromMentions(set, (entity) => {
+    const cell = cells.find((candidate) => candidate.entity_id === entity.entityId);
+    return cell === undefined ? undefined : mentionFigureOf(cell.mentioned);
+  });
   return {
     status: 'read',
     engineCode: engine.engine_code,
     validAnswers: engine.mentioned.pooled?.trials ?? engine.mentioned.denominator,
-    answersNamingTracked,
-    state: rateState(answersNamingTracked),
-    entities: set.entities.map((entity) => {
-      const cell = cells.find((candidate) => candidate.entity_id === entity.entityId);
-      return cell === undefined
-        ? figuresOf(entity, NO_SHARE(answersNamingTracked), NO_MENTION)
-        : figuresOf(
-            entity,
-            shareFigureOf(cell.share_of_voice.numerator, answersNamingTracked),
-            mentionFigureOf(cell.mentioned),
-          );
-    }),
+    brandMentions,
+    state: rateState(brandMentions),
+    entities,
   };
 }
 
 function fromRows(rows: readonly (EngineSummary & { entities: EntityCells[] })[], set: TrackedSet): EngineEntityTotals {
-  const answersNamingTracked = sum(rows.map((row) => row.share_of_voice.denominator));
-  const entityCells = (entityId: string): EntityCells[] =>
-    rows.flatMap((row) => row.entities.filter((cell) => cell.entity_id === entityId));
+  const { entities, brandMentions } = figuresFromMentions(set, (entity) => {
+    const cells = rows.flatMap((row) => row.entities.filter((cell) => cell.entity_id === entity.entityId));
+    return cells.length === 0 ? undefined : mentionFigureOfRows(cells.map((cell) => cell.mentioned));
+  });
   return {
     status: 'read',
     engineCode: rows[0]?.engine_code ?? '',
     validAnswers: sum(rows.map((row) => row.mentioned.denominator)),
-    answersNamingTracked,
-    state: rateState(answersNamingTracked),
-    entities: set.entities.map((entity) => {
-      const cells = entityCells(entity.entityId);
-      return cells.length === 0
-        ? figuresOf(entity, NO_SHARE(answersNamingTracked), NO_MENTION)
-        : figuresOf(
-            entity,
-            shareFigureOf(sum(cells.map((cell) => cell.share_of_voice.numerator)), answersNamingTracked),
-            mentionFigureOfRows(cells.map((cell) => cell.mentioned)),
-          );
-    }),
+    brandMentions,
+    state: rateState(brandMentions),
+    entities,
   };
 }
 

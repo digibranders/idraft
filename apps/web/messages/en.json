@@ -33,8 +33,8 @@
       "boundary": "Version boundary: {text}"
     },
     "sampleCount": {
-      "unit": "{noun, select, observations {obs} answers {{count, plural, one {answer} other {answers}}} checks {{count, plural, one {check} other {checks}}} prompts {{count, plural, one {prompt} other {prompts}}} keywords {{count, plural, one {keyword} other {keywords}}} other {}}",
-      "unitSpoken": "{noun, select, observations {{count, plural, one {data point} other {data points}}} answers {{count, plural, one {answer} other {answers}}} checks {{count, plural, one {check} other {checks}}} prompts {{count, plural, one {prompt} other {prompts}}} keywords {{count, plural, one {keyword} other {keywords}}} other {}}"
+      "unit": "{noun, select, observations {obs} answers {{count, plural, one {answer} other {answers}}} brandMentions {{count, plural, one {brand mention} other {brand mentions}}} checks {{count, plural, one {check} other {checks}}} prompts {{count, plural, one {prompt} other {prompts}}} keywords {{count, plural, one {keyword} other {keywords}}} other {}}",
+      "unitSpoken": "{noun, select, observations {{count, plural, one {data point} other {data points}}} answers {{count, plural, one {answer} other {answers}}} brandMentions {{count, plural, one {brand mention} other {brand mentions}}} checks {{count, plural, one {check} other {checks}}} prompts {{count, plural, one {prompt} other {prompts}}} keywords {{count, plural, one {keyword} other {keywords}}} other {}}"
     },
     "metricInfo": {
       "trigger": "About {name}",
@@ -1762,6 +1762,8 @@
     "tip": {
       "answers": "{k, number} of {n, number} answers",
       "prompts": "{count, plural, one {# prompt} other {# prompts}}, each counts once",
+      "averageOfPrompts": "average of {count, plural, one {# prompt} other {# prompts}}, each counting once",
+      "pooledAnswers": "All answers pooled: {text}",
       "thin": "{n, plural, one {# answer} other {# answers}}, fewer than {min, number}",
       "pooled": "pooled over {weeks, plural, one {# week} other {# weeks}}",
       "noAnswers": "No answers"
@@ -4074,6 +4076,7 @@
         "gapNone": "A gap needs a rate on at least 2 platforms.",
         "gapDetailLeftOut": "{counts}. Left out for too few answers: {engines}.",
         "cellName": "{value}, {basis}",
+        "cellNameAverage": "{value}, average of {prompts, plural, one {# prompt} other {# prompts}}. All answers pooled: {percent}, {basis}",
         "drillLabel": "Open the prompts of {topic} on {engine}",
         "exportButton": "Export by platform",
         "exported": "{count, plural, one {# group exported} other {# groups exported}}",
@@ -4134,6 +4137,9 @@
         "contextHeader": "Answers",
         "changeHeader": "Change",
         "context": "{basis}, {prompts, plural, one {# prompt} other {# prompts}}",
+        "contextAverage": "average of {prompts, plural, one {# prompt} other {# prompts}}",
+        "pooledTip": "Each prompt counts once. All answers pooled: {percent}, {basis}.",
+        "rowNameAverage": "{engine}: {value}, average of {prompts, plural, one {# prompt} other {# prompts}}. All answers pooled: {percent}, {basis}",
         "shareContext": "{answers, plural, one {# answer} other {# answers}} mentioning a brand, {prompts, plural, one {# prompt} other {# prompts}}",
         "noAnswers": "No answers",
         "rowName": "{engine}: {value}, {basis}",
@@ -4908,8 +4914,8 @@
       },
       "shareOfVoice": {
         "header": "Share of voice",
-        "tip": "Your mentions as a share of every brand mention in the answers",
-        "basis": "{answers, plural, one {# answer} other {# answers}} that mention a brand"
+        "tip": "Your brand's mentions over all tracked-brand mentions, as x of y brand mentions",
+        "basis": "{k, number} of {n, number} brand mentions"
       },
       "sentiment": {
         "header": "Sentiment",
@@ -5247,7 +5253,7 @@
         "brandedOnly": "branded prompts only",
         "brandedIncluded": "branded prompts included",
         "eachPromptOnce": "each prompt counts once",
-        "avg": "avg of {count, number}",
+        "avg": "average of {count, number}",
         "unknownEngine": "Unknown platform",
         "viewRuns": "View runs",
         "toEngines": "Turn on platforms",
@@ -5704,7 +5710,7 @@
         "statusUnknown": "Not available",
         "infoName": "Share of voice",
         "infoDefinition": "How the answers of one platform divide mentions between the brands you track.",
-        "infoFormula": "Each answer gives 1 divided by the number of tracked brands it mentions to each of them. The shares are summed over answers and divided by the answers that mention a tracked brand.",
+        "infoFormula": "Your brand's mentions divided by all tracked-brand mentions, yours and your competitors', on each platform. An answer that names three tracked brands adds three mentions.",
         "infoSample": "{count, plural, one {# answer mentions a tracked brand} other {# answers mention a tracked brand}}"
       },
       "lostTo": {
@@ -5878,9 +5884,9 @@
         "tooFew": "Too few",
         "tooFewLine": "{count, plural, one {# answer} other {# answers}}, {min} needed",
         "namedIn": "mentioned in <count></count>",
-        "ofNaming": "of <count></count> mentioning a tracked brand",
+        "shareOf": "<count></count>",
         "named": "mentioned in {k} of {n, plural, one {# answer} other {# answers}}",
-        "ofNamingPlain": "of {n, plural, one {# answer} other {# answers}} mentioning a tracked brand",
+        "ofBrandMentions": "{k, number} of {n, number} brand mentions",
         "engineHeader": "Platform",
         "valueHeader": "{metric, select, share_of_voice {Share of voice} other {Mention rate}}",
         "countHeader": "Answers",
@@ -5892,7 +5898,7 @@
         "statusNoAnswers": "No answers",
         "moreRows": "{count, plural, one {# more tracked brand is} other {# more tracked brands are}} in the Table view.",
         "noteMention": "Each cell is one platform: the share of its valid answers that mention the brand. Platforms are not pooled. A change is coloured only when it is larger than normal variation.",
-        "noteShare": "Each cell is one platform: the share of its answers mentioning a tracked brand that go to this brand. Platforms are not pooled. A change in share of voice is never coloured.",
+        "noteShare": "Each cell is one platform: this brand's mentions over all tracked-brand mentions, as x of y brand mentions. Platforms are not pooled. A change in share of voice is never coloured.",
         "noteAverage": "The last column is the plain mean of the platforms, each counted once whatever its answers.",
         "noteOrderAverage": "Brands after you are ordered by the Average column; a brand without an average comes last.",
         "noteOrderOne": "Brands after you are ordered by the value in the column.",
@@ -5901,22 +5907,24 @@
         "scrollHint": "Scroll sideways for more platforms.",
         "infoName": "{metric, select, share_of_voice {Share of voice} other {Mention rate}}",
         "infoDefinition": "{metric, select, share_of_voice {How the answers of each platform divide mentions between the brands you track.} other {How often the answers of each platform mention a brand.}}",
-        "infoFormula": "{metric, select, share_of_voice {Each answer gives 1 divided by the number of tracked brands it mentions to each of them. The shares are summed over answers and divided by the answers that mention a tracked brand.} other {Each prompt gives the answers that mention the brand divided by its valid answers. The rate is the mean of the prompts, each counted once.}}"
+        "infoFormula": "{metric, select, share_of_voice {Your brand's mentions divided by all tracked-brand mentions, yours and your competitors', on each platform. An answer that names three tracked brands adds three mentions.} other {Each prompt gives the answers that mention the brand divided by its valid answers. The rate is the mean of the prompts, each counted once.}}"
       },
       "notAvailable": {},
       "scopeShare": {
         "title": "Share of voice",
         "subject": "share of voice",
-        "metaAverage": "avg of {count, plural, one {# platform} other {# platforms}}",
-        "metaOne": "of {count, number} {count, plural, one {answer} other {answers}} that mention a tracked brand",
+        "metaAverage": "average of {count, plural, one {# platform} other {# platforms}}",
+        "metaOne": "of {count, number} brand mentions",
         "caption": "Share of voice by brand",
         "labelHeader": "Brand",
         "valueHeader": "Share of voice",
-        "contextHeader": "Answers that mention a tracked brand",
+        "contextHeader": "Brand mentions",
         "you": "{name} (you)",
         "open": "Open {name}",
-        "rowTipOne": "{name}: {value}, {count, number} {count, plural, one {answer} other {answers}} that mention a tracked brand",
-        "rowTipAverage": "{name}: {value}, average of {count, plural, one {# platform} other {# platforms}}",
+        "ofBrandMentions": "{k, number} of {n, number} brand mentions",
+        "rowTipOne": "{name}: {value}, {k, number} of {n, number} brand mentions",
+        "platformCount": "{platform} {k, number} of {n, number}",
+        "rowTipAverage": "{name}: {value}, average of {count, plural, one {# platform} other {# platforms}}, each counting once. Brand mentions: {counts}",
         "rowText": "{name}: {value}",
         "rowTextUnknown": "{name}: no share",
         "summary": "Share of voice, {list}.",
@@ -5930,7 +5938,7 @@
         "statusUnknown": "not enough answers",
         "info": {
           "what": "How much of the brand talk in answers is about you, compared with your competitors.",
-          "how": "In each answer that mentions you or a tracked competitor, the brands mentioned share that answer equally. Your share is the average of those shares across such answers. It depends on which competitors are tracked: adding one lowers every other share. Watched brands do not count. Click a competitor to open it."
+          "how": "Your brand's mentions over all tracked-brand mentions: x of y brand mentions, where y adds up the mentions of you and of every tracked competitor. It depends on which competitors are tracked: adding one lowers every other share. Watched brands do not count. A share needs at least 4 brand mentions. For All platforms it is the average of the platforms, each counting once. Click a competitor to open it."
         },
         "unknownValue": "n/a"
       },
@@ -5965,7 +5973,7 @@
         "title": "Share of voice over time",
         "subject": "share of voice over time",
         "metaOne": "stacked to 100%",
-        "metaAverage": "avg of {count, plural, one {# platform} other {# platforms}}, stacked to 100%",
+        "metaAverage": "average of {count, plural, one {# platform} other {# platforms}}, stacked to 100%",
         "fileName": "share-of-voice-over-time",
         "weekColumn": "Week",
         "weekTitle": "Week of {date}",
@@ -6033,7 +6041,7 @@
         "openTopics": "Open Prompts",
         "emptyNoAnswersTitle": "No valid answers in {days, plural, one {this day} other {these # days}} on {engines}",
         "emptyNoAnswersReason": "Prompts are asked on a schedule, so figures appear after the next run.",
-        "avg": "avg of {count, number}",
+        "avg": "average of {count, number}",
         "answerCount": "{count, plural, one {# answer} other {# answers}}",
         "promptCount": "{count, plural, one {# prompt} other {# prompts}}",
         "tipShare": "{value}, {count, plural, one {# valid answer names} other {# valid answers name}} a tracked brand",
@@ -6056,7 +6064,7 @@
         "averageValue": "{percent}, {counts}. {note}",
         "averageNote": "Equal weight average of {engines}, each platform counting once.",
         "averageOnly": "{engines} only",
-        "avgLabel": "{count, plural, one {1 platform} other {avg of #}}",
+        "avgLabel": "{count, plural, one {1 platform} other {average of #}}",
         "engineCount": "{engine} {count}",
         "countOf": "{successes, number} of {answers, plural, one {# answer} other {# answers}}",
         "footnoteBins": "Cell colour by rate: {bins}.",
@@ -6240,7 +6248,7 @@
         "averageValue": "{percent}, {counts}. {note}",
         "averageNote": "Equal weight average of {engines}, each platform counting once",
         "averageOnly": "{engines} only",
-        "avgLabel": "{count, plural, one {1 platform} other {avg of #}}",
+        "avgLabel": "{count, plural, one {1 platform} other {average of #}}",
         "engineCount": "{engine} {count}",
         "countOf": "{successes, number} of {answers, plural, one {# answer} other {# answers}}",
         "lastValid": "Last valid answer {date}",
@@ -6259,7 +6267,7 @@
         "valueHeader": "Mention rate",
         "changeHeader": "Change",
         "contextHeader": "Platforms",
-        "context": "{count, plural, one {1 platform} other {avg of # platforms}}",
+        "context": "{count, plural, one {1 platform} other {average of # platforms}}",
         "named": "{percent}, {counts}. {note}",
         "engineCounted": "{engine} {successes, number} of {answers, plural, one {# answer} other {# answers}}",
         "engineAnswers": "{engine} {answers, plural, one {# answer} other {# answers}}",
@@ -7056,7 +7064,7 @@
         "citationPending": "Reading the citation share",
         "citationFailed": "Could not load the citation share",
         "valueMention": "{k, number} of {n, number} {n, plural, one {answer} other {answers}}",
-        "valueShare": "{n, number} {n, plural, one {answer} other {answers}} that mention a tracked brand",
+        "valueShare": "{k, number} of {n, number} brand mentions",
         "valueAverage": "average of {count, plural, one {# platform} other {# platforms}}",
         "gapAbove": "You are {points} pts above {name}: {own} against {rival}. Detectable: its 95% interval excludes zero.",
         "gapBelow": "You are {points} pts below {name}: {own} against {rival}. Detectable: its 95% interval excludes zero.",
@@ -7386,7 +7394,7 @@
       "distinctContext": "registrable domains",
       "distinctTip": "{count, number} {count, plural, one {registrable domain is} other {registrable domains are}} cited in this period.",
       "effective": "Effective domains",
-      "effectiveContext": "avg of {count, plural, one {# platform} other {# platforms}}",
+      "effectiveContext": "average of {count, plural, one {# platform} other {# platforms}}",
       "effectiveTip": "{engines}. Each platform is counted alone and the platforms are averaged with equal weight.",
       "effectiveEngine": "{engine} {value}, over {units, plural, one {# unit} other {# units}}",
       "effectiveNone": "No platform has a citation in this period, so there is nothing to average.",
@@ -8053,7 +8061,7 @@
       },
       "aiShareOfVoice": {
         "what": "How much of the brand talk in answers is about you, compared with your competitors.",
-        "how": "In each answer that mentions you or a tracked competitor, the brands mentioned share that answer equally. Your share is the average of those shares across such answers. It depends on which competitors are tracked: adding one lowers every other share. Watched brands do not count. Click a competitor to open it."
+        "how": "Your brand's mentions over all tracked-brand mentions: x of y brand mentions, where y adds up the mentions of you and of every tracked competitor. It depends on which competitors are tracked: adding one lowers every other share. Watched brands do not count. A share needs at least 4 brand mentions. For All platforms it is the average of the platforms, each counting once. Click a competitor to open it."
       },
       "aiSovOverTime": {
         "what": "How the split of brand mentions between you and your competitors changes week by week.",

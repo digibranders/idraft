@@ -2,8 +2,8 @@
 
 Status: decided 2026-11-16. The owner chose Group (D1) and delegated every other word choice to the glossary session,
 which took its own recommendation for each (D2 to D16, D19, D21, D22). Three items stay open because they are facts or
-unspecified screens, not word choices: **D17** (what Share of voice computes), **D18** (whether group numbers add up)
-and **D20** (names for Matrix and Discover). The full definitions, banned words and info texts are in `terms.md`; the
+unspecified screens, not word choices: **D18** (whether group numbers add up) and **D20** (names for Matrix and
+Discover). D17 (what Share of voice computes) was decided 2026-11-17: a count share, "x of y brand mentions". The full definitions, banned words and info texts are in `terms.md`; the
 reasons are in `decisions-for-owner.md`. This page is the list to keep open while writing a string.
 
 Rules: sentence case; capitals only for product names and for SEO and AI. A banned word never appears in visible text
@@ -140,7 +140,7 @@ two labels above. Never: AIO, AIV, SV, GEO, AEO, SGE.
 
 | ID | What | Who settles it |
 |---|---|---|
-| D17 | Share of voice: the preview text says a count share, doc 16 section 5 says an equal split per answer | Backend and owner, before any info text ships |
+| D17 | Share of voice: DECIDED 2026-11-17 by the owner: the brand's mentions over all tracked-brand mentions, always shown as "x of y brand mentions" (doc 16 section 5 changed to match; the backend request is item 13 of `docs/ai-visibility/backend-requests-overview.md`) | Settled |
 | D18 | Do group numbers add up: spec D4 says yes, doc 16 section 4 says no | Owner updates doc 16 to D4, or the heat map text is false |
 | D20 | Names for the Matrix and Discover navigation items | Owner, when their screens are specified |
 | A7b | Final name of the WP-61 page ("Citation opportunities" is a working name) | Owner, when WP-61 starts |

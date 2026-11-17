@@ -1,6 +1,6 @@
 # idraft glossary: terms
 
-Status: DECIDED 2026-11-16, except D17, D18 and D20 (see `final-list.md`). The owner chose Group (D1) and delegated
+Status: DECIDED 2026-11-16, except D18 and D20 (see `final-list.md`); D17 was decided 2026-11-17 (a count share). The owner chose Group (D1) and delegated
 every other word choice to the glossary session, which took its own recommendation. Where a row says **Firm**, none of
 the three independent proposals (Opus, Fable, Codex) chose a different word for that term. Where it says **D1** to
 **D22**, a proposal split on it or the owner had to choose; the options and reasons are in `decisions-for-owner.md`,
@@ -116,7 +116,7 @@ Columns: **ID**, **Label** (singular / plural), **Definition** (one sentence, st
 | M2 | SEO visibility | An estimate of how visible your tracked keywords are in Google, weighted by rank and by search volume. | Not a share of answers. Not comparable with M1. | Visibility (alone), Search visibility, Visibility index | SEO overview | Always carries the prefix | Firm |
 | M3 | Mention rate | The share of valid answers that mention your brand. | Not a count of mentions. | Brand mention rate, Mention frequency, Visibility | AI screens | Safe | Firm |
 | M4 | Citation rate | The share of valid answers that cite at least one page of your domains. | Not citation share. | Source citation rate, Domain citation rate, Link rate | AI screens | Follows E2 | Firm |
-| M5 | Share of voice (abbreviation SOV only in a narrow column) | Your part of the brand mentions among you and the tracked competitors. On the SEO side written "SEO share of voice". | Not mention rate: it changes when a competitor is added. | Voice share, Share of mentions, Mention share | Overview, Competitors, Keywords | Often left in English; French "part de voix" is established | D17, D22 |
+| M5 | Share of voice (abbreviation SOV only in a narrow column) | Your brand's mentions over all tracked-brand mentions (yours and the tracked competitors'), decided 2026-11-17 (D17). It is always shown as "x of y brand mentions" beside the percent. On the SEO side written "SEO share of voice". | Not mention rate: it changes when a competitor is added. | Voice share, Share of mentions, Mention share | Overview, Competitors, Keywords | Often left in English; French "part de voix" is established | D17, D22 |
 | M6 | Citation share | A domain's part of all citations in scope. For your domains, "Your citation share". | Not citation rate: the base is citations, not answers. | Source share, Domain share, Share of citations | Citations, Overview | Follows E2 | D4 |
 | M7 | Mention position (card "Average mention position"; never bare "Position" on an AI screen) | The order in which your brand is first mentioned in an answer, among the brands you track. 1 is first; lower is better. | Not a Google rank. Not a place in a numbered list inside an answer. | Position (alone), Rank, AI rank, Mention order, Prominence | Overview, prompt tables | Safe with the qualifier | D5 |
 | M8 | Rank / Ranks (best rank, average rank, Top 3) | Where your page appears in Google's organic results for a keyword, counted from the top. 1 is first. | Not a mention position. Not Search Console's average position. | Position (for tracked keywords), Ranking (as a noun), SERP position | Keywords, keyword detail, SEO overview | Safe | D5 |
@@ -188,9 +188,9 @@ sentences move to the Sample data badge. The same text is used for the card, its
 - What it shows: What happens to your brand in each platform's answers.
 - How it is counted: Each valid answer is mentioned and cited, mentioned only, cited only, or neither. The four shares add up to 100%. Mentioned only means your brand is mentioned and none of your pages is cited.
 
-**ai.share_of_voice: Share of voice** (wording depends on D17)
+**ai.share_of_voice: Share of voice** (D17 decided 2026-11-17: a count share)
 - What it shows: How much of the brand talk in answers is about you, compared with your competitors.
-- How it is counted: In each answer that mentions you or a tracked competitor, the brands mentioned share that answer equally. Your share is the average of those shares across such answers. It depends on which competitors are tracked: adding one lowers every other share. Watched brands do not count. Click a competitor to open it.
+- How it is counted: Your brand's mentions over all tracked-brand mentions: x of y brand mentions, where y adds up the mentions of you and of every tracked competitor (an answer that names three tracked brands adds three). It depends on which competitors are tracked: adding one lowers every other share. Watched brands do not count. A share is shown only from 4 brand mentions. For All platforms it is the average of the platforms' shares, each platform counting once, and the counts are per platform in the tooltip. Click a competitor to open it.
 
 **ai.sov_over_time: Share of voice over time**
 - What it shows: How the split of brand mentions between you and your competitors changes week by week.
@@ -302,7 +302,7 @@ sentences move to the Sample data badge. The same text is used for the card, its
 
 **sov: Share of voice**
 - What it shows: Your share of all brand mentions.
-- How it is counted: As on the Share of voice card: it depends on which competitors are tracked.
+- How it is counted: Your brand's mentions over all tracked-brand mentions, shown as x of y brand mentions (D17). It depends on which competitors are tracked.
 
 **citation: Citation rate**
 - What it shows: How often AI answers cite your site.

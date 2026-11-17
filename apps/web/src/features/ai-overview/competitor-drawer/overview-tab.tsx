@@ -132,9 +132,11 @@ function SummaryCard({
   const valueTip = (figure: Figure, kind: 'mention' | 'share', platforms: number): string | null => {
     if (read.platforms.average) return t('summary.valueAverage', { count: platforms });
     if (figure.answers === null) return null;
-    return kind === 'mention' && figure.successes !== null
-      ? t('summary.valueMention', { k: figure.successes, n: figure.answers })
-      : t('summary.valueShare', { n: figure.answers });
+    if (figure.successes === null) return null;
+    return t(kind === 'mention' ? 'summary.valueMention' : 'summary.valueShare', {
+      k: figure.successes,
+      n: figure.answers,
+    });
   };
   const rows =
     comparison === null

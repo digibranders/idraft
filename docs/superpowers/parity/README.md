@@ -36,7 +36,8 @@ to `done <commit>` or `differs <reason>` by the package that ports the row, and 
 - Platform order everywhere: ChatGPT, Gemini, AI Mode, AI Overview (real app order; AI Overview last, not available
   until the API has it).
 - Terminology: decided 2026-11-16 in `docs/glossary/` (Group by the owner, the rest by taking the research session's
-  recommendations; D17, D18 and D20 stay open). The application pass has run: the real app (`en.json`, the layout
+  recommendations; D18 and D20 stay open; D17 was decided 2026-11-17: share of voice is the brand's mentions over all
+  tracked-brand mentions, always shown as "x of y brand mentions"). The application pass has run: the real app (`en.json`, the layout
   catalog, the tests), the mock (`apps/web/design-preview`) and these registers use the glossary words.
 - Where the real app already behaves better than the mock (loading and error states, URL state for filters, keyboard
   access to popovers), keep the real behaviour and mark the row `differs real is better`.

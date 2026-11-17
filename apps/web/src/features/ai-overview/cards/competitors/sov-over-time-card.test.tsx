@@ -79,7 +79,7 @@ describe('the share of voice over time card follows the page scope', () => {
     serve(platform('chatgpt_web', 6), platform('gemini_web', 2));
     renderCard('cmp=off', { engine: 'gemini_web' });
     const heading = await screen.findByRole('heading', { level: 2, name: 'Share of voice over time' });
-    expect(await screen.findByText('avg of 2 platforms, stacked to 100%')).toBeInTheDocument();
+    expect(await screen.findByText('average of 2 platforms, stacked to 100%')).toBeInTheDocument();
     // (60% + 20%) / 2
     expect(chartSummaryText(heading)).toMatch(/you hold 40%/);
   });

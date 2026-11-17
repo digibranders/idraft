@@ -20,6 +20,7 @@ import { BarListTable, barListCsv, type BarListProps, type ComparisonRow } from 
 import { ChartFrame } from '@/components/app/chart/chart-frame';
 import type { CardProps } from '@/features/layouts';
 import { formatList, formatPercent } from '@/lib/format';
+import { engineLabel } from '@/lib/layouts';
 
 /** The `rows` option: the brands drawn before the own brand is added (catalog 5 or 10, default 10). */
 const ROW_OPTIONS = [5, 10] as const;
@@ -88,11 +89,35 @@ export default function ShareOfVoiceCard({ item, options, live }: CardProps): Re
       const value = formatPercent(entry.value, { decimals: 0 });
       return {
         ...base,
-        value: { kind: 'value', value: entry.value, valueText: value, contextText: null },
+        // One platform: x of y brand mentions beside the percent (D17). An average has no pooled count: its tip has each platform's
+        value: {
+          kind: 'value',
+          value: entry.value,
+          valueText: value,
+          contextText:
+            platforms.average || entry.counts[0] === undefined
+              ? null
+              : t('ofBrandMentions', { k: entry.counts[0].k, n: entry.counts[0].n }),
+        },
         accessibleText: t('rowText', { name: label, value }),
+        // x of y brand mentions of each platform (D17); an average has no pooled count beside it
         tip: platforms.average
-          ? t('rowTipAverage', { name: entry.entity.name, value, count: read?.used.length ?? 0 })
-          : t('rowTipOne', { name: entry.entity.name, value, count: read?.answers ?? 0 }),
+          ? t('rowTipAverage', {
+              name: entry.entity.name,
+              value,
+              count: read?.used.length ?? 0,
+              counts: formatList(
+                entry.counts.map((each) =>
+                  t('platformCount', { platform: engineLabel(each.code), k: each.k, n: each.n }),
+                ),
+              ),
+            })
+          : t('rowTipOne', {
+              name: entry.entity.name,
+              value,
+              k: entry.counts[0]?.k ?? 0,
+              n: entry.counts[0]?.n ?? 0,
+            }),
       };
     });
   const limit = rowsOf(options.rows);

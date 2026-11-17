@@ -112,22 +112,30 @@ Dimension breakdowns (topic, intent, funnel stage, engine, country, language, pe
 
 ## 5. Share of Voice (AI)
 
-For observation o and tracked entity set E (own plus active competitors at observation time):
+**Decided 2026-11-17 (D17, owner): the count share.** Share of voice is the brand's mentions over all tracked-brand
+mentions. For a platform, valid observations O and tracked entity set E (own plus active competitors at observation
+time):
 
 ```
-M_o = { e ∈ E : e mentioned in o }
-sov_o(e) = 1 / |M_o|  if e ∈ M_o,  else 0          (defined only when |M_o| >= 1)
+mentions(e) = |{ o ∈ O : e mentioned in o }|      (one mention per answer per brand)
 
-SOV(e) = Σ_{o ∈ O, |M_o|>=1} sov_o(e)  /  |{o ∈ O : |M_o| >= 1}|
+SOV(e) = mentions(e)  /  Σ_{e' ∈ E} mentions(e')
 ```
+
+The web always shows it as "x of y brand mentions" beside the percent (x = mentions(e), y = the sum). For All platforms
+it is the equal-weight average of the platforms' shares, labelled "average of N", with the counts of each platform in the
+tooltip and no pooled count beside the percent (R3). A share needs y of at least 4 (R2).
 
 Properties:
-- Each observation carries equal weight, so a long answer listing 12 brands does not dominate.
+- An answer that names three tracked brands adds three mentions, so a long answer listing many brands weighs more than a
+  short one. This is the accepted effect of the count share; the earlier equal split per answer (`1 / |M_o|`, averaged
+  over answers that mention at least one tracked brand) is replaced and is not exported.
 - SOV over all tracked entities sums to 100% by construction.
 - **SOV depends on the tracked competitor set.** Adding a competitor lowers everyone else's SOV. This is inherent to any share metric. Mitigations: the UI shows the entity set and the date each competitor was added; competitor additions create a version boundary; and "SOV including untracked mentions" (using `ai.entity_candidates` counts per observation, Phase 13) is offered as an alternative denominator.
 - We do not use Profound-style formulas that divide response counts by mention counts (mixed units; `research/07-commercial-competitors.md` section 4.3).
 
-Mention-count share (Peec-style: brand mentions / all brand mentions) is available in exports as `ai.mention_count_share` for comparability, labeled as such.
+The mention-count share (Peec-style: brand mentions / all brand mentions) is now the share of voice itself, so
+`ai.mention_count_share` is the same number and needs no separate label in exports.
 
 ## 6. Prominence, mention order, structured rank
 
