@@ -41,6 +41,7 @@ function setup(overrides: Partial<ScopeToolbarProps> = {}) {
     onReset: vi.fn(),
     onExport: vi.fn(),
     exporting: false,
+    canExport: true,
     pickerOpen: false,
     onPickerOpenChange: vi.fn(),
     ...overrides,
@@ -128,12 +129,28 @@ describe('the Citations toolbar', () => {
     expect(screen.getByRole('checkbox', { name: 'HubSpot' })).not.toHaveAttribute('aria-disabled', 'true');
   });
 
-  it('hides Reset at the default scope and shows it otherwise (C 696 to 698)', () => {
+  it('keeps Reset in the row but out of reach at the default scope, and shows it otherwise (C 696 to 698)', () => {
     const { unmount } = setup();
     expect(screen.queryByRole('button', { name: 'Reset scope' })).not.toBeInTheDocument();
+    const hidden = screen.getByRole('button', { name: 'Reset scope', hidden: true });
+    expect(hidden).toBeDisabled();
+    expect(hidden).toHaveAttribute('tabindex', '-1');
     unmount();
     setup({ isDefaultScope: false });
     expect(screen.getByRole('button', { name: 'Reset scope' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Reset scope' })).toBeEnabled();
+  });
+
+  it('moves focus to the Platform select when Reset is used, as the button leaves the row', async () => {
+    const { user, props } = setup({ isDefaultScope: false });
+    await user.click(screen.getByRole('button', { name: 'Reset scope' }));
+    expect(props.onReset).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('combobox', { name: 'Platform: All platforms' })).toHaveFocus();
+  });
+
+  it('disables Export until the engines are known', () => {
+    setup({ canExport: false });
+    expect(screen.getByRole('button', { name: 'Export' })).toBeDisabled();
   });
 
   it('is accessible', async () => {

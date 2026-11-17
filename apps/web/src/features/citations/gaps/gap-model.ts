@@ -24,15 +24,28 @@ export function visibleGapRows(
   );
 }
 
-function sortValue(row: CitationGapRow, key: string): number | string | null {
+/** A text, or numbers compared one after the other: a count never spills into the next field. */
+type SortValue = string | readonly number[];
+
+function sortValue(row: CitationGapRow, key: string): SortValue | null {
   if (key === 'prompt') return row.text;
   if (key === 'topic') return row.topic?.name ?? null;
-  if (key === 'you') return RANK[row.you.total.state] * 100_000 + row.you.cited_on * 1000 + row.you.total.cited;
+  if (key === 'you') return [RANK[row.you.total.state], row.you.cited_on, row.you.total.cited];
   if (key.startsWith('c:')) {
     const id = key.slice(2);
-    return row.competitors.find((competitor) => competitor.entity_id === id)?.total.cited ?? 0;
+    return [row.competitors.find((competitor) => competitor.entity_id === id)?.total.cited ?? 0];
   }
-  return row.gap * 100_000 + row.lost_to.length * 1000 + row.competitor_answers;
+  return [row.gap, row.lost_to.length, row.competitor_answers];
+}
+
+function compareValues(x: SortValue, y: SortValue): number {
+  if (typeof x === 'string' || typeof y === 'string')
+    return typeof x === 'string' && typeof y === 'string' ? x.localeCompare(y) : 0;
+  for (const [index, field] of x.entries()) {
+    const difference = field - (y[index] ?? 0);
+    if (difference !== 0) return difference;
+  }
+  return 0;
 }
 
 /** The sorts of C 613 to 620; ties by prompt text; a prompt with no group is last both ways (D-10). */
@@ -41,7 +54,7 @@ export function sortGapRows(rows: readonly CitationGapRow[], sort: BoardSort): C
     const x = sortValue(a, sort.key);
     const y = sortValue(b, sort.key);
     if (x === null || y === null) return x === y ? a.text.localeCompare(b.text) : x === null ? 1 : -1;
-    const order = typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y));
+    const order = compareValues(x, y);
     return (sort.dir === 'asc' ? order : -order) || a.text.localeCompare(b.text);
   });
 }

@@ -2,7 +2,7 @@
 
 import { ChevronDown, Download, Undo2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useMemo, type ReactElement } from 'react';
+import { useMemo, useRef, type ReactElement } from 'react';
 
 import type { BoardEngine, TopicTerm, TrackedCompetitor } from './board-reads';
 import { RUN_CHOICES, type BoardState, type Platform } from './board-state';
@@ -33,6 +33,8 @@ export interface ScopeToolbarProps {
   onReset: () => void;
   onExport: () => void;
   exporting: boolean;
+  /** `false` while the engines are unknown: an export with no engine would read every engine (D-4). */
+  canExport: boolean;
   /** The competitors popover, which the gap tab's empty state opens too (C 681). */
   pickerOpen: boolean;
   onPickerOpenChange: (open: boolean) => void;
@@ -65,6 +67,7 @@ const TRIGGER = cn(
 export function ScopeToolbar(props: ScopeToolbarProps): ReactElement {
   const t = useTranslations('citations');
   const { state, engines, terms, tracked, trend, timeZone, latest, onChange } = props;
+  const platform = useRef<HTMLButtonElement>(null);
 
   const platformOptions = useMemo(
     (): readonly SelectOption<Platform>[] => [
@@ -105,6 +108,7 @@ export function ScopeToolbar(props: ScopeToolbarProps): ReactElement {
         className="grid w-full grid-cols-2 gap-2 lg:flex lg:w-auto lg:flex-wrap lg:items-center"
       >
         <Select<Platform>
+          ref={platform}
           aria-label={t('toolbar.trigger', { name: t('toolbar.platform'), value: platformLabel })}
           triggerPrefix={t('toolbar.prefix', { name: t('toolbar.platform') })}
           placeholder={t('toolbar.allPlatforms')}
@@ -156,14 +160,33 @@ export function ScopeToolbar(props: ScopeToolbarProps): ReactElement {
           onOpenChange={props.onPickerOpenChange}
         />
         {/* Invisible keeps its place in the desktop row; in the two column phone grid it would leave an empty row (C 696 to 698) */}
-        <span className={cn('flex size-control shrink-0', props.isDefaultScope && 'invisible max-lg:hidden')}>
-          {props.isDefaultScope ? null : (
-            <IconButton icon={Undo2} variant="ghost" size="icon" label={t('toolbar.reset')} onClick={props.onReset} />
-          )}
+        <span
+          aria-hidden={props.isDefaultScope ? true : undefined}
+          className={cn('flex size-control shrink-0', props.isDefaultScope && 'invisible max-lg:hidden')}
+        >
+          <IconButton
+            icon={Undo2}
+            variant="ghost"
+            size="icon"
+            label={t('toolbar.reset')}
+            disabled={props.isDefaultScope}
+            tabIndex={props.isDefaultScope ? -1 : undefined}
+            onClick={() => {
+              props.onReset();
+              // The button is out of reach once the scope is the default: focus goes to the first control, not to the page
+              platform.current?.focus();
+            }}
+          />
         </span>
       </div>
       <div className="flex min-w-0 items-center gap-x-4 xl:ml-auto">
-        <Button variant="secondary" icon={Download} loading={props.exporting} onClick={props.onExport}>
+        <Button
+          variant="secondary"
+          icon={Download}
+          loading={props.exporting}
+          disabled={!props.canExport}
+          onClick={props.onExport}
+        >
           {t('toolbar.export')}
         </Button>
       </div>

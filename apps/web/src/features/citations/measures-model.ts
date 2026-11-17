@@ -1,4 +1,5 @@
 import type { CitationsTranslate, PreviousText } from './board-text';
+import { FLAT_CHANGE } from '@/components/app/metric/trend-icon';
 import type { CitationOverview } from '@/lib/citations/board-queries';
 import {
   EMPTY_VALUE,
@@ -42,9 +43,6 @@ export interface MeasureInput {
   previous: PreviousText;
 }
 
-/** A change of a rate that rounds to nothing. */
-const FLAT = 0.0005;
-
 interface RateCell {
   value: number | null;
   used: number;
@@ -70,7 +68,7 @@ function trendDelta(current: RateCell, previous: RateCell, t: CitationsTranslate
   if (current.value === null || previous.value === null) return null;
   const change = current.value - previous.value;
   const detectable = isDetectableChange(current.pooled, previous.pooled) === true;
-  const flat = Math.abs(change) < FLAT;
+  const flat = Math.abs(change) < FLAT_CHANGE;
   // "Up 2.5 pts", not "Up +2.5 pts": the word already says the sign (prompts-parts.js line 32)
   const points = formatPointsDelta(Math.abs(change), { decimals: 1 }).replace(/^\+/, '');
   const words = flat ? t('measures.flat') : change > 0 ? t('measures.up', { points }) : t('measures.down', { points });

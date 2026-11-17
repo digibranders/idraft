@@ -24,6 +24,7 @@ import { DEFAULT_INSPECTOR_TAB, useInspector } from '@/components/app/inspector/
 import { TabNav } from '@/components/app/shell/tab-nav';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { InlineError } from '@/components/app/status/inline-error';
+import { RefetchBar } from '@/components/app/status/refetch-bar';
 import { toast } from '@/components/ui/toast';
 import { allCitedPagesQuery, type BoardScopeParams } from '@/lib/citations/board-queries';
 import { csvBlob, downloadBlob } from '@/lib/csv/csv-write';
@@ -243,6 +244,8 @@ function BoardContent({ workspaceId, workspaceSlug, project, tab, promptDrawer }
   const queryClient = useQueryClient();
   const [exporting, setExporting] = useState(false);
   const exportTab = async (): Promise<void> => {
+    // With no engine known the read would omit the engine filter, which the API takes as every engine (D-4)
+    if (!ready) return;
     setExporting(true);
     try {
       if (tab === 'pages') {
@@ -354,6 +357,7 @@ function BoardContent({ workspaceId, workspaceSlug, project, tab, promptDrawer }
             onReset={resetScope}
             onExport={() => void exportTab()}
             exporting={exporting}
+            canExport={ready}
             pickerOpen={pickerOpen}
             onPickerOpenChange={setPickerOpen}
           />
@@ -367,13 +371,16 @@ function BoardContent({ workspaceId, workspaceSlug, project, tab, promptDrawer }
               retryLabel={t('board.retry')}
             />
           ) : (
-            <MeasuresStrip
-              overview={overview.data}
-              status={overview.refetching ? 'refetching' : overview.status === 'loading' ? 'loading' : 'ready'}
-              allPlatforms={state.platform === 'all'}
-              ownDomain={project.ownDomain ?? project.name}
-              previous={previous}
-            />
+            <div className="relative">
+              <MeasuresStrip
+                overview={overview.data}
+                status={overview.refetching ? 'refetching' : overview.status === 'loading' ? 'loading' : 'ready'}
+                allPlatforms={state.platform === 'all'}
+                ownDomain={project.ownDomain ?? project.name}
+                previous={previous}
+              />
+              <RefetchBar active={overview.refetching} position="under-section-heading" />
+            </div>
           )}
           {main}
         </div>

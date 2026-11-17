@@ -153,7 +153,8 @@ export function migrationOf(search: BoardSearch): BoardPatch | null {
   const patch: BoardPatch = {};
   for (const key of present) patch[key] = null;
   const role = search.role?.trim();
-  const owner = role === 'own' || role === 'competitor' ? role : role === 'third_party' ? 'third' : null;
+  // `own` is the default, which the address never holds
+  const owner = role === 'competitor' ? role : role === 'third_party' ? 'third' : null;
   if (owner !== null && (search.owner ?? null) === null) patch.owner = owner;
   const topic = search.topic?.trim() ?? '';
   if (topic !== '' && (search.group ?? null) === null) patch.group = topic;

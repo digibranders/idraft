@@ -70,7 +70,11 @@ describe('the Cited pages tab', () => {
     const dialog = screen.getByRole('dialog', { name: /^Prompts that cite / });
     expect(within(dialog).getByText('Cited for')).toBeVisible();
     expect(within(dialog).getAllByRole('listitem').length).toBeLessThanOrEqual(10);
+    // A click on the popover's own text is not a click on the row, though React bubbles it through the portal
+    await user.click(within(dialog).getByText('Cited for'));
+    expect(props.onOpen).not.toHaveBeenCalled();
     await user.click(within(dialog).getByRole('button', { name: /^(Show all \d+ prompts|Open the page details)$/ }));
+    expect(props.onOpen).toHaveBeenCalledTimes(1);
     expect(props.onOpen).toHaveBeenCalledWith(expect.objectContaining({ domain_role: 'own' }), expect.any(HTMLElement));
   });
 

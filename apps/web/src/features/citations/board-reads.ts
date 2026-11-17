@@ -1,6 +1,12 @@
 'use client';
 
-import { keepPreviousData, useInfiniteQuery, useQuery, type UseQueryResult } from '@tanstack/react-query';
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useQuery,
+  type QueryKey,
+  type UseQueryResult,
+} from '@tanstack/react-query';
 import { useMemo } from 'react';
 
 import { ENGINE_ORDER } from '@/components/app/engine/order';
@@ -152,17 +158,42 @@ export function useOverview(
   return useRead(useQuery({ ...overviewQuery(project, scope), placeholderData: keepPreviousData, enabled }));
 }
 
+/** The key without its last element, the normalized query: the path, so the entity of a detail read. */
+const entityOf = (key: QueryKey): string => JSON.stringify(key.slice(0, -1));
+
+/** The competitors a key asks about; `''` when it has none. */
+function competitorsOf(key: QueryKey): string {
+  const query: unknown = key.at(-1);
+  return typeof query === 'object' && query !== null && 'filter[competitor_id_in]' in query
+    ? JSON.stringify(query['filter[competitor_id_in]'])
+    : '';
+}
+
+/**
+ * `placeholderData` that keeps the last answer only while `same` says the new read asks for the same thing in a new
+ * scope. Another page, prompt or competitor set shows the skeleton, not the last one's data under the new heading.
+ */
+function keepWhile<T>(next: QueryKey, same: (previous: QueryKey, next: QueryKey) => boolean) {
+  return (data: T | undefined, query: { queryKey: QueryKey } | undefined): T | undefined =>
+    query !== undefined && same(query.queryKey, next) ? data : undefined;
+}
+
 export function useGaps(
   project: SourceScope,
   scope: BoardScopeParams,
   competitors: readonly string[],
   enabled: boolean,
 ): BoardRead<CitationGapList> {
+  const options = gapsQuery(project, scope, competitors);
   // Never asked with no competitor: the empty state shows instead (brief section 4)
   return useRead(
     useQuery({
-      ...gapsQuery(project, scope, competitors),
-      placeholderData: keepPreviousData,
+      ...options,
+      // The columns come from the new competitors: the old rows would read as "n/a" under them
+      placeholderData: keepWhile<CitationGapList>(
+        options.queryKey,
+        (previous, next) => competitorsOf(previous) === competitorsOf(next),
+      ),
       enabled: enabled && competitors.length > 0,
     }),
   );
@@ -173,10 +204,14 @@ export function useCitedPage(
   scope: BoardScopeParams,
   urlId: number | null,
 ): BoardRead<CitedPageDetail> {
+  const options = citedPageQuery(project, scope, urlId ?? 0);
   return useRead(
     useQuery({
-      ...citedPageQuery(project, scope, urlId ?? 0),
-      placeholderData: keepPreviousData,
+      ...options,
+      placeholderData: keepWhile<CitedPageDetail>(
+        options.queryKey,
+        (previous, next) => entityOf(previous) === entityOf(next),
+      ),
       enabled: urlId !== null,
       // A 404 is an answer (the page is not cited in this scope), not a failure to retry
       retry: false,
@@ -190,10 +225,14 @@ export function useGap(
   competitors: readonly string[],
   promptId: string | null,
 ): BoardRead<CitationGapDetail> {
+  const options = gapQuery(project, scope, competitors, promptId ?? '');
   return useRead(
     useQuery({
-      ...gapQuery(project, scope, competitors, promptId ?? ''),
-      placeholderData: keepPreviousData,
+      ...options,
+      placeholderData: keepWhile<CitationGapDetail>(
+        options.queryKey,
+        (previous, next) => entityOf(previous) === entityOf(next) && competitorsOf(previous) === competitorsOf(next),
+      ),
       enabled: promptId !== null && competitors.length > 0,
       retry: false,
     }),
@@ -231,7 +270,15 @@ export function useCitedPages(
     enabled,
   });
   const errorId = useErrorId(query.error);
-  const rows = useMemo(() => query.data?.pages.flatMap((page) => page.data) ?? [], [query.data]);
+  // A page read after the list shifted can repeat a row of the one before: each page shows once
+  const rows = useMemo(() => {
+    const seen = new Set<number>();
+    return (query.data?.pages.flatMap((page) => page.data) ?? []).filter((row) => {
+      if (seen.has(row.url_id)) return false;
+      seen.add(row.url_id);
+      return true;
+    });
+  }, [query.data]);
   const first = query.data?.pages[0];
   return {
     status: query.isError && query.data === undefined ? 'error' : query.isPending ? 'loading' : 'ready',
@@ -242,7 +289,8 @@ export function useCitedPages(
     hasMore: query.hasNextPage,
     loadingMore: query.isFetchingNextPage,
     loadMore: () => {
-      if (query.hasNextPage && !query.isFetchingNextPage) void query.fetchNextPage();
+      // Not while the rows on screen are the last scope's: their next page belongs to that scope
+      if (query.hasNextPage && !query.isFetchingNextPage && !query.isPlaceholderData) void query.fetchNextPage();
     },
     errorId,
     retry: () => void query.refetch(),

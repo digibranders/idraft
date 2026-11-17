@@ -98,6 +98,41 @@ describe('the gap analysis rows', () => {
     ]);
   });
 
+  it('compares each field in turn, whatever its size: a thousand answers do not outrank a second competitor', () => {
+    const base = ROWS[0];
+    if (base === undefined) throw new Error('No row');
+    const many = {
+      ...base,
+      prompt_id: 'many',
+      text: 'Many answers',
+      gap: 1,
+      lost_to: ['c1'],
+      competitor_answers: 1500,
+    };
+    const wide = {
+      ...base,
+      prompt_id: 'wide',
+      text: 'Wide loss',
+      gap: 1,
+      lost_to: ['c1', 'c2'],
+      competitor_answers: 2,
+    };
+    expect(sortGapRows([many, wide], GAP_SORT_DEFAULT).map((r) => r.text)).toEqual(['Wide loss', 'Many answers']);
+    const loud = { ...many, you: brand([[2000, 1500, 0]]) };
+    const cited = {
+      ...many,
+      text: 'Cited on two',
+      you: brand([
+        [4, 1, 0],
+        [3, 1, 0],
+      ]),
+    };
+    expect(sortGapRows([loud, cited], { key: 'you', dir: 'desc' }).map((r) => r.text)).toEqual([
+      'Cited on two',
+      'Many answers',
+    ]);
+  });
+
   it('sorts you by state, then engines cited on, then citing answers', () => {
     expect(sortGapRows(ROWS, { key: 'you', dir: 'desc' }).map((r) => r.text)).toEqual([
       'CRM for startups',

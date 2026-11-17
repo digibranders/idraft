@@ -7,6 +7,7 @@ import { useCitedPages, type BoardEngine } from '../board-reads';
 import { BoardPanel } from '../board-panel';
 import { OWNERS, type Owner } from '../board-state';
 import { updatedText, type PreviousText } from '../board-text';
+import { SEARCH_DELAY_MS } from '../use-search-draft';
 import { pageColumns, pageIdentity } from './page-columns';
 import { apiSort, ownerRole, PAGE_SORT_DEFAULT } from './page-rows';
 import { PromptsPopover } from './prompts-popover';
@@ -19,9 +20,6 @@ import type { BoardScopeParams, CitedPageRow } from '@/lib/citations/board-queri
 import type { SourceScope } from '@/lib/citations/types';
 import { useDebouncedValue } from '@/lib/dom/use-debounced-value';
 import { formatInteger } from '@/lib/format';
-
-/** How long the search waits for the next keystroke before it asks the API. */
-const SEARCH_DELAY_MS = 250;
 
 export interface PagesTabProps {
   project: SourceScope;
@@ -181,6 +179,8 @@ export function PagesTab(props: PagesTabProps): ReactElement {
   } else {
     body = (
       <BoardTable<CitedPageRow>
+        // A new owner is a new list: it starts at its top even when the sort was already the default
+        key={owner}
         caption={t('pages.caption')}
         columns={columns}
         rows={read.rows}

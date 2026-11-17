@@ -148,6 +148,10 @@ export function BoardTable<TRow>({
   useEffect(() => {
     reached.current = onEndReached;
   }, [onEndReached]);
+  // A new order starts at its first row, not where the last one was scrolled to
+  useEffect(() => {
+    if (scroller.current !== null) scroller.current.scrollTop = 0;
+  }, [sort.key, sort.dir]);
   useEffect(() => {
     const root = scroller.current;
     const target = end.current;
@@ -217,9 +221,12 @@ export function BoardTable<TRow>({
                     data-active={activeId === id ? '' : undefined}
                     className="group h-row cursor-pointer bg-surface hover:bg-surface-hover data-active:bg-surface-selected"
                     onClick={(event) => {
+                      // React events bubble through portals: a click in a popover that is a child of the row is not the row's
+                      if (!(event.target instanceof Node) || !event.currentTarget.contains(event.target)) return;
                       if (event.target instanceof Element && event.target.closest('[data-cell-action]') !== null)
                         return;
-                      onOpen(row, event.currentTarget);
+                      // The row cannot take focus: the identity button is where focus returns after a click on the row
+                      onOpen(row, event.currentTarget.querySelector<HTMLElement>('button') ?? event.currentTarget);
                     }}
                   >
                     <td className={cn(CELL, PIN, identity.cellClassName)}>

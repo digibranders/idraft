@@ -103,5 +103,8 @@ describe('the Citations address', () => {
     );
     expect(migrationOf({ tab: 'new-lost', role: 'own,competitor' })).toEqual({ tab: null, role: null });
     expect(migrationOf({ platform: 'chatgpt_web' })).toBeNull();
+    // `own` is the default owner, which is never written to the address
+    expect(migrationOf({ role: 'own' })).toEqual({ role: null });
+    expect(migrationOf({ role: 'competitor' })).toEqual({ role: null, owner: 'competitor' });
   });
 });

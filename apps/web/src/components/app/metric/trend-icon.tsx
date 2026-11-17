@@ -12,7 +12,7 @@ const TONE = {
 } as const satisfies Record<ChangeTone, string>;
 
 /** A change of a rate that rounds to nothing: under half a hundredth of a point. */
-const FLAT = 0.0005;
+export const FLAT_CHANGE = 0.0005;
 
 export interface TrendIconProps {
   /** A change in points; the tone comes from `formatMetricDelta`, so it is coloured only when detectable. */
@@ -27,7 +27,7 @@ export interface TrendIconProps {
  */
 export function TrendIcon({ input, spoken }: TrendIconProps): ReactElement {
   const value = input.value ?? 0;
-  const direction = Math.abs(value) < FLAT ? 'flat' : value > 0 ? 'up' : 'down';
+  const direction = Math.abs(value) < FLAT_CHANGE ? 'flat' : value > 0 ? 'up' : 'down';
   const { tone } = formatMetricDelta(direction === 'flat' ? { ...input, value: 0 } : input);
   return (
     <span data-direction={direction} className={cn('inline-flex shrink-0 self-center', TONE[tone])}>

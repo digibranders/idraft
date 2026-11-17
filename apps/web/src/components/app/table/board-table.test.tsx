@@ -1,6 +1,7 @@
 import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactElement } from 'react';
+import { createPortal } from 'react-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { BoardTable, BoardTableSkeleton, type BoardColumn } from './board-table';
@@ -80,12 +81,71 @@ describe('BoardTable', () => {
   it('opens a row from its first cell button or a click, but not from a cell action (C 396 to 408)', async () => {
     const { user, onOpen } = setup();
     await user.click(screen.getByRole('button', { name: 'Open Alpha' }));
-    expect(onOpen).toHaveBeenLastCalledWith(ROWS[0], expect.any(HTMLElement));
+    expect(onOpen).toHaveBeenLastCalledWith(ROWS[0], screen.getByRole('button', { name: 'Open Alpha' }));
+    // A click on the row hands over the row's button, which is focusable: focus returns there when the drawer closes
     await user.click(screen.getByText('9'));
-    expect(onOpen).toHaveBeenLastCalledWith(ROWS[1], expect.any(HTMLElement));
+    expect(onOpen).toHaveBeenLastCalledWith(ROWS[1], screen.getByRole('button', { name: 'Open Beta' }));
     onOpen.mockClear();
     await user.click(screen.getByRole('button', { name: 'More of Beta' }));
     expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it('ignores a click inside a portaled child of a row, which React bubbles to the row', async () => {
+    const onOpen = vi.fn();
+    const user = userEvent.setup();
+    const columns: readonly BoardColumn<Row>[] = [
+      ...COLUMNS.slice(0, 2),
+      {
+        id: 'popover',
+        header: 'Popover',
+        width: null,
+        cell: (row) => createPortal(<p>{`Popover of ${row.name}`}</p>, document.body),
+      },
+    ];
+    render(
+      <TooltipProvider delay={0}>
+        <BoardTable<Row>
+          caption="Cited pages"
+          columns={columns}
+          rows={ROWS}
+          rowId={(row) => row.id}
+          rowLabel={(row) => `Open ${row.name}`}
+          onOpen={onOpen}
+          activeId={null}
+          sort={{ key: 'citations', dir: 'desc' }}
+          onSortChange={vi.fn()}
+        />
+      </TooltipProvider>,
+    );
+    await user.click(screen.getByText('Popover of Alpha'));
+    expect(onOpen).not.toHaveBeenCalled();
+    await user.click(screen.getByText('3'));
+    expect(onOpen).toHaveBeenCalledTimes(1);
+  });
+
+  it('scrolls back to the first row when the sort changes', () => {
+    const table = (dir: 'asc' | 'desc'): ReactElement => (
+      <TooltipProvider delay={0}>
+        <BoardTable<Row>
+          caption="Cited pages"
+          columns={COLUMNS}
+          rows={ROWS}
+          rowId={(row) => row.id}
+          rowLabel={(row) => `Open ${row.name}`}
+          onOpen={vi.fn()}
+          activeId={null}
+          sort={{ key: 'citations', dir }}
+          onSortChange={vi.fn()}
+        />
+      </TooltipProvider>
+    );
+    const { container, rerender } = render(table('desc'));
+    const scroller = container.firstElementChild as HTMLElement;
+    scroller.scrollTop = 120;
+    rerender(table('desc'));
+    expect(scroller.scrollTop).toBe(120);
+    rerender(table('asc'));
+    expect(scroller.scrollTop).toBe(0);
   });
 
   it('marks the open row and layers the pinned corner above the other headers (C 334 to 338)', () => {
