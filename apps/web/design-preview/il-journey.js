@@ -1,18 +1,18 @@
-/* global document, window, requestAnimationFrame, setTimeout */
+/* global CSS, ResizeObserver, document, window, requestAnimationFrame, setTimeout */
 /**
  * Internal links, Journey tab (spec 7.5): the link journey as a canvas of cards, as a tree list and as a path finder. All share
  * state.journey. Which cards and rows exist is decided in il-journey-layout.js; this file draws them.
  */
 import { el } from './prompts-parts.js';
-import { BUTTON_SM, FIELD, icon, iconButton, popover, segmented, selectField, toast } from './perf-ui.js';
+import { BUTTON_SM, FIELD, icon, popover, segmented, selectField, toast } from './perf-ui.js';
 import {
   PLACEMENT_LABEL, SCOPE_WORD, activePages, depthWithoutAuto, findPaths, flags, ins, isLive, pageById, plural, refresh, routeFromHome, scopeOf,
-  setFocus, suggestedLinks, state, statusBadge, tierBadge, tierCode, tierEdge, tierIdOf, tierLabel, tierPosition,
+  setFocus, setTier, suggestedLinks, state, statusBadge, tierBadge, tierCode, tierEdge, tierIdOf, tierLabel, tierPosition, tiers,
 } from './il-model.js';
 import { openInspector } from './il-drawer.js';
+import { MAX_K, MIN_K, createMinimap, createViewport } from './il-canvas.js';
 import { MAX_CARDS, backsOf, buildJourney, canOpen, depthText, linksOf, markerScope, treeRows } from './il-journey-layout.js';
 
-const ZOOMS = [0.6, 0.8, 1, 1.2];
 const CANVAS_LABEL = 'Link journey canvas. The tree list shows the same journey as a table.';
 const GROUP_LABEL = { auto: 'Previous, next and related', template: 'Menu and footer' };
 const ICON_BUTTON = 'flex size-6 items-center justify-center rounded-sm border border-border bg-surface text-foreground-secondary hover:bg-surface-hover hover:text-foreground';
@@ -24,11 +24,17 @@ const FOCUS_RING = 'focus-visible:focus-ring';
 let zoom = 1;
 let active = null;
 let hoverLoop = null;
+// Key of the card under the pointer or keyboard focus; its path to the focus page is lit
+let hoverKey = null;
 let tip = null;
+// Cards the user selected on the canvas (keys), and where the user moved cards, kept for the session
+const selection = new Set();
+const offsets = new Map();
+// The last view of the canvas, so a re-render of the same journey does not jump
+let savedView = null;
 // A data-restore value to focus after the next render (the control that caused it was rebuilt)
 let restore = null;
 
-const reduceMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
 const j = () => state.journey;
 const live = (node) => node?.isConnected;
 
@@ -78,6 +84,18 @@ function loopTip(node, key) {
   if (!info) return;
   const body = info.backs.map((back) => `${tierCode(tierIdOf(pageById(back.id)))} ${pageById(back.id).path}: "${back.link.anchor}", ${SCOPE_WORD[scopeOf(back.link)]}`);
   showTip(node, body.map((text, index) => [String(index + 1), text]), info.dir === 'out' ? 'Links back to earlier pages' : 'Earlier pages that link here', 'Hover shows the return arrows. Select to keep them.');
+}
+
+/** Tooltip for a link line: where it goes and what the link is (anchor text, kind, attribute). */
+function edgeTip(event, path) {
+  const info = active?.edgeInfo[Number(path.dataset.edge)];
+  if (!info) return;
+  const { link, from, to } = info;
+  const rows = [['Anchor text', link.anchor ? `"${link.anchor}"` : 'None'], ['Link type', PLACEMENT_LABEL[link.placement]], ['Attribute', link.rel]];
+  const target = pageById(to);
+  if (target.status !== 200) rows.push(['Target', target.redirect ? '301 redirect' : String(target.status)]);
+  const point = { getBoundingClientRect: () => ({ left: event.clientX, right: event.clientX, top: event.clientY }) };
+  showTip(point, rows, `${pageById(from).path} to ${pageById(to).path}`, 'This link');
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -210,6 +228,16 @@ function elbow(from, to) {
   return `M${from.r},${from.m} H${spine - r} Q${spine},${from.m} ${spine},${from.m + sign * r} V${to.m - sign * r} Q${spine},${to.m} ${spine + r},${to.m} H${to.l}`;
 }
 
+/** Keys of the hovered card, the cards on its path back to the focus page, and its direct children; null when nothing is hovered. */
+function litKeys() {
+  if (!active || !hoverKey || hoverKey === 'f') return null;
+  const item = active.items.get(hoverKey);
+  if (!item?.keys) return null;
+  const set = new Set(item.keys);
+  active.inner.querySelectorAll(`button.node[data-parent="${CSS.escape(hoverKey)}"]`).forEach((child) => set.add(child.dataset.key));
+  return set;
+}
+
 function drawEdges() {
   if (!active || !live(active.inner)) return;
   const { inner, svg, items, loops } = active;
@@ -217,6 +245,9 @@ function drawEdges() {
   svg.setAttribute('width', String(inner.scrollWidth));
   svg.setAttribute('height', String(inner.scrollHeight));
   const edges = [];
+  const hits = [];
+  const lit = litKeys();
+  active.edgeInfo = [];
   let paths = '<defs><marker id="il-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M1 1L9 5L1 9z" style="fill: var(--color-primary)"/></marker></defs>';
   inner.querySelectorAll('button.node[data-parent]').forEach((node) => {
     const parent = byKey(node.dataset.parent);
@@ -233,9 +264,17 @@ function drawEdges() {
     const status = target ? pageById(target).status : 200;
     // Template and auto edges first, editorial next, redirect and broken last, so a colour shows on its own last segment
     const rank = status === 301 || status >= 400 ? 2 : scopeOf(link) === 'editorial' ? 1 : 0;
-    edges.push({ rank, markup: `<path d="${elbow(from, to)}" fill="none" stroke-width="1.5"${dash} style="stroke: ${colour}"/>` });
+    // While a card is hovered, the path from the focus page to it stays bold and the rest fades
+    const onPath = !lit || (lit.has(node.dataset.key) && lit.has(node.dataset.parent));
+    const d = elbow(from, to);
+    edges.push({ rank, markup: `<path d="${d}" fill="none" stroke-width="${lit && onPath ? 2.5 : 1.5}"${dash} style="stroke: ${colour}; opacity: ${onPath ? 1 : 0.15}"/>` });
+    if (item?.edge) {
+      // A wide invisible stroke on top, so a thin line can be hovered for its anchor text
+      hits.push(`<path data-edge="${active.edgeInfo.length}" d="${d}" fill="none" stroke="transparent" stroke-width="14" style="pointer-events: stroke"/>`);
+      active.edgeInfo.push({ link: item.edge, from: isIn ? node.dataset.id : parent.dataset.id, to: target });
+    }
   });
-  paths += edges.sort((x, y) => x.rank - y.rank).map((edge) => edge.markup).join('');
+  paths += edges.sort((x, y) => x.rank - y.rank).map((edge) => edge.markup).join('') + hits.join('');
   inner.querySelectorAll('button.node.outline-dashed').forEach((node) => node.classList.remove('outline-2', 'outline-dashed', 'outline-primary', 'outline-offset-2'));
   const shown = new Set(j().pinned);
   if (hoverLoop) shown.add(hoverLoop);
@@ -265,7 +304,7 @@ function focusNote(scope) {
   const id = j().focus;
   const page = pageById(id);
   const editorial = ins(id, 'editorial').length;
-  const box = el('div', 'flex flex-col gap-1');
+  const box = el('div', 'flex flex-col gap-1 bg-surface-subtle');
   const route = routeFromHome(id);
   const line = el('div', 'flex flex-wrap items-center gap-x-1 gap-y-0.5 type-meta text-foreground-tertiary');
   if (!route) line.append('Not reachable from the home page.');
@@ -306,25 +345,278 @@ function focusNote(scope) {
 
 function column(label, nodes) {
   const col = el('div', 'flex w-64 shrink-0 flex-col gap-2');
-  col.append(el('h3', 'type-label text-foreground-tertiary', label), ...nodes);
+  col.append(el('h3', 'w-fit bg-surface-subtle pr-1 type-label text-foreground-tertiary', label), ...nodes);
   return col;
+}
+
+const MENU_ROW = 'flex h-row-compact w-full items-center gap-2 rounded-sm px-2 text-left hover:bg-surface-hover';
+const CONTROL = 'flex size-7 items-center justify-center rounded-sm text-foreground-secondary hover:bg-surface-hover disabled:text-foreground-disabled disabled:hover:bg-transparent';
+const SHORTCUTS = [
+  ['Drag the background, or scroll', 'Pan'],
+  ['Pinch, or Ctrl or Cmd and scroll', 'Zoom toward the cursor'],
+  ['Shift and drag', 'Select several cards'],
+  ['Shift or Cmd and click', 'Add a card to the selection'],
+  ['Drag a card', 'Move it (kept for this page)'],
+  ['Click a card', 'Show or hide its links'],
+  ['Arrow keys', 'Move between cards'],
+  ['F', 'Make the focused card the focus page'],
+  ['+ and -', 'Zoom'],
+  ['0 and 1', 'Fit everything, or 100%'],
+  ['Home', 'Centre on the focus page'],
+];
+
+const keyed = (inner, key) => inner.querySelector(`button.node[data-key="${CSS.escape(key)}"]`);
+const movable = (node) => (node.parentElement?.classList.contains('group') ? node.parentElement : node);
+const nodeOf = (target) => target.closest?.('button.node') ?? target.closest?.('.group')?.querySelector('button.node') ?? null;
+const offsetKey = (key) => `${j().focus}|${j().cards}|${key}`;
+const hasOffsets = () => [...offsets.keys()].some((key) => key.startsWith(`${j().focus}|${j().cards}|`));
+
+function menuRow(panel, api, label, run) {
+  const node = el('button', `${MENU_ROW} ${FOCUS_RING}`, label);
+  node.type = 'button';
+  node.setAttribute('role', 'menuitem');
+  node.addEventListener('click', () => {
+    api.close();
+    run();
+  });
+  panel.append(node);
 }
 
 function buildCanvas() {
   const scope = markerScope(j().cards);
-  const scroller = el('div', 'overflow-auto bg-surface-subtle');
-  scroller.style.height = '560px'; // until fitHeight() has measured the window
+  const stage = el('div', 'relative isolate overflow-hidden bg-surface-subtle');
+  stage.style.height = '560px'; // until fitHeight() has measured the window
+  const scroller = el('div', `absolute inset-0 touch-none select-none outline-none ${FOCUS_RING}`);
+  scroller.tabIndex = 0;
   scroller.setAttribute('role', 'group');
   scroller.setAttribute('aria-label', CANVAS_LABEL);
-  const sizer = el('div', 'relative');
+  scroller.style.cursor = 'grab';
+  scroller.style.backgroundImage = 'radial-gradient(circle, var(--color-border-strong) 1px, transparent 1.2px)';
   const inner = el('div', 'relative flex w-max items-start gap-16 p-4');
   inner.style.transformOrigin = '0 0';
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  svg.setAttribute('class', 'pointer-events-none absolute left-0 top-0');
+  svg.setAttribute('class', 'pointer-events-none absolute left-0 top-0 overflow-visible');
   svg.setAttribute('aria-hidden', 'true');
-  sizer.append(inner);
-  scroller.append(sizer);
-  const ctx = { scroller, sizer, inner, svg, items: new Map(), loops: new Map(), graph: null };
+  scroller.append(inner);
+  stage.append(scroller);
+  const ctx = { stage, scroller, inner, svg, items: new Map(), loops: new Map(), graph: null, edgeInfo: [], boxes: [], bounds: { l: 0, t: 0, r: 1, b: 1 } };
+
+  const viewport = createViewport({
+    host: scroller,
+    content: inner,
+    canPan: (event) => event.button === 0 && !event.shiftKey && !event.target.closest('button'),
+    onView: (view) => {
+      zoom = view.k;
+      savedView = { focus: j().focus, cards: j().cards, x: view.x, y: view.y, k: view.k };
+      minimap.update();
+      syncControls();
+      hideTip();
+    },
+  });
+  const minimap = createMinimap(viewport);
+  let suppress = false;
+  let edgeFrame = 0;
+
+  // ---- Geometry helpers (world pixels)
+  const nodeBox = (node) => {
+    const b = boxIn(inner, node);
+    return { l: b.l, r: b.r, t: 2 * b.m - b.b, b: b.b };
+  };
+  const unionOf = (boxes) => boxes.reduce((all, box) => ({ l: Math.min(all.l, box.l), t: Math.min(all.t, box.t), r: Math.max(all.r, box.r), b: Math.max(all.b, box.b) }));
+  function refreshBoxes() {
+    const boxes = [...inner.querySelectorAll('button.node')].map((node) => ({ ...nodeBox(node), focus: node.dataset.key === 'f', key: node.dataset.key }));
+    ctx.boxes = boxes;
+    if (boxes.length > 0) ctx.bounds = unionOf(boxes);
+    minimap.setBoxes(boxes);
+  }
+  function scheduleEdges() {
+    if (edgeFrame) return;
+    edgeFrame = requestAnimationFrame(() => {
+      edgeFrame = 0;
+      if (!live(inner)) return;
+      refreshBoxes();
+      drawEdges();
+    });
+  }
+  function bringIntoView(boxes, ms = 220) {
+    const target = viewport.visibleTarget(unionOf(boxes), 40);
+    if (target) viewport.animate(target, ms);
+  }
+  function centreOn(node, k = Math.max(viewport.v.k, 0.7)) {
+    const b = nodeBox(node);
+    viewport.animate(viewport.centreTarget((b.l + b.r) / 2, (b.t + b.b) / 2, k), 320);
+  }
+  function revealFamily(key) {
+    const node = keyed(inner, key);
+    if (!node) return;
+    const kids = [...inner.querySelectorAll(`button.node[data-parent="${CSS.escape(key)}"]`)];
+    bringIntoView([nodeBox(node), ...kids.map(nodeBox)], 240);
+  }
+
+  // ---- View controls
+  const fitView = () => viewport.animate(viewport.fitTarget(ctx.bounds, { pad: 56, maxK: 1 }), 320);
+  const centreOnFocus = () => {
+    const node = keyed(inner, 'f');
+    if (node) centreOn(node);
+  };
+  const zoomBy = (factor) => {
+    const { w, h } = viewport.size();
+    viewport.animate(viewport.viewAt(w / 2, h / 2, viewport.v.k * factor), 160);
+  };
+  const actualSize = () => {
+    const { w, h } = viewport.size();
+    viewport.animate(viewport.viewAt(w / 2, h / 2, 1), 200);
+  };
+  function initialTarget() {
+    const fitted = viewport.fitTarget(ctx.bounds, { pad: 56, maxK: 1 });
+    if (fitted.k >= 0.7) return fitted;
+    // Too big to read at once: start at a readable size on the focus page rather than on a blur of cards
+    const focus = ctx.boxes.find((box) => box.focus) ?? ctx.bounds;
+    return { k: 0.85, x: viewport.size().w / 2 - ((focus.l + focus.r) / 2) * 0.85, y: 56 - focus.t * 0.85 };
+  }
+
+  const control = (name, label, run) => {
+    const button = el('button', `${CONTROL} ${FOCUS_RING}`);
+    button.type = 'button';
+    button.setAttribute('aria-label', label);
+    button.dataset.tip = label;
+    button.append(icon(name, 'size-icon-sm'));
+    button.addEventListener('click', run);
+    return button;
+  };
+  const controls = el('div', 'absolute bottom-3 left-3 flex items-center gap-0.5 rounded-md border border-border bg-surface-elevated p-0.5 shadow-popover');
+  controls.setAttribute('role', 'toolbar');
+  controls.setAttribute('aria-label', 'Canvas view');
+  const zoomOut = control('zoom-out', 'Zoom out', () => zoomBy(0.8));
+  const zoomIn = control('zoom-in', 'Zoom in', () => zoomBy(1.25));
+  const percent = el('button', `h-7 w-12 rounded-sm type-meta num text-foreground-secondary hover:bg-surface-hover ${FOCUS_RING}`);
+  percent.type = 'button';
+  percent.setAttribute('aria-label', 'Zoom to 100%');
+  percent.dataset.tip = 'Zoom to 100%';
+  percent.addEventListener('click', actualSize);
+  const resetLayout = control('undo-2', 'Reset card positions', () => {
+    [...offsets.keys()].filter((key) => key.startsWith(`${j().focus}|${j().cards}|`)).forEach((key) => offsets.delete(key));
+    paintOffsets();
+    scheduleEdges();
+    syncControls();
+    toast({ title: 'Card positions reset', description: 'The cards are back where the layout puts them.', tone: 'success' });
+  });
+  const help = el('div', 'absolute bottom-14 left-3 hidden max-h-[calc(100%-5rem)] w-[28rem] max-w-[calc(100%-1.5rem)] overflow-auto rounded-lg border border-border bg-surface-elevated p-3 shadow-popover');
+  help.setAttribute('role', 'region');
+  help.setAttribute('aria-label', 'Canvas controls');
+  const helpList = el('dl', 'grid grid-cols-[minmax(0,12rem)_1fr] gap-x-4 gap-y-1.5 type-meta');
+  SHORTCUTS.forEach(([keys, what]) => helpList.append(el('dt', 'text-foreground', keys), el('dd', 'text-foreground-secondary', what)));
+  help.append(el('p', 'mb-2 type-body-strong text-foreground', 'Moving around the canvas'), helpList);
+  const helpButton = control('circle-help', 'Canvas controls', () => {
+    const open = help.classList.toggle('hidden') === false;
+    helpButton.setAttribute('aria-expanded', String(open));
+    help.classList.toggle('block', open);
+  });
+  helpButton.setAttribute('aria-expanded', 'false');
+  controls.append(zoomOut, percent, zoomIn, el('span', 'mx-0.5 h-4 w-px bg-border'), control('scan', 'Fit everything', fitView), control('crosshair', 'Centre on the focus page', centreOnFocus), resetLayout, helpButton);
+  function syncControls() {
+    percent.textContent = `${Math.round(viewport.v.k * 100)}%`;
+    zoomOut.disabled = viewport.v.k <= MIN_K + 0.001;
+    zoomIn.disabled = viewport.v.k >= MAX_K - 0.001;
+    resetLayout.disabled = !hasOffsets();
+  }
+
+  // ---- Selection
+  const bar = el('div', 'absolute left-1/2 top-3 hidden -translate-x-1/2 items-center gap-2 rounded-md border border-border bg-surface-elevated p-1 pl-3 shadow-popover');
+  const selectedIds = () => [...new Set([...selection].map((key) => ctx.items.get(key)?.id).filter(Boolean))];
+  function paintSelection() {
+    inner.querySelectorAll('button.node').forEach((node) => {
+      node.style.boxShadow = selection.has(node.dataset.key) ? '0 0 0 2px var(--color-primary)' : '';
+    });
+  }
+  function renderBar() {
+    bar.classList.toggle('hidden', selection.size === 0);
+    bar.classList.toggle('flex', selection.size > 0);
+    if (selection.size === 0) {
+      bar.replaceChildren();
+      return;
+    }
+    const ids = selectedIds();
+    const status = el('span', 'type-body-strong text-primary-text whitespace-nowrap', `${plural(selection.size, 'card')} selected`);
+    status.setAttribute('role', 'status');
+    const tier = el('button', `${BUTTON_SM} ${FOCUS_RING}`);
+    tier.type = 'button';
+    tier.append(icon('layers', 'size-icon-sm text-foreground-tertiary'), el('span', '', 'Set tier'));
+    popover(tier, (panel, api) => {
+      panel.classList.add('p-1');
+      const done = (text) => {
+        refresh();
+        toast({ title: 'Tier set', description: text, tone: 'success' });
+      };
+      tiers.forEach((candidate) => menuRow(panel, api, tierLabel(candidate.id), () => {
+        setTier(ids, candidate.id);
+        done(`${plural(ids.length, 'page')} ${ids.length === 1 ? 'is' : 'are'} now ${tierLabel(candidate.id)}.`);
+      }));
+      menuRow(panel, api, 'Untiered', () => {
+        setTier(ids, null);
+        done(`${plural(ids.length, 'page')} ${ids.length === 1 ? 'is' : 'are'} now untiered.`);
+      });
+    }, { label: 'Set tier' });
+    const open = el('button', `${BUTTON_SM} ${FOCUS_RING}`);
+    open.type = 'button';
+    open.append(icon('chevron-right', 'size-icon-sm text-foreground-tertiary'), el('span', '', 'Show their links'));
+    open.addEventListener('click', () => {
+      const keys = [...selection].filter((key) => ctx.items.get(key)?.kind === 'card' && key !== 'f' && canOpen(ctx.items.get(key)) && !ctx.items.get(key).last);
+      if (keys.length === 0) {
+        toast({ title: 'Nothing to show', description: 'The selected cards have no further links to open.', tone: 'warning' });
+        return;
+      }
+      if (ctx.graph.cardCount >= MAX_CARDS) {
+        toast({ title: 'The canvas is full', description: `It holds at most ${MAX_CARDS} cards. Close a card, or use the tree list to follow the rest.`, tone: 'warning' });
+        return;
+      }
+      keys.forEach((key) => j().opened.add(key));
+      rebuild(null);
+    });
+    const clear = el('button', `${BUTTON_SM} ${FOCUS_RING}`, 'Clear');
+    clear.type = 'button';
+    clear.addEventListener('click', clearSelection);
+    bar.replaceChildren(status, tier, open, clear);
+  }
+  function clearSelection() {
+    if (selection.size === 0) return;
+    selection.clear();
+    paintSelection();
+    renderBar();
+  }
+  function toggleSelected(key) {
+    if (selection.has(key)) selection.delete(key);
+    else selection.add(key);
+    paintSelection();
+    renderBar();
+  }
+
+  // ---- Card positions (kept per focus page for the session)
+  function paintOffsets() {
+    inner.querySelectorAll('button.node').forEach((node) => {
+      const at = offsets.get(offsetKey(node.dataset.key));
+      movable(node).style.transform = at ? `translate(${at.x}px, ${at.y}px)` : '';
+    });
+  }
+
+  // ---- Hover: light the path from the focus page to the hovered card
+  function paintFocusMode() {
+    const lit = litKeys();
+    inner.querySelectorAll('button.node').forEach((node) => {
+      const target = movable(node);
+      target.style.transition = 'opacity 120ms';
+      target.style.opacity = !lit || lit.has(node.dataset.key) ? '' : '0.5';
+    });
+  }
+
+  // The canvas takes the rest of the window below its toolbar, so a tall window shows more of the journey and
+  // the page does not end in an empty band. The legend line under it (about 48 px) and the page's bottom
+  // padding stay in view. A small window keeps a usable minimum and the page scrolls.
+  ctx.fitHeight = () => {
+    if (!stage.isConnected) return;
+    const room = window.innerHeight - stage.getBoundingClientRect().top - 48 - 24;
+    stage.style.height = `${Math.max(440, Math.round(room))}px`;
+  };
 
   // Keys of opened cards, more buttons and groups that no longer exist (the parent closed) are dropped
   function prune(graph) {
@@ -346,24 +638,9 @@ function buildCanvas() {
     return changed;
   }
 
-  // The canvas takes the rest of the window below its toolbar, so a tall window shows more of the journey and
-  // the page does not end in an empty band. The legend line under it (about 48 px) and the page's bottom
-  // padding stay in view. A small window keeps a usable minimum and the page scrolls.
-  ctx.fitHeight = () => {
-    if (!scroller.isConnected) return;
-    const room = window.innerHeight - scroller.getBoundingClientRect().top - 48 - 24;
-    scroller.style.height = `${Math.max(440, Math.round(room))}px`;
-  };
-
-  function sizeAndFit() {
-    inner.style.transform = `scale(${zoom})`;
-    sizer.style.width = `${inner.offsetWidth * zoom}px`;
-    sizer.style.height = `${inner.offsetHeight * zoom}px`;
-    requestAnimationFrame(ctx.fitHeight);
-  }
-
   function rebuild(refocusKey) {
     hideTip();
+    hoverKey = null;
     ctx.loops = new Map();
     ctx.items = new Map();
     let graph = buildJourney({ focus: j().focus, cards: j().cards, opened: j().opened, more: j().more, groups: j().groups });
@@ -375,11 +652,11 @@ function buildCanvas() {
       const nodes = [];
       items.forEach((item) => {
         if (item.kind === 'head') {
-          if (heads > 1) nodes.push(el('p', 'type-meta text-foreground-tertiary truncate', `${side === graph.out ? 'From' : 'Into'} ${pageById(item.parentId).path}`));
+          if (heads > 1) nodes.push(el('p', 'w-fit max-w-full bg-surface-subtle pr-1 type-meta text-foreground-tertiary truncate', `${side === graph.out ? 'From' : 'Into'} ${pageById(item.parentId).path}`));
           return;
         }
         if (item.kind === 'tierhead') {
-          nodes.push(el('p', 'type-label text-foreground-tertiary', item.label));
+          nodes.push(el('p', 'w-fit bg-surface-subtle pr-1 type-label text-foreground-tertiary', item.label));
           return;
         }
         if (item.kind === 'more') {
@@ -405,19 +682,35 @@ function buildCanvas() {
     columns.forEach((col, index) => col.querySelectorAll('button.node').forEach((node) => {
       node.dataset.col = String(index);
     }));
-    sizeAndFit();
-    requestAnimationFrame(drawEdges);
-    if (refocusKey) inner.querySelector(`button.node[data-key="${CSS.escape(refocusKey)}"]`)?.focus({ preventScroll: true });
+    [...selection].forEach((key) => {
+      if (!ctx.items.has(key)) selection.delete(key);
+    });
+    paintOffsets();
+    paintSelection();
+    renderBar();
+    syncControls();
+    requestAnimationFrame(() => {
+      if (!live(inner)) return;
+      refreshBoxes();
+      drawEdges();
+      if (refocusKey) revealFamily(refocusKey);
+    });
+    if (refocusKey) keyed(inner, refocusKey)?.focus({ preventScroll: true });
   }
 
-  function refit() {
-    sizeAndFit();
-    requestAnimationFrame(drawEdges);
-  }
-
-  function reveal(node, inline = 'center') {
-    node.scrollIntoView({ block: 'nearest', inline, behavior: reduceMotion() ? 'auto' : 'smooth' });
-  }
+  /** Called once the canvas is in the page: sizes it, then restores or chooses the first view. */
+  ctx.mounted = () => {
+    ctx.fitHeight();
+    refreshBoxes();
+    const saved = savedView;
+    if (saved && saved.focus === j().focus && saved.cards === j().cards) viewport.set(saved.x, saved.y, saved.k);
+    else {
+      const target = initialTarget();
+      viewport.set(target.x, target.y, target.k);
+    }
+    drawEdges();
+    new ResizeObserver(() => minimap.update()).observe(stage);
+  };
 
   function toggle(key, kind) {
     const set = kind === 'group' ? j().groups : j().opened;
@@ -430,13 +723,18 @@ function buildCanvas() {
     rebuild(key);
   }
 
-  function findOriginal(id) {
-    return inner.querySelector(`button.node[data-kind="card"][data-id="${CSS.escape(id)}"]`);
-  }
-
   inner.addEventListener('click', (event) => {
     const target = event.target.closest('button');
     if (!target) return;
+    if (suppress || viewport.wasDragged()) {
+      suppress = false;
+      return;
+    }
+    if (target.classList.contains('node') && (event.shiftKey || event.metaKey || event.ctrlKey)) {
+      toggleSelected(target.dataset.key);
+      return;
+    }
+    if (target.classList.contains('node')) clearSelection();
     if (target.dataset.focusId) {
       setFocus(target.dataset.focusId);
     } else if (target.dataset.details) openInspector(target.dataset.details);
@@ -455,37 +753,156 @@ function buildCanvas() {
       rebuild(null);
     } else if (target.classList.contains('node')) {
       if (target.dataset.kind === 'stub') {
-        const original = findOriginal(target.dataset.id);
+        const original = inner.querySelector(`button.node[data-kind="card"][data-id="${CSS.escape(target.dataset.id)}"]`);
         if (!original) return;
-        reveal(original);
-        original.classList.add('outline-2', 'outline-primary');
-        setTimeout(() => original.classList.remove('outline-2', 'outline-primary'), 1500);
+        centreOn(original);
+        original.style.boxShadow = '0 0 0 2px var(--color-primary)';
+        setTimeout(() => paintSelection(), 1500);
         original.focus({ preventScroll: true });
       } else if (target.hasAttribute('aria-expanded')) toggle(target.dataset.key, target.dataset.kind);
     }
   });
 
-  const hoverOn = (event) => {
-    const loop = event.target.closest?.('[data-loop]');
-    const node = event.target.closest?.('button.node');
-    const key = loop ? loop.dataset.loop : null;
-    if (key !== hoverLoop) {
-      hoverLoop = key;
-      drawEdges();
+  // A press on the empty canvas that did not move clears the selection
+  scroller.addEventListener('click', (event) => {
+    if (event.target.closest('button')) return;
+    if (suppress || viewport.wasDragged()) {
+      suppress = false;
+      return;
     }
-    if (loop) loopTip(loop, key);
+    clearSelection();
+    scroller.focus({ preventScroll: true });
+  });
+
+  // ---- Moving a card: press, move past a few pixels, and the card (or the whole selection) follows the pointer
+  let drag = null;
+  inner.addEventListener('pointerdown', (event) => {
+    suppress = false;
+    if (event.button !== 0 || event.pointerType === 'touch' || event.shiftKey || event.metaKey || event.ctrlKey || viewport.spaceHeld()) return;
+    const node = event.target.closest('button.node');
+    if (!node) return;
+    const keys = selection.has(node.dataset.key) && selection.size > 1 ? [...selection] : [node.dataset.key];
+    drag = { id: event.pointerId, x: event.clientX, y: event.clientY, node, keys, started: false, base: new Map(keys.map((key) => [key, { ...(offsets.get(offsetKey(key)) ?? { x: 0, y: 0 }) }])) };
+  });
+  inner.addEventListener('pointermove', (event) => {
+    if (!drag || event.pointerId !== drag.id) return;
+    const dx = event.clientX - drag.x;
+    const dy = event.clientY - drag.y;
+    if (!drag.started) {
+      if (Math.hypot(dx, dy) < 5) return;
+      drag.started = true;
+      hideTip();
+      drag.node.setPointerCapture(event.pointerId);
+      drag.keys.forEach((key) => {
+        const node = keyed(inner, key);
+        if (node) movable(node).style.zIndex = '20';
+      });
+    }
+    drag.keys.forEach((key) => {
+      const node = keyed(inner, key);
+      if (!node) return;
+      const base = drag.base.get(key);
+      const at = { x: base.x + dx / zoom, y: base.y + dy / zoom };
+      offsets.set(offsetKey(key), at);
+      movable(node).style.transform = `translate(${at.x}px, ${at.y}px)`;
+    });
+    scheduleEdges();
+  });
+  const endDrag = (event) => {
+    if (!drag || event.pointerId !== drag.id) return;
+    const moved = drag.started;
+    drag.keys.forEach((key) => {
+      const node = keyed(inner, key);
+      if (node) movable(node).style.zIndex = '';
+    });
+    drag = null;
+    if (!moved) return;
+    suppress = true;
+    refreshBoxes();
+    drawEdges();
+    syncControls();
+  };
+  inner.addEventListener('pointerup', endDrag);
+  inner.addEventListener('pointercancel', endDrag);
+
+  // ---- Box select: Shift and drag on the empty canvas
+  let marquee = null;
+  scroller.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0 || !event.shiftKey || event.target.closest('button')) return;
+    event.preventDefault();
+    scroller.setPointerCapture(event.pointerId);
+    const box = el('div', 'pointer-events-none absolute rounded-sm border border-primary');
+    box.style.background = 'color-mix(in srgb, var(--color-primary) 12%, transparent)';
+    stage.append(box);
+    marquee = { id: event.pointerId, x: event.clientX, y: event.clientY, box };
+  });
+  scroller.addEventListener('pointermove', (event) => {
+    if (!marquee || event.pointerId !== marquee.id) return;
+    const origin = stage.getBoundingClientRect();
+    marquee.box.style.left = `${Math.min(marquee.x, event.clientX) - origin.left}px`;
+    marquee.box.style.top = `${Math.min(marquee.y, event.clientY) - origin.top}px`;
+    marquee.box.style.width = `${Math.abs(event.clientX - marquee.x)}px`;
+    marquee.box.style.height = `${Math.abs(event.clientY - marquee.y)}px`;
+  });
+  const endMarquee = (event) => {
+    if (!marquee || event.pointerId !== marquee.id) return;
+    const area = marquee.box.getBoundingClientRect();
+    marquee.box.remove();
+    marquee = null;
+    suppress = true;
+    if (area.width < 3 && area.height < 3) return;
+    inner.querySelectorAll('button.node').forEach((node) => {
+      const rect = node.getBoundingClientRect();
+      if (rect.right >= area.left && rect.left <= area.right && rect.bottom >= area.top && rect.top <= area.bottom) selection.add(node.dataset.key);
+    });
+    paintSelection();
+    renderBar();
+  };
+  scroller.addEventListener('pointerup', endMarquee);
+  scroller.addEventListener('pointercancel', endMarquee);
+
+  // ---- Hover and focus: tooltips, return arrows and the lit path
+  const hoverOn = (event) => {
+    if (drag?.started) return;
+    const loop = event.target.closest?.('[data-loop]');
+    const edge = event.target.closest?.('path[data-edge]');
+    const node = nodeOf(event.target);
+    const loopKey = loop ? loop.dataset.loop : null;
+    const lit = node ? node.dataset.key : null;
+    let redraw = false;
+    if (loopKey !== hoverLoop) {
+      hoverLoop = loopKey;
+      redraw = true;
+    }
+    if (lit !== hoverKey) {
+      hoverKey = lit;
+      redraw = true;
+    }
+    if (redraw) {
+      drawEdges();
+      paintFocusMode();
+    }
+    if (event.type === 'focusin' && node) bringIntoView([nodeBox(node)], 180);
+    if (loop) loopTip(loop, loopKey);
+    else if (edge) edgeTip(event, edge);
     else if (node && node.dataset.id) cardTip(node, ctx.items.get(node.dataset.key));
   };
   const hoverOff = () => {
     hideTip();
-    if (hoverLoop) {
+    if (hoverLoop || hoverKey) {
       hoverLoop = null;
+      hoverKey = null;
       drawEdges();
+      paintFocusMode();
     }
   };
   ['mouseover', 'focusin'].forEach((name) => inner.addEventListener(name, hoverOn));
   ['mouseout', 'focusout'].forEach((name) => inner.addEventListener(name, hoverOff));
-  scroller.addEventListener('scroll', hideTip);
+  // Focus moving to an off-screen card must not scroll the clipped surface itself
+  scroller.addEventListener('scroll', () => {
+    scroller.scrollLeft = 0;
+    scroller.scrollTop = 0;
+  });
 
   inner.addEventListener('keydown', (event) => {
     const current = event.target.closest?.('button.node');
@@ -495,7 +912,7 @@ function buildCanvas() {
     const go = (node) => {
       if (!node) return;
       event.preventDefault();
-      node.focus();
+      node.focus({ preventScroll: true });
     };
     if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
       const step = event.key === 'ArrowRight' ? 1 : -1;
@@ -513,17 +930,35 @@ function buildCanvas() {
     } else if (event.key === 'f' || event.key === 'F') {
       event.preventDefault();
       if (current.dataset.id && current.dataset.id !== j().focus) setFocus(current.dataset.id);
-      else current.scrollIntoView({ block: 'center', inline: 'center', behavior: reduceMotion() ? 'auto' : 'smooth' });
-    } else if (event.key === 'Escape') go(inner.querySelector('button.node[data-key="f"]'));
+      else centreOn(current);
+    } else if (event.key === 'Escape') {
+      if (selection.size > 0) clearSelection();
+      else go(keyed(inner, 'f'));
+    }
   });
 
+  // View keys work from anywhere on the canvas; arrows pan only when the empty canvas itself has focus
+  stage.addEventListener('keydown', (event) => {
+    if (event.target.closest('input, select, textarea') || event.altKey || event.ctrlKey || event.metaKey) return;
+    const pan = event.shiftKey ? 240 : 80;
+    if (event.key === '+' || event.key === '=') zoomBy(1.25);
+    else if (event.key === '-' || event.key === '_') zoomBy(0.8);
+    else if (event.key === '0') fitView();
+    else if (event.key === '1') actualSize();
+    else if (event.key === 'Home') centreOnFocus();
+    else if (event.key === 'Escape' && !help.classList.contains('hidden')) {
+      help.classList.add('hidden');
+      help.classList.remove('block');
+      helpButton.setAttribute('aria-expanded', 'false');
+    } else if (event.target === scroller && event.key.startsWith('Arrow')) {
+      const { x, y, k } = viewport.v;
+      viewport.set(x + (event.key === 'ArrowLeft' ? pan : event.key === 'ArrowRight' ? -pan : 0), y + (event.key === 'ArrowUp' ? pan : event.key === 'ArrowDown' ? -pan : 0), k);
+    } else return;
+    event.preventDefault();
+  });
+
+  stage.append(controls, help, minimap.root, bar);
   ctx.rebuild = rebuild;
-  ctx.refit = refit;
-  ctx.fit = () => {
-    const room = scroller.clientWidth;
-    zoom = [...ZOOMS].reverse().find((step) => inner.offsetWidth * step <= room) ?? ZOOMS[0];
-    refit();
-  };
   rebuild(null);
   return ctx;
 }
@@ -834,29 +1269,6 @@ function toolbar() {
     bar.append(follow);
     return bar;
   }
-  const right = el('div', 'ml-auto flex items-center gap-1.5');
-  const label = el('span', 'type-meta num text-foreground-tertiary w-10 text-right');
-  const out = iconButton('zoom-out', 'Zoom out', () => setZoom(-1));
-  const into = iconButton('zoom-in', 'Zoom in', () => setZoom(1));
-  const fit = iconButton('scan', 'Fit to view', () => {
-    active?.fit();
-    sync();
-  });
-  function sync() {
-    out.disabled = zoom <= ZOOMS[0];
-    into.disabled = zoom >= ZOOMS[ZOOMS.length - 1];
-    label.textContent = `${Math.round(zoom * 100)}%`;
-  }
-  function setZoom(direction) {
-    const index = ZOOMS.indexOf(zoom) + direction;
-    if (index < 0 || index >= ZOOMS.length) return;
-    zoom = ZOOMS[index];
-    active?.refit();
-    sync();
-  }
-  sync();
-  right.append(label, out, into, fit);
-  bar.append(right);
   return bar;
 }
 
@@ -882,16 +1294,22 @@ function legend() {
 export function render(host) {
   hideTip();
   hoverLoop = null;
+  hoverKey = null;
   active = null;
   const panel = el('div', 'rounded-lg border border-border bg-surface overflow-hidden');
   panel.append(toolbar());
-  if (j().view === 'canvas') panel.append(buildCanvas().scroller, legend());
+  let canvas = null;
+  if (j().view === 'canvas') {
+    canvas = buildCanvas();
+    panel.append(canvas.stage, legend());
+  }
   else if (j().view === 'path') panel.append(pathFinder());
   else {
     const table = treeTable();
     panel.append(table.scroller);
   }
   host.append(panel);
+  canvas?.mounted();
   if (restore) host.querySelector(`[data-restore="${restore}"]`)?.focus();
   restore = null;
 }

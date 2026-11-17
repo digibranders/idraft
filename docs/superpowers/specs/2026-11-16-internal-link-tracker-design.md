@@ -278,8 +278,20 @@ The canvas and the tree list share one state: focus page, link scope and opened 
 - **Tooltip** (house tooltip): title, tier name, status, depth, linking pages (editorial and all), equity share, this link's placement and rel, and whether it links both ways.
 - **Re-center:** each card has "Focus", which makes it the new focus. The URL updates, so Back returns to the previous focus.
 - **Size:** the canvas holds at most 300 cards. Past that, opening is refused with a message pointing to the tree list or a tier filter.
-- **Viewport:** zoom in, zoom out and fit-to-view buttons (the non-drag alternative to pan and zoom). There is no minimap. Nothing animates on load; layout changes move in 150 ms and do not move under reduced motion.
-- **Keyboard:** arrows move between cards in reading order (left and right across columns, up and down within one). Enter or Space opens or closes. F re-centers. Escape returns to the focus card. Each card is a button whose accessible name reads like "/pricing, T1 Money pages, 12 linking pages, linked as See plans, content". The canvas region names the tree list as its text alternative.
+- **Viewport:** a real pannable, zoomable canvas (decided 2026-11-17, built in the mock as `il-canvas.js`), not a scrolling area.
+  - **Pan:** drag the empty background, two-finger scroll on a trackpad, wheel, or Space and drag. A fast drag glides to a stop (not under reduced motion). On touch, one finger pans from anywhere.
+  - **Zoom:** pinch, or Ctrl or Cmd and scroll, toward the cursor; 25% to 200%, continuous. On touch, two fingers pinch and pan together. Buttons zoom in 25% steps around the centre.
+  - **View controls** (bottom left, a toolbar named "Canvas view"): zoom out, the percentage (activating it returns to 100%), zoom in, Fit everything, Centre on the focus page, Reset card positions, Canvas controls (a short list of the gestures and keys).
+  - **Minimap** (bottom right, hidden below 640 px): every card and the part in view; press or drag on it to move the view.
+  - **First view:** the whole journey when it is readable at 70% or more; otherwise the focus page at 85%, so the first thing seen is never a blur. The last view of a journey is restored when the page re-renders, for example after a tier change.
+  - **Growing never loses the place:** after a card opens, the view pans the least it takes to show the card and its new children.
+  - **Dot grid** behind the cards moves and scales with the view, so panning always reads as movement.
+  - Moves animate over 150 to 320 ms and are instant under reduced motion.
+- **Selecting and moving:**
+  - **Select:** Shift or Cmd and click adds a card; Shift and drag on the background draws a selection box. A bar appears with "N cards selected", Set tier, Show their links and Clear; a plain click or Escape clears. Selection works with the keyboard on the cards (Shift and Enter).
+  - **Move:** dragging a card (or the selection) moves it, and its lines follow live. Positions are kept per focus page for the session; "Reset card positions" restores the layout. Touch does not drag cards, so a tap always opens.
+- **Hover:** hovering or focusing a card lights its path back to the focus page and its direct children and fades the rest. Hovering a line shows its anchor text, link type and attribute; the lines have a wide invisible hit area.
+- **Keyboard:** arrows move between cards in reading order (left and right across columns, up and down within one) and pan the view when the empty canvas has focus (Shift for bigger steps). A card that takes focus off screen is brought into view. Enter or Space opens or closes. F re-centers. Escape clears the selection, then returns to the focus card. Plus and minus zoom, 0 fits everything, 1 is 100%, Home centres on the focus page. Each card is a button whose accessible name reads like "/pricing, T1 Money pages, 12 linking pages, linked as See plans, content". The canvas region names the tree list as its text alternative.
 - **Technology:** React Flow (`@xyflow/react`, MIT) for rendering, viewport and edges, and `elkjs` (layered, direction right) for positions. Cards are our own components, so tokens, badges, focus rings and tooltips match the design system. Both are new web dependencies. The canvas is a new design-system component: its spec, tokens and preview section land before any feature code (UI rule "When something is missing").
 
 **Tree list:** `DataTable` in tree mode with lazy children from the neighbours endpoint.
