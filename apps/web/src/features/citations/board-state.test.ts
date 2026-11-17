@@ -73,6 +73,22 @@ describe('the Citations address', () => {
     ).toEqual({ platform: 'gemini_web', group: 't1', runs: '1', comp: '', owner: 'all', gaps: 'all', q: 'crm' });
   });
 
+  it('leaves comp out while the tracked list loads, unless the change carries competitors', () => {
+    const loading: BoardOptions = { engines: null, terms: null, tracked: null };
+    const state = parse({}, loading);
+    expect('comp' in writeBoard(state, null)).toBe(false);
+    expect('comp' in writeBoard({ ...state, platform: 'gemini_web' }, null, { platform: 'gemini_web' })).toBe(false);
+    expect(writeBoard({ ...state, competitors: ['c2'] }, null, { competitors: ['c2'] }).comp).toBe('c2');
+    expect(writeBoard({ ...state, competitors: [] }, null, { competitors: [] }).comp).toBe('');
+  });
+
+  it('writes a search as parseBoard reads it: trimmed, at most 200 characters, blank as nothing', () => {
+    const base = parse({});
+    expect(writeBoard({ ...base, search: '   ' }, OPTIONS.tracked).q).toBeNull();
+    expect(writeBoard({ ...base, search: '  crm  ' }, OPTIONS.tracked).q).toBe('crm');
+    expect(writeBoard({ ...base, search: 'a'.repeat(250) }, OPTIONS.tracked).q).toBe('a'.repeat(200));
+  });
+
   it('moves the old keys once: role to owner, topic to group, the rest dropped', () => {
     expect(migrationOf({ tab: 'domains', role: 'third_party', topic: 't1', win: '7d', engine: 'chatgpt_web' })).toEqual(
       {

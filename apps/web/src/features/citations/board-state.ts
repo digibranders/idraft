@@ -117,17 +117,29 @@ export function parseBoard(search: BoardSearch, options: BoardOptions): BoardSta
   };
 }
 
-/** The address of `state`: each default as `null`, which removes its key. */
-export function writeBoard(state: BoardState, tracked: readonly string[] | null): Record<BoardKey, string | null> {
+/**
+ * The address of `state`: each default as `null`, which removes its key. While `tracked` is `null` the competitors in
+ * `state` are not known (`parseBoard` reads `[]`), so `comp` is left out, and the address keeps what it holds, unless
+ * `patch` carries `competitors`. `search` is the settled value: callers keep a half-typed one in local state, as the
+ * trim here would eat a trailing space.
+ */
+export function writeBoard(
+  state: BoardState,
+  tracked: readonly string[] | null,
+  patch: Partial<BoardState> = {},
+): Partial<Record<BoardKey, string | null>> {
   const defaults = tracked === null ? null : defaultCompetitors(tracked);
+  const search = state.search.trim().slice(0, MAX_SEARCH);
   return {
     platform: state.platform === 'all' ? null : state.platform,
     group: state.group === 'all' ? null : state.group,
     runs: state.runs === 4 ? null : String(state.runs),
-    comp: defaults !== null && sameList(state.competitors, defaults) ? null : state.competitors.join(','),
+    ...(defaults === null && patch.competitors === undefined
+      ? {}
+      : { comp: defaults !== null && sameList(state.competitors, defaults) ? null : state.competitors.join(',') }),
     owner: state.owner === 'own' ? null : state.owner,
     gaps: state.gapsOnly ? null : 'all',
-    q: state.search === '' ? null : state.search,
+    q: search === '' ? null : search,
   };
 }
 
@@ -177,15 +189,18 @@ export function useBoardState(options: BoardOptions): BoardStateResult {
   const { tracked } = options;
   const set = useCallback(
     (patch: Partial<BoardState>): void => {
-      void setSearch(writeBoard({ ...state, ...patch }, tracked), { history: 'replace' });
+      void setSearch(writeBoard({ ...state, ...patch }, tracked, patch), { history: 'replace' });
     },
     [state, tracked, setSearch],
   );
   const defaults = useMemo(() => (tracked === null ? [] : defaultCompetitors(tracked)), [tracked]);
-  const resetScope = useCallback(
-    (): void => set({ platform: 'all', group: 'all', runs: 4, competitors: defaults }),
-    [set, defaults],
-  );
+  const resetScope = useCallback((): void => {
+    const scope: Partial<BoardState> = { platform: 'all', group: 'all', runs: 4 };
+    // The default competitors are not known yet: removing `comp` is the default, whatever the tracked list turns out to be
+    if (tracked === null)
+      void setSearch({ ...writeBoard({ ...state, ...scope }, null), comp: null }, { history: 'replace' });
+    else set({ ...scope, competitors: defaults });
+  }, [state, tracked, set, defaults, setSearch]);
   const isDefaultScope =
     state.platform === 'all' && state.group === 'all' && state.runs === 4 && sameList(state.competitors, defaults);
   return { state, set, resetScope, isDefaultScope };

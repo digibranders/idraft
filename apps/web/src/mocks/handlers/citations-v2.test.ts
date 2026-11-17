@@ -44,6 +44,60 @@ describe('the Citations v2 routes', () => {
     expect(answer.body.meta).toMatchObject({ owners: { all: CITATIONS_FIXTURE.expected.chatgpt.pages.all } });
   });
 
+  it('answers the overview of one run with window.runs 1', async () => {
+    const answer = await mockBrowser('viewer').call('GET', `${P}/ai/citation-overview?runs=1`);
+    expect(answer.status).toBe(200);
+    expect(answer.body).toMatchObject({ window: { runs: 1 } });
+  });
+
+  it('answers a cited page by its real id, and 404 for a page the scope does not cite', async () => {
+    const browser = mockBrowser('viewer');
+    const PAGE = z.object({ data: z.array(z.object({ url_id: z.number() })), page: z.object({ total: z.number() }) });
+    // Every page of the scope, 200 at a time
+    const ids = async (engine: string): Promise<number[]> => {
+      const found: number[] = [];
+      let total = 1;
+      while (found.length < total) {
+        const answer = await browser.call(
+          'GET',
+          `${P}/ai/cited-pages?filter[engine_code_in]=${engine}&limit=200&offset=${String(found.length)}`,
+        );
+        const body = PAGE.parse(answer.body);
+        total = body.page.total;
+        if (body.data.length === 0) break;
+        found.push(...body.data.map((row) => row.url_id));
+      }
+      return found;
+    };
+    const [chatgpt, gemini] = [await ids('chatgpt_web'), await ids('gemini_web')];
+    const first = chatgpt[0];
+    if (first === undefined) throw new Error('The fixture cites no page for ChatGPT');
+    const detail = await browser.call('GET', `${P}/ai/cited-pages/${String(first)}?filter[engine_code_in]=chatgpt_web`);
+    expect(detail.status).toBe(200);
+    expect(detail.body).toMatchObject({ page: { url_id: first } });
+    const elsewhere = chatgpt.find((id) => !gemini.includes(id));
+    if (elsewhere === undefined) throw new Error('The fixture has no page cited by ChatGPT only');
+    const missing = await browser.call(
+      'GET',
+      `${P}/ai/cited-pages/${String(elsewhere)}?filter[engine_code_in]=gemini_web`,
+    );
+    expect(missing.status).toBe(404);
+  });
+
+  it('answers a prompt gap by its real id with the first three competitors, and 404 for a prompt with no answer', async () => {
+    const browser = mockBrowser('viewer');
+    const three = (await competitorIds()).slice(0, 3);
+    const query = `filter[engine_code_in]=chatgpt_web&filter[competitor_id_in]=${three.join(',')}`;
+    const list = await browser.call('GET', `${P}/ai/citation-gaps?${query}`);
+    const [row] = z.array(z.object({ prompt_id: z.string() })).parse(list.body.data);
+    if (row === undefined) throw new Error('The fixture has no prompt in the gap list');
+    const detail = await browser.call('GET', `${P}/ai/citation-gaps/${row.prompt_id}?${query}`);
+    expect(detail.status).toBe(200);
+    expect(detail.body).toMatchObject({ row: { prompt_id: row.prompt_id } });
+    const none = await browser.call('GET', `${P}/ai/citation-gaps/0192d1a8-c177-7000-8000-999999999999?${query}`);
+    expect(none.status).toBe(404);
+  });
+
   it('refuses runs other than 1, 2 or 4, a long q and an unknown sort', async () => {
     const browser = mockBrowser('viewer');
     expect((await browser.call('GET', `${P}/ai/citation-overview?runs=3`)).status).toBe(422);
