@@ -59,11 +59,16 @@ describe('TopicHeatmap: the groups by platform as a heat map (CH-04)', () => {
   it('prints every cell value with the counts in its tip', async () => {
     renderWithProviders(<TopicHeatmap {...props()} />);
     const grid = await screen.findByRole('grid', { name: 'Mention by group and platform' });
-    const cell = within(grid).getByRole('link', { name: /^SEO on ChatGPT: 37\.5%, 3 of 8 answers/ });
+    // The percent is the mean of the prompts' rates: it says so, and the pooled answers carry their own percent
+    const cell = within(grid).getByRole('link', {
+      name: /^SEO on ChatGPT: 37\.5%, average of 2 prompts, each counting once\. All answers pooled: 37\.5%, 3 of 8 answers/,
+    });
     expect(cell).toHaveTextContent('38%');
-    // The prompts it weights are in the words too
-    expect(cell.getAttribute('aria-label')).toContain('2 prompts');
-    expect(within(grid).getByRole('link', { name: /^SEO on Gemini: 75\.0%, 6 of 8 answers/ })).toHaveTextContent('75%');
+    expect(
+      within(grid).getByRole('link', {
+        name: /^SEO on Gemini: 75\.0%, average of 2 prompts, each counting once\. All answers pooled: 75\.0%, 6 of 8 answers/,
+      }),
+    ).toHaveTextContent('75%');
     // The Prompts column
     expect(within(grid).getByRole('columnheader', { name: 'Prompts' })).toBeInTheDocument();
   });
@@ -212,7 +217,10 @@ describe('TopicHeatmap: the groups by platform as a heat map (CH-04)', () => {
     const { user } = renderWithProviders(<TopicHeatmap {...props()} />);
     await screen.findByRole('grid');
     await user.click(screen.getByRole('button', { name: 'Table' }));
-    expect(screen.getAllByText(/^SEO on ChatGPT: 37\.5%, 3 of 8 answers/).length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText(/^SEO on ChatGPT: 37\.5%, average of 2 prompts, each counting once\. All answers pooled/)
+        .length,
+    ).toBeGreaterThan(0);
   });
 
   it('says group rows overlap in the footnote', async () => {

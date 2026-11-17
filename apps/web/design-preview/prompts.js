@@ -355,7 +355,12 @@ function scopeRate(code, metric) {
     const change = { value: rate - promptWeightedRate(previous), detectable: isDetectableChange(pooled, pooledCounts(previous)) };
     delta = deltaNode(change, { value: rate, sample: `${formatSampleCount(pooled.k, pooled.n)} ${engine.unit}` });
   }
-  return { value: percent0(rate), delta, context: `${formatSampleCount(pooled.k, pooled.n)} ${metric === 'sov' ? 'brand mentions' : engine.unit}` };
+  // Share of voice is a ratio of sums: its percent is exactly x of y brand mentions. The other rates are the mean of the
+  // prompts' own rates, so the percent says "average of N prompts" and the pooled answers carry their own percent (one denominator per number)
+  const context = metric === 'sov'
+    ? `${formatSampleCount(pooled.k, pooled.n)} brand mentions`
+    : `average of ${plural(usable.length, 'prompt')}, each counting once. Answers pooled: ${percent0(pooled.k / pooled.n)}, ${formatSampleCount(pooled.k, pooled.n)} ${engine.unit}`;
+  return { value: percent0(rate), delta, context };
 }
 
 /** One chip of the toolbar: a label, the figure, and its change. The counts behind it are one hover away (P5). */

@@ -28,7 +28,7 @@ describe('ComparisonLine: what can be said of the gap between the engines', () =
       [3, 8],
       [2, 8],
     ]);
-    expect(screen.getByText('Best on ChatGPT at 37.5%, weakest on Gemini at 25.0%, a gap of 12.5 pts.')).toBeVisible();
+    expect(screen.getByText('Best on ChatGPT at 38%, weakest on Gemini at 25%, a gap of 13 pts.')).toBeVisible();
   });
 
   it('writes the gap as the difference of the two rates it shows, not of the exact rates', () => {
@@ -42,12 +42,12 @@ describe('ComparisonLine: what can be said of the gap between the engines', () =
       observations: 10,
       reason: null,
     });
-    // 33.337 and 11.262 percent are shown as 33.3 and 11.3: the exact gap, 22.075, would read as 22.1
+    // 33.337 and 11.262 percent are shown as 33 and 11: the sentence's gap is the difference of those, 22
     renderDrawerPart(
       <ComparisonLine values={[rated('chatgpt_web', 0.33337), rated('gemini_web', 0.11262)]} metric="share_of_voice" />,
       { engines: ENGINES },
     );
-    expect(screen.getByText('Best on ChatGPT at 33.3%, weakest on Gemini at 11.3%, a gap of 22.0 pts.')).toBeVisible();
+    expect(screen.getByText('Best on ChatGPT at 33%, weakest on Gemini at 11%, a gap of 22 pts.')).toBeVisible();
   });
 
   it('says within normal variation or larger, labelled unpaired on pooled answers', () => {
@@ -91,7 +91,7 @@ describe('ComparisonLine: what can be said of the gap between the engines', () =
     line([[40, 80], [20, 80], null]);
     expect(screen.getByText('Left out for too few answers: Google AI Mode.')).toBeVisible();
     // The best and weakest are still compared
-    expect(screen.getByText(/^Best on ChatGPT at 50.0%, weakest on Gemini at 25.0%/)).toBeVisible();
+    expect(screen.getByText(/^Best on ChatGPT at 50%, weakest on Gemini at 25%/)).toBeVisible();
   });
 
   it('says there is nothing to compare under 2 engines', () => {
@@ -114,7 +114,7 @@ describe('ComparisonLine: what can be said of the gap between the engines', () =
       [4, 8],
       [4, 8],
     ]);
-    expect(screen.getByText('Every platform with a rate is at 50.0%.')).toBeVisible();
+    expect(screen.getByText('Every platform with a rate is at 50%.')).toBeVisible();
   });
 
   it('never writes a rate of 0 for an engine without data', () => {

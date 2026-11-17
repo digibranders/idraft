@@ -5,7 +5,7 @@
  * which topics are in scope and in what order.
  */
 import { formatInteger, formatPercent, formatSampleCount } from './vendor/format/number.js';
-import { WEEKS, averageFor, changeFor, clamp, groupAverage, groupChange, groupEntities, groupRate, seeded, topicKeywords } from './prompts-data.js';
+import { WEEKS, averageFor, changeFor, clamp, countsOf, groupAverage, groupChange, groupEntities, groupRate, seeded, topicKeywords } from './prompts-data.js';
 import { el, keywordRow, percent0, plural } from './prompts-parts.js';
 import { deltaNode, scopeCodes, scopeEngines, scopeText } from './prompts-state.js';
 
@@ -68,8 +68,10 @@ function engineRow(topic, engine) {
     label,
     track,
     el('span', `w-10 shrink-0 text-right type-table num${rate === null ? ' text-foreground-tertiary' : ''}`, rate === null ? 'n/a' : percent0(rate)),
-    el('span', 'w-20 shrink-0 text-right type-meta num', pooled.n === 0 ? 'no answers' : formatSampleCount(pooled.k, pooled.n)),
+    // The rate is the mean of the prompts' own rates: it says so, and the pooled answers (their own percent) are in the tip
+    el('span', 'w-20 shrink-0 text-right type-meta', pooled.n === 0 ? 'no answers' : `average of ${topic.prompts.filter((prompt) => countsOf(prompt, engine.code, 'mention').observations > 0).length}`),
   );
+  if (pooled.n > 0) row.dataset.tip = `Average of the prompts, each counting once. Answers pooled: ${percent0(pooled.k / pooled.n)}, ${formatSampleCount(pooled.k, pooled.n)} answers`;
   return row;
 }
 

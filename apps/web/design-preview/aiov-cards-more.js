@@ -3,6 +3,7 @@
  * key changes and the collection calendar. Same contract as aiov-cards-core.js.
  */
 import { formatInteger } from './vendor/format/number.js';
+import { isDetectableDifference } from './vendor/stats/index.js';
 import {
   GA4_CONNECTED,
   GROUPS,
@@ -148,6 +149,8 @@ function versusList(ctx) {
     const ok = row.a?.state === 'ok';
     const against = row.b?.state === 'ok' ? `All groups ${pct0(row.b.value)}` : 'All groups: no rate';
     const difference = ok && row.b?.state === 'ok' ? row.a.value - row.b.value : null;
+    // The same test as every change icon, on the counts of both (an average on the platforms' counts added up)
+    const detectable = difference === null ? null : isDetectableDifference(row.a.counts, row.b.counts);
     return {
       label: row.label,
       value: ok ? row.a.value : null,
@@ -155,7 +158,7 @@ function versusList(ctx) {
       token: row.token,
       note: ok ? against : 'Too few answers',
       tip: `${row.label}: ${ok ? pct0(row.a.value) : 'too few valid answers (fewer than 4)'}. ${against}.`,
-      icon: difference === null ? null : gapIcon(difference, gapSentence(groupName(ctx.scope.group), difference, 'all groups', row.a.value, row.b.value)),
+      icon: difference === null ? null : gapIcon(difference, gapSentence(groupName(ctx.scope.group), difference, 'all groups', row.a.value, row.b.value, detectable), detectable),
     };
   });
   // One scale for every row, so the bars and the ticks can be compared

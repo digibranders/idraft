@@ -277,30 +277,48 @@ describe('recommendationColumn', () => {
 });
 
 describe('shareOfVoiceColumn', () => {
-  const both = shareOfVoiceColumn<Row>(contextOf(CHAT, GEMINI), rows);
-  const withShare = (code: string, k: number, n: number): EngineSummary => ({
-    ...engine(code),
-    share_of_voice: cellOf(k, n),
-  });
+  // Share of voice is x of y brand mentions (D17), counted from the entity cells: you and one competitor
+  const ownContext: MetricContext = { ...contextOf(CHAT, GEMINI), ownEntityIds: new Set(['own']) };
+  const both = shareOfVoiceColumn<Row>(ownContext, rows);
+  const withShare = (code: string, mine: number, rivals: number): EngineSummary =>
+    ({
+      ...engine(code),
+      entities: [
+        { entity_id: 'own', mentioned: cellOf(mine, 50), share_of_voice: cellOf(0, 0) },
+        { entity_id: 'rival', mentioned: cellOf(rivals, 50), share_of_voice: cellOf(0, 0) },
+      ],
+    }) as EngineSummary;
 
-  it('is the equal-weight average of the platforms with a share, with each own basis', () => {
-    const row: Row = { facts: undefined, cells: [withShare(CHAT, 5, 20), withShare(GEMINI, 3, 3)] };
+  it('is the equal-weight average of the platforms with a share, with each own brand-mention counts', () => {
+    // Gemini has 3 brand mentions: under the minimum, so only ChatGPT counts. ChatGPT: 5 of 20
+    const row: Row = { facts: undefined, cells: [withShare(CHAT, 5, 15), withShare(GEMINI, 1, 2)] };
     const shown = show(both, row);
-    // Gemini has 3 answers naming a brand: under the minimum, so only ChatGPT counts
     expect(shown.text).toBe('25%');
-    expect(shown.tip).toBe('ChatGPT 20 answers that mention a brand. ChatGPT only');
+    expect(shown.tip).toBe('ChatGPT 5 of 20 brand mentions. ChatGPT only');
     expect(both.sortValue?.(row)).toBe(0.25);
     expect(both.header).toBe('Share of voice');
   });
 
-  it('averages two platforms that both have a share', () => {
-    const row: Row = { facts: undefined, cells: [withShare(CHAT, 5, 20), withShare(GEMINI, 15, 30)] };
+  it('averages two platforms that both have a share, with no pooled count', () => {
+    // ChatGPT 5 of 20 (25%), Gemini 15 of 30 (50%): the average is 38%, where pooled it would be 20 of 50 (40%)
+    const row: Row = { facts: undefined, cells: [withShare(CHAT, 5, 15), withShare(GEMINI, 15, 15)] };
     expect(show(both, row).text).toBe('38%');
+    expect(show(both, row).tip).toContain('ChatGPT 5 of 20 brand mentions and Gemini 15 of 30 brand mentions');
     expect(show(both, row).tip).toContain('Equal weight average of ChatGPT and Gemini');
   });
 
+  it('is n/a, not collected, when the read carries no entity cells, never a percent without its counts', () => {
+    expect(show(both, { facts: undefined, cells: [engine(CHAT), engine(GEMINI)] })).toMatchObject({
+      text: 'n/a',
+      tip: 'Not collected yet',
+    });
+    expect(
+      show(shareOfVoiceColumn<Row>(contextOf(CHAT), rows), { facts: undefined, cells: [withShare(CHAT, 5, 15)] }).text,
+    ).toBe('n/a');
+  });
+
   it('is "Not enough data" when every platform is thin, n/a when the counts are not loaded', () => {
-    expect(show(both, { facts: undefined, cells: [withShare(CHAT, 1, 2)] })).toMatchObject({
+    expect(show(both, { facts: undefined, cells: [withShare(CHAT, 1, 1)] })).toMatchObject({
       text: 'Not enough data',
       tip: '2 answers in scope. A rate needs at least 4 on a platform.',
     });

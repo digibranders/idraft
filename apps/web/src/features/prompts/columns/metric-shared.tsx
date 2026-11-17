@@ -19,8 +19,12 @@ export interface MetricContext {
 }
 
 /** The own entities of a summary's tracked set, or `undefined` while there is none to look at. */
-export const ownEntityIdsOf = (entities: readonly { entity_id: string; role: string }[] | undefined): ReadonlySet<string> | undefined =>
-  entities === undefined ? undefined : new Set(entities.filter((entity) => entity.role === 'own').map((entity) => entity.entity_id));
+export const ownEntityIdsOf = (
+  entities: readonly { entity_id: string; role: string }[] | undefined,
+): ReadonlySet<string> | undefined =>
+  entities === undefined
+    ? undefined
+    : new Set(entities.filter((entity) => entity.role === 'own').map((entity) => entity.entity_id));
 
 /**
  * Whether the facts of a row were read and hold no entry for any platform in view: the row has no answer there. An entry

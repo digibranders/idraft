@@ -44,17 +44,17 @@ export function insufficientText(cell) {
 }
 
 /**
- * The difference between two rates, in points, as the trend icon of the Prompts page: green when the first is higher,
- * red when it is lower, a grey dash when level. `say` is the sentence of its hover. Differences between two things are
- * not tested for detectability.
+ * The difference between two rates, in points, as the trend icon of the Prompts page: green when the first is higher and
+ * red when it is lower, only when the difference is detectable (`isDetectableDifference`, the test of every change icon,
+ * on the counts of both); otherwise a grey dash. `say` is the sentence of its hover.
  */
-export const gapIcon = (difference, say) => trendIcon({ value: difference, detectable: null }, { say });
+export const gapIcon = (difference, say, detectable) => trendIcon({ value: detectable === true ? difference : 0, detectable: detectable === true }, { say });
 
-/** The sentence of a gap's hover: "Pricing is 10 pts below all groups", with the two figures. */
-export function gapSentence(subject, difference, other, ours, theirs) {
-  const points = `${(Math.abs(difference) * 100).toFixed(1)} pts`;
-  const where = Math.abs(difference) < 0.0005 ? `level with ${other}` : `${points} ${difference > 0 ? 'above' : 'below'} ${other}`;
-  return `${subject} ${subject === 'You' ? 'are' : 'is'} ${where}: ${pct0(ours)} against ${pct0(theirs)}. Not tested for detectability.`;
+/** The sentence of a gap's hover: "Pricing is 10 pts below all groups", with the two figures and the verdict. */
+export function gapSentence(subject, difference, other, ours, theirs, detectable) {
+  const points = `${(Math.abs(difference) * 100).toFixed(1)}`;
+  if (detectable !== true || difference === 0) return `${subject} ${subject === 'You' ? 'are' : 'is'} level with ${other}: the difference of ${points} pts is not detectable, small sample: ${pct0(ours)} against ${pct0(theirs)}.`;
+  return `${subject} ${subject === 'You' ? 'are' : 'is'} ${points} pts ${difference > 0 ? 'above' : 'below'} ${other}: ${pct0(ours)} against ${pct0(theirs)}. Detectable: its 95% interval excludes zero.`;
 }
 
 export function engineName(code) {

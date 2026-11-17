@@ -288,12 +288,17 @@ function topicRateCell(topic, metric) {
     .map((engine) => engine.label)
     .join(', ');
   const observed = topic.prompts.reduce((sum, prompt) => sum + scopeCodes().reduce((total, code) => total + prompt.engines[code].n, 0), 0);
+  // Each platform's own pooled counts (a different rate from the percent, which averages the prompts and then the platforms)
+  const perEngine = scopeEngines()
+    .filter((engine) => groupRate(topic.prompts, engine.code, metric).rate !== null)
+    .map((engine) => { const { pooled } = groupRate(topic.prompts, engine.code, metric); return `${engine.label} ${formatSampleCount(pooled.k, pooled.n)}`; })
+    .join(' and ');
   return rateCell({
     value: average.value,
     change: metric === 'mention' ? topic.mentionChange : null,
     trend: metric === 'mention' ? topic.trend : null,
-    sample: `${formatSampleCount(average.pooled.k, average.pooled.n)} answers`,
-    tip: average.used === 1 ? `${engines} only` : `Equal-weight average of ${engines}, each prompt counting once`,
+    sample: `${perEngine} ${metric === 'sov' ? 'brand mentions' : 'answers'}`,
+    tip: average.used === 1 ? `${engines} only` : `Average of ${engines}, each platform and each prompt counting once`,
     gap: { text: observed === 0 ? 'n/a' : 'Not enough data', tip: observed === 0 ? 'No answers in this period' : `${plural(observed, 'answer')} in this group. A rate needs at least ${MIN_OBSERVATIONS} on a platform.` },
   });
 }
@@ -322,7 +327,14 @@ function engineRateCell(topic, code) {
     return cell;
   }
   const line = el('span', 'inline-flex items-baseline gap-2 whitespace-nowrap');
-  line.append(el('span', 'num', percent0(rate)), el('span', 'type-meta num text-foreground-secondary', formatSampleCount(counts.k, counts.n)));
+  // Share of voice is a ratio of sums: its percent is exactly x of y. A rate is the mean of the prompts' rates, so it says
+  // "average of N prompts" and the pooled answers, with their own percent, are in the tip (one denominator per number)
+  if (state.metric === 'sov') line.append(el('span', 'num', percent0(rate)), el('span', 'type-meta num text-foreground-secondary', formatSampleCount(counts.k, counts.n)));
+  else {
+    const prompts = topic.prompts.filter((prompt) => countsOf(prompt, code, state.metric).observations > 0).length;
+    line.append(el('span', 'num', percent0(rate)), el('span', 'type-meta text-foreground-secondary', `average of ${prompts}`));
+    cell.dataset.tip = `Average of ${plural(prompts, 'prompt')}, each counting once. Answers pooled: ${percent0(counts.k / counts.n)}, ${formatSampleCount(counts.k, counts.n)} answers`;
+  }
   cell.append(line);
   return cell;
 }
