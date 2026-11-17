@@ -67,6 +67,15 @@ TENANT_TABLES: dict[str, str] = {
     "ai.citations": "workspace_id",
     "ai.entity_mentions": "workspace_id",
     "ai.observation_facts": "workspace_id",
+    "core.page_tier_levels": "workspace_id",
+    "core.tier_rules": "workspace_id",
+    "core.project_pages": "workspace_id",
+    "core.page_terms": "workspace_id",
+    "seo.crawl_runs": "workspace_id",
+    "seo.crawl_pages": "workspace_id",
+    "seo.crawl_links": "workspace_id",
+    "seo.crawl_tier_flow": "workspace_id",
+    "seo.crawl_tier_stats": "workspace_id",
 }
 
 
@@ -185,6 +194,7 @@ async def seed_tenant(pg: PostgresServer, label: str) -> Tenant:
         await seed_keywords(db, workspace_id, project_id, owner_id, entity_id, term_id)
         await seed_search_console(db, workspace_id, project_id, owner_id)
         await seed_ai(db, workspace_id, project_id, owner_id, entity_id, term_id)
+        await seed_internal_links(db, workspace_id, project_id, owner_id, term_id)
     return Tenant(workspace_id, owner_id, project_id, token_hash, schedule_id, run_id)
 
 
@@ -594,6 +604,94 @@ async def insert_prompt(
     prompt_id: uuid.UUID = ids["prompt_id"]
     version_id: uuid.UUID = ids["version_id"]
     return prompt_id, version_id
+
+
+async def seed_internal_links(
+    db: asyncpg.Connection[Any],
+    workspace_id: uuid.UUID,
+    project_id: uuid.UUID,
+    owner_id: uuid.UUID,
+    term_id: uuid.UUID,
+) -> uuid.UUID:
+    """One row in every internal links table: a tier, a rule, a page with a rule tier and a
+    tag, and a finished crawl with its page, one link, its tier flow and stats. Returns the
+    crawl's id."""
+    tier_id: uuid.UUID = await db.fetchval(
+        "INSERT INTO core.page_tier_levels (workspace_id, position, name) "
+        "VALUES ($1, 1, 'Money pages') RETURNING id",
+        workspace_id,
+    )
+    rule_id = await db.fetchval(
+        "INSERT INTO core.tier_rules (workspace_id, project_id, position, match_type, value, "
+        "tier_id, created_by) VALUES ($1, $2, 1, 'prefix', '/services/', $3, $4) RETURNING id",
+        workspace_id,
+        project_id,
+        tier_id,
+        owner_id,
+    )
+    url_id: int = await db.fetchval(
+        "INSERT INTO core.urls (url_hash, canonical_url, domain_id, path, canonicalizer_version) "
+        "SELECT sha256(convert_to($1, 'UTF8')), 'https://' || $1, d.id, '/services/a', 1 "
+        "FROM core.domains d ORDER BY d.id LIMIT 1 RETURNING id",
+        f"seed-{uuid.uuid4().hex}.example/services/a",
+    )
+    await db.execute(
+        "INSERT INTO core.project_pages (project_id, url_id, workspace_id, tier_id, "
+        "tier_source, rule_id) VALUES ($1, $2, $3, $4, 'rule', $5)",
+        project_id,
+        url_id,
+        workspace_id,
+        tier_id,
+        rule_id,
+    )
+    await db.execute(
+        "INSERT INTO core.page_terms (project_id, url_id, term_id, workspace_id) "
+        "VALUES ($1, $2, $3, $4)",
+        project_id,
+        url_id,
+        term_id,
+        workspace_id,
+    )
+    run_id: uuid.UUID = await db.fetchval(
+        "INSERT INTO seo.crawl_runs (workspace_id, project_id, trigger, state, target_host, "
+        "settings, ceiling, finished_at) VALUES ($1, $2, 'manual', 'ready', 'example.com', "
+        "'{}', 2000, now()) RETURNING id",
+        workspace_id,
+        project_id,
+    )
+    await db.execute(
+        "INSERT INTO seo.crawl_pages (run_id, url_id, workspace_id, project_id, crawled_url, "
+        "status_code, resource_type) VALUES ($1, $2, $3, $4, 'https://example.com/services/a', "
+        "200, 'html')",
+        run_id,
+        url_id,
+        workspace_id,
+        project_id,
+    )
+    await db.execute("SELECT seo.add_crawl_links_partition($1)", run_id)
+    await db.execute(
+        "INSERT INTO seo.crawl_links (run_id, workspace_id, source_url_id, target_url_id, kind, "
+        "placement, scope, is_followed) VALUES ($1, $2, $3, $3, 'text', 'content', 'editorial', "
+        "true)",
+        run_id,
+        workspace_id,
+        url_id,
+    )
+    await db.execute(
+        "INSERT INTO seo.crawl_tier_flow (run_id, workspace_id, scope, from_tier_id, to_tier_id, "
+        "links) VALUES ($1, $2, 'editorial', $3, $3, 1)",
+        run_id,
+        workspace_id,
+        tier_id,
+    )
+    await db.execute(
+        "INSERT INTO seo.crawl_tier_stats (run_id, workspace_id, tier_id, pages, equity_share) "
+        "VALUES ($1, $2, $3, 1, 1.0)",
+        run_id,
+        workspace_id,
+        tier_id,
+    )
+    return run_id
 
 
 async def seed_ai(

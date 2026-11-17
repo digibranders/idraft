@@ -2099,8 +2099,10 @@
       "estimate": "Estimate (USD)",
       "actual": "Actual (USD)",
       "created": "Started",
+      "duration": "Duration",
       "completed": "Finished"
     },
+    "durationOpen": "The run has not finished yet.",
     "triggers": {
       "schedule": "Schedule",
       "manual": "Manual",

@@ -84,6 +84,16 @@ AuditAction = Literal[
     "budget.created",
     "budget.updated",
     "budget.deleted",
+    "page_tier.created",
+    "page_tier.updated",
+    "page_tier.deleted",
+    "tier_rule.created",
+    "tier_rule.updated",
+    "tier_rule.deleted",
+    "page_tiers.changed",
+    "page_tags.changed",
+    "link_crawl.requested",
+    "link_crawl.cancelled",
 ]
 
 

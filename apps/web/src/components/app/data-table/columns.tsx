@@ -5,7 +5,7 @@ import { CopyButton } from '@/components/app/cells/copy-button';
 import { CollectionStatusIcon, type CollectionStatus } from '@/components/app/status/collection-progress';
 import { Badge } from '@/components/ui/badge';
 import { Truncate } from '@/components/ui/truncate';
-import { EMPTY_VALUE, formatCurrency, formatInteger, formatTableDateTime } from '@/lib/format';
+import { EMPTY_VALUE, formatCurrency, formatDuration, formatInteger, formatTableDateTime } from '@/lib/format';
 import { COLUMN_TYPES, type ColumnType } from '@/lib/tables/column-types';
 import { cn } from '@/lib/utils';
 
@@ -194,6 +194,15 @@ export const col = {
     options: Options & { unknown?: ((row: TRow) => UnknownValue) | undefined },
   ): DataTableColumn<TRow> {
     return numeric(id, 'count', value, options, (number) => formatInteger(number));
+  },
+
+  /** How long something took, from milliseconds to its two largest units ("3 min 12 s"); sorts by the span. */
+  duration<TRow>(
+    id: string,
+    milliseconds: (row: TRow) => number | null,
+    options: Options & { unknown?: ((row: TRow) => UnknownValue) | undefined },
+  ): DataTableColumn<TRow> {
+    return numeric(id, 'count', milliseconds, options, formatDuration);
   },
 
   /** A search volume: as a count, sorted high to low first. */

@@ -11,6 +11,7 @@ from idraft.api import audit, limits
 from idraft.api.auth import repository as users
 from idraft.api.auth.sessions import SessionContext
 from idraft.api.auth.throttle import LoginThrottle
+from idraft.api.internal_links.tier_levels import insert_default_tiers
 from idraft.api.permissions import Role
 from idraft.api.problems import (
     DuplicateError,
@@ -84,6 +85,7 @@ class WorkspaceService:
                     db, workspace_id=workspace_id, user_id=user.id, role=Role.OWNER
                 )
                 await repository.insert_default_quotas(db, workspace_id)
+                await insert_default_tiers(db, workspace_id)
                 # Counted once the workspace can be created, so an attempt refused for a taken
                 # slug costs nothing, and before the transaction commits, so a workspace over
                 # the allowance is never stored.

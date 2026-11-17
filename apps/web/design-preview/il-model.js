@@ -3,7 +3,7 @@
  * tiers from manual choices and URL rules, click depth with and without auto-generated links, equity share
  * (PageRank, damping 0.85), flags, worklists and the tier flow. The tabs read from here and call refresh().
  */
-import { citations, crawlSettings, crawls, keywords, links, mentions, pages, rules, tagNames, tiers } from './il-data.js';
+import { citations, crawlSettings, crawls, keywords, links, mentions, pages, rules, tagNames, tiers } from './il-data-source.js';
 import { el } from './prompts-parts.js';
 
 export { citations, crawlSettings, crawls, keywords, links, mentions, pages, rules, tagNames, tiers };
@@ -28,7 +28,7 @@ export const state = {
   // opportunityStatus: `${from}>${to}` to 'accepted' or 'dismissed' (absent = open); dismissedTierSuggestions: page ids
   opportunityStatus: {},
   dismissedTierSuggestions: new Set(),
-  journey: { focus: 'soc', view: 'canvas', cards: 'editorial', opened: new Set(), more: new Map(), groups: new Set(), pinned: new Set(), treeDir: 'out', treeOpen: new Set() },
+  journey: { focus: pages.some((page) => page.id === 'soc') ? 'soc' : 'home', view: 'canvas', layout: 'step', laneHide: new Set(), cards: 'editorial', opened: new Set(), more: new Map(), groups: new Set(), pinned: new Set(), treeDir: 'out', treeOpen: new Set() },
 };
 
 let renderer = () => {};

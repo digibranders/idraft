@@ -89,6 +89,15 @@ DECLARED = {
     "ai.derivations",
     "ai.entity_mentions",
     "ai.observation_facts",
+    "core.page_tier_levels",
+    "core.tier_rules",
+    "core.project_pages",
+    "core.page_terms",
+    "seo.crawl_runs",
+    "seo.crawl_pages",
+    "seo.crawl_links",
+    "seo.crawl_tier_flow",
+    "seo.crawl_tier_stats",
 }
 # A monthly partition's name ends in `_pYYYYMM`.
 _PARTITION = re.compile(r"_p\d{6}$")
@@ -196,9 +205,12 @@ async def test_primary_keys_match(migrated: PostgresServer) -> None:
             sorted(DECLARED),
         )
     in_database = {row["name"]: list(row["columns"]) for row in rows}
+    # A table with no primary key (the tier flow and tier stats, whose keys hold nulls and are
+    # unique constraints) has no row in the catalog query above.
     declared = {
         name: [column.name for column in table.primary_key.columns]
         for name, table in tables.metadata.tables.items()
+        if table.primary_key.columns
     }
     assert in_database == declared
 

@@ -23,6 +23,7 @@ from sqlalchemy import (
     Date,
     DateTime,
     FetchedValue,
+    Float,
     ForeignKey,
     ForeignKeyConstraint,
     Integer,
@@ -1725,4 +1726,242 @@ ai_observation_facts = Table(
         ["derivation_id", "workspace_id"], [ai_derivations.c.id, ai_derivations.c.workspace_id]
     ),
     schema="ai",
+)
+
+page_tier_levels = Table(
+    "page_tier_levels",
+    metadata,
+    _id(),
+    Column("workspace_id", Uuid, ForeignKey(workspaces.c.id, ondelete="CASCADE"), nullable=False),
+    Column("position", SmallInteger, nullable=False),
+    Column("name", Text, nullable=False),
+    Column("description", Text, nullable=False, server_default=FetchedValue()),
+    _created_at(),
+    Column("updated_at", DateTime(timezone=True), nullable=False, server_default=FetchedValue()),
+    UniqueConstraint("id", "workspace_id", name="page_tier_levels_id_workspace_id_key"),
+    UniqueConstraint("workspace_id", "position", name="page_tier_levels_position_key"),
+    schema="core",
+)
+
+tier_rules = Table(
+    "tier_rules",
+    metadata,
+    _id(),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("project_id", Uuid, nullable=False),
+    Column("position", Integer, nullable=False),
+    Column("match_type", Text, nullable=False),
+    Column("value", Text, nullable=False),
+    Column("tier_id", Uuid, nullable=False),
+    Column("created_by", Uuid, ForeignKey(users.c.id)),
+    _created_at(),
+    UniqueConstraint("id", "workspace_id", name="tier_rules_id_workspace_id_key"),
+    UniqueConstraint("project_id", "position", name="tier_rules_position_key"),
+    ForeignKeyConstraint(
+        ["project_id", "workspace_id"], [projects.c.id, projects.c.workspace_id], ondelete="CASCADE"
+    ),
+    ForeignKeyConstraint(
+        ["tier_id", "workspace_id"], [page_tier_levels.c.id, page_tier_levels.c.workspace_id]
+    ),
+    schema="core",
+)
+
+project_pages = Table(
+    "project_pages",
+    metadata,
+    Column("project_id", Uuid, primary_key=True),
+    Column("url_id", BigInteger, ForeignKey(urls.c.id), primary_key=True),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("tier_id", Uuid),
+    Column("tier_source", Text, nullable=False),
+    Column("rule_id", Uuid),
+    Column("set_by", Uuid, ForeignKey(users.c.id)),
+    Column("set_at", DateTime(timezone=True), nullable=False, server_default=FetchedValue()),
+    ForeignKeyConstraint(
+        ["project_id", "workspace_id"], [projects.c.id, projects.c.workspace_id], ondelete="CASCADE"
+    ),
+    ForeignKeyConstraint(
+        ["tier_id", "workspace_id"], [page_tier_levels.c.id, page_tier_levels.c.workspace_id]
+    ),
+    ForeignKeyConstraint(
+        ["rule_id", "workspace_id"],
+        [tier_rules.c.id, tier_rules.c.workspace_id],
+        ondelete="CASCADE",
+    ),
+    schema="core",
+)
+
+page_terms = Table(
+    "page_terms",
+    metadata,
+    Column("project_id", Uuid, primary_key=True),
+    Column("url_id", BigInteger, ForeignKey(urls.c.id), primary_key=True),
+    Column("term_id", Uuid, primary_key=True),
+    Column("workspace_id", Uuid, nullable=False),
+    _created_at(),
+    ForeignKeyConstraint(
+        ["project_id", "workspace_id"], [projects.c.id, projects.c.workspace_id], ondelete="CASCADE"
+    ),
+    ForeignKeyConstraint(
+        ["term_id", "workspace_id"],
+        [taxonomy_terms.c.id, taxonomy_terms.c.workspace_id],
+        ondelete="CASCADE",
+    ),
+    schema="core",
+)
+
+crawl_runs = Table(
+    "crawl_runs",
+    metadata,
+    _id(),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("project_id", Uuid, nullable=False),
+    Column("trigger", Text, nullable=False),
+    Column("state", Text, nullable=False, server_default=FetchedValue()),
+    Column("target_host", Text, nullable=False),
+    Column("settings", JSONB, nullable=False),
+    Column("ceiling", Integer, nullable=False),
+    Column("provider_task_id", Text),
+    Column("pages_found", Integer, nullable=False, server_default=FetchedValue()),
+    Column("pages_crawled", Integer, nullable=False, server_default=FetchedValue()),
+    Column("sitemap_pages", Integer),
+    Column("estimated_cost_usd", Numeric(14, 6)),
+    Column("cost_usd", Numeric(14, 6)),
+    Column("stop_reason", Text),
+    Column("error_code", Text),
+    Column("error_message", Text),
+    Column("cancel_requested", Boolean, nullable=False, server_default=FetchedValue()),
+    Column("ingest_phase", Text),
+    Column("ingest_token", Text),
+    Column("ingest_offset", Integer, nullable=False, server_default=FetchedValue()),
+    Column("ingest_failures", SmallInteger, nullable=False, server_default=FetchedValue()),
+    Column("start_url_id", BigInteger, ForeignKey(urls.c.id)),
+    Column("equity_lost_to_errors", Float),
+    Column("equity_p25", Float),
+    Column("links_stored", Integer, nullable=False, server_default=FetchedValue()),
+    Column("links_dropped_at", DateTime(timezone=True)),
+    Column("tier_flow_stale", Boolean, nullable=False, server_default=FetchedValue()),
+    Column("requested_by", Uuid, ForeignKey(users.c.id)),
+    _created_at(),
+    Column("submitted_at", DateTime(timezone=True)),
+    Column("crawled_at", DateTime(timezone=True)),
+    Column("finished_at", DateTime(timezone=True)),
+    UniqueConstraint("id", "workspace_id", name="crawl_runs_id_workspace_id_key"),
+    ForeignKeyConstraint(
+        ["project_id", "workspace_id"], [projects.c.id, projects.c.workspace_id], ondelete="CASCADE"
+    ),
+    schema="seo",
+)
+
+
+def _run_key() -> ForeignKeyConstraint:
+    """The crawl a row belongs to, in the row's own workspace."""
+    return ForeignKeyConstraint(
+        ["run_id", "workspace_id"], [crawl_runs.c.id, crawl_runs.c.workspace_id], ondelete="CASCADE"
+    )
+
+
+crawl_pages = Table(
+    "crawl_pages",
+    metadata,
+    Column("run_id", Uuid, primary_key=True),
+    Column("url_id", BigInteger, ForeignKey(urls.c.id), primary_key=True),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("project_id", Uuid, nullable=False),
+    Column("crawled_url", Text, nullable=False),
+    Column("status_code", SmallInteger),
+    Column("resource_type", Text, nullable=False),
+    Column("redirect_url_id", BigInteger, ForeignKey(urls.c.id)),
+    Column("is_indexable", Boolean, nullable=False, server_default=FetchedValue()),
+    Column("non_indexable_reason", Text),
+    Column("canonical_url_id", BigInteger, ForeignKey(urls.c.id)),
+    Column("title", Text),
+    Column("in_sitemap", Boolean, nullable=False, server_default=FetchedValue()),
+    Column("links_state", Text, nullable=False, server_default=FetchedValue()),
+    Column("click_depth", Integer),
+    Column("depth_without_auto", Integer),
+    Column("equity_share", Float),
+    *(
+        Column(name, Integer, nullable=False, server_default=FetchedValue())
+        for name in (
+            "linking_pages_editorial",
+            "linking_pages_auto",
+            "linking_pages_template",
+            "linking_pages_all",
+            "outlinks_editorial",
+            "outlinks_auto",
+            "outlinks_template",
+            "outlinks_all",
+            "broken_outlinks",
+            "redirect_outlinks",
+            "non_indexable_outlinks",
+        )
+    ),
+    Column("top_anchor", Text),
+    Column("is_orphan", Boolean, nullable=False, server_default=FetchedValue()),
+    Column("is_editorial_orphan", Boolean, nullable=False, server_default=FetchedValue()),
+    Column("deep_only_through_auto", Boolean, nullable=False, server_default=FetchedValue()),
+    _run_key(),
+    ForeignKeyConstraint(
+        ["project_id", "workspace_id"], [projects.c.id, projects.c.workspace_id], ondelete="CASCADE"
+    ),
+    schema="seo",
+)
+
+crawl_links = Table(
+    "crawl_links",
+    metadata,
+    Column("run_id", Uuid, primary_key=True),
+    Column("id", BigInteger, primary_key=True, server_default=FetchedValue()),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("source_url_id", BigInteger, nullable=False),
+    Column("target_url_id", BigInteger, nullable=False),
+    Column("anchor", Text, nullable=False, server_default=FetchedValue()),
+    Column("kind", Text, nullable=False),
+    Column("placement", Text, nullable=False),
+    Column("scope", Text, nullable=False),
+    Column("rel", ARRAY(Text), nullable=False, server_default=FetchedValue()),
+    Column("is_followed", Boolean, nullable=False),
+    Column("occurrences", SmallInteger, nullable=False, server_default=FetchedValue()),
+    Column("container_hash", BigInteger),
+    Column("template_candidate", Boolean, nullable=False, server_default=FetchedValue()),
+    _run_key(),
+    schema="seo",
+)
+
+crawl_tier_flow = Table(
+    "crawl_tier_flow",
+    metadata,
+    Column("run_id", Uuid, nullable=False),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("scope", Text, nullable=False),
+    Column("from_tier_id", Uuid),
+    Column("to_tier_id", Uuid),
+    Column("links", Integer, nullable=False),
+    UniqueConstraint(
+        "run_id",
+        "scope",
+        "from_tier_id",
+        "to_tier_id",
+        name="crawl_tier_flow_cell_key",
+        postgresql_nulls_not_distinct=True,
+    ),
+    _run_key(),
+    schema="seo",
+)
+
+crawl_tier_stats = Table(
+    "crawl_tier_stats",
+    metadata,
+    Column("run_id", Uuid, nullable=False),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("tier_id", Uuid),
+    Column("pages", Integer, nullable=False),
+    Column("equity_share", Float, nullable=False),
+    Column("average_depth", Float),
+    UniqueConstraint(
+        "run_id", "tier_id", name="crawl_tier_stats_tier_key", postgresql_nulls_not_distinct=True
+    ),
+    _run_key(),
+    schema="seo",
 )

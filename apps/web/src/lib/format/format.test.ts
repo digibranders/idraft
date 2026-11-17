@@ -11,6 +11,7 @@ import {
   formatCurrency,
   formatDateRange,
   formatDetailDateTime,
+  formatDuration,
   formatInteger,
   formatInterval,
   formatIsoDate,
@@ -280,5 +281,27 @@ describe('urls', () => {
   });
   it('truncates long paths in the middle', () => {
     expect(truncatePath('/blog/2026/09/how-to-choose-a-crm', 28)).toBe('/blog/…/how-to-choose-a-crm');
+  });
+});
+
+describe('durations', () => {
+  it('gives the two largest units and leaves out a zero one', () => {
+    expect(formatDuration(800)).toBe('<1 s');
+    expect(formatDuration(45_000)).toBe('45 s');
+    expect(formatDuration(120_000)).toBe('2 min');
+    expect(formatDuration(192_000)).toBe('3 min 12 s');
+    expect(formatDuration(3_900_000)).toBe('1 h 5 min');
+    expect(formatDuration(98_000_000)).toBe('1 d 3 h');
+  });
+
+  it('rounds to the second before it splits the units', () => {
+    expect(formatDuration(59_600)).toBe('1 min');
+  });
+
+  it('reads a span that is missing or not a span as n/a', () => {
+    expect(formatDuration(null)).toBe(EMPTY_VALUE);
+    expect(formatDuration(undefined)).toBe(EMPTY_VALUE);
+    expect(formatDuration(-1)).toBe(EMPTY_VALUE);
+    expect(formatDuration(Number.NaN)).toBe(EMPTY_VALUE);
   });
 });

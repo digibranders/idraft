@@ -45,6 +45,57 @@ AUDIT_COLUMNS = (
     "request_id",
 )
 
+# The columns the crawl worker may change (migration 0025), copied here on purpose: the test
+# states the contract.
+RUN_WORKER_UPDATE = (
+    "state",
+    "provider_task_id",
+    "pages_found",
+    "pages_crawled",
+    "sitemap_pages",
+    "estimated_cost_usd",
+    "cost_usd",
+    "stop_reason",
+    "error_code",
+    "error_message",
+    "ingest_phase",
+    "ingest_token",
+    "ingest_offset",
+    "ingest_failures",
+    "start_url_id",
+    "equity_lost_to_errors",
+    "equity_p25",
+    "links_stored",
+    "links_dropped_at",
+    "tier_flow_stale",
+    "submitted_at",
+    "crawled_at",
+    "finished_at",
+)
+PAGE_WORKER_UPDATE = (
+    "is_indexable",
+    "non_indexable_reason",
+    "links_state",
+    "click_depth",
+    "depth_without_auto",
+    "equity_share",
+    "linking_pages_editorial",
+    "linking_pages_auto",
+    "linking_pages_template",
+    "linking_pages_all",
+    "outlinks_editorial",
+    "outlinks_auto",
+    "outlinks_template",
+    "outlinks_all",
+    "broken_outlinks",
+    "redirect_outlinks",
+    "non_indexable_outlinks",
+    "top_anchor",
+    "is_orphan",
+    "is_editorial_orphan",
+    "deep_only_through_auto",
+)
+
 URL_COLUMNS = ("url_hash", "canonical_url", "domain_id", "path", "canonicalizer_version")
 KEYWORD_COLUMNS = ("workspace_id", "text", "normalized_text", "language_code")
 
@@ -383,6 +434,33 @@ MATRIX: dict[str, tuple[Access, Access]] = {
     "ai.citations": (READ, access("SELECT, INSERT")),
     "ai.entity_mentions": (READ, access("SELECT, INSERT")),
     "ai.observation_facts": (READ, access("SELECT, INSERT")),
+    "core.page_tier_levels": (
+        access("SELECT, INSERT, DELETE", UPDATE=("position", "name", "description", "updated_at")),
+        READ,
+    ),
+    "core.tier_rules": (
+        access("SELECT, INSERT, DELETE", UPDATE=("position", "match_type", "value", "tier_id")),
+        READ,
+    ),
+    "core.project_pages": (
+        access(
+            "SELECT, INSERT, DELETE",
+            UPDATE=("tier_id", "tier_source", "rule_id", "set_by", "set_at"),
+        ),
+        access("SELECT, INSERT, DELETE", UPDATE=("tier_id", "tier_source", "rule_id", "set_at")),
+    ),
+    "core.page_terms": (access("SELECT, INSERT, DELETE"), NONE),
+    "seo.crawl_runs": (
+        access(
+            "SELECT, INSERT",
+            UPDATE=("state", "cancel_requested", "error_code", "finished_at", "tier_flow_stale"),
+        ),
+        access("SELECT, INSERT", UPDATE=RUN_WORKER_UPDATE),
+    ),
+    "seo.crawl_pages": (READ, access("SELECT, INSERT", UPDATE=PAGE_WORKER_UPDATE)),
+    "seo.crawl_links": (READ, access("SELECT, INSERT, DELETE", UPDATE=("placement", "scope"))),
+    "seo.crawl_tier_flow": (access("SELECT, INSERT, DELETE"), access("SELECT, INSERT, DELETE")),
+    "seo.crawl_tier_stats": (access("SELECT, INSERT, DELETE"), access("SELECT, INSERT, DELETE")),
 }
 
 _TABLES = """
@@ -500,6 +578,9 @@ FUNCTIONS: dict[str, frozenset[str]] = {
     # The raw payload of an answer of the current workspace (migration 0018).
     "ai.observation_raw(bigint)": frozenset({"app_api"}),
     "ops.maintain_partitions()": frozenset({"app_worker"}),
+    # A crawl's link partition (migration 0025).
+    "seo.add_crawl_links_partition(uuid)": frozenset({"app_worker"}),
+    "seo.drop_crawl_links_partition(uuid)": frozenset({"app_worker"}),
     "ops.ensure_monthly_partitions(regclass,integer,integer,boolean)": frozenset(),
     "ops.record_auth_event(text,uuid,text,text,inet,text,text,jsonb)": frozenset({"app_api"}),
 }

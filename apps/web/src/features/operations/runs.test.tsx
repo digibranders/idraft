@@ -475,6 +475,7 @@ describe('Runs', () => {
       /Job type/,
       /Status/,
       /Started(?! by)/,
+      /Duration/,
       /Started by/,
       /Tasks/,
       /Actual/,
@@ -487,6 +488,8 @@ describe('Runs', () => {
     // The newest fixture run is the failed one of the three keywords added yesterday
     expect(bodyRows(table)[0]).toHaveTextContent('Failed');
     expect(bodyRows(table)[0]).toHaveTextContent('Keyword metrics');
+    // The failed run has ended, so it shows how long it took, from its start to its end
+    expect(within(bodyRows(table)[0] as HTMLElement).getByText(/^\d+ (s|min|h|d)\b/)).toBeInTheDocument();
     expect(within(table).getByRole('columnheader', { name: /Started(?! by)/ })).toHaveAttribute(
       'aria-sort',
       'descending',
