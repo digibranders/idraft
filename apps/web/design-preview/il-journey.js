@@ -1368,7 +1368,6 @@ function treeRow(row, scope) {
 // -------------------------------------------------------------------------------------------------
 // Path finder: the shortest way from the home page to one page, over any link and over editorial links only
 
-const pathTarget = () => j().pathTarget ?? j().focus;
 const BLOCKS = [
   { key: 'any', title: 'Over any link (menus and footer included)' },
   { key: 'editorial', title: 'Over editorial links only' },
@@ -1430,18 +1429,10 @@ function pathBlock(block, route, id) {
 }
 
 function pathFinder() {
-  const id = pathTarget();
+  // The target is the focus page: the toolbar's one page picker says "Find the way to" in this view
+  const id = j().focus;
   const routes = findPaths(id);
   const wrap = el('div', 'flex flex-col');
-  const controls = el('div', 'flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border-subtle px-3 py-2');
-  const picker = pagePicker({ prefix: 'Find the way to', current: id, onPick: (next) => {
-    j().pathTarget = next;
-    restore = 'journey-path-target';
-    refresh();
-  }, ariaLabel: 'Find the way to', popoverLabel: 'Choose the target page' });
-  picker.dataset.restore = 'journey-path-target';
-  controls.append(picker, el('span', 'type-meta text-foreground-tertiary', 'from the home page'));
-  wrap.append(controls);
   const blocks = el('div', 'flex flex-col divide-y divide-border-subtle');
   BLOCKS.forEach((block) => blocks.append(pathBlock(block, routes[block.key], id)));
   wrap.append(blocks);
@@ -1455,7 +1446,6 @@ function pathFinder() {
     if (target.dataset.open) openInspector(target.dataset.open);
     else if (target.dataset.canvas) {
       j().view = 'canvas';
-      j().pathTarget = null;
       if (j().focus === target.dataset.canvas) refresh();
       else setFocus(target.dataset.canvas);
     }
@@ -1613,12 +1603,17 @@ function tiersMenu() {
  */
 function toolbar() {
   const bar = el('div', 'flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border-subtle px-3 py-2');
-  const picker = focusPicker();
+  const picker = j().view === 'path'
+    ? pagePicker({ prefix: 'Find the way to', current: j().focus, onPick: setFocus, ariaLabel: 'Find the way to', popoverLabel: 'Choose the page to find the way to' })
+    : focusPicker();
   picker.classList.add('w-full');
   const pickerBox = el('div', 'min-w-0 max-w-80 flex-[1_1_11rem]');
   pickerBox.append(picker);
   bar.append(viewSwitch(), pickerBox);
-  if (j().view === 'path') return bar;
+  if (j().view === 'path') {
+    bar.append(el('span', 'type-meta text-foreground-tertiary', 'from the home page'));
+    return bar;
+  }
   const controls = el('div', 'ml-auto flex flex-wrap items-center justify-end gap-x-3 gap-y-2');
   controls.append(cardsSwitch());
   if (j().view === 'canvas') {
