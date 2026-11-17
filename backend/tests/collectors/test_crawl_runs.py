@@ -12,7 +12,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from structlog.testing import capture_logs
 
-from idraft.collectors import budget
+from idraft.collectors import budget, crawl_runs
 from idraft.collectors.crawl_runs import (
     CrawlBusyError,
     CrawlIngestTask,
@@ -25,7 +25,7 @@ from idraft.domain.retries import ProviderErrorKind
 from idraft.providers.contract import ProviderCallError, ProviderError
 from idraft.providers.dataforseo.on_page import CrawlOrder, PostedCrawl
 from tests.api.auth.support import execute, fetch, fetchrow
-from tests.api.internal_links.support import seed_crawl
+from tests.api.internal_links.support import seed_crawl, set_website
 from tests.collectors.crawl_support import FakeOnPage, clear_crawls, site_project, summary
 from tests.collectors.support import NOW, Project, make_budget
 from tests.conftest import PostgresServer
@@ -506,7 +506,7 @@ async def test_a_crawl_cancelled_while_it_is_being_posted_stays_cancelled(
 
 
 @pytest.mark.parametrize("fails", [False, True])
-async def test_two_overlapping_ticks_post_a_crawl_once_and_it_stays_failed(
+async def test_a_tick_that_starts_while_another_is_posting_leaves_the_crawl_alone(
     migrated: PostgresServer, worker_db: Sessions, fails: bool
 ) -> None:
     workspace, project = await site_project(migrated)
@@ -514,23 +514,186 @@ async def test_two_overlapping_ticks_post_a_crawl_once_and_it_stays_failed(
     outer = FakeOnPage(
         post_error=ProviderError(kind=ProviderErrorKind.PROVIDER_ERROR, message="bad")
         if fails
-        else None
+        else None,
+        summaries=[summary(finished=False, crawled=1, queue=9)],
     )
     inner = FakeOnPage()
     real_post = outer.post
+    during: dict[str, object] = {}
 
     async def post(order: CrawlOrder) -> PostedCrawl:
-        # Another tick runs while this post is in flight: it finds a post begun and no outcome.
+        # Another tick runs while this post is in flight: it finds a post begun and no outcome,
+        # and a begun post is young, so it is not failed and not sent again.
         await crawl_tick(worker_db, inner, _Sent(), now=NOW)
+        during.update(await _run(migrated, run_id))
         return await real_post(order)
 
     outer.post = post  # type: ignore[method-assign]
 
     await crawl_tick(worker_db, outer, _Sent(), now=NOW)
 
+    assert (during["state"], during["error_code"]) == ("queued", None)
     row = await _run(migrated, run_id)
-    assert (row["state"], row["error_code"]) == ("failed", "submit_unknown")
+    expected = ("failed", "provider_error") if fails else ("crawling", None)
+    assert (row["state"], row["error_code"]) == expected
     assert len(outer.posted) + len(inner.posted) == 1
+    assert (inner.posted, inner.stopped, outer.stopped) == ([], [], [])
+    events = await fetch(
+        migrated, "SELECT 1 FROM ops.provider_cost_events WHERE run_id = $1", run_id
+    )
+    assert len(events) == (0 if fails else 1)
+
+
+async def test_a_post_is_stamped_with_the_database_clock(
+    migrated: PostgresServer, worker_db: Sessions
+) -> None:
+    workspace, project = await site_project(migrated)
+    run_id = await _queue(worker_db, workspace.id, project)
+    on_page = FakeOnPage()
+    stamped: dict[str, object] = {}
+    real_post = on_page.post
+
+    async def post(order: CrawlOrder) -> PostedCrawl:
+        stamped.update(await _run(migrated, run_id))
+        return await real_post(order)
+
+    on_page.post = post  # type: ignore[method-assign]
+    # A tick clock a day behind the database's: the stamp must not follow it.
+    await crawl_tick(worker_db, on_page, _Sent(), now=NOW - timedelta(days=1))
+
+    seen = await fetchrow(
+        migrated, "SELECT now() - $1::timestamptz AS age", stamped["submitted_at"]
+    )
+    assert seen["age"] < timedelta(minutes=5)
+
+
+async def test_the_post_budget_stops_a_tick_from_starting_more_posts(
+    migrated: PostgresServer, worker_db: Sessions, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    workspace, project = await site_project(migrated)
+    run_id = await _queue(worker_db, workspace.id, project)
+    on_page = FakeOnPage()
+    monkeypatch.setattr(crawl_runs, "POST_BUDGET", 0.0)
+
+    await crawl_tick(worker_db, on_page, _Sent(), now=NOW)
+
+    row = await _run(migrated, run_id)
+    assert (row["state"], row["submitted_at"], on_page.posted) == ("queued", None, [])
+
+
+async def test_a_queued_crawl_of_a_live_project_is_posted(
+    migrated: PostgresServer, worker_db: Sessions
+) -> None:
+    workspace, project = await site_project(migrated)
+    run_id = await _queue(worker_db, workspace.id, project)
+    on_page = FakeOnPage(summaries=[summary(finished=False, crawled=1, queue=9)])
+
+    await crawl_tick(worker_db, on_page, _Sent(), now=NOW)
+
+    assert (await _run(migrated, run_id))["state"] == "crawling"
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        "UPDATE core.projects SET deleted_at = now() WHERE id = $1",
+        "UPDATE core.projects SET status = 'paused' WHERE id = $1",
+        "UPDATE core.projects SET status = 'archived' WHERE id = $1",
+        "UPDATE core.projects SET primary_domain_id = NULL WHERE id = $1",
+    ],
+)
+async def test_a_queued_crawl_of_a_project_that_is_gone_is_cancelled_and_never_posted(
+    migrated: PostgresServer, worker_db: Sessions, change: str
+) -> None:
+    workspace, project = await site_project(migrated)
+    run_id = await _queue(worker_db, workspace.id, project)
+    await execute(migrated, change, project)
+    on_page = FakeOnPage()
+
+    report = await crawl_tick(worker_db, on_page, _Sent(), now=NOW)
+
+    row = await _run(migrated, run_id)
+    assert (row["state"], row["submitted_at"], on_page.posted) == ("cancelled", None, [])
+    assert row["finished_at"] is not None
+    assert row["error_message"]
+    assert report.cancelled == 1
+    events = await fetch(
+        migrated, "SELECT 1 FROM ops.provider_cost_events WHERE run_id = $1", run_id
+    )
+    assert events == []
+
+
+async def test_a_queued_crawl_of_a_suspended_workspace_is_cancelled_and_never_posted(
+    migrated: PostgresServer, worker_db: Sessions
+) -> None:
+    workspace, project = await site_project(migrated)
+    run_id = await _queue(worker_db, workspace.id, project)
+    await execute(
+        migrated, "UPDATE auth.workspaces SET status = 'suspended' WHERE id = $1", workspace.id
+    )
+    on_page = FakeOnPage()
+
+    await crawl_tick(worker_db, on_page, _Sent(), now=NOW)
+
+    assert ((await _run(migrated, run_id))["state"], on_page.posted) == ("cancelled", [])
+    await execute(
+        migrated, "UPDATE auth.workspaces SET status = 'active' WHERE id = $1", workspace.id
+    )
+
+
+async def test_a_queued_crawl_whose_website_changed_is_cancelled_and_never_posted(
+    migrated: PostgresServer, worker_db: Sessions
+) -> None:
+    workspace, project = await site_project(migrated)
+    run_id = await _queue(worker_db, workspace.id, project)
+    await set_website(migrated, project, "other.example.com")
+    on_page = FakeOnPage()
+
+    await crawl_tick(worker_db, on_page, _Sent(), now=NOW)
+
+    assert ((await _run(migrated, run_id))["state"], on_page.posted) == ("cancelled", [])
+
+
+@pytest.mark.parametrize("with_provider", [True, False])
+async def test_a_crawl_queued_for_days_is_cancelled_instead_of_posted(
+    migrated: PostgresServer, worker_db: Sessions, with_provider: bool
+) -> None:
+    old_ws, old_project = await site_project(migrated)
+    young_ws, young_project = await site_project(migrated)
+    old = await _queue(worker_db, old_ws.id, old_project)
+    young = await _queue(worker_db, young_ws.id, young_project)
+    await execute(
+        migrated,
+        "UPDATE seo.crawl_runs SET created_at = now() - interval '4 days' WHERE id = $1",
+        old,
+    )
+    await execute(
+        migrated,
+        "UPDATE seo.crawl_runs SET created_at = now() - interval '2 days' WHERE id = $1",
+        young,
+    )
+    on_page = FakeOnPage(summaries=[summary(finished=False, crawled=1, queue=9)])
+
+    await crawl_tick(worker_db, on_page if with_provider else None, _Sent(), now=NOW)
+
+    assert (await _run(migrated, old))["state"] == "cancelled"
+    assert (await _run(migrated, young))["state"] == ("crawling" if with_provider else "queued")
+    assert len(on_page.posted) == (1 if with_provider else 0)
+
+
+async def test_a_lost_task_id_after_a_paid_post_is_logged_with_the_crawl(
+    migrated: PostgresServer, worker_db: Sessions, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    workspace, project = await site_project(migrated)
+    run_id = await _queue(worker_db, workspace.id, project)
+    # Recording the post fails after the provider has accepted and charged it.
+    monkeypatch.setattr(crawl_runs, "provider_cost_events", object())
+
+    with capture_logs() as logs:
+        await crawl_tick(worker_db, FakeOnPage(), _Sent(), now=NOW)
+
+    entries = [log for log in logs if log["event"] == "crawl post failed" and "task_id" in log]
+    assert [(entry["run_id"], entry["task_id"]) for entry in entries] == [(str(run_id), "task-1")]
 
 
 async def test_a_cancel_asked_while_the_summary_is_read_is_not_lost(
@@ -713,6 +876,14 @@ async def test_a_post_that_fails_unexpectedly_is_not_sent_again(
     await crawl_tick(worker_db, on_page, _Sent(), now=NOW)
     row = await _run(migrated, run_id)
     assert (row["state"], row["submitted_at"] is not None) == ("queued", True)
+    # A post begun a moment ago may still be in flight in another tick: it is left alone.
+    await crawl_tick(worker_db, on_page, _Sent(), now=NOW)
+    assert (await _run(migrated, run_id))["state"] == "queued"
+    await execute(
+        migrated,
+        "UPDATE seo.crawl_runs SET submitted_at = now() - interval '11 minutes' WHERE id = $1",
+        run_id,
+    )
     await crawl_tick(worker_db, on_page, _Sent(), now=NOW)
 
     row = await _run(migrated, run_id)
