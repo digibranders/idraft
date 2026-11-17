@@ -7,7 +7,9 @@ import { announce } from '@/lib/a11y/announcer';
 import { seriesColorVar, type SeriesRole } from '@/lib/charts/category-chart';
 
 export type LegendSymbol = 'circle' | 'rect' | 'triangle' | 'diamond';
-export type LegendSwatch = 'dot' | 'line' | { marker: LegendSymbol };
+/** The marker shapes of a line chart: the four above, then the two a fifth and sixth line take. */
+export type LineMarker = LegendSymbol | 'roundRect' | 'pin';
+export type LegendSwatch = 'dot' | 'line' | { marker: LineMarker };
 
 export interface LegendItem {
   id: string;
@@ -30,11 +32,13 @@ export interface ChartLegendProps {
 }
 
 /** The 8 px marker shapes of 15-data-visualization.md section 2, in a 8 x 8 box. */
-const MARKER_PATH: Readonly<Record<LegendSymbol, string>> = {
+const MARKER_PATH: Readonly<Record<LineMarker, string>> = {
   circle: 'M4 0a4 4 0 1 0 0 8a4 4 0 1 0 0-8z',
   rect: 'M0 0h8v8H0z',
   triangle: 'M4 0L8 8H0z',
   diamond: 'M4 0L8 4L4 8L0 4z',
+  roundRect: 'M1.5 0h5A1.5 1.5 0 0 1 8 1.5v5A1.5 1.5 0 0 1 6.5 8h-5A1.5 1.5 0 0 1 0 6.5v-5A1.5 1.5 0 0 1 1.5 0z',
+  pin: 'M4 8L1 3.5a3 3 0 1 1 6 0z',
 };
 
 const DASHED_ROLES: ReadonlySet<SeriesRole['kind']> = new Set(['reference', 'other']);

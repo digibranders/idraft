@@ -41,6 +41,11 @@ const MARKERS_UP_TO = 60;
 /** Marker shapes after the brand's circle, so series differ without colour (20 section 12.2). */
 const SYMBOLS = ['circle', 'rect', 'triangle', 'diamond', 'roundRect', 'pin'] as const;
 
+/** The marker of a line by its role and its place in the chart's series: the brand's is always the circle. */
+export function lineSymbolOf(role: SeriesRole, position: number): (typeof SYMBOLS)[number] {
+  return role.kind === 'brand' ? 'circle' : (SYMBOLS[position % SYMBOLS.length] ?? 'circle');
+}
+
 /** The colour token of a role. */
 export function seriesColor(role: SeriesRole, tokens: ChartTokens): string {
   if (role.kind === 'brand') return tokens.palette[0] ?? tokens.foreground;
@@ -143,7 +148,7 @@ export function categoryChartOption(input: CategoryChartInput): Record<string, u
         type: 'line',
         connectNulls: false,
         showSymbol: entry.values.length <= MARKERS_UP_TO,
-        symbol: entry.role.kind === 'brand' ? 'circle' : (SYMBOLS[position % SYMBOLS.length] ?? 'circle'),
+        symbol: lineSymbolOf(entry.role, position),
         symbolSize: 6,
         lineStyle: { width: 2, type: dashOf(entry.role), join: 'round' },
       };

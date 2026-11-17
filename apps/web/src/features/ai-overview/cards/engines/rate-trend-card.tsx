@@ -256,12 +256,9 @@ export default function RateTrendCard({ item, live }: CardProps): ReactElement {
       return {
         ...banded,
         yAxis: { ...(banded.yAxis as Record<string, unknown>), min: axis.min, max: axis.max },
-        // As the preview draws: lines with no point markers; a small-sample point keeps its own hollow marker, which
-        // is a marker of that data item and so survives the series having none
-        series: [
-          ...(banded.series as Record<string, unknown>[]).map((entry) => ({ ...entry, symbol: 'none' })),
-          ...boundary,
-        ],
+        // The markers of `categoryChartOption` stay: their shapes tell the lines apart without colour (20-accessibility.md
+        // section 12.2), and a small-sample point is the same shape, hollow
+        series: [...(banded.series as Record<string, unknown>[]), ...boundary],
       };
     },
     [trend, weekMetric, points, titles, categories, single],
@@ -374,6 +371,7 @@ export default function RateTrendCard({ item, live }: CardProps): ReactElement {
       cellText={cellText}
       extendOption={extendOption}
       legendValues={legendValues}
+      legendMarkers
       tableIcon
       menu={{ fileName: t('fileName'), png: true, csv: true }}
       {...frame}

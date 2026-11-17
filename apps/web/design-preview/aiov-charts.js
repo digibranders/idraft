@@ -45,11 +45,23 @@ export function chartHost(height, label) {
 
 const pctAxis = (value) => `${Math.round(value * 100)}%`;
 
+/** The marker of a line by its place among the lines, as the real app's `lineSymbolOf` gives it. */
+export const MARKER_SHAPES = ['circle', 'rect', 'triangle', 'diamond', 'roundRect', 'pin'];
+// 8 px legend shapes in an 8 x 8 box, the paths of the real legend
+export const MARKER_PATHS = {
+  circle: 'M4 0a4 4 0 1 0 0 8a4 4 0 1 0 0-8z',
+  rect: 'M0 0h8v8H0z',
+  triangle: 'M4 0L8 8H0z',
+  diamond: 'M4 0L8 4L4 8L0 4z',
+  roundRect: 'M1.5 0h5A1.5 1.5 0 0 1 8 1.5v5A1.5 1.5 0 0 1 6.5 8h-5A1.5 1.5 0 0 1 0 6.5v-5A1.5 1.5 0 0 1 1.5 0z',
+  pin: 'M4 8L1 3.5a3 3 0 1 1 6 0z',
+};
+
 /**
  * Lines over the eight weekly runs. `lines`: `{ name, token, values, dashed, width }`. `band` is a 95% interval
  * `{ low, high }` drawn behind the first line. Values are ratios unless `format` says otherwise.
  */
-export function lineOption({ labels, lines, band, boundary, format = pctAxis, tooltipFormat, min, max, tooltipRows }) {
+export function lineOption({ labels, lines, band, boundary, format = pctAxis, tooltipFormat, min, max, tooltipRows, markers = false }) {
   const axes = charts.axisTheme();
   const all = lines.flatMap((line) => line.values).filter((value) => value !== null);
   const low = min ?? Math.max(0, Math.floor((Math.min(...all) - 0.03) * 20) / 20);
@@ -61,15 +73,16 @@ export function lineOption({ labels, lines, band, boundary, format = pctAxis, to
       { id: 'band-width', type: 'line', stack: 'band', data: band.high.map((value, index) => (value === null ? null : value - band.low[index])), lineStyle: { opacity: 0 }, areaStyle: { color: charts.token(lines[0].token, 0.14) }, symbol: 'none', silent: true, tooltip: { show: false } },
     );
   }
-  lines.forEach((line) =>
+  lines.forEach((line, position) =>
     series.push({
       id: `line-${line.name}`,
       name: line.name,
       type: 'line',
       data: line.values,
       color: charts.token(line.token),
-      showSymbol: false,
-      symbol: 'circle',
+      // Marker shapes tell the lines apart without colour (20-accessibility.md section 12.2): the first line is the circle
+      showSymbol: markers,
+      symbol: markers ? MARKER_SHAPES[position % MARKER_SHAPES.length] : 'circle',
       symbolSize: 6,
       connectNulls: false,
       z: line.dashed ? 2 : 3,

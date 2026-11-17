@@ -6,7 +6,7 @@
  */
 import { formatInteger } from './vendor/format/number.js';
 import { MEASURES, PLATFORMS, RUNS, WEEK_LABELS, aggregateFor, entitiesFor, gapFor, lastRunOf, platformOf, seriesFor, sovSeries } from './aiov-data.js';
-import { chartHost, lineOption, mountChart, shareAreaOption } from './aiov-charts.js';
+import { chartHost, lineOption, MARKER_PATHS, MARKER_SHAPES, mountChart, shareAreaOption } from './aiov-charts.js';
 import { HEAT_METRICS, setScope } from './aiov-controls.js';
 import { CARD_INFO, MEASURE_INFO } from './aiov-info.js';
 import { barList, cardFrame, countsText, el, emptyBody, engineName, icon, infoButton, insufficient, insufficientText, pct0, plural, platformLabel, sparkline, stackedRows, valueText } from './aiov-parts.js';
@@ -255,12 +255,27 @@ export function trendCard(ctx) {
     }
     const host = chartHost(284, `${MEASURES[measure].label} over the last 8 weekly runs, ${lines.map((line) => line.name).join(', ')}`);
     body.append(host);
-    dispose = mountChart(host, () => lineOption({ labels: WEEK_LABELS, lines, band, boundary: ctx.compare ? WEEK_LABELS[4] : undefined }));
+    dispose = mountChart(host, () => lineOption({ labels: WEEK_LABELS, lines, band, boundary: ctx.compare ? WEEK_LABELS[4] : undefined, markers: true }));
     const legend = el('div', 'flex flex-wrap gap-x-4 gap-y-1');
-    lines.forEach((line) => {
+    lines.forEach((line, position) => {
       const item = el('span', 'inline-flex items-center gap-1.5 type-meta num');
-      const swatch = el('span', `w-3 h-0.5 rounded-full ${line.dashed ? 'opacity-70' : ''}`);
-      swatch.style.background = `var(--${line.token})`;
+      // A line drawn with markers shows its marker shape in the legend; the dashed Average keeps its line
+      let swatch;
+      if (line.dashed) {
+        swatch = el('span', 'w-3 h-0.5 rounded-full opacity-70');
+        swatch.style.background = `var(--${line.token})`;
+      } else {
+        swatch = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        swatch.setAttribute('viewBox', '0 0 8 8');
+        swatch.setAttribute('width', '8');
+        swatch.setAttribute('height', '8');
+        swatch.setAttribute('class', 'shrink-0');
+        swatch.setAttribute('aria-hidden', 'true');
+        swatch.style.fill = `var(--${line.token})`;
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', MARKER_PATHS[MARKER_SHAPES[position % MARKER_SHAPES.length]]);
+        swatch.append(path);
+      }
       const latest = line.values[line.values.length - 1];
       item.append(swatch, `${line.name} ${latest === null ? 'n/a' : pct0(latest)}`);
       legend.append(item);

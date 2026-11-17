@@ -24,7 +24,7 @@ import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
-import { categoryChartOption, seriesColor, type CategorySeries } from '@/lib/charts/category-chart';
+import { categoryChartOption, lineSymbolOf, seriesColor, type CategorySeries } from '@/lib/charts/category-chart';
 import { chartCsv } from '@/lib/charts/chart-csv';
 import { readLightChartColors, type LightChartColors } from '@/lib/charts/light-tokens';
 import type { PngFrameText } from '@/lib/charts/png-layout';
@@ -147,6 +147,8 @@ export interface CategoryFrameProps extends ChartFrameCommon {
    * values"). Left out: the plain legend of the header.
    */
   legendValues?: Readonly<Record<string, string>> | undefined;
+  /** A line chart's legend shows each line's marker shape (20-accessibility.md section 12.2), not a dot. */
+  legendMarkers?: boolean | undefined;
   /** A small table icon on the Table button, for a card whose view toggle is an icon button elsewhere. */
   tableIcon?: boolean | undefined;
   menu?: CategoryChartMenu | undefined;
@@ -198,7 +200,7 @@ export function ChartFrame(props: ChartFrameProps): ReactElement {
 
 function CategoryFrame(props: CategoryProps): ReactElement {
   const { kind, categories, categoryHeader, series, formatValue, cellText, stacked, extendOption, menu } = props;
-  const { legendValues, tableIcon } = props;
+  const { legendValues, legendMarkers, tableIcon } = props;
   const { title, meta, notice, height } = props;
   const t = useTranslations('chart');
   const summaryId = useId();
@@ -221,10 +223,14 @@ function CategoryFrame(props: CategoryProps): ReactElement {
     },
     [kind, categories, series, hidden, patterns, formatValue, stacked, extendOption],
   );
-  const legend: LegendItem[] = series.map((entry) => ({
+  const legend: LegendItem[] = series.map((entry, position) => ({
     id: entry.id,
     name: entry.name,
     role: entry.role,
+    // A line drawn with markers shows its marker shape in the legend (15 section 2); dashed roles keep their line
+    ...(legendMarkers === true && kind === 'line' && entry.role.kind !== 'other' && entry.role.kind !== 'reference'
+      ? { swatch: { marker: lineSymbolOf(entry.role, position) } }
+      : {}),
     pressed: !hidden.has(entry.id),
     valueText: legendValues?.[entry.id],
   }));

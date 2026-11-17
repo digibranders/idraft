@@ -85,7 +85,19 @@ describe('the trend card', () => {
     expect(screen.getByText('a line per platform, with their average')).toBeInTheDocument();
   });
 
-  it('draws the lines with no point markers, except a hollow one on a point over too few answers', async () => {
+  it('draws a marker on each line, a different shape for each (20-accessibility.md section 12.2), and names the shape in the legend', async () => {
+    serve(platform('chatgpt_web', [4, 5, 6]), platform('gemini_web', [2, 3, 4]));
+    renderCard('cmp=off&metric=mention');
+    await screen.findByTestId('echart-canvas');
+    const lines = drawnSeries().filter((entry) => entry.type === 'line' && entry.stack === undefined);
+    expect(lines.map((line) => line.symbol)).toEqual(['circle', 'rect', 'triangle']);
+    for (const line of lines) expect(line.showSymbol).toBe(true);
+    const legend = await screen.findByRole('list', { name: /Series in Mention rate over time/ });
+    // ChatGPT and Gemini draw their marker shape, the dashed Average keeps its line
+    expect(legend.querySelectorAll('svg')).toHaveLength(2);
+  });
+
+  it('keeps the shape of its line on a hollow point over too few answers', async () => {
     const thin = engine('chatgpt_web', {
       mentioned: cell(4, 10),
       // One answer a week: the trailing weeks pool to 3 at most, under the 4 a rate needs
@@ -94,13 +106,13 @@ describe('the trend card', () => {
     serve(thin);
     renderCard('cmp=off&metric=mention&engine=chatgpt_web');
     await screen.findByTestId('echart-canvas');
-    const lines = drawnSeries().filter((entry) => entry.type === 'line');
-    expect(lines.length).toBeGreaterThan(0);
-    for (const line of lines) expect(line.symbol).toBe('none');
-    const hollow = drawnSeries()
-      .flatMap((entry) => entry.data)
-      .filter((value) => typeof value === 'object' && value !== null && 'symbolSize' in value);
+    const [line] = drawnSeries().filter((entry) => entry.type === 'line' && entry.stack === undefined);
+    expect(line?.symbol).toBe('circle');
+    const hollow = (line?.data ?? []).filter(
+      (value) => typeof value === 'object' && value !== null && 'symbolSize' in value,
+    );
     expect(hollow.length).toBeGreaterThan(0);
+    for (const point of hollow) expect(point).toMatchObject({ symbol: 'circle', symbolSize: 5 });
   });
 
   it('puts the legend under the chart, and takes it away with the chart in the Table view', async () => {
