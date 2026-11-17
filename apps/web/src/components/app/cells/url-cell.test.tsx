@@ -11,6 +11,11 @@ import { axe } from '@/test/axe';
 import { renderWithProviders } from '@/test/render';
 
 vi.mock('@/lib/dom/clipboard', () => ({ copyText: vi.fn<(text: string) => Promise<boolean>>() }));
+// The seam has no icon route yet; these tests stand in a first-party one to exercise the image path
+vi.mock('@/lib/favicon', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/favicon')>()),
+  faviconUrl: (host: string): string => `/api/v1/favicons/${encodeURIComponent(host)}`,
+}));
 
 const HREF = '/x?inspect=source:abc' as Route;
 const URL_TEXT = 'https://www.hubspot.com/pricing?utm_source=x';
@@ -29,7 +34,7 @@ function expectNoInjection(container: HTMLElement): void {
     expect(element.getAttributeNames().filter((name) => name.startsWith('on'))).toEqual([]);
   }
   for (const image of container.querySelectorAll('img')) {
-    expect(image.getAttribute('src')).toMatch(/^https:\/\/www\.google\.com\/s2\/favicons/);
+    expect(image.getAttribute('src')).toMatch(/^\/api\/v1\/favicons\//);
     expect(image).toHaveAttribute('alt', '');
   }
   for (const anchor of container.querySelectorAll('a[href]')) {

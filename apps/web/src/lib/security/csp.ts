@@ -10,9 +10,8 @@
  *   Base UI render them (the hidden input of a radio group, a size read from a token), a nonce cannot cover
  *   an attribute, and an attribute can style one element but never run script or load anything.
  * - The API is on the same origin, so `connect-src` names only Sentry's ingest.
- * - Images: the app's own, data and blob URLs, and the favicon endpoint of domain-first tables (07-icons.md
- *   section 5). The endpoint answers with a redirect to a `gstatic.com` host, and a browser checks the
- *   host it is redirected to, so that host is allowed too.
+ * - Images: the app's own, data and blob URLs. No third-party host: a favicon service would be sent every cited
+ *   domain, so icons come from the app's own origin or are the placeholder (`faviconUrl`).
  * - `upgrade-insecure-requests` only when the page was requested over https: on plain http (a test run
  *   against `http://web:3000`, WebKit on localhost) it would move the page's own requests to an https
  *   origin that does not answer.
@@ -21,9 +20,6 @@
  *   never has any of these.
  */
 
-/** The one favicon service the pages may load from; `faviconUrl` builds the address of an icon on it. */
-export const FAVICON_ENDPOINT = 'https://www.google.com/s2/favicons';
-export const FAVICON_SOURCES = [FAVICON_ENDPOINT, 'https://*.gstatic.com'] as const;
 const SENTRY_INGEST = 'https://*.ingest.sentry.io';
 
 export interface CspOptions {
@@ -42,7 +38,7 @@ export function buildCsp({ nonce, development, secure }: CspOptions): string {
     // A nonce makes browsers ignore 'unsafe-inline', so development drops the nonce here
     ['style-src', "'self'", development ? "'unsafe-inline'" : nonceSource],
     ['style-src-attr', "'unsafe-inline'"],
-    ['img-src', "'self'", 'data:', 'blob:', ...FAVICON_SOURCES],
+    ['img-src', "'self'", 'data:', 'blob:'],
     ['font-src', "'self'"],
     ['connect-src', "'self'", SENTRY_INGEST, ...(development ? ['ws:'] : [])],
     ['worker-src', "'self'", 'blob:'],

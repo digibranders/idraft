@@ -10,6 +10,12 @@ import { FAVICON_MIN_WIDTH, faviconUrl } from '@/lib/favicon';
 import { axe } from '@/test/axe';
 import { renderWithProviders } from '@/test/render';
 
+// The seam has no icon route yet; these tests stand in a first-party one to exercise the image path
+vi.mock('@/lib/favicon', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/favicon')>()),
+  faviconUrl: (host: string): string => `/api/v1/favicons/${encodeURIComponent(host)}`,
+}));
+
 const HREF = '/x?inspect=domain:hubspot.com' as Route;
 
 /** jsdom loads no images, so a test says how wide the one it "loaded" is. */
@@ -31,7 +37,7 @@ function expectNoInjection(container: HTMLElement): void {
     expect(element.getAttributeNames().filter((name) => name.startsWith('on'))).toEqual([]);
   }
   for (const image of container.querySelectorAll('img')) {
-    expect(image.getAttribute('src')).toMatch(/^https:\/\/www\.google\.com\/s2\/favicons/);
+    expect(image.getAttribute('src')).toMatch(/^\/api\/v1\/favicons\//);
     expect(image).toHaveAttribute('alt', '');
   }
   expect(Reflect.get(window, MARKER)).toBeUndefined();
@@ -128,7 +134,7 @@ describe('DomainCell favicon', () => {
     expect(container.querySelector('[data-slot="favicon"]')).toBeNull();
   });
 
-  it('asks the favicon service with no referrer, lazily, and shows the square until the icon loads', () => {
+  it('asks the icon route with no referrer, lazily, and shows the square until the icon loads', () => {
     const { container } = renderWithProviders(
       <DomainCell host="hubspot.com" registrable="hubspot.com" favicon="show" />,
     );

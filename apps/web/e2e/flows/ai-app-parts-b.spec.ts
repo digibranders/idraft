@@ -26,11 +26,6 @@ const STEPPING_COUNT = 6;
 const PAGE_URL = 'https://www.hubspot.com/products/crm';
 const POLITE_REGION = '#live-region-polite';
 
-// No request leaves the machine, and the placeholder square is what every icon slot shows
-test.beforeEach(async ({ page }) => {
-  await page.route('**/s2/favicons**', (route) => route.abort());
-});
-
 /** The gallery group (`<section>`) whose heading is `title`. */
 function group(page: Page, title: string): Locator {
   return page.getByRole('heading', { level: 2, name: title, exact: true }).locator('xpath=ancestor::section[1]');
@@ -345,7 +340,7 @@ test.describe('hostile input at 1280 px', () => {
     await open(page, 'light', 1280);
   });
 
-  test('is text: no script, no handler, no script link, no image but the icon, and no payload ran', async ({
+  test('is text: no script, no handler, no script link, no image, and no payload ran', async ({
     page,
   }) => {
     const hostile = group(page, 'Hostile input');
@@ -357,10 +352,8 @@ test.describe('hostile input at 1280 px', () => {
       .evaluateAll((nodes) =>
         nodes.map((node) => ({ src: node.getAttribute('src') ?? '', alt: node.getAttribute('alt') })),
       );
-    for (const image of images) {
-      expect(image.alt).toBe('');
-      expect(image.src).toContain('/s2/favicons');
-    }
+    // Every icon slot shows the placeholder square: no image is requested, and none reaches a third party
+    expect(images).toEqual([]);
     expect(await injected(page)).toBeUndefined();
     // Hovering every link-like element runs nothing either
     for (const link of await hostile.locator('a[href]').all()) await link.hover();

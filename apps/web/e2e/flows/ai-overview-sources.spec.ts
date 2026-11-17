@@ -68,14 +68,12 @@ import { DENSITIES, THEMES, WIDTHS, expectNoSeriousViolations } from '../support
 test.describe.configure({ timeout: 180_000 });
 
 /**
- * What the page says of an error the browser logs: any console error fails the test. The one exception is a favicon
- * of a cited domain that the third-party favicon service does not know (a 404 of the browser, not of the app): the
- * Citations page asks it for the invented domains of the mock data.
+ * What the page says of an error the browser logs: any console error fails the test.
  */
 function watchConsole(page: Page): string[] {
   const errors: string[] = [];
   page.on('console', (message) => {
-    if (message.type() === 'error' && !message.location().url.includes('/s2/favicons')) errors.push(message.text());
+    if (message.type() === 'error') errors.push(message.text());
   });
   return errors;
 }

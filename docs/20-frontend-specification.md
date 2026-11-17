@@ -1355,8 +1355,7 @@ default-src 'self';
 script-src 'self' 'nonce-{n}' 'strict-dynamic';                 (strict-dynamic added)
 style-src 'self' 'nonce-{n}';                                    (added; doc 24 omits style-src)
 style-src-attr 'unsafe-inline';                                  (added, see below)
-img-src 'self' data: blob: https://www.google.com/s2/favicons https://*.gstatic.com;
-                                                                 (tightened from https:, see 7.1)
+img-src 'self' data: blob:;                                      (tightened from https:, see 7.1)
 font-src 'self';                                                 (added)
 connect-src 'self' https://*.ingest.sentry.io;                  (the API is same-origin under /api)
 worker-src 'self' blob:;                                         (added: CSV export worker)
@@ -1365,12 +1364,12 @@ frame-ancestors 'none'; base-uri 'self'; form-action 'self';
 upgrade-insecure-requests                                        (only when the page was requested over https)
 ```
 
-> Superseded by design system: `img-src` also allows the single allowlisted favicon endpoint used for 16 px favicons in domain-first tables. See [07-icons.md](design-system/07-icons.md) §5.
+> Favicons: `img-src` allows no third-party favicon host (owner decision 6, 2026-11-17); domain-first tables draw the placeholder square until the API has an icon route of its own. See [07-icons.md](design-system/07-icons.md) §5.
 
 As built (`buildCsp` in `apps/web/src/lib/security/csp.ts`, set by `src/proxy.ts`; the policy above is the production one):
 
 - `style-src-attr 'unsafe-inline'`: the server-rendered HTML carries `style` attributes (Base UI's visually hidden inputs of radio groups and selects, sizes read from tokens in the preview). A nonce cannot cover an attribute, and a nonce-only `style-src` blocks them in Chrome. An attribute styles one element and cannot run code or load anything. Inline `<style>` and `<script>` elements still need the nonce. Base UI gets the nonce through `CSPProvider`, with `disableStyleElements` set, because React hoists its scrollbar `<style>` into `<head>` without the nonce; those two rules are in `globals.css`.
-- `img-src`: the favicon endpoint answers with a redirect to a `gstatic.com` host, and a browser checks the host it is redirected to, so that host is allowed too.
+- `img-src`: the app's own origin, `data:` and `blob:` only. A favicon service would be sent every cited domain, so none is allowed.
 - `upgrade-insecure-requests` is sent only when the request came over https (the URL's scheme, or `x-forwarded-proto` from Caddy). On plain http (a test run against `http://web:3000`, WebKit on localhost) it would send the page's own requests to an https origin that does not answer.
 - The static headers of the table above are set in `next.config.ts`; `Strict-Transport-Security` only in production builds. The proxy adds `Cache-Control: private, no-store` to every page that needs a session.
 
