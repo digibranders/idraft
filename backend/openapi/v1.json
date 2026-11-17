@@ -4121,6 +4121,250 @@
         "title": "CountrySummary",
         "type": "object"
       },
+      "CrawlCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "higher_limit": {
+            "default": false,
+            "description": "Crawl again with a higher limit after a crawl stopped at its ceiling.",
+            "title": "Higher Limit",
+            "type": "boolean"
+          }
+        },
+        "title": "CrawlCreate",
+        "type": "object"
+      },
+      "CrawlRun": {
+        "properties": {
+          "ceiling": {
+            "description": "The safety stop: the crawl ends at this many pages.",
+            "title": "Ceiling",
+            "type": "integer"
+          },
+          "cost_usd": {
+            "anyOf": [
+              {
+                "examples": [
+                  "0.012000"
+                ],
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Usd"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
+          "estimated_cost_usd": {
+            "anyOf": [
+              {
+                "examples": [
+                  "0.012000"
+                ],
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Cost Usd"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "hints": {
+            "items": {
+              "const": "render_javascript",
+              "type": "string"
+            },
+            "title": "Hints",
+            "type": "array"
+          },
+          "is_latest": {
+            "description": "The crawl `run=latest` reads.",
+            "title": "Is Latest",
+            "type": "boolean"
+          },
+          "pages_crawled": {
+            "title": "Pages Crawled",
+            "type": "integer"
+          },
+          "pages_found": {
+            "description": "Crawled and still queued, while it runs.",
+            "title": "Pages Found",
+            "type": "integer"
+          },
+          "render_javascript": {
+            "title": "Render Javascript",
+            "type": "boolean"
+          },
+          "requested_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "sitemap_pages": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sitemap Pages"
+          },
+          "state": {
+            "enum": [
+              "queued",
+              "crawling",
+              "processing",
+              "ready",
+              "stopped_at_ceiling",
+              "failed",
+              "cancelled"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "stop_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stop Reason"
+          },
+          "submitted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submitted At"
+          },
+          "trigger": {
+            "enum": [
+              "website_added",
+              "schedule",
+              "manual",
+              "ceiling_retry"
+            ],
+            "title": "Trigger",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "trigger",
+          "state",
+          "ceiling",
+          "pages_found",
+          "pages_crawled",
+          "sitemap_pages",
+          "render_javascript",
+          "estimated_cost_usd",
+          "cost_usd",
+          "stop_reason",
+          "error_code",
+          "error_message",
+          "hints",
+          "is_latest",
+          "created_at",
+          "submitted_at",
+          "finished_at",
+          "requested_by"
+        ],
+        "title": "CrawlRun",
+        "type": "object"
+      },
+      "CrawlRunPage": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/CrawlRun"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/CursorPageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "CrawlRunPage",
+        "type": "object"
+      },
+      "CrawlRunResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CrawlRun"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "CrawlRunResponse",
+        "type": "object"
+      },
       "CursorPageInfo": {
         "description": "A keyset page (docs/19 section 2.4). `next_cursor` is opaque; pass it back as `cursor`.",
         "properties": {
@@ -7588,6 +7832,68 @@
           "next_sync_at"
         ],
         "title": "IntegrationSync",
+        "type": "object"
+      },
+      "InternalLinksSettings": {
+        "properties": {
+          "allowed_subdomains": {
+            "description": "Hosts of the project's site, besides its own and its `www.` form, that crawls follow (up to 10).",
+            "items": {
+              "type": "string"
+            },
+            "title": "Allowed Subdomains",
+            "type": "array"
+          },
+          "render_javascript": {
+            "default": false,
+            "description": "Crawls render JavaScript; each page costs ten times as much.",
+            "title": "Render Javascript",
+            "type": "boolean"
+          },
+          "schedule": {
+            "default": "weekly",
+            "enum": [
+              "weekly",
+              "every_two_weeks",
+              "monthly",
+              "off"
+            ],
+            "title": "Schedule",
+            "type": "string"
+          }
+        },
+        "title": "InternalLinksSettings",
+        "type": "object"
+      },
+      "InternalLinksSettingsPatch": {
+        "additionalProperties": false,
+        "properties": {
+          "allowed_subdomains": {
+            "items": {
+              "maxLength": 253,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 10,
+            "title": "Allowed Subdomains",
+            "type": "array"
+          },
+          "render_javascript": {
+            "title": "Render Javascript",
+            "type": "boolean"
+          },
+          "schedule": {
+            "enum": [
+              "weekly",
+              "every_two_weeks",
+              "monthly",
+              "off"
+            ],
+            "title": "Schedule",
+            "type": "string"
+          }
+        },
+        "title": "InternalLinksSettingsPatch",
         "type": "object"
       },
       "InvalidByStatus": {
@@ -12751,6 +13057,12 @@
             "description": "A `location_id` of `GET /api/v1/locations`.",
             "title": "Default Location Id"
           },
+          "map_internal_links": {
+            "default": false,
+            "description": "With `primary_domain`, queue the first crawl of the site's internal links. The web form sends true (the checkbox is ticked by default).",
+            "title": "Map Internal Links",
+            "type": "boolean"
+          },
           "name": {
             "maxLength": 120,
             "minLength": 1,
@@ -13225,6 +13537,9 @@
             "title": "Entity Config Version",
             "type": "integer"
           },
+          "internal_links": {
+            "$ref": "#/components/schemas/InternalLinksSettings"
+          },
           "seo": {
             "$ref": "#/components/schemas/SeoSettings"
           },
@@ -13243,15 +13558,15 @@
       },
       "ProjectSettingsPatch": {
         "additionalProperties": false,
-        "description": "A JSON merge patch (RFC 7396) of the settings: members left out keep their value.",
+        "description": "A JSON merge patch (RFC 7396) of the settings: members left out keep their value. A part\ncannot be null: `null` would mean \"delete\" in a merge patch, and no part can be deleted.",
         "properties": {
+          "internal_links": {
+            "$ref": "#/components/schemas/InternalLinksSettingsPatch"
+          },
           "seo": {
             "$ref": "#/components/schemas/SeoSettingsPatch"
           }
         },
-        "required": [
-          "seo"
-        ],
         "title": "ProjectSettingsPatch",
         "type": "object"
       },
@@ -35345,6 +35660,279 @@
         ]
       }
     },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/link-crawls": {
+      "get": {
+        "operationId": "list_crawls_api_v1_workspaces__workspace_id__projects__project_id__link_crawls_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`page.next_cursor` of the previous page.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`page.next_cursor` of the previous page.",
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CrawlRunPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The project's crawls, newest first",
+        "tags": [
+          "internal-links"
+        ]
+      },
+      "post": {
+        "description": "Queues a crawl of the project's website. One crawl per project runs at a time (`409 crawl_in_progress` with its `run_id`). `422 no_website` without a website; `422 budget_exceeded` (with `budget_id`) when the crawl would pass a budget, and nothing is queued. `higher_limit` crawls again after a crawl stopped at its ceiling, with twice the limit or what the sitemap asks for.",
+        "operationId": "start_crawl_api_v1_workspaces__workspace_id__projects__project_id__link_crawls_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CrawlCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CrawlRunResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Crawl now",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/link-crawls/{run_id}": {
+      "get": {
+        "operationId": "get_crawl_api_v1_workspaces__workspace_id__projects__project_id__link_crawls__run_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CrawlRunResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "One crawl, with its progress",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/link-crawls/{run_id}/cancel": {
+      "post": {
+        "description": "A queued crawl ends at once. A running one is stopped by the worker within a minute and comes back with its state unchanged. `409 invalid_state_transition` for any other state.",
+        "operationId": "cancel_crawl_api_v1_workspaces__workspace_id__projects__project_id__link_crawls__run_id__cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CrawlRunResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Cancel a queued or running crawl",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/notes": {
       "get": {
         "description": "Notes drawn on days from `from` to `to` (default the 28 days ending today; at most 92, `422 window_too_large`), project wide and per term. Not built yet: `501 not_implemented`.",
@@ -38686,7 +39274,7 @@
         ]
       },
       "patch": {
-        "description": "A JSON merge patch of `seo`: members left out keep their value. The `seo` defaults apply to tracked keywords created after the change.",
+        "description": "A JSON merge patch of `seo` and `internal_links`: parts and members left out keep their value. The `seo` defaults apply to tracked keywords created after the change. `internal_links.allowed_subdomains` must be the project's website or hosts under it.",
         "operationId": "update_settings_api_v1_workspaces__workspace_id__projects__project_id__settings_patch",
         "parameters": [
           {

@@ -183,6 +183,7 @@ async def create_project(
         deep_check_weekday=body.deep_check_weekday,
         default_language_code=body.default_language_code,
         primary_domain=body.primary_domain,
+        map_internal_links=body.map_internal_links,
         default_location_id=body.default_location_id,
         own_entity=body.own_entity,
         info=info,

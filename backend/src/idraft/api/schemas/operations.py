@@ -4,7 +4,7 @@ to 3.11.4): schedules, runs, costs, budget status, the price book and project se
 from __future__ import annotations
 
 from datetime import date, datetime, time
-from typing import Annotated, Literal
+from typing import Annotated, Final, Literal
 from uuid import UUID
 
 from pydantic import (
@@ -21,6 +21,7 @@ from idraft.api.schemas.common import Body, Patch, printable, refuse_null
 from idraft.api.schemas.keywords import DepthProfile, OfferedDepthProfile
 from idraft.api.schemas.metrics import Usd
 from idraft.api.timezones import Timezone
+from idraft.extraction.urls import normalize_host
 
 Workload = Literal[
     "seo_rank",
@@ -378,9 +379,43 @@ class SeoSettings(BaseModel):
     visibility_volume_mode: Literal["annual_average", "seasonal"] = "annual_average"
 
 
+CrawlScheduleName = Literal["weekly", "every_two_weeks", "monthly", "off"]
+SUBDOMAINS_MAX: Final = 10
+
+
+def _hosts(value: list[str]) -> list[str]:
+    """Allowed subdomains as `core.domains` writes hosts; each one once."""
+    found: list[str] = []
+    for given in value:
+        host = normalize_host(given).name
+        if host not in found:
+            found.append(host)
+    return found
+
+
+SubdomainList = Annotated[
+    list[Annotated[str, StringConstraints(min_length=1, max_length=253)]],
+    Field(max_length=SUBDOMAINS_MAX),
+    AfterValidator(_hosts),
+]
+
+
+class InternalLinksSettings(BaseModel):
+    schedule: CrawlScheduleName = "weekly"
+    render_javascript: bool = Field(
+        default=False, description="Crawls render JavaScript; each page costs ten times as much."
+    )
+    allowed_subdomains: list[str] = Field(
+        default_factory=list,
+        description="Hosts of the project's site, besides its own and its `www.` form, that "
+        "crawls follow (up to 10).",
+    )
+
+
 class ProjectSettings(BaseModel):
     version: Literal[1] = 1
     seo: SeoSettings = Field(default_factory=SeoSettings)
+    internal_links: InternalLinksSettings = Field(default_factory=InternalLinksSettings)
     entity_config_version: int = Field(description="Read-only: bumped by entity changes.")
 
 
@@ -410,7 +445,31 @@ class SeoSettingsPatch(Patch):
         return self
 
 
-class ProjectSettingsPatch(Body):
-    """A JSON merge patch (RFC 7396) of the settings: members left out keep their value."""
+class InternalLinksSettingsPatch(Patch):
+    schedule: CrawlScheduleName | None = None
+    render_javascript: bool | None = None
+    allowed_subdomains: SubdomainList | None = None
 
-    seo: SeoSettingsPatch
+    _not_null = field_validator("schedule", "render_javascript", "allowed_subdomains")(refuse_null)
+
+    @model_validator(mode="after")
+    def _says_something(self) -> InternalLinksSettingsPatch:
+        if not self.model_fields_set:
+            raise ValueError("give at least one setting to change")
+        return self
+
+
+class ProjectSettingsPatch(Patch):
+    """A JSON merge patch (RFC 7396) of the settings: members left out keep their value. A part
+    cannot be null: `null` would mean "delete" in a merge patch, and no part can be deleted."""
+
+    seo: SeoSettingsPatch | None = None
+    internal_links: InternalLinksSettingsPatch | None = None
+
+    _not_null = field_validator("seo", "internal_links")(refuse_null)
+
+    @model_validator(mode="after")
+    def _says_something(self) -> ProjectSettingsPatch:
+        if not self.model_fields_set:
+            raise ValueError("give `seo` or `internal_links`")
+        return self

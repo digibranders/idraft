@@ -20,6 +20,7 @@ from idraft.api.entities.project_service import ProjectEntityService
 from idraft.api.entities.service import EntityService
 from idraft.api.imports.service import ImportService
 from idraft.api.integrations.service import IntegrationService
+from idraft.api.internal_links.crawls import CrawlService
 from idraft.api.internal_links.page_tiers import PageTierService
 from idraft.api.internal_links.reads import LinkReadService
 from idraft.api.internal_links.tier_levels import TierLevelService
@@ -80,6 +81,7 @@ class Resources:
     tier_levels: TierLevelService
     page_tiers: PageTierService
     link_reads: LinkReadService
+    crawls: CrawlService
 
 
 def get_resources(request: Request) -> Resources:

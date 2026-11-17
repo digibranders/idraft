@@ -87,6 +87,11 @@ class ProjectCreate(Body):
     primary_domain: DomainText | None = Field(
         default=None, description="A host or URL; its host is stored."
     )
+    map_internal_links: bool = Field(
+        default=False,
+        description="With `primary_domain`, queue the first crawl of the site's internal links. "
+        "The web form sends true (the checkbox is ticked by default).",
+    )
     default_location_id: LocationId | None = Field(
         default=None, description="A `location_id` of `GET /api/v1/locations`."
     )

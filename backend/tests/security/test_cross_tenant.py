@@ -208,7 +208,10 @@ BODIES: dict[tuple[str, str], dict[str, Any]] = {
     ("POST", _W + "/projects/{project_id}/schedules/{schedule_id}/pause"): {"reason": "taken"},
     ("POST", _W + "/projects/{project_id}/schedules/{schedule_id}/resume"): {},
     ("POST", _W + "/projects/{project_id}/runs/{run_id}/cancel"): {"reason": "taken"},
-    ("PATCH", _W + "/projects/{project_id}/settings"): {"seo": {"default_device": "mobile"}},
+    ("PATCH", _W + "/projects/{project_id}/settings"): {
+        "seo": {"default_device": "mobile"},
+        "internal_links": {"schedule": "off", "allowed_subdomains": ["blog.example.com"]},
+    },
     ("POST", _W + "/projects/{project_id}/keyword-imports"): {
         "source": "paste",
         "paste": "planted",
@@ -326,6 +329,11 @@ BODIES: dict[tuple[str, str], dict[str, Any]] = {
         "match_type": "prefix",
         "value": "/planted",
     },
+    # The crawl is the tenant's queued one (`run_id` of a link-crawls path, see `_fill`): the
+    # cancel would end it, and the project already has a crawl under way, so Crawl now is
+    # refused for it (`CRAWL_UNDER_WAY`).
+    ("POST", _W + "/projects/{project_id}/link-crawls"): {},
+    ("POST", _W + "/projects/{project_id}/link-crawls/{run_id}/cancel"): {},
 }
 # Routes that a member limited to some projects is refused even inside their own project: they
 # change the workspace's credentials, which belong to no one project (docs/24 section 3.2).
@@ -334,6 +342,9 @@ EVERY_PROJECT_ONLY = {
     ("POST", _W + "/projects/{project_id}/integrations/google/authorize"),
     ("DELETE", _W + "/projects/{project_id}/integrations/{integration_id}"),
 }
+# Routes a tenant's own project answers `409 crawl_in_progress` for, as the tenant has a queued
+# crawl (it is what the cancel route is exercised on).
+CRAWL_UNDER_WAY = {("POST", _W + "/projects/{project_id}/link-crawls")}
 # Routes that take a file instead of JSON.
 UPLOADS = {("POST", _W + "/projects/{project_id}/keyword-imports/upload")}
 # Query parameters a route requires, so that it answers for its path and not for a missing
@@ -1052,6 +1063,24 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str, fake: Fa
     )
     async with workspace_transaction(resources.sessions, workspace.id) as flow_db:
         await recompute_tier_flow(flow_db, workspace_id=workspace.id, run_id=crawl_run)
+    # A crawl waiting for the worker (cancelling it would succeed; Crawl now is refused while it
+    # waits), and settings that name the tenant's own subdomain.
+    queued_crawl = await fetchrow(
+        pg,
+        "INSERT INTO seo.crawl_runs (workspace_id, project_id, trigger, state, target_host, "
+        "settings, ceiling) VALUES ($1, $2, 'manual', 'queued', 'example.com', '{}', 2000) "
+        "RETURNING id",
+        workspace.id,
+        project_id,
+    )
+    await execute(
+        pg,
+        "UPDATE core.projects SET settings = $2::jsonb WHERE id = $1",
+        project_id,
+        json.dumps({"internal_links": {"allowed_subdomains": [f"{label}-blog.example.com"]}}),
+    )
+    more_ids["crawl_run_id"] = str(queued_crawl["id"])
+    more_ids["finished_crawl_id"] = str(crawl_run)
     more_ids["tier_id"] = str(spare_tier["id"])
     more_ids["rule_id"] = str(rule["id"])
     more_ids["tag_term_id"] = str(tag_term["id"])
@@ -1120,6 +1149,9 @@ def _fill(path: str, ids: dict[str, str]) -> str:
         assert name in ids, f"the cross-tenant suite has no id for the path parameter {name!r}"
         return ids[name]
 
+    if "/link-crawls" in path:
+        # `{run_id}` is an operations run elsewhere, and a crawl here.
+        ids = {**ids, "run_id": ids["crawl_run_id"]}
     filled = PATH_PARAMETER.sub(value, path)
     assert "{" not in filled, f"a path parameter of {path} was not understood"
     return filled
@@ -1451,6 +1483,9 @@ async def test_a_project_outside_the_members_scope_is_not_found(
     assert _without_request_details(outside) == _without_request_details(nowhere)
     if (method, path) in EVERY_PROJECT_ONLY:
         assert _problem(inside) == (403, "forbidden")
+    elif (method, path) in CRAWL_UNDER_WAY:
+        # The scope let the member in; the project's queued crawl is why nothing is started.
+        assert _problem(inside) == (409, "crawl_in_progress")
     elif (method, path) in NOT_BUILT:
         # Inside the member's scope a published contract answers that its body is not built.
         assert _problem(inside) == (501, "not_implemented")
@@ -1518,6 +1553,10 @@ INTERNAL_LINK_READS = [
     ),
     ("/internal-links/tier-flow", {"scope": "all"}, False),
     ("/internal-links/worklists", {}, False),
+    # The crawls and the settings carry no page names; their own tests below name the tenant.
+    ("/link-crawls", {}, False),
+    ("/link-crawls/{crawl_run_id}", {}, False),
+    ("/settings", {}, False),
 ]
 
 
@@ -1548,6 +1587,26 @@ async def test_the_pages_and_links_of_a_project_hold_nothing_of_another_workspac
     if names_pages:
         own_site = a.ids()["page_url"].removeprefix("https://example.com").split("-")[0]
         assert f"{own_site}-" in response.text
+
+
+async def test_the_crawls_and_settings_of_a_project_show_only_its_own_workspace(
+    api: httpx.AsyncClient, tenants: tuple[Tenant, Tenant]
+) -> None:
+    """The crawl list names A's two crawls and the settings A's subdomain, and nothing of B's."""
+    a, b = tenants
+    base = _fill(_W + "/projects/{project_id}", a.ids())
+
+    crawls = await api.get(f"{base}/link-crawls", headers=a.headers)
+    settings = await api.get(f"{base}/settings", headers=a.headers)
+
+    assert {row["run_id"] for row in crawls.json()["data"]} == {
+        a.ids()["crawl_run_id"],
+        a.ids()["finished_crawl_id"],
+    }
+    assert settings.json()["data"]["internal_links"]["allowed_subdomains"] == ["a-blog.example.com"]
+    assert "b-blog" not in settings.text
+    assert b.ids()["crawl_run_id"] not in crawls.text
+    assert b.ids()["finished_crawl_id"] not in crawls.text
 
 
 async def test_the_same_holds_once_the_session_is_cached_and_for_a_member_of_both(

@@ -26,6 +26,7 @@ from idraft.api.schemas.entities import DomainInput, OwnEntityInput
 from idraft.api.timezones import check_timezone
 from idraft.api.workspaces import repository as workspaces
 from idraft.api.workspaces.access import WorkspaceAccess
+from idraft.collectors.crawl_runs import queue_run
 from idraft.db.engine import workspace_transaction
 from idraft.extraction.urls import normalize_host
 
@@ -167,12 +168,16 @@ class ProjectService:
         deep_check_weekday: int,
         default_language_code: str | None,
         primary_domain: str | None = None,
+        map_internal_links: bool = False,
         default_location_id: int | None = None,
         own_entity: OwnEntityInput | None = None,
         info: RequestInfo,
     ) -> ProjectRecord:
         """With `own_entity`, the entity, its aliases and domains and its primary own role are
-        made in the same transaction."""
+        made in the same transaction. With `map_internal_links` and a `primary_domain`, the
+        project's first crawl is queued in it too (internal links plan 02, decision D14): a new
+        project has no crawl, so none can be under way, and no budget is checked here, as the
+        worker checks it before it posts."""
         try:
             async with workspace_transaction(
                 self._sessions, access.workspace_id, user_id=access.user_id
@@ -222,6 +227,15 @@ class ProjectService:
                         "default_location_id": default_location_id,
                     },
                 )
+                if map_internal_links and domain_id is not None:
+                    await queue_run(
+                        db,
+                        workspace_id=access.workspace_id,
+                        project_id=project_id,
+                        trigger="website_added",
+                        requested_by=access.user_id,
+                        now=datetime.now(UTC),
+                    )
                 if own_entity is not None:
                     await _create_own_entity(db, access, project_id, own_entity, info)
                 project = await repository.get_project(db, access.workspace_id, project_id)
