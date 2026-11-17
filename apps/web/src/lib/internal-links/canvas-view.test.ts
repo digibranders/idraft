@@ -5,6 +5,7 @@ import {
   MAX_SCALE,
   MIN_SCALE,
   centerOn,
+  clampScale,
   fitView,
   firstView,
   panBy,
@@ -49,6 +50,37 @@ describe('canvas view', () => {
     expect(larger.scale).toBe(1 + BUTTON_STEP);
     expect(toWorld(larger, { x: 500, y: 300 })).toEqual({ x: 500, y: 300 });
     expect(stepZoom({ x: 0, y: 0, scale: MIN_SCALE }, -1, VIEWPORT).scale).toBe(MIN_SCALE);
+  });
+
+  it('steps from an off-grid zoom to the next quarter, never skipping one', () => {
+    const at = (scale: number): View => ({ x: 0, y: 0, scale });
+    expect(stepZoom(at(0.6), -1, VIEWPORT).scale).toBe(0.5);
+    expect(stepZoom(at(0.6), 1, VIEWPORT).scale).toBe(0.75);
+    expect(stepZoom(at(0.9), 1, VIEWPORT).scale).toBe(1);
+    expect(stepZoom(at(0.9), -1, VIEWPORT).scale).toBe(0.75);
+    expect(stepZoom(at(1.1), -1, VIEWPORT).scale).toBe(1);
+    expect(stepZoom(at(1.8), 1, VIEWPORT).scale).toBe(2);
+    expect(stepZoom(at(1.8), -1, VIEWPORT).scale).toBe(1.75);
+    expect(stepZoom(at(1), 1, VIEWPORT).scale).toBe(1.25);
+    expect(stepZoom(at(1), -1, VIEWPORT).scale).toBe(0.75);
+  });
+
+  it('treats a scale that is not finite as the smallest, and never divides by zero', () => {
+    expect(clampScale(Number.NaN)).toBe(MIN_SCALE);
+    expect(clampScale(Number.POSITIVE_INFINITY)).toBe(MIN_SCALE);
+    expect(clampScale(0)).toBe(MIN_SCALE);
+    const view = zoomAt({ x: 5, y: 5, scale: 1 }, 0, { x: 10, y: 10 });
+    expect(Number.isFinite(view.x) && Number.isFinite(view.y)).toBe(true);
+    expect(view.scale).toBe(MIN_SCALE);
+  });
+
+  it('returns the same view when the zoom is already at the limit, so nothing drifts', () => {
+    const atMax: View = { x: 13.3, y: 7.7, scale: MAX_SCALE };
+    expect(zoomAt(atMax, 5, { x: 301, y: 199 })).toBe(atMax);
+    const atMin: View = { x: 13.3, y: 7.7, scale: MIN_SCALE };
+    let view = atMin;
+    for (let index = 0; index < 5; index += 1) view = zoomAt(view, 0.01, { x: 301, y: 199 });
+    expect(view).toBe(atMin);
   });
 
   it('fits everything inside the viewport with a margin and never zooms past 100 percent', () => {

@@ -30,7 +30,9 @@ export const READABLE_SCALE = 0.7;
 export const FOCUS_SCALE = 0.85;
 const FIT_MARGIN = 32;
 
-export const clampScale = (scale: number): number => Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale));
+/** Clamped to 25 to 200 percent; a scale that is not finite (NaN, Infinity) is the smallest, so no divide by zero follows. */
+export const clampScale = (scale: number): number =>
+  Number.isFinite(scale) ? Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale)) : MIN_SCALE;
 
 export const toScreen = (view: View, point: Point): Point => ({
   x: point.x * view.scale + view.x,
@@ -42,9 +44,13 @@ export const toWorld = (view: View, point: Point): Point => ({
   y: (point.y - view.y) / view.scale,
 });
 
-/** Zoom to `scale` (clamped) keeping the world point under `anchor` (a screen point) where it is. */
+/**
+ * Zoom to `scale` (clamped) keeping the world point under `anchor` (a screen point) where it is. The same view comes back
+ * when the clamped zoom is the one it already has, so pressing zoom at a limit never drifts.
+ */
 export function zoomAt(view: View, scale: number, anchor: Point): View {
   const next = clampScale(scale);
+  if (next === view.scale) return view;
   const world = toWorld(view, anchor);
   return { x: anchor.x - world.x * next, y: anchor.y - world.y * next, scale: next };
 }
@@ -53,9 +59,13 @@ export const panBy = (view: View, dx: number, dy: number): View => ({ ...view, x
 
 const middleOf = (viewport: Size): Point => ({ x: viewport.width / 2, y: viewport.height / 2 });
 
-/** One button step in or out, around the middle of the viewport. The size is a whole quarter of 100 percent. */
+/**
+ * One button step in or out, around the middle of the viewport, to the next quarter of 100 percent in that direction
+ * (from 60 percent in is 75, out is 50), so an off-grid zoom never skips a step.
+ */
 export function stepZoom(view: View, direction: 1 | -1, viewport: Size): View {
-  const quarters = Math.round(view.scale / BUTTON_STEP) + direction;
+  const steps = view.scale / BUTTON_STEP;
+  const quarters = direction === 1 ? Math.floor(steps + 1e-9) + 1 : Math.ceil(steps - 1e-9) - 1;
   return zoomAt(view, quarters * BUTTON_STEP, middleOf(viewport));
 }
 

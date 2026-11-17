@@ -35,7 +35,8 @@ export function curvePath(from: Box, to: Box, index: number, count = 1): Drawn {
  * A line between two cards in the By tier layout (mock `route`): from the right edge of the source to the left edge of the
  * target when the target is to the right; into the right edge of a target in a lane to the left (a link down a tier); and
  * round the right side for a card in the same lane, each swinging out by a different amount so no line runs over the
- * cards it passes.
+ * cards it passes. The arrowhead direction is not returned: callers draw it with `marker-end` and `orient="auto"`, and
+ * every curve here arrives horizontally.
  */
 export function tierRoute(from: Box, to: Box, index: number): Drawn {
   const fromRight = from.left + from.width;
@@ -62,7 +63,7 @@ export function tierRoute(from: Box, to: Box, index: number): Drawn {
   }
   const start = { x: fromRight, y: midY(from) };
   const end = { x: toRight, y: midY(to) };
-  const bulge = Math.min(96, 28 + Math.abs(end.y - start.y) * 0.12 + index * 10);
+  const bulge = Math.min(96, 28 + Math.abs(end.y - start.y) * 0.12 + Math.max(0, index) * 10);
   return {
     d: `M${start.x},${start.y} C${start.x + bulge},${start.y} ${end.x + bulge},${end.y} ${end.x},${end.y}`,
     start,

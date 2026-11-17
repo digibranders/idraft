@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { cardKey, groupKey, moreKey } from './journey-layout';
+import { FOCUS_KEY, cardKey, groupKey, moreKey } from './journey-layout';
 import { openExclusive, openTogether, parseCardKey, type OpenSets } from './journey-open';
 
 const sets = (open: string[], groups: string[] = [], more: [string, number][] = []): OpenSets => ({
@@ -82,6 +82,74 @@ describe('openExclusive', () => {
   it('closes a card that is open (a second press)', () => {
     const next = openExclusive(sets([a, ab]), ab);
     expect([...next.open]).toEqual([a]);
+  });
+
+  it('closing a card removes it and its descendants only, not cards opened beside it', () => {
+    const b = cardKey('out', ['2']);
+    const next = openExclusive(sets([a, b, c]), a);
+    expect([...next.open].sort()).toEqual([b, c].sort());
+    const withChild = openExclusive(sets([a, ab, b]), a);
+    expect([...withChild.open]).toEqual([b]);
+  });
+
+  it('closing a card drops the groups and more counts hanging under it and its descendants', () => {
+    const group = groupKey('out', ab, 'template');
+    const other = groupKey('out', c, 'template');
+    const next = openExclusive(
+      sets(
+        [a, ab, c],
+        [group, other],
+        [
+          [moreKey(`o|${ab}`), 8],
+          [moreKey(group), 8],
+          [moreKey(`o|${c}`), 8],
+        ],
+      ),
+      a,
+    );
+    expect([...next.open]).toEqual([c]);
+    expect([...next.groups]).toEqual([other]);
+    expect([...next.more.keys()]).toEqual([moreKey(`o|${c}`)]);
+  });
+
+  it('presses a group card by only toggling that group', () => {
+    const group = groupKey('out', a, 'template');
+    const opened = openExclusive(sets([a, ab, c]), group);
+    expect([...opened.open].sort()).toEqual([a, ab, c].sort());
+    expect([...opened.groups]).toEqual([group]);
+    const closed = openExclusive(opened, group);
+    expect([...closed.groups]).toEqual([]);
+    expect([...closed.open].sort()).toEqual([a, ab, c].sort());
+  });
+
+  it('returns the current sets for a key that is neither a card nor a group', () => {
+    const current = sets([a], [], [[moreKey('o|f'), 8]]);
+    expect(openExclusive(current, FOCUS_KEY)).toBe(current);
+    expect(openExclusive(current, moreKey('o|f'))).toBe(current);
+  });
+
+  it('matches whole ids on the path: o:1 is not on the path of o:12', () => {
+    const one = cardKey('out', ['1']);
+    const twelve = cardKey('out', ['12']);
+    expect([...openExclusive(sets([one]), twelve).open]).toEqual([twelve]);
+    expect([...openExclusive(sets([twelve]), one).open]).toEqual([one]);
+    expect([...openExclusive(sets([one, twelve]), one).open]).toEqual([twelve]);
+  });
+
+  it('leaves the other side groups and more counts alone', () => {
+    const leftGroup = groupKey('in', left, 'template');
+    const next = openExclusive(sets([left, c], [leftGroup], [[moreKey(`i|${left}`), 8]]), a);
+    expect([...next.groups]).toEqual([leftGroup]);
+    expect([...next.more.keys()]).toEqual([moreKey(`i|${left}`)]);
+  });
+
+  it('does not change the sets it is given', () => {
+    const current = sets([a, c], [groupKey('out', a, 'template')], [[moreKey(`o|${a}`), 8]]);
+    openExclusive(current, ab);
+    openExclusive(current, a);
+    expect([...current.open]).toEqual([a, c]);
+    expect(current.groups.size).toBe(1);
+    expect(current.more.size).toBe(1);
   });
 });
 

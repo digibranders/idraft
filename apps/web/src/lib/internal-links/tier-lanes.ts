@@ -46,7 +46,10 @@ export interface LaneInput {
  * chip turns a lane off, except the focus page's own lane.
  */
 export function laneSet({ tiers, inView, focusLane, hidden, counts = new Map() }: LaneInput): Lane[] {
-  const order = [UNTIERED_LANE, ...[...tiers].sort((a, b) => b - a)];
+  // One lane per position (a repeated one, or 99 among the tiers, is still one), and the focus lane is always among them
+  const positions = new Set([...tiers, focusLane]);
+  positions.delete(UNTIERED_LANE);
+  const order = [UNTIERED_LANE, ...[...positions].sort((a, b) => b - a)];
   return order
     .filter((pos) => {
       if (pos === focusLane) return true;

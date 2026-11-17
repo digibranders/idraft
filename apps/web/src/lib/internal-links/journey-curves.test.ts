@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import type { Box } from './journey-geometry';
 import { COLUMN_GAP, curvePath, directionLook, fanOffset, tierRoute } from './journey-curves';
 
 const from = { left: 0, top: 100, width: 240, height: 42 };
@@ -54,6 +55,34 @@ describe('tierRoute', () => {
     expect(a.start).toEqual({ x: 240, y: 121 });
     expect(a.end).toEqual({ x: 240, y: 321 });
     expect(a.d).not.toBe(b.d);
+  });
+});
+
+describe('tierRoute edge cases', () => {
+  const box = (left: number, top: number): Box => ({ left, top, width: 240, height: 42 });
+
+  it('treats a target one pixel left of the source right edge as to the right, and two pixels as the same lane', () => {
+    expect(tierRoute(from, box(239, 300), 0).end).toEqual({ x: 239, y: 321 });
+    expect(tierRoute(from, box(238, 300), 0).end).toEqual({ x: 478, y: 321 });
+  });
+
+  it('treats a target ending one pixel right of the source left edge as to the left, and two pixels as the same lane', () => {
+    expect(tierRoute(from, box(-239, 300), 0).end).toEqual({ x: 1, y: 321 });
+    expect(tierRoute(from, box(-238, 300), 0).end).toEqual({ x: 2, y: 321 });
+    expect(tierRoute(from, box(-238, 300), 0).start).toEqual({ x: 240, y: 121 });
+  });
+
+  it('never draws a NaN, for boxes of no size or a negative index', () => {
+    const none: Box = { left: 0, top: 0, width: 0, height: 0 };
+    expect(tierRoute(none, none, 0).d).not.toContain('NaN');
+    const below = box(0, 300);
+    expect(tierRoute(from, below, -5).d).toBe(tierRoute(from, below, 0).d);
+  });
+});
+
+describe('curvePath with a count below the index', () => {
+  it('draws as if the card had enough lines for the index', () => {
+    expect(curvePath(from, to, 3, 1).d).toBe(curvePath(from, to, 3, 4).d);
   });
 });
 

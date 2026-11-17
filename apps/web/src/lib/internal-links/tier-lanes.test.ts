@@ -37,6 +37,44 @@ describe('laneSet', () => {
     expect(lanes.map((lane) => lane.pos)).toEqual([3, 2, 1]);
   });
 
+  it('makes one lane of a position given twice, Untiered included', () => {
+    const lanes = laneSet({
+      tiers: [1, 2, 2, UNTIERED_LANE],
+      inView: new Set([UNTIERED_LANE]),
+      focusLane: 1,
+      hidden: new Set(),
+    });
+    expect(lanes.map((lane) => lane.pos)).toEqual([UNTIERED_LANE, 2, 1]);
+  });
+
+  it('always shows an Untiered focus lane, even when it is turned off and nothing untiered is in view', () => {
+    const lanes = laneSet({ tiers, inView: new Set(), focusLane: UNTIERED_LANE, hidden: new Set([UNTIERED_LANE]) });
+    expect(lanes.map((lane) => lane.pos)).toEqual([UNTIERED_LANE, 4, 3, 2, 1]);
+  });
+
+  it('hides the Untiered lane with its chip when it is not the focus lane', () => {
+    const lanes = laneSet({ tiers, inView: new Set([UNTIERED_LANE]), focusLane: 1, hidden: new Set([UNTIERED_LANE]) });
+    expect(lanes.map((lane) => lane.pos)).toEqual([4, 3, 2, 1]);
+  });
+
+  it('copes with no tiers: only the focus lane remains', () => {
+    expect(laneSet({ tiers: [], inView: new Set(), focusLane: UNTIERED_LANE, hidden: new Set() })).toHaveLength(1);
+    expect(laneSet({ tiers: [], inView: new Set(), focusLane: 3, hidden: new Set() }).map((lane) => lane.pos)).toEqual([
+      3,
+    ]);
+    expect(
+      laneSet({ tiers: [], inView: new Set([UNTIERED_LANE]), focusLane: 3, hidden: new Set() }).map((lane) => lane.pos),
+    ).toEqual([UNTIERED_LANE, 3]);
+  });
+
+  it('does not change its inputs', () => {
+    const given = [3, 1, 2];
+    const hidden = new Set([2]);
+    laneSet({ tiers: given, inView: new Set([1]), focusLane: 1, hidden });
+    expect(given).toEqual([3, 1, 2]);
+    expect([...hidden]).toEqual([2]);
+  });
+
   it('marks the focus lane and counts the pages in each lane, empty lanes included', () => {
     const lanes = laneSet({ tiers, inView: new Set([1]), focusLane: 1, hidden: new Set(), counts: new Map([[1, 4]]) });
     const t1 = lanes.find((lane) => lane.pos === 1);

@@ -55,39 +55,69 @@ const ownerOf = (key: string): string | null => {
   return (more[1] ?? '').replace(MORE_SIDE, '').replace(MORE_TIER, '');
 };
 
+/** The card a group or "+N more" key finally hangs under (a "more" of a group goes through the group), or the focus. */
+const cardOwnerOf = (key: string): string | null => {
+  const owner = ownerOf(key);
+  return owner !== null && GROUP.test(owner) ? ownerOf(owner) : owner;
+};
+
 /**
- * The sets after pressing the card `key`: it opens (or closes when open), and on its side every opened card, group and
- * "+N more" that is not on its path closes. A key that is not a card key (a group card) keeps its parent's path.
+ * The sets after pressing `key`:
+ * - a group card only toggles that group (its "+N more" count goes with it when it closes);
+ * - an open card closes with its descendants (keys that have it as a path prefix), not its siblings;
+ * - a closed card opens, and every other opened card, group and "+N more" on its side that is not on its path closes.
+ * Any other key (the focus, a "+N more" key) changes nothing: the same object comes back.
  */
 export function openExclusive(current: OpenSets, key: string): OpenSets {
   const target = parseCardKey(key);
-  const wasOpen = current.open.has(key) || current.groups.has(key);
-  const side = sideOf(key);
   const group = GROUP.exec(key);
-  const owner = group === null ? null : parseCardKey(group[2] ?? '');
-  const path = target ?? owner;
-  const open = new Set(
-    [...current.open].filter((candidate) => {
-      if (sideOf(candidate) !== side) return true;
-      if (candidate === key) return !wasOpen;
-      return path !== null && onPathOf(candidate, path);
-    }),
-  );
+  if (target === null && group === null) return current;
+
+  if (target === null) {
+    const wasOpen = current.groups.has(key);
+    const groups = new Set(current.groups);
+    if (wasOpen) groups.delete(key);
+    else groups.add(key);
+    const more = new Map([...current.more].filter(([moreKey]) => !wasOpen || ownerOf(moreKey) !== key));
+    return { open: current.open, groups, more };
+  }
+
+  const side = target.side;
+  const keep = (candidate: string, wasOpen: boolean): boolean => {
+    if (sideOf(candidate) !== side) return true;
+    if (wasOpen) {
+      const card = parseCardKey(candidate);
+      return !(card !== null && isPrefix(target.ids, card.ids));
+    }
+    return onPathOf(candidate, target);
+  };
+
+  if (current.open.has(key)) {
+    const under = (owner: string | null): boolean => {
+      const card = owner === null ? null : parseCardKey(owner);
+      return card !== null && card.side === side && isPrefix(target.ids, card.ids);
+    };
+    return {
+      open: new Set([...current.open].filter((candidate) => keep(candidate, true))),
+      groups: new Set([...current.groups].filter((candidate) => !under(cardOwnerOf(candidate)))),
+      more: new Map([...current.more].filter(([moreKey]) => !under(cardOwnerOf(moreKey)))),
+    };
+  }
+
+  const open = new Set([...current.open].filter((candidate) => keep(candidate, false)));
+  open.add(key);
   const groups = new Set(
     [...current.groups].filter((candidate) => {
       if (sideOf(candidate) !== side) return true;
-      if (candidate === key) return !wasOpen;
       const parent = ownerOf(candidate);
-      return parent !== null && (parent === FOCUS_KEY || (path !== null && onPathOf(parent, path)));
+      return parent !== null && (parent === FOCUS_KEY || onPathOf(parent, target));
     }),
   );
-  if (!wasOpen) (target === null ? groups : open).add(key);
   const alive = (moreKey: string): boolean => {
     const parent = ownerOf(moreKey);
     return parent === null || parent === FOCUS_KEY || open.has(parent) || groups.has(parent);
   };
-  const more = new Map([...current.more].filter(([moreKey]) => alive(moreKey)));
-  return { open, groups, more };
+  return { open, groups, more: new Map([...current.more].filter(([moreKey]) => alive(moreKey))) };
 }
 
 /** The selection bar's "Show their links": several cards open together, nothing closes. */
