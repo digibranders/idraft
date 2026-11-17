@@ -26,6 +26,7 @@ export function shareOfVoiceFigure(context: MetricContext, cells: readonly Engin
         : brandMentionCounts(
             cells.find((engine) => engine.engine_code === code),
             ownIds,
+            context.trackedCount,
           ),
   }));
   const counted = platforms.flatMap(({ code, counts }) => (counts === null ? [] : [{ code, counts }]));

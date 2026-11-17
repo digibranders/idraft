@@ -63,8 +63,14 @@ interface Words {
   rateTip: RateTipWords;
   answers: (count: number) => string;
   basis: (successes: number, answers: number) => string;
-  /** A percent with its answers and, for a topic, its prompts, in words. */
-  share: (value: string, answers: string, prompts: string | null) => string;
+  /** A share of voice percent with its brand mentions in words. */
+  share: (value: string, counts: string) => string;
+  /** "4 of 12 brand mentions". */
+  mentions: (successes: number, all: number) => string;
+  /** "3 brand mentions": too few for a share. */
+  shareThin: (count: number) => string;
+  /** Why a share has no counts ("Not collected yet", "More than 20 tracked brands"), or `null` for another reason. */
+  reason: (value: EngineValue) => string | null;
 }
 
 /**
@@ -73,8 +79,10 @@ interface Words {
  * Share of voice has no count of answers that name the brand, so it says the answers that name a brand.
  */
 function cellBody(value: EngineValue, counted: boolean, words: Words): string {
-  if (value.state === 'none') return words.rateTip.noAnswers;
-  if (value.state === 'insufficient') return words.rateTip.thin(value.answers);
+  if (value.state === 'none') return words.reason(value) ?? words.rateTip.noAnswers;
+  if (value.state === 'insufficient') {
+    return counted ? words.rateTip.thin(value.answers) : words.shareThin(value.answers);
+  }
   if (counted && value.successes !== null) {
     return rateTipText(
       {
@@ -88,10 +96,10 @@ function cellBody(value: EngineValue, counted: boolean, words: Words): string {
       words.rateTip,
     );
   }
+  // Share of voice: "x of y brand mentions", never a prompt weighted percent beside pooled counts
   return words.share(
     value.value === null ? EMPTY_VALUE : words.rateTip.value(value.value),
-    words.answers(value.answers),
-    value.prompts === null ? null : words.rateTip.prompts(value.prompts),
+    value.successes === null ? words.answers(value.answers) : words.mentions(value.successes, value.answers),
   );
 }
 
@@ -166,10 +174,13 @@ export function TopicHeatmap({
       rateTip,
       answers: (count) => prompts('rate.basisAnswers', { answers: count }),
       basis: (successes, answers) => prompts('rate.basis', { successes, answers }),
-      share: (value, answers, weighted) =>
-        weighted === null
-          ? t('cellShare', { value, answers })
-          : t('cellShareWithPrompts', { value, answers, prompts: weighted }),
+      share: (value, counts) => t('cellShare', { value, answers: counts }),
+      mentions: (successes, all) => prompts('rate.shareBasis', { k: successes, n: all }),
+      shareThin: (count) => prompts('rate.insufficientShare', { count }),
+      reason: (value) =>
+        value.reason === 'notCollected' || value.reason === 'capped'
+          ? prompts('rate.reason', { reason: value.reason })
+          : null,
     };
     const percent = (value: number | null): string =>
       value === null ? EMPTY_VALUE : formatPercent(value, { decimals: 0 });
@@ -205,9 +216,11 @@ export function TopicHeatmap({
           prompts('columns.engineCount', {
             engine: labelOf(value.code),
             count:
-              metric === 'sov' || value.successes === null
+              value.successes === null
                 ? words.answers(value.answers)
-                : words.basis(value.successes, value.answers),
+                : metric === 'sov'
+                  ? words.mentions(value.successes, value.answers)
+                  : words.basis(value.successes, value.answers),
           }),
         ),
         locale,

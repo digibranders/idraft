@@ -25,17 +25,20 @@ import { equalWeightAverage, MIN_OBSERVATIONS, wholePercents } from '@/lib/stats
  */
 
 /**
- * What the counts of a figure are of: answers for a rate, answers that name a tracked brand for share of voice, answers
- * that give the brand a place for the mention position, judged mentions for sentiment.
+ * What the counts of a figure are of: answers for a rate, brand mentions for share of voice (D17), answers that give the
+ * brand a place for the mention position, judged mentions for sentiment.
  */
-export type CountNoun = 'answers' | 'namingAnswers' | 'orderedAnswers' | 'judgedMentions';
+export type CountNoun = 'answers' | 'brandMentions' | 'orderedAnswers' | 'judgedMentions';
 
 /** What stands behind a figure, for its tooltip. */
 export type Basis =
-  /** One platform: `k` of `n` (`k` is null for share of voice, whose numerator is a sum of shares), over `prompts`. */
+  /** One platform: `k` of `n`, over `prompts`. */
   | { kind: 'counts'; k: number | null; n: number; noun: CountNoun; prompts: number }
-  /** All platforms: the platforms the average is over, in the order given. */
-  | { kind: 'average'; codes: readonly string[] };
+  /**
+   * All platforms: the platforms the average is over, in the order given. `parts` are the counts of each platform for a
+   * figure that is counted in brand mentions: an average of shares has no pooled count of its own (R3), so the tip names each.
+   */
+  | { kind: 'average'; codes: readonly string[]; parts?: readonly { code: string; k: number; n: number }[] };
 
 export type Reading =
   | { state: 'ok'; value: number; basis: Basis }
@@ -45,6 +48,8 @@ export type Reading =
   | { state: 'none' }
   /** The API does not carry the measure yet. */
   | { state: 'notCollected' }
+  /** Share of voice: the project tracks more brands than the API lists cells for, so the mentions of some are missing. */
+  | { state: 'capped' }
   /** The platforms in scope do not classify the measure (recommendation, sentiment). */
   | { state: 'notClassified' }
   /** The member may not read what the figure is made of. */
@@ -67,7 +72,11 @@ function readingOf(figure: RateFigure, noun: CountNoun): Reading {
     };
   }
   if (figure.state === 'insufficient') return { state: 'insufficient', n: figure.answers, noun };
-  return { state: 'none' };
+  return figure.reason === 'notCollected'
+    ? { state: 'notCollected' }
+    : figure.reason === 'capped'
+      ? { state: 'capped' }
+      : { state: 'none' };
 }
 
 /** One measure over the platforms: its own figure for one platform, else the equal-weight average of those with a rate. */
@@ -83,9 +92,28 @@ export function readAcross(
   }
   const rated = figures.filter(({ figure }) => figure.state === 'ok' && figure.value !== null);
   const { value } = equalWeightAverage(rated.map(({ figure }) => figure.value));
-  if (value !== null) return { state: 'ok', value, basis: { kind: 'average', codes: rated.map(({ code }) => code) } };
+  if (value !== null) {
+    const parts =
+      noun === 'brandMentions'
+        ? rated.flatMap(({ code, figure }) =>
+            figure.successes === null ? [] : [{ code, k: figure.successes, n: figure.answers }],
+          )
+        : undefined;
+    return {
+      state: 'ok',
+      value,
+      basis: { kind: 'average', codes: rated.map(({ code }) => code), ...(parts === undefined ? {} : { parts }) },
+    };
+  }
   const thin = figures.filter(({ figure }) => figure.state === 'insufficient');
-  if (thin.length === 0) return { state: 'none' };
+  if (thin.length === 0) {
+    const reasons = figures.map(({ figure }) => figure.reason);
+    // Every platform lacks the counts for the same reason: that is the reading, not "no valid answers"
+    const [first] = reasons;
+    if (first === 'notCollected' && reasons.every((reason) => reason === first)) return { state: 'notCollected' };
+    if (first === 'capped' && reasons.every((reason) => reason === first)) return { state: 'capped' };
+    return { state: 'none' };
+  }
   return { state: 'insufficient', n: Math.max(...thin.map(({ figure }) => figure.answers)), noun };
 }
 
@@ -163,16 +191,20 @@ export type NotCollectedTile = 'position' | 'recommendation' | 'sentiment';
 
 const NOT_COLLECTED: Reading = { state: 'notCollected' };
 
-/** One tile read from the cells of the prompt rows. */
-export function readTile(prompts: readonly PromptSummaryRow[], { asked, single }: Platforms, tile: CellTile): Reading {
+/** One tile read from the cells of the prompt rows; share of voice from the `total` row, which holds the entity cells. */
+export function readTile(
+  { prompts, total }: Pick<PromptsSummary, 'prompts' | 'total'>,
+  { asked, single }: Platforms,
+  tile: CellTile,
+): Reading {
   const figures = asked.map((code) => {
-    const rates = engineRates(prompts, code);
+    const rates = engineRates(prompts, code, total?.engines.find((engine) => engine.engine_code === code));
     return {
       code,
       figure: tile === 'mention' ? rates.mentioned : tile === 'citation' ? rates.cited : rates.shareOfVoice,
     };
   });
-  return readAcross(figures, single !== null, tile === 'sov' ? 'namingAnswers' : 'answers');
+  return readAcross(figures, single !== null, tile === 'sov' ? 'brandMentions' : 'answers');
 }
 
 /** The tile of a measure the API does not carry yet. */
@@ -243,7 +275,7 @@ export function readFactTile(prompts: readonly FactsRow[], platforms: Platforms,
 /** The floor each count noun is held to, for the "not enough data" words. */
 export const FLOOR_OF: Readonly<Record<CountNoun, number>> = {
   answers: MIN_OBSERVATIONS,
-  namingAnswers: MIN_OBSERVATIONS,
+  brandMentions: MIN_OBSERVATIONS,
   orderedAnswers: MIN_OBSERVATIONS,
   judgedMentions: SENTIMENT_MIN,
 };

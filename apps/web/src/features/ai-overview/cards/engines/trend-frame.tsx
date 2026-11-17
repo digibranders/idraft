@@ -83,9 +83,14 @@ function summaryOf(
               item.change.detectable === true ? 'detectable' : item.change.detectable === false ? 'within' : 'other',
           });
     const value = formatPercent(item.value);
-    return item.k === null
-      ? t('summaryShare', { engine, value, n: item.n, change })
-      : t('summaryRate', { engine, value, k: item.k, n: item.n, change });
+    if (item.k === null) return `${engine}: ${value}${change}.`;
+    return t(metric === 'share_of_voice' ? 'summaryShare' : 'summaryRate', {
+      engine,
+      value,
+      k: item.k,
+      n: item.n,
+      change,
+    });
   });
   const intro = t('summaryIntro', {
     metric: t(`metric${KEY[metric]}`),
@@ -145,7 +150,7 @@ export function TrendFrame({
   const words = useMemo<TrendWords>(
     () => ({
       rate: tipWords,
-      share: (value, n) => t('shareTip', { value: formatPercent(value), count: n }),
+      share: (value, k, n) => t('shareTip', { value: formatPercent(value), k, n }),
       partial: t('partialWeek'),
     }),
     [tipWords, t],

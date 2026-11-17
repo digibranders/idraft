@@ -42,7 +42,12 @@ export function TopPromptsTable({ prompts, engines, onOpen }: TopPromptsTablePro
   const codes = engines.map(({ engine }) => engine.engine_code);
 
   const rateOf = (prompt: PromptSummaryRow, metric: CellMetric): string =>
-    words.text(averageRate(codes.map((code) => prompt.engines.find((cell) => cell.engine_code === code)?.[metric])));
+    words.text(
+      averageRate(
+        codes.map((code) => prompt.engines.find((cell) => cell.engine_code === code)?.[metric]),
+        metric,
+      ),
+    );
   /** What stands behind the Mention: each platform's own count, which a percent of an average cannot say. */
   const countsOf = (prompt: PromptSummaryRow): string =>
     formatList(

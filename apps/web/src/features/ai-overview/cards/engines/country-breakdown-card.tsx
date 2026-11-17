@@ -43,8 +43,20 @@ const METRIC_KEY = {
   share_of_voice: 'metricShareOfVoice',
 } as const satisfies Record<CountryMetric, string>;
 
-const REASON_KEY = { noAnswers: 'noAnswers', noneValid: 'noneValid', noBrandNamed: 'noBrandNamed' } as const;
-const NONE_STATUS = { noAnswers: 'no_answers', noneValid: 'no_valid_answers', noBrandNamed: 'no_brand_named' } as const;
+const REASON_KEY = {
+  noAnswers: 'noAnswers',
+  noneValid: 'noneValid',
+  noBrandNamed: 'noBrandNamed',
+  notCollected: 'notCollected',
+  capped: 'capped',
+} as const;
+const NONE_STATUS = {
+  noAnswers: 'no_answers',
+  noneValid: 'no_valid_answers',
+  noBrandNamed: 'no_brand_named',
+  notCollected: 'not_collected',
+  capped: 'over_cap',
+} as const;
 
 /** One engine of one country, in the words of the bars, the Table view, the file and the export. */
 interface Line {
@@ -96,17 +108,15 @@ function panelRow(figure: EngineFigure, metric: CountryMetric, engine: string, t
       ...base,
       valueText: '',
       contextText: null,
-      accessibleText: t('rowThin', { engine, count: figure.answers }),
+      accessibleText: t(metric === 'share_of_voice' ? 'rowThinShare' : 'rowThin', { engine, count: figure.answers }),
     };
   }
   if (figure.state === 'none') {
     return { ...base, valueText: '', contextText: null, accessibleText: t('rowNone', { engine, reason }) };
   }
   const valueText = formatPercent(figure.value, { decimals: 0 });
-  const context =
-    metric === 'share_of_voice' || figure.successes === null
-      ? t('contextShare', { n: figure.answers, prompts: figure.prompts })
-      : t('context', { k: figure.successes, n: figure.answers, prompts: figure.prompts });
+  const counts = { k: figure.successes ?? 0, n: figure.answers, prompts: figure.prompts };
+  const context = t(metric === 'share_of_voice' ? 'contextShare' : 'context', counts);
   return {
     ...base,
     valueText,
@@ -146,16 +156,16 @@ function lineOf(
     prompts: figure.prompts,
   };
   if (figure.state === 'insufficient') {
-    const words = t('thin', { count: figure.answers });
+    const words = t(metric === 'share_of_voice' ? 'thinShare' : 'thin', { count: figure.answers });
     return { ...shared, valueText: words, answersText: words, percent: null, status: 'insufficient' };
   }
   return {
     ...shared,
     valueText: formatPercent(figure.value, { decimals: 0 }),
-    answersText:
-      metric === 'share_of_voice' || figure.successes === null
-        ? t('answersShare', { n: figure.answers })
-        : t('answers', { k: figure.successes, n: figure.answers }),
+    answersText: t(metric === 'share_of_voice' ? 'answersShare' : 'answers', {
+      k: figure.successes ?? 0,
+      n: figure.answers,
+    }),
     percent: figure.value === null ? null : Math.round(figure.value * 10_000) / 100,
     status: 'ok',
   };

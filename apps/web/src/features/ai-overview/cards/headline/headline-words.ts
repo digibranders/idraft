@@ -29,9 +29,13 @@ export interface Described {
 function basisTip(reading: Extract<Reading, { state: 'ok' }>, { say, nameOf, list }: Words): string {
   const { basis } = reading;
   if (basis.kind === 'average') {
+    if (basis.parts !== undefined) {
+      const parts = list(basis.parts.map((part) => say('tips.platformCounts', { name: nameOf(part.code), k: part.k, n: part.n })));
+      return say('tips.averageShare', { used: basis.codes.length, parts });
+    }
     return say('tips.average', { used: basis.codes.length, names: list(basis.codes.map(nameOf)) });
   }
-  if (basis.noun === 'namingAnswers') return say('tips.naming', { n: basis.n });
+  if (basis.noun === 'brandMentions') return basis.k === null ? '' : say('tips.brandMentions', { k: basis.k, n: basis.n });
   if (basis.noun === 'orderedAnswers' || basis.noun === 'judgedMentions') {
     return say(`facts.tips.${basis.noun}`, { n: basis.n });
   }
@@ -44,7 +48,7 @@ function tooFewTip(reading: Extract<Reading, { state: 'insufficient' }>, { say }
   const min = FLOOR_OF[reading.noun];
   if (reading.noun === 'orderedAnswers') return say('facts.tips.tooFewOrdered', { min });
   if (reading.noun === 'judgedMentions') return say('facts.tips.tooFewJudged', { n: reading.n, min });
-  const key = reading.noun === 'namingAnswers' ? 'tips.tooFewNaming' : 'tips.tooFewCount';
+  const key = reading.noun === 'brandMentions' ? 'tips.tooFewBrandMentions' : 'tips.tooFewCount';
   return isNamedCount(reading.n) ? say(key, { n: reading.n, min }) : say('tips.tooFew', { min });
 }
 
@@ -71,6 +75,8 @@ export function describeReading(reading: Reading, words: Words): Described {
       return { value: say('notAvailable'), tip: say('tips.none'), note: say('tooFew'), known: false };
     case 'notCollected':
       return { value: say('notAvailable'), tip: say('tips.notCollected'), note: say('notCollected'), known: false };
+    case 'capped':
+      return { value: say('notAvailable'), tip: say('tips.capped'), note: say('capped'), known: false };
     case 'noAccess':
       return { value: say('notAvailable'), tip: say('tips.noAccess'), note: say('noAccess'), known: false };
   }

@@ -51,7 +51,7 @@ export default function TopicTrendsCard({ item, options, live }: CardProps): Rea
   const model = buildTrend({ nodes: data.nodes, engines, metric: cell, count });
   const trendWords: TrendWords = {
     rateTip: words.rateTip,
-    share: (value, answers) => common('tipShare', { value: words.percent(value), count: answers }),
+    share: (value, mentions, all) => common('tipShare', { value: words.percent(value), k: mentions, n: all }),
     pooledTo: (weeks, to) => t('pooledTo', { weeks, date: formatChartDate(to) }),
   };
   const panels = trendPanels(model, cell, trendWords, (row, column) =>

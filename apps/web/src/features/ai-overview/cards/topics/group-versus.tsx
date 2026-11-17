@@ -64,9 +64,9 @@ function useVersusText(counted: boolean): {
   const t = useTranslations('aiOverview.topics.groups.versus');
   const countsOf = (reading: Reading): string => {
     if (reading.used !== null) return t('averageCounts', { count: reading.used });
-    return counted && reading.successes !== null
-      ? t('ownAnswers', { successes: reading.successes, answers: reading.answers })
-      : t('ownAnswersOnly', { answers: reading.answers });
+    if (reading.successes === null) return t('ownAnswersOnly', { answers: reading.answers });
+    // Share of voice counts brand mentions: x of y, y being the mentions of every tracked brand in the group
+    return t(counted ? 'ownAnswers' : 'ownMentions', { successes: reading.successes, answers: reading.answers });
   };
   const ownText = (reading: Reading): string =>
     reading.value === null ? t('tipNone') : t('tipValue', { rate: percent(reading.value), counts: countsOf(reading) });

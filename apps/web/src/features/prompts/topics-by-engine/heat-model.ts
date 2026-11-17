@@ -26,7 +26,10 @@ export function heatInput(head: TopicHead, metric: CellMetric, codes: readonly s
   return {
     head,
     values,
-    average: averageRate(codes.map((code) => head.engines.find((cell) => cell.engine_code === code)?.[metric])),
+    average: averageRate(
+      codes.map((code) => head.engines.find((cell) => cell.engine_code === code)?.[metric]),
+      metric,
+    ),
     gap: engineGapOf(values),
   };
 }

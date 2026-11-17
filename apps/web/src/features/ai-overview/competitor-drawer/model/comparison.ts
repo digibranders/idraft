@@ -14,10 +14,12 @@ import type { Counts, RateState } from '@/lib/stats';
 export interface Figure {
   /** 0 to 1; `null` when no platform gives both brands a rate. */
   value: number | null;
-  /** One platform only: the valid answers (mention rate) or the answers that mention a tracked brand (share of voice). */
+  /** One platform only: the valid answers (mention rate) or the mentions of every tracked brand (share of voice, y). */
   answers: number | null;
-  /** One platform only, mention rate only: the answers that mention the brand. */
+  /** One platform only: the answers that mention the brand (mention rate) or the brand's mentions (share of voice, x). */
   successes: number | null;
+  /** The counts of each platform the average is over, in the order read: an average has no pooled count of its own (R3). */
+  parts: readonly { code: string; k: number; n: number }[];
   /**
    * The counts the gap is tested on: the one platform's, or the counts of the platforms in the average added up (the test
    * of a change of an average does the same). `null` where a platform's count is not known.
@@ -37,7 +39,7 @@ export interface Comparison {
   share: Pair;
 }
 
-const NONE: Figure = { value: null, answers: null, successes: null, counts: null };
+const NONE: Figure = { value: null, answers: null, successes: null, parts: [], counts: null };
 
 interface Reading {
   state: RateState;
@@ -89,7 +91,9 @@ function pairOf(
     const rival = brand(totals, rivalId, 'competitor');
     if (own === undefined || rival === undefined) return [];
     const sides = { own: read(own), rival: read(rival) };
-    return rated(sides.own) && rated(sides.rival) ? [{ own: sides.own, rival: sides.rival }] : [];
+    return rated(sides.own) && rated(sides.rival)
+      ? [{ code: totals.engineCode, own: sides.own, rival: sides.rival }]
+      : [];
   });
   if (used.length === 0) return { own: NONE, rival: NONE, platforms: 0 };
   const single = !average && used.length === 1 ? used[0] : undefined;
@@ -97,6 +101,9 @@ function pairOf(
     value: mean(used.map((entry) => entry[side].value)),
     answers: single?.[side].answers ?? null,
     successes: single?.[side].successes ?? null,
+    parts: used.flatMap((entry) =>
+      entry[side].successes === null ? [] : [{ code: entry.code, k: entry[side].successes, n: entry[side].answers }],
+    ),
     counts: countsOf(used.map((entry) => entry[side])),
   });
   return { own: figure('own'), rival: figure('rival'), platforms: used.length };

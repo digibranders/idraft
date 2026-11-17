@@ -69,7 +69,8 @@ export function EnginePanel(): ReactElement {
   const values = shown.map((entry) => entry.value);
   const panelRows = shown.map(({ engine, value }): EnginePanelRow => {
     const { engine_code: code, label } = engine;
-    const basis = words.basis(value) ?? '';
+    const isShare = metric === 'sov';
+    const basis = words.basis(value, isShare) ?? '';
     const noneText = words.reason(value) ?? panel('noAnswers');
     // Off at once: the rows held while the next read runs still carry the cells of the period they were compared with
     const change = compare ? engineChange(row?.engines, code, key) : null;
@@ -100,7 +101,7 @@ export function EnginePanel(): ReactElement {
             : value.prompts === null
               ? basis
               : metric === 'sov'
-                ? panel('shareContext', { answers: value.answers, prompts: value.prompts })
+                ? panel('shareContext', { successes: value.successes ?? 0, answers: value.answers })
                 : panel('context', { basis, prompts: value.prompts }),
       answers: value.answers,
       noneText,

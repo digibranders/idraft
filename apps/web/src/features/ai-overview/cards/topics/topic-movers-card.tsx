@@ -115,8 +115,8 @@ export default function TopicMoversCard({ item, options, live }: CardProps): Rea
   const sideText = (side: RateChange['now']): string => {
     const percent = words.percent(side.value);
     return side.successes === null
-      ? t('sideShare', { percent, n: side.answers })
-      : t('sideCounted', { percent, k: side.successes, n: side.answers });
+      ? t('sideShare', { percent, k: 0, n: side.answers })
+      : t(metric === 'share_of_voice' ? 'sideShare' : 'sideCounted', { percent, k: side.successes, n: side.answers });
   };
   const rowOf = (row: MoverRow): DivergingRow => {
     const label = t('row', { topic: row.node.name, engine: nameOf(row.code) });

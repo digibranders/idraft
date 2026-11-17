@@ -295,8 +295,7 @@ const TIP_KEY = { mention: 'mentionedTip', citation: 'citedTip', sov: 'shareOfVo
 
 /**
  * One column per engine showing the metric the switcher chose: its value as a percent with the count behind
- * it ("75% 6 of 8"; for share of voice "50% 6 answers", never a count of answers that name the brand, which it
- * is not). The percent is the insufficient pill under `MIN_OBSERVATIONS` valid answers; a prompt without an answer
+ * it ("75% 6 of 8"; for share of voice "50% 6 of 12 brand mentions", the counts of D17). The percent is the insufficient pill under `MIN_OBSERVATIONS` valid answers; a prompt without an answer
  * on the engine says so, and one whose answers were all invalid, or none naming a brand, shows "n/a" and why.
  * The column sorts by the value, high to low first. With `marks`, the header and the column chooser show the platform's
  * mark before the name.
@@ -323,6 +322,9 @@ export function useEngineRateColumns<TRow>(
           if (cellsOf(row) === undefined) return { label: EMPTY_VALUE, tip: t('notLoadedTip') };
           const { reason } = figureOf(row);
           if (reason === 'noAnswers') return { label: t('noAnswers'), tip: t('noAnswersTip') };
+          // Share of voice without the entity cells of its brands, or with them cut by the cap of 20
+          if (reason === 'notCollected') return { label: EMPTY_VALUE, tip: rate('notCollectedTip') };
+          if (reason === 'capped') return { label: EMPTY_VALUE, tip: rate('cappedTip') };
           return reason === 'noBrandNamed'
             ? { label: EMPTY_VALUE, tip: t('noBrandTip') }
             : { label: EMPTY_VALUE, tip: t('noValidTip', { count: summaryOf(row)?.mentioned.n_observations ?? 0 }) };
@@ -344,7 +346,12 @@ export function useEngineRateColumns<TRow>(
             const figure = figureOf(row);
             if (figure.state === 'insufficient') return <HatchedPill>{metrics('notEnough')}</HatchedPill>;
             if (figure.state === 'none') return <Missing label={gapOf(row).label} />;
-            const count = metric === 'sov' ? words.basis(figure) : countText(summaryOf(row)?.[key]);
+            const count =
+              metric === 'sov'
+                ? figure.successes === null
+                  ? null
+                  : rate('shareBasis', { k: figure.successes, n: figure.answers })
+                : countText(summaryOf(row)?.[key]);
             return (
               <span className="inline-flex items-baseline gap-1.5">
                 <span className="num">{words.text(figure)}</span>
@@ -368,7 +375,11 @@ export function useEngineRateColumns<TRow>(
               };
             }
             if (figure.state === 'none') return tipOf(gapOf(row));
-            if (metric === 'sov') return { content: t('shareBasisTip', { count: figure.answers }) };
+            if (metric === 'sov') {
+              return {
+                content: rate('shareBasis', { k: figure.successes ?? 0, n: figure.answers }),
+              };
+            }
             // Where some answers were not valid the cell says how many were
             const all = summaryOf(row)?.[key].n_observations ?? 0;
             return all > figure.answers ? { content: t('validOfTip', { valid: figure.answers, all }) } : undefined;

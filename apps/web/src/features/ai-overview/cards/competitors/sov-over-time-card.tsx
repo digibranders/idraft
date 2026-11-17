@@ -247,9 +247,12 @@ export default function SovOverTimeCard({ item, live }: CardProps): ReactElement
       if (point.state !== 'ok') return tooFew(point.answers);
       const value = series.find((entry) => entry.id === seriesId)?.values[index];
       if (typeof value !== 'number') return null;
-      return average
-        ? t('cellAverage', { value: formatShare(value) })
-        : t('cell', { value: formatShare(value), answers: point.answers });
+      if (average) return t('cellAverage', { value: formatShare(value) });
+      // One brand's mentions of the week over all tracked-brand mentions; "Other tracked" has no single count
+      const mentions = point.entities.find((entry) => entry.entityId === seriesId)?.numerator;
+      return mentions === undefined
+        ? t('cellNoCount', { value: formatShare(value), answers: point.answers })
+        : t('cell', { value: formatShare(value), k: mentions, answers: point.answers });
     },
     [points, series, tooFew, average, t],
   );

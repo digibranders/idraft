@@ -9,6 +9,7 @@ import {
   type TrackedSet,
 } from './types';
 import type { EngineSummary, EntityCells, MetricCell, PromptsSummary } from '@/lib/api/types';
+import { ENTITY_CELL_CAP } from '@/lib/rates/brand-mentions';
 import { pooledCounts, promptWeightedRate, rateState } from '@/lib/stats';
 
 /**
@@ -146,10 +147,13 @@ function fromRows(rows: readonly (EngineSummary & { entities: EntityCells[] })[]
  * without entity cells, is `unread`.
  */
 export function entityTotals(summary: PromptsSummary, engineCode: string, set: TrackedSet): EntityTotals {
+  // Cells cut by the cap of 20 leave out tracked brands, so y would be too small: no figure, as "not collected" (request 14)
+  const capped = (cells: readonly EntityCells[]): boolean =>
+    cells.length >= ENTITY_CELL_CAP && set.entities.length > cells.length;
   const total = summary.total?.engines.find((engine) => engine.engine_code === engineCode);
-  if (total !== undefined && hasEntities(total)) return fromTotal(total, total.entities, set);
+  if (total !== undefined && hasEntities(total)) return capped(total.entities) ? UNREAD : fromTotal(total, total.entities, set);
   const rows = engineRows(summary, engineCode).filter(hasEntities);
-  return rows.length === 0 ? UNREAD : fromRows(rows, set);
+  return rows.length === 0 || rows.some((row) => capped(row.entities)) ? UNREAD : fromRows(rows, set);
 }
 
 /**

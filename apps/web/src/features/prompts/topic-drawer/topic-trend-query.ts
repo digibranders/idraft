@@ -6,6 +6,7 @@ import { NO_TOPIC, topicSummaryRow } from '@/features/prompts/prompt-model';
 import type { TopicReadScope } from '@/features/prompts/topics-by-engine/topic-entities-query';
 import { apiQuery, type ApiQueryOptions } from '@/lib/api/query';
 import type { PromptsSummary, SummaryEntity, TopicSummaryRow } from '@/lib/api/types';
+import { withBrandMentionShare } from '@/lib/rates/brand-mention-share';
 
 const SUMMARY = '/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/prompts-summary' as const;
 
@@ -80,7 +81,11 @@ export function useTopicTrend(
     };
   }
   const { data } = query;
-  const row = data?.data.topics.find((topic) => topic.term_id === topicKey);
+  // The weekly entity cells of the row give its weeks as brand-mention counts (D17)
+  const row =
+    data === undefined
+      ? undefined
+      : withBrandMentionShare(data.data).topics.find((topic) => topic.term_id === topicKey);
   // The placeholder is the previous read, which may be another topic's: without this topic's row in it, nothing of it shows
   const foreign = query.isPlaceholderData && row === undefined;
   return {

@@ -17,6 +17,7 @@ const metricContext = ({ t, locale, engines, scope, facts }: PromptColumnContext
   engines,
   scope,
   ownEntityIds: ownEntityIdsOf(facts?.entities),
+  trackedCount: facts?.entities.length,
 });
 
 const NO_ANSWERS: FactsRow = { engines: [] };

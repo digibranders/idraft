@@ -105,9 +105,12 @@ function GroupExtremes({ item, live }: CardProps): ReactElement {
       heat('engineCount', {
         engine: labelOf(value.code),
         count:
-          value.successes !== null && isCountedMeasure(measure)
-            ? heat('countOf', { successes: value.successes, answers: value.answers })
-            : common('answerCount', { count: value.answers }),
+          value.successes === null
+            ? common('answerCount', { count: value.answers })
+            : heat(isCountedMeasure(measure) ? 'countOf' : 'mentionsOf', {
+                successes: value.successes,
+                answers: value.answers,
+              }),
       }),
     );
     return t('extremes.tip', {

@@ -65,10 +65,12 @@ const changeOf = (row: Compared): PointsDeltaInput => ({
 });
 
 /** One window of a row as the Table view and the CSV say it: the rate and the answers it rests on. */
-const sideText = (side: Compared['now'], t: Translate): string =>
-  side.successes === null
-    ? t('shareText', { value: formatPercent(side.value), n: side.answers })
-    : t('rateText', { value: formatPercent(side.value), k: side.successes, n: side.answers });
+const sideText = (side: Compared['now'], metric: ComparisonMetric, t: Translate): string =>
+  t(metric === 'share_of_voice' ? 'shareText' : 'rateText', {
+    value: formatPercent(side.value),
+    k: side.successes ?? 0,
+    n: side.answers,
+  });
 
 /**
  * "This period vs the last" (CH-10): for each asked engine the rate of the metric in the window before and now as two
@@ -112,7 +114,9 @@ export default function PeriodComparisonCard({ item, options, live }: CardProps)
       };
     }
     if (row.state === 'none') {
-      const words = t('noAnswersWords');
+      const words = t(
+        row.reason === 'notCollected' ? 'notCollectedWords' : row.reason === 'capped' ? 'cappedWords' : 'noAnswersWords',
+      );
       return {
         ...base,
         previous: null,
@@ -129,15 +133,17 @@ export default function PeriodComparisonCard({ item, options, live }: CardProps)
       ...base,
       previous: row.before.value,
       current: row.now.value,
-      previousText: sideText(row.before, t),
-      currentText: sideText(row.now, t),
+      previousText: sideText(row.before, metric, t),
+      currentText: sideText(row.now, metric, t),
     };
     if (row.interval === null) {
       const words = t('shareWords', {
         before: formatPercent(row.before.value),
         now: formatPercent(row.now.value),
         change: changeText,
+        kBefore: row.before.successes ?? 0,
         nBefore: row.before.answers,
+        kNow: row.now.successes ?? 0,
         nNow: row.now.answers,
       });
       return {

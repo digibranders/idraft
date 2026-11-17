@@ -34,7 +34,6 @@ export function CompetitorsTab(): ReactElement {
   const t = useTranslations('prompts.topicDrawer.competitors');
   const panel = useTranslations('prompts.topicDrawer.panel');
   const prompts = useTranslations('prompts');
-  const strip = useTranslations('prompts.strip');
   const common = useTranslations('common');
   const words = useRateWords();
   const { scope, range, includeBranded, brandedOnly, country } = extras;
@@ -66,12 +65,12 @@ export function CompetitorsTab(): ReactElement {
     if (figure === null) return <span>{panel('noAnswers')}</span>;
     // A cell with no valid answer says why (none valid, no brand named), as the panel does
     if (figure.state === 'none') return <span>{words.reason(figure) ?? panel('noAnswers')}</span>;
-    if (figure.state === 'insufficient') return <span>{words.inline(figure)}</span>;
-    const answers = words.basis(figure) ?? '';
+    const share = metric === 'share_of_voice';
+    if (figure.state === 'insufficient') return <span>{words.inline(figure, share)}</span>;
     const text = t('cell', {
       value: formatPercent(figure.value, { decimals: 0 }),
-      // Share of voice counts the answers that name a brand, which is not the same count as the answers of Mentioned
-      basis: metric === 'share_of_voice' ? strip('tipShareBasis', { basis: answers }) : answers,
+      // Share of voice counts brand mentions ("x of y brand mentions"), not the answers of Mentioned
+      basis: words.basis(figure, share) ?? '',
     });
     return cell.leads ? (
       <span className="inline-flex flex-col">

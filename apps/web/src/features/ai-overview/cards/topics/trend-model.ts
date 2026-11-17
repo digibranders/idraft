@@ -23,8 +23,8 @@ export const trendFileName = (metric: string): string => `topic-trends-by-engine
 
 export interface TrendWords {
   rateTip: RateTipWords;
-  /** Share of voice has no count of successes: "21%, 40 valid answers name a tracked brand". */
-  share: (value: number, answers: number) => string;
+  /** Share of voice counts brand mentions: "21%, 8 of 40 brand mentions". */
+  share: (value: number, mentions: number, all: number) => string;
   /** The weeks a pooled point holds and the day they end (an ISO date): "4 weeks to Nov 12". */
   pooledTo: (weeks: number, to: string) => string;
 }
@@ -103,7 +103,7 @@ export function pointText(point: TopicPoint | null, metric: CellMetric, words: T
     metric === 'share_of_voice'
       ? point.thin
         ? words.rateTip.thin(point.n)
-        : [words.share(point.value, point.n), words.rateTip.prompts(point.prompts)].join(', ')
+        : words.share(point.value, point.k ?? 0, point.n)
       : rateTipText(
           { value: point.value, k: point.k, n: point.n, prompts: point.prompts, band: point.band, thin: point.thin },
           words.rateTip,

@@ -82,9 +82,9 @@ function GroupsHeatmap({ item, live }: CardProps): ReactElement {
         heat('engineCount', {
           engine: platform,
           count:
-            counted && value.successes !== null
-              ? heat('countOf', { successes: value.successes, answers: value.answers })
-              : words.answers(value.answers),
+            value.successes === null
+              ? words.answers(value.answers)
+              : heat(counted ? 'countOf' : 'mentionsOf', { successes: value.successes, answers: value.answers }),
         }),
       noAnswers: words.rateTip.noAnswers,
       thin: words.rateTip.thin,

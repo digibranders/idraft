@@ -23,7 +23,7 @@ import { EngineLogo } from '@/components/app/engine/engine-logo';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip } from '@/components/ui/tooltip';
 import { engineLabel } from '@/lib/layouts';
-import { formatChartDate, formatPercent } from '@/lib/format';
+import { formatChartDate, formatList, formatPercent } from '@/lib/format';
 
 /** A value or a label with a tooltip is a tab stop that opens it (20 section 6.2 rule 6); the lint rule cannot see why. */
 const TAB_STOP = { tabIndex: 0 } as const;
@@ -130,7 +130,20 @@ function SummaryCard({
         : base;
 
   const valueTip = (figure: Figure, kind: 'mention' | 'share', platforms: number): string | null => {
-    if (read.platforms.average) return t('summary.valueAverage', { count: platforms });
+    if (read.platforms.average) {
+      // An average of platforms has no pooled count: each platform's own counts are named
+      const counts = formatList(
+        figure.parts.map((part) =>
+          t('summary.platformCounts', { name: engineLabel(part.code) ?? part.code, k: part.k, n: part.n }),
+        ),
+      );
+      return counts === ''
+        ? t('summary.valueAverage', { count: platforms })
+        : t(kind === 'mention' ? 'summary.valueAverageMention' : 'summary.valueAverageShare', {
+            count: platforms,
+            counts,
+          });
+    }
     if (figure.answers === null) return null;
     if (figure.successes === null) return null;
     return t(kind === 'mention' ? 'summary.valueMention' : 'summary.valueShare', {
@@ -172,12 +185,14 @@ function SummaryCard({
               value: citation.data?.own ?? null,
               answers: null,
               successes: null,
+              parts: [],
               counts: citation.data?.ownCounts ?? null,
             },
             rival: {
               value: citation.data?.rival ?? null,
               answers: null,
               successes: null,
+              parts: [],
               counts: citation.data?.rivalCounts ?? null,
             },
             ownTip: null,

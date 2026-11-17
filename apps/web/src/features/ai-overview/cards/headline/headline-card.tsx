@@ -123,13 +123,14 @@ export default function HeadlineCard({ item, live }: CardProps): ReactElement {
   const platforms: Platforms = useMemo(() => ({ asked: data.asked, single }), [data.asked, single]);
   const summary = data.current.data;
   const promptCount = data.aggregates?.promptCount ?? null;
-  const baselinePrompts = scope.topic === null ? undefined : baselineRead.data?.prompts;
+  const baselineSummary = scope.topic === null ? undefined : baselineRead.data;
+  const baselinePrompts = baselineSummary?.prompts;
 
   const model = useMemo((): Model | null => {
     if (summary === undefined || data.aggregates?.rowsRead !== true) return null;
     const tileOf = (tile: CellTile): TileModel => ({
-      reading: readTile(summary.prompts, platforms, tile),
-      baseline: baselinePrompts === undefined ? null : readTile(baselinePrompts, platforms, tile),
+      reading: readTile(summary, platforms, tile),
+      baseline: baselineSummary === undefined ? null : readTile(baselineSummary, platforms, tile),
       spark: sparkOf(summary, platforms, tile),
     });
     return {
@@ -143,7 +144,7 @@ export default function HeadlineCard({ item, live }: CardProps): ReactElement {
         sentiment: readFactTile(summary.prompts, platforms, 'sentiment'),
       },
     };
-  }, [summary, data.aggregates?.rowsRead, baselinePrompts, platforms, promptCount]);
+  }, [summary, data.aggregates?.rowsRead, baselineSummary, baselinePrompts, platforms, promptCount]);
 
   const words: Words = useMemo(
     () => ({

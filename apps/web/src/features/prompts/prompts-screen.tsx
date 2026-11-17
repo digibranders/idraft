@@ -75,6 +75,7 @@ import { usePromptActions } from './use-prompt-actions';
 import { TopicInspector } from './topic-inspector';
 import { selectionKeyOf } from './selection-model';
 import { DRAWER_ENTRY_KEYS } from './topics-by-engine/drill';
+import { topicEntitiesQuery } from './topics-by-engine/topic-entities-query';
 import { TopicsView } from './topics-by-engine/topics-view';
 import { ownEntityIdsOf } from './columns/metric-shared';
 import type { TopicMenuTarget } from './topics-table';
@@ -114,6 +115,7 @@ import { formatInspectTarget } from '@/lib/inspector/placement';
 import { useVocabularies } from '@/lib/keywords/taxonomy-reads';
 import { useCountries } from '@/lib/locations/countries';
 import { useCan, useMembership } from '@/lib/permissions';
+import { withBrandMentionShare } from '@/lib/rates/brand-mention-share';
 import type { StripPrompt } from '@/lib/rates/strip-model';
 import { projectPath } from '@/lib/routes/paths';
 import { formatColumns, formatSort, parseColumns, parseSort, sameSort, type SortKey } from '@/lib/tables/table-state';
@@ -257,7 +259,19 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     enabled: enabled.length > 0,
     placeholderData: keepPreviousData,
   });
-  const summaryData = summary.data?.data;
+  // Share of voice is a count of brand mentions (D17): the topic rows with their entity cells (the read the Groups tab and
+  // its drawer ask for too, so one request) give the counts of the topic rows; the page's own read carries none
+  const brandCounts = useQuery({
+    ...topicEntitiesQuery({ scope, range, includeBranded, brandedOnly, country }),
+    enabled: enabled.length > 0,
+    placeholderData: keepPreviousData,
+  });
+  const summaryPage = summary.data?.data;
+  const countsPage = brandCounts.data?.data;
+  const summaryData = useMemo(
+    () => (summaryPage === undefined ? undefined : withBrandMentionShare(summaryPage, countsPage)),
+    [summaryPage, countsPage],
+  );
   // The rows held while the read for a new choice loads were compared with the old one: the words keep saying so
   const [shownMode, setShownMode] = useState(compareMode);
   if (!summary.isPlaceholderData && shownMode !== compareMode) setShownMode(compareMode);
@@ -1037,6 +1051,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
           status={stripStatus}
           countsFailed={summaryFailed}
           ownEntityIds={ownEntityIdsOf(summaryData?.entities)}
+          trackedCount={summaryData?.entities.length}
         />
       ) : null;
     controls = (

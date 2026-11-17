@@ -1,4 +1,11 @@
-import { gapAt, hasWeeklyVisibility, projectWeeks, type TrendPoint, type WeekMetric } from './trend-model';
+import {
+  gapAt,
+  hasWeeklyVisibility,
+  projectWeeks,
+  weeklyShareNotCollected,
+  type TrendPoint,
+  type WeekMetric,
+} from './trend-model';
 import { optionOfMetric } from '../../scope/metric-option';
 import type { ScopeMetric } from '../../scope/scope-model';
 import type { EngineCode, PromptsSummary } from '@/lib/api/types';
@@ -79,7 +86,10 @@ export function buildPlatformTrend({
   previousRange,
   average,
 }: PlatformTrendInput): PlatformTrend {
-  const collected = metric !== 'visibility' || hasWeeklyVisibility(current);
+  const collected =
+    metric === 'visibility'
+      ? hasWeeklyVisibility(current)
+      : metric !== 'share_of_voice' || !weeklyShareNotCollected(current);
   if (!collected) return { metric, weeks: [], boundary: null, platforms: [], average: null, collected };
   const now = new Map(codes.map((code) => [code, projectWeeks(current, code, metric, range)]));
   const before = new Map(

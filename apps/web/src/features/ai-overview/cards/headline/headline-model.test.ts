@@ -97,16 +97,16 @@ describe('the hero', () => {
 describe('the tiles', () => {
   it('mention, share of voice and citation come from the strip rates of the platform', () => {
     const prompts = [prompt('p1', 'chatgpt_web', [10, 5, 5, 20])];
-    expect(ok(readTile(prompts, ONE, 'mention')).value).toBeCloseTo(15 / 40, 12);
-    expect(ok(readTile(prompts, ONE, 'citation')).value).toBeCloseTo(15 / 40, 12);
-    const sov = ok(readTile(prompts, ONE, 'sov'));
-    // Share of voice counts the answers that name a tracked brand and has no numerator count
-    expect(sov.basis).toMatchObject({ kind: 'counts', k: null, noun: 'namingAnswers' });
+    expect(ok(readTile({ prompts }, ONE, 'mention')).value).toBeCloseTo(15 / 40, 12);
+    expect(ok(readTile({ prompts }, ONE, 'citation')).value).toBeCloseTo(15 / 40, 12);
+    const sov = ok(readTile({ prompts }, ONE, 'sov'));
+    // Share of voice counts brand mentions: its numerator is the own brand's mentions
+    expect(sov.basis).toMatchObject({ kind: 'counts', noun: 'brandMentions' });
   });
 
   it('a platform with fewer than 4 answers has no value, and says how many it has', () => {
     const prompts = [prompt('p1', 'chatgpt_web', [1, 0, 1, 0])];
-    expect(readTile(prompts, ONE, 'mention')).toEqual({ state: 'insufficient', n: 2, noun: 'answers' });
+    expect(readTile({ prompts }, ONE, 'mention')).toEqual({ state: 'insufficient', n: 2, noun: 'answers' });
   });
 });
 

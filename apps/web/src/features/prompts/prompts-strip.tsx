@@ -34,6 +34,8 @@ export interface PromptsStripProps {
   countsFailed: boolean;
   /** The own brand's entities, for the brand-mention counts of share of voice; `undefined` until the read has them. */
   ownEntityIds?: ReadonlySet<string> | undefined;
+  /** How many brands the read tracks: entity cells at the cap of 20 with a longer set cut y short. */
+  trackedCount?: number | undefined;
 }
 
 /** The platforms the product names, by API code, and the key of their name in the catalog. */
@@ -123,6 +125,7 @@ export function PromptsStrip({
   status,
   countsFailed,
   ownEntityIds,
+  trackedCount,
 }: PromptsStripProps): ReactElement {
   const t = useTranslations('prompts.strip');
   const shell = useTranslations('prompts.shell.strip');
@@ -155,7 +158,7 @@ export function PromptsStrip({
    * them it is not collected yet, never a percent or a count made from the old sum of shares.
    */
   const shareDetail = (code: string): string => {
-    const counts = ownEntityIds === undefined ? null : brandMentionCountsOver(prompts, code, ownEntityIds);
+    const counts = ownEntityIds === undefined ? null : brandMentionCountsOver(prompts, code, ownEntityIds, trackedCount);
     if (counts === null) return t('tipNotCollected');
     if (counts.n === 0) return t('tipReason', { reason: 'noAnswers' });
     return rateState(counts.n) === 'ok'

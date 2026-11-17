@@ -16,6 +16,8 @@ export interface MetricContext {
   scope: readonly string[];
   /** The tracked entities that are the own brand, for the counts of share of voice; `undefined` until the read has them. */
   ownEntityIds?: ReadonlySet<string> | undefined;
+  /** How many brands the read tracks (`summary.entities`): the entity cells are capped at 20, so a longer set cuts y short. */
+  trackedCount?: number | undefined;
 }
 
 /** The own entities of a summary's tracked set, or `undefined` while there is none to look at. */

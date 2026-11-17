@@ -75,7 +75,10 @@ function averageReading(
 ): Reading {
   const metric = CELL_OF_MEASURE[measure];
   const mapped = cells === undefined ? [] : forMeasure(cells, measure);
-  const average = averageRate(codes.map((code) => mapped.find((cell) => cell.engine_code === code)?.[metric]));
+  const average = averageRate(
+    codes.map((code) => mapped.find((cell) => cell.engine_code === code)?.[metric]),
+    metric,
+  );
   return {
     state: average.state,
     value: average.state === 'ok' ? average.value : null,
@@ -91,7 +94,7 @@ function differenceOf(group: Reading, all: Reading): number | null {
 }
 
 /** The counts of a reading that has a rate and whole counts behind it. */
-const countsOf = (reading: Reading): Counts | null =>
+const countsOfReading = (reading: Reading): Counts | null =>
   reading.value === null || reading.successes === null ? null : { k: reading.successes, n: reading.answers };
 
 export function versusRows({ platforms, group, all, measure, averageLabel }: VersusInput): VersusRow[] {
@@ -112,6 +115,8 @@ export function versusRows({ platforms, group, all, measure, averageLabel }: Ver
     difference: differenceOf(own, every),
     detectable,
   });
+  // Brand mentions are not independent trials of one rate: share of voice has no test, so its counts are not tested
+  const countsOf = (reading: Reading): Counts | null => (measure === 'sov' ? null : countsOfReading(reading));
   const single = platforms.map((platform) => ({
     platform,
     own: platformReading(group, platform.code, measure),

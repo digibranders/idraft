@@ -7,6 +7,7 @@ import { NO_TOPIC, type DateRange } from '@/features/prompts/prompt-model';
 import type { PromptScope } from '@/features/prompts/prompt-queries';
 import { apiQuery, type ApiQueryOptions } from '@/lib/api/query';
 import type { SummaryEntity, TopicSummaryRow } from '@/lib/api/types';
+import { withBrandMentionShare } from '@/lib/rates/brand-mention-share';
 
 /** What the entities read of the Topics tab is asked of: the scope of the page's own summary read. */
 export interface TopicReadScope {
@@ -72,7 +73,10 @@ export function useTopicEntities(read: TopicReadScope, enabled: boolean): Entity
     () =>
       data === undefined
         ? NO_ROWS
-        : new Map(data.data.topics.map((topic) => [topic.term_id ?? NO_TOPIC, topic] as const)),
+        : new Map(
+            // The share of voice cell of each row as brand-mention counts, from the entity cells the read carries (D17)
+            withBrandMentionShare(data.data).topics.map((topic) => [topic.term_id ?? NO_TOPIC, topic] as const),
+          ),
     [data],
   );
   return {

@@ -138,7 +138,7 @@ export default function RateTrendCard({ item, live }: CardProps): ReactElement {
   const words = useMemo<TrendWords>(
     () => ({
       rate: tipWords,
-      share: (value, n) => t('shareTip', { value: formatPercent(value), count: n }),
+      share: (value, k, n) => t('shareTip', { value: formatPercent(value), k, n }),
       partial: trendWords('partialWeek'),
     }),
     [tipWords, t, trendWords],
@@ -207,7 +207,7 @@ export default function RateTrendCard({ item, live }: CardProps): ReactElement {
     if (data.phase === 'empty') return { title: t('emptyNoPromptsTitle'), reason: t('emptyNoPromptsReason') };
     if (!ready || trend === null) return null;
     if (!trend.collected) {
-      const reason = t('notCollectedReason');
+      const reason = t(weekMetric === 'share_of_voice' ? 'notCollectedShareReason' : 'notCollectedReason');
       return {
         title: t('notCollectedTitle'),
         reason:

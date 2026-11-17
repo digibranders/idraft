@@ -222,7 +222,14 @@ export function TopicsTable({
   );
   const rowName = useCallback((row: TopicRow): string => row.name, []);
   const columns = useMemo((): DataTableColumn<TopicRow>[] => {
-    const shared = { t: root, locale, engines, scope: codes, ownEntityIds: ownEntityIdsOf(facts?.entities) };
+    const shared = {
+      t: root,
+      locale,
+      engines,
+      scope: codes,
+      ownEntityIds: ownEntityIdsOf(facts?.entities),
+      trackedCount: facts?.entities.length,
+    };
     /** The facts of a row: a prompt's own summary row, a group's topic row; a row the read has none for has no answers. */
     const factsOf = (row: TopicRow): FactsRow | undefined => {
       if (facts === undefined) return undefined;

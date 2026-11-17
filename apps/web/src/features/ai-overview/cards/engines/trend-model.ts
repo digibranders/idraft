@@ -6,6 +6,7 @@ import { addDays } from '@/components/app/date-range/business-date';
 import type { EngineCode, EngineSummary, MetricCell, ProjectEngine, PromptsSummary, WeekCells } from '@/lib/api/types';
 import type { WeekWithVisibility } from '@/lib/api/week-visibility';
 import type { RateBandPoint } from '@/lib/charts/rate-band-chart';
+import { shareNoteOf } from '@/lib/rates/brand-mention-share';
 import { rateTipText, type RateTipWords } from '@/lib/charts/rate-tip';
 import type { CsvCell } from '@/lib/csv/csv-write';
 import { promptWeightedRate, rateState, wilsonInterval, type Interval, type RateState } from '@/lib/stats';
@@ -148,8 +149,9 @@ function promptsPart(cells: readonly { week: WeekCells; cell: MetricCell }[], me
   // No valid answer in the week is a gap, not a rate of 0
   if (n === 0) return GAP;
   if (metric === 'share_of_voice') {
-    // One answer one weight: the numerators are sums of shares, so they are no count of successes
-    return { value: sum(counts.map((count) => count.k)) / n, k: null, n, prompts: null, pooledWeeks };
+    // One mention one weight: the numerators are the own brand's mentions, the denominators every tracked brand's
+    const k = sum(counts.map((count) => count.k));
+    return { value: k / n, k, n, prompts: null, pooledWeeks };
   }
   if (counts.some((count) => !isWhole(count.k) || !isWhole(count.n) || count.k > count.n)) return GAP;
   return {
@@ -165,7 +167,9 @@ function promptsPart(cells: readonly { week: WeekCells; cell: MetricCell }[], me
 function totalPart(week: WeekCells, cell: MetricCell, metric: WeekMetric): Parts {
   const pooledWeeks = poolOf(week);
   if (metric === 'share_of_voice') {
-    return cell.denominator > 0 ? { value: cell.value, k: null, n: cell.denominator, prompts: null, pooledWeeks } : GAP;
+    return cell.denominator > 0
+      ? { value: cell.value, k: cell.numerator, n: cell.denominator, prompts: null, pooledWeeks }
+      : GAP;
   }
   const n = cell.pooled?.trials ?? cell.denominator;
   const k = cell.pooled?.successes ?? cell.numerator;
@@ -184,6 +188,17 @@ const totalSeries = (summary: PromptsSummary, code: EngineCode): readonly WeekCe
   const engine: EngineSummary | undefined = summary.total?.engines.find((entry) => entry.engine_code === code);
   return engine?.series != null && engine.series.length > 0 ? engine.series : null;
 };
+
+/**
+ * Whether the summary has weekly points and none of them carries its share of voice as brand-mention counts (no entity
+ * cells in the weeks). The weekly entity cells are not in production until backend request 10: the line is then "not
+ * collected", never drawn from the old sum of shares.
+ */
+export function weeklyShareNotCollected(summary: PromptsSummary): boolean {
+  const engines = [...(summary.total?.engines ?? []), ...summary.prompts.flatMap((prompt) => prompt.engines)];
+  const points = engines.flatMap((engine) => engine.series ?? []);
+  return points.length > 0 && points.every((week) => shareNoteOf(week.share_of_voice) !== undefined);
+}
 
 /** The weeks of an engine's series over the prompt rows, oldest first. */
 const promptWeeks = (summary: PromptsSummary, code: EngineCode): string[] =>
@@ -264,8 +279,8 @@ export function buildTrend({ current, previous, asked, metric, range }: TrendInp
 /** The finished words a point needs on top of the shared tooltip words. */
 export interface TrendWords {
   rate: RateTipWords;
-  /** "50%, 8 answers that name a brand". */
-  share: (value: number, n: number) => string;
+  /** "50%, 4 of 8 brand mentions". */
+  share: (value: number, k: number, n: number) => string;
   /** "partial week". */
   partial: string;
 }
@@ -274,8 +289,8 @@ export function tipOf(point: TrendPoint, metric: WeekMetric, words: TrendWords):
   const { value, k, n, prompts, band, thin, pooledWeeks } = point;
   const pooled = pooledWeeks ?? undefined;
   const text =
-    metric === 'share_of_voice' && !thin && value !== null
-      ? [words.share(value, n), pooled === undefined ? null : words.rate.pooled(pooled)]
+    metric === 'share_of_voice' && !thin && value !== null && k !== null
+      ? [words.share(value, k, n), pooled === undefined ? null : words.rate.pooled(pooled)]
           .filter((part): part is string => part !== null)
           .join(', ')
       : rateTipText({ value, k, n, prompts: prompts ?? undefined, band, thin, pooledWeeks: pooled }, words.rate);
