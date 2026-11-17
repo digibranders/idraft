@@ -41,6 +41,8 @@ class CostWorkload(StrEnum):
     EXTRACTION_LLM = "extraction_llm"
     KEYWORD_RESEARCH = "keyword_research"
     FIRST_PARTY = "first_party"
+    # A site crawl (On-Page): one post per crawl, no task of the ledger.
+    SITE_CRAWL = "site_crawl"
 
 
 class BudgetGroup(StrEnum):
@@ -50,6 +52,7 @@ class BudgetGroup(StrEnum):
     AI_BENCHMARK = "ai_benchmark"
     EXTRACTION_LLM = "extraction_llm"
     FIRST_PARTY = "first_party"
+    SITE_CRAWL = "site_crawl"
     ALL = "all"
 
 
@@ -70,6 +73,7 @@ _GROUP_OF: Mapping[CostWorkload, BudgetGroup] = MappingProxyType(
         CostWorkload.GA4_SYNC: BudgetGroup.FIRST_PARTY,
         CostWorkload.CLOUDFLARE_SYNC: BudgetGroup.FIRST_PARTY,
         CostWorkload.FIRST_PARTY: BudgetGroup.FIRST_PARTY,
+        CostWorkload.SITE_CRAWL: BudgetGroup.SITE_CRAWL,
     }
 )
 
@@ -105,6 +109,7 @@ _CHANNEL_OF: Mapping[BudgetGroup, CostChannel] = MappingProxyType(
         # Our own processing, and the first-party sources that cost calls and no money.
         BudgetGroup.EXTRACTION_LLM: CostChannel.INTERNAL,
         BudgetGroup.FIRST_PARTY: CostChannel.INTERNAL,
+        BudgetGroup.SITE_CRAWL: CostChannel.SEO,
     }
 )
 

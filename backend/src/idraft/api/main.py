@@ -59,6 +59,12 @@ from idraft.api.integrations.routes import oauth_router
 from idraft.api.integrations.routes import project_router as integrations_router
 from idraft.api.integrations.service import GoogleOAuthConfig, IntegrationService
 from idraft.api.integrations.state import OAuthStateStore
+from idraft.api.internal_links.page_tier_routes import router as page_tier_routes_router
+from idraft.api.internal_links.page_tiers import PageTierService
+from idraft.api.internal_links.read_routes import router as read_routes_router
+from idraft.api.internal_links.reads import LinkReadService
+from idraft.api.internal_links.tier_level_routes import router as tier_level_routes_router
+from idraft.api.internal_links.tier_levels import TierLevelService
 from idraft.api.keywords.group_routes import router as keyword_groups_router
 from idraft.api.keywords.group_service import GroupService
 from idraft.api.keywords.routes import keywords_router
@@ -257,6 +263,9 @@ def create_app(
                 ai_observations=ObservationService(sessions=sessions, raw_store=sources),
                 ai_summary=SummaryService(sessions=sessions),
                 ai_sources=SourceService(sessions=sessions),
+                tier_levels=TierLevelService(sessions=sessions),
+                page_tiers=PageTierService(sessions=sessions),
+                link_reads=LinkReadService(sessions=sessions),
                 invitations=InvitationService(
                     sessions=sessions,
                     throttle=throttle,
@@ -336,6 +345,9 @@ def create_app(
     app.include_router(integrations_router)
     app.include_router(engine_routes_router)
     app.include_router(prompt_routes_router)
+    app.include_router(tier_level_routes_router)
+    app.include_router(page_tier_routes_router)
+    app.include_router(read_routes_router)
     app.include_router(connections_router)
     app.include_router(oauth_router)
     app.include_router(registries_router)

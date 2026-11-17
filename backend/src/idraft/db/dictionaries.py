@@ -18,6 +18,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from idraft.db.tables import domains, urls
 from idraft.extraction.urls import CANONICALIZER_VERSION, CanonicalUrl, Host
 
+_URL_ROWS = 5_000
+
 
 @dataclass(frozen=True, slots=True)
 class UrlRow:
@@ -63,22 +65,25 @@ async def urls_for(db: AsyncSession, given: Iterable[CanonicalUrl]) -> dict[byte
     for _, group in groupby(missing, key=lambda url: url.host.name):
         new = list(group)
         domain_id = await domain_id_for(db, new[0].host)
-        await db.execute(
-            upsert(urls)
-            .values(
-                [
-                    {
-                        "url_hash": url.url_hash,
-                        "canonical_url": url.url,
-                        "domain_id": domain_id,
-                        "path": url.path,
-                        "canonicalizer_version": CANONICALIZER_VERSION,
-                    }
-                    for url in new
-                ]
+        # Five bind parameters a row against the driver's 32,767: a batch of 20,000 new URLs
+        # on one host cannot go in one statement.
+        for start in range(0, len(new), _URL_ROWS):
+            await db.execute(
+                upsert(urls)
+                .values(
+                    [
+                        {
+                            "url_hash": url.url_hash,
+                            "canonical_url": url.url,
+                            "domain_id": domain_id,
+                            "path": url.path,
+                            "canonicalizer_version": CANONICALIZER_VERSION,
+                        }
+                        for url in new[start : start + _URL_ROWS]
+                    ]
+                )
+                .on_conflict_do_nothing(index_elements=[urls.c.url_hash])
             )
-            .on_conflict_do_nothing(index_elements=[urls.c.url_hash])
-        )
     if missing:
         found = await _read_urls(db, list(distinct))
     return found

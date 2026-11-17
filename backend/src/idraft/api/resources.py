@@ -20,6 +20,9 @@ from idraft.api.entities.project_service import ProjectEntityService
 from idraft.api.entities.service import EntityService
 from idraft.api.imports.service import ImportService
 from idraft.api.integrations.service import IntegrationService
+from idraft.api.internal_links.page_tiers import PageTierService
+from idraft.api.internal_links.reads import LinkReadService
+from idraft.api.internal_links.tier_levels import TierLevelService
 from idraft.api.keywords.group_service import GroupService
 from idraft.api.keywords.service import KeywordService
 from idraft.api.operations.costs import CostService
@@ -74,6 +77,9 @@ class Resources:
     ai_observations: ObservationService
     ai_summary: SummaryService
     ai_sources: SourceService
+    tier_levels: TierLevelService
+    page_tiers: PageTierService
+    link_reads: LinkReadService
 
 
 def get_resources(request: Request) -> Resources:
