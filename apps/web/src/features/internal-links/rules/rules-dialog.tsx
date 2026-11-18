@@ -5,7 +5,7 @@ import { ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useId, useMemo, useRef, useState, type ReactElement } from 'react';
 
-import { reasonOf } from './problem-reason';
+import { reasonOf } from '@/lib/internal-links/problem-reason';
 import { ruleChanges, type DraftRule, type MatchType } from './rule-changes';
 import { InlineError } from '@/components/app/status/inline-error';
 import { TierBadge } from '@/components/app/tier/tier-badge';

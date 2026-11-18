@@ -528,6 +528,39 @@ describe('the Changes tab (spec 7.10)', () => {
     errors.mockRestore();
   });
 
+  it('offers Change alert rules on the alert, opens the dialog and returns focus to the action', async () => {
+    const { user } = open();
+    await screen.findByText(/editorial links? to T1 and T2 pages (was|were) lost since/);
+    const action = screen.getByRole('button', { name: 'Change alert rules' });
+    await user.click(action);
+    const dialog = await screen.findByRole('dialog', { name: 'Alert rules' });
+    expect(await within(dialog).findByRole('textbox', { name: 'Lost links that raise an alert' })).toHaveValue('1');
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Alert rules' })).toBeNull());
+    expect(screen.getByRole('button', { name: 'Change alert rules' })).toHaveFocus();
+  });
+
+  it('reads the summary again after the rules are saved', async () => {
+    const asked = reads('/changes/summary');
+    const { user } = open();
+    await screen.findByText(/editorial links? to T1 and T2 pages (was|were) lost since/);
+    await user.click(screen.getByRole('button', { name: 'Change alert rules' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Alert rules' });
+    const field = await within(dialog).findByRole('textbox', { name: 'Lost links that raise an alert' });
+    await user.clear(field);
+    await user.type(field, '5');
+    const before = asked().length;
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Alert rules' })).toBeNull());
+    await waitFor(() => expect(asked().length).toBeGreaterThan(before));
+  });
+
+  it('gives a viewer the alert with no way to change the rules', async () => {
+    renderWithProviders(internalLinksAs('viewer', EVENTUS_LINKS), { searchParams: '?tab=changes' });
+    await screen.findByText(/editorial links? to T1 and T2 pages (was|were) lost since/);
+    expect(screen.queryByRole('button', { name: 'Change alert rules' })).toBeNull();
+  });
+
   it('marks the table busy while a page is loading', async () => {
     manyRows();
     const { user } = open('&cs=all');

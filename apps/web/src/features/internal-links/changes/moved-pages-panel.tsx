@@ -6,7 +6,7 @@ import type { ReactElement } from 'react';
 
 import { ChangesPanel, PageButton } from './changes-panel';
 import type { LinksTabContext } from '../tabs';
-import { reasonOf } from '../rules/problem-reason';
+import { reasonOf } from '@/lib/internal-links/problem-reason';
 import { InlineError } from '@/components/app/status/inline-error';
 import { PlainTable, type PlainColumn } from '@/components/app/table/plain-table';
 import { TierBadge } from '@/components/app/tier/tier-badge';

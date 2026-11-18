@@ -9,12 +9,13 @@ import { ChangeLinksPanel } from './change-links-panel';
 import { ChangesStrip } from './changes-strip';
 import { MovedPagesPanel } from './moved-pages-panel';
 import { LinksDropped } from '../links-dropped';
-import { reasonOf } from '../rules/problem-reason';
+import { reasonOf } from '@/lib/internal-links/problem-reason';
 import { SkeletonRows } from '../crawl-states';
 import type { LinksTabContext } from '../tabs';
 import { Banner } from '@/components/app/status/banner';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { InlineError } from '@/components/app/status/inline-error';
+import { Button } from '@/components/ui/button';
 import { downloadApiFile } from '@/lib/api/download';
 import { alertText, alertTierText, sinceText } from '@/lib/internal-links/changes-format';
 import {
@@ -128,6 +129,13 @@ export function ChangesTab({ context }: { context: LinksTabContext }): ReactElem
             none: () => c('alertNone'),
             lost: (_count, alertTiers) => c('alert', { count: alert.lost_links, tiers: alertTiers, since }),
           })} ${c(alert.delivery_state === 'shown_in_app' ? 'delivery.shownInApp' : 'delivery.channelUnavailable')}`}
+          actions={
+            context.openAlertSettings === null ? undefined : (
+              <Button variant="secondary" size="sm" onClick={context.openAlertSettings}>
+                {c('alertAction')}
+              </Button>
+            )
+          }
         />
       )}
       {data.state === 'pending' ? (

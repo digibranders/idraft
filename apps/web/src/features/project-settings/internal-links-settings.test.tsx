@@ -138,6 +138,70 @@ describe('Project settings > Internal links', () => {
     );
   });
 
+  it('has an Alerts section whose changes join the save bar and are sent as the changed alert members', async () => {
+    const seen = patches();
+    const { user } = renderWithProviders(screenAs('editor'));
+    expect(await screen.findByRole('heading', { name: 'Alerts' })).toBeInTheDocument();
+    const field = screen.getByRole('textbox', { name: 'Lost links that raise an alert' });
+    await user.clear(field);
+    await user.type(field, '4');
+    await user.click(screen.getByRole('switch', { name: 'Render JavaScript' }));
+    expect(screen.getByText('2 unsaved changes')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(seen).toHaveLength(1));
+    expect(seen[0]).toEqual({ internal_links: { render_javascript: true, alerts: { threshold: 4 } } });
+  });
+
+  it('refuses an alert threshold out of range before sending', async () => {
+    const seen = patches();
+    const { user } = renderWithProviders(screenAs('editor'));
+    const field = await screen.findByRole('textbox', { name: 'Lost links that raise an alert' });
+    await user.clear(field);
+    await user.type(field, '0');
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    expect(await screen.findByText('Enter a number from 1 to 50.')).toBeInTheDocument();
+    expect(seen).toHaveLength(0);
+  });
+
+  it('shows the reason the server gives for the alert rules', async () => {
+    server.use(
+      http.patch(mswPath('/api/v1/workspaces/{workspace_id}/projects/{project_id}/settings'), () =>
+        HttpResponse.json(
+          {
+            type: 'about:blank',
+            title: 'Validation failed',
+            status: 422,
+            code: 'validation_failed',
+            detail: '1 field is invalid.',
+            errors: [
+              {
+                location: 'body',
+                path: 'internal_links.alerts.channel',
+                code: 'channel_unavailable',
+                message: 'Email and Slack alerts are not available yet.',
+              },
+            ],
+          },
+          { status: 422, headers: { 'content-type': 'application/problem+json' } },
+        ),
+      ),
+    );
+    const { user } = renderWithProviders(screenAs('editor'));
+    const field = await screen.findByRole('textbox', { name: 'Lost links that raise an alert' });
+    await user.clear(field);
+    await user.type(field, '4');
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    expect(await screen.findByText('Email and Slack alerts are not available yet.')).toBeInTheDocument();
+    expect(screen.getByText('1 unsaved change')).toBeInTheDocument();
+  });
+
+  it('shows the alert rules as text to a viewer', async () => {
+    renderWithProviders(screenAs('viewer'));
+    expect(await screen.findByRole('heading', { name: 'Alerts' })).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Lost links that raise an alert' })).toBeNull();
+    expect(screen.getByText('In the app')).toBeInTheDocument();
+  });
+
   it('shows the settings read-only to a viewer, with no save bar', async () => {
     renderWithProviders(screenAs('viewer'));
     expect(await screen.findByRole('switch', { name: 'Render JavaScript' })).toHaveAttribute('aria-disabled', 'true');

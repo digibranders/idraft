@@ -46,6 +46,8 @@ export interface LinksTabContext {
   openJourney: (urlId: string) => void;
   /** Hands the page's Export menu this tab's download, or `null` while it has none. */
   registerExport: (run: (() => Promise<void>) | null) => void;
+  /** Opens the alert rules dialog (spec 7.10); `null` for a member who may not change the project's settings. */
+  openAlertSettings: (() => void) | null;
   /** A link inside the app that keeps nothing of this page's address. */
   hrefOf: (path: `/${string}`) => Route;
 }

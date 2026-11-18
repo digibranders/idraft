@@ -6,7 +6,7 @@ import { useState, type ReactElement } from 'react';
 
 import { TierBadge } from '@/components/app/tier/tier-badge';
 import { Button } from '@/components/ui/button';
-import { reasonOf } from './problem-reason';
+import { reasonOf } from '@/lib/internal-links/problem-reason';
 import { Dialog, DialogBody, DialogClose, DialogFooter, DialogHeader } from '@/components/ui/dialog';
 import { Field, FieldDescription, FieldLabel } from '@/components/ui/field';
 import { FormAlert } from '@/components/ui/form-alert';

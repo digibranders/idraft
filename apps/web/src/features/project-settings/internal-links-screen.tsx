@@ -5,6 +5,15 @@ import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useId, useState, type ReactElement } from 'react';
 
+import { reasonOf } from '@/lib/internal-links/problem-reason';
+import {
+  ALERT_DEFAULTS,
+  AlertFields,
+  alertPatch,
+  checkThreshold,
+  draftOf,
+  type AlertDraft,
+} from '@/components/app/alert-rules/alert-settings';
 import { InlineError } from '@/components/app/status/inline-error';
 import { Banner } from '@/components/app/status/banner';
 import { PlainTable, type PlainColumn } from '@/components/app/table/plain-table';
@@ -23,7 +32,7 @@ import { isApiProblem } from '@/lib/api/problem';
 import { EMPTY_VALUE, formatCurrency, formatInteger, formatTableDateTime } from '@/lib/format';
 import { failedText } from '@/lib/internal-links/crawl-failure';
 import { updateSettingsMutation } from '@/lib/internal-links/mutations';
-import { CRAWL_LIMIT, crawlsQuery, linkSettingsQuery } from '@/lib/internal-links/queries';
+import { CRAWL_LIMIT, crawlsQuery, linkSettingsQuery, pageTiersQuery } from '@/lib/internal-links/queries';
 import type { CrawlRun, CrawlSchedule, InternalLinksSettingsPatch } from '@/lib/internal-links/types';
 import { useLeaveGuard } from '@/lib/navigation/use-leave-guard';
 import { useCan } from '@/lib/permissions';
@@ -64,6 +73,7 @@ interface Edits {
   schedule?: CrawlSchedule;
   render_javascript?: boolean;
   subdomains?: string;
+  alerts?: Partial<AlertDraft>;
 }
 
 const hostsOf = (text: string): string[] =>
@@ -100,6 +110,7 @@ export function InternalLinksSettingsScreen({
 }: InternalLinksSettingsScreenProps): ReactElement {
   const t = useTranslations('internalLinksSettings');
   const states = useTranslations('internalLinks.states');
+  const alerts = useTranslations('internalLinks.alerts');
   const common = useTranslations('common');
   const canWrite = useCan('projects:write');
   const scope = { workspaceId, projectId };
@@ -107,10 +118,12 @@ export function InternalLinksSettingsScreen({
   const formId = useId();
   const settings = useQuery(linkSettingsQuery(scope));
   const crawls = useQuery(crawlsQuery(scope));
+  const tiers = useQuery(pageTiersQuery(workspaceId));
   const update = useMutation(updateSettingsMutation);
   const saved = settings.data?.data.internal_links;
   const [edits, setEdits] = useState<Edits>({});
   const [subdomainError, setSubdomainError] = useState<string | null>(null);
+  const [thresholdError, setThresholdError] = useState<'range' | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
 
   const savedHosts = saved?.allowed_subdomains ?? [];
@@ -118,8 +131,15 @@ export function InternalLinksSettingsScreen({
   const renderJavascript = edits.render_javascript ?? saved?.render_javascript ?? false;
   const subdomainText = edits.subdomains ?? savedHosts.join(', ');
 
+  const savedAlerts = saved?.alerts ?? ALERT_DEFAULTS;
+  const alertDraft: AlertDraft = { ...draftOf(savedAlerts), ...edits.alerts };
+  const alertChanges = alertPatch(savedAlerts, alertDraft);
+  // A threshold typed and not valid yet is a change the person has to fix before saving
+  const thresholdInvalid = checkThreshold(alertDraft.threshold) !== null;
+
   // Only what differs from the saved settings is a change, and only that is sent
   const patch: InternalLinksSettingsPatch = {
+    ...(Object.keys(alertChanges).length > 0 ? { alerts: alertChanges } : {}),
     ...(saved !== undefined && schedule !== saved.schedule ? { schedule } : {}),
     ...(saved !== undefined && renderJavascript !== saved.render_javascript
       ? { render_javascript: renderJavascript }
@@ -128,11 +148,12 @@ export function InternalLinksSettingsScreen({
       ? { allowed_subdomains: hostsOf(edits.subdomains) }
       : {}),
   };
-  const changes = Object.keys(patch).length;
+  const changes = Object.keys(patch).length + (patch.alerts === undefined && thresholdInvalid ? 1 : 0);
   const guard = useLeaveGuard(changes > 0);
   const discard = (): void => {
     setEdits({});
     setSubdomainError(null);
+    setThresholdError(null);
     setFailure(null);
   };
   const edit = (next: Edits): void => {
@@ -146,6 +167,11 @@ export function InternalLinksSettingsScreen({
       setSubdomainError(t('subdomainsTooMany'));
       return;
     }
+    if (thresholdInvalid) {
+      setThresholdError('range');
+      return;
+    }
+    if (Object.keys(patch).length === 0) return;
     setSubdomainError(null);
     setFailure(null);
     update.mutate(
@@ -164,6 +190,11 @@ export function InternalLinksSettingsScreen({
             if (field !== undefined) {
               // The host rule is the server's: it names the hosts it refused. Other codes get the catalog sentence.
               setSubdomainError(field.code === 'not_a_site_host' ? field.message : t('subdomainsInvalid'));
+              return;
+            }
+            // The alert rules are the server's too: its reason names what it refused
+            if (error.errors.some((item) => item.path.includes('alerts'))) {
+              setFailure(reasonOf(error) || t('saveFailed'));
               return;
             }
           }
@@ -283,6 +314,21 @@ export function InternalLinksSettingsScreen({
             <FieldDescription>{host === '' ? t('subdomainsNoSite') : t('subdomainsHint', { host })}</FieldDescription>
             {subdomainError === null ? null : <FieldError message={subdomainError} />}
           </Field>
+          <div className="flex flex-col gap-3">
+            <h3 className="type-subsection-title">{alerts('section')}</h3>
+            <AlertFields
+              draft={alertDraft}
+              saved={savedAlerts}
+              tierCount={tiers.data?.data.length ?? null}
+              canEdit={canWrite}
+              busy={update.isPending}
+              thresholdError={thresholdError}
+              onChange={(next) => {
+                if (next.threshold !== undefined) setThresholdError(null);
+                edit({ alerts: { ...edits.alerts, ...next } });
+              }}
+            />
+          </div>
           <SaveBar
             visible={canWrite && changes > 0}
             summary={t('unsavedCount', { count: changes })}

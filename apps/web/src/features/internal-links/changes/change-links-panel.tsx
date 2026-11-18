@@ -27,7 +27,7 @@ import { isLinksDropped } from '@/lib/internal-links/contract-states';
 import { changeLinksQuery, isChangeLinkPage } from '@/lib/internal-links/queries';
 import { PLACEMENT_KEY } from '@/lib/internal-links/scopes';
 import type { ChangeKind, ChangeLink, ChangeLinkPage, ChangeOnly, ChangeScope } from '@/lib/internal-links/types';
-import { reasonOf } from '../rules/problem-reason';
+import { reasonOf } from '@/lib/internal-links/problem-reason';
 
 const SCOPES: readonly ChangeScope[] = ['editorial', 'all'];
 const PRIORITY_KEY = { lost_to_t1: 'lostToT1', lost_to_t2: 'lostToT2', lower: 'lower' } as const;

@@ -15,6 +15,7 @@ import { PageInspector, PageNotFoundInspector } from './inspector/page-inspector
 import { UNTIERED_QUERY } from './pages/page-filters';
 import { ImportDialog } from './rules/import-dialog';
 import { RulesDialog } from './rules/rules-dialog';
+import { AlertRulesDialog } from './settings/alert-rules-dialog';
 import { TabBadge } from './tab-badge';
 import { activeLinksTab, LINK_LEVEL_TABS, LINKS_TABS, type LinksTabContext } from './tabs';
 import { useTabBadges } from './use-tab-badges';
@@ -137,7 +138,7 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
   const [order, setOrder] = useState<readonly string[]>([]);
   const canWrite = useCan('projects:write');
   // Anyone who reads the project reads the rules; only a member who may write sets them or imports tiers
-  const [dialog, setDialog] = useState<'rules' | 'import' | null>(null);
+  const [dialog, setDialog] = useState<'rules' | 'import' | 'alerts' | null>(null);
   const ruleItems: MenuItemDef[] = [
     { id: 'rules', label: t('rules.open'), icon: ListFilter, onSelect: () => setDialog('rules') },
     ...(canWrite ? [{ id: 'import', label: t('csv.open'), icon: Upload, onSelect: () => setDialog('import') }] : []),
@@ -221,6 +222,7 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
         { history: 'push' },
       ),
     registerExport,
+    openAlertSettings: canWrite ? () => setDialog('alerts') : null,
     hrefOf: (path) => projectPath(workspaceSlug, project.slug, path),
   };
 
@@ -427,6 +429,15 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
         tiers={context.tiers}
         canWrite={canWrite}
       />
+      {canWrite ? (
+        <AlertRulesDialog
+          open={dialog === 'alerts'}
+          onOpenChange={(next) => setDialog(next ? 'alerts' : null)}
+          scope={scope}
+          tierCount={tiers.data?.data.length ?? null}
+          canEdit={canWrite}
+        />
+      ) : null}
       {canWrite ? (
         <ImportDialog
           open={dialog === 'import'}
