@@ -26,7 +26,10 @@ describe('the crawl routes of the mock API', () => {
   it('lists the crawls of a project, newest first', async () => {
     const answer = await mockBrowser('viewer').call('GET', `${P}/link-crawls?limit=10`);
     expect(answer.status).toBe(200);
-    expect(RUNS.parse(answer.body)).toMatchObject({ data: [{ state: 'ready' }], page: { has_more: false } });
+    const runs = RUNS.parse(answer.body);
+    expect(runs.data).toHaveLength(5);
+    expect(runs.data.every((run) => run.state === 'ready')).toBe(true);
+    expect(runs.page.has_more).toBe(false);
   });
 
   it('starts a crawl, and answers the one under way to a second request', async () => {
@@ -57,7 +60,8 @@ describe('the crawl routes of the mock API', () => {
     expect((await editor.call('POST', stranger, {})).status).toBe(404);
     // Reading still works, and nothing was queued
     const listed = RUNS.parse((await editor.call('GET', `${P}/link-crawls`)).body).data;
-    expect(listed).toMatchObject([{ state: 'ready' }]);
+    expect(listed).toHaveLength(5);
+    expect(listed.every((run) => run.state === 'ready')).toBe(true);
     setCrawlsEnabled(true);
     expect((await editor.call('POST', `${P}/link-crawls`, {})).status).toBe(202);
   });

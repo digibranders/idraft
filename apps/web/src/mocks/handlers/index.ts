@@ -5,6 +5,8 @@ import { entityHandlers } from './entities';
 import { costHandlers } from './costs';
 import { integrationHandlers } from './integrations';
 import { internalLinkHandlers } from './internal-links';
+import { internalLinkChangeHandlers } from './internal-links-changes';
+import { internalLinkOpportunityHandlers } from './internal-links-opportunities';
 import { invitationHandlers } from './invitations';
 import { keywordGroupHandlers } from './keyword-groups';
 import { keywordImportHandlers } from './keyword-imports';
@@ -196,8 +198,10 @@ export const handlers: readonly HttpHandler[] = [
   ...commandPaletteHandlers,
   // WP-55 recommendations
   ...recommendationHandlers,
-  // Internal links (plan 03)
+  // Internal links (plan 03), changes, opportunities, suggestions and paths (plan 05)
   ...internalLinkHandlers,
+  ...internalLinkChangeHandlers,
+  ...internalLinkOpportunityHandlers,
   ...pendingHandlers,
 ];
 

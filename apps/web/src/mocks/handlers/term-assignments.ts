@@ -15,7 +15,7 @@ import { withSettings, withTermLinks, DEPTH_PROFILES, type StoredSeoSettings } f
 import { invalid, mock } from '../respond';
 import { internalLinksSettingsScheduleValues } from '@/lib/api/schema';
 import type { ValidationItem } from '@/lib/api/types';
-import type { InternalLinksSettingsPatch } from '@/lib/internal-links/types';
+import type { AlertSettingsPatch, InternalLinksSettingsPatch } from '@/lib/internal-links/types';
 
 /**
  * Terms given to tracked keywords in bulk (19 section 3.5, as built in step 5): `add` (a term of a
@@ -54,8 +54,59 @@ const SEO_FIELDS = {
   visibility_volume_mode: ['annual_average', 'seasonal'],
 } as const;
 
-const LINK_FIELDS = ['schedule', 'render_javascript', 'allowed_subdomains'];
+const LINK_FIELDS = ['schedule', 'render_javascript', 'allowed_subdomains', 'alerts'];
+const ALERT_FIELDS = ['enabled', 'max_position', 'threshold', 'channel'];
+const ALERT_CHANNELS = ['app', 'email', 'slack'] as const;
 const MAX_SUBDOMAINS = 10;
+
+/** A whole number within its bounds, or its error (`null` and a member left out pass: the caller checks those). */
+function wholeError(value: unknown, path: string, min: number, max: number): ValidationItem[] {
+  if (value === undefined || value === null) return [];
+  if (typeof value !== 'number' || !Number.isInteger(value)) {
+    return [bodyError(path, 'int_type', 'Input should be a valid integer')];
+  }
+  if (value < min)
+    return [bodyError(path, 'greater_than_equal', `Input should be greater than or equal to ${String(min)}`)];
+  return value > max
+    ? [bodyError(path, 'less_than_equal', `Input should be less than or equal to ${String(max)}`)]
+    : [];
+}
+
+/**
+ * The field errors of an `internal_links.alerts` patch (backend `AlertSettingsPatch`): email and Slack are refused
+ * with the reason in the field error, as the API refuses them until the alerts service ships.
+ */
+function alertErrors(alerts: unknown): ValidationItem[] {
+  const path = 'internal_links.alerts';
+  if (alerts === undefined || alerts === null) return [];
+  if (!isRecord(alerts)) return [notAnObject(path)];
+  const errors = extraMembers(alerts, ALERT_FIELDS, path);
+  if (Object.keys(alerts).length === 0) {
+    errors.push(bodyError(path, 'value_error', 'Value error, give at least one alert setting to change'));
+  }
+  for (const name of ALERT_FIELDS) {
+    if (alerts[name] === null) errors.push(bodyError(`${path}.${name}`, 'null_not_allowed', 'Cannot be null.'));
+  }
+  errors.push(
+    ...booleanError(alerts.enabled ?? undefined, `${path}.enabled`),
+    ...wholeError(alerts.max_position, `${path}.max_position`, 1, 8),
+    ...wholeError(alerts.threshold, `${path}.threshold`, 1, 50),
+  );
+  const channel = alerts.channel;
+  if (channel === undefined || channel === null) return errors;
+  if (channel === 'email' || channel === 'slack') {
+    errors.push(
+      bodyError(
+        `${path}.channel`,
+        'value_error',
+        'Value error, channel_unavailable: email and Slack alerts are not available yet',
+      ),
+    );
+  } else if (!isOneOf(channel, ALERT_CHANNELS)) {
+    errors.push(...enumError(channel, `${path}.channel`, ALERT_CHANNELS));
+  }
+  return errors;
+}
 
 /** The field errors of an `internal_links` patch, as the API's model gives them (backend `InternalLinksSettingsPatch`). */
 function linksErrors(links: Readonly<Record<string, unknown>>, host: string | undefined): ValidationItem[] {
@@ -70,6 +121,7 @@ function linksErrors(links: Readonly<Record<string, unknown>>, host: string | un
     errors.push(...enumError(links.schedule, 'internal_links.schedule', internalLinksSettingsScheduleValues));
   if (links.render_javascript !== null)
     errors.push(...booleanError(links.render_javascript, 'internal_links.render_javascript'));
+  errors.push(...alertErrors(links.alerts));
   const hosts = links.allowed_subdomains;
   if (hosts === undefined || hosts === null) return errors;
   if (!Array.isArray(hosts))
@@ -109,11 +161,23 @@ const hostsOf = (entries: readonly unknown[]): string[] => [
 
 /** The checked `internal_links` patch as the typed patch. */
 function settingsPatchOf(links: Readonly<Record<string, unknown>>): InternalLinksSettingsPatch {
-  const { schedule, render_javascript: render, allowed_subdomains: hosts } = links;
+  const { schedule, render_javascript: render, allowed_subdomains: hosts, alerts } = links;
   return {
     ...(isOneOf(schedule, internalLinksSettingsScheduleValues) ? { schedule } : {}),
     ...(typeof render === 'boolean' ? { render_javascript: render } : {}),
     ...(Array.isArray(hosts) ? { allowed_subdomains: hostsOf(hosts) } : {}),
+    ...(isRecord(alerts) ? { alerts: alertPatchOf(alerts) } : {}),
+  };
+}
+
+/** The checked `internal_links.alerts` patch: the members given (email and Slack never get this far). */
+function alertPatchOf(alerts: Readonly<Record<string, unknown>>): AlertSettingsPatch {
+  const { enabled, max_position: maxPosition, threshold, channel } = alerts;
+  return {
+    ...(typeof enabled === 'boolean' ? { enabled } : {}),
+    ...(typeof maxPosition === 'number' ? { max_position: maxPosition } : {}),
+    ...(typeof threshold === 'number' ? { threshold } : {}),
+    ...(channel === 'app' ? { channel } : {}),
   };
 }
 

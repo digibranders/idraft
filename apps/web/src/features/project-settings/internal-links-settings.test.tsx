@@ -151,7 +151,8 @@ describe('Project settings > Internal links', () => {
   it('lists the crawls with state, trigger, pages, cost and date', async () => {
     renderWithProviders(screenAs('editor'));
     const table = await screen.findByRole('table', { name: 'Latest 10 crawls' });
-    expect(await within(table).findByText('Ready')).toBeInTheDocument();
+    // The mock keeps five finished crawls
+    expect(await within(table).findAllByText('Ready')).toHaveLength(5);
     for (const header of ['When', 'Started by', 'State', 'Pages', 'Cost']) {
       expect(within(table).getByRole('columnheader', { name: header })).toBeInTheDocument();
     }
@@ -251,7 +252,7 @@ describe('Project settings > Internal links', () => {
   it.each(['light', 'dark'])('has no axe violations in the %s theme', async (theme) => {
     document.documentElement.classList.toggle('dark', theme === 'dark');
     const { container } = renderWithProviders(screenAs('editor'));
-    await within(await screen.findByRole('table', { name: 'Latest 10 crawls' })).findByText('Ready');
+    await within(await screen.findByRole('table', { name: 'Latest 10 crawls' })).findAllByText('Ready');
     expect(await axe(container)).toHaveNoViolations();
   });
 });

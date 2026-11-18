@@ -97,6 +97,7 @@ const PROBLEMS = {
   invalid_state_transition: [409, 'Not possible in this state'],
   // Internal links (backend api/internal_links/problems.py)
   no_crawl: [404, 'The site has no finished crawl yet'],
+  links_dropped: [410, 'This crawl no longer holds its links'],
   crawl_in_progress: [409, 'A crawl of this site is under way'],
   no_website: [422, 'The project has no website to crawl'],
   crawls_disabled: [503, 'Site crawls are not switched on yet'],

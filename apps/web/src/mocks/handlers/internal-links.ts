@@ -1,7 +1,16 @@
 import { HttpResponse, type HttpHandler } from 'msw';
 
 import { projectCaller, workspaceCaller } from './access';
+import { readRun, requireLinks } from './internal-links-run';
 import { bodyError, booleanError, isRecord, notAnObject, nullErrors, queryError } from './rules';
+import {
+  hasGenericAnchors,
+  lostLinksTopIds,
+  pageDelta,
+  pageDetailExtras,
+  pageExtras,
+  worklistCounts,
+} from '../internal-links-changes-world';
 import {
   cancelCrawl,
   crawledPage,
@@ -9,9 +18,7 @@ import {
   crawlsOf,
   edgeRows,
   freshId,
-  hasFinishedCrawl,
   linksWorld,
-  MOCK_RUN_ID,
   neighborsOf,
   otherScopes,
   pageRow,
@@ -21,7 +28,9 @@ import {
   ruleView,
   statusClassOf,
   tierFlow,
+  runViewOf,
   tierRef,
+  weakOutlinkIds,
   worklists,
 } from '../internal-links-world';
 import { invalid, invalidField, mock, noContent, problem, unknownMembers } from '../respond';
@@ -32,7 +41,7 @@ import { parseLinkScope, type LinkScope } from '@/lib/internal-links/scopes';
 import { checkRuleValue, MAX_RULES } from '@/lib/internal-links/rule-value';
 import { MAX_BODY_BYTES, MAX_CSV_CHARS, parseTierCsv, requestBytes } from '@/lib/internal-links/tier-csv';
 import { MAX_TIERS } from '@/lib/internal-links/tiers';
-import type { PageFilter, PageRow, TierImportResult } from '@/lib/internal-links/types';
+import type { PageFilter, PageInclude, PageRow, TierImportResult } from '@/lib/internal-links/types';
 
 /**
  * The backend OpenAPI's internal links routes, answered from `internal-links-world.ts` (decision W21). Requests are
@@ -56,7 +65,10 @@ const PAGE_QUERY = [
   'filter[worklist]',
   'q',
   'sort',
+  'include',
 ];
+const INCLUDES: readonly PageInclude[] = ['changes', 'keywords', 'citations', 'anchors', 'gsc'];
+const includesOf = (names: readonly string[]): PageInclude[] => INCLUDES.filter((part) => names.includes(part));
 const EDGE_QUERY = [
   ...LIST_QUERY,
   'filter[source_tier]',
@@ -119,7 +131,7 @@ const listOf = (url: URL, key: string): string[] =>
   (url.searchParams.get(key) ?? '').split(',').filter((value) => value !== '');
 const scopeOf = (url: URL): LinkScope => parseLinkScope(url.searchParams.get('scope'));
 // The server ends lines with LF (csv_export.py); the web's writer ends them with CRLF
-const csv = (rows: readonly (readonly (string | number)[])[], name: string): HttpResponse<string> =>
+export const csv = (rows: readonly (readonly (string | number)[])[], name: string): HttpResponse<string> =>
   new HttpResponse(csvLines(rows).replaceAll('\r\n', '\n'), {
     headers: { 'content-type': 'text/csv', 'content-disposition': `attachment; filename="${name}.csv"` },
   });
@@ -169,16 +181,38 @@ const criteriaOfFilter = (filter: PageFilter): Criteria => ({
   q: filter.q ?? null,
 });
 
-function pageMatches(row: PageRow, criteria: Criteria): boolean {
+/** The pages the worklists that need the crawl history or the links name, for the crawl in view. */
+interface MatchContext {
+  lostTop: ReadonlySet<string>;
+  weak: ReadonlySet<string>;
+}
+
+/** The worklist pages of a crawl (none for a project with no finished crawl). */
+function contextOf(projectId: string, run: string | null): MatchContext {
+  const view = runViewOf(projectId, run);
+  return view === null
+    ? { lostTop: new Set(), weak: new Set() }
+    : { lostTop: lostLinksTopIds(projectId, view), weak: new Set(weakOutlinkIds()) };
+}
+
+function pageMatches(row: PageRow, criteria: Criteria, context: MatchContext): boolean {
   const { tierIds, tagIds, status, indexable, flags, worklist, q } = criteria;
   if (tierIds.length > 0 && !tierIds.includes(row.tier?.tier_id ?? 'none')) return false;
   if (tagIds.length > 0 && !row.tags.some((tag) => tagIds.includes(tag.term_id))) return false;
   if (status.length > 0 && (row.status_code === null || !status.includes(statusClassOf(row.status_code)))) return false;
   if (indexable !== null && row.is_indexable !== indexable) return false;
   for (const flag of flags) {
-    const has = flag === 'has_broken_outlinks' ? row.broken_outlinks > 0 : row.flags.some((own) => own === flag);
+    const page = crawledPage(row.url_id);
+    const has =
+      flag === 'has_broken_outlinks'
+        ? row.broken_outlinks > 0
+        : flag === 'generic_anchors'
+          ? page !== undefined && hasGenericAnchors(page)
+          : row.flags.some((own) => own === flag);
     if (!has) return false;
   }
+  if (worklist === 'lost_links_top' && !context.lostTop.has(row.url_id)) return false;
+  if (worklist === 'weak_outlinks' && !context.weak.has(row.url_id)) return false;
   if (worklist === 'orphans' && !row.flags.includes('orphan')) return false;
   if (worklist === 'editorial_orphans' && !row.flags.includes('editorial_orphan')) return false;
   if (worklist === 'deep_only_through_auto' && !row.flags.includes('deep_only_through_auto')) return false;
@@ -200,9 +234,11 @@ const SORTS: Readonly<Record<string, (row: PageRow) => string | number>> = {
   outlinks: (row) => row.outlinks,
 };
 
-function sortRows(rows: PageRow[], sort: string): PageRow[] {
+/** `change` sorts by the change of links in since the previous crawl (a page with none has 0). */
+function sortRows(rows: PageRow[], sort: string, deltaOf: (row: PageRow) => number): PageRow[] {
   const desc = sort.startsWith('-');
-  const read = SORTS[desc ? sort.slice(1) : sort] ?? SORTS.path;
+  const key = desc ? sort.slice(1) : sort;
+  const read = key === 'change' ? deltaOf : (SORTS[key] ?? SORTS.path);
   if (read === undefined) return rows;
   return [...rows].sort((a, b) => {
     const left = read(a);
@@ -214,9 +250,9 @@ function sortRows(rows: PageRow[], sort: string): PageRow[] {
 }
 
 /** A `core.urls` id as the API takes it: a positive int64 as digits, no leading zero (backend test_url_id_strings). */
-const isUrlId = (value: string): boolean => /^[1-9][0-9]*$/.test(value) && BigInt(value) <= 9223372036854775807n;
+export const isUrlId = (value: string): boolean => /^[1-9][0-9]*$/.test(value) && BigInt(value) <= 9223372036854775807n;
 
-const urlIdError = (location: 'path' | 'query' | 'body', path: string): ValidationItem => ({
+export const urlIdError = (location: 'path' | 'query' | 'body', path: string): ValidationItem => ({
   location,
   path,
   code: 'value_error',
@@ -232,7 +268,7 @@ interface Selection {
  * The pages a bulk body names: its ids (one the crawl does not hold is left out), or its filter on the latest
  * crawl; an id that is no url id, or a body that names neither, is a 422.
  */
-function selected(request: Request, body: Selection): string[] | HttpResponse<Problem> {
+function selected(request: Request, body: Selection, projectId: string): string[] | HttpResponse<Problem> {
   if (body.url_ids !== undefined && body.url_ids !== null) {
     const bad = body.url_ids.flatMap((id, index) =>
       isUrlId(id) ? [] : [urlIdError('body', `url_ids.${String(index)}`)],
@@ -244,9 +280,10 @@ function selected(request: Request, body: Selection): string[] | HttpResponse<Pr
     return invalidField(request, 'url_ids', 'missing', 'Give url_ids or filter.');
   }
   const criteria = criteriaOfFilter(body.filter);
+  const context = contextOf(projectId, null);
   return crawledPages()
     .map((page) => pageRow(page, 'editorial'))
-    .filter((row) => pageMatches(row, criteria))
+    .filter((row) => pageMatches(row, criteria, context))
     .map((row) => row.url_id);
 }
 
@@ -489,7 +526,7 @@ export const internalLinkHandlers: HttpHandler[] = [
     });
     if (caller instanceof Response) return caller;
     const body = await request.json();
-    const ids = selected(request, body);
+    const ids = selected(request, body, caller.project.project_id);
     if (ids instanceof Response) return ids;
     if (body.tier_id !== null && tierRef(body.tier_id) === null) {
       return invalidField(request, 'tier_id', 'unknown_tier', 'Not a tier of this workspace.');
@@ -509,7 +546,7 @@ export const internalLinkHandlers: HttpHandler[] = [
       permission: 'projects:write',
     });
     if (caller instanceof Response) return caller;
-    const ids = selected(request, await request.json());
+    const ids = selected(request, await request.json(), caller.project.project_id);
     if (ids instanceof Response) return ids;
     const world = linksWorld();
     const changed = ids.filter((id) => world.manual.delete(id)).length;
@@ -571,7 +608,7 @@ export const internalLinkHandlers: HttpHandler[] = [
     });
     if (caller instanceof Response) return caller;
     const body = await request.json();
-    const ids = selected(request, body);
+    const ids = selected(request, body, caller.project.project_id);
     if (ids instanceof Response) return ids;
     const world = linksWorld();
     let added = 0;
@@ -652,14 +689,30 @@ export const internalLinkHandlers: HttpHandler[] = [
       query: PAGE_QUERY,
     });
     if (caller instanceof Response) return caller;
-    if (!hasFinishedCrawl(caller.project.project_id)) return problem(request, 'no_crawl');
+    const include = listOf(caller.url, 'include');
+    const unknownIncludes = include.filter((part) => !INCLUDES.some((known) => known === part));
+    if (unknownIncludes.length > 0 || include.length > INCLUDES.length) {
+      return invalid(request, [queryError('include', 'enum', `Allowed: ${INCLUDES.join(', ')}.`)]);
+    }
+    const run = readRun(request, caller.url, caller.project.project_id);
+    if (run instanceof Response) return run;
+    // The weak outlinks need the links, which a crawl past the last four no longer holds
+    if (caller.url.searchParams.get('filter[worklist]') === 'weak_outlinks') {
+      const gone = requireLinks(request, run);
+      if (gone !== null) return gone;
+    }
     const view = scopeOf(caller.url);
     const criteria = criteriaOfUrl(caller.url);
+    const context = contextOf(caller.project.project_id, run.run.run_id);
     const rows = sortRows(
       crawledPages()
         .map((page) => pageRow(page, view))
-        .filter((row) => pageMatches(row, criteria)),
+        .filter((row) => pageMatches(row, criteria, context)),
       caller.url.searchParams.get('sort') ?? 'path',
+      (row) => {
+        const page = crawledPage(row.url_id);
+        return page === undefined ? 0 : pageDelta(run, page);
+      },
     );
     if (caller.url.searchParams.get('format') === 'csv') {
       // The server's columns in the server's order (`_PAGE_CSV_HEADER` of reads.py); it has no equity column
@@ -685,9 +738,17 @@ export const internalLinkHandlers: HttpHandler[] = [
         'pages',
       );
     }
+    const window = cursorPage(caller.url, rows);
     return HttpResponse.json({
-      ...cursorPage(caller.url, rows),
-      meta: { run_id: MOCK_RUN_ID, scope: view, total: rows.length },
+      ...window,
+      // The parts asked for with `include`, for the rows of this window only
+      data: window.data.map((row) => {
+        const page = crawledPage(row.url_id);
+        return include.length === 0 || page === undefined
+          ? row
+          : { ...row, extras: pageExtras(run, page, includesOf(include)) };
+      }),
+      meta: { run_id: run.run.run_id, scope: view, total: rows.length, links_available: run.run.links_available },
     });
   }),
 
@@ -699,13 +760,16 @@ export const internalLinkHandlers: HttpHandler[] = [
     if (caller instanceof Response) return caller;
     const id = String(params.url_id);
     if (!isUrlId(id)) return invalid(request, [urlIdError('path', 'url_id')]);
-    if (!hasFinishedCrawl(caller.project.project_id)) return problem(request, 'no_crawl');
+    const run = readRun(request, caller.url, caller.project.project_id);
+    if (run instanceof Response) return run;
     const page = crawledPage(id);
     if (page === undefined) return problem(request, 'not_found');
     const view = scopeOf(caller.url);
     const row = pageRow(page, view);
-    const linking = neighborsOf(page.id, 'in', view);
-    const outlinks = neighborsOf(page.id, 'out', view);
+    // A crawl whose links were dropped keeps the page's stored counts but no lists of links
+    const kept = run.run.links_available;
+    const linking = kept ? neighborsOf(page.id, 'in', view) : [];
+    const outlinks = kept ? neighborsOf(page.id, 'out', view) : [];
     const placements = new Map<NonNullable<(typeof linking)[number]['placement']>, number>();
     for (const neighbor of linking) {
       if (neighbor.placement !== null)
@@ -716,19 +780,12 @@ export const internalLinkHandlers: HttpHandler[] = [
         page: row,
         linking_by_tier: row.linked_from_tiers,
         linking_by_placement: [...placements].map(([placement, pages]) => ({ placement, pages })),
-        top_anchors: row.top_anchor === null ? [] : [{ anchor: row.top_anchor, links: 1 }],
+        top_anchors: kept && row.top_anchor !== null ? [{ anchor: row.top_anchor, links: 1 }] : [],
         linking_pages: linking.slice(0, 25),
         outlinks: outlinks.slice(0, 25),
         linking_pages_total: linking.length,
         outlinks_total: outlinks.length,
-        // Nothing enriched yet: the backend's answer for a crawl whose enrichment has not run (plan 05 Task 9 fills it)
-        extras: {
-          anchors: { distinct: null, generic: 0, generic_share: 0, matches_keyword: null, top: null, total: 0 },
-          change: null,
-          citations: { ai_mode: 0, chatgpt: 0, gemini: 0, total: 0 },
-          gsc: { state: 'pending', clicks: null, impressions: null, window_start: null, window_end: null },
-          keywords: [],
-        },
+        extras: pageDetailExtras(run, page),
       },
     });
   }),
@@ -744,7 +801,10 @@ export const internalLinkHandlers: HttpHandler[] = [
       return given === null || isUrlId(given) ? [] : [urlIdError('query', name)];
     });
     if (badIds.length > 0) return invalid(request, badIds);
-    if (!hasFinishedCrawl(caller.project.project_id)) return problem(request, 'no_crawl');
+    const run = readRun(request, caller.url, caller.project.project_id);
+    if (run instanceof Response) return run;
+    const gone = requireLinks(request, run);
+    if (gone !== null) return gone;
     const url = caller.url;
     const view = scopeOf(url);
     const sourceTiers = listOf(url, 'filter[source_tier]');
@@ -793,7 +853,7 @@ export const internalLinkHandlers: HttpHandler[] = [
     }
     return HttpResponse.json({
       ...cursorPage(url, rows),
-      meta: { run_id: MOCK_RUN_ID, scope: view, total: rows.length },
+      meta: { run_id: run.run.run_id, scope: view, total: rows.length, links_available: true },
     });
   }),
 
@@ -806,7 +866,10 @@ export const internalLinkHandlers: HttpHandler[] = [
     const url = caller.url;
     const id = url.searchParams.get('url_id') ?? '';
     if (!isUrlId(id)) return invalid(request, [urlIdError('query', 'url_id')]);
-    if (!hasFinishedCrawl(caller.project.project_id)) return problem(request, 'no_crawl');
+    const run = readRun(request, url, caller.project.project_id);
+    if (run instanceof Response) return run;
+    const gone = requireLinks(request, run);
+    if (gone !== null) return gone;
     const page = crawledPage(id);
     if (page === undefined) return problem(request, 'not_found');
     const direction = url.searchParams.get('direction') === 'in' ? 'in' : 'out';
@@ -817,7 +880,7 @@ export const internalLinkHandlers: HttpHandler[] = [
     return HttpResponse.json({
       data: all.slice(offset, offset + limit),
       meta: {
-        run_id: MOCK_RUN_ID,
+        run_id: run.run.run_id,
         url_id: id,
         direction,
         scope: view,
@@ -834,8 +897,12 @@ export const internalLinkHandlers: HttpHandler[] = [
       query: ['run', 'scope'],
     });
     if (caller instanceof Response) return caller;
-    if (!hasFinishedCrawl(caller.project.project_id)) return problem(request, 'no_crawl');
-    return HttpResponse.json({ data: tierFlow(scopeOf(caller.url)) });
+    const run = readRun(request, caller.url, caller.project.project_id);
+    if (run instanceof Response) return run;
+    // The links of a crawl past the last four are gone: its stored flow comes back marked stale
+    return HttpResponse.json({
+      data: { ...tierFlow(scopeOf(caller.url)), run_id: run.run.run_id, stale: !run.run.links_available },
+    });
   }),
 
   mock('get', `${P}/internal-links/worklists`, ({ request, cookies, params }) => {
@@ -844,7 +911,10 @@ export const internalLinkHandlers: HttpHandler[] = [
       query: ['run'],
     });
     if (caller instanceof Response) return caller;
-    if (!hasFinishedCrawl(caller.project.project_id)) return problem(request, 'no_crawl');
-    return HttpResponse.json({ data: worklists() });
+    const run = readRun(request, caller.url, caller.project.project_id);
+    if (run instanceof Response) return run;
+    return HttpResponse.json({
+      data: { ...worklists(), run_id: run.run.run_id, ...worklistCounts(caller.project.project_id, run) },
+    });
   }),
 ];
