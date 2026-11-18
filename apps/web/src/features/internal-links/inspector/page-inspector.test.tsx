@@ -4,7 +4,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { READ_LIMIT } from '@/lib/internal-links/journey-layout';
 import { MOCK_WORKSPACE } from '@/mocks/fixtures';
-import { crawledPage, EVENTUS, MOCK_RUN_ID, neighborsOf, pageRow } from '@/mocks/internal-links-world';
+import {
+  crawledPage,
+  EVENTUS,
+  HISTORY_RUN_IDS,
+  MOCK_RUN_ID,
+  neighborsOf,
+  pageRow,
+  setLinksScenario,
+} from '@/mocks/internal-links-world';
 import { mswPath } from '@/mocks/respond';
 import { axe } from '@/test/axe';
 import { EVENTUS_LINKS, internalLinksAs } from '@/test/internal-links-harness';
@@ -110,6 +118,13 @@ describe('the page inspector (spec 7.4)', () => {
             linking_by_tier: [],
             linking_by_placement: [],
             top_anchors: [],
+            extras: {
+              anchors: { total: 0, distinct: 0, generic: 0, generic_share: 0, matches_keyword: null, top: [] },
+              change: null,
+              citations: { chatgpt: 0, gemini: 0, ai_mode: 0, total: 0 },
+              gsc: { state: 'pending', clicks: null, impressions: null, window_start: null, window_end: null },
+              keywords: [],
+            },
             linking_pages: [],
             outlinks: [],
             linking_pages_total: READ_LIMIT + 10,
@@ -329,6 +344,72 @@ describe('the page inspector (spec 7.4)', () => {
     renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: 'inspect=page:999999' });
     const panel = await panelOf('Page');
     expect(await within(panel).findByText('This page is not in the latest crawl.')).toBeInTheDocument();
+  });
+
+  describe('the sections that read the extras', () => {
+    const section = async (name: string): Promise<HTMLElement> => {
+      const panel = await panelOf('/pricing');
+      return (await within(panel).findByRole('heading', { name })).closest('section') as HTMLElement;
+    };
+
+    it('shows the new sections after the by tier card and before the linking pages, with no equity or strength', async () => {
+      renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), OPEN);
+      const panel = await panelOf('/pricing');
+      const headings = (await within(panel).findAllByRole('heading', { level: 3 })).map((node) => node.textContent);
+      const at = (name: string | RegExp): number =>
+        headings.findIndex((text) => (typeof name === 'string' ? text === name : name.test(text ?? '')));
+      expect(at('Linking pages by tier')).toBeLessThan(at('Changes since the last crawl'));
+      expect(at('Changes since the last crawl')).toBeLessThan(at('Tracked keywords'));
+      expect(at('AI citations')).toBeLessThan(at('Anchor text pointing here'));
+      expect(at('Google Search Console')).toBeLessThan(at(/^Linking pages \(/));
+      expect(panel.textContent ?? '').not.toMatch(/equity|strength/i);
+      const attributes = [...panel.querySelectorAll('[aria-label], [title]')].map(
+        (element) => `${element.getAttribute('aria-label') ?? ''} ${element.getAttribute('title') ?? ''}`,
+      );
+      expect(attributes.join(' ')).not.toMatch(/equity|strength/i);
+    });
+
+    it('shows the Google data of the page and the citation counts', async () => {
+      renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), OPEN);
+      expect(await section('Google Search Console')).toHaveTextContent(
+        '960 clicks, 12,000 impressions, last 28 days (Google data)',
+      );
+      expect(await section('AI citations')).toHaveTextContent('Cited in 1 answer');
+    });
+
+    it('says Search Console is syncing, or not connected', async () => {
+      setLinksScenario({ gsc: 'pending' });
+      const pending = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), OPEN);
+      expect(await section('Google Search Console')).toHaveTextContent('Search Console is syncing.');
+      pending.unmount();
+      setLinksScenario({ gsc: 'not_connected' });
+      renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), OPEN);
+      expect(await section('Google Search Console')).toHaveTextContent('Search Console is not connected.');
+    });
+
+    it('has no changes section on a first crawl, and says Updating or Not available while the comparison is not ready', async () => {
+      setLinksScenario({ firstCrawl: true });
+      const first = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), OPEN);
+      await section('Tracked keywords');
+      expect(screen.queryByRole('heading', { name: 'Changes since the last crawl' })).toBeNull();
+      first.unmount();
+      setLinksScenario({ firstCrawl: false, enrich: 'running' });
+      const running = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), OPEN);
+      expect(await section('Changes since the last crawl')).toHaveTextContent('Updating');
+      running.unmount();
+      setLinksScenario({ enrich: 'failed' });
+      renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), OPEN);
+      await waitFor(async () =>
+        expect(await section('Changes since the last crawl')).toHaveTextContent('Not available'),
+      );
+    });
+
+    it('says Not stored for the anchors of a crawl whose links were dropped', async () => {
+      renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
+        searchParams: `inspect=page:108&run=${HISTORY_RUN_IDS[4] ?? ''}`,
+      });
+      expect(await section('Anchor text pointing here')).toHaveTextContent('Not stored');
+    });
   });
 
   describe.each(['light', 'dark'])('axe in the %s theme', (theme) => {

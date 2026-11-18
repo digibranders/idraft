@@ -1,10 +1,11 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { Anchor, Copy, ExternalLink, Flag, Layers, ListTree, Workflow } from 'lucide-react';
+import { Copy, ExternalLink, Flag, Layers, ListTree, Workflow } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useMemo, useState, type ReactElement } from 'react';
 
+import { ExtrasSections } from './extras-sections';
 import { NeighborSection } from './neighbor-section';
 import { BulkTagDialog } from '../pages/bulk-tag-dialog';
 import { usePageBulk, type BulkTarget } from '../pages/use-page-bulk';
@@ -29,7 +30,8 @@ import { copyText } from '@/lib/dom/clipboard';
 import { EMPTY_VALUE, formatInteger, formatTableDate } from '@/lib/format';
 import { useVocabularies } from '@/lib/keywords/taxonomy-reads';
 import { pageFlags, type FlagKey } from '@/lib/internal-links/page-flags';
-import { DEFAULT_PAGE_QUERY, pageDetailQuery, tierRulesQuery } from '@/lib/internal-links/queries';
+import { comparisonOf } from '@/lib/internal-links/page-extras';
+import { changesSummaryQuery, DEFAULT_PAGE_QUERY, pageDetailQuery, tierRulesQuery } from '@/lib/internal-links/queries';
 import { PLACEMENT_KEY, SCOPE_KEY, type Placement } from '@/lib/internal-links/scopes';
 import { tierPosition } from '@/lib/internal-links/tiers';
 import type { PageTier } from '@/lib/internal-links/types';
@@ -72,6 +74,11 @@ export function PageInspector({
   const { scope, state, tiers, timeZone } = context;
   const read = useQuery(pageDetailQuery(scope, urlId, state.scope, context.crawl.run));
   const rules = useQuery(tierRulesQuery(scope));
+  const summary = useQuery(changesSummaryQuery(scope, context.crawl.run));
+  // Until the summary has answered nothing is known of the comparison, so it reads as updating, not as a verdict
+  const comparison = summary.isPending
+    ? 'updating'
+    : comparisonOf(summary.data?.data.state, context.crawl.crawl?.enrich_state);
   const vocabularies = useVocabularies(scope);
   const tags = useMemo(
     () =>
@@ -276,20 +283,11 @@ export function PageInspector({
                 </>
               )}
             </InspectorSection>
-            <InspectorSection title={t('topAnchors')} icon={Anchor} status="ready">
-              {detail.top_anchors.length === 0 ? (
-                <p className="type-body text-foreground-tertiary">{t('noLinksIn')}</p>
-              ) : (
-                <ul className="flex flex-col gap-1">
-                  {detail.top_anchors.map((entry) => (
-                    <li key={entry.anchor} className="flex items-center justify-between gap-2 type-table">
-                      <span className="min-w-0 truncate">{t('anchor', { anchor: entry.anchor })}</span>
-                      <span className="num text-foreground-secondary">{t('anchorLinks', { count: entry.links })}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </InspectorSection>
+            <ExtrasSections
+              extras={detail.extras}
+              comparison={comparison}
+              linksAvailable={context.crawl.linksAvailable}
+            />
             <NeighborSection
               scope={scope}
               urlId={urlId}
