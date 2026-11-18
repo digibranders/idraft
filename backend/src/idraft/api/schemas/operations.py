@@ -18,6 +18,7 @@ from pydantic import (
 
 from idraft.api.pagination import CursorPageInfo, OffsetPageInfo
 from idraft.api.schemas.common import Body, Patch, printable, refuse_null
+from idraft.api.schemas.internal_links_extra import AlertChannel, AlertSettings
 from idraft.api.schemas.keywords import DepthProfile, OfferedDepthProfile
 from idraft.api.schemas.metrics import Usd
 from idraft.api.timezones import Timezone
@@ -410,6 +411,10 @@ class InternalLinksSettings(BaseModel):
         description="Hosts of the project's site, besides its own and its `www.` form, that "
         "crawls follow (up to 10).",
     )
+    alerts: AlertSettings = Field(
+        default_factory=AlertSettings,
+        description="The alert for links lost to the important tiers (spec 7.10).",
+    )
 
 
 class ProjectSettings(BaseModel):
@@ -445,12 +450,37 @@ class SeoSettingsPatch(Patch):
         return self
 
 
+class AlertSettingsPatch(Patch):
+    enabled: bool | None = None
+    max_position: Annotated[int, Field(ge=1, le=8)] | None = None
+    threshold: Annotated[int, Field(ge=1, le=50)] | None = None
+    channel: AlertChannel | None = None
+
+    _not_null = field_validator("enabled", "max_position", "threshold", "channel")(refuse_null)
+
+    @field_validator("channel")
+    @classmethod
+    def _only_the_app(cls, value: AlertChannel | None) -> AlertChannel | None:
+        if value in ("email", "slack"):
+            raise ValueError("channel_unavailable: email and Slack alerts are not available yet")
+        return value
+
+    @model_validator(mode="after")
+    def _says_something(self) -> AlertSettingsPatch:
+        if not self.model_fields_set:
+            raise ValueError("give at least one alert setting to change")
+        return self
+
+
 class InternalLinksSettingsPatch(Patch):
     schedule: CrawlScheduleName | None = None
     render_javascript: bool | None = None
     allowed_subdomains: SubdomainList | None = None
+    alerts: AlertSettingsPatch | None = None
 
-    _not_null = field_validator("schedule", "render_javascript", "allowed_subdomains")(refuse_null)
+    _not_null = field_validator("schedule", "render_javascript", "allowed_subdomains", "alerts")(
+        refuse_null
+    )
 
     @model_validator(mode="after")
     def _says_something(self) -> InternalLinksSettingsPatch:

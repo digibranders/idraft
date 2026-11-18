@@ -1613,6 +1613,75 @@
         "title": "AioStateInfo",
         "type": "object"
       },
+      "AlertSettings": {
+        "properties": {
+          "channel": {
+            "default": "app",
+            "enum": [
+              "app",
+              "email",
+              "slack"
+            ],
+            "title": "Channel",
+            "type": "string"
+          },
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "max_position": {
+            "default": 2,
+            "description": "Tier positions 1 to this one are important.",
+            "maximum": 8.0,
+            "minimum": 1.0,
+            "title": "Max Position",
+            "type": "integer"
+          },
+          "threshold": {
+            "default": 1,
+            "description": "Lost links that raise an alert.",
+            "maximum": 50.0,
+            "minimum": 1.0,
+            "title": "Threshold",
+            "type": "integer"
+          }
+        },
+        "title": "AlertSettings",
+        "type": "object"
+      },
+      "AlertSettingsPatch": {
+        "additionalProperties": false,
+        "properties": {
+          "channel": {
+            "enum": [
+              "app",
+              "email",
+              "slack"
+            ],
+            "title": "Channel",
+            "type": "string"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "max_position": {
+            "maximum": 8.0,
+            "minimum": 1.0,
+            "title": "Max Position",
+            "type": "integer"
+          },
+          "threshold": {
+            "maximum": 50.0,
+            "minimum": 1.0,
+            "title": "Threshold",
+            "type": "integer"
+          }
+        },
+        "title": "AlertSettingsPatch",
+        "type": "object"
+      },
       "Alias": {
         "properties": {
           "alias": {
@@ -2927,6 +2996,353 @@
           "type"
         ],
         "title": "CardItem",
+        "type": "object"
+      },
+      "ChangeAlert": {
+        "properties": {
+          "channel": {
+            "enum": [
+              "app",
+              "email",
+              "slack"
+            ],
+            "title": "Channel",
+            "type": "string"
+          },
+          "delivery_state": {
+            "enum": [
+              "shown_in_app",
+              "channel_unavailable"
+            ],
+            "title": "Delivery State",
+            "type": "string"
+          },
+          "lost_links": {
+            "title": "Lost Links",
+            "type": "integer"
+          },
+          "max_position": {
+            "title": "Max Position",
+            "type": "integer"
+          },
+          "threshold": {
+            "title": "Threshold",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "lost_links",
+          "max_position",
+          "threshold",
+          "channel",
+          "delivery_state"
+        ],
+        "title": "ChangeAlert",
+        "type": "object"
+      },
+      "ChangeLink": {
+        "properties": {
+          "anchor": {
+            "title": "Anchor",
+            "type": "string"
+          },
+          "placement": {
+            "enum": [
+              "content",
+              "auto_generated",
+              "navigation",
+              "header",
+              "footer",
+              "sidebar",
+              "breadcrumb"
+            ],
+            "title": "Placement",
+            "type": "string"
+          },
+          "priority": {
+            "enum": [
+              "lost_to_t1",
+              "lost_to_t2",
+              "lower",
+              "none"
+            ],
+            "title": "Priority",
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/ChangePage"
+          },
+          "still_linked_by": {
+            "anyOf": [
+              {
+                "enum": [
+                  "content",
+                  "auto_generated",
+                  "navigation",
+                  "header",
+                  "footer",
+                  "sidebar",
+                  "breadcrumb"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Another link that still joins the pair in this crawl (editorial scope).",
+            "title": "Still Linked By"
+          },
+          "target": {
+            "$ref": "#/components/schemas/ChangePage"
+          }
+        },
+        "required": [
+          "source",
+          "target",
+          "anchor",
+          "placement",
+          "priority",
+          "still_linked_by"
+        ],
+        "title": "ChangeLink",
+        "type": "object"
+      },
+      "ChangeLinkMeta": {
+        "properties": {
+          "change": {
+            "enum": [
+              "lost",
+              "added"
+            ],
+            "title": "Change",
+            "type": "string"
+          },
+          "link_scope": {
+            "enum": [
+              "editorial",
+              "all"
+            ],
+            "title": "Link Scope",
+            "type": "string"
+          },
+          "only": {
+            "enum": [
+              "top",
+              "all"
+            ],
+            "title": "Only",
+            "type": "string"
+          },
+          "previous_run_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Run Id"
+          },
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "truncated": {
+            "description": "The stored changes were cut at 200,000 rows.",
+            "title": "Truncated",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "run_id",
+          "previous_run_id",
+          "change",
+          "link_scope",
+          "only",
+          "total",
+          "truncated"
+        ],
+        "title": "ChangeLinkMeta",
+        "type": "object"
+      },
+      "ChangeLinkPage": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ChangeLink"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ChangeLinkMeta"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "ChangeLinkPage",
+        "type": "object"
+      },
+      "ChangePage": {
+        "properties": {
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "tier": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TierRef"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "null is Untiered."
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "url_id": {
+            "description": "A `core.urls` id: a 64-bit integer as a string.",
+            "title": "Url Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url_id",
+          "url",
+          "path",
+          "tier"
+        ],
+        "title": "ChangePage",
+        "type": "object"
+      },
+      "ChangesSummary": {
+        "properties": {
+          "alert": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ChangeAlert"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "all_added": {
+            "title": "All Added",
+            "type": "integer"
+          },
+          "all_lost": {
+            "title": "All Lost",
+            "type": "integer"
+          },
+          "editorial_added": {
+            "title": "Editorial Added",
+            "type": "integer"
+          },
+          "editorial_lost": {
+            "title": "Editorial Lost",
+            "type": "integer"
+          },
+          "important_max_position": {
+            "title": "Important Max Position",
+            "type": "integer"
+          },
+          "lost_to_top": {
+            "description": "Editorial links lost to the important tiers.",
+            "title": "Lost To Top",
+            "type": "integer"
+          },
+          "pages_added": {
+            "title": "Pages Added",
+            "type": "integer"
+          },
+          "pages_lost": {
+            "title": "Pages Lost",
+            "type": "integer"
+          },
+          "previous_finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Finished At"
+          },
+          "previous_run_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Run Id"
+          },
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "state": {
+            "description": "`pending` until the crawl's changes are worked out, `unavailable` when enrichment failed before that.",
+            "enum": [
+              "first_crawl",
+              "pending",
+              "ready",
+              "unavailable"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "previous_run_id",
+          "previous_finished_at",
+          "state",
+          "editorial_lost",
+          "editorial_added",
+          "all_lost",
+          "all_added",
+          "lost_to_top",
+          "important_max_position",
+          "pages_added",
+          "pages_lost",
+          "alert"
+        ],
+        "title": "ChangesSummary",
+        "type": "object"
+      },
+      "ChangesSummaryResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ChangesSummary"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "ChangesSummaryResponse",
         "type": "object"
       },
       "CheckNow": {
@@ -7868,6 +8284,10 @@
       },
       "InternalLinksSettings": {
         "properties": {
+          "alerts": {
+            "$ref": "#/components/schemas/AlertSettings",
+            "description": "The alert for links lost to the important tiers (spec 7.10)."
+          },
           "allowed_subdomains": {
             "description": "Hosts of the project's site, besides its own and its `www.` form, that crawls follow (up to 10).",
             "items": {
@@ -7900,6 +8320,9 @@
       "InternalLinksSettingsPatch": {
         "additionalProperties": false,
         "properties": {
+          "alerts": {
+            "$ref": "#/components/schemas/AlertSettingsPatch"
+          },
           "allowed_subdomains": {
             "items": {
               "maxLength": 253,
@@ -10284,6 +10707,134 @@
           "search_volume"
         ],
         "title": "MonthlySearches",
+        "type": "object"
+      },
+      "MovedPage": {
+        "properties": {
+          "depth": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Depth"
+          },
+          "depth_delta": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Depth Delta"
+          },
+          "depth_state": {
+            "anyOf": [
+              {
+                "enum": [
+                  "lost",
+                  "found"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Depth State"
+          },
+          "editorial_in": {
+            "title": "Editorial In",
+            "type": "integer"
+          },
+          "editorial_in_delta": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Editorial In Delta"
+          },
+          "equity_points": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Equity Points"
+          },
+          "page": {
+            "$ref": "#/components/schemas/ChangePage"
+          }
+        },
+        "required": [
+          "page",
+          "editorial_in",
+          "editorial_in_delta",
+          "equity_points",
+          "depth",
+          "depth_state",
+          "depth_delta"
+        ],
+        "title": "MovedPage",
+        "type": "object"
+      },
+      "MovedPageList": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/MovedPage"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/MovedPageMeta"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "MovedPageList",
+        "type": "object"
+      },
+      "MovedPageMeta": {
+        "properties": {
+          "previous_run_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Run Id"
+          },
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "previous_run_id"
+        ],
+        "title": "MovedPageMeta",
         "type": "object"
       },
       "Neighbor": {
@@ -33416,6 +33967,320 @@
         "summary": "Stop using a property for the project",
         "tags": [
           "integrations"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/changes/links": {
+      "get": {
+        "operationId": "changes_links_api_v1_workspaces__workspace_id__projects__project_id__internal_links_changes_links_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "change",
+            "required": true,
+            "schema": {
+              "enum": [
+                "lost",
+                "added"
+              ],
+              "title": "Change",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`latest` or a crawl id.",
+            "in": "query",
+            "name": "run",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "const": "latest",
+                  "type": "string"
+                },
+                {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              ],
+              "default": "latest",
+              "description": "`latest` or a crawl id.",
+              "title": "Run"
+            }
+          },
+          {
+            "in": "query",
+            "name": "link_scope",
+            "required": false,
+            "schema": {
+              "default": "editorial",
+              "enum": [
+                "editorial",
+                "all"
+              ],
+              "title": "Link Scope",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "only",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "enum": [
+                "top",
+                "all"
+              ],
+              "title": "Only",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "maximum": 100000,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "default": "json",
+              "enum": [
+                "json",
+                "csv"
+              ],
+              "title": "Format",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangeLinkPage"
+                }
+              },
+              "text/csv": {}
+            },
+            "description": "With `format=csv`: the rows as CSV."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Lost or added links against the previous crawl, important targets first",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/changes/pages": {
+      "get": {
+        "operationId": "changes_pages_api_v1_workspaces__workspace_id__projects__project_id__internal_links_changes_pages_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`latest` or a crawl id.",
+            "in": "query",
+            "name": "run",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "const": "latest",
+                  "type": "string"
+                },
+                {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              ],
+              "default": "latest",
+              "description": "`latest` or a crawl id.",
+              "title": "Run"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 8,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MovedPageList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Pages whose editorial links in, equity or depth moved most",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/changes/summary": {
+      "get": {
+        "operationId": "changes_summary_api_v1_workspaces__workspace_id__projects__project_id__internal_links_changes_summary_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`latest` or a crawl id.",
+            "in": "query",
+            "name": "run",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "const": "latest",
+                  "type": "string"
+                },
+                {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              ],
+              "default": "latest",
+              "description": "`latest` or a crawl id.",
+              "title": "Run"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesSummaryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Counts of what the crawl changed, and the alert for links lost to important pages",
+        "tags": [
+          "internal-links"
         ]
       }
     },

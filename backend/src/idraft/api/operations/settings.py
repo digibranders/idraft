@@ -120,11 +120,16 @@ class SettingsService:
                 _check_subdomains(site_host, body.internal_links.allowed_subdomains)
             changed = dict(stored)
             for part, patch in (("seo", body.seo), ("internal_links", body.internal_links)):
-                if patch is not None:
-                    changed[part] = {
-                        **(stored.get(part) or {}),
-                        **patch.model_dump(mode="json", exclude_unset=True),
+                if patch is None:
+                    continue
+                given = patch.model_dump(mode="json", exclude_unset=True)
+                merged = {**(stored.get(part) or {}), **given}
+                if "alerts" in given:  # a merge patch goes one level deeper here
+                    merged["alerts"] = {
+                        **((stored.get(part) or {}).get("alerts") or {}),
+                        **given["alerts"],
                     }
+                changed[part] = merged
             await db.execute(
                 update(projects)
                 .where(projects.c.workspace_id == access.workspace_id, projects.c.id == project_id)

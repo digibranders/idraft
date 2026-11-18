@@ -464,6 +464,8 @@ QUERIES: dict[tuple[str, str], dict[str, str]] = {
         "direction": "out",
         "scope": "all",
     },
+    # Plan 04: the change lists need the kind of change.
+    ("GET", _W + "/projects/{project_id}/internal-links/changes/links"): {"change": "lost"},
 }
 # Lists under a workspace's path that hold the platform's data, the same for every workspace:
 # they have no tenant data of their own to show.
@@ -1019,6 +1021,16 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str, fake: Fa
         ],
     )
     await set_counts(pg, crawl_run)
+    await execute(
+        pg,
+        "INSERT INTO seo.crawl_link_changes (run_id, workspace_id, change, scope, source_url_id, "
+        "target_url_id, placement, anchor) VALUES ($1, $2, 'lost', 'all', $3, $4, 'content', $5)",
+        crawl_run,
+        workspace.id,
+        crawl_ids[home],
+        crawl_ids[pricing],
+        f"{label} anchor",
+    )
     rule = await fetchrow(
         pg,
         "INSERT INTO core.tier_rules (workspace_id, project_id, position, match_type, value, "
@@ -1553,6 +1565,10 @@ INTERNAL_LINK_READS = [
     ),
     ("/internal-links/tier-flow", {"scope": "all"}, False),
     ("/internal-links/worklists", {}, False),
+    ("/internal-links/changes/summary", {}, False),
+    # The seeded crawl holds one lost link, from the seeded home page to the seeded pricing page.
+    ("/internal-links/changes/links", {"change": "lost", "link_scope": "all"}, True),
+    ("/internal-links/changes/pages", {}, False),
     # The crawls and the settings carry no page names; their own tests below name the tenant.
     ("/link-crawls", {}, False),
     ("/link-crawls/{crawl_run_id}", {}, False),

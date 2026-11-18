@@ -59,6 +59,8 @@ from idraft.api.integrations.routes import oauth_router
 from idraft.api.integrations.routes import project_router as integrations_router
 from idraft.api.integrations.service import GoogleOAuthConfig, IntegrationService
 from idraft.api.integrations.state import OAuthStateStore
+from idraft.api.internal_links.change_routes import router as change_routes_router
+from idraft.api.internal_links.changes import ChangeService
 from idraft.api.internal_links.crawl_routes import router as crawl_routes_router
 from idraft.api.internal_links.crawls import CrawlService
 from idraft.api.internal_links.page_tier_routes import router as page_tier_routes_router
@@ -268,6 +270,7 @@ def create_app(
                 tier_levels=TierLevelService(sessions=sessions),
                 page_tiers=PageTierService(sessions=sessions),
                 link_reads=LinkReadService(sessions=sessions),
+                link_changes=ChangeService(sessions=sessions),
                 crawls=CrawlService(sessions=sessions, enabled=settings.crawls_enabled),
                 invitations=InvitationService(
                     sessions=sessions,
@@ -351,6 +354,7 @@ def create_app(
     app.include_router(tier_level_routes_router)
     app.include_router(page_tier_routes_router)
     app.include_router(read_routes_router)
+    app.include_router(change_routes_router)
     app.include_router(crawl_routes_router)
     app.include_router(connections_router)
     app.include_router(oauth_router)
