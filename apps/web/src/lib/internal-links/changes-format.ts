@@ -5,9 +5,17 @@ import { formatInteger, formatSignedInteger } from '@/lib/format';
 
 import type { ChangeAlert, ChangeLink } from './types';
 
-/** "T1", "T1 and T2" or "T1 to T4": the tiers an alert setting covers (mock `alertTierText`). Tier codes, not copy. */
-export const alertTierText = (maxPosition: number): string =>
-  maxPosition <= 1 ? 'T1' : maxPosition === 2 ? 'T1 and T2' : `T1 to T${String(maxPosition)}`;
+/** The join words of the tier text, from the catalog. */
+export interface TierRangeWords {
+  tierPair: (first: string, second: string) => string;
+  tierRange: (first: string, last: string) => string;
+}
+
+/** "T1", "T1 and T2" or "T1 to T4": the tiers an alert setting covers (mock `alertTierText`). A bad number reads as T1. */
+export function alertTierText(maxPosition: number, words: TierRangeWords): string {
+  if (!Number.isInteger(maxPosition) || maxPosition <= 1) return 'T1';
+  return maxPosition === 2 ? words.tierPair('T1', 'T2') : words.tierRange('T1', `T${String(maxPosition)}`);
+}
 
 export type Tone = 'negative' | 'warning' | 'positive' | 'neutral';
 
@@ -38,10 +46,11 @@ export function sinceText(iso: string | null, timeZone: string): string | null {
   if (iso === null) return null;
   const date = parseISO(iso);
   if (Number.isNaN(date.getTime())) return null;
-  return format(new TZDate(date.getTime(), timeZone), 'd MMM');
+  const zoned = new TZDate(date.getTime(), timeZone);
+  return Number.isNaN(zoned.getTime()) ? null : format(zoned, 'd MMM');
 }
 
-export interface AlertWords {
+export interface AlertWords extends TierRangeWords {
   none: () => string;
   lost: (count: string, tiers: string) => string;
 }
@@ -49,5 +58,5 @@ export interface AlertWords {
 /** The alert in words: how many links to the important tiers were lost; the callbacks carry the plural forms. */
 export function alertText(alert: Pick<ChangeAlert, 'lost_links' | 'max_position'>, words: AlertWords): string {
   if (alert.lost_links <= 0) return words.none();
-  return words.lost(formatInteger(alert.lost_links), alertTierText(alert.max_position));
+  return words.lost(formatInteger(alert.lost_links), alertTierText(alert.max_position, words));
 }

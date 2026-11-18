@@ -29,7 +29,8 @@ export const routeSteps = (route: Route): RouteStepView[] =>
   route.steps.map((step, index, all) => ({
     path: step.page.path,
     url_id: step.page.url_id,
-    anchor: step.anchor,
+    // The backend labels a redirect step in English; the screen shows its own translated label instead.
+    anchor: step.via_redirect ? null : step.anchor,
     placement: step.placement,
     scope: step.scope,
     statusCode: step.status_code,

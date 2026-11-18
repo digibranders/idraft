@@ -1,13 +1,34 @@
 import { describe, expect, it } from 'vitest';
 
-import { alertText, alertTierText, depthMove, formatDelta, priorityTone, sinceText } from './changes-format';
+import {
+  type AlertWords,
+  alertText,
+  alertTierText,
+  depthMove,
+  formatDelta,
+  priorityTone,
+  sinceText,
+} from './changes-format';
+
+const tierWords: AlertWords = {
+  none: () => 'none',
+  lost: (count, tiers) => `${count} lost to ${tiers}`,
+  tierPair: (a, b) => `${a} and ${b}`,
+  tierRange: (a, b) => `${a} to ${b}`,
+};
 
 describe('changes format', () => {
-  it('names the important tiers', () => {
-    expect(alertTierText(1)).toBe('T1');
-    expect(alertTierText(2)).toBe('T1 and T2');
-    expect(alertTierText(4)).toBe('T1 to T4');
-    expect(alertTierText(0)).toBe('T1');
+  it('names the important tiers through the words it is given', () => {
+    expect(alertTierText(1, tierWords)).toBe('T1');
+    expect(alertTierText(2, tierWords)).toBe('T1 and T2');
+    expect(alertTierText(4, tierWords)).toBe('T1 to T4');
+    expect(alertTierText(8, tierWords)).toBe('T1 to T8');
+    expect(alertTierText(0, tierWords)).toBe('T1');
+    expect(alertTierText(-3, tierWords)).toBe('T1');
+    expect(alertTierText(Number.NaN, tierWords)).toBe('T1');
+    expect(alertTierText(2.5, tierWords)).toBe('T1');
+    expect(alertTierText(Number.POSITIVE_INFINITY, tierWords)).toBe('T1');
+    expect(alertTierText(2, { ...tierWords, tierPair: (a, b) => `${a} et ${b}` })).toBe('T1 et T2');
   });
 
   it('tones a priority: T1 negative unless a menu still links it, T2 warning, the rest neutral', () => {
@@ -44,14 +65,15 @@ describe('changes format', () => {
     expect(sinceText('not a date', 'UTC')).toBeNull();
   });
 
-  it('writes the alert sentence from its numbers, with the plural forms', () => {
-    const words = {
-      none: () => 'none',
-      lost: (count: string, tiers: string) => `${count} lost to ${tiers}`,
-    };
+  it('writes the alert sentence from its count and the tiers it covers', () => {
     const alert = { threshold: 1, max_position: 2, lost_links: 0 };
-    expect(alertText(alert, words)).toBe('none');
-    expect(alertText({ ...alert, lost_links: 1 }, words)).toBe('1 lost to T1 and T2');
-    expect(alertText({ ...alert, lost_links: 12400, max_position: 4 }, words)).toBe('12,400 lost to T1 to T4');
+    expect(alertText(alert, tierWords)).toBe('none');
+    expect(alertText({ ...alert, lost_links: 1 }, tierWords)).toBe('1 lost to T1 and T2');
+    expect(alertText({ ...alert, lost_links: 12400, max_position: 4 }, tierWords)).toBe('12,400 lost to T1 to T4');
+    expect(alertText({ ...alert, lost_links: 3, max_position: Number.NaN }, tierWords)).toBe('3 lost to T1');
+  });
+
+  it('says nothing for a time zone it does not know', () => {
+    expect(sinceText('2026-11-07T03:12:00Z', 'Bad/Zone')).toBeNull();
   });
 });

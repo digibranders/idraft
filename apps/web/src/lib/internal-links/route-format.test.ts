@@ -51,7 +51,7 @@ describe('route format', () => {
       {
         path: '/old',
         url_id: '/old',
-        anchor: 'Read <more>',
+        anchor: null,
         placement: 'content',
         scope: 'editorial',
         statusCode: 301,
@@ -71,6 +71,23 @@ describe('route format', () => {
         last: true,
       },
     ]);
+  });
+
+  it('does not expose the backend English redirect label as anchor text', () => {
+    const steps = routeSteps({
+      clicks: 1,
+      steps: [
+        {
+          page: page('/old'),
+          anchor: '301 redirect',
+          placement: null,
+          scope: null,
+          status_code: 301,
+          via_redirect: true,
+        },
+      ],
+    });
+    expect(steps[0]).toMatchObject({ viaRedirect: true, anchor: null });
   });
 
   it('handles no steps and one step', () => {

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
+import messages from '../../../messages/en.json';
+
 import { clientSummaryHtml, type ClientSummaryInput, type ClientSummaryWords } from './client-summary';
 
 const words: ClientSummaryWords = {
@@ -18,6 +20,9 @@ const words: ClientSummaryWords = {
   lostHead: ['Source page', 'Target page', 'Anchor'],
   lostNone: (tiers) => `No editorial links to ${tiers} pages were lost since the last crawl.`,
   footer: 'Link counts use editorial links.',
+  lostMore: (count) => `Plus ${count} more.`,
+  tierPair: (a, b) => `${a} and ${b}`,
+  tierRange: (a, b) => `${a} to ${b}`,
   notAvailable: 'n/a',
 };
 
@@ -41,7 +46,7 @@ const input: ClientSummaryInput = {
     { label: 'Weak outlinks', count: 12400 },
   ],
   lost: [{ from: '/a', to: '/b', anchor: 'read more' }],
-  importantTiers: 'T1 and T2',
+  importantMaxPosition: 2,
 };
 
 describe('client summary html', () => {
@@ -97,13 +102,60 @@ describe('client summary html', () => {
         matrix: [[1]],
         worklists: [{ label: nasty, count: 1 }],
         lost: [{ from: `/${nasty}`, to: nasty, anchor: nasty }],
-        importantTiers: nasty,
+        locale: nasty,
       },
-      { ...words, footer: nasty },
+      {
+        ...words,
+        footer: nasty,
+        title: (host) => `T ${host}`,
+        crawlLine: (when, pages) => `${when} ${pages} ${nasty}`,
+        flowNote: nasty,
+        lostHeading: () => nasty,
+      },
     );
     expect(out).not.toContain('<script>');
     expect(out).toContain('&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; &#39;q&#39;');
     expect(out.match(/<script/gi)).toBeNull();
+    expect(out).not.toContain('lang="<');
+  });
+
+  it('keeps wide content inside the page and prints well', () => {
+    expect(html).toContain('overflow-x:auto');
+    expect(html).toContain('overflow-wrap:anywhere');
+    expect(html).toMatch(/<style>[^<]*@media print[^<]*page-break-inside:\s*avoid[^<]*table-header-group/);
+  });
+
+  it('sets the page language from the locale, English by default', () => {
+    expect(html).toContain('<html lang="en">');
+    expect(clientSummaryHtml({ ...input, locale: 'fr-FR' }, words)).toContain('<html lang="fr-FR">');
+  });
+
+  it('caps the lost links list and says how many more there are', () => {
+    const many = Array.from({ length: 103 }, (_, i) => ({ from: `/from-${String(i)}`, to: '/to', anchor: 'a' }));
+    const out = clientSummaryHtml({ ...input, lost: many }, words);
+    expect(out).toContain('/from-99<');
+    expect(out).not.toContain('/from-100<');
+    expect(out).toContain('Plus 3 more.');
+    const exact = clientSummaryHtml({ ...input, lost: many.slice(0, 100) }, words);
+    expect(exact).not.toContain('Plus');
+  });
+
+  it('names the important tiers through the words', () => {
+    expect(html).toContain('Lost editorial links to T1 and T2 pages');
+    expect(clientSummaryHtml({ ...input, importantMaxPosition: 4, lost: [] }, words)).toContain('to T1 to T4 pages');
+  });
+
+  it('the catalog strings that will feed the summary have no dash and never the word equity', () => {
+    // The words come from the caller (Task 19); this checks the whole internal links catalog they are read from.
+    const strings: string[] = [];
+    const walk = (node: unknown): void => {
+      if (typeof node === 'string') strings.push(node);
+      else if (typeof node === 'object' && node !== null) Object.values(node).forEach(walk);
+    };
+    walk(messages.internalLinks);
+    expect(strings.length).toBeGreaterThan(0);
+    expect(strings.filter((text) => /equity/i.test(text))).toEqual([]);
+    expect(strings.filter((text) => /[—–]/.test(text))).toEqual([]);
   });
 
   it('never carries the word equity or a dash', () => {
