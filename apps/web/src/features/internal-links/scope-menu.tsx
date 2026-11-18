@@ -31,6 +31,7 @@ export function ScopeMenu({
         kind: 'radio' as const,
         label: t(SCOPE_KEY[value]),
         checked: value === scope,
+        closeOnClick: true,
         onSelect: () => onChange(value),
       }))}
     />

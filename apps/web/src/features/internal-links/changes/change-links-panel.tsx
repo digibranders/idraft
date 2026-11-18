@@ -209,6 +209,7 @@ export function ChangeLinksPanel({
               kind: 'radio' as const,
               label: t(value === 'all' ? 'scope.all' : 'scope.editorial'),
               checked: value === linkScope,
+              closeOnClick: true,
               onSelect: () => context.setSearch({ cs: value === 'editorial' ? null : value }),
             }))}
           />

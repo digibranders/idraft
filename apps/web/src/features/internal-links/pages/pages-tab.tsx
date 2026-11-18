@@ -11,6 +11,7 @@ import { LinksDropped } from '../links-dropped';
 import { isLinksDropped } from '@/lib/internal-links/contract-states';
 import { BulkTierDialog } from './bulk-tier-dialog';
 import { useCursorPaging, pageRange } from './cursor-paging';
+import { useImportantTiers } from './important-tiers';
 import { keysOfSort, pageColumns, sortOfKeys } from './page-columns';
 import { capTags, MAX_TAGS, pageExportQuery, pageFilterFields, pageQueryOf } from './page-filters';
 import { useSearchDraft } from './search-draft';
@@ -32,7 +33,15 @@ import { downloadApiFile } from '@/lib/api/download';
 import { isApiProblem } from '@/lib/api/problem';
 import { formatInteger, formatList } from '@/lib/format';
 import { useVocabularies } from '@/lib/keywords/taxonomy-reads';
-import { isPageRowPage, pagesPath, pagesQuery, withRun } from '@/lib/internal-links/queries';
+import { comparisonOf } from '@/lib/internal-links/page-extras';
+import {
+  changesSummaryQuery,
+  isPageRowPage,
+  moreIncludes,
+  pagesPath,
+  pagesQuery,
+  withRun,
+} from '@/lib/internal-links/queries';
 import type { EdgeWorklist, PageRow, PageRowPage, PageWorklist } from '@/lib/internal-links/types';
 import { useCan } from '@/lib/permissions';
 import { formatColumns, parseColumns, parseDensity } from '@/lib/tables/table-state';
@@ -52,16 +61,14 @@ function readPage(data: unknown): PageRowPage {
   if (isPageRowPage(data)) return data;
   throw new Error('The pages answer is not a page of rows');
 }
-// The two worklists of slice 2 (`lost_links_top`, `weak_outlinks`) have no chip or empty copy yet: the address
-// allow-list (`url-state.ts`) does not let them in until the Pages additions (plan 05 Task 15) give them both
-const EMPTY_KEY: Readonly<
-  Partial<Record<PageWorklist, 'underLinkedT1' | 'orphans' | 'editorialOrphans' | 'deepOnlyThroughAuto'>>
-> = {
+const EMPTY_KEY = {
   under_linked_t1: 'underLinkedT1',
   orphans: 'orphans',
   editorial_orphans: 'editorialOrphans',
   deep_only_through_auto: 'deepOnlyThroughAuto',
-};
+  lost_links_top: 'lostLinksTop',
+  weak_outlinks: 'weakOutlinks',
+} as const satisfies Record<PageWorklist, string>;
 
 /**
  * The Pages tab (spec 7.2, mock `il-pages.js`): worklist chips, the filter bar, the scope chip and the table. The
@@ -116,7 +123,24 @@ export function PagesTab({ context }: { context: LinksTabContext }): ReactElemen
   const chosenRun = context.crawl.run;
   const filtersKey = JSON.stringify([state.scope, state.worklist, state.sort, state.q, values, chosenRun]);
   const paging = useCursorPaging(filtersKey);
-  const query = pageQueryOf(state, values, paging.cursor, paging.size);
+  // The chooser decides which parts of a row are read (`include`); changing it reads the current page again once
+  const [table, setTable] = useQueryStates(TABLE_KEYS, { history: 'replace' });
+  const summary = useQuery(changesSummaryQuery(scope, chosenRun));
+  const comparison = comparisonOf(summary.data?.data.state, context.crawl.crawl?.enrich_state);
+  const linksAvailable = context.crawl.linksAvailable;
+  const columns = useMemo(
+    () => pageColumns(t, { tiers, scope: state.scope, openJourney: context.openJourney, comparison, linksAvailable }),
+    [t, tiers, state.scope, context.openJourney, comparison, linksAvailable],
+  );
+  const known = useMemo(() => new Set(columns.map((column) => column.id)), [columns]);
+  const visible = useMemo(
+    () =>
+      parseColumns(table.cols, known, REQUIRED_COLUMNS) ??
+      columns.filter((column) => column.defaultVisible !== false).map((column) => column.id),
+    [table.cols, known, columns],
+  );
+  const include = useMemo(() => moreIncludes(visible), [visible]);
+  const query = { ...pageQueryOf(state, values, paging.cursor, paging.size), include };
   // The rows stay while new filters load: no skeleton flash (12-tables.md section 7)
   const read = useQuery({
     ...pagesQuery(scope, query, chosenRun),
@@ -142,13 +166,6 @@ export function PagesTab({ context }: { context: LinksTabContext }): ReactElemen
   // Leaving the tab takes its rows with it: another tab's inspector must not step through a list it does not show
   const { setOrder } = context.inspect;
   useEffect(() => () => setOrder([]), [setOrder]);
-
-  const [table, setTable] = useQueryStates(TABLE_KEYS, { history: 'replace' });
-  const columns = useMemo(
-    () => pageColumns(t, { tiers, scope: state.scope, openJourney: context.openJourney }),
-    [t, tiers, state.scope, context.openJourney],
-  );
-  const known = useMemo(() => new Set(columns.map((column) => column.id)), [columns]);
 
   // The page's Export downloads the same filter as the server's CSV (decision W13)
   useEffect(() => {
@@ -178,7 +195,8 @@ export function PagesTab({ context }: { context: LinksTabContext }): ReactElemen
               ? 'filtered-empty'
               : 'empty'
             : 'ready';
-  const worklistEmpty = state.worklist === null ? null : (EMPTY_KEY[state.worklist] ?? null);
+  const worklistEmpty = state.worklist === null ? null : EMPTY_KEY[state.worklist];
+  const importantTiers = useImportantTiers(scope);
   // The link worklists count links of every scope, so the Links tab opens on All links (whatever scope is chosen
   // here) and lists as many rows as the chip counts
   const openEdgeWorklist = (worklist: EdgeWorklist): void =>
@@ -263,6 +281,7 @@ export function PagesTab({ context }: { context: LinksTabContext }): ReactElemen
       <WorklistChips
         scope={scope}
         run={chosenRun}
+        linksAvailable={linksAvailable}
         current={state.worklist}
         onPick={(worklist) => setSearch({ view: worklist })}
         onPickEdges={openEdgeWorklist}
@@ -348,8 +367,12 @@ export function PagesTab({ context }: { context: LinksTabContext }): ReactElemen
         filteredEmptyState={
           worklistEmpty !== null && Object.keys(values).length === 0 && !searched ? (
             <EmptyState
-              title={t(`worklistEmpty.${worklistEmpty}Title`)}
-              reason={t(`worklistEmpty.${worklistEmpty}Reason`)}
+              title={t(`worklistEmpty.${worklistEmpty}Title`, {
+                tiers: importantTiers ?? t('worklists.importantTiers'),
+              })}
+              reason={t(`worklistEmpty.${worklistEmpty}Reason`, {
+                tiers: importantTiers ?? t('worklists.importantTiers'),
+              })}
               headingLevel={3}
               primaryAction={
                 <Button variant="secondary" size="sm" onClick={() => setSearch({ view: null })}>

@@ -442,8 +442,7 @@ describe('the Changes tab (spec 7.10)', () => {
       await menuGone();
       await user.click(await screen.findByRole('button', { name: /^Crawled .+, \d+ pages?$/ }));
       await user.click((await screen.findAllByRole('menuitemradio'))[index] ?? document.body);
-      // A radio item leaves the menu open: close it, so the page is not inert for the next click
-      await user.keyboard('{Escape}');
+      // The pick closes the menu; wait for it, so the page is not inert for the next click
       await menuGone();
     };
     await pick(1);

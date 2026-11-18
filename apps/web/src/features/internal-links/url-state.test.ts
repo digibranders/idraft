@@ -132,6 +132,18 @@ describe('the address of Internal links (URL state table)', () => {
     });
   });
 
+  it('reads the two slice 2 worklists and the change sort, and no other new value', () => {
+    expect(parseLinksSearch({ view: 'lost_links_top', sort: '-change' })).toMatchObject({
+      worklist: 'lost_links_top',
+      sort: '-change',
+    });
+    expect(parseLinksSearch({ view: 'weak_outlinks', sort: 'change' })).toMatchObject({
+      worklist: 'weak_outlinks',
+      sort: 'change',
+    });
+    expect(parseLinksSearch({ sort: 'equity_change' }).sort).toBe('-linking_pages');
+  });
+
   it('reads the layout and the lanes turned off, and falls back to By step with every lane on', () => {
     expect(parseLinksSearch({ jl: 'tier', jt: '4,99' })).toMatchObject({
       layout: 'tier',

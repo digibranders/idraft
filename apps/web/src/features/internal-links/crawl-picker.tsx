@@ -58,6 +58,7 @@ export function CrawlPicker({
       label: dateOf(item),
       kind: 'radio' as const,
       checked: item.run_id === chosen.run_id,
+      closeOnClick: true,
     };
     if (!hasData(item.state)) return { ...base, disabledReason: t(`state.${item.state}`) };
     if (needsLinks && !item.links_available) return { ...base, disabledReason: t('linksDropped') };

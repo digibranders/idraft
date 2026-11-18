@@ -116,9 +116,7 @@ describe('the crawl picker', () => {
     await user.click((await screen.findAllByRole('menuitemradio'))[1] ?? document.body);
     await waitFor(() => expect(writes.at(-1)).toContain(`run=${OLDER}`));
     expect(await screen.findByText('Older crawl')).toBeInTheDocument();
-    // A radio item leaves the modal menu open, and it keeps the page inert while open and while closing: close it
-    // and wait for it before the trigger is pressed again
-    await user.keyboard('{Escape}');
+    // A pick closes the menu; the page is inert while it closes, so wait for it before the trigger is pressed again
     await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
     await user.click(screen.getByRole('button', { name: CRAWL_SHOWN }));
     await user.click((await screen.findAllByRole('menuitemradio'))[0] ?? document.body);
@@ -304,7 +302,6 @@ describe('moving between crawls', () => {
     await user.click((await screen.findAllByRole('menuitemradio'))[1] ?? document.body);
     await waitFor(() => expect(writes.at(-1)?.queryString).toContain(`run=${OLDER}`));
     expect(writes.at(-1)?.history).toBe('push');
-    await user.keyboard('{Escape}');
     await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
     await user.click(await screen.findByRole('button', { name: 'Back to latest' }));
     await waitFor(() => expect(writes.at(-1)?.queryString).not.toContain('run='));

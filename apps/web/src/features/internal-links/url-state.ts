@@ -62,6 +62,8 @@ const WORKLISTS: readonly PageWorklist[] = [
   'orphans',
   'editorial_orphans',
   'deep_only_through_auto',
+  'lost_links_top',
+  'weak_outlinks',
 ];
 const EDGE_WORKLISTS: readonly EdgeWorklist[] = ['broken_and_redirected', 'links_to_non_indexable'];
 export const PAGE_SORTS: readonly PageSort[] = [
@@ -75,6 +77,8 @@ export const PAGE_SORTS: readonly PageSort[] = [
   '-linking_pages',
   'outlinks',
   '-outlinks',
+  'change',
+  '-change',
 ];
 export const DEFAULT_SORT: PageSort = '-linking_pages';
 /** The longest search text the API takes (1 to 200 characters). */

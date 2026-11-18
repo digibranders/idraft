@@ -108,8 +108,19 @@ describe('pageFilterFields', () => {
     const options = fields.flatMap((field) => (field.kind === 'enum' ? field.options.map((o) => o.value) : []));
     expect(fields.map((field) => field.id)).toEqual(['tier', 'tag', 'status', 'idx', 'flag']);
     expect(options).toEqual(
-      expect.arrayContaining(['2xx', '3xx', '4xx', '5xx', 'orphan', 'editorial_orphan', 'deep_only_through_auto']),
+      expect.arrayContaining([
+        '2xx',
+        '3xx',
+        '4xx',
+        '5xx',
+        'orphan',
+        'editorial_orphan',
+        'deep_only_through_auto',
+        'generic_anchors',
+      ]),
     );
+    const flag = fields.find((field) => field.id === 'flag');
+    expect(flag?.kind === 'enum' ? flag.options.map((option) => option.label) : []).toContain('Mostly generic anchors');
     expect(JSON.stringify(fields)).not.toMatch(/equity/i);
   });
 

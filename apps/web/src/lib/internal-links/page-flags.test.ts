@@ -49,6 +49,12 @@ describe('pageFlags (spec 7.2, mock il-model.js flags)', () => {
     );
   });
 
+  it('flags mostly generic anchors in the warning tone', () => {
+    expect(pageFlags(page({ flags: ['generic_anchors'] }), 'editorial')).toEqual([
+      { key: 'genericAnchors', tone: 'warning' },
+    ]);
+  });
+
   it('marks a page whose placement is unknown in the neutral tone', () => {
     expect(pageFlags(page({ flags: ['placement_unknown'] }), 'editorial')).toEqual([
       { key: 'placementUnknown', tone: 'neutral' },

@@ -2,8 +2,10 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
-import type { ReactElement } from 'react';
+import { useCallback, useRef, type ReactElement } from 'react';
 
+import { useImportantTiers } from './important-tiers';
+import { TierSuggestions } from './tier-suggestions';
 import { Button } from '@/components/ui/button';
 import { formatInteger } from '@/lib/format';
 import { worklistsQuery } from '@/lib/internal-links/queries';
@@ -31,6 +33,7 @@ const EDGE_LISTS: readonly (readonly [EdgeWorklist, 'brokenAndRedirected' | 'lin
 export function WorklistChips({
   scope,
   run,
+  linksAvailable,
   current,
   onPick,
   onPickEdges,
@@ -38,6 +41,8 @@ export function WorklistChips({
   scope: LinksScope;
   /** The crawl the counts are of: `null` for the latest. */
   run: string | null;
+  /** False for a crawl whose links were dropped: the weak outlinks list reads links and answers 410, so it is not offered. */
+  linksAvailable: boolean;
   current: PageWorklist | null;
   onPick: (worklist: PageWorklist | null) => void;
   onPickEdges: (worklist: EdgeWorklist) => void;
@@ -45,9 +50,17 @@ export function WorklistChips({
   const t = useTranslations('internalLinks');
   const read = useQuery(worklistsQuery(scope, run));
   const counts: Worklists | undefined = read.data?.data;
+  const tiers = useImportantTiers(scope);
+  const allPages = useRef<HTMLButtonElement>(null);
+  // The last suggestion went, and with it the chip that held focus
+  const focusAllPages = useCallback((): void => allPages.current?.focus(), []);
+  const history: readonly (readonly [PageWorklist, string])[] = [
+    ['lost_links_top', tiers === null ? t('worklists.lostLinksTopFallback') : t('worklists.lostLinksTop', { tiers })],
+    ...(linksAvailable ? ([['weak_outlinks', t('worklists.weakOutlinks')]] as const) : []),
+  ];
   return (
     <div role="group" aria-label={t('pages.worklistsLabel')} className="flex flex-wrap items-center gap-2">
-      <Button variant="secondary" size="sm" aria-pressed={current === null} onClick={() => onPick(null)}>
+      <Button ref={allPages} variant="secondary" size="sm" aria-pressed={current === null} onClick={() => onPick(null)}>
         {t('pages.allPages')}
       </Button>
       {PAGE_LISTS.map(([id, key]) => (
@@ -64,9 +77,15 @@ export function WorklistChips({
           </span>
         </Button>
       ))}
-      {counts !== undefined && [...PAGE_LISTS, ...EDGE_LISTS].every(([id]) => counts[id] === 0) ? (
+      {history.map(([id, label]) => (
+        <Button key={id} variant="secondary" size="sm" aria-pressed={current === id} onClick={() => onPick(id)}>
+          {label} <span className="num type-body-strong">{counts === undefined ? '' : formatInteger(counts[id])}</span>
+        </Button>
+      ))}
+      {counts !== undefined && [...PAGE_LISTS, ...EDGE_LISTS, ...history].every(([id]) => counts[id] === 0) ? (
         <span className="type-meta text-foreground-tertiary">{t('pages.noIssues')}</span>
       ) : null}
+      <TierSuggestions scope={scope} onEmptied={focusAllPages} />
     </div>
   );
 }

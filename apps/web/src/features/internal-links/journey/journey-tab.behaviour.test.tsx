@@ -146,9 +146,8 @@ describe('the Journey tab: renders and views', () => {
       await waitFor(() => expect(getComputedStyle(document.body).pointerEvents).not.toBe('none'));
       await user.click(screen.getByRole('button', { name: /^Link scope:/ }));
       await user.click(await screen.findByRole('menuitemradio', { name }));
-      // A radio item does not close its menu, so the menu is closed with Escape; it counts as closed when its
-      // button says so (the popup itself may stay in the page while it fades out)
-      await user.keyboard('{Escape}');
+      // The pick closes the menu; it counts as closed when its button says so (the popup itself may stay in the
+      // page while it fades out)
       await waitFor(() =>
         expect(screen.getByRole('button', { name: /^Link scope:/ })).not.toHaveAttribute('aria-expanded', 'true'),
       );

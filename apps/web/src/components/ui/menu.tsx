@@ -21,6 +21,11 @@ export interface MenuItemDef {
   kind?: 'action' | 'checkbox' | 'radio' | 'submenu' | 'link' | undefined;
   /** For checkbox and radio items. */
   checked?: boolean | undefined;
+  /**
+   * For radio items: a pick closes the menu and focus returns to the trigger. Off by default, so a menu of
+   * radio items that are changed together (a view and a density) stays open.
+   */
+  closeOnClick?: boolean | undefined;
   /** Items with the same group name that follow each other are listed under it. */
   group?: string | undefined;
   /** Destructive items are listed last, after a separator. */
@@ -173,7 +178,12 @@ function Row({ item, nested }: RowProps): ReactElement {
       );
     case 'radio':
       return (
-        <MenuPrimitive.RadioItem {...shared} label={item.label} value={item.id}>
+        <MenuPrimitive.RadioItem
+          {...shared}
+          label={item.label}
+          value={item.id}
+          {...(item.closeOnClick === true ? { closeOnClick: true } : {})}
+        >
           <RowContent
             item={item}
             reasonId={reasonId}

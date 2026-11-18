@@ -3,6 +3,7 @@
 import { Workflow } from 'lucide-react';
 import type { ReactNode } from 'react';
 
+import { extraColumns } from './page-extras-cells';
 import { PAGE_SORTS } from '../url-state';
 import type { LinksTranslate } from '../tabs';
 import { ShareBarCell, type ShareColor } from '@/components/app/chart/stacked-share-bar';
@@ -12,6 +13,7 @@ import { TierBadge } from '@/components/app/tier/tier-badge';
 import { Badge } from '@/components/ui/badge';
 import { IconButton } from '@/components/ui/icon-button';
 import { formatInteger } from '@/lib/format';
+import type { Comparison } from '@/lib/internal-links/page-extras';
 import { pageFlags } from '@/lib/internal-links/page-flags';
 import type { LinkScope } from '@/lib/internal-links/scopes';
 import { tierPosition } from '@/lib/internal-links/tiers';
@@ -25,6 +27,7 @@ export const SORT_FIELD: Readonly<Record<string, string>> = {
   depth: 'click_depth',
   linking: 'linking_pages',
   outlinks: 'outlinks',
+  change: 'change',
 };
 
 /** The sort the table's first key asks for, or `null` for a column the server cannot sort. */
@@ -77,8 +80,23 @@ const custom = (
  */
 export function pageColumns(
   t: LinksTranslate,
-  { tiers, scope, openJourney }: { tiers: readonly PageTier[]; scope: LinkScope; openJourney: (urlId: string) => void },
+  {
+    tiers,
+    scope,
+    openJourney,
+    comparison,
+    linksAvailable,
+  }: {
+    tiers: readonly PageTier[];
+    scope: LinkScope;
+    openJourney: (urlId: string) => void;
+    /** Where the comparison with the previous crawl stands, for the Change column. */
+    comparison: Comparison;
+    /** False for a crawl whose links were dropped: its anchors are not stored. */
+    linksAvailable: boolean;
+  },
 ): Column[] {
+  const extras = extraColumns(t, { comparison, linksAvailable }, custom);
   const segments = [
     ...tiers.map((tier) => ({
       id: tier.tier_id,
@@ -174,6 +192,7 @@ export function pageColumns(
       headerTooltip: t('columns.outlinksTip'),
       width: 96,
     }),
+    extras.change,
     custom(
       'flags',
       'text',
@@ -233,7 +252,8 @@ export function pageColumns(
         defaultVisible: false,
       },
     ),
+    ...extras.optional,
   ];
-  // Only the five columns of SORT_FIELD sort: the server sorts, so a column without a server field must not offer it
+  // Only the columns of SORT_FIELD sort: the server sorts, so a column without a server field must not offer it
   return all.map((column) => (SORT_FIELD[column.id] === undefined ? { ...column, sortValue: undefined } : column));
 }
