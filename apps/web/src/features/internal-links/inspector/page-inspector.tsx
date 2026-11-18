@@ -75,10 +75,10 @@ export function PageInspector({
   const read = useQuery(pageDetailQuery(scope, urlId, state.scope, context.crawl.run));
   const rules = useQuery(tierRulesQuery(scope));
   const summary = useQuery(changesSummaryQuery(scope, context.crawl.run));
-  // Until the summary has answered nothing is known of the comparison, so it reads as updating, not as a verdict
-  const comparison = summary.isPending
-    ? 'updating'
-    : comparisonOf(summary.data?.data.state, context.crawl.crawl?.enrich_state);
+  // Until the summary has answered (or when it failed) nothing is known of the comparison: no Changes card, so a
+  // first crawl never shows one for a moment
+  const comparison =
+    summary.data === undefined ? null : comparisonOf(summary.data.data.state, context.crawl.crawl?.enrich_state);
   const vocabularies = useVocabularies(scope);
   const tags = useMemo(
     () =>

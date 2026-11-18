@@ -30,6 +30,7 @@ vi.mock('next/navigation', () => ({
 const P = '/api/v1/workspaces/{workspace_id}/projects/{project_id}';
 const DETAIL = mswPath(`${P}/internal-links/pages/{url_id}`);
 const NEIGHBORS = mswPath(`${P}/internal-links/neighbors`);
+const SUMMARY = mswPath(`${P}/internal-links/changes/summary`);
 const RESET = mswPath(`${P}/pages/tiers/reset`);
 const TAGS = mswPath(`${P}/pages/tags`);
 const SERVER_ERROR = { type: 'about:blank', title: 'Server error', status: 500 };
@@ -355,13 +356,23 @@ describe('the page inspector (spec 7.4)', () => {
     it('shows the new sections after the by tier card and before the linking pages, with no equity or strength', async () => {
       renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), OPEN);
       const panel = await panelOf('/pricing');
-      const headings = (await within(panel).findAllByRole('heading', { level: 3 })).map((node) => node.textContent);
-      const at = (name: string | RegExp): number =>
-        headings.findIndex((text) => (typeof name === 'string' ? text === name : name.test(text ?? '')));
-      expect(at('Linking pages by tier')).toBeLessThan(at('Changes since the last crawl'));
-      expect(at('Changes since the last crawl')).toBeLessThan(at('Tracked keywords'));
-      expect(at('AI citations')).toBeLessThan(at('Anchor text pointing here'));
-      expect(at('Google Search Console')).toBeLessThan(at(/^Linking pages \(/));
+      await within(panel).findByRole('heading', { name: 'Google Search Console' });
+      const order = [
+        'Linking pages by tier',
+        'Changes since the last crawl',
+        'Tracked keywords',
+        'AI citations',
+        'Anchor text pointing here',
+        'Google Search Console',
+        'Linking pages (',
+        'Outlinks (',
+      ];
+      const shown = within(panel)
+        .getAllByRole('heading', { level: 3 })
+        .map((node) => node.textContent ?? '')
+        .map((text) => order.find((name) => text.startsWith(name)))
+        .filter((name): name is string => name !== undefined);
+      expect(shown).toEqual(order);
       expect(panel.textContent ?? '').not.toMatch(/equity|strength/i);
       const attributes = [...panel.querySelectorAll('[aria-label], [title]')].map(
         (element) => `${element.getAttribute('aria-label') ?? ''} ${element.getAttribute('title') ?? ''}`,
@@ -402,6 +413,69 @@ describe('the page inspector (spec 7.4)', () => {
       await waitFor(async () =>
         expect(await section('Changes since the last crawl')).toHaveTextContent('Not available'),
       );
+    });
+
+    it('shows no changes card while the summary is pending, nor when it fails, nor on a first crawl, and the card once it is ready', async () => {
+      let release: () => void = () => undefined;
+      const held = new Promise<void>((resolve) => (release = resolve));
+      server.use(
+        http.get(SUMMARY, async () => {
+          await held;
+          return undefined;
+        }),
+      );
+      const pending = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), OPEN);
+      await section('Tracked keywords');
+      expect(screen.queryByRole('heading', { name: 'Changes since the last crawl' })).toBeNull();
+      release();
+      pending.unmount();
+      server.resetHandlers();
+      server.use(http.get(SUMMARY, () => HttpResponse.json(SERVER_ERROR, { status: 500 })));
+      setLinksScenario({ firstCrawl: true });
+      const failed = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), OPEN);
+      await section('Tracked keywords');
+      await waitFor(() => expect(screen.queryByRole('heading', { name: 'Changes since the last crawl' })).toBeNull());
+      failed.unmount();
+      server.resetHandlers();
+      const first = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), OPEN);
+      await section('Tracked keywords');
+      expect(screen.queryByRole('heading', { name: 'Changes since the last crawl' })).toBeNull();
+      first.unmount();
+      setLinksScenario({ firstCrawl: false });
+      renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), OPEN);
+      expect(await section('Changes since the last crawl')).toBeInTheDocument();
+    });
+
+    it('shows Not stored, and no anchors, for a dropped crawl even when the old top anchors field is sent', async () => {
+      server.use(
+        http.get(DETAIL, () => {
+          const base = pageRow(crawledPage('108') as NonNullable<ReturnType<typeof crawledPage>>, 'editorial');
+          return HttpResponse.json({
+            data: {
+              page: base,
+              linking_by_tier: [],
+              linking_by_placement: [],
+              top_anchors: [{ anchor: 'old anchor text', links: 3 }],
+              linking_pages: [],
+              outlinks: [],
+              linking_pages_total: 0,
+              outlinks_total: 0,
+              extras: {
+                anchors: { total: 3, distinct: null, generic: 1, generic_share: 0.3, matches_keyword: null, top: null },
+                change: null,
+                citations: { chatgpt: 0, gemini: 0, ai_mode: 0, total: 0 },
+                gsc: { state: 'pending', clicks: null, impressions: null, window_start: null, window_end: null },
+                keywords: [],
+              },
+            },
+          });
+        }),
+      );
+      renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), OPEN);
+      const anchors = await section('Anchor text pointing here');
+      expect(anchors).toHaveTextContent('Not stored');
+      expect(within(anchors).queryByRole('table')).toBeNull();
+      expect(screen.queryByText(/old anchor text/)).toBeNull();
     });
 
     it('says Not stored for the anchors of a crawl whose links were dropped', async () => {

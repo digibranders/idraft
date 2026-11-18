@@ -31,7 +31,7 @@ const BASE: PageDetailExtras = {
 
 function show(
   patch: Partial<PageDetailExtras> = {},
-  comparison: Comparison = 'ready',
+  comparison: Comparison | null = 'ready',
   linksAvailable = true,
 ): ReturnType<typeof renderWithProviders> {
   return renderWithProviders(
@@ -74,9 +74,10 @@ describe('changes since the last crawl', () => {
     expect(card('Changes since the last crawl')).toHaveTextContent('No change since the last crawl');
   });
 
-  it('is absent on a first crawl', () => {
-    show({ change: null }, 'first_crawl');
+  it.each([['first_crawl'], [null]] as const)('is absent when the comparison is %s', (comparison) => {
+    show({ change: null }, comparison);
     expect(screen.queryByRole('heading', { name: 'Changes since the last crawl' })).toBeNull();
+    expect(screen.getByRole('heading', { name: 'Tracked keywords' })).toBeInTheDocument();
   });
 
   it('says Updating while the comparison is worked out, and Not available when it failed', () => {
@@ -105,7 +106,13 @@ describe('tracked keywords', () => {
     expect(first).toHaveTextContent('Up 2');
     expect(first).toHaveTextContent('1,900');
     expect(within(table).getByRole('row', { name: /managed soc/ })).toHaveTextContent('Down 3');
-    expect(within(table).getByRole('row', { name: /soc pricing/ })).toHaveTextContent('Not in top 100');
+    expect(within(table).getByRole('row', { name: /soc pricing/ })).toHaveTextContent('No rank yet');
+  });
+
+  it('lets a long keyword break inside the narrow inspector', () => {
+    show({ keywords: [{ keyword: 'a'.repeat(120), rank: 1, change: 0, volume: 10 }] });
+    const cell = within(card('Tracked keywords')).getByRole('rowheader');
+    expect(cell).toHaveClass('break-words', 'min-w-0');
   });
 
   it('says when the page has no tracked keywords', () => {

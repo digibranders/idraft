@@ -7675,7 +7675,7 @@
       "keyword": "Keyword",
       "rank": "Rank",
       "rankValue": "#{rank}",
-      "notRanking": "Not in top 100",
+      "noRank": "No rank yet",
       "moved": "Places moved",
       "up": "Up {count}",
       "down": "Down {count}",

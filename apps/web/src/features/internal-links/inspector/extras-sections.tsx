@@ -21,7 +21,8 @@ const TONE_CLASS = {
 } as const;
 
 const HEAD = 'py-1 pr-2 text-left type-table-header text-foreground-tertiary last:pr-0';
-const ROW_HEAD = 'border-t border-border-subtle py-1.5 pr-2 text-left type-table font-normal text-foreground';
+const ROW_HEAD =
+  'min-w-0 break-words border-t border-border-subtle py-1.5 pr-2 text-left type-table font-normal text-foreground';
 const CELL = 'border-t border-border-subtle py-1.5 pr-2 type-table last:pr-0';
 
 const muted = (text: string): ReactElement => <p className="type-body text-foreground-tertiary">{text}</p>;
@@ -107,7 +108,7 @@ function KeywordsBody({ t, rows }: { t: Translate; rows: PageDetailExtras['keywo
               </th>
               <td className={cn(CELL, 'text-right num')}>
                 {row.rank === null ? (
-                  <span className="text-foreground-tertiary">{t('notRanking')}</span>
+                  <span className="text-foreground-tertiary">{t('noRank')}</span>
                 ) : (
                   t('rankValue', { rank: formatInteger(row.rank) })
                 )}
@@ -230,8 +231,11 @@ function GoogleBody({ t, gsc }: { t: Translate; gsc: PageDetailExtras['gsc'] }):
 
 export interface ExtrasSectionsProps {
   extras: PageDetailExtras;
-  /** Where the comparison with the previous crawl stands; a first crawl has no changes section. */
-  comparison: Comparison;
+  /**
+   * Where the comparison with the previous crawl stands. A first crawl has no changes section, and neither has a
+   * comparison that is not known yet (`null`: the summary is pending or failed), so the card never flashes.
+   */
+  comparison: Comparison | null;
   /** False for a crawl past the last four: its anchors are not stored. */
   linksAvailable: boolean;
 }
@@ -244,7 +248,7 @@ export function ExtrasSections({ extras, comparison, linksAvailable }: ExtrasSec
   const t = useTranslations('internalLinks.inspectorExtras');
   return (
     <>
-      {comparison === 'first_crawl' ? null : (
+      {comparison === null || comparison === 'first_crawl' ? null : (
         <InspectorSection title={t('changes')} icon={History} status="ready">
           <ChangesBody t={t} extras={extras} comparison={comparison} />
         </InspectorSection>
