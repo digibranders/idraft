@@ -31,15 +31,19 @@ export function FocusPicker({
   scope,
   run,
   path,
+  mode = 'focus',
   onPick,
 }: {
   scope: LinksScope;
+  /** What the choice is for: the focus of the canvas and the tree, or the page the Path finder finds the way to. */
+  mode?: 'focus' | 'paths';
   /** The crawl the pages are searched in: `null` for the latest. */
   run: string | null;
   path: string;
   onPick: (urlId: string) => void;
 }): ReactElement {
   const t = useTranslations('internalLinks.journey');
+  const paths = useTranslations('internalLinks.paths');
   const [opened, setOpened] = useState(false);
   const [typed, setTyped] = useState('');
   const [settled, setSettled] = useState('');
@@ -96,7 +100,7 @@ export function FocusPicker({
       placeholder={t('searchPages')}
       clearLabel={t('clear')}
       openLabel={t('openList')}
-      triggerLabel={t('focusTrigger', { path })}
+      triggerLabel={mode === 'paths' ? paths('pickerTrigger', { path }) : t('focusTrigger', { path })}
       trigger={
         <Button
           variant="secondary"

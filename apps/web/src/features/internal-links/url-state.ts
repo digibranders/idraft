@@ -117,7 +117,8 @@ export interface LinksState {
   oppStatus: OpportunityStatus | null;
   oppTier: string | null;
   oppQuery: string | null;
-  journeyView: 'canvas' | 'tree';
+  /** The Journey's view (`jv`): the canvas, the tree list or the Path finder. */
+  journeyView: 'canvas' | 'tree' | 'paths';
   treeDir: Direction;
   /** The canvas layout (`jl`): By step unless the address says `tier`. */
   layout: LayoutMode;
@@ -191,7 +192,7 @@ export function parseLinksSearch(search: LinksSearch): LinksState {
     oppStatus: OPPORTUNITY_STATUSES.find((status) => status === search.os) ?? null,
     oppTier: OPPORTUNITY_TIERS.find((tier) => tier === search.ot) ?? null,
     oppQuery: text(search.oq),
-    journeyView: search.jv === 'tree' ? 'tree' : 'canvas',
+    journeyView: search.jv === 'tree' || search.jv === 'paths' ? search.jv : 'canvas',
     treeDir: search.dir === 'in' ? 'in' : 'out',
     layout: parseLayoutMode(search.jl),
     hiddenLanes: parseLanes(search.jt),

@@ -1,7 +1,7 @@
 'use client';
 
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { ListTree, Workflow } from 'lucide-react';
+import { ListTree, Route as RouteIcon, Workflow } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { Route } from 'next';
 import { useEffect, useRef, useState, type ReactElement } from 'react';
@@ -10,6 +10,7 @@ import { FocusPicker } from './focus-picker';
 import { LinksDropped } from '../links-dropped';
 import { JourneyCanvas } from './journey-canvas';
 import { readPageRows } from './page-reads';
+import { PathFinder } from './path-finder';
 import { TreeList } from './tree-list';
 import { ScopeMenu } from '../scope-menu';
 import type { LinksTabContext } from '../tabs';
@@ -43,6 +44,7 @@ const NO_FOCUS = '1';
  */
 export function JourneyTab({ context }: { context: LinksTabContext }): ReactElement {
   const t = useTranslations('internalLinks.journey');
+  const paths = useTranslations('internalLinks.paths');
   const common = useTranslations('common');
   const { scope, state, setSearch } = context;
   const refused = state.invalid.focus !== null;
@@ -100,10 +102,17 @@ export function JourneyTab({ context }: { context: LinksTabContext }): ReactElem
         items={[
           { value: 'canvas', label: t('canvas'), icon: Workflow },
           { value: 'tree', label: t('tree'), icon: ListTree },
+          { value: 'paths', label: paths('view'), icon: RouteIcon },
         ]}
         size="sm"
       />
-      <FocusPicker scope={scope} run={context.crawl.run} path={loaded?.path ?? t('focus')} onPick={refocus} />
+      <FocusPicker
+        scope={scope}
+        run={context.crawl.run}
+        path={loaded?.path ?? t('focus')}
+        mode={state.journeyView === 'paths' ? 'paths' : 'focus'}
+        onPick={refocus}
+      />
       <ScopeMenu scope={state.scope} onChange={(next) => setSearch({ scope: next === 'editorial' ? null : next })} />
       {state.journeyView === 'canvas' ? (
         // The layout is how the canvas stands; the tree list has one layout
@@ -165,6 +174,8 @@ export function JourneyTab({ context }: { context: LinksTabContext }): ReactElem
         ))}
       </div>
     );
+  } else if (state.journeyView === 'paths') {
+    body = <PathFinder context={context} page={loaded} />;
   } else if (state.journeyView === 'tree') {
     body = (
       <TreeList
@@ -200,7 +211,7 @@ export function JourneyTab({ context }: { context: LinksTabContext }): ReactElem
     moveFocus.current = false;
     const root = section.current;
     const target =
-      journeyView === 'tree'
+      journeyView !== 'canvas'
         ? root?.querySelector<HTMLElement>('#journey-title')
         : root?.querySelector<HTMLElement>('[data-node][data-key="f"]');
     target?.focus({ preventScroll: true });

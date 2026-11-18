@@ -132,6 +132,13 @@ describe('the address of Internal links (URL state table)', () => {
     });
   });
 
+  it('reads the Path finder view (jv=paths) and any other journey view as the canvas', () => {
+    expect(parseLinksSearch({ jv: 'paths' }).journeyView).toBe('paths');
+    expect(parseLinksSearch({ jv: 'tree' }).journeyView).toBe('tree');
+    expect(parseLinksSearch({ jv: 'route' }).journeyView).toBe('canvas');
+    expect(parseLinksSearch({}).journeyView).toBe('canvas');
+  });
+
   it('reads the two slice 2 worklists and the change sort, and no other new value', () => {
     expect(parseLinksSearch({ view: 'lost_links_top', sort: '-change' })).toMatchObject({
       worklist: 'lost_links_top',
