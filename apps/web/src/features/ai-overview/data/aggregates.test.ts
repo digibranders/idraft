@@ -126,15 +126,15 @@ describe('the numbers of one engine', () => {
     expect(mentioned).toMatchObject({ state: 'ok', successes: 4, answers: 12, prompts: 2, reason: null });
   });
 
-  it('has a share of voice that is the sum of the numerators over the sum of the denominators', () => {
+  it('has a share of voice that is the own brand mentions over the tracked-brand mentions, x of y', () => {
+    // The share cells hold the count share (`withBrandMentionShare`): numerator the own mentions, denominator all of them
     const current = summaryOf([
-      row('a', cellsOf('chatgpt_web', { mentioned: cell(3, 8), share: share(2.5, 5, 8) })),
+      row('a', cellsOf('chatgpt_web', { mentioned: cell(3, 8), share: share(2, 5, 8) })),
       row('b', cellsOf('chatgpt_web', { mentioned: cell(1, 4), share: share(1, 3, 4) })),
     ]);
     const { shareOfVoice } = engineOf(buildAggregates(inputsOf(current)), 'chatgpt_web');
-    expect(shareOfVoice.value).toBeCloseTo(3.5 / 8, 10);
-    // The numerator is a sum of shares, not a count of answers
-    expect(shareOfVoice).toMatchObject({ state: 'ok', answers: 8, successes: null });
+    expect(shareOfVoice.value).toBeCloseTo(3 / 8, 10);
+    expect(shareOfVoice).toMatchObject({ state: 'ok', answers: 8, successes: 3 });
   });
 
   it('has a named and cited rate from the outcomes cells, prompt weighted like the mention rate', () => {
@@ -239,12 +239,12 @@ describe('a summary read without its prompt rows', () => {
   });
 });
 
-describe('the engines', () => {
+describe('the platforms', () => {
   it('keep the fixed order ChatGPT, Gemini, AI Mode, with the catalog labels, whatever order the project lists them', () => {
     const reversed = [...ENGINES].reverse();
     const result = buildAggregates(inputsOf(summaryOf([]), { engines: reversed }));
     expect(result.engines.map((entry) => entry.engineCode)).toEqual(ALL);
-    expect(result.engines.map((entry) => entry.label)).toEqual(['ChatGPT', 'Gemini', 'AI Mode']);
+    expect(result.engines.map((entry) => entry.label)).toEqual(['ChatGPT', 'Gemini', 'Google AI Mode']);
   });
 
   it('are not asked outside the engine filter, and have no figures', () => {
@@ -499,7 +499,7 @@ describe('the fan-out presence', () => {
   });
 });
 
-// R12: one denominator per number. The Overview and the Topics and Prompts strip read the same cells with the same
+// R12: one denominator per number. The Overview and the Prompts strip read the same cells with the same
 // functions, so for the same summary they show the same figure and the same counts.
 
 const SUMMARY = z.custom<PromptsSummary>(
@@ -538,7 +538,7 @@ function expectParity(summary: PromptsSummary, aggregates: ReturnType<typeof bui
   expect(aggregates.lastObservedAt).toBe(lastObservedAt(summary));
 }
 
-describe('R12: the mention rate equals the Topics and Prompts strip', () => {
+describe('R12: the mention rate equals the Prompts strip', () => {
   it('on the Fynix world: three engines, with their counts', async () => {
     const summary = await read('fynix', WINDOW);
     const aggregates = buildAggregates(inputsOf(summary, { engines: enabledEngines(world('fynix').engines) }));

@@ -26,7 +26,7 @@ vi.mock('next/navigation', async () => (await import('@/test/next-navigation')).
 
 const DAILY = `${PROJECT}/ai/collection/daily`;
 const TYPE = 'ops.answer_calendar';
-const TITLE = 'Answer collection calendar';
+const TITLE = 'Run calendar';
 const FRIDAY = 'Fri Nov 6: 742 of 750 answers valid, 6 refused, 2 errors';
 
 beforeEach(() => {
@@ -295,7 +295,7 @@ describe('the answer collection calendar card (CH-20)', () => {
     render();
     await screen.findByRole('table', { name: /^Collection calendar for ChatGPT/ });
     expect(
-      screen.getByText(/Counts every answer collected, whatever the topic or country in the scope/),
+      screen.getByText(/Counts every answer collected, whatever the group or location in the scope/),
     ).toBeInTheDocument();
     expect(screen.getByText(/Valid means complete or partial/)).toBeInTheDocument();
     expect(screen.getByText(/never added up/)).toBeInTheDocument();
@@ -325,7 +325,7 @@ describe('the answer collection calendar card (CH-20)', () => {
   it('says no engine is asked for a project with its engines off, and asks the API for nothing', async () => {
     const seen = recordRequests();
     render({ world: 'cleanstart' });
-    expect(await screen.findByRole('heading', { name: 'No engine is asked' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'No platform is asked' })).toBeInTheDocument();
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 150));
     });
@@ -337,7 +337,7 @@ describe('the answer collection calendar card (CH-20)', () => {
       dailyResponse([quiet('2026-11-02'), quiet('2026-11-02', 'gemini_web')], { from: '2026-11-02', to: '2026-11-02' }),
     );
     render();
-    expect(await screen.findByRole('heading', { name: 'No collection in this window' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'No collection in this period' })).toBeInTheDocument();
     expect(screen.queryByRole('table', { name: /^Collection calendar/ })).not.toBeInTheDocument();
   });
 
@@ -350,7 +350,7 @@ describe('the answer collection calendar card (CH-20)', () => {
     const { user } = render();
     await screen.findByRole('table', { name: /^Collection calendar for ChatGPT/ });
     await user.click(screen.getByRole('button', { name: /^Gemini, / }));
-    expect(await screen.findByRole('heading', { name: 'Gemini was not asked in this window' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Gemini was not asked in this period' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /^ChatGPT, / }));
     expect(await screen.findByRole('table', { name: /^Collection calendar for ChatGPT/ })).toBeInTheDocument();
   });
@@ -358,7 +358,7 @@ describe('the answer collection calendar card (CH-20)', () => {
   it('shows an error with its request id and a retry that asks again', async () => {
     server.use(http.get(DAILY, () => failing('req-daily')));
     const { user } = render();
-    expect(await screen.findByText('Could not load answer collection calendar')).toBeInTheDocument();
+    expect(await screen.findByText('Could not load run calendar')).toBeInTheDocument();
     expect(screen.getByText(/req-daily/)).toBeInTheDocument();
     serve();
     await user.click(screen.getByRole('button', { name: 'Try again' }));
@@ -441,7 +441,7 @@ describe('the answer collection calendar card (CH-20)', () => {
     expect(block?.id).toBe(ITEM_ID);
     expect(block?.header).toEqual([
       'Day',
-      'Engine',
+      'Platform',
       'Scheduled',
       'Answers',
       'Valid',
@@ -460,7 +460,7 @@ describe('the answer collection calendar card (CH-20)', () => {
 
   it('draws the collection of the seeded project from the mock API, and says nothing was collected for one with no run', async () => {
     const empty = render();
-    expect(await screen.findByRole('heading', { name: 'No collection in this window' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'No collection in this period' })).toBeInTheDocument();
     empty.unmount();
     setAiSeeded(true);
     render({ world: 'eventus-security' });

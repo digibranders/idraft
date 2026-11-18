@@ -50,7 +50,7 @@ describe('InSearch: the search counts of a topic', () => {
     expect(screen.getByRole('heading', { name: 'In search' })).toBeInTheDocument();
     const keywords = (await screen.findByText('Keywords')).closest('div');
     expect(keywords).toHaveTextContent('12');
-    expect(keywords).toHaveTextContent('tracked and given this topic');
+    expect(keywords).toHaveTextContent('tracked and given this group');
     const top = screen.getByText('Top 10').closest('div');
     expect(top).toHaveTextContent('5');
     expect(top).toHaveTextContent('of 12 tracked');
@@ -67,8 +67,8 @@ describe('InSearch: the search counts of a topic', () => {
   it('says no tracked keyword is given this topic for a total of 0, and why', async () => {
     serve(0, 0);
     renderDrawerPart(<InSearch />);
-    expect(await screen.findByRole('heading', { name: 'No tracked keyword is given this topic' })).toBeInTheDocument();
-    expect(screen.getByText(/Tracked keywords carry their own topics/)).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'No tracked keyword is given this group' })).toBeInTheDocument();
+    expect(screen.getByText(/Tracked keywords carry their own groups/)).toBeInTheDocument();
     expect(screen.queryByText('Top 10')).not.toBeInTheDocument();
   });
 
@@ -98,7 +98,7 @@ describe('InSearch: the search counts of a topic', () => {
   it('links to Rankings filtered to the topic', async () => {
     serve(4, 1);
     renderDrawerPart(<InSearch />);
-    const link = await screen.findByRole('link', { name: 'Open in Rankings' });
+    const link = await screen.findByRole('link', { name: 'Open in Keywords' });
     expect(link).toHaveAttribute('href', `/digibranders/fynix/seo/keywords?tag=${DRAWER_TOPIC_ID}`);
   });
 

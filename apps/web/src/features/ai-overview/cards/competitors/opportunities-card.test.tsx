@@ -166,9 +166,9 @@ describe('the opportunities card', () => {
     // Prompt 1 is lost to HubSpot on two engines and counts once, with prompt 6: 2 of 5
     expect(within(list).getByText('Lost to HubSpot: 2 prompts, of 5 prompts')).toBeInTheDocument();
     expect(within(list).getByText('Lost to Zoho: 1 prompt, of 5 prompts')).toBeInTheDocument();
-    expect(within(list).getByText('Named, not cited: 1 prompt, of 5 prompts')).toBeInTheDocument();
-    expect(within(list).getByText('Cited, not named: 1 prompt, of 5 prompts')).toBeInTheDocument();
-    expect(within(list).getByText('No tracked brand named: 1 prompt, of 5 prompts')).toBeInTheDocument();
+    expect(within(list).getByText('Mentioned, not cited: 1 prompt, of 5 prompts')).toBeInTheDocument();
+    expect(within(list).getByText('Cited, not mentioned: 1 prompt, of 5 prompts')).toBeInTheDocument();
+    expect(within(list).getByText('No tracked brand mentioned: 1 prompt, of 5 prompts')).toBeInTheDocument();
     expect(
       screen.getByText('Oct 16 to Nov 12, 2026 · of 5 prompts in scope · branded prompts left out'),
     ).toBeInTheDocument();
@@ -187,7 +187,7 @@ describe('the opportunities card', () => {
     );
     renderCard('cmp=off', '8');
     const list = await barList();
-    expect(within(list).getByText('Named, not cited: 1 prompt, of 2 prompts')).toBeInTheDocument();
+    expect(within(list).getByText('Mentioned, not cited: 1 prompt, of 2 prompts')).toBeInTheDocument();
   });
 
   it('counts a prompt as lost only with 4 or more valid answers and with the own brand named in none', async () => {
@@ -219,7 +219,7 @@ describe('the opportunities card', () => {
     serve(summary(PROMPTS));
     const { user } = renderCard('cmp=off', '4');
     const list = await barList();
-    expect(labels(list)).toEqual(['Lost to HubSpot', 'Named, not cited', 'Cited, not named', 'Lost to Zoho']);
+    expect(labels(list)).toEqual(['Lost to HubSpot', 'Mentioned, not cited', 'Cited, not mentioned', 'Lost to Zoho']);
     expect(screen.getByText('1 more row is in the Table view.')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Table' }));
     const table = await screen.findByRole('table', { name: CAPTION });
@@ -237,7 +237,7 @@ describe('the opportunities card', () => {
     serve(summary(PROMPTS));
     renderCard('cmp=off&engine=gemini_web');
     const list = await barList();
-    expect(screen.getByText('Engines in scope: Gemini.')).toBeInTheDocument();
+    expect(screen.getByText('Platforms in scope: Gemini.')).toBeInTheDocument();
     expect(within(list).getByText('Lost to HubSpot: 1 prompt, of 1 prompt')).toBeInTheDocument();
   });
 
@@ -267,8 +267,12 @@ describe('the opportunities card', () => {
     const total = inScope.length;
     expect(total).toBeGreaterThan(0);
     const pluralOf = (n: number): string => `${String(n)} ${n === 1 ? 'prompt' : 'prompts'}`;
-    expect(within(list).getByText(`Named, not cited: ${pluralOf(named)}, of ${pluralOf(total)}`)).toBeInTheDocument();
-    expect(within(list).getByText(`Cited, not named: ${pluralOf(cited)}, of ${pluralOf(total)}`)).toBeInTheDocument();
+    expect(
+      within(list).getByText(`Mentioned, not cited: ${pluralOf(named)}, of ${pluralOf(total)}`),
+    ).toBeInTheDocument();
+    expect(
+      within(list).getByText(`Cited, not mentioned: ${pluralOf(cited)}, of ${pluralOf(total)}`),
+    ).toBeInTheDocument();
   });
 
   it('is plain text while the Prompts page cannot filter by the condition', async () => {

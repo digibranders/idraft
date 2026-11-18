@@ -102,6 +102,20 @@ describe('weeklyShares', () => {
     expect(pooled?.pool).toEqual({ weeks: 3, from: '2026-10-19', to: '2026-11-08' });
   });
 
+  it('is unread, as not collected, when the weekly points hold no cell for a tracked brand', () => {
+    const summary = summaryWith([week('2026-11-02', { share: share(10, 10) })]);
+    expect(weeklyShares(summary, CODE, trackedSetOf(summary, null))).toEqual({ status: 'unread' });
+    expect(weeklyMention(summary, CODE, trackedSetOf(summary, null))).toEqual({ status: 'unread' });
+  });
+
+  it('is unread, as capped, when the adapter marked the weeks as cut at 20 brands', () => {
+    const marked = { ...share(0, 0), share_note: 'capped' } as ReturnType<typeof share>;
+    const summary = summaryWith(
+      [weekOf('2026-11-02', 10, [3, 5, 2])].map((point) => ({ ...point, share_of_voice: marked })),
+    );
+    expect(weeklyShares(summary, CODE, trackedSetOf(summary, null))).toEqual({ status: 'unread', reason: 'capped' });
+  });
+
   it('is unread without a total block or without the weekly series', () => {
     const noTotal = summaryOf({ prompts: [] });
     expect(weeklyShares(noTotal, CODE, trackedSetOf(noTotal, null))).toEqual({ status: 'unread' });
@@ -128,6 +142,22 @@ describe('foldOthers', () => {
     expect(folded.other).toBeCloseTo(2 / 8, 10);
     const total = folded.entities.reduce((sum, entry) => sum + (entry.value ?? 0), 0) + (folded.other ?? 0);
     expect(total).toBeCloseTo(1, 10);
+  });
+
+  it('Other tracked adds the mentions of the brands it folds, as x of the week, and has no count in a gap', () => {
+    const entities = [own(), ...[2, 3, 4, 5, 6, 7, 8].map((n) => competitor(n, `Brand ${n}`))];
+    const series = [
+      week('2026-11-02', {
+        share: share(16, 16),
+        entities: entities.map((entity) => entityCells(entity, cell(2, 16), share(2, 16))),
+      }),
+    ];
+    const summary = summaryWith(series, entities);
+    const set = trackedSetOf(summary, null);
+    const read = weeklyShares(summary, CODE, set);
+    if (read.status !== 'read') throw new Error('expected a read');
+    // Brands 7 and 8 are folded: 2 and 2 mentions
+    expect(foldOthers(at(read.points, 0), set)).toMatchObject({ otherNumerator: 4, otherCounts: null });
   });
 
   it('no brand is folded when all fit the palette, and a thin week has nothing to fold', () => {
@@ -241,7 +271,12 @@ describe('idle weeks at the ends of the series', () => {
   });
 
   it('a series of idle weeks has no week to draw', () => {
-    expect(trimIdleShares(sharesOf([idle('2026-10-12'), idle('2026-10-19')]))).toEqual([]);
+    // As the server sends it with include=entities: a cell of zero counts for every tracked brand
+    const zeroed = (weekStart: string): WeekCells =>
+      week(weekStart, {
+        entities: [FYNIX, HUBSPOT, ZOHO].map((entityId) => entityCells(entityId, cell(0, 0), share(0, 0))),
+      });
+    expect(trimIdleShares(sharesOf([zeroed('2026-10-12'), zeroed('2026-10-19')]))).toEqual([]);
   });
 
   it('a rank of the shares as the server pooled them survives the pooled idle week being left off the axis', () => {

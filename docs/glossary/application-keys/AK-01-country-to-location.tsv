@@ -1,0 +1,39 @@
+key	current text
+common.location.placeholder	Search countries and cities
+onboarding.locationHint	Where rank checks search from. Choose a country, or a city for local results.
+rankings.import.fields.country	Country
+rankings.export.country	Country
+rankings.add.countries	Countries
+rankings.add.countriesHint	A keyword is tracked in each country you choose, on each device
+rankings.add.countriesPlaceholder	Choose countries
+rankings.add.countriesEmpty	No countries match “{query}”
+rankings.add.countriesRequired	Choose at least one country
+rankings.add.countriesTooMany	Choose at most {max} countries in one add
+rankings.add.countriesFailed	The countries could not be loaded
+rankings.add.plan.empty	Each keyword is checked once a day in every country and on every device chosen.
+rankings.scope.country	Country: {country}
+rankings.scope.countrySearch	Search countries
+rankings.scope.countryEmpty	No countries match “{query}”
+rankings.scope.open	Show countries
+rankings.scope.allCountries	All countries
+rankings.groupInspector.emptyReason	The device, country, filters or search leave out every keyword of this group.
+rankings.columns.country	Country
+rankings.filters.country	Country
+aiEngines.countriesLabel	Countries of {engine}
+aiEngines.countriesHint	The platform asks each prompt in the country the prompt stands for.
+aiEngines.countriesPlaceholder	Add a country
+aiEngines.countriesEmpty	No country matches “{query}”
+aiEngines.countriesRequired	Choose at least one country.
+aiEngines.countriesFailed	The list of countries could not be loaded.
+aiEngines.countriesRefused	One of the countries cannot be used. Choose another.
+aiEngines.chips	Countries of {engine}
+prompts.add.description	One prompt per line, written as a buyer would ask it. The prompts of one add share their group, language and country.
+prompts.add.country	Country
+prompts.add.countryRequired	Choose a country.
+prompts.add.countryHintEngines	Only countries every enabled platform asks in. {reach}.
+prompts.add.countriesFailed	Countries could not be loaded.
+prompts.add.plan.needsCountry	Choose a country to check what is tracked.
+prompts.add.check.needsCountry	Choose a country to check what is tracked.
+prompts.add.rejected.locationNotSupported	an enabled platform does not ask in this country.
+prompts.inspector.runRefused.locationNotEnabled	{count, plural, one {{engines} has} other {{engines} have}} no location in the country of this prompt.
+prompts.inspector.runNoEngine	No enabled platform can ask this prompt: it is too long for them, or they have no location in its country.

@@ -3,29 +3,24 @@
 import { useTranslations } from 'next-intl';
 import type { ReactElement } from 'react';
 
-import { useCompetitorReads, useTrackedSet } from './data/use-competitor-reads';
-import { entityTotals, previousEntityTotals } from './model/entity-totals';
-import type { EntityFigures, EntityTotals, TrackedSet } from './model/types';
-import { useCardEngine } from './parts/card-engine';
-import { frameSummary, useFrameState, type DataSituation } from './parts/frame-state';
+import { SHAPE_OPTIONS, useTrackedSet } from './data/use-competitor-reads';
+import { shareAcrossPlatforms, type ScopeShareRead } from './model/scope-share';
+import { colorSlots } from './model/tracked-set';
+import { unreadWhy, type TrackedSet } from './model/types';
+import { useCardPlatforms } from './parts/card-engine';
+import { CompetitorBars, type CompetitorBarRow } from './parts/competitor-bars';
+import { frameSummary, useFrameState, type DataSituation, type FrameState } from './parts/frame-state';
 import { TrackedFootnote } from './parts/tracked-footnote';
 import { loadingBodyHeight } from './skeletons';
-import { useCardDensity } from '../engines/use-card-density';
-import { useCardDrill, useCardExport } from '../engines/use-card-seams';
-import { useOverview } from '../../overview-context';
-import {
-  BarList,
-  BarListTable,
-  barListCsv,
-  type BarListProps,
-  type ComparisonRow,
-} from '@/components/app/chart/bar-list';
+import { useCardExport } from '../engines/use-card-seams';
+import { useOpenCompetitor } from '../../competitor-drawer/open-competitor';
+import { useOverviewSummary } from '../../overview-context';
+import { useScopeUnavailable } from '../../states/scope-unavailable';
+import { BarListTable, barListCsv, type BarListProps, type ComparisonRow } from '@/components/app/chart/bar-list';
 import { ChartFrame } from '@/components/app/chart/chart-frame';
-import { EngineLogo } from '@/components/app/engine/engine-logo';
-import { MetricInfo } from '@/components/app/metric/metric-info';
 import type { CardProps } from '@/features/layouts';
-import { METHODOLOGY_HREF } from '@/lib/citations/methodology';
-import { formatDateRange, formatInteger, formatList, formatPercent, formatPointsDelta } from '@/lib/format';
+import { formatList, formatPercent } from '@/lib/format';
+import { engineLabel } from '@/lib/layouts';
 
 /** The `rows` option: the brands drawn before the own brand is added (catalog 5 or 10, default 10). */
 const ROW_OPTIONS = [5, 10] as const;
@@ -38,104 +33,124 @@ function rowsOf(option: string | undefined): number {
 }
 
 /** What the answers say, once read: the first of these that holds, so nothing is drawn from too little. */
-function situationOf(totals: EntityTotals | null, set: TrackedSet | null): DataSituation {
-  if (totals === null || set === null) return { kind: 'ready' };
-  if (totals.status === 'unread' || totals.validAnswers === 0) return { kind: 'no_answers' };
+function situationOf(read: ScopeShareRead | null, set: TrackedSet | null): DataSituation {
+  if (read === null || set === null) return { kind: 'ready' };
+  if (read.status === 'unread' || read.validAnswers === 0) return { kind: 'no_answers' };
   if (!set.entities.some((entity) => entity.role === 'competitor')) return { kind: 'no_competitor' };
-  if (totals.state !== 'ok') return { kind: 'too_few', answers: totals.answersNamingTracked };
   return { kind: 'ready' };
 }
 
-/** Highest share first; a brand with no share is last; equal shares keep the order of the tracked set. */
-const byShare = (a: EntityFigures, b: EntityFigures): number => (b.share.value ?? -1) - (a.share.value ?? -1);
-
 /**
- * CH-02 and WB-OV-08: the brands ranked by share of voice on one engine, you in `chart-1`. One formula (an answer
- * gives 1 over the tracked brands it names), one denominator printed in the meta line, and beside every percent
- * the count of answers that name the brand. A share change is never coloured: share of voice has no test.
+ * CH-02 and OV-SOV: the tracked brands ranked by share of voice over the platforms of the page scope, you in
+ * `chart-1`. One platform is its own shares; All platforms is the equal-weight average of the platforms that have a
+ * share, said in the meta line ("avg of 3 platforms"), never a ratio of pooled counts (R3). A competitor's name opens
+ * its drawer. A share is over the answers that mention a tracked brand, and that count is in every tooltip (R1).
  */
 export default function ShareOfVoiceCard({ item, options, live }: CardProps): ReactElement {
-  const t = useTranslations('aiOverview.competitors.shareOfVoice');
+  const t = useTranslations('aiOverview.competitors.scopeShare');
   const insufficient = useTranslations('common.insufficient');
-  const { scope } = useOverview();
-  const engine = useCardEngine(options);
-  const density = useCardDensity();
-  const drill = useCardDrill();
-  const reads = useCompetitorReads('totals', { subscribed: live });
-  const current = reads.current.data;
+  const platforms = useCardPlatforms();
+  const open = useOpenCompetitor();
+  const unavailable = useScopeUnavailable(t('title'));
+  // One read: this card draws no change, so the previous period is not asked
+  const summaryRead = useOverviewSummary({ ...SHAPE_OPTIONS.totals, subscribed: live });
+  const current = summaryRead.data;
   const set = useTrackedSet(current);
-  const totals = current !== undefined && set !== null ? entityTotals(current, engine.code, set) : null;
-  const previousSummary = reads.paired ? (reads.previous?.data ?? null) : null;
-  const before = set === null ? null : previousEntityTotals(previousSummary, engine.code, set);
-  const previousEmpty = reads.previous?.status === 'ready' && before === null;
-  const situation = situationOf(totals, set);
-  const frame = useFrameState({
+  const share: ScopeShareRead | null =
+    current !== undefined && set !== null && platforms.codes.length > 0
+      ? shareAcrossPlatforms(current, platforms.codes, set, platforms.average)
+      : null;
+  const base = useFrameState({
     subject: t('subject'),
-    read: reads.current,
-    previous: reads.previous,
-    previousEmpty,
-    engine,
-    situation,
+    read: summaryRead,
+    previous: null,
+    previousEmpty: false,
+    engine: null,
+    situation: situationOf(share, set),
   });
-
-  const figures = totals?.status === 'read' && totals.state === 'ok' ? [...totals.entities].sort(byShare) : [];
-  const answers = totals?.status === 'read' ? totals.answersNamingTracked : 0;
-  const rowOf = (figure: EntityFigures): ComparisonRow => {
-    const { entity, share, mention } = figure;
-    const isOwn = entity.role === 'own';
-    // A row is plain text where there is no page to open
-    const href =
-      (isOwn
-        ? drill('prompts', { engine: engine.code, metric: 'sov' })
-        : drill('competitors', { engine: engine.code })) ?? undefined;
-    const base = { id: entity.entityId, label: entity.name, own: isOwn, href };
-    if (share.state !== 'ok' || share.value === null) {
-      return { ...base, value: { kind: 'none' }, accessibleText: t('rowTextUnknown', { name: entity.name }) };
-    }
-    const value = formatPercent(share.value, { decimals: 0 });
-    const named = mention.n > 0 ? t('named', { k: formatInteger(mention.k), n: mention.n }) : null;
-    const earlier = before?.entities.find((candidate) => candidate.entity.entityId === entity.entityId)?.share.value;
-    const change = earlier === null || earlier === undefined ? null : share.value - earlier;
-    return {
-      ...base,
-      value: { kind: 'value', value: share.value, valueText: value, contextText: named },
-      accessibleText:
-        named === null
-          ? t('rowTextNoCount', { name: entity.name, value })
-          : t('rowText', { name: entity.name, value, named }),
-      tip: t('rowTip', { value, count: share.answers }),
-      delta:
-        change === null
-          ? undefined
-          : {
-              input: { value: change, unit: 'points', polarity: 'higher_is_better', isDetectable: null },
-              test: 'interim',
-              text: formatPointsDelta(change),
+  const tooFew = share?.status === 'read' && share.state !== 'ok';
+  const frame: FrameState =
+    platforms.codes.length === 0
+      ? { status: 'empty', empty: unavailable }
+      : share?.status === 'unread' &&
+          (base.status === 'ready' || base.status === 'refetching' || base.status === 'empty')
+        ? // No counts to read a share from: not collected, or more than 20 tracked brands (backend request 24)
+          {
+            status: 'empty',
+            empty: {
+              title: t(`${unreadWhy(share)}.title`),
+              reason: t(`${unreadWhy(share)}.reason`),
             },
-    };
-  };
-  const tableRows = figures.map(rowOf);
-  const limit = rowsOf(options.rows);
-  const top = tableRows.slice(0, limit);
-  const ownRow = tableRows.find((row) => row.own);
-  // The own brand is always drawn: when it ranks below the top rows it follows them
-  const ownExtra = ownRow !== undefined && !top.includes(ownRow) ? ownRow : null;
-  const shown = ownExtra === null ? top : [...top, ownExtra];
-  const listRows = [...shown, ...tableRows.filter((row) => !shown.includes(row))];
-  const hidden = tableRows.length - shown.length;
+          }
+        : tooFew && (base.status === 'ready' || base.status === 'refetching')
+          ? { status: 'empty', empty: { title: t('emptyTitle'), reason: t('emptyReason') } }
+          : base;
 
-  const list: BarListProps = {
+  const read = share?.status === 'read' && share.state === 'ok' ? share : null;
+  const slots = set === null ? null : colorSlots(set);
+  const tableRows: ComparisonRow[] = (read === null ? [] : [...read.entities])
+    .sort((a, b) => (b.value ?? -1) - (a.value ?? -1))
+    .map((entry): ComparisonRow => {
+      const label = entry.entity.role === 'own' ? t('you', { name: entry.entity.name }) : entry.entity.name;
+      const base = { id: entry.entity.entityId, label, own: entry.entity.role === 'own' };
+      if (entry.value === null) {
+        return { ...base, value: { kind: 'none' }, accessibleText: t('rowTextUnknown', { name: label }) };
+      }
+      const value = formatPercent(entry.value, { decimals: 0 });
+      return {
+        ...base,
+        // One platform: x of y brand mentions beside the percent (D17). An average has no pooled count: its tip has each platform's
+        value: {
+          kind: 'value',
+          value: entry.value,
+          valueText: value,
+          contextText:
+            platforms.average || entry.counts[0] === undefined
+              ? null
+              : t('ofBrandMentions', { k: entry.counts[0].k, n: entry.counts[0].n }),
+        },
+        accessibleText: t('rowText', { name: label, value }),
+        // x of y brand mentions of each platform (D17); an average has no pooled count beside it
+        tip: platforms.average
+          ? t('rowTipAverage', {
+              name: entry.entity.name,
+              value,
+              count: read?.used.length ?? 0,
+              counts: formatList(
+                entry.counts.map((each) =>
+                  t('platformCount', { platform: engineLabel(each.code), k: each.k, n: each.n }),
+                ),
+              ),
+            })
+          : t('rowTipOne', {
+              name: entry.entity.name,
+              value,
+              k: entry.counts[0]?.k ?? 0,
+              n: entry.counts[0]?.n ?? 0,
+            }),
+      };
+    });
+  const limit = rowsOf(options.rows);
+  const shown = tableRows.filter((row, index) => index < limit || row.own);
+  const bars: CompetitorBarRow[] = shown.map((row) => ({
+    id: row.id,
+    label: row.label,
+    own: row.own,
+    value: row.value.kind === 'value' ? row.value.value : null,
+    valueText: row.value.kind === 'value' ? row.value.valueText : t('unknownValue'),
+    slot: slots?.get(row.id) ?? null,
+    tip: row.tip ?? row.accessibleText,
+    openLabel: t('open', { name: row.label }),
+  }));
+
+  const tableProps: BarListProps = {
     mode: 'comparison',
-    rows: listRows,
-    caption: t('caption', { engine: engine.label }),
+    rows: tableRows,
+    caption: t('caption'),
     labelHeader: t('labelHeader'),
     valueHeader: t('valueHeader'),
     contextHeader: t('contextHeader'),
-    changeHeader: t('changeHeader'),
-    limit: shown.length,
-    density,
   };
-  const tableProps: BarListProps = { ...list, rows: tableRows };
   const csv = barListCsv(tableProps, (count) => insufficient('answers', { count }));
   useCardExport(item.id, () => {
     if (frame.status === 'loading' || frame.status === 'error') return null;
@@ -149,25 +164,27 @@ export default function ShareOfVoiceCard({ item, options, live }: CardProps): Re
     };
   });
 
-  const range = current === undefined ? null : formatDateRange(current.window.from, current.window.to);
   const leaders = formatList(
-    tableRows
-      .slice(0, 3)
-      .map((row) => (row.value.kind === 'value' ? `${row.label} ${row.value.valueText}` : row.label)),
+    tableRows.slice(0, 3).map((row) => `${row.label} ${row.value.kind === 'value' ? row.value.valueText : ''}`.trim()),
   );
+  const hidden = tableRows.length - shown.length;
   return (
     <ChartFrame
       kind="html"
+      keepHeaderWhenEmpty
       variant="panel"
-      height={280}
+      height={240}
       loadingHeight={LOADING_HEIGHT}
-      title={t('title', { engine: engine.label })}
+      title={t('title')}
       meta={
-        range === null || totals?.status !== 'read'
+        read === null
           ? null
-          : t('meta', { window: range, count: answers, branded: scope.branded })
+          : platforms.average
+            ? t('metaAverage', { count: read.used.length })
+            : t('metaOne', { count: read.answers })
       }
-      summary={frameSummary(frame, t('summary', { engine: engine.label, count: answers, list: leaders }))}
+      info={{ what: t('info.what'), how: t('info.how') }}
+      summary={frameSummary(frame, t('summary', { list: leaders }))}
       footnote={
         set === null ? undefined : (
           <>
@@ -176,24 +193,9 @@ export default function ShareOfVoiceCard({ item, options, live }: CardProps): Re
           </>
         )
       }
-      body={
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center gap-2 type-meta">
-            <EngineLogo engine={engine.code} name={engine.label} />
-            <span>{t('rankedBy')}</span>
-            <MetricInfo
-              name={t('infoName')}
-              definition={t('infoDefinition')}
-              formula={t('infoFormula')}
-              denominatorText={t('infoSample', { count: answers })}
-              methodologyHref={METHODOLOGY_HREF}
-            />
-          </div>
-          <BarList {...list} />
-        </div>
-      }
+      body={<CompetitorBars rows={bars} caption={t('caption')} onOpen={open} />}
       table={<BarListTable {...tableProps} />}
-      menu={{ fileName: t('fileName', { engine: engine.code }), csv }}
+      menu={{ fileName: t('fileName'), csv }}
       {...frame}
     />
   );

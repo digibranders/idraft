@@ -99,8 +99,8 @@ function promptsAsViewer(): ReactElement {
   );
 }
 
-describe('Topics & Prompts collection status', () => {
-  it('Topics and Prompts shows the progress above the table and refreshes the summary when the run ends', async () => {
+describe('Prompts collection status', () => {
+  it('Prompts shows the progress above the table and refreshes the summary when the run ends', async () => {
     let open = true;
     serveRuns((query) => {
       if (query.get('filter[status_in]')?.includes('planned') !== true) return [];

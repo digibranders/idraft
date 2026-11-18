@@ -86,5 +86,9 @@ export function buildPromptExport(
   return { header, rows: body };
 }
 
-/** The name of a file: what it holds and the window its counts are of. */
-export const exportFileName = (range: DateRange): string => `prompts-${range.from}-to-${range.to}.csv`;
+/** What an export was made from: the Prompts tab, or the prompts of the groups of the Groups tab. */
+export type ExportSubject = 'prompts' | 'groups';
+
+/** The name of a file: what it holds and the window its counts are of; the prompts of groups say so. */
+export const exportFileName = (range: DateRange, subject: ExportSubject = 'prompts'): string =>
+  `${subject === 'groups' ? 'groups-prompts' : 'prompts'}-${range.from}-to-${range.to}.csv`;

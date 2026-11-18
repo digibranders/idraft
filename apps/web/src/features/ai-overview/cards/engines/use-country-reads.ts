@@ -10,7 +10,8 @@ import { useOverview } from '../../overview-context';
 import type { ReadOptions } from '../../data/use-overview-reads';
 import { usePromptCountries, type PromptCountries } from '../../scope/prompt-countries';
 import { isApiProblem } from '@/lib/api/problem';
-import type { PromptSummaryRow, Schemas } from '@/lib/api/types';
+import type { PromptsSummary, PromptSummaryRow, Schemas } from '@/lib/api/types';
+import { withBrandMentionShare } from '@/lib/rates/brand-mention-share';
 
 /** One country's summary read, in the vocabulary of the shell's `Read`. */
 export interface CountryReadState extends CountryRead {
@@ -39,6 +40,12 @@ interface Raw {
   refetch: () => void;
 }
 
+/** Each country's `total` row with its share of voice counts; `undefined` for a country whose read has not answered. */
+const combineTotals = (
+  results: UseQueryResult<Schemas['PromptsSummaryResponse']>[],
+): (PromptsSummary['total'] | undefined)[] =>
+  results.map((result) => (result.data === undefined ? undefined : withBrandMentionShare(result.data.data).total));
+
 const NO_COUNTRIES: readonly string[] = [];
 const NOTHING_KEPT: ReadonlyMap<string, readonly PromptSummaryRow[]> = new Map();
 const NO_FAILURES: ReadonlyMap<string, string | null> = new Map();
@@ -65,7 +72,13 @@ const rawOf = (result: UseQueryResult<Schemas['PromptsSummaryResponse']>): Raw =
  * gives country codes and no counts to pick the top 8 from; replaced by one `by_country` summary read once the mock
  * and the card seam serve it (plan Q4 and F1).
  */
-export function useCountryReads({ subscribed = true }: ReadOptions = {}): CountryReads {
+export function useCountryReads({
+  subscribed = true,
+  withCounts = false,
+}: ReadOptions & {
+  /** Also read each country's brand mention counts (the `total` row with its entity cells), for share of voice. */
+  withCounts?: boolean;
+} = {}): CountryReads {
   const { workspaceId, project, scope, enabledEngines } = useOverview();
   // Not the page's country: this card ignores that filter, and a country no prompt has must not become a group
   const countries = usePromptCountries({ workspaceId, projectId: project.id }, null);
@@ -82,6 +95,19 @@ export function useCountryReads({ subscribed = true }: ReadOptions = {}): Countr
       enabled: runs && subscribed,
     })),
     combine,
+  });
+
+  // Share of voice counts brand mentions (D17): each country's total row with its entity cells, a small read (no rows)
+  const totals = useQueries({
+    queries: list.map((country) => ({
+      ...overviewSummaryQuery(
+        { workspaceId, projectId: project.id },
+        { scope: { ...scope, country }, enabledEngines },
+        { include: ['entities', 'total'], rows: 'none' },
+      ),
+      enabled: runs && subscribed && withCounts,
+    })),
+    combine: combineTotals,
   });
 
   // The last prompts each country answered, set while rendering (React's way to derive state from a change of props)
@@ -116,7 +142,7 @@ export function useCountryReads({ subscribed = true }: ReadOptions = {}): Countr
       list.flatMap((country, index): CountryReadState[] => {
         const read = raw[index];
         if (read === undefined) return [];
-        const common = { country, errorId: read.errorId, retry: read.refetch };
+        const common = { country, errorId: read.errorId, retry: read.refetch, total: totals[index] };
         if (read.prompts !== undefined) {
           return [
             {
@@ -155,7 +181,7 @@ export function useCountryReads({ subscribed = true }: ReadOptions = {}): Countr
           },
         ];
       }),
-    [list, raw, kept, failures, subscribed],
+    [list, raw, totals, kept, failures, subscribed],
   );
   return useMemo(() => ({ countries, reads }), [countries, reads]);
 }

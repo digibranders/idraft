@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { describe, expect, it } from 'vitest';
 
@@ -32,7 +32,9 @@ function Strip({ counts }: { counts: PromptCounts }): ReactElement {
   );
 }
 
-const render = (counts: PromptCounts, searchParams = ''): ProvidedRender =>
+/** The page opens without a comparison: a change shows only when the address asks for it. */
+const ON = '?cmp=previous';
+const render = (counts: PromptCounts, searchParams = ON): ProvidedRender =>
   renderWithProviders(<Strip counts={counts} />, { searchParams });
 
 /** The value cell of an item: with a tooltip it is the tab stop that holds it. */
@@ -42,6 +44,12 @@ const itemOf = (label: string): HTMLElement => {
   return item;
 };
 const tooltip = (): HTMLElement | null => document.querySelector<HTMLElement>('[data-slot="tooltip"]');
+/** The change is drawn as an icon: its colour is on the icon, the points are spoken and in the tooltip. */
+const iconOf = (item: HTMLElement): HTMLElement => {
+  const icon = item.querySelector<HTMLElement>('[data-slot="trend-icon"]');
+  if (icon === null) throw new Error('The item draws no change');
+  return icon;
+};
 
 const [NOW_UP, BEFORE_UP]: readonly [MetricCell, MetricCell] = DETECTABLE;
 const detectable = (): EngineSummary[] => [
@@ -53,13 +61,13 @@ describe('the prompt inspector strip: change per engine', () => {
   it('shows the change of an engine item, coloured only for the detectable one, with the real Delta classes', () => {
     render(countsOf(detectable()));
     const chatgpt = itemOf('ChatGPT mention');
-    expect(within(chatgpt).getByText('+30.0 pts')).toHaveClass('text-positive-text');
-    expect(chatgpt).toHaveTextContent('up 30.0 pts, detectable, interim test');
+    expect(iconOf(chatgpt)).toHaveClass('text-positive-text');
+    expect(chatgpt).toHaveTextContent('up 30.0 pts, detectable, provisional');
     const gemini = itemOf('Gemini mention');
-    const delta = within(gemini).getByText('+6.7 pts');
+    const delta = iconOf(gemini);
     expect(delta).toHaveClass('text-foreground-secondary');
     expect(delta).not.toHaveClass('text-positive-text');
-    expect(gemini).toHaveTextContent('within normal variation, interim test');
+    expect(gemini).toHaveTextContent('within normal variation, provisional');
   });
 
   it('holds the previous value with its answers, the window and the verdict in the tooltip, a tab stop', async () => {
@@ -67,10 +75,13 @@ describe('the prompt inspector strip: change per engine', () => {
     const chatgpt = itemOf('ChatGPT mention');
     expect(chatgpt).toHaveAttribute('tabindex', '0');
     await user.hover(chatgpt);
-    await waitFor(() => expect(tooltip()).toHaveTextContent('Previous 20%, 12 of 60 answers'));
+    await waitFor(() =>
+      expect(tooltip()).toHaveTextContent('Up 30.0 pts against the previous period, from 20% to 50%'),
+    );
+    expect(tooltip()).toHaveTextContent('Previous 20%, 12 of 60 answers');
     expect(tooltip()).toHaveTextContent('Previous period: Sep 18 to Oct 15');
     expect(tooltip()).toHaveTextContent('Detectable change');
-    expect(tooltip()).toHaveTextContent('Interim test');
+    expect(tooltip()).toHaveTextContent('Provisional');
     // The same style as the other tips: a colon before the window, and no full stop at the end
     expect(tooltip()?.textContent).not.toMatch(/\.$/);
   });
@@ -91,7 +102,7 @@ describe('the prompt inspector strip: change per engine', () => {
     );
     const { user } = render(countsOf([weighted]));
     const item = itemOf('ChatGPT mention');
-    expect(item.textContent).not.toMatch(/detectable|within normal variation|interim test/);
+    expect(item.textContent).not.toMatch(/detectable|within normal variation|provisional/);
     await user.hover(item);
     await waitFor(() => expect(tooltip()).toHaveTextContent('This change is not tested because'));
   });
@@ -124,11 +135,11 @@ describe('the prompt inspector strip: change per engine', () => {
 
   it('draws no change while loading', () => {
     render(countsOf(detectable(), 'loading'));
-    expect(screen.queryByText('+30.0 pts')).toBeNull();
+    expect(document.querySelector('[data-slot="trend-icon"]')).toBeNull();
   });
 
   it('is as before without comparison: no change, no tooltip', () => {
-    render(countsOf(detectable()), '?cmp=off');
+    render(countsOf(detectable()), '');
     const chatgpt = itemOf('ChatGPT mention');
     expect(chatgpt.textContent).not.toMatch(/pts/);
     expect(chatgpt).not.toHaveAttribute('tabindex');

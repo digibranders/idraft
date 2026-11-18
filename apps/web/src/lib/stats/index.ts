@@ -3,3 +3,4 @@ export * from './wilson';
 export * from './rates';
 export * from './change';
 export * from './panel';
+export * from './largest-remainder';

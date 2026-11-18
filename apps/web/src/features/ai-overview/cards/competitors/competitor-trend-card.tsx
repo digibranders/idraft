@@ -8,10 +8,19 @@ import { SHAPE_OPTIONS, useTrackedSet } from './data/use-competitor-reads';
 import { entityTotals } from './model/entity-totals';
 import { colorSlots } from './model/tracked-set';
 import { trimIdleMentions } from './model/trim-weeks';
-import type { EngineEntityTotals, EntityFigures, TrackedSet, WeeklyMention, WeeklyMentionPoint } from './model/types';
+import {
+  isUnreadable,
+  unreadWhy,
+  type EngineEntityTotals,
+  type EntityFigures,
+  type TrackedSet,
+  type Unreadable,
+  type WeeklyMention,
+  type WeeklyMentionPoint,
+} from './model/types';
 import { weeklyMention } from './model/weekly-series';
 import { useCardEngine } from './parts/card-engine';
-import { frameSummary, useFrameState, type DataSituation, type FrameState, type ReadFacts } from './parts/frame-state';
+import { frameSummary, useFrameState, type DataSituation, type FrameState } from './parts/frame-state';
 import { TrackedFootnote } from './parts/tracked-footnote';
 import { loadingBodyHeight } from './skeletons';
 import { useOverview, useOverviewSummary } from '../../overview-context';
@@ -61,11 +70,11 @@ function trendModel(
   set: TrackedSet | null,
   engineCode: string,
   competitors: number,
-): TrendModel | 'unread' | null {
+): TrendModel | Unreadable | null {
   if (summary === undefined || set === null) return null;
   const totals = entityTotals(summary, engineCode, set);
   const weekly = weeklyMention(summary, engineCode, set);
-  if (totals.status !== 'read' || weekly.status !== 'read') return 'unread';
+  if (totals.status !== 'read' || weekly.status !== 'read') return { unread: unreadWhy(totals, weekly) };
   const slots = colorSlots(set);
   const slotOf = (figures: EntityFigures): number | undefined => slots.get(figures.entity.entityId);
   const own = totals.entities.find((figures) => figures.entity.role === 'own');
@@ -121,7 +130,7 @@ export default function CompetitorTrendCard({ item, options, live }: CardProps):
     () => trendModel(summary, set, engine.code, competitors),
     [summary, set, engine.code, competitors],
   );
-  const ready = model !== null && model !== 'unread' ? model : null;
+  const ready = model !== null && !isUnreadable(model) ? model : null;
 
   const tipOf = useCallback(
     (point: WeeklyMention): string =>
@@ -225,8 +234,6 @@ export default function CompetitorTrendCard({ item, options, live }: CardProps):
     })}${detectable === null ? '' : t(detectable ? 'summaryLarger' : 'summaryWithin')}`;
   }, [ready, engine.label, tipWords, t]);
 
-  const readFacts: ReadFacts =
-    model === 'unread' ? { status: 'error', errorId: read.errorId, stale: false, refetch: read.refetch } : read;
   const situation: DataSituation =
     set !== null && !set.entities.some((entity) => entity.role === 'competitor')
       ? { kind: 'no_competitor' }
@@ -235,7 +242,7 @@ export default function CompetitorTrendCard({ item, options, live }: CardProps):
         : { kind: 'ready' };
   const base = useFrameState({
     subject: t('subject'),
-    read: readFacts,
+    read,
     previous: null,
     previousEmpty: false,
     engine,
@@ -245,10 +252,14 @@ export default function CompetitorTrendCard({ item, options, live }: CardProps):
     status: 'empty',
     empty: { title: t('needsWeeksTitle'), reason: t('needsWeeksReason', { engine: engine.label }) },
   };
+  const settled = base.status === 'ready' || base.status === 'refetching';
   const frame: FrameState =
-    (base.status === 'ready' || base.status === 'refetching') && ready !== null && ready.weeksWithAnswers < 2
-      ? needsWeeks
-      : base;
+    settled && isUnreadable(model)
+      ? // A good read with no per-brand weekly cells is not an error: say why, keep the place
+        { status: 'empty', empty: { title: t(`${model.unread}.title`), reason: t(`${model.unread}.reason`) } }
+      : settled && ready !== null && ready.weeksWithAnswers < 2
+        ? needsWeeks
+        : base;
   const notice: ChartNotice | undefined = frame.notice;
 
   useCardExport(item.id, () => {

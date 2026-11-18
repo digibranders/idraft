@@ -1,5 +1,5 @@
 import { promptRowsRead, promptsInScope, topicsInScope } from './topics-in-scope';
-import type { EngineCode, ProjectEngine, PromptsSummary, PromptSummaryRow, Schemas } from '@/lib/api/types';
+import type { EngineCode, ProjectEngine, PromptsSummary, Schemas } from '@/lib/api/types';
 import { ENGINES } from '@/lib/layouts/catalog';
 import { engineRates, type RateFigure } from '@/lib/rates/strip-model';
 import { isDetectableChange, rateState, type RateState } from '@/lib/stats';
@@ -137,8 +137,11 @@ function newest(times: readonly (string | null)[]): string | null {
 }
 
 /** The figures of one engine over the prompt rows of one window. */
-function figuresOf(prompts: readonly PromptSummaryRow[], code: EngineCode): Figures {
-  const { mentioned, cited, shareOfVoice } = engineRates(prompts, code);
+function figuresOf(summary: PromptsSummary, code: EngineCode): Figures {
+  const { prompts } = summary;
+  // Share of voice is the brand mentions of the engine's `total` row (D17), whose entity cells the prompt rows do not carry
+  const total = summary.total?.engines.find((engine) => engine.engine_code === code);
+  const { mentioned, cited, shareOfVoice } = engineRates(prompts, code, total);
   // Named and cited is prompt weighted like Mentioned: the strip's own arithmetic over the outcome cell
   const outcome = prompts.map((prompt) => ({
     topic_term_ids: prompt.topic_term_ids,
@@ -237,8 +240,8 @@ function engineAggregate(inputs: AggregateInputs, code: EngineCode, label: strin
   }
   // Without the prompt rows the figures are unread (`rowsRead` is false), not an engine without an answer
   if (!rowsRead) return { ...noFigures, citationShare: citationShareOf(inputs.sources, code) };
-  const figures = figuresOf(inputs.current.prompts, code);
-  const before = inputs.previous === null ? null : figuresOf(inputs.previous.prompts, code);
+  const figures = figuresOf(inputs.current, code);
+  const before = inputs.previous === null ? null : figuresOf(inputs.previous, code);
   // A window with no answer of any kind is no data, not a rate of 0
   const previous = before === null || before.allAnswers === 0 ? null : before;
   return {

@@ -28,13 +28,13 @@ describe('UnavailableCard', () => {
     await startCustomizing(user);
     const frame = box().querySelector<HTMLElement>('[data-layout-card="ai-by-engine"]');
     if (frame === null) throw new Error('the unavailable card has no frame');
-    expect(within(frame).getByText('AI by engine')).toBeInTheDocument();
+    expect(within(frame).getByText('AI by platform')).toBeInTheDocument();
     expect(within(frame).getByText(REASON)).toBeInTheDocument();
     expect(within(frame).getByText(NOTE)).toBeInTheDocument();
     // Outside the inert body: read by assistive technology, and not taken out of the tab order of the frame
     expect(within(frame).getByText(REASON).closest('[inert]')).toBeNull();
     // The card can still be moved or hidden
-    expect(within(frame).getByRole('button', { name: 'Hide AI by engine' })).toBeInTheDocument();
+    expect(within(frame).getByRole('button', { name: 'Hide AI by platform' })).toBeInTheDocument();
   });
 
   it('is skipped in view mode', async () => {

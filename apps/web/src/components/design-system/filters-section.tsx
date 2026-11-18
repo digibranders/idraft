@@ -4,6 +4,7 @@ import { useState, type ReactNode } from 'react';
 
 import { SpecimenGroup } from './specimen';
 import { FilterBar } from '@/components/app/filters/filter-bar';
+import { PressedGroup, type PressedGroupItem } from '@/components/app/filters/pressed-group';
 import type { FilterField, FilterValues } from '@/components/app/filters/types';
 import { TEXT_OPERATORS } from '@/lib/filters/filter-values';
 import { formatInteger } from '@/lib/format';
@@ -61,7 +62,15 @@ const APPLIED: FilterValues = {
   kw: { kind: 'text', operator: 'contains', text: 'crm' },
 };
 
-function SampleBar({ initial, count }: { initial: FilterValues; count?: boolean }): ReactNode {
+function SampleBar({
+  initial,
+  count,
+  nowrap,
+}: {
+  initial: FilterValues;
+  count?: boolean;
+  nowrap?: boolean;
+}): ReactNode {
   const [values, setValues] = useState<FilterValues>(initial);
   const applied = Object.keys(values).length;
   return (
@@ -69,9 +78,24 @@ function SampleBar({ initial, count }: { initial: FilterValues; count?: boolean 
       fields={FIELDS}
       values={values}
       onChange={setValues}
+      nowrap={nowrap}
       resultCount={count === true ? `${formatInteger(4812 - applied * 1100)} keywords` : null}
     />
   );
+}
+
+type SampleOwner = 'own' | 'competitor' | 'third' | 'all';
+
+const OWNER_ITEMS: readonly PressedGroupItem<SampleOwner>[] = [
+  { value: 'own', label: 'Your site', count: formatInteger(13) },
+  { value: 'competitor', label: 'Competitors', count: formatInteger(141) },
+  { value: 'third', label: 'Third-party', count: formatInteger(124) },
+  { value: 'all', label: 'All', count: formatInteger(278) },
+];
+
+function SamplePressedGroup(): ReactNode {
+  const [owner, setOwner] = useState<SampleOwner>('own');
+  return <PressedGroup label="Domain type" value={owner} items={OWNER_ITEMS} onValueChange={setOwner} />;
 }
 
 export function FiltersSection(): ReactNode {
@@ -88,6 +112,20 @@ export function FiltersSection(): ReactNode {
         note="13 section 2. Clear filters shows only while a chip is applied."
       >
         <SampleBar initial={{}} count />
+      </SpecimenGroup>
+      <SpecimenGroup
+        title="FilterBar, one line"
+        note="nowrap keeps the chips and Filter on one line in a room too narrow for them: the group scrolls sideways inside itself with its scrollbar hidden, so the bar keeps its height. The default wraps."
+      >
+        <div className="w-96 max-w-full">
+          <SampleBar initial={APPLIED} nowrap />
+        </div>
+      </SpecimenGroup>
+      <SpecimenGroup
+        title="PressedGroup"
+        note="13 section 10. A few kinds of one table's rows, each with its count, one pressed. It sits in the table's toolbar and resets the table's sort."
+      >
+        <SamplePressedGroup />
       </SpecimenGroup>
     </>
   );

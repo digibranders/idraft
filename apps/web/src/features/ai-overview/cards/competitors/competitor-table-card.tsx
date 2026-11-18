@@ -92,8 +92,9 @@ function readingOf(figures: EntityFigures, metric: Metric): Reading {
     const { state, value, k, n } = figures.mention;
     return { state, value, k, n };
   }
-  const { state, value, answers } = figures.share;
-  return { state, value, k: null, n: answers };
+  // Share of voice is x of y brand mentions (D17)
+  const { state, value, numerator, answers } = figures.share;
+  return { state, value, k: numerator, n: answers };
 }
 
 const rateOf = (reading: Reading): RateReading => ({
@@ -252,7 +253,7 @@ export default function CompetitorTableCard({ item, options, live }: CardProps):
             <span className="type-meta text-foreground-tertiary">
               {metric === 'mention'
                 ? t.rich('namedIn', { count: () => <SampleCount k={cell.k} n={cell.n} noun="answers" /> })
-                : t.rich('ofNaming', { count: () => <SampleCount k={null} n={cell.n} noun="answers" form="n-only" /> })}
+                : t.rich('shareOf', { count: () => <SampleCount k={cell.k} n={cell.n} noun="brandMentions" /> })}
             </span>
           </div>
         );
@@ -316,7 +317,10 @@ export default function CompetitorTableCard({ item, options, live }: CardProps):
         return {
           shown: percent(cell.value),
           value: percent(cell.value),
-          count: metric === 'mention' ? t('named', { k: cell.k ?? 0, n: cell.n }) : t('ofNamingPlain', { n: cell.n }),
+          count:
+            metric === 'mention'
+              ? t('named', { k: cell.k ?? 0, n: cell.n })
+              : t('ofBrandMentions', { k: cell.k ?? 0, n: cell.n }),
           change: cell.change === null ? null : formatPointsDelta(cell.change.points),
           status: t('statusRead'),
         };

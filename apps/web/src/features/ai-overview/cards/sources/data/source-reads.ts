@@ -4,7 +4,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 
 import { MIN_DOMAIN_UNITS, sourceFilters, sourcesAskable, type SourcesAskable } from './source-filters';
-import { comparisonWindow } from '../../../data/overview-queries';
+import { sourcesComparable } from '../../../data/overview-queries';
 import { mapRead, useRead, type Gate, type Read } from '../../../data/read-state';
 import type { ReadOptions } from '../../../data/use-overview-reads';
 import { useOverview } from '../../../overview-context';
@@ -83,7 +83,7 @@ export function useSourceDomains({
   const askable = sourcesAskable(readScope);
   const runs = askable === 'ok';
   const gate = gateOf(runs, subscribed);
-  const compared = compare && comparisonWindow(scope) !== null;
+  const compared = compare && sourcesComparable(scope);
   const ref = useMemo(() => ({ workspaceId, projectId: project.id }), [workspaceId, project.id]);
   const filters = useMemo(() => sourceFilters(readScope, roles), [readScope, roles]);
   const currentQuery = useQuery({

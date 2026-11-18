@@ -20,8 +20,8 @@ function stateOf(
   data: Partial<FrameStateData>,
   options: { empty?: ChartEmpty | null; retrying?: boolean } = {},
 ): ReturnType<typeof useFrameState> {
-  return renderHook(() => useFrameState({ ...DATA, ...data }, { name: 'AI by engine', ...options }), { wrapper }).result
-    .current;
+  return renderHook(() => useFrameState({ ...DATA, ...data }, { name: 'AI by platform', ...options }), { wrapper })
+    .result.current;
 }
 
 describe('useFrameState', () => {
@@ -47,7 +47,7 @@ describe('useFrameState', () => {
     expect(state.status).toBe('error');
     if (state.status !== 'error') return;
     expect(state.error).toMatchObject({
-      title: 'Could not load AI by engine',
+      title: 'Could not load AI by platform',
       reason: 'The server returned an error. The rest of the page is unchanged.',
       retryLabel: 'Try again',
       retrying: true,
@@ -63,14 +63,14 @@ describe('useFrameState', () => {
     expect(state.status === 'error' && state.error.retrying).toBe(false);
   });
 
-  it('stale and partial become notices with the words of aiOverview.engines.common', () => {
+  it('stale and partial become notices with the words of aiOverview.platforms.common', () => {
     expect(stateOf({ stale: true })).toEqual({
       status: 'ready',
       notice: { kind: 'stale', text: 'Stale: these are the last figures read' },
     });
     expect(stateOf({ partialPrevious: true })).toEqual({
       status: 'ready',
-      notice: { kind: 'partial', text: 'Partial data: the previous window could not be read' },
+      notice: { kind: 'partial', text: 'Partial data: the previous period could not be read' },
     });
     expect(stateOf({ phase: 'refetching', stale: true }).notice?.kind).toBe('stale');
   });

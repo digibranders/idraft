@@ -21,6 +21,7 @@ import {
   type NamedAnswer,
 } from './prompt-summary';
 import type { PointPool } from '@/lib/api/types';
+import { visibilityCell } from '@/lib/rates/visibility-model';
 import { shiftIsoDate } from './serp-views';
 
 const OWN = 'own-brand';
@@ -209,8 +210,17 @@ describe('the weeks of a series', () => {
       mentioned: cells.mentioned,
       cited: cells.cited,
       share_of_voice: cells.share_of_voice,
+      visibility: visibilityCell(cells.outcomes),
     });
     expect(weekCells('2026-11-09', cells)).not.toHaveProperty('pool');
+  });
+
+  it('give each week its AI visibility: the outcomes that are not "neither", over the same valid answers, 1 minus neither', () => {
+    const cells = promptCells('chatgpt_web', COUNTS);
+    const { visibility } = weekCells('2026-11-09', cells);
+    expect(visibility?.denominator).toBe(cells.outcomes.neither.denominator);
+    expect((visibility?.numerator ?? 0) + cells.outcomes.neither.numerator).toBe(cells.outcomes.neither.denominator);
+    expect(visibility?.value).toBeCloseTo(1 - (cells.outcomes.neither.value ?? 0));
   });
 
   it('give a pooled point the pooled cells, the prompts of its own week and the pool that says what it holds', () => {

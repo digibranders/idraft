@@ -10,6 +10,8 @@ export interface PromptCounts {
   entities: readonly SummaryEntity[];
   /** Whether the summary includes the branded prompts (the Branded filter). */
   brandedIncluded: boolean;
+  /** The Branded filter is `Only`, the summary has the branded prompts alone; false when left out. */
+  brandedOnly?: boolean;
   errorId: ErrorIdWords | null;
   retry: () => void;
   retrying: boolean;

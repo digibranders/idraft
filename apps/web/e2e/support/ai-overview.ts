@@ -18,7 +18,7 @@ import {
 
 /**
  * What the e2e of the AI visibility Overview shell (WP-33, apps/web/e2e/flows/ai-overview.spec.ts) shares: the page of
- * a project, the waits that say it has finished loading, the reads of the numbers strip and of the Prompts page's own
+ * a project, the waits that say it has finished loading, the reads of the headline and of the Prompts page's own
  * strip, the density and the theme a person chose, and the one switch that makes the prompts summary slow or fail.
  * `e2e/support.ts` is frozen, so these live here; `support/layouts.ts` has the people, the widths and the axe check.
  */
@@ -37,33 +37,88 @@ const THEME_KEY = 'idraft.theme';
 /** The ids of the cards of the built-in layout of the screen, in order (`lib/layouts/catalog.ts`, inventory 9.5 Default). */
 export const BUILTIN_CARD_IDS: readonly string[] = (SCREENS.ai_overview.builtin.cards ?? []).map((card) => card.id);
 
-/** What the numbers of the built-in layout are called in the strip, in order. */
-export const BUILTIN_NUMBER_LABELS = [
+/**
+ * What each card of the Default layout is called. A card that is not built yet shows its catalog title on the pending
+ * card; a card that is built draws the title its package chose, which the later packages are still setting, so for
+ * those the heading is only required to be there (`null`). Change an entry to a title when its package lands.
+ */
+export const BUILTIN_CARD_TITLES: Readonly<Record<string, string | null>> = {
+  // The headline card is the group "AI visibility rate (headline)" and draws the hero's title
+  'visibility-split': 'AI visibility rate',
+  'rate-trend': 'AI visibility rate over time',
+  'outcome-mix': 'Outcome split by platform',
+  'share-of-voice': 'Share of voice',
+  'lost-to-competitor': 'Lost to competitor',
+  'topic-heatmap': 'Groups by platform',
+  'top-domains': 'Top cited domains',
+  'position-distribution': 'Mention position',
+  'sentiment-by-engine': 'Sentiment by platform',
+  'ai-referrals': 'AI referral visits',
+  'fanout-top': 'Top fan-out queries',
+};
+
+/** What the eight tiles of the headline card are called, in order (preview `TILE_LAYOUT`). */
+export const HEADLINE_TILE_LABELS = [
+  'Mention rate',
+  'Share of voice',
+  'Citation rate',
+  'Mention position',
+  'Recommendation rate',
+  'Sentiment',
   'Prompts',
-  'Mention rate ChatGPT',
-  'Mention rate Gemini',
-  'Mention rate AI Mode',
+  'Runs',
 ] as const;
 
 // -------------------------------------------------------------------------------------------------
 // Locators
 
-export const pageHeading = (page: Page): Locator => page.getByRole('heading', { level: 1, name: 'AI visibility' });
-/** The strip of the page: named by its window and its branded choice, "AI visibility numbers for Oct 17 to Nov 13, ...". */
-export const numbersGroup = (page: Page): Locator => page.getByRole('group', { name: /^AI visibility numbers for / });
+export const pageHeading = (page: Page): Locator =>
+  page.getByRole('heading', { level: 1, name: 'AI visibility overview' });
+/** The headline card: the AI visibility hero and the eight key numbers (`ai.visibility_split`). */
+export const headlineGroup = (page: Page): Locator =>
+  page.getByRole('group', { name: 'AI visibility rate (headline)', exact: true });
+/** The hero of the headline: its title, the rate, the project value of a group and the split of the four outcomes. */
+export const heroOf = (page: Page): Locator => headlineGroup(page).getByRole('region', { name: 'AI visibility rate' });
+/** The strip of the eight tiles of the headline. */
+export const keyNumbers = (page: Page): Locator => headlineGroup(page).getByRole('region', { name: 'Key numbers' });
 export const scopeBar = (page: Page): Locator => page.getByRole('region', { name: 'Scope', exact: true });
 export const cardGrid = (page: Page): Locator => page.getByRole('region', { name: 'AI visibility cards', exact: true });
 export const cardById = (page: Page, id: string): Locator => cardGrid(page).locator(`[data-layout-card="${id}"]`);
 export const bannersOf = (page: Page): Locator => page.getByRole('main').locator('[data-slot="banner"]');
-/** The meta line under the title: "AI updated Nov 13, 02:10 · 24 prompts · 2 engines". */
+/**
+ * The freshness text: "AI updated Nov 13, 02:10". It does not change with the scope, so it names no prompt or platform
+ * count. It is in the toolbar from 1440 px and at the foot of the page below that; only one of the two is drawn.
+ */
 export const metaLine = (page: Page): Locator =>
   page.locator('[data-slot="overview-meta"], [data-slot="page-header"] p.type-meta');
-/** The strip error row of the numbers zone, with its own Retry. */
-export const stripError = (page: Page): Locator =>
-  page.locator('[data-slot="inline-error"]').filter({ hasText: 'The AI numbers could not be read' });
-/** The primary navigation's link to the Overview of the AI visibility group. */
+/** The Platform select of the scope bar, named by what it holds: "Platform: ChatGPT". */
+export const platformSelect = (page: Page, shown = 'All platforms'): Locator =>
+  scopeBar(page).getByRole('combobox', { name: `Platform: ${shown}`, exact: true });
+/** The Group select of the scope bar, named by what it holds: "Group: SEO / Technical SEO". */
+export const groupSelect = (page: Page, shown: string | RegExp = 'All groups'): Locator =>
+  scopeBar(page).getByRole('combobox', {
+    name: typeof shown === 'string' ? `Group: ${shown}` : shown,
+    exact: typeof shown === 'string',
+  });
+/**
+ * The icon button that puts the scope back: always in the bar, `visibility: hidden` while the scope is the default. A
+ * role query skips a hidden element, so it is found by its name in the DOM; use `expectResetHidden` for its state.
+ */
+export const resetScope = (page: Page): Locator => scopeBar(page).locator('button[aria-label="Reset scope"]');
+
+/** The Reset button is there and takes its room, but is not drawn: the scope is the default. */
+export async function expectResetHidden(page: Page): Promise<void> {
+  await expect(resetScope(page)).toHaveCount(1);
+  await expect(resetScope(page)).toHaveCSS('visibility', 'hidden');
+}
+/** The error state of the headline card, with its own Retry. */
+export const headlineError = (page: Page): Locator =>
+  cardById(page, 'visibility-split')
+    .locator('[data-slot="inline-error"]')
+    .filter({ hasText: 'Could not load AI visibility rate (headline)' });
+/** The primary navigation's link to the Overview of the AI visibility group: the item reads "AI visibility". */
 export const overviewLink = (page: Page): Locator =>
-  page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Overview', exact: true });
+  page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'AI visibility', exact: true });
 
 // -------------------------------------------------------------------------------------------------
 // Opening and waiting
@@ -77,14 +132,14 @@ export interface OpenOptions {
 
 /**
  * Waits until the page is the finished one for a project that has an engine on: the engines are read (the scope bar
- * is there), and the strip of numbers has its values (a strip still reading is `aria-busy`).
+ * is there), and the headline has its values (a headline still reading shows skeletons).
  */
 export async function waitForOverview(page: Page): Promise<void> {
   await expect(pageHeading(page)).toBeVisible();
   await expect(scopeBar(page)).toBeVisible();
-  const strip = numbersGroup(page);
-  await expect(strip).toBeVisible();
-  await expect(strip).not.toHaveAttribute('aria-busy', 'true');
+  await expect(headlineGroup(page)).toBeVisible();
+  await expect(headlineGroup(page)).not.toHaveAttribute('aria-busy', 'true');
+  await expect(cardById(page, 'visibility-split').locator('[data-slot="skeleton"]')).toHaveCount(0);
 }
 
 /** Opens the screen of a project, signed in by the caller, at a width, and waits for the finished page. */
@@ -114,54 +169,66 @@ export async function awaitCardsSettled(page: Page): Promise<void> {
 // -------------------------------------------------------------------------------------------------
 // Reading the numbers
 
-/** A number of the strip as a person reads it. */
+/** A tile of the headline as a person reads it. */
 export interface NumberCell {
-  /** The metric and its engine: "Mention rate ChatGPT". */
+  /** The label: "Mention rate". */
   label: string;
-  /** The first line of the value: "34%", "24", "Not asked". */
+  /** The value: "34%", "24", "n/a". */
   value: string;
-  /** Every line of the value block, joined: the figure, its change, its counts. */
-  text: string;
-  /** Where the label leads, or `null` for a number that is plain text. */
-  href: string | null;
+  /** The one short line under the value: "Too few answers", "Not collected yet", "All groups 38%"; empty when there is none. */
+  note: string;
 }
 
-const WHITESPACE = /\s+/g;
-
-/** The numbers of the strip in the order drawn. */
+/** The eight tiles of the headline in the order drawn. */
 export async function numbersOf(page: Page): Promise<NumberCell[]> {
-  return numbersGroup(page)
-    .locator('dl > div')
-    .evaluateAll((cells) =>
-      cells.map((cell) => {
-        const term = cell.querySelector('dt');
-        const detail = cell.querySelector('dd');
-        const lines = (detail instanceof HTMLElement ? detail.innerText : '')
-          .split('\n')
-          .map((line) => line.trim())
-          .filter((line) => line !== '');
-        const link = term?.querySelector('a');
-        return {
-          label: (term instanceof HTMLElement ? term.innerText : '').replace(/\s+/g, ' ').trim(),
-          value: lines[0] ?? '',
-          text: lines.join(' '),
-          href: link?.getAttribute('href') ?? null,
+  return keyNumbers(page)
+    .locator('div.bg-surface')
+    .evaluateAll((tiles) =>
+      tiles.map((tile) => {
+        // The figure carries a screen reader sentence in a hidden span ("67%, Average of 2 platforms"): only what is drawn counts
+        const drawn = (node: Node): string =>
+          node instanceof HTMLElement && node.classList.contains('sr-only')
+            ? ''
+            : node.childNodes.length === 0
+              ? (node.textContent ?? '')
+              : Array.from(node.childNodes).map(drawn).join('');
+        const text = (selector: string): string => {
+          const found = tile.querySelector<HTMLElement>(selector);
+          return found === null ? '' : drawn(found).replace(/\s+/g, ' ').trim();
         };
+        return { label: text('span.type-label'), value: text('.type-metric'), note: text('span.type-micro') };
       }),
     );
 }
 
-/** One number of the strip by its label; fails with the labels there are. */
+/** One tile of the headline by its label; fails with the labels there are. */
 export async function numberOf(page: Page, label: string): Promise<NumberCell> {
   const cells = await numbersOf(page);
   const found = cells.find((cell) => cell.label === label);
   if (found === undefined) {
-    throw new Error(`The strip has no number "${label}": it has ${cells.map((cell) => cell.label).join(', ')}`);
+    throw new Error(`The headline has no tile "${label}": it has ${cells.map((cell) => cell.label).join(', ')}`);
   }
   return found;
 }
 
-/** The strip of the Prompts page (Topics & Prompts), which the numbers of the Overview must agree with. */
+/** The AI visibility rate of the hero, as drawn: "47%" or "n/a". */
+export async function heroValue(page: Page): Promise<string> {
+  // The figure carries a screen reader sentence in a hidden span: only what is drawn is the rate
+  return heroOf(page)
+    .locator('.type-metric')
+    .evaluate((node) =>
+      Array.from(node.childNodes)
+        .map((child) =>
+          child instanceof HTMLElement && child.classList.contains('sr-only') ? '' : (child.textContent ?? ''),
+        )
+        .join('')
+        .trim(),
+    );
+}
+
+const WHITESPACE = /\s+/g;
+
+/** The strip of the Prompts page (Prompts), which the numbers of the Overview must agree with. */
 export const promptsStrip = (page: Page): Locator =>
   page.getByRole('group', { name: 'Summary of the prompts in view' });
 
@@ -221,10 +288,10 @@ const SUMMARY_GATE_KEY = '__e2eSummaryGate';
 export type SummaryMode = 'ok' | 'fail' | 'hold';
 
 /**
- * Lets a test make the reads of the prompts summary (the numbers and the meta line) wait or fail. The mock layer
+ * Lets a test make the reads of the prompts summary (the headline and the meta line) wait or fail. The mock layer
  * answers inside the page through its service worker, below the network where `page.route` listens, so the page's
  * own `fetch` answers instead while a mode is on. The failure is a 503 `query_timeout`, which the retry policy takes as
- * final, so the strip shows its error at once and not after two backoffs. The mode is kept in `sessionStorage`, which a
+ * final, so the headline shows its error at once and not after two backoffs. The mode is kept in `sessionStorage`, which a
  * reload keeps; call it before the page loads.
  */
 export async function installSummaryControl(page: Page, mode: SummaryMode = 'ok'): Promise<void> {

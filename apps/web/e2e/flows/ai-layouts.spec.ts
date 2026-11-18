@@ -143,7 +143,12 @@ test.describe('a saved layout', () => {
     const savedOrder = await cardOrder(page);
     expect(savedOrder.slice(0, 7)).toEqual(WITHOUT_COMPETITORS);
     expect(savedOrder[7]).toMatch(NEW_CARD_ID);
-    const savedNumbers = ['SEO visibility', 'AIO citation rate', 'Top 10', ...BUILTIN_NUMBER_LABELS.slice(3)];
+    const savedNumbers = [
+      'SEO visibility',
+      'Google AI Overview citation rate',
+      'Top 10',
+      ...BUILTIN_NUMBER_LABELS.slice(3),
+    ];
     await expectNumberLabels(page, savedNumbers);
 
     await reloadLayouts(page, 'Fynix', 8);
@@ -428,10 +433,10 @@ test.describe('editing the draft', () => {
     await waitForAnnouncement(page, 'Mention rate Gemini removed');
     await expectNumberLabels(page, [
       'SEO visibility',
-      'AIO citation rate',
+      'Google AI Overview citation rate',
       'Top 10',
       'Mention rate ChatGPT',
-      'Mention rate AI Mode',
+      'Mention rate Google AI Mode',
     ]);
 
     // With a place free the slot is there; an AI number is added for one engine, and one that is shown is off
@@ -447,10 +452,10 @@ test.describe('editing the draft', () => {
     expect((await numberOrder(page))[5]).toMatch(NEW_NUMBER_ID);
     await expectNumberLabels(page, [
       'SEO visibility',
-      'AIO citation rate',
+      'Google AI Overview citation rate',
       'Top 10',
       'Mention rate ChatGPT',
-      'Mention rate AI Mode',
+      'Mention rate Google AI Mode',
       'Mention rate Gemini',
     ]);
     await expect(numberHandle(page, 'Mention rate Gemini')).toBeFocused();
@@ -726,7 +731,7 @@ test.describe('the Tab walk', () => {
     }
     // Every card brings its handle, Hide and More; the strip brings those of its six numbers
     const names = stops.filter((stop) => stop.zone === 'card').map((stop) => stop.name);
-    for (const title of ['Visibility and mention rate', 'Rank distribution', 'Competitors']) {
+    for (const title of ['SEO visibility and mention rate', 'Rank distribution', 'Competitors']) {
       expect(
         names.some((name) => name.includes(title)),
         `no control of ${title}`,

@@ -1,10 +1,7 @@
-import type { PromptCounts } from '../../inspector-reads';
 import { STALE_AFTER_DAYS } from '../../history-model';
 import type { FaviconMode } from '@/components/app/cells/domain-cell';
-import { byEngineOrder } from '@/components/app/engine/order';
 import { isNewSource } from '@/lib/citations/share-model';
-import type { DomainRole, EngineUnits, SourceChangePage, SourcesMeta } from '@/lib/citations/types';
-import type { ProjectEngine } from '@/lib/api/types';
+import type { DomainRole, SourceChangePage, SourcesMeta } from '@/lib/citations/types';
 
 /**
  * What the Citations tab of the prompt inspector decides from its reads (WB-PIC-01 to 04, 10). Pure: numbers and
@@ -33,41 +30,13 @@ export const ANSWER_PAGE_WIDTH = 'max-w-20 sm:max-w-32';
 /** The lists name the five most cited. */
 export const TOP_LIMIT = 5;
 
-/** The fewest citation units a row needs; one prompt has about 8 answers, so 3 is already strict (plan Q10). */
-export const MIN_SUPPORT_OPTIONS = [1, 2, 3] as const;
-export const DEFAULT_MIN_SUPPORT = 1;
+/**
+ * The lists are counted in answers that cite a row (register PR-DRAWER-08, rule R11), so no row is left out by a
+ * minimum of citation units: that threshold is of another unit than the number each row shows.
+ */
+export const MIN_SUPPORT = 1;
 
 const DAY_MS = 86_400_000;
-
-export interface EngineColumn {
-  code: string;
-  label: string;
-}
-
-/** One count column for each engine, in the fixed engine order, for All engines with more than one engine. */
-export function engineColumns(engines: readonly ProjectEngine[], chosen: string): EngineColumn[] {
-  if (chosen !== ALL_ENGINES || engines.length < 2) return [];
-  return byEngineOrder(engines, (entry) => entry.engine.engine_code).map((entry) => ({
-    code: entry.engine.engine_code,
-    label: entry.engine.label,
-  }));
-}
-
-/**
- * A row's citation units on one engine, or null (n/a) where there are none to tell: the row does not list the
- * engine, or the engine has no valid answer in the window (the summary cell's denominator is 0), so 0 would say
- * "cited nowhere" about answers that do not exist. Without a summary cell for the engine the row is trusted.
- */
-export function engineCell(
-  row: { engines: readonly EngineUnits[] },
-  code: string,
-  counts: PromptCounts,
-): number | null {
-  const units = row.engines.find((entry) => entry.engine_code === code)?.citation_units;
-  if (units === undefined) return null;
-  const validAnswers = counts.row?.engines.find((entry) => entry.engine_code === code)?.cited.denominator;
-  return validAnswers === 0 ? null : units;
-}
 
 export interface TopRow<TRow> {
   row: TRow;
@@ -103,17 +72,14 @@ export interface LostRow {
   key: string;
   domain: string;
   role: DomainRole;
-  /** Citation units it had in the period before. */
-  units: number;
 }
 
-/** The lost domains of a `sources/changes` read, with their units before. */
+/** The lost domains of a `sources/changes` read. Named without a count: the read has units, the lists count answers. */
 export function lostRows(page: Pick<SourceChangePage, 'data'>): LostRow[] {
   return page.data.map((row) => ({
     key: `${row.registrable_domain}:${row.domain_role}:${row.role_entity_id ?? ''}`,
     domain: row.registrable_domain,
     role: row.domain_role,
-    units: row.previous_units,
   }));
 }
 

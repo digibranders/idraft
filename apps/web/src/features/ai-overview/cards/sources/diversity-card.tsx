@@ -15,7 +15,7 @@ import { useFrameState, type DataSituation } from './parts/frame-state';
 import { engineNames } from './parts/source-meta';
 import { engineLabel, engineRole } from '../engines/engine-role';
 import { useCardExport } from '../engines/use-card-seams';
-import type { Say } from '../../numbers/number-model';
+import type { Say } from '../say';
 import { ChartFrame } from '@/components/app/chart/chart-frame';
 import { MetricInfo } from '@/components/app/metric/metric-info';
 import { SegmentedControl } from '@/components/ui/segmented-control';

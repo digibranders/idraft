@@ -14,6 +14,8 @@ from idraft import __version__
 from idraft.api.access_log import AccessLogMiddleware
 from idraft.api.ai.annotation_routes import router as ai_annotations_router
 from idraft.api.ai.candidate_routes import router as ai_candidates_router
+from idraft.api.ai.citation_board import CitationBoardService
+from idraft.api.ai.citation_board_routes import router as ai_citation_board_router
 from idraft.api.ai.competitor_routes import router as ai_competitors_router
 from idraft.api.ai.derivation_routes import router as ai_derivations_router
 from idraft.api.ai.engine_routes import router as engine_routes_router
@@ -274,6 +276,7 @@ def create_app(
                 ai_observations=ObservationService(sessions=sessions, raw_store=sources),
                 ai_summary=SummaryService(sessions=sessions),
                 ai_sources=SourceService(sessions=sessions),
+                ai_citation_board=CitationBoardService(sessions=sessions),
                 tier_levels=TierLevelService(sessions=sessions),
                 page_tiers=page_tiers,
                 link_reads=LinkReadService(sessions=sessions),
@@ -350,6 +353,7 @@ def create_app(
     app.include_router(ai_observations_router)
     app.include_router(ai_summary_router)
     app.include_router(ai_sources_router)
+    app.include_router(ai_citation_board_router)
     app.include_router(keyword_groups_router)
     app.include_router(term_assignments_router)
     app.include_router(run_routes_router)

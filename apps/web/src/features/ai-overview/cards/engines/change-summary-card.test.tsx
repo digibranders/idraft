@@ -52,7 +52,7 @@ const FIVE = [
   'On Gemini, 200 of 2,000 answers were not valid in these 28 days.',
   'On ChatGPT, 100 of 1,900 answers were not valid in these 28 days.',
   'ChatGPT mention rate is 38.9% (700 of 1,800 answers, 2 prompts), up 6.9 points from 31.9% (575 of 1,800 answers).',
-  'On ChatGPT, 1 of 1 prompt that named you before no longer does, and 1 of 1 prompt that did not name you before now does.',
+  'On ChatGPT, 1 of 1 prompt that mentioned you before no longer does, and 1 of 1 prompt that did not mention you before now does.',
   '5 domains were cited for the first time, with at least 2 citation units each in these 28 days and none in the 28 days before.',
 ];
 
@@ -151,7 +151,7 @@ describe('ChangeSummaryCard', () => {
       within(table)
         .getAllByRole('columnheader')
         .map((header) => header.textContent),
-    ).toEqual(['Fact', 'Engine', 'Numbers', 'In the list']);
+    ).toEqual(['Fact', 'Platform', 'Numbers', 'In the list']);
     const rows = within(table).getAllByRole('row').slice(1);
     expect(rows).toHaveLength(5);
     const cells = (index: number): string[] =>
@@ -170,7 +170,7 @@ describe('ChangeSummaryCard', () => {
       'Lost 1 of 1, gained 1 of 1, 2 prompts compared, 0 left out for fewer than 4 valid answers',
       'No, cut by the Facts option',
     ]);
-    expect(cells(4)[0]).toBe('All engines');
+    expect(cells(4)[0]).toBe('All platforms');
     expect(cells(4)[2]).toBe('No, cut by the Facts option');
   });
 
@@ -197,7 +197,7 @@ describe('ChangeSummaryCard', () => {
     expect(name).toBe('what-changed.csv');
     if (!(blob instanceof Blob)) throw new Error('No file was downloaded');
     const text = await blob.text();
-    expect(text.split(/\r?\n/)[0]).toBe('Fact,Engine,Numbers,In the list');
+    expect(text.split(/\r?\n/)[0]).toBe('Fact,Platform,Numbers,In the list');
     for (const sentence of FIVE) expect(text).toContain(sentence);
   });
 
@@ -212,7 +212,7 @@ describe('ChangeSummaryCard', () => {
       expect(items(ol)).toContain('There are no answers in the previous 28 days to compare with.');
     });
     // Nothing about a change is made up, and no source count is written beside a window with no answers
-    expect(items(ol).filter((text) => /mention rate|named you|cited for the first time/.test(text))).toEqual([]);
+    expect(items(ol).filter((text) => /mention rate|mentioned you|cited for the first time/.test(text))).toEqual([]);
     expect(screen.queryByText(/No prompts in this scope/)).toBeNull();
   });
 
@@ -223,7 +223,7 @@ describe('ChangeSummaryCard', () => {
     await waitFor(() => {
       expect(items(ol)).toContain('The comparison with the previous period is off, so nothing is said about change.');
     });
-    expect(items(ol).filter((text) => /mention rate|named you|cited for the first time/.test(text))).toEqual([]);
+    expect(items(ol).filter((text) => /mention rate|mentioned you|cited for the first time/.test(text))).toEqual([]);
   });
 
   it('says the previous window could not be read, and shows the partial notice, when that read fails', async () => {
@@ -239,7 +239,7 @@ describe('ChangeSummaryCard', () => {
     await waitFor(() => {
       expect(items(ol)).toContain('The previous 28 days could not be read, so nothing is said about change.');
     });
-    expect(await screen.findByText('Partial data: the previous window could not be read')).toBeInTheDocument();
+    expect(await screen.findByText('Partial data: the previous period could not be read')).toBeInTheDocument();
   });
 
   it('writes no fact and shows no card error when the new sources read fails', async () => {
@@ -335,7 +335,7 @@ describe('ChangeSummaryCard', () => {
   it('is empty, and says to choose an engine, when the engine filter names an engine that is off', async () => {
     serve();
     renderCard(`${WINDOW}&engine=google_ai_mode`);
-    expect(await screen.findByText('No engine to show')).toBeInTheDocument();
+    expect(await screen.findByText('No platform to show')).toBeInTheDocument();
   });
 
   it('names the window, the prompts and the branded choice in its meta line', async () => {

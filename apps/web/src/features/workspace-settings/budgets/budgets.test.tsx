@@ -200,7 +200,7 @@ describe('Budgets and usage', () => {
     const { container } = renderWithProviders(pageAs('admin'));
     expect(screen.getByRole('heading', { level: 2, name: 'Budgets and usage' })).toBeInTheDocument();
     expect(screen.getByText('Workspace, September 2026. Months in UTC.')).toBeInTheDocument();
-    const workspaceRow = await rowOf('Workspace', 'All workloads');
+    const workspaceRow = await rowOf('Workspace', 'All job types');
     expect(within(workspaceRow).getByText('$160.50 of $250.00')).toBeInTheDocument();
     expect(within(workspaceRow).getByText('64.2%')).toBeInTheDocument();
     expect(within(workspaceRow).getByRole('meter', { name: '64.2% of $250.00' })).toBeInTheDocument();
@@ -243,7 +243,7 @@ describe('Budgets and usage', () => {
     expect(within(alertOnly).getByText('Over the limit, runs continue')).toBeInTheDocument();
     expect(within(alertOnly).queryByText('Budget blocked')).toBeNull();
     expect(within(alertOnly).getByText('Alerts only at the limit')).toBeInTheDocument();
-    const within80 = await rowOf('Workspace', 'All workloads');
+    const within80 = await rowOf('Workspace', 'All job types');
     expect(within(within80).getByText('Within budget')).toBeInTheDocument();
     expect(within(within80).getByText('Alerts only at the limit')).toBeInTheDocument();
   });
@@ -261,7 +261,7 @@ describe('Budgets and usage', () => {
       'aria-valuetext',
       '412 of 2,000 AI answers this month',
     );
-    expect(screen.getByRole('link', { name: 'Open Topics & Prompts' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Open Prompts' })).toHaveAttribute(
       'href',
       '/digibranders/fynix/ai/prompts',
     );
@@ -304,7 +304,7 @@ describe('Budgets and usage', () => {
     expect(
       screen.getByText('These limits are read through a project, and there is none to read them through.'),
     ).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Open Topics & Prompts' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Open Prompts' })).toBeNull();
     none.unmount();
     expect(asked).toHaveLength(0);
     // A failed read is not a zero either, and offers to try again
@@ -565,26 +565,26 @@ describe('Budgets and usage', () => {
     expect(screen.getByText('72 of 150')).toBeInTheDocument();
     serveStatus([statusRow('all')]);
     await failed.user.click(screen.getByRole('button', { name: 'Try again' }));
-    await rowOf('Workspace', 'All workloads');
+    await rowOf('Workspace', 'All job types');
     expect(screen.queryByText('The budgets could not be loaded')).toBeNull();
     failed.unmount();
 
     // A refresh that fails keeps the rows and says the figures are the last ones read
     serveStatus([statusRow('all', { limit: '250.00' })]);
     const stale = renderWithProviders(pageAs('admin'));
-    await rowOf('Workspace', 'All workloads');
+    await rowOf('Workspace', 'All job types');
     server.use(http.get(mswPath(STATUS), ({ request }) => problem(request, 'internal_error')));
     await stale.queryClient.invalidateQueries({ queryKey: ['ws', MOCK_WORKSPACE.workspace_id, 'budgets'] });
     expect(
       await screen.findByText('These figures could not be refreshed. They are the last ones read.'),
     ).toBeInTheDocument();
-    expect(await rowOf('Workspace', 'All workloads')).toBeInTheDocument();
+    expect(await rowOf('Workspace', 'All job types')).toBeInTheDocument();
   });
 
   it('a refresh keeps the rows on screen with the bar while it runs', async () => {
     serveStatus([statusRow('all')]);
     const { queryClient } = renderWithProviders(pageAs('admin'));
-    await rowOf('Workspace', 'All workloads');
+    await rowOf('Workspace', 'All job types');
     const bar = (): Element | null => document.querySelector('[data-slot="budgets-refetch-bar"]');
     expect(bar()).toBeNull();
     server.use(
@@ -596,7 +596,7 @@ describe('Budgets and usage', () => {
     void queryClient.invalidateQueries({ queryKey: ['ws', MOCK_WORKSPACE.workspace_id, 'budgets'] });
     await waitFor(() => expect(bar()).not.toBeNull());
     // The previous rows stay, not a skeleton
-    expect(await rowOf('Workspace', 'All workloads')).toBeInTheDocument();
+    expect(await rowOf('Workspace', 'All job types')).toBeInTheDocument();
     expect(document.querySelector('tbody[aria-busy="true"]')).toBeNull();
     await waitFor(() => expect(bar()).toBeNull());
   });

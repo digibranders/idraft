@@ -46,7 +46,7 @@ describe('gapRows', () => {
   it('needs two engines with a rate', () => {
     const model = gapRows(
       [
-        leaf('One engine', 5, [[5, 10], null, null]),
+        leaf('One platform', 5, [[5, 10], null, null]),
         leaf('Thin partner', 5, [[5, 10], [1, 3], null]),
         leaf('Two engines', 5, [[8, 10], [2, 10], null]),
       ],

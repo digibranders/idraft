@@ -15,7 +15,7 @@ export type Width = (typeof WIDTHS)[number];
 export type ScreenKey = components['schemas']['ResolvedLayout']['screen'];
 
 export type Channel = 'seo' | 'ai';
-export type CardGroup = 'seo' | 'ai' | 'cross' | 'activity';
+export type CardGroup = 'seo' | 'ai' | 'cross' | 'activity' | 'traffic';
 export type Breakpoint = 'wide' | 'medium' | 'narrow';
 
 /** Engines the API accepts (Q8 of WP-11). `google_ai_overview` comes back with slice 2. */

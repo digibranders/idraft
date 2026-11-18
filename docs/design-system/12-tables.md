@@ -385,3 +385,27 @@ Techniques: memoized column definitions, stable row ids, canvas sparklines drawn
 ```
 
 `col.*` helpers apply the column type defaults from section 5, so screens never set widths, alignment or formatting by hand.
+
+## 20. Board table
+
+Added with WP-77 (owner approved, 2026-11-17). `BoardTable` (`components/app/table/board-table.tsx`) is the table of an analysis board such as Citations: users compare rows and open one, nothing more. It is not a `DataTable`, because the board's table differs in six ways:
+
+| | `DataTable` | `BoardTable` |
+|---|---|---|
+| Toolbar | Draws its own count, density switch and column chooser | None. The panel around it (`BoardPanel` in Citations) holds the views, the search, the controls and the footer |
+| Sort | Cycles each column type's first direction (`defaultDesc`) | Every column sorts descending first, ascending on a second click |
+| Widths | Identity column flexible, the others by column type | Fixed pixels per column and one flexible column of at least 280 px; the table is as wide as their sum and scrolls sideways in its panel |
+| Paging | Previous and next, or a client window | `onEndReached` fires 240 px before the end of the scroll, for the next page |
+| Semantics | ARIA grid with cell focus and arrow keys | A plain table. The row's first cell holds a button ("Open <name>"), the keyboard way in |
+| Selection | Checkboxes and bulk actions | None |
+
+Anatomy:
+
+- A sticky 40 px header (`h-row-header`, `surface-subtle`) and 40 px rows (`h-row`). The pinned corner header sits at `--z-sticky`, the other headers at `--z-table-header` and the pinned first column at `--z-pinned-cell`, inside an isolated scroller, so a table scrolled sideways slides under the corner.
+- The first column is pinned left. Its content is the row's button. A hovered or open row keeps its ground in the pinned cell (`surface-hover`, `surface-selected`). The open row carries `data-active`.
+- A header may carry a definition (a tooltip below it) and a lead (a competitor's colour dot). A column without a sort key does not sort. A cell may carry a tooltip (`purpose="label"`).
+- Sorting: a click sorts descending; a click on the active descending header sorts ascending. The active header shows an arrow and `aria-sort`. The screen owns the sort state and its tie rules.
+- Opening: the row's button, or a click anywhere on the row except on an element marked `data-cell-action` (a "+3" chip that opens a popover). The opener element is handed back so focus returns to it when the drawer closes.
+- States: the loading skeleton rows, the error and the empty state are the screen's (`EmptyState variant="table"`, [17](17-empty-loading-error-states.md) section 2.1). A read of new rows sets `busy` (`aria-busy`) with the `RefetchBar` of the panel.
+
+Use `DataTable` for record lists that users select, act on in bulk, filter into saved views or page through. Use `BoardTable` for a ranked board whose rows open a drawer.

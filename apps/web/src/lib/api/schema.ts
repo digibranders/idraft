@@ -1150,6 +1150,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/citation-gaps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Citation gap analysis: you and up to five competitors per prompt
+         * @description Counts each prompt and engine's last `runs` collection runs with a counted answer (slots 1 to `runs`) against the `runs` before them, over at most 183 days. A citation unit is a distinct canonical URL per answer (docs/16 C2); flagged citations are left out unless asked for. The answers are those of the sources routes: valid, current, not superseded, of the active non-branded prompts unless `include_branded`. A prompt is lost on an engine where a selected competitor is cited and you are not.
+         */
+        get: operations["citation_gaps_api_v1_workspaces__workspace_id__projects__project_id__ai_citation_gaps_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/citation-gaps/{prompt_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One prompt of the gap analysis
+         * @description Counts each prompt and engine's last `runs` collection runs with a counted answer (slots 1 to `runs`) against the `runs` before them, over at most 183 days. A citation unit is a distinct canonical URL per answer (docs/16 C2); flagged citations are left out unless asked for. The answers are those of the sources routes: valid, current, not superseded, of the active non-branded prompts unless `include_branded`.
+         */
+        get: operations["citation_gap_api_v1_workspaces__workspace_id__projects__project_id__ai_citation_gaps__prompt_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/citation-overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The six citation measures of the Citations page
+         * @description Counts each prompt and engine's last `runs` collection runs with a counted answer (slots 1 to `runs`) against the `runs` before them, over at most 183 days. A citation unit is a distinct canonical URL per answer (docs/16 C2); flagged citations are left out unless asked for. The answers are those of the sources routes: valid, current, not superseded, of the active non-branded prompts unless `include_branded`.
+         */
+        get: operations["citation_overview_api_v1_workspaces__workspace_id__projects__project_id__ai_citation_overview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/citations": {
         parameters: {
             query?: never;
@@ -1162,6 +1222,46 @@ export interface paths {
          * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). The answers the prompts summary counts: valid, current and not superseded, of the active prompts, branded ones only with `include_branded`; `filter[prompt_id]` reads one prompt's answers whatever its state, and `filter[term]` the prompts given the term or one under it. A citation unit is a distinct canonical URL per answer (docs/16 C2). Aggregated by query over `ai.citations` (no rollup table: a 28 day window of a full project is about 3,600 answers). One row per citation of a counted answer, in the answer's order (a URL listed twice is two rows and one unit). `filter[registrable_domain]` and `filter[url_id]` give the citations behind a domain or page row. Keyset pages `(observed_at DESC, observation_id DESC, citation_index)`; a cursor is bound to its filters (`400 invalid_cursor` otherwise).
          */
         get: operations["citation_list_api_v1_workspaces__workspace_id__projects__project_id__ai_citations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/cited-pages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Pages cited in AI answers, with the prompts behind each
+         * @description Counts each prompt and engine's last `runs` collection runs with a counted answer (slots 1 to `runs`) against the `runs` before them, over at most 183 days. A citation unit is a distinct canonical URL per answer (docs/16 C2); flagged citations are left out unless asked for. The answers are those of the sources routes: valid, current, not superseded, of the active non-branded prompts unless `include_branded`. Offset pages. `meta.owners` counts the pages of each role whatever the filter and `q`.
+         */
+        get: operations["cited_pages_api_v1_workspaces__workspace_id__projects__project_id__ai_cited_pages_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/cited-pages/{url_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One cited page: its prompts, platforms and the domains cited beside it
+         * @description Counts each prompt and engine's last `runs` collection runs with a counted answer (slots 1 to `runs`) against the `runs` before them, over at most 183 days. A citation unit is a distinct canonical URL per answer (docs/16 C2); flagged citations are left out unless asked for. The answers are those of the sources routes: valid, current, not superseded, of the active non-branded prompts unless `include_branded`.
+         */
+        get: operations["cited_page_api_v1_workspaces__workspace_id__projects__project_id__ai_cited_pages__url_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4514,6 +4614,36 @@ export interface components {
              */
             options?: string | null;
         };
+        /** BrandCell */
+        BrandCell: {
+            /** Answers */
+            answers: number;
+            /** Cited */
+            cited: number;
+            /** Mentioned */
+            mentioned: number;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "cited" | "mentioned" | "not" | "none";
+        };
+        /** BrandOnPrompt */
+        BrandOnPrompt: {
+            /**
+             * Cited On
+             * @description Engines with answers where the brand is cited.
+             */
+            cited_on: number;
+            /** Engines */
+            engines: components["schemas"]["EngineBrandCell"][];
+            /**
+             * Platforms
+             * @description Engines with answers.
+             */
+            platforms: number;
+            total: components["schemas"]["BrandCell"];
+        };
         /** Budget */
         Budget: {
             /**
@@ -4903,6 +5033,63 @@ export interface components {
             /** Total */
             total: number;
         };
+        /** CitationGapDetail */
+        CitationGapDetail: {
+            /** Answers */
+            answers: number;
+            /** Closest Pages */
+            closest_pages: components["schemas"]["GapPage"][];
+            /** Competitor Pages */
+            competitor_pages: components["schemas"]["GapPage"][];
+            /** Own Pages */
+            own_pages: components["schemas"]["GapPage"][];
+            row: components["schemas"]["CitationGapRow"];
+            /** Third Party Pages */
+            third_party_pages: components["schemas"]["GapPage"][];
+            window: components["schemas"]["RunWindow"];
+        };
+        /** CitationGapList */
+        CitationGapList: {
+            /** Data */
+            data: components["schemas"]["CitationGapRow"][];
+            meta: components["schemas"]["CitationGapsMeta"];
+        };
+        /** CitationGapRow */
+        CitationGapRow: {
+            /** Competitor Answers */
+            competitor_answers: number;
+            /** Competitors */
+            competitors: components["schemas"]["CompetitorOnPrompt"][];
+            /**
+             * Gap
+             * @description How many engines the prompt is lost on.
+             */
+            gap: number;
+            /** Lost On */
+            lost_on: components["schemas"]["EngineCode"][];
+            /** Lost To */
+            lost_to: string[];
+            /**
+             * Prompt Id
+             * Format: uuid
+             */
+            prompt_id: string;
+            /** Text */
+            text: string;
+            /** @description The prompt's first term in path order. */
+            topic: components["schemas"]["PromptTopic"] | null;
+            you: components["schemas"]["BrandOnPrompt"];
+        };
+        /** CitationGapsMeta */
+        CitationGapsMeta: {
+            /** Competitors */
+            competitors: components["schemas"]["GapCompetitor"][];
+            /** Gaps */
+            gaps: number;
+            /** Prompts */
+            prompts: number;
+            window: components["schemas"]["RunWindow"];
+        };
         /** CitationOut */
         CitationOut: {
             /** Answer Block Index */
@@ -4941,6 +5128,36 @@ export interface components {
             title: string | null;
             /** Url */
             url: string;
+        };
+        /** CitationOverview */
+        CitationOverview: {
+            /**
+             * Citations
+             * @description Own citation units in the current window.
+             */
+            citations: number;
+            /** Domains */
+            domains: number;
+            /** Engines */
+            engines: components["schemas"]["EngineCitationCounts"][];
+            /**
+             * Matched Citations
+             * @description Own units now, on the prompt and engine pairs answered in both windows.
+             */
+            matched_citations: number;
+            /** Matched Pairs */
+            matched_pairs: number;
+            /** Matched Previous Citations */
+            matched_previous_citations: number;
+            /** Own Urls */
+            own_urls: number;
+            /** Previous Citations */
+            previous_citations: number;
+            /** Previous Domains */
+            previous_domains: number;
+            /** Previous Own Urls */
+            previous_own_urls: number;
+            window: components["schemas"]["RunWindow"];
         };
         /** CitationPage */
         CitationPage: {
@@ -5008,6 +5225,124 @@ export interface components {
             url: string;
             /** Url Id */
             url_id: number;
+        };
+        /** CitedAlongside */
+        CitedAlongside: {
+            /**
+             * Answers
+             * @description Answers citing this page that also cite this domain.
+             */
+            answers: number;
+            /** Color Index */
+            color_index: number | null;
+            /**
+             * Domain Role
+             * @enum {string}
+             */
+            domain_role: "own" | "competitor" | "third_party";
+            /** Entity Id */
+            entity_id: string | null;
+            /** Entity Name */
+            entity_name: string | null;
+            /** Registrable Domain */
+            registrable_domain: string;
+        };
+        /** CitedPageDetail */
+        CitedPageDetail: {
+            /** Alongside */
+            alongside: components["schemas"]["CitedAlongside"][];
+            page: components["schemas"]["CitedPageRow"];
+            /** Prompts */
+            prompts: components["schemas"]["CitedPagePrompt"][];
+            window: components["schemas"]["RunWindow"];
+        };
+        /** CitedPagePage */
+        CitedPagePage: {
+            /** Data */
+            data: components["schemas"]["CitedPageRow"][];
+            meta: components["schemas"]["CitedPagesMeta"];
+            page: components["schemas"]["OffsetPageInfo"];
+        };
+        /** CitedPagePrompt */
+        CitedPagePrompt: {
+            /** Answers */
+            answers: number;
+            /** Cited */
+            cited: number;
+            /** Engines */
+            engines: components["schemas"]["EngineAnswers"][];
+            /**
+             * Last Cited At
+             * Format: date-time
+             */
+            last_cited_at: string;
+            /**
+             * Prompt Id
+             * Format: uuid
+             */
+            prompt_id: string;
+            /** Text */
+            text: string;
+        };
+        /** CitedPageRow */
+        CitedPageRow: {
+            /** Citations */
+            citations: number;
+            /** Color Index */
+            color_index: number | null;
+            /**
+             * Domain Role
+             * @enum {string}
+             */
+            domain_role: "own" | "competitor" | "third_party";
+            /** Engines */
+            engines: components["schemas"]["EngineUnits"][];
+            /** Entity Id */
+            entity_id: string | null;
+            /** Entity Name */
+            entity_name: string | null;
+            /** Host */
+            host: string;
+            /**
+             * Last Cited At
+             * Format: date-time
+             */
+            last_cited_at: string;
+            /** Path */
+            path: string;
+            /** Previous Citations */
+            previous_citations: number;
+            /** Prompts */
+            prompts: number;
+            /** Registrable Domain */
+            registrable_domain: string;
+            /** Title */
+            title: string | null;
+            /**
+             * Top Prompts
+             * @description Most citations first.
+             */
+            top_prompts: components["schemas"]["PromptCount"][];
+            /**
+             * Trend
+             * @description Units per slot of `window.trend`, oldest first.
+             */
+            trend: number[];
+            /** Url */
+            url: string;
+            /** Url Id */
+            url_id: number;
+        };
+        /** CitedPagesMeta */
+        CitedPagesMeta: {
+            /**
+             * Citations
+             * @description Units of the rows the filter and `q` keep, every page.
+             */
+            citations: number;
+            /** @description Pages per role, whatever the role filter and `q`. */
+            owners: components["schemas"]["OwnerCounts"];
+            window: components["schemas"]["RunWindow"];
         };
         /** CitedWith */
         CitedWith: {
@@ -5184,6 +5519,27 @@ export interface components {
              * @description Cited in the baseline, not now.
              */
             lost: components["schemas"]["CompareSource"][];
+        };
+        /** CompetitorOnPrompt */
+        CompetitorOnPrompt: {
+            /**
+             * Cited On
+             * @description Engines with answers where the brand is cited.
+             */
+            cited_on: number;
+            /** Engines */
+            engines: components["schemas"]["EngineBrandCell"][];
+            /**
+             * Entity Id
+             * Format: uuid
+             */
+            entity_id: string;
+            /**
+             * Platforms
+             * @description Engines with answers.
+             */
+            platforms: number;
+            total: components["schemas"]["BrandCell"];
         };
         /** CompetitorOverride */
         CompetitorOverride: {
@@ -5712,6 +6068,29 @@ export interface components {
             /** Vendor */
             vendor: string;
         };
+        /** EngineAnswers */
+        EngineAnswers: {
+            /** Answers */
+            answers: number;
+            /** Cited */
+            cited: number;
+            engine_code: components["schemas"]["EngineCode"];
+        };
+        /** EngineBrandCell */
+        EngineBrandCell: {
+            /** Answers */
+            answers: number;
+            /** Cited */
+            cited: number;
+            engine_code: components["schemas"]["EngineCode"];
+            /** Mentioned */
+            mentioned: number;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "cited" | "mentioned" | "not" | "none";
+        };
         /**
          * EngineCells
          * @description The cells of one engine over the comparison window, weighted as the current ones.
@@ -5721,6 +6100,29 @@ export interface components {
             mentioned: components["schemas"]["MetricCell"];
             outcomes: components["schemas"]["OutcomeCells"];
             share_of_voice: components["schemas"]["MetricCell"];
+        };
+        /** EngineCitationCounts */
+        EngineCitationCounts: {
+            /** Answers */
+            answers: number;
+            /**
+             * Answers Citing
+             * @description Answers with at least one own citation unit.
+             */
+            answers_citing: number;
+            engine_code: components["schemas"]["EngineCode"];
+            /** Previous Answers */
+            previous_answers: number;
+            /** Previous Answers Citing */
+            previous_answers_citing: number;
+            /** Previous Prompts */
+            previous_prompts: number;
+            /** Previous Prompts Citing */
+            previous_prompts_citing: number;
+            /** Prompts */
+            prompts: number;
+            /** Prompts Citing */
+            prompts_citing: number;
         };
         /** EngineCoMentions */
         EngineCoMentions: {
@@ -6303,6 +6705,33 @@ export interface components {
              * @constant
              */
             workload: "ai_prompt";
+        };
+        /** GapCompetitor */
+        GapCompetitor: {
+            /** Color Index */
+            color_index: number | null;
+            /** Domain */
+            domain: string | null;
+            /**
+             * Entity Id
+             * Format: uuid
+             */
+            entity_id: string;
+            /** Name */
+            name: string;
+        };
+        /** GapPage */
+        GapPage: {
+            /** Citations */
+            citations: number;
+            /** Engines */
+            engines: components["schemas"]["EngineCode"][];
+            /** Entity Id */
+            entity_id: string | null;
+            /** Url */
+            url: string;
+            /** Url Id */
+            url_id: number;
         };
         /** GeneratedFrom */
         GeneratedFrom: {
@@ -8398,6 +8827,17 @@ export interface components {
             /** Url Id */
             url_id: number;
         };
+        /** OwnerCounts */
+        OwnerCounts: {
+            /** All */
+            all: number;
+            /** Competitor */
+            competitor: number;
+            /** Own */
+            own: number;
+            /** Third Party */
+            third_party: number;
+        };
         /** PageChange */
         PageChange: {
             /** Depth Delta */
@@ -9309,6 +9749,18 @@ export interface components {
              */
             updated: number;
         };
+        /** PromptCount */
+        PromptCount: {
+            /** Citations */
+            citations: number;
+            /**
+             * Prompt Id
+             * Format: uuid
+             */
+            prompt_id: string;
+            /** Text */
+            text: string;
+        };
         /**
          * PromptCreate
          * @description One prompt. Its text is fixed once saved: to change it, archive the prompt and add a new
@@ -9651,6 +10103,16 @@ export interface components {
             term_id: string;
             /** Vocabulary Kind */
             vocabulary_kind: string;
+        };
+        /** PromptTopic */
+        PromptTopic: {
+            /** Name */
+            name: string;
+            /**
+             * Term Id
+             * Format: uuid
+             */
+            term_id: string;
         };
         /** PromptVersion */
         PromptVersion: {
@@ -10296,6 +10758,73 @@ export interface components {
              * @enum {string}
              */
             reason: "prompt_too_long" | "location_not_enabled" | "check_pending" | "prompt_pending";
+        };
+        /**
+         * RunSlot
+         * @description One run position over every prompt and engine: slot 1 is each pair's latest run.
+         */
+        RunSlot: {
+            /** Answers */
+            answers: number;
+            /**
+             * First At
+             * Format: date-time
+             * @description The earliest answer in this slot.
+             */
+            first_at: string;
+            /**
+             * Last At
+             * Format: date-time
+             * @description The latest answer in this slot.
+             */
+            last_at: string;
+            /**
+             * Slot
+             * @description 1 is each prompt and engine's latest run with an answer.
+             */
+            slot: number;
+        };
+        /** RunWindow */
+        RunWindow: {
+            /**
+             * Answers
+             * @description Answers in the current window.
+             */
+            answers: number;
+            /**
+             * Current
+             * @description Slots 1 to `runs` that hold answers.
+             */
+            current: components["schemas"]["RunSlot"][];
+            /** Latest Answer At */
+            latest_answer_at: string | null;
+            /**
+             * Latest Run Number
+             * @description How many AI prompt runs the project has had up to the latest answer's run.
+             */
+            latest_run_number: number | null;
+            /**
+             * Previous
+             * @description Slots `runs + 1` to `2 * runs` that hold answers.
+             */
+            previous: components["schemas"]["RunSlot"][];
+            /**
+             * Prompts
+             * @description Prompts with an answer in the current window.
+             */
+            prompts: number;
+            /**
+             * Runs
+             * @description 1, 2 or 4: the slots of the current window.
+             */
+            runs: number;
+            /** Timezone */
+            timezone: string;
+            /**
+             * Trend
+             * @description Slots 1 to 8 that hold answers, oldest first.
+             */
+            trend: components["schemas"]["RunSlot"][];
         };
         /** Schedule */
         Schedule: {
@@ -15403,6 +15932,140 @@ export interface operations {
             };
         };
     };
+    citation_gaps_api_v1_workspaces__workspace_id__projects__project_id__ai_citation_gaps_get: {
+        parameters: {
+            query: {
+                /** @description Up to five tracked competitors, the columns of the gap analysis. */
+                "filter[competitor_id_in]": string[];
+                /** @description Each prompt and engine's last 1, 2 or 4 runs. */
+                runs?: number;
+                "filter[engine_code_in]"?: components["schemas"]["EngineCode"][] | null;
+                /** @description The prompts given the term or one under it. */
+                "filter[term]"?: string | null;
+                include_branded?: boolean;
+                /** @description Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out of every share and unit by default (docs/14 section 9). A citation with several excluded flags counts only when every one of them is asked for. The citation list and the fan-out read always keep them. */
+                include_unresolved_redirects?: boolean;
+                /** @description Count the citations flagged `engine_internal` (links into the engine's own product), which are left out of every share and unit by default (docs/14 section 9). Ingest does not set this flag yet, so nothing is left out until it does. A citation with several excluded flags counts only when every one of them is asked for. */
+                include_engine_internal?: boolean;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CitationGapList"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    citation_gap_api_v1_workspaces__workspace_id__projects__project_id__ai_citation_gaps__prompt_id__get: {
+        parameters: {
+            query: {
+                /** @description Up to five tracked competitors, the columns of the gap analysis. */
+                "filter[competitor_id_in]": string[];
+                /** @description Each prompt and engine's last 1, 2 or 4 runs. */
+                runs?: number;
+                "filter[engine_code_in]"?: components["schemas"]["EngineCode"][] | null;
+                /** @description The prompts given the term or one under it. */
+                "filter[term]"?: string | null;
+                include_branded?: boolean;
+                /** @description Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out of every share and unit by default (docs/14 section 9). A citation with several excluded flags counts only when every one of them is asked for. The citation list and the fan-out read always keep them. */
+                include_unresolved_redirects?: boolean;
+                /** @description Count the citations flagged `engine_internal` (links into the engine's own product), which are left out of every share and unit by default (docs/14 section 9). Ingest does not set this flag yet, so nothing is left out until it does. A citation with several excluded flags counts only when every one of them is asked for. */
+                include_engine_internal?: boolean;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                prompt_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CitationGapDetail"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    citation_overview_api_v1_workspaces__workspace_id__projects__project_id__ai_citation_overview_get: {
+        parameters: {
+            query?: {
+                /** @description Each prompt and engine's last 1, 2 or 4 runs. */
+                runs?: number;
+                "filter[engine_code_in]"?: components["schemas"]["EngineCode"][] | null;
+                /** @description The prompts given the term or one under it. */
+                "filter[term]"?: string | null;
+                include_branded?: boolean;
+                /** @description Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out of every share and unit by default (docs/14 section 9). A citation with several excluded flags counts only when every one of them is asked for. The citation list and the fan-out read always keep them. */
+                include_unresolved_redirects?: boolean;
+                /** @description Count the citations flagged `engine_internal` (links into the engine's own product), which are left out of every share and unit by default (docs/14 section 9). Ingest does not set this flag yet, so nothing is left out until it does. A citation with several excluded flags counts only when every one of them is asked for. */
+                include_engine_internal?: boolean;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CitationOverview"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     citation_list_api_v1_workspaces__workspace_id__projects__project_id__ai_citations_get: {
         parameters: {
             query?: {
@@ -15440,6 +16103,98 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CitationPage"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    cited_pages_api_v1_workspaces__workspace_id__projects__project_id__ai_cited_pages_get: {
+        parameters: {
+            query?: {
+                "filter[domain_role_in]"?: ("own" | "competitor" | "third_party") | null;
+                q?: string | null;
+                sort?: "-citations" | "citations" | "-change" | "change" | "-prompts" | "prompts" | "-last_cited" | "last_cited" | "page" | "-page";
+                /** @description Each prompt and engine's last 1, 2 or 4 runs. */
+                runs?: number;
+                "filter[engine_code_in]"?: components["schemas"]["EngineCode"][] | null;
+                /** @description The prompts given the term or one under it. */
+                "filter[term]"?: string | null;
+                include_branded?: boolean;
+                /** @description Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out of every share and unit by default (docs/14 section 9). A citation with several excluded flags counts only when every one of them is asked for. The citation list and the fan-out read always keep them. */
+                include_unresolved_redirects?: boolean;
+                /** @description Count the citations flagged `engine_internal` (links into the engine's own product), which are left out of every share and unit by default (docs/14 section 9). Ingest does not set this flag yet, so nothing is left out until it does. A citation with several excluded flags counts only when every one of them is asked for. */
+                include_engine_internal?: boolean;
+                offset?: number;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CitedPagePage"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    cited_page_api_v1_workspaces__workspace_id__projects__project_id__ai_cited_pages__url_id__get: {
+        parameters: {
+            query?: {
+                /** @description Each prompt and engine's last 1, 2 or 4 runs. */
+                runs?: number;
+                "filter[engine_code_in]"?: components["schemas"]["EngineCode"][] | null;
+                /** @description The prompts given the term or one under it. */
+                "filter[term]"?: string | null;
+                include_branded?: boolean;
+                /** @description Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out of every share and unit by default (docs/14 section 9). A citation with several excluded flags counts only when every one of them is asked for. The citation list and the fan-out read always keep them. */
+                include_unresolved_redirects?: boolean;
+                /** @description Count the citations flagged `engine_internal` (links into the engine's own product), which are left out of every share and unit by default (docs/14 section 9). Ingest does not set this flag yet, so nothing is left out until it does. A citation with several excluded flags counts only when every one of them is asked for. */
+                include_engine_internal?: boolean;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                url_id: number;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CitedPageDetail"];
                 };
             };
             /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
@@ -20670,6 +21425,8 @@ export const pathsApiV1WorkspacesWorkspace_idEntitiesGetParametersQueryFilterEnt
 export const pathsApiV1WorkspacesWorkspace_idEntitiesGetParametersQueryFilterRoleAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/entities"]["get"]["parameters"]["query"]["filter[role]"]> = ["own", "competitor", "watch"];
 export const pathsApiV1WorkspacesWorkspace_idKeywordsKeyword_idMetricsHistoryGetParametersQuerySourceValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/keywords/{keyword_id}/metrics-history"]["get"]["parameters"]["query"]["source"]> = ["dataforseo_labs", "dataforseo_google_ads", "dataforseo_clickstream"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiCitationsGetParametersQueryFilterDomain_role_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/citations"]["get"]["parameters"]["query"]["filter[domain_role_in]"]> = ["own", "competitor", "third_party"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiCitedPagesGetParametersQueryFilterDomain_role_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/cited-pages"]["get"]["parameters"]["query"]["filter[domain_role_in]"]> = ["own", "competitor", "third_party"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiCitedPagesGetParametersQuerySortValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/cited-pages"]["get"]["parameters"]["query"]["sort"]> = ["-citations", "citations", "-change", "change", "-prompts", "prompts", "-last_cited", "last_cited", "page", "-page"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiCompetitorsGetParametersQueryIncludeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/competitors"]["get"]["parameters"]["query"]["include"]> = ["lost_prompts", "top_sources"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiCompetitorsGetParametersQueryCompareValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/competitors"]["get"]["parameters"]["query"]["compare"]> = ["none", "previous_period", "previous_year"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiMetricsOverviewGetParametersQueryCompareValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/metrics/overview"]["get"]["parameters"]["query"]["compare"]> = ["none", "previous_period", "previous_year"];
@@ -20764,6 +21521,7 @@ export const aliasTestSpanStatusValues: ReadonlyArray<FlattenedDeepRequired<comp
 export const aliasUpdateMatch_modeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AliasUpdate"]["match_mode"]> = ["word_boundary", "exact_case", "substring", "regex"];
 export const analyticsPropertyProperty_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AnalyticsProperty"]["property_type"]> = ["ordinary", "subproperty", "rollup", "unspecified"];
 export const annotationKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Annotation"]["kind"]> = ["model_changed", "entity_set_changed", "extractor_changed", "prompt_set_changed"];
+export const brandCellStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["BrandCell"]["state"]> = ["cited", "mentioned", "not", "none"];
 export const budgetAction_on_hardValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Budget"]["action_on_hard"]> = ["pause", "alert_only"];
 export const budgetWorkloadValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Budget"]["workload"]> = ["seo_rank", "ai_prompt", "keyword_research", "ai_benchmark", "extraction_llm", "first_party", "all"];
 export const budgetCreateAction_on_hardAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["BudgetCreate"]["action_on_hard"]> = ["pause", "alert_only"];
@@ -20782,6 +21540,8 @@ export const changeLinkMetaOnlyValues: ReadonlyArray<FlattenedDeepRequired<compo
 export const changesSummaryStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ChangesSummary"]["state"]> = ["first_crawl", "pending", "ready", "unavailable"];
 export const citationOutDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CitationOut"]["domain_role"]> = ["own", "competitor", "third_party"];
 export const citationRowDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CitationRow"]["domain_role"]> = ["own", "competitor", "third_party"];
+export const citedAlongsideDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CitedAlongside"]["domain_role"]> = ["own", "competitor", "third_party"];
+export const citedPageRowDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CitedPageRow"]["domain_role"]> = ["own", "competitor", "third_party"];
 export const compareEntityRoleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CompareEntity"]["role"]> = ["own", "competitor", "watch"];
 export const compareSourceDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CompareSource"]["domain_role"]> = ["own", "competitor", "third_party"];
 export const competitorOverrideModeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CompetitorOverride"]["mode"]> = ["include", "exclude"];
@@ -20798,6 +21558,7 @@ export const domainRefCategory_sourceAnyOf0Values: ReadonlyArray<FlattenedDeepRe
 export const edgeRowKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EdgeRow"]["kind"]> = ["text", "image"];
 export const edgeRowPlacementValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EdgeRow"]["placement"]> = ["content", "auto_generated", "navigation", "header", "footer", "sidebar", "breadcrumb"];
 export const edgeRowScopeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EdgeRow"]["scope"]> = ["editorial", "auto_generated", "template"];
+export const engineBrandCellStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EngineBrandCell"]["state"]> = ["cited", "mentioned", "not", "none"];
 export const engineCodeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EngineCode"]> = ["chatgpt_web", "gemini_web", "google_ai_mode"];
 export const engineProviderParamsDeviceAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EngineProviderParams"]["device"]> = ["desktop", "mobile"];
 export const engineProviderParamsUpdateDeviceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EngineProviderParamsUpdate"]["device"]> = ["desktop", "mobile"];

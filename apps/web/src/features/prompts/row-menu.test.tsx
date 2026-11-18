@@ -34,7 +34,7 @@ const [fynix] = MOCK_PROJECTS;
 if (fynix === undefined) throw new Error('The Fynix project fixture is missing');
 
 const FIRST = 'Which SEO agency is best for a SaaS startup in Germany?';
-const OTHER_TOPIC = 'Which agencies write content strategies for B2B software?';
+const OTHER_TOPIC = 'How often should a company blog publish new posts?';
 
 beforeEach(() => {
   vi.setSystemTime(NOW);
@@ -70,7 +70,7 @@ function promptsAs(role: Role): ReactElement {
 const renderOn = (role: Role, searchParams: string): ProvidedRender =>
   renderWithProviders(promptsAs(role), { searchParams });
 const prompts = (): Promise<HTMLElement> => screen.findByRole('grid', { name: 'Prompts' });
-const topics = (): Promise<HTMLElement> => screen.findByRole('treegrid', { name: 'Topics' });
+const topics = (): Promise<HTMLElement> => screen.findByRole('treegrid', { name: 'Groups' });
 const itemNames = (): string[] => screen.getAllByRole('menuitem').map((item) => item.textContent ?? '');
 
 async function openMenu(user: ProvidedRender['user'], table: HTMLElement, name: string): Promise<void> {
@@ -117,6 +117,8 @@ describe('the row menu of a prompt', () => {
     await openMenu(user, await prompts(), FIRST);
     await user.click(screen.getByRole('menuitem', { name: 'Run now' }));
     expect((await screen.findAllByText('Run queued')).length).toBeGreaterThan(0);
+    // What was asked and where, then when the answers come
+    expect((await screen.findAllByText(/^Asked on .+\. Answers arrive within minutes\./)).length).toBeGreaterThan(0);
     expect(screen.queryByRole('alertdialog')).toBeNull();
   });
 
@@ -125,60 +127,65 @@ describe('the row menu of a prompt', () => {
     const table = await prompts();
     await openMenu(user, table, FIRST);
     await user.click(screen.getByRole('menuitem', { name: 'Archive' }));
-    expect((await screen.findAllByText('1 prompt archived')).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText('Prompt archived')).length).toBeGreaterThan(0);
+    expect(
+      (await screen.findAllByText('History is kept. No answers are collected from the next run.')).length,
+    ).toBeGreaterThan(0);
     await user.click((await screen.findAllByRole('button', { name: 'Undo' }))[0] as HTMLElement);
     expect((await screen.findAllByText('1 prompt restored')).length).toBeGreaterThan(0);
   });
 });
 
-describe('the row menu of a topic', () => {
+describe('the row menu of a group', () => {
   it('has Open, Show in Prompts and Export CSV for a viewer', async () => {
     const { user } = renderOn('viewer', '');
-    await openMenu(user, await topics(), 'SEO');
+    await openMenu(user, await topics(), 'Technical SEO');
     expect(itemNames()).toEqual(['Open', 'Show in Prompts', 'Export CSV']);
   });
 
   it('has Add prompt for a writer and Run now for someone who may run, in the order of the table menus', async () => {
     const { user } = renderOn('editor', '');
-    await openMenu(user, await topics(), 'SEO');
+    await openMenu(user, await topics(), 'Technical SEO');
     expect(itemNames()).toEqual(['Open', 'Show in Prompts', 'Run now', 'Add prompt', 'Export CSV']);
   });
 
-  it('opens the topic drawer', async () => {
+  it('opens the group drawer', async () => {
     const { user } = renderOn('viewer', '');
-    await openMenu(user, await topics(), 'SEO');
+    await openMenu(user, await topics(), 'Technical SEO');
     await user.click(screen.getByRole('menuitem', { name: 'Open' }));
-    expect(await screen.findByRole('complementary', { name: 'SEO' })).toBeInTheDocument();
+    expect(await screen.findByRole('complementary', { name: 'Technical SEO' })).toBeInTheDocument();
   });
 
-  it('shows the topic in the Prompts tab with the topic as the filter, and the other filters kept', async () => {
+  it('shows the group in the Prompts tab with the group as the filter, and the other filters kept', async () => {
     const { user } = renderOn('viewer', '?engine=gemini_web');
-    await openMenu(user, await topics(), 'Content Marketing');
+    await openMenu(user, await topics(), 'Blog Strategy');
     await user.click(screen.getByRole('menuitem', { name: 'Show in Prompts' }));
     const table = await prompts();
     expect(await within(table).findByText(OTHER_TOPIC)).toBeInTheDocument();
     expect(within(table).queryByText(FIRST)).toBeNull();
     const filters = screen.getByRole('group', { name: 'Filters' });
-    expect(within(filters).getByRole('button', { name: /^Topic: Content Marketing/ })).toBeInTheDocument();
-    expect(within(filters).getByRole('button', { name: /^Engine: / })).toBeInTheDocument();
+    expect(within(filters).getByRole('button', { name: /^Group: .*Blog Strategy/ })).toBeInTheDocument();
+    // One platform is the Platform select's, which keeps it; it has no chip
+    expect(within(filters).queryByRole('button', { name: /^Platform: / })).toBeNull();
+    expect(screen.getByRole('combobox', { name: /^Platform: / })).toHaveTextContent('Gemini');
   });
 
-  it('opens Add prompts with the topic already chosen', async () => {
+  it('opens Add prompts with the group already chosen', async () => {
     const { user } = renderOn('editor', '');
-    await openMenu(user, await topics(), 'SEO');
+    await openMenu(user, await topics(), 'Technical SEO');
     await user.click(screen.getByRole('menuitem', { name: 'Add prompt' }));
     const dialog = await screen.findByRole('dialog', { name: 'Add prompts' });
     // The topic is a chip of the topic picker now, not the text of a select
-    expect(await within(dialog).findByText('SEO')).toBeInTheDocument();
+    expect(await within(dialog).findByText(/Technical SEO/)).toBeInTheDocument();
   });
 
-  it('asks before it runs the prompts of the topic, and says it is one of the 20 manual runs of the day', async () => {
+  it('asks before it runs the prompts of the group, and says it is one of the 20 manual runs of the day', async () => {
     const { user } = renderOn('editor', '');
-    await openMenu(user, await topics(), 'SEO');
+    await openMenu(user, await topics(), 'Technical SEO');
     await user.click(screen.getByRole('menuitem', { name: 'Run now' }));
-    const dialog = await screen.findByRole('alertdialog', { name: 'Run 12 prompts now?' });
+    const dialog = await screen.findByRole('alertdialog', { name: 'Run 4 prompts now?' });
     expect(
-      within(dialog).getByText('This is one manual run of 12 prompts. It counts as one of your 20 manual runs a day.'),
+      within(dialog).getByText('This is one manual run of 4 prompts. It counts as one of your 20 manual runs a day.'),
     ).toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
     await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());

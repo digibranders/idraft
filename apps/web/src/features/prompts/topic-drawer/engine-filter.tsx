@@ -9,7 +9,8 @@ import { promptsBehindCell } from './prompts-behind';
 import { PromptRow } from './prompt-row';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { Tag } from '@/components/ui/tag';
-import { ChangeInline, useChangeWords, useComparedWindow, useCompare } from '@/features/prompts/compare';
+import { useChangeWords, useComparedWindow, useCompare } from '@/features/prompts/compare';
+import { TrendIcon } from '@/features/prompts/trend-icon';
 import { TippedChange } from '@/features/prompts/compare/tipped-change';
 import { CELL_OF_METRIC } from '@/features/prompts/prompt-model';
 import { useRateWords } from '@/features/prompts/rate-view';
@@ -91,8 +92,8 @@ export function EngineFilteredPrompts({ prompts, onOpen, renderList }: EngineFil
                   onOpen={() => onOpen(prompt.prompt_id)}
                   change={
                     change === null ? undefined : (
-                      <TippedChange tip={changeWords.tip(change, { kind: 'engine', range, metric: key })}>
-                        <ChangeInline change={change} size="sm" />
+                      <TippedChange tip={changeWords.tip(change, { kind: 'engine', range, metric: key, move: true })}>
+                        <TrendIcon change={change} />
                       </TippedChange>
                     )
                   }

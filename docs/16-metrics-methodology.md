@@ -64,6 +64,8 @@ Every metric has one registry key (`metric`). Keys for A1 to A14 and C1, C3 are 
 | AI surface presence (share of keyword checks with an AI Overview or AI Mode answer, section 1 rule 5) | `ai.surface_presence_rate` |
 | Prompts in scope (the prompts counted once, with a valid answer or not; branded prompts only when asked; a count, no denominator) | `ai.prompts_in_scope` |
 | Valid answers (the valid, current answers in scope; `n_observations` counts every answer, so the difference is the answers that are not valid; a count, no denominator) | `ai.valid_answers` |
+| AI Visibility (A4 family: the valid answers that name or cite the own brand, which is 100% minus "neither"; the numerator is the sum of the three outcomes that are not "neither", over the same valid answers; prompt weighted like A1; a plain rate with its counts, never a score; the equal-weight average of the engines is shown next to the engines, section 1 rule 2) | `ai.visibility_rate` |
+| Mean mention order (A12 family: the mean of the own brand's mention order among the tracked entities an answer names, 1 = named first, over the valid answers that name the own brand; a mean of whole numbers, not a rate; an answer that does not name the brand takes no part; the equal-weight average of the engines is shown next to the engines) | `ai.mention_order_mean` |
 | Mention-count share (exports and explicit request only, section 5) | `ai.mention_count_share` |
 | V4 mention volatility, V5 citation volatility, V6 within-run instability | `ai.flip_rate`, `ai.citation_jaccard_distance`, `ai.within_run_disagreement` |
 | F1, F2, F3, F5 fan-out metrics (F4 is a ranked list, not a value) | `ai.fanout_presence_rate`, `ai.fanout_mean_queries`, `ai.fanout_keyword_coverage`, `ai.fanout_own_top10_share` |
@@ -110,22 +112,37 @@ Dimension breakdowns (topic, intent, funnel stage, engine, country, language, pe
 
 ## 5. Share of Voice (AI)
 
-For observation o and tracked entity set E (own plus active competitors at observation time):
+**Decided 2026-11-17 (D17, owner): the count share.** Share of voice is the brand's mentions over all tracked-brand
+mentions. For a platform, valid observations O and tracked entity set E (own plus active competitors at observation
+time):
 
 ```
-M_o = { e ∈ E : e mentioned in o }
-sov_o(e) = 1 / |M_o|  if e ∈ M_o,  else 0          (defined only when |M_o| >= 1)
+mentions(e) = |{ o ∈ O : e mentioned in o }|      (one mention per answer per brand)
 
-SOV(e) = Σ_{o ∈ O, |M_o|>=1} sov_o(e)  /  |{o ∈ O : |M_o| >= 1}|
+SOV(e) = mentions(e)  /  Σ_{e' ∈ E} mentions(e')
 ```
+
+The web always shows it as "x of y brand mentions" beside the percent (x = mentions(e), y = the sum). For All platforms
+it is the equal-weight average of the platforms' shares, labelled "average of N", with the counts of each platform in the
+tooltip and no pooled count beside the percent (R3). A share needs y of at least 4 (R2).
 
 Properties:
-- Each observation carries equal weight, so a long answer listing 12 brands does not dominate.
+- An answer that names three tracked brands adds three mentions, so a long answer listing many brands weighs more than a
+  short one. This is the accepted effect of the count share; the earlier equal split per answer (`1 / |M_o|`, averaged
+  over answers that mention at least one tracked brand) is replaced and is not exported.
 - SOV over all tracked entities sums to 100% by construction.
+- **By week** (Share of voice over time, its rank, the rate trend with the metric Share of voice): each weekly point is the
+  same count share over the mentions of that week (or of the weeks a pooled point holds, which the point says), one brand
+  and one week at a time, from the per-brand weekly cells (`include=series,entities`). A week with no tracked-brand mention
+  is n/a, never 0; a week under 4 mentions says how few it has and has no percent. All platforms is the average of the
+  platforms' weekly shares (R3), each platform's x of y in the tooltip. With more than 20 tracked brands the weekly cells
+  stop at 20, so there is no percent and no layer until the API sends the sum of mentions of the whole set (backend
+  request 24).
 - **SOV depends on the tracked competitor set.** Adding a competitor lowers everyone else's SOV. This is inherent to any share metric. Mitigations: the UI shows the entity set and the date each competitor was added; competitor additions create a version boundary; and "SOV including untracked mentions" (using `ai.entity_candidates` counts per observation, Phase 13) is offered as an alternative denominator.
 - We do not use Profound-style formulas that divide response counts by mention counts (mixed units; `research/07-commercial-competitors.md` section 4.3).
 
-Mention-count share (Peec-style: brand mentions / all brand mentions) is available in exports as `ai.mention_count_share` for comparability, labeled as such.
+The mention-count share (Peec-style: brand mentions / all brand mentions) is now the share of voice itself, so
+`ai.mention_count_share` is the same number and needs no separate label in exports.
 
 ## 6. Prominence, mention order, structured rank
 

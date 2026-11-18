@@ -9,9 +9,9 @@ import { differenceInterval, type Interval } from '@/lib/stats';
  * the window before, with the counts behind both, and how it moved. Every figure is the strip's own
  * (`buildAggregates`), so the card and the strip agree for the same scope (R12).
  *
- * Mention and citation carry the 95 percent interval of the change in the pooled answers; share of voice has none (it
- * has no count of successes), so its row is words with the numbers (plan decision D5). A change is detectable only
- * as the aggregates say.
+ * Mention and citation carry the 95 percent interval of the change in the pooled answers; share of voice has none (its
+ * counts are brand mentions, not answers), so its row is words with the numbers (plan decision D5). A change is
+ * detectable only as the aggregates say.
  */
 
 export type ComparisonMetric = 'mention' | 'citation' | 'share_of_voice';
@@ -43,7 +43,8 @@ export type ComparisonRow = { engineCode: EngineCode; label: string } & (
       detectable: boolean | null;
     }
   | { state: 'thin'; now: number; before: number }
-  | { state: 'none' }
+  /** `reason`: why share of voice has no counts (not collected, or cut by the cap); `null` for no valid answer. */
+  | { state: 'none'; reason: 'notCollected' | 'capped' | null }
 );
 
 type Figure = 'mentioned' | 'cited' | 'shareOfVoice';
@@ -66,11 +67,17 @@ function rowOf(engine: EngineAggregate, metric: ComparisonMetric): ComparisonRow
   const key = FIGURE[metric];
   const now = engine[key];
   const before = engine.previous?.[key] ?? null;
-  if (before === null || now.state === 'none' || before.state === 'none') return { ...base, state: 'none' };
+  const missing = [now, before].find((side) => side?.reason === 'notCollected' || side?.reason === 'capped');
+  if (missing?.reason === 'notCollected' || missing?.reason === 'capped') {
+    return { ...base, state: 'none', reason: missing.reason };
+  }
+  if (before === null || now.state === 'none' || before.state === 'none') {
+    return { ...base, state: 'none', reason: null };
+  }
   if (now.state === 'insufficient' || before.state === 'insufficient') {
     return { ...base, state: 'thin', now: now.answers, before: before.answers };
   }
-  if (now.value === null || before.value === null) return { ...base, state: 'none' };
+  if (now.value === null || before.value === null) return { ...base, state: 'none', reason: null };
   const change: Change = engine.change[key];
   return {
     ...base,
@@ -78,9 +85,9 @@ function rowOf(engine: EngineAggregate, metric: ComparisonMetric): ComparisonRow
     now: sideOf(now, now.value),
     before: sideOf(before, before.value),
     points: change.delta ?? now.value - before.value,
-    // Share of voice has no count of successes, so no interval
+    // Brand mentions are not independent trials of one rate, so share of voice has no interval and no test
     interval:
-      now.successes === null || before.successes === null
+      metric === 'share_of_voice' || now.successes === null || before.successes === null
         ? null
         : differenceInterval({ k: now.successes, n: now.answers }, { k: before.successes, n: before.answers }),
     detectable: change.detectable,

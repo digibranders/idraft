@@ -26,7 +26,7 @@ const grid = el('div', 'grid grid-cols-1 md:grid-cols-12 gap-4');
 const custom = createCustomizer({ grid, onChange: () => render() });
 
 // As in the app, the page name is in the top bar; the heading stays for screen readers only (11 section 3)
-const title = el('h1', 'sr-only', 'AI visibility');
+const title = el('h1', 'sr-only', 'AI visibility overview');
 // The freshness text does not depend on the scope. It sits in the toolbar when there is room, at the foot otherwise.
 const UPDATED = `Updated ${RUNS.last} · run ${RUNS.number}`;
 const meta = el('span', 'hidden 2xl:inline type-meta whitespace-nowrap', UPDATED);
@@ -47,10 +47,11 @@ const compareSelect = createSelect({
   name: 'Compare with',
   options: [
     { id: 'prev', label: 'vs previous period' },
+    { id: 'year', label: 'vs same period last year' },
     { id: 'off', label: 'No comparison' },
   ],
-  get: () => (state.compare ? 'prev' : 'off'),
-  set: (id) => setScope({ compare: id === 'prev' }),
+  get: () => (!state.compare ? 'off' : state.compareKind === 'year' ? 'year' : 'prev'),
+  set: (id) => setScope({ compare: id !== 'off', compareKind: id === 'year' ? 'year' : 'previous' }),
   width: 'min-w-52',
   triggerWidth: 'sm:w-60',
 });
@@ -60,7 +61,7 @@ reset.type = 'button';
 reset.dataset.tip = 'Reset scope';
 reset.setAttribute('aria-label', 'Reset scope');
 reset.append(icon('undo-2', 'size-icon'));
-reset.addEventListener('click', () => setScope({ platform: 'all', group: 'all', branded: 'exclude', compare: true, metric: 'visibility' }));
+reset.addEventListener('click', () => setScope({ platform: 'all', group: 'all', branded: 'exclude', compare: true, compareKind: 'previous', metric: 'visibility' }));
 scopeBar.append(platformSelect.trigger, groupSelect.trigger, compareSelect.trigger, reset);
 
 // One compact toolbar, as in the app: the scope on the left, the status and the actions on the right. Nothing in it
@@ -95,7 +96,7 @@ function render() {
   // With one group selected, cards can show the project value beside it
   const ctx = { model, scope, compare: state.compare, baseline: scope.group === 'all' ? null : buildModel({ ...scope, group: 'all' }), openCompetitor };
   [platformSelect, groupSelect, compareSelect].forEach((select) => select.refresh());
-  reset.classList.toggle('invisible', state.platform === 'all' && state.group === 'all' && state.compare && state.metric === 'visibility');
+  reset.classList.toggle('invisible', state.platform === 'all' && state.group === 'all' && state.compare && state.compareKind === 'previous' && state.metric === 'visibility');
   custom.updateBar();
 
   grid.replaceChildren();

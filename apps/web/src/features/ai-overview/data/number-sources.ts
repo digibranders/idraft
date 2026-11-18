@@ -21,7 +21,7 @@ export type NumberMetricKey =
   | 'ai.fanout_presence_rate';
 
 /** What the denominator `n` counts: the context line names it ("of 1,800 answers", "of 18,420 citation units"). */
-export type NumberUnit = 'answers' | 'namingAnswers' | 'citationUnits' | 'prompts';
+export type NumberUnit = 'answers' | 'brandMentions' | 'citationUnits' | 'prompts';
 
 /** A number that has been read: its value, the counts behind it, and what its context line and tip say. */
 export interface NumberFigure {
@@ -29,7 +29,7 @@ export interface NumberFigure {
   state: RateState;
   /** A rate on the 0 to 1 scale, or a count; `null` unless `state` is `ok`. Never 0 for what is unknown. */
   value: number | null;
-  /** The numerator and denominator; `null` where the number has none (prompts) or the numerator is not a count (share of voice). */
+  /** The numerator and denominator; `null` where the number has none (prompts). Share of voice: the own and all brand mentions. */
   k: number | null;
   n: number | null;
   unit: NumberUnit;
@@ -162,7 +162,7 @@ export const NUMBER_VALUE_SOURCE: NumberValueSource = {
     rateFigure(engine, engine.mentionedAndCited, engine.change.mentionedAndCited, 'answers'),
   ),
   'ai.share_of_voice': perEngine((engine) =>
-    rateFigure(engine, engine.shareOfVoice, engine.change.shareOfVoice, 'namingAnswers'),
+    rateFigure(engine, engine.shareOfVoice, engine.change.shareOfVoice, 'brandMentions'),
   ),
   'ai.citation_share': perEngine(citationShare, false),
   'ai.fanout_presence_rate': perEngine(fanoutPresence, false),

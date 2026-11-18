@@ -100,7 +100,8 @@ describe('useSourceChanges', () => {
       expect(url.searchParams.get('to')).toBe('2026-11-12');
       expect(url.searchParams.get('limit')).toBe('8');
       expect(url.searchParams.get('min_support')).toBe('2');
-      expect(url.searchParams.has('filter[engine_code_in]')).toBe(false);
+      // Named even when every platform that is on is asked: left out, the route would read the one that is off too
+      expect(url.searchParams.get('filter[engine_code_in]')).toBe('chatgpt_web,gemini_web');
       expect(url.searchParams.has('include_unresolved_redirects')).toBe(false);
       expect(url.searchParams.has('include_engine_internal')).toBe(false);
     }

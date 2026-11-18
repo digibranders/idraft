@@ -178,11 +178,89 @@ describe('Select', () => {
     expect(ref.current).toBe(trigger());
   });
 
+  it('shows an option icon before the label in the trigger and the list, hidden from assistive tech', async () => {
+    const withIcons: readonly SelectOption<Workload>[] = [
+      { value: 'rank', label: 'Rank checks', icon: <svg data-testid="rank-logo" /> },
+      { value: 'ai', label: 'AI visibility' },
+    ];
+    const { user } = renderWithProviders(
+      <Select aria-label="Workload" value="rank" placeholder="Pick" options={withIcons} onValueChange={vi.fn()} />,
+    );
+    const mark = within(screen.getByRole('combobox')).getByTestId('rank-logo');
+    expect(mark.parentElement).toHaveAttribute('aria-hidden', 'true');
+    await user.click(screen.getByRole('combobox'));
+    const option = await screen.findByRole('option', { name: 'Rank checks' });
+    expect(within(option).getByTestId('rank-logo')).toBeInTheDocument();
+    expect(within(await screen.findByRole('option', { name: 'AI visibility' })).queryByTestId('rank-logo')).toBeNull();
+  });
+
+  it('shows a prefix before the value in the trigger', () => {
+    renderWithProviders(
+      <Select
+        value="ai"
+        placeholder="Pick"
+        triggerPrefix="Job type:"
+        options={[{ value: 'ai', label: 'AI visibility' }]}
+        onValueChange={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole('combobox')).toHaveTextContent('Job type:AI visibility');
+    expect(screen.getByText('Job type:')).toHaveClass('text-foreground-secondary');
+  });
+
+  it('shows no prefix unless one is given', () => {
+    renderWithProviders(
+      <Select
+        value="ai"
+        placeholder="Pick"
+        options={[{ value: 'ai', label: 'AI visibility' }]}
+        onValueChange={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole('combobox')).toHaveTextContent(/^AI visibility$/);
+  });
+
+  it('shows no icon in the trigger when the chosen option has none', () => {
+    renderWithProviders(
+      <Select
+        aria-label="Workload"
+        value="ai"
+        placeholder="Pick"
+        options={[{ value: 'ai', label: 'AI visibility' }]}
+        onValueChange={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole('combobox').firstElementChild?.children).toHaveLength(1);
+  });
+
   it('has no accessibility violations, closed or open', async () => {
     const { user, baseElement } = renderWithProviders(<Controlled />);
     expect(await axe(baseElement)).toHaveNoViolations();
     await user.click(trigger());
     await screen.findByRole('listbox');
     expect(await axe(baseElement)).toHaveNoViolations();
+  });
+});
+
+describe('Select as a scope control (WP-77)', () => {
+  it('names the choice after a prefix and draws an option with its own content and a note', async () => {
+    const { user } = renderWithProviders(
+      <Select<string>
+        aria-label="Runs: Last 4 runs"
+        triggerPrefix="Runs:"
+        value="4"
+        onValueChange={() => undefined}
+        placeholder="Runs"
+        popupClassName="min-w-56"
+        options={[
+          { value: '4', label: 'Last 4 runs', note: '28 days' },
+          { value: '1', label: 'Last run', display: <strong>Last run</strong>, note: 'Sep 28' },
+        ]}
+      />,
+    );
+    const trigger = screen.getByRole('combobox', { name: 'Runs: Last 4 runs' });
+    expect(trigger).toHaveTextContent('Runs:Last 4 runs');
+    await user.click(trigger);
+    expect(await screen.findByRole('option', { name: /Last run/ })).toHaveTextContent('Sep 28');
   });
 });

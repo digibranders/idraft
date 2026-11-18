@@ -77,7 +77,7 @@ describe('SettingsFrame', () => {
     renderWithProviders(frame('fynix'));
     const nav = screen.getByRole('navigation', { name: 'Settings sections' });
     expect(within(nav).getByRole('link', { name: 'Schedules' })).toHaveAttribute('aria-current', 'page');
-    expect(within(nav).getByRole('link', { name: 'Taxonomy' })).not.toHaveAttribute('aria-current');
+    expect(within(nav).getByRole('link', { name: 'Tags' })).not.toHaveAttribute('aria-current');
   });
 
   it('lists Data retention after Schedules and marks it as the section on screen on its own page', () => {

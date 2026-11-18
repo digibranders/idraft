@@ -5,7 +5,7 @@
  * in scope and whether changes show comes from prompts-state.js.
  */
 import { formatSampleCount } from './vendor/format/number.js';
-import { MIN_OBSERVATIONS, pooledCounts } from './vendor/stats/index.js';
+import { MIN_OBSERVATIONS } from './vendor/stats/index.js';
 import { NOT_CLASSIFIED, TYPE_LABEL, absenceOf, averageFor, changeFor, countsOf, engineOf, measures, rateFor, trendOf, updatedOf } from './prompts-data.js';
 import { NEUTRAL_BADGE, NEUTRAL_BADGE_LOOK, checkbox, el, insufficient, percent0, plural } from './prompts-parts.js';
 import { deltaNode, scopeCodes } from './prompts-state.js';
@@ -52,7 +52,8 @@ export function promptRateCell(prompt, metric, withChange) {
   const { value, used } = averageFor(prompt, scope, metric);
   const observed = scope.reduce((sum, code) => sum + prompt.engines[code].n, 0);
   const usable = scope.filter((code) => rateFor(prompt, code, metric) !== null);
-  const pooled = pooledCounts(usable.map((code) => countsOf(prompt, code, metric)));
+  // Each platform's own counts, never added up: the percent is the average of the platforms' rates (R3)
+  const perEngine = usable.map((code) => { const counts = countsOf(prompt, code, metric); return `${engineOf(code).label} ${formatSampleCount(counts.k, counts.n)}`; }).join(' and ');
   const names = usable.map((code) => engineOf(code).label).join(', ');
   // With one engine in scope the reason is that engine's own: AI Overview says whether a keyword is linked
   const only = scope.length === 1 ? absenceOf(prompt, scope[0]) : null;
@@ -64,7 +65,7 @@ export function promptRateCell(prompt, metric, withChange) {
     value,
     change: withChange ? changeFor(prompt, scope, metric) : null,
     trend: withChange ? trendOf(prompt, scope) : null,
-    sample: `${formatSampleCount(pooled.k, pooled.n)} ${metric === 'sov' ? 'mentions' : 'answers'}`,
+    sample: `${perEngine} ${metric === 'sov' ? 'brand mentions' : 'answers'}`,
     tip: used === 1 ? `${names} only` : `Equal-weight average of ${names}`,
     gap: {
       text: observed === 0 || unclassified ? absent.text : 'Not enough data',

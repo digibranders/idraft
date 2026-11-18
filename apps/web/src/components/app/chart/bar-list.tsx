@@ -7,6 +7,7 @@ import type { MouseEvent, ReactElement, ReactNode } from 'react';
 
 import { SmallSampleMarker } from './small-sample-marker';
 import { Delta, type DeltaTest } from '@/components/app/metric/delta';
+import { DeltaIcon } from '@/components/app/metric/delta-icon';
 import { PlainTable, type PlainColumn } from '@/components/app/table/plain-table';
 import { LinkButton } from '@/components/ui/link-button';
 import { Tooltip } from '@/components/ui/tooltip';
@@ -77,6 +78,8 @@ interface BarListCommon {
   contextHeader: string;
   /** Header of the change column of the table and CSV; the column exists when this is given and a row has a `delta`. */
   changeHeader?: string | undefined;
+  /** Draws each row's change as the trend icon (the Prompts page), leaving the figures to the row's `tip`. Default: the points as text. */
+  deltaIcon?: boolean | undefined;
   /** The value at full width; default the largest `value` of the rows (a shared scale from 0). */
   max?: number | undefined;
   /** At most this many rows inline (default and ceiling 15); more needs `showAllHref`. */
@@ -151,12 +154,17 @@ function ValueText({ bar }: { bar: BarValue }): ReactElement {
   return <span className="num type-meta whitespace-nowrap text-foreground-tertiary">{bar.valueText}</span>;
 }
 
+/** The `data-slot` of the trend icon, as the Prompts page's own icons carry it (its tests and the colour rule find it). */
+const DELTA_ICON_SLOT = 'trend-icon';
+
 interface BarRowProps {
   item: BarItem;
   max: number;
   density: Density;
   /** Some shown row has a context, badge or change: every row then renders the trailing slot, empty or not. */
   trailing: boolean;
+  /** Draws a row's change as the trend icon, its figures left to the row's tooltip, instead of the points as text. */
+  deltaIcon: boolean;
 }
 
 /** A plain left click runs `onSelect` and keeps the router from following the link; a click for a new tab or window follows it. */
@@ -182,7 +190,7 @@ const hasTrailingContent = (row: BarListRowBase): boolean =>
  * bar (thin, none) writes its words in flow in place of the bar, on its own line when narrow, and truncates them
  * instead of overflowing; it takes the same space as a bar, so it never changes the track of another row.
  */
-function BarRow({ item, max, density, trailing }: BarRowProps): ReactElement {
+function BarRow({ item, max, density, trailing, deltaIcon }: BarRowProps): ReactElement {
   const { row, fill, strong } = item;
   const compact = density === 'compact';
   const hasBar = row.value.kind === 'value';
@@ -242,7 +250,9 @@ function BarRow({ item, max, density, trailing }: BarRowProps): ReactElement {
               </span>
             )}
             {row.badge}
-            {row.delta === undefined ? null : (
+            {row.delta === undefined ? null : deltaIcon ? (
+              <DeltaIcon input={row.delta.input} test={row.delta.test} slot={DELTA_ICON_SLOT} />
+            ) : (
               <Delta input={row.delta.input} test={row.delta.test} size="sm" tip={false} />
             )}
           </div>
@@ -287,7 +297,14 @@ export function BarList(props: BarListProps): ReactElement {
     <div className="@container flex flex-col gap-2">
       <ul aria-label={caption} className="flex flex-col">
         {shown.map((item) => (
-          <BarRow key={item.row.id} item={item} max={max} density={density} trailing={trailing} />
+          <BarRow
+            key={item.row.id}
+            item={item}
+            max={max}
+            density={density}
+            trailing={trailing}
+            deltaIcon={props.deltaIcon === true}
+          />
         ))}
       </ul>
       {shown.length < items.length && showAllHref !== undefined ? (

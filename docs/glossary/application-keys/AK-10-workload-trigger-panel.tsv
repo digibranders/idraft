@@ -1,0 +1,21 @@
+key	current text
+projectSettings.schedules.dialog.workloadFixed	A schedule keeps the workload it was made for.
+projectSettings.schedules.errors.providerModeNotSupported	This workload does not take that provider mode.
+projectSettings.schedules.errors.workloadNotAvailable	Schedules of this workload are not available yet.
+projectSettings.schedules.errors.selectorNotSupported	This workload cannot select keywords that way.
+budgets.groups.all	All workloads
+costs.filters.workload	Workload
+costs.chartTitle	Spend by day, by workload
+costs.chartSummary	Spend per day in {month}, stacked by workload. {total} in all.
+costs.byWorkload	By workload
+costs.workload	Workload
+costs.allWorkloads	All workloads
+runs.filters.workload	Workload
+runs.filters.trigger	Trigger
+runs.columns.workload	Workload
+runs.columns.trigger	Trigger
+runs.inspector.trigger	Trigger
+rankings.features.types.knowledgeGraph	Knowledge panel
+rankings.features.names.knowledgeGraph	Knowledge panel
+prompts.topicDrawer.panel.metricLabel	Metric of the platform panel
+aiOverview.activity.spend.workloadAll	all workloads

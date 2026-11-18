@@ -3,14 +3,12 @@ import { describe, expect, it } from 'vitest';
 import { citationsLink } from './drill';
 import { drillHref } from '../../../drilldown/drill-links';
 import { scopeOf } from '../model/source-fixtures';
-import { parseScope as parseCitationScope, type CitationSearch } from '@/features/citations/citation-scope';
-import type { EngineCode } from '@/lib/api/types';
+import { parseBoard, type BoardSearch } from '@/features/citations/board-state';
 import { parseInspectTarget } from '@/lib/inspector/placement';
 
 const PROJECT = { workspace: 'acme', project: 'eventus' };
-const ENGINES: readonly EngineCode[] = ['chatgpt_web', 'gemini_web', 'google_ai_mode'];
-const base = (patch = {}) =>
-  drillHref('citations', scopeOf({ engines: ['chatgpt_web', 'gemini_web'], ...patch }), {}, PROJECT);
+const OPTIONS = { engines: null, terms: null, tracked: null } as const;
+const base = (patch = {}) => drillHref('citations', scopeOf({ engines: ['gemini_web'], ...patch }), {}, PROJECT);
 
 function queryOf(href: string | null): URLSearchParams {
   if (href === null) throw new Error('expected a link, got null');
@@ -18,24 +16,21 @@ function queryOf(href: string | null): URLSearchParams {
 }
 
 describe('citationsLink with a cited page', () => {
-  it('opens the source inspector on the Pages tab, narrowed to own pages, with the scope of the card', () => {
-    const href = citationsLink(base(), { tab: 'pages', role: 'own', source: 11 });
-    const query = queryOf(href);
-    expect(query.get('tab')).toBe('pages');
-    expect(query.get('role')).toBe('own');
-    expect(parseInspectTarget(query.get('inspect'))).toEqual({ type: 'source', id: '11' });
-    expect(query.get('engine')).toBe('chatgpt_web,gemini_web');
+  it('opens the page drawer on Cited pages, with the platform of the card', () => {
+    const query = queryOf(citationsLink(base(), { tab: 'pages', owner: 'own', page: 11 }));
+    expect(parseInspectTarget(query.get('inspect'))).toEqual({ type: 'cited-page', id: '11' });
+    expect(query.get('platform')).toBe('gemini_web');
+    expect(query.has('owner')).toBe(false);
   });
 
-  it('is read back by the Citations page own parser as the Pages tab with the own role', () => {
-    const search: CitationSearch = Object.fromEntries(
-      queryOf(citationsLink(base(), { tab: 'pages', role: 'own', source: 11 })),
+  it('is read back by the Citations page own parser as the own owner', () => {
+    const search: BoardSearch = Object.fromEntries(
+      queryOf(citationsLink(base(), { tab: 'pages', owner: 'own', page: 11 })).entries(),
     );
-    expect(parseCitationScope(search, ENGINES)).toMatchObject({ tab: 'pages', roles: ['own'] });
+    expect(parseBoard(search, OPTIONS)).toMatchObject({ owner: 'own', platform: 'gemini_web' });
   });
 
-  it('writes no inspector without a page, and has no link where the Citations page cannot show the scope', () => {
-    expect(queryOf(citationsLink(base(), { tab: 'pages', role: 'own' })).has('inspect')).toBe(false);
-    expect(citationsLink(base({ country: 'DE' }), { tab: 'pages', role: 'own', source: 11 })).toBeNull();
+  it('has no link where the Citations page cannot show the scope', () => {
+    expect(citationsLink(base({ country: 'DE' }), { tab: 'pages', owner: 'own', page: 11 })).toBeNull();
   });
 });

@@ -1,7 +1,7 @@
 import type { Route } from 'next';
 
 import { MAX_RANGE_DAYS, writeRangeParams } from '@/components/app/date-range/range-model';
-import { cmpParam } from '@/lib/compare/compare-model';
+import { CMP_YEAR, cmpParam } from '@/lib/compare/compare-model';
 import { formatInspectTarget, type InspectorTarget } from '@/lib/inspector/placement';
 import { NAVIGATION, type NavKey } from '@/lib/navigation/registry';
 import { projectPath, withQuery } from '@/lib/routes/paths';
@@ -21,6 +21,9 @@ import type { Branded, OverviewScope } from '../scope/scope-model';
  * A link is `null` (the number is plain text) rather than a link that would show other numbers than the ones
  * clicked: the page is not live, or the scope has a country, a branded choice or a window the page cannot express.
  * The helper cannot know which engines are off in the project: the caller skips the link when the scope holds one.
+ *
+ * The Citations page's keys (`platform`, `group`, `owner`) are `features/citations/board-state.ts`'s;
+ * `drill-links.test.ts` reads every link back with its parser.
  */
 
 export type DrillKind =
@@ -34,7 +37,6 @@ export type DrillKind =
   | 'prompt'
   | 'citations'
   | 'competitors'
-  | 'sources'
   | 'runs';
 
 /** The rate a number shows, which the Prompts page's engine columns take as `metric`. */
@@ -71,7 +73,6 @@ export const DRILL_SUPPORT: DrillSupport = {
   prompt: { outcome: false, opportunity: false },
   citations: { outcome: false, opportunity: false },
   competitors: { outcome: false, opportunity: false },
-  sources: { outcome: false, opportunity: false },
   runs: { outcome: false, opportunity: false },
 };
 
@@ -84,22 +85,37 @@ interface Destination {
   country: boolean;
   /** The value of `branded` for each choice; a choice missing here cannot be expressed on the page. */
   branded: Partial<Record<Branded, string | null>>;
+  /**
+   * How the page reads `cmp`. The Prompts page opens with no comparison and turns it on only for `cmp=previous`; the
+   * other pages compare by default and turn it off with `cmp=off`. The link writes what makes the page open as the
+   * Overview is: comparing, or not.
+   */
+  compare: 'previous-turns-on' | 'off-turns-off';
 }
 
-/** The Prompts and Citations pages have one Branded choice, `include`; excluded is the default and is not written. */
+/** The pages other than Citations have one Branded choice, `include`; excluded is the default and is not written. */
 const BRANDED_INCLUDE: Destination['branded'] = { excluded: null, included: 'include' };
+/** The Prompts page has `Only` too (`branded=only`: the branded prompts alone). */
+const BRANDED_PROMPTS: Destination['branded'] = { ...BRANDED_INCLUDE, only: 'only' };
 
-// competitors and sources are not built: their keys are to be checked against the pages when they are
+/** The `cmp` that makes `page` open as the Overview is: the period before, last year, or no comparison. */
+function cmpOf(page: Destination['compare'], scope: OverviewScope): string | null {
+  if (page === 'off-turns-off') return cmpParam(scope.compare);
+  if (!scope.compare) return null;
+  return scope.compareKind === 'previous_year' ? CMP_YEAR : 'previous';
+}
+
+// competitors is not built: its keys are to be checked against the page when it is
 const DESTINATIONS: Readonly<Record<DrillKind, Destination>> = {
-  prompts: { nav: 'prompts', scoped: true, country: true, branded: BRANDED_INCLUDE },
-  topic: { nav: 'prompts', scoped: true, country: true, branded: BRANDED_INCLUDE },
-  topicDrawer: { nav: 'prompts', scoped: true, country: true, branded: BRANDED_INCLUDE },
-  prompt: { nav: 'prompts', scoped: true, country: true, branded: BRANDED_INCLUDE },
-  citations: { nav: 'citations', scoped: true, country: false, branded: BRANDED_INCLUDE },
-  competitors: { nav: 'competitors', scoped: true, country: true, branded: BRANDED_INCLUDE },
-  sources: { nav: 'sources', scoped: true, country: true, branded: BRANDED_INCLUDE },
+  prompts: { nav: 'prompts', scoped: true, country: true, branded: BRANDED_PROMPTS, compare: 'previous-turns-on' },
+  topic: { nav: 'prompts', scoped: true, country: true, branded: BRANDED_PROMPTS, compare: 'previous-turns-on' },
+  topicDrawer: { nav: 'prompts', scoped: true, country: true, branded: BRANDED_PROMPTS, compare: 'previous-turns-on' },
+  prompt: { nav: 'prompts', scoped: true, country: true, branded: BRANDED_PROMPTS, compare: 'previous-turns-on' },
+  // The Citations page counts non-branded prompts only: an included scope has no link
+  citations: { nav: 'citations', scoped: true, country: false, branded: { excluded: null }, compare: 'off-turns-off' },
+  competitors: { nav: 'competitors', scoped: true, country: true, branded: BRANDED_INCLUDE, compare: 'off-turns-off' },
   // Runs reads a month, not a window: the scope means nothing there
-  runs: { nav: 'runs', scoped: false, country: false, branded: BRANDED_INCLUDE },
+  runs: { nav: 'runs', scoped: false, country: false, branded: BRANDED_INCLUDE, compare: 'off-turns-off' },
 };
 
 const termTarget = (id: string | null | undefined): InspectorTarget | null =>
@@ -109,6 +125,18 @@ const promptTarget = (id: string | undefined): InspectorTarget | null =>
 
 /** The sort id of an engine's rate column on the Prompts tab (`engineSortId` of the Prompts page). */
 const engineRateSort = (engineCode: string): string => `${engineCode}_rate`;
+
+/**
+ * The columns the Prompts tab shows when a link sorts by a platform's rate. That column waits in the column chooser by
+ * default, and the page applies a sort only to a column that is on screen, so the link names the columns it needs: the
+ * ones the tab opens with (Group, Location while the top bar has no location, Mention rate and Citation rate) and the
+ * platform's rate. The Prompt column is always there. Written out in `cols` as the page parses it (`parseColumns`).
+ */
+function promptColumnsFor(engineCode: string, country: string | null): string {
+  return ['topic', ...(country === null ? ['country'] : []), 'mention', 'citation', engineRateSort(engineCode)].join(
+    ',',
+  );
+}
 
 /**
  * The link for `kind` with the scope of the Overview carried, or `null` where there is no page to go to or the
@@ -131,11 +159,23 @@ export function drillHref(
   if (page === undefined || page.status !== 'live') return null;
   const path = projectPath(project.workspace, project.project, page.path);
   if (!destination.scoped) return path;
-  // The Overview takes 92 days; the pages read a range with the default limit and would open another window
-  if (scope.range.days > MAX_RANGE_DAYS) return null;
-
   const branded = destination.branded[scope.branded];
   if (branded === undefined || (scope.country !== null && !destination.country)) return null;
+  if (kind === 'citations') {
+    // The Citations page reads runs, not dates, one platform or all, and a group (WP-77 brief 3.1): the window and the
+    // comparison of the Overview are not carried
+    const engines = extra.engine === undefined ? scope.engines : [extra.engine];
+    const query = new URLSearchParams();
+    const one = engines !== null && engines.length === 1 ? engines[0] : undefined;
+    if (one !== undefined) query.set('platform', one);
+    const group = extra.term ?? scope.topic;
+    if (group !== null && group !== undefined && group !== '') query.set('group', group);
+    return withQuery(path, query.toString());
+  }
+  // The Overview takes 92 days; the pages read a range with the default limit and would open another window
+  if (scope.range.days > MAX_RANGE_DAYS) return null;
+  // A comparison with last year is one the Prompts page alone can express: the others would show the period before
+  if (scope.compare && scope.compareKind === 'previous_year' && destination.compare === 'off-turns-off') return null;
   // The object a drawer opens: a topic term (the scope's topic when none is given) or a prompt
   const target: InspectorTarget | null =
     kind === 'topicDrawer'
@@ -153,7 +193,7 @@ export function drillHref(
   put('win', win);
   put('from', from);
   put('to', to);
-  put('cmp', cmpParam(scope.compare));
+  put('cmp', cmpOf(destination.compare, scope));
   put('country', scope.country);
   const engines = extra.engine === undefined ? scope.engines : [extra.engine];
   put('engine', engines === null ? null : engines.join(','));
@@ -162,7 +202,10 @@ export function drillHref(
   put('branded', branded);
   if (kind === 'prompts') {
     put('tab', 'prompts');
-    if (extra.engine !== undefined) put('sort', formatSort([{ id: engineRateSort(extra.engine), desc: true }]));
+    if (extra.engine !== undefined) {
+      put('sort', formatSort([{ id: engineRateSort(extra.engine), desc: true }]));
+      put('cols', promptColumnsFor(extra.engine, scope.country));
+    }
     if (extra.metric !== undefined && extra.metric !== 'mention') put('metric', extra.metric);
   }
   if (target !== null) put('inspect', formatInspectTarget(target));

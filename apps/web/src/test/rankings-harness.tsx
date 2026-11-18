@@ -98,7 +98,7 @@ export function rankingsAs(
 }
 
 /** Every column shows: a wide viewport and a wide table region. */
-class WideResizeObserver {
+export class WideResizeObserver {
   constructor(private readonly callback: ResizeObserverCallback) {}
   observe(target: Element): void {
     const entry = { target, contentRect: { width: 1600, height: 640 } };

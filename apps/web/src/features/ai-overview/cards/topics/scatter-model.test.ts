@@ -120,7 +120,7 @@ describe('scatterModel', () => {
     const child = leaf('Child', 4, [5, 10], [2, 10], { level: 2, parentKey: 'Parent', path: ['Parent', 'Child'] });
     const parent = leaf('Parent', 6, [5, 10], [2, 10], { children: [child] });
     const lone = leaf('Lone', 3, [6, 10], [3, 10]);
-    const none = leaf('No topic', 2, [6, 10], [3, 10], { key: NO_TOPIC, termId: null });
+    const none = leaf('No group', 2, [6, 10], [3, 10], { key: NO_TOPIC, termId: null });
     const model = scatterModel([parent, lone, none], 'chatgpt_web');
     expect(plotted(model)).toEqual(['Child', 'Lone']);
     expect(model.rows.map((row) => row.node.name)).toEqual(['Child', 'Lone']);

@@ -1569,7 +1569,9 @@
     $('[data-crumb-parent]').hidden = !settings;
     // Date range and location are hidden where they do not apply (11 section 4)
     $$('[data-scope-control]').forEach((el) => (el.hidden = settings || next.view === 'pages' || next.view === 'internal-links'));
-    document.title = `${settings ? `${label}, Settings` : label} · Design System Preview`;
+    // The tab title is the page title (glossary A3): "AI visibility overview", while the breadcrumb says "AI visibility"
+    const pageTitle = next.view === 'ai' ? 'AI visibility overview' : label;
+    document.title = `${settings ? `${label}, Settings` : pageTitle} · Design System Preview`;
     if (viewChanged) window.scrollTo(0, 0);
     // Pages built in their own script (prompts.js) show their tab from this
     // A page lets go of its address first (preview-leave), so the page that opens next never reads its query

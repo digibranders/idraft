@@ -4,15 +4,22 @@ import { parseCompare } from '@/lib/compare/compare-model';
 
 import {
   brandedParams,
+  canResetScope,
   changedFilterCount,
+  comparedWindowOf,
+  previousYearWindow,
+  namesSeveralPlatforms,
   normalizeEngines,
+  onePlatform,
   RESET_PATCH,
   parseBranded,
   parseCountry,
   parseEngines,
+  parseMetric,
   parseTopic,
   previousWindow,
   scopeKey,
+  singlePlatform,
   type OverviewScope,
 } from './scope-model';
 
@@ -24,14 +31,37 @@ function scopeOf(patch: Partial<OverviewScope> = {}): OverviewScope {
     range: { from: '2026-10-16', to: '2026-11-12', days: 28 },
     rangeValue: { kind: 'preset', preset: '28d' },
     compare: true,
+    compareKind: 'previous_period',
     previous: { from: '2026-09-18', to: '2026-10-15' },
     country: null,
     engines: null,
     topic: null,
     branded: 'excluded',
+    metric: 'visibility',
     ...patch,
   };
 }
+
+describe('previousYearWindow', () => {
+  it('is the same dates a year earlier', () => {
+    expect(previousYearWindow('2026-10-16', '2026-11-12')).toEqual({ from: '2025-10-16', to: '2025-11-12' });
+  });
+
+  it('turns 29 February into 28 February, as the API does for compare=previous_year', () => {
+    expect(previousYearWindow('2028-02-20', '2028-02-29')).toEqual({ from: '2027-02-20', to: '2027-02-28' });
+    expect(previousYearWindow('2028-02-29', '2028-03-05')).toEqual({ from: '2027-02-28', to: '2027-03-05' });
+  });
+
+  it('is the window `comparedWindowOf` gives for the year, and the period before for the other kind', () => {
+    expect(comparedWindowOf('previous_year', '2026-10-16', '2026-11-12')).toEqual({
+      from: '2025-10-16',
+      to: '2025-11-12',
+    });
+    expect(comparedWindowOf('previous_period', '2026-10-16', '2026-11-12')).toEqual(
+      previousWindow('2026-10-16', '2026-11-12'),
+    );
+  });
+});
 
 describe('previousWindow', () => {
   it('is as many days just before from (Oct 16 to Nov 12 gives Sep 18 to Oct 15)', () => {
@@ -80,6 +110,61 @@ describe('parseEngines', () => {
     expect(parseEngines('', KNOWN)).toBeNull();
     expect(parseEngines(null, KNOWN)).toBeNull();
     expect(parseEngines(',,', KNOWN)).toBeNull();
+  });
+});
+
+describe('parseMetric', () => {
+  it('defaults to visibility and reads the four measures', () => {
+    expect(parseMetric(null)).toBe('visibility');
+    expect(parseMetric('')).toBe('visibility');
+    expect(parseMetric('bogus')).toBe('visibility');
+    expect(parseMetric('VISIBILITY')).toBe('visibility');
+    expect(parseMetric('visibility')).toBe('visibility');
+    expect(parseMetric('mention')).toBe('mention');
+    expect(parseMetric('citation')).toBe('citation');
+    expect(parseMetric('sov')).toBe('sov');
+  });
+
+  it('does not accept the catalog name of share of voice: the URL says sov', () => {
+    expect(parseMetric('share_of_voice')).toBe('visibility');
+  });
+});
+
+describe('singlePlatform and the fallback of a link that names several', () => {
+  it('is the one engine of the scope, and null for every engine', () => {
+    expect(singlePlatform(scopeOf())).toBeNull();
+    expect(singlePlatform(scopeOf({ engines: ['gemini_web'] }))).toBe('gemini_web');
+  });
+
+  it('reads two or more engines (an old link, engine=a,b) as All platforms', () => {
+    const several = scopeOf({ engines: ['gemini_web', 'chatgpt_web'] });
+    expect(singlePlatform(several)).toBeNull();
+    expect(namesSeveralPlatforms(several)).toBe(true);
+    expect(namesSeveralPlatforms(scopeOf({ engines: ['gemini_web'] }))).toBe(false);
+    expect(namesSeveralPlatforms(scopeOf())).toBe(false);
+  });
+
+  it('lets an unknown code fall back before it gets here: a list of one known engine is that platform', () => {
+    expect(singlePlatform(scopeOf({ engines: parseEngines('bogus,chatgpt_web', KNOWN) }))).toBe('chatgpt_web');
+    expect(singlePlatform(scopeOf({ engines: parseEngines('bogus', KNOWN) }))).toBeNull();
+  });
+});
+
+describe('onePlatform', () => {
+  it('reads several platforms that are all on as All platforms', () => {
+    expect(onePlatform(['chatgpt_web', 'gemini_web'], KNOWN)).toBeNull();
+    expect(onePlatform(['gemini_web', 'chatgpt_web', 'google_ai_mode'], KNOWN)).toBeNull();
+  });
+
+  it('keeps one platform, even one that is off, and a list that names a platform that is off', () => {
+    expect(onePlatform(['gemini_web'], KNOWN)).toEqual(['gemini_web']);
+    expect(onePlatform(['google_ai_overview'], KNOWN)).toEqual(['google_ai_overview']);
+    expect(onePlatform(['chatgpt_web', 'google_ai_overview'], KNOWN)).toEqual(['chatgpt_web', 'google_ai_overview']);
+    expect(onePlatform(null, KNOWN)).toBeNull();
+  });
+
+  it('keeps the link as it is while the platforms that are on are not known yet', () => {
+    expect(onePlatform(['chatgpt_web', 'gemini_web'], [])).toEqual(['chatgpt_web', 'gemini_web']);
   });
 });
 
@@ -142,6 +227,10 @@ describe('scopeKey', () => {
     expect(new Set([base, ...others]).size).toBe(others.length + 1);
   });
 
+  it('ignores the metric: it changes what a card draws, not what is read', () => {
+    expect(scopeKey(scopeOf({ metric: 'citation' }))).toBe(scopeKey(scopeOf()));
+  });
+
   it('ignores the previous window when the comparison is off', () => {
     const a = scopeOf({ compare: false });
     const b = scopeOf({ compare: false, previous: { from: '2000-01-01', to: '2000-01-02' } });
@@ -188,9 +277,35 @@ describe('changedFilterCount', () => {
     ).toBe(4);
   });
 
+  it('does not count the metric, which is not a filter', () => {
+    expect(changedFilterCount(scopeOf({ metric: 'sov' }))).toBe(0);
+  });
+
   it('has a reset patch that leaves the window and the country out and brings the count to zero', () => {
-    expect(Object.keys(RESET_PATCH).sort()).toEqual(['branded', 'compare', 'engines', 'topic']);
-    const reset = scopeOf({ compare: false, engines: ['gemini_web'], topic: TOPIC, branded: 'only', country: 'DE' });
-    expect(changedFilterCount({ ...reset, ...RESET_PATCH } as OverviewScope)).toBe(0);
+    expect(Object.keys(RESET_PATCH).sort()).toEqual([
+      'branded',
+      'compare',
+      'compareKind',
+      'engines',
+      'metric',
+      'topic',
+    ]);
+    const reset = scopeOf({
+      compare: false,
+      engines: ['gemini_web'],
+      topic: TOPIC,
+      branded: 'only',
+      country: 'DE',
+      metric: 'sov',
+    });
+    const back = { ...reset, ...RESET_PATCH } as OverviewScope;
+    expect(changedFilterCount(back)).toBe(0);
+    expect(canResetScope(back)).toBe(false);
+  });
+
+  it('can reset for a measure that is not the default, though it is not counted as a filter', () => {
+    expect(canResetScope(scopeOf())).toBe(false);
+    expect(canResetScope(scopeOf({ metric: 'mention' }))).toBe(true);
+    expect(canResetScope(scopeOf({ topic: TOPIC }))).toBe(true);
   });
 });

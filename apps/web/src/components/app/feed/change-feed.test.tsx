@@ -174,6 +174,21 @@ describe('ChangeFeed states', () => {
     expect(container.querySelector('[data-slot="feed-refetch-bar"]')).toBeNull();
   });
 
+  it('shows a meta line after the title and an info button when they are given, and neither otherwise', () => {
+    const { unmount } = renderWithProviders(<ChangeFeed {...props(ready())} />);
+    expect(screen.queryByText('last 28 days')).toBeNull();
+    expect(screen.queryByRole('button', { name: /about key changes/i })).toBeNull();
+    unmount();
+    renderWithProviders(
+      <ChangeFeed
+        {...props(ready(), { meta: 'last 28 days', info: { what: 'What it shows.', how: 'How it counts.' } })}
+      />,
+    );
+    expect(screen.getByText('last 28 days')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /about key changes/i })).toBeInTheDocument();
+    expect(screen.getByText(/What it shows\./)).toBeInTheDocument();
+  });
+
   it('puts the group headings one level below a level 3 title', () => {
     renderWithProviders(<ChangeFeed {...props(ready(), { headingLevel: 3 })} />);
     expect(screen.getByRole('heading', { level: 3, name: 'Key changes' })).toBeInTheDocument();

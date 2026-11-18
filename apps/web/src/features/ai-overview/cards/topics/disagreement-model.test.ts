@@ -113,7 +113,7 @@ describe('disagreementRows', () => {
     ]);
   });
 
-  it('a prompt in two topics counts in both', () => {
+  it('a prompt in two groups counts in both', () => {
     const shared = prompt('p1', { [CHATGPT]: [2, 4], [GEMINI]: [0, 4] });
     const model = disagreementRows([topic('SEO', [shared]), topic('Email', [shared])], TWO, 10);
     expect(pairsOf(model.rows)).toEqual([

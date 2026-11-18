@@ -1,3 +1,4 @@
+import { shareNoteOf } from './brand-mention-share';
 import type { RateReading, RateReason } from './strip-model';
 import type { EngineSummary, MetricCell } from '@/lib/api/types';
 import { rateState } from '@/lib/stats';
@@ -59,25 +60,32 @@ export interface AverageRate extends RateReading {
  * number of percents in the engines' columns, and the top engine is one of them. An engine without a rate is left
  * out, not counted as 0. When none shows one but some has a value, the average is insufficient (parity spec D-1)
  * and `answers` are those of the engine with most, which is what the pill says; when none has a value there is
- * no rate, for no answer or none valid. A cell that is not there (`undefined`) is an engine without an answer.
+ * no rate, for no answer or none valid. A cell that is not there (`undefined`) is an engine without an answer. Share of
+ * voice (`metric`) has no pooled count: the platforms' brand mentions are not added up beside the average (R3), and when
+ * every platform says its counts are not collected, so does the average.
  */
-export function averageRate(cells: readonly (MetricCell | undefined)[]): AverageRate {
+export function averageRate(cells: readonly (MetricCell | undefined)[], metric?: CellMetric): AverageRate {
   const present = cells.filter((cell): cell is MetricCell => cell !== undefined);
   const observations = sum(present.map((cell) => cell.n_observations));
   const average = acrossEngines(present);
   if (average === null) {
     const valued = present.filter((cell) => cell.value !== null);
     if (valued.length === 0) {
-      return { ...none(observations === 0 ? 'noAnswers' : 'noneValid'), engines: 0, observations };
+      const notes = metric === 'share_of_voice' ? present.map(shareNoteOf) : [];
+      const note = notes.length > 0 && notes.every((entry) => entry !== undefined) ? notes[0] : undefined;
+      return { ...none(note ?? (observations === 0 ? 'noAnswers' : 'noneValid')), engines: 0, observations };
     }
     const answers = Math.max(...valued.map(validAnswers));
     return { state: 'insufficient', value: null, answers, successes: null, reason: null, engines: 0, observations };
   }
   const rated = present.filter(hasRate);
   // One cell whose count is not whole leaves the pooled count unknown rather than rounded
-  const successes = rated
-    .map(successesOf)
-    .reduce<number | null>((total, count) => (total === null || count === null ? null : total + count), 0);
+  const successes =
+    metric === 'share_of_voice'
+      ? null
+      : rated
+          .map(successesOf)
+          .reduce<number | null>((total, count) => (total === null || count === null ? null : total + count), 0);
   return {
     state: 'ok',
     value: average.value,
@@ -91,13 +99,16 @@ export function averageRate(cells: readonly (MetricCell | undefined)[]): Average
 
 /**
  * One engine's cell as a figure, as the strip reads the engine over its prompts: Mentioned and Cited count the
- * valid answers, share of voice the valid answers that name a tracked brand (it has no count of successes: its
- * numerator is a sum of shares). Fewer than `MIN_OBSERVATIONS` of them and the figure is insufficient. Without
- * any the reason is the first that applies: no answer, none valid, or (share of voice) no brand named.
+ * valid answers; share of voice (D17) counts brand mentions, `successes` of `answers` being the own brand's mentions
+ * of all tracked-brand mentions. Fewer than `MIN_OBSERVATIONS` of them and the figure is insufficient. Without
+ * any the reason is the first that applies: no answer, none valid, or (share of voice) the counts are not collected,
+ * were cut by the cap of 20, or no brand was named.
  */
 export function cellFigure(engine: EngineSummary | undefined, metric: CellMetric): RateReading {
   const cell = engine?.[metric];
   if (engine === undefined || cell === undefined) return none('noAnswers');
+  const note = metric === 'share_of_voice' ? shareNoteOf(cell) : undefined;
+  if (note !== undefined) return none(note);
   const answers = validAnswers(cell);
   const state = rateState(answers);
   if (state === 'none') {
@@ -108,7 +119,7 @@ export function cellFigure(engine: EngineSummary | undefined, metric: CellMetric
     state,
     value: state === 'ok' ? cell.value : null,
     answers,
-    successes: metric === 'share_of_voice' ? null : successesOf(cell),
+    successes: successesOf(cell),
     reason: null,
   };
 }

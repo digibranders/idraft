@@ -25,7 +25,10 @@ export function promptEngineRows(
   return prompts.map((prompt) => ({
     prompt,
     values: codes.map((code) => engineValue(prompt.engines, code, metric)),
-    average: averageRate(codes.map((code) => prompt.engines.find((cells) => cells.engine_code === code)?.[metric])),
+    average: averageRate(
+      codes.map((code) => prompt.engines.find((cells) => cells.engine_code === code)?.[metric]),
+      metric,
+    ),
     lastValidAt: prompt.last_valid_at,
     path: prompt.topic_term_ids.map((id) => pathOf.get(id)).find((path) => path !== undefined) ?? null,
   }));

@@ -587,7 +587,7 @@ describe('editing cards', () => {
     });
     expect(run(() => current().actions.setCardOption(second, 'engine', 'google_ai_mode'))).toBe(true);
     await waitFor(() => {
-      expect(polite()).toBe('Mention rate trend: AI Mode: Engine AI Mode');
+      expect(polite()).toBe('Mention rate trend: Google AI Mode: Platform Google AI Mode');
     });
   });
 });

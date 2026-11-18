@@ -76,7 +76,9 @@ export function PageToolbar({
           {tabs !== undefined && tabs !== null ? (
             <div className="flex h-control-sm shrink-0 items-center">{tabs}</div>
           ) : null}
-          {filters !== undefined && filters !== null ? <div className="min-w-0 shrink-0">{filters}</div> : null}
+          {filters !== undefined && filters !== null ? (
+            <div className="max-w-full min-w-0 shrink-0">{filters}</div>
+          ) : null}
           {actions !== undefined || (!hasStats && status !== undefined && status !== null) ? (
             <div className="ml-auto flex min-h-control-sm max-w-full flex-wrap items-center gap-3">
               {!hasStats ? status : null}

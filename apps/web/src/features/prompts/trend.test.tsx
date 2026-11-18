@@ -118,8 +118,8 @@ describe('the Trend cell of a row', () => {
     renderWithProviders(
       <Trend row={{ cells: [summaryOf('chatgpt_web', [week('2026-10-12', null), week('2026-10-19', null)])] }} />,
     );
-    expect(screen.getByRole('img', { name: 'Mention rate by week: no answers in this window' })).toBeInTheDocument();
-    expect(screen.getByTestId('tip')).toHaveTextContent('No week of this window has a mention rate. |');
+    expect(screen.getByRole('img', { name: 'Mention rate by week: no answers in this period' })).toBeInTheDocument();
+    expect(screen.getByTestId('tip')).toHaveTextContent('No week of this period has a mention rate. |');
   });
 
   it('names a single week with a rate once', () => {
@@ -144,7 +144,7 @@ describe('the Trend cell of a row', () => {
   it('is headed Trend, explained in its header tooltip, and does not sort', () => {
     renderWithProviders(<Trend row={{ cells: undefined }} />);
     expect(screen.getByTestId('header')).toHaveTextContent('Trend');
-    expect(screen.getByTestId('header-tip')).toHaveTextContent(/for each week of the window/);
+    expect(screen.getByTestId('header-tip')).toHaveTextContent(/for each week of the period/);
     expect(screen.getByTestId('sortable')).toHaveTextContent('false');
   });
 });
@@ -173,46 +173,39 @@ function promptsAs(role: Role): ReactElement {
 const renderOn = (searchParams: string): ProvidedRender => renderWithProviders(promptsAs('viewer'), { searchParams });
 
 describe('the Trend column of the tables', () => {
-  it('is on the Topics tab after Top engine, with a sparkline for each topic, from the one summary read that asks for series', async () => {
+  it('is not a column of the Groups tab either (PR-TOPICS-20): no Trend header and no weekly line in a row', async () => {
     const summaries: string[] = [];
     server.events.on('request:start', ({ request }) => {
       if (new URL(request.url).pathname.endsWith('/ai/prompts-summary')) summaries.push(request.url);
     });
     renderOn('');
-    const tree = await screen.findByRole('treegrid', { name: 'Topics' });
+    const tree = await screen.findByRole('treegrid', { name: 'Groups' });
     const headers = (await within(tree).findAllByRole('columnheader')).map((header) => header.textContent);
-    expect(headers.indexOf('Trend')).toBe(headers.findIndex((text) => text?.startsWith('Top engine')) + 1);
-    await waitFor(() =>
-      expect(within(tree).getAllByRole('img', { name: /^Mention rate by week: / }).length).toBeGreaterThan(0),
-    );
-    // One read of the summary, for the strip and both tables, and it asks for the weeks
+    expect(headers).toContain('Mention rate');
+    expect(headers).not.toContain('Trend');
+    await within(tree).findByRole('button', { name: 'Open the group Paid Search' });
+    expect(within(tree).queryAllByRole('img', { name: /^Mention rate by week: / })).toHaveLength(0);
     expect(summaries.length).toBeGreaterThan(0);
+  });
+
+  it('is not a column of the Prompts tab, and no line is drawn there: the Mention rate cell has a trend icon while comparing', async () => {
+    const summaries: string[] = [];
+    server.events.on('request:start', ({ request }) => {
+      if (new URL(request.url).pathname.endsWith('/ai/prompts-summary')) summaries.push(request.url);
+    });
+    const off = renderOn('?tab=prompts');
+    const plain = await screen.findByRole('grid', { name: 'Prompts' });
+    const headers = (await within(plain).findAllByRole('columnheader')).map((header) => header.textContent);
+    expect(headers).not.toContain('Trend');
+    await waitFor(() => expect(summaries.length).toBeGreaterThan(0));
+    // The weeks are asked for all the same, since the prompt's History tab reads them too, and the Groups tab draws them
     expect(summaries.every((url) => /[?&]include=series(&|$)/.test(url))).toBe(true);
-  });
+    expect(within(plain).queryAllByRole('img', { name: /^Mention rate by week: / })).toHaveLength(0);
+    off.unmount();
 
-  it('does not draw the sparklines again when a row is chosen: only a change of the data draws them', async () => {
-    const getContext = vi.spyOn(HTMLCanvasElement.prototype, 'getContext');
-    const { user } = renderOn('?tab=prompts');
+    renderOn('?tab=prompts&cmp=previous');
     const grid = await screen.findByRole('grid', { name: 'Prompts' });
-    await waitFor(() =>
-      expect(within(grid).getAllByRole('img', { name: /^Mention rate by week: / }).length).toBeGreaterThan(0),
-    );
-    const [, first, second] = within(grid).getAllByRole('checkbox');
-    await user.click(first as HTMLElement);
-    await waitFor(() => expect(screen.getByRole('group', { name: /^Bulk actions, 1 selected/ })).toBeInTheDocument());
-    const drawn = getContext.mock.calls.length;
-    await user.click(second as HTMLElement);
-    await waitFor(() => expect(screen.getByRole('group', { name: /^Bulk actions, 2 selected/ })).toBeInTheDocument());
-    expect(getContext.mock.calls.length).toBe(drawn);
-  });
-
-  it('is on the Prompts tab after Citation rate, with a sparkline for each prompt', async () => {
-    renderOn('?tab=prompts');
-    const grid = await screen.findByRole('grid', { name: 'Prompts' });
-    const headers = (await within(grid).findAllByRole('columnheader')).map((header) => header.textContent);
-    expect(headers.indexOf('Trend')).toBe(headers.findIndex((text) => text?.startsWith('Citation rate')) + 1);
-    await waitFor(() =>
-      expect(within(grid).getAllByRole('img', { name: /^Mention rate by week: / }).length).toBeGreaterThan(0),
-    );
+    await waitFor(() => expect(grid.querySelector('[data-slot="trend-icon"]')).not.toBeNull());
+    expect(within(grid).queryAllByRole('img', { name: /^Mention rate by week: / })).toHaveLength(0);
   });
 });

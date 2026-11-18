@@ -3,11 +3,14 @@
 import { useLocale, useTranslations } from 'next-intl';
 import { useMemo } from 'react';
 
+import { metricColumns } from './columns/metric-columns';
 import { useChangeWords, useComparedWindow, useCompare, type ComparedWindow } from './compare';
+import type { PromptFacts } from './facts';
 import { cellsOfPrompt, countText, engineSortId, SORT_ID, type RateMetric } from './prompt-model';
+import { PlatformMark } from './platform-mark';
+import type { PromptScope } from './prompt-queries';
 import { ENGINE_COLUMN_WIDTH, useEngineRateColumns, useRateColumns } from './rate-columns';
 import { PROMPT_COLUMN_ENTRIES, withColumnEntries } from './seams/columns';
-import { useTrendColumn } from './trend-column';
 import { col, type UnknownValue } from '@/components/app/data-table/columns';
 import type { DataTableColumn } from '@/components/app/data-table/types';
 import { Badge } from '@/components/ui/badge';
@@ -38,12 +41,18 @@ type EngineMetric = (typeof METRICS)[number];
  * loaded) show "n/a" and say so. Where some answers were not valid the cell says how many were. Each column
  * sorts by its rate, high to low first, an empty cell last: it is a `volumeTrend` column (a count with its own
  * cell), which sorts numbers and starts high to low. `cellsOf` must keep its identity between renders (a
- * module-level function). With `defaultVisible: false` they wait in the column chooser.
+ * module-level function). With `defaultVisible: false` they wait in the column chooser. With `marks`, the header and
+ * the chooser show the platform's mark before the name.
  */
 export function useEngineColumns<TRow>(
   engines: readonly ProjectEngine[],
   cellsOf: (row: TRow) => readonly EngineSummary[] | undefined,
-  { sortable, note, defaultVisible }: { sortable: boolean; note?: string; defaultVisible?: boolean },
+  {
+    sortable,
+    note,
+    defaultVisible,
+    marks = false,
+  }: { sortable: boolean; note?: string; defaultVisible?: boolean; marks?: boolean },
 ): DataTableColumn<TRow>[] {
   const t = useTranslations('prompts.columns');
   return useMemo(
@@ -70,6 +79,7 @@ export function useEngineColumns<TRow>(
               width: ENGINE_COLUMN_WIDTH,
               sortable,
               defaultVisible,
+              ...(marks ? { headerIcon: <PlatformMark code={code} /> } : {}),
               unknown: (row) => unknown(row, metric),
               known: (row) => <span className="num">{countText(cellOf(row, metric)) ?? EMPTY_VALUE}</span>,
               knownTip: (row) => {
@@ -96,7 +106,7 @@ export function useEngineColumns<TRow>(
               };
         });
       }),
-    [engines, cellsOf, sortable, note, defaultVisible, t],
+    [engines, cellsOf, sortable, note, defaultVisible, marks, t],
   );
 }
 
@@ -108,19 +118,49 @@ export interface PromptColumns {
   rowName: (row: PromptRow) => string;
 }
 
+/** What the screen knows that decides the columns beyond the engines. */
+export interface PromptColumnOptions {
+  /** The top bar says All locations: only then has a row anything to say in a Location column. */
+  showLocation: boolean;
+  /** The facts of every row (`usePromptFacts`), for the columns that later packages register; `undefined` until read. */
+  facts: PromptFacts | undefined;
+  /** The workspace and project, for the cells that write or read on their own (Brands, Screenshot). */
+  project: PromptScope;
+  /** The project's time zone. */
+  timeZone: string;
+}
+
+/** The preview's Location column: 120 px, which holds "United Arab Emirates" cut with its ellipsis. */
+const LOCATION_WIDTH = 120;
+/** The preview's Prompt column: 300 px. */
+const PROMPT_WIDTH = 300;
+
+const DEFAULT_OPTIONS: PromptColumnOptions = {
+  showLocation: true,
+  facts: undefined,
+  project: { workspaceId: '', projectId: '' },
+  timeZone: 'UTC',
+};
+
 /**
- * The columns of the Prompts tab (ADR-DS-022 decision 9): Prompt, Topic, Country, Mention rate and Citation
- * rate (the average of the engines shown), Trend (the weekly mention rate), then each engine shown with the
- * value of `metric`. The counts of
- * Mentioned and Cited per engine wait in the column chooser.
+ * The columns of the Prompts tab, in the mock's order: Prompt, Group, Location (only while the top bar says All
+ * locations), Mention rate and Citation rate (the average of the platforms shown; the Mention rate cell has the trend
+ * icon of its change while the person compares), then each platform's mention rate and its Mentioned and Cited counts, which
+ * wait in the column chooser. Intent, Search volume, Avg position, Recommendation rate, Share of voice, Sentiment,
+ * Cited links, Brands and Screenshot are built by later packages and plug in through `seams/columns.ts`, which
+ * gives them the facts, the platform scope and the comparison.
  */
 export function usePromptColumns(
   engines: readonly ProjectEngine[],
   metric: RateMetric,
   /** The window the summary was compared with: the screen builds these columns above its provider of it. */
   comparedWindow?: ComparedWindow,
+  { showLocation, facts, project, timeZone }: PromptColumnOptions = DEFAULT_OPTIONS,
 ): PromptColumns {
   const t = useTranslations('prompts');
+  const shell = useTranslations('prompts.shell.columns');
+  // The labels of the Add dialog's Type field: the type badge of the Prompt cell says the same words
+  const typeWords = useTranslations('prompts.add.details.types');
   const root = useTranslations();
   const locale = useLocale();
   const { compare } = useCompare();
@@ -128,14 +168,28 @@ export function usePromptColumns(
   const contextWindow = useComparedWindow();
   const compared = comparedWindow ?? contextWindow;
   const { mention, citation } = useRateColumns(engines, cellsOfPrompt, { window: compared });
-  const trend = useTrendColumn(engines, cellsOfPrompt);
-  const engineRateColumns = useEngineRateColumns(engines, cellsOfPrompt, metric);
-  const countColumns = useEngineColumns(engines, cellsOfPrompt, { sortable: true, defaultVisible: false });
+  const engineRateColumns = useEngineRateColumns(engines, cellsOfPrompt, metric, {
+    defaultVisible: false,
+    marks: true,
+  });
+  const countColumns = useEngineColumns(engines, cellsOfPrompt, { sortable: true, defaultVisible: false, marks: true });
   return useMemo(() => {
     const builtIn: DataTableColumn<PromptRow>[] = [
       col.keyword<PromptRow>(SORT_ID.prompt, (row) => row.prompt.current_version.text, {
         header: t('columns.prompt'),
-        trailing: (row) => (row.prompt.is_branded ? <Badge>{t('branded')}</Badge> : null),
+        // The preview's 300 px, which the table never narrows (it scrolls instead; the person may drag it)
+        width: PROMPT_WIDTH,
+        minWidth: PROMPT_WIDTH,
+        // Branded, then the type: the type shows only while the cell is wide enough for it (the preview's 24 rem)
+        containerQuery: true,
+        trailing: (row) => (
+          <span className="flex items-center gap-1.5">
+            {row.prompt.is_branded ? <Badge>{t('branded')}</Badge> : null}
+            <Badge className="hidden @sm:inline-flex">
+              {typeWords(row.prompt.prompt_type === 'how_to' ? 'howTo' : row.prompt.prompt_type)}
+            </Badge>
+          </span>
+        ),
       }),
       {
         // The topic as a badge, the first one when a prompt has several; where it sits in the tree is the cell's tooltip,
@@ -152,9 +206,9 @@ export function usePromptColumns(
           {
             header: t('columns.topic'),
             priority: 2,
-            // The badge type stops at 180; a topic keeps 140 at least when the table is tight, and ends in an ellipsis
-            width: 200,
-            minWidth: 140,
+            // The preview's 160 px, which the table never narrows (it scrolls instead); a long name ends in an ellipsis
+            width: 160,
+            minWidth: 160,
             unknown: () => ({ label: t('columns.noTopic') }),
           },
         ),
@@ -170,26 +224,37 @@ export function usePromptColumns(
                 ),
               },
       },
-      col.text<PromptRow>(SORT_ID.country, (row) => row.country, {
-        header: t('columns.country'),
-        priority: 3,
-        width: 136,
-      }),
+      ...(showLocation
+        ? [
+            col.text<PromptRow>(SORT_ID.country, (row) => row.country, {
+              header: t('columns.country'),
+              headerTooltip: shell('locationTip'),
+              priority: 3,
+              width: LOCATION_WIDTH,
+              minWidth: LOCATION_WIDTH,
+            }),
+          ]
+        : []),
       mention,
       citation,
-      trend,
       ...engineRateColumns,
       ...countColumns,
     ];
     // Before the sort fields are read, so a sortable column of an entry is a valid `?sort=` id
-    const columns = withColumnEntries(builtIn, PROMPT_COLUMN_ENTRIES, {
+    const scope = engines.map((engine) => engine.engine.engine_code);
+    const columns = withColumnEntries(builtIn, [...metricColumns, ...PROMPT_COLUMN_ENTRIES], {
       engines,
+      scope,
+      single: scope.length === 1 ? (scope[0] ?? null) : null,
+      facts,
       metric,
       t: root,
       locale,
       compare,
       comparedWindow: compared,
       changeWords,
+      project,
+      timeZone,
     });
     return {
       columns,
@@ -199,16 +264,21 @@ export function usePromptColumns(
     };
   }, [
     t,
+    typeWords,
+    shell,
     root,
     locale,
     engines,
     metric,
+    showLocation,
+    facts,
     compare,
     compared,
     changeWords,
+    project,
+    timeZone,
     mention,
     citation,
-    trend,
     engineRateColumns,
     countColumns,
   ]);

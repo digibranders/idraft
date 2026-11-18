@@ -10,6 +10,12 @@ import { FAVICON_MIN_WIDTH, faviconUrl } from '@/lib/favicon';
 import { axe } from '@/test/axe';
 import { renderWithProviders } from '@/test/render';
 
+// The seam has no icon route yet; these tests stand in a first-party one to exercise the image path
+vi.mock('@/lib/favicon', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/favicon')>()),
+  faviconUrl: (host: string): string => `/api/v1/favicons/${encodeURIComponent(host)}`,
+}));
+
 const HREF = '/x?inspect=domain:hubspot.com' as Route;
 
 /** jsdom loads no images, so a test says how wide the one it "loaded" is. */
@@ -31,7 +37,7 @@ function expectNoInjection(container: HTMLElement): void {
     expect(element.getAttributeNames().filter((name) => name.startsWith('on'))).toEqual([]);
   }
   for (const image of container.querySelectorAll('img')) {
-    expect(image.getAttribute('src')).toMatch(/^https:\/\/www\.google\.com\/s2\/favicons/);
+    expect(image.getAttribute('src')).toMatch(/^\/api\/v1\/favicons\//);
     expect(image).toHaveAttribute('alt', '');
   }
   expect(Reflect.get(window, MARKER)).toBeUndefined();
@@ -57,7 +63,7 @@ describe('splitHost', () => {
 
 describe('DomainRoleBadge', () => {
   it.each([
-    ['own', 'Own'],
+    ['own', 'Your site'],
     ['competitor', 'Competitor'],
     ['third_party', 'Third party'],
   ] as const)('says %s in words, in the neutral look', (role, word) => {
@@ -77,10 +83,10 @@ describe('DomainCell text', () => {
     expect(container.querySelector('.sr-only')).toHaveTextContent('docs.hubspot.com');
   });
 
-  it('marks the own domain with the primary text color and the word Own', () => {
+  it('marks the own domain with the primary text color and the words Your site', () => {
     renderWithProviders(<DomainCell host="hubspot.com" registrable="hubspot.com" role="own" />);
     expect(screen.getByText('hubspot.com')).toHaveClass('text-primary-text');
-    expect(screen.getByText('Own')).toHaveClass('bg-neutral-subtle');
+    expect(screen.getByText('Your site')).toHaveClass('bg-neutral-subtle');
   });
 
   it('shows a competitor badge and no badge for a third party', () => {
@@ -91,7 +97,7 @@ describe('DomainCell text', () => {
     unmount();
     renderWithProviders(<DomainCell host="g2.com" registrable="g2.com" role="third_party" />);
     expect(screen.queryByText('Third party')).toBeNull();
-    expect(screen.queryByText('Own')).toBeNull();
+    expect(screen.queryByText('Your site')).toBeNull();
   });
 
   it('names the redirect flag in words', () => {
@@ -128,7 +134,7 @@ describe('DomainCell favicon', () => {
     expect(container.querySelector('[data-slot="favicon"]')).toBeNull();
   });
 
-  it('asks the favicon service with no referrer, lazily, and shows the square until the icon loads', () => {
+  it('asks the icon route with no referrer, lazily, and shows the square until the icon loads', () => {
     const { container } = renderWithProviders(
       <DomainCell host="hubspot.com" registrable="hubspot.com" favicon="show" />,
     );

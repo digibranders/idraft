@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import { mapReadToFrame, type FrameContext, type FrameInput, type FrameWords } from './frame-state';
 import messages from '../../../../../../messages/en.json';
-import type { Say } from '../../../numbers/number-model';
+import type { Say } from '../../say';
 
 const translator = (namespace: string): Say => {
   const translate = createTranslator({ locale: 'en', messages, namespace: namespace as never });
@@ -40,7 +40,7 @@ describe('mapReadToFrame for the source diversity card', () => {
   it('says no week holds a citation unit, with a reason and no zero', () => {
     const state = mapReadToFrame(input({ situation: { kind: 'no_weekly_units' } }), words, context);
     if (state.status !== 'empty') throw new Error('expected an empty state');
-    expect(state.empty.title).toBe('No source was cited in any week of this window');
+    expect(state.empty.title).toBe('No domain was cited in any week of this period');
     expect(state.empty.reason).toContain('Diversity is not drawn for a week without a citation unit');
   });
 

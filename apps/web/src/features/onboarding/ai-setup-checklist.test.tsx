@@ -90,13 +90,13 @@ describe('AiSetupChecklist, the steps', () => {
     expect(await screen.findByText('Setup: 0 of 3 steps complete')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Show steps' }));
     const rows = within(screen.getByRole('list')).getAllByRole('listitem');
-    expect(rows[0]).toHaveTextContent('To do: Select AI engines');
-    expect(rows[0]).toHaveTextContent('0 of 3 engines on');
+    expect(rows[0]).toHaveTextContent('To do: Select AI platforms');
+    expect(rows[0]).toHaveTextContent('0 of 3 platforms on');
     expect(rows[1]).toHaveTextContent('To do: Add prompts');
     expect(rows[1]).toHaveTextContent('0 active prompts');
     expect(rows[2]).toHaveTextContent('To do: First answers');
-    expect(rows[2]).toHaveTextContent('Needs engines and prompts');
-    expect(within(rows[0] as HTMLElement).getByRole('link', { name: 'Open Engines' })).toHaveAttribute(
+    expect(rows[2]).toHaveTextContent('Needs platforms and prompts');
+    expect(within(rows[0] as HTMLElement).getByRole('link', { name: 'Open Platforms' })).toHaveAttribute(
       'href',
       `/digibranders/${fynix.slug}/settings/engines`,
     );
@@ -117,10 +117,10 @@ describe('AiSetupChecklist, the steps', () => {
     expect(await screen.findByText('Setup: 1 of 3 steps complete')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Show steps' }));
     const rows = within(screen.getByRole('list')).getAllByRole('listitem');
-    expect(rows[0]).toHaveTextContent('Done: Select AI engines');
-    expect(rows[0]).toHaveTextContent('2 of 3 engines on');
+    expect(rows[0]).toHaveTextContent('Done: Select AI platforms');
+    expect(rows[0]).toHaveTextContent('2 of 3 platforms on');
     expect(rows[1]).toHaveTextContent('To do: Add prompts');
-    expect(rows[2]).toHaveTextContent('Needs engines and prompts');
+    expect(rows[2]).toHaveTextContent('Needs platforms and prompts');
     expect(screen.getByRole('link', { name: 'Continue setup' })).toHaveAttribute(
       'href',
       `/digibranders/${fynix.slug}/ai/prompts`,
@@ -175,7 +175,7 @@ describe('AiSetupChecklist, the steps', () => {
     await screen.findByRole('button', { name: 'Show steps' });
     await user.click(screen.getByRole('button', { name: 'Show steps' }));
     const rows = within(screen.getByRole('list')).getAllByRole('listitem');
-    expect(rows[0]).toHaveTextContent('2 of 3 engines on');
+    expect(rows[0]).toHaveTextContent('2 of 3 platforms on');
     expect(rows[1]).toHaveTextContent('24 active prompts');
   });
 });
@@ -236,7 +236,7 @@ describe('AiSetupChecklist, one read failed (partial)', () => {
     expect(await screen.findByText('Setup: 2 of 3 steps complete')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Show steps' }));
     const rows = within(screen.getByRole('list')).getAllByRole('listitem');
-    expect(rows[0]).toHaveTextContent('Done: Select AI engines');
+    expect(rows[0]).toHaveTextContent('Done: Select AI platforms');
     expect(rows[1]).toHaveTextContent('Done: Add prompts');
     expect(rows[2]).toHaveTextContent('To do: First answers');
     expect(rows[2]).toHaveTextContent('Could not be checked');
@@ -296,7 +296,7 @@ describe('AiSetupChecklist, a read that fails after it succeeded', () => {
     expect(screen.queryByText('Setup complete')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Show steps' }));
     const rows = within(screen.getByRole('list')).getAllByRole('listitem');
-    expect(rows[0]).toHaveTextContent('Done: Select AI engines');
+    expect(rows[0]).toHaveTextContent('Done: Select AI platforms');
     expect(rows[1]).toHaveTextContent('Done: Add prompts');
     expect(rows[2]).toHaveTextContent('To do: First answers');
     expect(rows[2]).toHaveTextContent('Could not be checked');
@@ -395,7 +395,7 @@ describe('AiSetupChecklist, keyboard and axe', () => {
     await user.keyboard('{Enter}');
     expect(screen.getByRole('button', { name: 'Hide steps' })).toHaveAttribute('aria-expanded', 'true');
     await user.tab();
-    expect(screen.getByRole('link', { name: 'Open Engines' })).toHaveFocus();
+    expect(screen.getByRole('link', { name: 'Open Platforms' })).toHaveFocus();
     await user.tab();
     expect(screen.getByRole('link', { name: 'Add prompts' })).toHaveFocus();
     expect(await axe(container)).toHaveNoViolations();

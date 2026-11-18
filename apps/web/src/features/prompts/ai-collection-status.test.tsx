@@ -252,7 +252,7 @@ describe('AiCollectionStatus progress', () => {
 });
 
 describe('AiCollectionStatus notice', () => {
-  it('the notice names each degraded engine with its counts and links to the run', async () => {
+  it('the notice names each degraded platform with its counts and links to the run', async () => {
     serveWorld({ open: null, finished: runFixture({ run_id: NEW_ID }) });
     serveCoverage({
       [NEW_ID]: [engineRow('chatgpt_web', 147), engineRow('gemini_web', 132), engineRow('google_ai_mode', 90, 100)],
@@ -260,7 +260,7 @@ describe('AiCollectionStatus notice', () => {
     renderWithProviders(statusAs('viewer'));
     expect(
       await screen.findByText(
-        'Gemini: 132 of 150 answers valid, 88%. Below 90%, so this engine is degraded in the latest run.',
+        'Gemini: 132 of 150 answers valid, 88%. Below 90%, so this platform is degraded in the latest run.',
       ),
     ).toBeVisible();
     // Exactly 90 percent (90 of 100) is not degraded, and the healthy engine is not named
@@ -269,7 +269,7 @@ describe('AiCollectionStatus notice', () => {
     expect(screen.getByRole('link', { name: 'View run for Gemini' })).toHaveAttribute('href', runHref(NEW_ID));
   });
 
-  it('judges each engine alone: a healthy pooled rate does not hide a degraded engine', async () => {
+  it('judges each platform alone: a healthy pooled rate does not hide a degraded platform', async () => {
     serveWorld({ open: null, finished: runFixture({ run_id: NEW_ID }) });
     // 147 + 132 + 150 of 450 is 95 percent pooled
     serveCoverage({
@@ -280,7 +280,7 @@ describe('AiCollectionStatus notice', () => {
     expect(screen.getAllByRole('link', { name: /^View run for/ })).toHaveLength(1);
   });
 
-  it('shows the code of an engine the engines read does not name, never a blank', async () => {
+  it('shows the code of a platform the platforms read does not name, never a blank', async () => {
     serveWorld({ open: null, finished: runFixture({ run_id: NEW_ID }) });
     serveCoverage({ [NEW_ID]: [engineRow('gemini_web', 100)] });
     serveEngineNames({});
@@ -298,7 +298,7 @@ describe('AiCollectionStatus notice', () => {
     expect(banner).not.toHaveAttribute('role');
   });
 
-  it('shows no notice when every engine is healthy', async () => {
+  it('shows no notice when every platform is healthy', async () => {
     const served = serveWorld({ open: null, finished: runFixture({ run_id: NEW_ID }) });
     const coverage = serveCoverage({ [NEW_ID]: [engineRow('chatgpt_web', 147), engineRow('gemini_web', 141)] });
     const { container } = renderWithProviders(statusAs('viewer'));

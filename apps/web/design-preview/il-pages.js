@@ -530,13 +530,14 @@ function toolbar(items) {
   return wrap;
 }
 
-const CHIP = 'h-control-sm px-2 rounded-md border flex items-center gap-1.5 whitespace-nowrap';
+const CHIP = 'h-control-sm shrink-0 px-2 rounded-md border flex items-center gap-1.5 whitespace-nowrap';
 const CHIP_OFF = `${CHIP} border-border bg-surface type-body text-foreground-secondary hover:bg-surface-hover`;
 const CHIP_ON = `${CHIP} border-primary-border bg-primary-subtle type-body-strong text-primary-text`;
 
 /** The saved views as a visible row of chips with their counts; views with nothing in them are left out. */
 function viewChips() {
-  const row = el('div', 'flex flex-wrap items-center gap-2 px-3 pt-2');
+  // One line that scrolls sideways below lg (seven chips stacked to 260 px on a phone); it wraps from lg up
+  const row = el('div', 'flex items-center gap-2 overflow-x-auto px-3 pt-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:flex-wrap lg:overflow-visible');
   row.setAttribute('role', 'group');
   row.setAttribute('aria-label', 'View');
   const chip = (key, label, count) => {

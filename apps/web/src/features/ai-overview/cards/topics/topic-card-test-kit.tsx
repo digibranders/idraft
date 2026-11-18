@@ -59,8 +59,18 @@ export interface WeekSpec {
   pool?: { weeks: number; reason?: PointPool['reason']; belowPrompts?: number };
 }
 
+/** The four outcomes of an answer, each `[k, n]` over the same valid answers (`both`: named and cited). */
+export interface OutcomeSpec {
+  both: Pair;
+  named: Pair;
+  cited: Pair;
+  neither: Pair;
+}
+
 export interface EngineSpec {
   mentioned: Pair;
+  /** The outcome cells, which AI visibility reads; left out they are empty cells. */
+  outcomes?: OutcomeSpec;
   cited?: Pair;
   sov?: Pair;
   /** Prompts weighted by each cell (a topic row); left out for a prompt row. */
@@ -78,6 +88,43 @@ const OUTCOMES = {
   neither: cell(0, 0),
 };
 
+/**
+ * The entity cells a `[k, n]` share of voice stands for (D17): the own brand has k mentions, one rival the other n minus k,
+ * so the share of voice counted from them is k of n brand mentions.
+ */
+function entitiesOf(
+  pair: Pair,
+  weight?: number,
+  previous?: Pair,
+  previousWeight?: number,
+): NonNullable<EngineSummary['entities']> {
+  const make = (counts: Pair, prompts: number | undefined): MetricCell =>
+    cell(...counts, prompts === undefined ? {} : { prompts });
+  const entry = (
+    id: string,
+    counts: Pair,
+    before: Pair | undefined,
+  ): NonNullable<EngineSummary['entities']>[number] => ({
+    entity_id: id,
+    mentioned: make(counts, weight),
+    share_of_voice: cell(0, 0),
+    ...(before === undefined
+      ? {}
+      : { previous: { mentioned: make(before, previousWeight), share_of_voice: cell(0, 0) } }),
+  });
+  const rival = (counts: Pair | undefined): Pair | undefined =>
+    counts === undefined ? undefined : [counts[1] - counts[0], counts[1]];
+  return [entry(OWN_ID, pair, previous), entry(RIVAL_ID, rival(pair) ?? NONE, rival(previous))];
+}
+
+/** The tracked brands the entity cells of the fixtures are of. */
+export const OWN_ID = 'a1000000-0000-4000-8000-000000000001';
+export const RIVAL_ID = 'a1000000-0000-4000-8000-000000000002';
+export const TRACKED = [
+  { entity_id: OWN_ID, name: 'Northwind', role: 'own' },
+  { entity_id: RIVAL_ID, name: 'Rival', role: 'competitor' },
+] as const satisfies Schemas['SummaryEntity'][];
+
 function weekOf(spec: WeekSpec): WeekCells {
   const { weekStart, prompts, pool } = spec;
   const one = (pair: Pair | undefined): MetricCell => cell(...(pair ?? NONE));
@@ -87,6 +134,7 @@ function weekOf(spec: WeekSpec): WeekCells {
     mentioned: one(spec.mentioned),
     cited: one(spec.cited),
     share_of_voice: one(spec.sov),
+    ...(spec.sov === undefined ? {} : { entities: entitiesOf(spec.sov) }),
     is_pooled: pool !== undefined,
     pool:
       pool === undefined
@@ -106,12 +154,22 @@ export function engineCells(code: string, spec: EngineSpec): EngineSummary {
   const make = (pair: Pair | undefined, weight: number | undefined): MetricCell =>
     cell(...(pair ?? NONE), weight === undefined ? {} : { prompts: weight });
   const previous = spec.previous;
+  const { outcomes } = spec;
   return {
     engine_code: code,
     mentioned: make(spec.mentioned, prompts),
     cited: make(spec.cited, prompts),
     share_of_voice: make(spec.sov, prompts),
-    outcomes: OUTCOMES,
+    ...(spec.sov === undefined ? {} : { entities: entitiesOf(spec.sov, prompts, previous?.sov, previous?.prompts) }),
+    outcomes:
+      outcomes === undefined
+        ? OUTCOMES
+        : {
+            mentioned_and_cited: make(outcomes.both, prompts),
+            mentioned_only: make(outcomes.named, prompts),
+            cited_only: make(outcomes.cited, prompts),
+            neither: make(outcomes.neither, prompts),
+          },
     ...(previous === undefined
       ? {}
       : {
@@ -186,7 +244,7 @@ export function summaryOf({ topics = [], prompts = [], engineCodes, compare }: S
     engine_codes: codes,
     include_branded: false,
     branded_only: false,
-    entities: [],
+    entities: [...TRACKED],
     entity_config_versions: [1],
     metric_context: {
       mentioned: CONTEXT,

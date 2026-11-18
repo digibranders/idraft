@@ -1,4 +1,4 @@
-/* global document, window, location */
+/* global document, window */
 /**
  * Settings sections of Internal links: Workspace settings > Page tiers (spec 5.1, 7.7) and project settings >
  * Internal links (spec 7.8). They fill two empty sections of the Settings view in index.html and draw again each time

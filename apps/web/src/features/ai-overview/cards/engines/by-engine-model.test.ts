@@ -86,7 +86,8 @@ describe('buildByEngine', () => {
       prompts: 2,
     });
     expect(chatgpt?.citation).toMatchObject({ answers: 16, successes: 2 });
-    expect(chatgpt?.shareOfVoice).toMatchObject({ answers: 16, successes: null });
+    // Share of voice counts brand mentions: x of y, 8 of 16
+    expect(chatgpt?.shareOfVoice).toMatchObject({ answers: 16, successes: 8 });
     expect(chatgpt?.mention.interval).not.toBeNull();
     expect(chatgpt?.shareOfVoice.interval).toBeNull();
     expect(model.promptCount).toBe(2);

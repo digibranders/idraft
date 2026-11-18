@@ -1,7 +1,7 @@
 'use client';
 
 import { useQueries, useQuery, type UseQueryResult } from '@tanstack/react-query';
-import { Check, MessageSquareText, Minus } from 'lucide-react';
+import { MessageSquareText } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useMemo, type ReactElement, type ReactNode } from 'react';
 
@@ -17,16 +17,21 @@ import {
   type PromptScope,
 } from './prompt-queries';
 import { DomainChipList, type DomainChipProps } from '@/components/app/cells/domain-chip';
-import { ResponsePreview } from '@/components/app/evidence/response-preview';
+import { hasHash, HashCopy } from '@/components/app/evidence/facts-footer';
 import { InspectorSection } from '@/components/app/inspector/inspector-section';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { InlineError } from '@/components/app/status/inline-error';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Tooltip } from '@/components/ui/tooltip';
+import type { ObservationFactsWithExtra } from '@/lib/api/prompt-facts';
 import type { CitationOut, ProjectEngine } from '@/lib/api/types';
 import { useErrorId } from '@/lib/api/use-error-id';
-import { formatDetailDateTime, formatRelative } from '@/lib/format';
+import { formatDetailDateTime, formatTableDateTime } from '@/lib/format';
 import { displayDomain } from '@/lib/format/url';
+
+/** A time with its exact reading in a tooltip is a tab stop, so the keyboard reaches the tooltip (20 section 6.2 rule 6). */
+const TAB_STOP = { tabIndex: 0 } as const;
 
 /** The characters of an answer the card shows; the viewer has the rest. */
 const EXCERPT_LENGTH = 280;
@@ -57,6 +62,46 @@ function citedDomains(citations: readonly CitationOut[]): DomainChipProps[] {
 
 type NewestRead = UseQueryResult<{ data: { observation_id: string; observed_at: string }[] }>;
 
+/** One fact of an answer: its label and its value, as the preview sets them ("Mentioned Yes"). */
+function Fact({ label, value }: { label: string; value: string }): ReactElement {
+  return (
+    <span className="flex items-baseline gap-1.5 whitespace-nowrap">
+      <span className="text-foreground-tertiary">{label}</span>{' '}
+      <span className="type-body-strong text-foreground">{value}</span>
+    </span>
+  );
+}
+
+/**
+ * The third fact: the place of the brand in a list the answer gives (`Rank 2 of 3`), or, for an answer that is not a
+ * list, whether it recommends the brand. A fact the backend has not built is "Not collected yet", never a "No" or a
+ * place of 0; `null` is a platform whose answers are not classified for it.
+ */
+function ThirdFact({ facts }: { facts: ObservationFactsWithExtra }): ReactElement {
+  const drawer = useTranslations('prompts.drawer.latest');
+  if (facts.list_rank != null) {
+    return (
+      <Fact
+        label={drawer('rank')}
+        value={drawer('rankOf', { place: facts.list_rank.place, listed: facts.list_rank.listed })}
+      />
+    );
+  }
+  if (facts.had_structured_list && facts.list_rank === undefined) {
+    return <Fact label={drawer('rank')} value={drawer('notCollected')} />;
+  }
+  const { recommended } = facts;
+  const value =
+    recommended === undefined
+      ? drawer('notCollected')
+      : recommended === null
+        ? drawer('notApplicable')
+        : recommended
+          ? drawer('yes')
+          : drawer('no');
+  return <Fact label={drawer('recommended')} value={value} />;
+}
+
 interface LatestCardProps {
   /** The read of the newest valid answer of the engine; the card falls back to the newest of any status. */
   newest: NewestRead;
@@ -86,6 +131,9 @@ function LatestCard({
   const latest = useTranslations('prompts.inspector.latest');
   const statuses = useTranslations('prompts.inspector.statuses');
   const answerWords = useTranslations('prompts.answer');
+  const drawer = useTranslations('prompts.drawer.latest');
+  const separators = useTranslations('inspector');
+  const hash = useTranslations('evidence.hash');
   const common = useTranslations('common');
   const code = engine.engine.engine_code;
   const valid = newest.data?.data[0] ?? null;
@@ -120,65 +168,31 @@ function LatestCard({
     }
     const hasText = shown.answer_text !== null && shown.answer_text !== '';
     const { segments, clipped } = clipSegments(answerSegments(shown.answer_text ?? '', shown.mentions), EXCERPT_LENGTH);
-    const facts = shown.facts;
+    const facts: ObservationFactsWithExtra | null = shown.facts;
     const exact = formatDetailDateTime(shown.observed_at, timeZone);
+    const separator = <span aria-hidden="true">{separators('separator')}</span>;
     return (
-      <ResponsePreview
-        model={shown.model_reported}
-        observedAt={shown.observed_at}
-        exact={exact}
-        relative={formatRelative(shown.observed_at, timeZone)}
-        notes={shown.status === 'partial' ? <p className="type-meta">{answerWords('partial')}</p> : null}
-        facts={
-          facts === null ? null : (
-            <ul aria-label={latest('factsLabel')} className="flex flex-wrap gap-1.5">
-              {shown.status === 'partial' ? (
-                <li>
-                  <Badge tone="warning">{statuses('partial')}</Badge>
-                </li>
-              ) : null}
-              <li>
-                <Badge icon={facts.own_mentioned ? Check : Minus}>
-                  {facts.own_mentioned ? latest('mentioned') : latest('notMentioned')}
-                </Badge>
-              </li>
-              {facts.own_mentioned && facts.own_mention_order !== null ? (
-                <li>
-                  {/* The place of the brand among the tracked brands the answer names: not a rank, not a recommendation */}
-                  <Badge>
-                    {latest('order', {
-                      place: mentionOrderKey(facts.own_mention_order),
-                      order: facts.own_mention_order,
-                    })}
-                  </Badge>
-                </li>
-              ) : null}
-              <li>
-                <Badge icon={facts.own_domain_cited ? Check : Minus}>
-                  {facts.own_domain_cited ? latest('cited') : latest('notCited')}
-                </Badge>
-              </li>
-            </ul>
-          )
-        }
-        sources={<DomainChipList label={latest('sourcesLabel')} domains={citedDomains(shown.citations)} />}
-        answerSha256={shown.answer_sha256}
-        rawSha256={shown.raw_sha256}
-        action={
-          onOpenAnswer === undefined ? null : (
-            <div>
-              <Button
-                variant="secondary"
-                size="sm"
-                aria-label={latest('openLabel', { engine: name })}
-                onClick={() => onOpenAnswer(shown.observation_id, shown.observed_at)}
-              >
-                {latest('open')}
-              </Button>
-            </div>
-          )
-        }
-      >
+      <div className="flex flex-col gap-3">
+        <p className="flex flex-wrap items-center gap-x-1.5 type-meta">
+          <Tooltip content={exact} purpose="label">
+            <time
+              {...TAB_STOP}
+              dateTime={shown.observed_at}
+              aria-label={exact}
+              className="rounded-xs num outline-none focus-visible:focus-ring"
+            >
+              {formatTableDateTime(shown.observed_at, timeZone)}
+            </time>
+          </Tooltip>
+          {separator}
+          <span>{drawer('replicate', { n: shown.replicate_index })}</span>
+          {shown.model_reported === null ? null : (
+            <>
+              {separator}
+              <span>{shown.model_reported}</span>
+            </>
+          )}
+        </p>
         {hasText ? (
           <MarkedAnswer
             segments={segments}
@@ -191,7 +205,50 @@ function LatestCard({
         ) : (
           <p className="type-meta">{latest('noText')}</p>
         )}
-      </ResponsePreview>
+        {shown.status === 'partial' ? <p className="type-meta">{answerWords('partial')}</p> : null}
+        {facts === null ? null : (
+          <>
+            <p aria-label={latest('factsLabel')} className="flex flex-wrap gap-x-4 gap-y-1 type-meta">
+              <Fact label={latest('mentioned')} value={facts.own_mentioned ? drawer('yes') : drawer('no')} />
+              <Fact label={latest('cited')} value={facts.own_domain_cited ? drawer('yes') : drawer('no')} />
+              <ThirdFact facts={facts} />
+            </p>
+            {facts.own_mentioned && facts.own_mention_order !== null ? (
+              // The place of the brand among the tracked brands the answer names: not a recommendation
+              <p className="type-meta">
+                {latest('order', {
+                  place: mentionOrderKey(facts.own_mention_order),
+                  order: facts.own_mention_order,
+                })}
+              </p>
+            ) : null}
+          </>
+        )}
+        <DomainChipList label={latest('sourcesLabel')} domains={citedDomains(shown.citations)} />
+        {/* The hashes that identify the answer stay (audit evidence); the preview has no room for them */}
+        {hasHash(shown.answer_sha256) ? (
+          <p className="type-meta">
+            <span>{hash('answer')}</span> <HashCopy kind="answer" hash={shown.answer_sha256} />
+          </p>
+        ) : null}
+        {hasHash(shown.raw_sha256) ? (
+          <p className="type-meta">
+            <span>{hash('raw')}</span> <HashCopy kind="raw" hash={shown.raw_sha256} />
+          </p>
+        ) : null}
+        {onOpenAnswer === undefined ? null : (
+          <div>
+            <Button
+              variant="secondary"
+              size="sm"
+              aria-label={latest('openLabel', { engine: name })}
+              onClick={() => onOpenAnswer(shown.observation_id, shown.observed_at)}
+            >
+              {latest('open')}
+            </Button>
+          </div>
+        )}
+      </div>
     );
   };
 
@@ -217,9 +274,24 @@ function LatestCard({
     empty = noValid(latest('noAnswerReason'));
   } else if (detail.data === undefined) status = 'loading';
 
+  const shownAnswer = detail.data?.data;
   return (
-    <InspectorSection title={name} icon={MessageSquareText} status={status} error={error} empty={empty}>
-      {detail.data === undefined ? null : body(detail.data.data)}
+    <InspectorSection
+      title={name}
+      icon={MessageSquareText}
+      status={status}
+      error={error}
+      empty={empty}
+      // The answer shown is the newest valid one; a partial answer says so, as it did before
+      action={
+        valid === null || shownAnswer === undefined ? undefined : shownAnswer.status === 'partial' ? (
+          <Badge tone="warning">{statuses('partial')}</Badge>
+        ) : (
+          <Badge tone="positive">{drawer('valid')}</Badge>
+        )
+      }
+    >
+      {shownAnswer === undefined ? null : body(shownAnswer)}
     </InspectorSection>
   );
 }

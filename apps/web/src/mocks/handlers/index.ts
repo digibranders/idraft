@@ -37,6 +37,8 @@ import { compareHandlers } from './compare';
 import { citationHandlers } from './citations';
 // WP-22 citation-details
 import { citationDetailHandlers } from './citation-details';
+// WP-77 citations-v2
+import { citationBoardHandlers } from './citations-v2';
 // WP-24 fanout
 import { fanoutHandlers } from './fanout';
 // WP-26 evidence
@@ -55,6 +57,8 @@ import { aiOverviewHandlers } from './ai-overview';
 import { noteHandlers } from './notes';
 // WP-39 competitors
 import { competitorHandlers } from './competitors';
+// The competitor drawer of the AI visibility Overview: citation share of each entity, and the sources overlap fixture
+import { aiCompetitorHandlers } from './ai-competitors';
 // WP-41 prompt-versions
 import { promptVersionHandlers } from './prompt-versions';
 // WP-43 panels
@@ -138,6 +142,8 @@ export const handlers: readonly HttpHandler[] = [
   ...citationHandlers,
   // WP-22 citation-details
   ...citationDetailHandlers,
+  // WP-77 citations-v2
+  ...citationBoardHandlers,
   // WP-24 fanout
   ...fanoutHandlers,
   // WP-26 evidence
@@ -156,6 +162,7 @@ export const handlers: readonly HttpHandler[] = [
   ...noteHandlers,
   // WP-39 competitors
   ...competitorHandlers,
+  ...aiCompetitorHandlers,
   // WP-41 prompt-versions
   ...promptVersionHandlers,
   // WP-43 panels

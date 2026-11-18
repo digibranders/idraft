@@ -4,14 +4,14 @@ import { LIVE_REGION_ID } from '../../src/lib/a11y/announcer';
 import { expectAccessible, signIn } from '../support';
 
 /**
- * AI settings of WP-31 in the production build with every API route mocked: the Engines page (class badges, the
+ * AI settings of WP-31 in the production build with every API route mocked: the Platforms page (class badges, the
  * Perplexity row, the cost change summary, the device of Google AI Mode), Data retention and the Added column of
  * Entities, as an editor who may change them and as a viewer who may not.
  *
  * Two things this flow does not do, and why:
  * - It does not reload to prove the device is kept. The mock keeps the engines in the memory of the page, so a
  *   reload starts again from the fixtures (the shortcut noted in src/mocks/prompts-state.ts). The device is proven
- *   kept by leaving Engines through the settings navigation and coming back: the list is read again from the mock's
+ *   kept by leaving Platforms through the settings navigation and coming back: the list is read again from the mock's
  *   memory, which only holds Mobile if the PUT stored it and the GET returned it.
  * - It does not look for the setup checklist. `AiSetupChecklist` is built and tested in features/onboarding, but no
  *   page mounts it until Overview goes live (WP-33, WP-40), so there is nothing to open.
@@ -38,7 +38,7 @@ const RETENTION: readonly (readonly [string, string])[] = [
 ];
 
 const settingsNav = (page: Page): Locator => page.getByRole('navigation', { name: 'Settings sections' });
-const enginesRegion = (page: Page): Locator => page.getByRole('region', { name: 'Engines' });
+const enginesRegion = (page: Page): Locator => page.getByRole('region', { name: 'Platforms' });
 const engineRow = (page: Page, name: string): Locator =>
   enginesRegion(page).getByRole('listitem').filter({ hasText: name }).first();
 
@@ -95,7 +95,7 @@ test.describe('AI settings', () => {
     // Three engines are on now, and the estimate says how much the switch added to the month
     await expect(
       page.getByText(
-        /^Estimated cost change: about \$[\d,.]+ a month more\. Estimated total for 3 engines that are on: \$[\d,.]+ a month\. Estimate from the price book\.$/,
+        /^Estimated cost change: about \$[\d,.]+ a month more\. Estimated total for 3 platforms that are on: \$[\d,.]+ a month\. Estimate from the price book\.$/,
       ),
     ).toBeVisible();
 
@@ -120,19 +120,19 @@ test.describe('AI settings', () => {
     await expect(page.getByRole('main').getByRole('button')).toHaveCount(0);
     await expectAccessibleAtBothWidths(page);
 
-    // Back on Engines the list is read again: the engine is still on and the device is still Mobile
-    await openSection(page, 'Engines', 'Engines');
+    // Back on Platforms the list is read again: the engine is still on and the device is still Mobile
+    await openSection(page, 'Platforms', 'Platforms');
     await expect(page.getByRole('switch', { name: AI_MODE })).toBeChecked();
     await expect(page.getByRole('group', { name: DEVICE_GROUP }).getByRole('radio', { name: 'Mobile' })).toBeChecked();
 
     // Entities: each role shows the date it was added, and Competitors say what the date means
-    await openSection(page, 'Entities and aliases', 'Entities and aliases');
-    const own = page.getByRole('table', { name: 'Own brand' });
+    await openSection(page, 'Brands and aliases', 'Brands and aliases');
+    const own = page.getByRole('table', { name: 'Your brand' });
     await expect(own.getByRole('columnheader', { name: 'Added' })).toBeVisible();
     await expect(own.locator('td[title]').last()).toHaveText(/^[A-Z][a-z]{2} \d{1,2}(, \d{4})?$/);
     await expect(
       page.getByText(
-        'Share of voice counts a competitor from the date it was added. Adding or removing one changes share of voice for all entities from that day.',
+        'Share of voice counts a competitor from the date it was added. Adding or removing one changes share of voice for all brands from that day.',
       ),
     ).toBeVisible();
     await expectAccessibleAtBothWidths(page);
@@ -145,7 +145,7 @@ test.describe('AI settings', () => {
     await signIn(page, VIEWER);
     await page.goto(ENGINES);
     await expect(enginesRegion(page)).toBeVisible();
-    await expect(page.getByText('Owners, admins and editors can turn engines on and off.')).toBeVisible();
+    await expect(page.getByText('Owners, admins and editors can turn platforms on and off.')).toBeVisible();
     for (const name of ['ChatGPT', 'Gemini', AI_MODE, 'Perplexity API']) {
       await expect(page.getByRole('switch', { name })).toBeDisabled();
     }
@@ -165,9 +165,9 @@ test.describe('AI settings', () => {
     }
     await expectAccessibleAtBothWidths(page);
 
-    await openSection(page, 'Entities and aliases', 'Entities and aliases');
+    await openSection(page, 'Brands and aliases', 'Brands and aliases');
     await expect(
-      page.getByRole('table', { name: 'Own brand' }).getByRole('columnheader', { name: 'Added' }),
+      page.getByRole('table', { name: 'Your brand' }).getByRole('columnheader', { name: 'Added' }),
     ).toBeVisible();
     await expect(page.getByRole('button', { name: 'Add competitor' })).toHaveCount(0);
     await expectAccessibleAtBothWidths(page);

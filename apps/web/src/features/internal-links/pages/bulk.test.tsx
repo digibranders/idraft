@@ -333,7 +333,7 @@ describe('bulk tags (spec 5.3)', () => {
     await user.click(await screen.findByRole('button', { name: 'Add tag' }));
     const dialog = await screen.findByRole('dialog', { name: 'Add a tag to 1 page' });
     expect(within(dialog).getByText('Loading the tags')).toBeInTheDocument();
-    expect(within(dialog).queryByText(/no tag vocabulary yet/)).toBeNull();
+    expect(within(dialog).queryByText(/no tag set yet/)).toBeNull();
     expect(within(dialog).getByRole('button', { name: 'Apply' })).toBeDisabled();
   });
 
@@ -351,10 +351,10 @@ describe('bulk tags (spec 5.3)', () => {
     await user.click(await screen.findByRole('button', { name: 'Add tag' }));
     const dialog = await screen.findByRole('dialog', { name: 'Add a tag to 1 page' });
     expect(await within(dialog).findByText('The tags could not be loaded')).toBeInTheDocument();
-    expect(within(dialog).queryByText(/no tag vocabulary yet/)).toBeNull();
+    expect(within(dialog).queryByText(/no tag set yet/)).toBeNull();
     fail = false;
     await user.click(within(dialog).getByRole('button', { name: 'Try again' }));
-    expect(await within(dialog).findByText(/no tag vocabulary yet/)).toBeInTheDocument();
+    expect(await within(dialog).findByText(/no tag set yet/)).toBeInTheDocument();
   });
 
   it('says so, with a way to the taxonomy, when the project has no tags', async () => {
@@ -362,8 +362,8 @@ describe('bulk tags (spec 5.3)', () => {
     await user.click(await checkbox('/about'));
     await user.click(await screen.findByRole('button', { name: 'Add tag' }));
     const dialog = await screen.findByRole('dialog', { name: 'Add a tag to 1 page' });
-    expect(await within(dialog).findByText(/no tag vocabulary yet/)).toBeInTheDocument();
-    expect(within(dialog).getByRole('link', { name: 'Open Taxonomy' })).toHaveAttribute(
+    expect(await within(dialog).findByText(/no tag set yet/)).toBeInTheDocument();
+    expect(within(dialog).getByRole('link', { name: 'Open Tags' })).toHaveAttribute(
       'href',
       '/digibranders/eventus-security/settings/taxonomy',
     );

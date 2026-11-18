@@ -57,7 +57,7 @@ function serve(engines: readonly ProjectEngine[] = THREE, schedules: readonly Sc
 const render = (options: Parameters<typeof renderActivityCard>[2] = {}): ReturnType<typeof renderActivityCard> =>
   renderActivityCard(TYPE, EnginesCard, options);
 const table = (): Promise<HTMLElement> =>
-  screen.findByRole('table', { name: 'Engines, days asked, next run and estimated cost per month' });
+  screen.findByRole('table', { name: 'Platforms, days asked, next run and estimated cost per month' });
 /** What the frame says to a screen reader about the card (its visually hidden summary). */
 const summaryOf = (container: HTMLElement): string | undefined =>
   container.querySelector('section > p.sr-only')?.textContent;
@@ -68,7 +68,7 @@ describe('the engines and schedule card', () => {
   it('shows a skeleton at the frame height while the engines load, under its title', async () => {
     server.use(http.get(ENGINES, async () => delay('infinite')));
     render();
-    await screen.findByRole('heading', { name: 'Engines and schedule' });
+    await screen.findByRole('heading', { name: 'Platforms and schedule' });
     const busy = document.querySelector('[aria-busy="true"]');
     expect(busy?.querySelector('[data-slot="skeleton"]')?.parentElement).toHaveStyle({ height: '180px' });
   });
@@ -99,7 +99,7 @@ describe('the engines and schedule card', () => {
     serve();
     render();
     await table();
-    expect(screen.getByText('2 of 3 engines on')).toBeInTheDocument();
+    expect(screen.getByText('2 of 3 platforms on')).toBeInTheDocument();
   });
 
   it('shows n/a, never $0.00, for a price the book does not have', async () => {
@@ -146,7 +146,7 @@ describe('the engines and schedule card', () => {
     server.use(http.get(ENGINES, () => failing('req-engines')));
     serveList(SCHEDULES, TWICE_A_WEEK);
     const { user } = render();
-    expect(await screen.findByText('Could not load engines and schedule')).toBeInTheDocument();
+    expect(await screen.findByText('Could not load platforms and schedule')).toBeInTheDocument();
     expect(screen.getByText(/req-engines/)).toBeInTheDocument();
     serve();
     await user.click(screen.getByRole('button', { name: 'Try again' }));
@@ -168,8 +168,8 @@ describe('the engines and schedule card', () => {
   it('says no engine is set up, with the link to the engines for a member who can turn one on', async () => {
     serve([]);
     render({ role: 'admin' });
-    expect(await screen.findByRole('heading', { name: 'No engine is set up' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Turn on engines' })).toHaveAttribute(
+    expect(await screen.findByRole('heading', { name: 'No platform is set up' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Turn on platforms' })).toHaveAttribute(
       'href',
       expect.stringContaining('/settings/engines'),
     );
@@ -178,8 +178,8 @@ describe('the engines and schedule card', () => {
   it('sends a member who cannot turn one on to ask an admin, with no link', async () => {
     serve([]);
     render({ role: 'viewer' });
-    expect(await screen.findByText(/Ask a workspace admin to turn on an engine\./)).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Turn on engines' })).not.toBeInTheDocument();
+    expect(await screen.findByText(/Ask a workspace admin to turn on a platform\./)).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Turn on platforms' })).not.toBeInTheDocument();
   });
 
   it.each([
@@ -202,7 +202,7 @@ describe('the engines and schedule card', () => {
       within(grid)
         .getAllByRole('columnheader')
         .map((header) => header.textContent),
-    ).toEqual(['Engine', 'Cost', 'Schedule']);
+    ).toEqual(['Platform', 'Cost', 'Schedule']);
     const cells = within(rowOf(grid, 'ChatGPT')).getAllByRole('cell');
     // The row header holds the engine and its state; the first cell after it is the cost
     expect(within(rowOf(grid, 'ChatGPT')).getByRole('rowheader')).toHaveTextContent('ChatGPTOn');
@@ -228,7 +228,7 @@ describe('the engines and schedule card', () => {
       within(grid)
         .getAllByRole('columnheader')
         .map((header) => header.textContent),
-    ).toEqual(['Engine', 'Status', 'Days asked', 'Next run', 'Estimated cost per month']);
+    ).toEqual(['Platform', 'Status', 'Days asked', 'Next run', 'Estimated cost per month']);
     expect(within(grid).getAllByRole('row')).toHaveLength(4);
     expect(rowOf(grid, 'ChatGPT')).toHaveTextContent('$24.18 estimate');
   });
@@ -236,20 +236,20 @@ describe('the engines and schedule card', () => {
   it('describes nothing it does not know to a screen reader while loading or after a failure', async () => {
     server.use(http.get(ENGINES, async () => delay('infinite')));
     const first = render();
-    await screen.findByRole('heading', { name: 'Engines and schedule' });
-    expect(summaryOf(first.container)).toBe('Engines and schedule');
+    await screen.findByRole('heading', { name: 'Platforms and schedule' });
+    expect(summaryOf(first.container)).toBe('Platforms and schedule');
     first.unmount();
     server.use(http.get(ENGINES, () => failing('req-engines')));
     const second = render();
-    await screen.findByText('Could not load engines and schedule');
-    expect(summaryOf(second.container)).toBe('Engines and schedule');
+    await screen.findByText('Could not load platforms and schedule');
+    expect(summaryOf(second.container)).toBe('Platforms and schedule');
   });
 
   it('describes the rows to a screen reader once they are read', async () => {
     serve();
     const { container } = render();
     await table();
-    expect(summaryOf(container)).toBe('2 of 3 engines are on: ChatGPT and Gemini.');
+    expect(summaryOf(container)).toBe('2 of 3 platforms are on: ChatGPT and Gemini.');
   });
 
   it('shows the card in customize mode with every control out of reach', async () => {
@@ -269,7 +269,7 @@ describe('the engines and schedule card', () => {
     await table();
     const [block] = await readExport(user);
     expect(block?.id).toBe(ITEM_ID);
-    expect(block?.header).toEqual(['Engine', 'Status', 'Days asked', 'Next run', 'Estimated cost per month']);
+    expect(block?.header).toEqual(['Platform', 'Status', 'Days asked', 'Next run', 'Estimated cost per month']);
     expect(block?.rows).toHaveLength(3);
     expect(block?.rows[0]).toEqual(['ChatGPT', 'On', 'Mon and Thu', 'Nov 16, 20:30', '$24.18 estimate']);
     expect(block?.rows[2]).toEqual(['Google AI Mode', 'Off', 'Not asked', 'Not asked', '$30.50 if on']);

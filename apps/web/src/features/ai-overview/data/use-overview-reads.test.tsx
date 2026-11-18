@@ -24,6 +24,7 @@ import { setAiSeeded } from '@/mocks/ai-seed';
 import { membershipFactory } from '@/mocks/factories/identity';
 import { MOCK_PROJECTS, MOCK_WORKSPACE, mockUser } from '@/mocks/fixtures';
 import { SESSION_COOKIE } from '@/mocks/session';
+import { isBrandMentionRead } from '@/test/brand-mention-read';
 import { server } from '@/test/msw';
 
 /** Thursday 12 November 2026, noon UTC: the Thursday run of 02:00 has answered. */
@@ -49,11 +50,13 @@ function scopeOf(patch: Partial<OverviewScope> = {}): OverviewScope {
     range: { from: '2026-10-16', to: '2026-11-12', days: 28 },
     rangeValue: { kind: 'preset', preset: '28d' },
     compare: true,
+    compareKind: 'previous_period',
     previous: { from: '2026-09-18', to: '2026-10-15' },
     country: null,
     engines: null,
     topic: null,
     branded: 'excluded',
+    metric: 'visibility',
     ...patch,
   };
 }
@@ -85,7 +88,8 @@ function recordRequests(): URL[] {
   server.events.on('request:start', listener);
   return seen;
 }
-const to = (seen: readonly URL[], suffix: string): URL[] => seen.filter((url) => url.pathname.endsWith(suffix));
+const to = (seen: readonly URL[], suffix: string): URL[] =>
+  seen.filter((url) => url.pathname.endsWith(suffix) && !isBrandMentionRead(url));
 
 const failing = (requestId: string): ReturnType<typeof HttpResponse.json> =>
   HttpResponse.json(

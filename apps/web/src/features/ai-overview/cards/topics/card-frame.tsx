@@ -11,6 +11,7 @@ import { drillHref } from '../../drilldown/drill-links';
 import type { ExportBlock } from '../../export/export-model';
 import { useExportBlock } from '../../export/export-registry';
 import { useOverview } from '../../overview-context';
+import type { CardInfo } from '@/components/app/chart/card-info';
 import type { LegendItem } from '@/components/app/chart/chart-legend';
 import {
   ChartFrame,
@@ -203,6 +204,8 @@ export interface TopicCardFrameProps {
   /** The labels of asked engines that have no valid answer in any row: named in a notice, never left out silently. */
   partialEngines: readonly string[];
   footnote: ReactNode;
+  /** What the card shows and how it is counted: the "i" button, in place of the printed footnote. */
+  info?: CardInfo | undefined;
   body: ReactNode;
   /** The Table view of the same numbers. */
   table: ReactNode;
@@ -231,6 +234,7 @@ export function TopicCardFrame({
   empty,
   partialEngines,
   footnote,
+  info,
   body,
   table,
   controls,
@@ -278,6 +282,7 @@ export function TopicCardFrame({
         meta={meta}
         notice={notice}
         footnote={footnote}
+        info={info}
         controls={controls}
         height={CARD_HEIGHT[cardKey]}
         summary={summary}

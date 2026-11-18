@@ -102,16 +102,16 @@ describe('Delta', () => {
   it('labels the interim test, and only when asked to', async () => {
     const interim = renderWithProviders(<Delta input={input()} test="interim" />);
     await interim.user.tab();
-    expect(await screen.findByText(/Interim test: unpaired, may understate uncertainty/, TIP_TEXT)).toBeInTheDocument();
+    expect(await screen.findByText(/Provisional: unpaired, may understate uncertainty/, TIP_TEXT)).toBeInTheDocument();
     expect(document.activeElement).toHaveAccessibleDescription(
-      expect.stringContaining('Interim test: unpaired, may understate uncertainty'),
+      expect.stringContaining('Provisional: unpaired, may understate uncertainty'),
     );
     interim.unmount();
 
     const paired = renderWithProviders(<Delta input={input()} />);
     await paired.user.tab();
     expect(await screen.findByText(/Detectable change/, TIP_TEXT)).toBeInTheDocument();
-    expect(document.activeElement).not.toHaveAccessibleDescription(expect.stringContaining('Interim'));
+    expect(document.activeElement).not.toHaveAccessibleDescription(expect.stringContaining('Provisional'));
   });
 
   it('claims nothing in the interim test when there is no detectability to qualify', () => {

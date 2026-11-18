@@ -18,6 +18,8 @@ export function useRateTipWords(): RateTipWords {
       prompts: (count) => t('prompts', { count }),
       thin: (n) => t('thin', { n, min: MIN_OBSERVATIONS }),
       pooled: (weeks) => t('pooled', { weeks }),
+      averageOfPrompts: (count) => t('averageOfPrompts', { count }),
+      pooledAnswers: (text) => t('pooledAnswers', { text }),
       noAnswers: t('noAnswers'),
     }),
     [t],

@@ -10,7 +10,7 @@ import { useFrameState, type DataSituation, type ReadFacts } from './parts/frame
 import { engineNames } from './parts/source-meta';
 import { useCardDensity } from '../engines/use-card-density';
 import { useCardExport } from '../engines/use-card-seams';
-import type { Say } from '../../numbers/number-model';
+import type { Say } from '../say';
 import { BarList, BarListTable, type BarListProps, type ComparisonRow } from '@/components/app/chart/bar-list';
 import { ChartFrame } from '@/components/app/chart/chart-frame';
 import { DomainRoleBadge } from '@/components/app/cells/domain-cell';
@@ -111,7 +111,7 @@ export default function NewLostCard({ item, live }: CardProps): ReactElement {
       id: figure.id,
       label: name,
       own: figure.own,
-      href: citations({ tab: 'new-lost', kind }) ?? undefined,
+      href: citations({ tab: 'pages' }) ?? undefined,
       badge: <DomainRoleBadge role={figure.role} />,
       value: {
         kind: 'value',

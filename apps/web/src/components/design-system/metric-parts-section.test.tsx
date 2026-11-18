@@ -10,6 +10,7 @@ const SECTION_TIMEOUT_MS = 30_000;
 
 const GROUP_TITLES = [
   'Delta',
+  'TrendIcon',
   'DeltaCell',
   'EngineLogo',
   'EngineBadge',

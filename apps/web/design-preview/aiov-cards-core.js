@@ -1,3 +1,4 @@
+/* global document */
 /**
  * Cards of the AI visibility Overview, first half: the headline row, the trend, the outcome split and the
  * competitor cards. Each builder takes the page context `{ model, scope, compare }` and returns a card (or null when
@@ -5,11 +6,11 @@
  * `ai.visibility_split` is new.
  */
 import { formatInteger } from './vendor/format/number.js';
-import { MEASURES, PLATFORMS, RUNS, WEEK_LABELS, aggregateFor, entitiesFor, gapFor, lastRunOf, platformOf, seriesFor, sovSeries } from './aiov-data.js';
-import { chartHost, lineOption, mountChart, shareAreaOption } from './aiov-charts.js';
+import { MEASURES, PLATFORMS, RUNS, WEEK_LABELS, aggregateFor, entitiesFor, gapFor, lastRunOf, platformOf, seriesFor, sovWeeks } from './aiov-data.js';
+import { chartHost, lineOption, MARKER_PATHS, MARKER_SHAPES, mountChart, shareAreaOption } from './aiov-charts.js';
 import { HEAT_METRICS, setScope } from './aiov-controls.js';
 import { CARD_INFO, MEASURE_INFO } from './aiov-info.js';
-import { barList, cardFrame, countsText, el, emptyBody, engineName, icon, infoButton, insufficient, insufficientText, pct0, plural, platformLabel, sparkline, stackedRows, valueText } from './aiov-parts.js';
+import { barList, cardFrame, countsText, el, emptyBody, engineName, icon, infoButton, insufficient, insufficientText, pct0, plural, platformLabel, shareCountsText, sparkline, stackedRows, valueText } from './aiov-parts.js';
 import { wilsonInterval } from './vendor/stats/index.js';
 
 const ENGINE_TOKEN = { chatgpt_web: 'chart-1', gemini_web: 'chart-2', google_ai_mode: 'chart-3', google_ai_overview: 'chart-4' };
@@ -47,7 +48,11 @@ const TILE_LAYOUT = ['mention', 'sov', 'citation', 'position', 'recommendation',
  */
 function detailOf(cell, ctx) {
   if (cell.state !== 'ok') return cell.state === 'unavailable' ? cell.reason ?? '' : insufficientText(cell) === 'Too few' ? 'Too few answers for a rate' : `${insufficientText(cell)}, too few for a rate`;
-  if (ctx.scope.platform === 'all') return `Average of ${cell.used} platforms: ${cell.platforms.map((code) => engineName(code)).join(', ')}`;
+  if (ctx.scope.platform === 'all') {
+    // Share of voice names each platform's own counts: an average of shares has no pooled count (R3)
+    if (cell.measure === 'sov') return shareCountsText(cell).replace(/^a/, 'A');
+    return `Average of ${cell.used} platforms: ${cell.platforms.map((code) => engineName(code)).join(', ')}`;
+  }
   return countsText(cell);
 }
 
@@ -131,7 +136,7 @@ export function headlineRow(ctx) {
   const grid = el('div', 'grid grid-cols-1 xl:grid-cols-12 gap-4');
   grid.dataset.card = 'ai.visibility_split';
   grid.setAttribute('role', 'group');
-  grid.setAttribute('aria-label', 'Headline numbers');
+  grid.setAttribute('aria-label', 'AI visibility rate (headline)');
 
   // The hero: a plain rate, with the four outcomes that make it up (decision D1)
   const visibility = model.shown('visibility');
@@ -213,12 +218,37 @@ export function segmented(items, current, onPick, label) {
   return group;
 }
 
+/**
+ * Puts the weekly counts of Share of voice on the lines of the trend card: a platform's value is its own x over y (n/a under 4 brand
+ * mentions), the Average's is the mean of the platforms that have a share. Replaces each line's values; returns, for each line name,
+ * the words of each week (`{ text, detail, cell }`, see `sovWeekText`), `null` for a week with no share.
+ */
+function sovTrendNotes(model, lines) {
+  const weeks = sovWeeks(model, entitiesFor(model));
+  const notes = {};
+  for (const line of lines) {
+    const weekly = weeks.map((week) => {
+      if (line.code === 'all') return { value: week.shares[0], words: week.shares[0] === null ? null : sovWeekText(week, 0, week.shares[0], true) };
+      const part = week.platforms.find((platform) => platform.code === line.code);
+      if (part === undefined || part.y < 4) return { value: null, words: null };
+      const value = part.counts[0] / part.y;
+      return { value, words: sovWeekText({ platforms: [part] }, 0, value, false) };
+    });
+    line.values = weekly.map((entry) => entry.value);
+    notes[line.name] = weekly.map((entry) => entry.words);
+  }
+  return notes;
+}
+
 export function trendCard(ctx) {
   const { model, scope } = ctx;
   const measure = scope.metric;
   const codes = model.codes;
   const lines = codes.map((code) => ({ name: engineName(code), code, token: scope.platform === 'all' ? ENGINE_TOKEN[code] : 'chart-1', values: seriesFor(model, measure, code) })).filter((line) => line.values.some((value) => value !== null));
   if (scope.platform === 'all') lines.push({ name: 'Average', code: 'all', token: 'chart-other', dashed: true, width: 1.5, values: seriesFor(model, measure, 'all') });
+  // Share of voice is counted (D17): each platform's week is its own x of y brand mentions and the Average is the mean of those
+  // shares (R3), the same weekly counts as Share of voice over time, so the two cards agree. `notes[line name][week]` says them.
+  const notes = measure === 'sov' ? sovTrendNotes(model, lines) : null;
   const one = scope.platform !== 'all' ? model.cells[measure][scope.platform] : null;
   let band = null;
   if (one?.state === 'ok' && lines[0]) {
@@ -249,7 +279,7 @@ export function trendCard(ctx) {
       const tbody = el('tbody');
       WEEK_LABELS.forEach((week, index) => {
         const row = el('tr', 'h-row-compact border-t border-border-subtle');
-        row.append(el('th', 'px-3 text-left font-normal text-foreground', week), ...lines.map((line) => el('td', 'px-3 text-right num', line.values[index] === null ? 'n/a' : `${(line.values[index] * 100).toFixed(1)}%`)));
+        row.append(el('th', 'px-3 text-left font-normal text-foreground', week), ...lines.map((line) => el('td', 'px-3 text-right num', line.values[index] === null ? 'n/a' : notes?.[line.name]?.[index]?.cell ?? `${(line.values[index] * 100).toFixed(1)}%`)));
         tbody.append(row);
       });
       table.append(head, tbody);
@@ -257,12 +287,32 @@ export function trendCard(ctx) {
     }
     const host = chartHost(284, `${MEASURES[measure].label} over the last 8 weekly runs, ${lines.map((line) => line.name).join(', ')}`);
     body.append(host);
-    dispose = mountChart(host, () => lineOption({ labels: WEEK_LABELS, lines, band, boundary: ctx.compare ? WEEK_LABELS[4] : undefined }));
+    // With Share of voice a tooltip row says the x of y brand mentions behind the percent, and the Average's row a line with each platform's
+    const tooltipRows = notes === null ? undefined : (list) => list.filter((param) => param.seriesId?.startsWith('line-')).map((param) => {
+      const words = notes[param.seriesName]?.[param.dataIndex];
+      return { color: param.color, name: param.seriesName, value: param.value === null ? 'n/a' : words?.text ?? `${(param.value * 100).toFixed(1)}%`, detail: words?.detail };
+    });
+    dispose = mountChart(host, () => lineOption({ labels: WEEK_LABELS, lines, band, boundary: ctx.compare ? WEEK_LABELS[4] : undefined, markers: true, tooltipRows }));
     const legend = el('div', 'flex flex-wrap gap-x-4 gap-y-1');
-    lines.forEach((line) => {
+    lines.forEach((line, position) => {
       const item = el('span', 'inline-flex items-center gap-1.5 type-meta num');
-      const swatch = el('span', `w-3 h-0.5 rounded-full ${line.dashed ? 'opacity-70' : ''}`);
-      swatch.style.background = `var(--${line.token})`;
+      // A line drawn with markers shows its marker shape in the legend; the dashed Average keeps its line
+      let swatch;
+      if (line.dashed) {
+        swatch = el('span', 'w-3 h-0.5 rounded-full opacity-70');
+        swatch.style.background = `var(--${line.token})`;
+      } else {
+        swatch = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        swatch.setAttribute('viewBox', '0 0 8 8');
+        swatch.setAttribute('width', '8');
+        swatch.setAttribute('height', '8');
+        swatch.setAttribute('class', 'shrink-0');
+        swatch.setAttribute('aria-hidden', 'true');
+        swatch.style.fill = `var(--${line.token})`;
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', MARKER_PATHS[MARKER_SHAPES[position % MARKER_SHAPES.length]]);
+        swatch.append(path);
+      }
       const latest = line.values[line.values.length - 1];
       item.append(swatch, `${line.name} ${latest === null ? 'n/a' : pct0(latest)}`);
       legend.append(item);
@@ -300,15 +350,15 @@ export function trendCard(ctx) {
 export function outcomeCard(ctx) {
   const { model } = ctx;
   const rows = outcomesFor(model);
-  if (rows.length === 0) return cardFrame({ key: 'ai.outcome_mix', title: 'Answer outcomes', body: emptyBody('No rate yet', 'These prompts have too few valid answers.') });
+  if (rows.length === 0) return cardFrame({ key: 'ai.outcome_mix', title: 'Outcome split by platform', body: emptyBody('No rate yet', 'These prompts have too few valid answers.') });
   const body = stackedRows({
     segments: OUTCOME_SEGMENTS,
     rows: rows.map((row) => ({ label: platformLabel(row.code), shares: row.shares, counts: row.counts, note: `${formatInteger(row.observations)} answers` })),
   });
   return cardFrame({
     key: 'ai.outcome_mix',
-    title: 'Answer outcomes',
-    meta: ctx.scope.platform === 'all' ? 'by platform' : engineName(ctx.scope.platform),
+    title: 'Outcome split by platform',
+    meta: ctx.scope.platform === 'all' ? null : engineName(ctx.scope.platform),
     body,
   });
 }
@@ -325,37 +375,97 @@ export function sovCard(ctx) {
   if (entities[0].sov === null) return cardFrame({ key: 'ai.share_of_voice', title: 'Share of voice', body: emptyBody('No rate yet', 'Too few answers on this platform.') });
   const rows = [...entities]
     .sort((a, b) => (b.sov ?? 0) - (a.sov ?? 0))
-    .map((entity) => ({ label: entityLabel(entity), onClick: entity.own ? undefined : (opener) => ctx.openCompetitor?.(entity.name.toLowerCase(), opener), value: entity.sov, strong: entity.own, token: entity.token, barToken: entity.own ? 'chart-1' : 'chart-bar-neutral', tip: `${entity.name}: ${formatInteger(entity.answers)} of ${formatInteger(entity.answersOfTracked)} brand mentions` }));
+    .map((entity) => ({ label: entityLabel(entity), onClick: entity.own ? undefined : (opener) => ctx.openCompetitor?.(entity.name.toLowerCase(), opener), value: entity.sov, strong: entity.own, token: entity.token, barToken: entity.own ? 'chart-1' : 'chart-bar-neutral', note: ctx.scope.platform === 'all' ? undefined : `${formatInteger(entity.answers)} of ${formatInteger(entity.answersOfTracked)}`, tip: ctx.scope.platform === 'all' ? `${entity.name}: ${pct0(entity.sov)}, average of ${entity.platforms} platforms, each counting once. Brand mentions: ${entity.platformCounts.map((entry) => `${engineName(entry.code)} ${formatInteger(entry.k)} of ${formatInteger(entry.n)}`).join(' and ')}` : `${entity.name}: ${formatInteger(entity.answers)} of ${formatInteger(entity.answersOfTracked)} brand mentions` }));
   const total = entities[0].answersOfTracked;
   return cardFrame({
     key: 'ai.share_of_voice',
     title: 'Share of voice',
-    meta: ctx.scope.platform === 'all' ? `avg of ${entities[0].platforms} platforms` : `of ${formatInteger(total)} brand mentions`,
+    meta: ctx.scope.platform === 'all' ? `average of ${entities[0].platforms} platforms` : `of ${formatInteger(total)} brand mentions`,
     body: barList(rows),
   });
+}
+
+/**
+ * One brand's week with the brand mentions behind the share (D17). `text` is the tooltip row ("40.0%, 8 of 20 brand mentions"),
+ * `detail` a line below it, only for All platforms: the x of y of each platform that has a share, which the average has no
+ * count of its own to replace (R3). `cell` says all of it in one line, for the Table view. A week with no mention is n/a.
+ */
+function sovWeekText(week, index, share, all) {
+  if (share === null) {
+    const words = week.platforms.some((platform) => platform.y > 0) ? `too few brand mentions (${week.platforms.map((platform) => platform.y).join(' and ')})` : 'n/a';
+    return { text: words, detail: null, cell: words };
+  }
+  const percent = `${(share * 100).toFixed(1)}%`;
+  if (!all) {
+    const [only] = week.platforms;
+    const text = `${percent}, ${formatInteger(only.counts[index])} of ${formatInteger(only.y)} brand mentions`;
+    return { text, detail: null, cell: text };
+  }
+  const rated = week.platforms.filter((platform) => platform.y >= 4);
+  const counts = rated.map((platform) => `${engineName(platform.code)} ${formatInteger(platform.counts[index])} of ${formatInteger(platform.y)}`).join(' and ');
+  return { text: percent, detail: `Brand mentions: ${counts}`, cell: `${percent}, average of ${rated.length} platforms, each counting once. Brand mentions: ${counts}` };
 }
 
 export function sovOverTimeCard(ctx) {
   const entities = entitiesFor(ctx.model);
   if (entities[0].sov === null) return cardFrame({ key: 'ai.sov_over_time', title: 'Share of voice over time', body: emptyBody('No rate yet', 'Too few answers on this platform.') });
-  const weeks = sovSeries(ctx.model, entities);
-  const layers = entities.map((entity, index) => ({ name: entityLabel(entity), token: entity.token, values: weeks.map((week) => week[index]), alpha: entity.own ? 0.95 : 0.55 }));
-  const host = chartHost(240, `Share of voice of ${entities.map((entity) => entity.name).join(', ')} over the last 8 weekly runs`);
-  mountChart(host, () => shareAreaOption({ labels: WEEK_LABELS, layers }));
-  const legend = el('div', 'mt-3 flex flex-wrap gap-x-4 gap-y-1');
-  entities.forEach((entity) => {
-    const item = el('span', 'inline-flex items-center gap-1.5 type-meta');
-    const dot = el('span', 'size-2 rounded-full');
-    dot.style.background = `var(--${entity.token})`;
-    item.append(dot, entity.name);
-    legend.append(item);
+  const weeks = sovWeeks(ctx.model, entities);
+  const all = ctx.scope.platform === 'all';
+  // The tooltip and the Table view say each brand's x of y brand mentions beside its share, the same words
+  const textOf = (week, index) => sovWeekText(week, index, week.shares[index], all);
+  const layers = entities.map((entity, index) => ({ name: entityLabel(entity), token: entity.token, values: weeks.map((week) => week.shares[index]), alpha: entity.own ? 0.95 : 0.55, notes: weeks.map((week) => textOf(week, index)) }));
+  const state = { view: 'chart' };
+  const body = el('div', 'flex flex-col');
+  let dispose = null;
+  const draw = () => {
+    dispose?.();
+    dispose = null;
+    body.replaceChildren();
+    if (state.view === 'table') {
+      const table = el('table', 'w-full type-table');
+      const head = el('thead');
+      const headRow = el('tr', 'bg-surface-subtle h-row-compact');
+      headRow.append(el('th', 'px-3 text-left type-label', 'Week of'), ...entities.map((entity) => el('th', 'px-3 text-left type-label whitespace-nowrap', entity.name)));
+      head.append(headRow);
+      const tbody = el('tbody');
+      WEEK_LABELS.forEach((label, week) => {
+        const row = el('tr', 'h-row-compact border-t border-border-subtle');
+        row.append(el('th', 'px-3 text-left font-normal text-foreground', label), ...entities.map((_, index) => el('td', 'px-3 text-left num', weeks[week].shares[index] === null ? 'n/a' : layers[index].notes[week].cell)));
+        tbody.append(row);
+      });
+      table.append(head, tbody);
+      const scroller = el('div', 'overflow-x-auto');
+      scroller.append(table);
+      return body.append(scroller);
+    }
+    const host = chartHost(240, `Share of voice of ${entities.map((entity) => entity.name).join(', ')} over the last 8 weekly runs`);
+    dispose = mountChart(host, () => shareAreaOption({ labels: WEEK_LABELS, layers }));
+    const legend = el('div', 'mt-3 flex flex-wrap gap-x-4 gap-y-1');
+    entities.forEach((entity) => {
+      const item = el('span', 'inline-flex items-center gap-1.5 type-meta');
+      const dot = el('span', 'size-2 rounded-full');
+      dot.style.background = `var(--${entity.token})`;
+      item.append(dot, entity.name);
+      legend.append(item);
+    });
+    body.append(host, legend);
+  };
+  const toggle = el('button', 'h-control-sm px-2.5 rounded-md border border-border bg-surface flex items-center gap-1.5 whitespace-nowrap type-body text-foreground hover:bg-surface-hover');
+  toggle.type = 'button';
+  toggle.setAttribute('aria-pressed', 'false');
+  toggle.append(icon('table-2', 'size-icon-sm'), 'Table');
+  toggle.addEventListener('click', () => {
+    state.view = state.view === 'chart' ? 'table' : 'chart';
+    toggle.setAttribute('aria-pressed', String(state.view === 'table'));
+    draw();
   });
-  return cardFrame({ key: 'ai.sov_over_time', title: 'Share of voice over time', meta: 'stacked to 100%', body: [host, legend] });
+  draw();
+  return cardFrame({ key: 'ai.sov_over_time', title: 'Share of voice over time', meta: all ? `average of ${entities[0].platforms} platforms, stacked to 100%` : 'stacked to 100%', tools: [toggle], body });
 }
 
 export function gapCard(ctx) {
   const gaps = gapFor(ctx.model).filter((entry) => entry.gap !== null).sort((a, b) => b.lost - a.lost);
-  if (gaps.length === 0) return cardFrame({ key: 'ai.lost_to_competitor', title: 'Competitor gap', body: emptyBody('No rate yet', 'Too few answers on this platform.') });
+  if (gaps.length === 0) return cardFrame({ key: 'ai.lost_to_competitor', title: 'Lost to competitor', body: emptyBody('No rate yet', 'Too few answers on this platform.') });
   const table = el('table', 'w-full type-table');
   const head = el('thead');
   const headRow = el('tr', 'border-t border-border-subtle bg-surface-subtle h-row-header');
@@ -397,7 +507,7 @@ export function gapCard(ctx) {
   wrap.append(table);
   return cardFrame({
     key: 'ai.lost_to_competitor',
-    title: 'Competitor gap',
+    title: 'Lost to competitor',
     meta: 'prompts, on the same answers',
     body: wrap,
     flush: true,

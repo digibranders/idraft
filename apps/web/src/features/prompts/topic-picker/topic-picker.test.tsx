@@ -120,10 +120,12 @@ function withProjectTopics(): void {
   );
 }
 
-describe('Topic picker', () => {
-  it('lists the topics with the topics above them, the tags by vocabulary, and says what a nested topic counts under', async () => {
+describe('Group picker', () => {
+  it('lists the groups with the groups above them, the tags by vocabulary, and says what a nested group counts under', async () => {
     const { user, container } = render();
-    expect(screen.getByText('A prompt counts under its topic and the topics above it.')).toBeInTheDocument();
+    expect(
+      screen.getByText('A prompt counts in each group you give it. A group inside another shows its path.'),
+    ).toBeInTheDocument();
     await open(user);
     const names = (await screen.findAllByRole('option')).map((option) => option.textContent);
     expect(names).toEqual(
@@ -145,7 +147,7 @@ describe('Topic picker', () => {
     await user.click(await screen.findByRole('option', { name: 'SEO / Technical SEO' }));
     expect(chosen()).toEqual([{ kind: 'existing', termId: MOCK_TERM_IDS.technicalSeo }]);
     expect(
-      within(screen.getByRole('toolbar', { name: 'Chosen topics and tags' })).getByText('SEO / Technical SEO'),
+      within(screen.getByRole('toolbar', { name: 'Chosen groups and tags' })).getByText('SEO / Technical SEO'),
     ).toBeInTheDocument();
   });
 
@@ -168,11 +170,11 @@ describe('Topic picker', () => {
     await user.click(await screen.findByRole('option', { name: 'Services: SEO Audit' }));
     await user.click(await screen.findByRole('option', { name: 'Services: Link Building' }));
     await waitFor(() => expect(chosen()).toHaveLength(1));
-    expect(await visibleText('Pick one term of Services: it takes one.')).toBeInTheDocument();
-    expect(screen.getByRole('toolbar', { name: 'Chosen topics and tags' })).toHaveTextContent(
+    expect(await visibleText('Pick one group of Services: it takes one.')).toBeInTheDocument();
+    expect(screen.getByRole('toolbar', { name: 'Chosen groups and tags' })).toHaveTextContent(
       'Services: Link Building',
     );
-    expect(screen.getByRole('toolbar', { name: 'Chosen topics and tags' })).not.toHaveTextContent(
+    expect(screen.getByRole('toolbar', { name: 'Chosen groups and tags' })).not.toHaveTextContent(
       'Services: SEO Audit',
     );
   });
@@ -186,22 +188,22 @@ describe('Topic picker', () => {
     const { user } = render({ initial: twenty });
     await open(user);
     await user.click(await screen.findByRole('option', { name: 'SEO' }));
-    expect(await visibleText('A prompt takes at most 20 topics and tags.')).toBeInTheDocument();
+    expect(await visibleText('A prompt takes at most 20 groups and tags.')).toBeInTheDocument();
     expect(chosen()).toEqual(twenty);
   });
 
-  it('shows the topic the dialog was opened from as a chip once the topics have loaded', async () => {
+  it('shows the group the dialog was opened from as a chip once the groups have loaded', async () => {
     render({ initial: [{ kind: 'existing', termId: MOCK_TERM_IDS.seo }] });
     expect(await screen.findByRole('button', { name: 'Remove SEO' })).toBeInTheDocument();
     expect(chosen()).toEqual([{ kind: 'existing', termId: MOCK_TERM_IDS.seo }]);
   });
 
-  it('offers to create a typed name or path and holds it as a new topic without writing anything', async () => {
+  it('offers to create a typed name or path and holds it as a new group without writing anything', async () => {
     const posts = termPosts();
     const { user } = render();
     await open(user);
     await user.keyboard('Startups');
-    await user.click(await screen.findByRole('option', { name: 'Create topic “Startups”' }));
+    await user.click(await screen.findByRole('option', { name: 'Create group “Startups”' }));
     expect(chosen()).toEqual([{ kind: 'new', vocabularyId: MOCK_VOCABULARY_IDS.topics, path: 'Startups' }]);
     await user.keyboard('CRM/Startups');
     // The row says the path as it was typed, the chip as it will be made
@@ -214,7 +216,7 @@ describe('Topic picker', () => {
     expect(posts).toEqual([]);
   });
 
-  it('turns a typed path that is already a topic into that topic', async () => {
+  it('turns a typed path that is already a group into that group', async () => {
     const { user } = render();
     await open(user);
     await user.keyboard('seo/technical seo');
@@ -227,25 +229,25 @@ describe('Topic picker', () => {
     await open(user);
     await user.keyboard('CRM//Startups');
     await user.click(await screen.findByRole('option', { name: /^Create/ }));
-    expect(await visibleText('Each level of a topic needs a name.')).toBeInTheDocument();
+    expect(await visibleText('Each level of a group needs a name.')).toBeInTheDocument();
     expect(chosen()).toEqual([]);
   });
 
-  it('has no Create option without taxonomy:write and says only editors can create topics', async () => {
+  it('has no Create option without taxonomy:write and says only editors can create groups', async () => {
     const { user } = render({ member: membership('editor', { without: 'taxonomy:write' }) });
     await open(user);
     await user.keyboard('Startups');
-    expect(await screen.findByText(/Only editors can create topics\./)).toBeInTheDocument();
+    expect(await screen.findByText(/Only editors can create groups\./)).toBeInTheDocument();
     expect(screen.queryByRole('option', { name: /^Create/ })).toBeNull();
   });
 
-  it('offers a member limited to some projects no Create in the shared topics, a new vocabulary of their project, and Create in the one they have', async () => {
+  it('offers a member limited to some projects no Create in the shared groups, a new vocabulary of their project, and Create in the one they have', async () => {
     const limited = membership('editor', { projectIds: [SCOPE.projectId] });
     const first = render({ member: limited });
     await open(first.user);
     await first.user.keyboard('Startups');
     // The shared vocabulary is not theirs to write: the topic goes in a vocabulary made for the project
-    await first.user.click(await screen.findByRole('option', { name: 'Create topic “Startups”' }));
+    await first.user.click(await screen.findByRole('option', { name: 'Create group “Startups”' }));
     expect(chosen()).toEqual([{ kind: 'new', vocabularyId: null, path: 'Startups' }]);
     first.unmount();
 
@@ -253,25 +255,25 @@ describe('Topic picker', () => {
     const second = render({ member: limited });
     await open(second.user);
     await second.user.keyboard('Startups');
-    await second.user.click(await screen.findByRole('option', { name: 'Create topic “Startups”' }));
+    await second.user.click(await screen.findByRole('option', { name: 'Create group “Startups”' }));
     expect(chosen()).toEqual([{ kind: 'new', vocabularyId: OWN_TOPICS_ID, path: 'Startups' }]);
   });
 
-  it('offers no Create without taxonomy:write even when the project has its own topic vocabulary', async () => {
+  it('offers no Create without taxonomy:write even when the project has its own group vocabulary', async () => {
     withProjectTopics();
     const { user } = render({ member: membership('editor', { without: 'taxonomy:write' }) });
     await open(user);
     await user.keyboard('Startups');
-    expect(await screen.findByText(/Only editors can create topics\./)).toBeInTheDocument();
+    expect(await screen.findByText(/Only editors can create groups\./)).toBeInTheDocument();
     expect(screen.queryByRole('option', { name: /^Create/ })).toBeNull();
   });
 
-  it('offers no Create to a viewer even when the project has its own topic vocabulary', async () => {
+  it('offers no Create to a viewer even when the project has its own group vocabulary', async () => {
     withProjectTopics();
     const { user } = render({ member: membership('viewer') });
     await open(user);
     await user.keyboard('Startups');
-    expect(await screen.findByText(/Only editors can create topics\./)).toBeInTheDocument();
+    expect(await screen.findByText(/Only editors can create groups\./)).toBeInTheDocument();
     expect(screen.queryByRole('option', { name: /^Create/ })).toBeNull();
   });
 
@@ -286,11 +288,11 @@ describe('Topic picker', () => {
     await user.click(await screen.findByRole('option', { name: 'SEO' }));
     await waitFor(() => expect(chosen()).toHaveLength(20));
     await user.click(await screen.findByRole('option', { name: 'Paid Search' }));
-    expect(await visibleText('A prompt takes at most 20 topics and tags.')).toBeInTheDocument();
+    expect(await visibleText('A prompt takes at most 20 groups and tags.')).toBeInTheDocument();
     expect(chosen()).toHaveLength(20);
   });
 
-  it('shows loading without saying there are none, then an empty list with how to create the first topic', async () => {
+  it('shows loading without saying there are none, then an empty list with how to create the first group', async () => {
     let release: () => void = () => undefined;
     const gate = new Promise<void>((resolve) => {
       release = resolve;
@@ -303,13 +305,13 @@ describe('Topic picker', () => {
     );
     const { user } = render();
     expect(field()).toBeDisabled();
-    expect(field()).toHaveAttribute('placeholder', 'Loading topics');
+    expect(field()).toHaveAttribute('placeholder', 'Loading groups');
     release();
     await open(user);
-    expect(await screen.findByText('No topics yet. Type a name to create the first topic.')).toBeInTheDocument();
+    expect(await screen.findByText('No groups yet. Type a name to create the first group.')).toBeInTheDocument();
   });
 
-  describe('where the project has no topic vocabulary', () => {
+  describe('where the project has no group vocabulary', () => {
     /** The project sees no vocabulary at all, as the owner's Eventus project: 134 prompts and no topics. */
     function withoutVocabularies(): void {
       server.use(
@@ -319,14 +321,14 @@ describe('Topic picker', () => {
       );
     }
 
-    it('offers an editor to create the typed topic, holds it for a vocabulary that is made on submit, and writes nothing', async () => {
+    it('offers an editor to create the typed group, holds it for a vocabulary that is made on submit, and writes nothing', async () => {
       withoutVocabularies();
       const posts = termPosts();
       const { user } = render();
       await open(user);
       await user.keyboard('Startups');
-      expect(screen.queryByText(/Only editors can create topics\./)).toBeNull();
-      await user.click(await screen.findByRole('option', { name: 'Create topic “Startups”' }));
+      expect(screen.queryByText(/Only editors can create groups\./)).toBeNull();
+      await user.click(await screen.findByRole('option', { name: 'Create group “Startups”' }));
       expect(chosen()).toEqual([{ kind: 'new', vocabularyId: null, path: 'Startups' }]);
       expect(screen.getByRole('button', { name: 'Remove Startups (new)' })).toBeInTheDocument();
       expect(posts).toEqual([]);
@@ -337,16 +339,16 @@ describe('Topic picker', () => {
       const { user } = render({ member: membership('editor', { projectIds: [SCOPE.projectId] }) });
       await open(user);
       await user.keyboard('Startups');
-      await user.click(await screen.findByRole('option', { name: 'Create topic “Startups”' }));
+      await user.click(await screen.findByRole('option', { name: 'Create group “Startups”' }));
       expect(chosen()).toEqual([{ kind: 'new', vocabularyId: null, path: 'Startups' }]);
     });
 
-    it('offers a viewer no Create and says only editors can create topics', async () => {
+    it('offers a viewer no Create and says only editors can create groups', async () => {
       withoutVocabularies();
       const { user } = render({ member: membership('viewer') });
       await open(user);
       await user.keyboard('Startups');
-      expect(await screen.findByText(/Only editors can create topics\./)).toBeInTheDocument();
+      expect(await screen.findByText(/Only editors can create groups\./)).toBeInTheDocument();
       expect(screen.queryByRole('option', { name: /^Create/ })).toBeNull();
     });
 
@@ -354,39 +356,39 @@ describe('Topic picker', () => {
       withoutVocabularies();
       const editor = render();
       await open(editor.user);
-      expect(await screen.findByText('No topics yet. Type a name to create the first topic.')).toBeInTheDocument();
+      expect(await screen.findByText('No groups yet. Type a name to create the first group.')).toBeInTheDocument();
       editor.unmount();
 
       const viewer = render({ member: membership('viewer') });
       await open(viewer.user);
-      expect(await screen.findByText('No topics yet. Only editors can create topics.')).toBeInTheDocument();
+      expect(await screen.findByText('No groups yet. Only editors can create groups.')).toBeInTheDocument();
       viewer.unmount();
 
       const noWrite = render({ member: membership('editor', { without: 'taxonomy:write' }) });
       await open(noWrite.user);
-      expect(await screen.findByText('No topics yet. Only editors can create topics.')).toBeInTheDocument();
+      expect(await screen.findByText('No groups yet. Only editors can create groups.')).toBeInTheDocument();
     });
   });
 
-  it('says the topics could not be loaded and reads them again on retry', async () => {
+  it('says the groups could not be loaded and reads them again on retry', async () => {
     let fail = true;
     server.use(http.get(mswPath(VOCABULARIES), () => (fail ? SERVER_ERROR() : undefined)));
     const { user } = render();
-    expect(await visibleText('Topics could not be loaded.')).toBeInTheDocument();
+    expect(await visibleText('Groups could not be loaded.')).toBeInTheDocument();
     fail = false;
     await user.click(screen.getByRole('button', { name: 'Try again' }));
-    await waitFor(() => expect(screen.queryByText('Topics could not be loaded.')).toBeNull());
+    await waitFor(() => expect(screen.queryByText('Groups could not be loaded.')).toBeNull());
     await waitFor(() => expect(field()).toBeEnabled());
   });
 
-  it('keeps the topics that loaded and offers a retry when only some failed', async () => {
+  it('keeps the groups that loaded and offers a retry when only some failed', async () => {
     server.use(
       http.get(mswPath(TERMS), ({ params }) =>
         params.vocabulary_id === MOCK_VOCABULARY_IDS.services ? SERVER_ERROR() : undefined,
       ),
     );
     const { user } = render();
-    expect(await visibleText('Some topics could not be loaded.')).toBeInTheDocument();
+    expect(await visibleText('Some groups could not be loaded.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
     await open(user);
     expect(await screen.findByRole('option', { name: 'SEO' })).toBeInTheDocument();

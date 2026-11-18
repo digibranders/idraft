@@ -19,7 +19,7 @@ import { renderWithProviders } from '@/test/render';
  */
 
 const STEPS: SetupStep[] = [
-  { id: 'engines', name: 'Select AI engines', done: true, fact: '2 of 3 engines on' },
+  { id: 'engines', name: 'Select AI platforms', done: true, fact: '2 of 3 platforms on' },
   {
     id: 'prompts',
     name: 'Add prompts',
@@ -31,7 +31,7 @@ const STEPS: SetupStep[] = [
     id: 'answers',
     name: 'First answers',
     done: false,
-    fact: 'Needs engines and prompts',
+    fact: 'Needs platforms and prompts',
   },
 ];
 const DONE: SetupStep[] = STEPS.map((step) => ({ id: step.id, name: step.name, done: true }));
@@ -103,11 +103,11 @@ describe('SetupChecklist, expanded', () => {
     const rows = within(list).getAllByRole('listitem');
     expect(rows).toHaveLength(3);
     // Done first, then the two still to do: the words a screen reader hears come before the name
-    expect(rows[0]).toHaveTextContent('Done: Select AI engines');
-    expect(rows[0]).toHaveTextContent('2 of 3 engines on');
+    expect(rows[0]).toHaveTextContent('Done: Select AI platforms');
+    expect(rows[0]).toHaveTextContent('2 of 3 platforms on');
     expect(rows[1]).toHaveTextContent('To do: Add prompts');
     expect(rows[2]).toHaveTextContent('To do: First answers');
-    expect(rows[2]).toHaveTextContent('Needs engines and prompts');
+    expect(rows[2]).toHaveTextContent('Needs platforms and prompts');
     expect(within(rows[0] as HTMLElement).queryByRole('link')).not.toBeInTheDocument();
     expect(within(rows[1] as HTMLElement).getByRole('link', { name: 'Add prompts' })).toHaveAttribute(
       'href',
@@ -118,13 +118,13 @@ describe('SetupChecklist, expanded', () => {
 
   it('shows the could not be checked fact at every width, since it is what tells that step from a plain to do', () => {
     const steps: SetupStep[] = [
-      { id: 'engines', name: 'Select AI engines', done: false, fact: 'Could not be checked', unchecked: true },
+      { id: 'engines', name: 'Select AI platforms', done: false, fact: 'Could not be checked', unchecked: true },
       { id: 'prompts', name: 'Add prompts', done: false, fact: '0 active prompts' },
     ];
     renderWithProviders(<Harness steps={steps} startExpanded />);
     const rows = within(screen.getByRole('list')).getAllByRole('listitem');
     const unchecked = within(rows[0] as HTMLElement).getByText('Could not be checked');
-    expect(rows[0]).toHaveTextContent('To do: Select AI engines');
+    expect(rows[0]).toHaveTextContent('To do: Select AI platforms');
     expect(rows[0]).toHaveTextContent('Could not be checked');
     // Not display:none below 640 px: no `hidden` class, and none paired with `sm:inline` to bring it back
     expect(unchecked.classList.contains('hidden')).toBe(false);

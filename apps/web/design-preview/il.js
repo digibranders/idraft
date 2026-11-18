@@ -116,6 +116,12 @@ function moreMenu(trigger) {
     menuItem(panel, api, 'Edit page tiers', { iconName: 'layers', detail: 'Workspace', run: () => {
       location.hash = '#/settings/page-tiers';
     } });
+    // Export has its own button from md up; on a phone it moves in here
+    if (window.matchMedia('(max-width: 767px)').matches) {
+      panel.append(el('div', 'my-1 h-px bg-border-subtle'));
+      menuItem(panel, api, 'Export this tab (CSV)', { iconName: 'download', run: exportCurrent });
+      menuItem(panel, api, 'Client summary (HTML)', { iconName: 'file-text', run: clientSummary });
+    }
   }, { label: 'More actions' });
 }
 
@@ -192,7 +198,7 @@ function exportMenu(trigger) {
 function tabs() {
   // Six tabs are wider than a phone: the group scrolls inside itself instead of widening the page
   // `relative` keeps the screen-reader-only badge text inside this scroller instead of widening the page
-  const group = el('div', 'relative inline-flex max-w-full overflow-x-auto');
+  const group = el('div', 'relative inline-flex min-w-0 max-w-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden');
   group.setAttribute('role', 'tablist');
   group.setAttribute('aria-label', 'Internal links views');
   TABS.forEach(([key, label, iconName], index) => {
@@ -201,7 +207,8 @@ function tabs() {
     node.href = key === 'pages' ? '#/internal-links' : `#/internal-links/${key}`;
     node.setAttribute('role', 'tab');
     node.setAttribute('aria-selected', String(selected));
-    node.append(icon(iconName, 'size-icon-sm shrink-0'), el('span', '', label));
+    // The icons go below xl: they are what makes six tabs too wide to share a row with the actions
+    node.append(icon(iconName, 'hidden size-icon-sm shrink-0 xl:block'), el('span', '', label));
     const alerts = key === 'changes' ? alertsFor().length : 0;
     const open = key === 'opportunities' ? opportunityCounts().open : 0;
     // The badge is for sighted users; the hidden text gives the tab the name "Changes, 3 alerts"
@@ -214,6 +221,11 @@ function tabs() {
     else if (open > 0) badge(open, `${open.toLocaleString('en-US')} open`, 'bg-surface-subtle text-foreground-secondary');
     group.append(node);
   });
+  // On a phone the strip scrolls; bring the selected tab into view so it is never the one that is cut off
+  window.requestAnimationFrame(() => {
+    const current = group.querySelector('[aria-selected="true"]');
+    if (current && group.scrollWidth > group.clientWidth) group.scrollLeft = Math.max(0, current.offsetLeft - 16);
+  });
   return group;
 }
 
@@ -224,7 +236,8 @@ function showUntiered() {
   else location.hash = '#/internal-links';
 }
 
-function strip() {
+/** The numbers under the tabs, as items for one line that scrolls sideways when it is too long. */
+function statItems() {
   const live = activePages().filter(isLive);
   const t1 = live.filter((page) => tierPosition(tierIdOf(page)) === 1);
   const reached = t1.filter((page) => depth[page.id] !== undefined);
@@ -234,70 +247,80 @@ function strip() {
   const goChanges = () => {
     location.hash = '#/internal-links/changes';
   };
+  // "Pages" is not here: the crawl button says how many pages the crawl found
   const items = [
-    ['Pages', active.length.toLocaleString('en-US')],
     ['Tiered', `${tiered.toLocaleString('en-US')} of ${active.length.toLocaleString('en-US')}`, tiered < active.length ? showUntiered : null, 'Show the pages without a tier'],
     ['T1 pages', String(t1.length)],
     ['T1 average depth', reached.length ? (reached.reduce((sum, page) => sum + depth[page.id], 0) / reached.length).toFixed(1) : 'n/a'],
     ['No editorial links in', String(active.filter((page) => flags(page).some((flag) => flag.key === 'editorialOrphan' || flag.key === 'orphan')).length)],
     ...(lostTop > 0 ? [[`Lost editorial links to ${alertTierText()}`, String(lostTop), goChanges, 'Show what changed since the last crawl', true]] : []),
   ];
-  const wrap = el('div', 'hidden h-control-sm items-center gap-4 md:flex');
-  items.forEach(([label, value, run, title, negative]) => {
-    const item = el(run ? 'button' : 'span', 'flex items-baseline gap-1.5');
+  return items.map(([label, value, run, title, negative]) => {
+    const item = el(run ? 'button' : 'span', 'flex shrink-0 items-baseline gap-1.5 whitespace-nowrap');
     if (run) {
       item.type = 'button';
       item.title = title;
       item.addEventListener('click', run);
     }
     item.append(el('span', 'type-meta text-foreground-secondary', label), el('span', `type-body-strong num ${run ? `${negative ? 'text-negative-text' : 'text-link'} underline` : 'text-foreground'}`, value));
-    wrap.append(item);
+    return item;
   });
-  return wrap;
 }
 
+/**
+ * The header above every tab, in two lines: the tabs with the actions (Crawl now, Export, More), then the context (which
+ * crawl is shown, the key numbers, and the mock's Preview state). Below md the actions drop under the tabs, and the
+ * context line scrolls sideways instead of wrapping into stacks of short lines.
+ */
 function pageRow() {
-  const row = el('div', 'flex flex-wrap items-center gap-x-4 gap-y-2');
-  // Six tabs plus the actions need a row of their own; the summary strip sits on the next row
-  const left = el('div', 'min-w-0 flex flex-wrap items-center gap-x-4 gap-y-2');
-  left.append(tabs());
-  const right = el('div', 'ml-auto flex flex-wrap items-center justify-end gap-x-3 gap-y-2');
-  const review = el('button', 'h-control-sm px-2 rounded-md border border-dashed border-border-strong flex items-center gap-1.5 whitespace-nowrap type-body text-foreground-secondary hover:bg-surface-hover');
-  review.type = 'button';
-  review.append(el('span', '', 'Preview state'), icon('chevron-down', 'size-icon-sm text-foreground-tertiary'));
-  reviewMenu(review);
-  right.append(review);
-  if (state.review !== 'nowebsite' && state.review !== 'first') {
+  const ready = state.review !== 'nowebsite' && state.review !== 'first';
+  const wrap = el('div', 'flex flex-col gap-2');
+  const row = el('div', 'flex flex-wrap items-center gap-x-3 gap-y-2 md:flex-nowrap');
+  row.append(tabs());
+  const context = el('div', 'flex min-w-0 items-center gap-3');
+  const scroller = el('div', 'flex min-h-control-sm min-w-0 flex-1 items-center gap-4 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden');
+  if (ready) {
+    const actions = el('div', 'ml-auto flex shrink-0 items-center gap-2');
     const crawl = currentCrawl();
-    const crawlButton = el('button', 'h-control-sm px-2 rounded-md flex items-center gap-1.5 whitespace-nowrap type-meta hover:bg-surface-hover hover:text-foreground');
+    const crawlButton = el('button', 'flex h-control-sm shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2 -ml-2 type-body text-foreground-secondary hover:bg-surface-hover hover:text-foreground');
     crawlButton.type = 'button';
     crawlButton.setAttribute('aria-label', `Crawl shown: ${crawl.when}`);
     crawlButton.append(icon('radar', 'size-icon-sm text-foreground-tertiary'), el('span', 'num', `Crawled ${crawl.short}, ${plural(crawl.pages, 'page')}`), icon('chevron-down', 'size-icon-sm text-foreground-tertiary'));
     crawlMenu(crawlButton);
-    const older = crawl.id !== crawls[0].id;
-    const olderBadge = el('span', 'inline-flex h-badge items-center rounded-sm px-1.5 type-label whitespace-nowrap bg-warning-subtle text-warning-text', 'Older crawl');
-    const latest = smallButton('Back to latest', () => setCrawl(crawls[0].id));
-    const more = el('button', 'size-control-sm rounded-md border border-border bg-surface flex items-center justify-center text-foreground-secondary hover:bg-surface-hover aria-expanded:bg-surface-selected');
+    scroller.append(crawlButton);
+    if (crawl.id !== crawls[0].id) {
+      const olderBadge = el('span', 'inline-flex h-badge shrink-0 items-center rounded-sm px-1.5 type-label whitespace-nowrap bg-warning-subtle text-warning-text', 'Older crawl');
+      const latest = smallButton('Back to latest', () => setCrawl(crawls[0].id));
+      latest.classList.add('shrink-0');
+      scroller.append(olderBadge, latest);
+    }
+    scroller.append(el('span', 'h-4 w-px shrink-0 bg-border'), ...statItems());
+    const more = el('button', 'size-control-sm shrink-0 rounded-md border border-border bg-surface flex items-center justify-center text-foreground-secondary hover:bg-surface-hover aria-expanded:bg-surface-selected');
     more.type = 'button';
     more.setAttribute('aria-label', 'More actions');
     more.append(icon('ellipsis', 'size-icon'));
     moreMenu(more);
-    const exportButton = el('button', BUTTON_SM);
+    const exportButton = el('button', `${BUTTON_SM} hidden md:flex`);
     exportButton.type = 'button';
     exportButton.append(icon('download', 'size-icon-sm text-foreground-tertiary'), el('span', '', 'Export'));
     exportMenu(exportButton);
     const running = state.review === 'running';
-    const now = el('button', `h-control-sm px-2 rounded-md bg-primary text-primary-foreground type-body-strong flex items-center gap-1.5 whitespace-nowrap hover:bg-primary-hover disabled:bg-surface-disabled disabled:text-foreground-disabled`);
+    const now = el('button', 'h-control-sm shrink-0 px-2 rounded-md bg-primary text-primary-foreground type-body-strong flex items-center gap-1.5 whitespace-nowrap hover:bg-primary-hover disabled:bg-surface-disabled disabled:text-foreground-disabled');
     now.type = 'button';
     now.disabled = running;
     now.append(icon('refresh-cw', `size-icon-sm ${running ? 'animate-spin' : ''}`), el('span', '', running ? 'Crawling' : 'Crawl now'));
     now.addEventListener('click', crawlNow);
-    right.append(crawlButton, ...(older ? [olderBadge, latest] : []), more, exportButton, now);
+    actions.append(now, exportButton, more);
+    row.append(actions);
   }
-  row.append(left, right);
-  const wrap = el('div', 'flex flex-col gap-2');
-  wrap.append(row);
-  if (state.review !== 'nowebsite' && state.review !== 'first') wrap.append(strip());
+  // The mock's own control, not part of the product: small, dashed, and icon only below xl
+  const review = el('button', 'flex h-control-sm shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-dashed border-border-strong px-2 type-meta text-foreground-secondary hover:bg-surface-hover');
+  review.type = 'button';
+  review.setAttribute('aria-label', 'Preview state');
+  review.append(icon('sliders-horizontal', 'size-icon-sm text-foreground-tertiary'), el('span', 'hidden xl:inline', 'Preview state'), icon('chevron-down', 'hidden size-icon-sm text-foreground-tertiary xl:block'));
+  reviewMenu(review);
+  context.append(scroller, review);
+  wrap.append(row, context);
   return wrap;
 }
 

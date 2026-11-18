@@ -1,6 +1,6 @@
 'use client';
 
-import { BarChart, LineChart } from 'echarts/charts';
+import { BarChart, LineChart, TreemapChart } from 'echarts/charts';
 import {
   AriaComponent,
   GridComponent,
@@ -15,10 +15,11 @@ import { useEffect, useRef, type ReactElement } from 'react';
 
 import { readChartTokens, type ChartTokens } from '@/lib/design/read-tokens';
 
-// Tree-shaken: only what the category charts draw. Legend and title are React (15 section 3).
+// Tree-shaken: only what the category charts and the treemap draw. Legend and title are React (15 section 3).
 registerModules([
   LineChart,
   BarChart,
+  TreemapChart,
   GridComponent,
   TooltipComponent,
   AriaComponent,

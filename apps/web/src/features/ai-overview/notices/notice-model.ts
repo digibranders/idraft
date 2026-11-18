@@ -27,6 +27,8 @@ export interface NoticeInputs {
   /** The most active prompts any enabled engine asks (the prompts of the project); `null` while unread. */
   activePrompts: number | null;
   country: string | null;
+  /** The topic term id of the Group, or `null` for all groups. */
+  topic: string | null;
   /** The prompts in the scope, once each; `null` while the prompt rows are unread. */
   promptsInScope: number | null;
   /** The AI schedules; `null` while unread. */
@@ -48,6 +50,7 @@ export type Notice =
   | { kind: 'noEngine' }
   | { kind: 'noPrompts' }
   | { kind: 'noCountryPrompts'; country: string }
+  | { kind: 'noGroupPrompts'; topic: string }
   /** Banners. */
   | { kind: 'paused' }
   | { kind: 'firstAnswers'; nextRunAt: string | null }
@@ -99,11 +102,12 @@ function worstEngine(engines: readonly EngineCounts[], days: number): Notice | n
 
 /** The one notice that applies, or `null`. */
 export function noticeOf(input: NoticeInputs): Notice | null {
-  const { enginesOn, activePrompts, country, promptsInScope, schedule, freshness, engines, days, now } = input;
+  const { enginesOn, activePrompts, country, topic, promptsInScope, schedule, freshness, engines, days, now } = input;
   if (enginesOn === null) return null;
   if (enginesOn === 0) return { kind: 'noEngine' };
   if (activePrompts === 0) return { kind: 'noPrompts' };
   if (country !== null && promptsInScope === 0) return { kind: 'noCountryPrompts', country };
+  if (topic !== null && promptsInScope === 0) return { kind: 'noGroupPrompts', topic };
   if (freshness === null || engines === null) return null;
   if (schedule?.paused === true) return { kind: 'paused' };
   if (freshness !== 'failed' && freshness.lastObservedAt === null) {

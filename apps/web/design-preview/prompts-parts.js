@@ -15,6 +15,12 @@ function el(tag, className, text) {
 const percent0 = (ratio) => formatPercent(ratio, { decimals: 0 });
 const plural = (count, noun) => `${formatInteger(count)} ${noun}${count === 1 ? '' : 's'}`;
 
+// What the change is read against: the Compare menu of the Prompts page sets it (the mock has no other data for the year back)
+let comparedWith = 'the previous period';
+export function setComparedWithYear(year) {
+  comparedWith = year ? 'the same period last year' : 'the previous period';
+}
+
 const TREND_TONE = { positive: 'text-positive-text', negative: 'text-negative-text', neutral: 'text-foreground-secondary' };
 
 /**
@@ -38,7 +44,7 @@ function trendIcon(change, { value, sample, trend, say } = {}) {
   const weekly = trend?.some((point) => point !== null) ? ` Weekly rates: ${trend.map((point) => (point === null ? 'n/a' : percent0(point))).join(', ')}.` : '';
   const node = el('span', `inline-flex shrink-0 self-center ${TREND_TONE[tone]}`);
   node.append(window.PreviewUI.icon(flat ? 'minus' : change.value > 0 ? 'trending-up' : 'trending-down', 'size-icon-sm'));
-  node.dataset.tip = say ?? `${words}${points} against the previous period${range}. ${verdict}${sample ? ` ${sample}.` : ''}${weekly}`;
+  node.dataset.tip = say ?? `${words}${points} against ${comparedWith}${range}. ${verdict}${sample ? ` ${sample}.` : ''}${weekly}`;
   // Shape, color and the tooltip are not enough: the same is said in text for people who get none of them
   node.append(el('span', 'sr-only', say ?? `${words}${points}${change.detectable ? ', detectable change' : ', within normal variation'}`));
   return node;

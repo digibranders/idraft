@@ -39,6 +39,7 @@ import {
   type Counts,
   type EntityCounts,
 } from '../prompt-summary';
+import { answerFactsExtra, factsBuilder } from '../prompt-facts';
 import { promptsOf } from '../prompts-state';
 import { invalid, mock, problem } from '../respond';
 import { shiftIsoDate, validateDateWindow } from '../serp-views';
@@ -95,19 +96,20 @@ const hasCode = (value: unknown): value is ValidationItem =>
 const INCLUDE_MESSAGE = "Input should be 'series' or 'entities'";
 
 /**
- * The summary's `include`: a comma list or repeated parameters of `series`, `entities`, `total` and `co_mentions`, the
+ * The summary's `include`: a comma list or repeated parameters of `series`, `entities`, `total`, `co_mentions` and `facts` (the Prompts page facts of
+ * ../prompt-facts.ts, which the API does not carry yet), the
  * blocks built. Any other value (`cells` too, which the API has and the mock does not build) is refused, one error for
  * each (Pydantic's `literal_error` at the value's place in the list).
  */
 function includeOf(
   url: URL,
-): { entities: boolean; series: boolean; total: boolean; coMentions: boolean } | ValidationItem[] {
+): { entities: boolean; series: boolean; total: boolean; coMentions: boolean; facts: boolean } | ValidationItem[] {
   const values = url.searchParams
     .getAll('include')
     .flatMap((value) => value.split(','))
     .filter((value) => value !== '');
   const errors = values.flatMap((value, place) =>
-    value === 'series' || value === 'entities' || value === 'total' || value === 'co_mentions'
+    value === 'series' || value === 'entities' || value === 'total' || value === 'co_mentions' || value === 'facts'
       ? []
       : [queryError(`include.${String(place)}`, 'literal_error', INCLUDE_MESSAGE)],
   );
@@ -118,6 +120,7 @@ function includeOf(
         series: values.includes('series'),
         total: values.includes('total'),
         coMentions: values.includes('co_mentions'),
+        facts: values.includes('facts'),
       };
 }
 
@@ -235,7 +238,8 @@ function detailFrom(
     citation_count: answer.citations.length,
     fanout_count: 0,
     served_from_cache: false,
-    facts: answer.facts,
+    // The drawer's extra facts (recommended, place in a list) are sample data until the backend builds them
+    facts: answer.facts === null ? null : { ...answer.facts, ...answerFactsExtra(observationId, code, answer.facts) },
     answer_text: answer.answer_text,
     error_code: answer.error_code,
     check_url: answer.check_url,
@@ -365,8 +369,10 @@ export function findAnswer(projectId: string, id: bigint, hint: number | null, n
 
 /** An answer that counts in the summary: its fact row, when it was observed and its project day. */
 interface Counted {
+  id: string;
   facts: NonNullable<ObservationDetail['facts']>;
   mentions: ObservationDetail['mentions'];
+  citations: ObservationDetail['citations'];
   at: string;
   day: string;
 }
@@ -663,7 +669,14 @@ export const promptAnswerHandlers: HttpHandler[] = [
         const engines = found.get(prompt) ?? new Map<string, Counted[]>();
         engines.set(answer.engine_code, [
           ...(engines.get(answer.engine_code) ?? []),
-          { facts: answer.facts, mentions: answer.mentions, at: answer.observed_at, day },
+          {
+            id: answer.observation_id,
+            facts: answer.facts,
+            mentions: answer.mentions,
+            citations: answer.citations,
+            at: answer.observed_at,
+            day,
+          },
         ]);
         found.set(prompt, engines);
       }
@@ -834,17 +847,35 @@ export const promptAnswerHandlers: HttpHandler[] = [
               () => build(before),
             ),
           );
-    const topicRow = (termId: string | null, members: ReadonlySet<string>): TopicSummaryRow => ({
-      term_id: termId,
-      name: termId === null ? null : (topicTerms.get(termId)?.name ?? null),
-      prompt_count: members.size,
-      ...lastOf(members),
-      engines: shown.map((code) =>
-        compared(topicEngine(byPrompt, members, code, seriesOf([...members], code, true)), [...members], (source) =>
-          topicEngine(source, members, code, null),
+    // With `include=facts`, the Prompts page facts of every prompt row and topic row (../prompt-facts.ts)
+    const factsOn = include.facts
+      ? factsBuilder({
+          prompts: new Map(
+            prompts.map((prompt) => [
+              prompt.prompt_id,
+              {
+                intent: prompt.intent,
+                topicNames: topicsOf(prompt.term_ids).flatMap((id) => topicTerms.get(id)?.name ?? []),
+              },
+            ]),
+          ),
+          answers: (promptId, code) => byPrompt.get(promptId)?.get(code) ?? [],
+        })
+      : null;
+    const topicRow = (termId: string | null, members: ReadonlySet<string>): TopicSummaryRow => {
+      const row: TopicSummaryRow = {
+        term_id: termId,
+        name: termId === null ? null : (topicTerms.get(termId)?.name ?? null),
+        prompt_count: members.size,
+        ...lastOf(members),
+        engines: shown.map((code) =>
+          compared(topicEngine(byPrompt, members, code, seriesOf([...members], code, true)), [...members], (source) =>
+            topicEngine(source, members, code, null),
+          ),
         ),
-      ),
-    });
+      };
+      return factsOn === null ? row : factsOn.topicRow(row, members);
+    };
     const rows: PromptSummaryRow[] = prompts.map((prompt) => ({
       prompt_id: prompt.prompt_id,
       text: prompt.text,
@@ -859,6 +890,7 @@ export const promptAnswerHandlers: HttpHandler[] = [
         ),
       ),
     }));
+    const factRows = factsOn === null ? rows : rows.map(factsOn.promptRow);
     const untopiced = new Set(rows.filter((row) => row.topic_term_ids.length === 0).map((row) => row.prompt_id));
     // Under a term filter the topic rows are the term's and those below it, and no row holds the untopiced prompts
     const topics = [...held]
@@ -890,7 +922,7 @@ export const promptAnswerHandlers: HttpHandler[] = [
       // Every fixture answer was derived under the first entity configuration
       entity_config_versions: counted ? [1] : [],
       // `rows` only leaves lists out: every cell above was built from the full set, as the API's aggregates are
-      prompts: rowsAsked === 'all' ? rows : [],
+      prompts: rowsAsked === 'all' ? factRows : [],
       topics: rowsAsked === 'none' ? [] : topics,
       ...(total === null
         ? {}

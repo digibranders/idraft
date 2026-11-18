@@ -80,10 +80,10 @@ interface NumberSpec {
   metric: NumberMetricKey;
   unit: 'percent' | 'count';
   /**
-   * How the value is averaged: a count has none, a share of voice weights every answer once. A human readable
+   * How the value is averaged: a count has none, a share of voice is a share of brand mentions (D17). A human readable
    * label by design (the plan keeps "prompt weighted"), unlike the snake_case `status` keys.
    */
-  method: 'prompt weighted' | 'answer weighted' | 'pooled' | 'count';
+  method: 'prompt weighted' | 'brand mention count' | 'pooled' | 'count';
   /** What `n_observations` counts: every answer seen of the engine, the denominator itself, or nothing. */
   observations: 'allAnswers' | 'denominator' | null;
 }
@@ -95,7 +95,7 @@ const NUMBERS: readonly NumberSpec[] = [
   { metric: 'ai.mention_rate', unit: 'percent', method: 'prompt weighted', observations: 'allAnswers' },
   { metric: 'ai.citation_rate', unit: 'percent', method: 'prompt weighted', observations: 'allAnswers' },
   { metric: 'ai.mention_and_citation_rate', unit: 'percent', method: 'prompt weighted', observations: 'allAnswers' },
-  { metric: 'ai.share_of_voice', unit: 'percent', method: 'answer weighted', observations: 'allAnswers' },
+  { metric: 'ai.share_of_voice', unit: 'percent', method: 'brand mention count', observations: 'denominator' },
   { metric: 'ai.citation_share', unit: 'percent', method: 'pooled', observations: null },
   { metric: 'ai.fanout_presence_rate', unit: 'percent', method: 'pooled', observations: 'denominator' },
 ];
@@ -104,6 +104,8 @@ const REASON_STATUS = {
   noAnswers: 'no_answers',
   noneValid: 'no_valid_answers',
   noBrandNamed: 'no_brand_named',
+  notCollected: 'not_collected',
+  capped: 'over_cap',
 } as const;
 
 function statusOf(reading: NumberReading): string {

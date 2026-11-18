@@ -4,6 +4,7 @@ import { useState, type ReactElement } from 'react';
 import { describe, expect, it } from 'vitest';
 
 import { CitationsTab, citationsTab } from './citations-tab';
+import { useCompare } from '../../compare';
 import type { PromptCounts } from '../../inspector-reads';
 import type { PromptTabContext } from '../../seams/inspector-tabs';
 import type { Translate } from '../../seams/shared';
@@ -293,6 +294,65 @@ describe('what the tab reads', () => {
     expect(request.searchParams.get('include_branded')).toBeNull();
   });
 
+  it('follows the page compare mode: with cmp=year no comparison is read, none is marked New, and it says so', async () => {
+    // What the API answers without a comparison: no previous answers, no `previous` on a row
+    const served = serve({ meta: metaOf({ previous_answers: 0 }) });
+    renderWithProviders(<CitationsTab context={contextOf()} />, { searchParams: 'cmp=year' });
+    await domainsTable();
+    for (const request of [...served.domains, ...served.pages]) expect(request.searchParams.get('compare')).toBeNull();
+    expect(
+      await screen.findByText(
+        'Citations cannot be compared with the same period last year yet, so nothing is marked New.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('New')).not.toBeInTheDocument();
+  });
+
+  it('keeps saying what the rows on screen were compared with while the read for a new mode loads', async () => {
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const served = serve({ meta: metaOf({ previous_answers: 0 }) });
+    // The read without a comparison (cmp=year) waits for the test; the one with it answers at once
+    server.use(
+      http.get(DOMAINS, async ({ request }) => {
+        const url = new URL(request.url);
+        served.domains.push(url);
+        if (url.searchParams.get('compare') === null) await held;
+        return HttpResponse.json(list([domain('g2.com', 12)], metaOf({ previous_answers: 0 })));
+      }),
+    );
+    function Switch(): ReactElement {
+      const { setMode } = useCompare();
+      return (
+        <button type="button" onClick={() => setMode('year')}>
+          Last year
+        </button>
+      );
+    }
+    const { user } = renderWithProviders(
+      <>
+        <Switch />
+        <CitationsTab context={contextOf()} />
+      </>,
+      { searchParams: 'cmp=previous' },
+    );
+    const previousWords = 'The previous period has no answers, so nothing is marked New or Lost.';
+    expect(await screen.findByText(previousWords)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Last year' }));
+    // The new read is on its way: the rows held are of the period before, and so are the words
+    await waitFor(() => expect(served.domains.some((url) => url.searchParams.get('compare') === null)).toBe(true));
+    expect(screen.getByText(previousWords)).toBeInTheDocument();
+    release();
+    expect(
+      await screen.findByText(
+        'Citations cannot be compared with the same period last year yet, so nothing is marked New.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(previousWords)).not.toBeInTheDocument();
+  });
+
   it('passes include_branded for a branded prompt', async () => {
     const served = serve();
     renderTab({ prompt: { is_branded: true } as unknown as Prompt });
@@ -312,53 +372,55 @@ describe('the choices of the tab', () => {
     await user.click(screen.getByRole('radio', { name: 'Gemini' }));
     // The last answer in the banner is of any engine, and the line says so
     expect(
-      await screen.findByText('Only Gemini is read. The last answer date above covers all engines.'),
+      await screen.findByText('Only Gemini is read. The last answer date above covers all platforms.'),
     ).toBeInTheDocument();
-    expect(screen.getByText('Shares are of 48 citation units in 8 answers.')).toBeInTheDocument();
+    expect(
+      screen.getByText(/^Counted in 8 valid answers\. A domain or page counts once in an answer/),
+    ).toBeInTheDocument();
     await waitFor(() => {
       expect(served.domains.at(-1)?.searchParams.get('filter[engine_code_in]')).toBe('gemini_web');
     });
     expect(served.pages.at(-1)?.searchParams.get('filter[engine_code_in]')).toBe('gemini_web');
   });
 
-  it('shows a count column for each engine under All engines and none for one engine', async () => {
+  it('counts in answers, with no column for a platform and a rate only once one platform is chosen', async () => {
     serve();
     const { user } = renderTab();
     const table = await domainsTable();
-    expect(within(table).getByRole('columnheader', { name: /ChatGPT/ })).toBeInTheDocument();
-    expect(within(table).getByRole('columnheader', { name: /Gemini/ })).toBeInTheDocument();
+    expect(
+      within(table)
+        .getAllByRole('columnheader')
+        .map((header) => header.textContent),
+    ).toEqual(['Domain', 'Citations']);
+    expect(within(table).queryByText(/%/)).toBeNull();
     await user.click(screen.getByRole('radio', { name: 'ChatGPT' }));
     await waitFor(() => {
       expect(
-        within(screen.getByRole('table', { name: 'Most cited domains for this prompt' })).queryByRole('columnheader', {
-          name: /Gemini/,
-        }),
-      ).toBeNull();
+        within(screen.getByRole('table', { name: 'Most cited domains for this prompt' })).getAllByText(/%/).length,
+      ).toBeGreaterThan(0);
     });
   });
 
-  it('asks for at least 1 unit and reads again for 2', async () => {
+  it('ranks by the answers that cite a row and asks for every row, at least 1 unit', async () => {
     const served = serve();
-    const { user } = renderTab();
+    renderTab();
     await domainsTable();
+    expect(served.domains[0]?.searchParams.get('sort')).toBe('-observations');
+    expect(served.pages[0]?.searchParams.get('sort')).toBe('-observations');
     expect(served.domains[0]?.searchParams.get('min_support')).toBe('1');
-    await user.click(screen.getByRole('combobox', { name: 'Fewest units per row' }));
-    await user.click(await screen.findByRole('option', { name: 'At least 2 units' }));
-    await waitFor(() => {
-      expect(served.domains.at(-1)?.searchParams.get('min_support')).toBe('2');
-    });
-    expect(served.pages.at(-1)?.searchParams.get('min_support')).toBe('2');
-    expect(served.changes.at(-1)?.searchParams.get('min_support')).toBe('2');
+    expect(screen.queryByRole('combobox', { name: 'Fewest units per row' })).toBeNull();
   });
 });
 
 describe('the scope line', () => {
-  it('says the shares are of N units in N answers', async () => {
+  it('says the counts are of N valid answers, over all platforms', async () => {
     serve();
     renderTab();
     await domainsTable();
     expect(
-      screen.getByText('Shares are of 48 citation units in 8 answers, counted over all engines.'),
+      screen.getByText(
+        'Counted in 8 valid answers, over all platforms. A domain or page counts once in an answer, however many pages the answer cites.',
+      ),
     ).toBeInTheDocument();
   });
 
@@ -409,11 +471,11 @@ describe('the banner, the lists and the answers in one tab', () => {
     renderTab();
     await domainsTable();
     expect(
-      await screen.findByText('Cited in 4 of 8 answers; last answer Nov 11, 09:05; 4 own pages cited'),
+      await screen.findByText('Cited in 4 of 8 answers; last answer Nov 11, 09:05; 4 pages of yours cited'),
     ).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Top domains' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Top pages' })).toBeInTheDocument();
-    expect(await screen.findByRole('table', { name: 'Own page cited in each answer' })).toBeInTheDocument();
+    expect(await screen.findByRole('table', { name: 'Your page cited in each answer' })).toBeInTheDocument();
   });
 
   it('puts the banner first in the tab, in the info tone when the own domain is cited', async () => {
@@ -442,7 +504,7 @@ describe('the banner, the lists and the answers in one tab', () => {
     expect(banner).toHaveTextContent('Cited in 0 of 8 answers; last answer Nov 11, 09:05');
     expect(banner.className).toContain('bg-surface-subtle');
     expect(
-      screen.getByText('Your domain is not cited in any of the 8 answers read. These sources are cited instead.'),
+      screen.getByText('Your site is not cited in any of the 8 answers read. These domains are cited instead.'),
     ).toBeInTheDocument();
     expect(screen.getByText('No page of yours is cited by this prompt.')).toBeInTheDocument();
   });
@@ -450,7 +512,7 @@ describe('the banner, the lists and the answers in one tab', () => {
   it('says there is nothing to count, with no banner, when the window has no answers', async () => {
     serve({ meta: metaOf({ answers: 0, answers_citing: 0, citation_units: 0, by_role: [] }) });
     const { container } = renderTab();
-    expect(await screen.findByText('No answers in this window, so there is nothing to count.')).toBeInTheDocument();
+    expect(await screen.findByText('No answers in this period, so there is nothing to count.')).toBeInTheDocument();
     expect(container.querySelector('[data-slot="banner"]')).toBeNull();
   });
 
@@ -471,7 +533,7 @@ describe('the banner, the lists and the answers in one tab', () => {
     expect(served.observations).toHaveLength(0);
     expect(served.citations).toHaveLength(0);
     await user.click(screen.getByRole('button', { name: 'Show' }));
-    await screen.findByRole('table', { name: 'Own page cited in each answer' });
+    await screen.findByRole('table', { name: 'Your page cited in each answer' });
     expect(served.observations[0]?.searchParams.get('filter[prompt_id]')).toBe('2000001');
     expect(served.citations[0]?.searchParams.get('filter[prompt_id]')).toBe('2000001');
     expect(served.citations[0]?.searchParams.get('from')).toBe(WINDOW.from);
@@ -481,7 +543,7 @@ describe('the banner, the lists and the answers in one tab', () => {
   it('passes include_branded to the citation list for a branded prompt, and no engine to it', async () => {
     const served = serve();
     const { user } = renderTab({ prompt: { is_branded: true } as unknown as Prompt });
-    await screen.findByRole('table', { name: 'Own page cited in each answer' });
+    await screen.findByRole('table', { name: 'Your page cited in each answer' });
     expect(served.citations[0]?.searchParams.get('include_branded')).toBe('true');
     await user.click(screen.getByRole('radio', { name: 'Gemini' }));
     await waitFor(() => {
@@ -493,14 +555,14 @@ describe('the banner, the lists and the answers in one tab', () => {
   it('shows the position of the own page in each answer', async () => {
     serve();
     renderTab();
-    expect(await screen.findByText('Source 2 of 2')).toBeInTheDocument();
+    expect(await screen.findByText('Citation 2 of 2')).toBeInTheDocument();
   });
 
   it('keeps the answers and says n/a for their citations when the citation list fails', async () => {
     serve({ failCitations: true });
     renderTab();
     expect(await screen.findByText('The citations of the answers could not be loaded.')).toBeInTheDocument();
-    const table = await screen.findByRole('table', { name: 'Own page cited in each answer' });
+    const table = await screen.findByRole('table', { name: 'Your page cited in each answer' });
     expect(within(table).getAllByText('n/a')).toHaveLength(2);
   });
 
@@ -518,7 +580,7 @@ describe('accessibility', () => {
     serve({ ownTotal: 4 });
     const { container } = renderTab();
     await domainsTable();
-    await screen.findByRole('table', { name: 'Own page cited in each answer' });
+    await screen.findByRole('table', { name: 'Your page cited in each answer' });
     expect(await axe(container)).toHaveNoViolations();
   });
 });

@@ -99,7 +99,8 @@ export function moversModel(
           {
             ...pair,
             change: pair.change,
-            interval: intervalOf(pair.change),
+            // Brand mentions are not independent trials of one rate: share of voice has no interval
+            interval: metric === 'share_of_voice' ? null : intervalOf(pair.change),
             prompts: pair.before === undefined ? null : commonPrompts(pair.node.members, pair.before.members),
           },
         ],

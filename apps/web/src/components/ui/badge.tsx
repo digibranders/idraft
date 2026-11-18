@@ -5,8 +5,11 @@ import type { ComponentProps, ReactElement } from 'react';
 import { Icon } from './icon';
 import { cn } from '@/lib/utils';
 
-/** Tones and variants of 14-badges-status.md section 1. Warning and info exist as a tint or as text, not as an outline. */
-const badgeVariants = cva('inline-flex shrink-0 items-center gap-1 type-micro whitespace-nowrap', {
+/**
+ * Tones and variants of 14-badges-status.md section 1. Warning and info exist as a tint or as text, not as an outline.
+ * Exported for a control that takes a badge's look, such as the Prompts chip of Cited pages (C 511).
+ */
+export const badgeVariants = cva('inline-flex shrink-0 items-center gap-1 type-micro whitespace-nowrap', {
   variants: {
     variant: {
       // The transparent border keeps the box visible when a forced-colors mode removes backgrounds

@@ -2,7 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 
 import { topicsInScope } from './topics-in-scope';
-import { topicDescendants, topicsBelow, topicsSpanned } from '@/features/prompts/prompt-model';
+import {
+  topicDescendants,
+  topicMembers,
+  topicRowKept,
+  topicsBelow,
+  type TopicDescendants,
+} from '@/features/prompts/prompt-model';
 import { promptRow, topicRow } from '@/features/prompts/topics-by-engine/cells-fixtures';
 import type { PromptsSummary } from '@/lib/api/types';
 import { EVENTUS_WORLD } from '@/mocks/ai-prompt-world';
@@ -35,6 +41,25 @@ const summaryOf = (
   prompts: PromptsSummary['prompts'] = [],
 ): Pick<PromptsSummary, 'topics' | 'prompts' | 'total'> => ({ topics, prompts });
 
+/**
+ * The reference count: the topic rows that hold a prompt of the summary once the tree rolls the prompts up, within
+ * `kept` when a topic filter is set. The Prompts strip counted this way until it counted groups (a topic with a
+ * prompt and none below it); the Overview's own count still reads topics.
+ */
+function topicsSpanned(
+  topics: PromptsSummary['topics'],
+  prompts: PromptsSummary['prompts'],
+  descendants: TopicDescendants,
+  kept: ReadonlySet<string> | null,
+): number {
+  return topics.filter((topic) => {
+    const termId = topic.term_id;
+    if (termId === null || (kept !== null && !topicRowKept(termId, kept))) return false;
+    const members = topicMembers(termId, prompts, descendants);
+    return members === null ? prompts.some((prompt) => prompt.topic_term_ids.includes(termId)) : members.length > 0;
+  }).length;
+}
+
 describe('topicsInScope', () => {
   const topics = [
     topicRow('seo', 'SEO', 3),
@@ -65,7 +90,7 @@ describe('topicsInScope', () => {
     expect(topicsInScope({ topics: [], prompts: [], total }, null)).toBeNull();
   });
 
-  it('equals the topics the Topics and Prompts strip counts on the Eventus Security world', async () => {
+  it('equals the topics that hold a prompt of the summary on the Eventus Security world', async () => {
     const summary = dataOf(await mockBrowser('viewer').call('GET', SUMMARY_URL), SUMMARY);
     const tree = EVENTUS_WORLD.terms.map((term) => ({
       termId: term.term_id,

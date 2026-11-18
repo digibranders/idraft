@@ -7,6 +7,7 @@ import type { TopicData } from './model-types';
 import { topicData } from './topic-card-test-kit';
 import messages from '../../../../../messages/en.json';
 import { ExportProvider, useExportBlocks, type ExportRead } from '../../export/export-registry';
+import { CardInfoProvider } from '@/components/app/chart/card-info';
 import { OverviewProvider, useOverview, type OverviewScope } from '@/features/ai-overview';
 import type { CardProps } from '@/features/layouts';
 import type { Role } from '@/lib/api/types';
@@ -91,13 +92,13 @@ describe('phaseOf', () => {
   });
 
   it('is empty when ready data is empty, also while it refetches', () => {
-    const empty = { title: 'No topics', reason: 'Group prompts.', action: 'Open' };
+    const empty = { title: 'No groups', reason: 'Group prompts.', action: 'Open' };
     expect(run({}, empty).phase).toEqual({ status: 'empty', empty });
     expect(run({ phase: 'refetching' }, empty).phase).toEqual({ status: 'empty', empty });
   });
 
   it('is empty when nothing is asked (idle) and loading when idle has no words of its own', () => {
-    const empty = { title: 'No engine', reason: 'None.', action: 'Open' };
+    const empty = { title: 'No platform', reason: 'None.', action: 'Open' };
     expect(run({ phase: 'idle' }, empty).phase).toEqual({ status: 'empty', empty });
     expect(run({ phase: 'idle' }).phase).toEqual({ status: 'loading' });
   });
@@ -129,12 +130,15 @@ interface Setup {
   world?: OverviewWorld;
   role?: Role;
   searchParams?: string;
+  /** Keeps the footnote behind the "i" button, as the redesigned Overview does. */
+  info?: boolean;
 }
 
-function render({ over = {}, props, world = 'fynix', role = 'admin', searchParams = '' }: Setup = {}) {
+function render({ over = {}, props, world = 'fynix', role = 'admin', searchParams = '', info = false }: Setup = {}) {
   function Card(): ReactElement {
     const { scope } = useOverview();
-    return <TopicCardFrame {...baseProps(topicData(scope, over))} {...props?.(scope)} />;
+    const frame = <TopicCardFrame {...baseProps(topicData(scope, over))} {...props?.(scope)} />;
+    return info ? <CardInfoProvider>{frame}</CardInfoProvider> : frame;
   }
   const updates: string[] = [];
   const view = renderWithProviders(
@@ -235,8 +239,8 @@ describe('TopicCardFrame', () => {
 
   it('idle with the engine filter shows Use all engines and it clears the engine key', async () => {
     const { user, updates } = render({ over: { phase: 'idle' }, searchParams: 'engine=chatgpt_web' });
-    expect(await screen.findByText('No engine is part of this view')).toBeInTheDocument();
-    await user.click(await screen.findByRole('button', { name: 'Use all engines' }));
+    expect(await screen.findByText('No platform is part of this view')).toBeInTheDocument();
+    await user.click(await screen.findByRole('button', { name: 'Use all platforms' }));
     await waitFor(() => {
       expect(updates.length).toBeGreaterThan(0);
     });
@@ -244,17 +248,17 @@ describe('TopicCardFrame', () => {
   });
 
   // A project with no engine on has no AI cards on its page, so the frame is rendered under the provider alone
-  it('idle with canManageEngines and no engine on shows Turn on engines as a link', async () => {
+  it('idle with canManageEngines and no engine on shows Turn on platforms as a link', async () => {
     renderWithProviders(bare('cleanstart', 'admin'));
-    const link = await screen.findByRole('link', { name: 'Turn on engines' });
+    const link = await screen.findByRole('link', { name: 'Turn on platforms' });
     expect(link).toHaveAttribute('href', expect.stringMatching(/\/settings\/engines$/));
   });
 
   it('idle without the permission says to ask a workspace admin', async () => {
     renderWithProviders(bare('cleanstart', 'viewer'));
     expect(await screen.findByText(/ask a workspace admin/i)).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Turn on engines' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Use all engines' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Turn on platforms' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Use all platforms' })).not.toBeInTheDocument();
   });
 
   it('stale shows the last figures read notice and keeps the body', async () => {
@@ -268,14 +272,14 @@ describe('TopicCardFrame', () => {
     render({ props: () => ({ partialEngines: ['ChatGPT', 'Gemini'] }) });
     await heading();
     expect(
-      screen.getByText('Partial data: ChatGPT and Gemini have no valid answer in this window'),
+      screen.getByText('Partial data: ChatGPT and Gemini have no valid answer in this period'),
     ).toBeInTheDocument();
   });
 
   it('partial names one engine in the singular', async () => {
     render({ props: () => ({ partialEngines: ['Gemini'] }) });
     await heading();
-    expect(screen.getByText('Partial data: Gemini has no valid answer in this window')).toBeInTheDocument();
+    expect(screen.getByText('Partial data: Gemini has no valid answer in this period')).toBeInTheDocument();
   });
 
   it('stale wins over partial: one notice is shown and it is the older figures', async () => {
@@ -294,12 +298,12 @@ describe('TopicCardFrame', () => {
     renderWithProviders(
       cardInOverview({ type: 'ai.topic_heatmap', Card: EmptyCard as ComponentType<CardProps>, width: 'two_thirds' }),
     );
-    const state = (await screen.findByRole('heading', { name: 'No topics yet' })).closest('[data-slot="empty-state"]');
+    const state = (await screen.findByRole('heading', { name: 'No groups yet' })).closest('[data-slot="empty-state"]');
     expect(state).not.toBeNull();
     const box = within(state as HTMLElement);
-    expect(box.getByText(/Group prompts into topics/)).toBeInTheDocument();
+    expect(box.getByText(/Group prompts into groups/)).toBeInTheDocument();
     expect([...box.queryAllByRole('link'), ...box.queryAllByRole('button')]).toHaveLength(1);
-    expect(box.getByRole('link', { name: 'Open Topics and prompts' })).toHaveAttribute(
+    expect(box.getByRole('link', { name: 'Open Prompts' })).toHaveAttribute(
       'href',
       expect.stringContaining('/ai/prompts'),
     );
@@ -321,7 +325,7 @@ describe('TopicCardFrame', () => {
         },
       },
     );
-    await user.click(await screen.findByRole('button', { name: 'Clear topic' }));
+    await user.click(await screen.findByRole('button', { name: 'Clear group' }));
     await waitFor(() => {
       expect(updates.length).toBeGreaterThan(0);
     });
@@ -340,7 +344,7 @@ describe('TopicCardFrame', () => {
     const title = await screen.findByRole('heading', { name: 'No valid answers in these 28 days on ChatGPT' });
     const box = within(title.closest('[data-slot="empty-state"]') as HTMLElement);
     expect([...box.queryAllByRole('link'), ...box.queryAllByRole('button')]).toHaveLength(1);
-    expect(box.getByRole('link', { name: 'Open Topics and prompts' })).toBeInTheDocument();
+    expect(box.getByRole('link', { name: 'Open Prompts' })).toBeInTheDocument();
   });
 
   it('the Table toggle shows the table form', async () => {
@@ -356,6 +360,17 @@ describe('TopicCardFrame', () => {
     render();
     const title = await heading();
     expect(within(title.closest('section') as HTMLElement).getByText('Footnote text')).toBeInTheDocument();
+  });
+
+  it('in info mode prints no footnote, and its "i" button opens it in a popover', async () => {
+    const { user } = render({ info: true });
+    const title = await heading();
+    const frame = title.closest('section') as HTMLElement;
+    // The text stays in the frame, hidden visually, for the PNG and for screen readers
+    expect(within(frame).getByText('Footnote text').closest('.sr-only')).not.toBeNull();
+    await user.click(within(frame).getByRole('button', { name: 'About Topic heat map' }));
+    const dialog = await screen.findByRole('dialog', { name: 'About Topic heat map' });
+    expect(within(dialog).getByText('Footnote text')).toBeInTheDocument();
   });
 
   it('puts the footer link under the body, and none without one', async () => {

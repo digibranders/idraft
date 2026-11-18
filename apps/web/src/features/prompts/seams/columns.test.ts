@@ -12,12 +12,17 @@ const translate = createTranslator({ locale: 'en', messages });
 
 const context: PromptColumnContext = {
   engines: [],
+  scope: [],
+  single: null,
+  facts: undefined,
   metric: 'mention',
   t: translate,
   locale: 'en',
   compare: true,
   comparedWindow: null,
   changeWords: { tip: () => '', label: () => '', gap: () => '' },
+  project: { workspaceId: 'workspace', projectId: 'project' },
+  timeZone: 'UTC',
 };
 
 const column = (id: string): DataTableColumn<PromptRow> =>

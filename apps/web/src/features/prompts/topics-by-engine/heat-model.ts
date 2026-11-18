@@ -1,6 +1,6 @@
 import { engineGapOf, engineValue, type EngineValue } from './engine-values';
 import type { TopicHead } from './topic-rows';
-import { NO_TOPIC, type RateMetric } from '@/features/prompts/prompt-model';
+import type { RateMetric } from '@/features/prompts/prompt-model';
 import { averageRate, sortByKeys, type AverageRate, type CellMetric } from '@/lib/rates/rate-model';
 
 /**
@@ -26,7 +26,10 @@ export function heatInput(head: TopicHead, metric: CellMetric, codes: readonly s
   return {
     head,
     values,
-    average: averageRate(codes.map((code) => head.engines.find((cell) => cell.engine_code === code)?.[metric])),
+    average: averageRate(
+      codes.map((code) => head.engines.find((cell) => cell.engine_code === code)?.[metric]),
+      metric,
+    ),
     gap: engineGapOf(values),
   };
 }
@@ -34,10 +37,7 @@ export function heatInput(head: TopicHead, metric: CellMetric, codes: readonly s
 /** The average column is drawn from 2 engines: with one it would repeat that column. */
 export const showsAverage = (engineCount: number): boolean => engineCount >= 2;
 
-/**
- * The rows in the order asked for, high to low, a row without the value last, a tie by name, the topics under a parent
- * in the same order among themselves. The prompts without a topic come after every topic, whatever the order.
- */
+/** The groups in the order asked for, high to low, a group without the value last, a tie by name. */
 export function heatOrder(
   heads: readonly TopicHead[],
   order: HeatOrder,
@@ -49,19 +49,16 @@ export function heatOrder(
     const input = heatInput(head, metric, codes);
     return order === 'avg_rate' ? input.average.value : input.gap;
   };
-  const sorted = (rows: readonly TopicHead[]): TopicHead[] =>
-    sortByKeys(
-      rows,
-      [{ id: order, desc: true }],
-      (head) => valueOf(head),
-      (head) => head.name,
-    ).map((head) => ({ ...head, children: sorted(head.children) }));
-  const topics = sorted(heads);
-  return [...topics.filter((head) => head.key !== NO_TOPIC), ...topics.filter((head) => head.key === NO_TOPIC)];
+  return sortByKeys(
+    heads,
+    [{ id: order, desc: true }],
+    (head) => valueOf(head),
+    (head) => head.name,
+  );
 }
 
 /** The name of the file the heat map's menu downloads, without its extension. */
-export const heatFileName = (metric: RateMetric): string => `topics-by-engine-heat-map-${metric}`;
+export const heatFileName = (metric: RateMetric): string => `groups-by-platform-heat-map-${metric}`;
 
 /** The order the `sort` of the address names: an id of the table's columns, or none, is the default (Prompts). */
 export function parseHeatOrder(sortText: string | null): HeatOrder {

@@ -90,8 +90,8 @@ function promptsAsViewer(): ReactElement {
   );
 }
 
-describe('Topics & Prompts Updated text', () => {
-  it('Topics and Prompts shows Updated as a link to the newest finished AI run', async () => {
+describe('Prompts Updated text', () => {
+  it('Prompts shows Updated as a link to the newest finished AI run', async () => {
     serveRuns(() => [runFixture({ run_id: RUN_ID, project_id: project.id })]);
     renderWithProviders(promptsAsViewer());
     // The toolbar's own text, now a link to the Runs page of the project with that run open

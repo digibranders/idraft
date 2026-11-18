@@ -5,6 +5,7 @@ import {
   needsListRead,
   overlayRuns,
   RUN_STATUS_KEYS,
+  runDurationMs,
   RUN_STATUSES,
   RUN_TRIGGERS,
   RUN_WORKLOADS,
@@ -90,6 +91,15 @@ describe('run model', () => {
     // A run the list does not hold is not added: that is a reason to read the list
     expect(overlayRuns(rows, [{ run_id: 'z', done: 9 }])).toEqual(rows);
     expect(overlayRuns(rows, [])).toBe(rows);
+  });
+
+  it("takes a run's duration from its start to its end, and has none for a run that has not ended or whose times do not make a span", () => {
+    const at = { created_at: '2026-09-10T08:00:00Z' };
+    expect(runDurationMs({ ...at, completed_at: '2026-09-10T08:03:12Z' })).toBe(192_000);
+    expect(runDurationMs({ ...at, completed_at: '2026-09-10T08:00:00Z' })).toBe(0);
+    expect(runDurationMs({ ...at, completed_at: null })).toBeNull();
+    expect(runDurationMs({ ...at, completed_at: '2026-09-10T07:59:59Z' })).toBeNull();
+    expect(runDurationMs({ ...at, completed_at: 'not a time' })).toBeNull();
   });
 
   it('says the list is out of date when a run it holds as open is gone from the open runs, or one it does not hold is there', () => {

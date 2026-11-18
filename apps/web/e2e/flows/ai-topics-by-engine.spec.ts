@@ -32,14 +32,14 @@ const anyDrawer = (page: Page): Locator =>
   page
     .getByRole('complementary')
     .or(page.getByRole('dialog'))
-    .filter({ has: page.getByRole('tablist', { name: 'Topic sections' }) });
+    .filter({ has: page.getByRole('tablist', { name: 'Group sections' }) });
 
-const topicsGrid = (page: Page): Locator => page.getByRole('treegrid', { name: 'Topics' });
+const topicsGrid = (page: Page): Locator => page.getByRole('treegrid', { name: 'Groups' });
 
 /** The drawer is in once its tabs and the engine rows of the panel are. */
 async function drawerReady(page: Page, name: string): Promise<Locator> {
   const drawer = drawerOf(page, name);
-  await expect(drawer.getByRole('tablist', { name: 'Topic sections' })).toBeVisible();
+  await expect(drawer.getByRole('tablist', { name: 'Group sections' })).toBeVisible();
   return drawer;
 }
 
@@ -74,28 +74,28 @@ async function setTheme(page: Page, theme: (typeof THEMES)[number]): Promise<voi
   );
 }
 
-test.describe('Topics by engine: the views', () => {
+test.describe('Groups by platform: the views', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await signIn(page, EDITOR);
   });
 
-  test('the view switch moves between the List, By engine and the Heat map, and the address keeps the choice', async ({
+  test('the view switch moves between the List, By platform and the Heat map, and the address keeps the choice', async ({
     page,
   }) => {
     await page.goto(TOPICS);
-    const views = page.getByRole('radiogroup', { name: 'Topic view' });
+    const views = page.getByRole('radiogroup', { name: 'Group view' });
     await expect(views.getByRole('radio', { name: 'List' })).toBeChecked();
     await expect(topicsGrid(page)).toBeVisible();
 
-    await views.getByRole('radio', { name: 'By engine' }).click();
+    await views.getByRole('radio', { name: 'By platform' }).click();
     await expect(page).toHaveURL(/[?&]view=engines(&|$)/);
     // "ChatGPT mention", not the List's "ChatGPT mentioned"
     await expect(topicsGrid(page).getByRole('columnheader', { name: /^ChatGPT mention\b/ })).toBeVisible();
 
     await views.getByRole('radio', { name: 'Heat map' }).click();
     await expect(page).toHaveURL(/[?&]view=heatmap(&|$)/);
-    await expect(page.getByRole('heading', { name: 'Mention by topic and engine' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Mention by group and platform' })).toBeVisible();
 
     await views.getByRole('radio', { name: 'List' }).click();
     await expect(page).not.toHaveURL(/view=/);
@@ -103,7 +103,7 @@ test.describe('Topics by engine: the views', () => {
     await expect(topicsGrid(page).getByRole('columnheader', { name: /^Citation rate/ })).toBeVisible();
   });
 
-  test('By engine has a column per engine shown, the metric changes the values, and an unknown value is never 0', async ({
+  test('By platform has a column per platform shown, with no metric choice, and an unknown value is never 0', async ({
     page,
   }) => {
     await page.goto(`${TOPICS}?view=engines`);
@@ -113,76 +113,72 @@ test.describe('Topics by engine: the views', () => {
     }
     // AI Mode is off for Fynix: no column for an engine that is not shown
     await expect(grid.getByRole('columnheader', { name: /^AI Mode/ })).toHaveCount(0);
-    await expect(grid.getByRole('columnheader', { name: /^Engine gap/ })).toBeVisible();
+    await expect(grid.getByRole('columnheader', { name: /^Platform gap/ })).toBeVisible();
     // At 1280 px every engine and the gap are on screen without scrolling the table sideways
     await expect(grid.getByRole('columnheader', { name: /^Gemini mention\b/ })).toBeInViewport();
-    await expect(grid.getByRole('columnheader', { name: /^Engine gap/ })).toBeInViewport();
+    await expect(grid.getByRole('columnheader', { name: /^Platform gap/ })).toBeInViewport();
     await expect(engineCells(grid, 'ChatGPT').first()).toBeVisible();
     expect(await bareZeroCells(grid)).toEqual([]);
 
-    const mention = await engineCells(grid, 'ChatGPT').allInnerTexts();
-    await chooseOption(page, page.getByRole('main'), 'Metric of the engine columns', 'Citation');
-    await expect(page).toHaveURL(/[?&]metric=citation(&|$)/);
-    await expect(grid.getByRole('columnheader', { name: /^ChatGPT citation/ })).toBeVisible();
-    await expect(grid.getByRole('columnheader', { name: /^ChatGPT mention\b/ })).toHaveCount(0);
-    await expect.poll(() => engineCells(grid, 'ChatGPT').allInnerTexts()).not.toEqual(mention);
-    expect(await bareZeroCells(grid)).toEqual([]);
+    // The metric of the platform columns is the Mention rate alone: the view has no metric choice any more
+    await expect(page.getByRole('combobox', { name: 'Metric of the platform columns' })).toHaveCount(0);
+    await expect(grid.getByRole('columnheader', { name: /^ChatGPT citation/ })).toHaveCount(0);
   });
 
-  test('one click on a By engine cell opens the prompts of that engine, and Back closes the drawer', async ({
+  test('one click on a By platform cell opens the prompts of that platform, and Back closes the drawer', async ({
     page,
   }) => {
     await page.goto(`${TOPICS}?view=engines`);
     await engineCells(topicsGrid(page), 'ChatGPT').first().click();
     const drawer = anyDrawer(page);
     await expect(drawer.getByRole('tab', { name: 'Prompts', selected: true })).toBeVisible();
-    await expect(drawer.getByText('Engine: ChatGPT')).toBeVisible();
+    await expect(drawer.getByText('Platform: ChatGPT')).toBeVisible();
     await expect(page).toHaveURL(new RegExp(`[?&]eng=${CHATGPT}(&|$)`));
 
     await page.goBack();
     await expect(page).not.toHaveURL(/eng=/);
     await expect(page).not.toHaveURL(/inspect=/);
-    await expect(drawer.getByText('Engine: ChatGPT')).toBeHidden();
+    await expect(drawer.getByText('Platform: ChatGPT')).toBeHidden();
     await expect(topicsGrid(page)).toBeVisible();
   });
 
-  test('one click on a heat map cell opens the prompts of that engine; a topic name opens its Overview', async ({
+  test('one click on a heat map cell opens the prompts of that platform; a group name opens its Overview', async ({
     page,
   }) => {
     await page.goto(`${TOPICS}?view=heatmap`);
-    await expect(page.getByRole('heading', { name: 'Mention by topic and engine' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Mention by group and platform' })).toBeVisible();
     await page.getByRole('link', { name: /^Paid Search on ChatGPT: / }).click();
     const drawer = await drawerReady(page, 'Paid Search');
     await expect(drawer.getByRole('tab', { name: 'Prompts', selected: true })).toBeVisible();
-    await expect(drawer.getByText('Engine: ChatGPT')).toBeVisible();
+    await expect(drawer.getByText('Platform: ChatGPT')).toBeVisible();
     await expect(page).toHaveURL(new RegExp(`[?&]eng=${CHATGPT}(&|$)`));
     await expect(page).toHaveURL(/[?&]view=heatmap(&|$)/);
 
     // The chip's own button shows every engine again
-    await drawer.getByRole('button', { name: 'Show every engine' }).click();
+    await drawer.getByRole('button', { name: 'Show every platform' }).click();
     await expect(page).not.toHaveURL(/eng=/);
-    await expect(drawer.getByText('Engine: ChatGPT')).toBeHidden();
+    await expect(drawer.getByText('Platform: ChatGPT')).toBeHidden();
   });
 });
 
-test.describe('The topic drawer', () => {
+test.describe('The group drawer', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await signIn(page, EDITOR);
   });
 
-  test('two clicks from a topic name reach the prompts behind one engine, and Close takes the engine away', async ({
+  test('two clicks from a group name reach the prompts behind one platform, and Close takes the platform away', async ({
     page,
   }) => {
     await page.goto(TOPICS);
-    await topicsGrid(page).getByRole('button', { name: 'Open the topic Paid Search' }).click();
+    await topicsGrid(page).getByRole('button', { name: 'Open the group Paid Search' }).click();
     const drawer = await drawerReady(page, 'Paid Search');
     await expect(drawer.getByRole('tab', { name: 'Overview', selected: true })).toBeVisible();
     // Click 2: an engine row of the By engine panel
     await drawer.getByRole('link', { name: /^ChatGPT: / }).click();
     await expect(page).toHaveURL(new RegExp(`[?&]eng=${CHATGPT}(&|$)`));
     await expect(drawer.getByRole('tab', { name: 'Prompts', selected: true })).toBeVisible();
-    await expect(drawer.getByText('Engine: ChatGPT')).toBeVisible();
+    await expect(drawer.getByText('Platform: ChatGPT')).toBeVisible();
     await expect(drawer.getByText(/^\d+ prompts? (has|have) answers on ChatGPT, ordered by Mention\.$/)).toBeVisible();
     await expect(page).toHaveURL(new RegExp(`[?&]eng=${CHATGPT}(&|$)`));
 
@@ -192,13 +188,13 @@ test.describe('The topic drawer', () => {
     await expect(page).not.toHaveURL(/inspect=/);
   });
 
-  test('shows the header badges, steps through the topics with J and K, and says where it is', async ({ page }) => {
+  test('shows the header badges, steps through the groups with J and K, and says where it is', async ({ page }) => {
     await page.goto(TOPICS);
-    await topicsGrid(page).getByRole('button', { name: 'Open the topic Content Marketing' }).click();
+    await topicsGrid(page).getByRole('button', { name: 'Open the group Blog Strategy' }).click();
     const drawer = anyDrawer(page);
-    await expect(drawer.getByRole('tablist', { name: 'Topic sections' })).toBeVisible();
+    await expect(drawer.getByRole('tablist', { name: 'Group sections' })).toBeVisible();
     await expect(drawer.getByText(/^\d+ prompts?$/).first()).toBeVisible();
-    await expect(drawer.getByRole('group', { name: /^Scope of the counts: 2 engines/ })).toBeVisible();
+    await expect(drawer.getByRole('group', { name: /^Scope of the counts: 2 platforms/ })).toBeVisible();
     await expect(drawer.getByRole('button', { name: 'Add prompt' })).toBeVisible();
     await expect(drawer.getByRole('button', { name: 'Run now' })).toBeVisible();
 
@@ -207,27 +203,29 @@ test.describe('The topic drawer', () => {
     await expect(position).toBeVisible();
     const [at, total] = (await position.innerText()).split(' of ').map(Number);
     if (at === undefined || total === undefined || at < 2 || at >= total) {
-      throw new Error('Content Marketing is not between two topics of the list');
+      throw new Error('Blog Strategy is not between two groups of the list');
     }
     const place = (index: number): string => `${String(index)} of ${String(total)}`;
     await page.keyboard.press('j');
     await expect(position).toHaveText(place(at + 1));
     await page.keyboard.press('k');
     await expect(position).toHaveText(place(at));
-    await drawer.getByRole('button', { name: 'Previous topic' }).click();
+    await drawer.getByRole('button', { name: 'Previous group' }).click();
     await expect(position).toHaveText(place(at - 1));
-    await drawer.getByRole('button', { name: 'Next topic' }).click();
+    await drawer.getByRole('button', { name: 'Next group' }).click();
     await expect(position).toHaveText(place(at));
   });
 
-  test('Add prompt opens the add dialog with the topic chosen, and Run now asks before it starts the prompts', async ({
+  test('Add prompt opens the add dialog with the group chosen, and Run now asks before it starts the prompts', async ({
     page,
   }) => {
     await page.goto(inspectUrl(PAID_SEARCH));
     const drawer = await drawerReady(page, 'Paid Search');
     await drawer.getByRole('button', { name: 'Add prompt' }).click();
     const dialog = page.getByRole('dialog', { name: 'Add prompts' });
-    await expect(dialog.getByRole('combobox', { name: /Topic/ })).toHaveText(/Paid Search/);
+    // Groups is a multiple choice now: the group the drawer opened it from is one chip
+    await expect(dialog.getByText('Paid Search', { exact: true })).toBeVisible();
+    await expect(dialog.getByRole('combobox', { name: /Group/ })).toHaveAccessibleDescription(/^1 chosen/);
     await dialog.getByRole('button', { name: 'Cancel' }).click();
     await expect(dialog).toBeHidden();
 
@@ -237,7 +235,7 @@ test.describe('The topic drawer', () => {
     await run.click();
     await page.getByRole('button', { name: 'Run 2 prompts' }).click();
     await expect(
-      page.getByRole('region', { name: 'Notifications' }).getByText('Run started: 2 prompts on 2 engines'),
+      page.getByRole('region', { name: 'Notifications' }).getByText('Run started: 2 prompts on 2 platforms'),
     ).toBeVisible();
   });
 
@@ -245,12 +243,13 @@ test.describe('The topic drawer', () => {
     await page.goto(inspectUrl(PAID_SEARCH));
     const drawer = await drawerReady(page, 'Paid Search');
     await expect(drawer.getByRole('tab')).toHaveCount(4);
-    for (const name of ['Overview', 'Prompts', 'Competitors', 'Related']) {
+    // The Prompts tab carries the number of prompts of the group: "Prompts (2)"
+    for (const name of ['Overview', 'Prompts (2)', 'Competitors', 'Related']) {
       await expect(drawer.getByRole('tab', { name, exact: true })).toBeVisible();
     }
   });
 
-  test('the Overview has the engine panel with its counts, the comparison, the trend as a table, and In search', async ({
+  test('the Overview has the platform panel with its counts, the comparison, the trend as a table, and In search', async ({
     page,
   }) => {
     await page.goto(inspectUrl(PAID_SEARCH));
@@ -268,19 +267,19 @@ test.describe('The topic drawer', () => {
     ).toBeVisible();
     await expect(
       drawer.getByText(
-        /^(Best on .* a gap of [\d.]+ pts\.|Every engine with a rate is at |Fewer than 2 engines have a rate|No engine names the brand|Left out for too few answers)/,
+        /^(Best on .* a gap of [\d.]+ pts\.|Every platform with a rate is at |Fewer than 2 platforms have a rate|No platform mentions the brand|Left out for too few answers)/,
       ),
     ).toBeVisible();
     await expect(drawer.getByText('Each prompt counts once, whatever the number of its answers.')).toBeVisible();
 
     // The metric of the panel is its own control: it names the panel, and moves the Prompts of an engine too
-    await chooseOption(page, drawer, 'Metric of the engine panel', 'Citation');
-    await expect(drawer.getByRole('combobox', { name: 'Metric of the engine panel' })).toHaveText(/Citation/);
+    await chooseOption(page, drawer, 'Metric of the platform table', 'Citation');
+    await expect(drawer.getByRole('combobox', { name: 'Metric of the platform table' })).toHaveText(/Citation/);
 
-    const trend = drawer.getByRole('group', { name: 'Trend by engine view' });
+    const trend = drawer.getByRole('group', { name: 'Trend by platform view' });
     await trend.scrollIntoViewIfNeeded();
     await trend.getByRole('button', { name: 'Table' }).click();
-    const table = drawer.getByRole('region', { name: 'Table of Trend by engine' });
+    const table = drawer.getByRole('region', { name: 'Table of Trend by platform' });
     await expect(table.getByRole('columnheader', { name: 'Week' })).toBeVisible();
     await expect(table.getByRole('row').nth(1)).toBeVisible();
 
@@ -290,29 +289,26 @@ test.describe('The topic drawer', () => {
     await expect(inSearch).toBeVisible();
   });
 
-  test('the Competitors tab reads each entity by engine and the Related tab lists the topics beside this one', async ({
+  test('the Competitors tab reads each entity by platform and the Related tab lists the groups beside this one', async ({
     page,
   }) => {
     await page.goto(inspectUrl(TECHNICAL_SEO));
     const drawer = await drawerReady(page, 'Technical SEO');
-    // A topic under another says what is above it
-    await expect(drawer.getByText('SEO', { exact: true }).first()).toBeVisible();
-
     await drawer.getByRole('tab', { name: 'Competitors' }).click();
-    const competitors = drawer.getByRole('table', { name: 'Competitors by engine' });
-    await expect(competitors.getByRole('columnheader', { name: 'Entity' })).toBeVisible();
+    const competitors = drawer.getByRole('table', { name: 'Competitors by platform' });
+    await expect(competitors.getByRole('columnheader', { name: 'Brand' })).toBeVisible();
     await expect(competitors.getByRole('row').nth(1)).toContainText('Fynix');
-    await expect(competitors.getByText('own brand')).toBeVisible();
+    await expect(competitors.getByText('your brand')).toBeVisible();
 
     await drawer.getByRole('tab', { name: 'Related' }).click();
-    const related = drawer.getByRole('table', { name: 'Topics beside this one' });
-    await expect(related.getByRole('columnheader', { name: 'Mention' })).toBeVisible();
-    await related.getByRole('button', { name: 'Open the topic Local SEO' }).click();
+    const related = drawer.getByRole('table', { name: 'Related groups' });
+    await expect(related.getByRole('columnheader', { name: 'Mention', exact: true })).toBeVisible();
+    await related.getByRole('button', { name: 'Open the group Local SEO' }).click();
     const sibling = await drawerReady(page, 'Local SEO');
     await expect(sibling.getByRole('tab', { name: 'Related', selected: true })).toBeVisible();
   });
 
-  test('the Prompts tab of a topic lists the prompts of the topics under it', async ({ page }) => {
+  test('the Prompts tab of a group lists the prompts of the groups under it', async ({ page }) => {
     await page.goto(inspectUrl(SEO, { itab: 'prompts' }));
     const drawer = await drawerReady(page, 'SEO');
     await expect(drawer.getByRole('tab', { name: 'Prompts', selected: true })).toBeVisible();
@@ -322,23 +318,23 @@ test.describe('The topic drawer', () => {
   });
 });
 
-test.describe('Topics by engine on a phone', () => {
-  test('the list rows say the best engine and the engine count, and a row opens the drawer as a sheet', async ({
+test.describe('Groups by platform on a phone', () => {
+  test('the list rows say the best platform and the platform count, and a row opens the drawer as a sheet', async ({
     page,
   }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await signIn(page, EDITOR);
     await page.goto(`${TOPICS}?view=engines`);
-    const topics = page.getByRole('list', { name: /^Topics, \d+ results/ });
+    const topics = page.getByRole('list', { name: /^Groups, \d+ results/ });
     await expect(topics).toBeVisible();
     // Under 768 px the By engine view is the list: the view switch offers List and Heat map only
-    const views = page.getByRole('radiogroup', { name: 'Topic view' });
+    const views = page.getByRole('radiogroup', { name: 'Group view' });
     await expect(views.getByRole('radio')).toHaveCount(2);
-    await expect(topics.getByText(/^Best on .*, \d+ engines?$/).first()).toBeVisible();
+    await expect(topics.getByText(/^Best on .*, \d+ platforms?$/).first()).toBeVisible();
 
     await topics.getByRole('button', { name: /Paid Search/ }).click();
     const sheet = page.getByRole('dialog', { name: 'Paid Search' });
-    await expect(sheet.getByRole('tablist', { name: 'Topic sections' })).toBeVisible();
+    await expect(sheet.getByRole('tablist', { name: 'Group sections' })).toBeVisible();
     await expect(page.getByRole('complementary', { name: 'Paid Search' })).toHaveCount(0);
     // The panel stacks: an engine row is a full width link, and the sheet does not scroll sideways
     const row = sheet.getByRole('link', { name: /^ChatGPT: / });
@@ -362,7 +358,7 @@ test.describe('Topics by engine on a phone', () => {
     // The Competitors table fits the sheet: the second engine is on screen without scrolling the names away
     await sheet.getByRole('tab', { name: 'Competitors' }).click();
     await expect(sheet.getByRole('columnheader', { name: 'Gemini' })).toBeInViewport();
-    await sheet.getByRole('button', { name: 'Back to Topics & Prompts' }).click();
+    await sheet.getByRole('button', { name: 'Back to Prompts' }).click();
     await expect(sheet).toBeHidden();
   });
 });
@@ -370,7 +366,7 @@ test.describe('Topics by engine on a phone', () => {
 for (const theme of THEMES) {
   for (const width of WIDTHS) {
     for (const density of DENSITIES) {
-      test(`the Topics views and the drawer are accessible and fit at ${String(width)} px in the ${theme} theme, ${density} density`, async ({
+      test(`the Groups views and the drawer are accessible and fit at ${String(width)} px in the ${theme} theme, ${density} density`, async ({
         page,
       }) => {
         test.setTimeout(180_000);
@@ -398,7 +394,7 @@ for (const theme of THEMES) {
         };
 
         await page.goto(withDensity(`${TOPICS}?view=engines`));
-        if (width < 768) await expect(page.getByRole('list', { name: /^Topics, \d+ results/ })).toBeVisible();
+        if (width < 768) await expect(page.getByRole('list', { name: /^Groups, \d+ results/ })).toBeVisible();
         else await expect(engineCells(topicsGrid(page), 'ChatGPT').first()).toBeVisible();
         await check();
 
@@ -410,13 +406,13 @@ for (const theme of THEMES) {
           drawer.getByRole('link', { name: /^ChatGPT: / }),
         );
         await checkDrawer(inspectUrl(PAID_SEARCH, { itab: 'prompts', eng: CHATGPT }), 'Paid Search', (drawer) =>
-          drawer.getByText('Engine: ChatGPT'),
+          drawer.getByText('Platform: ChatGPT'),
         );
         await checkDrawer(inspectUrl(TECHNICAL_SEO, { itab: 'competitors' }), 'Technical SEO', (drawer) =>
-          drawer.getByRole('table', { name: 'Competitors by engine' }),
+          drawer.getByRole('table', { name: 'Competitors by platform' }),
         );
         await checkDrawer(inspectUrl(TECHNICAL_SEO, { itab: 'related' }), 'Technical SEO', (drawer) =>
-          drawer.getByRole('table', { name: 'Topics beside this one' }),
+          drawer.getByRole('table', { name: 'Related groups' }),
         );
       });
     }

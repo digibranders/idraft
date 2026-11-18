@@ -23,6 +23,15 @@ export function differenceInterval(current: Counts, previous: Counts, z: number 
   };
 }
 
+/**
+ * Whether two rates over different answers differ detectably: the same unpaired test as a change between periods
+ * (`isDetectableChange`), run on two samples side by side (you against a competitor, a group against all groups).
+ * Null when either side has no counts, or too few observations for a rate.
+ */
+export function isDetectableDifference(a: Counts | null | undefined, b: Counts | null | undefined): boolean | null {
+  return a == null || b == null ? null : isDetectableChange(a, b);
+}
+
 /** True or false when both periods have a rate to show; null when either is insufficient. */
 export function isDetectableChange(current: Counts, previous: Counts, z: number = Z_95): boolean | null {
   if (rateOf(current) === null || rateOf(previous) === null) return null;

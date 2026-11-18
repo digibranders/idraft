@@ -1,4 +1,4 @@
-import { act, screen, within } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { engine, head, projectEngine, weighted } from './cells-fixtures';
@@ -21,15 +21,11 @@ const HEADS: TopicHead[] = [
       engine('chatgpt_web', { mentioned: weighted(3, 8, 2), share_of_voice: weighted(5, 20, 2) }),
       engine('gemini_web', { mentioned: weighted(6, 8, 2), share_of_voice: weighted(2, 5, 2) }),
     ],
-    children: [
-      head('tech', 'Technical SEO', {
-        path: 'SEO / Technical SEO',
-        parent: 'SEO',
-        promptCount: 2,
-        // 3 answers on ChatGPT is too few for a rate, and Gemini has none
-        engines: [engine('chatgpt_web', { mentioned: weighted(2, 3, 2) })],
-      }),
-    ],
+  }),
+  head('tech', 'Technical SEO', {
+    promptCount: 2,
+    // 3 answers on ChatGPT is too few for a rate, and Gemini has none
+    engines: [engine('chatgpt_web', { mentioned: weighted(2, 3, 2) })],
   }),
   head('ads', 'Paid Search', {
     promptCount: 9,
@@ -48,8 +44,8 @@ const props = (over: Partial<TopicHeatmapProps> = {}): TopicHeatmapProps => ({
   onOrderChange: () => undefined,
   density: 'default',
   status: 'ready',
-  searchIgnored: false,
-  toolbarStart: <span>metric control</span>,
+  search: '',
+  onSearchChange: () => undefined,
   toolbarEnd: <span>view control</span>,
   errorState: <p>The topics failed</p>,
   emptyState: <p>No prompts yet</p>,
@@ -59,31 +55,35 @@ const props = (over: Partial<TopicHeatmapProps> = {}): TopicHeatmapProps => ({
 
 const href = (link: HTMLElement): URL => new URL(link.getAttribute('href') ?? '', 'https://app.test');
 
-describe('TopicHeatmap: the topics by engine as a heat map (CH-04)', () => {
+describe('TopicHeatmap: the groups by platform as a heat map (CH-04)', () => {
   it('prints every cell value with the counts in its tip', async () => {
     renderWithProviders(<TopicHeatmap {...props()} />);
-    const grid = await screen.findByRole('treegrid', { name: 'Mention by topic and engine' });
-    const cell = within(grid).getByRole('link', { name: /^SEO on ChatGPT: 37\.5%, 3 of 8 answers/ });
+    const grid = await screen.findByRole('grid', { name: 'Mention by group and platform' });
+    // The percent is the mean of the prompts' rates: it says so, and the pooled answers carry their own percent
+    const cell = within(grid).getByRole('link', {
+      name: /^SEO on ChatGPT: 37\.5%, average of 2 prompts, each counting once\. All answers pooled: 37\.5%, 3 of 8 answers/,
+    });
     expect(cell).toHaveTextContent('38%');
-    // The prompts it weights are in the words too
-    expect(cell.getAttribute('aria-label')).toContain('2 prompts');
-    expect(within(grid).getByRole('link', { name: /^SEO on Gemini: 75\.0%, 6 of 8 answers/ })).toHaveTextContent('75%');
+    expect(
+      within(grid).getByRole('link', {
+        name: /^SEO on Gemini: 75\.0%, average of 2 prompts, each counting once\. All answers pooled: 75\.0%, 6 of 8 answers/,
+      }),
+    ).toHaveTextContent('75%');
     // The Prompts column
     expect(within(grid).getByRole('columnheader', { name: 'Prompts' })).toBeInTheDocument();
   });
 
-  it('says answers and not a count of hits for share of voice', async () => {
+  it('says x of y brand mentions for share of voice, with no prompt weighted percent beside pooled counts', async () => {
     renderWithProviders(<TopicHeatmap {...props({ metric: 'sov' })} />);
-    const grid = await screen.findByRole('treegrid', { name: 'Share of voice by topic and engine' });
+    const grid = await screen.findByRole('grid', { name: 'Share of voice by group and platform' });
     expect(
-      within(grid).getByRole('link', { name: /^SEO on ChatGPT: 25\.0%, 20 answers, 2 prompts/ }),
+      within(grid).getByRole('link', { name: /^SEO on ChatGPT: 25\.0%, \d+ of 20 brand mentions/ }),
     ).toHaveTextContent('25%');
   });
 
   it('hatches a cell under 4 answers with its answers and says n/a with none', async () => {
-    const { user } = renderWithProviders(<TopicHeatmap {...props()} />);
-    await user.click(await screen.findByRole('button', { name: 'Expand SEO' }));
-    const grid = screen.getByRole('treegrid');
+    renderWithProviders(<TopicHeatmap {...props()} />);
+    const grid = await screen.findByRole('grid');
     const thin = within(grid).getByRole('link', { name: /^Technical SEO on ChatGPT/ });
     expect(thin).toHaveTextContent('3 ans');
     expect(thin.getAttribute('aria-label')).not.toContain('%');
@@ -93,24 +93,24 @@ describe('TopicHeatmap: the topics by engine as a heat map (CH-04)', () => {
     expect(within(none).queryByRole('link')).toBeNull();
   });
 
-  it('shows the average column only with 2 or more engines and names the engines in its tip', async () => {
+  it('shows the average column only with 2 or more platforms and names the platforms in its tip', async () => {
     const { unmount } = renderWithProviders(<TopicHeatmap {...props()} />);
-    const grid = await screen.findByRole('treegrid');
-    expect(within(grid).getByRole('columnheader', { name: 'avg of 2' })).toBeInTheDocument();
-    const average = within(grid).getByRole('gridcell', { name: /^SEO, avg of 2: 56%/ });
+    const grid = await screen.findByRole('grid');
+    expect(within(grid).getByRole('columnheader', { name: 'Average of 2' })).toBeInTheDocument();
+    const average = within(grid).getByRole('gridcell', { name: /^SEO, average of 2: 56%/ });
     expect(average).toHaveTextContent('56%');
     expect(average.getAttribute('aria-label')).toContain(
-      'Equal weight average of ChatGPT and Gemini, each engine counting once.',
+      'Equal weight average of ChatGPT and Gemini, each platform and each prompt counting once.',
     );
     unmount();
     const [chatgpt] = BOTH;
-    if (chatgpt === undefined) throw new Error('No engine');
+    if (chatgpt === undefined) throw new Error('No platform');
     renderWithProviders(<TopicHeatmap {...props({ engines: [chatgpt] })} />);
-    const single = await screen.findByRole('treegrid');
-    expect(within(single).queryByRole('columnheader', { name: /^avg of/ })).toBeNull();
+    const single = await screen.findByRole('grid');
+    expect(within(single).queryByRole('columnheader', { name: /^Average of/ })).toBeNull();
   });
 
-  it('never says avg of 0: a row with one engine says one engine, a row with none says there is no average', async () => {
+  it('never says average of 0: a row with one platform says one platform, a row with none says there is no average', async () => {
     const heads = [
       head('lone', 'Lone', { engines: [engine('chatgpt_web', { mentioned: weighted(3, 8, 2) })] }),
       head('thin', 'Thin', { engines: [engine('chatgpt_web', { mentioned: weighted(2, 3, 2) })] }),
@@ -120,21 +120,21 @@ describe('TopicHeatmap: the topics by engine as a heat map (CH-04)', () => {
     // No row has topics under it, so the grid is a plain grid
     const grid = await screen.findByRole('grid');
     const lone = within(grid).getByRole('gridcell', {
-      name: /^Lone, 1 engine: 38%, ChatGPT 3 of 8 answers\. ChatGPT only/,
+      name: /^Lone, 1 platform: 38%, ChatGPT 3 of 8 answers\. ChatGPT only/,
     });
     expect(lone).toHaveTextContent('38%');
     expect(
-      within(grid).getByRole('gridcell', { name: /^Thin, average of the engines: 3 answers, fewer than 4/ }),
+      within(grid).getByRole('gridcell', { name: /^Thin, average of the platforms: 3 answers, fewer than 4/ }),
     ).toHaveTextContent('3 ans');
     expect(
-      within(grid).getByRole('gridcell', { name: /^Empty, average of the engines: No answers/ }),
+      within(grid).getByRole('gridcell', { name: /^Empty, average of the platforms: No answers/ }),
     ).toHaveTextContent('n/a');
-    expect(within(grid).queryByLabelText(/avg of 0/)).toBeNull();
+    expect(within(grid).queryByLabelText(/average of 0/)).toBeNull();
   });
 
-  it('a cell links to the drawer on Prompts with that engine and keeps the filters', async () => {
+  it('a cell links to the drawer on Prompts with that platform and keeps the filters', async () => {
     renderWithProviders(<TopicHeatmap {...props()} />);
-    const grid = await screen.findByRole('treegrid');
+    const grid = await screen.findByRole('grid');
     const url = href(within(grid).getByRole('link', { name: /^Paid Search on Gemini/ }));
     expect(url.pathname).toBe('/digibranders/fynix/ai/prompts');
     expect(url.searchParams.getAll('inspect')).toEqual(['topic:ads']);
@@ -147,7 +147,7 @@ describe('TopicHeatmap: the topics by engine as a heat map (CH-04)', () => {
 
   it('a row opens the drawer on Overview', async () => {
     renderWithProviders(<TopicHeatmap {...props()} />);
-    const grid = await screen.findByRole('treegrid');
+    const grid = await screen.findByRole('grid');
     const url = href(within(within(grid).getByRole('rowheader', { name: 'Paid Search' })).getByRole('link'));
     expect(url.searchParams.getAll('inspect')).toEqual(['topic:ads']);
     expect(url.searchParams.has('itab')).toBe(false);
@@ -155,35 +155,28 @@ describe('TopicHeatmap: the topics by engine as a heat map (CH-04)', () => {
     expect(url.searchParams.get('view')).toBe('heatmap');
   });
 
-  it('opens children in place with the chevron and the keyboard', async () => {
-    const { user } = renderWithProviders(<TopicHeatmap {...props()} />);
-    const grid = await screen.findByRole('treegrid');
-    expect(within(grid).queryByRole('rowheader', { name: 'Technical SEO' })).toBeNull();
-    await user.click(within(grid).getByRole('button', { name: 'Expand SEO' }));
+  it('has one flat level of groups: no chevron and no parent row', async () => {
+    renderWithProviders(<TopicHeatmap {...props()} />);
+    const grid = await screen.findByRole('grid');
     expect(within(grid).getByRole('rowheader', { name: 'Technical SEO' })).toBeInTheDocument();
-    await user.click(within(grid).getByRole('button', { name: 'Collapse SEO' }));
-    expect(within(grid).queryByRole('rowheader', { name: 'Technical SEO' })).toBeNull();
-    const header = within(grid).getByRole('rowheader', { name: 'SEO' });
-    act(() => header.focus());
-    await user.keyboard('{ArrowRight}');
-    expect(within(grid).getByRole('rowheader', { name: 'Technical SEO' })).toBeInTheDocument();
+    expect(within(grid).queryByRole('button', { name: /^Expand/ })).toBeNull();
   });
 
   it('orders the rows by the order it is given and offers the three orders', async () => {
     const onOrderChange = vi.fn();
     const { user } = renderWithProviders(<TopicHeatmap {...props({ onOrderChange })} />);
-    const grid = await screen.findByRole('treegrid');
-    // Paid Search holds 9 prompts and SEO 6
+    const grid = await screen.findByRole('grid');
+    // Paid Search holds 9 prompts, SEO 6 and Technical SEO 2
     expect(
       within(grid)
         .getAllByRole('rowheader')
         .map((header) => header.getAttribute('aria-label')),
-    ).toEqual(['Paid Search', 'SEO']);
+    ).toEqual(['Paid Search', 'SEO', 'Technical SEO']);
     await user.click(screen.getByRole('combobox', { name: 'Order rows by' }));
     expect((await screen.findAllByRole('option')).map((option) => option.textContent)).toEqual([
       'Prompts',
       'Average rate',
-      'Engine gap',
+      'Platform gap',
     ]);
     await user.click(screen.getByRole('option', { name: 'Average rate' }));
     expect(onOrderChange).toHaveBeenCalledWith('avg_rate');
@@ -191,58 +184,59 @@ describe('TopicHeatmap: the topics by engine as a heat map (CH-04)', () => {
 
   it('draws the rows in the order of the average rate when it is asked for', async () => {
     renderWithProviders(<TopicHeatmap {...props({ order: 'avg_rate' })} />);
-    const grid = await screen.findByRole('treegrid');
+    const grid = await screen.findByRole('grid');
     // SEO averages 56% and Paid Search 25%, the average of 2 engines with a rate each, whatever their prompts
     expect(
       within(grid)
         .getAllByRole('rowheader')
         .map((header) => header.getAttribute('aria-label')),
-    ).toEqual(['SEO', 'Paid Search']);
+    ).toEqual(['SEO', 'Paid Search', 'Technical SEO']);
   });
 
-  it('reports the order of its rows, a parent and then the topics below it, for the drawer to step through', async () => {
+  it('reports the order of its rows for the drawer to step through', async () => {
     const onTopicOrderChange = vi.fn();
     renderWithProviders(<TopicHeatmap {...props({ onTopicOrderChange })} />);
-    await screen.findByRole('treegrid');
+    await screen.findByRole('grid');
     expect(onTopicOrderChange).toHaveBeenLastCalledWith(['ads', 'seo', 'tech']);
   });
 
   it('keeps the controls of the page in the row above the frame', async () => {
     renderWithProviders(<TopicHeatmap {...props()} />);
-    await screen.findByRole('treegrid');
-    expect(screen.getByText('metric control')).toBeInTheDocument();
+    await screen.findByRole('grid');
     expect(screen.getByText('view control')).toBeInTheDocument();
+  });
+
+  it('has the table search in its toolbar and writes what is typed (the groups are narrowed by the caller)', async () => {
+    const onSearchChange = vi.fn();
+    const { user } = renderWithProviders(<TopicHeatmap {...props({ onSearchChange })} />);
+    await user.type(await screen.findByRole('searchbox'), 'p');
+    expect(onSearchChange).toHaveBeenLastCalledWith('p');
   });
 
   it('says the same in words in the Table form', async () => {
     const { user } = renderWithProviders(<TopicHeatmap {...props()} />);
-    await screen.findByRole('treegrid');
+    await screen.findByRole('grid');
     await user.click(screen.getByRole('button', { name: 'Table' }));
-    expect(screen.getAllByText(/^SEO on ChatGPT: 37\.5%, 3 of 8 answers/).length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText(/^SEO on ChatGPT: 37\.5%, average of 2 prompts, each counting once\. All answers pooled/)
+        .length,
+    ).toBeGreaterThan(0);
   });
 
-  it('says search does not narrow it when a search is set', async () => {
-    const { rerender } = renderWithProviders(<TopicHeatmap {...props()} />);
-    await screen.findByRole('treegrid');
-    expect(screen.queryByText('Search does not narrow the heat map.')).toBeNull();
-    rerender(<TopicHeatmap {...props({ searchIgnored: true })} />);
-    expect(screen.getByText('Search does not narrow the heat map.')).toBeInTheDocument();
-  });
-
-  it('says topic rows overlap in the footnote', async () => {
+  it('says group rows overlap in the footnote', async () => {
     renderWithProviders(<TopicHeatmap {...props()} />);
-    await screen.findByRole('treegrid');
-    expect(screen.getByText(/Topic rows overlap: a prompt in two topics counts in both\./)).toBeInTheDocument();
+    await screen.findByRole('grid');
+    expect(screen.getByText(/Group rows overlap: a prompt in two groups counts in both\./)).toBeInTheDocument();
     expect(screen.getByText(/fewer than 4 answers shows its answers, not a rate/)).toBeInTheDocument();
   });
 
   it('shows a skeleton while it loads, and keeps the grid with a refetch bar while it refetches', async () => {
     const loading = renderWithProviders(<TopicHeatmap {...props({ status: 'loading', heads: [] })} />);
     expect(loading.container.querySelector('[aria-busy="true"]')).not.toBeNull();
-    expect(screen.queryByRole('treegrid')).toBeNull();
+    expect(screen.queryByRole('grid')).toBeNull();
     loading.unmount();
     const refetching = renderWithProviders(<TopicHeatmap {...props({ status: 'refetching' })} />);
-    expect(await screen.findByRole('treegrid')).toBeInTheDocument();
+    expect(await screen.findByRole('grid')).toBeInTheDocument();
     expect(refetching.container.querySelector('[data-slot="chart-refetch-bar"]')).not.toBeNull();
   });
 

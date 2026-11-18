@@ -13,6 +13,12 @@ export interface EngineLogoProps {
   hidden?: boolean | undefined;
   /** Ends the name in an ellipsis when the row is too narrow. */
   truncate?: boolean | undefined;
+  /**
+   * `visually-hidden`: the mark alone on screen and the name for screen readers, where a column of marks would repeat
+   * the names (Citations Platforms and Lost on, C 528 and 658); the name is still in the cell's tooltip. A mark is never
+   * replaced by nothing: without one the name stays visible. Default `visible`.
+   */
+  nameDisplay?: 'visible' | 'visually-hidden' | undefined;
 }
 
 /**
@@ -20,12 +26,37 @@ export interface EngineLogoProps {
  * (`alt=""`) because the name beside it is the label, and no export of this folder renders a mark without it.
  * An engine without a mark, or `hidden`, shows the name alone.
  */
-export function EngineLogo({ engine, name, hidden = false, truncate = false }: EngineLogoProps): ReactElement {
-  const mark = hidden ? null : engineMark(engine);
-  const label = truncate ? <Truncate text={name} /> : name;
-  if (mark === null) return <span className="inline-flex min-w-0 items-center">{label}</span>;
+export function EngineLogo({
+  engine,
+  name,
+  hidden = false,
+  truncate = false,
+  nameDisplay = 'visible',
+}: EngineLogoProps): ReactElement {
+  const text = truncate ? <Truncate text={name} /> : name;
+  const mark = hidden ? null : <EngineMark engine={engine} />;
+  if (mark === null || engineMark(engine) === null)
+    return <span className="inline-flex min-w-0 items-center">{text}</span>;
+  const hiddenName = nameDisplay === 'visually-hidden';
+  const label = hiddenName ? <span className="sr-only">{name}</span> : text;
   return (
-    <span className="inline-flex min-w-0 items-center gap-2">
+    // `relative` contains the absolutely placed `sr-only` name, so it cannot reach out to a distant scroll container
+    <span className={cn('inline-flex min-w-0 items-center gap-2', hiddenName && 'relative')}>
+      {mark}
+      {label}
+    </span>
+  );
+}
+
+/**
+ * The vendor's 16 px mark alone, for a place that names the engine by other means (an option of a select, whose label
+ * is the name). Decorative (`alt=""`); an engine without a mark draws nothing.
+ */
+export function EngineMark({ engine }: { engine: string }): ReactElement | null {
+  const mark = engineMark(engine);
+  if (mark === null) return null;
+  return (
+    <>
       {/* A fixed box, so a row never shifts while the mark loads. A 16 px static SVG has nothing for next/image to optimize */}
       {/* eslint-disable-next-line @next/next/no-img-element -- see above */}
       <img
@@ -35,7 +66,6 @@ export function EngineLogo({ engine, name, hidden = false, truncate = false }: E
         height={16}
         className={cn('size-icon shrink-0', mark.followsText && 'dark:invert')}
       />
-      {label}
-    </span>
+    </>
   );
 }

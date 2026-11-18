@@ -40,6 +40,40 @@ describe('EmptyState', () => {
     expect(container.querySelector('svg')).toBeNull();
     expect(container.firstElementChild).toHaveClass('text-left');
   });
+
+  it('draws the table empty state: a title, one reason in meta type at reading width, one button (WP-77)', async () => {
+    const { container } = renderWithProviders(
+      <EmptyState
+        variant="table"
+        icon={Tag}
+        headingLevel={2}
+        title="No pages match"
+        reason="No page contains “x”."
+        primaryAction={<button type="button">Clear search</button>}
+      />,
+    );
+    expect(screen.getByRole('heading', { level: 2, name: 'No pages match' })).toBeVisible();
+    expect(screen.getByText('No page contains “x”.')).toHaveClass('max-w-reading', 'type-meta');
+    expect(container.querySelector('svg')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Clear search' })).toBeVisible();
+    expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('draws the card empty state centred, title in body strong (WP-77, aiov-parts.js emptyBody)', () => {
+    renderWithProviders(
+      <EmptyState
+        variant="card"
+        headingLevel={3}
+        title="Cited alone"
+        reason="No other domain is cited in the answers that cite this page."
+      />,
+    );
+    expect(screen.getByRole('heading', { level: 3, name: 'Cited alone' })).toHaveClass('type-body-strong');
+    expect(screen.getByText('No other domain is cited in the answers that cite this page.')).toHaveClass(
+      'type-meta',
+      'max-w-reading',
+    );
+  });
 });
 
 describe('InlineError', () => {

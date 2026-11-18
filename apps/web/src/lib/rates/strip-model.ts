@@ -1,4 +1,5 @@
-import type { MetricCell, PromptSummaryRow } from '@/lib/api/types';
+import { shareNoteOf } from './brand-mention-share';
+import type { EngineSummary, MetricCell, PromptSummaryRow } from '@/lib/api/types';
 import { pooledCounts, promptWeightedRate, rateState, type RateState } from '@/lib/stats';
 
 /**
@@ -10,7 +11,7 @@ import { pooledCounts, promptWeightedRate, rateState, type RateState } from '@/l
 export type StripPrompt = Pick<PromptSummaryRow, 'topic_term_ids' | 'engines'>;
 
 /** Why a rate is not there; the key of `prompts.rate.reasons`. */
-export type RateReason = 'noAnswers' | 'noneValid' | 'noBrandNamed';
+export type RateReason = 'noAnswers' | 'noneValid' | 'noBrandNamed' | 'notCollected' | 'capped';
 
 /** One rate of one engine over the prompts in scope, and the counts behind it. */
 export interface RateFigure {
@@ -18,9 +19,9 @@ export interface RateFigure {
   state: RateState;
   /** Only when `state` is `ok`. */
   value: number | null;
-  /** The valid answers behind the rate; for share of voice, the valid answers that name a tracked brand. */
+  /** The valid answers behind the rate; for share of voice, the mentions of every tracked brand (the y of "x of y brand mentions"). */
   answers: number;
-  /** The answers that count ("4" of 8). `null` for share of voice, whose numerator is a sum of shares. */
+  /** The answers that count ("4" of 8); for share of voice, the mentions of the own brand (x). `null` where the count is not whole. */
   successes: number | null;
   /** The prompts the rate is the mean over (those with a valid answer): each counts once. */
   prompts: number;
@@ -49,22 +50,6 @@ const cellsOf = (
 
 const sum = (values: readonly number[]): number => values.reduce((total, value) => total + value, 0);
 
-/**
- * Share of voice of an engine over the prompts: the sum of the prompts' numerators (shares of one answer each)
- * over the sum of their denominators (answers that name a tracked brand), so one answer is one weight whatever
- * the prompt it belongs to (docs/16 section 5). It is the same as a Topics row's, which sums the same way.
- */
-export function shareOfVoiceTotals(
-  prompts: readonly StripPrompt[],
-  engineCode: string,
-): { numerator: number; denominator: number } {
-  const cells = cellsOf(prompts, engineCode, 'share_of_voice');
-  return {
-    numerator: sum(cells.map((cell) => cell.numerator)),
-    denominator: sum(cells.map((cell) => cell.denominator)),
-  };
-}
-
 const figure = (
   state: RateState,
   value: number | null,
@@ -80,7 +65,7 @@ const figure = (
  * them pooled: fewer than `MIN_OBSERVATIONS` and the rate is not shown. `reason` says why a rate is missing, as
  * the tables do: no answer at all, or none valid.
  */
-function weightedFigure(cells: readonly MetricCell[]): RateFigure {
+export function weightedFigure(cells: readonly MetricCell[]): RateFigure {
   const counts = cells.map((cell) => ({ k: cell.numerator, n: cell.denominator }));
   const { k, n } = pooledCounts(counts);
   const state = rateState(n);
@@ -91,17 +76,33 @@ function weightedFigure(cells: readonly MetricCell[]): RateFigure {
   return figure(state, promptWeightedRate(counts), n, k, counts.filter((count) => count.n >= 1).length, null);
 }
 
-/** The strip's three rates of one engine over `prompts`; none of the prompts having a cell on it is no answers. */
-export function engineRates(prompts: readonly StripPrompt[], engineCode: string): EngineRates {
+/**
+ * Share of voice (D17) from the count share cells of a block (`withBrandMentionShare`): `successes` of `answers` is the
+ * brand's mentions of all tracked-brand mentions, summed over the cells, so one mention is one weight whatever the prompt it
+ * belongs to. A cell that says its counts are not collected or were cut by the cap makes the figure say so: it has no
+ * value, never a percent without its counts. `mentioned` gives the reason a figure has no brand mention at all.
+ */
+export function shareFigureOf(cells: readonly MetricCell[], mentioned: RateFigure): RateFigure {
+  const note = cells.map(shareNoteOf).find((entry) => entry !== undefined);
+  if (note !== undefined) return figure('none', null, 0, null, 0, note);
+  const k = sum(cells.map((cell) => cell.numerator));
+  const n = sum(cells.map((cell) => cell.denominator));
+  const state = rateState(n);
+  // Without a valid answer the reason is the Mentioned one; with answers, that none of them names a tracked brand
+  const reason: RateReason = mentioned.state === 'none' ? (mentioned.reason ?? 'noAnswers') : 'noBrandNamed';
+  return state === 'none'
+    ? figure(state, null, 0, null, 0, reason)
+    : figure(state, k / n, n, k, mentioned.prompts, null);
+}
+
+/**
+ * The strip's three rates of one engine over `prompts`; none of the prompts having a cell on it is no answers. Share of
+ * voice is read from the engine's block of the `total` row when it is given (a read whose prompt rows carry no entity
+ * cells), else from the prompt rows.
+ */
+export function engineRates(prompts: readonly StripPrompt[], engineCode: string, total?: EngineSummary): EngineRates {
   const mentioned = weightedFigure(cellsOf(prompts, engineCode, 'mentioned'));
   const cited = weightedFigure(cellsOf(prompts, engineCode, 'cited'));
-  const { numerator, denominator } = shareOfVoiceTotals(prompts, engineCode);
-  const state = rateState(denominator);
-  // Without a valid answer the reason is the Mentioned one; with answers, that none of them names a brand
-  const reason: RateReason = mentioned.state === 'none' ? (mentioned.reason ?? 'noAnswers') : 'noBrandNamed';
-  const shareOfVoice =
-    state === 'none'
-      ? figure(state, null, 0, null, 0, reason)
-      : figure(state, numerator / denominator, denominator, null, mentioned.prompts, null);
-  return { mentioned, cited, shareOfVoice };
+  const share = total === undefined ? cellsOf(prompts, engineCode, 'share_of_voice') : [total.share_of_voice];
+  return { mentioned, cited, shareOfVoice: shareFigureOf(share, mentioned) };
 }

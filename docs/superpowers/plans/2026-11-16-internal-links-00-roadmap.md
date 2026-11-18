@@ -93,3 +93,53 @@ Plan 03 lists, in its "Contract gaps for the backend" section, the places where 
 - The web passes its gate, the Playwright flow and axe on every tab in both themes.
 - The real Internal links page matches the mock screen by screen, apart from the decisions D4 and D5.
 - The owner reviewed it on `develop` and said to release.
+
+## Slices 2 and 3
+
+On 2026-11-17 the owner asked for everything in the real app, so slices 2 and 3 have plans of their own. They continue in the same worktrees and branches as plans 02 and 03.
+
+- Plan 04, backend slices 2 and 3: `2026-11-17-internal-links-04-backend-slices-2-3.md` (17 tasks). Migration 0026, the `crawl_enrich` job (changes between crawls, the alert record, anchor counts, mentions), Search Console clicks per page, the changes, opportunities, tier suggestion and path finder APIs, rank, citation and anchor extras on the pages list and the inspector, and the contract for the web.
+- Plan 05, web slices 2 and 3: `2026-11-17-internal-links-05-web-slices-2-3.md` (21 tasks). The canvas rework to the mock of 2026-11-17 (the "Task 4b" of the session notes: pan and zoom, minimap, focus card, one journey at a time, growth that keeps the place, the By tier layout), the crawl picker and the two line header, the Changes, Opportunities and Path finder screens, the new Pages and inspector parts, and the client summary.
+
+Level of detail: plan 04 is in full step form. Plan 05 tasks 1 to 4, 8 and 10 are in full step form; tasks 5 to 7 and 9 have full code for new files and edit instructions for existing ones; tasks 12 to 20 are outlines that the Opus planning session expands when the plan 03 screens they build on (inspector, Links tab, Journey tab, settings, bulk bar) are merged.
+
+Order:
+
+```
+Plan 02 done and merged ─ Plan 04 tasks 0 to 5 (pure rules, migration; no dependency on each other beyond 0) ─ 6, 7, 8, 9 ─ 10 to 14 ─ 15 (OpenAPI on develop) ─ 16 (acceptance)
+Plan 03 tasks 0 to 7 done ─ Plan 05 tasks 0 to 7 (canvas rework, no API needed) ───────────────┐
+Plan 03 tasks 8 to 18 ─────────────────────────────────────────────────────────────────────┼─ Plan 05 tasks 8 to 11 (needs plan 04 task 15) ─ 12 to 19 ─ 20
+```
+
+1. Plan 05 tasks 1 to 7 (the canvas) need no API and can start the day plan 03's canvas task is merged; they change `link-canvas.tsx`, so no other plan 03 task may edit it at the same time.
+2. Plan 04 tasks 1 to 8 can start as soon as plan 02 is merged; tasks 10 to 14 need 6 and 9. The web session stops after its Task 7 until `backend/openapi/v1.json` carries the plan 04 routes.
+3. Plan 05 tasks 12 to 19 each need a screen of plan 03 (inspector, Links tab, Journey tab, settings screens, bulk bar); each task names which.
+4. Acceptance: plan 04 task 16 on the real crawl of eventussecurity.com (a second crawl, about $0.06), plan 05 task 20 on the mock and then on that crawl.
+
+Changes to slice 1 that slices 2 and 3 need (the build sessions make them when they reach the task named):
+
+| Where | Change | Task |
+|---|---|---|
+| `PageScope` and `crawl_scope` (plan 02) | `links_dropped` and `alert_max_position` fields; link level reads answer `410 links_dropped` | Plan 04 task 9 |
+| `CrawlRun` and `ListMeta` (plan 02) | `links_available`, `previous_run_id`, `enrich_state`, `links_available` in the list meta | Plan 04 task 9 |
+| `crawl_tick` and `CrawlTickReport` (plan 02) | A `send_enrich` argument and an `enrich_sent` count | Plan 04 task 6 |
+| `crawl_store` (plan 02) | A read-only tier flow for crawls that are not the latest | Plan 04 task 9 |
+| `fp.gsc_search_analytics` pull (Search Console) | An extra call per day for page totals, behind a flag in `SyncContext` | Plan 04 task 8 |
+| Plan 02 decision D21 | Search Console rows have no page, so GSC orphans need the new page totals; orphans stay sitemap orphans | Plan 04 open point O5 |
+| Plan 03 `LinkCanvas` (zoom steps, elbow edges, tooltips on hover) | Replaced by the viewport, curves and info panel | Plan 05 tasks 5 to 7 |
+| Plan 03 `LinksTabContext`, `url-state.ts`, `tabs.ts`, `crawl-header.tsx` | `run`, six tabs, the two line header | Plan 05 tasks 10 and 12 |
+| Plan 03 decision W19 ("no crawl picker in slice 1") | Superseded by the picker | Plan 05 task 12 |
+
+New owner decisions these plans need (each is an open point in the plan named):
+
+| # | Decision | Plan | Recommendation |
+|---|---|---|---|
+| D8 | Search Console clicks per page need one extra call a day per property (28 calls once): accept, or leave the click columns and the click rule of tier suggestions empty | 04, O1 | Accept |
+| D9 | Email and Slack alert delivery waits for the alerts service (WP-47); slice 2 ships the in-app alert | 04, O2 and 05, P2 | Accept that order |
+| D10 | Rank and AI citation columns show today's numbers on an older crawl | 04, O3 | Accept |
+| D11 | Mention sources are tracked keywords and the anchors other pages use; judge the list on the real crawl before widening | 04, O4 | Accept |
+| D12 | Links tab "First seen" is one crawl deep (Added and Lost for the crawl in view), not a date across all crawls | 04, O7 and 05, P5 | Accept |
+| D13 | The UI shows "Link strength change" in points where the mock shows "Equity change", never the share itself | 05, P1 | Accept the wording, or remove the column |
+| D14 | The canvas is the mock's viewport ported to the app, without React Flow and elkjs named in the spec | 05, P4 | Accept |
+| D15 | The client summary is a download built in the browser; a shareable link is not in this release | 05, P3 | Accept |
+| D16 | Rank, citation and anchor columns do not sort (only Change does) | 05, P6 | Accept |

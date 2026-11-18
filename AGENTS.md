@@ -14,6 +14,9 @@ Cursor or any other.
 
 UI work: read `AI_DEVELOPMENT_UI_RULES.md` and `DESIGN_SYSTEM.md` before changing anything that renders.
 
+Visible words: read `docs/glossary/final-list.md` before writing or changing a string. A word changes in
+`docs/glossary/terms.md` first; `src/lib/glossary/glossary-words.test.ts` fails on a banned word in `messages/en.json`.
+
 ## Branches and releases
 
 The full runbook is [docs/ops/release-and-deploy.md](docs/ops/release-and-deploy.md). The rules:

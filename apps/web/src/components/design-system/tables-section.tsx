@@ -1,14 +1,24 @@
 'use client';
 
-import { Archive, FolderInput, Tags } from 'lucide-react';
+import { Archive, FolderInput, Globe, Sparkles, Tags } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 
 import { SpecimenGroup } from './specimen';
 import { col } from '@/components/app/data-table/columns';
 import { DataTable } from '@/components/app/data-table/data-table';
-import type { DataTableColumn, PageSize, RecordAction, RowTree, TableStatus } from '@/components/app/data-table/types';
+import type {
+  DataTableColumn,
+  PageSize,
+  RecordAction,
+  RowTree,
+  TableStatus,
+  ToolbarParts,
+} from '@/components/app/data-table/types';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { InlineError } from '@/components/app/status/inline-error';
+import { BoardTable, type BoardColumn, type BoardSort } from '@/components/app/table/board-table';
+import { Button } from '@/components/ui/button';
+import { Icon } from '@/components/ui/icon';
 import { formatInteger } from '@/lib/format';
 import { DEFAULT_DENSITY, type Density, type SortKey } from '@/lib/tables/table-state';
 
@@ -127,6 +137,25 @@ const WIDE_COLUMNS: DataTableColumn<SampleRow>[] = [
 ];
 const DEMO_ROWS = SAMPLE.slice(0, 20);
 
+/** Platform marks in two headers, as the Prompts tables draw them. A mark takes about 22 px, so these columns ask for more width. */
+const MARKED_COLUMNS = [
+  col.keyword<SampleRow>('keyword', (row) => row.keyword, { header: 'Keyword' }),
+  col.volume<SampleRow>('search_volume', (row) => row.volume, {
+    header: 'Volume',
+    headerIcon: <Icon icon={Globe} size="sm" />,
+    width: 120,
+    unknown: () => PENDING,
+  }),
+  col.count<SampleRow>('keyword_difficulty', (row) => row.difficulty, {
+    header: 'KD',
+    headerIcon: <Icon icon={Sparkles} size="sm" />,
+    width: 120,
+    unknown: () => PENDING,
+  }),
+];
+const NO_DENSITY: ToolbarParts = { density: false, count: false, sortNote: false };
+const FALLBACK_SORT: readonly SortKey[] = [{ id: 'keyword', desc: false }];
+
 /** One table with its own state, as a screen would hold it. */
 function SampleTable({
   caption,
@@ -136,7 +165,11 @@ function SampleTable({
   columns = COLUMNS,
   columnGroups = false,
   pinActions = false,
+  toolbarParts,
+  sortFallback,
 }: {
+  toolbarParts?: ToolbarParts;
+  sortFallback?: readonly SortKey[];
   caption: string;
   rows: readonly SampleRow[];
   status: TableStatus;
@@ -163,6 +196,8 @@ function SampleTable({
         columns={columns}
         columnGroups={columnGroups}
         pinActions={pinActions}
+        toolbarParts={toolbarParts}
+        sortFallback={sortFallback}
         getRowId={rowId}
         rows={shown}
         total={rows.length}
@@ -386,9 +421,98 @@ function ThreeLevelTable(): ReactNode {
   );
 }
 
+interface BoardSample {
+  id: string;
+  page: string;
+  citations: number;
+  prompts: number;
+}
+
+const BOARD_ROWS: readonly BoardSample[] = [
+  { id: 'pricing', page: '/pricing', citations: 38, prompts: 9 },
+  { id: 'crm-guide', page: '/guides/crm-for-startups', citations: 24, prompts: 12 },
+  { id: 'compare', page: '/compare/hubspot-alternatives', citations: 17, prompts: 5 },
+  { id: 'integrations', page: '/integrations', citations: 6, prompts: 2 },
+];
+
+const BOARD_COLUMNS: readonly BoardColumn<BoardSample>[] = [
+  {
+    id: 'page',
+    header: 'Page',
+    width: 280,
+    sortKey: 'page',
+    cell: (row) => <span className="min-w-0 truncate text-foreground">{row.page}</span>,
+  },
+  {
+    id: 'citations',
+    header: 'Citations',
+    width: 104,
+    sortKey: 'citations',
+    tip: 'Answers whose citation list includes this URL',
+    cell: (row) => formatInteger(row.citations),
+    cellClassName: 'num text-foreground',
+  },
+  {
+    id: 'prompts',
+    header: 'Prompts',
+    width: null,
+    sortKey: 'prompts',
+    tip: 'How many tracked prompts cite this page',
+    cell: (row) => formatInteger(row.prompts),
+    cellClassName: 'num text-foreground-secondary',
+  },
+];
+
+/** Four rows, a sorted header, the pinned Page column and the flexible Prompts column; sorts as the board does. */
+function BoardSample(): ReactNode {
+  const [sort, setSort] = useState<BoardSort>({ key: 'citations', dir: 'desc' });
+  const [active, setActive] = useState<string | null>('crm-guide');
+  const rows = [...BOARD_ROWS].sort((a, b) => {
+    let order = a.citations - b.citations;
+    if (sort.key === 'page') order = a.page.localeCompare(b.page);
+    else if (sort.key === 'prompts') order = a.prompts - b.prompts;
+    return sort.dir === 'asc' ? order : -order;
+  });
+  return (
+    <div className="flex h-72 flex-col overflow-hidden rounded-lg border border-border bg-surface">
+      <BoardTable<BoardSample>
+        caption="Cited pages, board table"
+        columns={BOARD_COLUMNS}
+        rows={rows}
+        rowId={(row) => row.id}
+        rowLabel={(row) => `Open ${row.page}`}
+        identityTip={(row) => ({ content: row.page })}
+        onOpen={(row) => setActive(row.id)}
+        activeId={active}
+        sort={sort}
+        onSortChange={setSort}
+      />
+    </div>
+  );
+}
+
 export function TablesSection(): ReactNode {
   return (
     <>
+      <SpecimenGroup
+        title="BoardTable"
+        note="12 section 20, WP-77. The table of an analysis board: fixed widths with one flexible column, a pinned first column that is the row's button, headers that sort descending first, no toolbar of its own."
+      >
+        <BoardSample />
+        <div className="rounded-lg border border-border bg-surface">
+          <EmptyState
+            variant="table"
+            headingLevel={3}
+            title="No pages match"
+            reason="No page contains “crm”."
+            primaryAction={
+              <Button size="sm" variant="secondary">
+                Clear search
+              </Button>
+            }
+          />
+        </div>
+      </SpecimenGroup>
       <SpecimenGroup
         title="DataTable, client mode"
         note="12. Compact rows, 12 px text, capital headers and left aligned columns are the defaults (owner decisions of 2026-10-29). 300 rows: rows near the view render, the rest keep their space. Sort from a header, select with the checkboxes or Space, open a row with Enter. Missing metrics read Pending and sort last both ways."
@@ -436,6 +560,19 @@ export function TablesSection(): ReactNode {
           status="ready"
           columns={WIDE_COLUMNS}
           pinActions
+        />
+      </SpecimenGroup>
+      <SpecimenGroup
+        title="DataTable extension: toolbar parts, header marks and sort fallback"
+        note="toolbarParts leaves out the density menu (rows stay compact), the toolbar count (the footer keeps it) and the sorted-by note. headerIcon draws a mark before the header label and beside the name in Columns. sortFallback sorts by Keyword while Volume, the sorted column, is hidden in Columns."
+      >
+        <SampleTable
+          caption="Keywords, toolbar parts"
+          rows={DEMO_ROWS}
+          status="ready"
+          columns={MARKED_COLUMNS}
+          toolbarParts={NO_DENSITY}
+          sortFallback={FALLBACK_SORT}
         />
       </SpecimenGroup>
     </>

@@ -146,6 +146,19 @@ const FYNIX_PROMPTS: readonly (readonly [string, string | null, string, string])
   ['Which SEO agency in Europe has the best case studies?', T.seo, 'en', 'DE'],
 ];
 
+/**
+ * The intent of a Fynix prompt, by the rule the project's classifier follows: a prompt that names the brand is
+ * navigational, one about hiring or prices transactional, a how-to, a definition or a plain question informational, a
+ * "which" or "should" choice commercial. A text none of them fits (the Hindi one) stays `unknown`.
+ */
+export function fixtureIntentOf(text: string, branded: boolean): Prompt['intent'] {
+  if (branded) return 'navigational';
+  if (/\b(hire|pricing|prices?)\b/i.test(text)) return 'transactional';
+  if (/^(how|what)\b/i.test(text)) return 'informational';
+  if (/^(which|should)\b/i.test(text)) return 'commercial';
+  return 'unknown';
+}
+
 const [fynix] = MOCK_PROJECTS;
 if (fynix === undefined) throw new Error('The Fynix project fixture is missing');
 const FYNIX_PROJECT_ID = fynix.project_id;
@@ -163,7 +176,7 @@ export const FIXTURE_PROMPTS: ReadonlyMap<string, readonly StoredPrompt[]> = new
       language_code: language,
       country_iso: country,
       term_ids: term === null ? [] : [term],
-      intent: 'unknown',
+      intent: fixtureIntentOf(text, text.includes('Fynix')),
       funnel_stage: 'unknown',
       prompt_type: 'question',
       importance: 3,

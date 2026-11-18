@@ -156,8 +156,8 @@ describe('ProjectShell', () => {
       editor: [
         'Keywords /digibranders/fynix/seo/keywords',
         'Internal links /digibranders/fynix/seo/internal-links',
-        'Overview /digibranders/fynix/ai',
-        'Topics & Prompts /digibranders/fynix/ai/prompts',
+        'AI visibility /digibranders/fynix/ai',
+        'Prompts /digibranders/fynix/ai/prompts',
         'Citations /digibranders/fynix/ai/citations',
         'Integrations /digibranders/fynix/integrations',
         'Runs /digibranders/fynix/ops/runs',
@@ -167,8 +167,8 @@ describe('ProjectShell', () => {
       viewer: [
         'Keywords /digibranders/fynix/seo/keywords',
         'Internal links /digibranders/fynix/seo/internal-links',
-        'Overview /digibranders/fynix/ai',
-        'Topics & Prompts /digibranders/fynix/ai/prompts',
+        'AI visibility /digibranders/fynix/ai',
+        'Prompts /digibranders/fynix/ai/prompts',
         'Citations /digibranders/fynix/ai/citations',
         'Integrations /digibranders/fynix/integrations',
         'Runs /digibranders/fynix/ops/runs',

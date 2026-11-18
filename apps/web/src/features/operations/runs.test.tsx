@@ -472,25 +472,31 @@ describe('Runs', () => {
     expect(screen.queryByRole('combobox', { name: 'Project' })).toBeNull();
     expect(screen.getByRole('combobox', { name: 'Month' })).toBeInTheDocument();
     for (const name of [
-      'Workload',
-      'Status',
-      'Started',
-      'Trigger',
-      'Tasks',
-      'Actual',
-      'Estimate',
-      'Window',
-      'Finished',
+      /Job type/,
+      /Status/,
+      /Started(?! by)/,
+      /Duration/,
+      /Started by/,
+      /Tasks/,
+      /Actual/,
+      /Estimate/,
+      /Window/,
+      /Finished/,
     ]) {
-      expect(within(table).getByRole('columnheader', { name: new RegExp(name) })).toBeInTheDocument();
+      expect(within(table).getByRole('columnheader', { name })).toBeInTheDocument();
     }
     // The newest fixture run is the failed one of the three keywords added yesterday
     expect(bodyRows(table)[0]).toHaveTextContent('Failed');
     expect(bodyRows(table)[0]).toHaveTextContent('Keyword metrics');
-    expect(within(table).getByRole('columnheader', { name: /Started/ })).toHaveAttribute('aria-sort', 'descending');
+    // The failed run has ended, so it shows how long it took, from its start to its end
+    expect(within(bodyRows(table)[0] as HTMLElement).getByText(/^\d+ (s|min|h|d)\b/)).toBeInTheDocument();
+    expect(within(table).getByRole('columnheader', { name: /Started(?! by)/ })).toHaveAttribute(
+      'aria-sort',
+      'descending',
+    );
     // The times name their zone in the headers' descriptions (22-content-formatting.md section 4)
-    for (const name of ['Started', 'Window', 'Finished']) {
-      expect(within(table).getByRole('columnheader', { name: new RegExp(name) })).toHaveAccessibleDescription(
+    for (const name of [/Started(?! by)/, /Window/, /Finished/]) {
+      expect(within(table).getByRole('columnheader', { name })).toHaveAccessibleDescription(
         'Times in Europe/Berlin (project time zone)',
       );
     }
@@ -631,7 +637,7 @@ describe('Runs', () => {
     expect(await screen.findByText('A filter from the link was left out')).toBeInTheDocument();
     expect(screen.getAllByText('Status: the link holds a value this list does not have.')).not.toHaveLength(0);
     await waitFor(() => expect(url.latest().has('status')).toBe(false));
-    expect(screen.getByRole('button', { name: 'Trigger: Manual. Edit filter' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Started by: Manual. Edit filter' })).toBeInTheDocument();
   });
 
   it('opens a run in the inspector with its tasks by status from the detail', async () => {
@@ -688,7 +694,7 @@ describe('Runs', () => {
     const names = within(panel)
       .getAllByRole('heading', { level: 3 })
       .map((heading) => heading.textContent);
-    expect(names).toEqual(['Summary', 'Tasks by status', 'Answers by engine', 'Missing answers']);
+    expect(names).toEqual(['Summary', 'Tasks by status', 'Answers by platform', 'Missing answers']);
     // Its long body scrolls, so it is a named region a keyboard can focus
     expect(within(panel).getByRole('region', { name: 'Run details' })).toHaveAttribute('tabindex', '0');
   });

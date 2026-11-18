@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Popover } from '@/components/ui/popover';
 import { announce } from '@/lib/a11y/announcer';
 import type { FilterValue } from '@/lib/filters/filter-values';
+import { cn } from '@/lib/utils';
 
 /** The field picker gets a search box above this many fields, like an enum editor. */
 const SEARCH_FROM = 8;
@@ -39,6 +40,25 @@ export interface FilterBarProps {
    * has no empty bar to clear to: it draws its own reset.
    */
   hideClear?: boolean | undefined;
+  /** The text of the button that removes every chip, where the preview words it otherwise (the Prompts page: "Reset filters"). */
+  clearLabel?: string | undefined;
+  /**
+   * Fields whose value is applied but whose chip is not drawn, because the screen shows that choice in its own
+   * control (the Prompts platform select). They are not offered in "+ Filter" and "Clear filters" leaves them alone.
+   */
+  hiddenChipFields?: readonly string[] | undefined;
+  /**
+   * Keeps the chips, "+ Filter" and "Clear filters" on one line: the group scrolls sideways inside its own room
+   * (scrollbar hidden) instead of wrapping to more rows, so the bar never changes height. Off: the group wraps.
+   */
+  nowrap?: boolean | undefined;
+  /**
+   * Leaves "+ Filter" out while every field has its chip, for a screen with one or two fields (the AI Overview's
+   * Branded): a button that can do nothing is not drawn, and is not a tab stop. Focus goes to the chip just added.
+   */
+  hideAddWhenFull?: boolean | undefined;
+  /** 32 px "+ Filter" and chips, for a screen whose controls are all 32 px high (the Prompts page); off: 36 px. */
+  compact?: boolean | undefined;
 }
 
 /**
@@ -53,6 +73,11 @@ export function FilterBar({
   resultCount,
   trailing,
   hideClear = false,
+  clearLabel,
+  hiddenChipFields,
+  nowrap = false,
+  hideAddWhenFull = false,
+  compact = false,
 }: FilterBarProps): ReactElement {
   const t = useTranslations('filters');
   const groupRef = useRef<HTMLDivElement>(null);
@@ -66,8 +91,9 @@ export function FilterBar({
   }, [countKey, resultCount]);
   // The chip, or "+ Filter", to focus once a removal has rendered.
   const pendingFocus = useRef<string | null>(null);
-  const active = fields.filter((field) => values[field.id] !== undefined);
-  const available = fields.filter((field) => values[field.id] === undefined);
+  const chipFields = hiddenChipFields === undefined ? fields : fields.filter((f) => !hiddenChipFields.includes(f.id));
+  const active = chipFields.filter((field) => values[field.id] !== undefined);
+  const available = chipFields.filter((field) => values[field.id] === undefined);
 
   useEffect(() => {
     const target = pendingFocus.current;
@@ -95,7 +121,7 @@ export function FilterBar({
   };
   const clearAll = (): void => {
     pendingFocus.current = ADD_TARGET;
-    onChange(without(new Set(fields.map((field) => field.id))));
+    onChange(without(new Set(chipFields.map((field) => field.id))));
   };
 
   return (
@@ -104,7 +130,11 @@ export function FilterBar({
         ref={groupRef}
         role="group"
         aria-label={t('bar')}
-        className="flex min-w-0 flex-1 flex-wrap items-center gap-2"
+        className={cn(
+          'flex min-w-0 flex-1 items-center gap-2',
+          // The padding and negative margin keep the focus rings of the first and last control from being clipped
+          nowrap ? '-mx-1 -my-1 scrollbar-none overflow-x-auto px-1 py-1 *:shrink-0' : 'flex-wrap',
+        )}
       >
         {active.map((field) => {
           const value = values[field.id];
@@ -115,13 +145,24 @@ export function FilterBar({
               value={value}
               onApply={(next) => set(field.id, next)}
               onRemove={() => remove(field.id)}
+              compact={compact}
             />
           );
         })}
-        <AddFilter fields={available} onAdd={(id, value) => set(id, value)} />
+        {hideAddWhenFull && available.length === 0 ? null : (
+          <AddFilter
+            fields={available}
+            compact={compact}
+            onAdd={(id, value) => {
+              // The last field's chip takes the focus the button would have had
+              if (hideAddWhenFull && available.length === 1) pendingFocus.current = id;
+              set(id, value);
+            }}
+          />
+        )}
         {active.length === 0 || hideClear ? null : (
           <Button variant="link" size="sm" onClick={clearAll}>
-            {t('clearAll')}
+            {clearLabel ?? t('clearAll')}
           </Button>
         )}
       </div>
@@ -137,9 +178,11 @@ export function FilterBar({
 function AddFilter({
   fields,
   onAdd,
+  compact,
 }: {
   fields: readonly FilterField[];
   onAdd: (id: string, value: FilterValue) => void;
+  compact: boolean;
 }): ReactElement {
   const t = useTranslations('filters');
   const formId = useId();
@@ -184,6 +227,7 @@ function AddFilter({
       trigger={
         <Button
           variant="ghost"
+          {...(compact ? { size: 'sm' as const } : {})}
           icon={Plus}
           disabled={fields.length === 0}
           // Focus returns here when the last field is added, so a disabled "+ Filter" keeps it

@@ -17,7 +17,7 @@ Analysis and Fan-out queries. The page must also have charts, not only tables.
 
 | # | Decision | Reason |
 |---|---|---|
-| D1 | **AI Visibility is a plain rate**: the share of valid answers where the brand is mentioned or cited. It equals 100% minus "neither". It is shown with a split bar: named and linked, named only (an unlinked mention), cited only, neither. New registry key `ai.visibility_rate` (doc 16 section 2.1 must list it before it ships). | NFR-10 forbids an opaque composite score. The senior's own definition is "percentage of responses where the brand appears". The bar carries what a blended score would hide. |
+| D1 | **AI visibility is a plain rate** (the headline is labelled "AI visibility rate" since the glossary pass of 2026-11-16): the share of valid answers where the brand is mentioned or cited. It equals 100% minus "neither". It is shown with a split bar: mentioned and cited, mentioned only, cited only, neither. New registry key `ai.visibility_rate` (doc 16 section 2.1 must list it before it ships). | NFR-10 forbids an opaque composite score. The senior's own definition is "percentage of responses where the brand appears". The bar carries what a blended score would hide. |
 | D2 | **"All platforms" is the equal-weight average** of the per-platform values, labelled "avg of N", always next to the per-platform values. Never a pooled ratio. | Doc 16 rule 2, R3. |
 | D3 | **Platform is a single select** (All platforms, ChatGPT, Gemini, AI Overview, AI Mode). AI Overview is read from rank checks of linked keywords and counts only checks that showed one; the card says "when an AI Overview appears". | AI Overview is not asked (doc 16 section 1 rule 5). |
 | D4 | **Group is a single select** (All groups, or one group). Every prompt has exactly one required primary group, so group values add up to the project total. Keywords share the same groups, which allows SEO against AI per group. The taxonomy keeps its two levels (parent and topic). | One primary group removes the "a prompt counts in two topics" caveat of doc 16 section 4. |
@@ -48,7 +48,8 @@ separated from Google organic in GA4). Fan-out queries come from ChatGPT only. A
 ## 4. Scope behaviour
 
 - **Platform:** a value card or trend filters to the platform. A "by platform" card becomes "this platform against the
-  others". A card that cannot exist for a platform is hidden and a quiet note says how many are hidden.
+  others". A card that cannot exist for a platform keeps its place and its smallest height and says why it has nothing
+  (owner decision of 2026-11-16, which replaced the earlier rule that hid such cards and noted how many were hidden).
 - **Group:** with one group selected, the group comparison cards are replaced by the prompts of that group and the
   other cards show the group beside the project value.
 - **Flat or nested topics:** the taxonomy allows a tree (`core.taxonomy_terms.parent_id`), but a project may have a
@@ -101,8 +102,10 @@ one file (`aiov-info.js`, keyed by card key and by measure) so they stay consist
   menu for Save as team default and Remove team default (both ask first, because other people see the change).
 - **Resolution:** the person's own layout, else the team default, else the built in Default. Reset goes back to the
   team default when there is one. Leaving with unsaved changes asks first, by route change, Escape or Cancel.
-- **Scope and layout are separate:** a card that cannot be drawn for the platform or group stays in the layout. It is
-  hidden outside customize mode (a note names it) and shows a placeholder while customizing.
+- **Scope and layout are separate:** a card that cannot be drawn for the platform or group stays in the layout. It
+  keeps its place and its header in view mode and in customize mode alike, at the smallest height of its type, and says
+  why it has nothing (for example that the card is not measured on the chosen platform, or compares groups and needs
+  All groups). No card is hidden and no note counts cards.
 - **Not built yet:** per-card options (for example the trend's metric lives in the page scope), a free resize grip,
   undo and redo, and the layouts API. The preview stores layouts in browser storage under the key convention of the
   project Overview (`preview-layout:<kind>:ai_overview`).

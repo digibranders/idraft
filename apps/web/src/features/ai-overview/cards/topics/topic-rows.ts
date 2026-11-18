@@ -28,7 +28,10 @@ export function topicEngineRows(
     return {
       node,
       values,
-      average: averageRate(codes.map((code) => node.engines.find((cells) => cells.engine_code === code)?.[metric])),
+      average: averageRate(
+        codes.map((code) => node.engines.find((cells) => cells.engine_code === code)?.[metric]),
+        metric,
+      ),
       gap: engineGapOf(values),
       spread: bestWorst(values),
     };
@@ -60,6 +63,8 @@ const EMPTY_STATUS = {
   noAnswers: 'no_answers',
   noneValid: 'no_valid_answers',
   noBrandNamed: 'no_brand_named',
+  notCollected: 'not_collected',
+  capped: 'over_cap',
 } as const;
 
 /**

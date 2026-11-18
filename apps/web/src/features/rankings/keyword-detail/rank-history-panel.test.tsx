@@ -226,7 +226,7 @@ describe('The rank history panel', () => {
     );
     const { panel } = await renderPanel();
     await chart(panel);
-    expect(within(panel).getByText('Not ranked in any of the 30 checks in this window')).toBeInTheDocument();
+    expect(within(panel).getByText('Not ranked in any of the 30 checks in this period')).toBeInTheDocument();
     expect(within(panel).queryByText(/^Best /)).toBeNull();
   });
 
@@ -236,7 +236,7 @@ describe('The rank history panel', () => {
     const { panel, user } = await renderPanel(DETAIL_KEYWORDS.ranked, '', (event) => writes.push(event.queryString));
     await chart(panel);
     await user.click(within(panel).getByRole('button', { name: 'Table' }));
-    await user.click(within(panel).getByRole('combobox', { name: 'Window' }));
+    await user.click(within(panel).getByRole('combobox', { name: 'Period' }));
     await user.click(await screen.findByRole('option', { name: 'Last 30 days' }));
     // The card stays while the new window loads: the Table view is still the view
     expect(within(panel).getByRole('table', { name: 'Rank history' })).toBeInTheDocument();
@@ -400,14 +400,14 @@ describe('The rank history panel', () => {
     [
       'stale',
       DETAIL_KEYWORDS.stale,
-      'No check falls in this window, and the last good one is older. Choose a longer window.',
+      'No check falls in this period, and the last good one is older. Choose a longer period.',
     ],
     [
       'archived',
       DETAIL_KEYWORDS.archived,
-      'This keyword is archived and no longer checked. No check falls in this window.',
+      'This keyword is archived and no longer checked. No check falls in this period.',
     ],
-    ['live', DETAIL_KEYWORDS.ranked, 'No check falls in this window. Choose a longer window.'],
+    ['live', DETAIL_KEYWORDS.ranked, 'No check falls in this period. Choose a longer period.'],
   ] as const)(
     'says "No checks yet" and why for a %s keyword with no check in the window',
     async (_kind, keyword, reason) => {
@@ -429,7 +429,7 @@ describe('The rank history panel', () => {
   it('reaches the controls in the order window, competitors, layers (Absolute, Events, Deep checks), views, and Space toggles a layer', async () => {
     const { panel, user } = await renderPanel();
     await chart(panel);
-    within(panel).getByRole('combobox', { name: 'Window' }).focus();
+    within(panel).getByRole('combobox', { name: 'Period' }).focus();
     await user.tab();
     expect(within(panel).getByRole('button', { name: 'Competitors (5)' })).toHaveFocus();
     await user.tab();
@@ -481,7 +481,7 @@ describe('The rank history panel', () => {
   it('says every check failed for a keyword whose checks all failed, and not that it never ranked', async () => {
     const { panel } = await renderPanel(DETAIL_KEYWORDS.failed);
     await chart(panel);
-    expect(within(panel).getByText('Every check in this window failed.')).toBeInTheDocument();
+    expect(within(panel).getByText('Every check in this period failed.')).toBeInTheDocument();
     expect(within(panel).queryByText(/Not ranked in any/)).toBeNull();
     expect(within(panel).getByText(/, all failed/, { selector: 'p' })).toBeInTheDocument();
   });
@@ -498,7 +498,7 @@ describe('The rank history panel', () => {
     const record = recordHistory();
     const { panel, user } = await renderPanel(DETAIL_KEYWORDS.archived, '?win=7d');
     expect(await within(panel).findByRole('heading', { name: 'No checks yet' })).toBeInTheDocument();
-    const select = within(panel).getByRole('combobox', { name: 'Window' });
+    const select = within(panel).getByRole('combobox', { name: 'Period' });
     expect(select).toHaveTextContent('Last 7 days');
     await user.click(select);
     await user.click(await screen.findByRole('option', { name: 'Last 365 days' }));
@@ -508,7 +508,7 @@ describe('The rank history panel', () => {
   it('offers no window to a keyword that has not been checked yet', async () => {
     const { panel } = await renderPanel(DETAIL_KEYWORDS.pending);
     expect(await within(panel).findByRole('heading', { name: 'No checks yet' })).toBeInTheDocument();
-    expect(within(panel).queryByRole('combobox', { name: 'Window' })).toBeNull();
+    expect(within(panel).queryByRole('combobox', { name: 'Period' })).toBeNull();
   });
 
   it('turns a layer off again when its toggle is pressed twice', async () => {
@@ -646,7 +646,7 @@ describe('The rank history panel', () => {
     const { panel, user } = await renderPanel();
     await chart(panel);
     expect(within(panel).getByTestId('echart-canvas')).toBeInTheDocument();
-    await user.click(within(panel).getByRole('combobox', { name: 'Window' }));
+    await user.click(within(panel).getByRole('combobox', { name: 'Period' }));
     await user.click(await screen.findByRole('option', { name: 'Last 30 days' }));
     await waitFor(() => expect(held).toBe(true));
     const card = (await chart(panel)).closest('section');

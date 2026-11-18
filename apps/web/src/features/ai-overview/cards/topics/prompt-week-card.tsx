@@ -85,7 +85,7 @@ export default function PromptWeekCard({ item, options, live }: CardProps): Reac
     date: (iso) => formatChartDate(iso),
     pooledTitle: (weeks, date) => t('pooledTitle', { weeks, date }),
     weekTitle: (date) => t('weekTitle', { date }),
-    share: (percent, answers) => common('tipShare', { value: percent, count: answers }),
+    share: (percent, mentions, all) => common('tipShare', { value: percent, k: mentions, n: all }),
     subject: (prompt, title, value) => t('cellSubject', { prompt, title, value }),
   };
   const view = promptWeekView(grid, cell, weekWords, (promptId): Route | null =>

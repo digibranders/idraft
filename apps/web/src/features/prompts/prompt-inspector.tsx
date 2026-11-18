@@ -119,6 +119,11 @@ export function PromptInspector({
   const t = useTranslations('prompts.inspector');
   const root = useTranslations();
   const words = useTranslations('prompts');
+  const groupsWords = useTranslations('prompts.groupsTab');
+  const drawer = useTranslations('prompts.drawer.header');
+  const typeWords = useTranslations('prompts.add.details.types');
+  /** The type of a prompt in words: the Add dialog's own labels. */
+  const typeLabel = (type: Prompt['prompt_type']): string => typeWords(type === 'how_to' ? 'howTo' : type);
   const common = useTranslations('common');
   const inspectorWords = useTranslations('inspector');
   const locale = useLocale();
@@ -219,7 +224,20 @@ export function PromptInspector({
       toast({ type: 'error', title: t('runFailedTitle'), description: runProblem(error) });
       return;
     }
-    toast({ type: 'success', title: t('runQueued'), description: t('runQueuedHint') });
+    toast({
+      type: 'success',
+      title: t('runQueued'),
+      // What was asked and where, as the preview says it, then when the answers come
+      description: [
+        t('runQueuedAnswers', {
+          engines: formatList(
+            runnable.map((e) => e.engine.label),
+            locale,
+          ),
+        }),
+        t('runQueuedHint'),
+      ].join(' '),
+    });
     // The run is in Runs at once, planned; the prompt's lists and its answers are read again too
     void queryClient.invalidateQueries({ queryKey: [...projectKey(scope.workspaceId, scope.projectId), 'runs'] });
     void refreshPrompts(queryClient, scope);
@@ -354,7 +372,16 @@ export function PromptInspector({
     {
       id: 'competitors',
       label: (translate) => translate('prompts.inspector.tabCompetitors'),
-      render: () => <InspectorCompetitors scope={scope} counts={counts} engines={engines} answers={promptAnswers} />,
+      render: () => (
+        <InspectorCompetitors
+          scope={scope}
+          promptId={promptId}
+          counts={counts}
+          range={range}
+          engines={engines}
+          answers={promptAnswers}
+        />
+      ),
     },
     {
       id: 'stats',
@@ -407,29 +434,26 @@ export function PromptInspector({
           prompt === null && topic == null ? null : (
             <span className="inline-flex flex-wrap items-center gap-1.5">
               {topic == null ? (
-                firstTopic === undefined ? null : !firstTopic.path.includes('/') ? (
+                // The group by its own name, as the table says it (flat: no path above it). A prompt in no group
+                // listed in scope has no way to its drawer, so its badge is plain
+                firstTopic === undefined ? null : (
                   <Badge>{firstTopic.name}</Badge>
-                ) : (
-                  // A topic below another is named by its path (WB-PI-06), cut short in a narrow header; the tooltip
-                  // has it whole, and the badge takes the keyboard so it reaches it. It is no button: a prompt that
-                  // was not opened from a topic has no way back to one (decision 8)
-                  <Tooltip content={firstTopic.path}>
-                    <Badge tabIndex={0} className="max-w-full truncate">
-                      {firstTopic.path}
-                    </Badge>
-                  </Tooltip>
                 )
               ) : (
                 // There is no interactive badge: the badge is the button's label
-                <Button
-                  variant="link"
-                  size="sm"
-                  aria-label={words('topics.openTopic', { name: topic.name })}
-                  onClick={topic.onOpen}
-                >
-                  <Badge>{topic.name}</Badge>
-                </Button>
+                <Tooltip content={groupsWords('openGroupTip')}>
+                  <Button
+                    variant="link"
+                    size="sm"
+                    aria-label={words('topics.openTopic', { name: topic.name })}
+                    onClick={topic.onOpen}
+                  >
+                    <Badge>{topic.name}</Badge>
+                  </Button>
+                </Tooltip>
               )}
+              {prompt === null ? null : <Badge>{typeLabel(prompt.prompt_type)}</Badge>}
+              {prompt === null ? null : <Badge>{drawer('version', { n: prompt.current_version.version_no })}</Badge>}
               {prompt?.is_branded === true ? <Badge>{words('branded')}</Badge> : null}
               {prompt === null || prompt.is_active ? null : <Badge tone="warning">{t('archivedBadge')}</Badge>}
               {prompt?.country_iso == null ? null : <Badge variant="outline">{countryName(prompt.country_iso)}</Badge>}

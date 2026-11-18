@@ -10,6 +10,7 @@ import { Inspector } from '@/components/app/inspector/inspector';
 import { InspectorLayout } from '@/components/app/inspector/inspector-layout';
 import { InspectorSection } from '@/components/app/inspector/inspector-section';
 import { InspectorPanel, InspectorTabs } from '@/components/app/inspector/inspector-tabs';
+import { EmptyState } from '@/components/app/status/empty-state';
 import { useInspector } from '@/components/app/inspector/use-inspector';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -29,6 +30,7 @@ const KEYWORDS: SampleKeyword[] = [
   { id: 'kw-4', keyword: 'free crm software', volume: 14_800 },
   { id: 'kw-5', keyword: 'hubspot alternatives', volume: 2900 },
 ];
+const RELATED = KEYWORDS.slice(0, 3);
 const COLUMNS = [
   col.keyword<SampleKeyword>('keyword', (row) => row.keyword, { header: 'Keyword' }),
   col.volume<SampleKeyword>('search_volume', (row) => row.volume, { header: 'Volume' }),
@@ -93,6 +95,41 @@ function InspectorSpecimen(): ReactNode {
                     <p className="num type-body">{`${formatInteger(open.volume)} searches a month`}</p>
                   </InspectorSection>
                   <InspectorSection title="Changes" icon={History} status="loading" />
+                  {/* WP-77: no icon, a section-size title with a meta that wraps, a flush body whose rows draw their own edges */}
+                  <InspectorSection
+                    title="Related keywords that cite this page"
+                    titleSize="section"
+                    meta={`${formatInteger(RELATED.length)} keywords · cited in 76 answers`}
+                    status="ready"
+                    flush
+                  >
+                    <table className="w-full table-fixed type-table">
+                      <caption className="sr-only">Related keywords</caption>
+                      <tbody>
+                        {RELATED.map((keyword) => (
+                          <tr key={keyword.id} className="h-row-compact border-t border-border-subtle">
+                            <td className="truncate pr-2 pl-4">{keyword.keyword}</td>
+                            <td className="w-24 pr-4 pl-2 text-right num">{formatInteger(keyword.volume)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </InspectorSection>
+                  <InspectorSection
+                    title="Cited alongside"
+                    titleSize="section"
+                    meta="domains in the same answers"
+                    status="empty"
+                    flush
+                    empty={
+                      <EmptyState
+                        variant="card"
+                        headingLevel={3}
+                        title="Cited alone"
+                        reason="No other domain is cited in the answers that cite this page."
+                      />
+                    }
+                  />
                 </InspectorPanel>
                 <InspectorPanel value="settings">
                   <InspectorSection

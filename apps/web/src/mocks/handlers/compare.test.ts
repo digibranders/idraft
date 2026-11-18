@@ -68,6 +68,8 @@ const WEEK: z.ZodType<Schemas['WeekCells']> = z.strictObject({
     .exactOptional(),
   prompts: z.number(),
   share_of_voice: CELL,
+  // Backend request 1, not in the generated schema yet (`lib/api/week-visibility.ts`): the mock carries it
+  visibility: CELL.nullable().exactOptional(),
   week_start: z.string(),
 });
 const ENGINE: z.ZodType<Schemas['EngineSummary']> = z.strictObject({

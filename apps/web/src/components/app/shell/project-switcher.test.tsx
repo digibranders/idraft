@@ -24,11 +24,12 @@ function switcher(extra: Partial<ProjectSwitcherProps> = {}): ReturnType<typeof 
 describe('ProjectSwitcher marks', () => {
   const WITH_DOMAIN = { ...FYNIX, domain: 'fynix.com' };
 
-  it('shows the current project over its domain, with the icon of its site', () => {
+  it('shows the current project over its domain, with the letter mark and no request for the icon of its site', () => {
     const { container } = switcher({ current: WITH_DOMAIN, projects: [WITH_DOMAIN, CLEANSTART] });
     const button = screen.getByRole('combobox', { name: 'Project: Fynix' });
     expect(button).toHaveTextContent('Fynixfynix.com');
-    expect(container.querySelector('img')).toHaveAttribute('src', expect.stringContaining('domain=fynix.com'));
+    // No favicon service is asked (owner decision 6): the mark is the first letter until the app has an icon route
+    expect(container.querySelector('img')).toBeNull();
   });
 
   it('lists each project with its domain where it has one, and the name alone where it has none', async () => {

@@ -235,7 +235,7 @@ export function brandsCell(brands, label) {
     subtitle: `${label} · ${scopeSentence(brands.names, brands.answers)}`,
     rows: brands.shown.map((row) => brandRow(row, brands)),
     ownRow: brands.own ? brandRow(brands.own, brands) : null,
-    note: 'The share of answers that mention each brand. A brand marked Not a competitor is in the answers but not in your competitor list: add it to include it in share of voice and the competitor gap.',
+    note: 'The share of answers that mention each brand. A brand marked Not a competitor is in the answers but not in your competitor list: add it to include it in share of voice and the Lost to competitor card.',
   }));
   // The own brand is in the list, or pinned under it when it ranks lower
   const named = [...brands.shown, brands.own].some((row) => row?.own && row.rate > 0);
@@ -289,17 +289,17 @@ function brandRow(row, brands, holder = { node: null }) {
   if (row.own) main.append(el('span', `${NEUTRAL_BADGE} shrink-0`, 'You'));
   else if (!row.tracked) {
     const tag = el('span', 'shrink-0 type-meta', 'Not a competitor');
-    tag.dataset.tip = 'The answers mention it, but it is not in your competitor list, so share of voice and the competitor gap leave it out';
+    tag.dataset.tip = 'The answers mention it, but it is not in your competitor list, so share of voice and the Lost to competitor card leave it out';
     main.append(tag);
     const add = el('button', 'h-6 shrink-0 rounded-sm border border-border bg-surface px-2 type-label text-foreground hover:bg-surface-hover focus-visible:focus-ring', 'Add');
     add.type = 'button';
     add.setAttribute('aria-label', `Add ${row.name} to your competitors`);
-    add.dataset.tip = 'Track it: it counts in share of voice and the competitor gap from the next run';
+    add.dataset.tip = 'Track it: it counts in share of voice and the Lost to competitor card from the next run';
     add.addEventListener('click', () => {
       setTracked(row, brands, true, holder);
       toast({
         title: `${row.name} added to your competitors`,
-        description: 'It counts in share of voice and the competitor gap from the next run.',
+        description: 'It counts in share of voice and the Lost to competitor card from the next run.',
         action: { label: 'Undo', run: () => setTracked(row, brands, false, holder) },
       });
     });

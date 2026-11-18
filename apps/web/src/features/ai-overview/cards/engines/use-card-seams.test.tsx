@@ -50,7 +50,7 @@ describe('useCardExport', () => {
       return <></>;
     }
     function Exporting(): ReactElement {
-      useCardExport('item-1', () => ({ id: 'item-1', header: ['Engine'], rows: [['ChatGPT']] }));
+      useCardExport('item-1', () => ({ id: 'item-1', header: ['Platform'], rows: [['ChatGPT']] }));
       return <></>;
     }
     function Card(): ReactElement {
@@ -80,7 +80,7 @@ describe('useCardExport', () => {
   it('keeps one block per item id, so two instances of one card type export two tables', async () => {
     let read: () => ExportRead = () => ({ blocks: [], loading: 0 });
     function Exporting({ id }: { id: string }): ReactElement {
-      useCardExport(id, () => ({ id, header: ['Engine'], rows: [[id]] }));
+      useCardExport(id, () => ({ id, header: ['Platform'], rows: [[id]] }));
       return <></>;
     }
     function Card(): ReactElement {
@@ -107,7 +107,7 @@ describe('useCardExport', () => {
     function Card(): ReactElement {
       const reader = useExportBlocks();
       read = reader;
-      useCardExport('item-1', () => ({ id: 'item-1', header: ['Engine'], rows: [['ChatGPT']] }));
+      useCardExport('item-1', () => ({ id: 'item-1', header: ['Platform'], rows: [['ChatGPT']] }));
       return <p>mounted</p>;
     }
     function Page(): ReactElement {
@@ -119,7 +119,7 @@ describe('useCardExport', () => {
     }
     renderWithProviders(cardInOverview({ type: TYPE, Card: Page }));
     await screen.findByText('mounted');
-    expect(read().blocks).toEqual([{ id: 'item-1', header: ['Engine'], rows: [['ChatGPT']] }]);
+    expect(read().blocks).toEqual([{ id: 'item-1', header: ['Platform'], rows: [['ChatGPT']] }]);
   });
 
   it('is a no-op outside an export provider', async () => {

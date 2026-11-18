@@ -184,7 +184,7 @@ describe('CardCatalogDialog', () => {
 
   it('disables every entry that is not on the page with Page is full when twelve cards are', async () => {
     const user = await customizing();
-    for (const title of ['Top movers', 'SERP features', 'Citation share by domain type', 'Collection status']) {
+    for (const title of ['Top movers', 'SERP features', 'Citations by domain type', 'Collection status']) {
       const dialog = await openCatalog(user);
       await user.click(within(dialog).getByRole('button', { name: `Add ${title}` }));
       await closed();

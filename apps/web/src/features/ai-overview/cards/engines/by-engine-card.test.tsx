@@ -10,6 +10,7 @@ import type { CardProps } from '@/features/layouts';
 import type { PromptsSummary } from '@/lib/api/types';
 import * as csvWrite from '@/lib/csv/csv-write';
 import { formatPercent } from '@/lib/format';
+import { withBrandMentionShare } from '@/lib/rates/brand-mention-share';
 import { engineRates } from '@/lib/rates/strip-model';
 import { axe } from '@/test/axe';
 import { cardInOverview } from '@/test/ai-overview-harness';
@@ -42,41 +43,41 @@ afterEach(() => {
 const render = (search: string = WINDOW, card: ReactElement = cardInOverview({ type: TYPE, Card: ByEngineCard })) =>
   renderWithProviders(card, { searchParams: search });
 
-const tableOf = (): Promise<HTMLElement> => screen.findByRole('table', { name: 'AI by engine' });
+const tableOf = (): Promise<HTMLElement> => screen.findByRole('table', { name: 'AI by platform' });
 
 const answers = (summary: PromptsSummary): Response => HttpResponse.json({ data: summary });
 
-describe('the AI by engine card', () => {
-  it('has a row per asked engine in catalog order, with the engine name, and no AI Mode (off)', async () => {
+describe('the AI by platform card', () => {
+  it('has a row per asked platform in catalog order, with the platform name, and no AI Mode (off)', async () => {
     render();
     const table = await tableOf();
     expect(
       within(table)
         .getAllByRole('columnheader')
         .map((header) => header.textContent),
-    ).toEqual(['Engine', 'Mention', 'Citation', 'Share of voice', 'Own citation']);
+    ).toEqual(['Platform', 'Mention', 'Citation', 'Share of voice', 'Your citations']);
     const rows = within(table).getAllByRole('row').slice(1);
     expect(rows.map((row) => within(row).getAllByRole('rowheader')[0]?.textContent)).toEqual(['ChatGPT', 'Gemini']);
   });
 
-  it('writes the equal-weight line beside the rows: avg of 2, the engines named, each counted once', async () => {
+  it('writes the equal-weight line beside the rows: average of 2, the platforms named, each counted once', async () => {
     render();
     await tableOf();
-    const section = screen.getByRole('heading', { name: 'AI by engine' }).closest('section') as HTMLElement;
-    expect(section).toHaveTextContent(/avg of 2 \(ChatGPT and Gemini, each counted once\): Mention rate \d/);
+    const section = screen.getByRole('heading', { name: 'AI by platform' }).closest('section') as HTMLElement;
+    expect(section).toHaveTextContent(/average of 2 \(ChatGPT and Gemini, each counted once\): Mention rate \d/);
   });
 
   it('says in the footnote that the mean of the prompts can sit outside the interval of the pooled answers', async () => {
     render();
     await tableOf();
-    const section = screen.getByRole('heading', { name: 'AI by engine' }).closest('section') as HTMLElement;
+    const section = screen.getByRole('heading', { name: 'AI by platform' }).closest('section') as HTMLElement;
     expect(section).toHaveTextContent('That mean can sit outside the interval of the pooled answers.');
   });
 
-  it('names the prompts in the meta line but no pooled valid answers: each engine states its own counts', async () => {
+  it('names the prompts in the meta line but no pooled valid answers: each platform states its own counts', async () => {
     render();
     await tableOf();
-    const section = screen.getByRole('heading', { name: 'AI by engine' }).closest('section') as HTMLElement;
+    const section = screen.getByRole('heading', { name: 'AI by platform' }).closest('section') as HTMLElement;
     expect(section.textContent).toMatch(/\d[\d,]* prompts? · branded prompts left out, each prompt counts once/);
     expect(section.textContent).not.toMatch(/\d[\d,]* valid answers?/);
   });
@@ -113,8 +114,8 @@ describe('the AI by engine card', () => {
     expect(mention?.textContent).not.toContain('%');
     expect(citation?.textContent).toContain('50.0%');
     // The thin engine is left out of the average, which then has one value and so no line
-    const section = screen.getByRole('heading', { name: 'AI by engine' }).closest('section') as HTMLElement;
-    expect(section.textContent).not.toMatch(/avg of \d \([^)]*\): Mention rate/);
+    const section = screen.getByRole('heading', { name: 'AI by platform' }).closest('section') as HTMLElement;
+    expect(section.textContent).not.toMatch(/average of \d \([^)]*\): Mention rate/);
   });
 
   it("the numbers equal the strip's for the same scope (R12)", async () => {
@@ -131,12 +132,20 @@ describe('the AI by engine card', () => {
     server.events.on('response:mocked', listener);
     render();
     const table = await tableOf();
+    // The page's own read and the read that carries the entity cells of the total (share of voice counts)
     await vi.waitFor(() => {
-      expect(bodies.length).toBeGreaterThan(0);
+      expect(bodies.length).toBeGreaterThan(1);
     });
     server.events.removeListener('response:mocked', listener);
-    const prompts = bodies[0]?.data.prompts ?? [];
-    const strip = engineRates(prompts, 'chatgpt_web');
+    const page = bodies.find((body) => body.data.prompts.length > 0)?.data;
+    const counts = bodies.find((body) => body.data.prompts.length === 0)?.data;
+    if (page === undefined || counts === undefined) throw new Error('The two summary reads were not seen');
+    const read = withBrandMentionShare(page, counts);
+    const strip = engineRates(
+      read.prompts,
+      'chatgpt_web',
+      read.total?.engines.find((engine) => engine.engine_code === 'chatgpt_web'),
+    );
     const chatgpt = within(table).getByRole('row', { name: /ChatGPT/ });
     const [mention, citation, share] = within(chatgpt).getAllByRole('cell');
     expect(mention).toHaveTextContent(formatPercent(strip.mentioned.value));
@@ -145,7 +154,7 @@ describe('the AI by engine card', () => {
     expect(share).toHaveTextContent(formatPercent(strip.shareOfVoice.value));
   });
 
-  it('links the engine to the Prompts page filtered to it', async () => {
+  it('links the platform to the Prompts page filtered to it', async () => {
     render();
     const table = await tableOf();
     const link = within(within(table).getByRole('row', { name: /Gemini/ })).getByRole('link', { name: 'Gemini' });
@@ -165,7 +174,7 @@ describe('the AI by engine card', () => {
     );
     render();
     const table = await tableOf();
-    expect(await screen.findByText('Partial data: the previous window could not be read')).toBeInTheDocument();
+    expect(await screen.findByText('Partial data: the previous period could not be read')).toBeInTheDocument();
     // No change is made up from a window that was not read
     expect(within(table).queryAllByText(/pts/)).toHaveLength(0);
   });
@@ -209,15 +218,15 @@ describe('the AI by engine card', () => {
     expect(reason.closest('.sr-only')).toBeNull();
   });
 
-  it('says what the share of voice count is: the answers that name a brand, as the tooltip does', async () => {
+  it('says what the share of voice count is: x of y brand mentions, as the tooltip does', async () => {
     render();
     const table = await tableOf();
     const chatgpt = within(table).getByRole('row', { name: /ChatGPT/ });
     const [mention, , share] = within(chatgpt).getAllByRole('cell');
     // The visible count line of the cell (the delta's tip carries its own words, so the line is read on its own)
     const lines = Array.from(share?.querySelectorAll('span') ?? []).map((node) => node.textContent ?? '');
-    expect(lines.some((text) => /^[\d,]+ answers? that names? a brand$/.test(text))).toBe(true);
-    expect(lines.some((text) => /^[\d,]+ answers$/.test(text))).toBe(false);
+    expect(lines.some((text) => /^[\d,]+ of [\d,]+ brand mentions$/.test(text))).toBe(true);
+    expect(lines.some((text) => /answers$/.test(text))).toBe(false);
     // The mention count is over valid answers, and says so by its own form
     expect(mention?.textContent).toMatch(/\d[\d,]* of \d[\d,]* answers/);
   });
@@ -226,12 +235,21 @@ describe('the AI by engine card', () => {
     const { user } = render();
     await tableOf();
     await user.click(screen.getByRole('button', { name: 'Table' }));
-    const long = await screen.findByRole('table', { name: 'AI by engine' });
+    const long = await screen.findByRole('table', { name: 'AI by platform' });
     expect(
       within(long)
         .getAllByRole('columnheader')
         .map((header) => header.textContent),
-    ).toEqual(['Engine', 'Metric', 'Rate', 'Answers that count', 'Valid answers', 'Prompts', '95% interval', 'Change']);
+    ).toEqual([
+      'Platform',
+      'Metric',
+      'Rate',
+      'Answers that count',
+      'Valid answers',
+      'Prompts',
+      '95% interval',
+      'Change',
+    ]);
     const rows = within(long).getAllByRole('row').slice(1);
     // ChatGPT: mention, citation, share of voice, own citation; then Gemini
     expect(rows).toHaveLength(8);
@@ -243,12 +261,12 @@ describe('the AI by engine card', () => {
     expect(first[2]).toMatch(/^\d+$/);
     expect(first[3]).toMatch(/^[\d,]+$/);
 
-    await user.click(screen.getByRole('button', { name: 'More actions for AI by engine' }));
+    await user.click(screen.getByRole('button', { name: 'More actions for AI by platform' }));
     await user.click(await screen.findByRole('menuitem', { name: 'Download CSV' }));
     const [blob] = vi.mocked(csvWrite.downloadBlob).mock.calls[0] ?? [];
     if (!(blob instanceof Blob)) throw new Error('No file was downloaded');
     const text = await blob.text();
-    expect(text).toContain('Engine,Metric,Rate,Answers that count,Valid answers,Prompts,95% interval,Change');
+    expect(text).toContain('Platform,Metric,Rate,Answers that count,Valid answers,Prompts,95% interval,Change');
     const lines = text.split('\n');
     const firstLine = lines[1] ?? '';
     expect(firstLine.startsWith('ChatGPT,Mention rate,')).toBe(true);

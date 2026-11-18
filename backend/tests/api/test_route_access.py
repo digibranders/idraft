@@ -616,6 +616,23 @@ EXPECTED: dict[tuple[str, str], str] = {
     # WP-68 llm-advanced
     # WP-69 first-party-signals
     # WP-70 geo-readiness
+    # WP-76 citations-v2-api
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/citation-overview"): (
+        "data:read"
+    ),
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/cited-pages"): (
+        "data:read"
+    ),
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/cited-pages/{url_id}"): (
+        "data:read"
+    ),
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/citation-gaps"): (
+        "data:read"
+    ),
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/citation-gaps/{prompt_id}",
+    ): "data:read",
 }
 
 
@@ -741,6 +758,7 @@ PATH_PARAMETERS = {
     # WP-68 llm-advanced
     # WP-69 first-party-signals
     # WP-70 geo-readiness
+    # WP-76 citations-v2-api
 }
 # `{name}` or `{name:converter}`.
 PATH_PARAMETER = re.compile(r"\{(\w+)(?::\w+)?\}")
@@ -891,6 +909,7 @@ PACKAGES = (
     "WP-68 llm-advanced",
     "WP-69 first-party-signals",
     "WP-70 geo-readiness",
+    "WP-76 citations-v2-api",
 )
 ANCHOR = re.compile(r"^ *# (WP-\d{2} [a-z0-9-]+)$", re.MULTILINE)
 SECURITY_SUITE = Path(__file__).parents[1] / "security" / "test_cross_tenant.py"

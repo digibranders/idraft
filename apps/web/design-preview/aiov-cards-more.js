@@ -3,6 +3,7 @@
  * key changes and the collection calendar. Same contract as aiov-cards-core.js.
  */
 import { formatInteger } from './vendor/format/number.js';
+import { isDetectableDifference } from './vendor/stats/index.js';
 import {
   GA4_CONNECTED,
   GROUPS,
@@ -26,7 +27,7 @@ import {
 import { chartHost, lineOption, mountChart, treemapOption } from './aiov-charts.js';
 import { HEAT_METRICS, setScope } from './aiov-controls.js';
 import { segmented } from './aiov-cards-core.js';
-import { NEUTRAL_BADGE, barList, cardFrame, countsText, el, emptyBody, engineName, gapIcon, gapSentence, heatBin, icon, insufficientText, orderText, pct0, plural, platformLabel, sampleBadge, stackedRows } from './aiov-parts.js';
+import { NEUTRAL_BADGE, barList, cardFrame, countsText, el, emptyBody, engineName, gapIcon, gapSentence, heatBin, icon, insufficientText, orderText, pct0, plural, platformLabel, sampleBadge, shareCountsText, stackedRows } from './aiov-parts.js';
 
 const ENGINE_TOKEN = { chatgpt_web: 'chart-1', gemini_web: 'chart-2', google_ai_mode: 'chart-3', google_ai_overview: 'chart-4' };
 const HEAT_COLUMNS = ['chatgpt_web', 'gemini_web', 'google_ai_overview', 'google_ai_mode'];
@@ -53,7 +54,8 @@ function heatCell(cell, onClick, label) {
   const button = el('button', `w-full h-8 rounded-xs type-table-strong num ${bin >= 5 ? 'text-surface' : 'text-foreground'} hover:outline hover:outline-2 hover:outline-primary`, pct0(cell.value));
   button.type = 'button';
   button.style.background = `var(--seq-${bin})`;
-  const detail = cell.code === 'all' ? `average of ${cell.used} platforms` : countsText(cell);
+  // Share of voice names the counts of each platform of the average (R3): x of y brand mentions, never one pooled count
+  const detail = cell.measure === 'sov' ? shareCountsText(cell) : cell.code === 'all' ? `average of ${cell.used} platforms` : countsText(cell);
   button.dataset.tip = `${label}: ${pct0(cell.value)}${detail ? `, ${detail}` : ''}`;
   button.setAttribute('aria-label', `${label}: ${pct0(cell.value)}. Open this group`);
   button.addEventListener('click', onClick);
@@ -126,7 +128,7 @@ export function groupHeatmapCard(ctx) {
 export function groupExtremesCard(ctx) {
   const measure = ctx.scope.metric;
   const rows = groupRows(ctx.scope, measure).filter((row) => row.average.state === 'ok');
-  if (rows.length < 4) return cardFrame({ key: 'ai.topic_extremes', title: 'Top and bottom groups', body: emptyBody('Not enough groups', 'At least 4 groups with a rate are needed.') });
+  if (rows.length < 4) return cardFrame({ key: 'ai.topic_extremes', title: 'Strongest and weakest groups', body: emptyBody('Not enough groups', 'At least 4 groups with a rate are needed.') });
   const sorted = [...rows].sort((a, b) => b.average.value - a.average.value);
   const list = (items, token) => barList(items.map((row) => ({ label: row.name, value: row.average.value, barToken: token, strong: false, note: `${row.prompts} prompts` })), { max: sorted[0].average.value, always: true });
   // Never list a group on both sides: take at most half of the groups
@@ -135,7 +137,7 @@ export function groupExtremesCard(ctx) {
   strongest.append(el('p', 'type-label text-foreground-secondary mb-1', 'Strongest'), list(sorted.slice(0, count), 'chart-1'));
   const weakest = el('div', 'mt-3');
   weakest.append(el('p', 'type-label text-foreground-secondary mb-1', 'Weakest'), list(sorted.slice(-count).reverse(), 'chart-bar-neutral'));
-  return cardFrame({ key: 'ai.topic_extremes', title: 'Top and bottom groups', meta: MEASURES[measure].label.toLowerCase(), body: [strongest, weakest] });
+  return cardFrame({ key: 'ai.topic_extremes', title: 'Strongest and weakest groups', meta: MEASURES[measure].label.toLowerCase(), body: [strongest, weakest] });
 }
 
 /** The chosen group against all groups, one bar per platform and the average. */
@@ -148,14 +150,18 @@ function versusList(ctx) {
     const ok = row.a?.state === 'ok';
     const against = row.b?.state === 'ok' ? `All groups ${pct0(row.b.value)}` : 'All groups: no rate';
     const difference = ok && row.b?.state === 'ok' ? row.a.value - row.b.value : null;
+    // The same test as every change icon, on the counts of both (an average on the platforms' counts added up)
+    // Brand mentions are not independent trials of one rate: share of voice has no test, its gap is never coloured
+    const tested = measure !== 'sov';
+    const detectable = difference === null ? null : tested ? isDetectableDifference(row.a.counts, row.b.counts) : false;
     return {
       label: row.label,
       value: ok ? row.a.value : null,
       all: row.b?.state === 'ok' ? row.b.value : null,
       token: row.token,
       note: ok ? against : 'Too few answers',
-      tip: `${row.label}: ${ok ? pct0(row.a.value) : 'too few valid answers (fewer than 4)'}. ${against}.`,
-      icon: difference === null ? null : gapIcon(difference, gapSentence(groupName(ctx.scope.group), difference, 'all groups', row.a.value, row.b.value)),
+      tip: `${row.label}: ${ok ? `${pct0(row.a.value)}${tested ? '' : `, ${shareCountsText(row.a)}`}` : `too few valid ${tested ? 'answers' : 'brand mentions'} (fewer than 4)`}. ${against}.`,
+      icon: difference === null ? null : gapIcon(difference, gapSentence(groupName(ctx.scope.group), difference, 'all groups', row.a.value, row.b.value, detectable, tested), detectable),
     };
   });
   // One scale for every row, so the bars and the ticks can be compared
@@ -299,10 +305,18 @@ export function unlinkedCard(ctx) {
     const meta = el('div', 'flex items-center gap-2');
     const track = el('div', 'h-1.5 flex-1 rounded-full bg-neutral-subtle overflow-hidden');
     const fill = el('div', 'h-full rounded-full');
-    fill.style.width = `${(row.unlinked / row.answers) * 100}%`;
+    fill.style.width = `${row.rate * 100}%`;
     fill.style.background = 'var(--seq-4)';
     track.append(fill);
-    meta.append(track, el('span', 'type-table num text-foreground-secondary whitespace-nowrap', `${row.unlinked} of ${row.answers} answers`), el('span', NEUTRAL_BADGE, row.topic));
+    // One platform with a rate: its own "x of y answers", which is the percent. Several: the average and how many took part,
+    // with no pooled count beside it (each platform's counts are in the row's tooltip)
+    const [only] = row.counts;
+    const figure = row.counts.length === 1 ? `${only.k} of ${only.n} answers` : `${pct0(row.rate)}, average of ${row.counts.length}`;
+    const names = (codes) => codes.map(engineName).join(' and ');
+    const countsText = row.counts.map((count) => `${engineName(count.code)} ${count.k} of ${count.n}`).join(' and ');
+    const head = row.counts.length === 1 ? `${only.k} of ${only.n} answers on ${engineName(only.code)} mention you and cite none of your pages` : `${countsText} answers mention you and cite none of your pages. Average of ${names(row.counts.map((count) => count.code))}, each platform counting once`;
+    li.dataset.tip = row.leftOut.length === 0 ? head : `${head}. Left out, fewer than 4 valid answers: ${names(row.leftOut)}`;
+    meta.append(track, el('span', 'type-table num text-foreground-secondary whitespace-nowrap', figure), el('span', NEUTRAL_BADGE, row.topic));
     li.append(meta);
     list.append(li);
   });

@@ -5,6 +5,7 @@ import { useState, type ReactNode } from 'react';
 import { SpecimenGroup } from './specimen';
 import { ChartFrame } from '@/components/app/chart/chart-frame';
 import { MetricStrip, type MetricStripGroup } from '@/components/app/metric/metric-strip';
+import { TrendIcon } from '@/components/app/metric/trend-icon';
 import { CollectionProgress } from '@/components/app/status/collection-progress';
 import { Button } from '@/components/ui/button';
 import { StepperDialog } from '@/components/ui/stepper-dialog';
@@ -28,6 +29,75 @@ const STRIP: MetricStripGroup[] = [
     ],
   },
   { id: 'cost', items: [{ id: 'cost', label: 'Metrics cost this month', value: '$12.40', context: 'of $50.00' }] },
+];
+
+const LINE_TIP = 'The share of answers that cite your site at least once. 30 of 150 answers cite you.';
+/** Six slots of an analysis board: a trend icon on a rate, a neutral count change, a value that is not available. */
+const LINE_STRIP: MetricStripGroup[] = [
+  {
+    id: 'citations',
+    items: [
+      {
+        id: 'citations',
+        label: 'Total citations',
+        value: '405',
+        tip: 'How many times AI answers cite a page of your site.',
+        spoken: 'Total citations: 405. How many times AI answers cite a page of your site.',
+      },
+      {
+        id: 'rate',
+        label: 'Citation rate',
+        value: '17.5%',
+        delta: (
+          <TrendIcon
+            input={{ value: 0.2, unit: 'points', polarity: 'higher_is_better', isDetectable: true }}
+            spoken="Up 20.0 pts, detectable change"
+          />
+        ),
+        tip: LINE_TIP,
+        detail: 'Up 20.0 pts against the previous period, from 15% to 35%. Detectable: its 95% interval excludes zero.',
+        spoken: `Citation rate: 17.5%. ${LINE_TIP}`,
+      },
+      {
+        id: 'coverage',
+        label: 'Prompt coverage',
+        value: '35.0%',
+        delta: (
+          <TrendIcon
+            input={{ value: 0.018, unit: 'points', polarity: 'higher_is_better', isDetectable: false }}
+            spoken="Up 1.8 pts, within normal variation"
+          />
+        ),
+        tip: LINE_TIP,
+        detail: 'Up 1.8 pts against the previous period, from 33% to 35%. Within normal variation.',
+        spoken: `Prompt coverage: 35.0%. ${LINE_TIP}`,
+      },
+      {
+        id: 'urls',
+        label: 'Unique cited URLs',
+        value: '8',
+        delta: <span className="num text-foreground-secondary">+2</span>,
+        tip: 'How many different pages of your site AI answers cite.',
+        detail: '6 before. Counts are not tested for detectability',
+        spoken: 'Unique cited URLs: 8. How many different pages of your site AI answers cite.',
+      },
+      {
+        id: 'domains',
+        label: 'Unique cited domains',
+        value: '20',
+        tip: 'How many different domains AI answers cite for your prompts.',
+        spoken: 'Unique cited domains: 20. How many different domains AI answers cite for your prompts.',
+      },
+      {
+        id: 'growth',
+        label: 'Citation growth',
+        value: 'n/a',
+        unknown: { kind: 'not-applicable' },
+        tip: 'How total citations changed against the same number of runs before.',
+        spoken: 'Citation growth: n/a. How total citations changed against the same number of runs before.',
+      },
+    ],
+  },
 ];
 
 const MONTHS = ['Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep'];
@@ -126,6 +196,15 @@ export function DataDisplaySection(): ReactNode {
               status="ready"
             />
           </div>
+        </div>
+      </SpecimenGroup>
+      <SpecimenGroup
+        title="MetricStrip, line size"
+        note="23 section 2.9. One 36 px line per slot; 2, 3 or 6 columns by the strip's own width. Tab to a figure to read its tooltip."
+      >
+        <div className="flex flex-col gap-4">
+          <MetricStrip size="line" label="Citation measures" groups={LINE_STRIP} status="ready" />
+          <MetricStrip size="line" label="Citation measures while loading" groups={LINE_STRIP} status="loading" />
         </div>
       </SpecimenGroup>
       <SpecimenGroup

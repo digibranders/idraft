@@ -155,6 +155,31 @@ The inline strip is the summary of a table page (Keywords). It is label and valu
 
 Use `md` when the summary is the first thing a person reads (overview pages, Costs). Use `inline` when the data below it is a table the person came to work in.
 
+### 2.9 Line size (`size="line"`)
+
+The line strip (`MetricStrip size="line"`) is for boards whose table must start high on the page (Citations): the same metrics and denominators, the context in the tooltip.
+
+| Part | Spec |
+|---|---|
+| Panel | One `dl` in a rounded, bordered panel with 1 px `border-subtle` gaps; 2 columns, 3 from a 576 px strip, 6 from a 1024 px strip (container queries on the strip, so a docked inspector does not squeeze six labels) |
+| Slot | One 36 px line (`h-control`): label at the left (`type-meta`, truncates), figure at the right (`type-body-strong num`), the delta after it. No info button |
+| Delta | A `TrendIcon` for a rate, a neutral signed count for a count |
+| Tooltip | On the label and on the figure: what, the context (capitalised), the tip, how; the delta's own figures are the second line |
+| Keyboard | The figure is the tab stop; its name is the label, the value and the whole tooltip |
+| Loading | A 40 px bar in place of the figure; the labels stay |
+
+### 2.10 Analysis board panel (WP-77)
+
+The table of an analysis board (Citations) sits in one panel under the line strip (section 2.9): `rounded-lg`, 1 px `border`, `surface`, at least 384 px tall (`min-h-96`), so a phone, where the strip takes the screen, still shows rows and the page scrolls.
+
+| Part | Spec |
+|---|---|
+| Toolbar | At least 48 px, wrapping, 12 px between items: the views (`TabNav variant="segmented"`), a hairline (from `md`), the search ([13 §6](13-filters-search.md)), the tab's controls, and the tab's summary pushed to the right |
+| Body | The `BoardTable` ([12 §20](12-tables.md)), its skeleton rows, its `EmptyState variant="table"` or its error. The static `RefetchBar` sits under the header while new rows are read |
+| Footer | 48 px: the tab's count text at the left (`type-meta num`), "Updated <time> · run <n>" at the right |
+
+The views are route tabs, not a tablist: each is a page of its own (`aria-current="page"`). The hairline keeps the views (what the table is) apart from the filters (what it shows).
+
 ## 3. Page header: PageHeader
 
 ### 3.1 Anatomy

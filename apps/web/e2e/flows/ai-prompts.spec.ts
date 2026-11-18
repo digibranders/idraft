@@ -21,7 +21,7 @@ const namingTheBrand = (inspector: Locator): Locator =>
   inspector
     .getByRole('table', { name: 'Answers to this prompt' })
     .getByRole('row')
-    .filter({ hasText: /Mentioned (and cited|only)/ });
+    .filter({ hasText: /Mentioned: yes/ });
 
 const openAnswerButton = (row: Locator): Locator => row.getByRole('button', { name: /^Open the .* answer of / });
 
@@ -55,7 +55,9 @@ async function expectNoArchive(page: Page, inspector: Locator): Promise<void> {
 }
 
 test.describe('AI prompt tracking', () => {
-  test('an editor turns an engine on, adds prompts by pasting a list and finds them in the table', async ({ page }) => {
+  test('an editor turns a platform on, adds prompts by pasting a list and finds them in the table', async ({
+    page,
+  }) => {
     const policy = watchPolicy(page);
     await signIn(page, EDITOR);
     await page.goto(CLEANSTART_ENGINES);
@@ -71,11 +73,11 @@ test.describe('AI prompt tracking', () => {
 
     // The sentence under the title leads to the schedules that ask the prompts; a link, not page.goto, since the
     // mocks' memory lives in the page
-    await page.getByRole('region', { name: 'Engines' }).getByRole('link', { name: 'Schedules' }).click();
+    await page.getByRole('region', { name: 'Platforms' }).getByRole('link', { name: 'Schedules' }).click();
     await expect(page.getByRole('heading', { level: 2, name: 'Schedules' })).toBeVisible();
-    await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Topics & Prompts' }).click();
+    await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Prompts', exact: true }).click();
     // The title is read and not drawn (the breadcrumb shows it), so it is in the page without being seen
-    await expect(page.getByRole('heading', { level: 1, name: 'Topics & Prompts' })).toBeAttached();
+    await expect(page.getByRole('heading', { level: 1, name: 'Prompts' })).toBeAttached();
     await expect(page.getByRole('heading', { name: 'No prompts yet' })).toBeVisible();
     await page.getByRole('button', { name: 'Add prompts' }).click();
     const dialog = page.getByRole('dialog', { name: 'Add prompts' });
@@ -93,7 +95,7 @@ test.describe('AI prompt tracking', () => {
     await expect(toastsOf(page).getByText('2 prompts added')).toBeVisible();
     await expect(dialog).toBeHidden();
 
-    // Topics and Prompts are a segmented control in the table toolbar: a radio group, not a tab list
+    // Prompts are a segmented control in the table toolbar: a radio group, not a tab list
     await page.getByRole('radio', { name: 'Prompts' }).click();
     const table = page.getByRole('grid', { name: 'Prompts' });
     await expect(table.getByText('How often should an office be cleaned?', { exact: true })).toBeVisible();
@@ -137,17 +139,17 @@ test.describe('AI prompt tracking', () => {
     await expect(inspector.getByRole('button', { name: /^Open the full answer from / }).first()).toBeVisible();
     await openHistory(inspector);
     await inspector.getByRole('tab', { name: 'Competitors' }).click();
-    await expect(inspector.getByRole('table', { name: 'Brands named in the answers to this prompt' })).toBeVisible();
-    await inspector.getByRole('tab', { name: 'Stats' }).click();
     await expect(
-      inspector.getByText(/^The interval is the 95 percent Wilson interval over the valid answers/),
+      inspector.getByRole('table', { name: 'Brands mentioned in the answers to this prompt' }),
     ).toBeVisible();
+    await inspector.getByRole('tab', { name: 'Stats' }).click();
+    await expect(inspector.getByText(/^A rate is successes over valid answers in the period/)).toBeVisible();
     await openHistory(inspector);
 
     await openAnswerButton(namingTheBrand(inspector).first()).click();
-    await expect(page.getByLabel(/^Fynix mention, own brand/).first()).toBeVisible();
-    await expect(page.getByRole('list', { name: 'Sources cited in this answer' })).toBeVisible();
-    await expect(page.getByText('Ads in the answer are left out of the mentions and the sources.')).toBeVisible();
+    await expect(page.getByLabel(/^Fynix mention, your brand/).first()).toBeVisible();
+    await expect(page.getByRole('list', { name: 'Citations in this answer' })).toBeVisible();
+    await expect(page.getByText('Ads in the answer are left out of the mentions and the citations.')).toBeVisible();
     // The raw answer is for those who may read raw data (`raw:read`): a viewer has no link to it
     await expect(page.getByRole('link', { name: 'Download the raw answer' })).toHaveCount(0);
     await expectAccessible(page);
@@ -201,7 +203,7 @@ test.describe('AI prompt tracking', () => {
 });
 
 for (const theme of ['light', 'dark'] as const) {
-  test.describe(`Topics & Prompts in the ${theme} theme`, () => {
+  test.describe(`Prompts in the ${theme} theme`, () => {
     test.beforeEach(async ({ page }) => {
       await page.addInitScript(
         ([key, value]) => {
@@ -221,12 +223,22 @@ for (const theme of ['light', 'dark'] as const) {
         await page.goto(FYNIX_PROMPTS);
         // Under 768 px the topics are a list of rows (the best engine and the engine count on each), not a grid
         if (width < 768) {
-          const topics = page.getByRole('list', { name: /^Topics, \d+ results/ });
+          const topics = page.getByRole('list', { name: /^Groups, \d+ results/ });
           await expect(topics).toBeVisible();
           await expect(topics.getByRole('button').first()).toBeVisible();
         } else {
-          await expect(page.getByRole('treegrid', { name: 'Topics' })).toBeVisible();
+          await expect(page.getByRole('treegrid', { name: 'Groups' })).toBeVisible();
         }
+        await expectAccessible(page);
+        await noSidewaysScroll();
+
+        // The controls row and the strip under it, at every width: the Platform select, and a slot for each of the four platforms
+        await page.goto(`${FYNIX_PROMPTS}?tab=prompts`);
+        await expect(page.getByRole('grid', { name: 'Prompts' })).toBeVisible();
+        await expect(page.getByRole('combobox', { name: 'Platform' })).toBeVisible();
+        await expect(page.getByRole('group', { name: 'Summary of the prompts in view' }).getByRole('term')).toHaveCount(
+          5,
+        );
         await expectAccessible(page);
         await noSidewaysScroll();
 
@@ -252,8 +264,8 @@ for (const theme of ['light', 'dark'] as const) {
 
         // The answer viewer, with the own brand and the competitors marked
         await openAnswerButton(namingTheBrand(inspector).first()).click();
-        await expect(page.getByLabel(/^Fynix mention, own brand/).first()).toBeVisible();
-        await expect(page.getByRole('list', { name: 'Sources cited in this answer' })).toBeVisible();
+        await expect(page.getByLabel(/^Fynix mention, your brand/).first()).toBeVisible();
+        await expect(page.getByRole('list', { name: 'Citations in this answer' })).toBeVisible();
         await expectAccessible(page);
         await noSidewaysScroll();
 

@@ -3,9 +3,10 @@
 import { useTranslations } from 'next-intl';
 import type { ReactElement } from 'react';
 
-import { ChangeInline, useChangeWords, useComparedWindow, useCompare } from './compare';
+import { useChangeWords, useComparedWindow, useCompare } from './compare';
 import type { PromptCounts } from './inspector-reads';
 import { useRateWords } from './rate-view';
+import { TrendIcon } from './trend-icon';
 import { MetricStrip, type MetricStripGroup, type MetricStripItem } from '@/components/app/metric/metric-strip';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { InlineError } from '@/components/app/status/inline-error';
@@ -71,9 +72,9 @@ export function InspectorStrip({ engines, counts, noCountsReason }: InspectorStr
       unknown:
         figure.state === 'ok' ? null : { kind: figure.state === 'insufficient' ? 'insufficient' : 'not-applicable' },
       context: words.basis(figure) ?? words.reason(figure),
-      delta: change === null ? undefined : <ChangeInline change={change} />,
-      // The item with a tip is the tab stop that holds it: the previous value with its answers, the window, the verdict
-      tip: change === null ? undefined : changeWords.tip(change, { kind: 'engine', range }),
+      delta: change === null ? undefined : <TrendIcon change={change} />,
+      // The item with a tip is the tab stop that holds it: the move in points, the previous value with its answers, the window, the verdict
+      tip: change === null ? undefined : changeWords.tip(change, { kind: 'engine', range, move: true }),
     };
   });
   const citation = averageRate(

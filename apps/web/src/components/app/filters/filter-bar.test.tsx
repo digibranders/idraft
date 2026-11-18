@@ -1,6 +1,6 @@
 import { act, screen, waitFor, within } from '@testing-library/react';
 import { useState, type ReactElement } from 'react';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { FilterBar } from './filter-bar';
 import type { FilterField, FilterValues } from './types';
@@ -37,12 +37,22 @@ const FIELDS: FilterField[] = [
 
 let latest: FilterValues = {};
 
-function Harness({ initial = {} }: { initial?: FilterValues }): ReactElement {
+function Harness({
+  initial = {},
+  nowrap,
+  compact,
+}: {
+  initial?: FilterValues;
+  nowrap?: boolean;
+  compact?: boolean;
+}): ReactElement {
   const [values, setValues] = useState<FilterValues>(initial);
   return (
     <FilterBar
       fields={FIELDS}
       values={values}
+      nowrap={nowrap}
+      compact={compact}
       onChange={(next) => {
         latest = next;
         setValues(next);
@@ -59,6 +69,31 @@ describe('FilterBar', () => {
   });
   afterEach(() => {
     Reflect.deleteProperty(Element.prototype, 'getAnimations');
+  });
+
+  it('wraps its chips by default and scrolls them on one line inside its room with nowrap', () => {
+    const initial: FilterValues = { kw: { kind: 'text', operator: 'contains', text: 'crm' } };
+    const wrapping = renderWithProviders(<Harness initial={initial} />);
+    expect(within(wrapping.container).getByRole('group', { name: 'Filters' })).toHaveClass('flex-wrap');
+    expect(within(wrapping.container).getByRole('group', { name: 'Filters' })).not.toHaveClass('overflow-x-auto');
+    wrapping.unmount();
+    const single = renderWithProviders(<Harness initial={initial} nowrap />);
+    const bar = within(single.container).getByRole('group', { name: 'Filters' });
+    expect(bar).toHaveClass('overflow-x-auto', 'scrollbar-none');
+    expect(bar).not.toHaveClass('flex-wrap');
+    expect(within(bar).getByRole('button', { name: 'Keyword contains: crm. Edit filter' })).toBeInTheDocument();
+    expect(within(bar).getByRole('button', { name: 'Add a filter' })).toBeInTheDocument();
+  });
+
+  it('draws the 36 px chip and "+ Filter" by default, and the 32 px ones with compact', () => {
+    const initial: FilterValues = { kw: { kind: 'text', operator: 'contains', text: 'crm' } };
+    const plain = renderWithProviders(<Harness initial={initial} />);
+    expect(plain.container.querySelector('[data-filter-chip]')).toHaveClass('h-control');
+    expect(screen.getByRole('button', { name: 'Add a filter' })).not.toHaveClass('h-control-sm');
+    plain.unmount();
+    const compact = renderWithProviders(<Harness initial={initial} compact />);
+    expect(compact.container.querySelector('[data-filter-chip]')).toHaveClass('h-control-sm');
+    expect(screen.getByRole('button', { name: 'Add a filter' })).toHaveClass('h-control-sm');
   });
 
   it('names each chip and its remove button from the field and value', async () => {
@@ -197,6 +232,22 @@ describe('FilterBar', () => {
     expect(screen.queryByRole('button', { name: 'Clear filters' })).not.toBeInTheDocument();
   });
 
+  it('draws no + Filter while every field has its chip, and gives it back when the chip goes', async () => {
+    const only = FIELDS.filter((field) => field.id === 'device');
+    function Single(): ReactElement {
+      const [values, setValues] = useState<FilterValues>({ device: { kind: 'enum', values: ['desktop'] } });
+      return <FilterBar fields={only} values={values} onChange={setValues} hideClear hideAddWhenFull />;
+    }
+    const { user } = renderWithProviders(<Single />);
+    expect(screen.queryByRole('button', { name: 'Add a filter' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Remove filter Device: Desktop' }));
+    await user.click(await screen.findByRole('button', { name: 'Add a filter' }));
+    await user.click(await screen.findByRole('button', { name: 'Device' }));
+    await user.click(screen.getByRole('radio', { name: 'Mobile' }));
+    expect(await screen.findByRole('button', { name: 'Device: Mobile. Edit filter' })).toHaveFocus();
+    expect(screen.queryByRole('button', { name: 'Add a filter' })).not.toBeInTheDocument();
+  });
+
   it('applies a single choice on Space, not while the arrows move through the options', async () => {
     const { user } = renderWithProviders(<Harness initial={{ device: { kind: 'enum', values: ['desktop'] } }} />);
     await user.click(screen.getByRole('button', { name: 'Device: Desktop. Edit filter' }));
@@ -240,5 +291,37 @@ describe('FilterBar', () => {
     expect(screen.getByRole('button', { name: 'Add a filter' })).toHaveFocus();
     await user.click(screen.getByRole('button', { name: 'Clear filters' }));
     expect(latest).toEqual({ other });
+  });
+
+  describe('hiddenChipFields', () => {
+    const device = { kind: 'enum', values: ['desktop'] } as const;
+    const kw = { kind: 'text', operator: 'equals', text: 'crm' } as const;
+
+    it('draws no chip for a hidden field, keeps its value, and does not offer it in + Filter', async () => {
+      const { user } = renderWithProviders(
+        <FilterBar fields={FIELDS} values={{ device }} onChange={() => undefined} hiddenChipFields={['device']} />,
+      );
+      expect(screen.queryByRole('button', { name: /Device/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Clear filters' })).not.toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Add a filter' }));
+      const list = await screen.findByRole('list');
+      expect(within(list).queryByRole('button', { name: 'Device' })).not.toBeInTheDocument();
+      expect(within(list).getByRole('button', { name: 'Keyword' })).toBeInTheDocument();
+    });
+
+    it('still draws the other chips, and Clear filters leaves the hidden value in place', async () => {
+      const onChange = vi.fn();
+      const { user } = renderWithProviders(
+        <FilterBar fields={FIELDS} values={{ device, kw }} onChange={onChange} hiddenChipFields={['device']} />,
+      );
+      expect(screen.getByRole('button', { name: 'Keyword equals: crm. Edit filter' })).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Clear filters' }));
+      expect(onChange).toHaveBeenCalledWith({ device });
+    });
+
+    it('draws every chip when the prop is not given', () => {
+      renderWithProviders(<FilterBar fields={FIELDS} values={{ device }} onChange={() => undefined} />);
+      expect(screen.getByRole('button', { name: 'Device: Desktop. Edit filter' })).toBeInTheDocument();
+    });
   });
 });

@@ -9,7 +9,6 @@ describe('topicListLines: the second line of a topic on a phone', () => {
   it('names the best engine with its rate and counts the engines that show a rate', () => {
     const lines = topicListLines(
       head('tech', 'Technical SEO', {
-        path: 'SEO / Technical SEO',
         engines: [
           engine('chatgpt_web', { mentioned: weighted(3, 8, 2) }),
           engine('gemini_web', { mentioned: weighted(6, 8, 2) }),
@@ -19,7 +18,7 @@ describe('topicListLines: the second line of a topic on a phone', () => {
       }),
       ENGINES,
     );
-    expect(lines.identity).toBe('SEO / Technical SEO');
+    expect(lines.identity).toBe('Technical SEO');
     expect(lines.best).toEqual({ code: 'gemini_web', value: 0.75, successes: 6, answers: 8 });
     expect(lines.engines).toBe(2);
   });

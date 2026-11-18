@@ -176,10 +176,10 @@ describe('the cells', () => {
     expect(hasAnyAnswer(none)).toBe(false);
   });
 
-  it('share of voice has no count of successes and says so', () => {
+  it('share of voice counts brand mentions, x of y, and says so', () => {
     const series: WeekSpec[] = [{ weekStart: W4, prompts: 1, mentioned: [5, 8], sov: [3, 6], pool: { weeks: 4 } }];
     const [row] = promptWeekGrid(input([prompt('x', 'Share', [CRM], series)], { metric: 'share_of_voice' })).rows;
-    expect(row?.cells[0]).toMatchObject({ k: null, n: 6, thin: false });
+    expect(row?.cells[0]).toMatchObject({ k: 3, n: 6, thin: false });
   });
 });
 
@@ -246,7 +246,7 @@ describe('the topics to choose from', () => {
   const NODES = [
     node(CRM, 'CRM', 5, [child(PRICING, 'Pricing', 2, 'CRM')]),
     node(SECURITY, 'Security', 3),
-    node(null, 'Prompts without a topic', 9),
+    node(null, 'Prompts without a group', 9),
   ];
 
   it('are the real topics, each followed by its children, and never the prompts without a topic', () => {

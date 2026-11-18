@@ -1,7 +1,9 @@
 import { addDays, isBeforeFirstDay } from '@/components/app/date-range/business-date';
 import { apiQuery, type ApiQueryOptions } from '@/lib/api/query';
+import type { paths } from '@/lib/api/schema';
 import type { EngineCode } from '@/lib/api/types';
 import { compareParams } from '@/lib/compare/compare-model';
+import { factsRequested } from '@/lib/prompt-facts/request';
 import { brandedParams, type DateWindow, type OverviewScope } from '../scope/scope-model';
 
 /**
@@ -16,6 +18,8 @@ import { brandedParams, type DateWindow, type OverviewScope } from '../scope/sco
 const P = '/api/v1/workspaces/{workspace_id}/projects/{project_id}';
 const ENGINES = `${P}/engines` as const;
 const SUMMARY = `${P}/ai/prompts-summary` as const;
+
+type SummaryInclude = NonNullable<NonNullable<paths[typeof SUMMARY]['get']['parameters']['query']>['include']>[number];
 const SOURCES = `${P}/ai/sources/domains` as const;
 const FANOUT = `${P}/ai/fanout-queries` as const;
 const SCHEDULES = `${P}/schedules` as const;
@@ -55,6 +59,17 @@ function engineFilter(read: ReadScope): { 'filter[engine_code_in]'?: EngineCode[
   return asked.length === read.enabledEngines.length ? {} : { 'filter[engine_code_in]': [...asked] };
 }
 
+/**
+ * The engine filter of the sources reads: always the engines asked. Unlike the summary, which leaves out the filter
+ * for the project's enabled engines, these routes read all three engines when it is left out, an engine that is off
+ * included (OV-SCOPE-13, R12). The fan-out read keeps the plain filter: it counts only the engines that show their
+ * queries, so an engine that is off and shows none adds no answer to it.
+ */
+function namedEngineFilter(read: ReadScope): { 'filter[engine_code_in]'?: EngineCode[] } {
+  const asked = askedEngines(read);
+  return asked.length === 0 ? {} : { 'filter[engine_code_in]': [...asked] };
+}
+
 function scopeFilters(scope: OverviewScope): { 'filter[country_iso]'?: string; 'filter[term]'?: string } {
   return {
     ...(scope.country === null ? {} : { 'filter[country_iso]': scope.country }),
@@ -72,6 +87,13 @@ export function comparisonWindow(scope: OverviewScope): DateWindow | null {
 }
 
 /**
+ * Whether the sources reads can compare: the sources routes take `compare=previous_period` only (backend request 23
+ * asks for `previous_year`), so a comparison with the same dates a year earlier is not read there.
+ */
+export const sourcesComparable = (scope: OverviewScope): boolean =>
+  comparisonWindow(scope) !== null && scope.compareKind === 'previous_period';
+
+/**
  * Whether the sources and fan-out reads can answer the branded choice. They have `include_branded` and no
  * `branded_only`, so "branded only" cannot be asked of them: those reads do not run for it, and the number says so.
  */
@@ -84,11 +106,26 @@ export const overviewEnginesQuery = (project: ProjectRef): ApiQueryOptions<typeo
 export interface SummaryOptions {
   /** The window of the scope (default) or the one just before it. */
   period?: 'current' | 'previous';
-  /** Blocks to add: a point per week, a cell per tracked entity, the one-row total, and the co-mention pair counts. */
-  include?: readonly ('series' | 'entities' | 'total' | 'co_mentions')[];
+  /**
+   * Blocks to add: a point per week, a cell per tracked entity, the one-row total, the co-mention pair counts, and the
+   * per-platform facts (position counts, sentiment counts). `facts` is sent only where the API knows it (`factsRequested`).
+   */
+  include?: readonly ('series' | 'entities' | 'total' | 'co_mentions' | 'facts')[];
   /** `topics` leaves the prompt rows out, `none` both row lists. Left out: every row. */
   rows?: 'topics' | 'none';
 }
+
+/**
+ * The read of the cards that draw share of voice week by week (Share of voice over time, its rank, the competitor trend,
+ * and the rate trend while its metric is Share of voice): the `total` with a point per week, each point with the cells of
+ * every tracked brand (`include=series,entities`, at most 20 brands, own ones first, pooled weeks as the point's `pool`
+ * says, no `previous`). `total` is there because `rows=none` leaves out every row, and the weekly points of the whole
+ * scope are the `total`'s. No other card asks for it: the prompt rows with weekly entity cells are megabytes.
+ */
+export const WEEKLY_SHARE_READ = {
+  include: ['entities', 'series', 'total'],
+  rows: 'none',
+} as const satisfies SummaryOptions;
 
 /** `GET {P}/ai/prompts-summary` for a window of the scope: Mentioned, Cited and the rest per prompt, topic and engine. */
 export function overviewSummaryQuery(
@@ -98,6 +135,7 @@ export function overviewSummaryQuery(
 ): ApiQueryOptions<typeof SUMMARY> {
   const { scope } = read;
   const window = period === 'previous' ? scope.previous : scope.range;
+  const asked = include.filter((block) => block !== 'facts' || factsRequested());
   return apiQuery(SUMMARY, {
     params: {
       path: pathOf(project),
@@ -107,7 +145,8 @@ export function overviewSummaryQuery(
         ...brandedParams(scope.branded),
         ...engineFilter(read),
         ...scopeFilters(scope),
-        ...(include.length === 0 ? {} : { include: [...include].sort() }),
+        // `facts` is not in the generated client yet: the one cast, until `pnpm gen:api` brings the value
+        ...(asked.length === 0 ? {} : { include: [...asked].sort() as SummaryInclude[] }),
         ...(rows === undefined ? {} : { rows }),
       },
     },
@@ -165,9 +204,9 @@ export function overviewSourcesQuery(
         to: scope.range.to,
         include_branded: scope.branded !== 'excluded',
         limit: 1,
-        ...engineFilter(read),
+        ...namedEngineFilter(read),
         ...scopeFilters(scope),
-        ...compareParams(comparisonWindow(scope) !== null),
+        ...compareParams(sourcesComparable(scope)),
         ...(include.length === 0 ? {} : { include: [...include].sort() }),
       },
     },

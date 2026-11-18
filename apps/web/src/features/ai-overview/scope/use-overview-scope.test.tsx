@@ -39,18 +39,36 @@ describe('useOverviewScope', () => {
       range: { from: '2026-10-17', to: '2026-11-13', days: 28 },
       rangeValue: { kind: 'preset', preset: '28d' },
       compare: true,
+      compareKind: 'previous_period',
       previous: { from: '2026-09-19', to: '2026-10-16' },
       country: null,
       engines: null,
       topic: null,
       branded: 'excluded',
+      metric: 'visibility',
     });
     expect(result.current.dropped).toBeNull();
     expect(updates).toHaveLength(0);
   });
 
-  it('the keys cmp, country, engine, topic and branded are read', () => {
-    const { result } = setup(`?cmp=off&country=DE&engine=gemini_web,chatgpt_web&topic=${TOPIC}&branded=only&win=7d`);
+  it('cmp=year reads the same dates a year earlier, and an unknown cmp the period before', () => {
+    const year = setup('?cmp=year').result.current.scope;
+    expect(year).toMatchObject({
+      compare: true,
+      compareKind: 'previous_year',
+      previous: { from: '2025-10-17', to: '2025-11-13' },
+    });
+    expect(setup('?cmp=previous').result.current.scope).toMatchObject({
+      compare: true,
+      compareKind: 'previous_period',
+    });
+    expect(setup('?cmp=off').result.current.scope).toMatchObject({ compare: false, compareKind: 'previous_period' });
+  });
+
+  it('the keys cmp, country, engine, topic, branded and metric are read', () => {
+    const { result } = setup(
+      `?cmp=off&country=DE&engine=gemini_web,chatgpt_web&topic=${TOPIC}&branded=only&metric=sov&win=7d`,
+    );
     expect(result.current.scope).toMatchObject({
       range: { from: '2026-11-07', to: '2026-11-13', days: 7 },
       compare: false,
@@ -59,17 +77,19 @@ describe('useOverviewScope', () => {
       engines: ['gemini_web', 'chatgpt_web'],
       topic: TOPIC,
       branded: 'only',
+      metric: 'sov',
     });
   });
 
   it('never trusts a raw value: unknown values fall back to the defaults', () => {
-    const { result } = setup('?cmp=maybe&country=germany&engine=bogus&topic=crm&branded=sometimes');
+    const { result } = setup('?cmp=maybe&country=germany&engine=bogus&topic=crm&branded=sometimes&metric=nonsense');
     expect(result.current.scope).toMatchObject({
       compare: true,
       country: null,
       engines: null,
       topic: null,
       branded: 'excluded',
+      metric: 'visibility',
     });
   });
 
@@ -94,6 +114,25 @@ describe('useOverviewScope', () => {
     for (const key of ['cmp', 'country', 'engine', 'topic', 'branded']) expect(latest().has(key)).toBe(false);
     expect(latest().get('q')).toBe('crm');
     expect(updates.every((update) => update.options.history === 'replace')).toBe(true);
+  });
+
+  it('the metric is written with replace, and the default removes its key', async () => {
+    const { result, updates, latest } = setup('?q=crm');
+    act(() => {
+      result.current.setScope({ metric: 'citation' });
+    });
+    await waitFor(() => expect(latest().get('metric')).toBe('citation'));
+    expect(latest().get('q')).toBe('crm');
+    act(() => {
+      result.current.setScope({ metric: 'visibility' });
+    });
+    await waitFor(() => expect(latest().has('metric')).toBe(false));
+    expect(updates.every((update) => update.options.history === 'replace')).toBe(true);
+  });
+
+  it('an old link with several engines keeps them in the scope; singlePlatform reads them as All platforms', () => {
+    const { result } = setup('?engine=gemini_web,chatgpt_web');
+    expect(result.current.scope.engines).toEqual(['gemini_web', 'chatgpt_web']);
   });
 
   it('an empty engine list is the default and removes the key', async () => {

@@ -22,7 +22,7 @@ export const CARD_INFO = {
   },
   'ai.share_of_voice': {
     what: 'How much of the brand talk in answers is about you, compared with your competitors.',
-    how: 'In each answer that mentions you or a tracked competitor, the brands mentioned share that answer equally. Your share is the average of those shares across such answers. It depends on which competitors are tracked: adding one lowers every other share. Watched brands do not count. Click a competitor to open it.',
+    how: 'Your brand’s mentions over all tracked-brand mentions: x of y brand mentions, where y adds up the mentions of you and of every tracked competitor. It depends on which competitors are tracked: adding one lowers every other share. Watched brands do not count. A share needs at least 4 brand mentions. For All platforms it is the average of the platforms, each counting once. Click a competitor to open it.',
   },
   'ai.sov_over_time': {
     what: 'How the split of brand mentions between you and your competitors changes week by week.',
@@ -135,7 +135,7 @@ export const MEASURE_INFO = {
   },
   sov: {
     what: 'Your share of all brand mentions.',
-    how: 'As on the Share of voice card: it depends on which competitors are tracked.',
+    how: 'Your brand’s mentions over all tracked-brand mentions, shown as x of y brand mentions. It depends on which competitors are tracked.',
   },
   citation: {
     what: 'How often AI answers cite your site.',

@@ -23,6 +23,15 @@ describe('inspect targets', () => {
     expect(defaultInspectorWidth('group')).toBe(400);
   });
 
+  it('opens the two Citations drawers at 440 px (WP-77)', () => {
+    expect(parseInspectTarget('cited-page:12')).toEqual({ type: 'cited-page', id: '12' });
+    expect(parseInspectTarget('gap-prompt:0192d1a8-c177-7000-8000-000000000001')).toMatchObject({
+      type: 'gap-prompt',
+    });
+    expect(defaultInspectorWidth('cited-page')).toBe(440);
+    expect(defaultInspectorWidth('gap-prompt')).toBe(440);
+  });
+
   it('opens nothing for an unknown type, an empty or spaced id, or no colon', () => {
     expect(parseInspectTarget('report:1')).toBeNull();
     expect(parseInspectTarget('keyword:')).toBeNull();
@@ -39,6 +48,8 @@ describe('widths', () => {
     expect(defaultInspectorWidth('citation')).toBe(440);
     // The topic drawer is as wide as the prompt drawer it leads to (ADR-DS-022 decision 7)
     expect(defaultInspectorWidth('topic')).toBe(440);
+    // The competitor drawer of the Overview is 440 px (OV-DRW-02)
+    expect(defaultInspectorWidth('competitor')).toBe(440);
   });
 
   it('opens a topic from the address', () => {

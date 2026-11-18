@@ -56,7 +56,7 @@ export default function TopicEngineGapCard({ item, options, live }: CardProps): 
   const words = useTopicWords();
   const empties = useTopicEmpty();
   const { workspaceSlug, project, enabledEngines, canManageEngines, setScope } = useOverview();
-  const read = useTopicSummary({ subscribed: live });
+  const read = useTopicSummary({ counts: metricOf(options.metric ?? '') === 'share_of_voice', subscribed: live });
   // The leaf topics depend on the vocabulary tree: until it is read, rows would be compared beside their parents
   const data: TopicData =
     read.tree.pending && (read.phase === 'ready' || read.phase === 'refetching') ? { ...read, phase: 'loading' } : read;

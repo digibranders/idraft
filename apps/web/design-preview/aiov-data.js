@@ -206,7 +206,8 @@ function cellOf(measure, code, scopeCtx) {
   const value = cur[measure];
   if (value === null) return { ...info, state: cur.observations > 0 ? 'insufficient' : 'none', counts: cur.counts[measure] };
   const previous = prev[measure];
-  const detectable = previous !== null && isDetectableChange(cur.counts[measure], prev.counts[measure]);
+  // Brand mentions are not independent trials of one rate: share of voice is never tested, so its change is never coloured
+  const detectable = measure !== 'sov' && previous !== null && isDetectableChange(cur.counts[measure], prev.counts[measure]);
   return { ...info, state: 'ok', value, previous, change: previous === null ? null : { value: value - previous, detectable }, counts: cur.counts[measure], previousCounts: prev.counts[measure] };
 }
 
@@ -226,7 +227,7 @@ function averageOf(cells, codes) {
   const counts = pooledCounts(used.map((cell) => cell.counts));
   const ratio = MEASURES[measure].unit === 'ratio';
   // Detectable only from the pooled counts of both periods (R5); a measure without previous counts is not tested
-  const testable = ratio && previous !== null && used.every((cell) => cell.previousCounts);
+  const testable = ratio && measure !== 'sov' && previous !== null && used.every((cell) => cell.previousCounts);
   const detectable = testable ? isDetectableChange(counts, pooledCounts(used.map((cell) => cell.previousCounts))) : null;
   return {
     measure,
@@ -234,6 +235,8 @@ function averageOf(cells, codes) {
     state: 'ok',
     used: used.length,
     platforms: used.map((cell) => cell.code),
+    // x of y of each platform that took part: an average of shares has no pooled count of its own, so its tip names each (R3)
+    platformCounts: used.map((cell) => ({ code: cell.code, k: cell.counts.k, n: cell.counts.n })),
     value,
     previous,
     change: previous === null ? null : { value: value - previous, detectable },
@@ -304,7 +307,9 @@ export function entitiesFor(model) {
     const total = own + competitors.reduce((a, b) => a + b, 0);
     const rate = (pick) => promptWeightedRate(rows.map((row) => ({ k: pick(row), n: row.n })));
     return {
+      code,
       total,
+      observations,
       shares: [own / total, ...competitors.map((count) => count / total)],
       counts: [own, ...competitors],
       rates: [rate((row) => row.m), ...COMPETITORS.map((_, index) => rate((row) => row.competitors[index]))],
@@ -318,27 +323,56 @@ export function entitiesFor(model) {
     mention: mean((entry) => entry.rates[index]),
     answers: used.reduce((sum, entry) => sum + entry.counts[index], 0),
     answersOfTracked: used.reduce((sum, entry) => sum + entry.total, 0),
+    // The valid answers behind the mention rate, for the test of a gap
+    observations: used.reduce((sum, entry) => sum + entry.observations, 0),
     platforms: used.length,
+    // x of y brand mentions of each platform that took part: an average of shares has no pooled count of its own (R3)
+    platformCounts: used.map((entry) => ({ code: entry.code, k: entry.counts[index], n: entry.total })),
   }));
 }
 
-/** Weekly share of voice per entity, each week normalized to 100%. Competitors move a little around their share. */
-export function sovSeries(model, entities) {
+/** `y` split in whole parts in proportion to `weights` (largest remainder), so the parts add up to `y` exactly. */
+function splitWhole(weights, y) {
+  const total = weights.reduce((sum, weight) => sum + weight, 0);
+  const raw = weights.map((weight) => (total === 0 ? 0 : (weight / total) * y));
+  const parts = raw.map(Math.floor);
+  const order = raw.map((value, index) => ({ index, rest: value - parts[index] })).sort((a, b) => b.rest - a.rest || a.index - b.index);
+  for (let left = y - parts.reduce((sum, part) => sum + part, 0), at = 0; left > 0; left--, at++) parts[order[at % order.length].index]++;
+  return parts;
+}
+
+/**
+ * Weekly share of voice per entity as brand-mention counts (D17), the 8 weekly runs. Each platform of the scope has, week by
+ * week, a y (the brand mentions of every tracked brand that week, around an eighth of its window total) and for each brand an
+ * x (its mentions, the x of one week adding up to y), so a platform's share of a week is exactly x over y and a week under 4
+ * mentions has no share (R2). All platforms is the average of the platforms' shares, each counting once (R3), and keeps
+ * each platform's x of y. A week's split follows the brands' smooth weekly lines, so the shares drift around the window's.
+ * Returns, for each week, `shares` (one per entity, `null` where no platform has a share) and `platforms`, `{ code, y, counts }`.
+ */
+export function sovWeeks(model, entities) {
   const own = entities[0];
   const previousOwn = model.scope.platform === 'all' ? model.average.sov.previous : model.cells.sov[model.scope.platform].previous;
-  const series = entities.map((entity, index) => {
+  const lines = entities.map((entity, index) => {
     if (entity.sov === null) return Array(8).fill(null);
     const before = index === 0 ? previousOwn ?? entity.sov : entity.sov * (1 + (rng(`${model.key}|${entity.name}|prev`)() - 0.5) * 0.12);
     return weekly(before, entity.sov, `${model.key}|sov|${entity.name}`, index === 0 ? 0.008 : 0.01);
   });
   return Array.from({ length: 8 }, (_, week) => {
-    const total = series.reduce((sum, line) => sum + (line[week] ?? 0), 0);
-    return series.map((line) => (line[week] === null || own.sov === null ? null : line[week] / total));
+    const split = lines.map((line) => line[week] ?? 0);
+    const platforms = own.sov === null ? [] : own.platformCounts.map(({ code, n }) => {
+      const y = Math.round((n / 8) * (0.8 + 0.4 * rng(`${model.key}|${code}|y|${week}`)()));
+      return { code, y, counts: splitWhole(split, y) };
+    });
+    const rated = platforms.filter((platform) => rateState(platform.y) === 'ok');
+    return {
+      shares: entities.map((_, index) => (rated.length === 0 ? null : rated.reduce((sum, platform) => sum + platform.counts[index] / platform.y, 0) / rated.length)),
+      platforms,
+    };
   });
 }
 
 /**
- * Who leads each prompt, for every competitor (the Competitor gap card and the competitor drawer read the same
+ * Who leads each prompt, for every competitor (the Lost to competitor card and the competitor drawer read the same
  * counts, so a number is the same in both, R12). A prompt is compared on its answers over the platforms in scope and
  * needs at least 4 of them (R2). One brand leads when it is named in at least `LEAD_MARGIN` more answers than the
  * other; a smaller difference is "equal or too close", because with about 8 answers a prompt a one answer
@@ -397,12 +431,17 @@ export function headToHead(model, index) {
     const platformModel = buildModel({ ...model.scope, platform: code });
     const [ownEntity, ...others] = entitiesFor(platformModel);
     const other = others[index];
-    return { code, own: ownEntity.mention, rival: other?.mention ?? null };
+    const counts = (entity) => (entity?.mention == null ? null : { k: entity.answers, n: entity.observations });
+    return { code, own: ownEntity.mention, rival: other?.mention ?? null, ownCounts: counts(ownEntity), rivalCounts: counts(other) };
   });
+  const units = (domain) => {
+    const row = domains.rows.find((entry) => entry.domain === domain);
+    return row === undefined ? null : { k: row.units, n: domains.total };
+  };
   return {
     own,
     rival,
-    sourceShare: { own: share('northwind.com'), rival: share(COMPETITORS[index].domain) },
+    sourceShare: { own: share('northwind.com'), rival: share(COMPETITORS[index].domain), ownCounts: units('northwind.com'), rivalCounts: units(COMPETITORS[index].domain) },
     perPlatform,
     series: {
       // Your line is the page's own mention trend, so the same number tells the same story (R12). A competitor's
@@ -544,23 +583,23 @@ export function ownPagesFor(model, domains) {
   return pages.map(([path, topic], index) => ({ url: `northwind.com${path}`, topic, units: units[index] })).sort((a, b) => b.units - a.units);
 }
 
-/** Prompts that name the brand but never cite it: the unlinked mentions, with the share of their answers. */
+/**
+ * Prompts that name the brand but never cite it: the unlinked mentions, ranked per platform (R3). Each platform has its
+ * own rate (its unlinked answers over its valid answers); a platform with under 4 valid answers for the prompt has none
+ * and is left out and named; the prompt is ranked on the equal-weight average of the rest. No count is added across
+ * platforms: `counts` keeps each platform's own.
+ */
 export function unlinkedPrompts(model, limit = 6) {
   return model.prompts
     .map((prompt) => {
-      let named = 0;
-      let unlinked = 0;
-      let answers = 0;
-      for (const code of model.codes) {
-        const row = derived(prompt, code, false);
-        named += row.m;
-        unlinked += row.mentionedOnly;
-        answers += row.n;
-      }
-      return { id: prompt.id, text: prompt.text, topic: prompt.topic, named, unlinked, answers };
+      const rows = model.codes.map((code) => ({ code, row: derived(prompt, code, false) }));
+      const counts = rows.filter(({ row }) => rateState(row.n) === 'ok').map(({ code, row }) => ({ code, k: row.mentionedOnly, n: row.n }));
+      const { value } = equalWeightAverage(counts.map((count) => count.k / count.n));
+      const leftOut = rows.filter(({ row }) => rateState(row.n) !== 'ok').map(({ code }) => code);
+      return { id: prompt.id, text: prompt.text, topic: prompt.topic, rate: value, counts, leftOut, answers: counts.reduce((sum, count) => sum + count.n, 0) };
     })
-    .filter((entry) => entry.answers >= 4 && entry.unlinked > 0)
-    .sort((a, b) => b.unlinked / b.answers - a.unlinked / a.answers || b.answers - a.answers)
+    .filter((entry) => entry.rate !== null && entry.rate > 0)
+    .sort((a, b) => b.rate - a.rate || b.answers - a.answers)
     .slice(0, limit);
 }
 

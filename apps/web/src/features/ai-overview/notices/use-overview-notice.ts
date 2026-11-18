@@ -37,6 +37,7 @@ export function useOverviewNotice(): OverviewNotice {
           ? null
           : Math.max(0, ...enginesRead.filter((engine) => engine.is_enabled).map((engine) => engine.active_prompts)),
       country,
+      topic: scope.topic,
       // The prompts of this scope: the last scope's count, kept while this one is read, would say another country empty
       promptsInScope: summary.placeholder ? null : (aggregates?.promptCount ?? null),
       schedule: schedule.status === 'error' ? { nextRunAt: null, paused: false } : (schedule.data ?? null),
@@ -50,6 +51,7 @@ export function useOverviewNotice(): OverviewNotice {
     engines.data,
     enabledEngines,
     country,
+    scope.topic,
     summary.placeholder,
     aggregates,
     schedule.status,

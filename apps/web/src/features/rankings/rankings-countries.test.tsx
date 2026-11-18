@@ -63,9 +63,9 @@ describe('the country control', () => {
     renderWithProviders(as('viewer'));
     await loadedGrid();
     const bar = screen.getByRole('banner');
-    expect(await within(bar).findByRole('combobox', { name: 'Country: All countries' })).toBeInTheDocument();
+    expect(await within(bar).findByRole('combobox', { name: 'Location: All locations' })).toBeInTheDocument();
     // The only country control on the page is the one in the bar
-    expect(screen.getAllByRole('combobox', { name: /^Country:/ })).toHaveLength(1);
+    expect(screen.getAllByRole('combobox', { name: /^Location:/ })).toHaveLength(1);
     expect(screen.getByRole('radio', { name: 'Desktop' })).toBeInTheDocument();
     expect(within(bar).queryByRole('radio', { name: 'Desktop' })).toBeNull();
   });
@@ -73,9 +73,9 @@ describe('the country control', () => {
   it('lists the countries the project has keywords in, and all countries, and no other', async () => {
     const { user } = renderWithProviders(as('viewer'));
     await loadedGrid();
-    await user.click(await screen.findByRole('combobox', { name: 'Country: All countries' }));
+    await user.click(await screen.findByRole('combobox', { name: 'Location: All locations' }));
     const options = await screen.findAllByRole('option');
-    expect(options.map((option) => option.textContent)).toEqual(['All countries', 'Germany', 'United States']);
+    expect(options.map((option) => option.textContent)).toEqual(['All locations', 'Germany', 'United States']);
     expect(screen.queryByRole('option', { name: 'Japan' })).toBeNull();
   });
 
@@ -84,25 +84,25 @@ describe('the country control', () => {
     await screen.findByRole('grid', { name: 'Tracked keywords' });
     await waitFor(() => expect(screen.getByText('United States', { selector: '[aria-hidden]' })).toBeInTheDocument());
     // Not a control: no button or combobox, so it is not a tab stop
-    expect(screen.queryByRole('combobox', { name: /^Country:/ })).toBeNull();
-    expect(screen.queryByRole('button', { name: /^Country:/ })).toBeNull();
-    expect(screen.queryByText('All countries')).toBeNull();
+    expect(screen.queryByRole('combobox', { name: /^Location:/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Location:/ })).toBeNull();
+    expect(screen.queryByText('All locations')).toBeNull();
   });
 
   it('is a label when the scope is the one country in use', async () => {
     server.use(inUseAnswer([[2356, 'India', 'IN', 4]]));
     renderWithProviders(as('viewer', undefined, { opensOnOwnCountry: true }));
     await waitFor(() => expect(screen.getByText('India', { selector: '[aria-hidden]' })).toBeInTheDocument());
-    expect(screen.queryByRole('combobox', { name: /^Country:/ })).toBeNull();
+    expect(screen.queryByRole('combobox', { name: /^Location:/ })).toBeNull();
   });
 
   it('stays a control when a link names a country other than the one in use, so the person can leave it', async () => {
     server.use(inUseAnswer([[2356, 'India', 'IN', 4]]));
     const { user } = renderWithProviders(as('viewer'), { searchParams: `?loc=${String(UNITED_STATES)}` });
     await screen.findByRole('grid', { name: 'Tracked keywords' });
-    await user.click(await screen.findByRole('combobox', { name: 'Country: United States' }));
+    await user.click(await screen.findByRole('combobox', { name: 'Location: United States' }));
     expect((await screen.findAllByRole('option')).map((option) => option.textContent)).toEqual([
-      'All countries',
+      'All locations',
       'India',
     ]);
   });
@@ -111,7 +111,7 @@ describe('the country control', () => {
     server.use(inUseAnswer([[2356, 'India', 'IN', 4]]));
     renderWithProviders(as('viewer'), { searchParams: '?loc=0' });
     await screen.findByRole('grid', { name: 'Tracked keywords' });
-    expect(await screen.findByRole('combobox', { name: 'Country: All countries' })).toBeInTheDocument();
+    expect(await screen.findByRole('combobox', { name: 'Location: All locations' })).toBeInTheDocument();
   });
 });
 
@@ -125,7 +125,7 @@ describe('a shared Country chip', () => {
       expect(asked.some((query) => query.get('filter[country_id_in]') === String(GERMANY))).toBe(true),
     );
     expect(screen.queryByText(/left out/)).toBeNull();
-    expect(screen.getAllByRole('button', { name: /^Country: .*\. Edit filter$/ })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: /^Location: .*\. Edit filter$/ })).toHaveLength(1);
   });
 });
 
@@ -169,7 +169,7 @@ describe('the Country column', () => {
   it('shows with both countries while every country is in view', async () => {
     renderWithProviders(as('viewer'), { searchParams: '?loc=0' });
     const grid = await loadedGrid();
-    await waitFor(() => expect(headerNames(grid)).toContain('Country'));
+    await waitFor(() => expect(headerNames(grid)).toContain('Location'));
     const names = new Set(
       within(grid)
         .getAllByRole('rowheader')
@@ -179,13 +179,13 @@ describe('the Country column', () => {
     );
     expect(names).toEqual(new Set(['Germany', 'United States']));
     // Right after the keyword column
-    expect(headerNames(grid).indexOf('Country')).toBe(headerNames(grid).findIndex((name) => name === 'Keyword') + 1);
+    expect(headerNames(grid).indexOf('Location')).toBe(headerNames(grid).findIndex((name) => name === 'Keyword') + 1);
   });
 
   it('is left out while one country is in view', async () => {
     renderWithProviders(as('viewer'), { searchParams: `?loc=${String(GERMANY)}` });
     const grid = await loadedGrid();
-    expect(headerNames(grid)).not.toContain('Country');
+    expect(headerNames(grid)).not.toContain('Location');
   });
 
   it('keeps a person’s choice of it in the URL while it is out of view', async () => {
@@ -195,7 +195,7 @@ describe('the Country column', () => {
       onUrlUpdate: (event) => written.push(event.queryString),
     });
     const grid = await loadedGrid();
-    expect(headerNames(grid)).not.toContain('Country');
+    expect(headerNames(grid)).not.toContain('Location');
     await user.click(screen.getByRole('button', { name: 'Columns' }));
     await user.click(await screen.findByRole('checkbox', { name: 'KD' }));
     await waitFor(() => expect(new URLSearchParams(written.at(-1) ?? '').get('cols')).toContain('country'));
@@ -213,7 +213,7 @@ describe('the Country column and the default columns', () => {
       onUrlUpdate: (event) => written.push(event.queryString),
     });
     const grid = await loadedGrid();
-    expect(headerNames(grid)).not.toContain('Country');
+    expect(headerNames(grid)).not.toContain('Location');
     await user.click(screen.getByRole('button', { name: 'Columns' }));
     await user.click(await screen.findByRole('checkbox', { name: 'CPC (USD)' }));
     await waitFor(() => expect(new URLSearchParams(written.at(-1) ?? '').has('cols')).toBe(true));
@@ -229,8 +229,10 @@ describe('the Country filter', () => {
     const { user } = renderWithProviders(as('viewer'));
     const grid = await loadedGrid();
     await user.click(screen.getByRole('button', { name: 'Add a filter' }));
-    const picker = (await screen.findAllByRole('button', { name: 'Country' })).find((button) => !grid.contains(button));
-    if (picker === undefined) throw new Error('The field picker has no Country');
+    const picker = (await screen.findAllByRole('button', { name: 'Location' })).find(
+      (button) => !grid.contains(button),
+    );
+    if (picker === undefined) throw new Error('The field picker has no Location');
     await user.click(picker);
     await user.click(await screen.findByRole('checkbox', { name: /^Germany/ }));
     await user.click(screen.getByRole('checkbox', { name: /^United States/ }));
@@ -240,8 +242,8 @@ describe('the Country filter', () => {
         asked.some((query) => query.get('filter[country_id_in]') === `${String(GERMANY)},${String(UNITED_STATES)}`),
       ).toBe(true),
     );
-    expect(screen.getAllByRole('button', { name: /^Country: .*\. Edit filter$/ })).toHaveLength(1);
-    expect(screen.getByRole('button', { name: 'Country: Germany, United States. Edit filter' })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /^Location: .*\. Edit filter$/ })).toHaveLength(1);
+    expect(screen.getByRole('button', { name: 'Location: Germany, United States. Edit filter' })).toBeInTheDocument();
   });
 });
 

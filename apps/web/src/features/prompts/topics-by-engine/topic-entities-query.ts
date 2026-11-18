@@ -7,12 +7,15 @@ import { NO_TOPIC, type DateRange } from '@/features/prompts/prompt-model';
 import type { PromptScope } from '@/features/prompts/prompt-queries';
 import { apiQuery, type ApiQueryOptions } from '@/lib/api/query';
 import type { SummaryEntity, TopicSummaryRow } from '@/lib/api/types';
+import { withBrandMentionShare } from '@/lib/rates/brand-mention-share';
 
 /** What the entities read of the Topics tab is asked of: the scope of the page's own summary read. */
 export interface TopicReadScope {
   scope: PromptScope;
   range: DateRange;
   includeBranded: boolean;
+  /** Only the branded prompts (`branded_only`, which wins over `include_branded`); false when left out. */
+  brandedOnly?: boolean | undefined;
   country: string | null;
 }
 
@@ -27,6 +30,7 @@ export const topicEntitiesQuery = ({
   scope,
   range,
   includeBranded,
+  brandedOnly,
   country,
 }: TopicReadScope): ApiQueryOptions<typeof SUMMARY> =>
   apiQuery(SUMMARY, {
@@ -36,6 +40,7 @@ export const topicEntitiesQuery = ({
         from: range.from,
         to: range.to,
         include_branded: includeBranded,
+        ...(brandedOnly === true ? { branded_only: true } : {}),
         ...(country === null ? {} : { 'filter[country_iso]': country }),
         rows: 'topics',
         include: ['entities'],
@@ -68,7 +73,10 @@ export function useTopicEntities(read: TopicReadScope, enabled: boolean): Entity
     () =>
       data === undefined
         ? NO_ROWS
-        : new Map(data.data.topics.map((topic) => [topic.term_id ?? NO_TOPIC, topic] as const)),
+        : new Map(
+            // The share of voice cell of each row as brand-mention counts, from the entity cells the read carries (D17)
+            withBrandMentionShare(data.data).topics.map((topic) => [topic.term_id ?? NO_TOPIC, topic] as const),
+          ),
     [data],
   );
   return {
