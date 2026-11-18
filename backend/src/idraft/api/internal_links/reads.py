@@ -1050,13 +1050,19 @@ class LinkReadService:
             tiers = await load_tiers(db, access.workspace_id)
             stale: bool = (
                 await db.execute(
-                    select(crawl_runs.c.tier_flow_stale).where(crawl_runs.c.id == scope.run_id)
+                    select(crawl_runs.c.tier_flow_stale).where(
+                        crawl_runs.c.workspace_id == access.workspace_id,
+                        crawl_runs.c.id == scope.run_id,
+                    )
                 )
             ).scalar_one()
             latest = await latest_run(db, access.workspace_id, project_id)
             links_stored: int = (
                 await db.execute(
-                    select(crawl_runs.c.links_stored).where(crawl_runs.c.id == scope.run_id)
+                    select(crawl_runs.c.links_stored).where(
+                        crawl_runs.c.workspace_id == access.workspace_id,
+                        crawl_runs.c.id == scope.run_id,
+                    )
                 )
             ).scalar_one()
             if (
