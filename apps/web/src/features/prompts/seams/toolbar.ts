@@ -46,7 +46,7 @@ export type PromptsToolbarEntry =
     };
 
 /** The ids the header uses itself. */
-export const BUILT_IN_TOOLBAR_IDS = ['copy-link', 'add-prompts'] as const;
+export const BUILT_IN_TOOLBAR_IDS = ['copy-link', 'add-prompts', 'export-csv', 'export-xlsx'] as const;
 
 export const PROMPTS_TOOLBAR_ENTRIES: readonly PromptsToolbarEntry[] = [
   // WP-27 add-dialog (WB-TPH-14, WB-TPH-18)
