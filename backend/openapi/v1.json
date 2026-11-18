@@ -2216,6 +2216,117 @@
         "title": "AnchorCount",
         "type": "object"
       },
+      "AnchorDetail": {
+        "properties": {
+          "distinct": {
+            "title": "Distinct",
+            "type": "integer"
+          },
+          "generic": {
+            "title": "Generic",
+            "type": "integer"
+          },
+          "generic_share": {
+            "title": "Generic Share",
+            "type": "number"
+          },
+          "matches_keyword": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Matches Keyword"
+          },
+          "top": {
+            "items": {
+              "$ref": "#/components/schemas/AnchorText"
+            },
+            "title": "Top",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "distinct",
+          "generic",
+          "generic_share",
+          "matches_keyword",
+          "top"
+        ],
+        "title": "AnchorDetail",
+        "type": "object"
+      },
+      "AnchorSummary": {
+        "properties": {
+          "distinct": {
+            "title": "Distinct",
+            "type": "integer"
+          },
+          "generic": {
+            "title": "Generic",
+            "type": "integer"
+          },
+          "generic_share": {
+            "title": "Generic Share",
+            "type": "number"
+          },
+          "matches_keyword": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Matches Keyword"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "distinct",
+          "generic",
+          "generic_share",
+          "matches_keyword"
+        ],
+        "title": "AnchorSummary",
+        "type": "object"
+      },
+      "AnchorText": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "generic": {
+            "title": "Generic",
+            "type": "boolean"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "count",
+          "generic"
+        ],
+        "title": "AnchorText",
+        "type": "object"
+      },
       "Annotation": {
         "description": "A boundary drawn on every time chart (overview-and-charts N9).",
         "properties": {
@@ -3377,6 +3488,34 @@
           "tracked_keyword_ids"
         ],
         "title": "CheckNow",
+        "type": "object"
+      },
+      "CitationCounts": {
+        "properties": {
+          "ai_mode": {
+            "title": "Ai Mode",
+            "type": "integer"
+          },
+          "chatgpt": {
+            "title": "Chatgpt",
+            "type": "integer"
+          },
+          "gemini": {
+            "title": "Gemini",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "chatgpt",
+          "gemini",
+          "ai_mode",
+          "total"
+        ],
+        "title": "CitationCounts",
         "type": "object"
       },
       "CitationOut": {
@@ -7036,6 +7175,75 @@
         "title": "GscBlock",
         "type": "object"
       },
+      "GscPage": {
+        "properties": {
+          "clicks": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Google's clicks for the page, last 28 days.",
+            "title": "Clicks"
+          },
+          "impressions": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Impressions"
+          },
+          "state": {
+            "enum": [
+              "ok",
+              "pending",
+              "not_connected"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "window_end": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Window End"
+          },
+          "window_start": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Window Start"
+          }
+        },
+        "required": [
+          "state",
+          "clicks",
+          "impressions",
+          "window_start",
+          "window_end"
+        ],
+        "title": "GscPage",
+        "type": "object"
+      },
       "GscTrend": {
         "description": "The keyword's own device over the window in consecutive buckets, oldest first.",
         "properties": {
@@ -9420,6 +9628,98 @@
           "page"
         ],
         "title": "KeywordPage",
+        "type": "object"
+      },
+      "KeywordRow": {
+        "properties": {
+          "change": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Places moved since the last check; positive is up.",
+            "title": "Change"
+          },
+          "keyword": {
+            "title": "Keyword",
+            "type": "string"
+          },
+          "rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rank"
+          },
+          "volume": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Volume"
+          }
+        },
+        "required": [
+          "keyword",
+          "rank",
+          "change",
+          "volume"
+        ],
+        "title": "KeywordRow",
+        "type": "object"
+      },
+      "KeywordSummary": {
+        "properties": {
+          "average_rank": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Rank"
+          },
+          "best_volume": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Best Volume"
+          },
+          "ranking": {
+            "title": "Ranking",
+            "type": "integer"
+          },
+          "tracked": {
+            "title": "Tracked",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "tracked",
+          "ranking",
+          "average_rank",
+          "best_volume"
+        ],
+        "title": "KeywordSummary",
         "type": "object"
       },
       "LayoutDocument": {
@@ -12282,8 +12582,76 @@
         "title": "OwnPage",
         "type": "object"
       },
+      "PageChange": {
+        "properties": {
+          "depth_delta": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Depth Delta"
+          },
+          "depth_state": {
+            "anyOf": [
+              {
+                "enum": [
+                  "lost",
+                  "found"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Depth State"
+          },
+          "editorial_in_delta": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Editorial In Delta"
+          },
+          "equity_points": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Equity Points"
+          },
+          "is_new": {
+            "title": "Is New",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "is_new",
+          "editorial_in_delta",
+          "equity_points",
+          "depth_state",
+          "depth_delta"
+        ],
+        "title": "PageChange",
+        "type": "object"
+      },
       "PageDetail": {
         "properties": {
+          "extras": {
+            "$ref": "#/components/schemas/PageDetailExtras"
+          },
           "linking_by_placement": {
             "items": {
               "$ref": "#/components/schemas/PlacementCount"
@@ -12339,9 +12707,49 @@
           "linking_pages",
           "outlinks",
           "linking_pages_total",
-          "outlinks_total"
+          "outlinks_total",
+          "extras"
         ],
         "title": "PageDetail",
+        "type": "object"
+      },
+      "PageDetailExtras": {
+        "properties": {
+          "anchors": {
+            "$ref": "#/components/schemas/AnchorDetail"
+          },
+          "change": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageChange"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "citations": {
+            "$ref": "#/components/schemas/CitationCounts"
+          },
+          "gsc": {
+            "$ref": "#/components/schemas/GscPage"
+          },
+          "keywords": {
+            "items": {
+              "$ref": "#/components/schemas/KeywordRow"
+            },
+            "title": "Keywords",
+            "type": "array"
+          }
+        },
+        "required": [
+          "change",
+          "keywords",
+          "citations",
+          "anchors",
+          "gsc"
+        ],
+        "title": "PageDetailExtras",
         "type": "object"
       },
       "PageDetailResponse": {
@@ -12354,6 +12762,62 @@
           "data"
         ],
         "title": "PageDetailResponse",
+        "type": "object"
+      },
+      "PageExtras": {
+        "properties": {
+          "anchors": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AnchorSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "change": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageChange"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "citations": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CitationCounts"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "gsc": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GscPage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "keywords": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/KeywordSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "PageExtras",
         "type": "object"
       },
       "PageFilter": {
@@ -12369,11 +12833,12 @@
                     "editorial_orphan",
                     "deep_only_through_auto",
                     "placement_unknown",
-                    "has_broken_outlinks"
+                    "has_broken_outlinks",
+                    "generic_anchors"
                   ],
                   "type": "string"
                 },
-                "maxItems": 5,
+                "maxItems": 6,
                 "type": "array"
               },
               {
@@ -12474,7 +12939,9 @@
                   "under_linked_t1",
                   "orphans",
                   "editorial_orphans",
-                  "deep_only_through_auto"
+                  "deep_only_through_auto",
+                  "lost_links_top",
+                  "weak_outlinks"
                 ],
                 "type": "string"
               },
@@ -12538,6 +13005,17 @@
             ],
             "title": "Equity Share"
           },
+          "extras": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageExtras"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when the list was asked for `include`."
+          },
           "flags": {
             "items": {
               "enum": [
@@ -12547,7 +13025,8 @@
                 "placement_unknown",
                 "broken",
                 "redirect",
-                "non_indexable"
+                "non_indexable",
+                "generic_anchors"
               ],
               "type": "string"
             },
@@ -23932,6 +24411,11 @@
             "title": "Links To Non Indexable",
             "type": "integer"
           },
+          "lost_links_top": {
+            "description": "Pages that lost an editorial link and are important.",
+            "title": "Lost Links Top",
+            "type": "integer"
+          },
           "orphans": {
             "title": "Orphans",
             "type": "integer"
@@ -23944,6 +24428,11 @@
           "under_linked_t1": {
             "title": "Under Linked T1",
             "type": "integer"
+          },
+          "weak_outlinks": {
+            "description": "T1 pages that mostly link to weak targets.",
+            "title": "Weak Outlinks",
+            "type": "integer"
           }
         },
         "required": [
@@ -23952,6 +24441,8 @@
           "orphans",
           "editorial_orphans",
           "deep_only_through_auto",
+          "lost_links_top",
+          "weak_outlinks",
           "broken_and_redirected",
           "links_to_non_indexable"
         ],
@@ -34949,7 +35440,8 @@
                       "editorial_orphan",
                       "deep_only_through_auto",
                       "placement_unknown",
-                      "has_broken_outlinks"
+                      "has_broken_outlinks",
+                      "generic_anchors"
                     ],
                     "type": "string"
                   },
@@ -34959,7 +35451,7 @@
                   "type": "null"
                 }
               ],
-              "maxLength": 5,
+              "maxLength": 6,
               "title": "Filter[Flags]"
             }
           },
@@ -34974,7 +35466,9 @@
                     "under_linked_t1",
                     "orphans",
                     "editorial_orphans",
-                    "deep_only_through_auto"
+                    "deep_only_through_auto",
+                    "lost_links_top",
+                    "weak_outlinks"
                   ],
                   "type": "string"
                 },
@@ -35021,10 +35515,41 @@
                 "equity_share",
                 "-equity_share",
                 "status_code",
-                "-status_code"
+                "-status_code",
+                "change",
+                "-change"
               ],
               "title": "Sort",
               "type": "string"
+            }
+          },
+          {
+            "description": "Parts to add to each row as `extras`.",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "changes",
+                      "keywords",
+                      "citations",
+                      "anchors",
+                      "gsc"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Parts to add to each row as `extras`.",
+              "maxLength": 5,
+              "title": "Include"
             }
           },
           {

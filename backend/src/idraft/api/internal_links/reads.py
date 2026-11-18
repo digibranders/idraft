@@ -44,6 +44,18 @@ from sqlalchemy.orm import aliased
 
 from idraft.api.ai.engine_service import live_project
 from idraft.api.internal_links.csv_export import EXPORT_ROWS_MAX, csv_text
+from idraft.api.internal_links.extras import (
+    NO_CITATIONS,
+    anchor_summary,
+    anchors_of,
+    changes_of,
+    citations_of,
+    empty_anchors,
+    gsc_of,
+    keyword_rows,
+    keywords_of,
+    summarize_keywords,
+)
 from idraft.api.internal_links.page_filter import PageScope, page_conditions, page_rows
 from idraft.api.internal_links.page_tiers import crawl_scope
 from idraft.api.pagination import decode_cursor, encode_cursor, invalid_cursor
@@ -57,6 +69,8 @@ from idraft.api.schemas.internal_links import (
     NeighborFocus,
     NeighborMeta,
     PageDetail,
+    PageDetailExtras,
+    PageExtras,
     PageFilter,
     PageRow,
     PageTagRef,
@@ -71,11 +85,13 @@ from idraft.api.schemas.internal_links import (
 )
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.collectors.crawl_store import INLINE_FLOW_LINKS, flow_rows, latest_run
+from idraft.crawl.anchors import mostly_generic
 from idraft.crawl.scopes import LinkScope
 from idraft.crawl.tiers import tier_code
 from idraft.db.engine import workspace_transaction
 from idraft.db.tables import (
     crawl_links,
+    crawl_page_changes,
     crawl_pages,
     crawl_runs,
     crawl_tier_flow,
@@ -169,6 +185,8 @@ def _flags(row: Row[Any]) -> list[str]:
         flags.append("redirect")
     if not row.is_indexable:
         flags.append("non_indexable")
+    if mostly_generic(row.editorial_anchors, row.generic_anchors):
+        flags.append("generic_anchors")
     return flags
 
 
@@ -186,6 +204,8 @@ def _sort_column(name: str, view: LinkScope) -> ColumnElement[Any]:
         return _OUTLINKS[view]
     if key == "equity_share":
         return func.coalesce(crawl_pages.c.equity_share, -1.0)
+    if key == "change":
+        return func.coalesce(crawl_page_changes.c.editorial_in_delta, 0)
     return func.coalesce(crawl_pages.c.status_code, 0)
 
 
@@ -848,6 +868,33 @@ async def neighbor_page(
     return NeighborPage(rows=neighbors, meta=meta)
 
 
+async def attach_extras(
+    db: AsyncSession, scope: PageScope, rows: list[PageRow], include: set[str]
+) -> None:
+    """Fills `row.extras` for the parts asked for, one grouped query per part."""
+    ids = [int(row.url_id) for row in rows]
+    if not ids:
+        return
+    changes = await changes_of(db, scope, ids) if "changes" in include else None
+    keywords = await keywords_of(db, scope, ids) if include & {"keywords", "anchors"} else {}
+    citations = await citations_of(db, scope, ids) if "citations" in include else {}
+    anchors = await anchors_of(db, scope, ids, keywords) if "anchors" in include else {}
+    gsc = await gsc_of(db, scope, ids) if "gsc" in include else {}
+    for row in rows:
+        url = int(row.url_id)
+        row.extras = PageExtras(
+            change=None if changes is None else changes.get(url),
+            keywords=summarize_keywords(keywords.get(url, [])) if "keywords" in include else None,
+            citations=citations.get(url, NO_CITATIONS) if "citations" in include else None,
+            anchors=(
+                anchor_summary(anchors.get(url) or empty_anchors(keywords.get(url, [])))
+                if "anchors" in include
+                else None
+            ),
+            gsc=gsc.get(url),
+        )
+
+
 class LinkReadService:
     def __init__(self, *, sessions: async_sessionmaker[AsyncSession]) -> None:
         self._sessions = sessions
@@ -872,6 +919,7 @@ class LinkReadService:
         sort: str,
         cursor: str | None,
         limit: int,
+        include: Sequence[str] = (),
     ) -> PageList:
         async with self._transaction(access) as db:
             scope = await read_scope(db, access, project_id, run)
@@ -905,8 +953,11 @@ class LinkReadService:
                 if more
                 else None
             )
+            page_rows_out = await _page_rows(db, scope, view, tiers, rows)
+            if include:
+                await attach_extras(db, scope, page_rows_out, set(include))
             return PageList(
-                rows=await _page_rows(db, scope, view, tiers, rows),
+                rows=page_rows_out,
                 total=total,
                 next_cursor=next_cursor,
                 run_id=scope.run_id,
@@ -1031,6 +1082,10 @@ class LinkReadService:
             ]
             linking = await neighbor_page(db, scope, tiers, url_id, "in", view, DETAIL_LIST, 0)
             outlinks = await neighbor_page(db, scope, tiers, url_id, "out", view, DETAIL_LIST, 0)
+            url = int(page.url_id)
+            kw = (await keywords_of(db, scope, [url])).get(url, [])
+            anchor_detail = (await anchors_of(db, scope, [url], {url: kw})).get(url)
+            changed = await changes_of(db, scope, [url])
             return PageDetail(
                 page=page,
                 linking_by_tier=page.linked_from_tiers,
@@ -1040,6 +1095,13 @@ class LinkReadService:
                 outlinks=outlinks.rows,
                 linking_pages_total=linking.meta.total,
                 outlinks_total=outlinks.meta.total,
+                extras=PageDetailExtras(
+                    change=None if changed is None else changed.get(url),
+                    keywords=keyword_rows(kw),
+                    citations=(await citations_of(db, scope, [url])).get(url, NO_CITATIONS),
+                    anchors=anchor_detail or empty_anchors(kw),
+                    gsc=(await gsc_of(db, scope, [url]))[url],
+                ),
             )
 
     async def tier_flow(
@@ -1167,6 +1229,8 @@ class LinkReadService:
                 orphans=await pages("orphans"),
                 editorial_orphans=await pages("editorial_orphans"),
                 deep_only_through_auto=await pages("deep_only_through_auto"),
+                lost_links_top=await pages("lost_links_top"),
+                weak_outlinks=await pages("weak_outlinks"),
                 broken_and_redirected=await links("broken_and_redirected"),
                 links_to_non_indexable=await links("links_to_non_indexable"),
             )

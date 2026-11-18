@@ -20,9 +20,10 @@ from tests.api.keywords.support import keyword_project, project_url
 from tests.conftest import PostgresServer
 
 # The statements of one request: the transaction's scope, the caller's membership, the crawl,
-# the tiers, and the reads of the page (the inspector, the largest, asks 18). A request that
-# asked one question for each row would pass this at 21 rows, and these pages hold 200.
-STATEMENTS_MAX = 20
+# the tiers, and the reads of the page (the inspector, the largest, asks 24: 18 and the six of
+# its extras, plan 04 Task 11). A request that asked one question for each row would pass this
+# at 26 rows, and these pages hold 200.
+STATEMENTS_MAX = 25
 # The API's statement timeout is 15 s; a list on a crawl with no statistics must answer far
 # inside it, with room for a busy machine.
 # Alone the requests take under a second; four test workers on a busy machine tripped a 3 s
