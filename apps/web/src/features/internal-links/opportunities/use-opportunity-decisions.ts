@@ -40,9 +40,11 @@ export function withDecision(
 export interface OpportunityDecisions {
   /** A decision is in flight: every decision control waits. */
   pending: boolean;
-  /** Decides the rows as `status`; `true` when the API took it, `false` when nothing was sent or it failed. */
-  decide: (rows: readonly Opportunity[], status: OpportunityStatus) => Promise<boolean>;
+  /** Decides the rows as `status`: `done` when the API took it, `failed` when it did not, `skipped` when nothing was sent. */
+  decide: (rows: readonly Opportunity[], status: OpportunityStatus) => Promise<DecisionOutcome>;
 }
+
+export type DecisionOutcome = 'done' | 'failed' | 'skipped';
 
 /**
  * Accept, dismiss and reopen (spec 7.10). The list read changes at once and goes back to what it was when the
@@ -60,8 +62,8 @@ export function useOpportunityDecisions(
   const [pending, setPending] = useState(false);
 
   const decide = useCallback(
-    async (rows: readonly Opportunity[], status: OpportunityStatus): Promise<boolean> => {
-      if (running.current || rows.length === 0) return false;
+    async (rows: readonly Opportunity[], status: OpportunityStatus): Promise<DecisionOutcome> => {
+      if (running.current || rows.length === 0) return 'skipped';
       running.current = true;
       setPending(true);
       const before = queryClient.getQueryData(listKey);
@@ -72,13 +74,15 @@ export function useOpportunityDecisions(
         }));
         await queryClient.cancelQueries({ queryKey: listKey });
         const keys = new Set(rows.map((row) => row.key));
-        queryClient.setQueryData(listKey, (page: unknown) =>
-          isOpportunityPage(page) ? withDecision(page, keys, status, filter) : page,
-        );
+        const apply = (page: unknown): unknown =>
+          isOpportunityPage(page) ? withDecision(page, keys, status, filter) : page;
+        queryClient.setQueryData(listKey, apply);
         const answer = await mutateAsync({
           params: { path: { workspace_id: scope.workspaceId, project_id: scope.projectId } },
           body: { items, status },
         });
+        // A read that landed meanwhile may hold the old statuses: the decision is applied again (it is idempotent)
+        queryClient.setQueryData(listKey, apply);
         const [only] = rows;
         const one = rows.length === 1 && only !== undefined;
         const names = one ? { from: only.source.path, to: only.target.path } : null;
@@ -98,7 +102,7 @@ export function useOpportunityDecisions(
                   count,
                 });
         toast({ type: status === 'accepted' ? 'success' : 'info', title, description });
-        return true;
+        return 'done';
       } catch (failure) {
         queryClient.setQueryData(listKey, before);
         const reason = isApiProblem(failure) ? reasonOf(failure) : '';
@@ -107,7 +111,7 @@ export function useOpportunityDecisions(
           title: t('decisionFailed'),
           description: reason === '' ? t('decisionFailedReason') : reason,
         });
-        return false;
+        return 'failed';
       } finally {
         running.current = false;
         setPending(false);

@@ -5,6 +5,7 @@ import type { LinksScope } from '@/lib/internal-links/types';
 
 export const PLANNED_FILE = 'internal-links-planned-fixes.csv';
 const BYTE_ORDER_MARK = 0xfeff;
+const FIRST_BYTES = 65_536;
 
 /** Whether a CSV holds a row after its header line (the header alone means nothing to export). */
 export function csvHasRows(text: string): boolean {
@@ -16,7 +17,8 @@ export function csvHasRows(text: string): boolean {
 /** Saves the planned fixes CSV of the crawl in view; `none` when it has no row and nothing was saved. */
 export async function savePlannedFixes(scope: LinksScope, run: string | null): Promise<'saved' | 'none'> {
   const blob = await fetchApiBlob(opportunitiesPath(scope), plannedExportQuery(run));
-  if (!csvHasRows(await blob.text())) return 'none';
+  // The header and the first row are in the first 64 KB; the rest of a large file is not read
+  if (!csvHasRows(await blob.slice(0, FIRST_BYTES).text())) return 'none';
   downloadBlob(blob, PLANNED_FILE);
   return 'saved';
 }

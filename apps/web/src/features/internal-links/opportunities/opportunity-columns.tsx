@@ -155,7 +155,7 @@ export function opportunityColumns(t: LinksTranslate, actions: OpportunityAction
             {...CELL_CONTROL}
             icon={Copy}
             size="icon-xs"
-            label={t('opportunities.copy', { path: row.source.path })}
+            label={t('opportunities.copy', names(row))}
             onClick={(event) => {
               event.stopPropagation();
               actions.onCopy(row);

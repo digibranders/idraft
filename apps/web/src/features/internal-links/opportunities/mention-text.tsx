@@ -14,8 +14,11 @@ export function MentionText({
   phrase: string;
   className?: string | undefined;
 }): ReactElement {
-  const at = context.toLowerCase().indexOf(phrase.toLowerCase());
+  const lowered = context.toLowerCase();
+  const at = lowered.indexOf(phrase.toLowerCase());
   const paragraph = cn('type-meta text-foreground-secondary', className);
+  // Lowercasing some characters changes the length, so the offsets would no longer be the sentence's: no mark
+  if (lowered.length !== context.length) return <p className={paragraph}>{context}</p>;
   if (at < 0) {
     return (
       <p className={paragraph}>

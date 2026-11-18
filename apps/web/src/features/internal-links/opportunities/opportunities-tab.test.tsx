@@ -32,6 +32,7 @@ const DROPPED_RUN = HISTORY_RUN_IDS[4] ?? '';
 const FROM = '/blog/what-is-a-soc';
 const TO = '/services/managed-detection-and-response';
 const ACCEPT_NAME = `Accept: ${FROM} to ${TO}`;
+const COPY_NAME = `Copy instruction: ${FROM} to ${TO}`;
 const PROBLEM = { 'content-type': 'application/problem+json' };
 
 beforeEach(() => {
@@ -86,7 +87,12 @@ describe('the Opportunities tab (spec 7.10)', () => {
     }
     expect(await screen.findByRole('button', { name: ACCEPT_NAME })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: `Dismiss: ${FROM} to ${TO}` })).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: `Copy instruction for ${FROM}` }).length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: COPY_NAME })).toBeInTheDocument();
+    // Two mentions of one source page still give each Copy button a name of its own
+    const copyNames = screen
+      .getAllByRole('button', { name: /^Copy instruction:/ })
+      .map((node) => node.getAttribute('aria-label'));
+    expect(new Set(copyNames).size).toBe(copyNames.length);
     expect(table.querySelector('[data-mention]')).not.toBeNull();
     expect(within(table).getAllByText('“managed detection and response”').length).toBeGreaterThan(0);
     expect(container.textContent?.toLowerCase()).not.toContain('equity');
@@ -203,9 +209,7 @@ describe('the Opportunities tab (spec 7.10)', () => {
 
   it('copies the instruction and says so', async () => {
     const { user } = open();
-    const row = (await screen.findByRole('button', { name: ACCEPT_NAME })).closest('[role="row"]');
-    if (!(row instanceof HTMLElement)) throw new Error('The row of the pair is missing');
-    const button = within(row).getByRole('button', { name: `Copy instruction for ${FROM}` });
+    const button = await screen.findByRole('button', { name: COPY_NAME });
     const write = vi.spyOn(navigator.clipboard, 'writeText');
     await user.click(button);
     expect((await screen.findAllByText('Instruction copied')).length).toBeGreaterThan(0);
@@ -277,7 +281,7 @@ describe('the Opportunities tab (spec 7.10)', () => {
   it('gives a viewer the rows and Copy, and no decision, selection or bulk bar', async () => {
     open('', 'viewer');
     await grid();
-    expect((await screen.findAllByRole('button', { name: `Copy instruction for ${FROM}` })).length).toBeGreaterThan(0);
+    expect(await screen.findByRole('button', { name: COPY_NAME })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: ACCEPT_NAME })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Undo/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
@@ -290,7 +294,7 @@ describe('the Opportunities tab (spec 7.10)', () => {
     expect(await screen.findByText(/Decisions are made on the latest crawl/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: ACCEPT_NAME })).not.toBeInTheDocument();
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: `Copy instruction for ${FROM}` }).length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: COPY_NAME })).toBeInTheDocument();
     expect(asked().some((query) => query.get('run') === KEPT_RUN)).toBe(true);
   });
 
@@ -314,6 +318,30 @@ describe('the Opportunities tab (spec 7.10)', () => {
     open();
     expect(await screen.findByText(DROPPED_TEXT)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument();
+  });
+
+  it('keeps its own columns when the Pages tab has set its column choice in the address', async () => {
+    open('&cols=page,tier&density=comfortable');
+    const table = await grid();
+    expect(within(table).getByRole('columnheader', { name: 'Mentions' })).toBeInTheDocument();
+    expect(within(table).getByRole('columnheader', { name: 'Suggested anchor' })).toBeInTheDocument();
+  });
+
+  it('reads a tier the workspace does not have as no tier chosen', async () => {
+    const asked = listReads();
+    open('&ot=8');
+    await grid();
+    await screen.findByRole('button', { name: ACCEPT_NAME });
+    expect(asked().length).toBeGreaterThan(0);
+    for (const query of asked()) expect(query.has('filter[target_tier]')).toBe(false);
+    expect(screen.getByRole('combobox', { name: 'Target tier' })).toHaveTextContent('All');
+  });
+
+  it('keeps Planned fixes on an older crawl and says it lists today’s decisions', async () => {
+    open(`&run=${KEPT_RUN}`);
+    const planned = await screen.findByRole('button', { name: 'Planned fixes' });
+    expect(planned).toBeEnabled();
+    expect(planned).toHaveAttribute('title', 'Lists the decisions as they stand today, whichever crawl is shown');
   });
 
   it('counts the open ones on the tab and keeps that count after the tab is registered', async () => {

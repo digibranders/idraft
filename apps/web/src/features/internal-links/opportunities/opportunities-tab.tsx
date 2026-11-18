@@ -40,7 +40,8 @@ import type { Opportunity, OpportunityPage, OpportunityStatus } from '@/lib/inte
 import { useCan } from '@/lib/permissions';
 import { formatColumns, parseColumns, parseDensity } from '@/lib/tables/table-state';
 
-const TABLE_KEYS = { density: parseAsString, cols: parseAsString };
+// Keys of this tab's own: the Pages and Links tabs keep their column choice under `cols` and `density`
+const TABLE_KEYS = { odensity: parseAsString, ocols: parseAsString };
 const NO_ROWS: readonly Opportunity[] = [];
 const REQUIRED_COLUMNS = ['source'];
 const EXPORT_NAME = 'internal-links-opportunities.csv';
@@ -72,22 +73,29 @@ export function OpportunitiesTab({ context }: { context: LinksTabContext }): Rea
   // Decisions are of the latest crawl (the API reads the latest crawl's list): an older one is read only
   const canDecide = canWrite && !crawl.older;
   const { draft, setDraft } = useSearchDraft(state.oppQuery, (oq) => setSearch({ oq }), SEARCH_DELAY_MS);
-  const filtersKey = JSON.stringify([state.oppStatus, state.oppTier, state.oppQuery, crawl.run]);
+  // A tier the workspace does not have (a hand typed address) reads as no tier chosen
+  const tierKnown =
+    state.oppTier === 'none' || tiers.some((tier) => String(tier.position) === state.oppTier) || tiers.length === 0;
+  const tierChoice = tierKnown ? state.oppTier : null;
+  const filtersKey = JSON.stringify([state.oppStatus, tierChoice, state.oppQuery, crawl.run]);
   const paging = useOffsetPaging(filtersKey);
   const [table, setTable] = useQueryStates(TABLE_KEYS, { history: 'replace' });
 
   const listQuery: OpportunitiesQuery = {
     status: state.oppStatus,
-    tier: state.oppTier,
+    tier: tierChoice,
     q: state.oppQuery,
     offset: paging.offset,
     limit: paging.size,
   };
   const options = opportunitiesQuery(scope, listQuery, crawl.run);
+  const decisions = useOpportunityDecisions(scope, options.queryKey, state.oppStatus);
+  const { decide, pending: deciding } = decisions;
   const read = useQuery({
     ...options,
-    // A crawl without its links has nothing to read (the API answers 410)
-    enabled: crawl.linksAvailable,
+    // A crawl without its links has nothing to read (the API answers 410). While a decision is in flight the list
+    // is not read, so a read cannot bring back the statuses the decision has changed
+    enabled: crawl.linksAvailable && !deciding,
     placeholderData: keepPreviousData,
     select: readPage,
   });
@@ -95,21 +103,23 @@ export function OpportunitiesTab({ context }: { context: LinksTabContext }): Rea
   const total = read.data?.meta.total ?? null;
   const counts = read.data?.meta.counts;
   const settled = !read.isPlaceholderData;
-  const { reset } = paging;
-  const stale = settled && read.isSuccess && rows.length === 0 && paging.offset > 0;
+  // A page left empty (the list shrank under it) steps back one page, not while a decision is in flight: its
+  // optimistic list may be empty and come back
+  const { previous } = paging;
+  const stale = settled && read.isSuccess && rows.length === 0 && paging.offset > 0 && !deciding;
   useEffect(() => {
-    if (stale) reset();
-  }, [stale, reset]);
+    if (stale) previous();
+  }, [stale, previous]);
 
   // The Export menu downloads the list as shown, every row
   const gone = isLinksDropped(read.error);
   const exportQuery = useMemo(
     () =>
       opportunitiesExportQuery(
-        { status: state.oppStatus, tier: state.oppTier, q: state.oppQuery, offset: 0, limit: CHANGE_LIMIT },
+        { status: state.oppStatus, tier: tierChoice, q: state.oppQuery, offset: 0, limit: CHANGE_LIMIT },
         crawl.run,
       ),
-    [state.oppStatus, state.oppTier, state.oppQuery, crawl.run],
+    [state.oppStatus, tierChoice, state.oppQuery, crawl.run],
   );
   useEffect(() => {
     if (!crawl.linksAvailable || gone) return undefined;
@@ -118,7 +128,6 @@ export function OpportunitiesTab({ context }: { context: LinksTabContext }): Rea
   }, [crawl.linksAvailable, gone, registerExport, scope, exportQuery]);
 
   // Decisions
-  const decisions = useOpportunityDecisions(scope, options.queryKey, state.oppStatus);
   const [picked, setPicked] = useState<{ key: string; ids: ReadonlySet<string> }>({ key: filtersKey, ids: new Set() });
   const selectionKey = `${filtersKey}|${String(paging.offset)}`;
   // A choice is of one list and one page: another discards it for good
@@ -151,19 +160,20 @@ export function OpportunitiesTab({ context }: { context: LinksTabContext }): Rea
     (next ?? root.querySelector<HTMLElement>('input[type="search"]'))?.focus();
   }, [focusRequest, rows]);
 
-  const { decide, pending: deciding } = decisions;
   const decideOne = useCallback(
     (row: Opportunity, status: OpportunityStatus): void => {
       const target: Restore = { key: row.key, index: rows.findIndex((candidate) => candidate.key === row.key) };
-      void decide([row], status).then(() => askFocus(target));
+      void decide([row], status).then((outcome) => {
+        if (outcome !== 'skipped') askFocus(target);
+      });
     },
     [decide, askFocus, rows],
   );
   const decideChosen = (status: OpportunityStatus): void => {
     const targets = rows.filter((row) => chosen.has(row.key));
-    void decide(targets, status).then((done) => {
-      if (done) clearSelection();
-      askFocus({ chip: state.oppStatus });
+    void decide(targets, status).then((outcome) => {
+      if (outcome === 'done') clearSelection();
+      if (outcome !== 'skipped') askFocus({ chip: state.oppStatus });
     });
   };
   const copyInstruction = useCallback(
@@ -226,7 +236,7 @@ export function OpportunitiesTab({ context }: { context: LinksTabContext }): Rea
   if (!crawl.linksAvailable) return <LinksDropped />;
 
   const searched = state.oppQuery !== null;
-  const filtered = state.oppStatus !== null || state.oppTier !== null || searched;
+  const filtered = state.oppStatus !== null || tierChoice !== null || searched;
   const allCount = counts === undefined ? null : counts.open + counts.accepted + counts.dismissed;
   const clearFilters = (): void => {
     setDraft('');
@@ -253,10 +263,24 @@ export function OpportunitiesTab({ context }: { context: LinksTabContext }): Rea
   const hasNext = settled && nextOffset(paging.offset, paging.size, total ?? 0) !== null;
   const capped = settled && rows.length > 0 && !hasNext && paging.offset + rows.length < (total ?? 0);
   const bulkActions: RecordAction<Opportunity>[] = [
-    { id: 'accept', label: o('accept'), icon: Check, group: 'object', onSelect: () => decideChosen('accepted') },
-    { id: 'dismiss', label: o('dismiss'), icon: X, group: 'object', onSelect: () => decideChosen('dismissed') },
+    {
+      id: 'accept',
+      label: o('accept'),
+      icon: Check,
+      group: 'object',
+      disabledReason: deciding ? o('saving') : null,
+      onSelect: () => decideChosen('accepted'),
+    },
+    {
+      id: 'dismiss',
+      label: o('dismiss'),
+      icon: X,
+      group: 'object',
+      disabledReason: deciding ? o('saving') : null,
+      onSelect: () => decideChosen('dismissed'),
+    },
   ];
-  const noOpenOnly = state.oppStatus === 'open' && !searched && state.oppTier === null;
+  const noOpenOnly = state.oppStatus === 'open' && !searched && tierChoice === null;
 
   return (
     <div ref={wrapper} className="flex min-w-0 flex-col gap-3">
@@ -284,7 +308,7 @@ export function OpportunitiesTab({ context }: { context: LinksTabContext }): Rea
           size="sm"
           aria-label={o('targetTier')}
           placeholder={o('targetTier')}
-          value={state.oppTier ?? ALL_TIERS}
+          value={tierChoice ?? ALL_TIERS}
           options={tierOptions}
           onValueChange={(value) => setSearch({ ot: value === ALL_TIERS ? null : value })}
         />
@@ -300,7 +324,7 @@ export function OpportunitiesTab({ context }: { context: LinksTabContext }): Rea
           size="sm"
           icon={Download}
           className="ml-auto"
-          title={o('plannedTip')}
+          title={crawl.older ? o('plannedOlderTip') : o('plannedTip')}
           disabled={planningBusy}
           onClick={downloadPlanned}
         >
@@ -328,11 +352,11 @@ export function OpportunitiesTab({ context }: { context: LinksTabContext }): Rea
         sort={[]}
         onSortChange={() => undefined}
         defaultSort={[]}
-        density={parseDensity(table.density)}
-        onDensityChange={(density) => void setTable({ density: density === 'compact' ? null : density })}
+        density={parseDensity(table.odensity)}
+        onDensityChange={(density) => void setTable({ odensity: density === 'compact' ? null : density })}
         columnState={{
-          visible: parseColumns(table.cols, known, REQUIRED_COLUMNS),
-          onChange: (visible) => void setTable({ cols: visible === null ? null : formatColumns(visible) }),
+          visible: parseColumns(table.ocols, known, REQUIRED_COLUMNS),
+          onChange: (visible) => void setTable({ ocols: visible === null ? null : formatColumns(visible) }),
         }}
         search={draft}
         onSearchChange={setDraft}
