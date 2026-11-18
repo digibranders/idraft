@@ -14,13 +14,15 @@ MAX_LEVELS: Final = 12
 
 @dataclass(frozen=True, slots=True)
 class Hop:
-    """The link that reached a page. A redirect is a hop with anchor `301 redirect`."""
+    """The link that reached a page. A redirect is a hop with `redirect` set (its anchor reads
+    `301 redirect`); a real link with that text is not one."""
 
     source: int
     target: int
     anchor: str
     placement: str
     scope: str
+    redirect: bool = False
 
 
 @dataclass(frozen=True, slots=True)

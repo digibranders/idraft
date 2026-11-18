@@ -22,12 +22,10 @@ from idraft.db.engine import workspace_transaction
 from idraft.db.tables import crawl_pages, crawl_runs, project_pages, urls
 
 REDIRECT_ANCHOR: Final = "301 redirect"
-# shortcut: a hub page (a menu, a footer, an index) can lead to thousands of pages at once, and
-# every page of a level goes into the next query as one array. Past this many pages a level is
-# cut (lowest url ids kept) and the cut pages are not searched further, so on a very wide site
-# a route can be reported as not reachable or one click longer than the best. Raise it, or ask
-# for the frontier in chunks, when a real crawl shows it.
-FRONTIER_MAX: Final = 20_000
+# A level can hold thousands of pages (a menu, a footer or an index leads to many at once), and
+# the pages of a level go into the next query as an array: they are sent this many at a time,
+# so no page of a level is left unsearched and the route stays the shortest.
+FRONTIER_CHUNK: Final = 20_000
 # One row per page reached: among the links that reach a page in this level the first by scope
 # (editorial, auto-generated, template), then by source page and link id, is the step. That also
 # keeps one level's answer to at most one row per page of the crawl.
@@ -85,10 +83,13 @@ class RouteFinder:
                     plain.append(page)
                 elif goal not in seen:
                     seen.add(goal)
-                    parents[goal] = Hop(page, goal, REDIRECT_ANCHOR, "content", "editorial")
+                    parents[goal] = Hop(
+                        page, goal, REDIRECT_ANCHOR, "content", "editorial", redirect=True
+                    )
                     following.append(goal)
-            if plain:
-                for row in await db.execute(statement, {**keys, "frontier": plain}):
+            for offset in range(0, len(plain), FRONTIER_CHUNK):
+                chunk = plain[offset : offset + FRONTIER_CHUNK]
+                for row in await db.execute(statement, {**keys, "frontier": chunk}):
                     if row.target_url_id in seen:
                         continue
                     seen.add(row.target_url_id)
@@ -96,7 +97,7 @@ class RouteFinder:
                         row.source_url_id, row.target_url_id, row.anchor, row.placement, row.scope
                     )
                     following.append(row.target_url_id)
-            frontier = following[:FRONTIER_MAX]
+            frontier = following
         return parents if target in seen else None
 
     @staticmethod
@@ -155,7 +156,7 @@ class RouteFinder:
                         "anchor": None if step.hop is None else step.hop.anchor,
                         "placement": None if step.hop is None else step.hop.placement,
                         "scope": None if step.hop is None else step.hop.scope,
-                        "via_redirect": step.hop is not None and step.hop.anchor == REDIRECT_ANCHOR,
+                        "via_redirect": step.hop is not None and step.hop.redirect,
                     }
                 )
                 for step in steps

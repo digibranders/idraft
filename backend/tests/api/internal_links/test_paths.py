@@ -6,7 +6,9 @@ from __future__ import annotations
 from itertools import pairwise
 
 import httpx
+import pytest
 
+from idraft.api.internal_links import route_finder
 from idraft.api.resources import Resources
 from idraft.crawl.paths import MAX_LEVELS
 from tests.api.auth.support import execute, make_workspace
@@ -228,3 +230,60 @@ async def test_a_crawl_without_links_answers_410_and_unknown_parameters_422(
 
     assert problem(unknown) == (422, "validation_failed")
     assert problem(dropped) == (410, "links_dropped")
+
+
+async def test_a_link_worded_like_a_redirect_is_not_a_redirect_step(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    project = await keyword_project(migrated, workspace)
+    run, ids = await seed_crawl(
+        migrated,
+        workspace,
+        project,
+        [("/", 200), ("/a", 200)],
+        [SeedLink("/", "/a", "content", "301 redirect")],
+    )
+    await start_at(migrated, run, ids["/"])
+
+    response = await api.get(
+        project_url(workspace, project, "internal-links", "paths"),
+        params={"url_id": ids["/a"]},
+        headers=viewer.headers,
+    )
+
+    assert [step["via_redirect"] for step in response.json()["data"]["any"]["steps"]] == [
+        False,
+        False,
+    ]
+
+
+async def test_a_level_wider_than_one_query_is_still_searched_whole(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(route_finder, "FRONTIER_CHUNK", 1)
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    project = await keyword_project(migrated, workspace)
+    pages = [("/", 200), ("/a", 200), ("/b", 200), ("/c", 200), ("/deep", 200)]
+    links = [
+        SeedLink("/", "/a", "content", "a"),
+        SeedLink("/", "/b", "content", "b"),
+        SeedLink("/", "/c", "content", "c"),
+        SeedLink("/c", "/deep", "content", "deep"),
+    ]
+    run, ids = await seed_crawl(migrated, workspace, project, pages, links)
+    await start_at(migrated, run, ids["/"])
+
+    response = await api.get(
+        project_url(workspace, project, "internal-links", "paths"),
+        params={"url_id": ids["/deep"]},
+        headers=viewer.headers,
+    )
+
+    steps = response.json()["data"]["any"]["steps"]
+    assert [step["page"]["path"] for step in steps] == ["/", "/c", "/deep"]
