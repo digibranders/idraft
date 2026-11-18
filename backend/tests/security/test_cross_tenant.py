@@ -484,6 +484,8 @@ QUERIES: dict[tuple[str, str], dict[str, str]] = {
     },
     # Plan 04: the change lists need the kind of change.
     ("GET", _W + "/projects/{project_id}/internal-links/changes/links"): {"change": "lost"},
+    # The path finder needs the page to reach.
+    ("GET", _W + "/projects/{project_id}/internal-links/paths"): {"url_id": "{url_id}"},
 }
 # Lists under a workspace's path that hold the platform's data, the same for every workspace:
 # they have no tenant data of their own to show.
@@ -1039,6 +1041,13 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str, fake: Fa
         ],
     )
     await set_counts(pg, crawl_run)
+    # The path finder (plan 04 Task 14) searches from the crawl's start page: the home page.
+    await execute(
+        pg,
+        "UPDATE seo.crawl_runs SET start_url_id = $2 WHERE id = $1",
+        crawl_run,
+        crawl_ids[home],
+    )
     # Opportunities (plan 04 Task 12): the pricing page mentions the home page's topic without
     # linking to it, and the owner accepted that fix.
     await execute(pg, "UPDATE seo.crawl_pages SET click_depth = 1 WHERE run_id = $1", crawl_run)
@@ -1620,6 +1629,9 @@ INTERNAL_LINK_READS = [
     ("/internal-links/pages", {"include": "changes,keywords,citations,anchors,gsc"}, True),
     ("/internal-links/opportunities", {}, True),
     ("/internal-links/tier-suggestions", {}, False),
+    # The seeded home page is the crawl's start page, so the route to the pricing page is one
+    # click and names both pages.
+    ("/internal-links/paths", {"url_id": "{url_id}"}, True),
     # The crawls and the settings carry no page names; their own tests below name the tenant.
     ("/link-crawls", {}, False),
     ("/link-crawls/{crawl_run_id}", {}, False),
@@ -1858,6 +1870,44 @@ async def test_tier_suggestions_hold_only_their_own_workspaces_keywords_and_dism
         a.project_id,
     )
     assert count["n"] == 0
+
+
+async def test_a_route_holds_only_its_own_workspaces_links_and_refuses_a_foreign_page(
+    api: httpx.AsyncClient, migrated: PostgresServer, tenants: tuple[Tenant, Tenant]
+) -> None:
+    """Plan 04 Task 14. `core.urls` is shared, so B can crawl a link between A's own home and
+    pricing pages, with its own anchor. A's route between them names A's anchors only, and a
+    page id that only B's crawl holds is `404 not_found` for A."""
+    a, b = tenants
+    home = a.ids()["home_url"].removeprefix("https://example.com")
+    pricing = a.ids()["page_url"].removeprefix("https://example.com")
+    run, ids = await seed_crawl(
+        migrated,
+        b.workspace,
+        b.project_id,
+        [(home, 200), (pricing, 200), ("/b-secret-only", 200)],
+        [
+            SeedLink(home, pricing, "content", "b secret anchor"),
+            SeedLink(home, "/b-secret-only", "content", "b secret deep"),
+        ],
+    )
+    await execute(
+        migrated,
+        "UPDATE seo.crawl_runs SET start_url_id = $2 WHERE id = $1",
+        run,
+        ids[home],
+    )
+    base = _fill(_W + "/projects/{project_id}/internal-links/paths", a.ids())
+
+    own = await api.get(base, params={"url_id": a.ids()["url_id"]}, headers=a.headers)
+    foreign = await api.get(base, params={"url_id": str(ids["/b-secret-only"])}, headers=a.headers)
+
+    assert own.status_code == 200, own.text
+    steps = own.json()["data"]["any"]["steps"]
+    assert [step["anchor"] for step in steps] == [None, "a anchor"]
+    assert "b secret" not in own.text
+    assert _problem(foreign) == (404, "not_found")
+    assert "b-secret" not in foreign.text
 
 
 async def test_the_same_holds_once_the_session_is_cached_and_for_a_member_of_both(

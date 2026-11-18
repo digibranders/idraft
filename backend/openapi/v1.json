@@ -17317,6 +17317,155 @@
         "title": "RoleUnits",
         "type": "object"
       },
+      "Route": {
+        "properties": {
+          "clicks": {
+            "title": "Clicks",
+            "type": "integer"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/RouteStep"
+            },
+            "title": "Steps",
+            "type": "array"
+          }
+        },
+        "required": [
+          "clicks",
+          "steps"
+        ],
+        "title": "Route",
+        "type": "object"
+      },
+      "RouteStep": {
+        "properties": {
+          "anchor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The words of the link that reached this page.",
+            "title": "Anchor"
+          },
+          "page": {
+            "$ref": "#/components/schemas/ChangePage"
+          },
+          "placement": {
+            "anyOf": [
+              {
+                "enum": [
+                  "content",
+                  "auto_generated",
+                  "navigation",
+                  "header",
+                  "footer",
+                  "sidebar",
+                  "breadcrumb"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Placement"
+          },
+          "scope": {
+            "anyOf": [
+              {
+                "enum": [
+                  "editorial",
+                  "auto_generated",
+                  "template"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope"
+          },
+          "status_code": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status Code"
+          },
+          "via_redirect": {
+            "title": "Via Redirect",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "page",
+          "status_code",
+          "anchor",
+          "placement",
+          "scope",
+          "via_redirect"
+        ],
+        "title": "RouteStep",
+        "type": "object"
+      },
+      "Routes": {
+        "properties": {
+          "any": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Route"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Over every followed link; null when not reachable."
+          },
+          "editorial": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Route"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Over editorial links (and redirects) only."
+          },
+          "target": {
+            "$ref": "#/components/schemas/ChangePage"
+          }
+        },
+        "required": [
+          "target",
+          "any",
+          "editorial"
+        ],
+        "title": "Routes",
+        "type": "object"
+      },
+      "RoutesResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Routes"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "RoutesResponse",
+        "type": "object"
+      },
       "RowActionInput": {
         "additionalProperties": false,
         "properties": {
@@ -36412,6 +36561,90 @@
           }
         },
         "summary": "One page: the inspector",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/paths": {
+      "get": {
+        "description": "`any` follows every followed link, `editorial` only editorial links; a redirect is one step to its target. A route is null when the page is not reached in 12 clicks.",
+        "operationId": "paths_api_v1_workspaces__workspace_id__projects__project_id__internal_links_paths_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "url_id",
+            "required": true,
+            "schema": {
+              "title": "Url Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`latest` or a crawl id.",
+            "in": "query",
+            "name": "run",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "const": "latest",
+                  "type": "string"
+                },
+                {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              ],
+              "default": "latest",
+              "description": "`latest` or a crawl id.",
+              "title": "Run"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The shortest route from the home page to a page",
         "tags": [
           "internal-links"
         ]

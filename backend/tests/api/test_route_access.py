@@ -553,6 +553,9 @@ EXPECTED: dict[tuple[str, str], str] = {
         "POST",
         "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/tier-suggestions/dismiss",
     ): "projects:write",
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/paths"): (
+        "data:read"
+    ),
     ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/link-crawls"): "data:read",
     ("POST", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/link-crawls"): (
         "runs:trigger"

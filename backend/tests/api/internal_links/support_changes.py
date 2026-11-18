@@ -191,3 +191,8 @@ async def insert_citation(
             engine,
             url_id,
         )
+
+
+async def start_at(pg: PostgresServer, run: uuid.UUID, url_id: int) -> None:
+    """Say which page the crawl started from (ingest records it; a seeded crawl has none)."""
+    await execute(pg, "UPDATE seo.crawl_runs SET start_url_id = $2 WHERE id = $1", run, url_id)

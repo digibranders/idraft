@@ -199,3 +199,27 @@ class SuggestionSelection(Body):
         if (self.url_ids is None) == (self.all is None):
             raise ValueError("give `url_ids` or `all`, not both and not neither")
         return self
+
+
+class RouteStep(BaseModel):
+    page: ChangePage
+    status_code: int | None
+    anchor: str | None = Field(description="The words of the link that reached this page.")
+    placement: PlacementName | None
+    scope: Literal["editorial", "auto_generated", "template"] | None
+    via_redirect: bool
+
+
+class Route(BaseModel):
+    clicks: int
+    steps: list[RouteStep]
+
+
+class Routes(BaseModel):
+    target: ChangePage
+    any: Route | None = Field(description="Over every followed link; null when not reachable.")
+    editorial: Route | None = Field(description="Over editorial links (and redirects) only.")
+
+
+class RoutesResponse(BaseModel):
+    data: Routes
