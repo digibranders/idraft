@@ -541,6 +541,18 @@ EXPECTED: dict[tuple[str, str], str] = {
         "PUT",
         "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/opportunities/decisions",
     ): "projects:write",
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/tier-suggestions",
+    ): "data:read",
+    (
+        "POST",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/tier-suggestions/accept",
+    ): "projects:write",
+    (
+        "POST",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/tier-suggestions/dismiss",
+    ): "projects:write",
     ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/link-crawls"): "data:read",
     ("POST", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/link-crawls"): (
         "runs:trigger"

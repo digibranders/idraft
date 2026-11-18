@@ -69,6 +69,8 @@ from idraft.api.internal_links.page_tier_routes import router as page_tier_route
 from idraft.api.internal_links.page_tiers import PageTierService
 from idraft.api.internal_links.read_routes import router as read_routes_router
 from idraft.api.internal_links.reads import LinkReadService
+from idraft.api.internal_links.suggestion_routes import router as suggestion_routes_router
+from idraft.api.internal_links.suggestions import SuggestionService
 from idraft.api.internal_links.tier_level_routes import router as tier_level_routes_router
 from idraft.api.internal_links.tier_levels import TierLevelService
 from idraft.api.keywords.group_routes import router as keyword_groups_router
@@ -217,6 +219,7 @@ def create_app(
             sources = import_store
             if sources is None and settings.raw_storage_configured:
                 sources = await stack.enter_async_context(_open_import_store(settings))
+            page_tiers = PageTierService(sessions=sessions)
             app.state.resources = Resources(
                 settings=settings,
                 engine=engine,
@@ -270,10 +273,11 @@ def create_app(
                 ai_summary=SummaryService(sessions=sessions),
                 ai_sources=SourceService(sessions=sessions),
                 tier_levels=TierLevelService(sessions=sessions),
-                page_tiers=PageTierService(sessions=sessions),
+                page_tiers=page_tiers,
                 link_reads=LinkReadService(sessions=sessions),
                 link_changes=ChangeService(sessions=sessions),
                 link_opportunities=OpportunityService(sessions=sessions),
+                tier_suggestions=SuggestionService(sessions=sessions, page_tiers=page_tiers),
                 crawls=CrawlService(sessions=sessions, enabled=settings.crawls_enabled),
                 invitations=InvitationService(
                     sessions=sessions,
@@ -359,6 +363,7 @@ def create_app(
     app.include_router(read_routes_router)
     app.include_router(change_routes_router)
     app.include_router(opportunity_routes_router)
+    app.include_router(suggestion_routes_router)
     app.include_router(crawl_routes_router)
     app.include_router(connections_router)
     app.include_router(oauth_router)

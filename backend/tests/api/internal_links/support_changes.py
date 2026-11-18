@@ -3,8 +3,11 @@ the Changes reads, extras and opportunities (plan 04)."""
 
 from __future__ import annotations
 
+import json
 import uuid
+from datetime import date, timedelta
 
+from idraft.domain.gsc_pull import PullState
 from tests.api.auth.support import Workspace, execute, fetchrow
 from tests.api.internal_links.support import SeedLink, seed_crawl, seed_tiers, set_counts
 from tests.conftest import PostgresServer
@@ -96,6 +99,40 @@ async def track_keyword(
         row["location_id"],
         volume,
     )
+
+
+async def gsc_property(pg: PostgresServer, workspace: Workspace, project: uuid.UUID) -> uuid.UUID:
+    """An active property whose pull has a window, as a project connected before page numbers
+    existed or a pass that stopped on its budget leaves it: no page day is stored yet."""
+    secret = await fetchrow(
+        pg,
+        "INSERT INTO ops.secrets (workspace_id, kind, ciphertext, dek_wrapped, kek_version, "
+        "fingerprint) VALUES ($1, 'oauth_refresh_token', '\\x00', '\\x00', 1, 'abcd') RETURNING id",
+        workspace.id,
+    )
+    connection = await fetchrow(
+        pg,
+        "INSERT INTO fp.connections (workspace_id, product, auth_method, subject_id, "
+        "credential_ref, scopes, status) VALUES ($1, 'google', 'oauth', $2, $3, '{}', 'active') "
+        "RETURNING id",
+        workspace.id,
+        uuid.uuid4().hex,
+        secret["id"],
+    )
+    state = PullState(recent_done=True, window_end=date.today() - timedelta(days=3))
+    row = await fetchrow(
+        pg,
+        "INSERT INTO fp.integrations (workspace_id, project_id, kind, external_property, "
+        "connection_id, scopes, status, backfill_state) "
+        "VALUES ($1, $2, 'gsc', 'sc-domain:example.com', $3, '{}', 'active', $4::jsonb) "
+        "RETURNING id",
+        workspace.id,
+        project,
+        connection["id"],
+        json.dumps(state.write({})),
+    )
+    integration: uuid.UUID = row["id"]
+    return integration
 
 
 async def insert_citation(

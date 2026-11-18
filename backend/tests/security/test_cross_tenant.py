@@ -344,6 +344,14 @@ BODIES: dict[tuple[str, str], dict[str, Any]] = {
         "items": [{"source_url_id": "{url_id}", "target_url_id": "{url_id}"}],
         "status": "dismissed",
     },
+    # A page that is no suggestion of the tenant's crawl changes nothing; the test below uses
+    # a page that is one.
+    ("POST", _W + "/projects/{project_id}/internal-links/tier-suggestions/accept"): {
+        "url_ids": ["{url_id}"],
+    },
+    ("POST", _W + "/projects/{project_id}/internal-links/tier-suggestions/dismiss"): {
+        "url_ids": ["{url_id}"],
+    },
 }
 # Routes that a member limited to some projects is refused even inside their own project: they
 # change the workspace's credentials, which belong to no one project (docs/24 section 3.2).
@@ -1370,6 +1378,7 @@ _TENANT_ROWS = {
     # Internal links tracker (plan 04)
     "seo.crawl_mentions": "workspace_id",
     "core.link_opportunity_decisions": "workspace_id",
+    "core.tier_suggestion_dismissals": "workspace_id",
     # AI visibility packages, one line each (docs/ai-visibility/MASTER-PLAN.md section 3.6): add
     # your entries under your own line, nowhere else in this table.
     # WP-03 contract-pack
@@ -1610,6 +1619,7 @@ INTERNAL_LINK_READS = [
     # pricing page to the home page (the dedicated tests below give B's numbers to A's pages).
     ("/internal-links/pages", {"include": "changes,keywords,citations,anchors,gsc"}, True),
     ("/internal-links/opportunities", {}, True),
+    ("/internal-links/tier-suggestions", {}, False),
     # The crawls and the settings carry no page names; their own tests below name the tenant.
     ("/link-crawls", {}, False),
     ("/link-crawls/{crawl_run_id}", {}, False),
@@ -1783,6 +1793,71 @@ async def test_decisions_on_another_workspaces_pair_change_nothing(
         b.project_id,
     )
     assert kept["status"] == "accepted"
+
+
+async def test_tier_suggestions_hold_only_their_own_workspaces_keywords_and_dismissals(
+    api: httpx.AsyncClient, migrated: PostgresServer, tenants: tuple[Tenant, Tenant]
+) -> None:
+    """Plan 04 Task 13. `core.urls` is shared, so B can track a keyword that ranks 1 on A's home
+    page and have dismissed it. A's suggestion for that page comes from A's own keyword only, B's
+    dismissal does not hide it, and neither workspace can accept or dismiss for the other."""
+    a, b = tenants
+    home = await url_id(migrated, a.ids()["home_url"])
+    await execute(
+        migrated,
+        "UPDATE core.projects SET default_location_id = $1, default_language_code = 'en' "
+        "WHERE id = ANY($2::uuid[])",
+        LOCATION,
+        [a.project_id, b.project_id],
+    )
+    await execute(
+        migrated,
+        "UPDATE seo.crawl_pages SET is_indexable = true WHERE workspace_id = ANY($1::uuid[])",
+        [a.workspace.id, b.workspace.id],
+    )
+    await track_keyword(
+        migrated, a.workspace, a.project_id, "a own keyword", home, rank=2, change=None, volume=9000
+    )
+    await track_keyword(
+        migrated,
+        b.workspace,
+        b.project_id,
+        "b secret keyword",
+        home,
+        rank=1,
+        change=None,
+        volume=9999,
+    )
+    await execute(
+        migrated,
+        "INSERT INTO core.tier_suggestion_dismissals (project_id, workspace_id, url_id) "
+        "VALUES ($1, $2, $3)",
+        b.project_id,
+        b.workspace.id,
+        home,
+    )
+    base = _fill(_W + "/projects/{project_id}/internal-links/tier-suggestions", a.ids())
+
+    listed = await api.get(base, headers=a.headers)
+    foreign = await api.post(
+        f"{base}/accept", json={"url_ids": [b.ids()["url_id"]]}, headers=a.headers
+    )
+    dismissed = await api.post(
+        f"{base}/dismiss", json={"url_ids": [b.ids()["url_id"]]}, headers=a.headers
+    )
+
+    rows = listed.json()["data"]
+    assert [row["path"] for row in rows] == [f"/{a.ids()['home_url'].rsplit('/', 1)[-1]}"]
+    assert [reason["keyword"] for reason in rows[0]["reasons"]] == ["a own keyword"]
+    assert "b secret" not in listed.text
+    assert foreign.json()["data"] == {"matched": 0, "changed": 0}
+    assert dismissed.json()["data"] == {"matched": 0, "changed": 0}
+    count = await fetchrow(
+        migrated,
+        "SELECT count(*) AS n FROM core.tier_suggestion_dismissals WHERE project_id = $1",
+        a.project_id,
+    )
+    assert count["n"] == 0
 
 
 async def test_the_same_holds_once_the_session_is_cached_and_for_a_member_of_both(

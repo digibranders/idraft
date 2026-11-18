@@ -3,7 +3,6 @@ and worklists (plan 04 Task 11, decisions D7 to D10)."""
 
 from __future__ import annotations
 
-import json
 import time
 import uuid
 from datetime import date, timedelta
@@ -13,12 +12,12 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from idraft.api.resources import Resources
 from idraft.collectors.crawl_enrich import CrawlEnrichTask, enrich_run
-from idraft.domain.gsc_pull import PullState
 from tests.api.auth.support import Workspace, execute, fetchrow, make_workspace
 from tests.api.entities.support import member, problem
 from tests.api.internal_links.support import SeedLink, seed_crawl, seed_tiers, set_counts
 from tests.api.internal_links.support_changes import (
     PAGES,
+    gsc_property,
     insert_citation,
     track_keyword,
     two_crawls,
@@ -297,46 +296,12 @@ async def test_pages_sort_by_the_change_in_editorial_links(
     assert response.json()["data"][0]["path"] == "/pricing"
 
 
-async def _gsc_property(pg: PostgresServer, workspace: Workspace, project: uuid.UUID) -> uuid.UUID:
-    """An active property whose pull has a window, as a project connected before page numbers
-    existed or a pass that stopped on its budget leaves it: no page day is stored yet."""
-    secret = await fetchrow(
-        pg,
-        "INSERT INTO ops.secrets (workspace_id, kind, ciphertext, dek_wrapped, kek_version, "
-        "fingerprint) VALUES ($1, 'oauth_refresh_token', '\\x00', '\\x00', 1, 'abcd') RETURNING id",
-        workspace.id,
-    )
-    connection = await fetchrow(
-        pg,
-        "INSERT INTO fp.connections (workspace_id, product, auth_method, subject_id, "
-        "credential_ref, scopes, status) VALUES ($1, 'google', 'oauth', $2, $3, '{}', 'active') "
-        "RETURNING id",
-        workspace.id,
-        uuid.uuid4().hex,
-        secret["id"],
-    )
-    state = PullState(recent_done=True, window_end=date.today() - timedelta(days=3))
-    row = await fetchrow(
-        pg,
-        "INSERT INTO fp.integrations (workspace_id, project_id, kind, external_property, "
-        "connection_id, scopes, status, backfill_state) "
-        "VALUES ($1, $2, 'gsc', 'sc-domain:example.com', $3, '{}', 'active', $4::jsonb) "
-        "RETURNING id",
-        workspace.id,
-        project,
-        connection["id"],
-        json.dumps(state.write({})),
-    )
-    integration: uuid.UUID = row["id"]
-    return integration
-
-
 async def test_search_console_is_pending_until_a_page_day_is_stored_then_missing_pages_are_zero(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer, worker_db: Sessions
 ) -> None:
     workspace, project, _, ids, _ = await _setup(migrated, worker_db)
     viewer = await member(resources, migrated, workspace, "viewer")
-    integration = await _gsc_property(migrated, workspace, project)
+    integration = await gsc_property(migrated, workspace, project)
     base = project_url(workspace, project, "internal-links", "pages")
 
     before = await api.get(base, params={"include": "gsc"}, headers=viewer.headers)

@@ -13,7 +13,7 @@ from sqlalchemy import ARRAY, BigInteger, Row, Text, and_, bindparam, exists, se
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from idraft.api.internal_links.page_filter import PageScope
-from idraft.api.keywords.gsc_repository import scope_of
+from idraft.api.keywords.gsc_repository import GscScope, scope_of
 from idraft.api.keywords.repository import LABS
 from idraft.api.schemas.internal_links import (
     AnchorDetail,
@@ -333,33 +333,38 @@ def anchor_summary(detail: AnchorDetail) -> AnchorSummary:
     )
 
 
-async def gsc_of(db: AsyncSession, scope: PageScope, ids: Sequence[int]) -> dict[int, GscPage]:
-    """Google's page numbers. `ok` shows 0 for a page with no row in the window (a count);
-    `pending` and `not_connected` show none. The pull says `ok` as soon as it has a window, but
-    the page days are stored after that (and may stop on a budget, or never exist for a property
-    connected before this feature), so `ok` also needs one stored page day in the window."""
+async def gsc_window(db: AsyncSession, scope: PageScope) -> GscScope:
+    """The project's Google state for page numbers. The pull says `ok` as soon as it has a
+    window, but the page days are stored after that (and may stop on a budget, or never exist
+    for a property connected before this feature), so `ok` also needs one stored page day in the
+    window; otherwise it is `pending`, with no property or window."""
     state = await scope_of(db, scope.workspace_id, scope.project_id)
-    stored = False
-    if state.state == "ok" and state.integration_id is not None and state.window is not None:
-        stored = (
-            await db.execute(
-                select(
-                    exists().where(
-                        gsc_page_daily.c.workspace_id == scope.workspace_id,
-                        gsc_page_daily.c.project_id == scope.project_id,
-                        gsc_page_daily.c.integration_id == state.integration_id,
-                        gsc_page_daily.c.metric_date.between(*state.window),
-                    )
+    if state.state != "ok":
+        return state
+    if state.integration_id is None or state.window is None:
+        return GscScope("pending")
+    stored = (
+        await db.execute(
+            select(
+                exists().where(
+                    gsc_page_daily.c.workspace_id == scope.workspace_id,
+                    gsc_page_daily.c.project_id == scope.project_id,
+                    gsc_page_daily.c.integration_id == state.integration_id,
+                    gsc_page_daily.c.metric_date.between(*state.window),
                 )
             )
-        ).scalar_one()
-    if state.integration_id is None or state.window is None or not stored:
+        )
+    ).scalar_one()
+    return state if stored else GscScope("pending")
+
+
+async def gsc_of(db: AsyncSession, scope: PageScope, ids: Sequence[int]) -> dict[int, GscPage]:
+    """Google's page numbers. `ok` shows 0 for a page with no row in the window (a count);
+    `pending` and `not_connected` show none."""
+    state = await gsc_window(db, scope)
+    if state.integration_id is None or state.window is None:
         empty = GscPage(
-            state="pending" if state.state == "ok" else state.state,
-            clicks=None,
-            impressions=None,
-            window_start=None,
-            window_end=None,
+            state=state.state, clicks=None, impressions=None, window_start=None, window_end=None
         )
         return dict.fromkeys(ids, empty)
     totals = await page_clicks(

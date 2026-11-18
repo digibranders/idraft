@@ -95,6 +95,7 @@ AuditAction = Literal[
     "link_crawl.requested",
     "link_crawl.cancelled",
     "link_opportunity.decided",
+    "tier_suggestion.dismissed",
 ]
 
 

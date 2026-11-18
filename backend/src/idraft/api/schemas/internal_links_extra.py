@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from idraft.api.schemas.common import Body
 from idraft.api.schemas.internal_links import PlacementName, TierRef, UrlId, UrlIdText
@@ -158,3 +158,44 @@ class DecisionResult(BaseModel):
 
 class DecisionResponse(BaseModel):
     data: DecisionResult
+
+
+class SuggestionReason(BaseModel):
+    kind: Literal["clicks", "rank"]
+    clicks: int | None
+    rank: int | None
+    keyword: str | None
+    volume: int | None
+
+
+class TierSuggestionRow(BaseModel):
+    url_id: UrlIdText
+    url: str
+    path: str
+    title: str | None
+    from_tier: TierRef | None
+    to_tier: TierRef
+    reasons: list[SuggestionReason]
+
+
+class TierSuggestionMeta(BaseModel):
+    run_id: UUID
+    gsc_state: Literal["ok", "pending", "not_connected"] = Field(
+        description="`ok`: clicks were used with the ranks; otherwise only ranks were."
+    )
+
+
+class TierSuggestionList(BaseModel):
+    data: list[TierSuggestionRow]
+    meta: TierSuggestionMeta
+
+
+class SuggestionSelection(Body):
+    url_ids: list[UrlId] | None = Field(default=None, min_length=1, max_length=500)
+    all: Literal[True] | None = None
+
+    @model_validator(mode="after")
+    def _one_of(self) -> SuggestionSelection:
+        if (self.url_ids is None) == (self.all is None):
+            raise ValueError("give `url_ids` or `all`, not both and not neither")
+        return self
