@@ -9,6 +9,7 @@ export {
   useOverview,
   useOverviewEngines,
   useOverviewFanout,
+  useOverviewFreshness,
   useOverviewPeriods,
   useOverviewSchedule,
   useOverviewSources,
@@ -18,9 +19,13 @@ export type { OverviewContextValue, OverviewProject, OverviewProviderProps } fro
 export type { OverviewScope, ScopePatch } from './scope/scope-model';
 export type { Read, ReadStatus } from './data/read-state';
 export type { SourcesOptions, SummaryOptions } from './data/overview-queries';
+export { ExportProvider, useExportBlock } from './export/export-registry';
+export type { ExportRead, GetExportBlock } from './export/export-registry';
+export type { ExportBlock } from './export/export-model';
 export type {
   OverviewEngines,
   OverviewFanoutMeta,
+  OverviewFreshness,
   OverviewPeriods,
   OverviewSchedule,
   OverviewSourcesMeta,
