@@ -1,8 +1,9 @@
-import { FileText, Grid3x3, Link2, type LucideIcon, Workflow } from 'lucide-react';
+import { FileText, Grid3x3, History, Link2, type LucideIcon, Workflow } from 'lucide-react';
 import type { Route } from 'next';
 import type { useTranslations } from 'next-intl';
 import { createElement, type ReactNode } from 'react';
 
+import { ChangesTab } from './changes/changes-tab';
 import { FlowTab } from './flow/flow-tab';
 import { JourneyTab } from './journey/journey-tab';
 import { LinksTab } from './links/links-tab';
@@ -101,6 +102,12 @@ export const LINKS_TABS: readonly LinksTabEntry[] = defineLinksTabs([
     label: (t) => t('tabs.flow'),
     icon: Grid3x3,
     render: (context) => createElement(FlowTab, { context }),
+  },
+  {
+    id: 'changes',
+    label: (t) => t('tabs.changes'),
+    icon: History,
+    render: (context) => createElement(ChangesTab, { context }),
   },
 ]);
 
